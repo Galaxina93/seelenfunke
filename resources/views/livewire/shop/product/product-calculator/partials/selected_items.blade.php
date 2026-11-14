@@ -85,7 +85,7 @@
                                     @foreach($item['configuration']['custom_fields_data'] as $cfRow)
                                         @if(is_array($cfRow) && !empty($cfRow['label']) && isset($cfRow['value']) && trim((string) $cfRow['value']) !== '')
                                             <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] bg-gray-100 text-gray-700 border border-gray-200">
-                                                <strong>{{ $cfRow['label'] }}:</strong> {{ Str::limit($cfRow['value'], 25) }}
+                                                <strong>{{ $cfRow['label'] }}:</strong> {{ Str::limit((string) ($cfRow['value'] ?? ''), 25) }}
                                                 @if(!empty($cfRow['surcharge_cents']) && (int) $cfRow['surcharge_cents'] > 0)
                                                     <span class="text-amber-700 font-bold">(+{{ number_format(((int) $cfRow['surcharge_cents']) / 100, 2, ',', '.') }}&nbsp;€)</span>
                                                 @endif
@@ -102,7 +102,7 @@
                             @endif
                         </td>
                         <td class="px-4 py-3 align-middle text-gray-500 text-xs">
-                            {{ Str::limit($item['text'], 25) ?: 'Keine Gravur' }}
+                            {{ Str::limit((string) ($item['text'] ?? ''), 25) ?: 'Keine Gravur' }}
                         </td>
                         <td class="px-4 py-3 text-center align-middle">
                             <div class="font-bold">{{ $item['qty'] }}</div>
@@ -207,7 +207,7 @@
                                     @foreach($item['configuration']['custom_fields_data'] as $cfRow)
                                         @if(is_array($cfRow) && !empty($cfRow['label']) && isset($cfRow['value']) && trim((string) $cfRow['value']) !== '')
                                             <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] bg-gray-100 text-gray-700 border border-gray-200">
-                                                <strong>{{ $cfRow['label'] }}:</strong> {{ Str::limit($cfRow['value'], 25) }}
+                                                <strong>{{ $cfRow['label'] }}:</strong> {{ Str::limit((string) ($cfRow['value'] ?? ''), 25) }}
                                                 @if(!empty($cfRow['surcharge_cents']) && (int) $cfRow['surcharge_cents'] > 0)
                                                     <span class="text-amber-700 font-bold">(+{{ number_format(((int) $cfRow['surcharge_cents']) / 100, 2, ',', '.') }}&nbsp;€)</span>
                                                 @endif
@@ -227,7 +227,7 @@
                         <div class="flex justify-between items-center text-sm">
                             <div class="flex flex-col gap-1">
                                 <div class="text-gray-500 text-xs">
-                                    {{ Str::limit($item['text'], 30) ?: 'Keine Gravur' }}
+                                    {{ Str::limit((string) ($item['text'] ?? ''), 30) ?: 'Keine Gravur' }}
                                 </div>
                                 @if($nextTier)
                                     @php

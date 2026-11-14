@@ -479,11 +479,11 @@ class AccountingVariableCosts extends Component
         $merged = $specialsData->concat($bankTxData);
 
         if (!empty($this->specialSearch)) {
-            $search = strtolower($this->specialSearch);
+            $search = mb_strtolower((string) $this->specialSearch);
             $merged = $merged->filter(function($item) use ($search) {
-                return str_contains(strtolower($item['title']), $search) ||
-                       str_contains(strtolower($item['category']), $search) ||
-                       str_contains(strtolower($item['location']), $search);
+                return str_contains(mb_strtolower((string) ($item['title'] ?? '')), $search) ||
+                       str_contains(mb_strtolower((string) ($item['category'] ?? '')), $search) ||
+                       str_contains(mb_strtolower((string) ($item['location'] ?? '')), $search);
             });
         }
 

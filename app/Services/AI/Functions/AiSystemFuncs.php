@@ -1552,71 +1552,43 @@ trait AiSystemFuncs
         if ($denied = self::assertSystemAdminAccess()) return $denied;
 
         try {
-            $logPath = storage_path('logs/laravel.log');
-            $errorsFound = [];
+            $overlay = app(\App\Services\System\SystemBrainDiagnosticsService::class)->getActiveErrorOverlay();
+            $formattedErrors = $overlay['api_errors_list'] ?? [];
 
-            if (\Illuminate\Support\Facades\File::exists($logPath)) {
-                $filesize = filesize($logPath);
-                if ($filesize > 0) {
-                    $readLength = min(100000, $filesize); // Last 100k bytes
-                    $file = fopen($logPath, 'r');
-                    fseek($file, -$readLength, SEEK_END);
-                    $logContent = fread($file, $readLength);
-                    fclose($file);
-
-                    $lines = explode("\n", $logContent);
-                    $currentError = null;
-                    
-                    foreach ($lines as $line) {
-                        if (str_contains($line, 'local.ERROR:')) {
-                            $currentError = preg_replace('/^\[.*?\] local\.ERROR: /', '', $line);
-                        }
-                        
-                        // Look for app/ paths in stack traces or the error itself
-                        if ($currentError && preg_match('/(?:[\/\w]*?)(app\/[a-zA-Z0-9_\-\.\/]+\.php)/', $line, $matches)) {
-                            $filePath = $matches[1];
-                            if (!isset($errorsFound[$filePath])) {
-                                $errorsFound[$filePath] = mb_substr($currentError, 0, 300);
-                            }
-                            $currentError = null; // Reset to catch next error
-                        }
-                    }
-                }
-            }
-
-            if (empty($errorsFound)) {
+            if (empty($formattedErrors)) {
                 return [
                     'status' => 'success',
-                    'message' => 'Scan ausgeführt. Keine Systemfehler im Log gefunden. Das System ist stabil.',
-                    'errors' => []
+                    'message' => 'Scan ausgeführt. Keine offenen Systemfehler im Log gefunden. Das System ist zu 100 % stabil.',
+                    'errors' => [],
+                    'neighbors' => [],
+                    '_frontend_event' => [
+                        'type' => 'dispatch',
+                        'name' => 'ai-neural-scan-trigger',
+                        'detail' => [
+                            'errors' => [],
+                            'neighbors' => [],
+                        ]
+                    ]
                 ];
             }
 
-            $filePaths = array_keys($errorsFound);
-            $nodesWithErrors = \App\Models\System\SystemNeuralNode::whereIn('file_path', $filePaths)->get(['name', 'file_path']);
-            
-            $formattedErrors = [];
-            foreach ($nodesWithErrors as $n) {
-                $formattedErrors[] = [
-                    'name' => $n->name,
-                    'file_path' => $n->file_path,
-                    'error_state' => $errorsFound[$n->file_path]
-                ];
-            }
-            
+            $names = implode(', ', array_map(fn (array $e) => $e['name'], $formattedErrors));
+
             return [
                 'status' => 'success',
-                'message' => 'Scan ausgeführt. Reale fehlerhafte Knoten gefunden: ' . $nodesWithErrors->pluck('name')->implode(', '),
+                'message' => 'Scan ausgeführt. Fehlerkerne gefunden: ' . $names,
                 'errors' => $formattedErrors,
+                'neighbors' => $overlay['neighbors'] ?? [],
                 '_frontend_event' => [
                     'type' => 'dispatch',
                     'name' => 'ai-neural-scan-trigger',
                     'detail' => [
-                        'errors' => $formattedErrors
+                        'errors' => $formattedErrors,
+                        'neighbors' => $overlay['neighbors'] ?? [],
                     ]
                 ]
             ];
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             return ['status' => 'error', 'message' => 'Fehler beim Scan: ' . $e->getMessage()];
         }
     }
@@ -1633,11 +1605,11 @@ trait AiSystemFuncs
             $node = \App\Models\System\SystemNeuralNode::where('file_path', 'like', "%{$escapedFilePath}%")->first();
             if (!$node) return ['status' => 'error', 'message' => 'Datei im Gehirn nicht gefunden.'];
             
-            $hasRecentError = class_exists(\App\Models\System\SystemLog::class)
-                && \App\Models\System\SystemLog::where('status', 'error')
-                    ->where('message', 'like', '%' . addcslashes($node->file_path, '%_\\') . '%')
-                    ->exists();
-            $errorState = $hasRecentError ? "Aktiver Fehler im System-Log protokolliert." : "Systemstatus 100% OK";
+            $overlay = app(\App\Services\System\SystemBrainDiagnosticsService::class)->getActiveErrorOverlay();
+            $core = $overlay['error_cores'][$node->file_path] ?? null;
+            $errorState = $core
+                ? "[{$core['primary_title']}] {$core['primary_message']}"
+                : "Systemstatus 100% OK";
 
             return [
                 'status' => 'success',
@@ -1646,6 +1618,8 @@ trait AiSystemFuncs
                     'name' => $node->name,
                     'file_path' => $node->file_path,
                     'dependencies' => $node->dependencies,
+                    'incoming_files' => $core['incoming_files'] ?? ($node->properties['incoming_dependents'] ?? []),
+                    'outgoing_files' => $core['outgoing_files'] ?? ($node->properties['outgoing_dependencies'] ?? []),
                     'methods' => $node->methods,
                     'error_state' => $errorState
                 ],
@@ -1657,7 +1631,7 @@ trait AiSystemFuncs
                     ]
                 ]
             ];
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             return ['status' => 'error', 'message' => 'Fehler beim Ansteuern: ' . $e->getMessage()];
         }
     }

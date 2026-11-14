@@ -242,15 +242,27 @@ class TaxAdvisorDashboard extends Component
         }
 
         $files = is_array($task->file_paths) ? $task->file_paths : (json_decode($task->file_paths ?? '[]', true) ?: []);
-        $cleanPath = (string) $filePath;
+        $cleanPath = ltrim(str_replace('\\', '/', (string) $filePath), '/');
 
-        if (str_contains($cleanPath, '..') || !in_array($cleanPath, $files, true) || !Storage::disk('local')->exists($cleanPath)) {
+        if (
+            $cleanPath === ''
+            || str_contains($cleanPath, '..')
+            || str_contains($cleanPath, "\0")
+            || !str_starts_with($cleanPath, 'leitung/tasks/')
+            || !in_array($cleanPath, $files, true)
+            || !Storage::disk('local')->exists($cleanPath)
+        ) {
+            abort(403);
+        }
+
+        $fullPath = Storage::disk('local')->path($cleanPath);
+        if (is_link($fullPath)) {
             abort(403);
         }
 
         $this->logTaxAdvisorAccess('task_attachment', $cleanPath, ['task_id' => $taskId]);
 
-        return response()->download(Storage::disk('local')->path($cleanPath), basename($cleanPath));
+        return response()->download($fullPath, basename($cleanPath));
     }
 
     public function prefillNewTaskForMissingReceipt(string $title, string $amount, string $date): void
@@ -736,6 +748,7 @@ class TaxAdvisorDashboard extends Component
             'buchhaltung/contracts/',
             'buchhaltung/invoices/',
             'buchhaltung/tax_exports/',
+            'buchhaltung/incoming_einvoices/',
         ];
 
         $isAllowed = false;

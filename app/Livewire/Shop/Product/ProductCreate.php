@@ -3067,9 +3067,19 @@ class ProductCreate extends Component
 
     public function removeBackgroundVideo()
     {
-        if (!empty($this->configSettings['background_video_path'])) {
-            if (str_contains($this->configSettings['background_video_path'], '/configurator/')) {
-                Storage::disk('public')->delete($this->configSettings['background_video_path']);
+        $storedSettings = is_array($this->product->configurator_settings)
+            ? $this->product->configurator_settings
+            : [];
+        $storedPath = $storedSettings['background_video_path'] ?? null;
+
+        if (!empty($storedPath) || !empty($this->configSettings['background_video_path'])) {
+            if (
+                is_string($storedPath)
+                && !str_contains($storedPath, '..')
+                && !str_contains($storedPath, "\0")
+                && str_contains($storedPath, '/configurator/')
+            ) {
+                Storage::disk('public')->delete($storedPath);
             }
             $this->configSettings['background_video_path'] = null;
             $this->product->configurator_settings = $this->configSettings;

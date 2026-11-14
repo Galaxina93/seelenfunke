@@ -32,7 +32,7 @@ namespace FunkenwerkFtp
             ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx",
             ".cs", ".csproj", ".sln", ".xaml", ".vb", ".fs",
             ".py", ".rb", ".go", ".rs", ".java", ".kt", ".kts", ".gradle", ".c", ".cpp", ".h", ".hpp",
-            ".sh", ".bash", ".zsh", ".fish", ".bat", ".cmd", ".ps1", ".psm1",
+            ".sh", ".bash", ".zsh", ".fish", ".bat", ".cmd", ".ps1", ".psm1", ".vbs", ".reg", ".hta",
             ".sql", ".csv", ".tsv", ".log", ".lock", ".properties", ".plist", ".service", ".timer", ".nginx"
         };
 
@@ -188,14 +188,34 @@ namespace FunkenwerkFtp
             return crlf > bareLf;
         }
 
+        public static bool IsValidOctalInput(string? octalText)
+        {
+            string clean = (octalText ?? "").Trim();
+            if (clean.Length < 3 || clean.Length > 4) return false;
+            return clean.All(c => c >= '0' && c <= '7');
+        }
+
         public static short ParseOctalPermissions(string octalText)
         {
             string clean = (octalText ?? "").Trim();
-            if (clean.Length == 4 && clean[0] == '0')
-                clean = clean.Substring(1);
-            if (clean.Length != 3 || clean.Any(c => c < '0' || c > '7'))
-                throw new FormatException("Bitte gültige 3-stellige Oktal-Rechte eingeben (z. B. 644 oder 755).");
+            if (!IsValidOctalInput(clean))
+                throw new FormatException("Bitte gültige 3- oder 4-stellige Oktal-Rechte eingeben (0-7, z. B. 644 oder 0755).");
             return Convert.ToInt16(clean, 8);
+        }
+
+        public static short EnsureDirectoryTraverseBits(short octalMode)
+        {
+            int m = octalMode;
+            if ((m & 0b100_000_000) != 0) m |= 0b001_000_000;
+            if ((m & 0b000_100_000) != 0) m |= 0b000_001_000;
+            if ((m & 0b000_000_100) != 0) m |= 0b000_000_001;
+            return (short)m;
+        }
+
+        public static string FormatOctalDigits(short octalMode)
+        {
+            string s = Convert.ToString(octalMode, 8);
+            return s.Length < 3 ? s.PadLeft(3, '0') : s;
         }
 
         public static string PermissionsStringToOctal(string? permStr, bool isDirectory)
@@ -231,6 +251,7 @@ namespace FunkenwerkFtp
 
         private Encoding _encoding;
         private bool _useCrLf;
+        private bool _lastSavedUseCrLf;
         private string _lastSavedNormalizedText;
         private bool _isDirty;
         private bool _isSaving;
@@ -244,11 +265,22 @@ namespace FunkenwerkFtp
         private readonly Border _findBarBorder;
         private readonly TextBox _findBox;
         private readonly TextBox _replaceBox;
+        private readonly Border _gutterBorder;
         private readonly ScrollViewer _gutterScroll;
         private readonly TextBlock _lineNumbersTxt;
         private readonly TextBox _editorBox;
         private readonly TextBlock _cursorInfoTxt;
         private readonly TextBlock _saveStatusTxt;
+
+        public bool IsDirty => _isDirty;
+        public bool UseCrLf => _useCrLf;
+        public bool IsWordWrapEnabled => _editorBox.TextWrapping == TextWrapping.Wrap;
+        public bool IsLineGutterVisible => _gutterBorder.Visibility == Visibility.Visible;
+        public string EditorText
+        {
+            get => _editorBox.Text;
+            set => _editorBox.Text = value;
+        }
 
         public FtpFileEditorWindow(
             Window owner,
@@ -266,6 +298,7 @@ namespace FunkenwerkFtp
             _displayPath = displayPath;
             _encoding = doc.Encoding;
             _useCrLf = doc.UseCrLf;
+            _lastSavedUseCrLf = doc.UseCrLf;
             _saveBytesCallback = saveBytesCallback;
             _saveAndUploadCallback = saveAndUploadCallback;
             _lastSavedNormalizedText = doc.Text;
@@ -357,22 +390,11 @@ namespace FunkenwerkFtp
 
             _eolBtn = CreateToolbarButton(_useCrLf ? "CRLF" : "LF", bgBtn, fgPrimary, borderCol);
             _eolBtn.ToolTip = "Zeilenende umschalten (LF für Linux-Server / CRLF für Windows)";
-            _eolBtn.Click += (_, _) =>
-            {
-                _useCrLf = !_useCrLf;
-                _eolBtn.Content = _useCrLf ? "CRLF" : "LF";
-                MarkDirty(true);
-            };
+            _eolBtn.Click += (_, _) => ToggleLineEndingMode();
             rightStack.Children.Add(_eolBtn);
 
             _wrapBtn = CreateToolbarButton("⇄ Umbruch", bgBtn, fgPrimary, borderCol);
-            _wrapBtn.Click += (_, _) =>
-            {
-                if (_editorBox == null) return;
-                bool wrap = _editorBox.TextWrapping == TextWrapping.NoWrap;
-                _editorBox.TextWrapping = wrap ? TextWrapping.Wrap : TextWrapping.NoWrap;
-                _wrapBtn.Foreground = wrap ? gold : fgPrimary;
-            };
+            _wrapBtn.Click += (_, _) => ToggleWordWrapMode();
             rightStack.Children.Add(_wrapBtn);
 
             var findBtn = CreateToolbarButton("🔍 Suchen", bgBtn, fgPrimary, borderCol);
@@ -498,7 +520,7 @@ namespace FunkenwerkFtp
             editorGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             editorGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-            var gutterBorder = new Border
+            _gutterBorder = new Border
             {
                 Background = bgGutter,
                 BorderBrush = borderCol,
@@ -520,9 +542,9 @@ namespace FunkenwerkFtp
                 Padding = new Thickness(10, 10, 10, 24)
             };
             _gutterScroll.Content = _lineNumbersTxt;
-            gutterBorder.Child = _gutterScroll;
-            Grid.SetColumn(gutterBorder, 0);
-            editorGrid.Children.Add(gutterBorder);
+            _gutterBorder.Child = _gutterScroll;
+            Grid.SetColumn(_gutterBorder, 0);
+            editorGrid.Children.Add(_gutterBorder);
 
             _editorBox = new TextBox
             {
@@ -548,7 +570,7 @@ namespace FunkenwerkFtp
             _editorBox.TextChanged += (_, _) =>
             {
                 UpdateLineNumbersAndStats();
-                MarkDirty(!string.Equals(_editorBox.Text, _lastSavedNormalizedText, StringComparison.Ordinal));
+                RecomputeDirtyState();
             };
             _editorBox.SelectionChanged += (_, _) => UpdateCursorStats();
             _editorBox.PreviewMouseWheel += (_, we) =>
@@ -653,6 +675,29 @@ namespace FunkenwerkFtp
                 UpdateCursorStats();
                 _editorBox.Focus();
             };
+        }
+
+        public void ToggleLineEndingMode()
+        {
+            _useCrLf = !_useCrLf;
+            _eolBtn.Content = _useCrLf ? "CRLF" : "LF";
+            RecomputeDirtyState();
+        }
+
+        public void ToggleWordWrapMode()
+        {
+            if (_editorBox == null) return;
+            bool wrap = _editorBox.TextWrapping == TextWrapping.NoWrap;
+            _editorBox.TextWrapping = wrap ? TextWrapping.Wrap : TextWrapping.NoWrap;
+            _gutterBorder.Visibility = wrap ? Visibility.Collapsed : Visibility.Visible;
+            _wrapBtn.Foreground = wrap ? BrushHex("#C5A059") : BrushHex(_isDark ? "#F9FAFB" : "#111827");
+        }
+
+        private void RecomputeDirtyState()
+        {
+            bool dirty = !string.Equals(_editorBox.Text, _lastSavedNormalizedText, StringComparison.Ordinal)
+                         || _useCrLf != _lastSavedUseCrLf;
+            MarkDirty(dirty);
         }
 
         private void MarkDirty(bool dirty)
@@ -794,6 +839,7 @@ namespace FunkenwerkFtp
                     await _saveBytesCallback(encoded);
 
                 _lastSavedNormalizedText = _editorBox.Text;
+                _lastSavedUseCrLf = _useCrLf;
                 MarkDirty(false);
                 _saveStatusTxt.Foreground = BrushHex("#34D399");
                 string targetLabel = (_isRemote || alsoUpload) ? "Auf Server gespeichert" : "Lokal gespeichert";
@@ -1042,11 +1088,12 @@ namespace FunkenwerkFtp
             bool hasDirectories)
         {
             string startOctal = FtpTextBufferCodec.PermissionsStringToOctal(currentPermString, hasDirectories);
-            var dlg = CreateBaseDialog(owner, isDark, $"Berechtigungen (CHMOD) · {targetName}", 470, hasDirectories ? 330 : 295);
+            var dlg = CreateBaseDialog(owner, isDark, $"Berechtigungen (CHMOD) · {targetName}", 480, hasDirectories ? 360 : 325);
             var fgPrimary = BrushHex(isDark ? "#F9FAFB" : "#111827");
             var fgMuted = BrushHex(isDark ? "#9CA3AF" : "#6B7280");
             var bgInput = BrushHex(isDark ? "#0F1117" : "#F9FAFB");
             var borderCol = BrushHex(isDark ? "#2D3343" : "#D1D5DB");
+            var dangerCol = BrushHex("#F87171");
 
             var stack = new StackPanel { Margin = new Thickness(20, 16, 20, 16) };
 
@@ -1075,8 +1122,9 @@ namespace FunkenwerkFtp
             var octalBox = new TextBox
             {
                 Text = startOctal,
-                Width = 82,
+                Width = 86,
                 Height = 32,
+                MaxLength = 4,
                 HorizontalContentAlignment = HorizontalAlignment.Center,
                 VerticalContentAlignment = VerticalAlignment.Center,
                 Background = bgInput,
@@ -1086,6 +1134,31 @@ namespace FunkenwerkFtp
                 BorderBrush = borderCol
             };
 
+            var validationTxt = new TextBlock
+            {
+                Foreground = dangerCol,
+                FontSize = 11.5,
+                Margin = new Thickness(0, 8, 0, 0),
+                TextWrapping = TextWrapping.Wrap,
+                Visibility = Visibility.Collapsed
+            };
+
+            void SetValidationState(string? errorMsg)
+            {
+                if (string.IsNullOrEmpty(errorMsg))
+                {
+                    validationTxt.Text = "";
+                    validationTxt.Visibility = Visibility.Collapsed;
+                    octalBox.BorderBrush = borderCol;
+                }
+                else
+                {
+                    validationTxt.Text = errorMsg;
+                    validationTxt.Visibility = Visibility.Visible;
+                    octalBox.BorderBrush = dangerCol;
+                }
+            }
+
             void SyncOctalFromChecks()
             {
                 if (suppressSync) return;
@@ -1094,16 +1167,23 @@ namespace FunkenwerkFtp
                 int g = (checks[1, 0].IsChecked == true ? 4 : 0) + (checks[1, 1].IsChecked == true ? 2 : 0) + (checks[1, 2].IsChecked == true ? 1 : 0);
                 int o = (checks[2, 0].IsChecked == true ? 4 : 0) + (checks[2, 1].IsChecked == true ? 2 : 0) + (checks[2, 2].IsChecked == true ? 1 : 0);
                 octalBox.Text = $"{u}{g}{o}";
+                SetValidationState(null);
                 suppressSync = false;
             }
 
             void SyncChecksFromOctal(string oct)
             {
-                if (oct.Length != 3 || oct.Any(ch => ch < '0' || ch > '7')) return;
+                if (!FtpTextBufferCodec.IsValidOctalInput(oct))
+                {
+                    SetValidationState("Ungültig: Bitte 3 oder 4 Oktalziffern (0-7) eingeben, z. B. 644 oder 0755.");
+                    return;
+                }
+                SetValidationState(null);
+                string tail3 = oct.Length == 4 ? oct.Substring(1) : oct;
                 suppressSync = true;
                 for (int r = 0; r < 3; r++)
                 {
-                    int v = oct[r] - '0';
+                    int v = tail3[r] - '0';
                     checks[r, 0].IsChecked = (v & 4) != 0;
                     checks[r, 1].IsChecked = (v & 2) != 0;
                     checks[r, 2].IsChecked = (v & 1) != 0;
@@ -1154,6 +1234,7 @@ namespace FunkenwerkFtp
                 presetRow.Children.Add(pb);
             }
             stack.Children.Add(presetRow);
+            stack.Children.Add(validationTxt);
 
             CheckBox? recursiveCb = null;
             if (hasDirectories)
@@ -1161,8 +1242,9 @@ namespace FunkenwerkFtp
                 recursiveCb = new CheckBox
                 {
                     Content = "Auf Unterordner & enthaltene Dateien anwenden",
+                    ToolTip = "Bei rekursiver Anwendung auf Ordner bleibt das Suchrecht (+x, z. B. 755 bei 644) für Verzeichnisse erhalten.",
                     Foreground = fgPrimary,
-                    Margin = new Thickness(0, 12, 0, 0),
+                    Margin = new Thickness(0, 10, 0, 0),
                     Cursor = Cursors.Hand
                 };
                 stack.Children.Add(recursiveCb);
@@ -1172,7 +1254,7 @@ namespace FunkenwerkFtp
             {
                 Orientation = Orientation.Horizontal,
                 HorizontalAlignment = HorizontalAlignment.Right,
-                Margin = new Thickness(0, 18, 0, 0)
+                Margin = new Thickness(0, 16, 0, 0)
             };
 
             (short, string, bool)? finalResult = null;
@@ -1186,12 +1268,16 @@ namespace FunkenwerkFtp
                 try
                 {
                     short parsed = FtpTextBufferCodec.ParseOctalPermissions(octalBox.Text);
-                    string cleanOct = octalBox.Text.Trim();
-                    if (cleanOct.Length == 4) cleanOct = cleanOct.Substring(1);
+                    string cleanOct = FtpTextBufferCodec.FormatOctalDigits(parsed);
                     finalResult = (parsed, cleanOct, recursiveCb?.IsChecked == true);
                     dlg.DialogResult = true;
                 }
-                catch { }
+                catch (FormatException fex)
+                {
+                    SetValidationState(fex.Message);
+                    octalBox.Focus();
+                    octalBox.SelectAll();
+                }
             };
 
             btnRow.Children.Add(cancelBtn);

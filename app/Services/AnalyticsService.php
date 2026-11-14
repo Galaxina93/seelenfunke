@@ -213,10 +213,13 @@ class AnalyticsService
     {
         if (!class_exists(\App\Models\Cart\Cart::class)) return null;
         $totalCarts = \App\Models\Cart\Cart::whereHas('items')->count();
-        $redLimit = (int) shop_setting('cart_abandoned_red_hours', 24);
+        $redLimit = max(1, (int) shop_setting('cart_abandoned_red_hours', 24));
+        $maxDays = max(1, (int) shop_setting('cart_abandoned_max_days', 7));
+        $maxHours = max($redLimit + 1, $maxDays * 24);
 
-        $abandonedCarts = \App\Models\Cart\Cart::with('customer.profile')
-            ->where('updated_at', '<', now()->subHours($redLimit))
+        $abandonedCarts = \App\Models\Cart\Cart::with(['customer.profile', 'items.product'])
+            ->where('updated_at', '<=', now()->subHours($redLimit))
+            ->where('updated_at', '>=', now()->subHours($maxHours))
             ->whereNull('reminder_email_sent_at')
             ->whereNotNull('customer_id')
             ->whereHas('items')
@@ -224,7 +227,8 @@ class AnalyticsService
             ->filter(function ($cart) {
                 return $cart->customer
                     && !empty($cart->customer->email)
-                    && $cart->customer->allowsCartReminders();
+                    && $cart->customer->allowsCartReminders()
+                    && $cart->items->contains(fn($item) => $item->product && $item->product->status === 'active');
             })
             ->count();
 

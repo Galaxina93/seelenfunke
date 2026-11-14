@@ -124,13 +124,14 @@
 
             {{-- 2. TEXT & ACTION BEREICH --}}
             <div class="flex-1 p-6 sm:p-10 relative z-10 flex flex-col justify-center text-center md:text-left">
+                    @php $staffFirstName = (auth('admin')->user() ?? auth('employee')->user())?->first_name ?? 'Team'; @endphp
                     <h2 class="font-serif font-bold text-3xl sm:text-4xl text-gray-900 dark:text-white mb-3 tracking-tight">
                         @if($mood === 'alarm')
-                            <span class="text-red-500">⚠️ Achtung</span>, {{ auth()->user()->first_name }}!
+                            <span class="text-red-500">⚠️ Achtung</span>, {{ $staffFirstName }}!
                         @elseif($mood === 'chill')
-                            Alles erledigt, {{ auth()->user()->first_name }}! <span class="text-[var(--theme-color)] drop-shadow-none dark:drop-shadow-[0_0_10px_currentColor]">✨</span>
+                            Alles erledigt, {{ $staffFirstName }}! <span class="text-[var(--theme-color)] drop-shadow-none dark:drop-shadow-[0_0_10px_currentColor]">✨</span>
                         @else
-                            An die Arbeit, {{ auth()->user()->first_name }}.
+                            An die Arbeit, {{ $staffFirstName }}.
                         @endif
                     </h2>
 
@@ -168,6 +169,12 @@
                                     <div class="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 font-bold uppercase tracking-widest text-center sm:text-left">
                                         {{ $prio->customer_name }} · {{ $prio->created_at->format('d.m. H:i') }} Uhr
                                     </div>
+                                    @if(!empty($prio->workshop_note))
+                                        <div class="mt-1.5 inline-flex items-center justify-center sm:justify-start gap-1.5 text-[11px] font-semibold text-gray-700 dark:text-gray-300 truncate">
+                                            <span class="text-[var(--theme-color)] font-black">Stand:</span>
+                                            <span class="truncate">{{ \Illuminate\Support\Str::limit($prio->workshop_note, 58) }}</span>
+                                        </div>
+                                    @endif
                                 </div>
 
                                 {{-- Action Arrow --}}

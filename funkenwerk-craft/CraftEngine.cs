@@ -115,7 +115,9 @@ namespace FunkenwerkCraft
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
         };
 
+        private static readonly byte[] BridgeDpapiEntropy = Encoding.UTF8.GetBytes("FunkenwerkCraft.Bridge.v1");
         private static readonly ConcurrentDictionary<string, (double PeakSec, double DurationSec)> AudioPeakCache = new(StringComparer.OrdinalIgnoreCase);
+        private static readonly ConcurrentDictionary<string, string> TrustedToolCache = new(StringComparer.OrdinalIgnoreCase);
 
         public static readonly HashSet<string> VideoExts = new(StringComparer.OrdinalIgnoreCase)
             { ".mp4", ".mov", ".mkv", ".webm", ".avi", ".m4v" };
@@ -126,7 +128,30 @@ namespace FunkenwerkCraft
         public static readonly HashSet<string> AudioExts = new(StringComparer.OrdinalIgnoreCase)
             { ".wav", ".mp3", ".ogg", ".flac", ".m4a" };
 
-        public static string WorkspaceRoot
+        private static readonly HashSet<string> ReservedWindowsNames = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "CON", "PRN", "AUX", "NUL",
+            "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+            "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"
+        };
+
+        private static readonly HashSet<string> DisallowedExecutableExts = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ".exe", ".dll", ".bat", ".cmd", ".ps1", ".vbs", ".js", ".msi", ".scr", ".com", ".hta", ".lnk", ".pif"
+        };
+
+        private static readonly HashSet<string> AllowedFilmCraftSubcommands = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "commands", "describe", "help", "--help", "--version", "inspect", "probe", "run"
+        };
+
+        public const int MaxIpcLineBytes = 65536;
+
+        // Isolated workspace overrides used exclusively by --self-test so user projects remain 100% untouched
+        public static string? WorkspaceOverrideRoot { get; set; }
+        public static string? LocalDataOverrideDir { get; set; }
+
+        public static string ProductionWorkspaceRoot
         {
             get
             {
@@ -145,10 +170,57 @@ namespace FunkenwerkCraft
             }
         }
 
+        public static string WorkspaceRoot
+        {
+            get
+            {
+                if (!string.IsNullOrWhiteSpace(WorkspaceOverrideRoot))
+                    return EnsureDir(WorkspaceOverrideRoot!);
+                return ProductionWorkspaceRoot;
+            }
+        }
+
         public static string VideosRoot => EnsureDir(Path.Combine(WorkspaceRoot, "Videos"));
-        public static string SoundsRoot => EnsureDir(Path.Combine(WorkspaceRoot, "Sounds"));
-        public static string FontsRoot => EnsureDir(Path.Combine(WorkspaceRoot, "Fonts"));
-        public static string EngineRoot => EnsureDir(Path.Combine(WorkspaceRoot, "engine"));
+
+        public static string SoundsRoot
+        {
+            get
+            {
+                if (!string.IsNullOrWhiteSpace(WorkspaceOverrideRoot))
+                {
+                    string customSounds = Path.Combine(WorkspaceOverrideRoot!, "Sounds");
+                    if (Directory.Exists(customSounds)) return customSounds;
+                }
+                return EnsureDir(Path.Combine(ProductionWorkspaceRoot, "Sounds"));
+            }
+        }
+
+        public static string FontsRoot
+        {
+            get
+            {
+                if (!string.IsNullOrWhiteSpace(WorkspaceOverrideRoot))
+                {
+                    string customFonts = Path.Combine(WorkspaceOverrideRoot!, "Fonts");
+                    if (Directory.Exists(customFonts)) return customFonts;
+                }
+                return EnsureDir(Path.Combine(ProductionWorkspaceRoot, "Fonts"));
+            }
+        }
+
+        public static string EngineRoot
+        {
+            get
+            {
+                if (!string.IsNullOrWhiteSpace(WorkspaceOverrideRoot))
+                {
+                    string customEngine = Path.Combine(WorkspaceOverrideRoot!, "engine");
+                    if (Directory.Exists(customEngine)) return customEngine;
+                }
+                return EnsureDir(Path.Combine(ProductionWorkspaceRoot, "engine"));
+            }
+        }
+
         public static string ArtCraftExe => Path.Combine(EngineRoot, "artcraft", "artcraft.exe");
         public static string FilmCraftExe => Path.Combine(EngineRoot, "filmcraft", "filmcraft.exe");
         public static string FilmCraftCliExe => Path.Combine(EngineRoot, "filmcraft", "filmcraft-cli.exe");
@@ -159,6 +231,9 @@ namespace FunkenwerkCraft
         {
             get
             {
+                if (!string.IsNullOrWhiteSpace(LocalDataOverrideDir))
+                    return EnsureDir(LocalDataOverrideDir!);
+
                 string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FunkenwerkCraft");
                 if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
                 return dir;
@@ -166,14 +241,16 @@ namespace FunkenwerkCraft
         }
 
         public static string SettingsFilePath => Path.Combine(LocalDataDir, "craft_settings.json");
-        public static string BridgeStateFilePath => Path.Combine(LocalDataDir, "bridge_state.json");
+        public static string BridgeDirectoryPath => Path.Combine(LocalDataDir, ".funkenwerk_bridge");
+        public static string BridgeStateFilePath => Path.Combine(BridgeDirectoryPath, "bridge_state.json");
 
         public static string PipeName
         {
             get
             {
                 string sid = WindowsIdentity.GetCurrent().User?.Value ?? Environment.UserName;
-                return $"Funkenwerk_Craft_IPC_{sid}";
+                string suffix = !string.IsNullOrWhiteSpace(LocalDataOverrideDir) ? "_SelfTest" : "";
+                return $"Funkenwerk_Craft_IPC_{sid}{suffix}";
             }
         }
 
@@ -183,24 +260,409 @@ namespace FunkenwerkCraft
             return p;
         }
 
+        // =====================================================================
+        // SECURITY & PATH VALIDATION HELPERS
+        // =====================================================================
+        private static bool IsReservedWindowsDeviceName(string? fileOrFolderName)
+        {
+            if (string.IsNullOrWhiteSpace(fileOrFolderName)) return false;
+            string trimmed = fileOrFolderName.Trim().TrimEnd('.', ' ');
+            if (ReservedWindowsNames.Contains(trimmed)) return true;
+
+            int dotIdx = trimmed.IndexOf('.');
+            if (dotIdx > 0)
+            {
+                string stem = trimmed[..dotIdx].Trim();
+                if (ReservedWindowsNames.Contains(stem)) return true;
+            }
+            return false;
+        }
+
+        private static bool HasAlternateDataStreamOrUnc(string rawPath)
+        {
+            if (string.IsNullOrWhiteSpace(rawPath)) return false;
+            string p = rawPath.Trim();
+            if (p.StartsWith(@"\\", StringComparison.Ordinal) || p.StartsWith("//", StringComparison.Ordinal))
+                return true;
+
+            if (p.Length >= 2 && char.IsAsciiLetter(p[0]) && p[1] == ':' && (p.Length == 2 || p[2] == '\\' || p[2] == '/'))
+            {
+                return p.IndexOf(':', 2) >= 0;
+            }
+
+            return p.Contains(':', StringComparison.Ordinal);
+        }
+
+        private static bool ContainsTraversalSegment(string rawPath)
+        {
+            if (string.IsNullOrWhiteSpace(rawPath)) return false;
+            string[] parts = rawPath.Split(new[] { '\\', '/' }, StringSplitOptions.RemoveEmptyEntries);
+            foreach (string part in parts)
+            {
+                if (part == ".." || part.TrimEnd(' ') == "..")
+                    return true;
+            }
+            return false;
+        }
+
+        private static string NormalizeRootPrefix(string rootDir)
+        {
+            return Path.GetFullPath(rootDir).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                + Path.DirectorySeparatorChar;
+        }
+
+        public static void EnsureNoReparsePointsInChain(string fullPath, string? stopAtContainerRoot = null)
+        {
+            string normalizedFull = Path.GetFullPath(fullPath);
+            string? stopNorm = !string.IsNullOrWhiteSpace(stopAtContainerRoot)
+                ? Path.GetFullPath(stopAtContainerRoot).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                : null;
+
+            if (File.Exists(normalizedFull))
+            {
+                var fi = new FileInfo(normalizedFull);
+                if (fi.Attributes.HasFlag(FileAttributes.ReparsePoint) || fi.LinkTarget != null)
+                    throw new UnauthorizedAccessException("Symlinks und Reparse-Points sind aus Sicherheitsgruenden blockiert.");
+            }
+            else if (Directory.Exists(normalizedFull))
+            {
+                var diSelf = new DirectoryInfo(normalizedFull);
+                if (diSelf.Attributes.HasFlag(FileAttributes.ReparsePoint) || diSelf.LinkTarget != null)
+                    throw new UnauthorizedAccessException("Symlinks und Junctions sind aus Sicherheitsgruenden blockiert.");
+            }
+
+            string? curDir = Directory.Exists(normalizedFull) ? normalizedFull : Path.GetDirectoryName(normalizedFull);
+            while (!string.IsNullOrWhiteSpace(curDir))
+            {
+                string trimmedCur = curDir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                string? rootDrive = Path.GetPathRoot(curDir)?.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                if (!string.IsNullOrEmpty(rootDrive) && string.Equals(trimmedCur, rootDrive, StringComparison.OrdinalIgnoreCase))
+                    break;
+
+                if (Directory.Exists(curDir))
+                {
+                    var di = new DirectoryInfo(curDir);
+                    if (di.Attributes.HasFlag(FileAttributes.ReparsePoint) || di.LinkTarget != null)
+                        throw new UnauthorizedAccessException($"Verzeichnis-Junction / Reparse-Point blockiert: {di.Name}");
+                }
+
+                if (stopNorm != null && string.Equals(trimmedCur, stopNorm, StringComparison.OrdinalIgnoreCase))
+                    break;
+
+                curDir = Path.GetDirectoryName(trimmedCur);
+            }
+        }
+
         public static string SanitizeCleanText(string? input)
         {
             if (string.IsNullOrWhiteSpace(input)) return "";
-            // Strictly enforce Seelenfunke rule: never allow " – " en-dashes
-            return input.Replace(" – ", " · ").Replace("–", "-").Trim();
+            // Strictly enforce Seelenfunke rule: never allow en-dashes or em-dashes in rendered text
+            return input
+                .Replace(" \u2013 ", " \u00B7 ")
+                .Replace(" \u2014 ", " \u00B7 ")
+                .Replace('\u2013', '-')
+                .Replace('\u2014', '-')
+                .Trim();
         }
 
         public static string SanitizeProjectName(string name)
         {
             if (string.IsNullOrWhiteSpace(name))
                 throw new ArgumentException("Projektname darf nicht leer sein.");
-            string clean = SanitizeCleanText(name);
-            foreach (char c in Path.GetInvalidFileNameChars())
-                clean = clean.Replace(c, '_');
-            clean = clean.Replace("..", "_").Trim('.', ' ');
+
+            if (HasAlternateDataStreamOrUnc(name) ||
+                ContainsTraversalSegment(name) ||
+                name.IndexOfAny(new[] { '\\', '/', ':', '*', '?', '"', '<', '>', '|' }) >= 0 ||
+                name.Any(c => c < 32))
+            {
+                throw new UnauthorizedAccessException("Ungueltiger oder unsicherer Projektname blockiert.");
+            }
+
+            string clean = SanitizeCleanText(name).Trim('.', ' ');
             if (string.IsNullOrWhiteSpace(clean))
-                throw new ArgumentException("Ungültiger Projektname.");
+                throw new ArgumentException("Ungueltiger Projektname.");
+
+            if (IsReservedWindowsDeviceName(clean))
+                throw new UnauthorizedAccessException($"Reservierter Windows-Geraetename nicht erlaubt: {clean}");
+
+            string ext = Path.GetExtension(clean);
+            if (!string.IsNullOrEmpty(ext) && DisallowedExecutableExts.Contains(ext))
+                throw new UnauthorizedAccessException($"Nicht erlaubte Endung im Projektnamen: {ext}");
+
             return clean;
+        }
+
+        public static string ComputeNextProjectName(string videosRoot)
+        {
+            int nextNum = 1;
+            if (!string.IsNullOrWhiteSpace(videosRoot) && Directory.Exists(videosRoot))
+            {
+                nextNum = Directory.GetDirectories(videosRoot).Length + 1;
+                if (nextNum < 1) nextNum = 1;
+                while (Directory.Exists(Path.Combine(videosRoot, $"Projekt {nextNum}")))
+                {
+                    nextNum++;
+                }
+            }
+            return $"Projekt {nextNum}";
+        }
+
+        private static int CompareNaturalStrings(string? a, string? b)
+        {
+            if (ReferenceEquals(a, b)) return 0;
+            if (a == null) return -1;
+            if (b == null) return 1;
+
+            int ia = 0, ib = 0;
+            while (ia < a.Length && ib < b.Length)
+            {
+                if (char.IsDigit(a[ia]) && char.IsDigit(b[ib]))
+                {
+                    int sa = ia, sb = ib;
+                    while (ia < a.Length && char.IsDigit(a[ia])) ia++;
+                    while (ib < b.Length && char.IsDigit(b[ib])) ib++;
+
+                    string na = a[sa..ia].TrimStart('0');
+                    string nb = b[sb..ib].TrimStart('0');
+                    if (na.Length != nb.Length) return na.Length.CompareTo(nb.Length);
+                    int cmpNum = string.CompareOrdinal(na, nb);
+                    if (cmpNum != 0) return cmpNum;
+                    int lenDiff = (ia - sa).CompareTo(ib - sb);
+                    if (lenDiff != 0) return lenDiff;
+                }
+                else
+                {
+                    int cmp = char.ToUpperInvariant(a[ia]).CompareTo(char.ToUpperInvariant(b[ib]));
+                    if (cmp != 0) return cmp;
+                    ia++;
+                    ib++;
+                }
+            }
+            return a.Length.CompareTo(b.Length);
+        }
+
+        public static string? ResolveSafeAudioPath(string? relOrFull, string? projectDir = null, bool requireExists = true)
+        {
+            if (string.IsNullOrWhiteSpace(relOrFull))
+                return null;
+
+            string trimmed = relOrFull.Trim();
+            if (HasAlternateDataStreamOrUnc(trimmed) || ContainsTraversalSegment(trimmed))
+                throw new UnauthorizedAccessException($"Unsicherer Audio-Pfad blockiert: {relOrFull}");
+
+            string leaf = Path.GetFileName(trimmed);
+            if (string.IsNullOrWhiteSpace(leaf) || IsReservedWindowsDeviceName(leaf))
+                throw new UnauthorizedAccessException($"Ungueltiger Audio-Dateiname blockiert: {relOrFull}");
+
+            string ext = Path.GetExtension(leaf);
+            if (string.IsNullOrWhiteSpace(ext) || !AudioExts.Contains(ext))
+                throw new UnauthorizedAccessException($"Nicht erlaubte Audio-Dateiendung: '{ext}'.");
+
+            string soundsRootFull = Path.GetFullPath(SoundsRoot);
+            string soundsPrefix = NormalizeRootPrefix(soundsRootFull);
+            string? projDirFull = !string.IsNullOrWhiteSpace(projectDir) ? Path.GetFullPath(projectDir) : null;
+            string? projPrefix = projDirFull != null ? NormalizeRootPrefix(projDirFull) : null;
+
+            string candidate;
+            string matchedRoot;
+
+            if (Path.IsPathRooted(trimmed))
+            {
+                candidate = Path.GetFullPath(trimmed);
+                if (candidate.StartsWith(soundsPrefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    matchedRoot = soundsRootFull;
+                }
+                else if (projPrefix != null && projDirFull != null && candidate.StartsWith(projPrefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    matchedRoot = projDirFull;
+                }
+                else
+                {
+                    throw new UnauthorizedAccessException("Audio-Pfad liegt ausserhalb von SoundsRoot und Projektordner.");
+                }
+            }
+            else
+            {
+                string candSounds = Path.GetFullPath(Path.Combine(soundsRootFull, trimmed));
+                if (!candSounds.StartsWith(soundsPrefix, StringComparison.OrdinalIgnoreCase))
+                    throw new UnauthorizedAccessException("Audio-Pfad verlaesst SoundsRoot.");
+
+                string? candProj = null;
+                if (projDirFull != null && projPrefix != null)
+                {
+                    candProj = Path.GetFullPath(Path.Combine(projDirFull, trimmed));
+                    if (!candProj.StartsWith(projPrefix, StringComparison.OrdinalIgnoreCase))
+                        throw new UnauthorizedAccessException("Audio-Pfad verlaesst den Projektordner.");
+                }
+
+                if (File.Exists(candSounds))
+                {
+                    candidate = candSounds;
+                    matchedRoot = soundsRootFull;
+                }
+                else if (candProj != null && projDirFull != null && File.Exists(candProj))
+                {
+                    candidate = candProj;
+                    matchedRoot = projDirFull;
+                }
+                else
+                {
+                    candidate = candSounds;
+                    matchedRoot = soundsRootFull;
+                }
+            }
+
+            EnsureNoReparsePointsInChain(candidate, matchedRoot);
+
+            if (requireExists && !File.Exists(candidate))
+                return null;
+
+            return candidate;
+        }
+
+        // =====================================================================
+        // TRUSTED ABSOLUTE FFMPEG / FFPROBE DISCOVERY & SAFE SUBPROCESS RUNNER
+        // =====================================================================
+        public static string FindTrustedFfmpegExe() => FindTrustedMediaTool("ffmpeg.exe");
+        public static string FindTrustedFfprobeExe() => FindTrustedMediaTool("ffprobe.exe");
+
+        private static string FindTrustedMediaTool(string exeName)
+        {
+            if (TrustedToolCache.TryGetValue(exeName, out string? cached) && File.Exists(cached))
+                return cached;
+
+            var candidates = new List<string>();
+
+            // 1. Bundled inside Funkenwerk Craft or sibling Funkenwerk Collection folders
+            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            candidates.Add(Path.Combine(baseDir, exeName));
+            candidates.Add(Path.Combine(baseDir, "ffmpeg", exeName));
+            candidates.Add(Path.Combine(ProductionWorkspaceRoot, "engine", "ffmpeg", exeName));
+
+            string desktopCol = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),
+                "Funkenwerk Collection");
+            candidates.Add(Path.Combine(desktopCol, "Funkenwerk Video", "ffmpeg", exeName));
+
+            // 2. Dynamic WinGet Packages discovery (real binary directory, no CWD probing)
+            string wingetPkgs = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "Microsoft", "WinGet", "Packages");
+            if (Directory.Exists(wingetPkgs))
+            {
+                try
+                {
+                    foreach (string pkgDir in Directory.GetDirectories(wingetPkgs, "*FFmpeg*", SearchOption.TopDirectoryOnly))
+                    {
+                        foreach (string found in Directory.GetFiles(pkgDir, exeName, SearchOption.AllDirectories))
+                        {
+                            candidates.Add(found);
+                        }
+                    }
+                }
+                catch { }
+            }
+
+            // 3. Standard system locations
+            string progFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+            if (!string.IsNullOrWhiteSpace(progFiles))
+                candidates.Add(Path.Combine(progFiles, "FFmpeg", "bin", exeName));
+            candidates.Add(Path.Combine(@"C:\ffmpeg\bin", exeName));
+
+            foreach (string c in candidates)
+            {
+                if (!string.IsNullOrWhiteSpace(c) && Path.IsPathRooted(c) && File.Exists(c))
+                {
+                    string full = Path.GetFullPath(c);
+                    var fi = new FileInfo(full);
+                    if (!fi.Attributes.HasFlag(FileAttributes.ReparsePoint))
+                    {
+                        TrustedToolCache[exeName] = full;
+                        return full;
+                    }
+                }
+            }
+
+            // 4. Rooted PATH entries (strictly skipping empty, '.', or relative entries to prevent CWD hijacking)
+            string? pathEnv = Environment.GetEnvironmentVariable("PATH");
+            if (!string.IsNullOrWhiteSpace(pathEnv))
+            {
+                foreach (string rawEntry in pathEnv.Split(';', StringSplitOptions.RemoveEmptyEntries))
+                {
+                    string dir = rawEntry.Trim().Trim('"');
+                    if (string.IsNullOrWhiteSpace(dir) || dir == "." || dir == ".." || !Path.IsPathRooted(dir))
+                        continue;
+
+                    try
+                    {
+                        string full = Path.GetFullPath(Path.Combine(dir, exeName));
+                        if (File.Exists(full))
+                        {
+                            TrustedToolCache[exeName] = full;
+                            return full;
+                        }
+                    }
+                    catch { }
+                }
+            }
+
+            throw new FileNotFoundException($"Vertrauenswuerdige Mediendatei '{exeName}' wurde auf dem System nicht gefunden.");
+        }
+
+        private static async Task<(int ExitCode, string StdOut, string StdErr)> RunProcessBoundedAsync(
+            string executablePath,
+            IReadOnlyList<string> args,
+            int timeoutMs,
+            string? workingDirectory = null,
+            IDictionary<string, string>? environmentOverrides = null,
+            CancellationToken ct = default)
+        {
+            if (string.IsNullOrWhiteSpace(executablePath) || !Path.IsPathRooted(executablePath) || !File.Exists(executablePath))
+                throw new FileNotFoundException($"Ausfuehrbare Datei nicht gefunden oder nicht absolut: {executablePath}");
+
+            var psi = new ProcessStartInfo
+            {
+                FileName = executablePath,
+                WorkingDirectory = !string.IsNullOrWhiteSpace(workingDirectory) ? workingDirectory! : Path.GetDirectoryName(executablePath)!,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true,
+                StandardOutputEncoding = Encoding.UTF8,
+                StandardErrorEncoding = Encoding.UTF8
+            };
+
+            if (environmentOverrides != null)
+            {
+                foreach (var kv in environmentOverrides)
+                    psi.Environment[kv.Key] = kv.Value;
+            }
+
+            foreach (string arg in args)
+                psi.ArgumentList.Add(arg);
+
+            using var proc = Process.Start(psi) ?? throw new InvalidOperationException($"Prozess konnte nicht gestartet werden: {Path.GetFileName(executablePath)}");
+            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromMilliseconds(Math.Max(1000, timeoutMs)));
+            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
+
+            Task<string> outTask = proc.StandardOutput.ReadToEndAsync();
+            Task<string> errTask = proc.StandardError.ReadToEndAsync();
+
+            try
+            {
+                await proc.WaitForExitAsync(linkedCts.Token);
+                await Task.WhenAll(outTask, errTask);
+            }
+            catch (OperationCanceledException)
+            {
+                try { proc.Kill(entireProcessTree: true); } catch { }
+                if (ct.IsCancellationRequested)
+                    throw;
+                throw new TimeoutException($"Prozess '{Path.GetFileName(executablePath)}' hat das Zeitlimit ({timeoutMs} ms) ueberschritten.");
+            }
+
+            return (proc.ExitCode, await outTask, await errTask);
         }
 
         public static CraftSettingsModel LoadSettings()
@@ -229,10 +691,13 @@ namespace FunkenwerkCraft
         public static string GetProjectDirectory(string projectName)
         {
             string safe = SanitizeProjectName(projectName);
-            string full = Path.GetFullPath(Path.Combine(VideosRoot, safe));
-            string rootPrefix = Path.GetFullPath(VideosRoot).TrimEnd('\\') + "\\";
+            string videosRootFull = Path.GetFullPath(VideosRoot);
+            string full = Path.GetFullPath(Path.Combine(videosRootFull, safe));
+            string rootPrefix = NormalizeRootPrefix(videosRootFull);
             if (!full.StartsWith(rootPrefix, StringComparison.OrdinalIgnoreCase))
-                throw new UnauthorizedAccessException("Projektpfad liegt außerhalb des Videos-Arbeitsbereichs.");
+                throw new UnauthorizedAccessException("Projektpfad liegt ausserhalb des Videos-Arbeitsbereichs.");
+
+            EnsureNoReparsePointsInChain(full, videosRootFull);
             return EnsureDir(full);
         }
 
@@ -241,13 +706,29 @@ namespace FunkenwerkCraft
 
         public static List<string> ListProjectNames()
         {
-            EnsureDir(Path.Combine(VideosRoot, "Projekt 1"));
-            return Directory.GetDirectories(VideosRoot)
+            string vRoot = VideosRoot;
+            if (Directory.GetDirectories(vRoot).Length == 0)
+            {
+                EnsureDir(Path.Combine(vRoot, "Projekt 1"));
+            }
+
+            var names = Directory.GetDirectories(vRoot)
+                .Where(d =>
+                {
+                    try
+                    {
+                        var di = new DirectoryInfo(d);
+                        return !di.Attributes.HasFlag(FileAttributes.ReparsePoint) && di.LinkTarget == null;
+                    }
+                    catch { return false; }
+                })
                 .Select(Path.GetFileName)
                 .Where(n => !string.IsNullOrWhiteSpace(n))
                 .Select(n => n!)
-                .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
                 .ToList();
+
+            names.Sort(CompareNaturalStrings);
+            return names;
         }
 
         public static List<string> ListProjectMediaFiles(string projectName)
@@ -257,27 +738,38 @@ namespace FunkenwerkCraft
 
             foreach (string f in Directory.GetFiles(dir))
             {
-                string ext = Path.GetExtension(f);
-                string fn = Path.GetFileName(f);
+                var fi = new FileInfo(f);
+                if (fi.Attributes.HasFlag(FileAttributes.ReparsePoint) || fi.LinkTarget != null)
+                    continue;
+                string ext = fi.Extension;
+                string fn = fi.Name;
                 if (fn.StartsWith("Social_Media_Ready_", StringComparison.OrdinalIgnoreCase) ||
                     fn.StartsWith("_temp_", StringComparison.OrdinalIgnoreCase))
                     continue;
                 if (VideoExts.Contains(ext) || ImageExts.Contains(ext))
-                    results.Add(f);
+                    results.Add(fi.FullName);
             }
 
             string rawSub = Path.Combine(dir, "Rohmaterial");
             if (Directory.Exists(rawSub))
             {
-                foreach (string f in Directory.GetFiles(rawSub))
+                var rawDi = new DirectoryInfo(rawSub);
+                if (!rawDi.Attributes.HasFlag(FileAttributes.ReparsePoint) && rawDi.LinkTarget == null)
                 {
-                    string ext = Path.GetExtension(f);
-                    if (VideoExts.Contains(ext) || ImageExts.Contains(ext))
-                        results.Add(f);
+                    foreach (string f in Directory.GetFiles(rawSub))
+                    {
+                        var fi = new FileInfo(f);
+                        if (fi.Attributes.HasFlag(FileAttributes.ReparsePoint) || fi.LinkTarget != null)
+                            continue;
+                        string ext = fi.Extension;
+                        if (VideoExts.Contains(ext) || ImageExts.Contains(ext))
+                            results.Add(fi.FullName);
+                    }
                 }
             }
 
-            return results.OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase).ToList();
+            results.Sort((x, y) => CompareNaturalStrings(Path.GetFileName(x), Path.GetFileName(y)));
+            return results;
         }
 
         public static CraftProjectModel LoadOrCreateProject(string projectName)
@@ -288,6 +780,7 @@ namespace FunkenwerkCraft
             {
                 try
                 {
+                    EnsureNoReparsePointsInChain(jsonPath, GetProjectDirectory(safe));
                     var loaded = JsonSerializer.Deserialize<CraftProjectModel>(File.ReadAllText(jsonPath), JsonOpts);
                     if (loaded != null)
                     {
@@ -328,7 +821,7 @@ namespace FunkenwerkCraft
 
         public static string GetProjectRelativeMediaName(string projectName, string fullMediaPath)
         {
-            string projDir = GetProjectDirectory(projectName).TrimEnd('\\') + "\\";
+            string projDir = NormalizeRootPrefix(GetProjectDirectory(projectName));
             string full = Path.GetFullPath(fullMediaPath);
             if (full.StartsWith(projDir, StringComparison.OrdinalIgnoreCase))
                 return full.Substring(projDir.Length);
@@ -337,24 +830,116 @@ namespace FunkenwerkCraft
 
         public static string ResolveSceneMediaPath(string projectName, string sceneFileName)
         {
+            if (string.IsNullOrWhiteSpace(sceneFileName))
+                throw new UnauthorizedAccessException("Szenen-Dateiname darf nicht leer sein.");
+
+            string trimmed = sceneFileName.Trim();
+            if (Path.IsPathRooted(trimmed) ||
+                HasAlternateDataStreamOrUnc(trimmed) ||
+                ContainsTraversalSegment(trimmed))
+            {
+                throw new UnauthorizedAccessException("Ungueltiger oder externer Szenen-Dateipfad blockiert.");
+            }
+
+            string leaf = Path.GetFileName(trimmed);
+            if (string.IsNullOrWhiteSpace(leaf) || IsReservedWindowsDeviceName(leaf))
+                throw new UnauthorizedAccessException($"Ungueltiger Szenen-Dateiname blockiert: {sceneFileName}");
+
+            string ext = Path.GetExtension(leaf);
+            if (string.IsNullOrWhiteSpace(ext) || (!VideoExts.Contains(ext) && !ImageExts.Contains(ext)))
+                throw new UnauthorizedAccessException($"Nicht erlaubte Szenen-Dateiendung: '{ext}'.");
+
             string projDir = GetProjectDirectory(projectName);
-            string direct = Path.GetFullPath(Path.Combine(projDir, sceneFileName));
-            string prefix = projDir.TrimEnd('\\') + "\\";
+            string prefix = NormalizeRootPrefix(projDir);
+            string direct = Path.GetFullPath(Path.Combine(projDir, trimmed));
             if (!direct.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-                throw new UnauthorizedAccessException("Ungültiger Szenen-Dateipfad.");
+                throw new UnauthorizedAccessException("Szenen-Dateipfad liegt ausserhalb des Projektordners.");
+
+            EnsureNoReparsePointsInChain(direct, projDir);
             if (File.Exists(direct)) return direct;
 
-            string inRaw = Path.Combine(projDir, "Rohmaterial", Path.GetFileName(sceneFileName));
-            if (File.Exists(inRaw)) return inRaw;
+            if (string.Equals(trimmed, leaf, StringComparison.Ordinal))
+            {
+                string inRaw = Path.GetFullPath(Path.Combine(projDir, "Rohmaterial", leaf));
+                if (inRaw.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    EnsureNoReparsePointsInChain(inRaw, projDir);
+                    if (File.Exists(inRaw)) return inRaw;
+                }
+            }
 
             return direct;
+        }
+
+        public static string ImportMediaToProject(string projectName, string sourceFilePath)
+        {
+            if (string.IsNullOrWhiteSpace(sourceFilePath))
+                throw new ArgumentException("Quelldateipfad darf nicht leer sein.");
+
+            string trimmed = sourceFilePath.Trim();
+            if (HasAlternateDataStreamOrUnc(trimmed) || ContainsTraversalSegment(trimmed))
+                throw new UnauthorizedAccessException($"Unsicherer Import-Dateipfad blockiert: {sourceFilePath}");
+
+            string leaf = Path.GetFileName(trimmed);
+            if (string.IsNullOrWhiteSpace(leaf) || IsReservedWindowsDeviceName(leaf))
+                throw new UnauthorizedAccessException($"Ungueltiger Import-Dateiname blockiert: {leaf}");
+
+            string ext = Path.GetExtension(leaf);
+            if (string.IsNullOrWhiteSpace(ext) || (!VideoExts.Contains(ext) && !ImageExts.Contains(ext)))
+                throw new UnauthorizedAccessException($"Nicht erlaubter Dateityp beim Medien-Import: '{ext}'.");
+
+            string fullSrc = Path.GetFullPath(trimmed);
+            if (!File.Exists(fullSrc))
+                throw new FileNotFoundException($"Mediendatei nicht gefunden: {fullSrc}");
+
+            EnsureNoReparsePointsInChain(fullSrc);
+
+            string projDir = GetProjectDirectory(projectName);
+            string prefix = NormalizeRootPrefix(projDir);
+            string dest = Path.GetFullPath(Path.Combine(projDir, leaf));
+            if (!dest.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                throw new UnauthorizedAccessException("Zielpfad liegt ausserhalb des Projektordners.");
+
+            EnsureNoReparsePointsInChain(dest, projDir);
+
+            if (!string.Equals(fullSrc, dest, StringComparison.OrdinalIgnoreCase))
+            {
+                File.Copy(fullSrc, dest, overwrite: true);
+            }
+
+            return dest;
         }
 
         public static void SaveProject(CraftProjectModel project)
         {
             project.Name = SanitizeProjectName(project.Name);
+            string projDir = GetProjectDirectory(project.Name);
+
             project.BrandHeaderText = SanitizeCleanText(project.BrandHeaderText);
             project.TransitionDurationSec = Math.Clamp(project.TransitionDurationSec, 0.08, 1.20);
+            project.MusicVolume = Math.Clamp(project.MusicVolume, 0.0, 1.5);
+            project.SfxVolume = Math.Clamp(project.SfxVolume, 0.0, 1.5);
+
+            if (!string.IsNullOrWhiteSpace(project.OutputFileName))
+            {
+                string rawOut = project.OutputFileName.Trim();
+                if (HasAlternateDataStreamOrUnc(rawOut) ||
+                    ContainsTraversalSegment(rawOut) ||
+                    rawOut.IndexOfAny(new[] { '\\', '/' }) >= 0 ||
+                    IsReservedWindowsDeviceName(rawOut))
+                {
+                    throw new UnauthorizedAccessException("Ungueltiger OutputFileName blockiert.");
+                }
+                if (!rawOut.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase))
+                    rawOut += ".mp4";
+                project.OutputFileName = rawOut;
+            }
+
+            // Enforce safe audio containment + allowlist across ALL project-level audio fields
+            _ = ResolveSafeAudioPath(project.BackgroundMusic, projDir, requireExists: false);
+            _ = ResolveSafeAudioPath(project.IntroAccentSfx, projDir, requireExists: false);
+            _ = ResolveSafeAudioPath(project.OutroAccentSfx, projDir, requireExists: false);
+
             foreach (var s in project.Scenes)
             {
                 s.OverlayBadge = SanitizeCleanText(s.OverlayBadge);
@@ -363,15 +948,36 @@ namespace FunkenwerkCraft
                 s.DurationSec = Math.Clamp(s.DurationSec, 0.8, 60.0);
                 s.StartSec = Math.Max(0.0, s.StartSec);
                 s.SlowMoFactor = Math.Clamp(s.SlowMoFactor <= 0 ? 0.42 : s.SlowMoFactor, 0.25, 0.90);
+                s.OriginalAudioVolume = Math.Clamp(s.OriginalAudioVolume, 0.0, 1.5);
                 s.TransitionDurSec = s.TransitionDurSec <= 0.02 ? 0.0 : Math.Clamp(s.TransitionDurSec, 0.08, 1.40);
-                if (string.Equals(s.MediaType, "brand_outro", StringComparison.OrdinalIgnoreCase))
+
+                bool isBrandOutro = string.Equals(s.MediaType, "brand_outro", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(s.FileName, "__BRAND_OUTRO__", StringComparison.OrdinalIgnoreCase);
+
+                if (isBrandOutro)
                 {
+                    s.MediaType = "brand_outro";
                     if (string.IsNullOrWhiteSpace(s.FileName)) s.FileName = "__BRAND_OUTRO__";
                     if (string.IsNullOrWhiteSpace(s.OverlayTitle)) s.OverlayTitle = "Mein Seelenfunke";
                 }
+                else if (!string.IsNullOrWhiteSpace(s.FileName))
+                {
+                    _ = ResolveSceneMediaPath(project.Name, s.FileName);
+                }
+
+                // Enforce safe audio containment + allowlist across ALL scene-level audio fields
+                _ = ResolveSafeAudioPath(s.TransitionSfx, projDir, requireExists: false);
+                _ = ResolveSafeAudioPath(s.RiserSfx, projDir, requireExists: false);
+                _ = ResolveSafeAudioPath(s.ImpactSfx, projDir, requireExists: false);
+
+                if (string.IsNullOrWhiteSpace(s.FitMode))
+                    s.FitMode = "fill";
                 if (string.IsNullOrWhiteSpace(s.SpeedMode))
                     s.SpeedMode = (s.MediaType == "image" || s.MediaType == "brand_outro") ? "linear" : "speed_ramp";
+                if (string.IsNullOrWhiteSpace(s.Transition))
+                    s.Transition = "whip_zoom";
             }
+
             project.UpdatedAtUtc = DateTime.UtcNow;
             string jsonPath = GetProjectJsonPath(project.Name);
             File.WriteAllText(jsonPath, JsonSerializer.Serialize(project, JsonOpts), new UTF8Encoding(false));
@@ -380,7 +986,8 @@ namespace FunkenwerkCraft
         public static List<CraftSoundItem> ListSoundPool(string? categoryFilter = null)
         {
             var list = new List<CraftSoundItem>();
-            string licFile = Path.Combine(SoundsRoot, "LIZENZEN_GEWERBLICHE_NUTZUNG.json");
+            string soundsRootFull = SoundsRoot;
+            string licFile = Path.Combine(soundsRootFull, "LIZENZEN_GEWERBLICHE_NUTZUNG.json");
             var metaMap = new Dictionary<string, (double dur, string lic, string src)>(StringComparer.OrdinalIgnoreCase);
 
             if (File.Exists(licFile))
@@ -404,11 +1011,15 @@ namespace FunkenwerkCraft
                 catch { }
             }
 
-            if (!Directory.Exists(SoundsRoot)) return list;
+            if (!Directory.Exists(soundsRootFull)) return list;
 
-            foreach (string subDir in Directory.GetDirectories(SoundsRoot))
+            foreach (string subDir in Directory.GetDirectories(soundsRootFull))
             {
-                string cat = Path.GetFileName(subDir);
+                var subDi = new DirectoryInfo(subDir);
+                if (subDi.Attributes.HasFlag(FileAttributes.ReparsePoint) || subDi.LinkTarget != null)
+                    continue;
+
+                string cat = subDi.Name;
                 if (!string.IsNullOrWhiteSpace(categoryFilter) &&
                     !string.Equals(categoryFilter, "all", StringComparison.OrdinalIgnoreCase) &&
                     !cat.Contains(categoryFilter, StringComparison.OrdinalIgnoreCase))
@@ -418,15 +1029,18 @@ namespace FunkenwerkCraft
 
                 foreach (string f in Directory.GetFiles(subDir))
                 {
-                    if (!AudioExts.Contains(Path.GetExtension(f))) continue;
-                    string rel = $"{cat}\\{Path.GetFileName(f)}";
+                    var fi = new FileInfo(f);
+                    if (fi.Attributes.HasFlag(FileAttributes.ReparsePoint) || fi.LinkTarget != null)
+                        continue;
+                    if (!AudioExts.Contains(fi.Extension)) continue;
+                    string rel = $"{cat}\\{fi.Name}";
                     metaMap.TryGetValue(rel, out var m);
                     list.Add(new CraftSoundItem
                     {
-                        FileName = Path.GetFileName(f),
+                        FileName = fi.Name,
                         Category = cat,
                         RelativePath = rel,
-                        FullPath = f,
+                        FullPath = fi.FullName,
                         DurationSec = m.dur,
                         License = string.IsNullOrEmpty(m.lic) ? "CC0-1.0" : m.lic,
                         CommercialUseAllowed = true,
@@ -440,12 +1054,29 @@ namespace FunkenwerkCraft
 
         public static async Task<CraftMediaInfo> ProbeMediaFileAsync(string filePath)
         {
-            if (!File.Exists(filePath))
-                throw new FileNotFoundException($"Mediendatei nicht gefunden: {filePath}");
+            if (string.IsNullOrWhiteSpace(filePath))
+                throw new ArgumentException("Mediendateipfad darf nicht leer sein.");
 
-            var fi = new FileInfo(filePath);
-            string ext = fi.Extension.ToLowerInvariant();
-            bool isImg = ImageExts.Contains(ext);
+            string trimmed = filePath.Trim();
+            if (HasAlternateDataStreamOrUnc(trimmed) || ContainsTraversalSegment(trimmed))
+                throw new UnauthorizedAccessException($"Unsicherer Mediendateipfad blockiert: {filePath}");
+
+            string leaf = Path.GetFileName(trimmed);
+            if (string.IsNullOrWhiteSpace(leaf) || IsReservedWindowsDeviceName(leaf))
+                throw new UnauthorizedAccessException($"Ungueltiger Mediendateiname blockiert: {leaf}");
+
+            string extCheck = Path.GetExtension(leaf).ToLowerInvariant();
+            if (!VideoExts.Contains(extCheck) && !ImageExts.Contains(extCheck))
+                throw new UnauthorizedAccessException($"Dateityp wird fuer Medien-Inspektion nicht unterstuetzt: '{extCheck}'.");
+
+            string fullPath = Path.GetFullPath(trimmed);
+            if (!File.Exists(fullPath))
+                throw new FileNotFoundException($"Mediendatei nicht gefunden: {fullPath}");
+
+            EnsureNoReparsePointsInChain(fullPath);
+
+            var fi = new FileInfo(fullPath);
+            bool isImg = ImageExts.Contains(extCheck);
 
             var info = new CraftMediaInfo
             {
@@ -457,7 +1088,7 @@ namespace FunkenwerkCraft
 
             if (isImg)
             {
-                using var img = Image.FromFile(filePath);
+                using var img = Image.FromFile(fi.FullName);
                 info.Width = img.Width;
                 info.Height = img.Height;
                 if (img.PropertyIdList.Contains(0x0112))
@@ -472,25 +1103,19 @@ namespace FunkenwerkCraft
                 return info;
             }
 
-            var psi = new ProcessStartInfo
+            string ffprobeExe = FindTrustedFfprobeExe();
+            var args = new[]
             {
-                FileName = "ffprobe",
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                CreateNoWindow = true
+                "-v", "quiet",
+                "-print_format", "json",
+                "-show_format",
+                "-show_streams",
+                fi.FullName
             };
-            psi.ArgumentList.Add("-v");
-            psi.ArgumentList.Add("quiet");
-            psi.ArgumentList.Add("-print_format");
-            psi.ArgumentList.Add("json");
-            psi.ArgumentList.Add("-show_format");
-            psi.ArgumentList.Add("-show_streams");
-            psi.ArgumentList.Add(filePath);
 
-            using var proc = Process.Start(psi) ?? throw new InvalidOperationException("ffprobe konnte nicht gestartet werden.");
-            string json = await proc.StandardOutput.ReadToEndAsync();
-            await proc.WaitForExitAsync();
+            var (exitCode, json, stdErr) = await RunProcessBoundedAsync(ffprobeExe, args, timeoutMs: 20000);
+            if (exitCode != 0 || string.IsNullOrWhiteSpace(json))
+                throw new InvalidOperationException($"ffprobe Analyse fehlgeschlagen (Exit {exitCode}): {stdErr}");
 
             using var doc = JsonDocument.Parse(json);
             if (doc.RootElement.TryGetProperty("format", out var fmt) &&
@@ -539,25 +1164,34 @@ namespace FunkenwerkCraft
             return info;
         }
 
-        private static (double PeakSec, double DurationSec) GetAudioPeakEnvelopeInfo(string audioPath)
+        public static (double PeakSec, double DurationSec) GetAudioPeakEnvelopeInfo(string audioPath, string? projectDir = null)
         {
-            if (AudioPeakCache.TryGetValue(audioPath, out var cached))
+            string? safeAudio = ResolveSafeAudioPath(audioPath, projectDir, requireExists: true);
+            if (string.IsNullOrWhiteSpace(safeAudio))
+                return (0.08, 1.5);
+
+            if (AudioPeakCache.TryGetValue(safeAudio, out var cached))
                 return cached;
 
             try
             {
+                string ffmpegExe = FindTrustedFfmpegExe();
                 var psi = new ProcessStartInfo
                 {
-                    FileName = "ffmpeg",
+                    FileName = ffmpegExe,
+                    WorkingDirectory = Path.GetDirectoryName(ffmpegExe)!,
                     UseShellExecute = false,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     CreateNoWindow = true
                 };
+                psi.ArgumentList.Add("-nostdin");
                 psi.ArgumentList.Add("-v");
-                psi.ArgumentList.Add("quiet");
+                psi.ArgumentList.Add("error");
+                psi.ArgumentList.Add("-t");
+                psi.ArgumentList.Add("90");
                 psi.ArgumentList.Add("-i");
-                psi.ArgumentList.Add(audioPath);
+                psi.ArgumentList.Add(safeAudio);
                 psi.ArgumentList.Add("-f");
                 psi.ArgumentList.Add("s16le");
                 psi.ArgumentList.Add("-ac");
@@ -569,10 +1203,40 @@ namespace FunkenwerkCraft
                 using var proc = Process.Start(psi);
                 if (proc != null)
                 {
-                    using var ms = new MemoryStream();
-                    proc.StandardOutput.BaseStream.CopyTo(ms);
-                    proc.WaitForExit(5000);
-                    byte[] pcm = ms.ToArray();
+                    byte[] pcm = Task.Run(async () =>
+                    {
+                        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+                        Task<string> errDrain = proc.StandardError.ReadToEndAsync();
+                        using var ms = new MemoryStream(capacity: 65536);
+                        byte[] chunk = new byte[8192];
+                        const int maxBytes = 200_000; // 90s * 1000Hz * 2 bytes = 180,000 bytes max
+                        try
+                        {
+                            while (ms.Length < maxBytes)
+                            {
+                                int read = await proc.StandardOutput.BaseStream.ReadAsync(
+                                    chunk.AsMemory(0, Math.Min(chunk.Length, maxBytes - (int)ms.Length)),
+                                    cts.Token);
+                                if (read <= 0) break;
+                                ms.Write(chunk, 0, read);
+                            }
+                            if (ms.Length >= maxBytes && !proc.HasExited)
+                            {
+                                try { proc.Kill(entireProcessTree: true); } catch { }
+                            }
+                            else
+                            {
+                                await proc.WaitForExitAsync(cts.Token);
+                            }
+                            _ = await errDrain;
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            try { proc.Kill(entireProcessTree: true); } catch { }
+                        }
+                        return ms.ToArray();
+                    }).GetAwaiter().GetResult();
+
                     int sampleCount = pcm.Length / 2;
                     if (sampleCount > 10)
                     {
@@ -589,7 +1253,7 @@ namespace FunkenwerkCraft
                             }
                         }
                         var res = (bestIdx / 1000.0, sampleCount / 1000.0);
-                        AudioPeakCache[audioPath] = res;
+                        AudioPeakCache[safeAudio] = res;
                         return res;
                     }
                 }
@@ -597,40 +1261,144 @@ namespace FunkenwerkCraft
             catch { }
 
             var fallback = (0.08, 1.5);
-            AudioPeakCache[audioPath] = fallback;
+            AudioPeakCache[safeAudio] = fallback;
             return fallback;
         }
 
         // =====================================================================
         // STORYTOLD ARTCRAFT / FILMCRAFT / SOUNDCRAFT ENGINE INTEGRATION
         // =====================================================================
-        private static (int Port, string Token) GetOrCreateFilmCraftBridgeCredentials()
+        private static void EnsureSecureBridgeDirectory()
+        {
+            var dirInfo = new DirectoryInfo(BridgeDirectoryPath);
+            if (!dirInfo.Exists)
+                dirInfo.Create();
+
+            EnsureNoReparsePointsInChain(dirInfo.FullName, LocalDataDir);
+
+            var userSid = WindowsIdentity.GetCurrent().User;
+            if (userSid != null)
+            {
+                var dsec = new DirectorySecurity();
+                dsec.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+                dsec.AddAccessRule(new FileSystemAccessRule(
+                    userSid,
+                    FileSystemRights.FullControl,
+                    InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                    PropagationFlags.None,
+                    AccessControlType.Allow));
+                dirInfo.SetAccessControl(dsec);
+            }
+        }
+
+        private static void ApplyCurrentUserFileAcl(string filePath)
+        {
+            var userSid = WindowsIdentity.GetCurrent().User;
+            if (userSid == null || !File.Exists(filePath)) return;
+
+            var fi = new FileInfo(filePath);
+            var fsec = new FileSecurity();
+            fsec.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+            fsec.AddAccessRule(new FileSystemAccessRule(
+                userSid,
+                FileSystemRights.FullControl,
+                InheritanceFlags.None,
+                PropagationFlags.None,
+                AccessControlType.Allow));
+            fi.SetAccessControl(fsec);
+        }
+
+        public static (int Port, string Token) GetOrCreateFilmCraftBridgeCredentials()
         {
             var settings = LoadSettings();
             int port = settings.FilmCraftControlPort > 1024 ? settings.FilmCraftControlPort : 9876;
+
+            EnsureSecureBridgeDirectory();
 
             try
             {
                 if (File.Exists(BridgeStateFilePath))
                 {
-                    using var doc = JsonDocument.Parse(File.ReadAllText(BridgeStateFilePath));
-                    if (doc.RootElement.TryGetProperty("token", out var tp))
+                    EnsureNoReparsePointsInChain(BridgeStateFilePath, BridgeDirectoryPath);
+                    using var doc = JsonDocument.Parse(File.ReadAllText(BridgeStateFilePath, Encoding.UTF8));
+                    int savedPort = doc.RootElement.TryGetProperty("port", out var pp) ? pp.GetInt32() : port;
+                    if (doc.RootElement.TryGetProperty("encryptedToken", out var encProp))
                     {
-                        string? tok = tp.GetString();
-                        int p = doc.RootElement.TryGetProperty("port", out var pp) ? pp.GetInt32() : port;
-                        if (!string.IsNullOrWhiteSpace(tok) && tok.Length == 64)
-                            return (p, tok);
+                        string? encB64 = encProp.GetString();
+                        if (!string.IsNullOrWhiteSpace(encB64))
+                        {
+                            byte[] cipher = Convert.FromBase64String(encB64);
+                            byte[] plain = ProtectedData.Unprotect(cipher, BridgeDpapiEntropy, DataProtectionScope.CurrentUser);
+                            string tok = Encoding.UTF8.GetString(plain);
+                            if (tok.Length == 64 && tok.All(Uri.IsHexDigit))
+                                return (savedPort, tok);
+                        }
                     }
                 }
             }
             catch { }
 
             string newToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
-            File.WriteAllText(BridgeStateFilePath, JsonSerializer.Serialize(new { port, token = newToken, updatedUtc = DateTime.UtcNow }), new UTF8Encoding(false));
+            byte[] cipherBytes = ProtectedData.Protect(
+                Encoding.UTF8.GetBytes(newToken),
+                BridgeDpapiEntropy,
+                DataProtectionScope.CurrentUser);
+
+            string stateJson = JsonSerializer.Serialize(new
+            {
+                port,
+                encryptedToken = Convert.ToBase64String(cipherBytes),
+                protection = "DPAPI-CurrentUser",
+                updatedUtc = DateTime.UtcNow
+            }, JsonOpts);
+
+            File.WriteAllText(BridgeStateFilePath, stateJson, new UTF8Encoding(false));
+            ApplyCurrentUserFileAcl(BridgeStateFilePath);
             return (port, newToken);
         }
 
-        public static object LaunchStorytoldEngine(string engineKey, string? targetPath = null, bool enableControlBridge = true)
+        public static string? ValidateLaunchEngineTargetPath(string? targetPath)
+        {
+            if (string.IsNullOrWhiteSpace(targetPath))
+                return null;
+
+            string trimmed = targetPath.Trim();
+            if (HasAlternateDataStreamOrUnc(trimmed) || ContainsTraversalSegment(trimmed))
+                throw new UnauthorizedAccessException("Unsicherer Engine-Projektpfad blockiert.");
+
+            string leaf = Path.GetFileName(trimmed);
+            if (string.IsNullOrWhiteSpace(leaf) || IsReservedWindowsDeviceName(leaf))
+                throw new UnauthorizedAccessException("Ungueltiger Projekt-Dateiname fuer Engine-Start.");
+
+            string ext = Path.GetExtension(leaf);
+            if (!string.Equals(ext, ".fcproj", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(ext, ".ecproj", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new UnauthorizedAccessException("Nur .fcproj oder .ecproj Projektdateien sind beim Engine-Start erlaubt.");
+            }
+
+            string wsRootFull = Path.GetFullPath(WorkspaceRoot);
+            string wsPrefix = NormalizeRootPrefix(wsRootFull);
+            string fullTarget = Path.IsPathRooted(trimmed)
+                ? Path.GetFullPath(trimmed)
+                : Path.GetFullPath(Path.Combine(wsRootFull, trimmed));
+
+            if (!fullTarget.StartsWith(wsPrefix, StringComparison.OrdinalIgnoreCase))
+                throw new UnauthorizedAccessException("Ziel-Projektdatei liegt ausserhalb des Craft-Arbeitsbereichs.");
+
+            EnsureNoReparsePointsInChain(fullTarget, wsRootFull);
+
+            if (!File.Exists(fullTarget))
+                throw new FileNotFoundException($"Projektdatei nicht gefunden: {fullTarget}");
+
+            return fullTarget;
+        }
+
+        public static object LaunchStorytoldEngine(
+            string engineKey,
+            string? targetPath = null,
+            bool enableControlBridge = true,
+            bool validateOnly = false)
         {
             string norm = engineKey.Trim().ToLowerInvariant();
             string exePath = norm switch
@@ -643,6 +1411,9 @@ namespace FunkenwerkCraft
 
             if (!File.Exists(exePath))
                 throw new FileNotFoundException($"Engine-Binary nicht gefunden: {exePath}");
+
+            EnsureNoReparsePointsInChain(exePath);
+            string? validatedTarget = ValidateLaunchEngineTargetPath(targetPath);
 
             var psi = new ProcessStartInfo
             {
@@ -671,21 +1442,215 @@ namespace FunkenwerkCraft
                 activePort = scPort;
             }
 
-            if (!string.IsNullOrWhiteSpace(targetPath) && File.Exists(targetPath))
+            if (!string.IsNullOrWhiteSpace(validatedTarget))
             {
-                psi.ArgumentList.Add(targetPath);
+                psi.ArgumentList.Add(validatedTarget);
+            }
+
+            if (validateOnly)
+            {
+                return new
+                {
+                    ok = true,
+                    launched = false,
+                    validated = true,
+                    engine = norm,
+                    executable = exePath,
+                    pid = 0,
+                    controlPort = activePort,
+                    targetPath = validatedTarget ?? ""
+                };
             }
 
             var proc = Process.Start(psi);
             return new
             {
+                ok = true,
                 launched = true,
                 engine = norm,
                 executable = exePath,
                 pid = proc?.Id ?? 0,
                 controlPort = activePort,
-                targetPath = targetPath ?? ""
+                targetPath = validatedTarget ?? ""
             };
+        }
+
+        private static List<string> ValidateAndNormalizeFilmCraftCliArgs(IEnumerable<string> arguments)
+        {
+            var raw = arguments?.Where(a => !string.IsNullOrWhiteSpace(a)).Select(a => a.Trim()).ToList()
+                ?? new List<string>();
+            if (raw.Count == 0)
+                raw.Add("commands");
+
+            if (raw.Count > 8)
+                throw new UnauthorizedAccessException("Zu viele filmcraft-cli Argumente.");
+
+            var normalized = new List<string>();
+            int idx = 0;
+
+            while (idx < raw.Count && (raw[idx] == "--keep-going" || raw[idx] == "--compact"))
+            {
+                normalized.Add(raw[idx]);
+                idx++;
+            }
+
+            if (idx >= raw.Count)
+                throw new UnauthorizedAccessException("Kein erlaubtes filmcraft-cli Subkommando angegeben.");
+
+            string sub = raw[idx];
+            if (!AllowedFilmCraftSubcommands.Contains(sub))
+                throw new UnauthorizedAccessException($"filmcraft-cli Subkommando '{sub}' ist aus Sicherheitsgruenden nicht freigegeben.");
+
+            normalized.Add(sub);
+            idx++;
+
+            string wsRootFull = Path.GetFullPath(WorkspaceRoot);
+            string wsPrefix = NormalizeRootPrefix(wsRootFull);
+            string soundsRootFull = Path.GetFullPath(SoundsRoot);
+            string soundsPrefix = NormalizeRootPrefix(soundsRootFull);
+
+            if (string.Equals(sub, "commands", StringComparison.OrdinalIgnoreCase))
+            {
+                while (idx < raw.Count)
+                {
+                    string opt = raw[idx++];
+                    if (opt == "--json" || opt == "--compact")
+                    {
+                        normalized.Add(opt);
+                    }
+                    else if (!opt.StartsWith("-", StringComparison.Ordinal) && opt.Length <= 64 && opt.All(c => char.IsLetterOrDigit(c) || c == '.' || c == '_'))
+                    {
+                        normalized.Add(opt);
+                    }
+                    else
+                    {
+                        throw new UnauthorizedAccessException($"Ungueltiger Filter fuer filmcraft-cli commands: {opt}");
+                    }
+                }
+            }
+            else if (string.Equals(sub, "describe", StringComparison.OrdinalIgnoreCase))
+            {
+                if (idx >= raw.Count || idx + 1 < raw.Count)
+                    throw new UnauthorizedAccessException("describe erwartet genau eine Befehls-ID.");
+                string cmdId = raw[idx];
+                if (cmdId.Length > 80 || !cmdId.All(c => char.IsLetterOrDigit(c) || c == '.' || c == '_'))
+                    throw new UnauthorizedAccessException("Ungueltige Befehls-ID fuer filmcraft-cli describe.");
+                normalized.Add(cmdId);
+            }
+            else if (string.Equals(sub, "inspect", StringComparison.OrdinalIgnoreCase))
+            {
+                if (idx < raw.Count)
+                {
+                    string target = raw[idx++];
+                    if (target != "project" && target != "sequence")
+                        throw new UnauthorizedAccessException("inspect erlaubt nur 'project' oder 'sequence'.");
+                    normalized.Add(target);
+                }
+                if (idx < raw.Count)
+                    throw new UnauthorizedAccessException("Unerwartete Zusatzargumente fuer filmcraft-cli inspect.");
+            }
+            else if (string.Equals(sub, "help", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(sub, "--help", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(sub, "--version", StringComparison.OrdinalIgnoreCase))
+            {
+                if (idx < raw.Count)
+                    throw new UnauthorizedAccessException($"Keine Zusatzargumente fuer '{sub}' erlaubt.");
+            }
+            else if (string.Equals(sub, "probe", StringComparison.OrdinalIgnoreCase))
+            {
+                if (idx >= raw.Count || idx + 1 < raw.Count)
+                    throw new UnauthorizedAccessException("probe erwartet genau einen Medienpfad im Arbeitsbereich.");
+                string mediaArg = raw[idx];
+                if (HasAlternateDataStreamOrUnc(mediaArg) || ContainsTraversalSegment(mediaArg))
+                    throw new UnauthorizedAccessException("Unsicherer Medienpfad fuer filmcraft-cli probe.");
+                string fullMedia = Path.IsPathRooted(mediaArg)
+                    ? Path.GetFullPath(mediaArg)
+                    : Path.GetFullPath(Path.Combine(wsRootFull, mediaArg));
+                if (!fullMedia.StartsWith(wsPrefix, StringComparison.OrdinalIgnoreCase) &&
+                    !fullMedia.StartsWith(soundsPrefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new UnauthorizedAccessException("probe-Pfad liegt ausserhalb des Craft-Arbeitsbereichs.");
+                }
+                string ext = Path.GetExtension(fullMedia);
+                if (!VideoExts.Contains(ext) && !ImageExts.Contains(ext) && !AudioExts.Contains(ext))
+                    throw new UnauthorizedAccessException("Nicht erlaubte Dateiendung fuer filmcraft-cli probe.");
+                EnsureNoReparsePointsInChain(fullMedia);
+                if (!File.Exists(fullMedia))
+                    throw new FileNotFoundException($"Mediendatei fuer probe nicht gefunden: {fullMedia}");
+                normalized.Add(fullMedia);
+            }
+            else if (string.Equals(sub, "run", StringComparison.OrdinalIgnoreCase))
+            {
+                if (idx >= raw.Count || idx + 1 < raw.Count)
+                    throw new UnauthorizedAccessException("run erwartet genau eine .jsonl-Skriptdatei im Arbeitsbereich.");
+                string scriptArg = raw[idx];
+                if (scriptArg == "-" || HasAlternateDataStreamOrUnc(scriptArg) || ContainsTraversalSegment(scriptArg))
+                    throw new UnauthorizedAccessException("Unsicherer Skriptpfad fuer filmcraft-cli run blockiert.");
+                string fullScript = Path.IsPathRooted(scriptArg)
+                    ? Path.GetFullPath(scriptArg)
+                    : Path.GetFullPath(Path.Combine(wsRootFull, scriptArg));
+                if (!fullScript.StartsWith(wsPrefix, StringComparison.OrdinalIgnoreCase))
+                    throw new UnauthorizedAccessException("filmcraft-cli Skriptdatei muss innerhalb von WorkspaceRoot liegen.");
+                if (!string.Equals(Path.GetExtension(fullScript), ".jsonl", StringComparison.OrdinalIgnoreCase))
+                    throw new UnauthorizedAccessException("Nur .jsonl-Skriptdateien sind fuer filmcraft-cli run erlaubt.");
+                EnsureNoReparsePointsInChain(fullScript, wsRootFull);
+                if (!File.Exists(fullScript))
+                    throw new FileNotFoundException($"JSONL-Skript nicht gefunden: {fullScript}");
+                var sfi = new FileInfo(fullScript);
+                if (sfi.Length > 1048576)
+                    throw new InvalidDataException("JSONL-Skriptdatei ueberschreitet 1 MB.");
+
+                ValidateJsonlWorkspaceContainment(fullScript, wsRootFull, wsPrefix, soundsPrefix);
+                normalized.Add(fullScript);
+            }
+
+            return normalized;
+        }
+
+        private static void ValidateJsonlWorkspaceContainment(string scriptPath, string wsRootFull, string wsPrefix, string soundsPrefix)
+        {
+            foreach (string rawLine in File.ReadLines(scriptPath, Encoding.UTF8))
+            {
+                string line = rawLine.Trim();
+                if (string.IsNullOrEmpty(line) || line.StartsWith("#", StringComparison.Ordinal))
+                    continue;
+
+                using var doc = JsonDocument.Parse(line);
+                if (!doc.RootElement.TryGetProperty("id", out var idProp))
+                    throw new UnauthorizedAccessException("JSONL-Zeile ohne Befehls-ID blockiert.");
+
+                string cmdId = idProp.GetString() ?? "";
+                if (cmdId.StartsWith("file.export", StringComparison.OrdinalIgnoreCase))
+                    throw new UnauthorizedAccessException($"Export-Befehl '{cmdId}' in JSONL blockiert.");
+
+                if (doc.RootElement.TryGetProperty("params", out var pObj) && pObj.ValueKind == JsonValueKind.Object)
+                {
+                    if (pObj.TryGetProperty("path", out var singlePath) && singlePath.ValueKind == JsonValueKind.String)
+                    {
+                        ValidateJsonlReferencedPath(singlePath.GetString() ?? "", wsRootFull, wsPrefix, soundsPrefix, mustStayInWorkspace: true);
+                    }
+                    if (pObj.TryGetProperty("paths", out var multiPaths) && multiPaths.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var el in multiPaths.EnumerateArray())
+                        {
+                            if (el.ValueKind == JsonValueKind.String)
+                                ValidateJsonlReferencedPath(el.GetString() ?? "", wsRootFull, wsPrefix, soundsPrefix, mustStayInWorkspace: false);
+                        }
+                    }
+                }
+            }
+        }
+
+        private static void ValidateJsonlReferencedPath(string p, string wsRootFull, string wsPrefix, string soundsPrefix, bool mustStayInWorkspace)
+        {
+            if (string.IsNullOrWhiteSpace(p) || HasAlternateDataStreamOrUnc(p) || ContainsTraversalSegment(p))
+                throw new UnauthorizedAccessException("Unsicherer Dateipfad in FilmCraft-JSONL blockiert.");
+            string full = Path.GetFullPath(p);
+            bool inWs = full.StartsWith(wsPrefix, StringComparison.OrdinalIgnoreCase);
+            bool inSounds = !mustStayInWorkspace && full.StartsWith(soundsPrefix, StringComparison.OrdinalIgnoreCase);
+            if (!inWs && !inSounds)
+                throw new UnauthorizedAccessException("FilmCraft-JSONL Pfad liegt ausserhalb des erlaubten Arbeitsbereichs.");
+            EnsureNoReparsePointsInChain(full, inWs ? wsRootFull : null);
         }
 
         public static async Task<string> RunFilmCraftCliAsync(IEnumerable<string> arguments, int timeoutSec = 90)
@@ -693,41 +1658,75 @@ namespace FunkenwerkCraft
             if (!File.Exists(FilmCraftCliExe))
                 throw new FileNotFoundException($"filmcraft-cli.exe nicht gefunden: {FilmCraftCliExe}");
 
+            EnsureNoReparsePointsInChain(FilmCraftCliExe);
+            List<string> safeArgs = ValidateAndNormalizeFilmCraftCliArgs(arguments);
+
             var (_, token) = GetOrCreateFilmCraftBridgeCredentials();
-            var psi = new ProcessStartInfo
+            var env = new Dictionary<string, string>
             {
-                FileName = FilmCraftCliExe,
-                WorkingDirectory = Path.GetDirectoryName(FilmCraftCliExe)!,
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                CreateNoWindow = true,
-                StandardOutputEncoding = Encoding.UTF8,
-                StandardErrorEncoding = Encoding.UTF8
+                ["FILMCRAFT_CONTROL_TOKEN"] = token
             };
-            psi.Environment["FILMCRAFT_CONTROL_TOKEN"] = token;
-            foreach (string a in arguments) psi.ArgumentList.Add(a);
 
-            using var proc = Process.Start(psi) ?? throw new InvalidOperationException("filmcraft-cli Start fehlgeschlagen.");
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSec));
-            Task<string> outTask = proc.StandardOutput.ReadToEndAsync(cts.Token);
-            Task<string> errTask = proc.StandardError.ReadToEndAsync(cts.Token);
-            await proc.WaitForExitAsync(cts.Token);
+            var (exitCode, stdout, stderr) = await RunProcessBoundedAsync(
+                FilmCraftCliExe,
+                safeArgs,
+                timeoutMs: Math.Clamp(timeoutSec, 5, 300) * 1000,
+                workingDirectory: Path.GetDirectoryName(FilmCraftCliExe),
+                environmentOverrides: env);
 
-            string stdout = await outTask;
-            string stderr = await errTask;
+            if (exitCode != 0 && string.IsNullOrWhiteSpace(stdout))
+                throw new InvalidOperationException($"filmcraft-cli Fehler (Exit {exitCode}): {stderr.Trim()}");
+
             return string.IsNullOrWhiteSpace(stdout) ? stderr.Trim() : stdout.Trim();
+        }
+
+        public static async Task<string?> ReadBoundedLineAsync(Stream stream, int maxBytes = MaxIpcLineBytes, CancellationToken ct = default)
+        {
+            if (maxBytes <= 0)
+                throw new ArgumentOutOfRangeException(nameof(maxBytes));
+
+            using var ms = new MemoryStream(capacity: Math.Min(4096, maxBytes));
+            byte[] oneByte = new byte[1];
+            bool anyRead = false;
+
+            while (true)
+            {
+                int n = await stream.ReadAsync(oneByte.AsMemory(0, 1), ct);
+                if (n == 0)
+                    break;
+
+                anyRead = true;
+                byte b = oneByte[0];
+                if (b == (byte)'\n')
+                    break;
+
+                if (ms.Length >= maxBytes)
+                    throw new InvalidDataException($"IPC-Zeile ueberschreitet das Sicherheitslimit von {maxBytes} Bytes.");
+
+                ms.WriteByte(b);
+            }
+
+            if (!anyRead && ms.Length == 0)
+                return null;
+
+            byte[] buf = ms.ToArray();
+            int len = buf.Length;
+            if (len > 0 && buf[len - 1] == (byte)'\r')
+                len--;
+
+            return Encoding.UTF8.GetString(buf, 0, len);
         }
 
         public static async Task<string> SendFilmCraftBridgeCommandAsync(string method, JsonNode? parameters = null)
         {
+            if (string.IsNullOrWhiteSpace(method) || method.Length > 96 || !method.All(c => char.IsLetterOrDigit(c) || c == '.' || c == '_'))
+                throw new UnauthorizedAccessException("Ungueltige FilmCraft-Bridge-Methode.");
+
             var (port, token) = GetOrCreateFilmCraftBridgeCredentials();
             using var tcp = new TcpClient();
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             await tcp.ConnectAsync("127.0.0.1", port, cts.Token);
             await using var stream = tcp.GetStream();
-            using var writer = new StreamWriter(stream, new UTF8Encoding(false)) { AutoFlush = true };
-            using var reader = new StreamReader(stream, Encoding.UTF8);
 
             var req = new JsonObject
             {
@@ -735,8 +1734,11 @@ namespace FunkenwerkCraft
                 ["method"] = method,
                 ["params"] = parameters?.DeepClone() ?? new JsonObject()
             };
-            await writer.WriteLineAsync(req.ToJsonString());
-            string? line = await reader.ReadLineAsync(cts.Token);
+            byte[] payload = Encoding.UTF8.GetBytes(req.ToJsonString() + "\n");
+            await stream.WriteAsync(payload, cts.Token);
+            await stream.FlushAsync(cts.Token);
+
+            string? line = await ReadBoundedLineAsync(stream, MaxIpcLineBytes, cts.Token);
             return line ?? "{}";
         }
 
@@ -747,38 +1749,153 @@ namespace FunkenwerkCraft
             string fcprojPath = Path.Combine(projDir, $"{project.Name.Replace(' ', '_')}.fcproj");
             string scriptPath = Path.Combine(projDir, "filmcraft_build.jsonl");
 
-            var lines = new List<string>();
-            lines.Add(JsonSerializer.Serialize(new
+            var lines = new List<string>
             {
-                id = "file.newSequence",
-                @params = new
+                JsonSerializer.Serialize(new
                 {
-                    name = project.Name,
-                    width = targetW,
-                    height = targetH,
-                    fps = project.Fps,
-                    sampleRate = 48000,
-                    video = 2,
-                    audio = 4
-                }
-            }));
+                    id = "file.newSequence",
+                    @params = new
+                    {
+                        name = project.Name,
+                        width = targetW,
+                        height = targetH,
+                        fps = project.Fps,
+                        sampleRate = 48000,
+                        video = 2,
+                        audio = 4
+                    }
+                })
+            };
+
+            // Collect and import all resolved scene media files + background music into FilmCraft project bin
+            var importPaths = new List<string>();
+            var resolvedSceneFiles = new List<(CraftSceneItem Scene, string? FullMediaPath, bool IsBrandOutro)>();
 
             foreach (var scene in project.Scenes)
             {
+                bool isOutro = string.Equals(scene.MediaType, "brand_outro", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(scene.FileName, "__BRAND_OUTRO__", StringComparison.OrdinalIgnoreCase);
+
+                if (isOutro)
+                {
+                    resolvedSceneFiles.Add((scene, null, true));
+                }
+                else if (!string.IsNullOrWhiteSpace(scene.FileName))
+                {
+                    string mediaFull = ResolveSceneMediaPath(project.Name, scene.FileName);
+                    if (File.Exists(mediaFull))
+                    {
+                        if (!importPaths.Contains(mediaFull, StringComparer.OrdinalIgnoreCase))
+                            importPaths.Add(mediaFull);
+                        resolvedSceneFiles.Add((scene, mediaFull, false));
+                    }
+                    else
+                    {
+                        resolvedSceneFiles.Add((scene, null, false));
+                    }
+                }
+            }
+
+            string? resolvedMusic = ResolveSafeAudioPath(project.BackgroundMusic, projDir, requireExists: true);
+            if (!string.IsNullOrWhiteSpace(resolvedMusic) && !importPaths.Contains(resolvedMusic, StringComparer.OrdinalIgnoreCase))
+            {
+                importPaths.Add(resolvedMusic);
+            }
+
+            if (importPaths.Count > 0)
+            {
+                lines.Add(JsonSerializer.Serialize(new
+                {
+                    id = "file.import",
+                    @params = new
+                    {
+                        paths = importPaths
+                    }
+                }));
+            }
+
+            // Place timeline clips sequentially with playhead synchronization and titles
+            double timelineCursorSec = 0.0;
+            for (int i = 0; i < resolvedSceneFiles.Count; i++)
+            {
+                var (scene, fullMediaPath, isOutro) = resolvedSceneFiles[i];
+                double dur = Math.Clamp(scene.DurationSec, 0.8, 60.0);
+
+                lines.Add(JsonSerializer.Serialize(new
+                {
+                    id = "playhead.set",
+                    @params = new { seconds = Math.Round(timelineCursorSec, 3) }
+                }));
+
+                if (isOutro)
+                {
+                    lines.Add(JsonSerializer.Serialize(new
+                    {
+                        id = "file.newColorMatte",
+                        @params = new
+                        {
+                            color = "#040508",
+                            seconds = dur
+                        }
+                    }));
+                }
+                else if (!string.IsNullOrWhiteSpace(fullMediaPath))
+                {
+                    lines.Add(JsonSerializer.Serialize(new
+                    {
+                        id = "edit.pasteMedia",
+                        @params = new
+                        {
+                            paths = new[] { fullMediaPath },
+                            place = true
+                        }
+                    }));
+                }
+
                 if (!string.IsNullOrWhiteSpace(scene.OverlayTitle))
                 {
+                    lines.Add(JsonSerializer.Serialize(new
+                    {
+                        id = "playhead.set",
+                        @params = new { seconds = Math.Round(timelineCursorSec, 3) }
+                    }));
+
                     lines.Add(JsonSerializer.Serialize(new
                     {
                         id = "graphics.newText",
                         @params = new
                         {
-                            text = scene.OverlayTitle,
+                            text = SanitizeCleanText(scene.OverlayTitle),
                             size = 56,
-                            seconds = scene.DurationSec,
-                            position = new[] { targetW / 2, (int)(targetH * 0.77) }
+                            seconds = dur,
+                            position = new[] { targetW / 2, (int)(targetH * 0.77) },
+                            newClip = true
                         }
                     }));
                 }
+
+                double cutOverlap = (i < resolvedSceneFiles.Count - 1)
+                    ? Math.Clamp(scene.TransitionDurSec > 0.04 ? scene.TransitionDurSec : project.TransitionDurationSec, 0.08, Math.Min(1.2, dur * 0.45))
+                    : 0.0;
+                timelineCursorSec += Math.Max(0.25, dur - cutOverlap);
+            }
+
+            if (!string.IsNullOrWhiteSpace(resolvedMusic))
+            {
+                lines.Add(JsonSerializer.Serialize(new
+                {
+                    id = "playhead.set",
+                    @params = new { seconds = 0.0 }
+                }));
+                lines.Add(JsonSerializer.Serialize(new
+                {
+                    id = "edit.pasteMedia",
+                    @params = new
+                    {
+                        paths = new[] { resolvedMusic },
+                        place = true
+                    }
+                }));
             }
 
             lines.Add(JsonSerializer.Serialize(new
@@ -793,7 +1910,7 @@ namespace FunkenwerkCraft
             {
                 try
                 {
-                    await RunFilmCraftCliAsync(new[] { "run", scriptPath }, timeoutSec: 45);
+                    await RunFilmCraftCliAsync(new[] { "--keep-going", "run", scriptPath }, timeoutSec: 45);
                 }
                 catch { }
             }
@@ -936,7 +2053,7 @@ namespace FunkenwerkCraft
             }
         }
 
-        private static void RenderLuxuryOverlayPng(
+        public static float RenderLuxuryOverlayPng(
             string outputPngPath,
             int width,
             int height,
@@ -952,7 +2069,7 @@ namespace FunkenwerkCraft
             g.TextRenderingHint = TextRenderingHint.AntiAlias;
             g.CompositingQuality = CompositingQuality.HighQuality;
 
-            // STRICT MONOCHROME PURE WHITE TYPOGRAPHY (Zero gold text, zero colored lines — authentic cinema look)
+            // STRICT MONOCHROME PURE WHITE TYPOGRAPHY (Zero gold text, zero colored lines, authentic cinema look)
             Color pureWhite = Color.FromArgb(250, 255, 255, 255);      // #FFFFFF Pure Crisp White
             Color softWhite = Color.FromArgb(190, 255, 255, 255);      // Subtle Pure White for micro-overlines/sublines
             Color headerWhite = Color.FromArgb(158, 255, 255, 255);
@@ -963,6 +2080,7 @@ namespace FunkenwerkCraft
             string sub = SanitizeCleanText(scene.OverlaySubtitle);
 
             bool useCard = string.Equals(overlayStyle, "card", StringComparison.OrdinalIgnoreCase);
+            float resolvedTitlePt = 0f;
 
             // Subtle cinema depth gradient at bottom (only when text is present so clean B-roll stays 100% pure)
             if (!string.IsNullOrWhiteSpace(title) || !string.IsNullOrWhiteSpace(sub) || !string.IsNullOrWhiteSpace(badge))
@@ -1000,16 +2118,26 @@ namespace FunkenwerkCraft
 
                     float titlePt = upperTitle.Length > 21 ? 33f * scale : (upperTitle.Length > 15 ? 37f * scale : 41f * scale);
                     float titleTrack = upperTitle.Length > 19 ? 3.4f * scale : 5.2f * scale;
+                    float minPt = 24f * scale;
+                    float stepPt = 2f * scale;
 
                     using var overlineFont = CreateBrandFont("montserrat_light", 17.5f * scale, FontStyle.Regular);
-                    using var testMainFont = CreateBrandFont("montserrat_semibold", titlePt, FontStyle.Bold);
                     using var subFont = CreateBrandFont("montserrat_light", 21f * scale, FontStyle.Regular);
 
-                    while (MeasureTrackedWidth(g, upperTitle, testMainFont, titleTrack) > width * 0.85f && titlePt > 24f)
+                    if (!string.IsNullOrWhiteSpace(upperTitle))
                     {
-                        titlePt -= 2f;
-                        titleTrack = Math.Max(1.8f, titleTrack - 0.35f);
+                        while (titlePt > minPt)
+                        {
+                            using var testMainFont = CreateBrandFont("montserrat_semibold", titlePt, FontStyle.Bold);
+                            if (MeasureTrackedWidth(g, upperTitle, testMainFont, titleTrack) <= width * 0.85f)
+                                break;
+
+                            titlePt = Math.Max(minPt, titlePt - stepPt);
+                            titleTrack = Math.Max(1.8f * scale, titleTrack - (0.35f * scale));
+                        }
                     }
+
+                    resolvedTitlePt = titlePt;
                     using var fittedMainFont = CreateBrandFont("montserrat_semibold", titlePt, FontStyle.Bold);
 
                     float curY = height * 0.772f;
@@ -1040,7 +2168,8 @@ namespace FunkenwerkCraft
                 float maxCardW = width * 0.82f;
                 float textPadX = 38f;
                 float availTextW = maxCardW - (textPadX * 2f);
-                using var titleFont = CreateBrandFont("montserrat_semibold", 36f, FontStyle.Bold);
+                resolvedTitlePt = 36f * (width / 1080f);
+                using var titleFont = CreateBrandFont("montserrat_semibold", resolvedTitlePt, FontStyle.Bold);
                 var sfWrap = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
                 SizeF titleSz = g.MeasureString(title, titleFont, (int)availTextW, sfWrap);
                 float cardW = Math.Clamp(titleSz.Width + textPadX * 2f, width * 0.45f, maxCardW);
@@ -1057,6 +2186,7 @@ namespace FunkenwerkCraft
             }
 
             bmp.Save(outputPngPath, ImageFormat.Png);
+            return resolvedTitlePt;
         }
 
         private static GraphicsPath CreateRoundedRect(float x, float y, float w, float h, float r)
@@ -1129,7 +2259,7 @@ namespace FunkenwerkCraft
             byte[] dst = new byte[stride * height];
             float inv = 1.0f / (2 * radius + 1);
 
-            // 2-pass separable box blur Approximating smooth optical Pro-Mist halation
+            // 2-pass separable box blur approximating smooth optical Pro-Mist halation
             float[] srcA = new float[width * height];
             for (int y = 0; y < height; y++)
             {
@@ -1296,7 +2426,6 @@ namespace FunkenwerkCraft
             }
 
             // 2. Pre-compute deterministic mystical volumetric mist & silver-white stardust trajectories
-
             var rng = new Random(202611);
             var motes = Enumerable.Range(0, 38).Select(idx =>
             {
@@ -1313,11 +2442,13 @@ namespace FunkenwerkCraft
                 );
             }).ToArray();
 
-            // 3. Stream raw 60 FPS BGRA frames directly into FFmpeg segment encoder
+            // 3. Stream raw BGRA frames directly into trusted FFmpeg segment encoder
+            string ffmpegExe = FindTrustedFfmpegExe();
             string mkvPath = Path.ChangeExtension(outSegMp4, ".mkv");
             var psi = new ProcessStartInfo
             {
-                FileName = "ffmpeg",
+                FileName = ffmpegExe,
+                WorkingDirectory = Path.GetDirectoryName(ffmpegExe)!,
                 UseShellExecute = false,
                 RedirectStandardInput = true,
                 RedirectStandardError = true,
@@ -1372,8 +2503,12 @@ namespace FunkenwerkCraft
             psi.ArgumentList.Add("matroska");
             psi.ArgumentList.Add(mkvPath);
 
-            using var proc = Process.Start(psi) ?? throw new InvalidOperationException("ffmpeg konnte für Brand-Outro nicht gestartet werden.");
-            Task<string> errTask = proc.StandardError.ReadToEndAsync(ct);
+            using var proc = Process.Start(psi) ?? throw new InvalidOperationException("ffmpeg konnte fuer Brand-Outro nicht gestartet werden.");
+            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(180));
+            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
+
+            Task<string> outTask = proc.StandardOutput.ReadToEndAsync();
+            Task<string> errTask = proc.StandardError.ReadToEndAsync();
 
             int frameByteSize = outW * outH * 4;
             int batchSize = Math.Clamp(Environment.ProcessorCount, 4, 12);
@@ -1390,7 +2525,7 @@ namespace FunkenwerkCraft
                 {
                     for (int baseFrame = 0; baseFrame < totalFrames; baseFrame += batchSize)
                     {
-                        ct.ThrowIfCancellationRequested();
+                        linkedCts.Token.ThrowIfCancellationRequested();
                         int count = Math.Min(batchSize, totalFrames - baseFrame);
 
                         Parallel.For(0, count, bIdx =>
@@ -1419,12 +2554,11 @@ namespace FunkenwerkCraft
 
                             using (var g = Graphics.FromImage(frameBmp))
                             {
-                                g.Clear(Color.Transparent); // Render foreground bokeh + typography in straight alpha
+                                g.Clear(Color.Transparent);
                                 g.SmoothingMode = SmoothingMode.HighQuality;
                                 g.InterpolationMode = InterpolationMode.HighQualityBicubic;
                                 g.PixelOffsetMode = PixelOffsetMode.HighQuality;
 
-                                // A) Slow-drifting monochrome silver-white stardust & depth-of-field bokeh
                                 double moteIntro = SmoothStep01(t / 0.55);
                                 for (int m = 0; m < motes.Length; m++)
                                 {
@@ -1436,7 +2570,6 @@ namespace FunkenwerkCraft
                                     DrawScaledSpriteAlpha(g, slotSpark, mx, my, p.SizePx, p.SizePx, ma);
                                 }
 
-                                // B) Volumetric diagonal light-veil reveal of "Mein Seelenfunke" + "EIN FUNKE, DER BLEIBT"
                                 var bd = dynamicBand.LockBits(new Rectangle(0, 0, outW, bandH), ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
                                 try
                                 {
@@ -1457,7 +2590,6 @@ namespace FunkenwerkCraft
                                             double vis = SmoothStep01((dist + 135f * scaleFactor) / (230f * scaleFactor));
                                             float sheen = MathF.Exp(-(dist * dist) * invSheenSigma2);
 
-                                            // Crisp wordmark + subtle Pro-Mist 1/8 cinema halation peaking as light sweeps across
                                             double wmAlpha = cA * vis * (0.95 + 0.05 * sheen)
                                                            + gA * (0.12 * vis + 0.32 * sheen * vis);
                                             double tgAlpha = sA * subReveal * 0.80;
@@ -1478,7 +2610,6 @@ namespace FunkenwerkCraft
                                     dynamicBand.UnlockBits(bd);
                                 }
 
-                                // Smooth continuous 60 FPS cinema camera push-in (0.962x -> 1.030x cubic ease-out)
                                 double easePush = 1.0 - Math.Pow(1.0 - uAll, 2.6);
                                 float camScale = (float)(0.962 + 0.068 * easePush);
                                 float drawW = outW * camScale;
@@ -1507,14 +2638,12 @@ namespace FunkenwerkCraft
                                 frameBmp.UnlockBits(fb);
                             }
 
-                            // C) 32-bit Float Volumetric Obsidian Mist + Anamorphic Light Breath + Triangular Film Dither (Zero 8-bit Banding)
                             float mistBreath = (float)(0.68 + 0.32 * Math.Sin(t * 1.15)) * (float)endFade;
                             float cx1 = outW * (0.48f + 0.04f * MathF.Sin((float)t * 0.55f));
                             float cy1 = outH * (0.485f - 0.015f * (float)t);
                             float invRx1 = 1.0f / (outW * 0.56f);
                             float invRy1 = 1.0f / (outH * 0.27f);
 
-                            // Subtle horizontal anamorphic lens whisper tracking the diagonal reveal
                             float anamPeak = (float)(Math.Sin(Math.Clamp(sweepU, 0.0, 1.0) * Math.PI) * 0.75 + 0.25 * SmoothStep01(t / 0.8)) * (float)endFade;
                             float anamCx = Math.Clamp(sweepX, outW * 0.18f, outW * 0.82f);
                             float anamCy = outH * 0.478f;
@@ -1548,7 +2677,6 @@ namespace FunkenwerkCraft
                                     float mist = gx1[x] * gy1;
                                     float anam = gAnamX[x] * gAnamY;
 
-                                    // Deep obsidian base (R=3, G=4, B=7) + subtle cool-silver mist + pure white anamorphic breath
                                     float bgR = 3.0f + mist * 16.5f + anam * 14.0f;
                                     float bgG = 4.0f + mist * 17.5f + anam * 14.5f;
                                     float bgB = 6.5f + mist * 20.5f + anam * 16.0f;
@@ -1563,7 +2691,6 @@ namespace FunkenwerkCraft
                                         bgB = fgBuf[idx + 0] * a + bgB * invA;
                                     }
 
-                                    // Fast PCG hash -> zero-mean triangular dither in [-1.15, +1.15] LSB (eliminates 8-bit concentric banding)
                                     uint h = rowHash + (uint)(x * 374761393u);
                                     h = (h ^ (h >> 15)) * 2246822519u;
                                     h = (h ^ (h >> 13)) * 3266489917u;
@@ -1582,10 +2709,19 @@ namespace FunkenwerkCraft
 
                         for (int bIdx = 0; bIdx < count; bIdx++)
                         {
-                            await stdin.WriteAsync(batchBuffers[bIdx], 0, frameByteSize, ct);
+                            await stdin.WriteAsync(batchBuffers[bIdx], 0, frameByteSize, linkedCts.Token);
                         }
                     }
                 }
+
+                await proc.WaitForExitAsync(linkedCts.Token);
+                await Task.WhenAll(outTask, errTask);
+            }
+            catch (OperationCanceledException)
+            {
+                try { proc.Kill(entireProcessTree: true); } catch { }
+                if (ct.IsCancellationRequested) throw;
+                throw new TimeoutException("Brand-Outro Rendering hat das Zeitlimit ueberschritten.");
             }
             finally
             {
@@ -1595,9 +2731,8 @@ namespace FunkenwerkCraft
             }
 
             string err = await errTask;
-            await proc.WaitForExitAsync(ct);
             if (proc.ExitCode != 0 || !File.Exists(mkvPath))
-                throw new InvalidOperationException($"Brand-Outro Renderfehler: {err}");
+                throw new InvalidOperationException($"Brand-Outro Renderfehler (Exit {proc.ExitCode}): {err}");
 
             File.Move(mkvPath, outSegMp4, overwrite: true);
         }
@@ -1608,7 +2743,7 @@ namespace FunkenwerkCraft
             CancellationToken ct = default)
         {
             if (project.Scenes == null || project.Scenes.Count == 0)
-                throw new InvalidOperationException("Das Projekt enthält noch keine Szenen zum Rendern.");
+                throw new InvalidOperationException("Das Projekt enthaelt noch keine Szenen zum Rendern.");
 
             string projDir = GetProjectDirectory(project.Name);
             var (outW, outH) = ResolveDimensions(project.AspectRatio);
@@ -1652,7 +2787,7 @@ namespace FunkenwerkCraft
                         {
                             string srcMedia = ResolveSceneMediaPath(project.Name, scene.FileName);
                             if (!File.Exists(srcMedia))
-                                throw new FileNotFoundException($"Quelldatei für Szene {i + 1} fehlt: {srcMedia}");
+                                throw new FileNotFoundException($"Quelldatei fuer Szene {i + 1} fehlt: {srcMedia}");
 
                             var mediaInfo = await ProbeMediaFileAsync(srcMedia);
                             bool isImg = mediaInfo.MediaType == "image";
@@ -1661,7 +2796,7 @@ namespace FunkenwerkCraft
                             string overlayPng = Path.Combine(tempWorkDir, $"overlay_{i:D2}.png");
                             lock (JsonOpts)
                             {
-                                RenderLuxuryOverlayPng(
+                                _ = RenderLuxuryOverlayPng(
                                     overlayPng,
                                     outW,
                                     outH,
@@ -1710,7 +2845,7 @@ namespace FunkenwerkCraft
 
                 await Task.WhenAll(sceneTasks);
 
-                progress?.Report((72, "Komponiere Speed-Ramp Übergänge, Peak-SFX & Mastering..."));
+                progress?.Report((72, "Komponiere Speed-Ramp Uebergaenge, Peak-SFX & Mastering..."));
                 string stagedMp4 = Path.Combine(tempWorkDir, "master_staged.mp4");
 
                 await ComposeMasterTimelineWithAudioAsync(
@@ -1724,7 +2859,7 @@ namespace FunkenwerkCraft
                     stagedMp4,
                     ct);
 
-                progress?.Report((94, "Prüfe MP4-Container & FastStart-Atome..."));
+                progress?.Report((94, "Pruefe MP4-Container & FastStart-Atome..."));
                 await ValidateMp4PlayabilityAsync(stagedMp4);
 
                 string outName = string.IsNullOrWhiteSpace(project.OutputFileName)
@@ -1734,6 +2869,7 @@ namespace FunkenwerkCraft
                     outName += ".mp4";
 
                 string finalOutPath = Path.Combine(projDir, outName);
+                EnsureNoReparsePointsInChain(finalOutPath, projDir);
                 File.Copy(stagedMp4, finalOutPath, overwrite: true);
 
                 project.LastRenderedPath = finalOutPath;
@@ -1753,7 +2889,25 @@ namespace FunkenwerkCraft
             }
         }
 
-        private static async Task RenderSingleNormalizedSegmentAsync(
+        private static string BuildAtempoChain(double speedFactor)
+        {
+            double clamped = Math.Clamp(speedFactor, 0.12, 8.0);
+            var steps = new List<string>();
+            while (clamped < 0.5)
+            {
+                steps.Add("atempo=0.5");
+                clamped /= 0.5;
+            }
+            while (clamped > 2.0)
+            {
+                steps.Add("atempo=2.0");
+                clamped /= 2.0;
+            }
+            steps.Add($"atempo={clamped.ToString("0.####", CultureInfo.InvariantCulture)}");
+            return string.Join(",", steps);
+        }
+
+        public static async Task RenderSingleNormalizedSegmentAsync(
             string srcMedia,
             CraftMediaInfo mediaInfo,
             string overlayPng,
@@ -1777,9 +2931,9 @@ namespace FunkenwerkCraft
             string durStr = durSec.ToString("0.###", CultureInfo.InvariantCulture);
             double slowFactor = Math.Clamp(slowMoFactor <= 0 ? 0.42 : slowMoFactor, 0.25, 0.90);
             string normSpeed = isImage ? "linear" : (speedMode?.Trim().ToLowerInvariant() ?? "speed_ramp");
+            bool isContainBlur = string.Equals(fitMode, "contain_blur", StringComparison.OrdinalIgnoreCase);
             bool nativeHighFps = mediaInfo.Fps >= 90.0;
 
-            // Dark-Luxury Cinema Color Grade (Obsidian blacks + warm crystal highlights + subtle optical vignette)
             string gradeChain = string.Equals(colorGrade, "natural", StringComparison.OrdinalIgnoreCase)
                 ? "setsar=1"
                 : "eq=contrast=1.11:brightness=-0.028:saturation=1.08,colorbalance=rs=0.015:gs=0.0:bs=-0.025:rh=0.055:gh=0.022:bh=-0.042,vignette=PI/5.6,unsharp=5:5:0.52:5:5:0.0,setsar=1";
@@ -1787,27 +2941,39 @@ namespace FunkenwerkCraft
             double readStartSec = startSec;
             double readDurSec = durSec + 0.35;
             string baseVideoFilter;
+            string audioFilter;
+            string volStr = Math.Clamp(sourceAudioVol, 0.0, 1.5).ToString("0.##", CultureInfo.InvariantCulture);
+            string nullAudioFilter = $"anullsrc=channel_layout=stereo:sample_rate=48000,atrim=0:{durStr},asetpts=PTS-STARTPTS[aout]";
 
-            string scaleCropFilter = string.Equals(fitMode, "contain_blur", StringComparison.OrdinalIgnoreCase)
+            string scaleCropFilter = isContainBlur
                 ? $"split=2[bgsrc][fgsrc];[bgsrc]scale={outW}:{outH}:force_original_aspect_ratio=increase:flags=bilinear,crop={outW}:{outH},boxblur=28:4,eq=brightness=-0.18:saturation=0.82[bg];[fgsrc]scale={outW}:{outH}:force_original_aspect_ratio=decrease:flags=lanczos[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2,setsar=1"
                 : $"scale={outW}:{outH}:force_original_aspect_ratio=increase:flags=lanczos,crop={outW}:{outH},setsar=1";
 
             if (isImage)
             {
-                int totalFrames = Math.Max(24, (int)Math.Round(durSec * fps));
-                int preW = ((int)(outW * 1.18) / 2) * 2;
-                int preH = ((int)(outH * 1.18) / 2) * 2;
                 string endDip = isFinalScene
                     ? $",fade=t=out:st={Math.Max(0.1, durSec - 0.28).ToString("0.###", CultureInfo.InvariantCulture)}:d=0.26"
                     : "";
-                baseVideoFilter =
-                    $"[0:v]trim=end_frame=1,scale={preW}:{preH}:force_original_aspect_ratio=increase:flags=lanczos,crop={preW}:{preH}," +
-                    $"zoompan=z='min(zoom+0.00072,1.12)':d={totalFrames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s={outW}x{outH}:fps={fps}," +
-                    $"{gradeChain}{endDip},format=yuv420p[vraw]";
+
+                if (isContainBlur)
+                {
+                    baseVideoFilter =
+                        $"[0:v]{scaleCropFilter},trim=0:{durStr},setpts=PTS-STARTPTS,{gradeChain}{endDip},format=yuv420p[vraw]";
+                }
+                else
+                {
+                    int totalFrames = Math.Max(24, (int)Math.Round(durSec * fps));
+                    int preW = ((int)(outW * 1.18) / 2) * 2;
+                    int preH = ((int)(outH * 1.18) / 2) * 2;
+                    baseVideoFilter =
+                        $"[0:v]trim=end_frame=1,scale={preW}:{preH}:force_original_aspect_ratio=increase:flags=lanczos,crop={preW}:{preH}," +
+                        $"zoompan=z='min(zoom+0.00072,1.12)':d={totalFrames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s={outW}x{outH}:fps={fps}," +
+                        $"{gradeChain}{endDip},format=yuv420p[vraw]";
+                }
+                audioFilter = nullAudioFilter;
             }
             else if (normSpeed == "speed_ramp" && durSec >= 1.4)
             {
-                // 3-Phase Viral Luxury Velocity Curve: Fast 2.4x Whip-In -> Silk Slow-Mo Hero -> Fast 2.4x Whip-Out
                 double whipOutDur = Math.Min(0.26, durSec * 0.13);
                 double slowHeroOutDur = Math.Max(0.60, durSec - 2.0 * whipOutDur);
                 double fastMul = 2.40;
@@ -1851,6 +3017,22 @@ namespace FunkenwerkCraft
                     $"[s2]trim={t1End}:{t2End},setpts=(PTS-STARTPTS)/{slowStr},{slowInterp}[v2];" +
                     $"[s3]trim={t2End}:{t3End},setpts=(PTS-STARTPTS)/{fastStr},tmix=frames=3:weights='1 2 1',fps={fps}[v3];" +
                     $"[v1][v2][v3]concat=n=3:v=1:a=0,trim=0:{durStr},setpts=PTS-STARTPTS,{gradeChain},format=yuv420p[vraw]";
+
+                if (keepSourceAudio)
+                {
+                    string fastAtempo = BuildAtempoChain(fastMul);
+                    string slowAtempo = BuildAtempoChain(slowFactor);
+                    audioFilter =
+                        $"[0:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,asplit=3[as1][as2][as3];" +
+                        $"[as1]atrim=0:{t1End},asetpts=PTS-STARTPTS,{fastAtempo}[a1];" +
+                        $"[as2]atrim={t1End}:{t2End},asetpts=PTS-STARTPTS,{slowAtempo}[a2];" +
+                        $"[as3]atrim={t2End}:{t3End},asetpts=PTS-STARTPTS,{fastAtempo}[a3];" +
+                        $"[a1][a2][a3]concat=n=3:v=0:a=1,volume={volStr},apad=whole_dur={durStr},atrim=0:{durStr},asetpts=PTS-STARTPTS[aout]";
+                }
+                else
+                {
+                    audioFilter = nullAudioFilter;
+                }
             }
             else if (normSpeed == "slow_motion")
             {
@@ -1871,6 +3053,17 @@ namespace FunkenwerkCraft
 
                 baseVideoFilter =
                     $"[0:v]{scaleCropFilter},setpts=(PTS-STARTPTS)/{slowStr},{slowInterp},trim=0:{durStr},setpts=PTS-STARTPTS,{gradeChain},format=yuv420p[vraw]";
+
+                if (keepSourceAudio)
+                {
+                    string slowAtempo = BuildAtempoChain(slowFactor);
+                    audioFilter =
+                        $"[0:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,{slowAtempo},volume={volStr},apad=whole_dur={durStr},atrim=0:{durStr},asetpts=PTS-STARTPTS[aout]";
+                }
+                else
+                {
+                    audioFilter = nullAudioFilter;
+                }
             }
             else
             {
@@ -1879,9 +3072,12 @@ namespace FunkenwerkCraft
                 readDurSec = durSec + 0.15;
                 baseVideoFilter =
                     $"[0:v]fps={fps},{scaleCropFilter},trim=0:{durStr},setpts=PTS-STARTPTS,{gradeChain},format=yuv420p[vraw]";
+
+                audioFilter = keepSourceAudio
+                    ? $"[0:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,volume={volStr},apad=whole_dur={durStr},atrim=0:{durStr},asetpts=PTS-STARTPTS[aout]"
+                    : nullAudioFilter;
             }
 
-            // Optional silky anamorphic rack-defocus when melting into the Mystical Brand Outro
             string rackFocusFilter;
             if (velvetOutroMelt && durSec >= 1.5)
             {
@@ -1896,7 +3092,6 @@ namespace FunkenwerkCraft
                 rackFocusFilter = "[vraw]null[vbase]";
             }
 
-            // Pure white editorial text fades in smoothly after entry whip and clears before exit transition
             string ovFadeIn = (normSpeed == "speed_ramp" ? 0.20 : 0.12).ToString("0.###", CultureInfo.InvariantCulture);
             string ovFadeOut = Math.Max(0.32, durSec - (velvetOutroMelt ? 0.85 : 0.30)).ToString("0.###", CultureInfo.InvariantCulture);
 
@@ -1904,87 +3099,79 @@ namespace FunkenwerkCraft
                 $"[1:v]format=rgba,fade=t=in:st={ovFadeIn}:d=0.26:alpha=1,fade=t=out:st={ovFadeOut}:d=0.24:alpha=1[ov];" +
                 $"[vbase][ov]overlay=0:0:format=auto,scale=out_color_matrix=bt709:out_range=tv,format=yuv420p[vout]";
 
-            string audioFilter = (keepSourceAudio && normSpeed == "linear")
-                ? $"[0:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,volume={sourceAudioVol.ToString("0.##", CultureInfo.InvariantCulture)},atrim=0:{durStr},asetpts=PTS-STARTPTS[aout]"
-                : $"anullsrc=channel_layout=stereo:sample_rate=48000,atrim=0:{durStr},asetpts=PTS-STARTPTS[aout]";
-
             string fullComplex = $"{baseVideoFilter};{rackFocusFilter};{overlayFilter};{audioFilter}";
+            string mkvPath = Path.ChangeExtension(outSegMp4, ".mkv");
 
-            var psi = new ProcessStartInfo
+            var args = new List<string>
             {
-                FileName = "ffmpeg",
-                UseShellExecute = false,
-                RedirectStandardError = true,
-                RedirectStandardOutput = true,
-                CreateNoWindow = true
+                "-nostdin",
+                "-hide_banner",
+                "-loglevel", "error",
+                "-y"
             };
-            psi.ArgumentList.Add("-hide_banner");
-            psi.ArgumentList.Add("-loglevel");
-            psi.ArgumentList.Add("error");
-            psi.ArgumentList.Add("-y");
 
             if (isImage)
             {
-                if (string.Equals(fitMode, "contain_blur", StringComparison.OrdinalIgnoreCase))
+                if (isContainBlur)
                 {
-                    psi.ArgumentList.Add("-loop");
-                    psi.ArgumentList.Add("1");
-                    psi.ArgumentList.Add("-t");
-                    psi.ArgumentList.Add(durStr);
+                    args.Add("-loop");
+                    args.Add("1");
+                    args.Add("-framerate");
+                    args.Add(fps.ToString(CultureInfo.InvariantCulture));
+                    args.Add("-t");
+                    args.Add(durStr);
                 }
-                psi.ArgumentList.Add("-i");
-                psi.ArgumentList.Add(srcMedia);
+                args.Add("-i");
+                args.Add(srcMedia);
             }
             else
             {
                 if (readStartSec > 0.01)
                 {
-                    psi.ArgumentList.Add("-ss");
-                    psi.ArgumentList.Add(readStartSec.ToString("0.###", CultureInfo.InvariantCulture));
+                    args.Add("-ss");
+                    args.Add(readStartSec.ToString("0.###", CultureInfo.InvariantCulture));
                 }
-                psi.ArgumentList.Add("-t");
-                psi.ArgumentList.Add(readDurSec.ToString("0.###", CultureInfo.InvariantCulture));
-                psi.ArgumentList.Add("-i");
-                psi.ArgumentList.Add(srcMedia);
+                args.Add("-t");
+                args.Add(readDurSec.ToString("0.###", CultureInfo.InvariantCulture));
+                args.Add("-i");
+                args.Add(srcMedia);
             }
 
-            psi.ArgumentList.Add("-loop");
-            psi.ArgumentList.Add("1");
-            psi.ArgumentList.Add("-t");
-            psi.ArgumentList.Add(durStr);
-            psi.ArgumentList.Add("-i");
-            psi.ArgumentList.Add(overlayPng);
+            args.Add("-loop");
+            args.Add("1");
+            args.Add("-t");
+            args.Add(durStr);
+            args.Add("-i");
+            args.Add(overlayPng);
 
-            psi.ArgumentList.Add("-filter_complex");
-            psi.ArgumentList.Add(fullComplex);
-            psi.ArgumentList.Add("-map");
-            psi.ArgumentList.Add("[vout]");
-            psi.ArgumentList.Add("-map");
-            psi.ArgumentList.Add("[aout]");
-            psi.ArgumentList.Add("-t");
-            psi.ArgumentList.Add(durStr);
-            psi.ArgumentList.Add("-c:v");
-            psi.ArgumentList.Add("libx264");
-            psi.ArgumentList.Add("-preset");
-            psi.ArgumentList.Add("fast");
-            psi.ArgumentList.Add("-crf");
-            psi.ArgumentList.Add("16");
-            psi.ArgumentList.Add("-pix_fmt");
-            psi.ArgumentList.Add("yuv420p");
-            psi.ArgumentList.Add("-r");
-            psi.ArgumentList.Add(fps.ToString(CultureInfo.InvariantCulture));
-            psi.ArgumentList.Add("-c:a");
-            psi.ArgumentList.Add("pcm_s16le");
-            psi.ArgumentList.Add("-f");
-            psi.ArgumentList.Add("matroska");
-            string mkvPath = Path.ChangeExtension(outSegMp4, ".mkv");
-            psi.ArgumentList.Add(mkvPath);
+            args.Add("-filter_complex");
+            args.Add(fullComplex);
+            args.Add("-map");
+            args.Add("[vout]");
+            args.Add("-map");
+            args.Add("[aout]");
+            args.Add("-t");
+            args.Add(durStr);
+            args.Add("-c:v");
+            args.Add("libx264");
+            args.Add("-preset");
+            args.Add("fast");
+            args.Add("-crf");
+            args.Add("16");
+            args.Add("-pix_fmt");
+            args.Add("yuv420p");
+            args.Add("-r");
+            args.Add(fps.ToString(CultureInfo.InvariantCulture));
+            args.Add("-c:a");
+            args.Add("pcm_s16le");
+            args.Add("-f");
+            args.Add("matroska");
+            args.Add(mkvPath);
 
-            using var proc = Process.Start(psi) ?? throw new InvalidOperationException("ffmpeg konnte nicht gestartet werden.");
-            string err = await proc.StandardError.ReadToEndAsync(ct);
-            await proc.WaitForExitAsync(ct);
-            if (proc.ExitCode != 0 || !File.Exists(mkvPath))
-                throw new InvalidOperationException($"Szenen-Renderfehler: {err}");
+            string ffmpegExe = FindTrustedFfmpegExe();
+            var (exitCode, _, err) = await RunProcessBoundedAsync(ffmpegExe, args, timeoutMs: 300_000, ct: ct);
+            if (exitCode != 0 || !File.Exists(mkvPath))
+                throw new InvalidOperationException($"Szenen-Renderfehler (Exit {exitCode}): {err}");
 
             File.Move(mkvPath, outSegMp4, overwrite: true);
         }
@@ -2001,8 +3188,8 @@ namespace FunkenwerkCraft
             CancellationToken ct)
         {
             int n = segPaths.Count;
+            string projDir = GetProjectDirectory(project.Name);
 
-            // Per-cut transition duration resolution (tight 0.20s beat-cuts on B-roll + silky 0.90s velvet dissolve into Brand Outro!)
             var cutTransDurs = new List<double>();
             var cutOffsets = new List<double>();
             double curTimelineLen = durs[0];
@@ -2024,59 +3211,47 @@ namespace FunkenwerkCraft
             double totalVideoDur = curTimelineLen;
             string totalDurStr = totalVideoDur.ToString("0.###", CultureInfo.InvariantCulture);
 
-            var psi = new ProcessStartInfo
+            var args = new List<string>
             {
-                FileName = "ffmpeg",
-                UseShellExecute = false,
-                RedirectStandardError = true,
-                RedirectStandardOutput = true,
-                CreateNoWindow = true
+                "-nostdin",
+                "-hide_banner",
+                "-loglevel", "error",
+                "-y"
             };
-            psi.ArgumentList.Add("-hide_banner");
-            psi.ArgumentList.Add("-loglevel");
-            psi.ArgumentList.Add("error");
-            psi.ArgumentList.Add("-y");
 
             foreach (string seg in segPaths)
             {
-                psi.ArgumentList.Add("-i");
-                psi.ArgumentList.Add(seg);
+                args.Add("-i");
+                args.Add(seg);
             }
 
             int nextInputIdx = n;
             int? musicInputIdx = null;
-            if (!string.IsNullOrWhiteSpace(project.BackgroundMusic))
+            string? musicFull = ResolveSafeAudioPath(project.BackgroundMusic, projDir, requireExists: true);
+            if (!string.IsNullOrWhiteSpace(musicFull))
             {
-                string musicFull = Path.IsPathRooted(project.BackgroundMusic)
-                    ? project.BackgroundMusic
-                    : Path.Combine(SoundsRoot, project.BackgroundMusic);
-                if (File.Exists(musicFull))
+                if (project.MusicStartSec > 0.02)
                 {
-                    if (project.MusicStartSec > 0.02)
-                    {
-                        psi.ArgumentList.Add("-ss");
-                        psi.ArgumentList.Add(project.MusicStartSec.ToString("0.###", CultureInfo.InvariantCulture));
-                    }
-                    psi.ArgumentList.Add("-stream_loop");
-                    psi.ArgumentList.Add("-1");
-                    psi.ArgumentList.Add("-t");
-                    psi.ArgumentList.Add(totalDurStr);
-                    psi.ArgumentList.Add("-i");
-                    psi.ArgumentList.Add(musicFull);
-                    musicInputIdx = nextInputIdx++;
+                    args.Add("-ss");
+                    args.Add(project.MusicStartSec.ToString("0.###", CultureInfo.InvariantCulture));
                 }
+                args.Add("-stream_loop");
+                args.Add("-1");
+                args.Add("-t");
+                args.Add(totalDurStr);
+                args.Add("-i");
+                args.Add(musicFull);
+                musicInputIdx = nextInputIdx++;
             }
 
-            // (InputIdx, DelayMs, MaxPlaySec, FadeOutDurSec, Gain)
             var sfxEvents = new List<(int InputIdx, int DelayMs, double MaxPlaySec, double FadeOutSec, double Gain)>();
 
             void SchedulePeakAlignedSfx(string? relOrFull, double targetPeakTimelineSec, double gainMul, bool hardCutAfterPeak = false, double maxTailAfterPeak = 2.6)
             {
-                if (string.IsNullOrWhiteSpace(relOrFull)) return;
-                string full = Path.IsPathRooted(relOrFull) ? relOrFull : Path.Combine(SoundsRoot, relOrFull);
-                if (!File.Exists(full)) return;
+                string? full = ResolveSafeAudioPath(relOrFull, projDir, requireExists: true);
+                if (string.IsNullOrWhiteSpace(full)) return;
 
-                var (peakSec, fileDur) = GetAudioPeakEnvelopeInfo(full);
+                var (peakSec, fileDur) = GetAudioPeakEnvelopeInfo(full, projDir);
                 double alignedPeak = Math.Min(peakSec, 3.2);
                 double startTimelineSec = targetPeakTimelineSec - alignedPeak;
                 double trimInFile = 0.0;
@@ -2092,13 +3267,13 @@ namespace FunkenwerkCraft
 
                 if (trimInFile > 0.02)
                 {
-                    psi.ArgumentList.Add("-ss");
-                    psi.ArgumentList.Add(trimInFile.ToString("0.###", CultureInfo.InvariantCulture));
+                    args.Add("-ss");
+                    args.Add(trimInFile.ToString("0.###", CultureInfo.InvariantCulture));
                 }
-                psi.ArgumentList.Add("-t");
-                psi.ArgumentList.Add(playDur.ToString("0.###", CultureInfo.InvariantCulture));
-                psi.ArgumentList.Add("-i");
-                psi.ArgumentList.Add(full);
+                args.Add("-t");
+                args.Add(playDur.ToString("0.###", CultureInfo.InvariantCulture));
+                args.Add("-i");
+                args.Add(full);
 
                 int delayMs = Math.Max(0, (int)Math.Round(startTimelineSec * 1000.0));
                 double fadeOut = hardCutAfterPeak ? 0.06 : Math.Min(0.85, playDur * 0.35);
@@ -2201,64 +3376,63 @@ namespace FunkenwerkCraft
                 sb.Append($"{string.Join("", mixInputs)}amix=inputs={mixInputs.Count}:duration=longest:dropout_transition=0:normalize=0,acompressor=threshold=-12dB:ratio=2.2:attack=8:release=110,loudnorm=I=-14.5:TP=-1.2:LRA=9,atrim=0:{totalDurStr},asetpts=PTS-STARTPTS[amaster]");
             }
 
-            psi.ArgumentList.Add("-filter_complex");
-            psi.ArgumentList.Add(sb.ToString());
-            psi.ArgumentList.Add("-map");
-            psi.ArgumentList.Add("[vmaster]");
-            psi.ArgumentList.Add("-map");
-            psi.ArgumentList.Add("[amaster]");
-            psi.ArgumentList.Add("-t");
-            psi.ArgumentList.Add(totalDurStr);
+            args.Add("-filter_complex");
+            args.Add(sb.ToString());
+            args.Add("-map");
+            args.Add("[vmaster]");
+            args.Add("-map");
+            args.Add("[amaster]");
+            args.Add("-t");
+            args.Add(totalDurStr);
 
             // Strict WhatsApp / Instagram Reels / TikTok / Windows Explorer H.264 Main + AAC faststart compliance
-            psi.ArgumentList.Add("-c:v");
-            psi.ArgumentList.Add("libx264");
-            psi.ArgumentList.Add("-preset");
-            psi.ArgumentList.Add("medium");
-            psi.ArgumentList.Add("-crf");
-            psi.ArgumentList.Add("16");
-            psi.ArgumentList.Add("-aq-mode");
-            psi.ArgumentList.Add("3");
-            psi.ArgumentList.Add("-aq-strength");
-            psi.ArgumentList.Add("1.15");
-            psi.ArgumentList.Add("-profile:v");
-            psi.ArgumentList.Add("main");
-            psi.ArgumentList.Add("-pix_fmt");
-            psi.ArgumentList.Add("yuv420p");
-            psi.ArgumentList.Add("-color_range");
-            psi.ArgumentList.Add("tv");
-            psi.ArgumentList.Add("-colorspace");
-            psi.ArgumentList.Add("bt709");
-            psi.ArgumentList.Add("-color_primaries");
-            psi.ArgumentList.Add("bt709");
-            psi.ArgumentList.Add("-color_trc");
-            psi.ArgumentList.Add("bt709");
-            psi.ArgumentList.Add("-r");
-            psi.ArgumentList.Add(fps.ToString(CultureInfo.InvariantCulture));
-            psi.ArgumentList.Add("-c:a");
-            psi.ArgumentList.Add("aac");
-            psi.ArgumentList.Add("-b:a");
-            psi.ArgumentList.Add("256k");
-            psi.ArgumentList.Add("-ar");
-            psi.ArgumentList.Add("48000");
-            psi.ArgumentList.Add("-ac");
-            psi.ArgumentList.Add("2");
-            psi.ArgumentList.Add("-movflags");
-            psi.ArgumentList.Add("+faststart");
-            psi.ArgumentList.Add(stagedMp4);
+            args.Add("-c:v");
+            args.Add("libx264");
+            args.Add("-preset");
+            args.Add("medium");
+            args.Add("-crf");
+            args.Add("16");
+            args.Add("-aq-mode");
+            args.Add("3");
+            args.Add("-aq-strength");
+            args.Add("1.15");
+            args.Add("-profile:v");
+            args.Add("main");
+            args.Add("-pix_fmt");
+            args.Add("yuv420p");
+            args.Add("-color_range");
+            args.Add("tv");
+            args.Add("-colorspace");
+            args.Add("bt709");
+            args.Add("-color_primaries");
+            args.Add("bt709");
+            args.Add("-color_trc");
+            args.Add("bt709");
+            args.Add("-r");
+            args.Add(fps.ToString(CultureInfo.InvariantCulture));
+            args.Add("-c:a");
+            args.Add("aac");
+            args.Add("-b:a");
+            args.Add("256k");
+            args.Add("-ar");
+            args.Add("48000");
+            args.Add("-ac");
+            args.Add("2");
+            args.Add("-movflags");
+            args.Add("+faststart");
+            args.Add(stagedMp4);
 
-            using var proc = Process.Start(psi) ?? throw new InvalidOperationException("ffmpeg Master-Export konnte nicht gestartet werden.");
-            string err = await proc.StandardError.ReadToEndAsync(ct);
-            await proc.WaitForExitAsync(ct);
-            if (proc.ExitCode != 0 || !File.Exists(stagedMp4))
-                throw new InvalidOperationException($"Master-Renderfehler: {err}");
+            string ffmpegExe = FindTrustedFfmpegExe();
+            var (exitCode, _, err) = await RunProcessBoundedAsync(ffmpegExe, args, timeoutMs: 300_000, ct: ct);
+            if (exitCode != 0 || !File.Exists(stagedMp4))
+                throw new InvalidOperationException($"Master-Renderfehler (Exit {exitCode}): {err}");
         }
 
         public static async Task ValidateMp4PlayabilityAsync(string mp4Path)
         {
             var fi = new FileInfo(mp4Path);
             if (!fi.Exists || fi.Length < 4096)
-                throw new InvalidOperationException("Gerendertes Video ist leer oder unvollständig.");
+                throw new InvalidOperationException("Gerendertes Video ist leer oder unvollstaendig.");
 
             byte[] head = new byte[Math.Min(65536, (int)fi.Length)];
             await using (var fs = new FileStream(mp4Path, FileMode.Open, FileAccess.Read, FileShare.Read))
@@ -2266,22 +3440,38 @@ namespace FunkenwerkCraft
                 _ = await fs.ReadAsync(head, 0, head.Length);
             }
             string ascii = Encoding.Latin1.GetString(head);
-            if (!ascii.Contains("ftyp", StringComparison.Ordinal) || !ascii.Contains("moov", StringComparison.Ordinal))
+            int ftypIdx = ascii.IndexOf("ftyp", StringComparison.Ordinal);
+            int moovIdx = ascii.IndexOf("moov", StringComparison.Ordinal);
+            if (ftypIdx < 0 || moovIdx < 0)
                 throw new InvalidOperationException("MP4 FastStart-Header (ftyp/moov) fehlt am Dateianfang.");
 
             var info = await ProbeMediaFileAsync(mp4Path);
             if (info.Width <= 0 || info.Height <= 0 || info.DurationSec < 0.5 || !info.HasAudio)
-                throw new InvalidOperationException("MP4 Stream-Prüfung fehlgeschlagen (Video/Audio unvollständig).");
+                throw new InvalidOperationException("MP4 Stream-Pruefung fehlgeschlagen (Video/Audio unvollstaendig).");
         }
 
         // =====================================================================
         // CLI & NAMED PIPE IPC AUTOMATION DISPATCHER (USED BY FUNKENWERK MCP)
         // =====================================================================
+        public static int GetCliExitCode(string? resultJson)
+        {
+            if (string.IsNullOrWhiteSpace(resultJson))
+                return 1;
+            try
+            {
+                using var doc = JsonDocument.Parse(resultJson);
+                if (doc.RootElement.TryGetProperty("ok", out var okProp) && okProp.ValueKind == JsonValueKind.True)
+                    return 0;
+            }
+            catch { }
+            return 1;
+        }
+
         public static async Task<string> ExecuteCliCommandJsonAsync(string jsonRequest)
         {
             try
             {
-                var req = JsonNode.Parse(jsonRequest)?.AsObject() ?? throw new ArgumentException("Ungültiges JSON.");
+                var req = JsonNode.Parse(jsonRequest)?.AsObject() ?? throw new ArgumentException("Ungueltiges JSON.");
                 string action = req["action"]?.GetValue<string>()?.Trim().ToLowerInvariant() ?? "status";
 
                 object payload = action switch
@@ -2359,7 +3549,8 @@ namespace FunkenwerkCraft
                     "launch_engine" => LaunchStorytoldEngine(
                         req["engine"]?.GetValue<string>() ?? "artcraft",
                         req["targetPath"]?.GetValue<string>(),
-                        req["enableControlBridge"]?.GetValue<bool>() ?? true),
+                        req["enableControlBridge"]?.GetValue<bool>() ?? true,
+                        req["validateOnly"]?.GetValue<bool>() ?? false),
 
                     "filmcraft_cli" => new
                     {
@@ -2430,23 +3621,20 @@ namespace FunkenwerkCraft
         private static async Task<object> ImportMediaFromJsonAsync(JsonObject req)
         {
             string projName = SanitizeProjectName(req["projectName"]?.GetValue<string>() ?? "Projekt 1");
-            string projDir = GetProjectDirectory(projName);
             var copied = new List<object>();
 
-            if (req["sourcePaths"] is JsonArray arr)
-            {
-                foreach (var node in arr)
-                {
-                    string? src = node?.GetValue<string>();
-                    if (string.IsNullOrWhiteSpace(src) || !File.Exists(src)) continue;
-                    string ext = Path.GetExtension(src);
-                    if (!VideoExts.Contains(ext) && !ImageExts.Contains(ext)) continue;
+            if (req["sourcePaths"] is not JsonArray arr || arr.Count == 0)
+                throw new ArgumentException("sourcePaths Array fehlt oder ist leer.");
 
-                    string dest = Path.Combine(projDir, Path.GetFileName(src));
-                    File.Copy(src, dest, overwrite: true);
-                    var info = await ProbeMediaFileAsync(dest);
-                    copied.Add(new { info.FileName, info.MediaType, info.EffectiveWidth, info.EffectiveHeight, info.Fps, info.DurationSec, info.SizeMb });
-                }
+            foreach (var node in arr)
+            {
+                string? src = node?.GetValue<string>();
+                if (string.IsNullOrWhiteSpace(src))
+                    throw new ArgumentException("Leerer Pfad in sourcePaths.");
+
+                string dest = ImportMediaToProject(projName, src);
+                var info = await ProbeMediaFileAsync(dest);
+                copied.Add(new { info.FileName, info.MediaType, info.EffectiveWidth, info.EffectiveHeight, info.Fps, info.DurationSec, info.SizeMb });
             }
 
             var proj = LoadOrCreateProject(projName);
@@ -2505,18 +3693,6 @@ namespace FunkenwerkCraft
             return sec;
         }
 
-        public static async Task<int> RunSelfTestAsync()
-        {
-            Console.WriteLine("=== FUNKENWERK CRAFT SELF-TEST ===");
-            bool ok = Directory.Exists(WorkspaceRoot)
-                && File.Exists(ArtCraftExe)
-                && File.Exists(FilmCraftExe)
-                && File.Exists(FilmCraftCliExe)
-                && File.Exists(SoundCraftExe)
-                && ListSoundPool().Count >= 20;
-            Console.WriteLine($"Workspace={WorkspaceRoot} | ArtCraft={File.Exists(ArtCraftExe)} | FilmCraft={File.Exists(FilmCraftExe)} | SoundPool={ListSoundPool().Count}");
-            await Task.CompletedTask;
-            return ok ? 0 : 1;
-        }
+        public static Task<int> RunSelfTestAsync() => CraftSelfTestRunner.RunAllAsync();
     }
 }

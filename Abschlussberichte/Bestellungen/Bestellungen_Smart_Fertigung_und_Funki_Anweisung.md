@@ -67,3 +67,24 @@ Direkt im Fertigungsbereich jeder Bestellposition unter `/admin/orders` ([`right
 
 * **Vollständig gepflegtes Produkt:** Zeigt Equipment-Badge (`Flachbett`, `360° RA3`, `Laufband`, `3D-Innengravur`), **1-Klick-Buttons zum Öffnen und Herunterladen (`PDF ziehen`) der PDF-Aufbauanleitungen** (`/storage/produkte/laser-anleitungen/...` inkl. Schnellzugriff `PDF-Anleitungen (3)`), optionalen Einlege-Hinweis (`xtool_setup_note`), das kompakte 1:1 Parameter-Raster (`Material`, `Fokus mm`, `Punktdauer µs`, `Leistung %`, `DPI`, `Durchgänge`, `kHz`, `Bitmap-Modus`, `Gravurmodus`, Vektor-Zusatz) sowie einen **`Werte kopieren`**-Button.
 * **Fehlende Laser-Werte am Produkt:** Zeigt eine rote Warnbox **`✕ Laser-Werte am Produkt unvollständig`** mit 1-Klick-Deep-Link (`/admin/products?editProduct=<id>&step=4&subStep=2`) direkt in Schritt `4.2` des Produkt-Editors.
+
+---
+
+## 6. Smarter Produktions-Check-in & Werkstatt-Stand (100 % Manuell + KI-Assistenz mit strikter Rückfrage)
+
+Damit der aktuelle Bearbeitungsstand einer offenen Bestellung sowohl **komplett ohne KI** direkt in `/admin/orders` als auch im Zusammenspiel mit **Funkira** jederzeit transparent nachvollziehbar bleibt, teilen sich manuelle Oberfläche und KI exakt dieselben Datenbankfelder auf [`OrderOrder.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Models/Order/OrderOrder.php) (Migration [`2026_11_14_170000_add_workshop_checkin_fields_to_order_orders_table.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/database/migrations/2026_11_14_170000_add_workshop_checkin_fields_to_order_orders_table.php)):
+
+* **Datenbankfelder (`order_orders`):**
+  * `workshop_note` (`text`, rein intern, erscheint niemals auf Kundenrechnungen, E-Mails oder im Kundenkonto)
+  * `workshop_note_updated_at` (`timestamp`)
+  * `workshop_next_check_at` (`timestamp`, Standard-Wiedervorlage: `+2 Stunden` bzw. nächster Werktag `09:30 Uhr` bei Freitagabend/Wochenende)
+  * `workshop_checkin_paused` (`boolean`)
+* **100 % Manuelle Bedienung in `/admin/orders` (`Manual-First`):**
+  * Schlanke Clean-Design-Karte **`Werkstatt-Stand`** in [`left.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/order/order-offer-detail-partials/left.blade.php) mit Hover-Erklärung hinter `!`, Notizfeld, Wiedervorlage-Auswahl (`2 Std.`, `1 Std.`, `Morgen 09:30`, `Pausiert`) sowie `Speichern` und `Leeren` in [`OrderOverview.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Order/OrderOverview.php).
+  * Kompakte `Stand:`-Anzeige direkt auf der Prioritäts-Karte in [`order-overview.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/order/order-overview.blade.php) (die Haupttabelle bleibt zu 100 % schlank).
+  * **Manueller Status-Abgleich:** Erkennt `OrderProductionBatchService::evaluateOrderStatusDiscrepancy()` einen Widerspruch zwischen Stand/Fertigung und Bestellstatus (z. B. aktive Gravur bei `pending` -> Vorschlag `processing`, Warten auf Kunden/Rohling bei `processing` -> Vorschlag `pending`, alle Positionen fertig + DHL-Label gedruckt -> Vorschlag `shipped`), erscheint ein optionaler 1-Klick-Button `Status auf „..." setzen` ohne jede automatische Bevormundung.
+* **KI als reine Ergänzung (`Alina hat immer den Hut auf`):**
+  * **MCP-Tool `order_workshop_checkin`** in [`AiOrderFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiOrderFuncs.php) (`get_priority_checkin`, `save_progress`, `snooze`, `pause_checkin`, `clear`) speichert gesprochene Werkstatt-Updates direkt in `workshop_note` und berechnet die nächste Wiedervorlage.
+  * **Harte technische Rückfrage-Schranke (`confirmed_by_alina = true`):** `AiOrderFuncs::executeOrderUpdateStatus()` verweigert jede Änderung von `status` oder `payment_status`, solange `confirmed_by_alina` nicht explizit `true` ist (`status = 'confirmation_required'`, `changed = false`). Funkira darf Bestellstatus niemals stillschweigend ändern, sondern muss Alina aktiv auf erkannte Status-Abweichungen hinweisen und vorab um Freigabe bitten.
+  * **Proaktiver 2-Stunden-Check-in auf dem Mini-PC (`34/34` Selbsttests):** Über das `0-PII`-Feld `priority_order_checkin` in `GET /api/shop/monitor-pulse` fragt Funkira im Atelier nach 2 Stunden (bzw. 30 Min. ohne Erst-Vermerk / 10 Min. bei Express) freundlich nach dem Stand der obersten offenen Bestellung, jedoch ausschließlich bei verifizierter Anwesenheit von Alina (`owner`), innerhalb sinnvoller Werkstattzeiten und niemals im Besucher-, Fokus-, Telefon- oder TikTok-Live-Modus.
+* **Feature-Tests:** [`OrderWorkshopCheckinAndAiGuardTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Order/OrderWorkshopCheckinAndAiGuardTest.php) (`4/4` grün).

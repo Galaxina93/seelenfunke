@@ -32,7 +32,7 @@
          <select x-model="currentChatSessionId" @change="playAudio('click'); $wire.set('currentChatSessionId', currentChatSessionId)" class="px-2 py-1.5 border rounded-lg text-[10px] font-black uppercase tracking-widest transition-all backdrop-blur-md bg-black text-white border-gray-700 hover:text-white focus:outline-none focus:border-[var(--theme-color)] appearance-none shadow-[0_0_15px_rgba(0,0,0,0.5)] w-full md:w-auto mb-2 md:mb-0 max-w-[150px]">
              @if($this->chatSessions() && $this->chatSessions()->count() > 0)
                  @foreach($this->chatSessions() as $chat)
-                     <option value="{{ $chat->id }}" class="bg-black text-white">{{ \Illuminate\Support\Str::limit($chat->title, 20) }}</option>
+                     <option value="{{ $chat->id }}" class="bg-black text-white">{{ \Illuminate\Support\Str::limit((string) ($chat->title ?? 'Chat'), 20) }}</option>
                  @endforeach
              @else
                  <option value="">(Neuer Chat)</option>

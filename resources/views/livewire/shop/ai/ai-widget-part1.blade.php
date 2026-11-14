@@ -442,18 +442,104 @@
     <!-- START NEURALE FEHLERANALYSE (3D GEHIRN) -->
     <!-- ========================================== -->
     <div x-show="isBrainMode" class="absolute inset-0 transition-opacity duration-1000" style="z-index: 55;" x-transition.opacity>
-        <!-- Suchleiste (Google Maps Style) -->
-        <div class="absolute bottom-12 md:bottom-16 left-1/2 -translate-x-1/2 w-[95%] md:w-[80%] max-w-[900px] pointer-events-auto flex flex-col gap-3" style="z-index: 100;">
+        <style>
+            .brain-touch-scroll {
+                overflow-y: auto !important;
+                -webkit-overflow-scrolling: touch;
+                overscroll-behavior: contain;
+                touch-action: pan-y;
+            }
+            .brain-touch-scroll::-webkit-scrollbar {
+                width: 5px;
+            }
+            .brain-touch-scroll::-webkit-scrollbar-track {
+                background: rgba(255, 255, 255, 0.04);
+                border-radius: 9999px;
+            }
+            .brain-touch-scroll::-webkit-scrollbar-thumb {
+                background: rgba(16, 185, 129, 0.45);
+                border-radius: 9999px;
+            }
+            .brain-filter-scroll {
+                -webkit-overflow-scrolling: touch;
+                overscroll-behavior-x: contain;
+                touch-action: pan-x;
+                scrollbar-width: none;
+            }
+            .brain-filter-scroll::-webkit-scrollbar {
+                display: none;
+            }
+        </style>
+
+        <!-- HUD & Suchleiste (Google Maps Style, mobil optimiert) -->
+        <div class="absolute left-1/2 -translate-x-1/2 w-[95%] md:w-[86%] max-w-[960px] pointer-events-auto flex flex-col gap-2 md:gap-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] md:bottom-14" style="z-index: 100;">
             
             <!-- Ausgewählter Knoten UI (wird per JS eingeblendet) -->
-            <div id="brain-selected-node-container" class="hidden flex-col md:flex-row gap-3 transition-all duration-300 items-stretch" x-data="{ genStatus: 'idle', genPath: '' }" @neural-structure-success.window="let d = $event.detail; if(Array.isArray(d)) d = d[0]; if(d && d.payload) d = d.payload; genStatus = 'success'; genPath = d.path || d[0]?.path || 'Gespeichert'; setTimeout(() => { genStatus = 'idle'; }, 6000);" @neural-structure-error.window="genStatus = 'idle';">
+            <div id="brain-selected-node-container"
+                 class="hidden flex-col md:flex-row gap-2 md:gap-3 transition-all duration-300 items-stretch w-full"
+                 x-data="{ genStatus: 'idle', genPath: '', mobileTab: 'deps', depsCount: 0, incomingCount: 0, outgoingCount: 0, hasError: false, hasNeighborError: false }"
+                 @brain-node-selected.window="
+                     let d = $event.detail || {};
+                     depsCount = d.depsCount || 0;
+                     incomingCount = d.incomingCount || 0;
+                     outgoingCount = d.outgoingCount || 0;
+                     hasError = Boolean(d.isError);
+                     hasNeighborError = Boolean(d.isErrorNeighbor);
+                     mobileTab = 'deps';
+                 "
+                 @neural-structure-success.window="let d = $event.detail; if(Array.isArray(d)) d = d[0]; if(d && d.payload) d = d.payload; genStatus = 'success'; genPath = d.path || d[0]?.path || 'Gespeichert'; setTimeout(() => { genStatus = 'idle'; }, 6000);"
+                 @neural-structure-error.window="genStatus = 'idle';"
+                 @touchstart.stop
+                 @wheel.stop>
+
+                <!-- Kompakte Mobil-Kopfzeile & Tab-Umschalter (nur < md sichtbar) -->
+                <div class="md:hidden bg-black/95 backdrop-blur-md border border-indigo-500/40 rounded-2xl p-2.5 shadow-[0_10px_30px_-10px_rgba(99,102,241,0.4)] flex flex-col gap-2 shrink-0">
+                    <div class="flex items-center justify-between gap-2 min-w-0">
+                        <span id="brain-selected-node-mobile-name" class="text-indigo-100 text-xs font-mono font-semibold truncate flex-1 min-w-0"></span>
+                        <div class="flex items-center gap-1.5 shrink-0">
+                            <button type="button" onclick="if(window.copyBrainNodePath) window.copyBrainNodePath(this);" class="text-[10px] text-indigo-300 active:text-white border border-indigo-500/50 rounded-lg px-2 py-1 transition-colors bg-indigo-900/30">Kopieren</button>
+                            <button type="button" onclick="if(window.closeNeuralNodeTile) window.closeNeuralNodeTile();" class="w-7 h-7 rounded-lg bg-white/5 active:bg-rose-500/25 border border-white/10 text-gray-300 flex items-center justify-center" title="Schließen">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-1.5">
+                        <button type="button" @click="mobileTab = 'deps'"
+                                :class="mobileTab === 'deps' ? 'bg-emerald-600/30 text-emerald-200 border-emerald-400/70' : 'bg-white/[0.03] text-gray-400 border-white/10'"
+                                class="px-2 py-1.5 rounded-xl border text-[10px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1">
+                            <span class="truncate">Zusammenhänge</span>
+                            <span class="px-1.5 py-0.2 rounded-full bg-emerald-500/25 text-emerald-200 text-[9px] font-mono shrink-0" x-text="depsCount"></span>
+                        </button>
+
+                        <button type="button" @click="mobileTab = 'status'"
+                                :class="mobileTab === 'status' ? 'bg-rose-600/30 text-rose-100 border-rose-400/70' : (hasError ? 'bg-rose-950/60 text-rose-300 border-rose-500/50' : 'bg-white/[0.03] text-gray-400 border-white/10')"
+                                class="px-2 py-1.5 rounded-xl border text-[10px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5">
+                            <span x-show="hasError || hasNeighborError" class="w-2 h-2 rounded-full shrink-0" :class="hasError ? 'bg-rose-500 animate-pulse' : 'bg-amber-400'"></span>
+                            <span class="truncate">Status</span>
+                        </button>
+
+                        <button type="button" @click="mobileTab = 'info'"
+                                :class="mobileTab === 'info' ? 'bg-indigo-600/35 text-indigo-100 border-indigo-400/70' : 'bg-white/[0.03] text-gray-400 border-white/10'"
+                                class="px-2 py-1.5 rounded-xl border text-[10px] font-bold uppercase tracking-wider transition-all flex items-center justify-center">
+                            <span class="truncate">Aktionen</span>
+                        </button>
+                    </div>
+                </div>
+
                 <!-- Kachel 1: Datei Info -->
-                <div class="flex-1 bg-black/95 backdrop-blur-sm border border-indigo-500/40 rounded-2xl p-4 shadow-[0_10px_30px_-10px_rgba(99,102,241,0.4)] flex flex-col justify-between gap-3 h-48">
-                    <div class="flex flex-col overflow-hidden relative group">
-                        <span class="text-[10px] text-indigo-400/80 font-bold uppercase tracking-widest mb-0.5">Ausgewählt</span>
-                        <div class="flex items-center justify-between gap-2 w-full">
-                            <span id="brain-selected-node-name" class="text-indigo-100 text-sm font-mono truncate"></span>
-                            <button onclick="navigator.clipboard.writeText(document.getElementById('brain-selected-node-name').innerText); this.innerText='Kopiert!'; setTimeout(()=>this.innerText='Pfad kopieren', 2000)" class="text-[9px] text-indigo-300 hover:text-white border border-indigo-500/50 rounded px-1.5 py-0.5 shrink-0 transition-colors bg-indigo-900/30">Pfad kopieren</button>
+                <div :class="mobileTab === 'info' ? 'flex' : 'hidden md:flex'"
+                     class="w-full md:w-auto md:flex-1 bg-black/95 backdrop-blur-md border border-indigo-500/40 rounded-2xl p-3.5 md:p-4 shadow-[0_10px_30px_-10px_rgba(99,102,241,0.4)] flex-col justify-between gap-3 md:h-56 min-w-0">
+                    <div class="flex flex-col overflow-hidden relative group gap-1">
+                        <div class="flex items-center justify-between gap-2">
+                            <span class="text-[10px] text-indigo-400/80 font-bold uppercase tracking-widest">Ausgewählt</span>
+                            <button type="button" onclick="if(window.closeNeuralNodeTile) window.closeNeuralNodeTile();" class="hidden md:inline-flex items-center justify-center w-6 h-6 rounded-lg bg-white/5 hover:bg-rose-500/20 text-gray-400 hover:text-rose-300 transition-colors" title="Schließen">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+                            </button>
+                        </div>
+                        <div class="flex items-start justify-between gap-2 w-full">
+                            <span id="brain-selected-node-name" class="text-indigo-100 text-xs md:text-sm font-mono break-all line-clamp-3"></span>
+                            <button type="button" onclick="if(window.copyBrainNodePath) window.copyBrainNodePath(this);" class="text-[9px] text-indigo-300 hover:text-white border border-indigo-500/50 rounded px-1.5 py-0.5 shrink-0 transition-colors bg-indigo-900/30">Pfad kopieren</button>
                         </div>
                     </div>
                     <div class="flex gap-2 w-full mt-auto">
@@ -469,7 +555,7 @@
                                 document.body.removeChild(link);
                             "
                             :class="{ 'bg-indigo-600/80 hover:bg-indigo-500 shadow-[0_0_15px_rgba(79,70,229,0.4)]': genStatus === 'idle', 'bg-amber-500/80 shadow-[0_0_15px_rgba(245,158,11,0.4)]': genStatus === 'loading', 'bg-emerald-500/80 shadow-[0_0_15px_rgba(16,185,129,0.4)]': genStatus === 'success' }"
-                            class="flex-1 text-white text-[11px] px-2 py-2 rounded-xl font-medium transition-all flex flex-col items-center justify-center gap-1 text-center">
+                            class="flex-1 text-white text-[11px] px-2 py-2.5 rounded-xl font-medium transition-all flex flex-col items-center justify-center gap-1 text-center">
                             <div class="flex items-center gap-1.5">
                                 <template x-if="genStatus === 'idle'">
                                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5">
@@ -486,8 +572,8 @@
                             </div>
                         </button>
                         
-                        <button @click="if(window.highlightBrainStructure) window.highlightBrainStructure();" 
-                            class="flex-1 bg-slate-800 hover:bg-slate-700 text-white text-[11px] px-2 py-2 rounded-xl font-medium transition-all shadow-[0_0_15px_rgba(0,0,0,0.4)] flex flex-col items-center justify-center gap-1 text-center">
+                        <button type="button" @click="if(window.highlightBrainStructure) window.highlightBrainStructure();" 
+                            class="flex-1 bg-slate-800 hover:bg-slate-700 text-white text-[11px] px-2 py-2.5 rounded-xl font-medium transition-all shadow-[0_0_15px_rgba(0,0,0,0.4)] flex flex-col items-center justify-center gap-1 text-center">
                             <div class="flex items-center gap-1.5">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
@@ -499,73 +585,117 @@
                     </div>
                 </div>
 
-                <!-- Kachel 2: Datei Zusammenhänge -->
-                <div class="flex-1 bg-black/95 backdrop-blur-sm border border-emerald-500/40 rounded-2xl p-4 shadow-[0_10px_30px_-10px_rgba(16,185,129,0.4)] flex flex-col gap-2 h-48 relative min-h-0">
-                    <span class="text-[10px] text-emerald-400/80 font-bold uppercase tracking-widest flex-shrink-0">Datei Zusammenhänge</span>
-                    <div class="relative flex-1 w-full min-h-0">
-                        <div id="brain-dependencies-list" class="absolute inset-0 overflow-y-auto custom-scrollbar flex flex-col gap-1 text-xs font-mono text-emerald-100/80 pr-2 pb-2 pointer-events-auto">
-                            <!-- Wird per JS befüllt -->
+                <!-- Kachel 2: Datei Zusammenhänge (mobil voll scrollbar mit eigener Höhe) -->
+                <div :class="mobileTab === 'deps' ? 'flex' : 'hidden md:flex'"
+                     class="w-full md:w-auto md:flex-1 bg-black/95 backdrop-blur-md border border-emerald-500/40 rounded-2xl p-3 md:p-4 shadow-[0_10px_30px_-10px_rgba(16,185,129,0.4)] flex-col gap-2 h-[36dvh] min-h-[185px] max-h-[290px] md:h-56 md:min-h-0 md:max-h-none min-w-0 overflow-hidden">
+                    <div class="flex items-center justify-between gap-2 shrink-0">
+                        <span class="text-[10px] text-emerald-400/90 font-bold uppercase tracking-widest">Datei Zusammenhänge</span>
+                        <div class="flex items-center gap-1.5 text-[10px] font-mono shrink-0">
+                            <span class="text-amber-300/90" title="Aufrufer (Eingehend)" x-text="'← ' + incomingCount"></span>
+                            <span class="text-gray-600">|</span>
+                            <span class="text-emerald-300/90" title="Referenziert (Ausgehend)" x-text="'→ ' + outgoingCount"></span>
                         </div>
+                    </div>
+                    <div id="brain-dependencies-list"
+                         @touchstart.stop
+                         @touchmove.stop
+                         @pointerdown.stop
+                         @wheel.stop
+                         class="brain-touch-scroll flex-1 min-h-0 w-full overflow-y-auto overscroll-contain touch-pan-y custom-scrollbar space-y-1.5 text-xs font-mono text-emerald-100/90 pr-1.5 pb-2 pointer-events-auto">
+                        <!-- Wird per JS befüllt -->
                     </div>
                 </div>
 
                 <!-- Kachel 3: Zustand, Fehler & Architektur-Blueprint -->
-                <div id="brain-error-tile" class="flex-1 bg-black/95 backdrop-blur-sm border border-rose-500/40 rounded-2xl p-4 shadow-[0_10px_30px_-10px_rgba(244,63,94,0.4)] flex flex-col gap-2 h-48 relative">
-                    <span class="text-[10px] text-rose-400/80 font-bold uppercase tracking-widest flex-shrink-0">Typenschild & Status</span>
-                    <div class="relative flex-1 w-full">
-                        <div id="brain-error-content" class="absolute inset-0 overflow-y-auto custom-scrollbar text-xs font-mono text-rose-100/80 pr-2">
-                            <!-- Wird per JS befüllt -->
-                        </div>
+                <div id="brain-error-tile"
+                     :class="mobileTab === 'status' ? 'flex' : 'hidden md:flex'"
+                     class="w-full md:w-auto md:flex-1 bg-black/95 backdrop-blur-md border border-rose-500/40 rounded-2xl p-3 md:p-4 shadow-[0_10px_30px_-10px_rgba(244,63,94,0.4)] flex-col gap-2 h-[32dvh] min-h-[165px] max-h-[260px] md:h-56 md:min-h-0 md:max-h-none min-w-0 overflow-hidden">
+                    <span class="text-[10px] text-rose-400/80 font-bold uppercase tracking-widest shrink-0">Typenschild & Status</span>
+                    <div id="brain-error-content"
+                         @touchstart.stop
+                         @touchmove.stop
+                         @pointerdown.stop
+                         @wheel.stop
+                         class="brain-touch-scroll flex-1 min-h-0 w-full overflow-y-auto overscroll-contain touch-pan-y custom-scrollbar text-xs font-mono text-rose-100/80 pr-1.5 pointer-events-auto">
+                        <!-- Wird per JS befüllt -->
                     </div>
                 </div>
             </div>
 
-            <!-- 3D Architektur-Blueprint Schnellfilter -->
-            <div class="flex flex-wrap items-center justify-center gap-1.5 px-2" x-data="{ activeFilter: 'all' }">
+            <!-- 3D Architektur-Blueprint Schnellfilter (mobil einzeilig horizontal wischbar) -->
+            <div @touchstart.stop @touchmove.stop
+                 class="brain-filter-scroll flex flex-nowrap md:flex-wrap items-center justify-start md:justify-center gap-1.5 px-1 md:px-2 overflow-x-auto md:overflow-visible w-full"
+                 x-data="{ activeFilter: 'all', errorCoreCount: 0 }"
+                 @brain-errors-updated.window="errorCoreCount = ($event.detail && typeof $event.detail.count === 'number') ? $event.detail.count : 0">
                 <button type="button" @click="activeFilter = 'all'; if(window.filterBrainByBlueprint) window.filterBrainByBlueprint('all');"
-                        :class="activeFilter === 'all' ? 'bg-indigo-500 text-white border-indigo-400 shadow-[0_0_12px_rgba(99,102,241,0.5)]' : 'bg-black/80 text-indigo-200/80 border-indigo-500/30 hover:border-indigo-400'"
-                        class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border backdrop-blur-sm transition-all">
+                        :class="activeFilter === 'all' ? 'bg-indigo-600 text-white border-indigo-400' : 'bg-black/80 text-indigo-200/80 border-indigo-500/30 hover:border-indigo-400'"
+                        class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border backdrop-blur-sm transition-all shrink-0 whitespace-nowrap">
                     Alle Knoten
                 </button>
+                <button type="button" @click="activeFilter = 'errors'; if(window.filterBrainByBlueprint) window.filterBrainByBlueprint('errors');"
+                        :class="activeFilter === 'errors' ? 'bg-rose-600 text-white border-rose-300' : (errorCoreCount > 0 ? 'bg-rose-950/90 text-rose-200 border-rose-500/70' : 'bg-black/80 text-rose-300/90 border-rose-500/30 hover:border-rose-400')"
+                        class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border backdrop-blur-sm transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap">
+                    <span class="w-1.5 h-1.5 rounded-full" :class="errorCoreCount > 0 ? 'bg-rose-400 animate-pulse' : 'bg-emerald-400'"></span>
+                    <span>Fehlerkerne (Rot)</span>
+                    <span x-show="errorCoreCount > 0" x-text="errorCoreCount" class="px-1 py-0.2 rounded bg-rose-500 text-white text-[9px]"></span>
+                </button>
                 <button type="button" @click="activeFilter = 'gobd'; if(window.filterBrainByBlueprint) window.filterBrainByBlueprint('gobd');"
-                        :class="activeFilter === 'gobd' ? 'bg-amber-500 text-black border-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.6)]' : 'bg-black/80 text-amber-300/90 border-amber-500/30 hover:border-amber-400'"
-                        class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border backdrop-blur-sm transition-all">
+                        :class="activeFilter === 'gobd' ? 'bg-amber-500 text-black border-amber-300' : 'bg-black/80 text-amber-300/90 border-amber-500/30 hover:border-amber-400'"
+                        class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border backdrop-blur-sm transition-all shrink-0 whitespace-nowrap">
                     GoBD 10 Jahre
                 </button>
                 <button type="button" @click="activeFilter = 'gdpr_export'; if(window.filterBrainByBlueprint) window.filterBrainByBlueprint('gdpr_export');"
-                        :class="activeFilter === 'gdpr_export' ? 'bg-emerald-500 text-black border-emerald-300 shadow-[0_0_12px_rgba(16,185,129,0.6)]' : 'bg-black/80 text-emerald-300/90 border-emerald-500/30 hover:border-emerald-400'"
-                        class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border backdrop-blur-sm transition-all">
+                        :class="activeFilter === 'gdpr_export' ? 'bg-emerald-500 text-black border-emerald-300' : 'bg-black/80 text-emerald-300/90 border-emerald-500/30 hover:border-emerald-400'"
+                        class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border backdrop-blur-sm transition-all shrink-0 whitespace-nowrap">
                     Art. 15 DSGVO Export
                 </button>
                 <button type="button" @click="activeFilter = 'ai_protected'; if(window.filterBrainByBlueprint) window.filterBrainByBlueprint('ai_protected');"
-                        :class="activeFilter === 'ai_protected' ? 'bg-rose-500 text-white border-rose-300 shadow-[0_0_12px_rgba(244,63,94,0.6)]' : 'bg-black/80 text-rose-300/90 border-rose-500/30 hover:border-rose-400'"
-                        class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border backdrop-blur-sm transition-all">
+                        :class="activeFilter === 'ai_protected' ? 'bg-rose-500 text-white border-rose-300' : 'bg-black/80 text-rose-300/90 border-rose-500/30 hover:border-rose-400'"
+                        class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border backdrop-blur-sm transition-all shrink-0 whitespace-nowrap">
                     KI-Schreibschutz
                 </button>
                 <button type="button" @click="activeFilter = 'channels'; if(window.filterBrainByBlueprint) window.filterBrainByBlueprint('channels');"
-                        :class="activeFilter === 'channels' ? 'bg-cyan-500 text-black border-cyan-300 shadow-[0_0_12px_rgba(6,182,212,0.6)]' : 'bg-black/80 text-cyan-300/90 border-cyan-500/30 hover:border-cyan-400'"
-                        class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border backdrop-blur-sm transition-all">
+                        :class="activeFilter === 'channels' ? 'bg-cyan-500 text-black border-cyan-300' : 'bg-black/80 text-cyan-300/90 border-cyan-500/30 hover:border-cyan-400'"
+                        class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border backdrop-blur-sm transition-all shrink-0 whitespace-nowrap">
                     Laser & Externe Kanäle
                 </button>
             </div>
 
-            <div class="bg-black/90 backdrop-blur-sm border border-indigo-500/30 rounded-full shadow-[0_10px_40px_-10px_rgba(99,102,241,0.5)] p-2.5 flex items-center gap-3 transition-all focus-within:border-indigo-400/80 focus-within:shadow-[0_0_50px_-5px_rgba(99,102,241,0.6)] focus-within:bg-black/95 hover:bg-black/95 group" x-data="{ scanStatus: 'idle' }" @neural-scan-complete.window="scanStatus = 'success'; setTimeout(() => scanStatus = 'idle', 3000);">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6 text-indigo-400 ml-3 transition-colors group-focus-within:text-indigo-300">
+            <div class="bg-black/90 backdrop-blur-sm border border-indigo-500/30 rounded-full p-2 md:p-2.5 flex items-center gap-2 md:gap-2.5 transition-all focus-within:border-indigo-400/80 focus-within:bg-black/95 hover:bg-black/95 group" x-data="{ scanStatus: 'idle', checkStatus: 'idle', checkLabel: 'System prüfen' }" @neural-scan-complete.window="scanStatus = 'success'; setTimeout(() => scanStatus = 'idle', 3000);" @brain-system-check-complete.window="checkStatus = ($event.detail && $event.detail.healthy) ? 'success' : 'error'; checkLabel = ($event.detail && $event.detail.label) ? $event.detail.label : 'System prüfen'; setTimeout(() => { checkStatus = 'idle'; checkLabel = 'System prüfen'; }, 6000);">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 md:w-6 md:h-6 text-indigo-400 ml-2 md:ml-3 transition-colors group-focus-within:text-indigo-300 shrink-0">
                     <path fill-rule="evenodd" d="M10.5 3.75a6.75 6.75 0 1 0 0 13.5 6.75 6.75 0 0 0 0-13.5ZM2.25 10.5a8.25 8.25 0 1 1 14.59 5.28l4.69 4.69a.75.75 0 1 1-1.06 1.06l-4.69-4.69A8.25 8.25 0 0 1 2.25 10.5Z" clip-rule="evenodd" />
                 </svg>
-                <input type="text" id="brainSearchInput" placeholder="Suche im neuronalen Netzwerk (z.B. User.php)" class="bg-transparent border-none text-indigo-100 font-medium tracking-wide w-full focus:ring-0 text-base outline-none placeholder-indigo-500/50" onkeyup="if(window.searchBrainMap) window.searchBrainMap(this.value)">
+                <input type="text" id="brainSearchInput" placeholder="Datei im Gehirn suchen..." class="bg-transparent border-none text-indigo-100 font-medium tracking-wide w-full min-w-0 focus:ring-0 text-xs sm:text-sm md:text-base outline-none placeholder-indigo-500/50" onkeyup="if(window.searchBrainMap) window.searchBrainMap(this.value)">
                 
-                <button @click="if(window.scanSystemErrors) { window.scanSystemErrors(); scanStatus = 'loading'; }" 
-                    :class="{ 'bg-rose-500/20 border-rose-500/30 text-rose-400 hover:bg-rose-500 hover:text-white shadow-[0_0_15px_rgba(244,63,94,0.3)]': scanStatus === 'idle', 'bg-amber-500/80 border-amber-500/50 text-white shadow-[0_0_15px_rgba(245,158,11,0.4)]': scanStatus === 'loading', 'bg-emerald-500 border-emerald-500/50 text-white shadow-[0_0_15px_rgba(16,185,129,0.4)]': scanStatus === 'success' }"
-                    class="p-2.5 rounded-full border transition-all hover:scale-105 active:scale-95 flex items-center justify-center min-w-[42px] min-h-[42px]" title="Neuralen Scan starten">
+                <button type="button" @click="if(window.runBrainSystemCheck && checkStatus !== 'loading') { checkStatus = 'loading'; checkLabel = 'Prüft...'; window.runBrainSystemCheck(); }"
+                    :class="{
+                        'bg-indigo-600/80 border-indigo-400/50 text-white hover:bg-indigo-500': checkStatus === 'idle',
+                        'bg-amber-500/90 border-amber-400 text-black': checkStatus === 'loading',
+                        'bg-emerald-600 border-emerald-400 text-white': checkStatus === 'success',
+                        'bg-rose-600 border-rose-400 text-white': checkStatus === 'error'
+                    }"
+                    class="px-2.5 sm:px-3.5 py-2 rounded-full border text-xs font-bold tracking-wide transition-all shrink-0 flex items-center gap-1.5"
+                    title="Frontend-Routen, Backend-Navigation, Guards, Blueprints, Schema und SystemLog prüfen">
+                    <template x-if="checkStatus === 'loading'">
+                        <svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+                    </template>
+                    <template x-if="checkStatus !== 'loading'">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" /></svg>
+                    </template>
+                    <span x-text="checkLabel" class="hidden sm:inline"></span>
+                </button>
+
+                <button type="button" @click="if(window.scanSystemErrors) { window.scanSystemErrors(); scanStatus = 'loading'; }" 
+                    :class="{ 'bg-rose-500/20 border-rose-500/30 text-rose-400 hover:bg-rose-500 hover:text-white': scanStatus === 'idle', 'bg-amber-500/80 border-amber-500/50 text-white': scanStatus === 'loading', 'bg-emerald-500 border-emerald-500/50 text-white': scanStatus === 'success' }"
+                    class="p-2 md:p-2.5 rounded-full border transition-all hover:scale-105 active:scale-95 flex items-center justify-center min-w-[38px] min-h-[38px] md:min-w-[42px] md:min-h-[42px] shrink-0" title="System-Log Fehlerkerne abgleichen">
                     <template x-if="scanStatus === 'idle'">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path fill-rule="evenodd" d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.5-2.598-4.5L9.4 3.003ZM12 8.25a.75.75 0 0 1 .75.75v3.75a.75.75 0 0 1-1.5 0V9a.75.75 0 0 1 .75-.75Zm0 8.25a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z" clip-rule="evenodd" /></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4 md:w-5 md:h-5"><path fill-rule="evenodd" d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.5-2.598-4.5L9.4 3.003ZM12 8.25a.75.75 0 0 1 .75.75v3.75a.75.75 0 0 1-1.5 0V9a.75.75 0 0 1 .75-.75Zm0 8.25a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z" clip-rule="evenodd" /></svg>
                     </template>
                     <template x-if="scanStatus === 'loading'">
-                        <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        <svg class="animate-spin h-4 w-4 md:h-5 md:w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                     </template>
                     <template x-if="scanStatus === 'success'">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 md:w-5 md:h-5"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
                     </template>
                 </button>
             </div>
@@ -1193,10 +1323,16 @@
     <!-- Widget Task List (Live Log) -->
     @include('livewire.shop.ai.blocks.widget-tasks')
 
-    <!-- Bottom Right Controls (Audio & Close) -->
-    <div x-show="showFunkiView" class="absolute right-6 flex flex-col items-end gap-3 pointer-events-auto" style="bottom: max(1.5rem, env(safe-area-inset-bottom)); z-index: 90;" x-transition:enter="transition ease-out duration-1000 delay-500" x-transition:enter-start="opacity-0 translate-y-[20px]" x-transition:enter-end="opacity-100 translate-y-0">
+    <!-- Bottom Right Controls (Audio & Close; im mobilen Gehirn-Modus oben links positioniert) -->
+    <div x-show="showFunkiView"
+         :class="isBrainMode ? 'top-6 left-4 md:top-auto md:left-auto md:right-6 flex-row-reverse md:flex-col items-center md:items-end bottom-auto md:bottom-[max(1.5rem,env(safe-area-inset-bottom))]' : 'right-6 bottom-[max(1.5rem,env(safe-area-inset-bottom))] flex-col items-end'"
+         class="absolute flex gap-2.5 md:gap-3 pointer-events-auto"
+         style="z-index: 90;"
+         x-transition:enter="transition ease-out duration-1000 delay-500"
+         x-transition:enter-start="opacity-0 translate-y-[20px]"
+         x-transition:enter-end="opacity-100 translate-y-0">
         <!-- Audio Toggle & Slider -->
-        <div x-show="!(isMobile && isLiveMode)" x-data="{ showVol: false }" @click.outside="showVol = false" class="flex items-center gap-2 px-3 py-1 bg-gray-900/80 border border-gray-700 rounded-full shadow-glow backdrop-blur-md transition-all hover:border-emerald-500 hover:bg-black">
+        <div x-show="!(isMobile && isLiveMode)" x-data="{ showVol: false }" @click.outside="showVol = false" class="flex items-center gap-2 px-2.5 md:px-3 py-1 bg-gray-900/80 border border-gray-700 rounded-full shadow-glow backdrop-blur-md transition-all hover:border-emerald-500 hover:bg-black">
             <button @click="toggleBackgroundAudio()" class="w-8 h-8 flex justify-center items-center text-gray-300 hover:text-emerald-400 transition-colors" title="Hintergrundmusik an/aus">
                 <template x-if="isAudioMuted">
                     <svg class="w-5 h-5 text-gray-500" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
@@ -1221,8 +1357,8 @@
         </div>
 
         <!-- Close Button -->
-        <button @click="closeFunkiView()" class="w-12 h-12 bg-gray-900/80 border border-gray-700 rounded-full flex items-center justify-center hover:text-white hover:border-emerald-500 hover:bg-black transition-all shadow-[0_0_15px_rgba(16,185,129,0.2)] backdrop-blur-md group" title="Zentrum verlassen">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8 text-gray-300 group-hover:text-red-400">
+        <button @click="closeFunkiView()" class="w-10 h-10 md:w-12 md:h-12 bg-gray-900/80 border border-gray-700 rounded-full flex items-center justify-center hover:text-white hover:border-emerald-500 hover:bg-black transition-all shadow-[0_0_15px_rgba(16,185,129,0.2)] backdrop-blur-md group" title="Zentrum verlassen">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 md:w-8 md:h-8 text-gray-300 group-hover:text-red-400">
               <path stroke-linecap="round" stroke-linejoin="round" d="M11.25 9l-3 3m0 0l3 3m-3-3h7.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
         </button>

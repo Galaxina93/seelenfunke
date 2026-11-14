@@ -454,26 +454,79 @@ class MasterAnalytics extends Component
     }
 
     /**
-     * Hilfsfunktion, um System-Ausfälle in den FunkiLog zu schreiben (Max 1x pro Stunde pro Fehler)
+     * Hilfsfunktion, um System-Ausfälle dedupliziert in den SystemLog zu schreiben
      */
     private function logSystemFailure($serviceName, $message, $payload = [])
     {
         $cacheKey = 'sys_fail_log_' . $serviceName;
+        $title = 'Infrastruktur-Ausfall: ' . ucfirst((string) $serviceName);
 
         if (!Cache::has($cacheKey)) {
-            SystemLog::create([
-                'type' => 'system',
-                'action_id' => 'system:health_fail',
-                'title' => 'Infrastruktur-Ausfall: ' . ucfirst($serviceName),
-                'message' => $message,
-                'status' => 'error',
-                'payload' => $payload,
-                'started_at' => now(),
-                'finished_at' => now(),
-            ]);
+            $existing = SystemLog::where('type', 'system')
+                ->where('action_id', 'system:health_fail')
+                ->where('title', $title)
+                ->whereIn('status', ['error', 'warning'])
+                ->where('started_at', '>=', now()->subHours(24))
+                ->latest('id')
+                ->first();
+
+            if ($existing) {
+                $existingPayload = is_array($existing->payload) ? $existing->payload : [];
+                $existingPayload['occurrences_count'] = ((int) ($existingPayload['occurrences_count'] ?? 1)) + 1;
+                $existingPayload['last_seen_at'] = now()->toIso8601String();
+                $existing->message = $message;
+                $existing->payload = array_merge($existingPayload, is_array($payload) ? $payload : []);
+                $existing->finished_at = now();
+                $existing->save();
+            } else {
+                SystemLog::create([
+                    'type' => 'system',
+                    'action_id' => 'system:health_fail',
+                    'title' => $title,
+                    'message' => $message,
+                    'status' => 'error',
+                    'payload' => array_merge([
+                        'service' => (string) $serviceName,
+                        'occurrences_count' => 1,
+                        'first_seen_at' => now()->toIso8601String(),
+                        'last_seen_at' => now()->toIso8601String(),
+                    ], is_array($payload) ? $payload : []),
+                    'started_at' => now(),
+                    'finished_at' => now(),
+                ]);
+            }
 
             // Blockiere weiteres Loggen für diesen Dienst für 60 Minuten
             Cache::put($cacheKey, true, now()->addMinutes(60));
+        }
+    }
+
+    /**
+     * Schließt offene Infrastruktur-Ausfall-Meldungen automatisch ab, sobald der Dienst wieder gesund ist.
+     */
+    private function resolveSystemFailure(string $serviceName): void
+    {
+        try {
+            $title = 'Infrastruktur-Ausfall: ' . ucfirst($serviceName);
+            $openLogs = SystemLog::where('type', 'system')
+                ->where('action_id', 'system:health_fail')
+                ->where('title', $title)
+                ->whereIn('status', ['error', 'warning'])
+                ->get();
+
+            foreach ($openLogs as $log) {
+                $p = is_array($log->payload) ? $log->payload : [];
+                $p['auto_healed'] = true;
+                $p['resolved_at'] = now()->toIso8601String();
+                $log->status = 'success';
+                $log->title = '[GELÖST] ' . $title;
+                $log->payload = $p;
+                $log->finished_at = now();
+                $log->save();
+            }
+
+            Cache::forget('sys_fail_log_' . $serviceName);
+        } catch (\Throwable $ignore) {
         }
     }
 
@@ -645,10 +698,20 @@ class MasterAnalytics extends Component
                         $schedule = 'everyMinute';
                     }
                     $event = \Illuminate\Support\Facades\Schedule::command($cmdClean, $job->parameters ? explode(' ', $job->parameters) : []);
-                    if (method_exists($event, $schedule)) {
-                        $event->{$schedule}();
-                    } else {
-                        $event->cron($schedule);
+                    $safeScheduleMethods = [
+                        'everyMinute', 'everyTwoMinutes', 'everyThreeMinutes', 'everyFourMinutes',
+                        'everyFiveMinutes', 'everyTenMinutes', 'everyFifteenMinutes', 'everyThirtyMinutes',
+                        'hourly', 'everyTwoHours', 'everyThreeHours', 'everyFourHours', 'everySixHours',
+                        'daily', 'weekly', 'monthly', 'quarterly', 'yearly',
+                    ];
+                    try {
+                        if (in_array($schedule, $safeScheduleMethods, true)) {
+                            $event->{$schedule}();
+                        } else {
+                            $event->cron((string) $schedule);
+                        }
+                    } catch (\Throwable $schedEx) {
+                        continue;
                     }
                     
                     if (\Illuminate\Support\Facades\Cache::has($event->mutexName()) || \Illuminate\Support\Facades\Cache::has('framework/schedule-' . sha1($job->command))) {
@@ -837,7 +900,7 @@ class MasterAnalytics extends Component
             $health['telephony'] = ['status' => 'connected', 'value' => 'Lokal (inaktiv)', 'error' => null, 'version' => $telephonyVersion];
         } else {
             try {
-                $wssUrl = env('TWILIO_WSS_URL', 'wss://localhost:8081');
+                $wssUrl = (string) (config('services.twilio.wss_url') ?: 'wss://localhost:8081');
                 // Ersetze wss:// durch https:// für den HTTP Health Check
                 $httpUrl = str_replace(['wss://', 'ws://'], ['https://', 'http://'], $wssUrl);
                 
@@ -859,14 +922,16 @@ class MasterAnalytics extends Component
 
         // 11. NEU: WebSocket (Reverb) Backend Check
         try {
-            $wsHost = env('REVERB_HOST', '127.0.0.1'); // We check the actual daemon (local or worker container)
-            $wsPort = env('REVERB_SERVER_PORT', 6001);
+            $wsHost = (string) (config('reverb.servers.reverb.hostname') ?: '127.0.0.1'); // We check the actual daemon (local or worker container)
+            $wsPort = (int) (config('reverb.servers.reverb.port') ?: 6001);
             $start = microtime(true);
             $fp = @fsockopen($wsHost, $wsPort, $errno, $errstr, 2);
             if ($fp) {
                 $time = round((microtime(true) - $start) * 1000);
                 fclose($fp);
                 $health['ws'] = ['status' => 'connected', 'value' => "Port {$wsPort} offen ({$time}ms)", 'error' => null];
+            } elseif (app()->environment('local')) {
+                $health['ws'] = ['status' => 'connected', 'value' => 'Lokal (optional)', 'error' => null];
             } else {
                 $health['ws'] = ['status' => 'error', 'value' => 'Daemon Offline', 'error' => "Reverb Server antwortet nicht auf {$wsHost}:{$wsPort}!"];
                 $this->logSystemFailure('ws', "WebSocket Server (Reverb) ist offline. Laravel kann keine internen Events an {$wsHost}:{$wsPort} senden. (Worker-App prüfen!)");
@@ -893,7 +958,7 @@ class MasterAnalytics extends Component
 
         try {
             // Alle externen APIs werden parallel (gleichzeitig) angepingt, um kumulative Timeouts und Dashboard-Hänger zu verhindern!
-            $finapiUrl = env('FINAPI_ENV', 'live') === 'live' ? 'https://live.finapi.io' : 'https://sandbox.finapi.io';
+            $finapiUrl = config('services.finapi.env', 'live') === 'live' ? 'https://live.finapi.io' : 'https://sandbox.finapi.io';
 
             $responses = \Illuminate\Support\Facades\Http::pool(fn (\Illuminate\Http\Client\Pool $pool) => [
                 // Wir nutzen withoutRedirecting(), weil z.B. api.dhl.com auf developer.dhl.com umleitet,
@@ -940,6 +1005,12 @@ class MasterAnalytics extends Component
                 $health[$key] = ['status' => $status, 'value' => 'Failed', 'error' => 'Sub-Check abgebrochen.'];
             }
             $this->logSystemFailure('api_pool', 'Der asynchrone API-HTTP-Pool ist komplett abgestürzt: ' . $e->getMessage());
+        }
+
+        foreach ($health as $svcKey => $svcState) {
+            if (($svcState['status'] ?? '') === 'connected') {
+                $this->resolveSystemFailure((string) $svcKey);
+            }
         }
 
         $this->systemHealth = $health;
@@ -1256,8 +1327,12 @@ class MasterAnalytics extends Component
             abort(403);
         }
 
-        $newQty = $this->stockUpdate[$productId] ?? null;
-        if ($newQty === null || $newQty < 0) return;
+        $rawQty = $this->stockUpdate[$productId] ?? null;
+        if ($rawQty === null || !is_numeric($rawQty)) {
+            return;
+        }
+        $newQty = (int) $rawQty;
+        if ($newQty < 0) return;
 
         $product = Product::find($productId);
         if ($product) {
@@ -1885,10 +1960,20 @@ class MasterAnalytics extends Component
                                         $schedule = 'everyMinute';
                                     }
                                     $event = \Illuminate\Support\Facades\Schedule::command($cmdClean, $job->parameters ? explode(' ', $job->parameters) : []);
-                                    if (method_exists($event, $schedule)) {
-                                        $event->{$schedule}();
-                                    } else {
-                                        $event->cron($schedule);
+                                    $safeScheduleMethods = [
+                                        'everyMinute', 'everyTwoMinutes', 'everyThreeMinutes', 'everyFourMinutes',
+                                        'everyFiveMinutes', 'everyTenMinutes', 'everyFifteenMinutes', 'everyThirtyMinutes',
+                                        'hourly', 'everyTwoHours', 'everyThreeHours', 'everyFourHours', 'everySixHours',
+                                        'daily', 'weekly', 'monthly', 'quarterly', 'yearly',
+                                    ];
+                                    try {
+                                        if (in_array($schedule, $safeScheduleMethods, true)) {
+                                            $event->{$schedule}();
+                                        } else {
+                                            $event->cron((string) $schedule);
+                                        }
+                                    } catch (\Throwable $schedEx) {
+                                        continue;
                                     }
                                     
                                     $mutexKey = $event->mutexName();
@@ -2036,7 +2121,7 @@ class MasterAnalytics extends Component
                             break;
 
                         case 'ws':
-                            $wsHost = env('REVERB_HOST', '127.0.0.1');
+                            $wsHost = (string) (config('reverb.servers.reverb.hostname') ?: '127.0.0.1');
                             $isLocal = in_array($wsHost, ['127.0.0.1', 'localhost']);
 
                             if ($isLocal) {

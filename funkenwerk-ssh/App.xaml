@@ -2,5 +2,18 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <Application.Resources>
+        <SolidColorBrush x:Key="SshBgRoot" Color="#0F1117"/>
+        <SolidColorBrush x:Key="SshBgBar" Color="#12151E"/>
+        <SolidColorBrush x:Key="SshBgSidebar" Color="#141821"/>
+        <SolidColorBrush x:Key="SshBgCard" Color="#1A1F2C"/>
+        <SolidColorBrush x:Key="SshBgCardHover" Color="#24C5A059"/>
+        <SolidColorBrush x:Key="SshBgCardSelected" Color="#33C5A059"/>
+        <SolidColorBrush x:Key="SshBgInput" Color="#181C26"/>
+        <SolidColorBrush x:Key="SshBgButton" Color="#1B1F2B"/>
+        <SolidColorBrush x:Key="SshBorderSubtle" Color="#232734"/>
+        <SolidColorBrush x:Key="SshBorderStrong" Color="#2D3343"/>
+        <SolidColorBrush x:Key="SshFgPrimary" Color="#F9FAFB"/>
+        <SolidColorBrush x:Key="SshFgSecondary" Color="#9CA3AF"/>
+        <SolidColorBrush x:Key="SshAccentGold" Color="#C5A059"/>
     </Application.Resources>
 </Application>

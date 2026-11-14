@@ -805,29 +805,7 @@ class ProductConfiguratorService
      */
     public function sanitizeSvgContent(string $svg): string
     {
-        // 1. Strip XML DOCTYPE / ENTITY declarations (XXE / Billion Laughs protection)
-        $svg = preg_replace('/<!DOCTYPE[^>]*(\[.*?\])?\s*>/is', '', $svg) ?? $svg;
-        $svg = preg_replace('/<!ENTITY[^>]*>/is', '', $svg) ?? $svg;
-
-        // 2. Strip dangerous paired and self-closing tags (<script>, <foreignObject>, <iframe>, <object>, <embed>, <applet>, <meta>, <link>, <base>, <handler>, <use>, <image>, <feImage>, <animate*>, <set>)
-        $dangerousTags = 'script|foreignObject|iframe|object|embed|applet|meta|link|base|handler|use|image|feImage|animate|animateTransform|animateMotion|set';
-        $svg = preg_replace('/<\s*(' . $dangerousTags . ')\b[^>]*>.*?<\s*\/\s*\1\s*>/is', '', $svg) ?? $svg;
-        $svg = preg_replace('/<\s*(' . $dangerousTags . ')\b[^>]*\/?\s*>/is', '', $svg) ?? $svg;
-
-        // 3. Strip all inline event handlers (quoted and unquoted: onload=..., onerror=..., onbegin=..., etc.)
-        $svg = preg_replace('/\s+on[a-z0-9_-]+\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s>]+)/i', '', $svg) ?? $svg;
-
-        // 4. Strip @import and external/non-fragment url(...) in CSS styles
-        $svg = preg_replace('/@import\b[^;>}]*;?/i', '', $svg) ?? $svg;
-        $svg = preg_replace('/url\(\s*["\']?\s*(?!#)[^)]*\)/i', 'none', $svg) ?? $svg;
-
-        // 5. Neutralize any non-fragment URIs in href, xlink:href, or src, and dangerous schemes in values/from/to
-        $svg = preg_replace('/\b((?:xlink:)?href|src)\s*=\s*(["\'])\s*(?!#)[^"\']*\2/i', '$1=$2#$2', $svg) ?? $svg;
-        $svg = preg_replace('/\b((?:xlink:)?href|src)\s*=\s*(?![\'"]|#)[^\s>]+/i', '$1="#"', $svg) ?? $svg;
-        $svg = preg_replace('/\b(values|from|to)\s*=\s*(["\'])\s*(?:javascript|vbscript|data)\s*:[^"\']*\2/i', '$1=$2$2', $svg) ?? $svg;
-        $svg = preg_replace('/\b(values|from|to)\s*=\s*(?:javascript|vbscript|data)\s*:[^\s>]*/i', '$1=""', $svg) ?? $svg;
-
-        return trim($svg);
+        return \App\Support\SafeHtmlAndSvgSanitizer::sanitizeSvg($svg);
     }
 
     protected function sanitizeCategoryFolder(string $category): string

@@ -155,7 +155,7 @@
                                 </h4>
 
                                 <label for="avatar_upload" class="cursor-pointer flex flex-col items-center justify-center w-32 h-32 rounded-full border-2 border-dashed border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950/80 hover:border-[var(--theme-color-50)] hover:bg-[var(--theme-color-5)] transition-all relative overflow-hidden">
-                                    @if ($avatar_upload)
+                                    @if ($avatar_upload && method_exists($avatar_upload, 'isPreviewable') && $avatar_upload->isPreviewable())
                                         <img src="{{ $avatar_upload->temporaryUrl() }}" class="w-full h-full object-cover">
                                     @elseif ($editForm['avatar_path'])
                                         <img src="{{ Storage::url($editForm['avatar_path']) }}" class="w-full h-full object-cover">

@@ -59,10 +59,8 @@ fun MusicTabContent() {
     var isImporting by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        while (true) {
-            MusicPlayerManager.fetchPlaylists(context)
-            kotlinx.coroutines.delay(15000)
-        }
+        MusicPlayerManager.ensureCatalogLoadedFast(context)
+        MusicPlayerManager.fetchPlaylists(context)
     }
 
     val filteredTracks = remember(allTracks, activePlaylistId, searchQuery) {
@@ -286,7 +284,7 @@ fun MusicTabContent() {
                 PlaylistChip(
                     label = "♪ Alle (${allTracks.size})",
                     selected = activePlaylistId == "all",
-                    onClick = { MusicPlayerManager.selectPlaylist("all", context, autoPlayRandom = true) }
+                    onClick = { MusicPlayerManager.selectPlaylist("all", context, autoPlayRandom = isPlaying) }
                 )
             }
             item {
@@ -294,14 +292,14 @@ fun MusicTabContent() {
                 PlaylistChip(
                     label = "★ Favoriten ($favCount)",
                     selected = activePlaylistId == "favorites",
-                    onClick = { MusicPlayerManager.selectPlaylist("favorites", context, autoPlayRandom = true) }
+                    onClick = { MusicPlayerManager.selectPlaylist("favorites", context, autoPlayRandom = isPlaying) }
                 )
             }
             items(playlists) { pl ->
                 PlaylistChip(
                     label = "♪ ${pl.name} (${pl.tracks.size})",
                     selected = activePlaylistId == pl.id,
-                    onClick = { MusicPlayerManager.selectPlaylist(pl.id, context, autoPlayRandom = true) }
+                    onClick = { MusicPlayerManager.selectPlaylist(pl.id, context, autoPlayRandom = isPlaying) }
                 )
             }
         }
@@ -440,7 +438,11 @@ fun MusicTabContent() {
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable {
-                            MusicPlayerManager.playTrack(context, track, filteredTracks)
+                            if (isCurrent) {
+                                MusicPlayerManager.togglePlayPause(context)
+                            } else {
+                                MusicPlayerManager.playTrack(context, track, filteredTracks)
+                            }
                         },
                     shape = RoundedCornerShape(12.dp),
                     colors = CardDefaults.cardColors(

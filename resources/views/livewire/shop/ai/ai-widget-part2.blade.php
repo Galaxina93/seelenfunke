@@ -141,6 +141,8 @@
             sessionResumptionHandle: null,
             reconnectAttempts: 0,
             maxReconnectAttempts: 5,
+            useDirectFallback: false,
+            liveWsMode: 'bridge',
             currentLiveTranscript: '',
             currentUserLiveTranscript: '',
             hasSpokenInTurn: false,
@@ -1553,6 +1555,78 @@
             // --- Multimodal Live API ---
             nextPlayTime: 0,
 
+            reportLiveClientDiagnostic(severity, component, title, message, extra = {}) {
+                try {
+                    const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                    fetch('/api/ai/client-error-log', {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': csrf
+                        },
+                        body: JSON.stringify({
+                            severity: severity || 'error',
+                            component: component || 'portal_live_ai',
+                            title: title || 'Live-AI Verbindungsereignis',
+                            message: message || title || 'Unbekanntes Ereignis',
+                            auto_healed: !!extra.auto_healed,
+                            heal_summary: extra.heal_summary || null,
+                            stacktrace: extra.stacktrace || null,
+                            context: Object.assign({
+                                ws_mode: this.liveWsMode || 'bridge',
+                                reconnect_attempts: String(this.reconnectAttempts || 0),
+                                bridge_online: String(!!this.bridgeOnline),
+                                url: window.location.href
+                            }, extra.context || {})
+                        })
+                    }).catch(() => {});
+                } catch (ignore) {}
+            },
+
+            async fetchLiveCredentialsWithRetry(activeChatId, preferDirect = false) {
+                const delays = [0, 450, 1100];
+                let lastErr = null;
+                for (let i = 0; i < delays.length; i++) {
+                    if (delays[i] > 0) {
+                        await new Promise(r => setTimeout(r, delays[i]));
+                    }
+                    try {
+                        const fallbackParam = preferDirect ? '&fallback=direct' : '';
+                        const res = await fetch('/api/ai/live-credentials?agent_id=' + (this.activeAgentId || '') + '&chat_session_id=' + activeChatId + '&session_id={{ session()->getId() }}' + fallbackParam + '&t=' + Date.now(), {
+                            credentials: 'same-origin',
+                            headers: {
+                                'Accept': 'application/json',
+                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+                            }
+                        });
+                        if (!res.ok) {
+                            let errBody = '';
+                            try { errBody = await res.text(); } catch (e) {}
+                            throw new Error(`HTTP ${res.status}: ${errBody.substring(0, 180) || 'Konnte keine Live-Credentials abrufen.'}`);
+                        }
+                        const creds = await res.json();
+                        if (i > 0) {
+                            this.reportLiveClientDiagnostic(
+                                'warning',
+                                'portal_live_credentials',
+                                'Temporärer Netzwerkfehler beim Laden der Live-Credentials',
+                                `Erster Versuch fehlgeschlagen (${lastErr ? lastErr.message : 'Transient'}), Versuch #${i + 1} erfolgreich.`,
+                                { auto_healed: true, heal_summary: `Automatischer Retry #${i + 1} hat Live-Credentials erfolgreich geladen.` }
+                            );
+                        }
+                        return creds;
+                    } catch (err) {
+                        lastErr = err;
+                        if (String(err.message || '').includes('HTTP 401') || String(err.message || '').includes('HTTP 403')) {
+                            break;
+                        }
+                    }
+                }
+                throw lastErr || new Error('Konnte keine Live-Credentials abrufen.');
+            },
+
             async initLiveMode() {
                 try {
                     if (this.pingInterval) {
@@ -1565,19 +1639,10 @@
 
                     let activeChatId = this.currentChatSessionId || (this.$wire ? this.$wire.currentChatSessionId : '') || '';
 
-                    // 1. Fetch Credentials securely
-                    const response = await fetch('/api/ai/live-credentials?agent_id=' + (this.activeAgentId || '') + '&chat_session_id=' + activeChatId + '&session_id={{ session()->getId() }}&t=' + Date.now(), {
-                        credentials: 'same-origin',
-                        headers: {
-                            'Accept': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-                        }
-                    });
+                    // 1. Fetch Credentials securely (with transient retry + optional direct fallback)
+                    const creds = await this.fetchLiveCredentialsWithRetry(activeChatId, this.useDirectFallback);
 
-                    if (!response.ok) throw new Error('Konnte keine Live-Credentials abrufen.');
-                    const creds = await response.json();
-
-                    if (!creds.token) throw new Error('Token fehlt.');
+                    if (!creds.token && !creds.direct_ws_url) throw new Error('Token fehlt.');
 
                     if (creds.agent_id) this.activeAgentId = creds.agent_id;
                     if (creds.agent_name) this.activeAgentName = creds.agent_name;
@@ -1586,16 +1651,23 @@
                         this.lastInformedLiveSessionId = creds.chat_session_id;
                     }
 
-                    // 2. Setup WebSocket
-                    let wsUrl = creds.ws_url;
-                    if (window.location.protocol === 'https:' && wsUrl.startsWith('ws://')) {
-                        wsUrl = wsUrl.replace('ws://', 'wss://');
+                    // 2. Setup WebSocket (Bridge primary -> Direct-Gemini self-heal fallback if bridge is unavailable)
+                    let wsUrl = '';
+                    if (this.useDirectFallback && creds.direct_ws_url) {
+                        wsUrl = creds.direct_ws_url;
+                        this.liveWsMode = 'direct_gemini';
+                    } else {
+                        wsUrl = creds.ws_url;
+                        if (window.location.protocol === 'https:' && wsUrl.startsWith('ws://')) {
+                            wsUrl = wsUrl.replace('ws://', 'wss://');
+                        }
+                        wsUrl = `${wsUrl}${wsUrl.includes('?') ? '&' : '?'}token=${creds.token}`;
+                        this.liveWsMode = 'bridge';
                     }
-                    wsUrl = `${wsUrl}${wsUrl.includes('?') ? '&' : '?'}token=${creds.token}`;
                     this.liveWs = new WebSocket(wsUrl);
 
                     this.liveWs.onopen = () => {
-                        console.log('Gemini Live WS Connected');
+                        console.log('Gemini Live WS Connected (' + this.liveWsMode + ')');
 
                         // Send Initial Setup
                         const setupMsg = {
@@ -1627,12 +1699,12 @@
                         // Start Microphone immediately on connection open
                         this.startMicrophone();
                         this.bridgeOnline = true;
-                        setTimeout(() => this.sendWsPing(), 350);
-
-                        // Start client-to-bridge Keep-Alive & Latency heartbeat (every 10s)
-                        this.pingInterval = setInterval(() => {
-                            this.sendWsPing();
-                        }, 10000);
+                        if (this.liveWsMode === 'bridge') {
+                            setTimeout(() => this.sendWsPing(), 350);
+                            this.pingInterval = setInterval(() => {
+                                this.sendWsPing();
+                            }, 10000);
+                        }
                     };
 
                     this.liveWs.onmessage = async (event) => {
@@ -1655,12 +1727,36 @@
                         console.log('WebSocket Closed', event);
                         const closeReason = (event.reason || '').toString();
                         const reasonLower = closeReason.toLowerCase();
+                        const hadSetup = this.isSetupComplete;
                         if (event.code !== 1000 && event.code !== 1005) {
                             console.warn('WebSocket geschlossen! Code: ' + event.code + ' Reason: ' + closeReason);
                         }
                         
                         // Bei aktivem Live-Modus AudioContext & gepufferte Sprachausgabe NICHT abwürgen (keepAudioAlive = true)
                         this.cleanupLiveConnection(this.isLiveMode);
+
+                        // Self-Healing: Falls die Node.js-Bridge beim Handshake ausfällt (z.B. Code 4003 / 1006 / 1005 / 1012 / 502 vor setupComplete),
+                        // schalten wir für authentifizierte Admins nahtlos auf Direct-Gemini-Live um!
+                        if (this.isLiveMode && !hadSetup && !this.useDirectFallback && event.code !== 1000) {
+                            this.useDirectFallback = true;
+                            this.reportLiveClientDiagnostic(
+                                'warning',
+                                'portal_live_ws',
+                                `Bridge-Handshake fehlgeschlagen (Code ${event.code})`,
+                                `WebSocket zur Node.js-Bridge schloss vor SetupComplete mit Code ${event.code} (${closeReason || 'ohne Grund'}).`,
+                                {
+                                    auto_healed: true,
+                                    heal_summary: 'Automatisch auf direkten Gemini-Live-WebSocket-Kanal umgeschaltet.',
+                                    context: { close_code: String(event.code), close_reason: closeReason }
+                                }
+                            );
+                            setTimeout(() => {
+                                if (this.isLiveMode) {
+                                    this.initLiveMode();
+                                }
+                            }, 250);
+                            return;
+                        }
                         
                         const isFatalBillingOrAuthError = reasonLower.includes('prepayment')
                             || reasonLower.includes('credit')
@@ -1685,6 +1781,14 @@
                                 }, 800);
                             } else {
                                 console.error('Live-Verbindung beendet:', closeReason || event.code);
+                                this.reportLiveClientDiagnostic(
+                                    'error',
+                                    'portal_live_ws',
+                                    `Live-AI Verbindung abgebrochen (Code ${event.code})`,
+                                    `Verbindung nach ${this.reconnectAttempts} Reconnect-Versuchen beendet: ${closeReason || 'Code ' + event.code}`,
+                                    { context: { close_code: String(event.code), close_reason: closeReason } }
+                                );
+                                this.useDirectFallback = false;
                                 this.stopLiveMode();
                                 if (reasonLower.includes('prepayment') || reasonLower.includes('credit') || reasonLower.includes('billing')) {
                                     alert('Google Gemini API (Code 402 / 1011): Dein Prepayment-Guthaben (Credits) in Google AI Studio ist aufgebraucht.\n\nOriginalmeldung von Google:\n"' + closeReason + '"\n\nBitte lade dein Guthaben unter https://ai.studio/projects auf.');
@@ -1695,6 +1799,7 @@
                                 }
                             }
                         } else {
+                            this.useDirectFallback = false;
                             this.stopLiveMode();
                         }
                     };
@@ -1703,13 +1808,21 @@
                     console.error("Live Mode Init Error:", err);
                     if (this.isLiveMode && this.reconnectAttempts < this.maxReconnectAttempts) {
                         this.reconnectAttempts++;
-                        console.log(`Fehler bei Init, versuche Reconnect ${this.reconnectAttempts}/${this.maxReconnectAttempts} in 3s...`);
+                        console.log(`Fehler bei Init, versuche Reconnect ${this.reconnectAttempts}/${this.maxReconnectAttempts} in 1.5s...`);
                         setTimeout(() => {
                             if (this.isLiveMode) {
                                 this.initLiveMode();
                             }
-                        }, 3000);
+                        }, 1500);
                     } else {
+                        this.reportLiveClientDiagnostic(
+                            'error',
+                            'portal_live_init',
+                            'Initialisierung des Live-AI Modus fehlgeschlagen',
+                            err && err.message ? err.message : String(err),
+                            { stacktrace: err && err.stack ? err.stack : null }
+                        );
+                        this.useDirectFallback = false;
                         alert("Init Error: " + err.message);
                         this.stopLiveMode();
                     }

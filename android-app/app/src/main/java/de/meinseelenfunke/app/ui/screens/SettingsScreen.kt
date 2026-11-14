@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.PhoneInTalk
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
@@ -40,10 +41,12 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -55,6 +58,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -66,11 +71,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import de.meinseelenfunke.app.di.ServiceLocator
 import de.meinseelenfunke.app.di.ThemeMode
@@ -79,6 +87,8 @@ import de.meinseelenfunke.app.ui.theme.Emerald500
 import de.meinseelenfunke.app.ui.theme.Gold
 import de.meinseelenfunke.app.ui.theme.Rose500
 import de.meinseelenfunke.app.ui.theme.SpaceBlack
+import de.meinseelenfunke.app.util.AppUpdateManager
+import de.meinseelenfunke.app.util.OtaUpdateState
 import de.meinseelenfunke.app.util.PhoneConciergeManager
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -99,7 +109,33 @@ fun SettingsScreen(
     val phoneRingDelaySec by viewModel.phoneRingDelaySec.collectAsState()
     val whitelistContacts by viewModel.whitelistContacts.collectAsState()
     var showPhoneInfoDialog by remember { mutableStateOf(false) }
+    var showOtaInfoDialog by remember { mutableStateOf(false) }
     var permCheckTick by remember { mutableIntStateOf(0) }
+
+    val updateState by AppUpdateManager.state.collectAsState()
+    val (installedVerName, installedVerCode) = remember(permCheckTick) {
+        AppUpdateManager.getInstalledVersionInfo(context)
+    }
+
+    @Suppress("DEPRECATION")
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    LaunchedEffect(Unit) {
+        AppUpdateManager.checkForUpdate(context, silent = true)
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                permCheckTick++
+                AppUpdateManager.resumePendingInstallIfPermitted(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
 
     val hasPhonePerms = remember(permCheckTick) { PhoneConciergeManager.hasRequiredPermissions(context) }
     val hasScreeningRole = remember(permCheckTick) { PhoneConciergeManager.hasCallScreeningRole(context) }
@@ -135,13 +171,39 @@ fun SettingsScreen(
             },
             text = {
                 Text(
-                    text = "Funkira nimmt Anrufe freigegebener Kontakte nach der gewählten Klingelzeit automatisch an, leitet das Gespräch per Bluetooth an deinen Mini-PC weiter und legt das Anliegen als Aufgabe auf deinem Dashboard ab. Unbekannte Nummern werden niemals angenommen.",
+                    text = "Funkira nimmt Anrufe freigegebener Kontakte nach der gewählten Klingelzeit automatisch an, spricht direkt auf deinem Smartphone (oder in der Werkstatt über den Mini-PC) herzlich als deine persönliche Sekretärin, nimmt das Anliegen auf, versichert freundlich die Weitergabe an dich und speichert alles sofort als Aufgabe auf deinem Dashboard. Unbekannte Nummern werden niemals angenommen.",
                     fontSize = 13.sp,
                     color = AppTheme.colors.textPrimary
                 )
             },
             confirmButton = {
                 TextButton(onClick = { showPhoneInfoDialog = false }) {
+                    Text("Verstanden", color = Gold, fontWeight = FontWeight.Bold)
+                }
+            }
+        )
+    }
+
+    if (showOtaInfoDialog) {
+        AlertDialog(
+            onDismissRequest = { showOtaInfoDialog = false },
+            containerColor = AppTheme.colors.cardBackground,
+            title = {
+                Text(
+                    text = "App-Update (Privater Kanal)",
+                    fontWeight = FontWeight.Bold,
+                    color = Gold
+                )
+            },
+            text = {
+                Text(
+                    text = "Lädt signierte Funkenwerk-Releases direkt über deine verschlüsselte Admin-Sitzung vom Mein-Seelenfunke-Portal, prüft vor dem Öffnen die SHA-256-Prüfsumme sowie das 4096-Bit-RSA-Release-Zertifikat und übergibt das Paket an den Android-System-Installer.",
+                    fontSize = 13.sp,
+                    color = AppTheme.colors.textPrimary
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { showOtaInfoDialog = false }) {
                     Text("Verstanden", color = Gold, fontWeight = FontWeight.Bold)
                 }
             }
@@ -291,6 +353,212 @@ fun SettingsScreen(
                                 Icon(Icons.Default.Check, contentDescription = null, tint = Gold, modifier = Modifier.size(14.dp))
                             }
                         }
+                    }
+                }
+            }
+
+            // Private OTA App Update Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = AppTheme.colors.cardBackground),
+                border = BorderStroke(1.dp, AppTheme.colors.cardBorder),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.SystemUpdate,
+                                contentDescription = null,
+                                tint = Gold,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = "App-Update",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = AppTheme.colors.textPrimary
+                            )
+                            IconButton(
+                                onClick = { showOtaInfoDialog = true },
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Info,
+                                    contentDescription = "Info",
+                                    tint = AppTheme.colors.textMuted,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = "v$installedVerName · Build $installedVerCode",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = AppTheme.colors.textMuted
+                            )
+                            when (val st = updateState) {
+                                is OtaUpdateState.UpToDate -> {
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(Emerald500.copy(alpha = 0.15f))
+                                            .padding(horizontal = 7.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            text = "Aktuell",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Emerald500
+                                        )
+                                    }
+                                }
+                                is OtaUpdateState.Available -> {
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(Gold.copy(alpha = 0.2f))
+                                            .padding(horizontal = 7.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            text = "v${st.manifest.versionName} bereit",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Gold
+                                        )
+                                    }
+                                }
+                                else -> Unit
+                            }
+                        }
+                    }
+
+                    when (val st = updateState) {
+                        is OtaUpdateState.Downloading -> {
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "v${st.manifest.versionName}",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = AppTheme.colors.textPrimary
+                                    )
+                                    Text(
+                                        text = "${st.progressPercent} %",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Gold
+                                    )
+                                }
+                                LinearProgressIndicator(
+                                    progress = { st.progressPercent / 100f },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(6.dp)
+                                        .clip(RoundedCornerShape(3.dp)),
+                                    color = Gold,
+                                    trackColor = AppTheme.colors.glassSurface
+                                )
+                            }
+                        }
+                        is OtaUpdateState.Available -> {
+                            Button(
+                                onClick = { AppUpdateManager.downloadAndInstall(context, st.manifest) },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Gold,
+                                    contentColor = SpaceBlack
+                                )
+                            ) {
+                                Text(
+                                    text = "Update v${st.manifest.versionName} installieren",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp
+                                )
+                            }
+                        }
+                        is OtaUpdateState.AwaitingInstallPermission -> {
+                            Button(
+                                onClick = { AppUpdateManager.continueInstallOrOpenPermission(context) },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Gold,
+                                    contentColor = SpaceBlack
+                                )
+                            ) {
+                                Text(
+                                    text = "Installation fortsetzen",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp
+                                )
+                            }
+                        }
+                        else -> {
+                            val isChecking = st is OtaUpdateState.Checking
+                            OutlinedButton(
+                                onClick = { AppUpdateManager.checkForUpdate(context, silent = false) },
+                                enabled = !isChecking,
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(10.dp),
+                                border = BorderStroke(1.dp, Gold.copy(alpha = 0.6f))
+                            ) {
+                                if (isChecking) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        color = Gold,
+                                        strokeWidth = 2.dp
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                }
+                                Text(
+                                    text = if (isChecking) "Prüfe..." else "Auf Updates prüfen",
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 13.sp,
+                                    color = Gold
+                                )
+                            }
+                        }
+                    }
+
+                    when (val st = updateState) {
+                        is OtaUpdateState.Error -> {
+                            Text(
+                                text = st.message,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Rose500
+                            )
+                        }
+                        is OtaUpdateState.InstallerLaunched -> {
+                            Text(
+                                text = "Installer geöffnet (v${st.manifest.versionName})",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Emerald500
+                            )
+                        }
+                        else -> Unit
                     }
                 }
             }
@@ -523,7 +791,8 @@ fun SettingsScreen(
                                 val reqPerms = mutableListOf(
                                     Manifest.permission.READ_PHONE_STATE,
                                     Manifest.permission.ANSWER_PHONE_CALLS,
-                                    Manifest.permission.READ_CALL_LOG
+                                    Manifest.permission.READ_CALL_LOG,
+                                    Manifest.permission.RECORD_AUDIO
                                 )
                                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                                     reqPerms.add(Manifest.permission.BLUETOOTH_CONNECT)

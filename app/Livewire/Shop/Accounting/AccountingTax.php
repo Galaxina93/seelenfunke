@@ -37,17 +37,21 @@ class AccountingTax extends Component
     public $hardwarePin = '';
     public $certPassword = '';
     public $showStorageVault = false;
+    #[\Livewire\Attributes\Locked]
     public $archivedExports = [];
     
     // NEU: Tresor & Zertifikats-Scanner
+    #[\Livewire\Attributes\Locked]
     public $tresorCertificates = [];
     public $selectedCertName = '';
+    #[\Livewire\Attributes\Locked]
     public $hasEnvPassword = false;
     
     // NEU: Inline Beleg Upload
     public $receiptFiles = [];
 
     // NEU: Das Global-Log System für absolute Transparenz
+    #[\Livewire\Attributes\Locked]
     public $globalLogs = [];
     
     // NEU: ELSTER API Status
@@ -399,6 +403,8 @@ class AccountingTax extends Component
             // Fällt sofort ins Live-Terminal der UI auf dem Screen
             $this->addLog('error', 'ERiC API FEHLER: ' . $e->getMessage());
             $this->addLog('error', 'Die Übertragung wurde blockiert und abgebrochen.');
+        } finally {
+            $this->reset(['certPassword', 'hardwarePin']);
         }
     }
 

@@ -2,12 +2,18 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Windows;
 
 namespace FunkenwerkPlayer
 {
     public partial class App : Application
     {
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool AttachConsole(int dwProcessId);
+
+        private const int ATTACH_PARENT_PROCESS = -1;
+
         protected override void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
@@ -16,7 +22,7 @@ namespace FunkenwerkPlayer
             {
                 try
                 {
-                    string logPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "funkenwerk_player_error.log");
+                    string logPath = Path.Combine(WindowsDefaultPlayerRegistrar.GetAppDataDirectory(), "funkenwerk_player_error.log");
                     File.AppendAllText(logPath, $"[{DateTime.Now:O}] {args.ExceptionObject}\n");
                 }
                 catch { }
@@ -26,38 +32,59 @@ namespace FunkenwerkPlayer
             {
                 try
                 {
-                    string logPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "funkenwerk_player_error.log");
+                    string logPath = Path.Combine(WindowsDefaultPlayerRegistrar.GetAppDataDirectory(), "funkenwerk_player_error.log");
                     File.AppendAllText(logPath, $"[{DateTime.Now:O}] {args.Exception}\n");
                 }
                 catch { }
                 args.Handled = true;
             };
 
-            // Automatically ensure Windows Media Player registration on every launch
-            WindowsDefaultPlayerRegistrar.RegisterAsWindowsMediaPlayer(out _);
+            if (e.Args != null && e.Args.Any(a => string.Equals(a, "--self-test", StringComparison.OrdinalIgnoreCase)))
+            {
+                try
+                {
+                    if (!Console.IsOutputRedirected)
+                        AttachConsole(ATTACH_PARENT_PROCESS);
+                }
+                catch { }
+
+                int exitCode = PlayerSelfTestRunner.RunAllTests(out var reportLines);
+                try
+                {
+                    string reportPath = Path.Combine(WindowsDefaultPlayerRegistrar.GetAppDataDirectory(), "self_test_report.txt");
+                    File.WriteAllLines(reportPath, reportLines);
+                }
+                catch { }
+
+                try
+                {
+                    foreach (var line in reportLines)
+                        Console.WriteLine(line);
+                    Console.Out.Flush();
+                }
+                catch { }
+
+                Environment.Exit(exitCode);
+                return;
+            }
 
             if (e.Args != null && e.Args.Any(a => string.Equals(a, "--register-default", StringComparison.OrdinalIgnoreCase)))
             {
-                bool ok = WindowsDefaultPlayerRegistrar.RegisterAsWindowsMediaPlayer(out string msg);
-                Console.WriteLine(msg);
+                try
+                {
+                    if (!Console.IsOutputRedirected)
+                        AttachConsole(ATTACH_PARENT_PROCESS);
+                }
+                catch { }
+
+                bool ok = WindowsDefaultPlayerRegistrar.RegisterAsWindowsMediaPlayer(out string msg, setDefaultVerb: true);
+                try { Console.WriteLine(msg); } catch { }
                 Shutdown(ok ? 0 : 1);
                 return;
             }
 
-            if (e.Args != null && e.Args.Any(a => string.Equals(a, "--self-test", StringComparison.OrdinalIgnoreCase)))
-            {
-                bool regOk = WindowsDefaultPlayerRegistrar.RegisterAsWindowsMediaPlayer(out string regMsg);
-                bool isReg = WindowsDefaultPlayerRegistrar.IsRegisteredInWindows();
-                string reportPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "self_test_report.txt");
-                File.WriteAllLines(reportPath, new[]
-                {
-                    $"[{(regOk ? "PASS" : "FAIL")}] RegisterAsWindowsMediaPlayer: {regMsg}",
-                    $"[{(isReg ? "PASS" : "FAIL")}] IsRegisteredInWindows: {isReg}",
-                    $"FUNKENWERK PLAYER SELF-TEST: {(regOk && isReg ? "2/2" : "0/2")} TESTS BESTANDEN."
-                });
-                Environment.Exit(regOk && isReg ? 0 : 1);
-                return;
-            }
+            // Normal startup: only register OpenWithProgids and Capabilities (do NOT override default verb automatically)
+            WindowsDefaultPlayerRegistrar.RegisterAsWindowsMediaPlayer(out _, setDefaultVerb: false);
 
             var initialFiles = new List<string>();
             if (e.Args != null)

@@ -72,6 +72,9 @@ namespace FunkenwerkOS
         };
         public bool AutoRedirectStandardDownloadsToFunnel { get; set; } = true;
         public bool ZeroGarbageGuardEnabled { get; set; } = true;
+        public bool VisitorPrivacyMode { get; set; } = false;
+        public string? EncryptedLockPin { get; set; }
+        public bool IntentionalCustomShellEnabled { get; set; } = false;
         public List<OsStorageBindingDto> StorageBindings { get; set; } = new();
     }
 
@@ -374,6 +377,40 @@ namespace FunkenwerkOS
     {
         private static readonly byte[] FunkenwerkMainEntropy = Encoding.UTF8.GetBytes("Funkenwerk_Seelenfunke_HardwareVault_v1");
         private static readonly byte[] FunkenwerkMainAad = Encoding.UTF8.GetBytes("Funkenwerk-Vault-v2-AEAD-AES256GCM");
+        private static readonly byte[] FunkenwerkOsVaultV1Aad = Encoding.UTF8.GetBytes("Funkenwerk-OS-Vault-v1-AEAD-AES256GCM");
+
+        private static string? s_selfTestDataDirOverride;
+        private static string? s_selfTestUserProfileOverride;
+
+        public static bool IsSelfTestSandboxActive => !string.IsNullOrEmpty(s_selfTestDataDirOverride);
+
+        public static void EnterSelfTestSandbox(string sandboxRoot)
+        {
+            if (string.IsNullOrWhiteSpace(sandboxRoot))
+                throw new ArgumentException("Sandbox root required.", nameof(sandboxRoot));
+
+            string dataRoot = Path.Combine(sandboxRoot, "FunkenwerkOS_Data");
+            string profileRoot = Path.Combine(sandboxRoot, "UserProfile");
+            Directory.CreateDirectory(dataRoot);
+            Directory.CreateDirectory(profileRoot);
+            Directory.CreateDirectory(Path.Combine(profileRoot, "Downloads"));
+            Directory.CreateDirectory(Path.Combine(profileRoot, "kDrive"));
+            LockDownDirectoryAcl(dataRoot);
+
+            s_selfTestDataDirOverride = dataRoot;
+            s_selfTestUserProfileOverride = profileRoot;
+        }
+
+        public static void ExitSelfTestSandbox()
+        {
+            s_selfTestDataDirOverride = null;
+            s_selfTestUserProfileOverride = null;
+        }
+
+        internal static string UserProfileDir =>
+            !string.IsNullOrEmpty(s_selfTestUserProfileOverride)
+                ? s_selfTestUserProfileOverride!
+                : Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
         private struct DATA_BLOB
@@ -405,11 +442,29 @@ namespace FunkenwerkOS
         [DllImport("kernel32.dll", SetLastError = true)]
         private static extern IntPtr LocalFree(IntPtr hMem);
 
+        public static string OsDataDir => DataDir;
+
         public static string DataDir
         {
             get
             {
-                string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FunkenwerkOS");
+                string dir = !string.IsNullOrEmpty(s_selfTestDataDirOverride)
+                    ? s_selfTestDataDirOverride!
+                    : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FunkenwerkOS");
+                if (!Directory.Exists(dir))
+                {
+                    Directory.CreateDirectory(dir);
+                    LockDownDirectoryAcl(dir);
+                }
+                return dir;
+            }
+        }
+
+        public static string StickyDragStagingDir
+        {
+            get
+            {
+                string dir = Path.Combine(DataDir, "StickyDragStaging");
                 if (!Directory.Exists(dir))
                 {
                     Directory.CreateDirectory(dir);
@@ -663,7 +718,7 @@ namespace FunkenwerkOS
                         catch { }
                     }
 
-                    string tempNotesDir = Path.Combine(Path.GetTempPath(), "FunkenwerkOS_Notes");
+                    string tempNotesDir = Path.Combine(DataDir, "StickyDragStaging");
                     if (Directory.Exists(tempNotesDir))
                     {
                         foreach (string tf in Directory.EnumerateFiles(tempNotesDir))
@@ -760,7 +815,7 @@ namespace FunkenwerkOS
         public static void DiscoverAndEnsureStorageBindings(OsSettings settings)
         {
             settings.StorageBindings ??= new List<OsStorageBindingDto>();
-            string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            string userProfile = UserProfileDir;
             string kDriveDefault = Path.Combine(userProfile, "kDrive");
 
             var existingKDrive = settings.StorageBindings.FirstOrDefault(b =>
@@ -855,7 +910,7 @@ namespace FunkenwerkOS
             {
                 try
                 {
-                    string winDownloads = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
+                    string winDownloads = Path.Combine(UserProfileDir, "Downloads");
                     if (Directory.Exists(winDownloads))
                     {
                         foreach (string f in Directory.GetFiles(winDownloads))
@@ -1177,25 +1232,28 @@ namespace FunkenwerkOS
             var fresh = new OsSettings();
             EnsureDefaults(fresh);
 
-            try
+            if (!IsSelfTestSandboxActive)
             {
-                string fwSettings = Path.Combine(CollectionRootDir, "Funkenwerk", "settings.json");
-                if (File.Exists(fwSettings))
+                try
                 {
-                    using var doc = JsonDocument.Parse(File.ReadAllText(fwSettings, Encoding.UTF8));
-                    if (doc.RootElement.TryGetProperty("ApiBaseUrl", out var prop))
+                    string fwSettings = Path.Combine(CollectionRootDir, "Funkenwerk", "settings.json");
+                    if (File.Exists(fwSettings))
                     {
-                        string raw = prop.GetString() ?? "";
-                        if (raw.Contains("127.0.0.1", StringComparison.OrdinalIgnoreCase) || raw.Contains("localhost", StringComparison.OrdinalIgnoreCase))
-                            fresh.ApiEnvironment = "local";
-                        else if (raw.Contains("stage.mein-seelenfunke.de", StringComparison.OrdinalIgnoreCase))
-                            fresh.ApiEnvironment = "stage";
-                        else if (raw.Contains("mein-seelenfunke.de", StringComparison.OrdinalIgnoreCase))
-                            fresh.ApiEnvironment = "live";
+                        using var doc = JsonDocument.Parse(File.ReadAllText(fwSettings, Encoding.UTF8));
+                        if (doc.RootElement.TryGetProperty("ApiBaseUrl", out var prop))
+                        {
+                            string raw = prop.GetString() ?? "";
+                            if (raw.Contains("127.0.0.1", StringComparison.OrdinalIgnoreCase) || raw.Contains("localhost", StringComparison.OrdinalIgnoreCase))
+                                fresh.ApiEnvironment = "local";
+                            else if (raw.Contains("stage.mein-seelenfunke.de", StringComparison.OrdinalIgnoreCase))
+                                fresh.ApiEnvironment = "stage";
+                            else if (raw.Contains("mein-seelenfunke.de", StringComparison.OrdinalIgnoreCase))
+                                fresh.ApiEnvironment = "live";
+                        }
                     }
                 }
+                catch { }
             }
-            catch { }
 
             return fresh;
         }
@@ -1254,42 +1312,54 @@ namespace FunkenwerkOS
             catch { }
         }
 
-        public static string ProtectVaultSecret(string plainSecret)
+        public static string ProtectOsVaultSecret(string plainSecret) =>
+            ProtectVaultSecret(plainSecret, osLocalFormat: true);
+
+        public static string ProtectVaultSecret(string plainSecret, bool osLocalFormat = false)
         {
             if (string.IsNullOrWhiteSpace(plainSecret)) return "";
 
             byte[]? plainBytes = null;
             byte[]? pwdBytes = null;
             byte[]? key = null;
+            byte[]? salt = null;
+            byte[]? nonce = null;
+            byte[]? tag = null;
+            byte[]? cipher = null;
             byte[]? envelope = null;
+            byte[]? dpapiBytes = null;
             try
             {
                 plainBytes = Encoding.UTF8.GetBytes(plainSecret.Trim());
-                byte[] salt = RandomNumberGenerator.GetBytes(16);
-                byte[] nonce = RandomNumberGenerator.GetBytes(12);
-                byte[] tag = new byte[16];
-                byte[] cipher = new byte[plainBytes.Length];
+                salt = RandomNumberGenerator.GetBytes(16);
+                nonce = RandomNumberGenerator.GetBytes(12);
+                tag = new byte[16];
+                cipher = new byte[plainBytes.Length];
 
                 string identity = $"{Environment.MachineName}|{Environment.UserName}|Funkenwerk_AES256GCM_KeyDerivation_v2";
                 pwdBytes = Encoding.UTF8.GetBytes(identity);
                 key = Rfc2898DeriveBytes.Pbkdf2(pwdBytes, salt, 100_000, HashAlgorithmName.SHA512, 32);
 
+                byte[] aad = osLocalFormat ? FunkenwerkOsVaultV1Aad : FunkenwerkMainAad;
+                byte verByte = osLocalFormat ? (byte)0x01 : (byte)0x02;
+                string prefix = osLocalFormat ? "FWOSVAULT1:" : "FWVAULT2:";
+
                 using (var aesGcm = new AesGcm(key, 16))
                 {
-                    aesGcm.Encrypt(nonce, plainBytes, cipher, tag, FunkenwerkMainAad);
+                    aesGcm.Encrypt(nonce, plainBytes, cipher, tag, aad);
                 }
 
                 envelope = new byte[45 + cipher.Length];
-                envelope[0] = 0x02;
+                envelope[0] = verByte;
                 Buffer.BlockCopy(salt, 0, envelope, 1, 16);
                 Buffer.BlockCopy(nonce, 0, envelope, 17, 12);
                 Buffer.BlockCopy(tag, 0, envelope, 29, 16);
                 Buffer.BlockCopy(cipher, 0, envelope, 45, cipher.Length);
 
-                byte[]? dpapiBytes = DpapiProtectWin32(envelope, FunkenwerkMainEntropy);
+                dpapiBytes = DpapiProtectWin32(envelope, FunkenwerkMainEntropy);
                 if (dpapiBytes == null || dpapiBytes.Length == 0) return "";
 
-                return "FWVAULT2:" + Convert.ToBase64String(dpapiBytes);
+                return prefix + Convert.ToBase64String(dpapiBytes);
             }
             catch
             {
@@ -1300,41 +1370,50 @@ namespace FunkenwerkOS
                 if (plainBytes != null) CryptographicOperations.ZeroMemory(plainBytes);
                 if (pwdBytes != null) CryptographicOperations.ZeroMemory(pwdBytes);
                 if (key != null) CryptographicOperations.ZeroMemory(key);
+                if (salt != null) CryptographicOperations.ZeroMemory(salt);
+                if (nonce != null) CryptographicOperations.ZeroMemory(nonce);
+                if (tag != null) CryptographicOperations.ZeroMemory(tag);
+                if (cipher != null) CryptographicOperations.ZeroMemory(cipher);
                 if (envelope != null) CryptographicOperations.ZeroMemory(envelope);
+                if (dpapiBytes != null) CryptographicOperations.ZeroMemory(dpapiBytes);
             }
         }
 
-        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> s_unprotectCache = new(StringComparer.Ordinal);
-        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (long LastWriteTicks, string Token)> s_fwSettingsTokenCache = new(StringComparer.OrdinalIgnoreCase);
-
         public static string UnprotectVaultSecret(string? storedCipher)
         {
-            const string prefix = "FWVAULT2:";
-            if (string.IsNullOrWhiteSpace(storedCipher) || !storedCipher.StartsWith(prefix, StringComparison.Ordinal))
+            if (string.IsNullOrWhiteSpace(storedCipher))
                 return "";
 
-            if (s_unprotectCache.TryGetValue(storedCipher, out string? cachedPlain))
-                return cachedPlain;
+            bool isOsV1 = storedCipher.StartsWith("FWOSVAULT1:", StringComparison.Ordinal);
+            bool isSharedV2 = !isOsV1 && storedCipher.StartsWith("FWVAULT2:", StringComparison.Ordinal);
+            if (!isOsV1 && !isSharedV2)
+                return "";
 
+            string prefix = isOsV1 ? "FWOSVAULT1:" : "FWVAULT2:";
+            byte expectedVersion = isOsV1 ? (byte)0x01 : (byte)0x02;
+            byte[] expectedAad = isOsV1 ? FunkenwerkOsVaultV1Aad : FunkenwerkMainAad;
+
+            byte[]? dpapiCipher = null;
             byte[]? envelope = null;
+            byte[]? salt = null;
+            byte[]? nonce = null;
+            byte[]? tag = null;
+            byte[]? cipher = null;
             byte[]? key = null;
             byte[]? plainBytes = null;
             byte[]? pwdBytes = null;
             try
             {
-                byte[] dpapiCipher = Convert.FromBase64String(storedCipher.Substring(prefix.Length));
+                dpapiCipher = Convert.FromBase64String(storedCipher.Substring(prefix.Length));
                 envelope = DpapiUnprotectWin32(dpapiCipher, FunkenwerkMainEntropy);
-                if (envelope == null || envelope.Length < 45 || envelope[0] != 0x02)
-                {
-                    s_unprotectCache[storedCipher] = "";
+                if (envelope == null || envelope.Length < 45 || envelope[0] != expectedVersion)
                     return "";
-                }
 
-                byte[] salt = new byte[16];
-                byte[] nonce = new byte[12];
-                byte[] tag = new byte[16];
+                salt = new byte[16];
+                nonce = new byte[12];
+                tag = new byte[16];
                 int cipherLen = envelope.Length - 45;
-                byte[] cipher = new byte[cipherLen];
+                cipher = new byte[cipherLen];
                 plainBytes = new byte[cipherLen];
 
                 Buffer.BlockCopy(envelope, 1, salt, 0, 16);
@@ -1347,19 +1426,21 @@ namespace FunkenwerkOS
                 key = Rfc2898DeriveBytes.Pbkdf2(pwdBytes, salt, 100_000, HashAlgorithmName.SHA512, 32);
 
                 using var aesGcm = new AesGcm(key, 16);
-                aesGcm.Decrypt(nonce, cipher, tag, plainBytes, FunkenwerkMainAad);
-                string decrypted = Encoding.UTF8.GetString(plainBytes);
-                s_unprotectCache[storedCipher] = decrypted;
-                return decrypted;
+                aesGcm.Decrypt(nonce, cipher, tag, plainBytes, expectedAad);
+                return Encoding.UTF8.GetString(plainBytes);
             }
             catch
             {
-                s_unprotectCache[storedCipher] = "";
                 return "";
             }
             finally
             {
+                if (dpapiCipher != null) CryptographicOperations.ZeroMemory(dpapiCipher);
                 if (envelope != null) CryptographicOperations.ZeroMemory(envelope);
+                if (salt != null) CryptographicOperations.ZeroMemory(salt);
+                if (nonce != null) CryptographicOperations.ZeroMemory(nonce);
+                if (tag != null) CryptographicOperations.ZeroMemory(tag);
+                if (cipher != null) CryptographicOperations.ZeroMemory(cipher);
                 if (key != null) CryptographicOperations.ZeroMemory(key);
                 if (plainBytes != null) CryptographicOperations.ZeroMemory(plainBytes);
                 if (pwdBytes != null) CryptographicOperations.ZeroMemory(pwdBytes);
@@ -1380,15 +1461,14 @@ namespace FunkenwerkOS
             if (!string.IsNullOrWhiteSpace(ownPlain))
                 return ownPlain.Trim();
 
+            if (IsSelfTestSandboxActive)
+                return "";
+
             try
             {
                 string fwSettings = Path.Combine(CollectionRootDir, "Funkenwerk", "settings.json");
                 if (File.Exists(fwSettings))
                 {
-                    long writeTicks = File.GetLastWriteTimeUtc(fwSettings).Ticks;
-                    if (s_fwSettingsTokenCache.TryGetValue(normEnv, out var cached) && cached.LastWriteTicks == writeTicks)
-                        return cached.Token;
-
                     using var doc = JsonDocument.Parse(File.ReadAllText(fwSettings, Encoding.UTF8));
                     var root = doc.RootElement;
                     var candidates = new List<string?>();
@@ -1401,14 +1481,8 @@ namespace FunkenwerkOS
                     {
                         string dec = UnprotectVaultSecret(c);
                         if (!string.IsNullOrWhiteSpace(dec))
-                        {
-                            string trimmed = dec.Trim();
-                            s_fwSettingsTokenCache[normEnv] = (writeTicks, trimmed);
-                            return trimmed;
-                        }
+                            return dec.Trim();
                     }
-
-                    s_fwSettingsTokenCache[normEnv] = (writeTicks, "");
                 }
             }
             catch { }
@@ -1421,8 +1495,6 @@ namespace FunkenwerkOS
             string encrypted = ProtectVaultSecret(rawBearerToken);
             if (string.IsNullOrEmpty(encrypted)) return;
 
-            s_unprotectCache[encrypted] = rawBearerToken;
-
             string normEnv = (env ?? "live").Trim().ToLowerInvariant();
             if (normEnv == "local") settings.EncryptedTokenLocal = encrypted;
             else if (normEnv == "stage") settings.EncryptedTokenStage = encrypted;
@@ -1431,6 +1503,9 @@ namespace FunkenwerkOS
             if (switchActiveEnv)
                 settings.ApiEnvironment = normEnv;
             SaveSettings(settings);
+
+            if (IsSelfTestSandboxActive)
+                return;
 
             try
             {
@@ -1461,10 +1536,16 @@ namespace FunkenwerkOS
                     File.WriteAllText(tmp, obj.ToJsonString(new JsonSerializerOptions { WriteIndented = true }), new UTF8Encoding(false));
                     File.Move(tmp, fwSettingsPath, overwrite: true);
                     LockDownFileAcl(fwSettingsPath);
-                    s_fwSettingsTokenCache.Clear();
                 }
             }
             catch { }
+        }
+
+        private static void ZeroUnmanagedBuffer(IntPtr ptr, int length)
+        {
+            if (ptr == IntPtr.Zero || length <= 0) return;
+            for (int i = 0; i < length; i++)
+                Marshal.WriteByte(ptr, i, 0);
         }
 
         private static byte[]? DpapiProtectWin32(byte[] plainBytes, byte[] entropy)
@@ -1493,9 +1574,9 @@ namespace FunkenwerkOS
             catch { }
             finally
             {
-                if (plainPtr != IntPtr.Zero) Marshal.FreeHGlobal(plainPtr);
-                if (entropyPtr != IntPtr.Zero) Marshal.FreeHGlobal(entropyPtr);
-                if (outBlob.pbData != IntPtr.Zero) LocalFree(outBlob.pbData);
+                if (plainPtr != IntPtr.Zero) { ZeroUnmanagedBuffer(plainPtr, plainBytes.Length); Marshal.FreeHGlobal(plainPtr); }
+                if (entropyPtr != IntPtr.Zero) { ZeroUnmanagedBuffer(entropyPtr, entropy.Length); Marshal.FreeHGlobal(entropyPtr); }
+                if (outBlob.pbData != IntPtr.Zero) { ZeroUnmanagedBuffer(outBlob.pbData, outBlob.cbData); LocalFree(outBlob.pbData); }
             }
             return null;
         }
@@ -1527,11 +1608,41 @@ namespace FunkenwerkOS
             catch { }
             finally
             {
-                if (cipherPtr != IntPtr.Zero) Marshal.FreeHGlobal(cipherPtr);
-                if (entropyPtr != IntPtr.Zero) Marshal.FreeHGlobal(entropyPtr);
-                if (outBlob.pbData != IntPtr.Zero) LocalFree(outBlob.pbData);
+                if (cipherPtr != IntPtr.Zero) { ZeroUnmanagedBuffer(cipherPtr, cipherBytes.Length); Marshal.FreeHGlobal(cipherPtr); }
+                if (entropyPtr != IntPtr.Zero) { ZeroUnmanagedBuffer(entropyPtr, entropy.Length); Marshal.FreeHGlobal(entropyPtr); }
+                if (outBlob.pbData != IntPtr.Zero) { ZeroUnmanagedBuffer(outBlob.pbData, outBlob.cbData); LocalFree(outBlob.pbData); }
             }
             return null;
+        }
+
+        public static void SecureZeroWipeAndDeleteFile(string filePath, Action<byte[]>? onPreDeleteInspect = null)
+        {
+            if (string.IsNullOrWhiteSpace(filePath)) return;
+            try
+            {
+                if (File.Exists(filePath))
+                {
+                    var fi = new FileInfo(filePath);
+                    int wipeLen = Math.Max(4096, (int)Math.Min(fi.Length, 16 * 1024 * 1024));
+                    byte[] zeros = new byte[wipeLen];
+                    using (var fs = new FileStream(filePath, FileMode.Open, FileAccess.Write, FileShare.None))
+                    {
+                        fs.Position = 0;
+                        fs.Write(zeros, 0, zeros.Length);
+                        fs.Flush(flushToDisk: true);
+                    }
+                    if (onPreDeleteInspect != null)
+                    {
+                        byte[] wipedContent = File.ReadAllBytes(filePath);
+                        onPreDeleteInspect(wipedContent);
+                    }
+                }
+            }
+            catch { }
+            finally
+            {
+                try { if (File.Exists(filePath)) File.Delete(filePath); } catch { }
+            }
         }
 
         public static void LockDownDirectoryAcl(string dirPath)

@@ -201,12 +201,25 @@ class Cart extends Component
         }
 
         $cart = $this->cartService->getCart(false);
+
+        if ($cart) {
+            $orphanedIds = $cart->items()
+                ->with('product')
+                ->get()
+                ->filter(fn ($ci) => $ci->product === null)
+                ->pluck('id')
+                ->all();
+            if (!empty($orphanedIds)) {
+                $cart->items()->whereIn('id', $orphanedIds)->delete();
+            }
+        }
+
         $totals = $this->cartService->getTotals();
 
         // KORREKTUR: Wir laden nur die Relation 'product'.
         // 'media_gallery' ist ein Attribut (array cast) im Product-Model, keine Relation.
         $items = $cart
-            ? $cart->items()->with('product')->get()
+            ? $cart->items()->with('product')->get()->filter(fn ($ci) => $ci->product !== null)->values()
             : collect();
 
         return view('livewire.shop.cart.cart', [

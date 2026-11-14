@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Windows;
 
 namespace FunkenwerkFtp
@@ -12,26 +14,21 @@ namespace FunkenwerkFtp
 
             if (e.Args.Any(a => string.Equals(a, "--self-test", StringComparison.OrdinalIgnoreCase)))
             {
+                try { Console.OutputEncoding = Encoding.UTF8; } catch { }
+
                 try
                 {
-                    var profiles = FunkenwerkFtpSecurity.LoadAndImportProfiles();
-                    bool securityOk = profiles.Count > 0 && FunkenwerkFtpSecurity.RunSelfTest();
-                    var testWin = new MainWindow();
-                    var sampleDoc = FtpTextBufferCodec.Decode(System.Text.Encoding.UTF8.GetBytes("<?php\necho 'ok';\n"), false);
-                    var testEd = new FtpFileEditorWindow(testWin, true, true, "test.php", "/html/test.php", sampleDoc, _ => System.Threading.Tasks.Task.CompletedTask);
-                    bool uiOk = testWin.Title.Contains("Funkenwerk FTP") && testEd.Title.Contains("test.php");
-                    Environment.Exit((securityOk && uiOk) ? 0 : 1);
+                    bool allOk = FunkenwerkFtpSecurity.RunIsolatedSelfTestSuite(out List<string> results);
+                    foreach (string line in results)
+                    {
+                        try { Console.WriteLine(line); } catch { }
+                    }
+                    Environment.Exit(allOk ? 0 : 1);
                     return;
                 }
                 catch (Exception ex)
                 {
-                    try
-                    {
-                        System.IO.File.WriteAllText(
-                            System.IO.Path.Combine(FunkenwerkFtpSecurity.VaultDir, "selftest_error.txt"),
-                            ex.ToString());
-                    }
-                    catch { }
+                    try { Console.Error.WriteLine($"[FATAL] {ex}"); } catch { }
                     Environment.Exit(2);
                     return;
                 }

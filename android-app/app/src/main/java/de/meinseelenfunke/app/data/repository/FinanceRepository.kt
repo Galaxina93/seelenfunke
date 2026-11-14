@@ -14,6 +14,20 @@ import okhttp3.RequestBody.Companion.toRequestBody
 
 class FinanceRepository(private val serviceLocator: ServiceLocator) {
 
+    companion object {
+        private val NON_FALLBACK_HTTP_STATUS_CODES = setOf(401, 403, 422)
+
+        fun shouldAllowDirectGeminiFallbackOnHttpStatus(statusCode: Int): Boolean {
+            return statusCode !in NON_FALLBACK_HTTP_STATUS_CODES
+        }
+    }
+
+    @Volatile
+    var lastDirectGeminiFallbackInvoked: Boolean = false
+        private set
+
+    internal var geminiDirectEndpointOverride: String? = null
+
     suspend fun getKpis(): Result<FinanceKpis> {
         return try {
             val kpis = serviceLocator.getFinanceApi().getKpis()
@@ -125,6 +139,7 @@ class FinanceRepository(private val serviceLocator: ServiceLocator) {
         mimeType: String,
         autoSave: Boolean
     ): Result<de.meinseelenfunke.app.data.api.ReceiptAiScanResponse> {
+        lastDirectGeminiFallbackInvoked = false
         return try {
             val mediaType = mimeType.toMediaTypeOrNull() ?: "image/jpeg".toMediaTypeOrNull()
             val requestFile = fileBytes.toRequestBody(mediaType)
@@ -135,19 +150,23 @@ class FinanceRepository(private val serviceLocator: ServiceLocator) {
             if (response.success) {
                 Result.success(response)
             } else {
-                val directFallback = tryDirectGeminiReceiptScan(fileBytes, mimeType)
-                if (directFallback != null) {
-                    Result.success(directFallback)
-                } else {
-                    Result.failure(Exception(response.message ?: "Beleg konnte nicht automatisch erkannt werden."))
-                }
+                Result.failure(Exception(response.message ?: "Beleg konnte nicht automatisch erkannt werden."))
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             AppLogger.error(serviceLocator.context, "FinanceRepo", "scanReceipt failed", e)
-            val directFallback = tryDirectGeminiReceiptScan(fileBytes, mimeType)
-            if (directFallback != null) {
-                return Result.success(directFallback)
+
+            val blockClientFallback = e is retrofit2.HttpException &&
+                !shouldAllowDirectGeminiFallbackOnHttpStatus(e.code())
+
+            if (!blockClientFallback) {
+                val directFallback = scanReceiptDirectWithGemini(fileBytes, mimeType)
+                if (directFallback != null) {
+                    return Result.success(directFallback)
+                }
             }
+
             val friendlyMsg = when (e) {
                 is retrofit2.HttpException -> {
                     val errBody = try { e.response()?.errorBody()?.string() } catch (_: Exception) { null }
@@ -164,15 +183,16 @@ class FinanceRepository(private val serviceLocator: ServiceLocator) {
         }
     }
 
-    private suspend fun tryDirectGeminiReceiptScan(
+    private suspend fun scanReceiptDirectWithGemini(
         fileBytes: ByteArray,
         mimeType: String
     ): de.meinseelenfunke.app.data.api.ReceiptAiScanResponse? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        lastDirectGeminiFallbackInvoked = true
         val apiKey = serviceLocator.getGeminiApiKey().trim()
         if (apiKey.isEmpty()) return@withContext null
 
         try {
-            val b64 = android.util.Base64.encodeToString(fileBytes, android.util.Base64.NO_WRAP)
+            val b64 = java.util.Base64.getEncoder().encodeToString(fileBytes)
             val today = java.time.LocalDate.now().toString()
             val prompt = """
                 Analysiere diesen Kassenbon / Beleg und antworte AUSSCHLIESSLICH im JSON-Format:
@@ -199,10 +219,15 @@ class FinanceRepository(private val serviceLocator: ServiceLocator) {
             val client = okhttp3.OkHttpClient.Builder()
                 .connectTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
                 .readTimeout(20, java.util.concurrent.TimeUnit.SECONDS)
+                .followRedirects(false)
+                .followSslRedirects(false)
                 .build()
 
+            val targetUrl = geminiDirectEndpointOverride
+                ?: "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent"
+
             val req = okhttp3.Request.Builder()
-                .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent")
+                .url(targetUrl)
                 .addHeader("x-goog-api-key", apiKey)
                 .post(payload.toString().toRequestBody("application/json".toMediaTypeOrNull()))
                 .build()

@@ -133,6 +133,7 @@ class DigitalProductDownloadController extends Controller
         $customerUser = auth()->guard('customer')->user();
         $isCustomerOwner = AiAuthHelper::isCustomer()
             && $customerUser
+            && $customerUser->hasVerifiedEmail()
             && (string) AiAuthHelper::getCustomerId() === (string) $customer->id;
 
         if (!$isAdminOrEmployee && !$isCustomerOwner && !request()->hasValidSignature()) {

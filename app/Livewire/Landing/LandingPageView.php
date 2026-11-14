@@ -30,10 +30,14 @@ class LandingPageView extends Component
             'product.templates' => fn($q) => $q->where('is_active', true),
         ])->where('slug', $cleanSlug)->first();
 
-        // Fallback für neu angelegte Produkte, deren Landing Page noch nicht initialisiert wurde
+        $isStaff = auth()->guard('admin')->check()
+            || \App\Services\AI\AiAuthHelper::isEmployee()
+            || \App\Services\AI\AiAuthHelper::isAdmin();
+
+        // Fallback für neu angelegte aktive Produkte, deren Landing Page noch nicht initialisiert wurde
         if (!$landingPage && $cleanSlug !== '' && !str_starts_with($cleanSlug, 'draft-')) {
             $product = Product::where('slug', $cleanSlug)->first();
-            if ($product) {
+            if ($product && ($isStaff || $product->status === 'active')) {
                 $landingPage = MarketingLandingPage::syncForProduct($product);
                 $landingPage?->load([
                     'product.categories',
@@ -50,10 +54,6 @@ class LandingPageView extends Component
         $this->landingPage = $landingPage;
 
         // Security check: Draft landing pages or inactive products must not be publicly visible to customers/guests/external partners
-        $isStaff = auth()->guard('admin')->check()
-            || \App\Services\AI\AiAuthHelper::isEmployee()
-            || \App\Services\AI\AiAuthHelper::isAdmin();
-
         if (!$isStaff) {
             if ($this->landingPage->status !== 'active') {
                 abort(404);

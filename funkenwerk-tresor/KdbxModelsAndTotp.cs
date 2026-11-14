@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Security.AccessControl;
@@ -14,12 +15,14 @@ namespace FunkenwerkTresor
 {
     public sealed class TresorAppSettings
     {
-        public bool DarkMode { get; set; } = false; // Klassische helle KeePass-Ansicht (wie im Screenshot) als Standard
-        public bool AutoLockEnabled { get; set; } = false; // Standardmäßig AUS: Tresor bleibt geöffnet, optional aktivierbar
+        internal static string? TestOverrideBaseDir { get; set; }
+
+        public bool DarkMode { get; set; } = false; // Klassische helle KeePass-Ansicht als Standard
+        public bool AutoLockEnabled { get; set; } = false; // Standardmaessig AUS: Tresor bleibt geoeffnet, optional aktivierbar
         public int AutoLockMinutes { get; set; } = 5; // 1, 2, 5, 10, 30 Min. (wenn AutoLockEnabled = true)
         public int ClipboardClearSeconds { get; set; } = 12; // 12s Standard
-        public bool ScreenCaptureProtection { get; set; } = false; // Optional über Extras aktivierbar (verhindert unsichtbares Fenster bei RDP/Display-Capture)
-        public bool LockOnWindowsLock { get; set; } = false;
+        public bool ScreenCaptureProtection { get; set; } = true; // Standardmaessig EIN zum Schutz vor Screenshots/Screen-Grabbing
+        public bool LockOnWindowsLock { get; set; } = true; // Standardmaessig EIN bei Windows-Sperre (Win+L)
         public string LastDatabasePath { get; set; } = "";
         public string LastKeyfilePath { get; set; } = "";
         public List<string> RecentDatabases { get; set; } = new();
@@ -28,7 +31,9 @@ namespace FunkenwerkTresor
         {
             get
             {
-                string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FunkenwerkTresor");
+                string dir = !string.IsNullOrWhiteSpace(TestOverrideBaseDir)
+                    ? Path.Combine(TestOverrideBaseDir, "AppData")
+                    : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FunkenwerkTresor");
                 if (!Directory.Exists(dir))
                 {
                     Directory.CreateDirectory(dir);
@@ -42,7 +47,9 @@ namespace FunkenwerkTresor
         {
             get
             {
-                string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Funkenwerk Tresore");
+                string dir = !string.IsNullOrWhiteSpace(TestOverrideBaseDir)
+                    ? Path.Combine(TestOverrideBaseDir, "Vaults")
+                    : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Funkenwerk Tresore");
                 if (!Directory.Exists(dir))
                 {
                     Directory.CreateDirectory(dir);
@@ -95,6 +102,9 @@ namespace FunkenwerkTresor
                     }
                 }
 
+                if (!string.IsNullOrWhiteSpace(TestOverrideBaseDir))
+                    return;
+
                 string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
                 string[] knownCandidates =
                 {
@@ -138,6 +148,7 @@ namespace FunkenwerkTresor
                 string tmp = SettingsFilePath + ".tmp";
                 string json = JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true });
                 File.WriteAllText(tmp, json, new UTF8Encoding(false));
+                LockDownFileAcl(tmp);
                 File.Move(tmp, SettingsFilePath, overwrite: true);
                 LockDownFileAcl(SettingsFilePath);
             }
@@ -164,17 +175,25 @@ namespace FunkenwerkTresor
         {
             try
             {
-                var di = new DirectoryInfo(dirPath);
-                if (!di.Exists) return;
-                var user = WindowsIdentity.GetCurrent().User;
-                if (user == null) return;
+                if (OperatingSystem.IsWindows())
+                {
+                    var di = new DirectoryInfo(dirPath);
+                    if (!di.Exists) return;
+                    var user = WindowsIdentity.GetCurrent().User;
+                    if (user == null) return;
 
-                var sec = new DirectorySecurity();
-                sec.SetAccessRuleProtection(true, false);
-                sec.AddAccessRule(new FileSystemAccessRule(user, FileSystemRights.FullControl, InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit, PropagationFlags.None, AccessControlType.Allow));
-                sec.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null), FileSystemRights.FullControl, InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit, PropagationFlags.None, AccessControlType.Allow));
-                sec.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null), FileSystemRights.FullControl, InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit, PropagationFlags.None, AccessControlType.Allow));
-                di.SetAccessControl(sec);
+                    var sec = new DirectorySecurity();
+                    sec.SetAccessRuleProtection(true, false);
+                    sec.AddAccessRule(new FileSystemAccessRule(user, FileSystemRights.FullControl, InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit, PropagationFlags.None, AccessControlType.Allow));
+                    sec.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null), FileSystemRights.FullControl, InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit, PropagationFlags.None, AccessControlType.Allow));
+                    sec.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null), FileSystemRights.FullControl, InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit, PropagationFlags.None, AccessControlType.Allow));
+                    di.SetAccessControl(sec);
+                }
+                else
+                {
+                    if (Directory.Exists(dirPath))
+                        File.SetUnixFileMode(dirPath, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+                }
             }
             catch { }
         }
@@ -183,17 +202,25 @@ namespace FunkenwerkTresor
         {
             try
             {
-                var fi = new FileInfo(filePath);
-                if (!fi.Exists) return;
-                var user = WindowsIdentity.GetCurrent().User;
-                if (user == null) return;
+                if (OperatingSystem.IsWindows())
+                {
+                    var fi = new FileInfo(filePath);
+                    if (!fi.Exists) return;
+                    var user = WindowsIdentity.GetCurrent().User;
+                    if (user == null) return;
 
-                var sec = new FileSecurity();
-                sec.SetAccessRuleProtection(true, false);
-                sec.AddAccessRule(new FileSystemAccessRule(user, FileSystemRights.FullControl, AccessControlType.Allow));
-                sec.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null), FileSystemRights.FullControl, AccessControlType.Allow));
-                sec.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null), FileSystemRights.FullControl, AccessControlType.Allow));
-                fi.SetAccessControl(sec);
+                    var sec = new FileSecurity();
+                    sec.SetAccessRuleProtection(true, false);
+                    sec.AddAccessRule(new FileSystemAccessRule(user, FileSystemRights.FullControl, AccessControlType.Allow));
+                    sec.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null), FileSystemRights.FullControl, AccessControlType.Allow));
+                    sec.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null), FileSystemRights.FullControl, AccessControlType.Allow));
+                    fi.SetAccessControl(sec);
+                }
+                else
+                {
+                    if (File.Exists(filePath))
+                        File.SetUnixFileMode(filePath, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+                }
             }
             catch { }
         }
@@ -238,6 +265,7 @@ namespace FunkenwerkTresor
         public bool Expires { get; set; }
         public DateTime? ExpiresUtc { get; set; }
         public string? RawHistoryXml { get; set; }
+        public string? RawCustomDataXml { get; set; }
 
         public ImageSource IconImage => KeePassIconRenderer.GetIcon(IconId, CustomIconUuidHex, CustomIconsRef, false);
 
@@ -333,7 +361,7 @@ namespace FunkenwerkTresor
 
         public string AvatarInitial => string.IsNullOrWhiteSpace(Title)
             ? "🔑"
-            : Title.Trim().Substring(0, 1).ToUpperInvariant();
+            : StringInfo.GetNextTextElement(Title.Trim()).ToUpperInvariant();
 
         public KdbxEntry CloneEntry(bool newUuid = false)
         {
@@ -355,7 +383,8 @@ namespace FunkenwerkTresor
                 ModifiedUtc = DateTime.UtcNow,
                 Expires = Expires,
                 ExpiresUtc = ExpiresUtc,
-                RawHistoryXml = newUuid ? null : RawHistoryXml
+                RawHistoryXml = newUuid ? null : RawHistoryXml,
+                RawCustomDataXml = RawCustomDataXml
             };
             foreach (var kv in CustomStrings)
                 copy.CustomStrings[kv.Key] = new KdbxCustomString { Value = kv.Value.Value, IsProtected = kv.Value.IsProtected };
@@ -373,6 +402,8 @@ namespace FunkenwerkTresor
             Password = new string('\0', Password.Length);
             Password = "";
             Notes = "";
+            RawHistoryXml = null;
+            RawCustomDataXml = null;
             foreach (var kv in CustomStrings)
                 kv.Value.Value = "";
             CustomStrings.Clear();
@@ -397,6 +428,7 @@ namespace FunkenwerkTresor
         public bool IsExpanded { get; set; } = true;
         public DateTime CreatedUtc { get; set; } = DateTime.UtcNow;
         public DateTime ModifiedUtc { get; set; } = DateTime.UtcNow;
+        public string? RawCustomDataXml { get; set; }
         public List<KdbxGroup> SubGroups { get; set; } = new();
         public List<KdbxEntry> Entries { get; set; } = new();
 
@@ -442,6 +474,8 @@ namespace FunkenwerkTresor
 
         public string RecycleBinUuidHex { get; set; } = "";
         public bool RecycleBinEnabled { get; set; } = true;
+        public string? RawDeletedObjectsXml { get; set; }
+        public string? RawCustomDataXml { get; set; }
         public Dictionary<string, byte[]> CustomIcons { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         public KdbxGroup RootGroup { get; set; } = new() { Name = "DB", IconId = 48, IsRootGroup = true };
         public bool IsDirty { get; set; }
@@ -624,6 +658,16 @@ namespace FunkenwerkTresor
             int updatedEntries = 0;
             int skippedDuplicates = 0;
 
+            foreach (var iconKv in sourceDb.CustomIcons)
+            {
+                if (!CustomIcons.ContainsKey(iconKv.Key) && iconKv.Value != null)
+                {
+                    byte[] iconCopy = new byte[iconKv.Value.Length];
+                    Buffer.BlockCopy(iconKv.Value, 0, iconCopy, 0, iconKv.Value.Length);
+                    CustomIcons[iconKv.Key] = iconCopy;
+                }
+            }
+
             var existingEntriesById = GetAllEntriesFlat(includeRecycleBin: true)
                 .ToDictionary(e => e.UuidHex, e => e, StringComparer.OrdinalIgnoreCase);
 
@@ -641,6 +685,12 @@ namespace FunkenwerkTresor
                             existing.Url = srcEntry.Url;
                             existing.Notes = srcEntry.Notes;
                             existing.Tags = srcEntry.Tags;
+                            existing.IconId = srcEntry.IconId;
+                            existing.CustomIconUuidHex = srcEntry.CustomIconUuidHex;
+                            existing.Expires = srcEntry.Expires;
+                            existing.ExpiresUtc = srcEntry.ExpiresUtc;
+                            existing.RawHistoryXml = srcEntry.RawHistoryXml;
+                            existing.RawCustomDataXml = srcEntry.RawCustomDataXml;
                             existing.ModifiedUtc = srcEntry.ModifiedUtc;
                             existing.CustomStrings.Clear();
                             foreach (var kv in srcEntry.CustomStrings)
@@ -677,6 +727,7 @@ namespace FunkenwerkTresor
                     var cloned = srcEntry.CloneEntry(newUuid: false);
                     cloned.GroupUuidHex = dstGroup.UuidHex;
                     cloned.GroupName = dstGroup.Name;
+                    cloned.CustomIconsRef = CustomIcons;
                     dstGroup.Entries.Add(cloned);
                     existingEntriesById[cloned.UuidHex] = cloned;
                     importedEntries++;
@@ -698,6 +749,8 @@ namespace FunkenwerkTresor
                             UuidHex = FindGroupByUuid(srcSub.UuidHex) == null ? srcSub.UuidHex : KdbxEntry.NewUuidHex(),
                             Name = srcSub.Name,
                             IconId = srcSub.IconId,
+                            CustomIconUuidHex = srcSub.CustomIconUuidHex,
+                            RawCustomDataXml = srcSub.RawCustomDataXml,
                             Notes = srcSub.Notes,
                             CreatedUtc = srcSub.CreatedUtc,
                             ModifiedUtc = srcSub.ModifiedUtc
@@ -705,13 +758,18 @@ namespace FunkenwerkTresor
                         dstGroup.SubGroups.Add(dstSub);
                         importedGroups++;
                     }
+                    else if (string.IsNullOrWhiteSpace(dstSub.CustomIconUuidHex) && !string.IsNullOrWhiteSpace(srcSub.CustomIconUuidHex))
+                    {
+                        dstSub.CustomIconUuidHex = srcSub.CustomIconUuidHex;
+                    }
 
                     MergeGroupEntriesInto(srcSub, dstSub);
                 }
             }
 
-            // If source root has direct entries, place them in first non-trash group or root
+            // If source root has direct entries, place them in root
             MergeGroupEntriesInto(sourceDb.RootGroup, RootGroup);
+            RefreshHierarchyReferences();
             if (importedEntries > 0 || updatedEntries > 0 || importedGroups > 0)
                 IsDirty = true;
 
@@ -722,6 +780,7 @@ namespace FunkenwerkTresor
         {
             void Walk(KdbxGroup g)
             {
+                g.RawCustomDataXml = null;
                 foreach (var e in g.Entries)
                     e.WipeSensitiveMemory();
                 g.Entries.Clear();
@@ -730,6 +789,14 @@ namespace FunkenwerkTresor
                 g.SubGroups.Clear();
             }
             Walk(RootGroup);
+            RawDeletedObjectsXml = null;
+            RawCustomDataXml = null;
+            foreach (var kv in CustomIcons)
+            {
+                if (kv.Value != null)
+                    CryptographicOperations.ZeroMemory(kv.Value);
+            }
+            CustomIcons.Clear();
         }
     }
 
@@ -739,6 +806,68 @@ namespace FunkenwerkTresor
     public static class TotpEngine
     {
         private const string Base32Alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+
+        public static bool IsValidSecretOrUri(string? rawInput)
+        {
+            if (string.IsNullOrWhiteSpace(rawInput)) return false;
+            string trimmed = rawInput.Trim();
+            string secretPart = trimmed;
+
+            if (trimmed.StartsWith("otpauth://", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!Uri.TryCreate(trimmed, UriKind.Absolute, out var uri) ||
+                    !string.Equals(uri.Scheme, "otpauth", StringComparison.OrdinalIgnoreCase) ||
+                    !string.Equals(uri.Host, "totp", StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+
+                var q = HttpUtility.ParseQueryString(uri.Query);
+                string? sec = q["secret"];
+                if (string.IsNullOrWhiteSpace(sec))
+                    return false;
+
+                string? digitsParam = q["digits"];
+                if (!string.IsNullOrWhiteSpace(digitsParam) &&
+                    (!int.TryParse(digitsParam, out int d) || (d != 6 && d != 8)))
+                {
+                    return false;
+                }
+
+                string? periodParam = q["period"];
+                if (!string.IsNullOrWhiteSpace(periodParam) &&
+                    (!int.TryParse(periodParam, out int p) || p < 10 || p > 120))
+                {
+                    return false;
+                }
+
+                string? algoParam = q["algorithm"];
+                if (!string.IsNullOrWhiteSpace(algoParam))
+                {
+                    string a = algoParam.Trim().ToUpperInvariant();
+                    if (a != "SHA1" && a != "SHA256" && a != "SHA512")
+                        return false;
+                }
+
+                secretPart = sec.Trim();
+            }
+
+            string compact = secretPart.Replace(" ", "").Replace("-", "");
+            if (string.IsNullOrEmpty(compact))
+                return false;
+
+            string withoutPadding = compact.TrimEnd('=');
+            if (withoutPadding.Length < 8 || withoutPadding.Contains('=', StringComparison.Ordinal))
+                return false;
+
+            foreach (char c in withoutPadding.ToUpperInvariant())
+            {
+                if (Base32Alphabet.IndexOf(c) < 0)
+                    return false;
+            }
+
+            return TryGenerateTotp(trimmed, DateTimeOffset.UtcNow, out _, out _);
+        }
 
         public static string ExtractBase32Secret(string rawInput)
         {
@@ -869,6 +998,7 @@ namespace FunkenwerkTresor
     public sealed class PasswordAuditIssue
     {
         public KdbxEntry Entry { get; set; } = null!;
+        public string Category { get; set; } = "Weak"; // Weak | Reused | Expired
         public string Severity { get; set; } = "Warnung"; // Kritisch | Warnung
         public string Reason { get; set; } = "";
         public string BadgeHex => Severity == "Kritisch" ? "#EF4444" : "#F59E0B";
@@ -984,6 +1114,7 @@ namespace FunkenwerkTresor
         {
             var list = entries.ToList();
             var issues = new List<PasswordAuditIssue>();
+            DateTime nowUtc = DateTime.UtcNow;
 
             var duplicateGroups = list
                 .Where(e => !string.IsNullOrEmpty(e.Password))
@@ -993,21 +1124,50 @@ namespace FunkenwerkTresor
 
             foreach (var e in list)
             {
+                if (e.Expires && e.ExpiresUtc.HasValue && e.ExpiresUtc.Value <= nowUtc)
+                {
+                    issues.Add(new PasswordAuditIssue
+                    {
+                        Entry = e,
+                        Category = "Expired",
+                        Severity = "Warnung",
+                        Reason = $"Abgelaufen am {e.ExpiresUtc.Value.ToLocalTime():dd.MM.yyyy}"
+                    });
+                }
+
                 if (string.IsNullOrEmpty(e.Password))
                 {
-                    issues.Add(new PasswordAuditIssue { Entry = e, Severity = "Kritisch", Reason = "Kein Passwort hinterlegt" });
+                    issues.Add(new PasswordAuditIssue
+                    {
+                        Entry = e,
+                        Category = "Weak",
+                        Severity = "Kritisch",
+                        Reason = "Kein Passwort hinterlegt"
+                    });
                     continue;
                 }
 
                 double bits = CalculateEntropyBits(e.Password);
-                if (e.Password.Length < 10 || bits < 45)
+                if (e.Password.Length < 12 || bits < 50)
                 {
-                    issues.Add(new PasswordAuditIssue { Entry = e, Severity = "Kritisch", Reason = $"Schwaches Passwort ({e.Password.Length} Zeichen · {bits:0} Bit)" });
+                    issues.Add(new PasswordAuditIssue
+                    {
+                        Entry = e,
+                        Category = "Weak",
+                        Severity = "Kritisch",
+                        Reason = $"Schwaches Passwort ({e.Password.Length} Zeichen · {bits:0} Bit)"
+                    });
                 }
 
                 if (duplicateGroups.TryGetValue(e.Password, out int dupCount))
                 {
-                    issues.Add(new PasswordAuditIssue { Entry = e, Severity = "Warnung", Reason = $"Mehrfach verwendet ({dupCount}× identisch)" });
+                    issues.Add(new PasswordAuditIssue
+                    {
+                        Entry = e,
+                        Category = "Reused",
+                        Severity = "Warnung",
+                        Reason = $"Mehrfach verwendet ({dupCount}× identisch)"
+                    });
                 }
             }
 

@@ -56,6 +56,11 @@ class CartFileCleanupService
                 continue;
             }
 
+            // Check if file is referenced in any active product template
+            if ($this->isFileUsedInTemplates($basename)) {
+                continue;
+            }
+
             // Safe to delete
             if ($this->deleteFileSafely($path)) {
                 $deleted[] = $path;

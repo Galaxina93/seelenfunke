@@ -9,6 +9,7 @@ import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import de.meinseelenfunke.app.data.api.CalendarEvent
+import de.meinseelenfunke.app.di.ServiceLocator
 import de.meinseelenfunke.app.receiver.CalendarAlarmReceiver
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -100,14 +101,41 @@ object CalendarAlarmScheduler {
     }
 
     fun rescheduleAlarmsFromCache(context: Context) {
+        ServiceLocator.ensureInitialized(context.applicationContext)
         val sharedPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val json = sharedPrefs.getString(CACHE_KEY, null) ?: return
+        val json = ServiceLocator.getDecryptedPref(sharedPrefs, CACHE_KEY, null) ?: return
         try {
             val type = object : TypeToken<List<CalendarEvent>>() {}.type
             val events: List<CalendarEvent> = Gson().fromJson(json, type)
             scheduleAlarmsForEvents(context, events)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to reschedule alarms from cache", e)
+        }
+    }
+
+    fun cancelAllAlarms(context: Context) {
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
+        try {
+            ServiceLocator.ensureInitialized(context.applicationContext)
+            val sharedPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val json = ServiceLocator.getDecryptedPref(sharedPrefs, CACHE_KEY, null) ?: return
+            val type = object : TypeToken<List<CalendarEvent>>() {}.type
+            val events: List<CalendarEvent> = Gson().fromJson(json, type) ?: emptyList()
+            events.forEach { event ->
+                val intent = Intent(context, CalendarAlarmReceiver::class.java)
+                val pendingIntent = PendingIntent.getBroadcast(
+                    context,
+                    event.id.hashCode(),
+                    intent,
+                    PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
+                )
+                if (pendingIntent != null) {
+                    alarmManager.cancel(pendingIntent)
+                    pendingIntent.cancel()
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to cancel cached calendar alarms: ${e.message}")
         }
     }
 }

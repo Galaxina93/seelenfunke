@@ -1,9 +1,44 @@
+import java.io.File
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.google.services)
 }
+
+val userHomeSigningProps = File(System.getProperty("user.home"), ".android/signing/keystore.properties")
+val keystorePropertiesFile = if (rootProject.file("keystore.properties").exists()) {
+    rootProject.file("keystore.properties")
+} else {
+    userHomeSigningProps
+}
+val keystoreProperties = Properties().apply {
+    if (keystorePropertiesFile.exists() && keystorePropertiesFile.isFile) {
+        keystorePropertiesFile.inputStream().use { load(it) }
+    }
+}
+
+val releaseStoreFilePath: String? = keystoreProperties.getProperty("storeFile")
+    ?: System.getenv("SIGNING_STORE_FILE")
+val releaseStorePassword: String? = keystoreProperties.getProperty("storePassword")
+    ?: System.getenv("SIGNING_STORE_PASSWORD")
+val releaseKeyAlias: String? = keystoreProperties.getProperty("keyAlias")
+    ?: System.getenv("SIGNING_KEY_ALIAS")
+val releaseKeyPassword: String? = keystoreProperties.getProperty("keyPassword")
+    ?: System.getenv("SIGNING_KEY_PASSWORD")
+
+val resolvedReleaseStoreFile: File? = releaseStoreFilePath?.takeIf { it.isNotBlank() }?.let { rawPath ->
+    val direct = File(rawPath)
+    if (direct.isAbsolute) direct else rootProject.file(rawPath)
+}
+
+val hasReleaseSigningCredentials = resolvedReleaseStoreFile != null &&
+    resolvedReleaseStoreFile.exists() &&
+    !releaseStorePassword.isNullOrBlank() &&
+    !releaseKeyAlias.isNullOrBlank() &&
+    !releaseKeyPassword.isNullOrBlank()
 
 android {
     namespace = "de.meinseelenfunke.app"
@@ -13,8 +48,8 @@ android {
         applicationId = "de.meinseelenfunke.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 9
-        versionName = "1.4.1"
+        versionCode = 13
+        versionName = "1.6.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -22,11 +57,33 @@ android {
         }
     }
 
+    signingConfigs {
+        if (hasReleaseSigningCredentials) {
+            create("release") {
+                storeFile = resolvedReleaseStoreFile
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = true
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (hasReleaseSigningCredentials) {
+                signingConfigs.getByName("release")
+            } else {
+                logger.warn(
+                    "Funkenwerk Security Warning: keystore.properties / SIGNING_* env vars absent; " +
+                        "falling back to debug signing config for local dev only."
+                )
+                signingConfigs.getByName("debug")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -42,9 +99,16 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     lint {
         checkReleaseBuilds = false
+    }
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+            isReturnDefaultValues = true
+        }
     }
     packaging {
         resources {
@@ -89,6 +153,16 @@ dependencies {
 
     // Testing
     testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.okhttp.mockwebserver)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core)
+    testImplementation(libs.org.json)
+    testImplementation("org.ow2.asm:asm:9.8")
+    testImplementation("org.ow2.asm:asm-commons:9.8")
+    testImplementation("org.ow2.asm:asm-tree:9.8")
+    testImplementation("org.ow2.asm:asm-util:9.8")
+    testImplementation("org.ow2.asm:asm-analysis:9.8")
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))

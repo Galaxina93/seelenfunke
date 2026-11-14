@@ -489,8 +489,10 @@ class AiFrontendSupportChat extends Component
         // --- TROLL COOLDOWN CHECK ---
         $currentCustomerId = auth()->guard('customer')->id();
         $cookieToken = request()->cookie('sf_chat_uuid');
-        $lockKey = 'support_troll_cooldown_' . ($currentCustomerId ?: ($cookieToken ?: request()->ip()));
-        if (\Illuminate\Support\Facades\Cache::get($lockKey)) {
+        $clientIp = (string) (request()->ip() ?: 'unknown');
+        $lockKey = 'support_troll_cooldown_' . ($currentCustomerId ?: ($cookieToken ?: $clientIp));
+        $ipLockKey = 'support_troll_cooldown_' . $clientIp;
+        if (\Illuminate\Support\Facades\Cache::get($lockKey) || \Illuminate\Support\Facades\Cache::get($ipLockKey)) {
             $cooldownMsg = 'Da das Ausdauer-Limit durch wiederholte themenfremde Nachrichten überschritten wurde, ist der Live-Chat vorübergehend pausiert. Für dringende Bestellanliegen nutze bitte unser [Kontaktformular](/kontakt).';
             $this->message = '';
             $this->messages[] = ['sender' => 'system', 'text' => $cooldownMsg];
@@ -500,9 +502,10 @@ class AiFrontendSupportChat extends Component
         }
 
         // --- RATE LIMITING ---
-        $throttleKey = 'support_chat_' . ($currentCustomerId ?? request()->ip());
-        if (RateLimiter::tooManyAttempts($throttleKey, 10)) {
-            $seconds = RateLimiter::availableIn($throttleKey);
+        $throttleKey = 'support_chat_' . ($currentCustomerId ?? $clientIp);
+        $ipThrottleKey = 'support_chat_ip_' . $clientIp;
+        if (RateLimiter::tooManyAttempts($throttleKey, 10) || RateLimiter::tooManyAttempts($ipThrottleKey, 20)) {
+            $seconds = max(RateLimiter::availableIn($throttleKey), RateLimiter::availableIn($ipThrottleKey), 1);
             SystemSecurityService::logEvent(
                 'security:rate_limit_support_chat',
                 'WARNING',
@@ -516,6 +519,7 @@ class AiFrontendSupportChat extends Component
             return;
         }
         RateLimiter::hit($throttleKey, 60);
+        RateLimiter::hit($ipThrottleKey, 60);
 
         $sessionChatId = session('current_chat_id');
         

@@ -9,10 +9,11 @@ namespace FunkenwerkTresor
     {
         public static void LockDownFileAcl(string filePath)
         {
-            if (!OperatingSystem.IsLinux()) return;
+            if (OperatingSystem.IsWindows()) return;
             try
             {
-                System.IO.File.SetUnixFileMode(filePath, System.IO.UnixFileMode.UserRead | System.IO.UnixFileMode.UserWrite);
+                if (System.IO.File.Exists(filePath))
+                    System.IO.File.SetUnixFileMode(filePath, System.IO.UnixFileMode.UserRead | System.IO.UnixFileMode.UserWrite);
             }
             catch { }
         }
@@ -54,11 +55,15 @@ namespace FunkenwerkTresor
         public bool Expires { get; set; }
         public DateTime? ExpiresUtc { get; set; }
         public string? RawHistoryXml { get; set; }
+        public string? RawCustomDataXml { get; set; }
 
         public void WipeSensitiveMemory()
         {
+            Password = new string('\0', Password.Length);
             Password = "";
             Notes = "";
+            RawHistoryXml = null;
+            RawCustomDataXml = null;
             foreach (var kv in CustomStrings)
                 kv.Value.Value = "";
             CustomStrings.Clear();
@@ -83,6 +88,7 @@ namespace FunkenwerkTresor
         public bool IsExpanded { get; set; } = true;
         public DateTime CreatedUtc { get; set; } = DateTime.UtcNow;
         public DateTime ModifiedUtc { get; set; } = DateTime.UtcNow;
+        public string? RawCustomDataXml { get; set; }
         public List<KdbxGroup> SubGroups { get; set; } = new();
         public List<KdbxEntry> Entries { get; set; } = new();
 
@@ -125,11 +131,36 @@ namespace FunkenwerkTresor
 
         public string RecycleBinUuidHex { get; set; } = "";
         public bool RecycleBinEnabled { get; set; } = true;
+        public string? RawDeletedObjectsXml { get; set; }
+        public string? RawCustomDataXml { get; set; }
         public Dictionary<string, byte[]> CustomIcons { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         public KdbxGroup RootGroup { get; set; } = new() { Name = "DB", IconId = 48, IsRootGroup = true };
         public bool IsDirty { get; set; }
 
         public string SecurityBadgeText => $"KDBX {FormatMajor}.{FormatMinor} · {KdfAlgorithm} · {CipherAlgorithm}";
+
+        public void WipeAllInMemory()
+        {
+            void Walk(KdbxGroup g)
+            {
+                g.RawCustomDataXml = null;
+                foreach (var e in g.Entries)
+                    e.WipeSensitiveMemory();
+                g.Entries.Clear();
+                foreach (var sub in g.SubGroups)
+                    Walk(sub);
+                g.SubGroups.Clear();
+            }
+            Walk(RootGroup);
+            RawDeletedObjectsXml = null;
+            RawCustomDataXml = null;
+            foreach (var kv in CustomIcons)
+            {
+                if (kv.Value != null)
+                    CryptographicOperations.ZeroMemory(kv.Value);
+            }
+            CustomIcons.Clear();
+        }
 
         public void RefreshHierarchyReferences()
         {

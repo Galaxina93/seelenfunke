@@ -56,6 +56,11 @@ class SystemUser extends Authenticatable implements HasSystemBlueprint
 
 use HasApiTokens, HasFactory, Notifiable;
 
+    /**
+     * Virtuelle Multi-Guard-Brückenklasse über Admin, Employee & Customer ohne eigene SQL-Tabelle.
+     */
+    public const VIRTUAL_MODEL_NO_TABLE = true;
+
     protected $table = 'system_users';
 
     /**

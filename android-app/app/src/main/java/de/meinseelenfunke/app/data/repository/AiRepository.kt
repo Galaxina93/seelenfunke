@@ -123,15 +123,49 @@ class AiRepository(private val serviceLocator: ServiceLocator) {
         }
     }
 
-    suspend fun getLiveCredentials(agentId: String? = null, chatSessionId: String? = null): Result<de.meinseelenfunke.app.data.api.LiveCredentialsResponse> {
-        return try {
-            val response = serviceLocator.getAiApi().getLiveCredentials(agentId, chatSessionId)
-            Result.success(response)
-        } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
-            AppLogger.error(serviceLocator.context, "AiRepo", "getLiveCredentials failed: agentId=$agentId, sessionId=$chatSessionId", e)
-            Result.failure(e)
+    suspend fun getLiveCredentials(
+        agentId: String? = null,
+        chatSessionId: String? = null,
+        client: String? = null,
+        fallback: String? = null
+    ): Result<de.meinseelenfunke.app.data.api.LiveCredentialsResponse> {
+        val retryDelaysMs = longArrayOf(0L, 420L, 950L)
+        var lastErr: Exception? = null
+        for (attempt in retryDelaysMs.indices) {
+            if (retryDelaysMs[attempt] > 0L) {
+                kotlinx.coroutines.delay(retryDelaysMs[attempt])
+            }
+            try {
+                val response = serviceLocator.getAiApi().getLiveCredentials(
+                    agentId = agentId,
+                    chatSessionId = chatSessionId,
+                    client = client,
+                    fallback = fallback
+                )
+                if (attempt > 0 && lastErr != null) {
+                    de.meinseelenfunke.app.util.ErrorSentinelReporter.captureAutoHeal(
+                        context = serviceLocator.context,
+                        component = "ai_live_credentials",
+                        title = "Live-Credentials nach Netzwerk-Retry #${attempt + 1} geladen",
+                        message = lastErr.message ?: "Transiente Netzwerkverzögerung",
+                        healSummary = "Automatischer Retry #${attempt + 1} hat Live-Credentials erfolgreich vom Server geladen.",
+                        extraContext = mapOf(
+                            "attempt" to (attempt + 1).toString(),
+                            "client" to (client ?: "default")
+                        )
+                    )
+                }
+                return Result.success(response)
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                lastErr = e
+                val isAuthOrPerm = e is retrofit2.HttpException && (e.code() == 401 || e.code() == 403)
+                if (isAuthOrPerm) break
+            }
         }
+        val finalEx = lastErr ?: Exception("Live-Credentials konnten nicht geladen werden.")
+        AppLogger.error(serviceLocator.context, "AiRepo", "getLiveCredentials failed: agentId=$agentId, client=$client", finalEx)
+        return Result.failure(finalEx)
     }
 
     suspend fun executeTool(functionName: String, args: com.google.gson.JsonElement?, sessionId: String? = null): Result<de.meinseelenfunke.app.data.api.ExecuteToolResponse> {

@@ -24,6 +24,11 @@ namespace FunkenwerkTresor
         private static readonly ConcurrentDictionary<int, ImageSource> _iconCache = new();
         private static readonly ConcurrentDictionary<string, ImageSource> _customCache = new(StringComparer.OrdinalIgnoreCase);
 
+        public static void ClearCustomCache()
+        {
+            _customCache.Clear();
+        }
+
         public static ImageSource GetIcon(int iconId, string? customIconUuidHex = null, Dictionary<string, byte[]>? customIcons = null, bool isRootDbFolder = false)
         {
             if (!string.IsNullOrWhiteSpace(customIconUuidHex) && customIcons != null &&

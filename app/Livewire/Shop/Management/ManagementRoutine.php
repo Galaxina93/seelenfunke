@@ -343,7 +343,7 @@ class ManagementRoutine extends Component
     {
         $targetDate = $date ?: $this->selectedDate ?: Carbon::now()->format('Y-m-d');
         $routine = RoutineModel::with('steps')->find($routineId);
-        if (!$routine) {
+        if (!$routine || !$routine->steps->contains('id', $stepId)) {
             return;
         }
 

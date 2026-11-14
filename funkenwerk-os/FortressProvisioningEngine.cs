@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Security;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Win32;
@@ -26,24 +28,30 @@ namespace FunkenwerkOS
             "Microsoft.Getstarted"
         };
 
-        private static readonly HashSet<string> ExcludedSecretFileNames = new(StringComparer.OrdinalIgnoreCase)
+        // OS-SEC-02: Strict USB runtime artifact allowlist (zero user JSON settings, cookies, SQLite DBs, CSVs, notes, or vaults!)
+        private static readonly HashSet<string> AllowedUsbRuntimeExtensions = new(StringComparer.OrdinalIgnoreCase)
         {
-            "settings.json",
-            "os_settings.json",
-            "tresor_settings.json",
-            "profiles_vault.json",
-            "ssh_profiles_vault.json",
-            "known_hosts",
-            "known_hosts_sha256.json",
-            "master.dpapi",
-            "handoff_ticket.dpapi",
-            "security_audit.jsonl",
-            ".env"
+            ".exe", ".dll", ".pdb", ".ico", ".png", ".jpg", ".jpeg", ".webp", ".mp4", ".wav", ".mp3", ".ttf", ".otf"
         };
 
-        private static readonly string[] ExcludedSecretExtensions =
+        private static readonly HashSet<string> SkippedUsbDirectoryNames = new(StringComparer.OrdinalIgnoreCase)
         {
-            ".dpapi", ".key", ".keyx", ".pem", ".pfx", ".p12", ".ppk", ".kdbx"
+            "WebViewProfile",
+            "LiveEdit",
+            "Videos",
+            "Projects",
+            "bin",
+            "obj",
+            "storage",
+            "Backup",
+            ".git",
+            ".vs",
+            "MiniPC-USB-Setup",
+            "build_mkt",
+            "build_phase3",
+            "__pycache__",
+            "KameraMedien",
+            "files"
         };
 
         public static string BackupDirectory
@@ -60,31 +68,63 @@ namespace FunkenwerkOS
             }
         }
 
-        public static string WindowsKeyBackupFilePath => Path.Combine(BackupDirectory, "Windows11Pro_Key_Backup.txt");
+        public static string WindowsKeyBackupFilePath => Path.Combine(BackupDirectory, "Windows11Pro_Key_Backup.vault");
+        public static string InitialProvisioningPasswordVaultPath => Path.Combine(BackupDirectory, "InitialProvisioningPassword.vault");
 
         public static string DefaultSetupScriptsDirectory
         {
             get
             {
+                if (OsVaultAndStorage.IsSelfTestSandboxActive)
+                    return Path.Combine(OsVaultAndStorage.OsDataDir, "MiniPC-USB-Setup");
                 string target = Path.Combine(AppContext.BaseDirectory, "MiniPC-USB-Setup");
                 return target;
             }
         }
 
-        public static bool IsSensitiveFileExcludedFromUsbExport(string filePath)
+        public static bool IsSkippedUsbDirectoryName(string? dirName)
         {
-            string name = Path.GetFileName(filePath);
-            if (string.IsNullOrWhiteSpace(name)) return true;
-            if (ExcludedSecretFileNames.Contains(name)) return true;
-            if (name.Contains("vault", StringComparison.OrdinalIgnoreCase) && name.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
-                return true;
-
-            string ext = Path.GetExtension(filePath);
-            if (!string.IsNullOrEmpty(ext) && ExcludedSecretExtensions.Any(e => string.Equals(e, ext, StringComparison.OrdinalIgnoreCase)))
-                return true;
-
-            return false;
+            if (string.IsNullOrWhiteSpace(dirName)) return false;
+            return SkippedUsbDirectoryNames.Contains(dirName.Trim());
         }
+
+        public static bool IsAllowedUsbRuntimeArtifact(string? filePath)
+        {
+            if (string.IsNullOrWhiteSpace(filePath))
+                return false;
+
+            string normalized = filePath.Replace('/', '\\');
+            string[] parts = normalized.Split('\\', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length == 0)
+                return false;
+
+            // Reject if any parent directory segment is in the strict skip list (e.g. WebViewProfile, Backup, storage, .git)
+            for (int i = 0; i < parts.Length - 1; i++)
+            {
+                if (SkippedUsbDirectoryNames.Contains(parts[i]))
+                    return false;
+            }
+
+            string fileName = parts[^1];
+            if (string.IsNullOrWhiteSpace(fileName))
+                return false;
+
+            // Allow ONLY .deps.json and .runtimeconfig.json among JSON files; block all other .json files!
+            if (fileName.EndsWith(".deps.json", StringComparison.OrdinalIgnoreCase) ||
+                fileName.EndsWith(".runtimeconfig.json", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            string ext = Path.GetExtension(fileName);
+            if (string.IsNullOrEmpty(ext))
+                return false;
+
+            return AllowedUsbRuntimeExtensions.Contains(ext);
+        }
+
+        public static bool IsSensitiveFileExcludedFromUsbExport(string filePath)
+            => !IsAllowedUsbRuntimeArtifact(filePath);
 
         public static FortressAuditReport AuditSystemState()
         {
@@ -164,13 +204,16 @@ namespace FunkenwerkOS
             }
             catch { }
 
-            // 6. Windows 11 Pro License Backup
+            // 6. Windows 11 Pro License Backup (Encrypted via FWOSVAULT1)
             try
             {
                 if (File.Exists(WindowsKeyBackupFilePath))
                 {
-                    string content = File.ReadAllText(WindowsKeyBackupFilePath, Encoding.UTF8);
-                    report.HasWindowsKeyBackup = true;
+                    string raw = File.ReadAllText(WindowsKeyBackupFilePath, Encoding.UTF8).Trim();
+                    string content = raw.StartsWith("FWOSVAULT1:", StringComparison.Ordinal) || raw.StartsWith("FWVAULT2:", StringComparison.Ordinal)
+                        ? OsVaultAndStorage.UnprotectVaultSecret(raw)
+                        : raw;
+                    report.HasWindowsKeyBackup = !string.IsNullOrWhiteSpace(content);
                     report.MaskedWindowsKey = ExtractMaskedKeyFromBackup(content);
                 }
             }
@@ -198,24 +241,31 @@ namespace FunkenwerkOS
             return "Gesichert";
         }
 
-        public static (bool Success, string MaskedKey, string FilePath) BackupWindowsProductKey()
+        public static (bool Success, string MaskedKey, string FilePath) BackupWindowsProductKey(string? syntheticKeyForTest = null)
         {
             try
             {
                 string regBackupKey = "";
                 string productName = "Windows 11 Pro";
 
-                using (var ntKey = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion", writable: false))
+                if (!string.IsNullOrWhiteSpace(syntheticKeyForTest))
                 {
-                    productName = (ntKey?.GetValue("ProductName") as string) ?? "Windows";
+                    regBackupKey = syntheticKeyForTest.Trim();
+                }
+                else
+                {
+                    using (var ntKey = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion", writable: false))
+                    {
+                        productName = (ntKey?.GetValue("ProductName") as string) ?? "Windows";
+                    }
+
+                    using (var sppKey = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\SoftwareProtectionPlatform", writable: false))
+                    {
+                        regBackupKey = (sppKey?.GetValue("BackupProductKeyDefault") as string)?.Trim() ?? "";
+                    }
                 }
 
-                using (var sppKey = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\SoftwareProtectionPlatform", writable: false))
-                {
-                    regBackupKey = (sppKey?.GetValue("BackupProductKeyDefault") as string)?.Trim() ?? "";
-                }
-
-                string biosKey = QueryBiosOemKeyFast();
+                string biosKey = string.IsNullOrWhiteSpace(syntheticKeyForTest) ? QueryBiosOemKeyFast() : "";
                 string primaryKey = !string.IsNullOrWhiteSpace(biosKey) ? biosKey : regBackupKey;
 
                 var sb = new StringBuilder();
@@ -232,14 +282,25 @@ namespace FunkenwerkOS
                 if (string.IsNullOrWhiteSpace(primaryKey))
                     sb.AppendLine("Hinweis     : Digitale Hardware-Lizenz (UEFI-gebunden)");
 
-                File.WriteAllText(WindowsKeyBackupFilePath, sb.ToString(), new UTF8Encoding(false));
-                OsVaultAndStorage.LockDownFileAcl(WindowsKeyBackupFilePath);
+                // OS-SEC-02: Encrypt Windows Product Key backup with FWOSVAULT1 (DPAPI + AES-256-GCM) and lock down file ACL!
+                string encryptedPayload = OsVaultAndStorage.ProtectOsVaultSecret(sb.ToString());
+                sb.Clear();
+
+                string targetPath = WindowsKeyBackupFilePath;
+                if (!File.Exists(targetPath))
+                {
+                    using var pre = new FileStream(targetPath, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+                    pre.Flush(flushToDisk: true);
+                }
+                OsVaultAndStorage.LockDownFileAcl(targetPath);
+                File.WriteAllText(targetPath, encryptedPayload, new UTF8Encoding(false));
+                OsVaultAndStorage.LockDownFileAcl(targetPath);
 
                 string masked = !string.IsNullOrWhiteSpace(primaryKey) && primaryKey.Length >= 5
                     ? $"XXXXX-XXXXX-XXXXX-XXXXX-{primaryKey.Substring(primaryKey.Length - 5)}"
                     : "Digitale Lizenz gesichert";
 
-                return (true, masked, WindowsKeyBackupFilePath);
+                return (true, masked, targetPath);
             }
             catch (Exception ex)
             {
@@ -274,6 +335,14 @@ namespace FunkenwerkOS
 
         public static bool SetCustomShellForCurrentUser(bool enableFunkenwerkShell)
         {
+            if (OsVaultAndStorage.IsSelfTestSandboxActive)
+            {
+                var sandboxSettings = OsVaultAndStorage.LoadSettings();
+                sandboxSettings.IntentionalCustomShellEnabled = enableFunkenwerkShell;
+                OsVaultAndStorage.SaveSettings(sandboxSettings);
+                return true;
+            }
+
             try
             {
                 using var key = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows NT\CurrentVersion\Winlogon", writable: true);
@@ -294,6 +363,10 @@ namespace FunkenwerkOS
                     key.DeleteValue("Shell", throwOnMissingValue: false);
                 }
 
+                var settings = OsVaultAndStorage.LoadSettings();
+                settings.IntentionalCustomShellEnabled = enableFunkenwerkShell;
+                OsVaultAndStorage.SaveSettings(settings);
+
                 return true;
             }
             catch
@@ -301,6 +374,242 @@ namespace FunkenwerkOS
                 return false;
             }
         }
+
+        private static string GenerateStrongProvisioningPassword(int length = 24)
+        {
+            const string upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+            const string lower = "abcdefghijkmnopqrstuvwxyz";
+            const string digits = "23456789";
+            const string symbols = "!@#%^*+-_";
+            string all = upper + lower + digits + symbols;
+
+            char[] chars = new char[Math.Max(16, length)];
+            chars[0] = upper[RandomNumberGenerator.GetInt32(upper.Length)];
+            chars[1] = lower[RandomNumberGenerator.GetInt32(lower.Length)];
+            chars[2] = digits[RandomNumberGenerator.GetInt32(digits.Length)];
+            chars[3] = symbols[RandomNumberGenerator.GetInt32(symbols.Length)];
+            for (int i = 4; i < chars.Length; i++)
+            {
+                chars[i] = all[RandomNumberGenerator.GetInt32(all.Length)];
+            }
+
+            // Fisher-Yates cryptographic shuffle
+            for (int i = chars.Length - 1; i > 0; i--)
+            {
+                int j = RandomNumberGenerator.GetInt32(i + 1);
+                (chars[i], chars[j]) = (chars[j], chars[i]);
+            }
+
+            return new string(chars);
+        }
+
+        /// <summary>
+        /// OS-SEC-03: Generates a hardened Windows 11 Unattend XML with a cryptographically random initial local password
+        /// (encoded as UTF-16LE Base64 Password, never blank!) and stores the owner recovery copy encrypted in FWOSVAULT1.
+        /// </summary>
+        public static (string Xml, string GeneratedPassword, string EncryptedBackupPath) BuildUnattendXml(string localUserName = "Alina")
+        {
+            string cleanUser = string.IsNullOrWhiteSpace(localUserName) ? "Alina" : localUserName.Trim();
+            string safeUserXml = SecurityElement.Escape(cleanUser) ?? "Alina";
+            string generatedPassword = GenerateStrongProvisioningPassword(24);
+
+            // Windows SIM / Unattend specification: UTF-16LE bytes of (password + "Password") when PlainText=false
+            byte[] utf16PwdBytes = Encoding.Unicode.GetBytes(generatedPassword + "Password");
+            string encodedPwdBase64;
+            try
+            {
+                encodedPwdBase64 = Convert.ToBase64String(utf16PwdBytes);
+            }
+            finally
+            {
+                CryptographicOperations.ZeroMemory(utf16PwdBytes);
+            }
+
+            string vaultPayload = OsVaultAndStorage.ProtectOsVaultSecret(
+                $"User={cleanUser}\nGeneratedUtc={DateTime.UtcNow:O}\nPassword={generatedPassword}");
+            string vaultPath = InitialProvisioningPasswordVaultPath;
+            if (!File.Exists(vaultPath))
+            {
+                using var pre = new FileStream(vaultPath, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+                pre.Flush(flushToDisk: true);
+            }
+            OsVaultAndStorage.LockDownFileAcl(vaultPath);
+            File.WriteAllText(vaultPath, vaultPayload, new UTF8Encoding(false));
+            OsVaultAndStorage.LockDownFileAcl(vaultPath);
+
+            string xml = $@"<?xml version=""1.0"" encoding=""utf-8""?>
+<unattend xmlns=""urn:schemas-microsoft-com:unattend"">
+  <settings pass=""oobeSystem"">
+    <component name=""Microsoft-Windows-International-Core"" processorArchitecture=""amd64"" publicKeyToken=""31bf3856ad364e35"" language=""neutral"" versionScope=""nonSxS"">
+      <InputLocale>0407:00000407</InputLocale>
+      <SystemLocale>de-DE</SystemLocale>
+      <UILanguage>de-DE</UILanguage>
+      <UserLocale>de-DE</UserLocale>
+    </component>
+    <component name=""Microsoft-Windows-Shell-Setup"" processorArchitecture=""amd64"" publicKeyToken=""31bf3856ad364e35"" language=""neutral"" versionScope=""nonSxS"">
+      <OOBE>
+        <HideEULAPage>true</HideEULAPage>
+        <HideOnlineAccountScreens>true</HideOnlineAccountScreens>
+        <HideWirelessSetupInOOBE>false</HideWirelessSetupInOOBE>
+        <ProtectYourPC>3</ProtectYourPC>
+      </OOBE>
+      <UserAccounts>
+        <LocalAccounts>
+          <LocalAccount wcm:action=""add"" xmlns:wcm=""http://schemas.microsoft.com/WMIConfig/2002/State"">
+            <Password>
+              <Value>{SecurityElement.Escape(encodedPwdBase64)}</Value>
+              <PlainText>false</PlainText>
+            </Password>
+            <DisplayName>{safeUserXml}</DisplayName>
+            <Group>Administrators</Group>
+            <Name>{safeUserXml}</Name>
+          </LocalAccount>
+        </LocalAccounts>
+      </UserAccounts>
+      <TimeZone>W. Europe Standard Time</TimeZone>
+    </component>
+  </settings>
+</unattend>";
+
+            return (xml, generatedPassword, vaultPath);
+        }
+
+        public static string BuildExtraAppFirewallToggleScript(string appKey, bool enable)
+        {
+            string normalizedKey = (appKey ?? "").Trim().ToLowerInvariant();
+            string safeRuleId;
+            string displayLabel;
+            string candidateDiscoveryPs;
+
+            switch (normalizedKey)
+            {
+                case "kdrive":
+                    safeRuleId = "kdrive";
+                    displayLabel = "Infomaniak kDrive";
+                    candidateDiscoveryPs = @"
+$candidates = @(
+    (Join-Path $env:LOCALAPPDATA 'Programs\kDrive\kDrive.exe'),
+    (Join-Path $env:LOCALAPPDATA 'Programs\kDrive\kDrive_client.exe'),
+    'C:\Program Files\kDrive\kDrive.exe',
+    'C:\Program Files\kDrive\kDrive_client.exe',
+    'C:\Program Files (x86)\kDrive\kDrive.exe'
+)";
+                    break;
+                case "discord":
+                    safeRuleId = "discord";
+                    displayLabel = "Discord";
+                    candidateDiscoveryPs = @"
+$candidates = @()
+$discRoot = Join-Path $env:LOCALAPPDATA 'Discord'
+if (Test-Path $discRoot) {
+    $candidates += Get-ChildItem -Path $discRoot -Filter 'Discord.exe' -Recurse -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName
+}";
+                    break;
+                case "lol":
+                    safeRuleId = "lol";
+                    displayLabel = "Riot / League of Legends";
+                    candidateDiscoveryPs = @"
+$candidates = @(
+    'C:\Riot Games\Riot Client\RiotClientServices.exe',
+    'C:\Riot Games\League of Legends\LeagueClient.exe',
+    'C:\Riot Games\League of Legends\LeagueClientUx.exe',
+    'C:\Riot Games\League of Legends\Game\League of Legends.exe'
+)";
+                    break;
+                case "dev":
+                    safeRuleId = "dev";
+                    displayLabel = "Entwickler-Werkzeuge (dotnet/git/node/code)";
+                    candidateDiscoveryPs = @"
+$candidates = @(
+    'C:\Program Files\dotnet\dotnet.exe',
+    'C:\Program Files\Git\cmd\git.exe',
+    'C:\Program Files\Git\mingw64\bin\git.exe',
+    'C:\Program Files\Git\mingw64\bin\git-remote-https.exe',
+    'C:\Program Files\nodejs\node.exe',
+    (Join-Path $env:LOCALAPPDATA 'Programs\Microsoft VS Code\Code.exe')
+)";
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(appKey), "Unbekannter Firewall-Freigabeschluessel.");
+            }
+
+            var sb = new StringBuilder();
+            sb.AppendLine("$ErrorActionPreference = 'SilentlyContinue'");
+            sb.AppendLine($"Get-NetFirewallRule -Name 'FunkenwerkFortress_Extra_{safeRuleId}_*' -ErrorAction SilentlyContinue | Remove-NetFirewallRule");
+
+            if (enable)
+            {
+                sb.AppendLine(candidateDiscoveryPs.Trim());
+                sb.AppendLine("$idx = 0");
+                sb.AppendLine("foreach ($exe in ($candidates | Select-Object -Unique)) {");
+                sb.AppendLine("    if (-not [string]::IsNullOrWhiteSpace($exe) -and (Test-Path $exe)) {");
+                sb.AppendLine("        $idx++");
+                if (safeRuleId == "kdrive")
+                {
+                    sb.AppendLine($"        New-NetFirewallRule -Name \"FunkenwerkFortress_Extra_{safeRuleId}_$idx\" -DisplayName \"Funkenwerk OS Extra: {displayLabel} ($idx)\" -Direction Outbound -Action Allow -Program $exe -Protocol TCP -RemotePort 80,443 | Out-Null");
+                }
+                else
+                {
+                    sb.AppendLine($"        New-NetFirewallRule -Name \"FunkenwerkFortress_Extra_{safeRuleId}_$idx\" -DisplayName \"Funkenwerk OS Extra: {displayLabel} ($idx)\" -Direction Outbound -Action Allow -Program $exe | Out-Null");
+                }
+                sb.AppendLine("    }");
+                sb.AppendLine("}");
+            }
+
+            return sb.ToString();
+        }
+
+        public static bool SyncExtraAppFirewallRuleIfActive(string appKey, bool enable)
+        {
+            if (OsVaultAndStorage.IsSelfTestSandboxActive)
+                return false;
+
+            try
+            {
+                var audit = AuditSystemState();
+                if (!audit.IsFortressFirewallActive)
+                    return false;
+
+                string psContent = BuildExtraAppFirewallToggleScript(appKey, enable);
+                string dataDir = OsVaultAndStorage.OsDataDir;
+                Directory.CreateDirectory(dataDir);
+                OsVaultAndStorage.LockDownDirectoryAcl(dataDir);
+
+                string tempPs1 = Path.Combine(dataDir, $"fw_extra_fw_{Guid.NewGuid():N}.ps1");
+                try
+                {
+                    using (var pre = new FileStream(tempPs1, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                    {
+                        pre.Flush(flushToDisk: true);
+                    }
+                    OsVaultAndStorage.LockDownFileAcl(tempPs1);
+                    File.WriteAllText(tempPs1, psContent, new UTF8Encoding(true));
+                    OsVaultAndStorage.LockDownFileAcl(tempPs1);
+
+                    var psi = new ProcessStartInfo
+                    {
+                        FileName = "powershell.exe",
+                        Arguments = $"-NoProfile -ExecutionPolicy RemoteSigned -File \"{tempPs1}\"",
+                        Verb = "runas",
+                        UseShellExecute = true
+                    };
+                    using var p = Process.Start(psi);
+                    p?.WaitForExit(8000);
+                    return true;
+                }
+                finally
+                {
+                    OsVaultAndStorage.SecureZeroWipeAndDeleteFile(tempPs1);
+                }
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public static string GenerateFortressPowerShellScriptForAudit()
+            => BuildFortressPowerShellScript();
 
         public static void StartMaintenanceExplorer()
         {
@@ -401,7 +710,7 @@ ANLEITUNG SOBALD DER MINI-PC ANKOMMT (DAUER: CA. 3 MINUTEN):
 3. Im Ordner 'Funkenwerk-MiniPC-Festung' doppelklicken auf:
    -> 2_START_FUNKENWERK_OS_AUF_MINIPC.cmd
 4. Das Skript erledigt vollautomatisch:
-   - Sichert den vorinstallierten Windows-11-Pro-Key auf den USB-Stick
+   - Sichert den vorinstallierten Windows-11-Pro-Key verschlüsselt lokal
    - Kopiert die komplette Funkenwerk Collection auf den Mini-PC
    - Entfernt alle Windows-Werbe-Apps, Store-Müll, Copilot & OneDrive
    - Schaltet Telemetrie und ungefragte Update-Neustarts ab
@@ -455,10 +764,10 @@ Write-Host ""  FUNKENWERK OS FORTRESS ENGINE ($Mode)"" -ForegroundColor Yellow
 Write-Host '================================================================' -ForegroundColor Yellow
 
 function Backup-OemKey {
+    # OS-SEC-02: Store license backup ONLY locally encrypted via DPAPI inside ACL-locked Backup directory; NEVER dump plaintext keys to USB!
     $localBackupDir = Join-Path $env:LOCALAPPDATA 'FunkenwerkOS\Backup'
     New-Item -ItemType Directory -Path $localBackupDir -Force | Out-Null
-    $usbBackupDir = Join-Path $ScriptRoot 'Backup'
-    New-Item -ItemType Directory -Path $usbBackupDir -Force | Out-Null
+    & icacls.exe $localBackupDir /inheritance:r /grant '*S-1-5-18:(OI)(CI)(F)' /grant '*S-1-5-32-544:(OI)(CI)(F)' /grant ""$($env:USERNAME):(OI)(CI)(F)"" 2>$null | Out-Null
 
     $oemKey = (Get-CimInstance -ClassName SoftwareLicensingService).OA3xOriginalProductKey
     $regKey = (Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SoftwareProtectionPlatform').BackupProductKeyDefault
@@ -475,9 +784,60 @@ function Backup-OemKey {
         ""System-Key  : $regKey""
     ) -join ""`r`n""
 
-    Set-Content -Path (Join-Path $localBackupDir 'Windows11Pro_Key_Backup.txt') -Value $content -Encoding UTF8
-    Set-Content -Path (Join-Path $usbBackupDir ""Windows11Pro_Key_$($env:COMPUTERNAME).txt"") -Value $content -Encoding UTF8
-    Write-Host '[OK] Windows-11-Pro Lizenzschluessel gesichert.' -ForegroundColor Green
+    $targetVaultFile = Join-Path $localBackupDir 'Windows11Pro_Key_Backup.dpapi'
+    $secStr = ConvertTo-SecureString -String $content -AsPlainText -Force
+    $dpapiBlob = ConvertFrom-SecureString -SecureString $secStr
+    Set-Content -Path $targetVaultFile -Value $dpapiBlob -Encoding ASCII
+    & icacls.exe $targetVaultFile /inheritance:r /grant '*S-1-5-18:(F)' /grant '*S-1-5-32-544:(F)' /grant ""$($env:USERNAME):(F)"" 2>$null | Out-Null
+    Write-Host '[OK] Windows-11-Pro Lizenzschluessel lokal verschluesselt gesichert.' -ForegroundColor Green
+}
+
+function Invoke-VerifiedInstaller {
+    param(
+        [string]$ExePath,
+        [string]$InstallArgs = '/install /quiet /norestart'
+    )
+    if (-not (Test-Path $ExePath)) { return $false }
+    # OS-SEC-03: Verify Microsoft Authenticode signature before executing any runtime installer!
+    $sig = Get-AuthenticodeSignature -FilePath $ExePath -ErrorAction SilentlyContinue
+    if (($null -eq $sig) -or ($sig.Status -ne 'Valid')) {
+        Write-Host ""[BLOCK] Ungueltige Authenticode-Signatur fuer Installer: $ExePath"" -ForegroundColor Red
+        return $false
+    }
+    Start-Process -FilePath $ExePath -ArgumentList $InstallArgs -Wait
+    return $true
+}
+
+function Restore-FortressFirewallState {
+    Get-NetFirewallRule -Name 'FunkenwerkFortress_*' -ErrorAction SilentlyContinue | Remove-NetFirewallRule
+
+    $localBackupDir = Join-Path $env:LOCALAPPDATA 'FunkenwerkOS\Backup'
+    $rulesSnapPath = Join-Path $localBackupDir 'firewall_inbound_rules_snapshot.json'
+    if (Test-Path $rulesSnapPath) {
+        try {
+            $disabledRuleNames = Get-Content -Path $rulesSnapPath -Raw -Encoding UTF8 | ConvertFrom-Json
+            foreach ($rName in $disabledRuleNames) {
+                if (-not [string]::IsNullOrWhiteSpace($rName)) {
+                    Enable-NetFirewallRule -Name $rName -ErrorAction SilentlyContinue | Out-Null
+                }
+            }
+            Remove-Item -Path $rulesSnapPath -Force -ErrorAction SilentlyContinue
+        } catch { }
+    }
+
+    $profSnapPath = Join-Path $localBackupDir 'firewall_profiles_snapshot.json'
+    if (Test-Path $profSnapPath) {
+        try {
+            $profiles = Get-Content -Path $profSnapPath -Raw -Encoding UTF8 | ConvertFrom-Json
+            foreach ($p in $profiles) {
+                Set-NetFirewallProfile -Name $p.Name -Enabled $p.Enabled -DefaultInboundAction $p.DefaultInboundAction -DefaultOutboundAction $p.DefaultOutboundAction -AllowInboundRules $p.AllowInboundRules -ErrorAction SilentlyContinue
+            }
+            Remove-Item -Path $profSnapPath -Force -ErrorAction SilentlyContinue
+            return
+        } catch { }
+    }
+
+    Set-NetFirewallProfile -Profile Domain,Private,Public -Enabled True -DefaultInboundAction Block -DefaultOutboundAction Allow -AllowInboundRules True -ErrorAction SilentlyContinue
 }
 
 if ($Mode -eq 'BackupKeyOnly') {
@@ -488,19 +848,17 @@ if ($Mode -eq 'BackupKeyOnly') {
 if ($Mode -eq 'RestoreWindows') {
     Remove-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name 'Shell' -ErrorAction SilentlyContinue
     Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name 'Shell' -Value 'explorer.exe' -ErrorAction SilentlyContinue
-    Get-NetFirewallRule -Name 'FunkenwerkFortress_*' -ErrorAction SilentlyContinue | Remove-NetFirewallRule
-    Set-NetFirewallProfile -Profile Domain,Private,Public -DefaultOutboundAction Allow
+    Restore-FortressFirewallState
     Stop-Process -Name 'explorer' -Force -ErrorAction SilentlyContinue
     Start-Sleep -Milliseconds 400
     Start-Process -FilePath 'explorer.exe'
-    Write-Host '[OK] Standard Windows-Oberflaeche, Taskleiste & Standard-Firewall wiederhergestellt.' -ForegroundColor Green
+    Write-Host '[OK] Standard Windows-Oberflaeche, Taskleiste & Standard-Firewall 100% wiederhergestellt.' -ForegroundColor Green
     exit 0
 }
 
 if ($Mode -eq 'FirewallOff') {
-    Get-NetFirewallRule -Name 'FunkenwerkFortress_*' -ErrorAction SilentlyContinue | Remove-NetFirewallRule
-    Set-NetFirewallProfile -Profile Domain,Private,Public -DefaultOutboundAction Allow
-    Write-Host '[OK] Festungs-Firewall deaktiviert (Standard-Modus).' -ForegroundColor Green
+    Restore-FortressFirewallState
+    Write-Host '[OK] Festungs-Firewall deaktiviert (Vorheriger Windows-Zustand 100% wiederhergestellt).' -ForegroundColor Green
     exit 0
 }
 
@@ -517,12 +875,12 @@ if ($Mode -eq 'FullFortress') {
         $localRt8 = Join-Path $ScriptRoot 'Runtimes\windowsdesktop-runtime-8-x64.exe'
         if (-not (Test-Path $localRt8)) { $localRt8 = Join-Path $ParentBundleRoot 'Runtimes\windowsdesktop-runtime-8-x64.exe' }
         if (Test-Path $localRt8) {
-            Start-Process -FilePath $localRt8 -ArgumentList '/install /quiet /norestart' -Wait
+            Invoke-VerifiedInstaller -ExePath $localRt8 | Out-Null
         } else {
-            $rt8Installer = Join-Path $env:TEMP 'windowsdesktop-runtime-8-x64.exe'
+            $rt8Installer = Join-Path $env:TEMP ""windowsdesktop-runtime-8-x64_$([guid]::NewGuid().ToString('N')).exe""
             Invoke-WebRequest -Uri 'https://aka.ms/dotnet/8.0/windowsdesktop-runtime-win-x64.exe' -OutFile $rt8Installer -UseBasicParsing
             if (Test-Path $rt8Installer) {
-                Start-Process -FilePath $rt8Installer -ArgumentList '/install /quiet /norestart' -Wait
+                Invoke-VerifiedInstaller -ExePath $rt8Installer | Out-Null
                 Remove-Item $rt8Installer -Force -ErrorAction SilentlyContinue
             }
         }
@@ -533,12 +891,12 @@ if ($Mode -eq 'FullFortress') {
         $localRt9 = Join-Path $ScriptRoot 'Runtimes\windowsdesktop-runtime-9-x64.exe'
         if (-not (Test-Path $localRt9)) { $localRt9 = Join-Path $ParentBundleRoot 'Runtimes\windowsdesktop-runtime-9-x64.exe' }
         if (Test-Path $localRt9) {
-            Start-Process -FilePath $localRt9 -ArgumentList '/install /quiet /norestart' -Wait
+            Invoke-VerifiedInstaller -ExePath $localRt9 | Out-Null
         } else {
-            $rt9Installer = Join-Path $env:TEMP 'windowsdesktop-runtime-9-x64.exe'
+            $rt9Installer = Join-Path $env:TEMP ""windowsdesktop-runtime-9-x64_$([guid]::NewGuid().ToString('N')).exe""
             Invoke-WebRequest -Uri 'https://aka.ms/dotnet/9.0/windowsdesktop-runtime-win-x64.exe' -OutFile $rt9Installer -UseBasicParsing
             if (Test-Path $rt9Installer) {
-                Start-Process -FilePath $rt9Installer -ArgumentList '/install /quiet /norestart' -Wait
+                Invoke-VerifiedInstaller -ExePath $rt9Installer | Out-Null
                 Remove-Item $rt9Installer -Force -ErrorAction SilentlyContinue
             }
         }
@@ -580,6 +938,7 @@ if (Test-Path $usbCollectionSource) {
         @{ Name = 'Funkenwerk SSH';     Sub = 'Funkenwerk SSH';     Exe = 'FunkenwerkSsh.exe';     Ico = 'funkenwerk_ssh.ico' },
         @{ Name = 'Funkenwerk Player';  Sub = 'Funkenwerk Player';  Exe = 'FunkenwerkPlayer.exe';  Ico = 'funkenwerk_player.ico' },
         @{ Name = 'Funkenwerk Video';   Sub = 'Funkenwerk Video';   Exe = 'FunkenwerkVideo.exe';   Ico = 'funkenwerk_video.ico' },
+        @{ Name = 'Funkenwerk Craft';   Sub = 'Funkenwerk Craft';   Exe = 'FunkenwerkCraft.exe';   Ico = 'funkenwerk_craft.ico' },
         @{ Name = 'Funkenwerk Tresor';  Sub = 'Funkenwerk Tresor';  Exe = 'FunkenwerkTresor.exe';  Ico = 'funkenwerk_tresor.ico' }
     )
     foreach ($targetRoot in @($systemCollectionTarget, $desktopCollectionTarget) | Select-Object -Unique) {
@@ -704,16 +1063,27 @@ if ($Mode -in @('FullFortress', 'DebloatOnly')) {
 
 if ($Mode -in @('FullFortress', 'FirewallOn', 'BluetoothFix')) {
     Write-Host '[..] Aktiviere Festungs-Firewall (Zero-Inbound + Strikte Programm-Whitelist Outbound)...' -ForegroundColor Cyan
-    Get-NetFirewallRule -Name 'FunkenwerkFortress_*' -ErrorAction SilentlyContinue | Remove-NetFirewallRule
-    Get-NetFirewallRule -Direction Inbound -Action Allow -Enabled True -ErrorAction SilentlyContinue | Disable-NetFirewallRule -ErrorAction SilentlyContinue
 
-    # Core networking essentials (DNS, DHCP, NTP, Loopback Outbound ONLY - ZERO Inbound!)
+    # OS-SEC-03: Snapshot prior Windows Firewall profile state so RestoreWindows / FirewallOff restores 100% of prior state!
+    $localBackupDir = Join-Path $env:LOCALAPPDATA 'FunkenwerkOS\Backup'
+    New-Item -ItemType Directory -Path $localBackupDir -Force | Out-Null
+    & icacls.exe $localBackupDir /inheritance:r /grant '*S-1-5-18:(OI)(CI)(F)' /grant '*S-1-5-32-544:(OI)(CI)(F)' /grant ""$($env:USERNAME):(OI)(CI)(F)"" 2>$null | Out-Null
+    $profSnapPath = Join-Path $localBackupDir 'firewall_profiles_snapshot.json'
+    if (-not (Test-Path $profSnapPath)) {
+        try {
+            $curProfiles = Get-NetFirewallProfile -Profile Domain,Private,Public | Select-Object Name,Enabled,DefaultInboundAction,DefaultOutboundAction,AllowInboundRules
+            $curProfiles | ConvertTo-Json -Depth 4 | Set-Content -Path $profSnapPath -Encoding UTF8
+        } catch { }
+    }
+
+    Get-NetFirewallRule -Name 'FunkenwerkFortress_*' -ErrorAction SilentlyContinue | Remove-NetFirewallRule
+
+    # Core networking essentials (DNS, DHCP, NTP, Loopback Outbound ONLY - NO blanket svchost 80/443!)
     New-NetFirewallRule -Name 'FunkenwerkFortress_AllowCore_DNS_UDP' -DisplayName 'Funkenwerk OS: DNS (UDP)' -Direction Outbound -Action Allow -Protocol UDP -RemotePort 53 | Out-Null
     New-NetFirewallRule -Name 'FunkenwerkFortress_AllowCore_DNS_TCP' -DisplayName 'Funkenwerk OS: DNS (TCP)' -Direction Outbound -Action Allow -Protocol TCP -RemotePort 53 | Out-Null
     New-NetFirewallRule -Name 'FunkenwerkFortress_AllowCore_DHCP' -DisplayName 'Funkenwerk OS: DHCP' -Direction Outbound -Action Allow -Protocol UDP -LocalPort 68 -RemotePort 67 | Out-Null
     New-NetFirewallRule -Name 'FunkenwerkFortress_AllowCore_NTP' -DisplayName 'Funkenwerk OS: Zeit-Sync' -Direction Outbound -Action Allow -Protocol UDP -RemotePort 123 | Out-Null
     New-NetFirewallRule -Name 'FunkenwerkFortress_AllowCore_Loopback' -DisplayName 'Funkenwerk OS: Loopback' -Direction Outbound -Action Allow -RemoteAddress '127.0.0.1','::1' | Out-Null
-    New-NetFirewallRule -Name 'FunkenwerkFortress_AllowCore_Svchost_HTTPS' -DisplayName 'Funkenwerk OS: Windows Update & Defender HTTPS' -Direction Outbound -Action Allow -Program ""$env:SystemRoot\System32\svchost.exe"" -Protocol TCP -RemotePort 80,443 | Out-Null
 
     $fwExes = @(
         @{ Id = 'OS';      Rel = 'Funkenwerk OS\FunkenwerkOS.exe' },
@@ -725,6 +1095,7 @@ if ($Mode -in @('FullFortress', 'FirewallOn', 'BluetoothFix')) {
         @{ Id = 'SSH';     Rel = 'Funkenwerk SSH\FunkenwerkSsh.exe' },
         @{ Id = 'Player';  Rel = 'Funkenwerk Player\FunkenwerkPlayer.exe' },
         @{ Id = 'Video';   Rel = 'Funkenwerk Video\FunkenwerkVideo.exe' },
+        @{ Id = 'Craft';   Rel = 'Funkenwerk Craft\FunkenwerkCraft.exe' },
         @{ Id = 'Tresor';  Rel = 'Funkenwerk Tresor\FunkenwerkTresor.exe' },
         @{ Id = 'MCP';     Rel = 'Funkenwerk MCP\FunkenwerkMcp.exe' }
     )
@@ -741,7 +1112,7 @@ if ($Mode -in @('FullFortress', 'FirewallOn', 'BluetoothFix')) {
         }
     }
 
-    # Whitelist Infomaniak kDrive Sync Client
+    # Whitelist Infomaniak kDrive Sync Client (HTTPS/HTTP ports 80,443)
     $kDriveCandidates = @(
         (Join-Path $env:LOCALAPPDATA 'Programs\kDrive\kDrive.exe'),
         (Join-Path $env:LOCALAPPDATA 'Programs\kDrive\kDrive_client.exe'),
@@ -752,18 +1123,18 @@ if ($Mode -in @('FullFortress', 'FirewallOn', 'BluetoothFix')) {
     foreach ($kd in $kDriveCandidates) {
         if (Test-Path $kd) {
             $kdLeaf = [System.IO.Path]::GetFileNameWithoutExtension($kd)
-            New-NetFirewallRule -Name ""FunkenwerkFortress_AllowCloud_$kdLeaf"" -DisplayName ""Funkenwerk OS: kDrive ($kdLeaf)"" -Direction Outbound -Action Allow -Program $kd | Out-Null
+            New-NetFirewallRule -Name ""FunkenwerkFortress_AllowCloud_$kdLeaf"" -DisplayName ""Funkenwerk OS: kDrive ($kdLeaf)"" -Direction Outbound -Action Allow -Program $kd -Protocol TCP -RemotePort 80,443 | Out-Null
         }
     }
 
-    # Whitelist Microsoft Edge WebView2 Runtime (required by FunkenwerkBrowser and GewerbeMonitorWindow for HTTPS/YouTube/API)
+    # OS-SEC-03: Restrict Microsoft Edge WebView2 Runtime outbound strictly to TCP 80,443
     $wv2Roots = @('C:\Program Files (x86)\Microsoft\EdgeWebView\Application', 'C:\Program Files\Microsoft\EdgeWebView\Application')
     $wvIdx = 0
     foreach ($wvRoot in $wv2Roots) {
         if (Test-Path $wvRoot) {
             Get-ChildItem -Path $wvRoot -Filter 'msedgewebview2.exe' -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
                 $wvIdx++
-                New-NetFirewallRule -Name ""FunkenwerkFortress_AllowWebView2_$wvIdx"" -DisplayName ""Funkenwerk OS: WebView2 Runtime ($wvIdx)"" -Direction Outbound -Action Allow -Program $_.FullName | Out-Null
+                New-NetFirewallRule -Name ""FunkenwerkFortress_AllowWebView2_$wvIdx"" -DisplayName ""Funkenwerk OS: WebView2 Runtime ($wvIdx)"" -Direction Outbound -Action Allow -Program $_.FullName -Protocol TCP -RemotePort 80,443 | Out-Null
             }
         }
     }
@@ -776,13 +1147,24 @@ if ($Mode -in @('FullFortress', 'FirewallOn', 'BluetoothFix')) {
         }
     }
 
-    # Allow Ed25519 Key-Only OpenSSH Server (Port 22) strictly from Local LAN ('192.168.188.0/24','LocalSubnet')
-    if ((Test-Path 'C:\Program Files\OpenSSH\sshd.exe') -or (Test-Path ""$env:SystemRoot\System32\OpenSSH\sshd.exe"") -or (Test-Path (Join-Path $ScriptRoot 'OpenSSH-Win64\sshd.exe'))) {
-        New-NetFirewallRule -Name 'FunkenwerkFortress_AllowInbound_SSH_LAN' -DisplayName 'Funkenwerk OS: Ed25519 SSH Wartung (Nur LAN)' -Direction Inbound -Action Allow -Protocol TCP -LocalPort 22 -RemoteAddress '192.168.188.0/24','LocalSubnet' | Out-Null
+    # OS-SEC-03: Enforce inbound blocking cleanly at profile level (-DefaultInboundAction Block -AllowInboundRules False)
+    # without destructively mutating built-in Windows inbound rules!
+    Set-NetFirewallProfile -Profile Domain,Private,Public -Enabled True -DefaultInboundAction Block -AllowInboundRules False -DefaultOutboundAction Block
+
+    # Optional: If Ed25519 Key-Only OpenSSH Server is installed, snapshot & disable other enabled Private inbound rules and allow LAN SSH on Private
+    $hasOpenSsh = (Test-Path 'C:\Program Files\OpenSSH\sshd.exe') -or (Test-Path ""$env:SystemRoot\System32\OpenSSH\sshd.exe"") -or (Test-Path (Join-Path $ScriptRoot 'OpenSSH-Win64\sshd.exe'))
+    if ($hasOpenSsh) {
+        $rulesSnapPath = Join-Path $localBackupDir 'firewall_inbound_rules_snapshot.json'
+        if (-not (Test-Path $rulesSnapPath)) {
+            $activeInRules = Get-NetFirewallRule -Direction Inbound -Action Allow -Enabled True -ErrorAction SilentlyContinue | Where-Object { $_.Name -notlike 'FunkenwerkFortress_*' }
+            @($activeInRules | Select-Object -ExpandProperty Name) | ConvertTo-Json | Set-Content -Path $rulesSnapPath -Encoding UTF8
+            $activeInRules | Disable-NetFirewallRule -ErrorAction SilentlyContinue
+        }
+        New-NetFirewallRule -Name 'FunkenwerkFortress_AllowInbound_SSH_LAN' -DisplayName 'Funkenwerk OS: Ed25519 SSH Wartung (Nur LAN)' -Direction Inbound -Action Allow -Profile Private -Protocol TCP -LocalPort 22 -RemoteAddress '192.168.188.0/24','LocalSubnet' | Out-Null
+        Set-NetFirewallProfile -Profile Private -AllowInboundRules True -ErrorAction SilentlyContinue
     }
 
-    Set-NetFirewallProfile -Profile Domain,Private,Public -DefaultInboundAction Block -DefaultOutboundAction Block
-    Write-Host '[OK] Festungs-Firewall (LAN-SSH Key-Only + Outbound-Whitelist) scharfgeschaltet.' -ForegroundColor Green
+    Write-Host '[OK] Festungs-Firewall (Profile-Shield + Outbound-Whitelist) scharfgeschaltet.' -ForegroundColor Green
 }
 
 if ($Mode -in @('FullFortress', 'BluetoothFix')) {
@@ -965,19 +1347,31 @@ if ($Mode -eq 'FullFortress') {
             Set-TimeZone -Id 'W. Europe Standard Time'
         } catch { }
 
-        # 1. Lokales Admin-Konto 'Alina' ohne Passwort-Zwang anlegen
-        & net.exe user Alina """" /add /y 2>$null | Out-Null
-        & net.exe user Alina """" 2>$null | Out-Null
+        # 1. OS-SEC-03: Lokales Admin-Konto 'Alina' mit kryptografisch starkem Initial-Passwort anlegen (NIEMALS Leer-Passwort!)
+        $alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#%^*+-_'
+        $rngBytes = New-Object byte[] 24
+        [System.Security.Cryptography.RandomNumberGenerator]::Fill($rngBytes)
+        $oobeInitPwdChars = for ($b in $rngBytes) { $alphabet[$b % $alphabet.Length] }
+        $oobeInitPwd = -join $oobeInitPwdChars
+
+        & net.exe user Alina $oobeInitPwd /add /y 2>$null | Out-Null
+        & net.exe user Alina $oobeInitPwd 2>$null | Out-Null
         & net.exe localgroup Administratoren Alina /add 2>$null | Out-Null
         & net.exe localgroup Administrators Alina /add 2>$null | Out-Null
         & wmic.exe useraccount where ""Name='Alina'"" set PasswordExpires=False 2>$null | Out-Null
 
-        # 2. Auto-Login aktivieren (damit der Mini-PC ohne Windows-Anmeldebildschirm durchbootet)
+        $sysVaultDir = 'C:\ProgramData\FunkenwerkOS\Backup'
+        New-Item -ItemType Directory -Path $sysVaultDir -Force | Out-Null
+        & icacls.exe $sysVaultDir /inheritance:r /grant '*S-1-5-18:(OI)(CI)(F)' /grant '*S-1-5-32-544:(OI)(CI)(F)' 2>$null | Out-Null
+        $oobeVaultPath = Join-Path $sysVaultDir 'InitialOobePassword.dpapi'
+        $oobeSec = ConvertTo-SecureString -String $oobeInitPwd -AsPlainText -Force
+        Set-Content -Path $oobeVaultPath -Value (ConvertFrom-SecureString -SecureString $oobeSec) -Encoding ASCII
+        & icacls.exe $oobeVaultPath /inheritance:r /grant '*S-1-5-18:(F)' /grant '*S-1-5-32-544:(F)' 2>$null | Out-Null
+
+        # 2. Winlogon ohne Klartext-DefaultPassword in der Registry absichern
         $winlogonPath = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon'
-        Set-ItemProperty -Path $winlogonPath -Name 'AutoAdminLogon' -Type String -Value '1'
         Set-ItemProperty -Path $winlogonPath -Name 'DefaultUserName' -Type String -Value 'Alina'
-        Set-ItemProperty -Path $winlogonPath -Name 'DefaultPassword' -Type String -Value ''
-        Set-ItemProperty -Path $winlogonPath -Name 'ForceAutoLogon' -Type String -Value '1'
+        Remove-ItemProperty -Path $winlogonPath -Name 'DefaultPassword' -ErrorAction SilentlyContinue
 
         # 3. Default-User-Profil (NTUSER.DAT) direkt mit Funkenwerk OS Shell & deutschem Tastaturlayout impfen
         $defaultNtUser = 'C:\Users\Default\NTUSER.DAT'
@@ -1112,9 +1506,11 @@ if ($Mode -eq 'FullFortress') {
                     foreach (string appDir in appDirs)
                     {
                         string folderName = Path.GetFileName(appDir);
+                        if (IsSkippedUsbDirectoryName(folderName))
+                            continue;
                         progress?.Report($"Kopiere {folderName}...");
                         string destAppDir = Path.Combine(bundleCollectionDir, folderName);
-                        copiedFiles += CopyDirectoryCleanForUsb(appDir, destAppDir);
+                        copiedFiles += CopyCollectionSafeRecursive(appDir, destAppDir);
                     }
 
                     // Also copy top-level .lnk shortcuts as convenience
@@ -1134,15 +1530,28 @@ if ($Mode -eq 'FullFortress') {
             });
         }
 
-        private static int CopyDirectoryCleanForUsb(string sourceDir, string targetDir)
+        public static int CopyCollectionSafeRecursive(string sourceDir, string targetDir)
         {
+            if (string.IsNullOrWhiteSpace(sourceDir) || !Directory.Exists(sourceDir))
+                return 0;
+
+            string srcName = Path.GetFileName(sourceDir.TrimEnd('\\', '/'));
+            if (IsSkippedUsbDirectoryName(srcName))
+                return 0;
+
             int count = 0;
-            Directory.CreateDirectory(targetDir);
+            bool createdTarget = false;
 
             foreach (string file in Directory.GetFiles(sourceDir))
             {
-                if (IsSensitiveFileExcludedFromUsbExport(file))
+                if (!IsAllowedUsbRuntimeArtifact(file))
                     continue;
+
+                if (!createdTarget)
+                {
+                    Directory.CreateDirectory(targetDir);
+                    createdTarget = true;
+                }
 
                 string destFile = Path.Combine(targetDir, Path.GetFileName(file));
                 File.Copy(file, destFile, overwrite: true);
@@ -1152,21 +1561,16 @@ if ($Mode -eq 'FullFortress') {
             foreach (string subDir in Directory.GetDirectories(sourceDir))
             {
                 string subName = Path.GetFileName(subDir);
-                if (subName.Equals("MiniPC-USB-Setup", StringComparison.OrdinalIgnoreCase) ||
-                    subName.Equals("Backup", StringComparison.OrdinalIgnoreCase) ||
-                    subName.Equals("build_mkt", StringComparison.OrdinalIgnoreCase) ||
-                    subName.Equals("build_phase3", StringComparison.OrdinalIgnoreCase) ||
-                    subName.Equals("__pycache__", StringComparison.OrdinalIgnoreCase) ||
-                    subName.Equals("KameraMedien", StringComparison.OrdinalIgnoreCase) ||
-                    subName.Equals("files", StringComparison.OrdinalIgnoreCase))
-                {
+                if (IsSkippedUsbDirectoryName(subName))
                     continue;
-                }
 
-                count += CopyDirectoryCleanForUsb(subDir, Path.Combine(targetDir, subName));
+                count += CopyCollectionSafeRecursive(subDir, Path.Combine(targetDir, subName));
             }
 
             return count;
         }
+
+        private static int CopyDirectoryCleanForUsb(string sourceDir, string targetDir)
+            => CopyCollectionSafeRecursive(sourceDir, targetDir);
     }
 }

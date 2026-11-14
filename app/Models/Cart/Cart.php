@@ -77,4 +77,12 @@ use HasFactory, HasUuids;
     {
         return $this->belongsTo(Customer::class, 'customer_id')->withTrashed();
     }
+
+    /**
+     * Kryptografischer HMAC-Hash für den nahtlosen Rückkehr-Link aus der Warenkorb-Erinnerung.
+     */
+    public function getReminderResumeHash(): string
+    {
+        return hash_hmac('sha256', 'cart_resume|' . $this->id . '|' . (string) $this->customer_id, (string) config('app.key'));
+    }
 }

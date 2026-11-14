@@ -52,12 +52,13 @@ class TasksRemoteViewsFactory(
     }
 
     private fun loadDataFromPrefs() {
+        de.meinseelenfunke.app.di.ServiceLocator.ensureInitialized(context.applicationContext)
         val sharedPrefs = context.getSharedPreferences("tasks_widget_prefs", Context.MODE_PRIVATE)
         selectedListId = sharedPrefs.getString("${TasksWidgetProvider.PREF_SELECTED_LIST_ID_PREFIX}$appWidgetId", null)
 
         val gson = Gson()
-        val listsJson = sharedPrefs.getString("task_lists_cache", null)
-        val tasksJson = sharedPrefs.getString("tasks_cache", null)
+        val listsJson = de.meinseelenfunke.app.di.ServiceLocator.getDecryptedPref(sharedPrefs, "task_lists_cache")
+        val tasksJson = de.meinseelenfunke.app.di.ServiceLocator.getDecryptedPref(sharedPrefs, "tasks_cache")
 
         val allLists: List<ManagementTaskList> = if (listsJson != null) {
             try {

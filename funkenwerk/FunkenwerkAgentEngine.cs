@@ -58,9 +58,25 @@ namespace Funkenwerk
         public const string PipeName = "Funkenwerk_ControlPipe_v1";
         private const int MaxPipePayloadBytes = 65536;
 
+        public static readonly IReadOnlyList<string> SupportedSshPresets = new[]
+        {
+            "disk_usage",
+            "uptime_and_load",
+            "php_version",
+            "artisan_about",
+            "git_status",
+            "git_log",
+            "git_branch",
+            "list_dir",
+            "stage_git_pull"
+        };
+
         private static string ResolveMcpBinaryPath()
         {
-            string desktopMcp = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "Funkenwerk Collection", "Funkenwerk MCP", "FunkenwerkMcp.exe");
+            string mcpRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "Funkenwerk Collection", "Funkenwerk MCP");
+            string stagedMcp = Path.Combine(mcpRoot, "staged_release", "FunkenwerkMcp.exe");
+            if (File.Exists(stagedMcp)) return stagedMcp;
+            string desktopMcp = Path.Combine(mcpRoot, "FunkenwerkMcp.exe");
             if (File.Exists(desktopMcp)) return desktopMcp;
             if (File.Exists(@"C:\Funkenwerk Collection\Funkenwerk MCP\FunkenwerkMcp.exe")) return @"C:\Funkenwerk Collection\Funkenwerk MCP\FunkenwerkMcp.exe";
             return desktopMcp;
@@ -68,26 +84,29 @@ namespace Funkenwerk
 
         private readonly IFunkenwerkLocalBridge _bridge;
         private readonly string _sessionsFilePath;
+        private readonly object _sessionsLock = new();
         private CancellationTokenSource? _pipeCts;
         private bool _disposed;
 
         public List<FunkenwerkAgentSession> Sessions { get; private set; } = new();
         public FunkenwerkAgentSession ActiveSession { get; private set; }
         public bool TtsEnabled { get; set; } = false; // Strict User Opt-In per Seelenfunke Rule #7
+        public Func<string, string, bool>? ConfirmCloudActionOverride { get; set; }
 
         public FunkenwerkAgentEngine(IFunkenwerkLocalBridge bridge)
         {
             _bridge = bridge;
-            string appDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Funkenwerk");
-            Directory.CreateDirectory(appDir);
-            _sessionsFilePath = Path.Combine(appDir, "agent_sessions.json");
+            _sessionsFilePath = FunkenwerkSecurityVault.GetAppDataFilePath("agent_sessions.json", migrateFromBaseDir: true);
 
             LoadSessions();
-            ActiveSession = Sessions.FirstOrDefault() ?? CreateNewSession(save: true);
+            lock (_sessionsLock)
+            {
+                ActiveSession = Sessions.FirstOrDefault() ?? CreateNewSession(save: true);
+            }
         }
 
         /// <summary>
-        /// Calls our hardened local FunkenwerkMcp.exe (v1.3) via one-shot JSON-RPC 2.0 over stdio.
+        /// Calls our hardened local FunkenwerkMcp.exe via one-shot JSON-RPC 2.0 over stdio.
         /// Gives Funkira instant access to pdf_autofill_stammdaten, pdf_inspect,
         /// tasks_manage, calendar_create, shopping_manage, ssh_exec_safe_readonly, and server_list_profiles.
         /// </summary>
@@ -112,16 +131,24 @@ namespace Funkenwerk
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     StandardInputEncoding = new UTF8Encoding(false),
-                    StandardOutputEncoding = new UTF8Encoding(false)
+                    StandardOutputEncoding = new UTF8Encoding(false),
+                    StandardErrorEncoding = new UTF8Encoding(false)
                 };
 
                 using var proc = Process.Start(psi);
                 if (proc == null)
                     return (false, "", "MCP-Prozess konnte nicht gestartet werden.");
 
+                // Drain stderr asynchronously so MCP audit/diagnostic writes never deadlock stdout
+                Task<string> stderrDrainTask = Task.Run(async () =>
+                {
+                    try { return await proc.StandardError.ReadToEndAsync().ConfigureAwait(false); }
+                    catch { return ""; }
+                });
+
                 using var cts = new CancellationTokenSource(timeoutMs);
 
-                string initReq = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-03-26\",\"capabilities\":{},\"clientInfo\":{\"name\":\"funkenwerk-funkira\",\"version\":\"1.3\"}}}";
+                string initReq = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-03-26\",\"capabilities\":{},\"clientInfo\":{\"name\":\"funkenwerk-funkira\",\"version\":\"1.4\"}}}";
                 string callReq = JsonSerializer.Serialize(new
                 {
                     jsonrpc = "2.0",
@@ -140,42 +167,66 @@ namespace Funkenwerk
                 await proc.StandardInput.FlushAsync().ConfigureAwait(false);
                 proc.StandardInput.Close();
 
-                string? toolLine = null;
-                while (!cts.IsCancellationRequested)
+                JsonDocument? matchedDoc = null;
+                try
                 {
-                    string? line = await proc.StandardOutput.ReadLineAsync(cts.Token).ConfigureAwait(false);
-                    if (line == null) break;
-                    if (line.Contains("\"id\":2"))
+                    while (!cts.IsCancellationRequested)
                     {
-                        toolLine = line;
-                        break;
+                        string? line = await proc.StandardOutput.ReadLineAsync(cts.Token).ConfigureAwait(false);
+                        if (line == null) break;
+                        string trimmedLine = line.Trim();
+                        if (!trimmedLine.StartsWith("{", StringComparison.Ordinal)) continue;
+                        try
+                        {
+                            var candidateDoc = JsonDocument.Parse(trimmedLine);
+                            if (candidateDoc.RootElement.TryGetProperty("id", out var idEl) &&
+                                ((idEl.ValueKind == JsonValueKind.Number && idEl.TryGetInt32(out int idNum) && idNum == 2) ||
+                                 (idEl.ValueKind == JsonValueKind.String && idEl.GetString() == "2")))
+                            {
+                                matchedDoc = candidateDoc;
+                                break;
+                            }
+                            candidateDoc.Dispose();
+                        }
+                        catch
+                        {
+                            // Ignore non-JSON diagnostic lines
+                        }
                     }
                 }
-
-                try { if (!proc.HasExited) proc.Kill(); } catch { }
-
-                if (string.IsNullOrWhiteSpace(toolLine))
-                    return (false, "", "Keine Antwort vom Funkenwerk MCP Server erhalten.");
-
-                using var doc = JsonDocument.Parse(toolLine);
-                var root = doc.RootElement;
-                if (root.TryGetProperty("error", out var errObj))
+                catch (OperationCanceledException)
                 {
-                    string msg = errObj.TryGetProperty("message", out var mEl) ? (mEl.GetString() ?? "MCP Fehler") : "MCP Fehler";
-                    return (false, "", msg);
+                    try { if (!proc.HasExited) proc.Kill(entireProcessTree: true); } catch { }
+                    return (false, "", "Zeitüberschreitung beim Aufruf von FunkenwerkMcp.exe.");
                 }
 
-                if (root.TryGetProperty("result", out var resEl))
+                try { if (!proc.HasExited) proc.Kill(entireProcessTree: true); } catch { }
+                _ = await Task.WhenAny(stderrDrainTask, Task.Delay(250)).ConfigureAwait(false);
+
+                if (matchedDoc == null)
+                    return (false, "", "Keine Antwort (id=2) vom Funkenwerk MCP Server erhalten.");
+
+                using (matchedDoc)
                 {
-                    bool isErr = resEl.TryGetProperty("isError", out var ieEl) && ieEl.ValueKind == JsonValueKind.True;
-                    string textPayload = "";
-                    if (resEl.TryGetProperty("content", out var cArr) && cArr.ValueKind == JsonValueKind.Array && cArr.GetArrayLength() > 0)
+                    var root = matchedDoc.RootElement;
+                    if (root.TryGetProperty("error", out var errObj))
                     {
-                        var first = cArr[0];
-                        if (first.TryGetProperty("text", out var txtEl))
-                            textPayload = txtEl.GetString() ?? "";
+                        string msg = errObj.TryGetProperty("message", out var mEl) ? (mEl.GetString() ?? "MCP Fehler") : "MCP Fehler";
+                        return (false, "", msg);
                     }
-                    return (!isErr, textPayload, isErr ? textPayload : "");
+
+                    if (root.TryGetProperty("result", out var resEl))
+                    {
+                        bool isErr = resEl.TryGetProperty("isError", out var ieEl) && ieEl.ValueKind == JsonValueKind.True;
+                        string textPayload = "";
+                        if (resEl.TryGetProperty("content", out var cArr) && cArr.ValueKind == JsonValueKind.Array && cArr.GetArrayLength() > 0)
+                        {
+                            var first = cArr[0];
+                            if (first.TryGetProperty("text", out var txtEl))
+                                textPayload = txtEl.GetString() ?? "";
+                        }
+                        return (!isErr, textPayload, isErr ? textPayload : "");
+                    }
                 }
 
                 return (false, "", "Ungültiges MCP Antwortformat.");
@@ -315,94 +366,109 @@ namespace Funkenwerk
 
         public void LoadSessions()
         {
-            try
+            lock (_sessionsLock)
             {
-                if (File.Exists(_sessionsFilePath))
+                try
                 {
-                    var loaded = JsonSerializer.Deserialize<List<FunkenwerkAgentSession>>(File.ReadAllText(_sessionsFilePath));
-                    if (loaded != null && loaded.Count > 0)
+                    if (File.Exists(_sessionsFilePath))
                     {
-                        foreach (var s in loaded)
+                        var loaded = JsonSerializer.Deserialize<List<FunkenwerkAgentSession>>(File.ReadAllText(_sessionsFilePath));
+                        if (loaded != null && loaded.Count > 0)
                         {
-                            foreach (var m in s.Messages)
+                            foreach (var s in loaded)
                             {
-                                if (m.Text != null && m.Text.Contains("Funkenwerk Miro", StringComparison.OrdinalIgnoreCase))
+                                foreach (var m in s.Messages)
                                 {
-                                    m.Text = "Hallo Alina! Ich bin direkt mit deinem Funkenwerk MCP v1.3 verbunden und beherrsche PDF-Ausfüllen, Aufgaben, Kalender, Einkaufsliste, Musikplayer, Fokus-Modus, Smart-Home-Steckdosen, IP-Kameras und alle Funkenwerk Tools.";
+                                    if (m.Text != null && m.Text.Contains("Funkenwerk Miro", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        m.Text = "Hallo Alina! Ich bin direkt mit deinem Funkenwerk MCP v1.4 verbunden und beherrsche PDF-Ausfüllen, Aufgaben, Kalender, Einkaufsliste, Musikplayer, Fokus-Modus, Smart-Home-Steckdosen, IP-Kameras und alle Funkenwerk Tools.";
+                                    }
                                 }
                             }
+                            Sessions = loaded;
+                            return;
                         }
-                        Sessions = loaded;
-                        return;
                     }
                 }
-            }
-            catch { }
+                catch { }
 
-            Sessions = new List<FunkenwerkAgentSession>();
+                Sessions = new List<FunkenwerkAgentSession>();
+            }
         }
 
         public void SaveSessions()
         {
-            try
+            lock (_sessionsLock)
             {
-                if (Sessions.Count > 30)
+                try
                 {
-                    Sessions = Sessions.Take(30).ToList();
+                    if (Sessions.Count > 30)
+                    {
+                        Sessions = Sessions.Take(30).ToList();
+                    }
+                    string json = JsonSerializer.Serialize(Sessions, new JsonSerializerOptions { WriteIndented = true });
+                    FunkenwerkSecurityVault.WriteSecureFileText(_sessionsFilePath, json);
                 }
-                string json = JsonSerializer.Serialize(Sessions, new JsonSerializerOptions { WriteIndented = true });
-                File.WriteAllText(_sessionsFilePath, json, new UTF8Encoding(false));
+                catch { }
             }
-            catch { }
         }
 
         public FunkenwerkAgentSession CreateNewSession(bool save = true)
         {
-            var s = new FunkenwerkAgentSession
+            lock (_sessionsLock)
             {
-                Id = Guid.NewGuid().ToString("N"),
-                Title = "Neuer Chat",
-                UpdatedAt = DateTime.Now.ToString("dd.MM.yyyy HH:mm"),
-                Messages = new List<FunkenwerkAgentMessage>
+                var s = new FunkenwerkAgentSession
                 {
-                    new FunkenwerkAgentMessage
+                    Id = Guid.NewGuid().ToString("N"),
+                    Title = "Neuer Chat",
+                    UpdatedAt = DateTime.Now.ToString("dd.MM.yyyy HH:mm"),
+                    Messages = new List<FunkenwerkAgentMessage>
                     {
-                        Role = "assistant",
-                        Text = "Hallo Alina! Ich bin direkt mit deinem Funkenwerk MCP v1.3 verbunden und beherrsche PDF-Ausfüllen, Aufgaben, Kalender, Einkaufsliste, Musikplayer, Fokus-Modus, Smart-Home-Steckdosen, IP-Kameras und alle Funkenwerk Tools.",
-                        Timestamp = DateTime.Now.ToString("HH:mm")
+                        new FunkenwerkAgentMessage
+                        {
+                            Role = "assistant",
+                            Text = "Hallo Alina! Ich bin direkt mit deinem Funkenwerk MCP v1.4 verbunden und beherrsche PDF-Ausfüllen, Aufgaben, Kalender, Einkaufsliste, Musikplayer, Fokus-Modus, Smart-Home-Steckdosen, IP-Kameras und alle Funkenwerk Tools.",
+                            Timestamp = DateTime.Now.ToString("HH:mm")
+                        }
                     }
-                }
-            };
-            Sessions.Insert(0, s);
-            ActiveSession = s;
-            if (save) SaveSessions();
-            return s;
+                };
+                Sessions.Insert(0, s);
+                ActiveSession = s;
+                if (save) SaveSessions();
+                return s;
+            }
         }
 
         public void SelectSession(string id)
         {
-            var found = Sessions.FirstOrDefault(s => s.Id == id);
-            if (found != null)
+            lock (_sessionsLock)
             {
-                ActiveSession = found;
+                var found = Sessions.FirstOrDefault(s => s.Id == id);
+                if (found != null)
+                {
+                    ActiveSession = found;
+                }
             }
         }
 
         public void DeleteSession(string id)
         {
-            Sessions.RemoveAll(s => s.Id == id);
-            if (Sessions.Count == 0)
+            lock (_sessionsLock)
             {
-                CreateNewSession(save: true);
-            }
-            else if (ActiveSession.Id == id)
-            {
-                ActiveSession = Sessions[0];
-                SaveSessions();
-            }
-            else
-            {
-                SaveSessions();
+                Sessions.RemoveAll(s => s.Id == id);
+                if (Sessions.Count == 0)
+                {
+                    CreateNewSession(save: true);
+                }
+                else if (ActiveSession.Id == id)
+                {
+                    ActiveSession = Sessions[0];
+                    SaveSessions();
+                }
+                else
+                {
+                    SaveSessions();
+                }
             }
         }
 
@@ -414,22 +480,32 @@ namespace Funkenwerk
             CancellationToken ct = default)
         {
             string prompt = (rawPrompt ?? "").Trim();
+            List<(string Role, string Text)> priorMessagesSnapshot;
             var userMsg = new FunkenwerkAgentMessage
             {
                 Role = "user",
                 Text = prompt,
                 Timestamp = DateTime.Now.ToString("HH:mm")
             };
-            ActiveSession.Messages.Add(userMsg);
 
-            if (ActiveSession.Title == "Neuer Chat" && prompt.Length > 0)
+            lock (_sessionsLock)
             {
-                ActiveSession.Title = prompt.Length > 34 ? prompt.Substring(0, 34).Trim() + "..." : prompt;
+                // Snapshot prior conversation history BEFORE appending userMsg so userMsg is never sent twice!
+                priorMessagesSnapshot = ActiveSession.Messages
+                    .TakeLast(12)
+                    .Select(m => (m.Role == "assistant" ? "assistant" : "user", m.Text ?? ""))
+                    .ToList();
+
+                ActiveSession.Messages.Add(userMsg);
+                if (ActiveSession.Title == "Neuer Chat" && prompt.Length > 0)
+                {
+                    ActiveSession.Title = prompt.Length > 34 ? prompt.Substring(0, 34).Trim() + "..." : prompt;
+                }
+                ActiveSession.UpdatedAt = DateTime.Now.ToString("dd.MM.yyyy HH:mm");
             }
-            ActiveSession.UpdatedAt = DateTime.Now.ToString("dd.MM.yyyy HH:mm");
 
             // 1. Detect & execute immediate local PC & MCP actions (PDF, Tasks, Shopping, Music, Focus, SmartHome, Apps)
-            var (executedActions, isPureDirectCommand) = await DetectAndRunLocalPcActionsAsync(prompt).ConfigureAwait(false);
+            var (executedActions, locallyExecutedKeys, isPureDirectCommand) = await DetectAndRunLocalPcActionsAsync(prompt).ConfigureAwait(false);
             var badges = executedActions
                 .Where(a => !string.IsNullOrWhiteSpace(a.Badge))
                 .Select(a => a.Badge!)
@@ -446,7 +522,10 @@ namespace Funkenwerk
                     Timestamp = DateTime.Now.ToString("HH:mm"),
                     ActionBadges = badges
                 };
-                ActiveSession.Messages.Add(directAssistantMsg);
+                lock (_sessionsLock)
+                {
+                    ActiveSession.Messages.Add(directAssistantMsg);
+                }
                 SaveSessions();
                 return directAssistantMsg;
             }
@@ -457,8 +536,9 @@ namespace Funkenwerk
                 ? "\nBereits lokal auf Alinas PC ausgeführt:\n" + string.Join("\n", executedActions.Select(a => "- " + a.Summary))
                 : "";
 
+            string sshPresetsJoined = string.Join("\"|\"", SupportedSshPresets);
             string mcpToolSpec =
-                "\nDu kannst auf Alinas PC bei Bedarf zusätzlich lokale Funkenwerk-MCP-Aktionen auslösen, indem du am Ende deiner Antwort einen oder mehrere Blöcke im exakten Format <fw_action>{\"tool\":\"NAME\",\"args\":{...}}</fw_action> anhängst (wird automatisch ausgeführt und ausgeblendet):\n" +
+                "\nDu kannst auf Alinas PC bei Bedarf zusätzlich lokale Funkenwerk-MCP-Aktionen auslösen, indem du am Ende deiner Antwort einen oder mehrere Blöcke im exakten Format <fw_action>{\"tool\":\"NAME\",\"args\":{...}}</fw_action> anhängst (wird automatisch geprüft und ausgeblendet):\n" +
                 "- pdf_autofill_stammdaten: {\"inputPath\":\"C:\\\\Users\\\\konta\\\\Downloads\\\\datei.pdf\",\"openInFunkenwerkPdf\":true}\n" +
                 "- tasks_manage: {\"action\":\"create\",\"title\":\"...\",\"priority\":\"high\"}\n" +
                 "- calendar_create: {\"title\":\"...\",\"start\":\"YYYY-MM-DD HH:mm\",\"category\":\"Geschäftlich\"}\n" +
@@ -471,7 +551,7 @@ namespace Funkenwerk
                 "- craft_soundpool_browser: {\"category\":\"all\"|\"Uebergaenge_Whoosh\"|\"Effekte_Akzente\"|\"Beats_und_Ambient\"}\n" +
                 "- craft_render_social_video: {\"projectName\":\"Projekt 1\",\"openInCraftUi\":true}\n" +
                 "- craft_storytold_engine: {\"action\":\"launch\"|\"export_fcproj\",\"engine\":\"artcraft\"|\"filmcraft\"|\"soundcraft\",\"projectName\":\"Projekt 1\"}\n" +
-                "- ssh_exec_safe_readonly: {\"profileName\":\"Mittwald\",\"preset\":\"disk_and_uptime\"|\"git_status\"|\"php_and_artisan\"}";
+                $"- ssh_exec_safe_readonly: {{\"profileName\":\"Stage\",\"preset\":\"{sshPresetsJoined}\"}}";
 
             // 3. Query Seelenfunke Portal AI (/api/ai/chat -> Funkira)
             string? cloudReply = null;
@@ -481,21 +561,22 @@ namespace Funkenwerk
             {
                 try
                 {
+                    string safeApiUrl = FunkenwerkSecurityVault.NormalizeSecureApiUrl(apiBaseUrl);
                     var historyList = new List<object>
                     {
                         new
                         {
                             role = "system",
-                            content = "Du bist Funkira, direkt integriert in die Funkenwerk Windows Desktop Suite auf Alinas PC (verbunden mit Funkenwerk MCP v1.3). Antworte präzise, herzlich und ohne lange Gedankenstriche. Aktueller Live-PC-Status:\n" + pcContext + executedNote + mcpToolSpec
+                            content = "Du bist Funkira, direkt integriert in die Funkenwerk Windows Desktop Suite auf Alinas PC (verbunden mit Funkenwerk MCP v1.4). Antworte präzise, herzlich und ohne lange Gedankenstriche. Aktueller Live-PC-Status:\n" + pcContext + executedNote + mcpToolSpec
                         }
                     };
 
-                    foreach (var m in ActiveSession.Messages.TakeLast(12))
+                    foreach (var (role, text) in priorMessagesSnapshot)
                     {
                         historyList.Add(new
                         {
-                            role = m.Role == "assistant" ? "assistant" : "user",
-                            content = m.Text
+                            role = role,
+                            content = text
                         });
                     }
 
@@ -508,7 +589,7 @@ namespace Funkenwerk
                     using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
                     cts.CancelAfter(TimeSpan.FromSeconds(28));
 
-                    using var req = new HttpRequestMessage(HttpMethod.Post, $"{apiBaseUrl.TrimEnd('/')}/ai/chat")
+                    using var req = new HttpRequestMessage(HttpMethod.Post, $"{safeApiUrl.TrimEnd('/')}/ai/chat")
                     {
                         Content = new StringContent(bodyJson, Encoding.UTF8, "application/json")
                     };
@@ -537,10 +618,10 @@ namespace Funkenwerk
                 }
             }
 
-            // 4. Execute any <fw_action>{...}</fw_action> tool calls emitted by Cloud Funkira!
+            // 4. Execute any <fw_action>{...}</fw_action> tool calls emitted by Cloud Funkira (with User Confirmation Gate on mutating tools!)
             if (!string.IsNullOrWhiteSpace(cloudReply))
             {
-                var (cleanedReply, aiActionResults) = await ParseAndExecuteStructuredFwActionsAsync(cloudReply!, executedActions.Count > 0).ConfigureAwait(false);
+                var (cleanedReply, aiActionResults) = await ParseAndExecuteStructuredFwActionsAsync(cloudReply!, locallyExecutedKeys).ConfigureAwait(false);
                 cloudReply = cleanedReply;
                 foreach (var ar in aiActionResults)
                 {
@@ -578,14 +659,85 @@ namespace Funkenwerk
                 Timestamp = DateTime.Now.ToString("HH:mm"),
                 ActionBadges = badges
             };
-            ActiveSession.Messages.Add(assistantMsg);
+            lock (_sessionsLock)
+            {
+                ActiveSession.Messages.Add(assistantMsg);
+            }
             SaveSessions();
             return assistantMsg;
         }
 
+        public static bool RequiresCloudActionConfirmation(string tool, JsonObject args, out string promptSummary)
+        {
+            promptSummary = "";
+            string normTool = (tool ?? "").Trim().ToLowerInvariant();
+            string act = args["action"]?.GetValue<string>()?.Trim().ToLowerInvariant() ?? "";
+            string preset = args["preset"]?.GetValue<string>()?.Trim().ToLowerInvariant() ?? "";
+
+            if (normTool == "stage_git_pull" || (normTool == "ssh_exec_safe_readonly" && preset == "stage_git_pull"))
+            {
+                promptSummary = "Cloud-KI möchte 'stage_git_pull' per SSH ausführen. Jetzt zulassen?";
+                return true;
+            }
+            if (normTool is "pdf_fill_form" or "pdf_autofill_stammdaten")
+            {
+                string p = args["inputPath"]?.GetValue<string>() ?? "PDF-Datei";
+                promptSummary = $"Cloud-KI möchte PDF-Formular '{Path.GetFileName(p)}' beschreiben ({normTool}). Jetzt zulassen?";
+                return true;
+            }
+            if (normTool == "smarthome_control" && act.StartsWith("plug_", StringComparison.OrdinalIgnoreCase))
+            {
+                string tgt = args["target"]?.GetValue<string>() ?? "Steckdose";
+                promptSummary = $"Cloud-KI möchte Smart-Home-Steckdose '{tgt}' schalten ({act}). Jetzt zulassen?";
+                return true;
+            }
+            if (normTool is "collection_control" or "suite_control")
+            {
+                string app = args["app"]?.GetValue<string>() ?? args["target"]?.GetValue<string>() ?? act;
+                promptSummary = $"Cloud-KI möchte lokale Funkenwerk-Anwendung/Aktion '{app}' starten. Jetzt zulassen?";
+                return true;
+            }
+            if (normTool == "craft_render_social_video" ||
+                (normTool == "craft_project_manage" && act is "save" or "import_media") ||
+                (normTool == "craft_storytold_engine" && act is "launch" or "export_fcproj"))
+            {
+                promptSummary = $"Cloud-KI möchte Funkenwerk-Craft-Aktion '{normTool}' ({act}) ausführen. Jetzt zulassen?";
+                return true;
+            }
+            return false;
+        }
+
+        private bool ConfirmMutatingCloudAction(string tool, string summary)
+        {
+            if (ConfirmCloudActionOverride != null)
+                return ConfirmCloudActionOverride(tool, summary);
+
+            try
+            {
+                var app = System.Windows.Application.Current;
+                if (app?.Dispatcher != null)
+                {
+                    return app.Dispatcher.Invoke(() =>
+                        System.Windows.MessageBox.Show(
+                            summary,
+                            "Funkira Sicherheits-Bestätigung",
+                            System.Windows.MessageBoxButton.YesNo,
+                            System.Windows.MessageBoxImage.Question,
+                            System.Windows.MessageBoxResult.No) == System.Windows.MessageBoxResult.Yes);
+                }
+            }
+            catch { }
+            return false;
+        }
+
+        public Task<(string CleanedText, List<LocalBridgeResult> ActionResults)> ParseAndExecuteStructuredFwActionsForTestAsync(
+            string replyText,
+            HashSet<string>? alreadyExecutedKeys = null)
+            => ParseAndExecuteStructuredFwActionsAsync(replyText, alreadyExecutedKeys ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+
         private async Task<(string CleanedText, List<LocalBridgeResult> ActionResults)> ParseAndExecuteStructuredFwActionsAsync(
             string replyText,
-            bool alreadyExecutedLocally)
+            HashSet<string> alreadyExecutedKeys)
         {
             var actionResults = new List<LocalBridgeResult>();
             var matches = Regex.Matches(replyText, @"<fw_action>\s*(\{.*?\})\s*</fw_action>", RegexOptions.Singleline | RegexOptions.IgnoreCase);
@@ -593,9 +745,6 @@ namespace Funkenwerk
                 return (replyText, actionResults);
 
             string stripped = Regex.Replace(replyText, @"<fw_action>\s*\{.*?\}\s*</fw_action>", "", RegexOptions.Singleline | RegexOptions.IgnoreCase).Trim();
-
-            if (alreadyExecutedLocally)
-                return (stripped, actionResults);
 
             int executed = 0;
             foreach (Match m in matches)
@@ -607,7 +756,38 @@ namespace Funkenwerk
                     var node = JsonNode.Parse(m.Groups[1].Value) as JsonObject;
                     if (node == null) continue;
                     string tool = node["tool"]?.GetValue<string>()?.Trim().ToLowerInvariant() ?? "";
-                    JsonObject args = (node["args"] as JsonObject) ?? new JsonObject();
+                    JsonObject args = (node["args"] as JsonObject) ?? node;
+                    if (string.IsNullOrWhiteSpace(tool)) continue;
+
+                    string dedupKey = tool;
+                    if (tool == "smarthome_control")
+                    {
+                        string shAct = args["action"]?.GetValue<string>() ?? "";
+                        dedupKey = shAct.StartsWith("plug_", StringComparison.OrdinalIgnoreCase) ? "smarthome_control:plug" : "smarthome_control:camera";
+                    }
+                    else if (tool is "collection_control" or "suite_control")
+                    {
+                        dedupKey = "suite_control";
+                    }
+
+                    if (alreadyExecutedKeys.Contains(dedupKey))
+                        continue;
+
+                    if (RequiresCloudActionConfirmation(tool, args, out string confirmMsg))
+                    {
+                        if (!ConfirmMutatingCloudAction(tool, confirmMsg))
+                        {
+                            actionResults.Add(new LocalBridgeResult
+                            {
+                                Ok = false,
+                                Badge = "🛡 Abgelehnt",
+                                Summary = $"Cloud-Aktion '{tool}' wurde nicht freigegeben."
+                            });
+                            continue;
+                        }
+                    }
+
+                    alreadyExecutedKeys.Add(dedupKey);
 
                     if (tool == "music_control")
                     {
@@ -623,15 +803,32 @@ namespace Funkenwerk
                         string? dir = args["direction"]?.GetValue<string>();
                         actionResults.Add(await _bridge.ExecuteSmartHomeCommandAsync(act, tgt, dir).ConfigureAwait(false));
                     }
-                    else if (tool == "collection_control")
+                    else if (tool is "collection_control" or "suite_control")
                     {
                         string act = args["action"]?.GetValue<string>() ?? "launch";
-                        string app = args["app"]?.GetValue<string>() ?? "pdf";
+                        string app = args["app"]?.GetValue<string>() ?? args["target"]?.GetValue<string>() ?? "pdf";
                         if (act == "launch")
                             actionResults.Add(await _bridge.ExecuteSuiteCommandAsync("launch_collection_app", app).ConfigureAwait(false));
+                        else
+                            actionResults.Add(await _bridge.ExecuteSuiteCommandAsync(act, app).ConfigureAwait(false));
                     }
-                    else if (!string.IsNullOrWhiteSpace(tool))
+                    else
                     {
+                        if (tool == "ssh_exec_safe_readonly")
+                        {
+                            string reqPreset = args["preset"]?.GetValue<string>()?.Trim() ?? "";
+                            if (!SupportedSshPresets.Contains(reqPreset, StringComparer.OrdinalIgnoreCase))
+                            {
+                                actionResults.Add(new LocalBridgeResult
+                                {
+                                    Ok = false,
+                                    Badge = "🖥 SSH Blockiert",
+                                    Summary = $"Unbekanntes SSH-Preset '{reqPreset}' abgelehnt."
+                                });
+                                continue;
+                            }
+                        }
+
                         int mcpTimeout = tool == "craft_render_social_video" ? 180000 : 20000;
                         var (ok, payload, err) = await CallFunkenwerkMcpToolAsync(tool, args, mcpTimeout).ConfigureAwait(false);
                         if (tool is "tasks_manage" or "calendar_create")
@@ -665,10 +862,11 @@ namespace Funkenwerk
             return (stripped, actionResults);
         }
 
-        private async Task<(List<LocalBridgeResult> Results, bool IsPureDirectCommand)> DetectAndRunLocalPcActionsAsync(string prompt)
+        private async Task<(List<LocalBridgeResult> Results, HashSet<string> ExecutedKeys, bool IsPureDirectCommand)> DetectAndRunLocalPcActionsAsync(string prompt)
         {
             var results = new List<LocalBridgeResult>();
-            if (string.IsNullOrWhiteSpace(prompt)) return (results, false);
+            var executedKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (string.IsNullOrWhiteSpace(prompt)) return (results, executedKeys, false);
 
             string q = prompt.ToLowerInvariant();
             bool hasQuestionMark = q.Contains('?') ||
@@ -686,6 +884,7 @@ namespace Funkenwerk
                         overwrite = true,
                         openInFunkenwerkPdf = true
                     }).ConfigureAwait(false);
+                    executedKeys.Add("pdf_autofill_stammdaten");
                     results.Add(new LocalBridgeResult
                     {
                         Ok = ok,
@@ -712,6 +911,7 @@ namespace Funkenwerk
                 {
                     await _bridge.ExecuteSuiteCommandAsync("refresh_organizer").ConfigureAwait(false);
                 }
+                executedKeys.Add("tasks_manage");
                 results.Add(new LocalBridgeResult
                 {
                     Ok = ok,
@@ -730,6 +930,7 @@ namespace Funkenwerk
                     action = "add",
                     name = itemTitle
                 }).ConfigureAwait(false);
+                executedKeys.Add("shopping_manage");
                 results.Add(new LocalBridgeResult
                 {
                     Ok = ok,
@@ -742,14 +943,17 @@ namespace Funkenwerk
             var volMatch = Regex.Match(q, @"(?:lautstärke|volume|musik\s+auf|ton\s+auf)[^\d]{0,18}(\d{1,3})\s*%?");
             if (volMatch.Success && int.TryParse(volMatch.Groups[1].Value, out int targetVol))
             {
+                executedKeys.Add("music_control");
                 results.Add(await _bridge.ExecuteMusicCommandAsync("set_volume", null, Math.Clamp(targetVol, 0, 100)).ConfigureAwait(false));
             }
             else if (Regex.IsMatch(q, @"\b(leiser|etwas leiser)\b") && (q.Contains("musik") || q.Contains("ton") || q.Contains("player") || q.Length < 25))
             {
+                executedKeys.Add("music_control");
                 results.Add(await _bridge.ExecuteMusicCommandAsync("volume_delta", null, -10).ConfigureAwait(false));
             }
             else if (Regex.IsMatch(q, @"\b(lauter|etwas lauter)\b") && (q.Contains("musik") || q.Contains("ton") || q.Contains("player") || q.Length < 25))
             {
+                executedKeys.Add("music_control");
                 results.Add(await _bridge.ExecuteMusicCommandAsync("volume_delta", null, +10).ConfigureAwait(false));
             }
 
@@ -757,20 +961,24 @@ namespace Funkenwerk
             if (Regex.IsMatch(q, @"fokus[\s\-]*modus|fokus[\s\-]*animation"))
             {
                 bool off = Regex.IsMatch(q, @"\b(aus|beenden|stopp|stop|schließen|verlassen)\b");
+                executedKeys.Add("music_control");
                 results.Add(await _bridge.ExecuteMusicCommandAsync(off ? "focus_off" : "focus_on").ConfigureAwait(false));
             }
 
             // 7. Music Play / Pause / Next / Prev / Track Search
             if (Regex.IsMatch(q, @"\b(nächster song|nächstes lied|weiter|next track|überspringen|skip)\b") && !q.Contains("mail"))
             {
+                executedKeys.Add("music_control");
                 results.Add(await _bridge.ExecuteMusicCommandAsync("next").ConfigureAwait(false));
             }
             else if (Regex.IsMatch(q, @"\b(vorheriger song|vorheriges lied|zurück|letztes lied)\b") && (q.Contains("lied") || q.Contains("song") || q.Contains("musik")))
             {
+                executedKeys.Add("music_control");
                 results.Add(await _bridge.ExecuteMusicCommandAsync("prev").ConfigureAwait(false));
             }
             else if (Regex.IsMatch(q, @"\b(musik\s+(?:pausieren|pause|stopp|stoppen|aus|anhalten)|pausiere\s+(?:die\s+)?musik|stopp(?:e)?\s+(?:die\s+)?musik|^pause$)\b"))
             {
+                executedKeys.Add("music_control");
                 results.Add(await _bridge.ExecuteMusicCommandAsync("pause").ConfigureAwait(false));
             }
             else if (Regex.IsMatch(q, @"\b(spiel(?:e)?\s+(?:bitte\s+)?(.+?)\s+ab|spiel(?:e)?\s+musik|musik\s+(?:abspielen|starten|an|weiter)|starte\s+(?:die\s+)?musik)\b"))
@@ -785,6 +993,7 @@ namespace Funkenwerk
                         songQuery = candidate;
                     }
                 }
+                executedKeys.Add("music_control");
                 results.Add(await _bridge.ExecuteMusicCommandAsync("play", songQuery).ConfigureAwait(false));
             }
 
@@ -800,6 +1009,7 @@ namespace Funkenwerk
                     else if (q.Contains("fußleiste") || q.Contains("fussleiste")) target = "Lichterkette Fußleiste";
                     else if (q.Contains("spiegel")) target = "Lichterkette Spiegel";
 
+                    executedKeys.Add("smarthome_control:plug");
                     results.Add(await _bridge.ExecuteSmartHomeCommandAsync(turnOff ? "plug_off" : "plug_on", target).ConfigureAwait(false));
                 }
             }
@@ -813,17 +1023,35 @@ namespace Funkenwerk
                 else if (q.Contains("gewerbe")) camTarget = "Gewerbe";
 
                 if (Regex.IsMatch(q, @"\b(nach\s+links|links\s+drehen)\b"))
+                {
+                    executedKeys.Add("smarthome_control:camera");
                     results.Add(await _bridge.ExecuteSmartHomeCommandAsync("camera_ptz", camTarget, "left").ConfigureAwait(false));
+                }
                 else if (Regex.IsMatch(q, @"\b(nach\s+rechts|rechts\s+drehen)\b"))
+                {
+                    executedKeys.Add("smarthome_control:camera");
                     results.Add(await _bridge.ExecuteSmartHomeCommandAsync("camera_ptz", camTarget, "right").ConfigureAwait(false));
+                }
                 else if (Regex.IsMatch(q, @"\b(nach\s+oben|hoch\s+neigen)\b"))
+                {
+                    executedKeys.Add("smarthome_control:camera");
                     results.Add(await _bridge.ExecuteSmartHomeCommandAsync("camera_ptz", camTarget, "up").ConfigureAwait(false));
+                }
                 else if (Regex.IsMatch(q, @"\b(nach\s+unten|runter\s+neigen)\b"))
+                {
+                    executedKeys.Add("smarthome_control:camera");
                     results.Add(await _bridge.ExecuteSmartHomeCommandAsync("camera_ptz", camTarget, "down").ConfigureAwait(false));
+                }
                 else if (Regex.IsMatch(q, @"\b(foto|snapshot|schnappschuss)\b"))
+                {
+                    executedKeys.Add("smarthome_control:camera");
                     results.Add(await _bridge.ExecuteSmartHomeCommandAsync("camera_snapshot", camTarget).ConfigureAwait(false));
+                }
                 else if (Regex.IsMatch(q, @"\b(groß|gross|einzelansicht|fokus|zeig(?:e)?\s+mir\s+die\s+kamera)\b") && !hasQuestionMark)
+                {
+                    executedKeys.Add("smarthome_control:camera");
                     results.Add(await _bridge.ExecuteSmartHomeCommandAsync("camera_focus", camTarget).ConfigureAwait(false));
+                }
             }
 
             // 10. Launch Funkenwerk Collection Apps (OS / Tresor / Craft / PDF / Drucker / FTP / SSH / Player / Video) or Mail Sync
@@ -833,22 +1061,23 @@ namespace Funkenwerk
                 if (q.Contains("os") || q.Contains("leitstand") || q.Contains("festung")) app = "os";
                 else if (q.Contains("tresor")) app = "tresor";
                 else if (q.Contains("craft")) app = "craft";
-                else if (q.Contains("scanner")) app = "drucker|--scan";
-                else if (q.Contains("drucker")) app = "drucker";
+                else if (q.Contains("scanner") || q.Contains("drucker")) app = "drucker";
                 else if (q.Contains("ftp")) app = "ftp";
                 else if (q.Contains("ssh")) app = "ssh";
                 else if (q.Contains("video")) app = "video";
                 else if (q.Contains("player")) app = "player";
 
+                executedKeys.Add("suite_control");
                 results.Add(await _bridge.ExecuteSuiteCommandAsync("launch_collection_app", app).ConfigureAwait(false));
             }
             else if (Regex.IsMatch(q, @"\b(ki[\s\-]*trichter|mails?\s+sortieren|mails?\s+synchronisieren)\b"))
             {
+                executedKeys.Add("suite_control");
                 results.Add(await _bridge.ExecuteSuiteCommandAsync("ai_sort_mails").ConfigureAwait(false));
             }
 
             bool isPureDirect = results.Count > 0 && !hasQuestionMark && prompt.Length <= 120;
-            return (results, isPureDirect);
+            return (results, executedKeys, isPureDirect);
         }
 
         private static string? FindMatchingUserPdf(string prompt)
@@ -908,8 +1137,8 @@ namespace Funkenwerk
         private static string SanitizeCleanDesignText(string text)
         {
             if (string.IsNullOrEmpty(text)) return "";
-            // Enforce Seelenfunke Rule #1: Never output " – " (en-dash surrounded by spaces)
-            return text.Replace(" – ", " · ").Replace(" — ", " · ").Trim();
+            // Enforce Seelenfunke Rule #1: Never output spaced en-dash or em-dash
+            return text.Replace(" \u2013 ", " · ").Replace(" \u2014 ", " · ").Trim();
         }
 
         private static void PlayWavBase64Safe(string base64Wav)

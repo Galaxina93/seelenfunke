@@ -95,7 +95,8 @@ class ContractDocumentServiceTest extends TestCase
     #[Test]
     public function it_analyzes_contract_document_or_falls_back_gracefully()
     {
-        $realPdfPath = storage_path('app/buchhaltung/contracts/2026/08/2026-08-11_ADAC_Autoversicherung.pdf');
+        $candidates = glob(storage_path('app/buchhaltung/contracts/2026/08/*ADAC*Autoversicherung*.pdf')) ?: [];
+        $realPdfPath = $candidates[0] ?? storage_path('app/buchhaltung/contracts/2026/08/2026-08-11_ADAC_Autoversicherung.pdf');
         if (!file_exists($realPdfPath)) {
             $this->markTestSkipped('ADAC contract file does not exist on disk.');
         }

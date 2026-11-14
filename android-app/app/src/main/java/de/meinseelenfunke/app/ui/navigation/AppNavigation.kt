@@ -4,7 +4,15 @@ package de.meinseelenfunke.app.ui.navigation
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -16,12 +24,22 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -52,9 +70,12 @@ import de.meinseelenfunke.app.ui.screens.ZentrumScreen
 import de.meinseelenfunke.app.ui.screens.OrdersTabContent
 import de.meinseelenfunke.app.ui.theme.AppTheme
 import de.meinseelenfunke.app.ui.theme.Gold
+import de.meinseelenfunke.app.ui.theme.Rose500
 import de.meinseelenfunke.app.ui.theme.SpaceBlack
 import de.meinseelenfunke.app.ui.theme.GlassWhite10
 import de.meinseelenfunke.app.ui.theme.Slate400
+import de.meinseelenfunke.app.util.AppUpdateManager
+import de.meinseelenfunke.app.util.OtaUpdateState
 import kotlinx.coroutines.launch
 
 import androidx.compose.runtime.mutableStateOf
@@ -81,7 +102,9 @@ fun AppNavigation(
     navController: NavHostController = rememberNavController()
 ) {
     val context = LocalContext.current
-    val isLoggedIn = ServiceLocator.authRepository.isLoggedIn()
+    var isLoggedIn by rememberSaveable {
+        mutableStateOf(ServiceLocator.authRepository.isLoggedIn())
+    }
     val isBiometricEnabled = ServiceLocator.isBiometricEnabled()
     val isBiometricAvailable = remember(context) { BiometricHelper.isBiometricAvailable(context) }
     val requiresBiometricUnlock = isLoggedIn && isBiometricEnabled && isBiometricAvailable
@@ -94,7 +117,7 @@ fun AppNavigation(
     val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
     var backgroundedAtElapsedMs by rememberSaveable { androidx.compose.runtime.mutableLongStateOf(0L) }
 
-    // Auto-relock after 3 minutes in background & shield screen while locked
+    // Auto-relock after 3 minutes in background & auto-check for OTA updates on app start/resume
     androidx.compose.runtime.DisposableEffect(lifecycleOwner, isLoggedIn) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             when (event) {
@@ -103,15 +126,26 @@ fun AppNavigation(
                 }
                 androidx.lifecycle.Lifecycle.Event.ON_RESUME -> {
                     val nowElapsed = android.os.SystemClock.elapsedRealtime()
+                    val wasInBackgroundMs = if (backgroundedAtElapsedMs > 0L) (nowElapsed - backgroundedAtElapsedMs) else 0L
                     val shouldRelock = ServiceLocator.authRepository.isLoggedIn()
                         && ServiceLocator.isBiometricEnabled()
                         && BiometricHelper.isBiometricAvailable(context)
                         && backgroundedAtElapsedMs > 0L
-                        && (nowElapsed - backgroundedAtElapsedMs) >= 180_000L
+                        && wasInBackgroundMs >= 180_000L
                         && !de.meinseelenfunke.app.util.FunkenwerkAlarmManager.isAlarmRingingFlow.value
                         && !de.meinseelenfunke.app.util.NavigationBridge.isLiveCallActive
                     if (shouldRelock) {
                         isBiometricUnlocked = false
+                    } else {
+                        AppUpdateManager.resumePendingInstallIfPermitted(context)
+                        if (
+                            wasInBackgroundMs >= 10_000L
+                            && ServiceLocator.authRepository.isLoggedIn()
+                            && !de.meinseelenfunke.app.util.FunkenwerkAlarmManager.isAlarmRingingFlow.value
+                            && !de.meinseelenfunke.app.util.NavigationBridge.isLiveCallActive
+                        ) {
+                            AppUpdateManager.onAppStartCheck(context)
+                        }
                     }
                     backgroundedAtElapsedMs = 0L
                 }
@@ -135,6 +169,9 @@ fun AppNavigation(
             activity?.window?.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
         } else {
             activity?.window?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+            if (isLoggedIn && isBiometricUnlocked) {
+                AppUpdateManager.onAppStartCheck(context)
+            }
         }
     }
 
@@ -173,7 +210,9 @@ fun AppNavigation(
                 isBiometricUnlocked = true
             },
             onUsePassword = {
+                AppUpdateManager.resetOnLogout(context)
                 ServiceLocator.authRepository.logout()
+                isLoggedIn = false
                 isBiometricUnlocked = true
                 navController.navigate(Screen.Login.route) {
                     popUpTo(0) { inclusive = true }
@@ -181,7 +220,7 @@ fun AppNavigation(
             }
         )
     } else {
-        val startDestination = if (isLoggedIn) "main" else Screen.Login.route
+        val startDestination = remember { if (ServiceLocator.authRepository.isLoggedIn()) "main" else Screen.Login.route }
 
         NavHost(
             navController = navController,
@@ -222,6 +261,7 @@ fun AppNavigation(
             composable(Screen.Login.route) {
                 LoginScreen(
                     onLoginSuccess = {
+                        isLoggedIn = true
                         isBiometricUnlocked = true
                         navController.navigate("main") {
                             popUpTo(Screen.Login.route) { inclusive = true }
@@ -234,7 +274,9 @@ fun AppNavigation(
                     navController = navController,
                     onNavigateToLiveChat = { navController.navigate(Screen.LiveVoice.route) },
                     onLogout = {
+                        AppUpdateManager.resetOnLogout(context)
                         ServiceLocator.authRepository.logout()
+                        isLoggedIn = false
                         isBiometricUnlocked = false
                         navController.navigate(Screen.Login.route) {
                             popUpTo(0) { inclusive = true }
@@ -248,7 +290,163 @@ fun AppNavigation(
                 )
             }
         }
+
+        if (isLoggedIn) {
+            StartupOtaUpdatePrompt()
+        }
     }
+}
+
+@Composable
+private fun StartupOtaUpdatePrompt() {
+    val context = LocalContext.current
+    val updateState by AppUpdateManager.state.collectAsState()
+    val promptDismissed by AppUpdateManager.promptDismissed.collectAsState()
+    val isAlarmRinging by de.meinseelenfunke.app.util.FunkenwerkAlarmManager.isAlarmRingingFlow.collectAsState()
+
+    if (promptDismissed || isAlarmRinging || de.meinseelenfunke.app.util.NavigationBridge.isLiveCallActive) {
+        return
+    }
+
+    val activeManifest = when (val st = updateState) {
+        is OtaUpdateState.Available -> st.manifest
+        is OtaUpdateState.Downloading -> st.manifest
+        is OtaUpdateState.AwaitingInstallPermission -> st.manifest
+        is OtaUpdateState.Error -> AppUpdateManager.getLastManifest()
+        else -> null
+    } ?: return
+
+    val isDownloading = updateState is OtaUpdateState.Downloading
+    val isAwaitingPerm = updateState is OtaUpdateState.AwaitingInstallPermission
+    val (installedVerName, _) = remember(activeManifest.versionCode) {
+        AppUpdateManager.getInstalledVersionInfo(context)
+    }
+
+    AlertDialog(
+        onDismissRequest = {
+            if (!isDownloading) {
+                AppUpdateManager.dismissStartupPrompt()
+            }
+        },
+        containerColor = AppTheme.colors.cardBackground,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.SystemUpdate,
+                    contentDescription = null,
+                    tint = Gold,
+                    modifier = Modifier.size(22.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Update v${activeManifest.versionName}",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 17.sp,
+                    color = Gold
+                )
+            }
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = "v$installedVerName  →  v${activeManifest.versionName}",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = AppTheme.colors.textPrimary
+                )
+
+                if (activeManifest.releaseNotes.isNotBlank()) {
+                    Text(
+                        text = activeManifest.releaseNotes,
+                        fontSize = 12.sp,
+                        color = AppTheme.colors.textMuted,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                when (val st = updateState) {
+                    is OtaUpdateState.Downloading -> {
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "Wird geladen...",
+                                    fontSize = 12.sp,
+                                    color = AppTheme.colors.textMuted
+                                )
+                                Text(
+                                    text = "${st.progressPercent} %",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Gold
+                                )
+                            }
+                            LinearProgressIndicator(
+                                progress = { st.progressPercent / 100f },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(6.dp)
+                                    .clip(RoundedCornerShape(3.dp)),
+                                color = Gold,
+                                trackColor = AppTheme.colors.glassSurface
+                            )
+                        }
+                    }
+                    is OtaUpdateState.Error -> {
+                        Text(
+                            text = st.message,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Rose500
+                        )
+                    }
+                    else -> Unit
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (isAwaitingPerm) {
+                        AppUpdateManager.continueInstallOrOpenPermission(context)
+                    } else {
+                        AppUpdateManager.downloadAndInstall(context, activeManifest)
+                    }
+                },
+                enabled = !isDownloading,
+                shape = RoundedCornerShape(10.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Gold,
+                    contentColor = SpaceBlack
+                )
+            ) {
+                Text(
+                    text = when {
+                        isDownloading -> "Lädt..."
+                        isAwaitingPerm -> "Fortsetzen"
+                        else -> "Installieren"
+                    },
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp
+                )
+            }
+        },
+        dismissButton = {
+            if (!isDownloading) {
+                TextButton(onClick = { AppUpdateManager.dismissStartupPrompt() }) {
+                    Text(
+                        text = "Später",
+                        color = AppTheme.colors.textMuted,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 13.sp
+                    )
+                }
+            }
+        }
+    )
 }
 
 @Composable
@@ -260,24 +458,7 @@ fun MainTabbedScreen(
     val userType by ServiceLocator.userTypeState.collectAsState(initial = ServiceLocator.getUserType())
     val isAdmin = userType == "admin"
     val bottomNavItems = remember(isAdmin) {
-        if (isAdmin) {
-            listOf(
-                Screen.Zentrum,
-                Screen.Orders,
-                Screen.Finances,
-                Screen.Organizer,
-                Screen.Chat,
-                Screen.Settings
-            )
-        } else {
-            listOf(
-                Screen.Zentrum,
-                Screen.Finances,
-                Screen.Organizer,
-                Screen.Chat,
-                Screen.Settings
-            )
-        }
+        de.meinseelenfunke.app.util.NavigationBridge.bottomNavScreensForRole(isAdmin)
     }
 
     val coroutineScope = rememberCoroutineScope()
@@ -291,24 +472,16 @@ fun MainTabbedScreen(
     var organizerNavTrigger by remember { mutableIntStateOf(0) }
     var isFirstLoad by remember { mutableStateOf(true) }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(isAdmin) {
         if (ServiceLocator.authRepository.isLoggedIn()) {
             coroutineScope.launch {
                 ServiceLocator.authRepository.getCurrentUser()
             }
         }
-        val targetImmediate = de.meinseelenfunke.app.util.NavigationBridge.pendingTab
+        val targetImmediate = de.meinseelenfunke.app.util.NavigationBridge.consumePendingTarget()
         if (targetImmediate != null) {
-            val targetScreen = when (targetImmediate) {
-                0 -> Screen.Zentrum
-                1 -> if (isAdmin) Screen.Orders else Screen.Finances
-                2 -> Screen.Organizer
-                3 -> Screen.Chat
-                4 -> Screen.Settings
-                5 -> Screen.Finances
-                else -> Screen.Zentrum
-            }
-            val resolvedIndex = bottomNavItems.indexOf(targetScreen).coerceAtLeast(0)
+            val targetScreen = de.meinseelenfunke.app.util.NavigationBridge.resolveScreen(targetImmediate, isAdmin)
+            val resolvedIndex = de.meinseelenfunke.app.util.NavigationBridge.resolvePageIndex(targetImmediate, isAdmin)
             if (targetScreen == Screen.Organizer) {
                 organizerInitialTab = de.meinseelenfunke.app.util.NavigationBridge.organizerSubTab
                 organizerNavTrigger++
@@ -316,22 +489,13 @@ fun MainTabbedScreen(
             coroutineScope.launch {
                 pagerState.scrollToPage(resolvedIndex)
             }
-            de.meinseelenfunke.app.util.NavigationBridge.pendingTab = null
         }
 
         de.meinseelenfunke.app.util.NavigationBridge.navigationTrigger.collect {
-            val target = de.meinseelenfunke.app.util.NavigationBridge.pendingTab
+            val target = de.meinseelenfunke.app.util.NavigationBridge.consumePendingTarget()
             if (target != null) {
-                val targetScreen = when (target) {
-                    0 -> Screen.Zentrum
-                    1 -> if (isAdmin) Screen.Orders else Screen.Finances
-                    2 -> Screen.Organizer
-                    3 -> Screen.Chat
-                    4 -> Screen.Settings
-                    5 -> Screen.Finances
-                    else -> Screen.Zentrum
-                }
-                val resolvedIndex = bottomNavItems.indexOf(targetScreen).coerceAtLeast(0)
+                val targetScreen = de.meinseelenfunke.app.util.NavigationBridge.resolveScreen(target, isAdmin)
+                val resolvedIndex = de.meinseelenfunke.app.util.NavigationBridge.resolvePageIndex(target, isAdmin)
                 if (targetScreen == Screen.Organizer) {
                     organizerInitialTab = de.meinseelenfunke.app.util.NavigationBridge.organizerSubTab
                     organizerNavTrigger++
@@ -339,7 +503,6 @@ fun MainTabbedScreen(
                 coroutineScope.launch {
                     pagerState.animateScrollToPage(resolvedIndex)
                 }
-                de.meinseelenfunke.app.util.NavigationBridge.pendingTab = null
             }
         }
     }

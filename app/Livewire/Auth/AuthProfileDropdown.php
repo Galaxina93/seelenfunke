@@ -54,6 +54,8 @@ class AuthProfileDropdown extends Component
     public bool $profileFeedbackSuccess = true;
     public bool $aiDataConsent = false;
     public ?string $aiDataConsentAt = null;
+    public bool $marketingConsent = false;
+    public ?string $marketingConsentAt = null;
 
     public string $newPassword = '';
     public string $currentPassword = '';
@@ -202,6 +204,30 @@ class AuthProfileDropdown extends Component
         }
 
         $this->dispatch('ai-privacy-consent-updated', accepted: $consent);
+    }
+
+    public function updatedMarketingConsent($value): void
+    {
+        if ($this->guard !== 'customer' || !($this->user instanceof \App\Models\Customer\Customer)) {
+            return;
+        }
+
+        $consent = (bool) $value;
+        $this->user->updateMarketingConsent($consent, 'profile_toggle');
+        $this->user->refresh();
+        $this->user->load('profile');
+
+        $this->marketingConsent = $this->user->hasMarketingConsent();
+        if ($this->marketingConsent) {
+            $sub = \App\Models\Marketing\MarketingNewsletterSubscriber::whereRaw('LOWER(email) = ?', [mb_strtolower(trim((string) $this->user->email))])
+                ->where('is_verified', true)
+                ->first();
+            $this->marketingConsentAt = !empty($sub?->verified_at)
+                ? \Carbon\Carbon::parse($sub->verified_at)->format('d.m.Y H:i')
+                : now()->format('d.m.Y H:i');
+        } else {
+            $this->marketingConsentAt = null;
+        }
     }
 
     #[On('ai-privacy-consent-updated')]

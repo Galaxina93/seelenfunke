@@ -5,6 +5,7 @@ namespace App\Livewire\Backend\System;
 use App\Livewire\Traits\WithDepartmentTheming;
 use App\Models\System\SystemNeuralNode;
 use App\Services\System\SystemBlueprintService;
+use App\Services\System\SystemBrainDiagnosticsService;
 use App\Support\Blueprint\Contracts\HasSystemBlueprint;
 use App\Support\Blueprint\Enums\AiAccessPolicy;
 use App\Support\Blueprint\Enums\DataSensitivity;
@@ -13,6 +14,7 @@ use App\Support\Blueprint\Enums\SystemDepartment;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\File;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -28,6 +30,12 @@ class SystemNeuralAnalysisIndex extends Component
     public $filterRetention = '';
     public $filterAiAccess = '';
     public $filterSensitivity = '';
+    public $filterHealth = '';
+
+    #[Locked]
+    public ?array $systemCheckReport = null;
+
+    public ?string $expandedNodePath = null;
 
     protected $updatesQueryString = [
         'search',
@@ -36,7 +44,15 @@ class SystemNeuralAnalysisIndex extends Component
         'filterRetention',
         'filterAiAccess',
         'filterSensitivity',
+        'filterHealth',
     ];
+
+    protected function assertAuthorized(): void
+    {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin() && !\App\Services\AI\AiAuthHelper::isEmployee()) {
+            abort(403);
+        }
+    }
 
     public function updatingSearch(): void
     {
@@ -68,6 +84,11 @@ class SystemNeuralAnalysisIndex extends Component
         $this->resetPage();
     }
 
+    public function updatingFilterHealth(): void
+    {
+        $this->resetPage();
+    }
+
     public function resetFilters(): void
     {
         $this->reset([
@@ -77,42 +98,88 @@ class SystemNeuralAnalysisIndex extends Component
             'filterRetention',
             'filterAiAccess',
             'filterSensitivity',
+            'filterHealth',
+            'expandedNodePath',
         ]);
         $this->resetPage();
     }
 
     public function boot(): void
     {
-        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin() && !\App\Services\AI\AiAuthHelper::isEmployee()) {
-            abort(403);
+        $this->assertAuthorized();
+    }
+
+    public function mount(): void
+    {
+        $this->assertAuthorized();
+    }
+
+    public function runSystemCheck(): void
+    {
+        $this->assertAuthorized();
+
+        $diagnostics = app(SystemBrainDiagnosticsService::class);
+        $report = $diagnostics->runFullSystemCheck(true);
+        $this->systemCheckReport = $report;
+
+        if ($report['passed']) {
+            $this->dispatch('notify', [
+                'type' => 'success',
+                'message' => 'Systemprüfung erfolgreich: Alle Routen, Blueprints, Tabellen und Logs sind 100% fehlerfrei.',
+            ]);
+        } else {
+            $coreCount = (int) ($report['overlay']['error_core_count'] ?? 0);
+            $this->dispatch('notify', [
+                'type' => 'error',
+                'message' => "Systemprüfung abgeschlossen: {$coreCount} Fehlerkern(e) rot markiert.",
+            ]);
         }
     }
 
-    public function mount()
+    public function clearSystemCheckReport(): void
     {
-        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin() && !\App\Services\AI\AiAuthHelper::isEmployee()) {
-            abort(403);
+        $this->assertAuthorized();
+        $this->systemCheckReport = null;
+    }
+
+    public function toggleNodeNeighborhood(string $filePath): void
+    {
+        $this->assertAuthorized();
+        $this->expandedNodePath = ($this->expandedNodePath === $filePath) ? null : $filePath;
+    }
+
+    public function focusFile(string $filePath): void
+    {
+        $this->assertAuthorized();
+        $clean = trim($filePath);
+        if ($clean === '') {
+            return;
         }
+        $this->filterGroup = '';
+        $this->filterDepartment = '';
+        $this->filterRetention = '';
+        $this->filterAiAccess = '';
+        $this->filterSensitivity = '';
+        $this->filterHealth = '';
+        $this->search = $clean;
+        $this->expandedNodePath = $clean;
+        $this->resetPage();
     }
 
     public function rescanBrainMap(): void
     {
-        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin() && !\App\Services\AI\AiAuthHelper::isEmployee()) {
-            abort(403);
-        }
+        $this->assertAuthorized();
 
         Artisan::call('system:brain:generate');
         $this->dispatch('notify', [
             'type' => 'success',
-            'message' => 'Projekt-Gehirn & alle 127 Model-Blueprints wurden erfolgreich neu synchronisiert.',
+            'message' => 'Projekt-Gehirn & alle Model-Blueprints wurden erfolgreich neu synchronisiert.',
         ]);
     }
 
     public function exportGdprVvt()
     {
-        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin() && !\App\Services\AI\AiAuthHelper::isEmployee()) {
-            abort(403);
-        }
+        $this->assertAuthorized();
 
         $service = app(SystemBlueprintService::class);
         $markdown = $service->generateGdprArt30VvtMarkdown(true);
@@ -129,18 +196,16 @@ class SystemNeuralAnalysisIndex extends Component
         ]);
     }
 
-    public function generateStructure($id)
+    public function generateStructure($id): void
     {
-        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin() && !\App\Services\AI\AiAuthHelper::isEmployee()) {
-            abort(403);
-        }
+        $this->assertAuthorized();
 
         $node = SystemNeuralNode::findOrFail($id);
         $this->createMarkdown($node);
         $this->dispatch('notify', ['type' => 'success', 'message' => 'Struktur & Blueprint für ' . $node->name . ' wurde generiert.']);
     }
 
-    public function createMarkdown(SystemNeuralNode $node)
+    public function createMarkdown(SystemNeuralNode $node): void
     {
         self::generateMarkdownForFile($node->file_path);
     }
@@ -208,9 +273,9 @@ class SystemNeuralAnalysisIndex extends Component
                         $target = is_array($link['target']) ? ($link['target']['id'] ?? '') : $link['target'];
 
                         if ($source === $filePathStr && !empty($target)) {
-                            $dependencies[] = basename($target);
+                            $dependencies[] = $target;
                         } elseif ($target === $filePathStr && !empty($source)) {
-                            $dependencies[] = basename($source);
+                            $dependencies[] = $source;
                         }
                     }
                     $dependencies = array_values(array_unique($dependencies));
@@ -300,9 +365,9 @@ class SystemNeuralAnalysisIndex extends Component
         return $filePath;
     }
 
-    private static function getGroupNameStatic($groupId)
+    private static function getGroupNameStatic($groupId): string
     {
-        return match ($groupId) {
+        return match ((int) $groupId) {
             2 => 'Models',
             3 => 'Controllers',
             4 => 'Livewire',
@@ -317,6 +382,12 @@ class SystemNeuralAnalysisIndex extends Component
 
     public function render()
     {
+        $diagnostics = app(SystemBrainDiagnosticsService::class);
+        $errorOverlay = $this->systemCheckReport['overlay'] ?? $diagnostics->getActiveErrorOverlay();
+
+        $errorCorePaths = array_keys($errorOverlay['error_cores'] ?? []);
+        $neighborPaths = array_keys($errorOverlay['neighbors'] ?? []);
+
         $query = SystemNeuralNode::query();
 
         if ($this->search) {
@@ -352,12 +423,26 @@ class SystemNeuralAnalysisIndex extends Component
                   ->where('properties', 'like', '%"sensitivity":"' . addcslashes($this->filterSensitivity, '%_\\"') . '"%');
         }
 
+        if ($this->filterHealth === 'errors') {
+            $query->whereIn('file_path', !empty($errorCorePaths) ? $errorCorePaths : ['__none__']);
+        } elseif ($this->filterHealth === 'cluster') {
+            $clusterPaths = array_values(array_unique(array_merge($errorCorePaths, $neighborPaths)));
+            $query->whereIn('file_path', !empty($clusterPaths) ? $clusterPaths : ['__none__']);
+        }
+
+        // Aktive Fehlerkerne immer ganz oben in der Tabelle priorisieren
+        if (!empty($errorCorePaths)) {
+            $placeholders = implode(',', array_fill(0, count($errorCorePaths), '?'));
+            $query->orderByRaw("CASE WHEN file_path IN ({$placeholders}) THEN 0 ELSE 1 END", $errorCorePaths);
+        }
+
         $nodes = $query->orderBy('file_path')->paginate(50);
         $audit = app(SystemBlueprintService::class)->auditArchitecture();
 
         return view('livewire.backend.system.system-neural-analysis-index', [
             'nodes' => $nodes,
             'audit' => $audit,
+            'errorOverlay' => $errorOverlay,
             'departments' => SystemDepartment::cases(),
             'retentions' => RetentionPolicy::cases(),
             'aiPolicies' => AiAccessPolicy::cases(),

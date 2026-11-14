@@ -37,6 +37,10 @@ class CustomerVerificationController extends Controller
             ['email_verified_at' => now()]
         );
 
+        // 3. Falls bei der Registrierung (oder nach E-Mail-Änderung) Warenkorb-Erinnerungen & Neuigkeiten gewählt wurden: Double-Opt-In abschließen
+        $user->refresh();
+        $user->finalizePendingMarketingConsent();
+
         if ($needsEvent) {
             event(new Verified($user));
         }

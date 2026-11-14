@@ -170,4 +170,72 @@ class AuthRegisterTest extends TestCase
             'email' => 'john@mailinator.com',
         ]);
     }
+
+    public function test_optional_marketing_consent_on_register_completes_double_opt_in_upon_email_verification_and_enables_cart_reminder()
+    {
+        \Illuminate\Support\Facades\Notification::fake();
+        Mail::fake();
+        \App\Models\System\SystemSetting::create(['key' => 'cart_abandoned_red_hours', 'value' => '3']);
+
+        $product = \App\Models\Product\Product::forceCreate([
+            'id' => \Illuminate\Support\Str::uuid(),
+            'name' => 'Personalisiertes Schieferherz',
+            'slug' => 'schieferherz-reg-' . uniqid(),
+            'price' => 3490,
+            'status' => 'active',
+        ]);
+
+        // 1. Besucher legt als Gast einen personalisierten Artikel in den Warenkorb
+        app(\App\Services\CartService::class)->addItem($product, 1, ['texts' => [['text' => 'Alles Liebe']]]);
+
+        // 2. Registrierung MIT freiwilliger Checkbox marketing_consent = true
+        Livewire::test(AuthRegister::class)
+            ->set('firstname', 'Clara')
+            ->set('lastname', 'Sonnenschein')
+            ->set('email', 'clara@example.com')
+            ->set('password', 'Secret123')
+            ->set('password_confirmation', 'Secret123')
+            ->set('street', 'Rosenweg')
+            ->set('house_number', '7')
+            ->set('postal', '38518')
+            ->set('city', 'Gifhorn')
+            ->set('country', 'DE')
+            ->set('is_business', 0)
+            ->set('terms', true)
+            ->set('marketing_consent', true)
+            ->call('register')
+            ->assertRedirect(route('login'));
+
+        $customer = Customer::where('email', 'clara@example.com')->firstOrFail();
+        $cart = \App\Models\Cart\Cart::where('customer_id', $customer->id)->first();
+        $this->assertNotNull($cart, 'Gast-Warenkorb muss bei der Registrierung mit dem neuen Kunden verknüpft werden.');
+
+        // Vor Klick auf den E-Mail-Bestätigungslink: noch KEIN aktives Opt-In (echtes Double-Opt-In!)
+        $this->assertFalse($customer->fresh()->hasMarketingConsent());
+        \Illuminate\Support\Facades\DB::table('carts')->where('id', $cart->id)->update(['updated_at' => now()->subHours(5)]);
+        $this->artisan('shop:send-abandoned-cart-reminders')->assertSuccessful();
+        Mail::assertNothingSent();
+
+        // 3. Kundin klickt den signierten Verifizierungslink aus ihrer Willkommens-Mail
+        $verifyUrl = \Illuminate\Support\Facades\URL::temporarySignedRoute(
+            'customer.verification.verify',
+            now()->addMinutes(60),
+            [
+                'id' => $customer->id,
+                'hash' => sha1($customer->getEmailForVerification()),
+            ]
+        );
+
+        $this->get($verifyUrl)->assertRedirect(route('login'));
+
+        // Jetzt sind sowohl Konto als auch Double-Opt-In rechtssicher bestätigt
+        $this->assertTrue($customer->fresh()->hasVerifiedEmail());
+        $this->assertTrue($customer->fresh()->hasMarketingConsent());
+
+        // 4. Der Cronjob sendet nun zuverlässig die freundliche Warenkorb-Erinnerung
+        $this->artisan('shop:send-abandoned-cart-reminders')->assertSuccessful();
+        Mail::assertSent(\App\Mail\AbandonedCartReminder::class, function ($mail) use ($customer) {
+            return $mail->hasTo($customer->email);
+        });
+    }
 }

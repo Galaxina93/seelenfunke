@@ -187,6 +187,48 @@
                 <textarea wire:model="about" rows="4" placeholder="Erzähle kurz etwas über dich, deine Wünsche oder besondere Angaben..." class="w-full bg-white dark:bg-gray-950 border border-gray-300 dark:border-gray-800 rounded-2xl px-4 py-3 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white dark:focus:bg-gray-900 transition-all shadow-sm dark:shadow-inner resize-y min-h-[110px] leading-relaxed cursor-text"></textarea>
             </div>
 
+            @if($guard === 'customer')
+                {{-- EINWILLIGUNG FÜR WARENKORB-ERINNERUNGEN & MANUFAKTUR-NEUIGKEITEN (§ 7 ABS. 2 UWG / ART. 6 ABS. 1 LIT. A DSGVO) --}}
+                <div class="pt-2" x-data="{ showMarketingDetails: false }">
+                    <div class="p-4 sm:p-5 rounded-2xl border transition-all {{ ($marketingConsent ?? false) ? 'bg-white dark:bg-gray-900/80 border-primary/40' : 'bg-gray-50 dark:bg-gray-950/60 border-gray-200 dark:border-gray-800' }}">
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div class="flex items-center gap-3">
+                                <input
+                                    type="checkbox"
+                                    id="profile_marketing_consent"
+                                    wire:model.live="marketingConsent"
+                                    class="w-5 h-5 rounded border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-primary focus:ring-primary/30 cursor-pointer shrink-0"
+                                >
+                                <label for="profile_marketing_consent" class="cursor-pointer select-none text-xs sm:text-sm font-bold text-gray-900 dark:text-white">
+                                    Warenkorb-Erinnerungen &amp; Manufaktur-Neuigkeiten erhalten
+                                </label>
+                            </div>
+
+                            <div class="flex items-center gap-3 shrink-0 pl-8 sm:pl-0">
+                                <button type="button" @click="showMarketingDetails = !showMarketingDetails" class="text-[11px] font-bold text-primary hover:opacity-80 transition-opacity cursor-pointer" title="Details zur freiwilligen E-Mail-Einwilligung">
+                                    <span x-text="showMarketingDetails ? 'Ausblenden' : 'Erklärung anzeigen'">Erklärung anzeigen</span>
+                                </button>
+                                @if($marketingConsent ?? false)
+                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                        Aktiv{{ !empty($marketingConsentAt) ? ' · ' . $marketingConsentAt : '' }}
+                                    </span>
+                                @else
+                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-gray-200/70 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-gray-400"></span>
+                                        Deaktiviert
+                                    </span>
+                                @endif
+                            </div>
+                        </div>
+
+                        <div x-show="showMarketingDetails" x-cloak class="mt-3 pl-8 text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
+                            Wir senden dir eine freundliche, druckfreie Erinnerung, falls du ein gestaltetes Unikat im Warenkorb liegen lässt, sowie seltene Neuigkeiten aus der Manufaktur (§ 7 Abs. 2 UWG, Art. 6 Abs. 1 lit. a DSGVO). Du kannst diese Einwilligung hier oder über den Abmeldelink in jeder E-Mail jederzeit mit sofortiger Wirkung deaktivieren. Details in der <a href="{{ route('datenschutz') }}" target="_blank" class="text-primary font-bold underline underline-offset-2 hover:opacity-80">Datenschutzerklärung</a>.
+                        </div>
+                    </div>
+                </div>
+            @endif
+
             {{-- DSGVO KI-DATENZUGRIFF FREIGABE (ART. 6 ABS. 1 LIT. A & ART. 7 ABS. 3 DSGVO) --}}
             <div class="pt-2">
                 <div class="p-4 sm:p-5 rounded-2xl border transition-all {{ $aiDataConsent ? 'bg-amber-50/50 dark:bg-amber-950/20 border-primary/40' : 'bg-gray-50 dark:bg-gray-950/60 border-gray-200 dark:border-gray-800' }}">

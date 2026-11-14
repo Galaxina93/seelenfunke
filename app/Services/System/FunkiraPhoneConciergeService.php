@@ -27,9 +27,18 @@ class FunkiraPhoneConciergeService
             return '';
         }
 
-        // Falls mehrere Nummern getrennt durch "/" hinterlegt sind, erste Nummer nehmen
-        $primary = explode('/', (string) $raw)[0] ?? (string) $raw;
-        $trimmed = trim($primary);
+        // Falls mehrere vollständige Nummern durch ";", "," oder "/" getrennt sind (beide Seiten >= 7 Ziffern), erste nehmen.
+        // Deutsche Vorwahl-Schreibweisen wie "0176 / 57793016" oder "05371 / 123456" bleiben vollständig erhalten.
+        $firstClause = trim(preg_split('/[;,]/', (string) $raw)[0] ?? (string) $raw);
+        $slashParts = explode('/', $firstClause);
+        if (count($slashParts) >= 2
+            && strlen(preg_replace('/\D+/', '', $slashParts[0]) ?? '') >= 7
+            && strlen(preg_replace('/\D+/', '', $slashParts[1]) ?? '') >= 7
+        ) {
+            $trimmed = trim($slashParts[0]);
+        } else {
+            $trimmed = $firstClause;
+        }
         $hasPlus = str_starts_with($trimmed, '+');
         $digits = preg_replace('/\D+/', '', $trimmed) ?? '';
 
@@ -93,11 +102,16 @@ class FunkiraPhoneConciergeService
 
     public static function getConfigPayload(): array
     {
-        $contacts = ManagementContact::query()
-            ->where('funkira_call_whitelist', true)
-            ->orderBy('is_favorite', 'desc')
-            ->orderBy('first_name', 'asc')
-            ->get();
+        $hasWhitelistCol = \Illuminate\Support\Facades\Schema::hasTable('management_contacts')
+            && \Illuminate\Support\Facades\Schema::hasColumn('management_contacts', 'funkira_call_whitelist');
+
+        $contacts = $hasWhitelistCol
+            ? ManagementContact::query()
+                ->where('funkira_call_whitelist', true)
+                ->orderBy('is_favorite', 'desc')
+                ->orderBy('first_name', 'asc')
+                ->get()
+            : collect();
 
         $whitelist = $contacts->map(function (ManagementContact $c) {
             $norm = self::normalizePhoneDigits($c->phone);
@@ -128,6 +142,11 @@ class FunkiraPhoneConciergeService
      */
     public static function matchWhitelistedCaller(?string $incomingNumber, ?string $contactId = null): ?ManagementContact
     {
+        if (!\Illuminate\Support\Facades\Schema::hasTable('management_contacts')
+            || !\Illuminate\Support\Facades\Schema::hasColumn('management_contacts', 'funkira_call_whitelist')) {
+            return null;
+        }
+
         if (!empty($contactId) && Str::isUuid($contactId)) {
             $byId = ManagementContact::find($contactId);
             if ($byId && $byId->funkira_call_whitelist) {
@@ -280,6 +299,14 @@ class FunkiraPhoneConciergeService
         $callId = trim((string) ($data['call_id'] ?? ($active['call_id'] ?? Str::uuid()->toString())));
         $isSimulation = (bool) ($data['is_simulation'] ?? ($active['is_simulation'] ?? false));
         $contactId = $data['contact_id'] ?? ($active['contact_id'] ?? null);
+        $callerPhone = trim((string) ($data['caller_phone'] ?? ($active['caller_phone'] ?? '')));
+        $handledBy = strtolower(trim((string) ($data['handled_by'] ?? '')));
+        if ((empty($contactId) || !Str::isUuid((string) $contactId)) && $callerPhone !== '') {
+            $matchedByPhone = self::matchWhitelistedCaller($callerPhone, null);
+            if ($matchedByPhone) {
+                $contactId = $matchedByPhone->id;
+            }
+        }
         $callerName = trim((string) ($data['caller_name'] ?? ($active['caller_name'] ?? 'Kontakt')));
         $greetingName = trim((string) ($data['greeting_name'] ?? ($active['greeting_name'] ?? $callerName)));
         $summary = trim((string) ($data['summary'] ?? ''));
@@ -326,8 +353,11 @@ class FunkiraPhoneConciergeService
         $priority = ($urgency === 'hoch' || $callbackRequested) ? 'hoch' : $urgency;
 
         $timestamp = now()->format('d.m.Y H:i');
+        $sourceLabel = $handledBy === 'android_secretary'
+            ? 'Smartphone-Sekretärin'
+            : 'Telefon-Assistent';
         $aiPlanLines = [
-            "Aufgenommen von Funkira (Telefon-Assistent) am {$timestamp} Uhr.",
+            "Aufgenommen von Funkira ({$sourceLabel}) am {$timestamp} Uhr.",
             "Anrufer: {$displayLabel}",
             "Dringlichkeit: " . ucfirst($urgency),
             "Rückruf gewünscht: " . ($callbackRequested ? 'Ja' : 'Nein'),

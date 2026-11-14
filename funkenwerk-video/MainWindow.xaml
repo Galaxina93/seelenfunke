@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Funkenwerk Video"
         Icon="funkenwerk_video.ico"
-        Width="1280" Height="820"
+        Width="1280" Height="840"
         MinWidth="960" MinHeight="640"
         WindowStartupLocation="CenterScreen"
         Background="#0F1117"
@@ -11,19 +11,20 @@
         FontFamily="Segoe UI"
         AllowDrop="True"
         DragOver="Window_DragOver"
-        Drop="Window_Drop">
+        Drop="Window_Drop"
+        Closed="Window_Closed">
 
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="58"/>
             <RowDefinition Height="*"/>
-            <RowDefinition Height="86"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <!-- ================================================================= -->
         <!-- ROW 0: MINIMALIST HEADER                                          -->
         <!-- ================================================================= -->
-        <Border Grid.Row="0" Background="#11131A" BorderBrush="#232734" BorderThickness="0,0,0,1" Padding="24,0">
+        <Border x:Name="HeaderBarBorder" Grid.Row="0" Background="#11131A" BorderBrush="#232734" BorderThickness="0,0,0,1" Padding="24,0">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
@@ -135,11 +136,13 @@
                     <Border Grid.Row="1" Background="#07090D" BorderBrush="#242936" BorderThickness="1" CornerRadius="14" ClipToBounds="True">
                         <Grid>
                             <MediaElement x:Name="PreviewMediaElement" LoadedBehavior="Manual" UnloadedBehavior="Stop"
-                                          Stretch="Uniform" MediaEnded="PreviewMediaElement_MediaEnded"/>
+                                          Stretch="Uniform"
+                                          MediaEnded="PreviewMediaElement_MediaEnded"
+                                          MediaFailed="PreviewMediaElement_MediaFailed"/>
 
                             <StackPanel x:Name="PlayerEmptyOverlay" VerticalAlignment="Center" HorizontalAlignment="Center">
                                 <TextBlock Text="🎬" FontSize="42" HorizontalAlignment="Center" Margin="0,0,0,8"/>
-                                <TextBlock x:Name="PlayerEmptyStatusTxt" Text="Vorschau" Foreground="#9CA3AF" FontSize="13" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                                <TextBlock x:Name="PlayerEmptyStatusTxt" Text="Vorschau" Foreground="#9CA3AF" FontSize="13" FontWeight="SemiBold" HorizontalAlignment="Center" TextAlignment="Center" MaxWidth="360" TextWrapping="Wrap"/>
                             </StackPanel>
                         </Grid>
                     </Border>
@@ -148,26 +151,45 @@
         </Grid>
 
         <!-- ================================================================= -->
-        <!-- ROW 2: BOTTOM CENTER ACTION BUTTON ("VIRALES VIDEO SCHNEIDEN")    -->
+        <!-- ROW 2: REGIE OPTIONS & ACTION BUTTON                              -->
         <!-- ================================================================= -->
-        <Grid Grid.Row="2" Margin="24,0,24,18">
-            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Width="420">
-                <Border x:Name="RenderProgressBorder" Visibility="Collapsed" Background="#181B24" BorderBrush="#C5A059" BorderThickness="1" CornerRadius="8" Padding="10,5" Margin="0,0,0,6">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="120"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBlock x:Name="RenderStatusTxt" Grid.Column="0" Text="Schneide Video..." Foreground="#C5A059" FontSize="11" FontWeight="Bold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
-                        <ProgressBar x:Name="RenderProgressBar" Grid.Column="1" Height="6" Minimum="0" Maximum="100" Value="40" Foreground="#C5A059" Background="#11131A" BorderThickness="0" VerticalAlignment="Center" Margin="10,0,0,0"/>
-                    </Grid>
+        <Grid Grid.Row="2" Margin="24,4,24,18">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                <!-- Clean Recipe / Transition / Hook Controls -->
+                <Border Background="#11131A" BorderBrush="#232734" BorderThickness="1" CornerRadius="12" Padding="14,8" Margin="0,0,0,10" HorizontalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="Stil" Foreground="#C5A059" FontSize="11.5" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <ComboBox x:Name="RecipeComboBox" Width="230" Height="28" FontSize="11.5" VerticalContentAlignment="Center"
+                                  SelectionChanged="RecipeComboBox_SelectionChanged" Margin="0,0,14,0"/>
+
+                        <TextBlock Text="Schnitt" Foreground="#C5A059" FontSize="11.5" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <ComboBox x:Name="TransitionComboBox" Width="150" Height="28" FontSize="11.5" VerticalContentAlignment="Center" Margin="0,0,14,0"/>
+
+                        <CheckBox x:Name="HookOverlayCheckBox" Content="Hook-Text" Foreground="#F9FAFB" FontSize="11.5" FontWeight="SemiBold"
+                                  VerticalAlignment="Center" Checked="HookOverlayCheckBox_Changed" Unchecked="HookOverlayCheckBox_Changed"/>
+                        <TextBox x:Name="HookTextBox" Visibility="Collapsed" Width="220" Height="28" FontSize="11.5" VerticalContentAlignment="Center"
+                                 Background="#181B24" Foreground="#F9FAFB" BorderBrush="#262A36" BorderThickness="1" Padding="8,0" Margin="10,0,0,0"/>
+                    </StackPanel>
                 </Border>
 
-                <Button x:Name="ProduceViralVideoBtn" Click="ProduceViralVideo_Click"
-                        Background="#26231F" Foreground="#C5A059" BorderBrush="#C5A059" BorderThickness="1.5"
-                        Height="50" Cursor="Hand" FontSize="14.5" FontWeight="Bold" Content="⚡ VIRALES VIDEO SCHNEIDEN">
-                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="12"/></Style></Button.Resources>
-                </Button>
+                <StackPanel HorizontalAlignment="Center" Width="420">
+                    <Border x:Name="RenderProgressBorder" Visibility="Collapsed" Background="#181B24" BorderBrush="#C5A059" BorderThickness="1" CornerRadius="8" Padding="10,5" Margin="0,0,0,6">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="120"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock x:Name="RenderStatusTxt" Grid.Column="0" Text="Schneide Video..." Foreground="#C5A059" FontSize="11" FontWeight="Bold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                            <ProgressBar x:Name="RenderProgressBar" Grid.Column="1" Height="6" Minimum="0" Maximum="100" Value="40" Foreground="#C5A059" Background="#11131A" BorderThickness="0" VerticalAlignment="Center" Margin="10,0,0,0"/>
+                        </Grid>
+                    </Border>
+
+                    <Button x:Name="ProduceViralVideoBtn" Click="ProduceViralVideo_Click"
+                            Background="#26231F" Foreground="#C5A059" BorderBrush="#C5A059" BorderThickness="1.5"
+                            Height="50" Cursor="Hand" FontSize="14.5" FontWeight="Bold" Content="⚡ VIRALES VIDEO SCHNEIDEN">
+                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="12"/></Style></Button.Resources>
+                    </Button>
+                </StackPanel>
             </StackPanel>
         </Grid>
     </Grid>

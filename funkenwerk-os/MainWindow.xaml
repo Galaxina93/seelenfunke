@@ -905,6 +905,38 @@
                                                 <Button x:Name="FwToggleDevBtn" Content="PhpStorm/Docker: AUS" Height="32" Margin="3,0,0,0" Style="{StaticResource GlassBtn}" Tag="dev" Click="ToggleFirewallApp_Click"/>
                                             </UniformGrid>
 
+                                            <!-- Sperrbildschirm-PIN & Besuchermodus -->
+                                            <TextBlock Text="SPERRBILDSCHIRM &amp; BESUCHERMODUS" Foreground="#C5A059" FontSize="11" FontWeight="Bold" Margin="0,0,0,6"/>
+                                            <Grid Margin="0,0,0,12">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <Button x:Name="VisitorModeToggleBtn" Grid.Column="0" Content="Besuchermodus: AUS" Height="32" Padding="10,0" Margin="0,0,6,0" Style="{StaticResource GlassBtn}" Click="ToggleVisitorPrivacyMode_Click"/>
+                                                <Border Grid.Column="1" Background="{DynamicResource InputGlassBrush}" BorderBrush="{DynamicResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="8" Height="32">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="34"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <PasswordBox x:Name="LockPinSetupBox" Grid.Column="0" Background="Transparent" Foreground="{DynamicResource TextPrimaryBrush}" CaretBrush="#C5A059" BorderThickness="0" Padding="9,0" VerticalContentAlignment="Center" FontSize="12.5"/>
+                                                        <TextBox x:Name="LockPinSetupRevealBox" Grid.Column="0" Visibility="Collapsed" Background="Transparent" Foreground="{DynamicResource TextPrimaryBrush}" CaretBrush="#C5A059" BorderThickness="0" Padding="9,0" VerticalContentAlignment="Center" FontSize="12.5"/>
+                                                        <Button Grid.Column="1" Background="Transparent" BorderThickness="0" Cursor="Hand" Click="ToggleLockPinSetupEye_Click">
+                                                            <Viewbox Width="14" Height="14">
+                                                                <Canvas Width="24" Height="24">
+                                                                    <Path Fill="Transparent" Stroke="{DynamicResource TextSecondaryBrush}" StrokeThickness="2" Data="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 9a3 3 0 100 6 3 3 0 000-6z"/>
+                                                                    <Path x:Name="LockPinSetupEyeSlashPath" Visibility="Collapsed" Fill="Transparent" Stroke="#C5A059" StrokeThickness="2.2" Data="M3 3l18 18"/>
+                                                                </Canvas>
+                                                            </Viewbox>
+                                                        </Button>
+                                                    </Grid>
+                                                </Border>
+                                                <Button x:Name="SaveLockPinBtn" Grid.Column="2" Content="PIN speichern" Height="32" Padding="10,0" Margin="6,0,0,0" Style="{StaticResource NobleGoldBtn}" Click="SaveLockPin_Click"/>
+                                                <Button x:Name="ClearLockPinBtn" Grid.Column="3" Content="PIN löschen" Height="32" Padding="10,0" Margin="5,0,0,0" Style="{StaticResource GlassBtn}" Click="ClearLockPin_Click"/>
+                                            </Grid>
+
                                             <!-- USB Stick Builder -->
                                             <Border Background="{DynamicResource CardGlassBrush}" BorderBrush="#99C5A059" BorderThickness="1.2" CornerRadius="10" Padding="11" Margin="0,0,0,10">
                                                 <StackPanel>
@@ -962,6 +994,7 @@
                                         <TextBlock Text="✦  LEITSTAND" Foreground="{DynamicResource ChampagneGoldBrush}" FontSize="12" FontWeight="Bold" Margin="0,0,12,0" VerticalAlignment="Center"/>
                                         <Button Content="HDMI-2" Padding="9,3" Style="{StaticResource GlassBtn}" Click="ToggleDualHdmi_Click"/>
                                         <Button x:Name="OrderChimeToggleBtn" Content="🔕 Ton: AUS" Padding="9,3" Margin="6,0,0,0" Style="{StaticResource GlassBtn}" Click="ToggleOrderChime_Click"/>
+                                        <Button x:Name="LeitstandVisitorToggleBtn" Content="Besuchermodus: AUS" Padding="9,3" Margin="6,0,0,0" Style="{StaticResource GlassBtn}" Click="ToggleVisitorPrivacyMode_Click"/>
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                                         <Button Content="↻" Width="28" Height="25" Padding="0" Margin="0,0,4,0" Style="{StaticResource GlassBtn}" Click="ManualRefreshDashboard_Click"/>
@@ -1836,13 +1869,36 @@
         </Grid>
 
         <!-- LOCK SCREEN & 60 FPS PORTAL -->
-        <Grid x:Name="LockScreenOverlay" Panel.ZIndex="20" Visibility="Collapsed" Background="#38000000">
-            <Border Width="390" VerticalAlignment="Center" HorizontalAlignment="Center" Background="#32000000" BorderBrush="#88C5A059" BorderThickness="1.2" CornerRadius="22" Padding="32,28">
-                <StackPanel HorizontalAlignment="Center">
-                    <TextBlock Text="✦   F U N K E N W E R K   O S   ✦" Foreground="#F2FCE7B2" FontSize="10.5" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,0,0,14"/>
-                    <TextBlock x:Name="LockClockTxt" Text="22:00" Foreground="#FFFFFF" FontSize="52" FontWeight="Bold" HorizontalAlignment="Center"/>
-                    <TextBlock x:Name="LockDateTxt" Text="Montag, 09. November 2026" Foreground="#E0FCE7B2" FontSize="13" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,2,0,22"/>
-                    <Button Content="✦   ENTSPERREN   ✦" Width="220" Height="42" Style="{StaticResource NobleGoldBtn}" Click="UnlockWithMagicPortal_Click"/>
+        <Grid x:Name="LockScreenOverlay" Panel.ZIndex="20" Visibility="Collapsed" Background="#7A070A12">
+            <Border Width="400" VerticalAlignment="Center" HorizontalAlignment="Center" Background="{DynamicResource WindowGlassBrush}" BorderBrush="{DynamicResource GoldBorderBrush}" BorderThickness="1.2" CornerRadius="22" Padding="32,28">
+                <StackPanel HorizontalAlignment="Center" Width="316">
+                    <TextBlock Text="✦   F U N K E N W E R K   O S   ✦" Foreground="{DynamicResource ChampagneGoldBrush}" FontSize="10.5" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,0,0,12"/>
+                    <TextBlock x:Name="LockClockTxt" Text="22:00" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="50" FontWeight="Bold" HorizontalAlignment="Center"/>
+                    <TextBlock x:Name="LockDateTxt" Text="Montag, 09. November 2026" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="13" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,2,0,18"/>
+
+                    <TextBlock x:Name="LockPromptLabelTxt" Text="WINDOWS-PASSWORT ODER PIN" FontSize="10" FontWeight="Bold" Foreground="#C5A059" Margin="2,0,0,5"/>
+                    <Border Background="{DynamicResource InputGlassBrush}" BorderBrush="{DynamicResource GoldBorderBrush}" BorderThickness="1" CornerRadius="10" Margin="0,0,0,10">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="40"/>
+                            </Grid.ColumnDefinitions>
+                            <PasswordBox x:Name="LockPasswordBox" Grid.Column="0" Background="Transparent" Foreground="{DynamicResource TextPrimaryBrush}" CaretBrush="#C5A059" BorderThickness="0" Padding="12,9" FontSize="13"/>
+                            <TextBox x:Name="LockPasswordRevealBox" Grid.Column="0" Visibility="Collapsed" Background="Transparent" Foreground="{DynamicResource TextPrimaryBrush}" CaretBrush="#C5A059" BorderThickness="0" Padding="12,9" FontSize="13"/>
+                            <Button Grid.Column="1" Background="Transparent" BorderThickness="0" Cursor="Hand" Click="ToggleLockPasswordEye_Click">
+                                <Viewbox Width="16" Height="16">
+                                    <Canvas Width="24" Height="24">
+                                        <Path Fill="Transparent" Stroke="{DynamicResource TextSecondaryBrush}" StrokeThickness="2" Data="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 9a3 3 0 100 6 3 3 0 000-6z"/>
+                                        <Path x:Name="LockEyeSlashPath" Visibility="Collapsed" Fill="Transparent" Stroke="#C5A059" StrokeThickness="2.2" Data="M3 3l18 18"/>
+                                    </Canvas>
+                                </Viewbox>
+                            </Button>
+                        </Grid>
+                    </Border>
+
+                    <TextBlock x:Name="LockErrorTxt" Text="" Visibility="Collapsed" Foreground="#EF4444" FontSize="11.5" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,0,0,10" TextWrapping="Wrap"/>
+                    <Button Content="✦   ENTSPERREN   ✦" Height="40" Style="{StaticResource NobleGoldBtn}" Click="UnlockWithMagicPortal_Click"/>
+                    <Button Content="Windows-Sitzung sperren" Height="30" Margin="0,8,0,0" Style="{StaticResource GlassBtn}" Click="NativeLockWorkStation_Click"/>
                 </StackPanel>
             </Border>
         </Grid>

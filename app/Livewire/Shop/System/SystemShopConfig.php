@@ -25,6 +25,11 @@ class SystemShopConfig extends Component
     public $selectedReports = [];
     public $reportFiles = [];
 
+    // Funkenwerk Android OTA Release Vault
+    public $androidApkUpload = null;
+    public int $androidVersionCode = 13;
+    public string $androidVersionName = '1.6.0';
+
     // Kleinunternehmer § 19 UStG Transition Modal
     public bool $showSmallBusinessModal = false;
     public string $smallBusinessTransitionMode = 'immediate_retroactive';
@@ -231,6 +236,12 @@ class SystemShopConfig extends Component
         }
 
         $this->loadReports();
+
+        $existingAndroid = app(\App\Services\System\AndroidReleaseService::class)->getLatestManifest();
+        if ($existingAndroid !== null) {
+            $this->androidVersionCode = max(1, (int) ($existingAndroid['version_code'] ?? 13));
+            $this->androidVersionName = (string) ($existingAndroid['version_name'] ?? '1.6.0');
+        }
     }
 
     private function getFallback($key)
@@ -780,6 +791,44 @@ class SystemShopConfig extends Component
         return 'Fehler: Bericht nicht gefunden.';
     }
 
+    public function publishAndroidApk()
+    {
+        if (!Auth::guard('admin')->check()) {
+            abort(403);
+        }
+
+        $this->validate([
+            'androidApkUpload' => 'required|file|max:97280',
+            'androidVersionCode' => 'required|integer|min:1|max:100000000',
+            'androidVersionName' => ['required', 'string', 'max:32', 'regex:/^[0-9]+(\.[0-9]+){1,3}(-[A-Za-z0-9._]+)?$/'],
+        ], [
+            'androidApkUpload.required' => 'Bitte eine signierte .apk-Datei auswählen.',
+            'androidVersionName.regex' => 'Ungültiges Versionsformat (z. B. 1.4.0).',
+        ]);
+
+        try {
+            $releaseService = app(\App\Services\System\AndroidReleaseService::class);
+            $manifest = $releaseService->storeVerifiedRelease(
+                sourceTempFile: $this->androidApkUpload->getRealPath(),
+                versionCode: (int) $this->androidVersionCode,
+                versionName: trim($this->androidVersionName),
+                expectedSha256: null,
+                releaseNotes: null,
+                allowSameVersionRebuild: true
+            );
+
+            try {
+                $this->androidApkUpload->delete();
+            } catch (\Throwable $e) {
+            }
+            $this->androidApkUpload = null;
+            $this->androidVersionCode = ((int) $manifest['version_code']) + 1;
+            session()->flash('message', 'Funkenwerk Android v' . $manifest['version_name'] . ' (Build ' . $manifest['version_code'] . ') im Tresor bereitgestellt.');
+        } catch (\Throwable $e) {
+            $this->addError('androidApkUpload', $e->getMessage());
+        }
+    }
+
     public function render() 
     { 
         $laravelVersion = app()->version();
@@ -832,12 +881,19 @@ class SystemShopConfig extends Component
             // Fallback bleibt 'MySQL'
         }
         
+        $androidRelease = app(\App\Services\System\AndroidReleaseService::class)->getLatestManifest();
+        $androidDownloadUrl = $androidRelease
+            ? \Illuminate\Support\Facades\URL::temporarySignedRoute('admin.system.funkenwerk-apk.download', now()->addMinutes(15))
+            : null;
+
         return view('livewire.shop.system.system-shop-config', [
             'laravelVersion'         => $laravelVersion,
             'phpVersion'             => $phpVersion,
             'pythonVersion'          => $pythonVersion,
             'livewireVersion'        => $livewireVersion,
             'databaseDriverLabel'    => $databaseDriverLabel,
+            'androidRelease'         => $androidRelease,
+            'androidDownloadUrl'     => $androidDownloadUrl,
             'seasonsDefinition'      => $configService->getSeasonsDefinition(),
             'activeSeasonKey'        => $configService->getActiveSeasonKey(),
             'animationTimeline'      => $configService->getAnimationTimeline(),

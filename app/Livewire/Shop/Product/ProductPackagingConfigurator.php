@@ -55,6 +55,7 @@ class ProductPackagingConfigurator extends Component
 
     // Tab 2: Modal für Manuelle Anlage / Bearbeitung eines Verpackungsmaterials
     public bool $showItemModal = false;
+    #[\Livewire\Attributes\Locked]
     public ?int $editingItemId = null;
 
     public string $itemName = '';

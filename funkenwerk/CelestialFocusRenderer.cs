@@ -210,6 +210,7 @@ namespace Funkenwerk
         {
             IsHitTestVisible = false;
             SnapsToDevicePixels = false;
+            Unloaded += (_, _) => StopRendering();
 
             var rng = new Random(20261109);
             for (int i = 0; i < ParticleCount; i++)

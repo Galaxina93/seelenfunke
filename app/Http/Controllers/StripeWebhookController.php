@@ -24,6 +24,10 @@ class StripeWebhookController extends Controller
             return response('Error: Webhook secret not configured', 500);
         }
 
+        if (!is_string($sig_header) || trim($sig_header) === '') {
+            return response('Error: Missing Signature', 400);
+        }
+
         try {
             // 1. Signatur verifizieren (Sicherheit)
             $event = Webhook::constructEvent($payload, $sig_header, $endpoint_secret);

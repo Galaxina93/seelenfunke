@@ -67,6 +67,14 @@ class HolidayOfferAutopilotService
     }
 
     /**
+     * Liefert die komplette Kalender- & Marketing-Übersicht des Feiertags-Autopiloten.
+     */
+    public function getAutopilotCalendarOverview(?Carbon $now = null): array
+    {
+        return $this->buildLiveMarketingPlanContext($now);
+    }
+
+    /**
      * Definiert für jedes Feiertags-/Saison-Event die optimale Manufaktur-Angebotsstrategie.
      */
     public function getEventDefinitions(): array

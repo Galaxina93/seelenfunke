@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.Security;
 using System.Security.Authentication;
 using System.Security.Cryptography;
 using System.Threading;
@@ -28,6 +29,7 @@ namespace FunkenwerkFtp
         public string Name { get; set; } = "";
         public string FullPath { get; set; } = "";
         public bool IsDirectory { get; set; }
+        public bool IsSymbolicLink { get; set; }
         public bool IsParentNav { get; set; }
         public long Size { get; set; }
         public DateTime Modified { get; set; }
@@ -49,6 +51,7 @@ namespace FunkenwerkFtp
             get
             {
                 if (IsParentNav) return "↩ ..";
+                if (IsSymbolicLink) return $"🔗 {Name}";
                 if (IsDirectory) return $"📁 {Name}";
                 if (FtpTextBufferCodec.IsImageFileName(Name)) return $"🖼 {Name}";
                 string ext = Path.GetExtension(Name);
@@ -64,7 +67,7 @@ namespace FunkenwerkFtp
             }
         }
 
-        public string SizeFormatted => IsParentNav ? "" : (IsDirectory ? "<DIR>" : FormatBytes(Size));
+        public string SizeFormatted => IsParentNav ? "" : (IsSymbolicLink ? "<LINK>" : (IsDirectory ? "<DIR>" : FormatBytes(Size)));
         public string ModifiedFormatted => (IsParentNav || Modified == DateTime.MinValue) ? "" : Modified.ToString("dd.MM.yyyy HH:mm");
 
         public event PropertyChangedEventHandler? PropertyChanged;
@@ -114,19 +117,44 @@ namespace FunkenwerkFtp
         private const string DRAG_FORMAT_LOCAL = "FunkenwerkFtp.LocalItems";
         private const long MAX_EXTERNAL_DRAG_STAGE_BYTES = 160L * 1024 * 1024; // 160 MB safety cap for synchronous Explorer drop
 
-        // External Live-Edit file watchers
-        private readonly List<FileSystemWatcher> _liveEditWatchers = new();
+        // External Live-Edit file watchers (keyed by local staged file path to prevent duplicate watchers)
+        private readonly Dictionary<string, FileSystemWatcher> _liveEditWatchers = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, byte[]> _liveEditLastHashes = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, DateTime> _liveEditDebounceUtc = new(StringComparer.OrdinalIgnoreCase);
+        private bool _closeCleanupDone;
+        private bool _closeCleanupInProgress;
+
+        public bool IsDarkMode => _isDarkMode;
+
+        public void SetTheme(bool isDark)
+        {
+            _isDarkMode = isDark;
+            ApplyTheme();
+            ResetTileBorders();
+        }
 
         public MainWindow()
         {
             InitializeComponent();
             ApplyTheme();
+            PurgeStaleLiveEditFiles();
             DragStagingManager.PruneOldBatches(TimeSpan.FromMinutes(15));
             LoadProfilesIntoUi();
             string startLocal = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
             NavigateLocalDirectory(startLocal);
+        }
+
+        public static void PurgeStaleLiveEditFiles()
+        {
+            try
+            {
+                string liveRoot = Path.Combine(FunkenwerkFtpSecurity.VaultDir, "LiveEdit");
+                if (Directory.Exists(liveRoot))
+                    Directory.Delete(liveRoot, recursive: true);
+                Directory.CreateDirectory(liveRoot);
+                FunkenwerkFtpSecurity.LockDownDirectoryAcl(liveRoot);
+            }
+            catch { }
         }
 
         // =====================================================================
@@ -134,16 +162,25 @@ namespace FunkenwerkFtp
         // =====================================================================
         private void LoadProfilesIntoUi()
         {
-            _profiles = FunkenwerkFtpSecurity.LoadAndImportProfiles();
-            ProfilesCombo.ItemsSource = null;
-            ProfilesCombo.ItemsSource = _profiles;
-            if (_profiles.Count > 0)
+            try
             {
-                var preferred = _profiles.FirstOrDefault(p => p.Name.Contains("Mittwald", StringComparison.OrdinalIgnoreCase))
-                                ?? _profiles[0];
-                ProfilesCombo.SelectedItem = preferred;
+                _profiles = FunkenwerkFtpSecurity.LoadAndImportProfiles();
+                ProfilesCombo.ItemsSource = null;
+                ProfilesCombo.ItemsSource = _profiles;
+                if (_profiles.Count > 0)
+                {
+                    var preferred = _profiles.FirstOrDefault(p => p.Name.Contains("Mittwald", StringComparison.OrdinalIgnoreCase))
+                                    ?? _profiles[0];
+                    ProfilesCombo.SelectedItem = preferred;
+                }
+                StatusText.Text = $"🔒 AES-256-GCM + DPAPI Vault aktiv · {_profiles.Count} Profile geladen";
             }
-            StatusText.Text = $"🔒 AES-256-GCM + DPAPI Vault aktiv · {_profiles.Count} Profile geladen";
+            catch (Exception ex)
+            {
+                _profiles = new List<FtpConnectionProfile>();
+                ProfilesCombo.ItemsSource = _profiles;
+                StatusText.Text = $"🚨 Tresor-Schutz aktiv: {ex.Message}";
+            }
         }
 
         private void ProfilesCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -154,7 +191,15 @@ namespace FunkenwerkFtp
             HostBox.Text = p.Host;
             PortBox.Text = p.Port.ToString();
             UserBox.Text = p.Username;
-            SetPasswordValue(FunkenwerkFtpSecurity.DecryptSecret(p.EncryptedPassword));
+            try
+            {
+                SetPasswordValue(FunkenwerkFtpSecurity.DecryptSecret(p.EncryptedPassword));
+            }
+            catch (Exception ex)
+            {
+                SetPasswordValue("");
+                StatusText.Text = $"🚨 Tresor-Warnung ({p.Name}): {ex.Message}";
+            }
             _selectedPrivateKeyPath = p.PrivateKeyPath ?? "";
             PickKeyBtn.ToolTip = string.IsNullOrWhiteSpace(_selectedPrivateKeyPath)
                 ? "SSH Private Key wählen"
@@ -586,7 +631,9 @@ namespace FunkenwerkFtp
                     string fwPdf = @"C:\Users\konta\Desktop\Funkenwerk Collection\Funkenwerk PDF\FunkenwerkPdf.exe";
                     if (File.Exists(fwPdf))
                     {
-                        Process.Start(new ProcessStartInfo { FileName = fwPdf, Arguments = $"\"{fullPath}\"", UseShellExecute = true });
+                        var pdfPsi = new ProcessStartInfo { FileName = fwPdf, UseShellExecute = false };
+                        pdfPsi.ArgumentList.Add(fullPath);
+                        Process.Start(pdfPsi);
                         return;
                     }
                 }
@@ -845,6 +892,26 @@ namespace FunkenwerkFtp
         // =====================================================================
         // SECURE SERVER CONNECTION (SFTP / FTPS / FTP)
         // =====================================================================
+        public readonly record struct RemoteNodeInfo(
+            string Name,
+            string FullPath,
+            bool IsDirectory,
+            bool IsSymbolicLink,
+            long Size);
+
+        public static FtpConfig BuildFtpConfig(string protocol)
+        {
+            bool isFtps = string.Equals(protocol, "FTPS", StringComparison.OrdinalIgnoreCase);
+            return new FtpConfig
+            {
+                EncryptionMode = isFtps ? FtpEncryptionMode.Explicit : FtpEncryptionMode.None,
+                DataConnectionEncryption = isFtps,
+                SslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13,
+                ValidateAnyCertificate = false,
+                ConnectTimeout = 10000
+            };
+        }
+
         private bool IsConnected()
         {
             if (_sftpClient != null && _sftpClient.IsConnected) return true;
@@ -874,8 +941,26 @@ namespace FunkenwerkFtp
                 string pass = GetPasswordValue();
                 _activeProtocol = GetSelectedProtocol();
 
+                if (_activeProtocol == "FTP")
+                {
+                    bool confirmCleartext = FtpModalDialogs.ShowConfirmDialog(
+                        this,
+                        _isDarkMode,
+                        "Unverschlüsseltes FTP",
+                        $"WARNUNG: Unverschlüsseltes FTP überträgt Zugangsdaten und Dateien im Klartext an '{host}:{port}'.\n\nWirklich unverschlüsselt verbinden?",
+                        "Unverschlüsselt verbinden",
+                        isDanger: true);
+                    if (!confirmCleartext)
+                    {
+                        StatusText.Text = "Verbindung abgebrochen (Klartext-FTP abgelehnt).";
+                        return;
+                    }
+                }
+
                 ConnectBtn.IsEnabled = false;
-                StatusText.Text = $"⏳ Verbinde verschlüsselt mit {_activeProtocol}://{host}:{port} ...";
+                StatusText.Text = _activeProtocol == "FTP"
+                    ? $"⏳ Verbinde unverschlüsselt mit FTP://{host}:{port} ..."
+                    : $"⏳ Verbinde verschlüsselt mit {_activeProtocol}://{host}:{port} ...";
 
                 if (_activeProtocol == "SFTP")
                 {
@@ -929,28 +1014,83 @@ namespace FunkenwerkFtp
                         KeepAliveInterval = TimeSpan.FromSeconds(15)
                     };
                     bool hostKeyChangedAbort = false;
+                    bool hostKeyRejectedAbort = false;
+                    string? hostKeyVaultError = null;
 
                     sftp.HostKeyReceived += (s, hkArgs) =>
                     {
-                        var check = FunkenwerkFtpSecurity.VerifyAndPinHostKey(host, port, hkArgs.HostKeyName, hkArgs.HostKey);
-                        _lastPinnedFingerprint = check.FingerprintSha256;
-                        if (check.IsChanged)
+                        try
                         {
-                            hostKeyChangedAbort = true;
-                            hkArgs.CanTrust = false;
+                            string alg = hkArgs.HostKeyName;
+                            var check = FunkenwerkFtpSecurity.VerifyAndPinHostKey(
+                                host,
+                                port,
+                                alg,
+                                hkArgs.HostKey,
+                                trustNewKeys: false,
+                                confirmNewKeyCallback: fp => Dispatcher.Invoke(() =>
+                                    FtpModalDialogs.ShowConfirmDialog(
+                                        this,
+                                        _isDarkMode,
+                                        "SSH-Host-Key prüfen",
+                                        $"Neuer Server-Schlüssel für '{host}:{port}' ({alg}):\n\n{fp}\n\nDiesem Fingerabdruck vertrauen und dauerhaft pinnen?",
+                                        "Vertrauen & Pinnen",
+                                        isDanger: false)));
+
+                            _lastPinnedFingerprint = check.FingerprintSha256;
+                            if (check.IsChanged)
+                            {
+                                hostKeyChangedAbort = true;
+                                hkArgs.CanTrust = false;
+                            }
+                            else if (!check.IsTrusted)
+                            {
+                                hostKeyRejectedAbort = true;
+                                hkArgs.CanTrust = false;
+                            }
+                            else
+                            {
+                                hkArgs.CanTrust = true;
+                            }
                         }
-                        else
+                        catch (Exception hkEx)
                         {
-                            hkArgs.CanTrust = check.IsTrusted;
+                            hostKeyVaultError = hkEx.Message;
+                            hkArgs.CanTrust = false;
                         }
                     };
 
-                    await Task.Run(() => sftp.Connect());
-                    if (hostKeyChangedAbort)
+                    try
+                    {
+                        await Task.Run(() => sftp.Connect());
+                    }
+                    catch
                     {
                         sftp.Dispose();
-                        StatusText.Text = "🚨 SICHERHEITSWARNUNG: Server-Host-Key hat sich geändert (MITM-Schutz hat Verbindung blockiert)!";
-                        ConnectBtn.IsEnabled = true;
+                        if (!string.IsNullOrEmpty(hostKeyVaultError))
+                        {
+                            StatusText.Text = $"🚨 Host-Key-Speicher blockiert: {hostKeyVaultError}";
+                            return;
+                        }
+                        if (hostKeyChangedAbort)
+                        {
+                            StatusText.Text = "🚨 SICHERHEITSWARNUNG: Server-Host-Key hat sich geändert (MITM-Schutz hat Verbindung blockiert)!";
+                            return;
+                        }
+                        if (hostKeyRejectedAbort)
+                        {
+                            StatusText.Text = "Verbindung abgebrochen (Server-Host-Key nicht bestätigt).";
+                            return;
+                        }
+                        throw;
+                    }
+
+                    if (hostKeyChangedAbort || hostKeyRejectedAbort || !string.IsNullOrEmpty(hostKeyVaultError))
+                    {
+                        sftp.Dispose();
+                        StatusText.Text = hostKeyChangedAbort
+                            ? "🚨 SICHERHEITSWARNUNG: Server-Host-Key hat sich geändert (MITM-Schutz hat Verbindung blockiert)!"
+                            : $"🚨 Verbindung blockiert: {hostKeyVaultError ?? "Host-Key abgelehnt."}";
                         return;
                     }
 
@@ -966,22 +1106,108 @@ namespace FunkenwerkFtp
                 }
                 else
                 {
-                    var cfg = new FtpConfig
-                    {
-                        EncryptionMode = _activeProtocol == "FTPS" ? FtpEncryptionMode.Explicit : FtpEncryptionMode.None,
-                        SslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13,
-                        ValidateAnyCertificate = false,
-                        ConnectTimeout = 10000
-                    };
+                    bool isFtps = _activeProtocol == "FTPS";
+                    var cfg = BuildFtpConfig(_activeProtocol);
                     var ftp = new AsyncFtpClient(host, new NetworkCredential(user, pass), port, cfg);
-                    await ftp.AutoConnect();
+                    bool certChangedAbort = false;
+                    bool certRejectedAbort = false;
+                    string? certVaultError = null;
+
+                    if (isFtps)
+                    {
+                        ftp.ValidateCertificate += (control, certArgs) =>
+                        {
+                            try
+                            {
+                                if (certArgs.Certificate == null)
+                                {
+                                    certRejectedAbort = true;
+                                    certArgs.Accept = false;
+                                    return;
+                                }
+
+                                byte[] rawCert = certArgs.Certificate.GetRawCertData();
+                                SslPolicyErrors policyErr = certArgs.PolicyErrors;
+                                var check = FunkenwerkFtpSecurity.VerifyAndPinHostKey(
+                                    host,
+                                    port,
+                                    "ftps-x509-sha256",
+                                    rawCert,
+                                    trustNewKeys: false,
+                                    confirmNewKeyCallback: fp =>
+                                    {
+                                        // Prompt user to confirm fingerprint on unknown or self-signed certificates
+                                        string tlsStatus = policyErr == SslPolicyErrors.None
+                                            ? "Gültige CA-Zertifikatskette (erstmalige Verbindung)"
+                                            : $"Selbstsigniert / Unbekannte CA ({policyErr})";
+                                        return Dispatcher.Invoke(() => FtpModalDialogs.ShowConfirmDialog(
+                                            this,
+                                            _isDarkMode,
+                                            "FTPS-Zertifikat prüfen",
+                                            $"FTPS-Server '{host}:{port}' präsentiert folgendes TLS-Zertifikat:\nStatus: {tlsStatus}\n\n{fp}\n\nDiesem Zertifikat vertrauen und SHA-256-Pin speichern?",
+                                            "Vertrauen & Pinnen",
+                                            isDanger: policyErr != SslPolicyErrors.None));
+                                    });
+
+                                _lastPinnedFingerprint = check.FingerprintSha256;
+                                if (check.IsChanged)
+                                {
+                                    certChangedAbort = true;
+                                    certArgs.Accept = false;
+                                }
+                                else if (!check.IsTrusted)
+                                {
+                                    certRejectedAbort = true;
+                                    certArgs.Accept = false;
+                                }
+                                else
+                                {
+                                    certArgs.Accept = true;
+                                }
+                            }
+                            catch (Exception cEx)
+                            {
+                                certVaultError = cEx.Message;
+                                certArgs.Accept = false;
+                            }
+                        };
+                    }
+
+                    try
+                    {
+                        // Strictly call Connect() (NEVER AutoConnect(), which silently downgrades to plaintext FTP!)
+                        await ftp.Connect();
+                    }
+                    catch
+                    {
+                        try { ftp.Dispose(); } catch { }
+                        if (!string.IsNullOrEmpty(certVaultError))
+                        {
+                            StatusText.Text = $"🚨 Zertifikats-Speicher blockiert: {certVaultError}";
+                            return;
+                        }
+                        if (certChangedAbort)
+                        {
+                            StatusText.Text = "🚨 SICHERHEITSWARNUNG: FTPS-Zertifikat hat sich geändert (MITM-Schutz hat Verbindung blockiert)!";
+                            return;
+                        }
+                        if (certRejectedAbort)
+                        {
+                            StatusText.Text = "Verbindung abgebrochen (FTPS-Zertifikat abgelehnt).";
+                            return;
+                        }
+                        throw;
+                    }
+
                     _ftpClient = ftp;
                     OpenSshBtn.Visibility = Visibility.Visible;
 
                     ConnectBtn.Content = "TRENNEN";
                     ConnectBtn.Background = BrushHex("#EF4444");
                     ConnectBtn.Foreground = Brushes.White;
-                    StatusText.Text = $"🔒 {_activeProtocol} Verbunden ({user}@{host}:{port})";
+                    StatusText.Text = isFtps
+                        ? $"🔒 FTPS Verbunden ({user}@{host}:{port}) · {_lastPinnedFingerprint}"
+                        : $"🔓 FTP (Unverschlüsselt) · {user}@{host}:{port}";
 
                     string startRemote = string.IsNullOrWhiteSpace(RemotePathBox.Text) ? "/" : RemotePathBox.Text.Trim();
                     await NavigateRemoteDirectoryAsync(startRemote);
@@ -1057,6 +1283,26 @@ namespace FunkenwerkFtp
             if (!IsConnected()) return;
             try
             {
+                if (!string.IsNullOrEmpty(remoteDir) && remoteDir.IndexOfAny(new[] { '\r', '\n', '\0' }) >= 0)
+                {
+                    StatusText.Text = "⚠ Ungültige Steuerzeichen im Server-Pfad blockiert.";
+                    return;
+                }
+
+                string[] candidatePaths =
+                {
+                    Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "Funkenwerk SSH", "FunkenwerkSsh.exe")),
+                    @"C:\Users\konta\Desktop\Funkenwerk Collection\Funkenwerk SSH\FunkenwerkSsh.exe"
+                };
+
+                // Verify FunkenwerkSsh.exe exists BEFORE writing handoff_ticket.dpapi so no orphan ticket remains on disk
+                string? sshExe = candidatePaths.FirstOrDefault(File.Exists);
+                if (string.IsNullOrEmpty(sshExe))
+                {
+                    StatusText.Text = "⚠ FunkenwerkSsh.exe wurde nicht gefunden.";
+                    return;
+                }
+
                 string host = FunkenwerkFtpSecurity.SanitizeHost(HostBox.Text);
                 int port = int.TryParse(PortBox.Text, out int pt) ? pt : 22;
                 if (port == 21) port = 22;
@@ -1064,7 +1310,7 @@ namespace FunkenwerkFtp
                 string pass = GetPasswordValue();
                 string profileName = (ProfilesCombo.SelectedItem as FtpConnectionProfile)?.Name ?? $"{user}@{host}";
 
-                FunkenwerkFtpSecurity.WriteSshHandoffTicket(
+                string nonce = FunkenwerkFtpSecurity.WriteSshHandoffTicket(
                     profileName,
                     host,
                     port,
@@ -1073,27 +1319,23 @@ namespace FunkenwerkFtp
                     _selectedPrivateKeyPath,
                     remoteDir);
 
-                string[] candidatePaths =
+                try
                 {
-                    Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "Funkenwerk SSH", "FunkenwerkSsh.exe")),
-                    @"C:\Users\konta\Desktop\Funkenwerk Collection\Funkenwerk SSH\FunkenwerkSsh.exe",
-                    @"\\wsl.localhost\Ubuntu\home\ubuntuxina\meine-projekte\seelenfunke\funkenwerk-ssh\bin\Release\net9.0-windows\FunkenwerkSsh.exe"
-                };
-
-                string? sshExe = candidatePaths.FirstOrDefault(File.Exists);
-                if (string.IsNullOrEmpty(sshExe))
-                {
-                    StatusText.Text = "⚠ FunkenwerkSsh.exe wurde nicht gefunden.";
-                    return;
+                    var psi = new ProcessStartInfo
+                    {
+                        FileName = sshExe,
+                        WorkingDirectory = Path.GetDirectoryName(sshExe) ?? "",
+                        UseShellExecute = false
+                    };
+                    psi.ArgumentList.Add("--handoff");
+                    psi.ArgumentList.Add(nonce);
+                    Process.Start(psi);
                 }
-
-                Process.Start(new ProcessStartInfo
+                catch
                 {
-                    FileName = sshExe,
-                    Arguments = "--handoff",
-                    WorkingDirectory = Path.GetDirectoryName(sshExe) ?? "",
-                    UseShellExecute = true
-                });
+                    FunkenwerkFtpSecurity.WipeAndDeleteSshHandoffTicket();
+                    throw;
+                }
 
                 StatusText.Text = $"🔒 SSH-Verbindung in '{remoteDir}' gestartet.";
             }
@@ -1148,11 +1390,13 @@ namespace FunkenwerkFtp
                     var listing = await Task.Run(() => _sftpClient.ListDirectory(target).ToList());
                     foreach (var entry in listing.Where(x => x.Name != "." && x.Name != ".."))
                     {
+                        bool isSym = entry.IsSymbolicLink;
                         items.Add(new FileEntryItem
                         {
                             Name = entry.Name,
                             FullPath = entry.FullName,
-                            IsDirectory = entry.IsDirectory,
+                            IsSymbolicLink = isSym,
+                            IsDirectory = !isSym && entry.IsDirectory,
                             Size = entry.Length,
                             Modified = entry.LastWriteTime,
                             Permissions = FormatSftpPermissions(entry)
@@ -1164,11 +1408,13 @@ namespace FunkenwerkFtp
                     var listing = await _ftpClient.GetListing(target);
                     foreach (var entry in listing.Where(x => x.Name != "." && x.Name != ".."))
                     {
+                        bool isSym = entry.Type == FtpObjectType.Link;
                         items.Add(new FileEntryItem
                         {
                             Name = entry.Name,
                             FullPath = entry.FullName,
-                            IsDirectory = entry.Type == FtpObjectType.Directory,
+                            IsSymbolicLink = isSym,
+                            IsDirectory = !isSym && entry.Type == FtpObjectType.Directory,
                             Size = entry.Size,
                             Modified = entry.Modified,
                             Permissions = entry.RawPermissions ?? ""
@@ -1192,7 +1438,7 @@ namespace FunkenwerkFtp
 
         private static string FormatSftpPermissions(Renci.SshNet.Sftp.ISftpFile f)
         {
-            char d = f.IsDirectory ? 'd' : '-';
+            char d = f.IsSymbolicLink ? 'l' : (f.IsDirectory ? 'd' : '-');
             char ur = f.OwnerCanRead ? 'r' : '-';
             char uw = f.OwnerCanWrite ? 'w' : '-';
             char ux = f.OwnerCanExecute ? 'x' : '-';
@@ -1389,20 +1635,33 @@ namespace FunkenwerkFtp
         private async void MenuRemoteEditExternal_Click(object sender, RoutedEventArgs e)
         {
             if (!IsConnected()) return;
-            var item = GetSelectedActionableRemoteItems().FirstOrDefault(x => !x.IsDirectory);
+            var item = GetSelectedActionableRemoteItems().FirstOrDefault(x => !x.IsDirectory && !x.IsSymbolicLink);
             if (item == null) return;
 
             try
             {
                 string liveRoot = Path.Combine(FunkenwerkFtpSecurity.VaultDir, "LiveEdit");
+                Directory.CreateDirectory(liveRoot);
+                FunkenwerkFtpSecurity.LockDownDirectoryAcl(liveRoot);
+
                 string subHash = Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(GetRemoteParentPath(item.FullPath))))[..12];
                 string stageDir = Path.Combine(liveRoot, subHash);
                 Directory.CreateDirectory(stageDir);
+                FunkenwerkFtpSecurity.LockDownDirectoryAcl(stageDir);
 
                 string localStageFile = FunkenwerkFtpSecurity.ValidateSafeLocalPath(stageDir, item.Name);
+
+                // Dispose any prior watcher for the same staged file before overwriting so duplicate watchers never accumulate
+                if (_liveEditWatchers.TryGetValue(localStageFile, out var oldWatcher))
+                {
+                    try { oldWatcher.EnableRaisingEvents = false; oldWatcher.Dispose(); } catch { }
+                    _liveEditWatchers.Remove(localStageFile);
+                }
+
                 StatusText.Text = $"⏳ Bereite Live-Bearbeitung für '{item.Name}' vor ...";
                 byte[] content = await DownloadRemoteBytesAsync(item);
                 await File.WriteAllBytesAsync(localStageFile, content);
+                FunkenwerkFtpSecurity.LockDownFileAcl(localStageFile);
                 _liveEditLastHashes[localStageFile] = SHA256.HashData(content);
 
                 string remoteTarget = item.FullPath;
@@ -1454,7 +1713,7 @@ namespace FunkenwerkFtp
                 watcher.Changed += OnExternalFileSaved;
                 watcher.Created += OnExternalFileSaved;
                 watcher.Renamed += (s, re) => OnExternalFileSaved(s, re);
-                _liveEditWatchers.Add(watcher);
+                _liveEditWatchers[localStageFile] = watcher;
 
                 LaunchExternalEditorSmart(localStageFile);
                 StatusText.Text = $"💻 Live-Sync aktiv für '{item.Name}' · Jedes Speichern lädt automatisch auf den Server hoch.";
@@ -1484,60 +1743,99 @@ namespace FunkenwerkFtp
             return await File.ReadAllBytesAsync(path);
         }
 
-        private static void LaunchExternalEditorSmart(string filePath)
+        private static readonly HashSet<string> SafePhpStormExtensions = new(StringComparer.OrdinalIgnoreCase)
         {
-            string ext = Path.GetExtension(filePath);
-            bool hasUncommonExt = string.IsNullOrEmpty(ext) ||
-                                  ext.StartsWith(".env", StringComparison.OrdinalIgnoreCase) ||
-                                  ext.Equals(".htaccess", StringComparison.OrdinalIgnoreCase) ||
-                                  ext.Equals(".conf", StringComparison.OrdinalIgnoreCase) ||
-                                  ext.Equals(".blade", StringComparison.OrdinalIgnoreCase);
+            ".php", ".phtml", ".html", ".htm", ".twig", ".vue", ".svelte",
+            ".css", ".scss", ".sass", ".less", ".ts", ".tsx", ".jsx",
+            ".json", ".xml", ".yml", ".yaml", ".sql", ".md", ".env", ".htaccess", ".ini", ".conf"
+        };
 
-            if (!hasUncommonExt)
+        /// <summary>
+        /// Builds a guaranteed RCE-safe ProcessStartInfo that launches an explicit text editor executable
+        /// with UseShellExecute = false and ArgumentList (never ShellExecute on .bat/.cmd/.ps1/.vbs/.js/.exe/.reg/.hta!).
+        /// </summary>
+        public static ProcessStartInfo BuildSafeExternalEditorStartInfo(string filePath, string? preferredEditorExecutable = null)
+        {
+            if (string.IsNullOrWhiteSpace(filePath))
+                throw new ArgumentException("Ungültiger Dateipfad für externen Editor.", nameof(filePath));
+
+            string fullTarget = Path.GetFullPath(filePath);
+            string? resolvedEditor = null;
+
+            if (!string.IsNullOrWhiteSpace(preferredEditorExecutable) &&
+                preferredEditorExecutable.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) &&
+                File.Exists(preferredEditorExecutable))
             {
-                try
-                {
-                    Process.Start(new ProcessStartInfo { FileName = filePath, UseShellExecute = true });
-                    return;
-                }
-                catch { }
+                resolvedEditor = Path.GetFullPath(preferredEditorExecutable);
             }
 
-            string localApp = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            string progFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
-            string[] editorCandidates =
+            if (resolvedEditor == null)
             {
-                Path.Combine(localApp, "Programs", "Microsoft VS Code", "Code.exe"),
-                Path.Combine(progFiles, "Notepad++", "notepad++.exe"),
-                "notepad.exe"
-            };
+                string localApp = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+                string progFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+                string progFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+                string ext = Path.GetExtension(fullTarget);
 
-            string chosen = editorCandidates.FirstOrDefault(p => p == "notepad.exe" || File.Exists(p)) ?? "notepad.exe";
-            Process.Start(new ProcessStartInfo
+                var candidates = new List<string>
+                {
+                    Path.Combine(localApp, "Programs", "Microsoft VS Code", "Code.exe"),
+                    Path.Combine(progFiles, "Microsoft VS Code", "Code.exe"),
+                    Path.Combine(progFiles, "Notepad++", "notepad++.exe"),
+                    Path.Combine(progFilesX86, "Notepad++", "notepad++.exe")
+                };
+
+                if (SafePhpStormExtensions.Contains(ext) || fullTarget.EndsWith(".blade.php", StringComparison.OrdinalIgnoreCase))
+                {
+                    candidates.Add(Path.Combine(localApp, "Programs", "PhpStorm", "bin", "phpstorm64.exe"));
+                    try
+                    {
+                        string jbDir = Path.Combine(progFiles, "JetBrains");
+                        if (Directory.Exists(jbDir))
+                        {
+                            foreach (string sub in Directory.GetDirectories(jbDir, "PhpStorm*"))
+                                candidates.Add(Path.Combine(sub, "bin", "phpstorm64.exe"));
+                        }
+                    }
+                    catch { }
+                }
+
+                resolvedEditor = candidates.FirstOrDefault(File.Exists);
+            }
+
+            if (string.IsNullOrEmpty(resolvedEditor))
             {
-                FileName = chosen,
-                Arguments = $"\"{filePath}\"",
-                UseShellExecute = true
-            });
+                string sysNotepad = Path.Combine(Environment.SystemDirectory, "notepad.exe");
+                if (!File.Exists(sysNotepad))
+                    sysNotepad = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "notepad.exe");
+                resolvedEditor = sysNotepad;
+            }
+
+            var psi = new ProcessStartInfo
+            {
+                FileName = resolvedEditor,
+                UseShellExecute = false
+            };
+            psi.ArgumentList.Add(fullTarget);
+            return psi;
+        }
+
+        private static void LaunchExternalEditorSmart(string filePath)
+        {
+            var psi = BuildSafeExternalEditorStartInfo(filePath);
+            Process.Start(psi);
         }
 
         private void CleanupLiveEditWatchersAndFiles()
         {
-            foreach (var w in _liveEditWatchers)
+            foreach (var kv in _liveEditWatchers)
             {
-                try { w.EnableRaisingEvents = false; w.Dispose(); } catch { }
+                try { kv.Value.EnableRaisingEvents = false; kv.Value.Dispose(); } catch { }
             }
             _liveEditWatchers.Clear();
             _liveEditLastHashes.Clear();
             _liveEditDebounceUtc.Clear();
 
-            try
-            {
-                string liveRoot = Path.Combine(FunkenwerkFtpSecurity.VaultDir, "LiveEdit");
-                if (Directory.Exists(liveRoot))
-                    Directory.Delete(liveRoot, recursive: true);
-            }
-            catch { }
+            PurgeStaleLiveEditFiles();
         }
 
         // =====================================================================
@@ -1551,7 +1849,7 @@ namespace FunkenwerkFtp
 
             try
             {
-                string cleanName = Path.GetFileName(fileName.Trim());
+                string cleanName = FunkenwerkFtpSecurity.ValidateSafeRemoteEntryName(fileName);
                 string remoteTarget = CombineRemotePath(RemotePathBox.Text.Trim(), cleanName);
                 await UploadBytesToRemoteFileAsync(remoteTarget, Array.Empty<byte>(), refreshListing: true);
                 var created = _remoteCurrentItems.FirstOrDefault(x => !x.IsDirectory && x.Name == cleanName)
@@ -1572,7 +1870,8 @@ namespace FunkenwerkFtp
 
             try
             {
-                string newFolder = CombineRemotePath(RemotePathBox.Text.Trim(), folderName.Trim().Trim('/'));
+                string cleanFolder = FunkenwerkFtpSecurity.ValidateSafeRemoteEntryName(folderName);
+                string newFolder = CombineRemotePath(RemotePathBox.Text.Trim(), cleanFolder);
                 await _remoteIoGate.WaitAsync();
                 try
                 {
@@ -1587,7 +1886,7 @@ namespace FunkenwerkFtp
                 }
 
                 await NavigateRemoteDirectoryAsync(RemotePathBox.Text.Trim());
-                StatusText.Text = $"✓ Server-Ordner erstellt: {folderName}";
+                StatusText.Text = $"✓ Server-Ordner erstellt: {cleanFolder}";
             }
             catch (Exception ex)
             {
@@ -1604,11 +1903,18 @@ namespace FunkenwerkFtp
             string? input = FtpModalDialogs.ShowInputPrompt(this, _isDarkMode, "Auf Server umbenennen / verschieben", item.Name, "Übernehmen", selectFileNameStemOnly: !item.IsDirectory);
             if (string.IsNullOrWhiteSpace(input) || string.Equals(input, item.Name, StringComparison.Ordinal)) return;
 
-            string destRemote = input.StartsWith("/", StringComparison.Ordinal)
-                ? input.Trim()
-                : CombineRemotePath(GetRemoteParentPath(item.FullPath), input.Trim());
+            try
+            {
+                string destRemote = input.StartsWith("/", StringComparison.Ordinal)
+                    ? FunkenwerkFtpSecurity.ValidateSafeRemoteTargetPath(input)
+                    : CombineRemotePath(GetRemoteParentPath(item.FullPath), FunkenwerkFtpSecurity.ValidateSafeRemoteEntryName(input));
 
-            await MoveRemoteEntryAsync(item, destRemote, refreshAfter: true);
+                await MoveRemoteEntryAsync(item, destRemote, refreshAfter: true);
+            }
+            catch (Exception ex)
+            {
+                StatusText.Text = $"⚠ Umbenennen blockiert: {ex.Message}";
+            }
         }
 
         private async Task MoveRemoteEntryAsync(FileEntryItem item, string destRemotePath, bool refreshAfter)
@@ -1691,7 +1997,7 @@ namespace FunkenwerkFtp
                     int intOctal = int.Parse(chmod.Value.OctalString);
                     foreach (var it in selected)
                     {
-                        await ApplyChmodInternalAsync(it.FullPath, it.IsDirectory, chmod.Value.OctalValue, intOctal, chmod.Value.Recursive);
+                        await ApplyChmodInternalAsync(it.FullPath, it.IsDirectory, it.IsSymbolicLink, chmod.Value.OctalValue, intOctal, chmod.Value.Recursive);
                     }
                 }
                 finally
@@ -1708,37 +2014,69 @@ namespace FunkenwerkFtp
             }
         }
 
-        private async Task ApplyChmodInternalAsync(string remotePath, bool isDir, short octalShort, int octalDecimalDigits, bool recursive)
+        public static void ExecuteSafeRemoteChmodTree(
+            string remotePath,
+            bool isDir,
+            bool isSymlink,
+            short fileOctal,
+            bool recursive,
+            Func<string, IEnumerable<RemoteNodeInfo>> listDir,
+            Action<string, short> setPermissions)
         {
+            if (isSymlink) return;
+            short modeToApply = (isDir && recursive)
+                ? FtpTextBufferCodec.EnsureDirectoryTraverseBits(fileOctal)
+                : fileOctal;
+            setPermissions(remotePath, modeToApply);
+
+            if (isDir && recursive)
+            {
+                foreach (var sub in listDir(remotePath))
+                {
+                    if (sub.Name == "." || sub.Name == "..") continue;
+                    if (sub.IsSymbolicLink) continue;
+                    ExecuteSafeRemoteChmodTree(sub.FullPath, sub.IsDirectory, sub.IsSymbolicLink, fileOctal, true, listDir, setPermissions);
+                }
+            }
+        }
+
+        private async Task ApplyChmodInternalAsync(string remotePath, bool isDir, bool isSymlink, short octalShort, int octalDecimalDigits, bool recursive)
+        {
+            if (isSymlink) return;
+
             if (_sftpClient != null && _sftpClient.IsConnected)
             {
-                await Task.Run(() => ApplySftpChmodSync(remotePath, isDir, octalShort, recursive));
+                await Task.Run(() => ApplySftpChmodSync(remotePath, isDir, isSymlink, octalShort, recursive));
             }
             else if (_ftpClient != null && _ftpClient.IsConnected)
             {
-                await _ftpClient.Chmod(remotePath, octalDecimalDigits);
+                int modeDigits = (isDir && recursive)
+                    ? int.Parse(FtpTextBufferCodec.FormatOctalDigits(FtpTextBufferCodec.EnsureDirectoryTraverseBits(octalShort)))
+                    : octalDecimalDigits;
+                await _ftpClient.Chmod(remotePath, modeDigits);
                 if (isDir && recursive)
                 {
                     var subs = await _ftpClient.GetListing(remotePath);
                     foreach (var sub in subs.Where(x => x.Name != "." && x.Name != ".."))
                     {
-                        await ApplyChmodInternalAsync(sub.FullName, sub.Type == FtpObjectType.Directory, octalShort, octalDecimalDigits, true);
+                        if (sub.Type == FtpObjectType.Link) continue;
+                        await ApplyChmodInternalAsync(sub.FullName, sub.Type == FtpObjectType.Directory, false, octalShort, octalDecimalDigits, true);
                     }
                 }
             }
         }
 
-        private void ApplySftpChmodSync(string remotePath, bool isDir, short octalShort, bool recursive)
+        private void ApplySftpChmodSync(string remotePath, bool isDir, bool isSymlink, short octalShort, bool recursive)
         {
             if (_sftpClient == null) return;
-            _sftpClient.ChangePermissions(remotePath, octalShort);
-            if (isDir && recursive)
-            {
-                foreach (var sub in _sftpClient.ListDirectory(remotePath).Where(x => x.Name != "." && x.Name != ".."))
-                {
-                    ApplySftpChmodSync(sub.FullName, sub.IsDirectory, octalShort, true);
-                }
-            }
+            ExecuteSafeRemoteChmodTree(
+                remotePath,
+                isDir,
+                isSymlink,
+                octalShort,
+                recursive,
+                dir => _sftpClient.ListDirectory(dir).Select(x => new RemoteNodeInfo(x.Name, x.FullName, !x.IsSymbolicLink && x.IsDirectory, x.IsSymbolicLink, x.Length)),
+                (p, mode) => _sftpClient.ChangePermissions(p, mode));
         }
 
         private async void MenuRemotePasteUpload_Click(object sender, RoutedEventArgs e)
@@ -1777,13 +2115,39 @@ namespace FunkenwerkFtp
 
             foreach (var item in selected)
             {
-                await DeleteRemoteRecursiveAsync(item.FullPath, item.IsDirectory);
+                await DeleteRemoteRecursiveAsync(item.FullPath, item.IsDirectory, item.IsSymbolicLink);
             }
             await NavigateRemoteDirectoryAsync(RemotePathBox.Text.Trim());
             StatusText.Text = $"🗑 {selected.Count} Server-Element(e) gelöscht.";
         }
 
-        private async Task DeleteRemoteRecursiveAsync(string remotePath, bool isDir)
+        public static void ExecuteSafeRemoteDeleteTree(
+            string dirPath,
+            Func<string, IEnumerable<RemoteNodeInfo>> listDir,
+            Action<string> deleteFileOrSymlink,
+            Action<string> deleteEmptyDir)
+        {
+            foreach (var sub in listDir(dirPath))
+            {
+                if (sub.Name == "." || sub.Name == "..") continue;
+                // CRITICAL: Check IsSymbolicLink BEFORE IsDirectory so symlinks are unlinked and NEVER recursed into!
+                if (sub.IsSymbolicLink)
+                {
+                    deleteFileOrSymlink(sub.FullPath);
+                }
+                else if (sub.IsDirectory)
+                {
+                    ExecuteSafeRemoteDeleteTree(sub.FullPath, listDir, deleteFileOrSymlink, deleteEmptyDir);
+                }
+                else
+                {
+                    deleteFileOrSymlink(sub.FullPath);
+                }
+            }
+            deleteEmptyDir(dirPath);
+        }
+
+        private async Task DeleteRemoteRecursiveAsync(string remotePath, bool isDir, bool isSymlink)
         {
             await _remoteIoGate.WaitAsync();
             try
@@ -1792,13 +2156,15 @@ namespace FunkenwerkFtp
                 {
                     await Task.Run(() =>
                     {
-                        if (isDir) DeleteSftpDirectorySync(remotePath);
+                        if (isSymlink) _sftpClient.DeleteFile(remotePath);
+                        else if (isDir) DeleteSftpDirectorySync(remotePath);
                         else _sftpClient.DeleteFile(remotePath);
                     });
                 }
                 else if (_ftpClient != null && _ftpClient.IsConnected)
                 {
-                    if (isDir) await _ftpClient.DeleteDirectory(remotePath);
+                    if (isSymlink) await _ftpClient.DeleteFile(remotePath);
+                    else if (isDir) await _ftpClient.DeleteDirectory(remotePath);
                     else await _ftpClient.DeleteFile(remotePath);
                 }
             }
@@ -1815,12 +2181,11 @@ namespace FunkenwerkFtp
         private void DeleteSftpDirectorySync(string path)
         {
             if (_sftpClient == null) return;
-            foreach (var sub in _sftpClient.ListDirectory(path).Where(x => x.Name != "." && x.Name != ".."))
-            {
-                if (sub.IsDirectory) DeleteSftpDirectorySync(sub.FullName);
-                else _sftpClient.DeleteFile(sub.FullName);
-            }
-            _sftpClient.DeleteDirectory(path);
+            ExecuteSafeRemoteDeleteTree(
+                path,
+                dir => _sftpClient.ListDirectory(dir).Select(x => new RemoteNodeInfo(x.Name, x.FullName, !x.IsSymbolicLink && x.IsDirectory, x.IsSymbolicLink, x.Length)),
+                fileOrLink => _sftpClient.DeleteFile(fileOrLink),
+                emptyDir => _sftpClient.DeleteDirectory(emptyDir));
         }
 
         private void RemoteFilesList_ContextMenuOpening(object sender, ContextMenuEventArgs e)
@@ -2058,6 +2423,12 @@ namespace FunkenwerkFtp
         private async Task DownloadItemRecursiveAsync(FileEntryItem remoteItem, string localParentDir, bool refreshAfter)
         {
             if (!IsConnected() || remoteItem.IsParentNav) return;
+            if (remoteItem.IsSymbolicLink)
+            {
+                StatusText.Text = $"↷ Symlink aus Sicherheitsgründen übersprungen: {remoteItem.Name}";
+                return;
+            }
+
             try
             {
                 string safeLocalTarget = FunkenwerkFtpSecurity.ValidateSafeLocalPath(localParentDir, remoteItem.Name);
@@ -2077,10 +2448,13 @@ namespace FunkenwerkFtp
                                 .ToList());
                             foreach (var sub in subEntries)
                             {
+                                // Check IsSymbolicLink BEFORE IsDirectory so symlinks are skipped and never traversed
+                                if (sub.IsSymbolicLink) continue;
                                 children.Add(new FileEntryItem
                                 {
                                     Name = sub.Name,
                                     FullPath = sub.FullName,
+                                    IsSymbolicLink = false,
                                     IsDirectory = sub.IsDirectory,
                                     Size = sub.Length
                                 });
@@ -2091,10 +2465,12 @@ namespace FunkenwerkFtp
                             var subEntries = await _ftpClient.GetListing(remoteItem.FullPath);
                             foreach (var sub in subEntries.Where(x => x.Name != "." && x.Name != ".."))
                             {
+                                if (sub.Type == FtpObjectType.Link) continue;
                                 children.Add(new FileEntryItem
                                 {
                                     Name = sub.Name,
                                     FullPath = sub.FullName,
+                                    IsSymbolicLink = false,
                                     IsDirectory = sub.Type == FtpObjectType.Directory,
                                     Size = sub.Size
                                 });
@@ -2156,12 +2532,49 @@ namespace FunkenwerkFtp
             }
         }
 
+        public static void ExecuteSafeRemoteStageTree(
+            string remotePath,
+            bool isDir,
+            bool isSymlink,
+            long declaredSize,
+            string safeLocalDest,
+            DragStagingBudget budget,
+            Func<string, IEnumerable<RemoteNodeInfo>> listDir,
+            Action<string, Stream> downloadToStream)
+        {
+            // Check IsSymbolicLink BEFORE IsDirectory so symlinks are skipped and never traversed
+            if (isSymlink) return;
+
+            if (isDir)
+            {
+                Directory.CreateDirectory(safeLocalDest);
+                FunkenwerkFtpSecurity.LockDownDirectoryAcl(safeLocalDest);
+                foreach (var sub in listDir(remotePath))
+                {
+                    if (sub.Name == "." || sub.Name == "..") continue;
+                    if (sub.IsSymbolicLink) continue;
+                    string childLocal = FunkenwerkFtpSecurity.ValidateSafeLocalPath(safeLocalDest, sub.Name);
+                    ExecuteSafeRemoteStageTree(sub.FullPath, sub.IsDirectory, sub.IsSymbolicLink, sub.Size, childLocal, budget, listDir, downloadToStream);
+                }
+            }
+            else
+            {
+                budget.ReserveFile(declaredSize);
+                using (var rawFs = File.Create(safeLocalDest))
+                using (var bounded = new BoundedStagingStream(rawFs, budget, declaredSize))
+                {
+                    downloadToStream(remotePath, bounded);
+                }
+                FunkenwerkFtpSecurity.LockDownFileAcl(safeLocalDest);
+            }
+        }
+
         // Synchronous staging used ONLY when user drags remote item(s) out onto Windows Desktop / Explorer / PhpStorm
         private string[]? StageRemoteItemsForExternalDropSync(List<FileEntryItem> items)
         {
             if (!IsConnected() || items.Count == 0) return null;
 
-            long approxBytes = items.Where(x => !x.IsDirectory).Sum(x => Math.Max(0, x.Size));
+            long approxBytes = items.Where(x => !x.IsDirectory && !x.IsSymbolicLink).Sum(x => Math.Max(0, x.Size));
             if (approxBytes > MAX_EXTERNAL_DRAG_STAGE_BYTES)
             {
                 StatusText.Text = "⚠ Für sehr große Dateien (> 160 MB) bitte direkt in das linke LOKAL-Feld ziehen.";
@@ -2171,16 +2584,18 @@ namespace FunkenwerkFtp
             if (!_remoteIoGate.Wait(TimeSpan.FromSeconds(15)))
                 return null;
 
+            string? batchDir = null;
             try
             {
-                string batchDir = DragStagingManager.CreateIsolatedBatchDir();
+                batchDir = DragStagingManager.CreateIsolatedBatchDir();
+                var budget = new DragStagingBudget(MAX_EXTERNAL_DRAG_STAGE_BYTES, DragStagingBudget.MaxFiles);
                 var staged = new List<string>(items.Count);
 
                 foreach (var it in items)
                 {
-                    if (it.IsParentNav) continue;
+                    if (it.IsParentNav || it.IsSymbolicLink) continue;
                     string safeDest = FunkenwerkFtpSecurity.ValidateSafeLocalPath(batchDir, it.Name);
-                    StageSingleRemoteEntrySync(it.FullPath, it.IsDirectory, safeDest);
+                    StageSingleRemoteEntrySync(it.FullPath, it.IsDirectory, it.IsSymbolicLink, it.Size, safeDest, budget);
                     if (File.Exists(safeDest) || Directory.Exists(safeDest))
                         staged.Add(safeDest);
                 }
@@ -2191,7 +2606,11 @@ namespace FunkenwerkFtp
             }
             catch (Exception ex)
             {
-                StatusText.Text = $"⚠ Drag-Export fehlgeschlagen: {ex.Message}";
+                if (!string.IsNullOrEmpty(batchDir) && Directory.Exists(batchDir))
+                {
+                    try { Directory.Delete(batchDir, recursive: true); } catch { }
+                }
+                StatusText.Text = $"⚠ Drag-Export abgebrochen: {ex.Message}";
                 return null;
             }
             finally
@@ -2200,44 +2619,43 @@ namespace FunkenwerkFtp
             }
         }
 
-        private void StageSingleRemoteEntrySync(string remotePath, bool isDir, string safeLocalDest)
+        private void StageSingleRemoteEntrySync(
+            string remotePath,
+            bool isDir,
+            bool isSymlink,
+            long declaredSize,
+            string safeLocalDest,
+            DragStagingBudget budget)
         {
+            if (isSymlink) return;
+
             if (_sftpClient != null && _sftpClient.IsConnected)
             {
-                if (isDir)
-                {
-                    Directory.CreateDirectory(safeLocalDest);
-                    foreach (var sub in _sftpClient.ListDirectory(remotePath).Where(x => x.Name != "." && x.Name != ".."))
-                    {
-                        string childLocal = FunkenwerkFtpSecurity.ValidateSafeLocalPath(safeLocalDest, sub.Name);
-                        StageSingleRemoteEntrySync(sub.FullName, sub.IsDirectory, childLocal);
-                    }
-                }
-                else
-                {
-                    using var fs = File.Create(safeLocalDest);
-                    _sftpClient.DownloadFile(remotePath, fs);
-                }
+                ExecuteSafeRemoteStageTree(
+                    remotePath,
+                    isDir,
+                    isSymlink,
+                    declaredSize,
+                    safeLocalDest,
+                    budget,
+                    dir => _sftpClient.ListDirectory(dir).Select(x => new RemoteNodeInfo(x.Name, x.FullName, !x.IsSymbolicLink && x.IsDirectory, x.IsSymbolicLink, x.Length)),
+                    (file, stream) => _sftpClient.DownloadFile(file, stream));
             }
             else if (_ftpClient != null && _ftpClient.IsConnected)
             {
-                // Run on thread-pool so UI thread never deadlocks async state machine
-                Task.Run(async () =>
+                var ftp = _ftpClient;
+                Task.Run(() =>
                 {
-                    if (isDir)
-                    {
-                        Directory.CreateDirectory(safeLocalDest);
-                        var subs = await _ftpClient.GetListing(remotePath);
-                        foreach (var sub in subs.Where(x => x.Name != "." && x.Name != ".."))
-                        {
-                            string childLocal = FunkenwerkFtpSecurity.ValidateSafeLocalPath(safeLocalDest, sub.Name);
-                            StageSingleRemoteEntrySync(sub.FullName, sub.Type == FtpObjectType.Directory, childLocal);
-                        }
-                    }
-                    else
-                    {
-                        await _ftpClient.DownloadFile(safeLocalDest, remotePath, FtpLocalExists.Overwrite);
-                    }
+                    ExecuteSafeRemoteStageTree(
+                        remotePath,
+                        isDir,
+                        isSymlink,
+                        declaredSize,
+                        safeLocalDest,
+                        budget,
+                        dir => ftp.GetListing(dir).GetAwaiter().GetResult().Select(x =>
+                            new RemoteNodeInfo(x.Name, x.FullName, x.Type != FtpObjectType.Link && x.Type == FtpObjectType.Directory, x.Type == FtpObjectType.Link, x.Size)),
+                        (file, stream) => ftp.DownloadStream(stream, file).GetAwaiter().GetResult());
                 }).GetAwaiter().GetResult();
             }
         }
@@ -2800,8 +3218,23 @@ namespace FunkenwerkFtp
 
         private async void Window_Closing(object sender, CancelEventArgs e)
         {
-            await DisconnectServerAsync();
-            DragStagingManager.PruneOldBatches(TimeSpan.Zero);
+            if (_closeCleanupDone) return;
+            e.Cancel = true;
+            if (_closeCleanupInProgress) return;
+            _closeCleanupInProgress = true;
+            try
+            {
+                await DisconnectServerAsync();
+                DragStagingManager.PruneOldBatches(TimeSpan.Zero);
+                DragStagingManager.PurgeAllStagingDirs();
+            }
+            catch { }
+            finally
+            {
+                _closeCleanupDone = true;
+                _closeCleanupInProgress = false;
+            }
+            Close();
         }
     }
 }

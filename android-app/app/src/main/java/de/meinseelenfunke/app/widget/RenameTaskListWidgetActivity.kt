@@ -93,7 +93,7 @@ class RenameTaskListWidgetActivity : ComponentActivity() {
 
         // Retrieve existing name and icon from cache
         val sharedPrefs = getSharedPreferences("tasks_widget_prefs", Context.MODE_PRIVATE)
-        val listsJson = sharedPrefs.getString("task_lists_cache", null)
+        val listsJson = ServiceLocator.getDecryptedPref(sharedPrefs, "task_lists_cache")
         var initialName = ""
         var initialIcon = "bookmark"
 
@@ -155,14 +155,12 @@ class RenameTaskListWidgetActivity : ComponentActivity() {
                         val sharedPrefs = getSharedPreferences("tasks_widget_prefs", Context.MODE_PRIVATE)
                         val appWidgetIds = AppWidgetManager.getInstance(appContext)
                             .getAppWidgetIds(ComponentName(appContext, TasksWidgetProvider::class.java))
-                        val edit = sharedPrefs.edit()
                         for (id in appWidgetIds) {
                             val selectedListId = sharedPrefs.getString("widget_tasks_selected_list_id_$id", null)
                             if (selectedListId == listId) {
-                                edit.putString("widget_tasks_selected_list_name_$id", name.trim())
+                                ServiceLocator.putEncryptedPref(sharedPrefs, "widget_tasks_selected_list_name_$id", name.trim())
                             }
                         }
-                        edit.apply()
 
                         ServiceLocator.organizerRepository.triggerTasksWidgetUpdate(appContext)
 

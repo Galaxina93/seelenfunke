@@ -79,7 +79,7 @@
                             <!-- Background Line -->
                             <div class="absolute left-0 top-1/2 -translate-y-1/2 w-full h-1 bg-gray-800 z-0 rounded-full"></div>
                             <!-- Active Line -->
-                            <div class="absolute left-0 top-1/2 -translate-y-1/2 h-1 bg-amber-500 z-0 transition-all duration-500 rounded-full" style="width: {{ ($currentStep - 1) * 33.3333 }}%;"></div>
+                            <div class="absolute left-0 top-1/2 -translate-y-1/2 h-1 bg-amber-500 z-0 transition-all duration-500 rounded-full" style="width: {{ min(100, max(0, ($currentStep - 1) * 33.3333)) }}%;"></div>
 
                             @foreach([1 => 'Sofort', 2 => 'Shop', 3 => 'Finanzen', 4 => 'Abschluss'] as $num => $label)
                                 <div class="relative z-10 flex flex-col items-center">
@@ -301,7 +301,7 @@
                                 </button>
                             </div>
 
-                        @elseif($currentStep === 4)
+                        @elseif($currentStep >= 4)
                             <!-- STEP 4 -->
                             <h2 class="text-2xl font-serif text-amber-500 mb-6">Abschluss & Zusammenfassung</h2>
 

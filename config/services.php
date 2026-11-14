@@ -57,12 +57,21 @@ return [
 
     'gemini' => [
         'url' => env('GEMINI_API_URL', 'https://generativelanguage.googleapis.com/v1beta/openai/'),
-        'key' => env('GEMINI_API_KEY'),
+        'key' => env('GEMINI_API_KEY', env('GOOGLE_API_KEY')),
         'proxy_ws_url' => env('GEMINI_PROXY_WS_URL'),
+        'bridge_secret' => env('GEMINI_BRIDGE_SECRET', env('AI_PROXY_SECRET', env('BRIDGE_SECRET'))),
+    ],
+
+    'twilio' => [
+        'sid' => env('TWILIO_SID', env('TWILIO_ACCOUNT_SID')),
+        'token' => env('TWILIO_TOKEN', env('TWILIO_AUTH_TOKEN')),
+        'wss_url' => env('TWILIO_WSS_URL'),
+        'bridge_secret' => env('TWILIO_BRIDGE_SECRET', env('AI_PROXY_SECRET', env('BRIDGE_SECRET'))),
     ],
 
     'ai' => [
         'python_binary' => env('PYTHON_BINARY', 'python3'),
+        'proxy_secret' => env('AI_PROXY_SECRET', env('BRIDGE_SECRET')),
     ],
 
     'firebase' => [

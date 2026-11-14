@@ -4,4 +4,5 @@
     <cache-path name="mail_attachments" path="mail_attachments/" />
     <cache-path name="calendar_exports" path="calendar_exports/" />
     <cache-path name="secure_downloads" path="secure_downloads/" />
+    <cache-path name="apk_updates" path="apk_updates/" />
 </paths>

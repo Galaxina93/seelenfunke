@@ -163,6 +163,24 @@
                                     </p>
                                 </div>
 
+                                {{-- Freiwillige Einwilligung für freundliche Warenkorb-Erinnerungen & Manufaktur-Neuigkeiten (§ 7 Abs. 2 UWG / Art. 6 Abs. 1 lit. a DSGVO) --}}
+                                <div x-data="{ showMarketingInfo: false }" class="p-3.5 rounded-xl border transition-colors {{ $marketing_consent ? 'bg-white border-primary/40' : 'bg-gray-50/80 border-gray-200/80' }}">
+                                    <div class="flex items-center justify-between gap-3">
+                                        <div class="flex items-center gap-3">
+                                            <input wire:model.live="marketing_consent" id="marketing_consent" type="checkbox" class="w-5 h-5 rounded border-gray-300 bg-white text-primary focus:ring-primary/30 cursor-pointer shrink-0">
+                                            <label for="marketing_consent" class="text-xs font-bold text-gray-800 cursor-pointer select-none">
+                                                Warenkorb-Erinnerungen &amp; Manufaktur-Neuigkeiten erhalten (optional)
+                                            </label>
+                                        </div>
+                                        <button type="button" @click="showMarketingInfo = !showMarketingInfo" class="text-[11px] font-bold text-primary hover:text-gray-900 transition-colors shrink-0 cursor-pointer" title="Details zur freiwilligen E-Mail-Einwilligung">
+                                            <span x-text="showMarketingInfo ? 'Ausblenden' : 'Erklärung anzeigen'">Erklärung anzeigen</span>
+                                        </button>
+                                    </div>
+                                    <div x-show="showMarketingInfo" x-cloak class="mt-2.5 pl-8 text-xs text-gray-600 leading-relaxed">
+                                        Ich möchte per E-Mail freundlich erinnert werden, falls ich gestaltete Unikate im Warenkorb liegen lasse, sowie seltene Neuigkeiten aus der Manufaktur erhalten (§ 7 Abs. 2 UWG, Art. 6 Abs. 1 lit. a DSGVO). Die Aktivierung erfolgt erst mit Bestätigung meiner E-Mail-Adresse und ist jederzeit mit einem Klick im Profil oder in jeder E-Mail widerrufbar. Details in der <a href="{{route('datenschutz')}}" target="_blank" class="text-primary hover:text-gray-900 font-bold underline decoration-primary/50 underline-offset-4">Datenschutzerklärung</a>.
+                                    </div>
+                                </div>
+
                                 {{-- DSGVO-Einwilligung für KI-Support-Datenzugriff (Art. 6 Abs. 1 lit. a DSGVO) --}}
                                 <div class="p-3.5 rounded-xl bg-amber-50/50 border border-amber-200/70">
                                     <div class="flex items-start gap-3">

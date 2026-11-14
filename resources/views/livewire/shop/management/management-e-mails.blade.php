@@ -266,7 +266,7 @@
                         @endif
 
                         <!-- Preview snippet -->
-                        <p class="text-[10px] text-gray-500 truncate">{{ Str::limit(strip_tags($msg->body_plain ?? $msg->body_html), 40) }}</p>
+                        <p class="text-[10px] text-gray-500 truncate">{{ Str::limit(strip_tags((string) ($msg->body_plain ?? $msg->body_html ?? '')), 40) }}</p>
                     </button>
 
                     {{-- Context Menu Dropdown --}}

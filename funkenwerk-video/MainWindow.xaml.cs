@@ -16,22 +16,36 @@ namespace FunkenwerkVideo
     {
         public string Name { get; set; } = "";
         public string FolderPath { get; set; } = "";
+        public bool IsCustomFolder { get; set; }
         public bool IsSelected { get; set; }
         public List<RawClipInfo> Clips { get; set; } = new();
     }
 
     public partial class MainWindow : Window
     {
+        private readonly bool _disableAutoLoad;
         private bool _isDarkMode = true;
         private bool _isPlaying = false;
         private bool _isRendering = false;
+        private bool _isSyncingRecipeUi = false;
         private string _currentVideoPath = "";
+
         private readonly List<ProjectFolderItem> _projects = new();
         private readonly HashSet<string> _customProjectFolders = new(StringComparer.OrdinalIgnoreCase);
+        private readonly HashSet<string> _untrackedSubfolders = new(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> _selectedFolderPaths = new(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> _pendingDeletedPaths = new(StringComparer.OrdinalIgnoreCase);
         private FileSystemWatcher? _rawTourWatcher;
+        private bool _isWatcherDisposed = false;
         private readonly Dictionary<(DependencyObject Obj, DependencyProperty Prop), string> _originalDarkBrushes = new();
+
+        private static readonly string[] TransitionModes =
+        {
+            "LightWipeZoom",
+            "GoldenFlash",
+            "WhipZoom",
+            "SeamlessLoop"
+        };
 
         private static readonly Dictionary<string, string> _darkToLightHexMap = new(StringComparer.OrdinalIgnoreCase)
         {
@@ -49,23 +63,188 @@ namespace FunkenwerkVideo
             ["#9CA3AF"] = "#4B5563"
         };
 
-        public MainWindow()
+        public IReadOnlyList<ProjectFolderItem> Projects => _projects;
+        public IReadOnlyCollection<string> CustomProjectFolders => _customProjectFolders;
+        public bool IsDarkMode => _isDarkMode;
+        public bool IsWatcherDisposed => _isWatcherDisposed;
+
+        public MainWindow() : this(disableAutoLoad: false)
         {
+        }
+
+        public MainWindow(bool disableAutoLoad)
+        {
+            _disableAutoLoad = disableAutoLoad;
             InitializeComponent();
+            PopulateRegieControls();
             Loaded += MainWindow_Loaded;
+        }
+
+        public void InitializeForHeadlessTest()
+        {
+            CaptureOriginalDarkBrushes(this);
+            ApplyThemeMode(_isDarkMode);
+            StartRawTourWatcher();
+        }
+
+        private void PopulateRegieControls()
+        {
+            _isSyncingRecipeUi = true;
+            try
+            {
+                RecipeComboBox.Items.Clear();
+                foreach (var recipe in ViralVideographerEngine.ViralRecipes)
+                {
+                    RecipeComboBox.Items.Add(new ComboBoxItem
+                    {
+                        Content = recipe.Name,
+                        Tag = recipe.Id
+                    });
+                }
+
+                TransitionComboBox.Items.Clear();
+                foreach (var mode in TransitionModes)
+                {
+                    TransitionComboBox.Items.Add(new ComboBoxItem
+                    {
+                        Content = mode,
+                        Tag = mode
+                    });
+                }
+
+                if (RecipeComboBox.Items.Count > 0)
+                    RecipeComboBox.SelectedIndex = 0;
+                if (TransitionComboBox.Items.Count > 0)
+                    TransitionComboBox.SelectedIndex = 0;
+
+                if (ViralVideographerEngine.ViralRecipes.Count > 0)
+                {
+                    HookTextBox.Text = ViralVideographerEngine.ViralRecipes[0].DefaultHookText;
+                }
+            }
+            finally
+            {
+                _isSyncingRecipeUi = false;
+            }
+        }
+
+        private void RecipeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_isSyncingRecipeUi) return;
+            string selectedId = GetSelectedRecipeId();
+            var recipe = ViralVideographerEngine.ViralRecipes.FirstOrDefault(
+                r => string.Equals(r.Id, selectedId, StringComparison.OrdinalIgnoreCase));
+            if (recipe == null) return;
+
+            _isSyncingRecipeUi = true;
+            try
+            {
+                for (int i = 0; i < TransitionComboBox.Items.Count; i++)
+                {
+                    if (TransitionComboBox.Items[i] is ComboBoxItem cbi &&
+                        string.Equals(cbi.Tag as string, recipe.DefaultTransitionMode, StringComparison.OrdinalIgnoreCase))
+                    {
+                        TransitionComboBox.SelectedIndex = i;
+                        break;
+                    }
+                }
+
+                if (!string.IsNullOrWhiteSpace(recipe.DefaultHookText))
+                {
+                    HookTextBox.Text = recipe.DefaultHookText;
+                }
+            }
+            finally
+            {
+                _isSyncingRecipeUi = false;
+            }
+        }
+
+        private void HookOverlayCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            if (HookTextBox == null || HookOverlayCheckBox == null) return;
+            HookTextBox.Visibility = HookOverlayCheckBox.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        public string GetSelectedRecipeId()
+        {
+            if (RecipeComboBox.SelectedItem is ComboBoxItem item && item.Tag is string id && !string.IsNullOrWhiteSpace(id))
+                return id;
+            return "auto_videographer";
+        }
+
+        public string GetSelectedTransitionMode()
+        {
+            if (TransitionComboBox.SelectedItem is ComboBoxItem item && item.Tag is string mode && !string.IsNullOrWhiteSpace(mode))
+                return mode;
+            return "LightWipeZoom";
+        }
+
+        public VideographerJobOptions BuildJobOptionsFromUi(string projectName, bool saveToDesktop)
+        {
+            bool hookEnabled = HookOverlayCheckBox.IsChecked == true;
+            string rawHook = HookTextBox.Text ?? "";
+            string cleanHook = ViralVideographerEngine.SanitizeSeelenfunkeText(rawHook);
+
+            return new VideographerJobOptions
+            {
+                ProjectName = projectName,
+                SaveToDesktop = saveToDesktop,
+                RecipeId = GetSelectedRecipeId(),
+                TransitionMode = GetSelectedTransitionMode(),
+                EnableHookTextOverlay = hookEnabled && !string.IsNullOrWhiteSpace(cleanHook),
+                HookText = cleanHook,
+                EnableGoldParticlesVfx = true,
+                EnableViralSoundEffects = true,
+                EnableAsmrBoost = true,
+                EnableBeatPulseBed = true,
+                TargetFps = 60
+            };
         }
 
         private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
             CaptureOriginalDarkBrushes(this);
             ApplyThemeMode(_isDarkMode);
+            if (_disableAutoLoad) return;
+
             StartRawTourWatcher();
             await ReloadProjectsAsync();
             LoadLatestVideoIntoPreview();
         }
 
+        private void Window_Closed(object? sender, EventArgs e)
+        {
+            DisposeWatcher();
+            try
+            {
+                PreviewMediaElement.Stop();
+                PreviewMediaElement.Close();
+                PreviewMediaElement.Source = null;
+            }
+            catch { }
+        }
+
+        public void DisposeWatcher()
+        {
+            if (_rawTourWatcher != null)
+            {
+                try
+                {
+                    _rawTourWatcher.EnableRaisingEvents = false;
+                    _rawTourWatcher.Dispose();
+                }
+                catch { }
+                _rawTourWatcher = null;
+            }
+            _isWatcherDisposed = true;
+        }
+
         private void StartRawTourWatcher()
         {
+            DisposeWatcher();
+            _isWatcherDisposed = false;
+
             try
             {
                 string rawDir = ViralVideographerEngine.GetRawTourDir();
@@ -74,17 +253,35 @@ namespace FunkenwerkVideo
                     NotifyFilter = NotifyFilters.FileName | NotifyFilters.Size | NotifyFilters.LastWrite,
                     EnableRaisingEvents = true
                 };
-                FileSystemEventHandler handler = (_, _) =>
+
+                async Task HandleFsChangeAsync(string? fullPath)
                 {
-                    Dispatcher.InvokeAsync(async () =>
+                    if (!string.IsNullOrWhiteSpace(fullPath) &&
+                        ViralVideographerEngine.AllowedVideoExtensions.Contains(Path.GetExtension(fullPath)))
                     {
-                        if (!_isRendering)
+                        bool ready = await ViralVideographerEngine.WaitForFileReadyAsync(fullPath, maxWaitMs: 4000);
+                        if (!ready) return;
+                        ViralVideographerEngine.InvalidateClipCache(fullPath);
+                    }
+
+                    await Dispatcher.InvokeAsync(async () =>
+                    {
+                        if (!_isRendering && !_isWatcherDisposed)
                             await ReloadProjectsAsync();
                     });
+                }
+
+                _rawTourWatcher.Created += (_, ev) => _ = HandleFsChangeAsync(ev.FullPath);
+                _rawTourWatcher.Deleted += (_, ev) =>
+                {
+                    ViralVideographerEngine.InvalidateClipCache(ev.FullPath);
+                    _ = HandleFsChangeAsync(null);
                 };
-                _rawTourWatcher.Created += handler;
-                _rawTourWatcher.Deleted += handler;
-                _rawTourWatcher.Renamed += (_, _) => handler(this, null!);
+                _rawTourWatcher.Renamed += (_, ev) =>
+                {
+                    ViralVideographerEngine.InvalidateClipCache(ev.OldFullPath);
+                    _ = HandleFsChangeAsync(ev.FullPath);
+                };
             }
             catch { }
         }
@@ -136,7 +333,7 @@ namespace FunkenwerkVideo
             }
         }
 
-        private void ApplyThemeMode(bool isDark)
+        public void ApplyThemeMode(bool isDark)
         {
             _isDarkMode = isDark;
             Background = BrushFromHex("#0F1117");
@@ -149,6 +346,25 @@ namespace FunkenwerkVideo
                     kv.Key.Obj.SetValue(kv.Key.Prop, BrushFromHex(kv.Value));
                 }
                 catch { }
+            }
+
+            // Theme ComboBox controls & popup items for 100% Light/Dark legibility
+            var comboBg = BrushFromHex("#181B24");
+            var comboFg = BrushFromHex("#F9FAFB");
+            var comboBorder = BrushFromHex("#262A36");
+            foreach (var cb in new[] { RecipeComboBox, TransitionComboBox })
+            {
+                if (cb == null) continue;
+                cb.Background = comboBg;
+                cb.Foreground = comboFg;
+                cb.BorderBrush = comboBorder;
+                cb.Resources[SystemColors.WindowBrushKey] = comboBg;
+                cb.Resources[SystemColors.ControlTextBrushKey] = comboFg;
+                foreach (var item in cb.Items.OfType<ComboBoxItem>())
+                {
+                    item.Background = comboBg;
+                    item.Foreground = comboFg;
+                }
             }
 
             if (ThemeToggleBtn != null)
@@ -164,21 +380,33 @@ namespace FunkenwerkVideo
             ApplyThemeMode(!_isDarkMode);
         }
 
-        private async Task ReloadProjectsAsync()
+        public void RegisterCustomProjectFolder(string folderPath)
+        {
+            if (string.IsNullOrWhiteSpace(folderPath)) return;
+            string full = Path.GetFullPath(folderPath);
+            _untrackedSubfolders.Remove(full);
+            _customProjectFolders.Add(full);
+            _selectedFolderPaths.Clear();
+            _selectedFolderPaths.Add(full);
+        }
+
+        public async Task ReloadProjectsAsync()
         {
             var folderCandidates = new List<string>();
 
             // 1. Default Rohmaterial_Tour folder
-            string rawTourDir = ViralVideographerEngine.GetRawTourDir();
+            string rawTourDir = Path.GetFullPath(ViralVideographerEngine.GetRawTourDir());
             folderCandidates.Add(rawTourDir);
 
             // 2. Subfolders inside 'Projekte'
-            string projectsRoot = ViralVideographerEngine.GetProjectsDir();
+            string projectsRoot = Path.GetFullPath(ViralVideographerEngine.GetProjectsDir());
             if (Directory.Exists(projectsRoot))
             {
                 foreach (var dir in Directory.GetDirectories(projectsRoot).OrderBy(d => d, StringComparer.OrdinalIgnoreCase))
                 {
-                    folderCandidates.Add(dir);
+                    string fullSub = Path.GetFullPath(dir);
+                    if (!_untrackedSubfolders.Contains(fullSub))
+                        folderCandidates.Add(fullSub);
                 }
             }
 
@@ -186,11 +414,11 @@ namespace FunkenwerkVideo
             foreach (var customDir in _customProjectFolders)
             {
                 if (Directory.Exists(customDir))
-                    folderCandidates.Add(customDir);
+                    folderCandidates.Add(Path.GetFullPath(customDir));
             }
 
             var distinctFolders = folderCandidates
-                .Select(f => System.IO.Path.GetFullPath(f))
+                .Select(Path.GetFullPath)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
@@ -199,16 +427,19 @@ namespace FunkenwerkVideo
             {
                 if (!Directory.Exists(folder)) continue;
 
+                bool isManagedRawTour = ViralVideographerEngine.IsDirectoryManagedRawTour(folder);
+                bool isCustom = !isManagedRawTour;
+
                 var files = Directory.GetFiles(folder)
-                    .Where(f => ViralVideographerEngine.AllowedVideoExtensions.Contains(System.IO.Path.GetExtension(f)))
-                    .Where(f => !_pendingDeletedPaths.Contains(System.IO.Path.GetFullPath(f)))
+                    .Where(f => ViralVideographerEngine.AllowedVideoExtensions.Contains(Path.GetExtension(f)))
+                    .Where(f => !_pendingDeletedPaths.Contains(Path.GetFullPath(f)))
                     .OrderBy(f => f, StringComparer.OrdinalIgnoreCase)
                     .ToList();
 
                 var clips = new List<RawClipInfo>();
                 foreach (var f in files)
                 {
-                    if (_pendingDeletedPaths.Contains(System.IO.Path.GetFullPath(f))) continue;
+                    if (_pendingDeletedPaths.Contains(Path.GetFullPath(f))) continue;
                     var info = await ViralVideographerEngine.AnalyzeRawClipAsync(f);
                     if (info != null && !_pendingDeletedPaths.Contains(info.FilePath))
                         clips.Add(info);
@@ -219,6 +450,7 @@ namespace FunkenwerkVideo
                 {
                     Name = folderName,
                     FolderPath = folder,
+                    IsCustomFolder = isCustom,
                     IsSelected = _selectedFolderPaths.Contains(folder),
                     Clips = clips
                 });
@@ -259,7 +491,6 @@ namespace FunkenwerkVideo
 
                 var cardStack = new StackPanel();
 
-                // Header Row: Checkbox + Folder Name + Video Count Badge + Quick Buttons
                 var headerGrid = new Grid { Cursor = Cursors.Hand };
                 headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
                 headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -274,7 +505,7 @@ namespace FunkenwerkVideo
                     Cursor = Cursors.Hand,
                     LayoutTransform = new ScaleTransform(1.2, 1.2)
                 };
-                chk.Click += (s, e) =>
+                chk.Click += (_, e) =>
                 {
                     e.Handled = true;
                     ToggleProjectSelection(projPath, chk.IsChecked == true);
@@ -330,7 +561,7 @@ namespace FunkenwerkVideo
                     FontWeight = FontWeights.Bold,
                     ToolTip = "Videos hinzufügen"
                 };
-                addVidBtn.Click += async (s, e) =>
+                addVidBtn.Click += async (_, e) =>
                 {
                     e.Handled = true;
                     await PickAndImportVideosToFolderAsync(projPath);
@@ -351,7 +582,7 @@ namespace FunkenwerkVideo
                     FontSize = 11,
                     ToolTip = "Ordner öffnen"
                 };
-                openDirBtn.Click += (s, e) =>
+                openDirBtn.Click += (_, e) =>
                 {
                     e.Handled = true;
                     OpenFolderInExplorer(projPath);
@@ -369,9 +600,9 @@ namespace FunkenwerkVideo
                     BorderThickness = new Thickness(1),
                     Cursor = Cursors.Hand,
                     FontWeight = FontWeights.Bold,
-                    ToolTip = "Projekt leeren / entfernen"
+                    ToolTip = proj.IsCustomFolder ? "Ordner aus Liste entfernen" : "Rohmaterial leeren"
                 };
-                clearBtn.Click += (s, e) =>
+                clearBtn.Click += (_, e) =>
                 {
                     e.Handled = true;
                     ClearOrRemoveProjectFolder(proj);
@@ -388,7 +619,6 @@ namespace FunkenwerkVideo
 
                 cardStack.Children.Add(headerGrid);
 
-                // Show Raw Video Files inside this Project Folder
                 if (proj.Clips.Count > 0)
                 {
                     var clipsContainer = new StackPanel { Margin = new Thickness(0, 10, 0, 0) };
@@ -447,9 +677,9 @@ namespace FunkenwerkVideo
                             FontSize = 11,
                             FontWeight = FontWeights.Bold,
                             VerticalAlignment = VerticalAlignment.Center,
-                            ToolTip = "Video entfernen"
+                            ToolTip = proj.IsCustomFolder ? "Aus Auswahl ausblenden" : "Rohvideo löschen"
                         };
-                        delClipBtn.Click += (s, e) =>
+                        delClipBtn.Click += (_, e) =>
                         {
                             e.Handled = true;
                             RemoveSingleClipInstant(proj, clipPath);
@@ -468,7 +698,6 @@ namespace FunkenwerkVideo
                 ProjectsStackPanel.Children.Add(card);
             }
 
-            // Clean Drop Box at the bottom of Projects list
             var dropBox = new Border
             {
                 Background = BrushFromHex("#26231F"),
@@ -497,7 +726,7 @@ namespace FunkenwerkVideo
 
         private void ToggleProjectSelection(string folderPath, bool isSelected)
         {
-            string full = System.IO.Path.GetFullPath(folderPath);
+            string full = Path.GetFullPath(folderPath);
             if (isSelected)
                 _selectedFolderPaths.Add(full);
             else
@@ -519,9 +748,26 @@ namespace FunkenwerkVideo
             return ViralVideographerEngine.GetRawTourDir();
         }
 
-        private void RemoveSingleClipInstant(ProjectFolderItem proj, string clipFilePath)
+        public void RemoveSingleClipInstant(ProjectFolderItem proj, string clipFilePath, Func<string, bool>? confirmCallback = null)
         {
-            string full = System.IO.Path.GetFullPath(clipFilePath);
+            if (proj == null || string.IsNullOrWhiteSpace(clipFilePath)) return;
+            string full = Path.GetFullPath(clipFilePath);
+
+            // External / custom folders: NEVER delete user files on disk, only remove from session list
+            if (proj.IsCustomFolder || !ViralVideographerEngine.IsPathInsideManagedRawTour(full))
+            {
+                proj.Clips.RemoveAll(c => string.Equals(c.FilePath, full, StringComparison.OrdinalIgnoreCase));
+                RenderProjectsUI();
+                return;
+            }
+
+            string prompt = $"Soll die Rohvideodatei '{Path.GetFileName(full)}' aus 'Rohmaterial_Tour' gelöscht werden?";
+            bool confirmed = confirmCallback != null
+                ? confirmCallback(prompt)
+                : MessageBox.Show(this, prompt, "Rohvideo löschen", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes;
+
+            if (!confirmed) return;
+
             lock (_pendingDeletedPaths)
             {
                 _pendingDeletedPaths.Add(full);
@@ -531,29 +777,55 @@ namespace FunkenwerkVideo
             _ = DeleteFileWithRetryAsync(full);
         }
 
-        private void ClearOrRemoveProjectFolder(ProjectFolderItem proj)
+        public void ClearOrRemoveProjectFolder(ProjectFolderItem proj, Func<string, bool>? confirmCallback = null)
         {
-            var pathsToDelete = proj.Clips.Select(c => c.FilePath).ToList();
-            foreach (var p in pathsToDelete)
+            if (proj == null) return;
+            string fullFolder = Path.GetFullPath(proj.FolderPath);
+
+            // CRITICAL SECURITY GUARANTEE:
+            // Never delete ANY files when proj.IsCustomFolder is true OR when folder is outside managed Rohmaterial_Tour!
+            // Removing an external/custom folder ONLY untracks it from UI state!
+            if (proj.IsCustomFolder || !ViralVideographerEngine.IsDirectoryManagedRawTour(fullFolder))
+            {
+                _customProjectFolders.Remove(fullFolder);
+                _selectedFolderPaths.Remove(fullFolder);
+                _untrackedSubfolders.Add(fullFolder);
+                _projects.Remove(proj);
+                RenderProjectsUI();
+                return;
+            }
+
+            // Internal managed Rohmaterial_Tour folder: require explicit user confirmation before deleting raw clips
+            var safeInternalPaths = proj.Clips
+                .Select(c => c.FilePath)
+                .Where(ViralVideographerEngine.IsPathInsideManagedRawTour)
+                .Select(Path.GetFullPath)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (safeInternalPaths.Count == 0)
+                return;
+
+            string confirmMsg = $"Sollen alle {safeInternalPaths.Count} Rohvideos im internen Ordner 'Rohmaterial_Tour' unwiderruflich gelöscht werden?";
+            bool confirmed = confirmCallback != null
+                ? confirmCallback(confirmMsg)
+                : MessageBox.Show(this, confirmMsg, "Rohmaterial_Tour leeren", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes;
+
+            if (!confirmed)
+                return;
+
+            foreach (var p in safeInternalPaths)
             {
                 lock (_pendingDeletedPaths)
                 {
-                    _pendingDeletedPaths.Add(System.IO.Path.GetFullPath(p));
+                    _pendingDeletedPaths.Add(p);
                 }
             }
+
             proj.Clips.Clear();
-
-            string rawTour = System.IO.Path.GetFullPath(ViralVideographerEngine.GetRawTourDir());
-            if (!string.Equals(proj.FolderPath, rawTour, StringComparison.OrdinalIgnoreCase))
-            {
-                _customProjectFolders.Remove(proj.FolderPath);
-                _selectedFolderPaths.Remove(proj.FolderPath);
-                _projects.Remove(proj);
-            }
-
             RenderProjectsUI();
 
-            foreach (var p in pathsToDelete)
+            foreach (var p in safeInternalPaths)
             {
                 _ = DeleteFileWithRetryAsync(p);
             }
@@ -561,7 +833,12 @@ namespace FunkenwerkVideo
 
         private async Task DeleteFileWithRetryAsync(string filePath)
         {
-            string full = System.IO.Path.GetFullPath(filePath);
+            string full = Path.GetFullPath(filePath);
+
+            // Defense-in-depth containment check: NEVER delete anything outside managed Rohmaterial_Tour
+            if (!ViralVideographerEngine.IsPathInsideManagedRawTour(full))
+                return;
+
             ViralVideographerEngine.InvalidateClipCache(full);
 
             if (string.Equals(_currentVideoPath, full, StringComparison.OrdinalIgnoreCase))
@@ -569,6 +846,7 @@ namespace FunkenwerkVideo
                 try
                 {
                     PreviewMediaElement.Stop();
+                    PreviewMediaElement.Close();
                     PreviewMediaElement.Source = null;
                     _currentVideoPath = "";
                 }
@@ -580,6 +858,8 @@ namespace FunkenwerkVideo
                 try
                 {
                     if (!File.Exists(full))
+                        break;
+                    if (!ViralVideographerEngine.IsPathInsideManagedRawTour(full))
                         break;
                     File.SetAttributes(full, FileAttributes.Normal);
                     File.Delete(full);
@@ -610,10 +890,7 @@ namespace FunkenwerkVideo
             };
             if (dlg.ShowDialog() == true && !string.IsNullOrWhiteSpace(dlg.FolderName))
             {
-                string full = System.IO.Path.GetFullPath(dlg.FolderName);
-                _customProjectFolders.Add(full);
-                _selectedFolderPaths.Clear();
-                _selectedFolderPaths.Add(full);
+                RegisterCustomProjectFolder(dlg.FolderName);
                 await ReloadProjectsAsync();
             }
         }
@@ -629,7 +906,7 @@ namespace FunkenwerkVideo
             var dlg = new OpenFileDialog
             {
                 Title = "Rohvideos auswählen",
-                Filter = "Videodateien (*.mp4;*.mov;*.mkv;*.webm;*.avi)|*.mp4;*.mov;*.mkv;*.webm;*.avi",
+                Filter = "Videodateien (*.mp4;*.mov;*.mkv;*.webm;*.avi;*.m4v)|*.mp4;*.mov;*.mkv;*.webm;*.avi;*.m4v",
                 Multiselect = true
             };
             if (dlg.ShowDialog() == true && dlg.FileNames.Length > 0)
@@ -649,14 +926,11 @@ namespace FunkenwerkVideo
             {
                 if (Directory.Exists(item))
                 {
-                    string fullDir = System.IO.Path.GetFullPath(item);
-                    _customProjectFolders.Add(fullDir);
-                    _selectedFolderPaths.Clear();
-                    _selectedFolderPaths.Add(fullDir);
+                    RegisterCustomProjectFolder(item);
                 }
-                else if (File.Exists(item) && ViralVideographerEngine.AllowedVideoExtensions.Contains(System.IO.Path.GetExtension(item)))
+                else if (ViralVideographerEngine.ValidateSafeVideoFilePath(item, out string validVideo, out _))
                 {
-                    videoFilesToCopy.Add(item);
+                    videoFilesToCopy.Add(validVideo);
                 }
             }
 
@@ -666,23 +940,31 @@ namespace FunkenwerkVideo
                 RenderStatusTxt.Text = $"Importiere {videoFilesToCopy.Count} Video(s)...";
                 RenderProgressBar.Value = 50;
 
+                string fullTargetFolder = Path.GetFullPath(targetFolder)
+                    .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
                 await Task.Run(() =>
                 {
                     foreach (var src in videoFilesToCopy)
                     {
                         try
                         {
-                            string dest = System.IO.Path.Combine(targetFolder, System.IO.Path.GetFileName(src));
-                            string fullDest = System.IO.Path.GetFullPath(dest);
+                            string safeFileName = Path.GetFileName(src);
+                            if (string.IsNullOrWhiteSpace(safeFileName) || safeFileName.Contains(':')) continue;
+
+                            string fullDest = Path.GetFullPath(Path.Combine(fullTargetFolder, safeFileName));
+                            if (!fullDest.StartsWith(fullTargetFolder + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+                                continue;
+
                             lock (_pendingDeletedPaths)
                             {
                                 _pendingDeletedPaths.Remove(fullDest);
                             }
                             ViralVideographerEngine.InvalidateClipCache(fullDest);
 
-                            if (!string.Equals(System.IO.Path.GetFullPath(src), fullDest, StringComparison.OrdinalIgnoreCase))
+                            if (!string.Equals(Path.GetFullPath(src), fullDest, StringComparison.OrdinalIgnoreCase))
                             {
-                                File.Copy(src, dest, true);
+                                File.Copy(src, fullDest, true);
                             }
                         }
                         catch { }
@@ -765,26 +1047,13 @@ namespace FunkenwerkVideo
             }
 
             string projectName = selectedProjects.Count == 1 ? selectedProjects[0].Name : "Kombi";
+            var opts = BuildJobOptionsFromUi(projectName, saveToDesktop: true);
 
             _isRendering = true;
             ProduceViralVideoBtn.IsEnabled = false;
             RenderProgressBorder.Visibility = Visibility.Visible;
             RenderProgressBar.Value = 10;
             RenderStatusTxt.Text = $"Verarbeite {allSelectedClips.Count} Videos...";
-
-            var opts = new VideographerJobOptions
-            {
-                ProjectName = projectName,
-                SaveToDesktop = true,
-                RecipeId = "auto_videographer",
-                TransitionMode = "LightWipeZoom",
-                EnableHookTextOverlay = false,
-                EnableGoldParticlesVfx = true,
-                EnableViralSoundEffects = true,
-                EnableAsmrBoost = true,
-                EnableBeatPulseBed = true,
-                TargetFps = 60
-            };
 
             var progress = new Progress<(int Percent, string Status)>(p =>
             {
@@ -801,7 +1070,7 @@ namespace FunkenwerkVideo
             {
                 LoadVideoIntoPreviewPlayer(result.OutputVideoPath);
                 RenderProgressBar.Value = 100;
-                RenderStatusTxt.Text = $"✓ Auf Desktop gespeichert: {System.IO.Path.GetFileName(result.OutputVideoPath)}";
+                RenderStatusTxt.Text = $"✓ Auf Desktop gespeichert: {Path.GetFileName(result.OutputVideoPath)}";
             }
             else
             {
@@ -814,26 +1083,32 @@ namespace FunkenwerkVideo
             try
             {
                 string desktopDir = ViralVideographerEngine.GetDesktopDir();
-                var desktopVids = Directory.GetFiles(desktopDir, "Virales_Video_*.mp4")
-                    .Select(f => new FileInfo(f))
-                    .OrderByDescending(f => f.LastWriteTimeUtc)
-                    .ToList();
-
-                if (desktopVids.Count > 0)
+                if (Directory.Exists(desktopDir))
                 {
-                    LoadVideoIntoPreviewPlayer(desktopVids[0].FullName);
-                    return;
+                    var desktopVids = Directory.GetFiles(desktopDir, "Virales_Video_*.mp4")
+                        .Select(f => new FileInfo(f))
+                        .OrderByDescending(f => f.LastWriteTimeUtc)
+                        .ToList();
+
+                    if (desktopVids.Count > 0)
+                    {
+                        LoadVideoIntoPreviewPlayer(desktopVids[0].FullName);
+                        return;
+                    }
                 }
 
                 string outDir = ViralVideographerEngine.GetOutputVideosDir();
-                var outVids = Directory.GetFiles(outDir, "*.mp4")
-                    .Select(f => new FileInfo(f))
-                    .OrderByDescending(f => f.LastWriteTimeUtc)
-                    .ToList();
-
-                if (outVids.Count > 0)
+                if (Directory.Exists(outDir))
                 {
-                    LoadVideoIntoPreviewPlayer(outVids[0].FullName);
+                    var outVids = Directory.GetFiles(outDir, "*.mp4")
+                        .Select(f => new FileInfo(f))
+                        .OrderByDescending(f => f.LastWriteTimeUtc)
+                        .ToList();
+
+                    if (outVids.Count > 0)
+                    {
+                        LoadVideoIntoPreviewPlayer(outVids[0].FullName);
+                    }
                 }
             }
             catch { }
@@ -841,14 +1116,16 @@ namespace FunkenwerkVideo
 
         private void LoadVideoIntoPreviewPlayer(string mp4Path)
         {
-            if (string.IsNullOrWhiteSpace(mp4Path) || !File.Exists(mp4Path)) return;
-            _currentVideoPath = mp4Path;
+            if (!ViralVideographerEngine.ValidateSafeVideoFilePath(mp4Path, out string fullMp4, out _))
+                return;
+
+            _currentVideoPath = fullMp4;
 
             try
             {
                 PlayerEmptyOverlay.Visibility = Visibility.Collapsed;
                 PreviewMediaElement.Stop();
-                PreviewMediaElement.Source = new Uri(mp4Path, UriKind.Absolute);
+                PreviewMediaElement.Source = new Uri(fullMp4, UriKind.Absolute);
                 PreviewMediaElement.Play();
                 _isPlaying = true;
                 PlayPauseBtn.Content = "⏸ Pause";
@@ -864,6 +1141,14 @@ namespace FunkenwerkVideo
                 PreviewMediaElement.Play();
             }
             catch { }
+        }
+
+        private void PreviewMediaElement_MediaFailed(object? sender, ExceptionRoutedEventArgs e)
+        {
+            _isPlaying = false;
+            PlayPauseBtn.Content = "▶ Play";
+            PlayerEmptyOverlay.Visibility = Visibility.Visible;
+            PlayerEmptyStatusTxt.Text = $"Wiedergabefehler: {e.ErrorException?.Message ?? "Format nicht unterstützt"}";
         }
 
         private void PlayPause_Click(object sender, RoutedEventArgs e)
@@ -887,18 +1172,40 @@ namespace FunkenwerkVideo
             catch { }
         }
 
+        public static ProcessStartInfo BuildExplorerOpenFolderStartInfo(string folderPath)
+        {
+            string full = Path.GetFullPath(folderPath);
+            string explorerExe = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe");
+            var psi = new ProcessStartInfo
+            {
+                FileName = explorerExe,
+                UseShellExecute = false
+            };
+            psi.ArgumentList.Add(full);
+            return psi;
+        }
+
+        public static ProcessStartInfo BuildExplorerSelectFileStartInfo(string filePath)
+        {
+            string full = Path.GetFullPath(filePath);
+            string explorerExe = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe");
+            var psi = new ProcessStartInfo
+            {
+                FileName = explorerExe,
+                UseShellExecute = false
+            };
+            psi.ArgumentList.Add("/select,");
+            psi.ArgumentList.Add(full);
+            return psi;
+        }
+
         private void OpenFolderInExplorer(string folderPath)
         {
             try
             {
                 if (Directory.Exists(folderPath))
                 {
-                    Process.Start(new ProcessStartInfo
-                    {
-                        FileName = "explorer.exe",
-                        Arguments = $"\"{folderPath}\"",
-                        UseShellExecute = true
-                    });
+                    Process.Start(BuildExplorerOpenFolderStartInfo(folderPath));
                 }
             }
             catch { }
@@ -910,12 +1217,7 @@ namespace FunkenwerkVideo
             {
                 if (!string.IsNullOrWhiteSpace(_currentVideoPath) && File.Exists(_currentVideoPath))
                 {
-                    Process.Start(new ProcessStartInfo
-                    {
-                        FileName = "explorer.exe",
-                        Arguments = $"/select,\"{_currentVideoPath}\"",
-                        UseShellExecute = true
-                    });
+                    Process.Start(BuildExplorerSelectFileStartInfo(_currentVideoPath));
                 }
                 else
                 {

@@ -41,6 +41,7 @@ class AccountingInvoice extends Component
 
     // E-Rechnung Import & Analyse (XRechnung / ZUGFeRD)
     public $eInvoiceUpload = null;
+    #[\Livewire\Attributes\Locked]
     public ?array $parsedEInvoice = null;
     public ?string $parsedEInvoiceError = null;
     public string $eInvoiceExpenseCategory = 'Wareneinkauf & Material';
@@ -831,7 +832,8 @@ class AccountingInvoice extends Component
         $storedFiles = [];
         if ($this->eInvoiceUpload) {
             try {
-                $ext = strtolower($this->eInvoiceUpload->getClientOriginalExtension() ?: 'xml');
+                $rawExt = strtolower((string) ($this->eInvoiceUpload->getClientOriginalExtension() ?: 'xml'));
+                $ext = in_array($rawExt, ['xml', 'pdf'], true) ? $rawExt : 'xml';
                 $safeNum = preg_replace('/[^a-zA-Z0-9_\-]/', '_', (string)($parsed['invoice_number'] ?: 'einvoice'));
                 $storedPath = $this->eInvoiceUpload->storeAs(
                     'buchhaltung/incoming_einvoices',

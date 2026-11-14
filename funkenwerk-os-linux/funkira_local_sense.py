@@ -7,6 +7,7 @@ Funkenwerk OS Linux - Local Zero-Cloud Sense Daemon (127.0.0.1:17701)
 """
 
 import base64
+import hmac
 import json
 import math
 import os
@@ -31,6 +32,7 @@ if os.path.isdir(SITE_PACKAGES) and SITE_PACKAGES not in sys.path:
 
 VOSK_AVAILABLE = False
 CV2_AVAILABLE = False
+ORT_AVAILABLE = False
 
 try:
     import numpy as np
@@ -38,6 +40,12 @@ try:
     CV2_AVAILABLE = True
 except Exception as e:
     sys.stderr.write(f"[fw-sense] OpenCV import note: {e}\n")
+
+try:
+    import onnxruntime as ort
+    ORT_AVAILABLE = True
+except Exception as e:
+    sys.stderr.write(f"[fw-sense] ONNXRuntime import note: {e}\n")
 
 try:
     import vosk
@@ -99,10 +107,16 @@ class LocalSenseEngine:
     def __init__(self):
         self.lock = threading.Lock()
         self.face_lock = threading.Lock()
+        self.voice_lock = threading.Lock()
         self.ocr_lock = threading.Lock()
         self.vosk_model = None
         self.detector = None
         self.recognizer = None
+        self.voice_session = None
+        self.voice_input_name = ""
+        self.voice_dim = 48
+        self.mel_banks_80 = None
+        self.povey_win_400 = None
         self.ocr_engine = None
 
         self.want_listening = False
@@ -135,6 +149,49 @@ class LocalSenseEngine:
                 self.recognizer = cv2.FaceRecognizerSF.create(sface_path, "")
             except Exception as e:
                 sys.stderr.write(f"[fw-sense] YuNet/SFace init error: {e}\n")
+
+        if CV2_AVAILABLE:
+            try:
+                def _hz2mel(f):
+                    return 1127.0 * np.log(1.0 + f / 700.0)
+
+                def _mel2hz(m):
+                    return 700.0 * (np.exp(m / 1127.0) - 1.0)
+
+                mel_pts = np.linspace(_hz2mel(20.0), _hz2mel(7600.0), 82)
+                hz_pts = _mel2hz(mel_pts)
+                fft_freqs = np.linspace(0.0, 8000.0, 257)
+                banks = np.zeros((80, 257), dtype=np.float32)
+                for b in range(80):
+                    fl, fc, fr = hz_pts[b], hz_pts[b + 1], hz_pts[b + 2]
+                    up = (fft_freqs - fl) / max(1e-6, fc - fl)
+                    down = (fr - fft_freqs) / max(1e-6, fr - fc)
+                    banks[b] = np.maximum(0.0, np.minimum(up, down))
+                self.mel_banks_80 = banks
+                self.povey_win_400 = np.power(
+                    0.5 - 0.5 * np.cos(2.0 * np.pi * np.arange(400) / 399.0), 0.85
+                ).astype(np.float32)
+            except Exception as e:
+                sys.stderr.write(f"[fw-sense] Mel-bank init error: {e}\n")
+
+        spk_path = os.path.join(MODELS_DIR, "speaker_embedding.onnx")
+        if ORT_AVAILABLE and CV2_AVAILABLE and os.path.isfile(spk_path):
+            try:
+                so = ort.SessionOptions()
+                so.intra_op_num_threads = 2
+                so.inter_op_num_threads = 1
+                self.voice_session = ort.InferenceSession(
+                    spk_path, sess_options=so, providers=["CPUExecutionProvider"]
+                )
+                self.voice_input_name = self.voice_session.get_inputs()[0].name
+                out_shape = self.voice_session.get_outputs()[0].shape
+                if isinstance(out_shape, (list, tuple)) and len(out_shape) >= 2 and isinstance(out_shape[-1], int):
+                    self.voice_dim = int(out_shape[-1])
+                else:
+                    self.voice_dim = 512
+            except Exception as e:
+                sys.stderr.write(f"[fw-sense] Speaker ONNX init error: {e}\n")
+                self.voice_session = None
 
     def set_wake_listening(self, active: bool):
         with self.lock:
@@ -391,7 +448,7 @@ class LocalSenseEngine:
                 for item in known_companions[:25]:
                     if not isinstance(item, dict):
                         continue
-                    vec = item.get("vector")
+                    vec = item.get("vector") or item.get("embedding")
                     if isinstance(vec, list) and len(vec) == len(primary["feat"]):
                         cv = np.array(vec, dtype=np.float32)
                         cn = float(np.linalg.norm(cv))
@@ -418,6 +475,7 @@ class LocalSenseEngine:
 
             owner_present = owner_face_idx >= 0
             recognized_companions = []
+            companions_wire = []
             unknown_sides = []
             largest_unknown_feat = None
 
@@ -432,15 +490,26 @@ class LocalSenseEngine:
                         best_comp_cos = cc
                         matched_comp = cref
                 if matched_comp is not None:
-                    recognized_companions.append({
+                    entry = {
+                        "matched": True,
                         "contactId": matched_comp["contactId"],
                         "name": matched_comp["name"],
                         "relationship": matched_comp["relationship"],
                         "side": fd["side"],
                         "cosine": round(best_comp_cos, 4)
-                    })
+                    }
+                    recognized_companions.append(entry)
+                    companions_wire.append(entry)
                 else:
                     unknown_sides.append(fd["side"])
+                    companions_wire.append({
+                        "matched": False,
+                        "contactId": "",
+                        "name": "",
+                        "relationship": "",
+                        "side": fd["side"],
+                        "cosine": 0.0
+                    })
                     if largest_unknown_feat is None:
                         largest_unknown_feat = fd["feat"]
 
@@ -463,8 +532,10 @@ class LocalSenseEngine:
                 "faceReady": True,
                 "faceDetected": True,
                 "faceCount": len(extracted_faces),
+                "facesCount": len(extracted_faces),
                 "ownerPresent": owner_present,
                 "companionsCount": companions_count,
+                "companions": companions_wire,
                 "recognizedCompanions": recognized_companions,
                 "unknownCompanionsCount": len(unknown_sides),
                 "unknownCompanionSides": unknown_sides,
@@ -483,109 +554,219 @@ class LocalSenseEngine:
         except Exception as e:
             return {"ok": False, "faceReady": True, "faceDetected": False, "identity": "error", "message": str(e)}
 
-    def analyze_voice(self, pcm16_b64: str, owner_voice_embedding: list | None, include_embedding: bool) -> dict:
+    def analyze_voice(
+        self,
+        pcm16_b64: str,
+        owner_voice_embedding: list | None,
+        include_embedding: bool,
+        known_companions: list | None = None
+    ) -> dict:
         if not CV2_AVAILABLE or not pcm16_b64:
-            return {"ok": False, "voiced": False, "identity": "unavailable"}
+            return {"ok": False, "speechDetected": False, "voiced": False, "voiceIdentity": "unavailable", "identity": "unavailable"}
         try:
             raw = base64.b64decode(pcm16_b64)
             usable = len(raw) - (len(raw) % 2)
-            if usable < 6400:
-                return {"ok": True, "voiced": False, "identity": "too_short"}
+            if usable < 12800:  # < 0.4s at 16 kHz Int16
+                return {"ok": True, "speechDetected": False, "voiced": False, "voiceIdentity": "too_short", "identity": "too_short"}
 
-            samples = np.frombuffer(raw[:usable], dtype=np.int16).astype(np.float32) / 32768.0
+            pcm_i16 = np.frombuffer(raw[:usable], dtype=np.int16)
             sr = 16000
             win = 400  # 25 ms
             hop = 160  # 10 ms
-            if len(samples) < win + hop * 12:
-                return {"ok": True, "voiced": False, "identity": "too_short"}
+            if len(pcm_i16) < win + hop * 18:
+                return {"ok": True, "speechDetected": False, "voiced": False, "voiceIdentity": "too_short", "identity": "too_short"}
 
-            hann = np.hanning(win).astype(np.float32)
-            freqs = np.fft.rfftfreq(512, d=1.0 / sr)
-            band_edges = np.geomspace(85.0, 7400.0, 33)
+            use_neural = (
+                self.voice_session is not None
+                and self.mel_banks_80 is not None
+                and self.povey_win_400 is not None
+            )
+            vec = None
+            voiced_count = 0
 
-            voiced_specs = []
-            f0_vals = []
-            centroids = []
-            min_lag = int(sr / 360.0)
-            max_lag = int(sr / 75.0)
+            if use_neural:
+                x_raw = pcm_i16.astype(np.float32)
+                n_frames = (len(x_raw) - win) // hop + 1
+                idx = np.arange(win)[None, :] + (np.arange(n_frames) * hop)[:, None]
+                frames = x_raw[idx]
+                rms_arr = np.sqrt(np.mean((frames / 32768.0) ** 2, axis=1))
+                voiced_frames = frames[rms_arr >= 0.013]
+                voiced_count = int(len(voiced_frames))
+                if voiced_count < 18:
+                    return {"ok": True, "speechDetected": False, "voiced": False, "voiceIdentity": "silence", "identity": "silence"}
 
-            for start in range(0, len(samples) - win, hop):
-                frame = samples[start:start + win]
-                rms = float(np.sqrt(np.mean(frame * frame)))
-                if rms < 0.014:
-                    continue
-                wframe = frame * hann
-                mag = np.abs(np.fft.rfft(wframe, n=512)) + 1e-7
+                # Keep most recent 3.0s of active voiced speech for snappy < 95 ms CAM++ CPU inference
+                if voiced_count > 300:
+                    voiced_frames = voiced_frames[-300:]
 
-                sub = np.zeros(32, dtype=np.float32)
-                for b in range(32):
-                    mask = (freqs >= band_edges[b]) & (freqs < band_edges[b + 1])
-                    if np.any(mask):
-                        sub[b] = float(np.log(np.mean(mag[mask]) + 1e-7))
-                voiced_specs.append(sub)
+                voiced_dc = voiced_frames - np.mean(voiced_frames, axis=1, keepdims=True)
+                pre = np.empty_like(voiced_dc)
+                pre[:, 0] = voiced_dc[:, 0] * 0.03
+                pre[:, 1:] = voiced_dc[:, 1:] - 0.97 * voiced_dc[:, :-1]
+                wframes = pre * self.povey_win_400[None, :]
+                power = np.abs(np.fft.rfft(wframes, n=512, axis=1)) ** 2
+                mel = np.dot(power, self.mel_banks_80.T)
+                fbank = np.log(np.maximum(mel, 1.1920929e-7)).astype(np.float32)
+                fbank = fbank - np.mean(fbank, axis=0, keepdims=True)
 
-                denom = float(np.sum(mag))
-                if denom > 1e-5:
-                    centroids.append(float(np.sum(freqs * mag) / denom) / 4000.0)
+                with self.voice_lock:
+                    emb_out = self.voice_session.run(None, {self.voice_input_name: fbank[None, :, :]})[0]
+                vec = emb_out.flatten().astype(np.float32)
+                vnorm = float(np.linalg.norm(vec))
+                if vnorm > 1e-6:
+                    vec = vec / vnorm
+            else:
+                samples = pcm_i16.astype(np.float32) / 32768.0
+                hann = np.hanning(win).astype(np.float32)
+                freqs = np.fft.rfftfreq(512, d=1.0 / sr)
+                band_edges = np.geomspace(85.0, 7400.0, 33)
 
-                ac = np.correlate(wframe, wframe, mode="full")[win - 1:]
-                if len(ac) > max_lag and ac[0] > 1e-5:
-                    seg = ac[min_lag:max_lag]
-                    pk_idx = int(np.argmax(seg))
-                    if seg[pk_idx] / ac[0] >= 0.28:
-                        lag = min_lag + pk_idx
-                        f0_vals.append((float(sr) / float(lag)) / 300.0)
+                voiced_specs = []
+                f0_vals = []
+                centroids = []
+                min_lag = int(sr / 360.0)
+                max_lag = int(sr / 75.0)
 
-            if len(voiced_specs) < 14:
-                return {"ok": True, "voiced": False, "identity": "silence"}
+                for start in range(0, len(samples) - win, hop):
+                    frame = samples[start:start + win]
+                    rms = float(np.sqrt(np.mean(frame * frame)))
+                    if rms < 0.014:
+                        continue
+                    wframe = frame * hann
+                    mag = np.abs(np.fft.rfft(wframe, n=512)) + 1e-7
 
-            mat = np.stack(voiced_specs, axis=0)
-            # Cepstral mean normalization across utterance for mic-distance invariance
-            cmn = mat - np.mean(mat, axis=1, keepdims=True)
-            mean_32 = np.mean(cmn, axis=0)
-            std_12 = np.std(cmn[:, :12], axis=0)
+                    sub = np.zeros(32, dtype=np.float32)
+                    for b in range(32):
+                        mask = (freqs >= band_edges[b]) & (freqs < band_edges[b + 1])
+                        if np.any(mask):
+                            sub[b] = float(np.log(np.mean(mag[mask]) + 1e-7))
+                    voiced_specs.append(sub)
 
-            f0_arr = np.array(f0_vals, dtype=np.float32) if f0_vals else np.array([0.62], dtype=np.float32)
-            cent_arr = np.array(centroids, dtype=np.float32) if centroids else np.array([0.45], dtype=np.float32)
-            prosody_4 = np.array([
-                float(np.mean(f0_arr)),
-                float(np.median(f0_arr)),
-                float(np.std(f0_arr)),
-                float(np.mean(cent_arr))
-            ], dtype=np.float32)
+                    denom = float(np.sum(mag))
+                    if denom > 1e-5:
+                        centroids.append(float(np.sum(freqs * mag) / denom) / 4000.0)
 
-            vec48 = np.concatenate([mean_32, std_12, prosody_4]).astype(np.float32)
-            vnorm = float(np.linalg.norm(vec48))
-            if vnorm > 1e-6:
-                vec48 = vec48 / vnorm
+                    ac = np.correlate(wframe, wframe, mode="full")[win - 1:]
+                    if len(ac) > max_lag and ac[0] > 1e-5:
+                        seg = ac[min_lag:max_lag]
+                        pk_idx = int(np.argmax(seg))
+                        if seg[pk_idx] / ac[0] >= 0.28:
+                            lag = min_lag + pk_idx
+                            f0_vals.append((float(sr) / float(lag)) / 300.0)
 
-            cosine = 0.0
-            identity = "unenrolled"
-            if owner_voice_embedding and len(owner_voice_embedding) == 48:
-                ref = np.array(owner_voice_embedding, dtype=np.float32)
-                rn = float(np.linalg.norm(ref))
+                voiced_count = len(voiced_specs)
+                if voiced_count < 16:
+                    return {"ok": True, "speechDetected": False, "voiced": False, "voiceIdentity": "silence", "identity": "silence"}
+
+                mat = np.stack(voiced_specs, axis=0)
+                cmn = mat - np.mean(mat, axis=1, keepdims=True)
+                mean_32 = np.mean(cmn, axis=0)
+                std_12 = np.std(cmn[:, :12], axis=0)
+
+                f0_arr = np.array(f0_vals, dtype=np.float32) if f0_vals else np.array([0.62], dtype=np.float32)
+                cent_arr = np.array(centroids, dtype=np.float32) if centroids else np.array([0.45], dtype=np.float32)
+                prosody_4 = np.array([
+                    float(np.mean(f0_arr)),
+                    float(np.median(f0_arr)),
+                    float(np.std(f0_arr)),
+                    float(np.mean(cent_arr))
+                ], dtype=np.float32)
+
+                vec = np.concatenate([mean_32, std_12, prosody_4]).astype(np.float32)
+                vnorm = float(np.linalg.norm(vec))
+                if vnorm > 1e-6:
+                    vec = vec / vnorm
+
+            dim = int(len(vec))
+            match_thresh = 0.47 if use_neural else 0.83
+            visitor_ceil = 0.41 if use_neural else 0.68
+
+            owner_ref = None
+            if isinstance(owner_voice_embedding, list) and len(owner_voice_embedding) == dim:
+                cand = np.array(owner_voice_embedding, dtype=np.float32)
+                rn = float(np.linalg.norm(cand))
                 if rn > 1e-6:
-                    ref = ref / rn
-                cosine = float(np.dot(vec48, ref))
-                if cosine >= 0.83:
-                    identity = "alina"
-                elif cosine < 0.68:
-                    identity = "other_speaker"
+                    owner_ref = cand / rn
+
+            comp_refs = []
+            if isinstance(known_companions, list):
+                for item in known_companions[:25]:
+                    if not isinstance(item, dict):
+                        continue
+                    vvec = item.get("voiceVector") or item.get("voiceEmbedding")
+                    if isinstance(vvec, list) and len(vvec) == dim:
+                        cv = np.array(vvec, dtype=np.float32)
+                        cn = float(np.linalg.norm(cv))
+                        if cn > 1e-6:
+                            comp_refs.append({
+                                "contactId": str(item.get("contactId", "")),
+                                "name": str(item.get("name", "")).strip(),
+                                "relationship": str(item.get("relationship", "")).strip(),
+                                "vec": cv / cn
+                            })
+
+            owner_cos = float(np.dot(vec, owner_ref)) if owner_ref is not None else -1.0
+            best_comp = None
+            best_comp_cos = -1.0
+            for cref in comp_refs:
+                cc = float(np.dot(vec, cref["vec"]))
+                if cc > best_comp_cos:
+                    best_comp_cos = cc
+                    best_comp = cref
+
+            identity = "unenrolled"
+            speaker_name = ""
+            speaker_rel = ""
+            speaker_contact_id = ""
+            best_cos = max(owner_cos, best_comp_cos, 0.0)
+
+            if owner_ref is None and not comp_refs:
+                identity = "unenrolled"
+            elif best_comp is not None and best_comp_cos >= match_thresh and best_comp_cos > (owner_cos + 0.025):
+                identity = "companion"
+                speaker_name = best_comp["name"] or "Begleitung"
+                speaker_rel = best_comp["relationship"]
+                speaker_contact_id = best_comp["contactId"]
+                best_cos = best_comp_cos
+            elif owner_ref is not None and owner_cos >= match_thresh:
+                identity = "alina"
+                speaker_name = "Alina"
+                speaker_rel = "Chefin"
+                best_cos = owner_cos
+            else:
+                max_known = max(owner_cos, best_comp_cos)
+                if max_known < visitor_ceil and voiced_count >= 24:
+                    identity = "visitor_voice"
+                    speaker_name = "Gast"
+                    best_cos = max(0.0, max_known)
                 else:
                     identity = "uncertain"
+                    best_cos = max(0.0, max_known)
 
             out = {
                 "ok": True,
+                "speechDetected": True,
                 "voiced": True,
-                "voicedFrames": len(voiced_specs),
-                "cosine": round(cosine, 4),
-                "identity": identity
+                "neuralModel": use_neural,
+                "embeddingDim": dim,
+                "voicedFrames": voiced_count,
+                "voiceIdentity": identity,
+                "identity": identity,
+                "speakerName": speaker_name,
+                "relationship": speaker_rel,
+                "contactId": speaker_contact_id,
+                "cosine": round(best_cos, 4),
+                "ownerCosine": round(max(0.0, owner_cos), 4)
             }
             if include_embedding:
-                out["embedding"] = [round(float(v), 6) for v in vec48.tolist()]
+                emb_list = [round(float(v), 6) for v in vec.tolist()]
+                out["voiceEmbedding"] = emb_list
+                out["embedding"] = emb_list
+            if identity in ("visitor_voice", "uncertain") and voiced_count >= 22 and owner_cos < (match_thresh - 0.06):
+                out["unknownSpeakerEmbedding"] = [round(float(v), 6) for v in vec.tolist()]
             return out
         except Exception as e:
-            return {"ok": False, "voiced": False, "identity": "error", "message": str(e)}
+            return {"ok": False, "speechDetected": False, "voiced": False, "voiceIdentity": "error", "identity": "error", "message": str(e)}
 
     def _ensure_ocr_locked(self):
         if self.ocr_engine is None and OCR_AVAILABLE:
@@ -595,22 +776,30 @@ class LocalSenseEngine:
                 sys.stderr.write(f"[fw-sense] RapidOCR init error: {e}\n")
 
     def extract_document_ocr(self, file_path: str = "", image_b64: str = "", max_pages: int = 5) -> dict:
-        if not CV2_AVAILABLE:
-            return {"ok": False, "ocrReady": False, "text": "", "message": "OpenCV unavailable"}
-
         safe_max_pages = max(1, min(12, int(max_pages or 5)))
         collected_pages = []
         used_ocr = False
         page_count = 0
 
         try:
+            real_target = ""
             if file_path:
-                real_root = os.path.realpath(os.path.join(HOME_DIR, "Meine_Daten"))
+                configured_root = os.environ.get("FW_MEINE_DATEN_ROOT", "").strip()
+                base_root = configured_root if configured_root else os.path.join(HOME_DIR, "Meine_Daten")
+                real_root = os.path.realpath(base_root)
                 real_target = os.path.realpath(file_path)
-                if not (real_target == real_root or real_target.startswith(real_root + os.sep)):
+                if not real_target.startswith(real_root + os.sep):
                     return {"ok": False, "text": "", "message": "Path outside Meine_Daten blocked"}
+                rel_parts = os.path.relpath(real_target, real_root).split(os.sep)
+                if any(part.startswith(".") for part in rel_parts if part):
+                    return {"ok": False, "text": "", "message": "Dotfile path blocked"}
                 if not os.path.isfile(real_target):
                     return {"ok": False, "text": "", "message": "File not found"}
+
+            if not CV2_AVAILABLE:
+                return {"ok": False, "ocrReady": False, "text": "", "message": "OpenCV unavailable"}
+
+            if file_path:
 
                 ext = os.path.splitext(real_target)[1].lower()
                 if ext == ".pdf" and PDFIUM_AVAILABLE:
@@ -703,12 +892,32 @@ class SenseHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _check_auth(self) -> bool:
+        raw_host = (self.headers.get("Host", "") or "").strip()
+        host_only = raw_host.split(":", 1)[0].strip().lower()
+        if host_only not in ("127.0.0.1", "localhost"):
+            self._send_json(403, {"ok": False, "message": "Forbidden host"})
+            return False
+
+        expected_token = os.environ.get("FW_SENSE_TOKEN", "")
+        if expected_token:
+            provided = self.headers.get("X-Sense-Token", "") or ""
+            if not hmac.compare_digest(provided.encode("utf-8"), expected_token.encode("utf-8")):
+                self._send_json(403, {"ok": False, "message": "Invalid or missing X-Sense-Token"})
+                return False
+        return True
+
     def do_GET(self):
+        if not self._check_auth():
+            return
         if self.path.startswith("/health"):
             self._send_json(200, {
                 "ok": True,
                 "voskReady": ENGINE.vosk_model is not None,
                 "faceReady": ENGINE.detector is not None and ENGINE.recognizer is not None,
+                "voiceReady": CV2_AVAILABLE,
+                "voiceNeural": ENGINE.voice_session is not None,
+                "voiceDim": ENGINE.voice_dim,
                 "ocrReady": OCR_AVAILABLE,
                 "pdfReady": PDFIUM_AVAILABLE,
                 "listening": ENGINE.is_listening
@@ -720,7 +929,16 @@ class SenseHandler(BaseHTTPRequestHandler):
         self._send_json(404, {"ok": False})
 
     def do_POST(self):
-        length = int(self.headers.get("Content-Length", "0") or "0")
+        if not self._check_auth():
+            return
+        try:
+            length = int(self.headers.get("Content-Length", "0") or "0")
+        except (ValueError, TypeError):
+            self._send_json(400, {"ok": False, "message": "Invalid Content-Length"})
+            return
+        if length < 0:
+            self._send_json(400, {"ok": False, "message": "Negative Content-Length"})
+            return
         if length > 6 * 1024 * 1024:
             self._send_json(413, {"ok": False, "message": "Payload too large"})
             return
@@ -749,7 +967,8 @@ class SenseHandler(BaseHTTPRequestHandler):
             res = ENGINE.analyze_voice(
                 str(data.get("pcm16Base64", "")),
                 data.get("ownerVoiceEmbedding"),
-                bool(data.get("includeEmbedding", False))
+                bool(data.get("includeEmbedding", False)),
+                data.get("knownCompanions")
             )
             self._send_json(200, res)
             return
@@ -771,7 +990,7 @@ def main():
     srv = ThreadingHTTPServer(("127.0.0.1", port), SenseHandler)
     sys.stdout.write(
         f"[fw-sense] Ready on 127.0.0.1:{port} "
-        f"(vosk={ENGINE.vosk_model is not None}, face={ENGINE.detector is not None})\n"
+        f"(vosk={ENGINE.vosk_model is not None}, face={ENGINE.detector is not None}, voice_neural={ENGINE.voice_session is not None})\n"
     )
     sys.stdout.flush()
     srv.serve_forever()

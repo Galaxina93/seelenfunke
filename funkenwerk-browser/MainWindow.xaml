@@ -199,20 +199,45 @@
             </Grid.ColumnDefinitions>
 
             <Grid Grid.Column="0">
-                <Grid x:Name="WebViewsHostGrid"/>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
 
-                <!-- Clean Airlock Gate Screen (Shown ONLY when StrictFortressMode is active and a non-whitelisted domain is requested) -->
-                <Grid x:Name="AirlockBlockedOverlay" Visibility="Collapsed" Background="{DynamicResource BgCanvasBrush}">
-                    <Border Width="440" VerticalAlignment="Center" HorizontalAlignment="Center" Background="{DynamicResource BgBarBrush}" BorderBrush="#99C5A059" BorderThickness="1.4" CornerRadius="18" Padding="28,24">
-                        <StackPanel HorizontalAlignment="Center">
-                            <Image Source="funkenwerk_browser.png" Width="58" Height="58" Margin="0,0,0,14"/>
-                            <TextBlock Text="FESTUNGS-SCHLEUSE AKTIV" Foreground="#C5A059" FontSize="11.5" FontWeight="Bold" HorizontalAlignment="Center"/>
-                            <TextBlock x:Name="BlockedDomainTitleTxt" Text="domain.de" FontSize="20" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}" HorizontalAlignment="Center" Margin="0,6,0,20" TextTrimming="CharacterEllipsis"/>
-
-                            <Button Content="✦  DOMAIN DAUERHAFT FREIGEBEN" Height="38" Width="310" Style="{StaticResource GoldPillBtn}" Margin="0,0,0,8" Click="AllowBlockedDomainPermanently_Click"/>
-                            <Button Content="⏱  SCHLEUSE FÜR 30 MIN. ÖFFNEN" Height="36" Width="310" Style="{StaticResource NavBtn}" Click="Open30MinAirlockFromGate_Click"/>
+                <!-- Clean Non-Intrusive Login Save / Overwrite Confirmation Bar -->
+                <Border x:Name="LoginSavePromptBar" Grid.Row="0" Visibility="Collapsed"
+                        Background="{DynamicResource BgBarBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="0,0,0,1" Padding="12,6">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="LoginSavePromptTitleTxt" Grid.Column="0" Text="🔑 Zugangsdaten speichern?" FontSize="11.5" FontWeight="Bold" Foreground="#C5A059" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                        <TextBlock x:Name="LoginSavePromptDetailTxt" Grid.Column="1" Text="" FontSize="11.5" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,0,10,0"/>
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                            <Button x:Name="ConfirmSavePromptBtn" Content="Speichern" Height="26" Padding="11,0" Margin="0,0,5,0" Style="{StaticResource GoldPillBtn}" Click="ConfirmLoginSavePrompt_Click"/>
+                            <Button Content="Verwerfen" Height="26" Padding="9,0" Style="{StaticResource NavBtn}" Click="DismissLoginSavePrompt_Click"/>
                         </StackPanel>
-                    </Border>
+                    </Grid>
+                </Border>
+
+                <Grid Grid.Row="1">
+                    <Grid x:Name="WebViewsHostGrid"/>
+
+                    <!-- Clean Airlock Gate Screen (Shown ONLY when StrictFortressMode is active and a non-whitelisted domain is requested) -->
+                    <Grid x:Name="AirlockBlockedOverlay" Visibility="Collapsed" Background="{DynamicResource BgCanvasBrush}">
+                        <Border Width="440" VerticalAlignment="Center" HorizontalAlignment="Center" Background="{DynamicResource BgBarBrush}" BorderBrush="#99C5A059" BorderThickness="1.4" CornerRadius="18" Padding="28,24">
+                            <StackPanel HorizontalAlignment="Center">
+                                <Image Source="funkenwerk_browser.png" Width="58" Height="58" Margin="0,0,0,14"/>
+                                <TextBlock Text="FESTUNGS-SCHLEUSE AKTIV" Foreground="#C5A059" FontSize="11.5" FontWeight="Bold" HorizontalAlignment="Center"/>
+                                <TextBlock x:Name="BlockedDomainTitleTxt" Text="domain.de" FontSize="20" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}" HorizontalAlignment="Center" Margin="0,6,0,20" TextTrimming="CharacterEllipsis"/>
+
+                                <Button Content="✦  DOMAIN DAUERHAFT FREIGEBEN" Height="38" Width="310" Style="{StaticResource GoldPillBtn}" Margin="0,0,0,8" Click="AllowBlockedDomainPermanently_Click"/>
+                                <Button Content="⏱  SCHLEUSE FÜR 30 MIN. ÖFFNEN" Height="36" Width="310" Style="{StaticResource NavBtn}" Click="Open30MinAirlockFromGate_Click"/>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
                 </Grid>
             </Grid>
 

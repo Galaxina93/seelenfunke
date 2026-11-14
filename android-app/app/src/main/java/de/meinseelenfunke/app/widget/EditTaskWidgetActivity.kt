@@ -102,7 +102,7 @@ class EditTaskWidgetActivity : ComponentActivity() {
 
         // Fetch task and its subtasks from SharedPreferences tasks cache
         val sharedPrefs = getSharedPreferences("tasks_widget_prefs", Context.MODE_PRIVATE)
-        val tasksJson = sharedPrefs.getString("tasks_cache", null)
+        val tasksJson = ServiceLocator.getDecryptedPref(sharedPrefs, "tasks_cache")
         val gson = Gson()
         val allTasks: List<ManagementTask> = if (tasksJson != null) {
             try {

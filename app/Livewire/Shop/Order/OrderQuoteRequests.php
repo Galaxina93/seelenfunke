@@ -149,7 +149,7 @@ class OrderQuoteRequests extends Component
             // ---------------------------------------------------------
             // 1. KUNDEN ERSTELLEN ODER FINDEN
             // ---------------------------------------------------------
-            $customer = Customer::firstOrCreate(
+            $customer = Customer::withTrashed()->firstOrCreate(
                 ['email' => $quote->email],
                 [
                     'first_name' => $quote->first_name,
@@ -157,6 +157,9 @@ class OrderQuoteRequests extends Component
                     'password' => Hash::make(Str::random(16)), // Zufallspasswort
                 ]
             );
+            if ($customer->trashed()) {
+                $customer->restore();
+            }
 
             // Kundendaten im Profil nur bei Neukunden-Anlage oder fehlendem Profil setzen (Schutz bestehender Kundenprofile vor Überschreibung durch Gast-Anfragen)
             if ($customer->wasRecentlyCreated || !$customer->profile) {
@@ -291,7 +294,7 @@ class OrderQuoteRequests extends Component
                         'quantity' => 1,
                     ]],
                     'mode' => 'payment',
-                    'success_url' => route('shop') . '?payment_success=true',
+                    'success_url' => route('checkout.success') . '?session_id={CHECKOUT_SESSION_ID}',
                     'cancel_url' => route('shop'),
                     'customer_email' => $order->email,
                     'metadata' => [

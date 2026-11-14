@@ -5,8 +5,10 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
+using PdfSharp.Pdf.IO;
 using UglyToad.PdfPig;
 using UglyToad.PdfPig.Content;
+using UglyToad.PdfPig.Core;
 using Windows.Graphics.Imaging;
 using Windows.Media.Ocr;
 using Windows.Storage.Streams;
@@ -67,8 +69,8 @@ namespace FunkenwerkPdf
     }
 
     /// <summary>
-    /// Extracts reading-order text lines, words, and character bounding boxes (in top-left PDF points)
-    /// using PdfPig, with automatic offline Windows OCR fallback for scanned image-only pages.
+    /// Extracts reading-order text lines, words, and character bounding boxes (in visual top-left PDF points,
+    /// aligned with page /Rotate and /CropBox) using PdfPig, with offline Windows OCR fallback for scanned pages.
     /// </summary>
     public sealed class PdfTextSelectionEngine
     {
@@ -81,21 +83,187 @@ namespace FunkenwerkPdf
             get { lock (_sync) return _pages.Count; }
         }
 
+        public (double WidthPt, double HeightPt) GetPageSizePt(int pageIndex)
+        {
+            lock (_sync)
+            {
+                if (pageIndex < 0 || pageIndex >= _pages.Count) return (0, 0);
+                return (_pages[pageIndex].WidthPt, _pages[pageIndex].HeightPt);
+            }
+        }
+
+        private readonly struct PageBoxGeometry
+        {
+            public double BoxX1 { get; init; }
+            public double BoxY1 { get; init; }
+            public double BoxW { get; init; }
+            public double BoxH { get; init; }
+            public double MediaX1 { get; init; }
+            public double MediaY1 { get; init; }
+            public double MediaW { get; init; }
+            public double MediaH { get; init; }
+            public bool HasDistinctCrop { get; init; }
+            public int Rotate { get; init; }
+            public double VisualWidth => (Rotate == 90 || Rotate == 270) ? BoxH : BoxW;
+            public double VisualHeight => (Rotate == 90 || Rotate == 270) ? BoxW : BoxH;
+        }
+
+        private static List<PageBoxGeometry> ReadPageGeometries(byte[] pdfBytes)
+        {
+            var list = new List<PageBoxGeometry>();
+            try
+            {
+                using var ms = new MemoryStream(pdfBytes);
+                using var sdoc = PdfReader.Open(ms, PdfDocumentOpenMode.Import);
+                for (int i = 0; i < sdoc.PageCount; i++)
+                {
+                    var p = sdoc.Pages[i];
+                    var media = p.MediaBox;
+                    var crop = p.Elements.ContainsKey("/CropBox") ? p.CropBox : new PdfSharp.Pdf.PdfRectangle();
+                    double mX1 = media.X1;
+                    double mY1 = media.Y1;
+                    double mW = media.Width > 0 ? media.Width : p.Width.Point;
+                    double mH = media.Height > 0 ? media.Height : p.Height.Point;
+
+                    bool hasCrop = crop.Width > 0 && crop.Height > 0;
+                    double bX1 = hasCrop ? crop.X1 : mX1;
+                    double bY1 = hasCrop ? crop.Y1 : mY1;
+                    double bW = hasCrop ? crop.Width : mW;
+                    double bH = hasCrop ? crop.Height : mH;
+                    int rot = ((p.Rotate % 360) + 360) % 360;
+
+                    bool distinctCrop = hasCrop &&
+                        (Math.Abs(bX1 - mX1) > 0.5 || Math.Abs(bY1 - mY1) > 0.5 ||
+                         Math.Abs(bW - mW) > 0.5 || Math.Abs(bH - mH) > 0.5);
+
+                    list.Add(new PageBoxGeometry
+                    {
+                        BoxX1 = bX1,
+                        BoxY1 = bY1,
+                        BoxW = Math.Max(10.0, bW),
+                        BoxH = Math.Max(10.0, bH),
+                        MediaX1 = mX1,
+                        MediaY1 = mY1,
+                        MediaW = Math.Max(10.0, mW),
+                        MediaH = Math.Max(10.0, mH),
+                        HasDistinctCrop = distinctCrop,
+                        Rotate = rot
+                    });
+                }
+            }
+            catch { }
+            return list;
+        }
+
+        private static Rect MapPdfPigBoxToVisualTopLeft(
+            PdfRectangle bb,
+            Page pigPage,
+            PageBoxGeometry? geomOpt,
+            double visW,
+            double visH,
+            double minW,
+            double minH)
+        {
+            if (geomOpt == null)
+            {
+                double x = Math.Clamp(bb.Left, 0, visW);
+                double y = Math.Clamp(visH - bb.Top, 0, visH);
+                return new Rect(x, y, Math.Max(minW, bb.Width), Math.Max(minH, bb.Height));
+            }
+
+            var g = geomOpt.Value;
+            bool pigHasValidBox = pigPage.Width > 1.0 && pigPage.Height > 1.0;
+            // PdfPig 0.1.x transforms glyph coordinates into rotated CropBox/MediaBox bottom-left space
+            // when GetInitialMatrix applies Rotation & CropBox/MediaBox origin. Check whether PdfPig already rotated/cropped:
+            bool pigAlreadyRotated = pigHasValidBox && (
+                (g.Rotate == 0 && !g.HasDistinctCrop) ||
+                (g.Rotate == 0 && g.HasDistinctCrop && Math.Abs(pigPage.Width - g.VisualWidth) < 1.5 && Math.Abs(pigPage.Height - g.VisualHeight) < 1.5) ||
+                ((g.Rotate == 90 || g.Rotate == 270) &&
+                 Math.Abs(pigPage.Width - g.VisualWidth) < Math.Abs(pigPage.Width - g.BoxW) + 1.0) ||
+                (g.Rotate == 180 && pigPage.Rotation.Value == 180));
+
+            if (pigAlreadyRotated)
+            {
+                double shiftX = 0.0;
+                double shiftYTop = 0.0;
+
+                // If PdfPig sized page to MediaBox instead of distinct CropBox, subtract CropBox offset in visual space
+                if (g.HasDistinctCrop &&
+                    Math.Abs(pigPage.Width - ((g.Rotate == 90 || g.Rotate == 270) ? g.MediaH : g.MediaW)) < 1.5 &&
+                    Math.Abs(pigPage.Width - g.VisualWidth) > 1.5)
+                {
+                    double dxLow = g.BoxX1 - g.MediaX1;
+                    double dyLow = g.BoxY1 - g.MediaY1;
+                    double dxHigh = (g.MediaX1 + g.MediaW) - (g.BoxX1 + g.BoxW);
+                    double dyHigh = (g.MediaY1 + g.MediaH) - (g.BoxY1 + g.BoxH);
+
+                    switch (g.Rotate)
+                    {
+                        case 90:
+                            shiftX = dyLow;
+                            shiftYTop = dxLow;
+                            break;
+                        case 180:
+                            shiftX = dxHigh;
+                            shiftYTop = dyLow;
+                            break;
+                        case 270:
+                            shiftX = dyHigh;
+                            shiftYTop = dxHigh;
+                            break;
+                        default:
+                            shiftX = dxLow;
+                            shiftYTop = dyHigh;
+                            break;
+                    }
+                }
+
+                double pigH = pigPage.Height;
+                double rawLeft = bb.Left - shiftX;
+                double rawTop = (pigH - bb.Top) - shiftYTop;
+
+                double clampedX = Math.Clamp(rawLeft, 0, visW);
+                double clampedY = Math.Clamp(rawTop, 0, visH);
+                return new Rect(clampedX, clampedY, Math.Max(minW, bb.Width), Math.Max(minH, bb.Height));
+            }
+            else
+            {
+                // Fallback if unrotated raw user-space coordinates were returned
+                double rx1 = Math.Min(bb.Left, bb.Right) - g.BoxX1;
+                double rx2 = Math.Max(bb.Left, bb.Right) - g.BoxX1;
+                double ry1 = Math.Min(bb.Bottom, bb.Top) - g.BoxY1;
+                double ry2 = Math.Max(bb.Bottom, bb.Top) - g.BoxY1;
+                double rw = Math.Max(minW, rx2 - rx1);
+                double rh = Math.Max(minH, ry2 - ry1);
+
+                return g.Rotate switch
+                {
+                    90 => new Rect(Math.Clamp(ry1, 0, visW), Math.Clamp(rx1, 0, visH), Math.Max(minW, rh), Math.Max(minH, rw)),
+                    180 => new Rect(Math.Clamp(g.BoxW - rx2, 0, visW), Math.Clamp(ry1, 0, visH), rw, rh),
+                    270 => new Rect(Math.Clamp(g.BoxH - ry2, 0, visW), Math.Clamp(g.BoxW - rx2, 0, visH), Math.Max(minW, rh), Math.Max(minH, rw)),
+                    _ => new Rect(Math.Clamp(rx1, 0, visW), Math.Clamp(g.BoxH - ry2, 0, visH), rw, rh)
+                };
+            }
+        }
+
         public static PdfTextSelectionEngine CreateFromPdfBytes(byte[]? pdfBytes)
         {
             var engine = new PdfTextSelectionEngine();
-            if (pdfBytes == null || pdfBytes.Length == 0)
+            if (pdfBytes == null || pdfBytes.Length == 0 || pdfBytes.Length > PdfFormFieldEngine.MaxPdfFileSizeBytes)
                 return engine;
 
             try
             {
+                var geoms = ReadPageGeometries(pdfBytes);
                 using var doc = PdfDocument.Open(pdfBytes);
                 for (int p = 1; p <= doc.NumberOfPages; p++)
                 {
                     int pageIdx = p - 1;
                     var page = doc.GetPage(p);
-                    double pageW = Math.Max(10.0, page.Width);
-                    double pageH = Math.Max(10.0, page.Height);
+                    PageBoxGeometry? geom = pageIdx < geoms.Count ? geoms[pageIdx] : null;
+
+                    double pageW = geom.HasValue ? geom.Value.VisualWidth : Math.Max(10.0, page.Width);
+                    double pageH = geom.HasValue ? geom.Value.VisualHeight : Math.Max(10.0, page.Height);
 
                     var pageLayout = new PdfPageTextLayout
                     {
@@ -112,37 +280,41 @@ namespace FunkenwerkPdf
                         if (string.IsNullOrWhiteSpace(w.Text))
                             continue;
 
-                        var bb = w.BoundingBox;
-                        double wLeft = Math.Clamp(bb.Left, 0, pageW);
-                        double wTop = Math.Clamp(pageH - bb.Top, 0, pageH);
-                        double wWidth = Math.Max(1.2, bb.Width);
-                        double wHeight = Math.Max(3.5, bb.Height);
+                        Rect wordRect = MapPdfPigBoxToVisualTopLeft(w.BoundingBox, page, geom, pageW, pageH, 1.2, 3.5);
+                        // Skip words completely outside effective CropBox
+                        if (geom?.HasDistinctCrop == true)
+                        {
+                            if (wordRect.Right <= 0.5 || wordRect.Bottom <= 0.5 ||
+                                wordRect.Left >= pageW - 0.5 || wordRect.Top >= pageH - 0.5)
+                            {
+                                continue;
+                            }
+                        }
 
                         var wordInfo = new PdfTextWordInfo
                         {
                             PageIndex = pageIdx,
                             Text = w.Text,
-                            BoundsPt = new Rect(wLeft, wTop, wWidth, wHeight)
+                            BoundsPt = wordRect
                         };
 
-                        var letters = w.Letters?.OrderBy(l => l.BoundingBox.Left).ToList();
+                        var letters = w.Letters?
+                            .Select(l => (Letter: l, VisualBounds: MapPdfPigBoxToVisualTopLeft(l.BoundingBox, page, geom, pageW, pageH, 0.8, 3.0)))
+                            .OrderBy(x => x.VisualBounds.Left)
+                            .ToList();
+
                         if (letters != null && letters.Count > 0)
                         {
-                            foreach (var letter in letters)
+                            foreach (var (letter, lRect) in letters)
                             {
                                 if (string.IsNullOrEmpty(letter.Value))
                                     continue;
-                                var lb = letter.BoundingBox;
-                                double lx = Math.Clamp(lb.Left, 0, pageW);
-                                double ly = Math.Clamp(pageH - lb.Top, 0, pageH);
-                                double lw = Math.Max(0.8, lb.Width);
-                                double lh = Math.Max(3.0, lb.Height);
 
                                 wordInfo.Glyphs.Add(new PdfTextGlyph
                                 {
                                     PageIndex = pageIdx,
                                     Text = letter.Value,
-                                    BoundsPt = new Rect(lx, ly, lw, lh)
+                                    BoundsPt = lRect
                                 });
                             }
                         }

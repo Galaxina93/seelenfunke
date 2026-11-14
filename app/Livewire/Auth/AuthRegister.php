@@ -46,6 +46,7 @@ class AuthRegister extends Component
 
     public $terms = false;
     public $ai_data_consent = false;
+    public $marketing_consent = false;
 
     #[Locked]
     public $passwordRules = [
@@ -83,6 +84,7 @@ class AuthRegister extends Component
             'birthday' => 'nullable|date',
             'terms' => 'accepted',
             'ai_data_consent' => 'boolean',
+            'marketing_consent' => 'boolean',
         ];
     }
 
@@ -198,6 +200,10 @@ class AuthRegister extends Component
             $customer->updateAiDataConsent(true, 'registration');
         }
 
+        if ((bool) $this->marketing_consent) {
+            $customer->updateMarketingConsent(true, 'registration');
+        }
+
         // Chat Session Guest-Ascension Migration
         if (is_string($this->sessionToken) && strlen(trim($this->sessionToken)) >= 16) {
             $chatClaimQuery = \App\Models\Support\SupportCustomerChat::where('session_token', trim($this->sessionToken))
@@ -207,6 +213,9 @@ class AuthRegister extends Component
             }
             $chatClaimQuery->update(['customer_id' => $customer->id]);
         }
+
+        // Vorhandenen Gast-Warenkorb direkt mit dem neuen Kundenkonto verknüpfen
+        app(\App\Services\CartService::class)->mergeGuestCartIntoCustomer($customer, session()->getId());
 
         // Send verification manually to circumvent Laravel 11 auto-discovery bug causing duplicate event dispatches.
         $customer->sendEmailVerificationNotification();

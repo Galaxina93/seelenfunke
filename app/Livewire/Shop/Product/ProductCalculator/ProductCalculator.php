@@ -823,19 +823,20 @@ class ProductCalculator extends Component
                 $this->dispatch('scroll-top');
                 $this->dispatch('quote-submitted');
             });
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $this->dispatch('quote-submit-failed');
             SystemLog::create([
-                'type' => 'error',
-                'agent_id' => null,
+                'title' => 'Kalkulator Anfragefehler',
+                'type' => 'system',
+                'status' => 'error',
                 'action_id' => 'calculator_quote_creation',
                 'message' => 'Kritischer Fehler bei der Anfrage-Erstellung: ' . $e->getMessage(),
-                'details' => json_encode([
+                'payload' => [
                     'file' => $e->getFile(),
                     'line' => $e->getLine(),
-                    'trace' => $e->getTraceAsString(),
-                    'email' => $this->form['email'] ?? null
-                ])
+                    'trace_excerpt' => mb_substr($e->getTraceAsString(), 0, 2000),
+                    'email' => $this->form['email'] ?? null,
+                ],
             ]);
 
             session()->flash('error', 'Ihre Anfrage konnte nicht verarbeitet werden. Bitte versuchen Sie es später erneut.');

@@ -10,7 +10,9 @@ using System.Net.Http;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
+using System.Security.AccessControl;
 using System.Security.Cryptography;
+using System.Security.Principal;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -211,11 +213,208 @@ namespace Funkenwerk
     // =========================================================================
     public static class FunkenwerkSecurityVault
     {
+        public const string VaultAesGcmPrefix = "FWAES256GCM1:";
         private const string VaultV2Prefix = "FWVAULT2:";
         private const string LegacyDpapiPrefix = "DPAPI:";
         private static readonly byte[] _entropy = Encoding.UTF8.GetBytes("Funkenwerk_Seelenfunke_HardwareVault_v1");
         private static readonly byte[] _aeadAssociatedData = Encoding.UTF8.GetBytes("Funkenwerk-Vault-v2-AEAD-AES256GCM");
         private static string _encryptedSessionRtspPass = "";
+        private static string? _tempAppDataOverride;
+        private static readonly ConcurrentDictionary<string, byte> _aclVerifiedPaths = new(StringComparer.OrdinalIgnoreCase);
+
+        public static readonly HashSet<string> AllowedApiHosts = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "127.0.0.1",
+            "localhost",
+            "::1",
+            "[::1]",
+            "seelenfunke.test",
+            "stage.mein-seelenfunke.de",
+            "mein-seelenfunke.de"
+        };
+
+        public static bool IsUsingTemporaryAppData => !string.IsNullOrEmpty(_tempAppDataOverride);
+
+        public static string AppDataDirectory
+        {
+            get
+            {
+                string dir = !string.IsNullOrEmpty(_tempAppDataOverride)
+                    ? _tempAppDataOverride!
+                    : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Funkenwerk");
+                EnsureDirectoryLocked(dir);
+                return dir;
+            }
+        }
+
+        private sealed class TempAppDataScope : IDisposable
+        {
+            private readonly string? _prev;
+            private bool _disposed;
+            public TempAppDataScope(string? prev) => _prev = prev;
+            public void Dispose()
+            {
+                if (_disposed) return;
+                _disposed = true;
+                _tempAppDataOverride = _prev;
+            }
+        }
+
+        public static IDisposable UseTemporaryAppDataDirectory(string tempDir)
+        {
+            if (string.IsNullOrWhiteSpace(tempDir))
+                throw new ArgumentException("Temporary AppData directory path required.", nameof(tempDir));
+            string full = Path.GetFullPath(tempDir);
+            string? prev = _tempAppDataOverride;
+            _tempAppDataOverride = full;
+            EnsureDirectoryLocked(full);
+            return new TempAppDataScope(prev);
+        }
+
+        public static string GetSecureTempDirectory()
+        {
+            string tmp = Path.Combine(AppDataDirectory, "tmp");
+            EnsureDirectoryLocked(tmp);
+            return tmp;
+        }
+
+        private static void EnsureDirectoryLocked(string dirPath)
+        {
+            Directory.CreateDirectory(dirPath);
+            if (_aclVerifiedPaths.TryAdd("DIR:" + dirPath, 1))
+            {
+                LockDownDirectoryAcl(dirPath);
+            }
+        }
+
+        public static void LockDownDirectoryAcl(string dirPath)
+        {
+            if (string.IsNullOrWhiteSpace(dirPath) || !Directory.Exists(dirPath)) return;
+            try
+            {
+                var currentUserSid = WindowsIdentity.GetCurrent().User;
+                if (currentUserSid == null) return;
+                var systemSid = new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null);
+
+                var dirInfo = new DirectoryInfo(dirPath);
+                var security = new DirectorySecurity();
+                security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+                var flags = InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit;
+                security.AddAccessRule(new FileSystemAccessRule(currentUserSid, FileSystemRights.FullControl, flags, PropagationFlags.None, AccessControlType.Allow));
+                security.AddAccessRule(new FileSystemAccessRule(systemSid, FileSystemRights.FullControl, flags, PropagationFlags.None, AccessControlType.Allow));
+                dirInfo.SetAccessControl(security);
+            }
+            catch { }
+        }
+
+        public static void LockDownFileAcl(string filePath)
+        {
+            if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath)) return;
+            try
+            {
+                var currentUserSid = WindowsIdentity.GetCurrent().User;
+                if (currentUserSid == null) return;
+                var systemSid = new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null);
+
+                var fileInfo = new FileInfo(filePath);
+                var security = new FileSecurity();
+                security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+                security.AddAccessRule(new FileSystemAccessRule(currentUserSid, FileSystemRights.FullControl, AccessControlType.Allow));
+                security.AddAccessRule(new FileSystemAccessRule(systemSid, FileSystemRights.FullControl, AccessControlType.Allow));
+                fileInfo.SetAccessControl(security);
+            }
+            catch { }
+        }
+
+        public static bool HasStrictUserSystemFileAcl(string filePath)
+        {
+            if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath)) return false;
+            try
+            {
+                var currentUserSid = WindowsIdentity.GetCurrent().User;
+                if (currentUserSid == null) return false;
+                var systemSid = new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null);
+
+                var sec = new FileInfo(filePath).GetAccessControl();
+                if (!sec.AreAccessRulesProtected) return false;
+                var rules = sec.GetAccessRules(includeExplicit: true, includeInherited: true, typeof(SecurityIdentifier));
+                bool hasCurrentUser = false;
+                foreach (FileSystemAccessRule rule in rules)
+                {
+                    if (rule.AccessControlType != AccessControlType.Allow) continue;
+                    var sid = rule.IdentityReference as SecurityIdentifier;
+                    if (sid == null) return false;
+                    if (sid.Equals(currentUserSid))
+                    {
+                        hasCurrentUser = true;
+                        continue;
+                    }
+                    if (sid.Equals(systemSid))
+                    {
+                        continue;
+                    }
+                    return false;
+                }
+                return hasCurrentUser;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public static string GetAppDataFilePath(string fileName, bool migrateFromBaseDir = true)
+        {
+            string cleanName = Path.GetFileName(fileName);
+            string targetPath = Path.Combine(AppDataDirectory, cleanName);
+
+            if (!IsUsingTemporaryAppData && migrateFromBaseDir && !File.Exists(targetPath))
+            {
+                try
+                {
+                    string legacyPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, cleanName);
+                    if (File.Exists(legacyPath))
+                    {
+                        File.Copy(legacyPath, targetPath, overwrite: false);
+                        LockDownFileAcl(targetPath);
+                    }
+                }
+                catch { }
+            }
+
+            if (File.Exists(targetPath) && _aclVerifiedPaths.TryAdd("FILE:" + targetPath, 1))
+            {
+                LockDownFileAcl(targetPath);
+            }
+
+            return targetPath;
+        }
+
+        public static void WriteSecureFileText(string filePath, string content)
+        {
+            string dir = Path.GetDirectoryName(filePath) ?? AppDataDirectory;
+            EnsureDirectoryLocked(dir);
+            string tmpPath = filePath + ".tmp." + Guid.NewGuid().ToString("N").Substring(0, 8);
+            try
+            {
+                File.WriteAllText(tmpPath, content, new UTF8Encoding(false));
+                LockDownFileAcl(tmpPath);
+                File.Move(tmpPath, filePath, overwrite: true);
+                LockDownFileAcl(filePath);
+                _aclVerifiedPaths.TryAdd("FILE:" + filePath, 1);
+            }
+            finally
+            {
+                try { if (File.Exists(tmpPath)) File.Delete(tmpPath); } catch { }
+            }
+        }
+
+        public static bool IsEncryptedVaultValue(string? value)
+        {
+            if (string.IsNullOrEmpty(value)) return false;
+            return value.StartsWith(VaultAesGcmPrefix, StringComparison.Ordinal)
+                || value.StartsWith(VaultV2Prefix, StringComparison.Ordinal);
+        }
 
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
         private struct DATA_BLOB
@@ -346,8 +545,9 @@ namespace Funkenwerk
         public static string ProtectSecret(string? plainText)
         {
             if (string.IsNullOrEmpty(plainText)) return "";
-            if (plainText.StartsWith(VaultV2Prefix, StringComparison.Ordinal)) return plainText;
-            if (plainText.StartsWith(LegacyDpapiPrefix, StringComparison.Ordinal))
+            if (plainText.StartsWith(VaultAesGcmPrefix, StringComparison.Ordinal)) return plainText;
+            if (plainText.StartsWith(VaultV2Prefix, StringComparison.Ordinal) ||
+                plainText.StartsWith(LegacyDpapiPrefix, StringComparison.Ordinal))
             {
                 plainText = UnprotectSecret(plainText);
                 if (string.IsNullOrEmpty(plainText)) return "";
@@ -381,7 +581,7 @@ namespace Funkenwerk
                 CryptographicOperations.ZeroMemory(envelope);
                 if (dpapiWrapped != null && dpapiWrapped.Length > 0)
                 {
-                    return VaultV2Prefix + Convert.ToBase64String(dpapiWrapped);
+                    return VaultAesGcmPrefix + Convert.ToBase64String(dpapiWrapped);
                 }
             }
             catch { }
@@ -394,20 +594,26 @@ namespace Funkenwerk
         }
 
         /// <summary>
-        /// Decrypts both modern FWVAULT2: (DPAPI + AES-256-GCM AEAD) and legacy DPAPI: secrets.
+        /// Decrypts FWAES256GCM1:, FWVAULT2: (DPAPI + AES-256-GCM AEAD) and legacy DPAPI: secrets.
         /// </summary>
         public static string UnprotectSecret(string? storedText)
         {
             if (string.IsNullOrEmpty(storedText)) return "";
 
-            if (storedText.StartsWith(VaultV2Prefix, StringComparison.Ordinal))
+            string? matchedPrefix = null;
+            if (storedText.StartsWith(VaultAesGcmPrefix, StringComparison.Ordinal))
+                matchedPrefix = VaultAesGcmPrefix;
+            else if (storedText.StartsWith(VaultV2Prefix, StringComparison.Ordinal))
+                matchedPrefix = VaultV2Prefix;
+
+            if (matchedPrefix != null)
             {
                 byte[]? envelope = null;
                 byte[]? key = null;
                 byte[]? plainBytes = null;
                 try
                 {
-                    byte[] dpapiCipher = Convert.FromBase64String(storedText.Substring(VaultV2Prefix.Length));
+                    byte[] dpapiCipher = Convert.FromBase64String(storedText.Substring(matchedPrefix.Length));
                     envelope = DpapiUnprotectBytes(dpapiCipher);
                     if (envelope == null || envelope.Length < 45 || envelope[0] != 0x02)
                         return "";
@@ -496,9 +702,9 @@ namespace Funkenwerk
             return sb.ToString().Trim();
         }
 
-        public static HttpClient CreateSecureHttpClient(TimeSpan timeout)
+        public static SocketsHttpHandler CreateSecureSocketsHttpHandler()
         {
-            var handler = new SocketsHttpHandler
+            return new SocketsHttpHandler
             {
                 PooledConnectionLifetime = TimeSpan.FromMinutes(10),
                 PooledConnectionIdleTimeout = TimeSpan.FromMinutes(4),
@@ -513,7 +719,11 @@ namespace Funkenwerk
                     CertificateRevocationCheckMode = System.Security.Cryptography.X509Certificates.X509RevocationMode.NoCheck
                 }
             };
+        }
 
+        public static HttpClient CreateSecureHttpClient(TimeSpan timeout)
+        {
+            var handler = CreateSecureSocketsHttpHandler();
             var client = new HttpClient(handler)
             {
                 Timeout = timeout,
@@ -533,14 +743,14 @@ namespace Funkenwerk
                 sb.AppendLine($"[{(ok ? "PASS" : "FAIL")}] {name}: {detail}");
             }
 
-            // 1. Test FWVAULT2 AES-256-GCM + PBKDF2-SHA512 + DPAPI Roundtrip & Tamper Detection
+            // 1. Test FWAES256GCM1 AES-256-GCM + PBKDF2-SHA512 + DPAPI Roundtrip & Tamper Detection
             string probeSecret = "Funkenwerk_QuantumSafe_AuditProbe_" + Guid.NewGuid().ToString("N");
             string encrypted = ProtectSecret(probeSecret);
-            bool hasV2Prefix = encrypted.StartsWith(VaultV2Prefix, StringComparison.Ordinal);
+            bool hasVaultPrefix = encrypted.StartsWith(VaultAesGcmPrefix, StringComparison.Ordinal);
             string decrypted = UnprotectSecret(encrypted);
             bool roundtripOk = string.Equals(probeSecret, decrypted, StringComparison.Ordinal);
-            Check("AES-256-GCM + PBKDF2-SHA512 (100k) + Windows DPAPI Vault", hasV2Prefix && roundtripOk,
-                $"Prefix='{VaultV2Prefix}', CipherLen={encrypted.Length} chars, AEAD Roundtrip={roundtripOk}");
+            Check("AES-256-GCM + PBKDF2-SHA512 (100k) + Windows DPAPI Vault", hasVaultPrefix && roundtripOk,
+                $"Prefix='{VaultAesGcmPrefix}', CipherLen={encrypted.Length} chars, AEAD Roundtrip={roundtripOk}");
 
             // 2. Test Tamper Resistance (Bit-flip in ciphertext must be rejected by GCM tag / DPAPI)
             string tampered = encrypted.Substring(0, encrypted.Length - 6) + "XXXXXX";
@@ -548,14 +758,15 @@ namespace Funkenwerk
             Check("AEAD Authenticity & Tamper Detection", string.IsNullOrEmpty(tamperedResult),
                 "Manipulated ciphertext rejected with zero plaintext leakage");
 
-            // 3. Verify settings.json on disk contains ZERO cleartext tokens
+            // 3. Verify settings.json on disk contains ZERO cleartext tokens and NO SavedAuthPassword
             if (File.Exists(settingsJsonPath))
             {
                 string rawSettings = File.ReadAllText(settingsJsonPath);
-                bool noPlainSanctum = !Regex.IsMatch(rawSettings, @"""ApiToken[A-Za-z]*""\s*:\s*""(?!FWVAULT2:|DPAPI:|"")[^""]+""");
-                bool usesVault = rawSettings.Contains(VaultV2Prefix, StringComparison.Ordinal) || rawSettings.Contains(LegacyDpapiPrefix, StringComparison.Ordinal);
-                Check("settings.json At-Rest Token Encryption", noPlainSanctum && usesVault,
-                    $"NoCleartextBearerTokens={noPlainSanctum}, EncryptedVaultFormat={usesVault}");
+                bool noPlainSanctum = !Regex.IsMatch(rawSettings, @"""ApiToken[A-Za-z]*""\s*:\s*""(?!FWAES256GCM1:|FWVAULT2:|DPAPI:|"")[^""]+""");
+                bool noSavedPass = !rawSettings.Contains("\"SavedAuthPassword\"", StringComparison.OrdinalIgnoreCase);
+                bool aclOk = HasStrictUserSystemFileAcl(settingsJsonPath);
+                Check("settings.json At-Rest Token Encryption & NTFS ACL", noPlainSanctum && noSavedPass && aclOk,
+                    $"NoCleartextBearerTokens={noPlainSanctum}, NoSavedPassword={noSavedPass}, StrictUserAcl={aclOk}");
             }
 
             // 4. Verify smarthome.json on disk contains ZERO cleartext RTSP passwords or Tapo passwords
@@ -563,23 +774,31 @@ namespace Funkenwerk
             {
                 string rawSmart = File.ReadAllText(smartHomeJsonPath);
                 bool noPlainRtsp = !rawSmart.Contains("rtsp://", StringComparison.OrdinalIgnoreCase)
-                                && !Regex.IsMatch(rawSmart, @"""(?:TapoLocalEmail|TapoLocalPassword|Url)""\s*:\s*""(?!FWVAULT2:|DPAPI:|"")[^""]+""");
-                Check("smarthome.json At-Rest RTSP & KLAP Credential Encryption", noPlainRtsp,
-                    $"ZeroCleartextRtspOrPasswordsOnDisk={noPlainRtsp}");
+                                && !Regex.IsMatch(rawSmart, @"""(?:TapoLocalEmail|TapoLocalPassword|Url)""\s*:\s*""(?!FWAES256GCM1:|FWVAULT2:|DPAPI:|"")[^""]+""");
+                bool aclOk = HasStrictUserSystemFileAcl(smartHomeJsonPath);
+                Check("smarthome.json At-Rest RTSP & KLAP Credential Encryption & NTFS ACL", noPlainRtsp && aclOk,
+                    $"ZeroCleartextRtspOrPasswordsOnDisk={noPlainRtsp}, StrictUserAcl={aclOk}");
             }
 
-            // 5. Verify Network SSRF & HTTPS Enforcement Guards
+            // 5. Verify Strict API Host Allowlist, Network SSRF & HTTPS Enforcement Guards
             string enforcedHttps = NormalizeSecureApiUrl("http://stage.mein-seelenfunke.de/api");
             bool httpsEnforced = enforcedHttps.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
+            bool evilHostBlocked = false;
+            try { _ = NormalizeSecureApiUrl("https://evil.example/api"); } catch (UnauthorizedAccessException) { evilHostBlocked = true; }
             bool externalIpBlockedForLan = !IsSafePrivateLanHost("8.8.8.8") && !IsSafePrivateLanHost("1.1.1.1") && !IsSafeRtspUrl("rtsp://8.8.8.8:554/stream1");
             bool privateLanAllowed = IsSafePrivateLanHost("192.168.188.105") && IsSafePrivateLanHost("127.0.0.1");
-            Check("Network TLS Enforcement & RFC1918 SSRF Firewall", httpsEnforced && externalIpBlockedForLan && privateLanAllowed,
-                $"ExternalHttpUpgradedToHttps={httpsEnforced}, WanIpBlockedFromLanEngines={externalIpBlockedForLan}");
+            Check("API Host Allowlist, TLS Enforcement & RFC1918 SSRF Firewall", httpsEnforced && evilHostBlocked && externalIpBlockedForLan && privateLanAllowed,
+                $"ExternalHttpUpgradedToHttps={httpsEnforced}, EvilHostBlocked={evilHostBlocked}, WanIpBlockedFromLanEngines={externalIpBlockedForLan}");
 
             // 6. Verify CLI Injection & Dangerous Attachment Guards
             string sanitized = SanitizeCliArgument("HD Pro Webcam\" & calc.exe | \r\n");
             bool cliSafe = !sanitized.Contains('"') && !sanitized.Contains('&') && !sanitized.Contains('|') && !sanitized.Contains('\n');
-            bool attachSafe = IsDangerousAttachmentFile("invoice.pdf.exe") && IsDangerousAttachmentFile("script.ps1") && !IsDangerousAttachmentFile("angebot.pdf");
+            bool attachSafe = IsDangerousAttachmentFile("invoice.pdf.exe")
+                           && IsDangerousAttachmentFile("script.ps1")
+                           && IsDangerousAttachmentFile("phish.url")
+                           && IsDangerousAttachmentFile("dropper.library-ms")
+                           && IsDangerousAttachmentFile("macro.docm")
+                           && !IsDangerousAttachmentFile("angebot.pdf");
             Check("Subprocess CLI Sanitizer & Malware Attachment Shield", cliSafe && attachSafe,
                 $"CliMetaCharsStripped={cliSafe}, ExecutableAttachmentBlocked={attachSafe}");
 
@@ -691,38 +910,61 @@ namespace Funkenwerk
 
         private static readonly HashSet<string> _blockedExecutableExtensions = new(StringComparer.OrdinalIgnoreCase)
         {
-            ".exe", ".dll", ".bat", ".cmd", ".ps1", ".psm1", ".vbs", ".vbe",
+            ".exe", ".dll", ".bat", ".cmd", ".ps1", ".psm1", ".ps1xml", ".vbs", ".vbe",
             ".js", ".jse", ".wsf", ".wsh", ".msc", ".msi", ".msp", ".com",
             ".scr", ".hta", ".cpl", ".jar", ".reg", ".lnk", ".pif", ".inf",
-            ".sct", ".shb", ".sys", ".chm", ".iso", ".vhd", ".vhdx"
+            ".sct", ".shb", ".sys", ".chm", ".iso", ".img", ".vhd", ".vhdx",
+            ".url", ".scf", ".library-ms", ".search-ms", ".py", ".docm", ".xlsm", ".pptm"
         };
 
         public static bool IsDangerousAttachmentFile(string? filePathOrName)
         {
             if (string.IsNullOrWhiteSpace(filePathOrName)) return true;
             string clean = filePathOrName.Trim().TrimEnd('.', ' ');
+            // Also block NTFS Alternate Data Streams (e.g. file.pdf:evil.exe) except drive letter C:\
+            int colonIdx = clean.LastIndexOf(':');
+            if (colonIdx > 1) return true;
             string ext = Path.GetExtension(clean);
             return !string.IsNullOrEmpty(ext) && _blockedExecutableExtensions.Contains(ext);
+        }
+
+        public static bool IsAllowedApiHost(string? host)
+        {
+            if (string.IsNullOrWhiteSpace(host)) return false;
+            return AllowedApiHosts.Contains(host.Trim());
+        }
+
+        public static bool IsLocalApiHost(string? host)
+        {
+            if (string.IsNullOrWhiteSpace(host)) return false;
+            string h = host.Trim();
+            return string.Equals(h, "127.0.0.1", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(h, "localhost", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(h, "::1", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(h, "[::1]", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(h, "seelenfunke.test", StringComparison.OrdinalIgnoreCase);
         }
 
         public static string NormalizeSecureApiUrl(string? rawUrl)
         {
             string trimmed = (rawUrl ?? "").Trim().TrimEnd('/');
-            if (string.IsNullOrEmpty(trimmed) || trimmed.IndexOfAny(new[] { '\r', '\n', '\0', ' ' }) >= 0)
+            if (string.IsNullOrEmpty(trimmed))
                 return "http://127.0.0.1/api";
+            if (trimmed.IndexOfAny(new[] { '\r', '\n', '\0', ' ' }) >= 0)
+                throw new UnauthorizedAccessException("Disallowed control characters in API URL.");
             if (!Uri.TryCreate(trimmed, UriKind.Absolute, out var uri))
-                return "http://127.0.0.1/api";
+                throw new UnauthorizedAccessException("Malformed API URL.");
             if (!string.IsNullOrEmpty(uri.UserInfo))
-                return "http://127.0.0.1/api"; // Reject embedded credentials in API URLs
+                throw new UnauthorizedAccessException("Embedded credentials in API URL are forbidden.");
             if (!string.Equals(uri.Scheme, "http", StringComparison.OrdinalIgnoreCase) &&
                 !string.Equals(uri.Scheme, "https", StringComparison.OrdinalIgnoreCase))
-                return "http://127.0.0.1/api";
+                throw new UnauthorizedAccessException($"Disallowed API URI scheme '{uri.Scheme}'.");
+            if (!IsAllowedApiHost(uri.Host))
+                throw new UnauthorizedAccessException($"API host '{uri.Host}' is not in the Funkenwerk host allowlist.");
 
-            bool isLocal = string.Equals(uri.Host, "127.0.0.1", StringComparison.OrdinalIgnoreCase)
-                        || string.Equals(uri.Host, "localhost", StringComparison.OrdinalIgnoreCase)
-                        || IsSafePrivateLanHost(uri.Host);
+            bool isLocal = IsLocalApiHost(uri.Host);
 
-            // Force HTTPS for all external internet servers (e.g. stage.mein-seelenfunke.de / mein-seelenfunke.de)
+            // Force HTTPS for all external internet servers (stage.mein-seelenfunke.de / mein-seelenfunke.de)
             // so Sanctum Bearer tokens are NEVER transmitted in cleartext over the internet.
             if (!isLocal && string.Equals(uri.Scheme, "http", StringComparison.OrdinalIgnoreCase))
             {
@@ -731,6 +973,18 @@ namespace Funkenwerk
             }
 
             return trimmed;
+        }
+
+        public static string NormalizeSecureApiUrlOrDefault(string? rawUrl, string fallbackUrl = "https://stage.mein-seelenfunke.de/api")
+        {
+            try
+            {
+                return NormalizeSecureApiUrl(rawUrl);
+            }
+            catch
+            {
+                return fallbackUrl;
+            }
         }
     }
 
@@ -776,13 +1030,12 @@ namespace Funkenwerk
             if (string.IsNullOrWhiteSpace(rtspUrl)) return ("", "", "");
             try
             {
-                var m = Regex.Match(rtspUrl, @"^rtsp://([^:]+):([^@]+)@([^:/]+)", RegexOptions.IgnoreCase);
+                var m = Regex.Match(rtspUrl, @"^rtsps?://([^:]+):([^@]+)@([^:/]+)", RegexOptions.IgnoreCase);
                 if (m.Success)
                 {
                     string user = Uri.UnescapeDataString(m.Groups[1].Value);
                     string pass = Uri.UnescapeDataString(m.Groups[2].Value);
                     string host = m.Groups[3].Value;
-                    FunkenwerkSecurityVault.SetSessionRtspPassword(pass);
                     return (host, user, pass);
                 }
                 if (Uri.TryCreate(rtspUrl, UriKind.Absolute, out var u))
@@ -794,7 +1047,6 @@ namespace Funkenwerk
                         var parts = u.UserInfo.Split(':', 2);
                         user = Uri.UnescapeDataString(parts[0]);
                         if (parts.Length > 1) pass = Uri.UnescapeDataString(parts[1]);
-                        FunkenwerkSecurityVault.SetSessionRtspPassword(pass);
                     }
                     if (string.IsNullOrEmpty(pass))
                     {
@@ -838,6 +1090,17 @@ namespace Funkenwerk
         private static string SecurityElementEscape(string s)
             => (s ?? "").Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;").Replace("\"", "&quot;");
 
+        public static bool IsSafeCustomOnvifServiceUrl(string? customServiceUrl)
+        {
+            if (string.IsNullOrWhiteSpace(customServiceUrl)) return false;
+            if (!Uri.TryCreate(customServiceUrl.Trim(), UriKind.Absolute, out var cu)) return false;
+            if (!string.Equals(cu.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(cu.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+                return false;
+            if (!string.IsNullOrEmpty(cu.UserInfo)) return false;
+            return FunkenwerkSecurityVault.IsSafePrivateLanHost(cu.Host);
+        }
+
         private static async Task<string?> SendSoapAsync(string rtspUrl, string servicePath, string bodyXml, string? customServiceUrl = null)
         {
             var (host, user, pass) = ParseRtspCredentials(rtspUrl);
@@ -857,6 +1120,7 @@ namespace Funkenwerk
 
             var endpoints = new List<string> { $"http://{host}:2020{servicePath}" };
             if (!string.IsNullOrWhiteSpace(customServiceUrl) &&
+                IsSafeCustomOnvifServiceUrl(customServiceUrl) &&
                 Uri.TryCreate(customServiceUrl, UriKind.Absolute, out var cu) &&
                 !cu.IsDefaultPort && cu.Port != 2020 && cu.Port != 80)
             {
@@ -1023,6 +1287,7 @@ namespace Funkenwerk
 
         private const uint WHDR_DONE = 0x00000001;
         private const uint WHDR_PREPARED = 0x00000002;
+        private const uint WHDR_INQUEUE = 0x00000010;
 
         private CancellationTokenSource? _cts;
         private Process? _ffmpegProc;
@@ -1119,6 +1384,17 @@ namespace Funkenwerk
                     if (proc == null) continue;
                     _ffmpegProc = proc;
 
+                    // Drain stderr asynchronously so FFmpeg never deadlocks on a full pipe buffer
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            char[] errBuf = new char[1024];
+                            while (!proc.HasExited && await proc.StandardError.ReadAsync(errBuf, 0, errBuf.Length) > 0) { }
+                        }
+                        catch { }
+                    });
+
                     var stream = proc.StandardOutput.BaseStream;
                     byte[] readBuf = new byte[bufSize];
                     int hdrIdx = 0;
@@ -1159,13 +1435,15 @@ namespace Funkenwerk
                         while (!token.IsCancellationRequested && waitSpins < 60)
                         {
                             var curHdr = Marshal.PtrToStructure<WAVEHDR>(hdrPtr);
-                            if ((curHdr.dwFlags & WHDR_DONE) != 0) break;
+                            if ((curHdr.dwFlags & WHDR_INQUEUE) == 0 && (curHdr.dwFlags & WHDR_DONE) != 0) break;
                             Thread.Sleep(8);
                             waitSpins++;
                         }
                         if (token.IsCancellationRequested) break;
 
                         var oldHdr = Marshal.PtrToStructure<WAVEHDR>(hdrPtr);
+                        if ((oldHdr.dwFlags & WHDR_INQUEUE) != 0)
+                            continue;
                         if ((oldHdr.dwFlags & WHDR_PREPARED) != 0)
                         {
                             waveOutUnprepareHeader(hWaveOut, hdrPtr, Marshal.SizeOf<WAVEHDR>());
@@ -1460,6 +1738,99 @@ namespace Funkenwerk
             }
         }
 
+        /// <summary>
+        /// Finds the true outer JPEG EOI (0xFF 0xD9) marker starting from soiOffset,
+        /// properly skipping length-prefixed APP0..APP15 (including EXIF APP1 embedded thumbnails
+        /// that contain inner 0xFF 0xD8 .. 0xFF 0xD9 markers), DQT, DHT, SOF, COM, and byte-stuffed
+        /// entropy scan data after SOS (0xFF 0xDA). Returns the index of 0xFF in the outer EOI, or -1 if incomplete.
+        /// </summary>
+        public static int IndexOfJpegEoi(byte[] buf, int soiOffset, int availableLength)
+        {
+            if (buf == null || soiOffset < 0 || availableLength > buf.Length || soiOffset + 4 > availableLength)
+                return -1;
+            if (buf[soiOffset] != 0xFF || buf[soiOffset + 1] != 0xD8)
+                return -1;
+
+            int pos = soiOffset + 2;
+            while (pos + 1 < availableLength)
+            {
+                while (pos < availableLength && buf[pos] != 0xFF)
+                    pos++;
+                if (pos + 1 >= availableLength)
+                    return -1;
+
+                while (pos + 1 < availableLength && buf[pos + 1] == 0xFF)
+                    pos++;
+                if (pos + 1 >= availableLength)
+                    return -1;
+
+                byte marker = buf[pos + 1];
+                if (marker == 0x00)
+                {
+                    pos += 2;
+                    continue;
+                }
+                if (marker == 0xD9)
+                {
+                    return pos;
+                }
+                if (marker == 0xD8 || marker == 0x01 || (marker >= 0xD0 && marker <= 0xD7))
+                {
+                    pos += 2;
+                    continue;
+                }
+
+                // Length-prefixed marker segment (APP0..APP15 incl. EXIF APP1, DQT, DHT, SOF, SOS, COM, etc.)
+                if (pos + 4 > availableLength)
+                    return -1;
+
+                int segLen = (buf[pos + 2] << 8) | buf[pos + 3];
+                if (segLen < 2)
+                    return -1;
+
+                int segEnd = pos + 2 + segLen;
+                if (segEnd > availableLength)
+                    return -1;
+
+                pos = segEnd;
+
+                // After Start Of Scan (0xFF 0xDA), advance through entropy-coded scan data
+                if (marker == 0xDA)
+                {
+                    while (pos + 1 < availableLength)
+                    {
+                        if (buf[pos] != 0xFF)
+                        {
+                            pos++;
+                            continue;
+                        }
+                        while (pos + 1 < availableLength && buf[pos + 1] == 0xFF)
+                            pos++;
+                        if (pos + 1 >= availableLength)
+                            return -1;
+
+                        byte scanNext = buf[pos + 1];
+                        if (scanNext == 0x00 || (scanNext >= 0xD0 && scanNext <= 0xD7))
+                        {
+                            // Byte-stuffed 0xFF00 or restart marker RST0..RST7 inside entropy scan
+                            pos += 2;
+                            continue;
+                        }
+                        if (scanNext == 0xD9)
+                        {
+                            return pos;
+                        }
+                        // Another JPEG marker (e.g. progressive multi-scan DHT/SOS): let outer loop parse its length
+                        break;
+                    }
+                    if (pos + 1 >= availableLength)
+                        return -1;
+                }
+            }
+
+            return -1;
+        }
+
         private void ExtractJpegFramesFromBuffer(MemoryStream ms)
         {
             byte[] buf = ms.GetBuffer();
@@ -1495,16 +1866,9 @@ namespace Funkenwerk
                     return;
                 }
 
-                // Find EOI (0xFF 0xD9) after SOI
-                int eoi = -1;
-                for (int i = soi + 2; i + 1 < len; i++)
-                {
-                    if (buf[i] == 0xFF && buf[i + 1] == 0xD9)
-                    {
-                        eoi = i + 2;
-                        break;
-                    }
-                }
+                // Find true outer EOI (0xFF 0xD9) skipping any EXIF APP1 embedded thumbnail EOI
+                int eoiMarkerIdx = IndexOfJpegEoi(buf, soi, len);
+                int eoi = eoiMarkerIdx >= 0 ? eoiMarkerIdx + 2 : -1;
 
                 if (eoi < 0)
                 {
@@ -2189,72 +2553,110 @@ namespace Funkenwerk
             }
         }
 
-        public static async Task<(BitmapSource? Bitmap, byte[]? JpegBytes, string RenderSource)> RenderJobBitmapAsync(FunkenwerkPrintJobDto job, Action<string>? log = null)
+        public static async Task<List<(BitmapSource Bitmap, byte[] JpegBytes, string RenderSource)>> RenderAllJobBitmapsAsync(FunkenwerkPrintJobDto job, Action<string>? log = null)
         {
-            BitmapSource? renderedBitmap = null;
-            byte[]? jpegBytes = null;
-            string renderSource = "Natives Seelenfunke-Label";
+            var results = new List<(BitmapSource Bitmap, byte[] JpegBytes, string RenderSource)>();
 
             if (!string.IsNullOrWhiteSpace(job.PdfBase64))
             {
-                log?.Invoke($"[PDF] Dekodiere & prüfe DHL-PDF für Auftrag #{job.OrderNumber} ({job.PdfBase64.Length} Base64-Zeichen)...");
-                byte[]? pngBytes = await ConvertPdfBase64ToPngAsync(job.PdfBase64, log);
-                if (pngBytes != null && pngBytes.Length > 0)
+                log?.Invoke($"[PDF] Dekodiere & prüfe mehrseitiges DHL-PDF für Auftrag #{job.OrderNumber} ({job.PdfBase64.Length} Base64-Zeichen)...");
+                var pngPages = await ConvertPdfBase64ToPngPagesAsync(job.PdfBase64, log);
+                if (pngPages != null && pngPages.Count > 0)
                 {
                     try
                     {
-                        await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
+                        int totalPages = pngPages.Count;
+                        for (int pageIdx = 0; pageIdx < totalPages; pageIdx++)
                         {
-                            using var ms = new MemoryStream(pngBytes);
-                            var decoder = new PngBitmapDecoder(ms, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
-                            BitmapSource pdfFrame = decoder.Frames[0];
-
-                            int w = LabelWidthPx;  // 812
-                            int h = LabelHeightPx; // 1218
-                            var dv = new System.Windows.Media.DrawingVisual();
-                            using (var dc = dv.RenderOpen())
+                            byte[] pngBytes = pngPages[pageIdx];
+                            int capturedIdx = pageIdx;
+                            await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
                             {
-                                // Reinweißer 812x1218 Hintergrund + Proportionale Skalierung des DHL-Labels
-                                dc.DrawRectangle(System.Windows.Media.Brushes.White, null, new System.Windows.Rect(0, 0, w, h));
-                                double scale = Math.Min((double)w / pdfFrame.PixelWidth, (double)h / pdfFrame.PixelHeight);
-                                double drawW = pdfFrame.PixelWidth * scale;
-                                double drawH = pdfFrame.PixelHeight * scale;
-                                double offsetX = (w - drawW) / 2.0;
-                                double offsetY = (h - drawH) / 2.0;
-                                dc.DrawImage(pdfFrame, new System.Windows.Rect(offsetX, offsetY, drawW, drawH));
-                            }
+                                using var ms = new MemoryStream(pngBytes);
+                                var decoder = new PngBitmapDecoder(ms, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
+                                BitmapSource pdfFrame = decoder.Frames[0];
 
-                            var rtb = new RenderTargetBitmap(w, h, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
-                            rtb.Render(dv);
-                            rtb.Freeze();
-                            renderedBitmap = rtb;
-                            jpegBytes = EncodeBitmapToJpeg(rtb, 95);
-                            renderSource = $"Original DHL-PDF ({pdfFrame.PixelWidth}×{pdfFrame.PixelHeight} -> 812×1218 RGB 24-Bit)";
-                        });
-                        log?.Invoke($"[Canvas] {renderSource} erfolgreich erzeugt ({(jpegBytes?.Length ?? 0) / 1024.0:0.1} KB JPEG).");
+                                int w = LabelWidthPx;  // 812
+                                int h = LabelHeightPx; // 1218
+                                var dv = new System.Windows.Media.DrawingVisual();
+                                using (var dc = dv.RenderOpen())
+                                {
+                                    dc.DrawRectangle(System.Windows.Media.Brushes.White, null, new System.Windows.Rect(0, 0, w, h));
+                                    double scale = Math.Min((double)w / pdfFrame.PixelWidth, (double)h / pdfFrame.PixelHeight);
+                                    double drawW = pdfFrame.PixelWidth * scale;
+                                    double drawH = pdfFrame.PixelHeight * scale;
+                                    double offsetX = (w - drawW) / 2.0;
+                                    double offsetY = (h - drawH) / 2.0;
+                                    dc.DrawImage(pdfFrame, new System.Windows.Rect(offsetX, offsetY, drawW, drawH));
+                                }
+
+                                var rtb = new RenderTargetBitmap(w, h, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+                                rtb.Render(dv);
+                                rtb.Freeze();
+                                byte[] jpeg = EncodeBitmapToJpeg(rtb, 95);
+                                string src = $"Original DHL-PDF Seite {capturedIdx + 1}/{totalPages} ({pdfFrame.PixelWidth}×{pdfFrame.PixelHeight} -> 812×1218 RGB 24-Bit)";
+                                results.Add((rtb, jpeg, src));
+                            });
+                        }
+                        log?.Invoke($"[Canvas] {results.Count} DHL-PDF-Seite(n) erfolgreich gerendert.");
                     }
                     finally
                     {
-                        CryptographicOperations.ZeroMemory(pngBytes);
+                        foreach (var pageBytes in pngPages)
+                        {
+                            if (pageBytes != null) CryptographicOperations.ZeroMemory(pageBytes);
+                        }
                     }
                 }
                 else
                 {
-                    log?.Invoke("[WARN] DHL-PDF konnte nicht gerendert werden – nutze natives Seelenfunke-Versandlabel als Fallback.");
+                    log?.Invoke("[WARN] DHL-PDF konnte nicht gerendert werden - nutze natives Seelenfunke-Versandlabel als Fallback.");
                 }
             }
 
-            if (renderedBitmap == null || jpegBytes == null || jpegBytes.Length == 0)
+            if (results.Count == 0)
             {
-                await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
+                int fallbackPages = Math.Clamp(job.PackageTotal, 1, 20);
+                for (int p = 1; p <= fallbackPages; p++)
                 {
-                    renderedBitmap = RenderOrderLabelBitmap(job);
-                    jpegBytes = EncodeBitmapToJpeg(renderedBitmap, 95);
-                });
-                log?.Invoke($"[Canvas] Natives 4×6\" Seelenfunke-Label (812×1218 px, {(jpegBytes?.Length ?? 0) / 1024.0:0.1} KB JPEG) gerendert.");
+                    int pkgNum = fallbackPages > 1 ? p : Math.Max(1, job.PackageIndex);
+                    await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
+                    {
+                        var pageJob = new FunkenwerkPrintJobDto
+                        {
+                            Id = job.Id,
+                            Type = job.Type,
+                            Status = job.Status,
+                            PrinterIp = job.PrinterIp,
+                            OrderId = job.OrderId,
+                            OrderNumber = job.OrderNumber,
+                            ShipmentId = job.ShipmentId,
+                            TrackingNumber = job.TrackingNumber,
+                            PackageIndex = pkgNum,
+                            PackageTotal = Math.Max(fallbackPages, job.PackageTotal),
+                            WeightKg = job.WeightKg,
+                            IsExpress = job.IsExpress,
+                            Sender = job.Sender,
+                            Recipient = job.Recipient,
+                            Items = job.Items
+                        };
+                        var bmp = RenderOrderLabelBitmap(pageJob);
+                        byte[] jpg = EncodeBitmapToJpeg(bmp, 95);
+                        results.Add((bmp, jpg, $"Natives Seelenfunke-Label ({pkgNum}/{Math.Max(fallbackPages, job.PackageTotal)})"));
+                    });
+                }
+                log?.Invoke($"[Canvas] {results.Count} native(s) 4×6\" Seelenfunke-Label (812×1218 px) gerendert.");
             }
 
-            return (renderedBitmap, jpegBytes, renderSource);
+            return results;
+        }
+
+        public static async Task<(BitmapSource? Bitmap, byte[]? JpegBytes, string RenderSource)> RenderJobBitmapAsync(FunkenwerkPrintJobDto job, Action<string>? log = null)
+        {
+            var pages = await RenderAllJobBitmapsAsync(job, log);
+            if (pages.Count == 0)
+                return (null, null, "Keine Seite");
+            return pages[0];
         }
 
         public static async Task<(bool Success, string Message, BitmapSource? RenderedBitmap)> PrintJobAsync(LabelPrinterConfig printerCfg, FunkenwerkPrintJobDto job, Action<string>? log = null)
@@ -2271,45 +2673,56 @@ namespace Funkenwerk
             {
                 log?.Invoke($"[Start] Starte Druckauftrag #{job.OrderNumber} (Tracking: {job.TrackingNumber}) an MUNBYN ({ip})...");
 
-                var (renderedBitmap, jpegBytes, renderSource) = await RenderJobBitmapAsync(job, log);
-
-                if (jpegBytes == null || jpegBytes.Length == 0 || renderedBitmap == null)
+                var renderedPages = await RenderAllJobBitmapsAsync(job, log);
+                if (renderedPages.Count == 0)
                 {
                     log?.Invoke("[Fehler] Label-Grafik (812×1218) ist leer.");
                     return (false, "Label-Grafik konnte nicht gerendert werden.", null);
                 }
 
-                string rawTitle = !string.IsNullOrWhiteSpace(job.OrderNumber)
+                BitmapSource firstBitmap = renderedPages[0].Bitmap;
+                string rawBaseTitle = !string.IsNullOrWhiteSpace(job.OrderNumber)
                     ? $"Seelenfunke-{job.OrderNumber}"
                     : "Seelenfunke-Label";
-                string jobTitle = FunkenwerkSecurityVault.SanitizeIppString(rawTitle, 64);
 
-                // Primär über AirPrint/IPP (:631 image/jpeg 24-Bit 812x1218) senden, Fallback auf RAW TSPL (:9100)
-                if (!string.Equals(printerCfg.PreferredProtocol, "TSPL", StringComparison.OrdinalIgnoreCase))
+                for (int i = 0; i < renderedPages.Count; i++)
                 {
-                    var (ippOk, ippMsg) = await SendIppJpegPrintJobAsync(ip, safeIppPort, jpegBytes, jobTitle, log);
-                    if (ippOk)
+                    var (pageBitmap, pageJpeg, _) = renderedPages[i];
+                    string pageSuffix = renderedPages.Count > 1 ? $"-P{i + 1}of{renderedPages.Count}" : "";
+                    string jobTitle = FunkenwerkSecurityVault.SanitizeIppString(rawBaseTitle + pageSuffix, 64);
+
+                    bool pagePrintedViaIpp = false;
+                    if (!string.Equals(printerCfg.PreferredProtocol, "TSPL", StringComparison.OrdinalIgnoreCase))
                     {
-                        sw.Stop();
-                        log?.Invoke($"[Erfolg] {ippMsg} (Gesamtdauer: {sw.ElapsedMilliseconds} ms)");
-                        return (true, ippMsg, renderedBitmap);
+                        var (ippOk, ippMsg) = await SendIppJpegPrintJobAsync(ip, safeIppPort, pageJpeg, jobTitle, log);
+                        if (ippOk)
+                        {
+                            pagePrintedViaIpp = true;
+                            log?.Invoke($"[Seite {i + 1}/{renderedPages.Count}] {ippMsg}");
+                        }
+                        else
+                        {
+                            log?.Invoke($"[IPP-Warnung] IPP (:631) meldete: {ippMsg} - wechsle automatisch auf RAW TSPL (:9100)...");
+                        }
                     }
-                    log?.Invoke($"[IPP-Warnung] IPP (:631) meldete: {ippMsg} – wechsle automatisch auf RAW TSPL (:9100)...");
+
+                    if (!pagePrintedViaIpp)
+                    {
+                        byte[] tsplPayload = await System.Windows.Application.Current.Dispatcher.InvokeAsync(() => BuildTsplBitmapCommand(pageBitmap));
+                        log?.Invoke($"[RAW :9100] Sende Seite {i + 1}/{renderedPages.Count} ({tsplPayload.Length / 1024.0:0.1} KB 1-Bit TSPL-Bitmap) an {ip}:{safeRawPort}...");
+                        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(8.0));
+                        using var tcp = new TcpClient();
+                        await tcp.ConnectAsync(ip, safeRawPort, cts.Token);
+                        using var stream = tcp.GetStream();
+                        await stream.WriteAsync(tsplPayload.AsMemory(0, tsplPayload.Length), cts.Token);
+                        await stream.FlushAsync(cts.Token);
+                    }
                 }
 
-                // Fallback / TSPL Direkt-Modus über Port 9100 mit striktem 8s Timeout
-                byte[] tsplPayload = await System.Windows.Application.Current.Dispatcher.InvokeAsync(() => BuildTsplBitmapCommand(renderedBitmap));
-                log?.Invoke($"[RAW :9100] Sende {tsplPayload.Length / 1024.0:0.1} KB 1-Bit TSPL-Bitmap an {ip}:{safeRawPort}...");
-                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(8.0));
-                using var tcp = new TcpClient();
-                await tcp.ConnectAsync(ip, safeRawPort, cts.Token);
-                using var stream = tcp.GetStream();
-                await stream.WriteAsync(tsplPayload.AsMemory(0, tsplPayload.Length), cts.Token);
-                await stream.FlushAsync(cts.Token);
                 sw.Stop();
-                string rawSuccess = $"Label '{jobTitle}' via RAW TSPL (:9100) an {ip} gedruckt ({sw.ElapsedMilliseconds} ms).";
-                log?.Invoke($"[Erfolg] {rawSuccess}");
-                return (true, rawSuccess, renderedBitmap);
+                string finalMsg = $"{renderedPages.Count} Label-Seite(n) für '{FunkenwerkSecurityVault.SanitizeIppString(rawBaseTitle, 64)}' an {ip} gedruckt ({sw.ElapsedMilliseconds} ms).";
+                log?.Invoke($"[Erfolg] {finalMsg}");
+                return (true, finalMsg, firstBitmap);
             }
             catch (Exception ex)
             {
@@ -2386,7 +2799,7 @@ namespace Funkenwerk
 
                         if (statusCode == 0x0507 && attempt == 1) // server-error-busy (vorheriger Slot hängt noch)
                         {
-                            log?.Invoke("[IPP :631] Spool-Slot belegt (0x0507) – gebe hängenden Slot frei und wiederhole...");
+                            log?.Invoke("[IPP :631] Spool-Slot belegt (0x0507) - gebe hängenden Slot frei und wiederhole...");
                             await ReleaseIppSpoolSlotAsync(http, ip, ippPort, 0, log);
                             await Task.Delay(900);
                             continue;
@@ -2512,7 +2925,7 @@ namespace Funkenwerk
             return null;
         }
 
-        private static async Task<byte[]?> ConvertPdfBase64ToPngAsync(string pdfBase64, Action<string>? log = null)
+        private static async Task<List<byte[]>?> ConvertPdfBase64ToPngPagesAsync(string pdfBase64, Action<string>? log = null)
         {
             if (string.IsNullOrWhiteSpace(pdfBase64) || pdfBase64.Length > 14_000_000)
             {
@@ -2527,21 +2940,29 @@ namespace Funkenwerk
                 return null;
             }
 
-            string tempPdf = Path.Combine(Path.GetTempPath(), $"sf_label_{Guid.NewGuid():N}.pdf");
-            string tempPng = Path.Combine(Path.GetTempPath(), $"sf_label_{Guid.NewGuid():N}.png");
+            string secureTmpDir = FunkenwerkSecurityVault.GetSecureTempDirectory();
+            string jobToken = Guid.NewGuid().ToString("N");
+            string tempPdf = Path.Combine(secureTmpDir, $"sf_label_{jobToken}.pdf");
+            string outPrefix = Path.Combine(secureTmpDir, $"sf_label_{jobToken}_p");
+            var createdFiles = new List<string> { tempPdf };
             byte[]? pdfBytes = null;
             try
             {
                 pdfBytes = Convert.FromBase64String(pdfBase64);
                 if (!FunkenwerkSecurityVault.IsValidPdfPayload(pdfBytes))
                 {
-                    log?.Invoke("[Security] Ungültiger PDF-Header (kein '%PDF-' Magic-Byte) – Ausführung blockiert.");
+                    log?.Invoke("[Security] Ungültiger PDF-Header (kein '%PDF-' Magic-Byte) - Ausführung blockiert.");
                     return null;
                 }
 
-                await File.WriteAllBytesAsync(tempPdf, pdfBytes);
+                using (var fs = new FileStream(tempPdf, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                {
+                    await fs.WriteAsync(pdfBytes.AsMemory(0, pdfBytes.Length));
+                    await fs.FlushAsync();
+                }
+                FunkenwerkSecurityVault.LockDownFileAcl(tempPdf);
 
-                // Isoliertes PyMuPDF-Rendering mit Pixel-Bomb-Schutz (max 2500 px Kantenlänge)
+                // Isoliertes PyMuPDF-Rendering aller Seiten (max. 20 Seiten) mit Pixel-Bomb-Schutz
                 string pyScript =
                     "import sys\n" +
                     "try:\n" +
@@ -2549,17 +2970,19 @@ namespace Funkenwerk
                     "except ImportError:\n" +
                     "    import fitz\n" +
                     "doc = fitz.open(sys.argv[1])\n" +
-                    "if len(doc) < 1:\n" +
+                    "count = min(len(doc), 20)\n" +
+                    "if count < 1:\n" +
                     "    sys.exit(2)\n" +
-                    "page = doc[0]\n" +
-                    "rect = page.rect\n" +
-                    "max_pt = max(rect.width, rect.height, 1.0)\n" +
-                    "target_dpi = min(250, int(2400.0 * 72.0 / max_pt))\n" +
-                    "target_dpi = max(120, target_dpi)\n" +
-                    "pix = page.get_pixmap(dpi=target_dpi, colorspace=fitz.csRGB, alpha=False)\n" +
-                    "pix.save(sys.argv[2])\n" +
+                    "prefix = sys.argv[2]\n" +
+                    "for i in range(count):\n" +
+                    "    page = doc[i]\n" +
+                    "    rect = page.rect\n" +
+                    "    max_pt = max(rect.width, rect.height, 1.0)\n" +
+                    "    target_dpi = max(120, min(250, int(2400.0 * 72.0 / max_pt)))\n" +
+                    "    pix = page.get_pixmap(dpi=target_dpi, colorspace=fitz.csRGB, alpha=False)\n" +
+                    "    pix.save(f'{prefix}{i:03d}.png')\n" +
                     "doc.close()\n" +
-                    "print(f'OK:{pix.width}x{pix.height}@{target_dpi}dpi')\n";
+                    "print(f'OK:{count}')\n";
 
                 var psi = new ProcessStartInfo
                 {
@@ -2569,17 +2992,16 @@ namespace Funkenwerk
                     RedirectStandardError = true,
                     RedirectStandardOutput = true
                 };
-                // -E ignoriert unsichere PYTHON* Umgebungsvariablen (PYTHONPATH / PYTHONSTARTUP)
                 psi.ArgumentList.Add("-E");
                 psi.ArgumentList.Add("-c");
                 psi.ArgumentList.Add(pyScript);
                 psi.ArgumentList.Add(tempPdf);
-                psi.ArgumentList.Add(tempPng);
+                psi.ArgumentList.Add(outPrefix);
 
                 using var proc = Process.Start(psi);
                 if (proc != null)
                 {
-                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(12.0));
+                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(18.0));
                     Task<string> stdOutTask = proc.StandardOutput.ReadToEndAsync();
                     Task<string> stdErrTask = proc.StandardError.ReadToEndAsync();
                     try
@@ -2589,21 +3011,31 @@ namespace Funkenwerk
                     catch (OperationCanceledException)
                     {
                         try { proc.Kill(entireProcessTree: true); } catch { }
-                        log?.Invoke("[Security] PyMuPDF-Subprozess nach 12s Timeout beendet.");
+                        log?.Invoke("[Security] PyMuPDF-Subprozess nach 18s Timeout beendet.");
                         return null;
                     }
 
-                    string stdOut = await stdOutTask;
-                    string stdErr = await stdErrTask;
-                    if (!string.IsNullOrWhiteSpace(stdErr))
+                    await Task.WhenAll(stdOutTask, stdErrTask);
+                    string stdOut = stdOutTask.Result;
+                    string stdErr = stdErrTask.Result;
+                    if (!string.IsNullOrWhiteSpace(stdErr) && !stdErr.Contains("deprecated", StringComparison.OrdinalIgnoreCase))
                     {
                         log?.Invoke($"[PyMuPDF Warnung] {stdErr.Trim()}");
                     }
-                    if (File.Exists(tempPng))
+
+                    var pages = new List<byte[]>();
+                    for (int i = 0; i < 20; i++)
                     {
-                        byte[] png = await File.ReadAllBytesAsync(tempPng);
-                        log?.Invoke($"[PyMuPDF] PDF ({pdfBytes.Length} B) -> PNG ({png.Length / 1024.0:0.1} KB, {stdOut.Trim()})");
-                        return png;
+                        string pagePngPath = $"{outPrefix}{i:03d}.png";
+                        if (!File.Exists(pagePngPath)) break;
+                        createdFiles.Add(pagePngPath);
+                        pages.Add(await File.ReadAllBytesAsync(pagePngPath));
+                    }
+
+                    if (pages.Count > 0)
+                    {
+                        log?.Invoke($"[PyMuPDF] PDF ({pdfBytes.Length} B) -> {pages.Count} PNG-Seite(n) ({stdOut.Trim()})");
+                        return pages;
                     }
                     log?.Invoke($"[PyMuPDF Fehler] Keine PNG-Ausgabe erzeugt (ExitCode {proc.ExitCode}).");
                 }
@@ -2615,10 +3047,52 @@ namespace Funkenwerk
             finally
             {
                 if (pdfBytes != null) CryptographicOperations.ZeroMemory(pdfBytes);
-                FunkenwerkSecurityVault.SecureZeroDeleteFile(tempPdf);
-                FunkenwerkSecurityVault.SecureZeroDeleteFile(tempPng);
+                foreach (string f in createdFiles)
+                {
+                    FunkenwerkSecurityVault.SecureZeroDeleteFile(f);
+                }
             }
             return null;
+        }
+
+        public static byte[] CreateSyntheticMultiPagePdfBytes(int pageCount = 2)
+        {
+            int count = Math.Clamp(pageCount, 1, 10);
+            var sb = new StringBuilder();
+            var offsets = new List<int> { 0 }; // obj 0 free
+            sb.Append("%PDF-1.4\n");
+
+            void AddObj(int id, string body)
+            {
+                offsets.Add(Encoding.ASCII.GetByteCount(sb.ToString()));
+                sb.Append($"{id} 0 obj\n{body}\nendobj\n");
+            }
+
+            // 1: Catalog, 2: Pages, 3: Font
+            var kidsRefs = new List<string>();
+            for (int i = 0; i < count; i++)
+                kidsRefs.Add($"{4 + i * 2} 0 R");
+
+            AddObj(1, "<< /Type /Catalog /Pages 2 0 R >>");
+            AddObj(2, $"<< /Type /Pages /Kids [ {string.Join(" ", kidsRefs)} ] /Count {count} >>");
+            AddObj(3, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
+
+            for (int i = 0; i < count; i++)
+            {
+                int pageObjId = 4 + i * 2;
+                int contentObjId = pageObjId + 1;
+                string streamContent = $"BT /F1 18 Tf 36 360 Td (DHL Label Page {i + 1} of {count}) Tj ET";
+                AddObj(pageObjId, $"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 288 432] /Resources << /Font << /F1 3 0 R >> >> /Contents {contentObjId} 0 R >>");
+                AddObj(contentObjId, $"<< /Length {Encoding.ASCII.GetByteCount(streamContent)} >>\nstream\n{streamContent}\nendstream");
+            }
+
+            int xrefOffset = Encoding.ASCII.GetByteCount(sb.ToString());
+            int totalObjs = offsets.Count;
+            sb.Append($"xref\n0 {totalObjs}\n0000000000 65535 f \n");
+            for (int i = 1; i < totalObjs; i++)
+                sb.Append($"{offsets[i]:D10} 00000 n \n");
+            sb.Append($"trailer\n<< /Size {totalObjs} /Root 1 0 R >>\nstartxref\n{xrefOffset}\n%%EOF\n");
+            return Encoding.ASCII.GetBytes(sb.ToString());
         }
 
         public static BitmapSource RenderOrderLabelBitmap(FunkenwerkPrintJobDto job)
@@ -2740,35 +3214,157 @@ namespace Funkenwerk
             dc.DrawText(ft, new System.Windows.Point(x, y));
         }
 
+        // ISO/IEC 15417 Code-128 Symbol Width Table (values 0..106; 0..105 = 6 widths / 11 modules, 106 = Stop 7 widths / 13 modules)
+        private static readonly string[] Code128Patterns =
+        {
+            "212222", "222122", "222221", "121223", "121322", "131222", "122213", "122312", "132212", "221213",
+            "221312", "231212", "112232", "122132", "122231", "113222", "123122", "123221", "223211", "221132",
+            "221231", "213212", "223112", "312131", "311222", "321122", "321221", "312212", "322112", "322211",
+            "212123", "212321", "232121", "111323", "131123", "131321", "112313", "132113", "132311", "211313",
+            "231113", "231311", "112133", "112331", "132131", "113123", "113321", "133121", "313121", "211331",
+            "231131", "213113", "213311", "213131", "311123", "311321", "331121", "312113", "312311", "332111",
+            "314111", "221411", "431111", "111224", "111422", "121124", "121421", "141122", "141221", "112214",
+            "112412", "122114", "122411", "142112", "142211", "241211", "221114", "413111", "241112", "134111",
+            "111242", "121142", "121241", "114212", "124112", "124211", "411212", "421112", "421211", "212141",
+            "214121", "412121", "111143", "111341", "131141", "114113", "114311", "411113", "411311", "113141",
+            "114131", "311141", "411131", "211412", "211214", "211232", "2331112"
+        };
+
+        /// <summary>
+        /// Encodes an ASCII string into a real scannable ISO/IEC 15417 Code-128B module bit array
+        /// (10-module leading quiet zone + Start B [104] + data symbols + modulo-103 check symbol + Stop [106] + 10-module trailing quiet zone).
+        /// </summary>
+        public static bool[] EncodeCode128BModules(string? value)
+        {
+            string raw = string.IsNullOrWhiteSpace(value) ? "SF2026" : value.Trim();
+            var sbClean = new StringBuilder(raw.Length);
+            foreach (char ch in raw)
+            {
+                if (ch >= 32 && ch <= 126)
+                    sbClean.Append(ch);
+            }
+            string clean = sbClean.Length > 0 ? sbClean.ToString() : "SF2026";
+            if (clean.Length > 48) clean = clean.Substring(0, 48);
+
+            var symbolValues = new List<int>(clean.Length + 3) { 104 }; // Start Code B = 104
+            int checksum = 104;
+            for (int i = 0; i < clean.Length; i++)
+            {
+                int sym = clean[i] - 32;
+                symbolValues.Add(sym);
+                checksum += sym * (i + 1);
+            }
+            symbolValues.Add(checksum % 103);
+            symbolValues.Add(106); // Stop pattern = 106
+
+            const int quietZoneModules = 10;
+            var modules = new List<bool>(quietZoneModules * 2 + clean.Length * 11 + 35);
+            for (int q = 0; q < quietZoneModules; q++) modules.Add(false);
+
+            foreach (int sym in symbolValues)
+            {
+                string pat = Code128Patterns[sym];
+                bool isBar = true;
+                for (int p = 0; p < pat.Length; p++)
+                {
+                    int w = pat[p] - '0';
+                    for (int m = 0; m < w; m++)
+                        modules.Add(isBar);
+                    isBar = !isBar;
+                }
+            }
+
+            for (int q = 0; q < quietZoneModules; q++) modules.Add(false);
+            return modules.ToArray();
+        }
+
+        /// <summary>
+        /// Decodes and verifies a Code-128B module array (verifying Start B, modulo-103 checksum, and Stop pattern).
+        /// </summary>
+        public static (bool Valid, string DecodedText) DecodeCode128BModules(bool[]? modules)
+        {
+            if (modules == null || modules.Length < 45) return (false, "");
+            int firstBar = Array.IndexOf(modules, true);
+            int lastBar = Array.LastIndexOf(modules, true);
+            if (firstBar < 10 || lastBar < firstBar || (modules.Length - 1 - lastBar) < 10)
+                return (false, "");
+
+            int activeLen = lastBar - firstBar + 1;
+            if (activeLen < 35 || (activeLen - 13) % 11 != 0)
+                return (false, "");
+
+            string BitsToPattern(int offset, int modCount)
+            {
+                var widths = new StringBuilder(7);
+                bool expected = true;
+                int idx = offset;
+                int end = offset + modCount;
+                while (idx < end)
+                {
+                    int run = 0;
+                    while (idx < end && modules[idx] == expected)
+                    {
+                        run++;
+                        idx++;
+                    }
+                    if (run <= 0 || run > 4) return "";
+                    widths.Append((char)('0' + run));
+                    expected = !expected;
+                }
+                return widths.ToString();
+            }
+
+            int symbolCount = (activeLen - 13) / 11;
+            if (symbolCount < 2) return (false, "");
+
+            var decodedSyms = new List<int>(symbolCount);
+            for (int s = 0; s < symbolCount; s++)
+            {
+                string pat = BitsToPattern(firstBar + s * 11, 11);
+                int symIdx = Array.IndexOf(Code128Patterns, pat, 0, 106);
+                if (symIdx < 0) return (false, "");
+                decodedSyms.Add(symIdx);
+            }
+
+            string stopPat = BitsToPattern(firstBar + symbolCount * 11, 13);
+            if (stopPat != Code128Patterns[106] || decodedSyms[0] != 104)
+                return (false, "");
+
+            int expectedChecksum = decodedSyms[0];
+            var textSb = new StringBuilder(symbolCount - 2);
+            for (int i = 1; i < symbolCount - 1; i++)
+            {
+                int sym = decodedSyms[i];
+                expectedChecksum += sym * i;
+                if (sym < 0 || sym > 94) return (false, "");
+                textSb.Append((char)(sym + 32));
+            }
+
+            if ((expectedChecksum % 103) != decodedSyms[symbolCount - 1])
+                return (false, "");
+
+            return (true, textSb.ToString());
+        }
+
         private static void DrawSimulatedBarcode(System.Windows.Media.DrawingContext dc, string value, double x, double y, double width, double height)
         {
-            string clean = string.IsNullOrWhiteSpace(value) ? "SF2026" : value.Trim();
-            // Deterministic high-contrast bar pattern from string bytes + start/stop guard bars
-            var bits = new List<bool> { true, true, false, true, false, true, true, false };
-            foreach (char c in clean)
-            {
-                int v = c;
-                bits.Add(true);
-                bits.Add((v & 1) != 0);
-                bits.Add(false);
-                bits.Add((v & 2) != 0);
-                bits.Add(true);
-                bits.Add((v & 4) == 0);
-                bits.Add(false);
-                bits.Add((v & 8) != 0);
-                bits.Add((v & 16) != 0);
-                bits.Add(false);
-            }
-            bits.AddRange(new[] { true, true, false, true, false, true, true });
-
-            double moduleW = width / bits.Count;
+            bool[] bits = EncodeCode128BModules(value);
+            double moduleW = width / bits.Length;
             var black = System.Windows.Media.Brushes.Black;
-            for (int i = 0; i < bits.Count; i++)
+
+            int i = 0;
+            while (i < bits.Length)
             {
-                if (bits[i])
+                if (!bits[i])
                 {
-                    dc.DrawRectangle(black, null, new System.Windows.Rect(x + i * moduleW, y, Math.Max(1.5, moduleW + 0.3), height));
+                    i++;
+                    continue;
                 }
+                int runStart = i;
+                while (i < bits.Length && bits[i])
+                    i++;
+                int runModules = i - runStart;
+                dc.DrawRectangle(black, null, new System.Windows.Rect(x + runStart * moduleW, y, runModules * moduleW, height));
             }
         }
 

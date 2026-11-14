@@ -31,8 +31,9 @@ class ShoppingListWidgetViewsFactory(private val context: Context) : RemoteViews
     }
 
     private fun loadFromPrefs() {
+        de.meinseelenfunke.app.di.ServiceLocator.ensureInitialized(context.applicationContext)
         val sharedPrefs = context.getSharedPreferences("shopping_widget_prefs", Context.MODE_PRIVATE)
-        val json = sharedPrefs.getString("shopping_items_cache", null)
+        val json = de.meinseelenfunke.app.di.ServiceLocator.getDecryptedPref(sharedPrefs, "shopping_items_cache")
         if (json != null) {
             try {
                 val type = object : TypeToken<List<ManagementShoppingItem>>() {}.type

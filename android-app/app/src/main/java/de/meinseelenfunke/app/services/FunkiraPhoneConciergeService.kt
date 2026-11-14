@@ -22,6 +22,9 @@ import de.meinseelenfunke.app.MainActivity
 import de.meinseelenfunke.app.R
 import de.meinseelenfunke.app.data.api.PhoneConciergeSignalBody
 import de.meinseelenfunke.app.di.ServiceLocator
+import de.meinseelenfunke.app.util.ErrorSentinelReporter
+import de.meinseelenfunke.app.util.PendingPhoneSecretaryNote
+import de.meinseelenfunke.app.util.PhoneConciergeManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -33,12 +36,16 @@ import kotlinx.coroutines.launch
 import java.util.UUID
 
 /**
- * Foreground Phone-Concierge Service:
+ * Foreground Phone-Concierge & Standalone Smartphone Secretary Service:
  * 1. Waits `ringDelaySeconds` while checking every 500 ms whether Alina answered or declined.
- * 2. Accepts the ringing Whitelist call via `TelecomManager.acceptRingingCall()`.
- * 3. Bridges cellular call audio to paired `Funkenwerk-MiniPC` over Bluetooth HFP (`TYPE_BLUETOOTH_SCO`).
- * 4. Signals `accepted` to Portal so Funkira on Mini-PC speaks immediately (with 3D Smartphone in hand)
- *    and polls `/api/system/phone-concierge/poll` to hang up cleanly once Funkira finishes.
+ * 2. Pre-warms Gemini Live credentials ~2.5s before answering so Funkira speaks with near-zero latency.
+ * 3. Accepts the ringing Whitelist call via `TelecomManager.acceptRingingCall()`.
+ * 4. Primary Standalone Mode (independent of Mini-PC, e.g. sleep/weekend/on-the-go):
+ *    Runs `StandalonePhoneSecretaryEngine` directly on the smartphone as Alina's warm, friendly secretary,
+ *    records the caller's request, kindly assures them Alina will get the message, saves a Dashboard To-Do,
+ *    and hangs up cleanly.
+ * 5. Workshop Hybrid Mode: If `Funkenwerk-MiniPC` Bluetooth HFP is actively connected AND reachable,
+ *    bridges audio to Mini-PC (with automatic instant failover back to smartphone if Mini-PC is asleep).
  */
 class FunkiraPhoneConciergeService : Service() {
 
@@ -57,6 +64,21 @@ class FunkiraPhoneConciergeService : Service() {
         private const val CHANNEL_ID = "funkira_phone_concierge_channel"
         private const val ACTIVE_NOTIF_ID = 1044
         private const val SUMMARY_NOTIF_ID = 1045
+
+        internal fun resolveForegroundServiceType(
+            sdkInt: Int,
+            includeMicrophone: Boolean,
+            hasMicPermission: Boolean
+        ): Int {
+            if (sdkInt < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                return 0
+            }
+            return if (includeMicrophone && hasMicPermission) {
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+            } else {
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL
+            }
+        }
     }
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -83,7 +105,8 @@ class FunkiraPhoneConciergeService : Service() {
         val nickname = intent?.getStringExtra(EXTRA_CALLER_NICKNAME).orEmpty()
         val displayLabel = nickname.ifBlank { callerName }
 
-        promoteToForeground("Anruf von $displayLabel", "Funkira Telefon-Assistent bereit...")
+        // While phone is still RINGING in background, promote ONLY as PHONE_CALL (no background MIC start before OFFHOOK!)
+        promoteToForeground("Anruf von $displayLabel", "Funkira Sekretärin bereit...", includeMicrophone = false)
 
         if (activeCallJob?.isActive == true) {
             return START_NOT_STICKY
@@ -125,121 +148,239 @@ class FunkiraPhoneConciergeService : Service() {
     ) {
         val api = ServiceLocator.getOrganizerApi()
         val telephony = getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager
+        val miniPcBtAvailableAtRing = isMiniPcBluetoothScoAvailable()
+        var signalledMiniPcRinging = false
+        var preWarmStarted = false
 
         try {
-            // 1. Pre-notify backend that a whitelisted call is ringing
-            try {
-                api.signalPhoneConciergeCall(
-                    PhoneConciergeSignalBody(
-                        call_id = callId,
-                        state = "ringing",
-                        contact_id = contactId?.takeUnless { it == "default-papa" },
-                        caller_name = callerName,
-                        caller_nickname = nickname,
-                        relation_type = relationType,
-                        caller_phone = callerPhone,
-                        system_instructions = systemInstructions,
-                        audio_mode = "bluetooth_hfp"
+            if (miniPcBtAvailableAtRing) {
+                try {
+                    api.signalPhoneConciergeCall(
+                        PhoneConciergeSignalBody(
+                            call_id = callId,
+                            state = "ringing",
+                            contact_id = contactId?.takeUnless { it == "default-papa" },
+                            caller_name = callerName,
+                            caller_nickname = nickname,
+                            relation_type = relationType,
+                            caller_phone = callerPhone,
+                            system_instructions = systemInstructions,
+                            audio_mode = "bluetooth_hfp"
+                        )
                     )
-                )
-            } catch (_: Exception) { }
+                    signalledMiniPcRinging = true
+                } catch (_: Exception) {
+                }
+            }
 
-            // 2. Wait ringDelaySec in 500 ms slices; abort immediately if Alina answers or declines!
+            // If ringDelaySec is very short (<= 3s), start pre-warming credentials immediately
+            if (ringDelaySec <= 3) {
+                preWarmStarted = true
+                serviceScope.launch { StandalonePhoneSecretaryEngine.preWarmCredentials(applicationContext) }
+            }
+
+            // Wait ringDelaySec in 500 ms slices; abort immediately if Alina answers or declines!
             val totalSlices = ringDelaySec * 2
+            val preWarmTriggerSlice = (totalSlices - 5).coerceAtLeast(0) // ~2.5s before answering
             for (slice in 0 until totalSlices) {
+                if (!preWarmStarted && slice >= preWarmTriggerSlice) {
+                    preWarmStarted = true
+                    serviceScope.launch { StandalonePhoneSecretaryEngine.preWarmCredentials(applicationContext) }
+                }
                 delay(500L)
                 val stateNow = readCallStateSafe(telephony)
                 if (stateNow == TelephonyManager.CALL_STATE_IDLE || stateNow == TelephonyManager.CALL_STATE_OFFHOOK) {
-                    // Alina picked up herself (OFFHOOK) or caller hung up (IDLE) -> zero interference!
-                    try {
-                        api.signalPhoneConciergeCall(
-                            PhoneConciergeSignalBody(call_id = callId, state = "cancelled")
-                        )
-                    } catch (_: Exception) { }
+                    if (signalledMiniPcRinging) {
+                        try {
+                            api.signalPhoneConciergeCall(
+                                PhoneConciergeSignalBody(call_id = callId, state = "cancelled")
+                            )
+                        } catch (_: Exception) { }
+                    }
                     stopSelf()
                     return
                 }
             }
 
-            // 3. Final check that phone is still ringing, then accept call!
+            // Final check that phone is still ringing, then accept call!
             if (readCallStateSafe(telephony) != TelephonyManager.CALL_STATE_RINGING) {
                 stopSelf()
                 return
             }
 
             if (!acceptIncomingCallSafe()) {
+                ErrorSentinelReporter.captureError(
+                    context = applicationContext,
+                    tag = "phone_secretary_telecom",
+                    message = "Anruf von $displayLabel konnte nicht automatisch angenommen werden (TelecomManager.acceptRingingCall fehlgeschlagen).",
+                    extraContext = mapOf("call_id" to callId)
+                )
                 stopSelf()
                 return
             }
 
-            promoteToForeground("Funkira telefoniert mit $displayLabel", "Anrufnotiz wird aufgenommen")
-            delay(650L)
+            // Call is now OFFHOOK -> upgrade foreground service type to PHONE_CALL | MICROPHONE
+            promoteToForeground("Funkira spricht mit $displayLabel", "Anliegen wird live aufgenommen", includeMicrophone = true)
+            delay(450L)
 
-            // 4. Route call audio to paired Funkenwerk-MiniPC Bluetooth HFP gateway
-            val hfpRouted = routeCallAudioToMiniPcBluetooth()
+            // Check whether Funkenwerk-MiniPC Bluetooth SCO is actively connected AND Portal relay accepts it
+            val useMiniPcWorkshopBridge = isMiniPcBluetoothScoAvailable() && routeCallAudioToMiniPcBluetooth()
+            var handledByMiniPc = false
 
-            // 5. Signal `accepted` so Mini-PC Funkira starts speaking immediately
-            try {
-                api.signalPhoneConciergeCall(
-                    PhoneConciergeSignalBody(
-                        call_id = callId,
-                        state = "accepted",
-                        contact_id = contactId?.takeUnless { it == "default-papa" },
-                        caller_name = callerName,
-                        caller_nickname = nickname,
-                        relation_type = relationType,
-                        caller_phone = callerPhone,
-                        system_instructions = systemInstructions,
-                        audio_mode = if (hfpRouted) "bluetooth_hfp" else "speaker_fallback"
-                    )
-                )
-            } catch (_: Exception) { }
-
-            // 6. Poll every 1.5s until Funkira finishes & requests hangup, or caller hangs up (max 95s safety cap)
-            var finalSummary: String? = null
-            val startedMs = System.currentTimeMillis()
-            while (serviceScope.isActive && (System.currentTimeMillis() - startedMs) < 95_000L) {
-                delay(1500L)
-
-                if (readCallStateSafe(telephony) == TelephonyManager.CALL_STATE_IDLE) {
-                    try {
-                        api.signalPhoneConciergeCall(
-                            PhoneConciergeSignalBody(call_id = callId, state = "ended")
+            if (useMiniPcWorkshopBridge) {
+                val signalOk = try {
+                    val res = api.signalPhoneConciergeCall(
+                        PhoneConciergeSignalBody(
+                            call_id = callId,
+                            state = "accepted",
+                            contact_id = contactId?.takeUnless { it == "default-papa" },
+                            caller_name = callerName,
+                            caller_nickname = nickname,
+                            relation_type = relationType,
+                            caller_phone = callerPhone,
+                            system_instructions = systemInstructions,
+                            audio_mode = "bluetooth_hfp"
                         )
-                    } catch (_: Exception) { }
-                    break
+                    )
+                    res.success
+                } catch (_: Exception) {
+                    false
                 }
 
-                try {
-                    val pollRes = api.pollPhoneConciergeState()
-                    val poll = pollRes.data
-                    if (poll != null) {
-                        val lastDone = poll.last_completed_call
-                        if (lastDone != null && (lastDone.call_id == callId || !lastDone.summary.isNullOrBlank())) {
-                            finalSummary = lastDone.summary
-                        }
-                        if (poll.hangup_requested || poll.active_call?.hangup_requested == true || poll.active_call?.state == "completed") {
-                            if (finalSummary.isNullOrBlank()) {
-                                finalSummary = poll.active_call?.summary
-                            }
-                            hangUpCallIfOffhook()
-                            break
-                        }
-                    }
-                } catch (_: Exception) { }
+                if (signalOk) {
+                    handledByMiniPc = runMiniPcRelayPollingLoop(
+                        callId = callId,
+                        displayLabel = displayLabel,
+                        telephony = telephony
+                    )
+                }
+                if (!handledByMiniPc) {
+                    restoreAudioRouting()
+                }
             }
 
+            // Standalone Smartphone Live Secretary Mode (default whenever Mini-PC is asleep, away, or unlinked!)
+            if (!handledByMiniPc && readCallStateSafe(telephony) == TelephonyManager.CALL_STATE_OFFHOOK) {
+                if (signalledMiniPcRinging) {
+                    serviceScope.launch {
+                        try {
+                            api.signalPhoneConciergeCall(PhoneConciergeSignalBody(call_id = callId, state = "cancelled"))
+                        } catch (_: Exception) { }
+                    }
+                }
+
+                val greetingName = nickname.trim()
+                    .split(',', '/')
+                    .firstOrNull()
+                    ?.trim()
+                    ?.takeIf { it.isNotBlank() }
+                    ?: callerName.trim().split(' ').firstOrNull().orEmpty().ifBlank { displayLabel }
+
+                val result = StandalonePhoneSecretaryEngine.runSecretaryCall(
+                    context = applicationContext,
+                    callId = callId,
+                    callerName = callerName,
+                    greetingName = greetingName,
+                    relationType = relationType,
+                    systemInstructions = systemInstructions,
+                    isCallStillOffhook = { readCallStateSafe(telephony) == TelephonyManager.CALL_STATE_OFFHOOK }
+                )
+
+                val note = PendingPhoneSecretaryNote(
+                    callId = callId,
+                    contactId = contactId,
+                    callerName = callerName,
+                    greetingName = greetingName,
+                    callerPhone = callerPhone,
+                    summary = result.summary,
+                    urgency = result.urgency,
+                    callbackRequested = result.callbackRequested
+                )
+                PhoneConciergeManager.persistOrQueueSecretaryCompletion(applicationContext, note)
+                postSummaryNotification(displayLabel, result.summary)
+
+                if (readCallStateSafe(telephony) == TelephonyManager.CALL_STATE_OFFHOOK) {
+                    hangUpCallIfOffhook()
+                }
+            }
+        } catch (e: Exception) {
+            ErrorSentinelReporter.captureError(
+                context = applicationContext,
+                tag = "phone_secretary_lifecycle",
+                message = "Unerwarteter Fehler im Telefon-Sekretärinnen-Ablauf: ${e.message}",
+                throwable = e,
+                extraContext = mapOf("call_id" to callId)
+            )
             if (readCallStateSafe(telephony) == TelephonyManager.CALL_STATE_OFFHOOK) {
                 hangUpCallIfOffhook()
-            }
-
-            if (!finalSummary.isNullOrBlank()) {
-                postSummaryNotification(displayLabel, finalSummary!!)
             }
         } finally {
             restoreAudioRouting()
             stopSelf()
         }
+    }
+
+    private suspend fun runMiniPcRelayPollingLoop(
+        callId: String,
+        displayLabel: String,
+        telephony: TelephonyManager?
+    ): Boolean {
+        val api = ServiceLocator.getOrganizerApi()
+        var finalSummary: String? = null
+        val startedMs = System.currentTimeMillis()
+        var pollErrors = 0
+
+        while (serviceScope.isActive && (System.currentTimeMillis() - startedMs) < 95_000L) {
+            delay(1500L)
+
+            if (readCallStateSafe(telephony) == TelephonyManager.CALL_STATE_IDLE) {
+                try {
+                    api.signalPhoneConciergeCall(PhoneConciergeSignalBody(call_id = callId, state = "ended"))
+                } catch (_: Exception) { }
+                if (!finalSummary.isNullOrBlank()) {
+                    postSummaryNotification(displayLabel, finalSummary!!)
+                }
+                return true
+            }
+
+            // If Bluetooth SCO to Mini-PC dropped right after answering (e.g. Mini-PC is actually asleep),
+            // fail over immediately within the first 4.5s to StandalonePhoneSecretaryEngine on the phone!
+            if ((System.currentTimeMillis() - startedMs) < 4_500L && !isMiniPcBluetoothScoAvailable()) {
+                return false
+            }
+
+            try {
+                val pollRes = api.pollPhoneConciergeState()
+                pollErrors = 0
+                val poll = pollRes.data
+                if (poll != null) {
+                    val lastDone = poll.last_completed_call
+                    if (lastDone != null && (lastDone.call_id == callId || !lastDone.summary.isNullOrBlank())) {
+                        finalSummary = lastDone.summary
+                    }
+                    if (poll.hangup_requested || poll.active_call?.hangup_requested == true || poll.active_call?.state == "completed") {
+                        if (finalSummary.isNullOrBlank()) {
+                            finalSummary = poll.active_call?.summary
+                        }
+                        hangUpCallIfOffhook()
+                        break
+                    }
+                }
+            } catch (_: Exception) {
+                pollErrors++
+                if (pollErrors >= 2 && (System.currentTimeMillis() - startedMs) < 6_000L) {
+                    return false
+                }
+            }
+        }
+
+        if (readCallStateSafe(telephony) == TelephonyManager.CALL_STATE_OFFHOOK) {
+            hangUpCallIfOffhook()
+        }
+        if (!finalSummary.isNullOrBlank()) {
+            postSummaryNotification(displayLabel, finalSummary!!)
+        }
+        return true
     }
 
     @Suppress("DEPRECATION")
@@ -283,26 +424,34 @@ class FunkiraPhoneConciergeService : Service() {
         } catch (_: Exception) { }
     }
 
+    private fun isMiniPcBluetoothScoAvailable(): Boolean {
+        val am = getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return false
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                am.availableCommunicationDevices.any {
+                    it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO &&
+                        it.productName.toString().contains("Funkenwerk", ignoreCase = true)
+                }
+            } else {
+                false
+            }
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     @Suppress("DEPRECATION")
     private fun routeCallAudioToMiniPcBluetooth(): Boolean {
         val am = getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return false
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                val devices = am.availableCommunicationDevices
-                val preferredBt = devices.firstOrNull {
+                val preferredBt = am.availableCommunicationDevices.firstOrNull {
                     it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO &&
                         it.productName.toString().contains("Funkenwerk", ignoreCase = true)
-                } ?: devices.firstOrNull {
-                    it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO &&
-                        !it.productName.toString().contains("Teufel", ignoreCase = true)
                 }
                 if (preferredBt != null) {
                     return am.setCommunicationDevice(preferredBt)
                 }
-            } else {
-                am.startBluetoothSco()
-                am.isBluetoothScoOn = true
-                return true
             }
         } catch (_: Exception) { }
         return false
@@ -329,13 +478,13 @@ class FunkiraPhoneConciergeService : Service() {
                 "Funkira Telefon-Assistent",
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
-                description = "Whitelist-Anrufannahme & Anrufnotizen"
+                description = "Whitelist-Sekretärin & Anrufnotizen"
             }
             nm.createNotificationChannel(ch)
         }
     }
 
-    private fun promoteToForeground(title: String, body: String) {
+    private fun promoteToForeground(title: String, body: String, includeMicrophone: Boolean) {
         val stopIntent = Intent(this, FunkiraPhoneConciergeService::class.java).apply {
             action = ACTION_MANUAL_STOP
         }
@@ -370,15 +519,29 @@ class FunkiraPhoneConciergeService : Service() {
             )
             .build()
 
+        val hasMicPerm = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+        val fgType = resolveForegroundServiceType(Build.VERSION.SDK_INT, includeMicrophone, hasMicPerm)
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                startForeground(ACTIVE_NOTIF_ID, notif, ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL)
+                startForeground(ACTIVE_NOTIF_ID, notif, fgType)
             } else {
                 startForeground(ACTIVE_NOTIF_ID, notif)
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            ErrorSentinelReporter.captureAutoHeal(
+                context = applicationContext,
+                component = "phone_secretary_fgs",
+                title = "Foreground-Service-Typ auf PHONE_CALL zurückgestuft",
+                message = e.message ?: "Mikrofon-FGS-Upgrade vom Betriebssystem abgelehnt",
+                healSummary = "Dienst läuft stabil im PHONE_CALL-Modus weiter.",
+                extraContext = mapOf("include_mic" to includeMicrophone.toString())
+            )
             try {
-                startForeground(ACTIVE_NOTIF_ID, notif)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                    startForeground(ACTIVE_NOTIF_ID, notif, ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL)
+                } else {
+                    startForeground(ACTIVE_NOTIF_ID, notif)
+                }
             } catch (_: Exception) { }
         }
     }
@@ -399,7 +562,7 @@ class FunkiraPhoneConciergeService : Service() {
         }
         val notif = builder
             .setSmallIcon(R.mipmap.ic_launcher)
-            .setContentTitle("📞 Anrufnotiz von $callerLabel")
+            .setContentTitle("📞 Funkira Sekretärin · $callerLabel")
             .setContentText(summary)
             .setStyle(Notification.BigTextStyle().bigText(summary))
             .setContentIntent(openPending)

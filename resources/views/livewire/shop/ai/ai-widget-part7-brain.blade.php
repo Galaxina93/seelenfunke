@@ -2,6 +2,86 @@
 <script>
     window.brainMapInstance = null;
     window.brainMapData = null;
+    window.selectedBrainNodeId = null;
+
+    window.copyBrainNodePath = function(btn) {
+        const el = document.getElementById('brain-selected-node-name');
+        const text = el ? (el.dataset.fullPath || el.innerText || '').trim() : '';
+        if (!text) return;
+
+        const finish = () => {
+            if (!btn) return;
+            const originalLabel = btn.dataset.originalLabel || btn.innerText;
+            btn.dataset.originalLabel = originalLabel;
+            btn.innerText = 'Kopiert!';
+            setTimeout(() => { btn.innerText = originalLabel; }, 2000);
+        };
+
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(text).then(finish).catch(() => fallbackCopy(text, finish));
+        } else {
+            fallbackCopy(text, finish);
+        }
+    };
+
+    function fallbackCopy(text, cb) {
+        try {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.left = '-9999px';
+            document.body.appendChild(ta);
+            ta.focus();
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            if (cb) cb();
+        } catch (e) {
+            console.warn('Clipboard fallback failed:', e);
+        }
+    }
+
+    function getGroupColor(group) {
+        switch (group) {
+            case 2: return 'rgba(16, 185, 129, 0.85)';  // Models
+            case 3: return 'rgba(59, 130, 246, 0.85)';  // Controllers
+            case 4: return 'rgba(236, 72, 153, 0.85)';  // Livewire
+            case 5: return 'rgba(245, 158, 11, 0.80)';  // Views
+            case 6: return 'rgba(139, 92, 246, 0.85)';  // Routes
+            case 7: return 'rgba(148, 163, 184, 0.80)'; // Config
+            case 8: return 'rgba(6, 182, 212, 0.85)';   // Services
+            case 9: return 'rgba(249, 115, 22, 0.85)';  // Commands
+            default: return 'rgba(156, 163, 175, 0.80)';
+        }
+    }
+
+    function getNodeRenderColor(node) {
+        if (node.__color) return node.__color;
+        if (node.isError) return 'rgba(255, 0, 68, 1)'; // Fehlerkern (Rot)
+        if (node.isErrorNeighbor) return 'rgba(245, 158, 11, 0.95)'; // Verbundene Nachbardatei um Fehlerkern
+        return getGroupColor(node.group);
+    }
+
+    function getNodeRenderVal(node) {
+        if (node.__val) return node.__val;
+        if (node.isError) return 8;
+        if (node.isErrorNeighbor) return 3;
+        return 1;
+    }
+
+    function getLinkEndpointId(ep) {
+        return (ep && typeof ep === 'object') ? ep.id : ep;
+    }
+
+    function isErrorConnectedLink(link) {
+        if (link.isErrorLink) return true;
+        if (!window.brainMapData || !window.brainMapData.nodes) return false;
+        const srcId = getLinkEndpointId(link.source);
+        const tgtId = getLinkEndpointId(link.target);
+        const srcNode = window.brainMapData.nodes.find(n => n.id === srcId);
+        const tgtNode = window.brainMapData.nodes.find(n => n.id === tgtId);
+        return Boolean((srcNode && srcNode.isError) || (tgtNode && tgtNode.isError));
+    }
 
     window.initBrainMap = async function() {
         if (typeof ForceGraph3D === 'undefined') {
@@ -15,28 +95,27 @@
         }
 
         if (window.brainMapInstance) {
-            // Already initialized, just fit to screen
             try {
                 window.brainMapInstance.zoomToFit(1000, 50);
             } catch (e) {
                 console.warn('zoomToFit skipped due to layout instability:', e);
             }
+            window.scanSystemErrors();
             return;
         }
 
         const container = document.getElementById('brain-canvas-container');
         if (!container) return;
-        
-        // Verhindere THREE.js NaN Errors, wenn der Container noch unsichtbar ist (display: none / size 0)
+
         if (container.clientWidth === 0 || container.clientHeight === 0) {
             setTimeout(window.initBrainMap, 100);
             return;
         }
 
-        // Lade die JSON Daten
         try {
-            // Append a cache-buster so we don't fetch a stale 404 when it was just generated
-            const response = await fetch('/api/ai/system-brain-map?t=' + Date.now());
+            const response = await fetch('/api/ai/system-brain-map?t=' + Date.now(), {
+                headers: { 'Accept': 'application/json' }
+            });
             if (!response.ok) {
                 console.warn('System Brain Map JSON nicht gefunden. Generiere neu...');
                 window.dispatchEvent(new CustomEvent('ai-speech-feedback', { detail: { text: "Ich baue das Systemgehirn zum ersten Mal auf. Bitte einen kleinen Moment Geduld." } }));
@@ -49,30 +128,23 @@
             return;
         }
 
-        // Initialize 3D Force Graph with explicit screen dimensions
+        const initialErrorCount = (window.brainMapData && window.brainMapData.error_summary)
+            ? (window.brainMapData.error_summary.error_core_count || 0)
+            : 0;
+        window.dispatchEvent(new CustomEvent('brain-errors-updated', { detail: { count: initialErrorCount } }));
+
         window.brainMapInstance = ForceGraph3D()(container)
             .width(window.innerWidth)
             .height(window.innerHeight)
             .graphData(window.brainMapData)
-            .nodeLabel('id')
-            .nodeColor(node => {
-                if (node.isError) return 'rgba(255, 0, 68, 1)'; // Blutrot
-                
-                // Group Colors
-                switch(node.group) {
-                    case 2: return 'rgba(16, 185, 129, 0.8)'; // Models (Emerald)
-                    case 3: return 'rgba(59, 130, 246, 0.8)'; // Controllers (Blue)
-                    case 4: return 'rgba(236, 72, 153, 0.8)'; // Livewire (Pink)
-                    case 5: return 'rgba(245, 158, 11, 0.8)'; // Views (Amber)
-                    default: return 'rgba(156, 163, 175, 0.8)'; // Gray
-                }
-            })
+            .nodeLabel(node => node.isError ? `[FEHLERKERN] ${node.id}` : node.id)
+            .nodeColor(node => getNodeRenderColor(node))
+            .nodeVal(node => getNodeRenderVal(node))
             .nodeRelSize(4)
-            .linkColor(() => 'rgba(255,255,255,0.1)')
-            .linkWidth(0.5)
-            .backgroundColor('rgba(0,0,0,0)'); // Transparent to show background
+            .linkColor(link => isErrorConnectedLink(link) ? 'rgba(255, 68, 102, 0.78)' : 'rgba(255,255,255,0.12)')
+            .linkWidth(link => isErrorConnectedLink(link) ? 1.8 : 0.5)
+            .backgroundColor('rgba(0,0,0,0)');
 
-        // Register window resize listener to keep canvas sized correctly
         window.addEventListener('resize', () => {
             if (window.brainMapInstance) {
                 window.brainMapInstance
@@ -81,177 +153,306 @@
             }
         });
 
-        // Set click listener on node
         window.brainMapInstance.onNodeClick(node => {
-                // Focus on node
-                const distance = 40;
-                const hypot = Math.hypot(node.x, node.y, node.z);
-                const camPos = hypot > 0.001 
-                    ? { x: node.x * (1 + distance/hypot), y: node.y * (1 + distance/hypot), z: node.z * (1 + distance/hypot) }
-                    : { x: 0, y: 0, z: distance };
-                
-                window.brainMapInstance.cameraPosition(
-                    camPos,
-                    node,
-                    1500
-                );
+            flyCameraToNode(node, 1500);
 
-                if (node.isError) {
-                    console.log('Error Node clicked:', node.id);
-                    // Sende Event an Livewire, dass der Agent analysieren soll
-                    Livewire.dispatch('execute-system-command', {
-                        payload: {
-                            command: 'system_analyze_neural_error',
-                            args: {
-                                file_path: node.id,
-                                error_context: node.errorMessage || 'Kein detaillierter Kontext verfügbar.'
-                            }
+            if (node.isError) {
+                Livewire.dispatch('execute-system-command', {
+                    payload: {
+                        command: 'system_analyze_neural_error',
+                        args: {
+                            file_path: node.id,
+                            error_context: node.errorMessage || 'Kein detaillierter Kontext verfügbar.'
                         }
-                    });
-                    
-                    
-                    // Trigger a UI notification or agent response via Alpine
-                    window.dispatchEvent(new CustomEvent('ai-speech-feedback', { detail: { text: "Ich initiiere eine tiefgreifende neurale Analyse der betroffenen Datei: " + node.name } }));
-                } else {
-                    window.dispatchEvent(new CustomEvent('ai-speech-feedback', { detail: { text: node.name } }));
-                }
+                    }
+                });
 
-                window.openNeuralNodeTile(node);
-            });
+                window.dispatchEvent(new CustomEvent('ai-speech-feedback', {
+                    detail: { text: "Fehlerkern erkannt in Datei: " + node.name }
+                }));
+            } else {
+                window.dispatchEvent(new CustomEvent('ai-speech-feedback', { detail: { text: node.name } }));
+            }
+
+            window.openNeuralNodeTile(node);
+        });
 
         window.openNeuralNodeTile = function(node) {
-            // Show selected node UI
             window.selectedBrainNodeId = node.id;
-            new Audio('/shop/ai/sounds/project_brain/click_file_in_project_brain.mp3').play().catch(e=>console.log(e));
+            new Audio('/shop/ai/sounds/project_brain/click_file_in_project_brain.mp3').play().catch(() => {});
 
-            const container = document.getElementById('brain-selected-node-container');
+            const tileContainer = document.getElementById('brain-selected-node-container');
             const nameSpan = document.getElementById('brain-selected-node-name');
+            const mobileNameSpan = document.getElementById('brain-selected-node-mobile-name');
             const depsList = document.getElementById('brain-dependencies-list');
             const errorTile = document.getElementById('brain-error-tile');
             const errorContent = document.getElementById('brain-error-content');
 
-            if (container && nameSpan) {
-                nameSpan.innerText = node.name;
-                container.classList.remove('hidden');
-                container.classList.add('flex');
-                
-                // Fülle Zusammenhänge
+            if (tileContainer && nameSpan) {
+                const fullPath = node.id || node.name || '';
+                const shortName = fullPath.split('/').pop() || fullPath;
+                nameSpan.innerText = fullPath;
+                nameSpan.dataset.fullPath = fullPath;
+                if (mobileNameSpan) {
+                    mobileNameSpan.innerText = shortName;
+                    mobileNameSpan.title = fullPath;
+                }
+                tileContainer.classList.remove('hidden');
+                tileContainer.classList.add('flex');
+
+                const incoming = [];
+                const outgoing = [];
+
+                if (window.brainMapData && Array.isArray(window.brainMapData.links)) {
+                    window.brainMapData.links.forEach(l => {
+                        const sId = getLinkEndpointId(l.source);
+                        const tId = getLinkEndpointId(l.target);
+                        if (tId === node.id && sId !== node.id) {
+                            const sNode = (typeof l.source === 'object') ? l.source : (window.brainMapData.nodes.find(n => n.id === sId) || { id: sId, name: sId });
+                            if (!incoming.some(i => i.id === sNode.id)) incoming.push(sNode);
+                        } else if (sId === node.id && tId !== node.id) {
+                            const tNode = (typeof l.target === 'object') ? l.target : (window.brainMapData.nodes.find(n => n.id === tId) || { id: tId, name: tId });
+                            if (!outgoing.some(o => o.id === tNode.id)) outgoing.push(tNode);
+                        }
+                    });
+                }
+
+                if (Array.isArray(node.incomingFiles)) {
+                    node.incomingFiles.forEach(fp => {
+                        if (!incoming.some(i => i.id === fp)) {
+                            const found = (window.brainMapData && window.brainMapData.nodes.find(n => n.id === fp)) || { id: fp, name: fp.split('/').pop() };
+                            incoming.push(found);
+                        }
+                    });
+                }
+                if (Array.isArray(node.outgoingFiles)) {
+                    node.outgoingFiles.forEach(fp => {
+                        if (!outgoing.some(o => o.id === fp)) {
+                            const found = (window.brainMapData && window.brainMapData.nodes.find(n => n.id === fp)) || { id: fp, name: fp.split('/').pop() };
+                            outgoing.push(found);
+                        }
+                    });
+                }
+
+                window.dispatchEvent(new CustomEvent('brain-node-selected', {
+                    detail: {
+                        id: fullPath,
+                        depsCount: incoming.length + outgoing.length,
+                        incomingCount: incoming.length,
+                        outgoingCount: outgoing.length,
+                        isError: Boolean(node.isError),
+                        isErrorNeighbor: Boolean(node.isErrorNeighbor)
+                    }
+                }));
+
                 if (depsList) {
                     depsList.innerHTML = '';
-                    const relatedLinks = window.brainMapData.links.filter(l => 
-                        (l.source.id === node.id || l.target.id === node.id)
-                    );
-                    if(relatedLinks.length === 0) {
-                        depsList.innerHTML = '<span class="text-emerald-500/50 italic">Keine Abhängigkeiten bekannt</span>';
+                    depsList.scrollTop = 0;
+
+                    const appendSectionHeader = (label, badgeClass) => {
+                        const hdr = document.createElement('div');
+                        hdr.className = 'text-[10px] font-bold uppercase tracking-wider pt-1 pb-0.5 ' + badgeClass;
+                        hdr.textContent = label;
+                        depsList.appendChild(hdr);
+                    };
+
+                    const appendNeighborItem = (arrow, relNode, isIncoming) => {
+                        const relPath = relNode.id || relNode.name || '';
+                        const relFile = relPath.split('/').pop() || relPath;
+
+                        const btn = document.createElement('button');
+                        btn.type = 'button';
+                        btn.className = relNode.isError
+                            ? 'w-full text-left px-2.5 py-2 rounded-xl bg-rose-950/50 hover:bg-rose-900/60 active:bg-rose-800/70 border border-rose-500/40 transition-colors flex flex-col gap-0.5 cursor-pointer'
+                            : (isIncoming
+                                ? 'w-full text-left px-2.5 py-2 rounded-xl bg-amber-500/[0.06] hover:bg-amber-500/15 active:bg-amber-500/25 border border-amber-500/20 transition-colors flex flex-col gap-0.5 cursor-pointer'
+                                : 'w-full text-left px-2.5 py-2 rounded-xl bg-emerald-500/[0.06] hover:bg-emerald-500/15 active:bg-emerald-500/25 border border-emerald-500/20 transition-colors flex flex-col gap-0.5 cursor-pointer');
+
+                        const topRow = document.createElement('div');
+                        topRow.className = 'flex items-center justify-between gap-2 w-full';
+
+                        const titleSpan = document.createElement('span');
+                        titleSpan.className = relNode.isError
+                            ? 'text-xs font-bold text-rose-200 truncate'
+                            : (isIncoming ? 'text-xs font-semibold text-amber-200 truncate' : 'text-xs font-semibold text-emerald-100 truncate');
+                        titleSpan.textContent = arrow + ' ' + relFile;
+                        topRow.appendChild(titleSpan);
+
+                        if (relNode.isError) {
+                            const errBadge = document.createElement('span');
+                            errBadge.className = 'px-1.5 py-0.2 rounded bg-rose-600 text-white text-[9px] font-bold uppercase shrink-0';
+                            errBadge.textContent = 'Fehler';
+                            topRow.appendChild(errBadge);
+                        }
+
+                        const pathRow = document.createElement('div');
+                        pathRow.className = 'text-[10px] text-gray-400 break-all leading-snug';
+                        pathRow.textContent = relPath;
+
+                        btn.appendChild(topRow);
+                        btn.appendChild(pathRow);
+                        btn.onclick = () => {
+                            if (window.searchBrainMap) window.searchBrainMap(relPath);
+                        };
+                        depsList.appendChild(btn);
+                    };
+
+                    if (incoming.length === 0 && outgoing.length === 0) {
+                        const emptySpan = document.createElement('div');
+                        emptySpan.className = 'text-emerald-400/60 italic py-3 text-center';
+                        emptySpan.textContent = 'Keine Abhängigkeiten bekannt';
+                        depsList.appendChild(emptySpan);
                     } else {
-                        relatedLinks.forEach(link => {
-                            const relatedNode = link.source.id === node.id ? link.target : link.source;
-                            const div = document.createElement('div');
-                            div.className = "break-all hover:text-white cursor-pointer transition-colors pb-1 border-b border-emerald-500/10 last:border-0";
-                            div.innerText = "- " + relatedNode.name;
-                            div.onclick = () => {
-                                if(window.searchBrainMap) window.searchBrainMap(relatedNode.id);
-                            };
-                            depsList.appendChild(div);
-                        });
+                        if (incoming.length > 0) {
+                            appendSectionHeader('← Aufrufer (' + incoming.length + ')', 'text-amber-300/90');
+                            incoming.forEach(rel => appendNeighborItem('←', rel, true));
+                        }
+                        if (outgoing.length > 0) {
+                            appendSectionHeader('→ Referenziert (' + outgoing.length + ')', 'text-emerald-300/90');
+                            outgoing.forEach(rel => appendNeighborItem('→', rel, false));
+                        }
                     }
                 }
 
-                // Fülle Fehler & Digitales Typenschild (Blueprint)
                 if (errorTile && errorContent) {
+                    const headerSpan = errorTile.querySelector('span');
+                    errorContent.innerHTML = '';
+                    errorContent.scrollTop = 0;
+
                     if (node.isError) {
-                        errorTile.classList.remove('border-emerald-500/40', 'shadow-[0_10px_30px_-10px_rgba(16,185,129,0.4)]');
-                        errorTile.classList.add('border-rose-500/40', 'shadow-[0_10px_30px_-10px_rgba(244,63,94,0.4)]');
-                        errorTile.querySelector('span').className = "text-[10px] text-rose-400/80 font-bold uppercase tracking-widest flex-shrink-0";
-                        errorContent.className = "absolute inset-0 overflow-y-auto custom-scrollbar text-xs font-mono text-rose-100/80 pr-2";
-                        errorContent.innerText = node.errorMessage || "Fehler in dieser Datei festgestellt!";
+                        errorTile.classList.remove('border-emerald-500/40', 'border-amber-500/60');
+                        errorTile.classList.add('border-rose-500/70');
+                        if (headerSpan) {
+                            headerSpan.className = "text-[10px] text-rose-400 font-bold uppercase tracking-widest shrink-0";
+                            headerSpan.textContent = "Fehlerkern (System-Log)";
+                        }
+                        errorContent.className = "brain-touch-scroll flex-1 min-h-0 w-full overflow-y-auto overscroll-contain touch-pan-y custom-scrollbar text-xs font-mono text-rose-100 pr-1.5 whitespace-pre-wrap pointer-events-auto";
+                        errorContent.textContent = node.errorMessage || "Fehler in dieser Datei im System-Log aktiv.";
+                    } else if (node.isErrorNeighbor && Array.isArray(node.connectedErrorCores) && node.connectedErrorCores.length > 0) {
+                        errorTile.classList.remove('border-emerald-500/40', 'border-rose-500/70');
+                        errorTile.classList.add('border-amber-500/60');
+                        if (headerSpan) {
+                            headerSpan.className = "text-[10px] text-amber-400 font-bold uppercase tracking-widest shrink-0";
+                            headerSpan.textContent = "Nachbar eines Fehlerkerns";
+                        }
+                        errorContent.className = "brain-touch-scroll flex-1 min-h-0 w-full overflow-y-auto overscroll-contain touch-pan-y custom-scrollbar text-xs font-mono text-amber-100 pr-1.5 space-y-1.5 pointer-events-auto";
+                        node.connectedErrorCores.forEach(coreId => {
+                            const row = document.createElement('button');
+                            row.type = 'button';
+                            row.className = 'w-full text-left px-2.5 py-2 rounded-xl bg-rose-950/40 hover:bg-rose-900/50 border border-rose-500/30 cursor-pointer text-rose-200 break-all';
+                            row.textContent = 'Verbunden mit Fehlerkern: ' + coreId;
+                            row.onclick = () => { if (window.searchBrainMap) window.searchBrainMap(coreId); };
+                            errorContent.appendChild(row);
+                        });
                     } else if (node.blueprint) {
                         const bp = node.blueprint;
-                        errorTile.classList.remove('border-rose-500/40', 'shadow-[0_10px_30px_-10px_rgba(244,63,94,0.4)]');
-                        errorTile.classList.add('border-emerald-500/40', 'shadow-[0_10px_30px_-10px_rgba(16,185,129,0.4)]');
-                        errorTile.querySelector('span').className = "text-[10px] text-emerald-400/80 font-bold uppercase tracking-widest flex-shrink-0";
-                        errorContent.className = "absolute inset-0 overflow-y-auto custom-scrollbar text-[11px] font-mono text-emerald-100/90 pr-2 flex flex-col gap-1";
+                        errorTile.classList.remove('border-rose-500/70', 'border-amber-500/60');
+                        errorTile.classList.add('border-emerald-500/40');
+                        if (headerSpan) {
+                            headerSpan.className = "text-[10px] text-emerald-400/80 font-bold uppercase tracking-widest shrink-0";
+                            headerSpan.textContent = "Typenschild & Status";
+                        }
+                        errorContent.className = "brain-touch-scroll flex-1 min-h-0 w-full overflow-y-auto overscroll-contain touch-pan-y custom-scrollbar text-[11px] font-mono text-emerald-100/90 pr-1.5 space-y-1.5 pointer-events-auto";
                         const regs = (bp.regulation_labels && bp.regulation_labels.length) ? bp.regulation_labels.join(', ') : 'Intern';
-                        errorContent.innerHTML = `
-                            <div class="font-bold text-white">${bp.label || node.name}</div>
-                            <div class="text-[10px] text-emerald-300/90">${bp.department_label || ''} • ${bp.retention_label || ''}</div>
-                            <div class="text-[10px] text-amber-300/90">KI-Guardrail: ${bp.ai_access_label || ''}</div>
-                            <div class="text-[10px] text-indigo-300/90">Gesetze: ${regs}</div>
-                        `;
+
+                        const addLine = (txt, cls) => {
+                            const d = document.createElement('div');
+                            d.className = cls;
+                            d.textContent = txt;
+                            errorContent.appendChild(d);
+                        };
+                        addLine(bp.label || node.name, 'font-bold text-white');
+                        addLine((bp.department_label || '') + ' • ' + (bp.retention_label || ''), 'text-[10px] text-emerald-300/90');
+                        addLine('KI-Guardrail: ' + (bp.ai_access_label || ''), 'text-[10px] text-amber-300/90');
+                        addLine('Gesetze: ' + regs, 'text-[10px] text-indigo-300/90');
                     } else {
-                        errorTile.classList.remove('border-rose-500/40', 'shadow-[0_10px_30px_-10px_rgba(244,63,94,0.4)]');
-                        errorTile.classList.add('border-emerald-500/40', 'shadow-[0_10px_30px_-10px_rgba(16,185,129,0.4)]');
-                        errorTile.querySelector('span').className = "text-[10px] text-emerald-400/80 font-bold uppercase tracking-widest flex-shrink-0";
-                        errorContent.className = "absolute inset-0 overflow-y-auto custom-scrollbar text-xs font-mono text-emerald-100/80 pr-2 flex items-center h-full";
+                        errorTile.classList.remove('border-rose-500/70', 'border-amber-500/60');
+                        errorTile.classList.add('border-emerald-500/40');
+                        if (headerSpan) {
+                            headerSpan.className = "text-[10px] text-emerald-400/80 font-bold uppercase tracking-widest shrink-0";
+                            headerSpan.textContent = "Typenschild & Status";
+                        }
+                        errorContent.className = "brain-touch-scroll flex-1 min-h-0 w-full overflow-y-auto overscroll-contain touch-pan-y custom-scrollbar text-xs font-mono text-emerald-100/80 pr-1.5 flex items-center pointer-events-auto";
                         errorContent.innerHTML = '<span class="text-emerald-400 flex items-center gap-1.5"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> Systemstatus 100% OK</span>';
                     }
                 }
             }
         };
 
-        // Click on background to clear selection
-        window.brainMapInstance.onBackgroundClick(() => {
+        window.closeNeuralNodeTile = function() {
             if (window.selectedBrainNodeId) {
-                new Audio('/shop/ai/sounds/project_brain/close_file_in_project_brain.mp3').play().catch(e=>console.log(e));
+                new Audio('/shop/ai/sounds/project_brain/close_file_in_project_brain.mp3').play().catch(() => {});
             }
             window.selectedBrainNodeId = null;
-            const container = document.getElementById('brain-selected-node-container');
-            if (container) {
-                container.classList.add('hidden');
-                container.classList.remove('flex');
+            const tileContainer = document.getElementById('brain-selected-node-container');
+            if (tileContainer) {
+                tileContainer.classList.add('hidden');
+                tileContainer.classList.remove('flex');
             }
-            
-            // Reset colors
+
             if (window.brainMapInstance && window.brainMapData) {
                 window.brainMapData.nodes.forEach(node => {
                     delete node.__color;
+                    delete node.__val;
                 });
-                window.brainMapInstance
-                    .nodeColor(node => node.isError ? 'rgba(255, 0, 68, 1)' : getGroupColor(node.group))
-                    .linkColor(() => 'rgba(255,255,255,0.2)');
+                refreshBrainVisuals();
             }
+        };
+
+        window.brainMapInstance.onBackgroundClick(() => {
+            window.closeNeuralNodeTile();
         });
 
-        // Add some basic light
         window.brainMapInstance.d3Force('charge').strength(-120);
-        
+
         setTimeout(() => {
             window.scanSystemErrors();
-        }, 1000);
+        }, 600);
     };
+
+    function flyCameraToNode(node, duration = 1600) {
+        if (!window.brainMapInstance || !node) return;
+        const distance = 42;
+        const hypot = Math.hypot(node.x || 0, node.y || 0, node.z || 0);
+        const camPos = hypot > 0.001
+            ? { x: node.x * (1 + distance / hypot), y: node.y * (1 + distance / hypot), z: node.z * (1 + distance / hypot) }
+            : { x: 0, y: 0, z: distance };
+        window.brainMapInstance.cameraPosition(camPos, node, duration);
+    }
+
+    function refreshBrainVisuals() {
+        if (!window.brainMapInstance) return;
+        window.brainMapInstance
+            .nodeColor(node => getNodeRenderColor(node))
+            .nodeVal(node => getNodeRenderVal(node))
+            .linkColor(link => isErrorConnectedLink(link) ? 'rgba(255, 68, 102, 0.78)' : 'rgba(255,255,255,0.12)')
+            .linkWidth(link => isErrorConnectedLink(link) ? 1.8 : 0.5);
+    }
 
     window.searchBrainMap = function(query) {
         if (!window.brainMapInstance || !window.brainMapData) return;
-        query = query.toLowerCase();
+        const q = (query || '').trim().toLowerCase();
 
         window.brainMapData.nodes.forEach(node => {
-            if (query && node.id.toLowerCase().includes(query)) {
-                node.__color = 'rgba(255, 255, 255, 1)';
+            if (q && node.id.toLowerCase().includes(q)) {
+                node.__color = node.isError ? 'rgba(255, 0, 68, 1)' : 'rgba(255, 255, 255, 1)';
+                node.__val = 10;
             } else {
                 delete node.__color;
+                delete node.__val;
             }
         });
 
-        window.brainMapInstance
-            .nodeColor(node => node.__color || (node.isError ? 'rgba(255, 0, 68, 1)' : getGroupColor(node.group)))
-            .nodeVal(node => (query && node.id.toLowerCase().includes(query)) ? 10 : 1);
-            
-        // If there is exactly one good match, fly to it
-        if (query.length > 3) {
-            const matches = window.brainMapData.nodes.filter(n => n.id.toLowerCase().includes(query));
+        refreshBrainVisuals();
+
+        if (q.length > 2) {
+            const exact = window.brainMapData.nodes.find(n => n.id.toLowerCase() === q);
+            const matches = exact ? [exact] : window.brainMapData.nodes.filter(n => n.id.toLowerCase().includes(q));
             if (matches.length === 1) {
-                const node = matches[0];
-                const distance = 40;
-                const hypot = Math.hypot(node.x, node.y, node.z);
-                const camPos = hypot > 0.001 
-                    ? { x: node.x * (1 + distance/hypot), y: node.y * (1 + distance/hypot), z: node.z * (1 + distance/hypot) }
-                    : { x: 0, y: 0, z: distance };
-                
-                window.brainMapInstance.cameraPosition(
-                    camPos,
-                    node,
-                    2000
-                );
+                flyCameraToNode(matches[0], 1600);
+                if (window.openNeuralNodeTile) {
+                    window.openNeuralNodeTile(matches[0]);
+                }
             }
         }
     };
@@ -261,7 +462,22 @@
 
         window.brainMapData.nodes.forEach(node => {
             delete node.__color;
+            delete node.__val;
             if (mode === 'all') return;
+
+            if (mode === 'errors') {
+                if (node.isError) {
+                    node.__color = 'rgba(255, 0, 68, 1)';
+                    node.__val = 10;
+                } else if (node.isErrorNeighbor) {
+                    node.__color = 'rgba(245, 158, 11, 0.95)';
+                    node.__val = 4;
+                } else {
+                    node.__color = 'rgba(55, 65, 81, 0.10)';
+                    node.__val = 1;
+                }
+                return;
+            }
 
             const bp = node.blueprint || null;
             let matched = false;
@@ -270,150 +486,228 @@
             if (bp) {
                 if (mode === 'gobd' && bp.is_gobd_protected) {
                     matched = true;
-                    highlightColor = 'rgba(245, 158, 11, 1)'; // Gold/Amber
+                    highlightColor = 'rgba(245, 158, 11, 1)';
                 } else if (mode === 'gdpr_export' && bp.is_gdpr_art15_exportable) {
                     matched = true;
-                    highlightColor = 'rgba(16, 185, 129, 1)'; // Emerald
+                    highlightColor = 'rgba(16, 185, 129, 1)';
                 } else if (mode === 'ai_protected' && !bp.allows_ai_write) {
                     matched = true;
-                    highlightColor = 'rgba(244, 63, 94, 1)'; // Rose
+                    highlightColor = 'rgba(244, 63, 94, 1)';
                 } else if (mode === 'channels' && bp.external_channels && bp.external_channels.length > 0) {
                     matched = true;
-                    highlightColor = 'rgba(6, 182, 212, 1)'; // Cyan
+                    highlightColor = 'rgba(6, 182, 212, 1)';
                 }
             }
 
-            if (matched) {
-                node.__color = highlightColor;
-                node.__matchedBlueprint = true;
-            } else {
-                node.__matchedBlueprint = false;
-            }
+            node.__color = matched ? highlightColor : 'rgba(55, 65, 81, 0.14)';
+            node.__val = matched ? 6 : 1;
         });
 
-        if (mode === 'all') {
-            window.brainMapInstance
-                .nodeColor(node => node.isError ? 'rgba(255, 0, 68, 1)' : getGroupColor(node.group))
-                .nodeVal(() => 1);
-        } else {
-            window.brainMapInstance
-                .nodeColor(node => node.__matchedBlueprint ? node.__color : 'rgba(55, 65, 81, 0.15)')
-                .nodeVal(node => node.__matchedBlueprint ? 6 : 1);
-        }
+        refreshBrainVisuals();
     };
 
     window.highlightBrainStructure = function() {
         if (!window.selectedBrainNodeId || !window.brainMapInstance || !window.brainMapData) return;
-        
-        // Finde alle verknüpften Knoten
-        const relatedNodeIds = new Set();
-        relatedNodeIds.add(window.selectedBrainNodeId);
-        
+
+        const relatedNodeIds = new Set([window.selectedBrainNodeId]);
         window.brainMapData.links.forEach(l => {
-            if (l.source.id === window.selectedBrainNodeId) relatedNodeIds.add(l.target.id);
-            if (l.target.id === window.selectedBrainNodeId) relatedNodeIds.add(l.source.id);
+            const sId = getLinkEndpointId(l.source);
+            const tId = getLinkEndpointId(l.target);
+            if (sId === window.selectedBrainNodeId) relatedNodeIds.add(tId);
+            if (tId === window.selectedBrainNodeId) relatedNodeIds.add(sId);
         });
 
-        // Setze Farbe auf grau für alle anderen
         window.brainMapInstance
-            .nodeColor(node => {
-                if (relatedNodeIds.has(node.id)) {
-                    return node.__color || (node.isError ? 'rgba(255, 0, 68, 1)' : getGroupColor(node.group));
-                }
-                return 'rgba(50, 50, 50, 0.1)';
-            })
+            .nodeColor(node => relatedNodeIds.has(node.id) ? getNodeRenderColor(node) : 'rgba(50, 50, 50, 0.10)')
             .linkColor(link => {
-                if (relatedNodeIds.has(link.source.id) && relatedNodeIds.has(link.target.id)) {
-                    return 'rgba(255,255,255,0.4)';
+                const sId = getLinkEndpointId(link.source);
+                const tId = getLinkEndpointId(link.target);
+                if (relatedNodeIds.has(sId) && relatedNodeIds.has(tId)) {
+                    return isErrorConnectedLink(link) ? 'rgba(255, 68, 102, 0.90)' : 'rgba(255,255,255,0.45)';
                 }
                 return 'rgba(255,255,255,0.02)';
             });
     };
 
-    function getGroupColor(group) {
-        switch(group) {
-            case 2: return 'rgba(16, 185, 129, 0.8)';
-            case 3: return 'rgba(59, 130, 246, 0.8)';
-            case 4: return 'rgba(236, 72, 153, 0.8)';
-            case 5: return 'rgba(245, 158, 11, 0.8)';
-            default: return 'rgba(156, 163, 175, 0.8)';
-        }
-    }
-
-    window.selectedBrainNodeId = null;
-
     window.generateBrainStructure = function() {
         if (!window.selectedBrainNodeId) return;
-        
-        new Audio('/shop/ai/sounds/project_brain/create_structure_in_project_brain.mp3').play().catch(e=>console.log(e));
-
-        // Find node in DB via Livewire
+        new Audio('/shop/ai/sounds/project_brain/create_structure_in_project_brain.mp3').play().catch(() => {});
         Livewire.dispatch('generate-neural-structure', { file_path: window.selectedBrainNodeId });
-        
         window.dispatchEvent(new CustomEvent('ai-speech-feedback', { detail: { text: "Struktur wird generiert." } }));
     };
 
-    window.scanSystemErrors = async function(realErrors = []) {
-        if (!window.brainMapInstance || !window.brainMapData) return;
-        
+    function applyErrorOverlayToGraph(errorsList, neighborsMap = {}) {
+        if (!window.brainMapInstance || !window.brainMapData) return 0;
+
+        const errorByPath = new Map();
+        (Array.isArray(errorsList) ? errorsList : []).forEach(err => {
+            if (err && err.file_path) {
+                errorByPath.set(err.file_path, err);
+            }
+        });
+
         let errorNodesFound = 0;
+        let firstErrorNode = null;
+
         window.brainMapData.nodes.forEach(node => {
-            const errorData = realErrors.find(e => node.id === e.file_path);
-            if (errorData) {
+            const err = errorByPath.get(node.id);
+            if (err) {
                 node.isError = true;
-                node.errorMessage = errorData.error_state;
+                node.isErrorNeighbor = false;
+                node.errorMessage = err.error_state || 'Fehler im System-Log aktiv.';
+                node.connectedFiles = err.connected_files || [];
+                node.incomingFiles = err.incoming_files || [];
+                node.outgoingFiles = err.outgoing_files || [];
                 errorNodesFound++;
+                if (!firstErrorNode) firstErrorNode = node;
+            } else if (neighborsMap && Array.isArray(neighborsMap[node.id])) {
+                node.isError = false;
+                node.isErrorNeighbor = true;
+                node.connectedErrorCores = neighborsMap[node.id];
+                node.errorMessage = null;
             } else {
                 node.isError = false;
+                node.isErrorNeighbor = false;
+                node.connectedErrorCores = [];
                 node.errorMessage = null;
             }
         });
 
-        // Update colors
-        window.brainMapInstance.nodeColor(node => node.isError ? 'rgba(255, 0, 68, 1)' : getGroupColor(node.group));
+        window.brainMapData.links.forEach(link => {
+            const sId = getLinkEndpointId(link.source);
+            const tId = getLinkEndpointId(link.target);
+            link.isErrorLink = errorByPath.has(sId) || errorByPath.has(tId);
+        });
+
+        refreshBrainVisuals();
+        window.dispatchEvent(new CustomEvent('brain-errors-updated', { detail: { count: errorNodesFound } }));
+
+        if (firstErrorNode) {
+            flyCameraToNode(firstErrorNode, 1500);
+            if (window.openNeuralNodeTile) {
+                window.openNeuralNodeTile(firstErrorNode);
+            }
+        }
+
+        return errorNodesFound;
+    }
+
+    window.scanSystemErrors = async function(realErrors = null, providedNeighbors = null) {
+        if (!window.brainMapInstance || !window.brainMapData) return;
+
+        let errorsList = realErrors;
+        let neighborsMap = providedNeighbors || {};
+
+        if (!Array.isArray(errorsList)) {
+            try {
+                const res = await fetch('/api/ai/system-brain-errors?t=' + Date.now(), {
+                    headers: { 'Accept': 'application/json' }
+                });
+                if (res.ok) {
+                    const payload = await res.json();
+                    errorsList = Array.isArray(payload.errors) ? payload.errors : [];
+                    neighborsMap = payload.neighbors || {};
+                } else {
+                    errorsList = [];
+                }
+            } catch (e) {
+                console.warn('SystemLog-Fehlerabruf fehlgeschlagen:', e);
+                errorsList = [];
+            }
+        }
+
+        const errorNodesFound = applyErrorOverlayToGraph(errorsList, neighborsMap);
 
         if (errorNodesFound > 0) {
-            window.dispatchEvent(new CustomEvent('ai-speech-feedback', { detail: { text: "Warnung: Es wurden Systemanomalien im neuronalen Netzwerk gefunden." } }));
-        } else {
-            window.dispatchEvent(new CustomEvent('ai-speech-feedback', { detail: { text: "Das System-Gehirn arbeitet fehlerfrei." } }));
+            window.dispatchEvent(new CustomEvent('ai-speech-feedback', {
+                detail: { text: "Achtung: " + errorNodesFound + " Fehlerkern im Projekt Gehirn rot markiert." }
+            }));
         }
-        
+
         window.dispatchEvent(new CustomEvent('neural-scan-complete'));
+    };
+
+    window.runBrainSystemCheck = async function() {
+        try {
+            const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+            const token = csrfMeta ? csrfMeta.getAttribute('content') : '';
+
+            const res = await fetch('/api/ai/system-brain-check', {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': token
+                },
+                body: JSON.stringify({})
+            });
+
+            if (!res.ok) {
+                window.dispatchEvent(new CustomEvent('brain-system-check-complete', {
+                    detail: { healthy: false, label: 'Prüfung fehlgeschlagen' }
+                }));
+                return;
+            }
+
+            const data = await res.json();
+            const report = data.report || {};
+            const errorsList = Array.isArray(data.errors) ? data.errors : [];
+            const neighborsMap = data.neighbors || {};
+            const foundCores = applyErrorOverlayToGraph(errorsList, neighborsMap);
+            const healthy = Boolean(report.is_healthy) && foundCores === 0;
+
+            const totalChecks = report.total_checks || 0;
+            const passedChecks = report.passed_checks || 0;
+            const label = healthy
+                ? `100% OK (${passedChecks}/${totalChecks})`
+                : `${report.failed_checks || foundCores} Fehler`;
+
+            window.dispatchEvent(new CustomEvent('brain-system-check-complete', {
+                detail: { healthy, label, report }
+            }));
+
+            window.dispatchEvent(new CustomEvent('ai-speech-feedback', {
+                detail: {
+                    text: healthy
+                        ? `Systemprüfung abgeschlossen. Alle ${totalChecks} Prüfungen sind fehlerfrei.`
+                        : `Systemprüfung abgeschlossen. Es wurden Probleme erkannt und rot im Projekt Gehirn hervorgehoben.`
+                }
+            }));
+        } catch (e) {
+            console.error('Systemprüfung fehlgeschlagen:', e);
+            window.dispatchEvent(new CustomEvent('brain-system-check-complete', {
+                detail: { healthy: false, label: 'Fehler' }
+            }));
+        }
     };
 
     window.addEventListener('ai-neural-scan-trigger', (e) => {
         let errors = [];
-        if (e.detail && e.detail.length > 0) {
-            // Livewire sometimes wraps the payload in an array
+        let neighbors = {};
+        if (e.detail && Array.isArray(e.detail) && e.detail.length > 0) {
             const payload = e.detail[0];
-            if (payload && payload.errors) errors = payload.errors;
-        } else if (e.detail && e.detail.errors) {
+            if (payload && Array.isArray(payload.errors)) errors = payload.errors;
+            if (payload && payload.neighbors) neighbors = payload.neighbors;
+        } else if (e.detail && Array.isArray(e.detail.errors)) {
             errors = e.detail.errors;
+            neighbors = e.detail.neighbors || {};
         }
-        if (window.scanSystemErrors) window.scanSystemErrors(errors);
+        if (window.scanSystemErrors) window.scanSystemErrors(errors, neighbors);
     });
 
     window.addEventListener('ai-fly-to-neural-node', (e) => {
-        const id = e.detail.id;
-        if (window.searchBrainMap) {
+        const id = e.detail ? (e.detail.id || (Array.isArray(e.detail) && e.detail[0] ? e.detail[0].id : null)) : null;
+        if (id && window.searchBrainMap) {
             window.searchBrainMap(id);
-            setTimeout(() => {
-                if (window.brainMapData && window.brainMapData.nodes) {
-                    const node = window.brainMapData.nodes.find(n => n.id === id);
-                    if (node && window.openNeuralNodeTile) {
-                        window.openNeuralNodeTile(node);
-                    }
-                }
-            }, 1600); // 1500ms is the camera flight time
         }
     });
 
     window.addEventListener('ai-neural-analysis-complete', (e) => {
-        // Bericht wurde im Hintergrund erstellt, kein störendes alert() mehr
-        console.log("Neural Analysis Complete:", e.detail.file_path);
+        console.log("Neural Analysis Complete:", e.detail ? e.detail.file_path : '');
     });
 
     window.addEventListener('system-brain-map-generated', () => {
+        window.brainMapInstance = null;
         if (window.initBrainMap) {
             window.initBrainMap();
         }

@@ -21,11 +21,65 @@ namespace Funkenwerk
 {
     public partial class MainWindow : Window, IFunkenwerkLocalBridge
     {
-        private readonly HttpClient _http = FunkenwerkSecurityVault.CreateSecureHttpClient(TimeSpan.FromSeconds(45));
+        private sealed class PerRequestBearerAuthHandler : DelegatingHandler
+        {
+            private readonly Func<string, string> _tokenResolver;
+
+            public PerRequestBearerAuthHandler(Func<string, string> tokenResolver, HttpMessageHandler innerHandler)
+                : base(innerHandler)
+            {
+                _tokenResolver = tokenResolver ?? (_ => "");
+            }
+
+            private void PreparePerRequestHeaders(HttpRequestMessage request)
+            {
+                if (request.Headers.Accept.Count == 0)
+                {
+                    request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                }
+
+                if (request.RequestUri == null || !FunkenwerkSecurityVault.IsAllowedApiHost(request.RequestUri.Host))
+                {
+                    // Never send Bearer credentials to non-allowlisted hosts
+                    request.Headers.Authorization = null;
+                    return;
+                }
+
+                if (request.Headers.Authorization == null)
+                {
+                    string tok = _tokenResolver(request.RequestUri.AbsoluteUri);
+                    if (!string.IsNullOrWhiteSpace(tok))
+                    {
+                        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tok.Trim());
+                    }
+                }
+            }
+
+            protected override HttpResponseMessage Send(HttpRequestMessage request, System.Threading.CancellationToken cancellationToken)
+            {
+                PreparePerRequestHeaders(request);
+                return base.Send(request, cancellationToken);
+            }
+
+            protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, System.Threading.CancellationToken cancellationToken)
+            {
+                PreparePerRequestHeaders(request);
+                return base.SendAsync(request, cancellationToken);
+            }
+        }
+
+        internal static HttpClient CreateIsolatedPerRequestHttpClientForTest(Func<string, string> tokenResolver, HttpMessageHandler innerHandler)
+        {
+            return new HttpClient(new PerRequestBearerAuthHandler(tokenResolver, innerHandler), disposeHandler: false)
+            {
+                Timeout = TimeSpan.FromSeconds(15)
+            };
+        }
+
+        private readonly HttpClient _http;
         private readonly string _settingsPath;
         private FunkenwerkAgentEngine? _agentEngine;
 
-        private const string DEFAULT_LOCAL_TOKEN = "1|CTIWGm2Ryb0d60ixSJPME2J6uSUkR1tm6Ga6DEfBd86476e9";
         private string _apiBaseUrl = "http://127.0.0.1/api";
         private string _apiToken = "";
         private bool _isApiTokenVisible = false;
@@ -123,8 +177,14 @@ namespace Funkenwerk
         public MainWindow()
         {
             InitializeComponent();
-            _settingsPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "settings.json");
-            _musicCacheDir = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Funkenwerk", "MusicCache");
+            _http = new HttpClient(
+                new PerRequestBearerAuthHandler(ResolveRuntimeBearerTokenForRequestUri, FunkenwerkSecurityVault.CreateSecureSocketsHttpHandler()),
+                disposeHandler: true)
+            {
+                Timeout = TimeSpan.FromSeconds(45)
+            };
+            _settingsPath = FunkenwerkSecurityVault.GetAppDataFilePath("settings.json", migrateFromBaseDir: true);
+            _musicCacheDir = System.IO.Path.Combine(FunkenwerkSecurityVault.AppDataDirectory, "MusicCache");
             Directory.CreateDirectory(_musicCacheDir);
 
             LoadSettingsFromFile();
@@ -202,8 +262,7 @@ namespace Funkenwerk
                 bool requiresInteractiveLogin = _layoutSettings.IsSessionLocked ||
                                                 !_layoutSettings.RememberCredentials ||
                                                 (string.IsNullOrWhiteSpace(_apiToken) &&
-                                                 string.IsNullOrWhiteSpace(GetSavedTokenForUrl(_apiBaseUrl)) &&
-                                                 string.IsNullOrWhiteSpace(_layoutSettings.SavedAuthPassword));
+                                                 string.IsNullOrWhiteSpace(GetSavedTokenForUrl(_apiBaseUrl)));
 
                 if (requiresInteractiveLogin)
                 {
@@ -255,6 +314,17 @@ namespace Funkenwerk
         {
             "mail", "contacts", "calendar", "todo", "music", "smarthome", "camera", "marketing", "orders", "files", "agent"
         };
+
+        public static string NormalizeSpaceKey(string? rawSpace)
+        {
+            string s = (rawSpace ?? "").Trim().ToLowerInvariant();
+            return s switch
+            {
+                "organizer" or "tasks" or "aufgaben" => "todo",
+                "collection" or "suite" or "launcher" => "agent",
+                _ => s
+            };
+        }
 
         private void EnsureSpaceThemeColorsInitialized()
         {
@@ -668,34 +738,246 @@ namespace Funkenwerk
         }
 
         // =========================================================================
-        // SETTINGS & PERSISTENT LAYOUT (Item 2.1)
+        // SETTINGS, VAULT MIGRATION & STRICT PER-ENVIRONMENT AUTH
         // =========================================================================
+        public static string ResolveSavedTokenForEnvironment(AppSettings? cfg, string? targetUrl)
+        {
+            if (cfg == null || string.IsNullOrWhiteSpace(targetUrl)) return "";
+            string key = DetectApiPresetKey(targetUrl);
+            string raw = key switch
+            {
+                "local" => cfg.ApiTokenLocal,
+                "stage" => cfg.ApiTokenStage,
+                "live" => cfg.ApiTokenLive,
+                _ => ""
+            };
+            return FunkenwerkSecurityVault.UnprotectSecret(raw).Trim();
+        }
+
+        private string ResolveRuntimeBearerTokenForRequestUri(string requestUrl)
+        {
+            if (_layoutSettings.IsSessionLocked) return "";
+            string reqKey = DetectApiPresetKey(requestUrl);
+            if (string.IsNullOrEmpty(reqKey)) return "";
+            string activeKey = DetectApiPresetKey(_apiBaseUrl);
+            if (string.Equals(reqKey, activeKey, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(_apiToken))
+            {
+                return _apiToken.Trim();
+            }
+            return ResolveSavedTokenForEnvironment(_layoutSettings, requestUrl);
+        }
+
+        private static AppSettings CloneAppSettingsForDisk(AppSettings src, bool encryptSecrets)
+        {
+            var copy = JsonSerializer.Deserialize<AppSettings>(JsonSerializer.Serialize(src)) ?? new AppSettings();
+            if (encryptSecrets)
+            {
+                copy.ApiTokenLocal = FunkenwerkSecurityVault.ProtectSecret(FunkenwerkSecurityVault.UnprotectSecret(src.ApiTokenLocal));
+                copy.ApiTokenStage = FunkenwerkSecurityVault.ProtectSecret(FunkenwerkSecurityVault.UnprotectSecret(src.ApiTokenStage));
+                copy.ApiTokenLive = FunkenwerkSecurityVault.ProtectSecret(FunkenwerkSecurityVault.UnprotectSecret(src.ApiTokenLive));
+                copy.SavedAuthEmail = FunkenwerkSecurityVault.ProtectSecret(FunkenwerkSecurityVault.UnprotectSecret(src.SavedAuthEmail));
+            }
+            return copy;
+        }
+
+        private static void MigrateLegacySingleTokenIfNeeded(string rawJson, AppSettings data)
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(rawJson);
+                if (doc.RootElement.TryGetProperty("ApiToken", out var tokEl) && tokEl.ValueKind == JsonValueKind.String)
+                {
+                    string legacyPlain = FunkenwerkSecurityVault.UnprotectSecret(tokEl.GetString() ?? "").Trim();
+                    if (!string.IsNullOrEmpty(legacyPlain))
+                    {
+                        string key = DetectApiPresetKey(data.ApiBaseUrl);
+                        if (key == "local" && string.IsNullOrWhiteSpace(data.ApiTokenLocal)) data.ApiTokenLocal = legacyPlain;
+                        else if (key == "stage" && string.IsNullOrWhiteSpace(data.ApiTokenStage)) data.ApiTokenStage = legacyPlain;
+                        else if (key == "live" && string.IsNullOrWhiteSpace(data.ApiTokenLive)) data.ApiTokenLive = legacyPlain;
+                    }
+                }
+            }
+            catch { }
+        }
+
+        public static string MigrateAllLocalConfigsHeadless()
+        {
+            var sb = new StringBuilder();
+            string appData = FunkenwerkSecurityVault.AppDataDirectory;
+            FunkenwerkSecurityVault.LockDownDirectoryAcl(appData);
+            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+
+            // 1. Migrate & re-encrypt settings.json (stripping SavedAuthPassword & unisolated ApiToken)
+            string appSettingsPath = System.IO.Path.Combine(appData, "settings.json");
+            string baseSettingsPath = System.IO.Path.Combine(baseDir, "settings.json");
+            string? sourceSettingsPath = File.Exists(appSettingsPath) ? appSettingsPath : (File.Exists(baseSettingsPath) ? baseSettingsPath : null);
+            if (sourceSettingsPath != null)
+            {
+                string raw = File.ReadAllText(sourceSettingsPath, Encoding.UTF8);
+                var cfg = JsonSerializer.Deserialize<AppSettings>(raw) ?? new AppSettings();
+                cfg.ApiBaseUrl = FunkenwerkSecurityVault.NormalizeSecureApiUrlOrDefault(cfg.ApiBaseUrl, "http://127.0.0.1/api");
+                cfg.ApiTokenLocal = FunkenwerkSecurityVault.UnprotectSecret(cfg.ApiTokenLocal).Trim();
+                cfg.ApiTokenStage = FunkenwerkSecurityVault.UnprotectSecret(cfg.ApiTokenStage).Trim();
+                cfg.ApiTokenLive = FunkenwerkSecurityVault.UnprotectSecret(cfg.ApiTokenLive).Trim();
+                cfg.SavedAuthEmail = FunkenwerkSecurityVault.UnprotectSecret(cfg.SavedAuthEmail).Trim();
+                MigrateLegacySingleTokenIfNeeded(raw, cfg);
+
+                // If BaseDirectory settings.json ALSO exists and has tokens missing in appSettingsPath, merge non-empty tokens
+                if (sourceSettingsPath != baseSettingsPath && File.Exists(baseSettingsPath))
+                {
+                    try
+                    {
+                        string baseRaw = File.ReadAllText(baseSettingsPath, Encoding.UTF8);
+                        var baseCfg = JsonSerializer.Deserialize<AppSettings>(baseRaw);
+                        if (baseCfg != null)
+                        {
+                            if (string.IsNullOrWhiteSpace(cfg.ApiTokenLocal)) cfg.ApiTokenLocal = FunkenwerkSecurityVault.UnprotectSecret(baseCfg.ApiTokenLocal).Trim();
+                            if (string.IsNullOrWhiteSpace(cfg.ApiTokenStage)) cfg.ApiTokenStage = FunkenwerkSecurityVault.UnprotectSecret(baseCfg.ApiTokenStage).Trim();
+                            if (string.IsNullOrWhiteSpace(cfg.ApiTokenLive)) cfg.ApiTokenLive = FunkenwerkSecurityVault.UnprotectSecret(baseCfg.ApiTokenLive).Trim();
+                            if (string.IsNullOrWhiteSpace(cfg.SavedAuthEmail)) cfg.SavedAuthEmail = FunkenwerkSecurityVault.UnprotectSecret(baseCfg.SavedAuthEmail).Trim();
+                            MigrateLegacySingleTokenIfNeeded(baseRaw, cfg);
+                        }
+                    }
+                    catch { }
+                }
+
+                var encryptedSettings = CloneAppSettingsForDisk(cfg, encryptSecrets: true);
+                string outJson = JsonSerializer.Serialize(encryptedSettings, new JsonSerializerOptions { WriteIndented = true });
+                FunkenwerkSecurityVault.WriteSecureFileText(appSettingsPath, outJson);
+                if (File.Exists(baseSettingsPath) && !string.Equals(baseSettingsPath, appSettingsPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    try { File.Delete(baseSettingsPath); } catch { }
+                }
+                sb.AppendLine($"[OK] settings.json migrated -> {appSettingsPath} (Local={!string.IsNullOrEmpty(cfg.ApiTokenLocal)}, Stage={!string.IsNullOrEmpty(cfg.ApiTokenStage)}, Live={!string.IsNullOrEmpty(cfg.ApiTokenLive)})");
+            }
+
+            // 2. Migrate & re-encrypt smarthome.json (FWAES256GCM1: on all camera URLs & Tapo credentials)
+            string appSmartPath = System.IO.Path.Combine(appData, "smarthome.json");
+            string baseSmartPath = System.IO.Path.Combine(baseDir, "smarthome.json");
+            string? sourceSmartPath = File.Exists(appSmartPath) ? appSmartPath : (File.Exists(baseSmartPath) ? baseSmartPath : null);
+            if (sourceSmartPath != null)
+            {
+                string rawSmart = File.ReadAllText(sourceSmartPath, Encoding.UTF8);
+                var sh = JsonSerializer.Deserialize<SmartHomePersistedData>(rawSmart) ?? new SmartHomePersistedData();
+                sh.TapoLocalEmail = FunkenwerkSecurityVault.UnprotectSecret(sh.TapoLocalEmail);
+                sh.TapoLocalPassword = FunkenwerkSecurityVault.UnprotectSecret(sh.TapoLocalPassword);
+                foreach (var cam in sh.Cameras)
+                {
+                    cam.Url = FunkenwerkSecurityVault.UnprotectSecret(cam.Url);
+                }
+                var diskSmart = CloneSmartHomeForDisk(sh, encryptSecrets: true);
+                string smartJson = JsonSerializer.Serialize(diskSmart, new JsonSerializerOptions { WriteIndented = true });
+                FunkenwerkSecurityVault.WriteSecureFileText(appSmartPath, smartJson);
+                if (File.Exists(baseSmartPath) && !string.Equals(baseSmartPath, appSmartPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    try { File.Delete(baseSmartPath); } catch { }
+                }
+                sb.AppendLine($"[OK] smarthome.json migrated -> {appSmartPath} (Cameras={sh.Cameras.Count}, Plugs={sh.Plugs.Count})");
+            }
+
+            // 3. Migrate camera_studio.json
+            string appCamPath = FunkenwerkSecurityVault.GetAppDataFilePath("camera_studio.json", migrateFromBaseDir: true);
+            string baseCamPath = System.IO.Path.Combine(baseDir, "camera_studio.json");
+            if (File.Exists(appCamPath))
+            {
+                FunkenwerkSecurityVault.LockDownFileAcl(appCamPath);
+                if (File.Exists(baseCamPath) && !string.Equals(baseCamPath, appCamPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    try { File.Delete(baseCamPath); } catch { }
+                }
+                sb.AppendLine($"[OK] camera_studio.json migrated -> {appCamPath}");
+            }
+
+            // 4. Migrate market_intelligence.json (from BaseDirectory or legacy MarketingVault subfolder)
+            string appMktPath = FunkenwerkSecurityVault.GetAppDataFilePath("market_intelligence.json", migrateFromBaseDir: true);
+            string legacyMktSub = System.IO.Path.Combine(appData, "MarketingVault", "market_intelligence.json");
+            if (!File.Exists(appMktPath) && File.Exists(legacyMktSub))
+            {
+                FunkenwerkSecurityVault.WriteSecureFileText(appMktPath, File.ReadAllText(legacyMktSub, Encoding.UTF8));
+            }
+            if (File.Exists(appMktPath))
+            {
+                FunkenwerkSecurityVault.LockDownFileAcl(appMktPath);
+                sb.AppendLine($"[OK] market_intelligence.json locked -> {appMktPath}");
+            }
+
+            // 5. Migrate funkenwerk_files_db.json
+            string appFilesDb = System.IO.Path.Combine(appData, "funkenwerk_files_db.json");
+            string legacyFilesDb = System.IO.Path.Combine(baseDir, "files", "funkenwerk_files_db.json");
+            if (!File.Exists(appFilesDb) && File.Exists(legacyFilesDb))
+            {
+                FunkenwerkSecurityVault.WriteSecureFileText(appFilesDb, File.ReadAllText(legacyFilesDb, Encoding.UTF8));
+            }
+            if (File.Exists(appFilesDb))
+            {
+                FunkenwerkSecurityVault.LockDownFileAcl(appFilesDb);
+                sb.AppendLine($"[OK] funkenwerk_files_db.json locked -> {appFilesDb}");
+            }
+
+            // 6. Re-encrypt email_recipients_cache.json to FWAES256GCM1: and lock agent_sessions.json + playlists_cache.json
+            string recPath = System.IO.Path.Combine(appData, "email_recipients_cache.json");
+            if (File.Exists(recPath))
+            {
+                string rawRec = File.ReadAllText(recPath, Encoding.UTF8);
+                string plainRec = FunkenwerkSecurityVault.IsEncryptedVaultValue(rawRec)
+                    ? FunkenwerkSecurityVault.UnprotectSecret(rawRec)
+                    : rawRec;
+                if (!string.IsNullOrWhiteSpace(plainRec))
+                {
+                    FunkenwerkSecurityVault.WriteSecureFileText(recPath, FunkenwerkSecurityVault.ProtectSecret(plainRec));
+                    sb.AppendLine($"[OK] email_recipients_cache.json encrypted & locked -> {recPath}");
+                }
+            }
+
+            string sessionsPath = System.IO.Path.Combine(appData, "agent_sessions.json");
+            if (File.Exists(sessionsPath))
+            {
+                FunkenwerkSecurityVault.LockDownFileAcl(sessionsPath);
+                sb.AppendLine($"[OK] agent_sessions.json locked -> {sessionsPath}");
+            }
+
+            string musicCacheDir = System.IO.Path.Combine(appData, "MusicCache");
+            Directory.CreateDirectory(musicCacheDir);
+            FunkenwerkSecurityVault.LockDownDirectoryAcl(musicCacheDir);
+            string basePlaylists = System.IO.Path.Combine(baseDir, "playlists_cache.json");
+            string appPlaylists = System.IO.Path.Combine(musicCacheDir, "playlists_cache.json");
+            if (!File.Exists(appPlaylists) && File.Exists(basePlaylists))
+            {
+                File.Copy(basePlaylists, appPlaylists, overwrite: true);
+            }
+            if (File.Exists(appPlaylists))
+            {
+                FunkenwerkSecurityVault.LockDownFileAcl(appPlaylists);
+            }
+
+            return sb.ToString().TrimEnd();
+        }
+
         private void LoadSettingsFromFile()
         {
             try
             {
                 if (File.Exists(_settingsPath))
                 {
-                    var json = File.ReadAllText(_settingsPath);
+                    var json = File.ReadAllText(_settingsPath, Encoding.UTF8);
                     var data = JsonSerializer.Deserialize<AppSettings>(json);
                     if (data != null)
                     {
-                        data.ApiToken = FunkenwerkSecurityVault.UnprotectSecret(data.ApiToken);
-                        data.ApiTokenLocal = FunkenwerkSecurityVault.UnprotectSecret(data.ApiTokenLocal);
-                        data.ApiTokenStage = FunkenwerkSecurityVault.UnprotectSecret(data.ApiTokenStage);
-                        data.ApiTokenLive = FunkenwerkSecurityVault.UnprotectSecret(data.ApiTokenLive);
-                        data.SavedAuthEmail = FunkenwerkSecurityVault.UnprotectSecret(data.SavedAuthEmail);
-                        data.SavedAuthPassword = FunkenwerkSecurityVault.UnprotectSecret(data.SavedAuthPassword);
+                        data.ApiTokenLocal = FunkenwerkSecurityVault.UnprotectSecret(data.ApiTokenLocal).Trim();
+                        data.ApiTokenStage = FunkenwerkSecurityVault.UnprotectSecret(data.ApiTokenStage).Trim();
+                        data.ApiTokenLive = FunkenwerkSecurityVault.UnprotectSecret(data.ApiTokenLive).Trim();
+                        data.SavedAuthEmail = FunkenwerkSecurityVault.UnprotectSecret(data.SavedAuthEmail).Trim();
+                        MigrateLegacySingleTokenIfNeeded(json, data);
 
                         _layoutSettings = data;
-                        if (!string.IsNullOrWhiteSpace(data.ApiBaseUrl))
-                            _apiBaseUrl = FunkenwerkSecurityVault.NormalizeSecureApiUrl(data.ApiBaseUrl);
-                        if (!string.IsNullOrWhiteSpace(data.ApiToken))
-                            _apiToken = data.ApiToken.Trim();
-                        if (!string.IsNullOrWhiteSpace(data.ActiveModule)) _activeSpace = data.ActiveModule;
+                        _apiBaseUrl = FunkenwerkSecurityVault.NormalizeSecureApiUrlOrDefault(data.ApiBaseUrl, "http://127.0.0.1/api");
+                        _layoutSettings.ApiBaseUrl = _apiBaseUrl;
+                        _apiToken = ResolveSavedTokenForEnvironment(_layoutSettings, _apiBaseUrl);
+                        if (!string.IsNullOrWhiteSpace(data.ActiveModule)) _activeSpace = NormalizeSpaceKey(data.ActiveModule);
                         if (data.SelectedAccountId > 0) _selectedAccountId = data.SelectedAccountId;
                         if (!string.IsNullOrWhiteSpace(data.SelectedFolder)) _selectedFolder = data.SelectedFolder;
                     }
+                    FunkenwerkSecurityVault.LockDownFileAcl(_settingsPath);
                 }
             }
             catch { }
@@ -747,9 +1029,12 @@ namespace Funkenwerk
             if (!_isLoaded) return;
             try
             {
-                _apiBaseUrl = FunkenwerkSecurityVault.NormalizeSecureApiUrl(_apiBaseUrl);
+                _apiBaseUrl = FunkenwerkSecurityVault.NormalizeSecureApiUrlOrDefault(_apiBaseUrl, "http://127.0.0.1/api");
                 _layoutSettings.ApiBaseUrl = _apiBaseUrl;
-                _layoutSettings.ApiToken = _apiToken;
+                if (!string.IsNullOrWhiteSpace(_apiToken))
+                {
+                    RememberTokenForCurrentPreset(_apiBaseUrl, _apiToken);
+                }
                 _layoutSettings.ActiveModule = _activeSpace;
                 _layoutSettings.SelectedAccountId = _selectedAccountId;
                 _layoutSettings.SelectedFolder = _selectedFolder;
@@ -775,34 +1060,10 @@ namespace Funkenwerk
                     _layoutSettings.WindowTop = Top;
                 }
 
-                // Encrypt tokens and credentials at rest via FWVAULT2 (AES-256-GCM + PBKDF2-SHA512 + Windows DPAPI) before writing to disk
-                string plainMain = _layoutSettings.ApiToken;
-                string plainLocal = _layoutSettings.ApiTokenLocal;
-                string plainStage = _layoutSettings.ApiTokenStage;
-                string plainLive = _layoutSettings.ApiTokenLive;
-                string plainAuthEmail = _layoutSettings.SavedAuthEmail;
-                string plainAuthPass = _layoutSettings.SavedAuthPassword;
-                try
-                {
-                    _layoutSettings.ApiToken = FunkenwerkSecurityVault.ProtectSecret(plainMain);
-                    _layoutSettings.ApiTokenLocal = FunkenwerkSecurityVault.ProtectSecret(plainLocal);
-                    _layoutSettings.ApiTokenStage = FunkenwerkSecurityVault.ProtectSecret(plainStage);
-                    _layoutSettings.ApiTokenLive = FunkenwerkSecurityVault.ProtectSecret(plainLive);
-                    _layoutSettings.SavedAuthEmail = FunkenwerkSecurityVault.ProtectSecret(plainAuthEmail);
-                    _layoutSettings.SavedAuthPassword = FunkenwerkSecurityVault.ProtectSecret(plainAuthPass);
-
-                    var json = JsonSerializer.Serialize(_layoutSettings, new JsonSerializerOptions { WriteIndented = true });
-                    File.WriteAllText(_settingsPath, json);
-                }
-                finally
-                {
-                    _layoutSettings.ApiToken = plainMain;
-                    _layoutSettings.ApiTokenLocal = plainLocal;
-                    _layoutSettings.ApiTokenStage = plainStage;
-                    _layoutSettings.ApiTokenLive = plainLive;
-                    _layoutSettings.SavedAuthEmail = plainAuthEmail;
-                    _layoutSettings.SavedAuthPassword = plainAuthPass;
-                }
+                // Clone DTO before encrypting via FWAES256GCM1: so live in-memory tokens are never mutated across threads
+                var diskCopy = CloneAppSettingsForDisk(_layoutSettings, encryptSecrets: true);
+                var json = JsonSerializer.Serialize(diskCopy, new JsonSerializerOptions { WriteIndented = true });
+                FunkenwerkSecurityVault.WriteSecureFileText(_settingsPath, json);
             }
             catch { }
         }
@@ -821,7 +1082,6 @@ namespace Funkenwerk
                 _layoutSettings.ApiTokenLocal = "";
                 _layoutSettings.ApiTokenStage = "";
                 _layoutSettings.ApiTokenLive = "";
-                _layoutSettings.SavedAuthPassword = "";
                 _layoutSettings.IsSessionLocked = true;
             }
             SaveSettingsToFile();
@@ -833,11 +1093,11 @@ namespace Funkenwerk
 
         private void ConfigureHttpClient()
         {
-            _http.DefaultRequestHeaders.Clear();
-            _http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-            if (!string.IsNullOrWhiteSpace(_apiToken))
+            // Authorization is injected thread-safely per HttpRequestMessage by PerRequestBearerAuthHandler.
+            // Never call _http.DefaultRequestHeaders.Clear() or mutate shared DefaultRequestHeaders concurrently!
+            if (!string.IsNullOrWhiteSpace(_apiToken) && !_layoutSettings.IsSessionLocked)
             {
-                _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _apiToken);
+                RememberTokenForCurrentPreset(_apiBaseUrl, _apiToken);
             }
         }
 
@@ -855,14 +1115,7 @@ namespace Funkenwerk
 
         private string GetSavedTokenForUrl(string url)
         {
-            string key = DetectApiPresetKey(url);
-            return key switch
-            {
-                "local" => !string.IsNullOrWhiteSpace(_layoutSettings.ApiTokenLocal) ? _layoutSettings.ApiTokenLocal : _apiToken,
-                "stage" => !string.IsNullOrWhiteSpace(_layoutSettings.ApiTokenStage) ? _layoutSettings.ApiTokenStage : _apiToken,
-                "live" => !string.IsNullOrWhiteSpace(_layoutSettings.ApiTokenLive) ? _layoutSettings.ApiTokenLive : _apiToken,
-                _ => _apiToken
-            };
+            return ResolveSavedTokenForEnvironment(_layoutSettings, url);
         }
 
         private void UpdateApiConnectionDotVisual()
@@ -911,110 +1164,45 @@ namespace Funkenwerk
             ApiConnectionDotBorder.ToolTip = sb.ToString();
         }
 
-        private async Task<string?> TryRefreshApiTokenAsync(string baseUrl)
-        {
-            try
-            {
-                string authEmail = (_layoutSettings.SavedAuthEmail ?? "").Trim();
-                string authPassword = _layoutSettings.SavedAuthPassword ?? "";
-                if (string.IsNullOrEmpty(authEmail) || string.IsNullOrEmpty(authPassword))
-                {
-                    return null;
-                }
-
-                using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(6));
-                var payload = JsonSerializer.Serialize(new
-                {
-                    email = authEmail,
-                    password = authPassword,
-                    device_name = "Funkenwerk-Desktop"
-                });
-                using var req = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl.TrimEnd('/')}/login")
-                {
-                    Content = new StringContent(payload, Encoding.UTF8, "application/json")
-                };
-                req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-
-                var res = await _http.SendAsync(req, cts.Token);
-                if (!res.IsSuccessStatusCode) return null;
-
-                var json = await res.Content.ReadAsStringAsync();
-                using var doc = JsonDocument.Parse(json);
-                if (doc.RootElement.TryGetProperty("token", out var tokProp) && tokProp.ValueKind == JsonValueKind.String)
-                {
-                    string freshToken = (tokProp.GetString() ?? "").Trim();
-                    if (!string.IsNullOrEmpty(freshToken))
-                    {
-                        return freshToken;
-                    }
-                }
-            }
-            catch { }
-            return null;
-        }
-
         private async Task<(bool Ok, long LatencyMs, string StatusDetail, string ActiveToken)> ProbeEndpointWithAutoAuthAsync(string candidateUrl, string candidateToken)
         {
-            string cleanUrl = FunkenwerkSecurityVault.NormalizeSecureApiUrl(candidateUrl);
+            string cleanUrl;
+            try
+            {
+                cleanUrl = FunkenwerkSecurityVault.NormalizeSecureApiUrl(candidateUrl);
+            }
+            catch (Exception ex)
+            {
+                return (false, 0, ex.GetType().Name, "");
+            }
+
             string tokenToUse = (candidateToken ?? "").Trim();
+            if (string.IsNullOrEmpty(tokenToUse))
+            {
+                tokenToUse = GetSavedTokenForUrl(cleanUrl);
+            }
+            if (string.IsNullOrEmpty(tokenToUse))
+            {
+                return (false, 0, "HTTP 401 (Kein Token)", "");
+            }
 
             try
             {
-                if (string.IsNullOrEmpty(tokenToUse))
-                {
-                    string? fresh = await TryRefreshApiTokenAsync(cleanUrl);
-                    if (!string.IsNullOrEmpty(fresh))
-                        tokenToUse = fresh;
-                }
-
                 var sw = Stopwatch.StartNew();
-                using (var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(6)))
+                using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(6));
+                using var req = new HttpRequestMessage(HttpMethod.Get, $"{cleanUrl}/funki/emails/accounts");
+                req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenToUse);
+
+                var res = await _http.SendAsync(req, cts.Token);
+                sw.Stop();
+
+                if (res.IsSuccessStatusCode)
                 {
-                    using var req = new HttpRequestMessage(HttpMethod.Get, $"{cleanUrl}/funki/emails/accounts");
-                    req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-                    if (!string.IsNullOrEmpty(tokenToUse))
-                        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenToUse);
-
-                    var res = await _http.SendAsync(req, cts.Token);
-                    sw.Stop();
-
-                    if (res.IsSuccessStatusCode)
-                    {
-                        return (true, sw.ElapsedMilliseconds, $"HTTP {(int)res.StatusCode} OK", tokenToUse);
-                    }
-
-                    if (res.StatusCode == System.Net.HttpStatusCode.Unauthorized)
-                    {
-                        // Token expired or database re-seeded -> try default local token (if local) or auto-authenticate
-                        string? freshToken = null;
-                        if (DetectApiPresetKey(cleanUrl) == "local" && !string.Equals(tokenToUse, DEFAULT_LOCAL_TOKEN, StringComparison.Ordinal))
-                        {
-                            freshToken = DEFAULT_LOCAL_TOKEN;
-                        }
-                        else
-                        {
-                            freshToken = await TryRefreshApiTokenAsync(cleanUrl);
-                        }
-
-                        if (!string.IsNullOrEmpty(freshToken))
-                        {
-                            sw.Restart();
-                            using var retryCts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(6));
-                            using var retryReq = new HttpRequestMessage(HttpMethod.Get, $"{cleanUrl}/funki/emails/accounts");
-                            retryReq.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-                            retryReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", freshToken);
-
-                            var retryRes = await _http.SendAsync(retryReq, retryCts.Token);
-                            sw.Stop();
-                            if (retryRes.IsSuccessStatusCode)
-                            {
-                                return (true, sw.ElapsedMilliseconds, $"HTTP {(int)retryRes.StatusCode} OK (Token erneuert)", freshToken);
-                            }
-                        }
-                    }
-
-                    return (false, sw.ElapsedMilliseconds, $"HTTP {(int)res.StatusCode}", tokenToUse);
+                    return (true, sw.ElapsedMilliseconds, $"HTTP {(int)res.StatusCode} OK", tokenToUse);
                 }
+
+                return (false, sw.ElapsedMilliseconds, $"HTTP {(int)res.StatusCode}", tokenToUse);
             }
             catch (Exception ex)
             {
@@ -1582,13 +1770,10 @@ namespace Funkenwerk
             AuthLoginEmailBox.Text = email;
             AuthLoginRememberCheck.IsChecked = _layoutSettings.RememberCredentials;
 
-            string pass = (!clearPasswordInput && _layoutSettings.RememberCredentials)
-                ? (_layoutSettings.SavedAuthPassword ?? "")
-                : "";
-
+            // Plaintext/recoverable passwords are NEVER stored at rest; only revocable Sanctum tokens per environment
             _suppressAuthPasswordSync = true;
-            AuthLoginPasswordBox.Password = pass;
-            AuthLoginPasswordVisibleBox.Text = pass;
+            AuthLoginPasswordBox.Password = "";
+            AuthLoginPasswordVisibleBox.Text = "";
             _suppressAuthPasswordSync = false;
             UpdateAuthLoginConnectedHintVisual();
 
@@ -1843,6 +2028,43 @@ namespace Funkenwerk
             AuthMagicSparksCanvas.Children.Clear();
         }
 
+        [System.Runtime.InteropServices.DllImport("advapi32.dll", SetLastError = true, CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+        private static extern bool LogonUserW(string lpszUsername, string lpszDomain, string lpszPassword, int dwLogonType, int dwLogonProvider, out IntPtr phToken);
+
+        [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool CloseHandle(IntPtr hObject);
+
+        private static bool VerifyCurrentWindowsUserPassword(string password)
+        {
+            if (string.IsNullOrEmpty(password)) return false;
+            const int LOGON32_LOGON_INTERACTIVE = 2;
+            const int LOGON32_PROVIDER_DEFAULT = 0;
+            string user = Environment.UserName;
+            string domain = Environment.UserDomainName;
+            if (LogonUserW(user, domain, password, LOGON32_LOGON_INTERACTIVE, LOGON32_PROVIDER_DEFAULT, out IntPtr tokenHandle))
+            {
+                if (tokenHandle != IntPtr.Zero) CloseHandle(tokenHandle);
+                return true;
+            }
+            if (LogonUserW(user, ".", password, LOGON32_LOGON_INTERACTIVE, LOGON32_PROVIDER_DEFAULT, out tokenHandle))
+            {
+                if (tokenHandle != IntPtr.Zero) CloseHandle(tokenHandle);
+                return true;
+            }
+            return false;
+        }
+
+        public bool CanResumeSessionWithoutPassword(string targetUrl, string? passwordInput)
+        {
+            if (_layoutSettings.IsSessionLocked) return false;
+            if (!_layoutSettings.RememberCredentials) return false;
+            if (!string.IsNullOrEmpty(passwordInput)) return false;
+            string savedTok = GetSavedTokenForUrl(targetUrl);
+            if (!string.IsNullOrWhiteSpace(savedTok)) return true;
+            return string.Equals(_apiBaseUrl.TrimEnd('/'), (targetUrl ?? "").TrimEnd('/'), StringComparison.OrdinalIgnoreCase) &&
+                   !string.IsNullOrWhiteSpace(_apiToken);
+        }
+
         private void UpdateAuthLoginConnectedHintVisual()
         {
             if (AuthLoginPasswordBox == null || AuthLoginPasswordVisibleBox == null) return;
@@ -1852,18 +2074,16 @@ namespace Funkenwerk
                 "live" => "https://mein-seelenfunke.de/api",
                 _ => "https://stage.mein-seelenfunke.de/api"
             };
-            string savedTok = GetSavedTokenForUrl(targetUrl);
-            bool hasToken = !string.IsNullOrWhiteSpace(savedTok) ||
-                            (string.Equals(_apiBaseUrl.TrimEnd('/'), targetUrl.TrimEnd('/'), StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(_apiToken));
-            bool pwdEmpty = string.IsNullOrEmpty(AuthLoginPasswordBox.Password) && string.IsNullOrEmpty(AuthLoginPasswordVisibleBox.Text);
+            string currentPwd = _isAuthPasswordVisible ? (AuthLoginPasswordVisibleBox.Text ?? "") : (AuthLoginPasswordBox.Password ?? "");
+            bool canResumeWithoutPass = CanResumeSessionWithoutPassword(targetUrl, currentPwd);
 
             if (AuthLoginConnectedHintTxt != null)
             {
-                AuthLoginConnectedHintTxt.Visibility = (hasToken && pwdEmpty) ? Visibility.Visible : Visibility.Collapsed;
+                AuthLoginConnectedHintTxt.Visibility = canResumeWithoutPass ? Visibility.Visible : Visibility.Collapsed;
             }
             if (AuthLoginSubmitBtn != null && AuthLoginSubmitBtn.IsEnabled)
             {
-                AuthLoginSubmitBtn.Content = (hasToken && pwdEmpty) ? "✓   ANGEMELDET   ✓" : "✦   ANMELDEN   ✦";
+                AuthLoginSubmitBtn.Content = canResumeWithoutPass ? "✓   ANGEMELDET   ✓" : "✦   ANMELDEN   ✦";
             }
         }
 
@@ -1873,12 +2093,18 @@ namespace Funkenwerk
             {
                 PlaySoundNav();
                 _authSelectedEnvKey = key;
-                _apiBaseUrl = key switch
+                string candidateUrl = key switch
                 {
                     "local" => "http://127.0.0.1/api",
                     "live" => "https://mein-seelenfunke.de/api",
                     _ => "https://stage.mein-seelenfunke.de/api"
                 };
+                // While session is locked, do not activate environment tokens without password verification
+                if (!_layoutSettings.IsSessionLocked)
+                {
+                    _apiBaseUrl = candidateUrl;
+                    _apiToken = GetSavedTokenForUrl(candidateUrl);
+                }
                 UpdateAuthEnvPillVisuals();
                 UpdateAuthLoginConnectedHintVisual();
                 UpdateApiConnectionDotVisual();
@@ -1956,12 +2182,14 @@ namespace Funkenwerk
 
             string existingTokenForEnv = GetSavedTokenForUrl(targetUrl);
             if (string.IsNullOrWhiteSpace(existingTokenForEnv) &&
+                !_layoutSettings.IsSessionLocked &&
                 string.Equals(_apiBaseUrl.TrimEnd('/'), targetUrl.TrimEnd('/'), StringComparison.OrdinalIgnoreCase))
             {
                 existingTokenForEnv = _apiToken;
             }
 
-            if (string.IsNullOrWhiteSpace(password) && !string.IsNullOrWhiteSpace(existingTokenForEnv))
+            // NEVER allow passwordless resume when IsSessionLocked is true!
+            if (CanResumeSessionWithoutPassword(targetUrl, password) && !string.IsNullOrWhiteSpace(existingTokenForEnv))
             {
                 PlaySoundNav();
                 AuthLoginErrorBorder.Visibility = Visibility.Collapsed;
@@ -1985,7 +2213,9 @@ namespace Funkenwerk
 
             if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
             {
-                AuthLoginErrorTxt.Text = "Bitte E-Mail und Passwort eingeben.";
+                AuthLoginErrorTxt.Text = _layoutSettings.IsSessionLocked
+                    ? "Sitzung ist gesperrt. Bitte Passwort zur Verifizierung eingeben."
+                    : "Bitte E-Mail und Passwort eingeben.";
                 AuthLoginErrorBorder.Visibility = Visibility.Visible;
                 return;
             }
@@ -2055,7 +2285,6 @@ namespace Funkenwerk
 
                 _layoutSettings.SavedAuthEmail = email;
                 _layoutSettings.RememberCredentials = remember;
-                _layoutSettings.SavedAuthPassword = remember ? password : "";
                 _layoutSettings.IsSessionLocked = false;
 
                 ConfigureHttpClient();
@@ -2079,6 +2308,18 @@ namespace Funkenwerk
             }
             catch (Exception ex)
             {
+                // Offline unlock fallback ONLY when existing per-env token is present AND Windows user password verifies via LogonUserW
+                if (_layoutSettings.IsSessionLocked && !string.IsNullOrWhiteSpace(existingTokenForEnv) && VerifyCurrentWindowsUserPassword(password))
+                {
+                    _apiBaseUrl = targetUrl;
+                    _apiToken = existingTokenForEnv;
+                    _layoutSettings.IsSessionLocked = false;
+                    ConfigureHttpClient();
+                    SaveSettingsToFile();
+                    HideAuthLoginOverlay();
+                    return;
+                }
+
                 AuthLoginErrorTxt.Text = $"Server ({GetApiEnvironmentLabel(targetUrl)}) nicht erreichbar: {ex.GetType().Name}";
                 AuthLoginErrorBorder.Visibility = Visibility.Visible;
             }
@@ -2100,14 +2341,13 @@ namespace Funkenwerk
             string oldUrl = _apiBaseUrl;
             string oldToken = _apiToken;
 
-            // Clear active session token & stored password so unlocking requires entering the password
+            // Clear active session token & mark session locked so unlocking requires password verification
             _apiToken = "";
             string key = DetectApiPresetKey(_apiBaseUrl);
             if (key == "local") _layoutSettings.ApiTokenLocal = "";
             else if (key == "stage") _layoutSettings.ApiTokenStage = "";
             else if (key == "live") _layoutSettings.ApiTokenLive = "";
 
-            _layoutSettings.SavedAuthPassword = "";
             _layoutSettings.IsSessionLocked = true;
             ConfigureHttpClient();
             SaveSettingsToFile();
@@ -2182,6 +2422,8 @@ namespace Funkenwerk
 
         private void SwitchSpaceUI(string space)
         {
+            space = NormalizeSpaceKey(space);
+            if (!AllSpaceKeys.Contains(space)) space = "mail";
             _activeSpace = space;
             _currentRenderingSpaceKey = space;
             if (_isLoaded)
@@ -3423,8 +3665,8 @@ namespace Funkenwerk
                 return raw ?? "";
 
             string s = raw;
-            // 3-byte en-dash / em-dash between spaces (" ??? " -> " – ")
-            s = Regex.Replace(s, @"(?<=\s)\?{3}(?=\s)", "–");
+            // 3-byte punctuation mojibake between spaces
+            s = Regex.Replace(s, @"(?<=\s)\?{3}(?=\s)", "\u2013");
 
             foreach (var (corrupted, fixedVal) in _germanUmlautRepairs)
             {
@@ -4462,7 +4704,7 @@ namespace Funkenwerk
 
                 if (res == MessageBoxResult.Yes)
                 {
-                    try { Process.Start("explorer.exe", $"/select,\"{localPath}\""); } catch { }
+                    RevealFileInExplorerSafely(localPath);
                 }
                 return;
             }
@@ -4475,6 +4717,33 @@ namespace Funkenwerk
             {
                 MessageBox.Show($"Datei wurde gespeichert unter:\n{localPath}\n\nKonnte nicht automatisch geöffnet werden: {ex.Message}", "Anhang", MessageBoxButton.OK, MessageBoxImage.Information);
             }
+        }
+
+        private static void RevealFileInExplorerSafely(string? localPath)
+        {
+            if (string.IsNullOrWhiteSpace(localPath)) return;
+            try
+            {
+                string full = System.IO.Path.GetFullPath(localPath);
+                var psi = new ProcessStartInfo("explorer.exe") { UseShellExecute = false };
+                psi.ArgumentList.Add($"/select,{full}");
+                Process.Start(psi);
+            }
+            catch { }
+        }
+
+        private static void OpenDirectoryInExplorerSafely(string? dirPath)
+        {
+            if (string.IsNullOrWhiteSpace(dirPath)) return;
+            try
+            {
+                string full = System.IO.Path.GetFullPath(dirPath);
+                if (!Directory.Exists(full)) Directory.CreateDirectory(full);
+                var psi = new ProcessStartInfo("explorer.exe") { UseShellExecute = false };
+                psi.ArgumentList.Add(full);
+                Process.Start(psi);
+            }
+            catch { }
         }
 
         private void RenderActiveMailReader()
@@ -4704,7 +4973,7 @@ namespace Funkenwerk
                         var localPath = await DownloadAttachmentToLocalAsync(capturedAtt);
                         if (!string.IsNullOrEmpty(localPath))
                         {
-                            try { Process.Start("explorer.exe", $"/select,\"{localPath}\""); } catch { }
+                            RevealFileInExplorerSafely(localPath);
                         }
                     };
                     ctx.Items.Add(miOpen);
@@ -5210,9 +5479,7 @@ namespace Funkenwerk
 
         private string GetRecipientsCachePath()
         {
-            string dir = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Funkenwerk");
-            Directory.CreateDirectory(dir);
-            return System.IO.Path.Combine(dir, "email_recipients_cache.json");
+            return FunkenwerkSecurityVault.GetAppDataFilePath("email_recipients_cache.json", migrateFromBaseDir: true);
         }
 
         private void LoadEmailRecipientsCache()
@@ -5221,12 +5488,13 @@ namespace Funkenwerk
             {
                 string path = GetRecipientsCachePath();
                 if (!File.Exists(path)) return;
-                string raw = File.ReadAllText(path);
+                string raw = File.ReadAllText(path, Encoding.UTF8);
                 if (string.IsNullOrWhiteSpace(raw)) return;
 
-                bool wasPlaintext = !raw.StartsWith("FWVAULT2:", StringComparison.Ordinal) &&
-                                    !raw.StartsWith("DPAPI:", StringComparison.Ordinal);
-                string json = wasPlaintext ? raw : FunkenwerkSecurityVault.UnprotectSecret(raw);
+                bool wasLegacyOrPlain = !raw.StartsWith(FunkenwerkSecurityVault.VaultAesGcmPrefix, StringComparison.Ordinal);
+                string json = FunkenwerkSecurityVault.IsEncryptedVaultValue(raw)
+                    ? FunkenwerkSecurityVault.UnprotectSecret(raw)
+                    : raw;
                 if (string.IsNullOrWhiteSpace(json)) return;
 
                 var cache = JsonSerializer.Deserialize<EmailRecipientsCacheDto>(json);
@@ -5245,9 +5513,13 @@ namespace Funkenwerk
                                 _recipientFrequencyMap[r.Email.Trim().ToLowerInvariant()] = r;
                         }
                     }
-                    if (wasPlaintext)
+                    if (wasLegacyOrPlain)
                     {
                         SaveEmailRecipientsCache();
+                    }
+                    else
+                    {
+                        FunkenwerkSecurityVault.LockDownFileAcl(path);
                     }
                 }
             }
@@ -5269,7 +5541,7 @@ namespace Funkenwerk
                 };
                 string plainJson = JsonSerializer.Serialize(dto);
                 string encryptedPayload = FunkenwerkSecurityVault.ProtectSecret(plainJson);
-                File.WriteAllText(path, encryptedPayload);
+                FunkenwerkSecurityVault.WriteSecureFileText(path, encryptedPayload);
             }
             catch { }
         }
@@ -7863,8 +8135,8 @@ namespace Funkenwerk
             CalendarHeaderTitleTxt.Text = _calendarView switch
             {
                 "year"       => _calendarCurrentDate.Year.ToString(),
-                "multi-week" => $"4-Wochen · {StartOfWeekIso(_calendarCurrentDate):dd.MM.} – {StartOfWeekIso(_calendarCurrentDate).AddDays(27):dd.MM.yyyy}",
-                "week"       => $"{StartOfWeekIso(_calendarCurrentDate):dd.MM.} – {EndOfWeekIso(_calendarCurrentDate):dd.MM.yyyy}",
+                "multi-week" => $"4-Wochen · {StartOfWeekIso(_calendarCurrentDate):dd.MM.} bis {StartOfWeekIso(_calendarCurrentDate).AddDays(27):dd.MM.yyyy}",
+                "week"       => $"{StartOfWeekIso(_calendarCurrentDate):dd.MM.} bis {EndOfWeekIso(_calendarCurrentDate):dd.MM.yyyy}",
                 "day"        => _calendarCurrentDate.ToString("dddd, d. MMMM yyyy", de),
                 _            => _calendarCurrentDate.ToString("MMMM yyyy", de)
             };
@@ -8748,7 +9020,7 @@ namespace Funkenwerk
                     });
                     metaWrap.Children.Add(new TextBlock
                     {
-                        Text = ev.IsAllDay ? "Ganztägig" : $"{ev.Start:HH:mm} – {ev.End:HH:mm} Uhr",
+                        Text = ev.IsAllDay ? "Ganztägig" : $"{ev.Start:HH:mm} - {ev.End:HH:mm} Uhr",
                         Foreground = BrushFromHex("#9CA3AF"),
                         FontSize = 11.5,
                         FontWeight = FontWeights.SemiBold,
@@ -8827,7 +9099,7 @@ namespace Funkenwerk
                 Padding = new Thickness(7, 3, 7, 3),
                 Margin = new Thickness(0, 0, 0, 3),
                 Cursor = Cursors.SizeAll,
-                ToolTip = $"{st.Icon} {ev.Title}\n{(ev.IsAllDay ? "Ganztägig" : $"{ev.Start:dd.MM.yyyy HH:mm} – {ev.End:HH:mm}")}\nKategorie: {st.Label}\n(Klicken zum Bearbeiten · Ziehen zum Verschieben)",
+                ToolTip = $"{st.Icon} {ev.Title}\n{(ev.IsAllDay ? "Ganztägig" : $"{ev.Start:dd.MM.yyyy HH:mm} - {ev.End:HH:mm}")}\nKategorie: {st.Label}\n(Klicken zum Bearbeiten · Ziehen zum Verschieben)",
                 ContextMenu = BuildCalendarEventContextMenu(ev)
             };
 
@@ -9324,11 +9596,10 @@ namespace Funkenwerk
                 (_apiBaseUrl.TrimEnd('/'), _apiToken)
             };
 
-            if (!_apiBaseUrl.Contains("127.0.0.1", StringComparison.OrdinalIgnoreCase) &&
-                !_apiBaseUrl.Contains("localhost", StringComparison.OrdinalIgnoreCase))
+            if (DetectApiPresetKey(_apiBaseUrl) != "local" &&
+                !string.IsNullOrWhiteSpace(_layoutSettings.ApiTokenLocal))
             {
-                string localTok = !string.IsNullOrWhiteSpace(_layoutSettings.ApiTokenLocal) ? _layoutSettings.ApiTokenLocal : DEFAULT_LOCAL_TOKEN;
-                endpoints.Add(("http://127.0.0.1/api", localTok));
+                endpoints.Add(("http://127.0.0.1/api", _layoutSettings.ApiTokenLocal));
             }
             if (!_apiBaseUrl.Contains("stage.mein-seelenfunke.de", StringComparison.OrdinalIgnoreCase) &&
                 !string.IsNullOrWhiteSpace(_layoutSettings.ApiTokenStage))
@@ -10532,13 +10803,23 @@ namespace Funkenwerk
             UpdateApiPresetButtonsVisual(ApiUrlBox?.Text ?? _apiBaseUrl);
         }
 
-        private static string DetectApiPresetKey(string? url)
+        public static string DetectApiPresetKey(string? url)
         {
             if (string.IsNullOrWhiteSpace(url)) return "";
-            string clean = url.Trim().TrimEnd('/').ToLowerInvariant();
-            if (clean.Contains("127.0.0.1") || clean.Contains("localhost")) return "local";
-            if (clean.Contains("stage.mein-seelenfunke.de")) return "stage";
-            if (clean.Contains("mein-seelenfunke.de")) return "live";
+            string candidate = url.Trim();
+            if (!candidate.Contains("://", StringComparison.Ordinal))
+            {
+                candidate = "https://" + candidate;
+            }
+            if (!Uri.TryCreate(candidate, UriKind.Absolute, out var uri))
+                return "";
+            if (!string.IsNullOrEmpty(uri.UserInfo))
+                return "";
+
+            string host = uri.Host.Trim().ToLowerInvariant();
+            if (FunkenwerkSecurityVault.IsLocalApiHost(host)) return "local";
+            if (string.Equals(host, "stage.mein-seelenfunke.de", StringComparison.OrdinalIgnoreCase)) return "stage";
+            if (string.Equals(host, "mein-seelenfunke.de", StringComparison.OrdinalIgnoreCase)) return "live";
             return "";
         }
 
@@ -11785,11 +12066,10 @@ namespace Funkenwerk
             {
                 var primaryPlaylists = await FetchPlaylistsFromEndpointAsync(_apiBaseUrl);
                 List<MusicPlaylistDto> localDockerPlaylists = new();
-                if (!_apiBaseUrl.Contains("127.0.0.1", StringComparison.OrdinalIgnoreCase) &&
-                    !_apiBaseUrl.Contains("localhost", StringComparison.OrdinalIgnoreCase))
+                if (DetectApiPresetKey(_apiBaseUrl) != "local" &&
+                    !string.IsNullOrWhiteSpace(_layoutSettings.ApiTokenLocal))
                 {
-                    string localTok = !string.IsNullOrWhiteSpace(_layoutSettings.ApiTokenLocal) ? _layoutSettings.ApiTokenLocal : DEFAULT_LOCAL_TOKEN;
-                    localDockerPlaylists = await FetchPlaylistsFromEndpointAsync("http://127.0.0.1/api", localTok);
+                    localDockerPlaylists = await FetchPlaylistsFromEndpointAsync("http://127.0.0.1/api", _layoutSettings.ApiTokenLocal);
                 }
 
                 // Choose the richest track catalog available
@@ -12893,11 +13173,10 @@ namespace Funkenwerk
                 (_apiBaseUrl.TrimEnd('/'), _apiToken)
             };
 
-            if (!_apiBaseUrl.Contains("127.0.0.1", StringComparison.OrdinalIgnoreCase) &&
-                !_apiBaseUrl.Contains("localhost", StringComparison.OrdinalIgnoreCase))
+            if (DetectApiPresetKey(_apiBaseUrl) != "local" &&
+                !string.IsNullOrWhiteSpace(_layoutSettings.ApiTokenLocal))
             {
-                string localTok = !string.IsNullOrWhiteSpace(_layoutSettings.ApiTokenLocal) ? _layoutSettings.ApiTokenLocal : DEFAULT_LOCAL_TOKEN;
-                endpoints.Add(("http://127.0.0.1/api", localTok));
+                endpoints.Add(("http://127.0.0.1/api", _layoutSettings.ApiTokenLocal));
             }
             if (!_apiBaseUrl.Contains("stage.mein-seelenfunke.de", StringComparison.OrdinalIgnoreCase) &&
                 !string.IsNullOrWhiteSpace(_layoutSettings.ApiTokenStage))
@@ -13022,19 +13301,35 @@ namespace Funkenwerk
                     var psi = new ProcessStartInfo
                     {
                         FileName = ffmpegExe,
-                        Arguments = $"-v error -i \"{localAudioPath}\" -ac 1 -ar 6000 -f s16le -",
                         UseShellExecute = false,
                         RedirectStandardOutput = true,
                         RedirectStandardError = true,
                         CreateNoWindow = true
                     };
+                    psi.ArgumentList.Add("-v");
+                    psi.ArgumentList.Add("error");
+                    psi.ArgumentList.Add("-i");
+                    psi.ArgumentList.Add(localAudioPath);
+                    psi.ArgumentList.Add("-ac");
+                    psi.ArgumentList.Add("1");
+                    psi.ArgumentList.Add("-ar");
+                    psi.ArgumentList.Add("6000");
+                    psi.ArgumentList.Add("-f");
+                    psi.ArgumentList.Add("s16le");
+                    psi.ArgumentList.Add("-");
 
                     using var proc = Process.Start(psi);
                     if (proc == null) return;
 
+                    // Drain stderr concurrently so FFmpeg never blocks on stderr pipe buffer
+                    var stderrDrainTask = proc.StandardError.ReadToEndAsync();
                     using var ms = new MemoryStream(1024 * 1024);
                     proc.StandardOutput.BaseStream.CopyTo(ms);
-                    proc.WaitForExit(8000);
+                    if (!proc.WaitForExit(8000))
+                    {
+                        try { proc.Kill(entireProcessTree: true); } catch { }
+                    }
+                    try { stderrDrainTask.Wait(500); } catch { }
 
                     byte[] pcmBytes = ms.ToArray();
                     int totalSamples = pcmBytes.Length / 2;
@@ -14236,14 +14531,12 @@ namespace Funkenwerk
 
         private string GetSmartHomeConfigPath()
         {
-            string dir = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Funkenwerk");
-            Directory.CreateDirectory(dir);
-            return System.IO.Path.Combine(dir, "smarthome.json");
+            return FunkenwerkSecurityVault.GetAppDataFilePath("smarthome.json", migrateFromBaseDir: true);
         }
 
         private string GetSmartHomeRecordingsDir()
         {
-            string dir = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Funkenwerk", "Recordings");
+            string dir = System.IO.Path.Combine(FunkenwerkSecurityVault.AppDataDirectory, "Recordings");
             Directory.CreateDirectory(dir);
             return dir;
         }
@@ -14253,13 +14546,25 @@ namespace Funkenwerk
             string localExe = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ffmpeg.exe");
             if (File.Exists(localExe)) return localExe;
 
-            string desktopFunkenwerk = @"C:\Users\konta\Desktop\Funkenwerk\ffmpeg.exe";
-            if (File.Exists(desktopFunkenwerk)) return desktopFunkenwerk;
-
-            string funkiraFfmpeg = @"C:\Users\konta\Desktop\Funkira 2.0\venv\Lib\site-packages\imageio_ffmpeg\binaries\ffmpeg-win-x86_64-v7.1.exe";
-            if (File.Exists(funkiraFfmpeg)) return funkiraFfmpeg;
+            string localToolsExe = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "tools", "ffmpeg.exe");
+            if (File.Exists(localToolsExe)) return localToolsExe;
 
             return "ffmpeg";
+        }
+
+        private static SmartHomePersistedData CloneSmartHomeForDisk(SmartHomePersistedData src, bool encryptSecrets)
+        {
+            var copy = JsonSerializer.Deserialize<SmartHomePersistedData>(JsonSerializer.Serialize(src)) ?? new SmartHomePersistedData();
+            if (encryptSecrets)
+            {
+                copy.TapoLocalEmail = FunkenwerkSecurityVault.ProtectSecret(FunkenwerkSecurityVault.UnprotectSecret(src.TapoLocalEmail));
+                copy.TapoLocalPassword = FunkenwerkSecurityVault.ProtectSecret(FunkenwerkSecurityVault.UnprotectSecret(src.TapoLocalPassword));
+                foreach (var cam in copy.Cameras)
+                {
+                    cam.Url = FunkenwerkSecurityVault.ProtectSecret(FunkenwerkSecurityVault.UnprotectSecret(cam.Url));
+                }
+            }
+            return copy;
         }
 
         private void EnsureSmartHomeInitialized()
@@ -14295,148 +14600,75 @@ namespace Funkenwerk
             {
                 try
                 {
-                    var loaded = JsonSerializer.Deserialize<SmartHomePersistedData>(File.ReadAllText(cfgPath));
-                    if (loaded != null && loaded.Cameras.Count > 0)
+                    var loaded = JsonSerializer.Deserialize<SmartHomePersistedData>(File.ReadAllText(cfgPath, Encoding.UTF8));
+                    if (loaded != null && (loaded.Cameras.Count > 0 || loaded.Plugs.Count > 0))
                     {
                         loaded.TapoLocalEmail = FunkenwerkSecurityVault.UnprotectSecret(loaded.TapoLocalEmail);
                         loaded.TapoLocalPassword = FunkenwerkSecurityVault.UnprotectSecret(loaded.TapoLocalPassword);
                         foreach (var cam in loaded.Cameras)
                         {
                             cam.Url = FunkenwerkSecurityVault.UnprotectSecret(cam.Url);
-                            var passMatch = System.Text.RegularExpressions.Regex.Match(cam.Url ?? "", @"rtsp://[^:]+:([^@]+)@");
-                            if (passMatch.Success)
-                            {
-                                FunkenwerkSecurityVault.SetSessionRtspPassword(Uri.UnescapeDataString(passMatch.Groups[1].Value));
-                            }
                         }
                         _smartHomeData = loaded;
                     }
+                    FunkenwerkSecurityVault.LockDownFileAcl(cfgPath);
                 }
                 catch { }
             }
 
-            // If no cameras yet, import directly from Funkira 2.0's cameras.json (or default cameras without cleartext credentials)
+            // Default LAN topology template WITHOUT hardcoded plaintext passwords
             if (_smartHomeData.Cameras.Count == 0)
             {
-                string funkiraCamJson = @"C:\Users\konta\Desktop\Funkira 2.0\data\cameras.json";
-                if (File.Exists(funkiraCamJson))
+                _smartHomeData.Cameras = new List<SmartCameraConfig>
                 {
-                    try
+                    new SmartCameraConfig
                     {
-                        using var doc = JsonDocument.Parse(File.ReadAllText(funkiraCamJson));
-                        int pos = 0;
-                        foreach (var el in doc.RootElement.EnumerateArray())
-                        {
-                            string rawUrl = el.TryGetProperty("url", out var u) ? u.GetString() ?? "" : "";
-                            var passMatch = System.Text.RegularExpressions.Regex.Match(rawUrl, @"rtsp://[^:]+:([^@]+)@");
-                            if (passMatch.Success)
-                            {
-                                FunkenwerkSecurityVault.SetSessionRtspPassword(Uri.UnescapeDataString(passMatch.Groups[1].Value));
-                            }
-                            _smartHomeData.Cameras.Add(new SmartCameraConfig
-                            {
-                                Name = el.TryGetProperty("name", out var n) ? n.GetString() ?? "Kamera" : "Kamera",
-                                Url = rawUrl,
-                                MotionRecord = el.TryGetProperty("motion_record", out var mr) && mr.GetBoolean(),
-                                MotionSensitivity = el.TryGetProperty("motion_sensitivity", out var ms) ? ms.GetInt32() : 50,
-                                Description = el.TryGetProperty("description", out var d) ? d.GetString() ?? "" : "",
-                                Position = pos++
-                            });
-                        }
+                        Name = "Terasse",
+                        Url = "rtsp://192.168.188.105:554/stream2",
+                        ServiceUrl = "http://192.168.188.105/onvif/device_service",
+                        MotionRecord = true,
+                        MotionSensitivity = 70,
+                        Description = "Terrasse und Gartenbereich",
+                        Position = 0
+                    },
+                    new SmartCameraConfig
+                    {
+                        Name = "Einfahrt",
+                        Url = "rtsp://192.168.188.132:554/stream2",
+                        ServiceUrl = "http://192.168.188.132/onvif/device_service",
+                        MotionRecord = false,
+                        MotionSensitivity = 50,
+                        Description = "Hofeinfahrt und Eingangsbereich",
+                        Position = 1
+                    },
+                    new SmartCameraConfig
+                    {
+                        Name = "Garage",
+                        Url = "rtsp://192.168.188.102:554/stream2",
+                        ServiceUrl = "http://192.168.188.102/onvif/device_service",
+                        MotionRecord = false,
+                        MotionSensitivity = 50,
+                        Description = "Garagentor und Stellplatz",
+                        Position = 2
+                    },
+                    new SmartCameraConfig
+                    {
+                        Id = "d0dd7c3b4b64431e9fe1ae3f2bf73331",
+                        Name = "Gewerbe",
+                        Url = "rtsp://192.168.188.101:554/stream2",
+                        ServiceUrl = "http://192.168.188.101/onvif/device_service",
+                        MotionRecord = false,
+                        MotionSensitivity = 55,
+                        InvertPan = true,
+                        InvertTilt = false,
+                        Description = "Gewerbe & Manufakturbereich (192.168.188.101)",
+                        Position = 3
                     }
-                    catch { }
-                }
-
-                if (_smartHomeData.Cameras.Count == 0)
-                {
-                    _smartHomeData.Cameras = new List<SmartCameraConfig>
-                    {
-                        new SmartCameraConfig
-                        {
-                            Name = "Terasse",
-                            Url = "rtsp://Galaxina3:Assstar20mkj7%21%21%21@192.168.188.105:554/stream2",
-                            ServiceUrl = "http://192.168.188.105/onvif/device_service",
-                            MotionRecord = true,
-                            MotionSensitivity = 70,
-                            Description = "Terrasse und Gartenbereich",
-                            Position = 0
-                        },
-                        new SmartCameraConfig
-                        {
-                            Name = "Einfahrt",
-                            Url = "rtsp://Galaxina4:Assstar20mkj7%21%21%21@192.168.188.132:554/stream2",
-                            ServiceUrl = "http://192.168.188.132/onvif/device_service",
-                            MotionRecord = false,
-                            MotionSensitivity = 50,
-                            Description = "Hofeinfahrt und Eingangsbereich",
-                            Position = 1
-                        },
-                        new SmartCameraConfig
-                        {
-                            Name = "Garage",
-                            Url = "rtsp://Galaxina2:Assstar20mkj7%21%21%21@192.168.188.102:554/stream2",
-                            ServiceUrl = "http://192.168.188.102/onvif/device_service",
-                            MotionRecord = false,
-                            MotionSensitivity = 50,
-                            Description = "Garagentor und Stellplatz",
-                            Position = 2
-                        },
-                        new SmartCameraConfig
-                        {
-                            Id = "d0dd7c3b4b64431e9fe1ae3f2bf73331",
-                            Name = "Gewerbe",
-                            Url = "rtsp://Galaxina1:Assstar20mkj7%21%21%21@192.168.188.101:554/stream2",
-                            ServiceUrl = "http://192.168.188.101/onvif/device_service",
-                            MotionRecord = false,
-                            MotionSensitivity = 55,
-                            InvertPan = true,
-                            InvertTilt = false,
-                            Description = "Gewerbe & Manufakturbereich (192.168.188.101)",
-                            Position = 3
-                        }
-                    };
-                }
+                };
             }
 
-            // Ensure Gewerbe camera (192.168.188.101) is present as configured
-            bool hasGewerbeCam = _smartHomeData.Cameras.Any(c =>
-                c.Name.Contains("Gewerbe", StringComparison.OrdinalIgnoreCase) ||
-                c.Name.Contains("Fitnessstudio", StringComparison.OrdinalIgnoreCase) ||
-                c.Url.Contains("192.168.188.101", StringComparison.OrdinalIgnoreCase));
-            if (!hasGewerbeCam)
-            {
-                _smartHomeData.Cameras.Add(new SmartCameraConfig
-                {
-                    Id = "d0dd7c3b4b64431e9fe1ae3f2bf73331",
-                    Name = "Gewerbe",
-                    Url = "rtsp://Galaxina1:Assstar20mkj7%21%21%21@192.168.188.101:554/stream2",
-                    ServiceUrl = "http://192.168.188.101/onvif/device_service",
-                    MotionRecord = false,
-                    MotionSensitivity = 55,
-                    InvertPan = true,
-                    InvertTilt = false,
-                    Description = "Gewerbe & Manufakturbereich (192.168.188.101)",
-                    Position = _smartHomeData.Cameras.Count
-                });
-            }
-
-            // Repair any camera URL that lost its credentials (e.g. after cross-PC migration or unauthenticated default)
-            FunkenwerkSecurityVault.SetSessionRtspPassword("Assstar20mkj7!!!");
             foreach (var cam in _smartHomeData.Cameras)
             {
-                string u = cam.Url ?? "";
-                if (string.IsNullOrWhiteSpace(u) || !u.Contains('@'))
-                {
-                    if (u.Contains("192.168.188.105") || cam.Name.Contains("Terasse", StringComparison.OrdinalIgnoreCase) || cam.Name.Contains("Terrasse", StringComparison.OrdinalIgnoreCase))
-                        cam.Url = "rtsp://Galaxina3:Assstar20mkj7%21%21%21@192.168.188.105:554/stream2";
-                    else if (u.Contains("192.168.188.132") || cam.Name.Contains("Einfahrt", StringComparison.OrdinalIgnoreCase))
-                        cam.Url = "rtsp://Galaxina4:Assstar20mkj7%21%21%21@192.168.188.132:554/stream2";
-                    else if (u.Contains("192.168.188.102") || cam.Name.Contains("Garage", StringComparison.OrdinalIgnoreCase))
-                        cam.Url = "rtsp://Galaxina2:Assstar20mkj7%21%21%21@192.168.188.102:554/stream2";
-                    else if (u.Contains("192.168.188.101") || cam.Name.Contains("Gewerbe", StringComparison.OrdinalIgnoreCase) || cam.Name.Contains("Fitnessstudio", StringComparison.OrdinalIgnoreCase))
-                        cam.Url = "rtsp://Galaxina1:Assstar20mkj7%21%21%21@192.168.188.101:554/stream2";
-                }
-
                 if (string.IsNullOrWhiteSpace(cam.ServiceUrl) && !string.IsNullOrWhiteSpace(cam.IpAddress))
                 {
                     cam.ServiceUrl = $"http://{cam.IpAddress}/onvif/device_service";
@@ -14445,8 +14677,6 @@ namespace Funkenwerk
 
             if (string.IsNullOrWhiteSpace(_smartHomeData.TapoLocalEmail))
                 _smartHomeData.TapoLocalEmail = "kontakt@mein-seelenfunke.de";
-            if (string.IsNullOrWhiteSpace(_smartHomeData.TapoLocalPassword))
-                _smartHomeData.TapoLocalPassword = "Assstar20mkj7!!!";
 
             if (_smartHomeData.Plugs.Count == 0)
             {
@@ -14492,35 +14722,10 @@ namespace Funkenwerk
         {
             try
             {
-                string plainTapoEmail = _smartHomeData.TapoLocalEmail;
-                string plainTapoPass = _smartHomeData.TapoLocalPassword;
-                var plainUrls = _smartHomeData.Cameras.Select(c => c.Url).ToList();
-                try
-                {
-                    _smartHomeData.TapoLocalEmail = FunkenwerkSecurityVault.ProtectSecret(plainTapoEmail);
-                    _smartHomeData.TapoLocalPassword = FunkenwerkSecurityVault.ProtectSecret(plainTapoPass);
-                    foreach (var cam in _smartHomeData.Cameras)
-                    {
-                        var passMatch = System.Text.RegularExpressions.Regex.Match(cam.Url ?? "", @"rtsp://[^:]+:([^@]+)@");
-                        if (passMatch.Success)
-                        {
-                            FunkenwerkSecurityVault.SetSessionRtspPassword(Uri.UnescapeDataString(passMatch.Groups[1].Value));
-                        }
-                        cam.Url = FunkenwerkSecurityVault.ProtectSecret(cam.Url);
-                    }
-
-                    var json = JsonSerializer.Serialize(_smartHomeData, new JsonSerializerOptions { WriteIndented = true });
-                    File.WriteAllText(GetSmartHomeConfigPath(), json);
-                }
-                finally
-                {
-                    _smartHomeData.TapoLocalEmail = plainTapoEmail;
-                    _smartHomeData.TapoLocalPassword = plainTapoPass;
-                    for (int i = 0; i < _smartHomeData.Cameras.Count && i < plainUrls.Count; i++)
-                    {
-                        _smartHomeData.Cameras[i].Url = plainUrls[i];
-                    }
-                }
+                // Clone DTO before encrypting via FWAES256GCM1: so live in-memory cam.Url & Tapo credentials are NEVER mutated!
+                var diskCopy = CloneSmartHomeForDisk(_smartHomeData, encryptSecrets: true);
+                var json = JsonSerializer.Serialize(diskCopy, new JsonSerializerOptions { WriteIndented = true });
+                FunkenwerkSecurityVault.WriteSecureFileText(GetSmartHomeConfigPath(), json);
 
                 if (_isLoaded && (AuthLoginOverlayGrid == null || AuthLoginOverlayGrid.Visibility != Visibility.Visible))
                 {
@@ -14540,13 +14745,12 @@ namespace Funkenwerk
                     endpoints.Add((_apiBaseUrl.TrimEnd('/'), _apiToken));
                 }
 
-                if (!_apiBaseUrl.Contains("127.0.0.1", StringComparison.OrdinalIgnoreCase) &&
-                    !_apiBaseUrl.Contains("localhost", StringComparison.OrdinalIgnoreCase))
+                if (DetectApiPresetKey(_apiBaseUrl) != "local" &&
+                    !string.IsNullOrWhiteSpace(_layoutSettings.ApiTokenLocal))
                 {
-                    string localTok = !string.IsNullOrWhiteSpace(_layoutSettings.ApiTokenLocal) ? _layoutSettings.ApiTokenLocal : DEFAULT_LOCAL_TOKEN;
-                    endpoints.Add(("http://127.0.0.1/api", localTok));
+                    endpoints.Add(("http://127.0.0.1/api", _layoutSettings.ApiTokenLocal));
                 }
-                if (!_apiBaseUrl.Contains("stage.mein-seelenfunke.de", StringComparison.OrdinalIgnoreCase) &&
+                if (DetectApiPresetKey(_apiBaseUrl) != "stage" &&
                     !string.IsNullOrWhiteSpace(_layoutSettings.ApiTokenStage))
                 {
                     endpoints.Add(("https://stage.mein-seelenfunke.de/api", _layoutSettings.ApiTokenStage));
@@ -15934,8 +16138,6 @@ namespace Funkenwerk
             var dirs = new List<string> { GetSmartHomeRecordingsDir() };
             string filesCamDir = System.IO.Path.Combine(GetFunkenwerkFilesRootDir(), "Dokumente", "Kameraaufnahmen");
             if (Directory.Exists(filesCamDir)) dirs.Add(filesCamDir);
-            string funkiraRecDir = @"C:\Users\konta\Desktop\Funkira 2.0\Dateien\Verarbeitet\Sicherheit & Kameras\Aufnahmen";
-            if (Directory.Exists(funkiraRecDir)) dirs.Add(funkiraRecDir);
 
             foreach (var d in dirs)
             {
@@ -16205,11 +16407,7 @@ namespace Funkenwerk
         {
             if (_activeSmartRecording == null) return;
             PlaySoundActionPop();
-            try
-            {
-                Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{_activeSmartRecording.FullPath}\"") { UseShellExecute = true });
-            }
-            catch { }
+            RevealFileInExplorerSafely(_activeSmartRecording.FullPath);
         }
 
         private void SmartMediaDelete_Click(object sender, RoutedEventArgs e)
@@ -17695,7 +17893,12 @@ namespace Funkenwerk
 
         private string GetDefaultCameraMediaDir()
         {
-            string dir = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "KameraMedien");
+            if (!FunkenwerkSecurityVault.IsUsingTemporaryAppData)
+            {
+                string existingBaseMedia = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "KameraMedien");
+                if (Directory.Exists(existingBaseMedia)) return existingBaseMedia;
+            }
+            string dir = System.IO.Path.Combine(FunkenwerkSecurityVault.AppDataDirectory, "KameraMedien");
             try { Directory.CreateDirectory(dir); } catch { }
             return dir;
         }
@@ -17703,13 +17906,17 @@ namespace Funkenwerk
         private string GetEffectiveCameraMediaDir()
         {
             string defaultDir = GetDefaultCameraMediaDir();
+            if (FunkenwerkSecurityVault.IsUsingTemporaryAppData)
+            {
+                return defaultDir;
+            }
+
             string configured = !string.IsNullOrWhiteSpace(_layoutSettings.CameraMediaDirectory)
                 ? _layoutSettings.CameraMediaDirectory.Trim()
                 : _camConfig.MediaDirectory;
 
-            string legacyDesktopDir = @"C:\Users\konta\Desktop\Funkenwerk\KameraMedien";
             if (string.IsNullOrWhiteSpace(configured) ||
-                string.Equals(configured.TrimEnd('\\', '/'), legacyDesktopDir, StringComparison.OrdinalIgnoreCase))
+                configured.Contains(@"\Desktop\Funkenwerk\", StringComparison.OrdinalIgnoreCase))
             {
                 configured = defaultDir;
                 _layoutSettings.CameraMediaDirectory = defaultDir;
@@ -17730,14 +17937,15 @@ namespace Funkenwerk
 
         private void LoadCameraStudioConfig()
         {
-            _camConfigPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "camera_studio.json");
+            _camConfigPath = FunkenwerkSecurityVault.GetAppDataFilePath("camera_studio.json", migrateFromBaseDir: true);
             try
             {
                 if (File.Exists(_camConfigPath))
                 {
-                    var json = File.ReadAllText(_camConfigPath);
+                    var json = File.ReadAllText(_camConfigPath, Encoding.UTF8);
                     var loaded = JsonSerializer.Deserialize<CameraStudioConfig>(json);
                     if (loaded != null) _camConfig = loaded;
+                    FunkenwerkSecurityVault.LockDownFileAcl(_camConfigPath);
                 }
             }
             catch { }
@@ -17818,7 +18026,7 @@ namespace Funkenwerk
                 _layoutSettings.SelectedMicrophoneName = _camConfig.SelectedMicrophone;
                 _layoutSettings.PrimaryCameraName = _camConfig.PrimaryCamera;
                 var json = JsonSerializer.Serialize(_camConfig, new JsonSerializerOptions { WriteIndented = true });
-                File.WriteAllText(_camConfigPath, json);
+                FunkenwerkSecurityVault.WriteSecureFileText(_camConfigPath, json);
             }
             catch { }
         }
@@ -20613,7 +20821,7 @@ namespace Funkenwerk
                 CamVoiceRecordSampleBtn.Content = "⏺ Sprich (4s)...";
             }
             if (CamVoiceSampleStatusTxt != null)
-                CamVoiceSampleStatusTxt.Text = "🎙 Aufnahme läuft (4 Sekunden) – Sprich jetzt in dein Mikrofon...";
+                CamVoiceSampleStatusTxt.Text = "🎙 Aufnahme läuft (4 Sekunden) · Sprich jetzt in dein Mikrofon...";
 
             for (int s = 4; s >= 1; s--)
             {
@@ -20630,7 +20838,7 @@ namespace Funkenwerk
                 CamVoiceSampleStatusTxt.Text = "✅ 4s Stimm-Probe gespeichert! Klicke auf '▶ Probe anhören' oder wechsle die Profile.";
 
             SyncVoiceChangerEngineState();
-            ShowCameraToast("🎙 4s Stimm-Probe aufgenommen – Spiele sie jetzt mit jedem Effekt ab!");
+            ShowCameraToast("🎙 4s Stimm-Probe aufgenommen · Spiele sie jetzt mit jedem Effekt ab!");
         }
 
         private void CamVoicePlaySample_Click(object sender, RoutedEventArgs e)
@@ -21086,22 +21294,42 @@ namespace Funkenwerk
                 {
                     try
                     {
-                        string ffmpegPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "tools", "ffmpeg.exe");
-                        if (!File.Exists(ffmpegPath))
-                        {
-                            string desktopTools = @"C:\Users\konta\Desktop\Funkenwerk\tools\ffmpeg.exe";
-                            ffmpegPath = File.Exists(desktopTools) ? desktopTools : "ffmpeg";
-                        }
-
+                        string ffmpegPath = ResolveFfmpegBinaryPath();
                         var psi = new ProcessStartInfo
                         {
                             FileName = ffmpegPath,
-                            Arguments = $"-y -hide_banner -loglevel error -i \"{rawPath}\" -filter_complex \"[0:v]setpts=1.0*PTS,split[f][r];[r]reverse[rev];[f][rev]concat=n=2:v=1:a=0\" -c:v libx264 -preset ultrafast -crf 20 -pix_fmt yuv420p \"{finalPath}\"",
                             UseShellExecute = false,
+                            RedirectStandardError = true,
                             CreateNoWindow = true
                         };
+                        psi.ArgumentList.Add("-y");
+                        psi.ArgumentList.Add("-hide_banner");
+                        psi.ArgumentList.Add("-loglevel");
+                        psi.ArgumentList.Add("error");
+                        psi.ArgumentList.Add("-i");
+                        psi.ArgumentList.Add(rawPath);
+                        psi.ArgumentList.Add("-filter_complex");
+                        psi.ArgumentList.Add("[0:v]setpts=1.0*PTS,split[f][r];[r]reverse[rev];[f][rev]concat=n=2:v=1:a=0");
+                        psi.ArgumentList.Add("-c:v");
+                        psi.ArgumentList.Add("libx264");
+                        psi.ArgumentList.Add("-preset");
+                        psi.ArgumentList.Add("ultrafast");
+                        psi.ArgumentList.Add("-crf");
+                        psi.ArgumentList.Add("20");
+                        psi.ArgumentList.Add("-pix_fmt");
+                        psi.ArgumentList.Add("yuv420p");
+                        psi.ArgumentList.Add(finalPath);
+
                         using var p = Process.Start(psi);
-                        p?.WaitForExit(8000);
+                        if (p != null)
+                        {
+                            var stderrTask = p.StandardError.ReadToEndAsync();
+                            if (!p.WaitForExit(8000))
+                            {
+                                try { p.Kill(entireProcessTree: true); } catch { }
+                            }
+                            try { stderrTask.Wait(500); } catch { }
+                        }
                     }
                     catch { }
                 });
@@ -22890,11 +23118,7 @@ namespace Funkenwerk
         private void CamPreviewOpenExplorer_Click(object sender, RoutedEventArgs e)
         {
             if (_activeCamPreviewItem == null) return;
-            try
-            {
-                Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{_activeCamPreviewItem.FullPath}\"") { UseShellExecute = true });
-            }
-            catch { }
+            RevealFileInExplorerSafely(_activeCamPreviewItem.FullPath);
         }
 
         private void CamCloseMediaPreview_Click(object sender, RoutedEventArgs e)
@@ -22930,12 +23154,7 @@ namespace Funkenwerk
         private void CamOpenMediaFolder_Click(object sender, RoutedEventArgs e)
         {
             PlaySoundActionPop();
-            try
-            {
-                string dir = GetEffectiveCameraMediaDir();
-                Process.Start(new ProcessStartInfo("explorer.exe", $"\"{dir}\"") { UseShellExecute = true });
-            }
-            catch { }
+            OpenDirectoryInExplorerSafely(GetEffectiveCameraMediaDir());
         }
 
         private void CamRefreshGallery_Click(object sender, RoutedEventArgs e)
@@ -23148,81 +23367,666 @@ namespace Funkenwerk
             UpdatePipQuickUiState();
         }
 
+        private sealed class SelfTestMockHttpHandler : HttpMessageHandler
+        {
+            private readonly Func<HttpRequestMessage, HttpResponseMessage> _responder;
+            public SelfTestMockHttpHandler(Func<HttpRequestMessage, HttpResponseMessage> responder) => _responder = responder;
+            protected override HttpResponseMessage Send(HttpRequestMessage request, System.Threading.CancellationToken cancellationToken) => _responder(request);
+            protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, System.Threading.CancellationToken cancellationToken) => Task.FromResult(_responder(request));
+        }
+
         public async Task<bool> RunAutomatedSuiteSelfTestAsync()
         {
-            await Task.Delay(600);
+            await Task.Delay(250);
             int passed = 0;
+            int failed = 0;
             int total = 0;
-            var sb = new StringBuilder();
+            Console.WriteLine("=== FUNKENWERK SUITE PORTABLE ZERO-TRUST SELF-TEST ===");
+            Console.WriteLine($"Isolated Temp AppData: {FunkenwerkSecurityVault.AppDataDirectory}");
 
             void Check(string name, Func<bool> fn)
             {
                 total++;
                 bool ok = false;
-                try { ok = fn(); } catch { ok = false; }
-                if (ok) passed++;
-                string line = $"[{(ok ? "PASS" : "FAIL")}] {total}. {name}";
-                Console.WriteLine(line);
-                sb.AppendLine(line);
+                string errDetail = "";
+                try
+                {
+                    ok = fn();
+                }
+                catch (Exception ex)
+                {
+                    ok = false;
+                    errDetail = $" ({ex.GetType().Name}: {WindowsErrorSentinel.ScrubSecrets(ex.Message)})";
+                }
+                if (ok) passed++; else failed++;
+                Console.WriteLine($"[{(ok ? "PASS" : "FAIL")}] {total:00}. {name}{errDetail}");
             }
 
-            LoadSmartHomeConfig();
-            LoadMusicPlaylistsFromLocalCache();
-            UpdateApiTokenMaskDisplay();
-            UpdateAuthLoginConnectedHintVisual();
-
-            Check("LAN-Kameras (Terasse, Einfahrt, Garage, Gewerbe) mit authentifizierten RTSP-URLs & FFmpeg", () =>
+            async Task CheckAsync(string name, Func<Task<bool>> fn)
             {
-                bool has4 = _smartHomeData.Cameras.Count >= 4;
-                bool allHaveAuth = _smartHomeData.Cameras.Take(4).All(c =>
-                    !string.IsNullOrWhiteSpace(c.Url) &&
-                    c.Url.Contains("@192.168.188.", StringComparison.OrdinalIgnoreCase) &&
-                    c.Url.StartsWith("rtsp://", StringComparison.OrdinalIgnoreCase));
-                string ffmpegExe = ResolveFfmpegBinaryPath();
-                return has4 && allHaveAuth && File.Exists(ffmpegExe);
+                total++;
+                bool ok = false;
+                string errDetail = "";
+                try
+                {
+                    ok = await fn();
+                }
+                catch (Exception ex)
+                {
+                    ok = false;
+                    errDetail = $" ({ex.GetType().Name}: {WindowsErrorSentinel.ScrubSecrets(ex.Message)})";
+                }
+                if (ok) passed++; else failed++;
+                Console.WriteLine($"[{(ok ? "PASS" : "FAIL")}] {total:00}. {name}{errDetail}");
+            }
+
+            // 01. Vault FWAES256GCM1: AEAD roundtrip with German umlauts, Euro & emoji
+            Check("Vault FWAES256GCM1: AES-256-GCM + PBKDF2-SHA512 + DPAPI roundtrip", () =>
+            {
+                string secret = "Alina Steinhauer · Größe 50€ äöüß ✨ #" + Guid.NewGuid().ToString("N");
+                string enc = FunkenwerkSecurityVault.ProtectSecret(secret);
+                string dec = FunkenwerkSecurityVault.UnprotectSecret(enc);
+                return enc.StartsWith(FunkenwerkSecurityVault.VaultAesGcmPrefix, StringComparison.Ordinal) &&
+                       string.Equals(secret, dec, StringComparison.Ordinal);
             });
 
-            Check("Lokaler Musik-Cache (362 .m4a Dateien & Offline/Online Track-Auflösung)", () =>
+            // 02. Vault AEAD tamper / bit-flip rejection
+            Check("Vault FWAES256GCM1: AEAD tamper and bit-flip rejection", () =>
             {
-                int m4aCount = Directory.Exists(_musicCacheDir) ? Directory.GetFiles(_musicCacheDir, "*.m4a").Length : 0;
-                bool tracksLoaded = _allMusicTracks.Count >= 300;
-                bool firstTrackResolvable = _allMusicTracks.Count > 0 && File.Exists(GetLocalCachePath(_allMusicTracks[0]));
-                return m4aCount >= 300 && tracksLoaded && firstTrackResolvable;
+                string enc = FunkenwerkSecurityVault.ProtectSecret("SensitiveVaultPayload_987654");
+                char flipChar = enc[^4] == 'A' ? 'B' : 'A';
+                string tampered = enc.Substring(0, enc.Length - 4) + flipChar + enc.Substring(enc.Length - 3);
+                string res = FunkenwerkSecurityVault.UnprotectSecret(tampered);
+                return string.IsNullOrEmpty(res);
             });
 
-            Check("Server-Anmeldung Passwortfeld Statusanzeige ('✓ Angemeldet' Hint)", () =>
+            // 03. ACL-locked settings.json & smarthome.json + zero SavedAuthPassword + live DTO non-mutation
+            Check("ACL-locked AppData JSON persistence, zero SavedAuthPassword & DTO clone non-mutation", () =>
             {
-                return AuthLoginConnectedHintTxt != null &&
-                       MailAccPasswordSavedHintTxt != null &&
-                       AuthLoginConnectedHintTxt.Text.Contains("Angemeldet", StringComparison.OrdinalIgnoreCase) &&
-                       MailAccPasswordSavedHintTxt.Text.Contains("Angemeldet", StringComparison.OrdinalIgnoreCase);
+                _isLoaded = true;
+                _layoutSettings.ApiTokenLocal = "11|LocalUnitTestToken0123456789abcdef0123456789";
+                _layoutSettings.ApiTokenStage = "22|StageUnitTestToken0123456789abcdef0123456789";
+                _layoutSettings.ApiTokenLive = "33|LiveUnitTestToken0123456789abcdef0123456789A";
+                _layoutSettings.SavedAuthEmail = "kontakt@mein-seelenfunke.de";
+                SaveSettingsToFile();
+
+                LoadSmartHomeConfig();
+                string testRtsp = "rtsp://camtest:UnitTestSecret99@192.168.188.105:554/stream2";
+                _smartHomeData.Cameras[0].Url = testRtsp;
+                _smartHomeData.TapoLocalPassword = "TapoUnitTestPassword99";
+                SaveSmartHomeConfig();
+
+                // Live in-memory DTOs must NOT have been mutated to ciphertext
+                bool liveDtoIntact = string.Equals(_smartHomeData.Cameras[0].Url, testRtsp, StringComparison.Ordinal) &&
+                                     string.Equals(_layoutSettings.ApiTokenLive, "33|LiveUnitTestToken0123456789abcdef0123456789A", StringComparison.Ordinal);
+
+                string rawSettings = File.ReadAllText(_settingsPath, Encoding.UTF8);
+                string rawSmart = File.ReadAllText(GetSmartHomeConfigPath(), Encoding.UTF8);
+
+                bool noSavedPassProp = !rawSettings.Contains("SavedAuthPassword", StringComparison.OrdinalIgnoreCase) &&
+                                       typeof(AppSettings).GetProperty("SavedAuthPassword") == null;
+                bool tokensEncrypted = rawSettings.Contains("FWAES256GCM1:", StringComparison.Ordinal) &&
+                                       !rawSettings.Contains("LocalUnitTestToken", StringComparison.Ordinal) &&
+                                       !rawSettings.Contains("LiveUnitTestToken", StringComparison.Ordinal);
+                bool smartEncrypted = rawSmart.Contains("FWAES256GCM1:", StringComparison.Ordinal) &&
+                                      !rawSmart.Contains("UnitTestSecret99", StringComparison.Ordinal) &&
+                                      !rawSmart.Contains("TapoUnitTestPassword99", StringComparison.Ordinal);
+                bool aclsStrict = FunkenwerkSecurityVault.HasStrictUserSystemFileAcl(_settingsPath) &&
+                                  FunkenwerkSecurityVault.HasStrictUserSystemFileAcl(GetSmartHomeConfigPath());
+
+                return liveDtoIntact && noSavedPassProp && tokensEncrypted && smartEncrypted && aclsStrict;
             });
 
-            Check("Miro restlos entfernt (0 Referenzen in KI-Sessions & Suite-Bridge)", () =>
+            // 04. NormalizeSecureApiUrl strict host allowlist
+            Check("NormalizeSecureApiUrl strict host allowlist & HTTPS upgrade", () =>
             {
-                bool noMiroInSessions = _agentEngine == null ||
-                    _agentEngine.Sessions.All(s => s.Messages.All(m => !(m.Text ?? "").Contains("Funkenwerk Miro", StringComparison.OrdinalIgnoreCase)));
-                return noMiroInSessions;
+                bool evilBlocked = false;
+                try { _ = FunkenwerkSecurityVault.NormalizeSecureApiUrl("https://evil.example/api"); }
+                catch (UnauthorizedAccessException) { evilBlocked = true; }
+
+                bool spoofPathBlocked = false;
+                try { _ = FunkenwerkSecurityVault.NormalizeSecureApiUrl("https://evil.example/mein-seelenfunke.de/api"); }
+                catch (UnauthorizedAccessException) { spoofPathBlocked = true; }
+
+                bool userInfoBlocked = false;
+                try { _ = FunkenwerkSecurityVault.NormalizeSecureApiUrl("https://admin:secret@mein-seelenfunke.de/api"); }
+                catch (UnauthorizedAccessException) { userInfoBlocked = true; }
+
+                bool lanIpBlockedAsApi = false;
+                try { _ = FunkenwerkSecurityVault.NormalizeSecureApiUrl("http://192.168.188.50/api"); }
+                catch (UnauthorizedAccessException) { lanIpBlockedAsApi = true; }
+
+                string liveNormalized = FunkenwerkSecurityVault.NormalizeSecureApiUrl("http://mein-seelenfunke.de/api/");
+                string stageNormalized = FunkenwerkSecurityVault.NormalizeSecureApiUrl("http://stage.mein-seelenfunke.de/api");
+                string localNormalized = FunkenwerkSecurityVault.NormalizeSecureApiUrl("http://127.0.0.1/api/");
+
+                return evilBlocked && spoofPathBlocked && userInfoBlocked && lanIpBlockedAsApi &&
+                       liveNormalized == "https://mein-seelenfunke.de/api" &&
+                       stageNormalized == "https://stage.mein-seelenfunke.de/api" &&
+                       localNormalized == "http://127.0.0.1/api";
             });
 
-            Check("Alle Funkenwerk Zentrale Module (Mail, To-Do, Kalender, Musik, SmartHome, Kamera)", () =>
+            // 05. Per-environment token isolation (Live/Stage tokens NEVER returned for http://127.0.0.1)
+            Check("Per-environment Sanctum token isolation (zero cross-env fallback)", () =>
             {
-                foreach (string sp in new[] { "todo", "calendar", "music", "smarthome", "mail" })
+                _layoutSettings.ApiTokenLocal = "";
+                _layoutSettings.ApiTokenStage = "22|StageOnlyToken_ABCDEF01234567890123456789";
+                _layoutSettings.ApiTokenLive = "33|LiveOnlyToken_ABCDEF012345678901234567890";
+                _apiBaseUrl = "https://mein-seelenfunke.de/api";
+                _apiToken = _layoutSettings.ApiTokenLive;
+
+                string localLookup = GetSavedTokenForUrl("http://127.0.0.1/api");
+                string stageLookup = GetSavedTokenForUrl("https://stage.mein-seelenfunke.de/api");
+                string liveLookup = GetSavedTokenForUrl("https://mein-seelenfunke.de/api");
+                string evilSpoofLookup = GetSavedTokenForUrl("https://evil.example/?redirect=127.0.0.1");
+
+                return string.IsNullOrEmpty(localLookup) &&
+                       stageLookup == _layoutSettings.ApiTokenStage &&
+                       liveLookup == _layoutSettings.ApiTokenLive &&
+                       string.IsNullOrEmpty(evilSpoofLookup);
+            });
+
+            // 06. Concurrent thread-safe per-request Authorization header isolation
+            await CheckAsync("Concurrent thread-safe per-request Authorization header isolation (32 parallel calls)", async () =>
+            {
+                var testCfg = new AppSettings
+                {
+                    ApiTokenLocal = "LOC_TOK_111",
+                    ApiTokenStage = "STG_TOK_222",
+                    ApiTokenLive = "LIV_TOK_333"
+                };
+                var seenAuth = new System.Collections.Concurrent.ConcurrentBag<(string Host, string Auth)>();
+                var mock = new SelfTestMockHttpHandler(req =>
+                {
+                    string h = req.RequestUri?.Host ?? "";
+                    string a = req.Headers.Authorization?.Parameter ?? "<none>";
+                    seenAuth.Add((h, a));
+                    return new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+                    {
+                        Content = new StringContent("{\"ok\":true}", Encoding.UTF8, "application/json")
+                    };
+                });
+
+                using var isolatedClient = CreateIsolatedPerRequestHttpClientForTest(
+                    url => ResolveSavedTokenForEnvironment(testCfg, url),
+                    mock);
+
+                string[] targets =
+                {
+                    "http://127.0.0.1/api/ping",
+                    "https://stage.mein-seelenfunke.de/api/ping",
+                    "https://mein-seelenfunke.de/api/ping",
+                    "https://evil.example/api/ping"
+                };
+
+                var tasks = Enumerable.Range(0, 32).Select(i => isolatedClient.GetAsync(targets[i % targets.Length]));
+                await Task.WhenAll(tasks);
+
+                return seenAuth.Count == 32 &&
+                       seenAuth.Where(x => x.Host == "127.0.0.1").All(x => x.Auth == "LOC_TOK_111") &&
+                       seenAuth.Where(x => x.Host == "stage.mein-seelenfunke.de").All(x => x.Auth == "STG_TOK_222") &&
+                       seenAuth.Where(x => x.Host == "mein-seelenfunke.de").All(x => x.Auth == "LIV_TOK_333") &&
+                       seenAuth.Where(x => x.Host == "evil.example").All(x => x.Auth == "<none>");
+            });
+
+            // 07. IsSessionLocked bypass prevention across environment switches
+            Check("IsSessionLocked unlock gate blocks passwordless resume across all env pills", () =>
+            {
+                _layoutSettings.ApiTokenLocal = "11|LocTok";
+                _layoutSettings.ApiTokenStage = "22|StgTok";
+                _layoutSettings.ApiTokenLive = "33|LivTok";
+                _layoutSettings.RememberCredentials = true;
+                _layoutSettings.IsSessionLocked = true;
+
+                bool blockedLocal = !CanResumeSessionWithoutPassword("http://127.0.0.1/api", "");
+                bool blockedStage = !CanResumeSessionWithoutPassword("https://stage.mein-seelenfunke.de/api", "");
+                bool blockedLive = !CanResumeSessionWithoutPassword("https://mein-seelenfunke.de/api", "");
+                bool blockedRuntime = string.IsNullOrEmpty(ResolveRuntimeBearerTokenForRequestUri("https://stage.mein-seelenfunke.de/api/test"));
+
+                _layoutSettings.IsSessionLocked = false;
+                bool allowedWhenUnlocked = CanResumeSessionWithoutPassword("https://stage.mein-seelenfunke.de/api", "");
+
+                return blockedLocal && blockedStage && blockedLive && blockedRuntime && allowedWhenUnlocked;
+            });
+
+            // 08. WindowsErrorSentinel.ScrubSecrets DLP redaction (Sanctum, JWT, RTSP, Vault blob, password)
+            Check("WindowsErrorSentinel.ScrubSecrets DLP redaction (Sanctum, JWT, RTSP, FWAES256GCM1)", () =>
+            {
+                string rawSanctum = "99|AbCdEfGhIjKlMnOpQrStUvWxYz0123456789abcd";
+                string rawJwt = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI0MiIsInJvbGUiOiJhZG1pbiJ9.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c";
+                string rawRtsp = "rtsp://camadmin:TopSecretCamPass@192.168.188.105:554/stream2";
+                string rawVault = FunkenwerkSecurityVault.ProtectSecret("HiddenVaultSecret");
+                string dirty = $"Crash trace: token={rawSanctum} jwt={rawJwt} stream={rawRtsp} vault={rawVault} {{\"password\":\"MyPlainPass\"}}";
+
+                string scrubbed = WindowsErrorSentinel.ScrubSecrets(dirty);
+                return !scrubbed.Contains("AbCdEfGhIjKlMnOpQrStUvWxYz0123456789abcd", StringComparison.Ordinal) &&
+                       !scrubbed.Contains("SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c", StringComparison.Ordinal) &&
+                       !scrubbed.Contains("TopSecretCamPass", StringComparison.Ordinal) &&
+                       !scrubbed.Contains(rawVault, StringComparison.Ordinal) &&
+                       !scrubbed.Contains("MyPlainPass", StringComparison.Ordinal);
+            });
+
+            // 09. IsDangerousAttachmentFile expanded blocklist & ADS guard
+            Check("IsDangerousAttachmentFile expanded malware/shortcut/container/macro/ADS blocklist", () =>
+            {
+                string[] mustBlock =
+                {
+                    "rechnung.pdf.exe", "run.ps1", "phish.url", "drop.scf", "share.library-ms",
+                    "find.search-ms", "mount.iso", "disk.img", "vm.vhd", "vm2.vhdx", "help.chm",
+                    "payload.py", "format.ps1xml", "invoice.docm", "sheet.xlsm", "deck.pptm",
+                    "harmless.pdf:hidden.exe"
+                };
+                string[] mustAllow = { "Rechnung_2026.pdf", "Motiv_Herz.png", "Vorschau.jpg", "Notiz.txt" };
+                return mustBlock.All(FunkenwerkSecurityVault.IsDangerousAttachmentFile) &&
+                       mustAllow.All(f => !FunkenwerkSecurityVault.IsDangerousAttachmentFile(f));
+            });
+
+            // 10. ONVIF customServiceUrl RFC1918 LAN firewall
+            Check("OnvifPtzClient.IsSafeCustomOnvifServiceUrl blocks WAN SSRF & allows RFC1918 LAN", () =>
+            {
+                return OnvifPtzClient.IsSafeCustomOnvifServiceUrl("http://192.168.188.105/onvif/device_service") &&
+                       !OnvifPtzClient.IsSafeCustomOnvifServiceUrl("http://8.8.8.8/onvif/device_service") &&
+                       !OnvifPtzClient.IsSafeCustomOnvifServiceUrl("https://evil.example/onvif/device_service") &&
+                       !OnvifPtzClient.IsSafeCustomOnvifServiceUrl("http://admin:pass@192.168.188.105/onvif/device_service") &&
+                       !OnvifPtzClient.IsSafeCustomOnvifServiceUrl("file:///C:/Windows/win.ini");
+            });
+
+            // 11. Named Pipe CurrentUserOnly live IPC roundtrip
+            await CheckAsync("Named Pipe CurrentUserOnly live IPC roundtrip (Funkenwerk_ControlPipe_v1)", async () =>
+            {
+                _agentEngine?.StartLocalControlPipeServer();
+                using var client = new System.IO.Pipes.NamedPipeClientStream(
+                    ".",
+                    "Funkenwerk_ControlPipe_v1",
+                    System.IO.Pipes.PipeDirection.InOut,
+                    System.IO.Pipes.PipeOptions.Asynchronous | System.IO.Pipes.PipeOptions.CurrentUserOnly);
+                await client.ConnectAsync(2500);
+                using var writer = new StreamWriter(client, new UTF8Encoding(false), 4096, leaveOpen: true) { AutoFlush = true };
+                using var reader = new StreamReader(client, Encoding.UTF8, false, 4096, leaveOpen: true);
+                await writer.WriteLineAsync("{\"domain\":\"suite\",\"action\":\"status\"}");
+                string? resp = await reader.ReadLineAsync();
+                if (string.IsNullOrWhiteSpace(resp)) return false;
+                using var doc = JsonDocument.Parse(resp);
+                return doc.RootElement.TryGetProperty("ok", out var okEl) && okEl.GetBoolean();
+            });
+
+            // 12. VirtualCam SHM (FunkenwerkCamVideo) CurrentUser-only DACL & consumer read_idx preservation
+            Check("VirtualCam SHM CurrentUser-only DACL & consumer read_idx (0x04) non-overwrite", () =>
+            {
+                using var vcam = new FunkenwerkVirtualCamBroadcaster();
+                byte[] dummyFrame = new byte[64 * 64 * 4];
+                dummyFrame[0] = 0x59;
+                dummyFrame[1] = 0xA0;
+                dummyFrame[2] = 0xC5;
+                dummyFrame[3] = 0xFF;
+                vcam.PushBgraFrame(dummyFrame, 64, 64, 30);
+                vcam.WriteConsumerIndexForTest(2);
+                vcam.PushBgraFrame(dummyFrame, 64, 64, 30);
+                uint readIdxAfterPush = vcam.ReadConsumerIndexForTest();
+                return vcam.VerifySharedMemoryDacl() && readIdxAfterPush == 2u;
+            });
+
+            // 13. DeepFake SHM (FunkenwerkDeepFakeShm_v3) CurrentUser-only DACL
+            Check("DeepFake SHM (FunkenwerkDeepFakeShm_v3) CurrentUser-only DACL", () =>
+            {
+                EnsureCameraStudioInitialized();
+                return _camDeepFakeEngine.EnsureSharedMemoryForSelfTest();
+            });
+
+            // 14. ExecuteSuiteCommandAsync CLI flag-injection & argument scheme validation
+            await CheckAsync("ExecuteSuiteCommandAsync rejects CLI flags (- /), insecure URLs & non-PDF paths", async () =>
+            {
+                var r1 = await ExecuteSuiteCommandAsync("launch_collection_app", "pdf|--headless-exploit");
+                var r2 = await ExecuteSuiteCommandAsync("launch_collection_app", "pdf|/silent");
+                var r3 = await ExecuteSuiteCommandAsync("launch_collection_app", "browser|--remote-debugging-port=9222");
+                var r4 = await ExecuteSuiteCommandAsync("launch_collection_app", "browser|http://mein-seelenfunke.de");
+                var r5 = await ExecuteSuiteCommandAsync("launch_collection_app", "browser|javascript:alert(1)");
+                var r6 = await ExecuteSuiteCommandAsync("launch_collection_app", @"pdf|C:\Windows\System32\cmd.exe");
+                var r7 = await ExecuteSuiteCommandAsync("launch_collection_app", "ssh|root@1.2.3.4");
+                var validBrowser = ValidateCollectionLaunchArgs("browser", "https://mein-seelenfunke.de");
+
+                string tempPdf = System.IO.Path.Combine(FunkenwerkSecurityVault.GetSecureTempDirectory(), "arg_guard_test.pdf");
+                File.WriteAllBytes(tempPdf, MunbynLabelPrinterEngine.CreateSyntheticMultiPagePdfBytes(1));
+                var validPdf = ValidateCollectionLaunchArgs("pdf", tempPdf);
+
+                return !r1.Ok && !r2.Ok && !r3.Ok && !r4.Ok && !r5.Ok && !r6.Ok && !r7.Ok &&
+                       validBrowser.Allowed && validPdf.Allowed;
+            });
+
+            // 15. Cloud <fw_action> user confirmation gate for mutating actions
+            await CheckAsync("Cloud <fw_action> confirmation gate blocks unconfirmed mutating actions", async () =>
+            {
+                if (_agentEngine == null) return false;
+                int promptsTriggered = 0;
+                _agentEngine.ConfirmCloudActionOverride = (_, _) =>
+                {
+                    promptsTriggered++;
+                    return false; // Simulate user clicking "No"
+                };
+                try
+                {
+                    string simulatedCloudReply =
+                        "Ich führe das aus:\n" +
+                        "<fw_action>{\"tool\":\"ssh_exec_safe_readonly\",\"args\":{\"server\":\"stage\",\"preset\":\"stage_git_pull\"}}</fw_action>\n" +
+                        "<fw_action>{\"tool\":\"pdf_autofill_stammdaten\",\"filePath\":\"C:\\\\test.pdf\"}</fw_action>\n" +
+                        "<fw_action>{\"tool\":\"smarthome_control\",\"args\":{\"action\":\"plug_on\",\"target\":\"Packtisch\"}}</fw_action>\n" +
+                        "<fw_action>{\"tool\":\"collection_control\",\"action\":\"launch\",\"app\":\"pdf\"}</fw_action>";
+
+                    var (cleanText, actionResults) = await _agentEngine.ParseAndExecuteStructuredFwActionsForTestAsync(simulatedCloudReply);
+                    return promptsTriggered == 4 &&
+                           !cleanText.Contains("<fw_action>", StringComparison.OrdinalIgnoreCase) &&
+                           actionResults.Count == 4 &&
+                           actionResults.All(r => !r.Ok && (r.Badge ?? "").Contains("Abgelehnt", StringComparison.OrdinalIgnoreCase));
+                }
+                finally
+                {
+                    _agentEngine.ConfirmCloudActionOverride = null;
+                }
+            });
+
+            // 16. MCP SSH preset parity check
+            Check("FunkenwerkAgentEngine SSH preset parity with FunkenwerkMcp (9 canonical presets)", () =>
+            {
+                string[] expected =
+                {
+                    "disk_usage", "uptime_and_load", "php_version", "artisan_about",
+                    "git_status", "git_log", "git_branch", "list_dir", "stage_git_pull"
+                };
+                return FunkenwerkAgentEngine.SupportedSshPresets.Count == expected.Length &&
+                       expected.All(FunkenwerkAgentEngine.SupportedSshPresets.Contains) &&
+                       !FunkenwerkAgentEngine.SupportedSshPresets.Contains("rm_rf");
+            });
+
+            // 17. MJPEG EOI parser with embedded EXIF APP1 thumbnail FF D8 ... FF D9
+            Check("CameraStreamWorker.IndexOfJpegEoi skips embedded EXIF APP1 thumbnail FF D9", () =>
+            {
+                using var ms = new MemoryStream();
+                // Outer SOI
+                ms.Write(new byte[] { 0xFF, 0xD8 });
+                // APP1 EXIF segment containing an embedded thumbnail with its own FF D8 ... FF D9!
+                byte[] exifPayload = { 0x45, 0x78, 0x69, 0x66, 0x00, 0x00, 0xFF, 0xD8, 0x11, 0x22, 0xFF, 0xD9, 0x33 };
+                int app1Len = exifPayload.Length + 2;
+                ms.Write(new byte[] { 0xFF, 0xE1, (byte)(app1Len >> 8), (byte)(app1Len & 0xFF) });
+                ms.Write(exifPayload);
+                // DQT segment
+                ms.Write(new byte[] { 0xFF, 0xDB, 0x00, 0x05, 0x01, 0x02, 0x03 });
+                // SOS segment + entropy-coded scan with byte-stuffed FF 00 and RST0 FF D0
+                ms.Write(new byte[] { 0xFF, 0xDA, 0x00, 0x04, 0x01, 0x00 });
+                ms.Write(new byte[] { 0xAA, 0xFF, 0x00, 0xBB, 0xFF, 0xD0, 0xCC });
+                int expectedOuterEoiOffset = (int)ms.Position;
+                ms.Write(new byte[] { 0xFF, 0xD9 });
+
+                byte[] packet = ms.ToArray();
+                int foundEoi = CameraStreamWorker.IndexOfJpegEoi(packet, 0, packet.Length);
+                return foundEoi == expectedOuterEoiOffset;
+            });
+
+            // 18. MunbynLabelPrinterEngine real ISO/IEC 15417 Code-128B bit-pattern & checksum verification
+            Check("MunbynLabelPrinterEngine real Code-128B barcode bit-pattern & modulo-103 checksum", () =>
+            {
+                string dhlTracking = "00340434161234567890";
+                string orderRef = "SF-2026-GIFHORN";
+                bool[] mod1 = MunbynLabelPrinterEngine.EncodeCode128BModules(dhlTracking);
+                bool[] mod2 = MunbynLabelPrinterEngine.EncodeCode128BModules(orderRef);
+                var dec1 = MunbynLabelPrinterEngine.DecodeCode128BModules(mod1);
+                var dec2 = MunbynLabelPrinterEngine.DecodeCode128BModules(mod2);
+
+                // Corrupt one bar module inside checksum/payload and ensure decoder rejects invalid checksum
+                bool[] corrupted = (bool[])mod1.Clone();
+                int mid = corrupted.Length / 2;
+                corrupted[mid] = !corrupted[mid];
+                var decCorrupt = MunbynLabelPrinterEngine.DecodeCode128BModules(corrupted);
+
+                return dec1.Valid && dec1.DecodedText == dhlTracking &&
+                       dec2.Valid && dec2.DecodedText == orderRef &&
+                       (!decCorrupt.Valid || decCorrupt.DecodedText != dhlTracking);
+            });
+
+            // 19. MunbynLabelPrinterEngine multi-page DHL PDF rendering
+            await CheckAsync("MunbynLabelPrinterEngine renders all pages of multi-page PDF label", async () =>
+            {
+                byte[] twoPagePdf = MunbynLabelPrinterEngine.CreateSyntheticMultiPagePdfBytes(2);
+                var job = new FunkenwerkPrintJobDto
+                {
+                    Id = "9001",
+                    OrderNumber = "SF-TEST-MULTIPAGE",
+                    TrackingNumber = "00340434161234567890",
+                    PackageIndex = 1,
+                    PackageTotal = 2,
+                    Recipient = new FunkenwerkPrintAddressDto
+                    {
+                        Name = "Alina Steinhauer",
+                        Street = "Carl-Goerdeler-Ring 26",
+                        PostalCode = "38518",
+                        City = "Gifhorn"
+                    },
+                    PdfBase64 = Convert.ToBase64String(twoPagePdf)
+                };
+                var pages = await MunbynLabelPrinterEngine.RenderAllJobBitmapsAsync(job);
+                return pages.Count == 2 && pages.All(p => p.Bitmap.PixelWidth == 812 && p.Bitmap.PixelHeight == 1218 && p.JpegBytes.Length > 500);
+            });
+
+            // 20. CameraStudio custom background path persistence & preset pipeline
+            Check("CameraStudio SetCustomBackgroundImage path persistence & studio presets", () =>
+            {
+                EnsureCameraStudioInitialized();
+                string bgPngPath = System.IO.Path.Combine(FunkenwerkSecurityVault.GetSecureTempDirectory(), "custom_bg_test.png");
+                var wb = new System.Windows.Media.Imaging.WriteableBitmap(64, 64, 96, 96, PixelFormats.Bgra32, null);
+                byte[] px = new byte[64 * 64 * 4];
+                for (int i = 0; i < px.Length; i += 4) { px[i] = 0x18; px[i + 1] = 0x20; px[i + 2] = 0x28; px[i + 3] = 0xFF; }
+                wb.WritePixels(new Int32Rect(0, 0, 64, 64), px, 64 * 4, 0);
+                using (var fs = new FileStream(bgPngPath, FileMode.Create, FileAccess.Write, FileShare.None))
+                {
+                    var enc = new System.Windows.Media.Imaging.PngBitmapEncoder();
+                    enc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(wb));
+                    enc.Save(fs);
+                }
+
+                _camFrameProcessor.SetCustomBackgroundImage(bgPngPath, 1280, 720);
+                CamRenderTimer_Tick(null, EventArgs.Empty);
+                return _camFrameProcessor.HasLoadedCustomBackground &&
+                       string.Equals(_camFrameProcessor.LoadedCustomBackgroundPath, bgPngPath, StringComparison.OrdinalIgnoreCase);
+            });
+
+            // 21. FunkenwerkVoiceChangerEngine concurrent DSP stress & preset verification
+            await CheckAsync("FunkenwerkVoiceChangerEngine thread-safe DSP concurrency & 11 voice presets", async () =>
+            {
+                EnsureCameraStudioInitialized();
+                string[] presets = { "anonymous", "robot", "demon", "chipmunk", "female", "deep_male", "alien", "radio", "autotune", "monster", "ghost" };
+                var testDsp = new FunkenwerkVoiceChangerEngine();
+                var testCfg = new CameraStudioConfig { VoiceChangerEnabled = true };
+
+                // Verify audio transformation on deterministic 48kHz sine wave
+                FunkenwerkVoiceChangerEngine.ApplyPresetToConfig(testCfg, "demon");
+                testDsp.SyncFromConfig(testCfg, -1, -1);
+                short[] orig = new short[960];
+                short[] buf = new short[960];
+                for (int n = 0; n < 960; n++)
+                {
+                    short s = (short)(Math.Sin(2.0 * Math.PI * 200.0 * (n / 48000.0)) * 12000);
+                    orig[n] = s;
+                    buf[n] = s;
+                }
+                testDsp.ProcessDspBlockInPlace(buf, 960);
+                Array.Copy(orig, buf, 960);
+                testDsp.ProcessDspBlockInPlace(buf, 960);
+                double diffSq = 0;
+                for (int n = 0; n < 960; n++) { double d = buf[n] - orig[n]; diffSq += d * d; }
+                double rms = Math.Sqrt(diffSq / 960.0);
+
+                // Concurrent multi-thread stress between UI preset switching and audio thread processing
+                var writerTask = Task.Run(() =>
+                {
+                    var localCfg = new CameraStudioConfig { VoiceChangerEnabled = true };
+                    for (int i = 0; i < 120; i++)
+                    {
+                        FunkenwerkVoiceChangerEngine.ApplyPresetToConfig(localCfg, presets[i % presets.Length]);
+                        testDsp.SyncFromConfig(localCfg, -1, -1);
+                    }
+                });
+                var audioTask = Task.Run(() =>
+                {
+                    short[] work = new short[960];
+                    for (int i = 0; i < 120; i++)
+                    {
+                        Array.Copy(orig, work, 960);
+                        testDsp.ProcessDspBlockInPlace(work, 960);
+                    }
+                });
+                await Task.WhenAll(writerTask, audioTask);
+                testDsp.Dispose();
+                return rms > 50.0;
+            });
+
+            // 22. MarketingEngine recipe index clamping & https:// viral URL validation
+            Check("MarketingEngine _currentDailyRecipeIndex bounds clamping & https:// URL guard", () =>
+            {
+                EnsureMarketingInitialized();
+                int count = _mktVault.DailyRecipes.Count;
+                int lowClamp = ClampDailyRecipeIndexForTest(-500);
+                int highClamp = ClampDailyRecipeIndexForTest(99999);
+
+                bool urlGuardOk = IsAllowedViralReferenceUrl("https://www.tiktok.com/search?q=test") &&
+                                  !IsAllowedViralReferenceUrl("http://www.tiktok.com/search?q=test") &&
+                                  !IsAllowedViralReferenceUrl("file:///C:/Windows/System32/calc.exe") &&
+                                  !IsAllowedViralReferenceUrl("javascript:alert(1)") &&
+                                  !IsAllowedViralReferenceUrl("https://user:pass@www.tiktok.com/");
+
+                return count >= 14 && lowClamp == 0 && highClamp == count - 1 && urlGuardOk;
+            });
+
+            // 23. funkenwerk_dlc_bridge.py --self-test UNC/device/traversal/ADS/PID hardening
+            await CheckAsync("funkenwerk_dlc_bridge.py --self-test UNC/device/traversal/ADS path hardening", async () =>
+            {
+                string scriptPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "funkenwerk_dlc_bridge.py");
+                if (!File.Exists(scriptPath)) return false;
+
+                string dlcPython = @"C:\Users\konta\Documents\Deep-Live-Cam\venv\Scripts\python.exe";
+                string pythonExe = File.Exists(dlcPython) ? dlcPython : "python";
+
+                var psi = new ProcessStartInfo
+                {
+                    FileName = pythonExe,
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+                psi.ArgumentList.Add(scriptPath);
+                psi.ArgumentList.Add("--self-test");
+
+                using var proc = Process.Start(psi);
+                if (proc == null) return false;
+                var outTask = proc.StandardOutput.ReadToEndAsync();
+                var errTask = proc.StandardError.ReadToEndAsync();
+                using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(10));
+                await proc.WaitForExitAsync(cts.Token);
+                string stdout = await outTask;
+                _ = await errTask;
+                return proc.ExitCode == 0 && stdout.Contains("0 FAILED", StringComparison.OrdinalIgnoreCase);
+            });
+
+            // 24. Compiled Funkenwerk.dll binary scan for zero hardcoded passwords, tokens, or IBANs
+            Check("Compiled Funkenwerk.dll binary contains ZERO hardcoded passwords, tokens, or IBANs", () =>
+            {
+                string dllPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Funkenwerk.dll");
+                if (!File.Exists(dllPath)) return false;
+                byte[] dllBytes = File.ReadAllBytes(dllPath);
+                string asciiView = Encoding.UTF8.GetString(dllBytes);
+                string utf16View = Encoding.Unicode.GetString(dllBytes);
+
+                // Check fragmented probes so even the self-test string table never embeds full forbidden literals!
+                string forbiddenPassPrefix = "Ass" + "star20";
+                string forbiddenTokenPrefix = "CTIW" + "Gm2Ryb";
+                string forbiddenIban = "de852699" + "10668583196000";
+
+                bool cleanUtf8 = !asciiView.Contains(forbiddenPassPrefix, StringComparison.OrdinalIgnoreCase) &&
+                                 !asciiView.Contains(forbiddenTokenPrefix, StringComparison.OrdinalIgnoreCase) &&
+                                 !asciiView.Contains(forbiddenIban, StringComparison.OrdinalIgnoreCase);
+                bool cleanUtf16 = !utf16View.Contains(forbiddenPassPrefix, StringComparison.OrdinalIgnoreCase) &&
+                                  !utf16View.Contains(forbiddenTokenPrefix, StringComparison.OrdinalIgnoreCase) &&
+                                  !utf16View.Contains(forbiddenIban, StringComparison.OrdinalIgnoreCase);
+                return cleanUtf8 && cleanUtf16;
+            });
+
+            // 25. Programmatic UI switch across ALL 11 spaces (incl. organizer & collection) in Dark Mode
+            await CheckAsync("Programmatic UI switch across ALL 11 spaces in Dark Mode", async () =>
+            {
+                ApplyThemeMode(true);
+                await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.Background);
+                if (!_isDarkMode) return false;
+
+                string[] spacesToVerify =
+                {
+                    "mail", "organizer", "todo", "calendar", "contacts", "music",
+                    "smarthome", "camera", "marketing", "orders", "files", "collection", "agent"
+                };
+
+                foreach (string sp in spacesToVerify)
+                {
+                    var res = await ExecuteSuiteCommandAsync("switch_space", sp);
+                    if (!res.Ok) return false;
+                    await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.Background);
+                    string expectedCanonical = NormalizeSpaceKey(sp);
+                    if (_activeSpace != expectedCanonical || !IsSpaceGridVisible(expectedCanonical))
+                        return false;
+                }
+                return true;
+            });
+
+            // 26. Programmatic UI switch across ALL 11 spaces (incl. organizer & collection) in Light Mode
+            await CheckAsync("Programmatic UI switch across ALL 11 spaces in Light Mode", async () =>
+            {
+                ApplyThemeMode(false);
+                await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.Background);
+                if (_isDarkMode) return false;
+
+                string[] spacesToVerify =
+                {
+                    "mail", "organizer", "todo", "calendar", "contacts", "music",
+                    "smarthome", "camera", "marketing", "orders", "files", "collection", "agent"
+                };
+
+                foreach (string sp in spacesToVerify)
                 {
                     SwitchSpaceUI(sp);
+                    UpdateLayout();
+                    await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.Background);
+                    string expectedCanonical = NormalizeSpaceKey(sp);
+                    if (_activeSpace != expectedCanonical || !IsSpaceGridVisible(expectedCanonical))
+                        return false;
                 }
-                return _activeSpace == "mail";
+
+                // Restore clean default space & shut down studio workers before exit
+                ApplyThemeMode(true);
+                SwitchSpaceUI("mail");
+                return true;
             });
 
-            string summary = $"FUNKENWERK ZENTRALE SELF-TEST: {passed}/{total} TESTS BESTANDEN.";
-            Console.WriteLine(summary);
-            sb.AppendLine(summary);
-            try
+            ShutdownSmartHomeEngine();
+            ShutdownCameraStudioEngine();
+
+            Console.WriteLine($"=== RESULT: {passed} PASSED, {failed} FAILED (Total {total}) ===");
+            return failed == 0 && passed == total;
+        }
+
+        private bool IsSpaceGridVisible(string canonicalSpace)
+        {
+            return canonicalSpace switch
             {
-                File.WriteAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "self_test_report.txt"), sb.ToString(), Encoding.UTF8);
-            }
-            catch { }
-            return passed == total;
+                "mail" => MailViewGrid?.Visibility == Visibility.Visible,
+                "contacts" => ContactsViewGrid?.Visibility == Visibility.Visible,
+                "calendar" => CalendarViewGrid?.Visibility == Visibility.Visible,
+                "todo" => TodoViewGrid?.Visibility == Visibility.Visible,
+                "music" => MusicViewGrid?.Visibility == Visibility.Visible,
+                "smarthome" => SmartHomeViewGrid?.Visibility == Visibility.Visible,
+                "camera" => CameraStudioViewGrid?.Visibility == Visibility.Visible,
+                "marketing" => MarketingViewGrid?.Visibility == Visibility.Visible,
+                "orders" => OrdersViewGrid?.Visibility == Visibility.Visible,
+                "files" => FilesViewGrid?.Visibility == Visibility.Visible,
+                "agent" => AgentViewGrid?.Visibility == Visibility.Visible,
+                _ => false
+            };
         }
 
         public async Task RunAutomatedCameraStudioVerificationAsync(string reportPath)
@@ -23481,43 +24285,45 @@ namespace Funkenwerk
 
         private string GetFunkenwerkFilesRootDir()
         {
+            if (FunkenwerkSecurityVault.IsUsingTemporaryAppData)
+            {
+                string tempFiles = System.IO.Path.Combine(FunkenwerkSecurityVault.AppDataDirectory, "files");
+                Directory.CreateDirectory(tempFiles);
+                return tempFiles;
+            }
+
+            // Never perform synchronous Directory.Exists("\\wsl.localhost\...") on the UI thread!
             string baseDirFiles = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "files");
             if (Directory.Exists(baseDirFiles))
                 return baseDirFiles;
 
-            string desktopFiles = @"C:\Users\konta\Desktop\Funkenwerk\files";
-            if (Directory.Exists(desktopFiles))
-                return desktopFiles;
-
-            string wslFiles = @"\\wsl.localhost\Ubuntu\home\ubuntuxina\meine-projekte\seelenfunke\funkenwerk\files";
-            if (Directory.Exists(wslFiles))
-                return wslFiles;
-
-            Directory.CreateDirectory(baseDirFiles);
-            return baseDirFiles;
+            string appDataFiles = System.IO.Path.Combine(FunkenwerkSecurityVault.AppDataDirectory, "files");
+            Directory.CreateDirectory(appDataFiles);
+            return appDataFiles;
         }
 
         private List<string> GetAllMirrorFilesRootDirs()
         {
-            var roots = new List<string>();
-            string primary = GetFunkenwerkFilesRootDir();
-            roots.Add(primary);
+            // Keep file operations strictly local & non-blocking (no synchronous WSL UNC stalls on UI thread)
+            return new List<string> { GetFunkenwerkFilesRootDir() };
+        }
 
-            string wslProjectFiles = @"\\wsl.localhost\Ubuntu\home\ubuntuxina\meine-projekte\seelenfunke\funkenwerk\files";
-            if (!string.Equals(primary, wslProjectFiles, StringComparison.OrdinalIgnoreCase) &&
-                Directory.Exists(System.IO.Path.GetDirectoryName(wslProjectFiles)))
+        private string GetFunkenwerkFilesDbPath()
+        {
+            string appDbPath = FunkenwerkSecurityVault.GetAppDataFilePath("funkenwerk_files_db.json", migrateFromBaseDir: false);
+            if (!File.Exists(appDbPath) && !FunkenwerkSecurityVault.IsUsingTemporaryAppData)
             {
-                roots.Add(wslProjectFiles);
+                string legacyDb = System.IO.Path.Combine(GetFunkenwerkFilesRootDir(), "funkenwerk_files_db.json");
+                if (File.Exists(legacyDb))
+                {
+                    try
+                    {
+                        FunkenwerkSecurityVault.WriteSecureFileText(appDbPath, File.ReadAllText(legacyDb, Encoding.UTF8));
+                    }
+                    catch { }
+                }
             }
-
-            string desktopFiles = @"C:\Users\konta\Desktop\Funkenwerk\files";
-            if (!string.Equals(primary, desktopFiles, StringComparison.OrdinalIgnoreCase) &&
-                Directory.Exists(System.IO.Path.GetDirectoryName(desktopFiles)))
-            {
-                roots.Add(desktopFiles);
-            }
-
-            return roots;
+            return appDbPath;
         }
 
         private static string NormalizeFilesPath(string? rawPath)
@@ -23557,12 +24363,12 @@ namespace Funkenwerk
         private void LoadFunkenwerkFilesDatabase()
         {
             _filesDbByRelPath.Clear();
-            string root = GetFunkenwerkFilesRootDir();
-            string dbFile = System.IO.Path.Combine(root, "funkenwerk_files_db.json");
+            string dbFile = GetFunkenwerkFilesDbPath();
             if (!File.Exists(dbFile)) return;
 
             try
             {
+                FunkenwerkSecurityVault.LockDownFileAcl(dbFile);
                 string json = File.ReadAllText(dbFile, Encoding.UTF8);
                 using var doc = JsonDocument.Parse(json);
                 if (doc.RootElement.TryGetProperty("documents", out var docsEl) && docsEl.ValueKind == JsonValueKind.Array)
@@ -23643,15 +24449,7 @@ namespace Funkenwerk
                 };
 
                 string json = JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true });
-                foreach (var rootDir in GetAllMirrorFilesRootDirs())
-                {
-                    try
-                    {
-                        Directory.CreateDirectory(rootDir);
-                        File.WriteAllText(System.IO.Path.Combine(rootDir, "funkenwerk_files_db.json"), json, Encoding.UTF8);
-                    }
-                    catch { }
-                }
+                FunkenwerkSecurityVault.WriteSecureFileText(GetFunkenwerkFilesDbPath(), json);
             }
             catch { }
         }
@@ -23760,9 +24558,9 @@ namespace Funkenwerk
             ["terasse"] = new[] { "terasse", "terrasse", "kamera", "kameraaufnahmen", "bewegung" },
             ["garten"] = new[] { "terasse", "terrasse", "kamera", "kameraaufnahmen", "bewegung" },
             ["bewegung"] = new[] { "bewegung", "bewegungserkennung", "terasse", "kameraaufnahmen" },
-            ["bank"] = new[] { "bank", "kontoauszug", "umsaetze", "de85269910668583196000", "iban", "finanzen" },
-            ["konto"] = new[] { "bank", "kontoauszug", "umsaetze", "de85269910668583196000", "mahnung" },
-            ["umsatz"] = new[] { "umsaetze", "bank", "kontoauszug", "de85269910668583196000" },
+            ["bank"] = new[] { "bank", "kontoauszug", "umsaetze", "iban", "fyrst", "finanzen" },
+            ["konto"] = new[] { "bank", "kontoauszug", "umsaetze", "fyrst", "mahnung" },
+            ["umsatz"] = new[] { "umsaetze", "bank", "kontoauszug", "fyrst" },
             ["geld"] = new[] { "finanzen", "bank", "umsaetze", "krankengeld", "arbeitslosengeld", "gruendungszuschuss", "rechnung" },
             ["steuer"] = new[] { "steuern", "steuererklaerung", "finanzamt", "gewerbesteuer", "elster", "2025" },
             ["finanzamt"] = new[] { "steuern", "steuererklaerung", "gewerbesteuer", "finanzamt" },
@@ -25358,6 +26156,22 @@ namespace Funkenwerk
                     ? item.PhysicalPath
                     : ResolveLocalPhysicalPath(item.Path);
 
+                if (FunkenwerkSecurityVault.IsDangerousAttachmentFile(item.Name) ||
+                    FunkenwerkSecurityVault.IsDangerousAttachmentFile(localPath))
+                {
+                    string ext = System.IO.Path.GetExtension(string.IsNullOrWhiteSpace(localPath) ? item.Name : localPath);
+                    var res = MessageBox.Show(
+                        $"Sicherheits-Schutzschild:\n\nDie Datei '{item.Name}' ({ext}) ist eine ausführbare Datei, ein Container oder ein aktives Skript.\n\nAus Sicherheitsgründen wird sie nicht direkt ausgeführt.\n\nMöchtest du die Datei stattdessen im Explorer markieren?",
+                        "Funkenwerk Sicherheitswarnung",
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Warning);
+                    if (res == MessageBoxResult.Yes && File.Exists(localPath))
+                    {
+                        RevealFileInExplorerSafely(localPath);
+                    }
+                    return;
+                }
+
                 if (File.Exists(localPath))
                 {
                     Process.Start(new ProcessStartInfo(localPath) { UseShellExecute = true });
@@ -26546,6 +27360,67 @@ namespace Funkenwerk
             };
         }
 
+        public static (bool Allowed, string? ValidatedArg, string Error) ValidateCollectionLaunchArgs(string? rawAppKey, string? extraArg)
+        {
+            string appKey = (rawAppKey ?? "").Trim().ToLowerInvariant();
+            if (string.IsNullOrWhiteSpace(extraArg))
+            {
+                return (true, null, "");
+            }
+
+            string arg = extraArg.Trim();
+            if (arg.IndexOfAny(new[] { '\r', '\n', '\0' }) >= 0)
+            {
+                return (false, null, "Steuerzeichen in Start-Argumenten sind blockiert.");
+            }
+            if (arg.StartsWith("-", StringComparison.Ordinal) || arg.StartsWith("/", StringComparison.Ordinal))
+            {
+                return (false, null, "CLI-Flags (- oder /) sind beim Start von Collection-Apps strikt blockiert.");
+            }
+
+            if (appKey == "browser")
+            {
+                if (!Uri.TryCreate(arg, UriKind.Absolute, out var uri) ||
+                    !string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) ||
+                    !string.IsNullOrEmpty(uri.UserInfo) ||
+                    string.IsNullOrWhiteSpace(uri.Host))
+                {
+                    return (false, null, "Funkenwerk Browser akzeptiert nur sichere https:// URLs.");
+                }
+                return (true, uri.AbsoluteUri, "");
+            }
+
+            if (appKey == "pdf")
+            {
+                if (arg.StartsWith(@"\\", StringComparison.Ordinal) || arg.StartsWith("//", StringComparison.Ordinal))
+                {
+                    return (false, null, "UNC-Netzwerkpfade sind für Funkenwerk PDF blockiert.");
+                }
+                if (arg.Contains("..", StringComparison.Ordinal))
+                {
+                    return (false, null, "Pfad-Traversal (..) ist blockiert.");
+                }
+                string fullPdf;
+                try
+                {
+                    fullPdf = System.IO.Path.GetFullPath(arg);
+                }
+                catch
+                {
+                    return (false, null, "Ungültiger PDF-Dateipfad.");
+                }
+                if (!string.Equals(System.IO.Path.GetExtension(fullPdf), ".pdf", StringComparison.OrdinalIgnoreCase) ||
+                    FunkenwerkSecurityVault.IsDangerousAttachmentFile(fullPdf) ||
+                    !File.Exists(fullPdf))
+                {
+                    return (false, null, "Funkenwerk PDF akzeptiert nur existierende lokale .pdf Dateien.");
+                }
+                return (true, fullPdf, "");
+            }
+
+            return (false, null, $"Das Tool '{appKey}' akzeptiert keine zusätzlichen Start-Argumente.");
+        }
+
         public async Task<LocalBridgeResult> ExecuteSuiteCommandAsync(string action, string? target = null)
         {
             var tcs = new TaskCompletionSource<LocalBridgeResult>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -26570,6 +27445,18 @@ namespace Funkenwerk
                         }
                         appKey = appKey.ToLowerInvariant();
 
+                        var argValidation = ValidateCollectionLaunchArgs(appKey, extraArg);
+                        if (!argValidation.Allowed)
+                        {
+                            tcs.TrySetResult(new LocalBridgeResult
+                            {
+                                Ok = false,
+                                Badge = "Sicherheits-Sperre",
+                                Summary = argValidation.Error
+                            });
+                            return;
+                        }
+
                         (string exeRel, string label) = appKey switch
                         {
                             "tresor" => (@"Funkenwerk Tresor\FunkenwerkTresor.exe", "Funkenwerk Tresor"),
@@ -26593,9 +27480,9 @@ namespace Funkenwerk
                                 WorkingDirectory = System.IO.Path.GetDirectoryName(fullExe) ?? collectionRoot,
                                 UseShellExecute = false
                             };
-                            if (!string.IsNullOrWhiteSpace(extraArg))
+                            if (!string.IsNullOrWhiteSpace(argValidation.ValidatedArg))
                             {
-                                psi.ArgumentList.Add(extraArg);
+                                psi.ArgumentList.Add(argValidation.ValidatedArg);
                             }
                             Process.Start(psi);
                             tcs.TrySetResult(new LocalBridgeResult
@@ -26624,17 +27511,18 @@ namespace Funkenwerk
                         return;
                     }
 
-                    if (act == "switch_space" && AllSpaceKeys.Contains(tgt))
+                    string normalizedTargetSpace = NormalizeSpaceKey(tgt);
+                    if (act == "switch_space" && AllSpaceKeys.Contains(normalizedTargetSpace))
                     {
                         if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
                         Activate();
-                        SwitchSpaceUI(tgt);
+                        SwitchSpaceUI(normalizedTargetSpace);
                         SaveSettingsToFile();
                         tcs.TrySetResult(new LocalBridgeResult
                         {
                             Ok = true,
-                            Badge = $"Modul {tgt}",
-                            Summary = $"Funkenwerk Ansicht auf '{tgt}' gewechselt."
+                            Badge = $"Modul {normalizedTargetSpace}",
+                            Summary = $"Funkenwerk Ansicht auf '{normalizedTargetSpace}' gewechselt."
                         });
                         return;
                     }
@@ -27018,12 +27906,12 @@ namespace Funkenwerk
     public class AppSettings
     {
         public string ApiBaseUrl { get; set; } = "http://127.0.0.1/api";
+        [JsonIgnore]
         public string ApiToken { get; set; } = "";
         public string ApiTokenLocal { get; set; } = "";
         public string ApiTokenStage { get; set; } = "";
         public string ApiTokenLive { get; set; } = "";
         public string SavedAuthEmail { get; set; } = "";
-        public string SavedAuthPassword { get; set; } = "";
         public bool RememberCredentials { get; set; } = true;
         public bool IsSessionLocked { get; set; } = false;
         public string ActiveModule { get; set; } = "mail";

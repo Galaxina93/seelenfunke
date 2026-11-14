@@ -277,35 +277,64 @@ Route::get('/flights', function (\Illuminate\Http\Request $request) {
     }
 })->middleware('throttle:30,1');
 
-// --- Secure File View for Mobile App (allows query parameter token authentication) ---
+// --- Secure File View for Mobile App (supports Bearer, Signed URL, or non-expired ?token=) ---
 Route::get('/funki/financials/receipt', function (\Illuminate\Http\Request $request) {
+    $hasValidSignature = \Illuminate\Support\Facades\URL::hasValidSignature($request);
     $tokenString = $request->query('token');
     if (is_string($tokenString) && $tokenString !== '') {
         $token = \Laravel\Sanctum\PersonalAccessToken::findToken($tokenString);
-        if ($token && !$token->can('*')) {
+        if (!$token) {
+            abort(401, 'Unauthorized');
+        }
+        if ($token->expires_at && $token->expires_at->isPast()) {
+            abort(401, 'Token abgelaufen.');
+        }
+        if (!$token->can('*')) {
             abort(403, 'Zugriff verweigert: Eingeschränktes Manufaktur-Monitor-Token.');
         }
-        if ($token && (!$token->expires_at || !$token->expires_at->isPast()) && $token->tokenable) {
+        if ($token->tokenable) {
             $user = $token->tokenable;
-            $request->setUserResolver(fn() => $user);
+            if (method_exists($user, 'withAccessToken')) {
+                $user->withAccessToken($token);
+            }
+            \Illuminate\Support\Facades\Auth::setUser($user);
+            $request->setUserResolver(fn () => $user);
         }
     } elseif ($request->bearerToken()) {
         $pat = \Laravel\Sanctum\PersonalAccessToken::findToken((string) $request->bearerToken());
-        if ($pat && !$pat->can('*')) {
+        if (!$pat) {
+            abort(401, 'Unauthorized');
+        }
+        if ($pat->expires_at && $pat->expires_at->isPast()) {
+            abort(401, 'Token abgelaufen.');
+        }
+        if (!$pat->can('*')) {
             abort(403, 'Zugriff verweigert: Eingeschränktes Manufaktur-Monitor-Token.');
+        }
+        if ($pat->tokenable) {
+            $user = $pat->tokenable;
+            if (method_exists($user, 'withAccessToken')) {
+                $user->withAccessToken($pat);
+            }
+            \Illuminate\Support\Facades\Auth::setUser($user);
+            $request->setUserResolver(fn () => $user);
         }
     }
 
     $user = $request->user() ?: $request->user('sanctum');
-    if (!$user) {
-        abort(401, 'Unauthorized');
-    }
+    if (!$hasValidSignature) {
+        if (!$user) {
+            abort(401, 'Unauthorized');
+        }
 
-    if (!$user instanceof \App\Models\Admin\Admin) {
+        if (!$user instanceof \App\Models\Admin\Admin) {
+            abort(403, 'Nur Administratoren dürfen Buchhaltungsbelege einsehen.');
+        }
+        if (method_exists($user, 'currentAccessToken') && $user->currentAccessToken() && !$user->tokenCan('*')) {
+            abort(403, 'Zugriff verweigert: Eingeschränktes Manufaktur-Monitor-Token.');
+        }
+    } elseif ($user && !$user instanceof \App\Models\Admin\Admin) {
         abort(403, 'Nur Administratoren dürfen Buchhaltungsbelege einsehen.');
-    }
-    if (method_exists($user, 'currentAccessToken') && $user->currentAccessToken() && !$user->tokenCan('*')) {
-        abort(403, 'Zugriff verweigert: Eingeschränktes Manufaktur-Monitor-Token.');
     }
 
     $path = $request->query('path');
@@ -354,67 +383,129 @@ Route::get('/funki/financials/receipt', function (\Illuminate\Http\Request $requ
         'Content-Disposition' => $disposition . '; filename="' . $safeFilename . '"',
         'X-Content-Type-Options' => 'nosniff',
     ]);
-})->middleware('throttle:30,1');
+})->name('api.funki.financials.receipt')->middleware('throttle:30,1');
 
 // --- Secure Laser SVG Download for Mobile App ---
 Route::get('/funki/shop/order-items/{itemId}/laser-file/{side}', function (\Illuminate\Http\Request $request, $itemId, $side, \App\Services\Export\FileDownloadService $downloadService) {
+    $hasValidSignature = \Illuminate\Support\Facades\URL::hasValidSignature($request);
     $tokenString = $request->query('token');
     if (is_string($tokenString) && $tokenString !== '') {
         $token = \Laravel\Sanctum\PersonalAccessToken::findToken($tokenString);
-        if ($token && !$token->can('*')) {
+        if (!$token) {
+            abort(401, 'Unauthorized');
+        }
+        if ($token->expires_at && $token->expires_at->isPast()) {
+            abort(401, 'Token abgelaufen.');
+        }
+        if (!$token->can('*')) {
             abort(403, 'Zugriff verweigert: Eingeschränktes Manufaktur-Monitor-Token.');
         }
-        if ($token && (!$token->expires_at || !$token->expires_at->isPast()) && $token->tokenable) {
+        if ($token->tokenable) {
             $user = $token->tokenable;
-            $request->setUserResolver(fn() => $user);
+            if (method_exists($user, 'withAccessToken')) {
+                $user->withAccessToken($token);
+            }
+            \Illuminate\Support\Facades\Auth::setUser($user);
+            $request->setUserResolver(fn () => $user);
         }
     } elseif ($request->bearerToken()) {
         $pat = \Laravel\Sanctum\PersonalAccessToken::findToken((string) $request->bearerToken());
-        if ($pat && !$pat->can('*')) {
+        if (!$pat) {
+            abort(401, 'Unauthorized');
+        }
+        if ($pat->expires_at && $pat->expires_at->isPast()) {
+            abort(401, 'Token abgelaufen.');
+        }
+        if (!$pat->can('*')) {
             abort(403, 'Zugriff verweigert: Eingeschränktes Manufaktur-Monitor-Token.');
+        }
+        if ($pat->tokenable) {
+            $user = $pat->tokenable;
+            if (method_exists($user, 'withAccessToken')) {
+                $user->withAccessToken($pat);
+            }
+            \Illuminate\Support\Facades\Auth::setUser($user);
+            $request->setUserResolver(fn () => $user);
         }
     }
 
     $user = $request->user() ?: $request->user('sanctum');
-    if (!$user) {
-        abort(401, 'Unauthorized');
-    }
+    if (!$hasValidSignature) {
+        if (!$user) {
+            abort(401, 'Unauthorized');
+        }
 
-    if (!$user instanceof \App\Models\Admin\Admin) {
+        if (!$user instanceof \App\Models\Admin\Admin) {
+            abort(403, 'Nur Admins dürfen Bestellungen verwalten.');
+        }
+        if (method_exists($user, 'currentAccessToken') && $user->currentAccessToken() && !$user->tokenCan('*')) {
+            abort(403, 'Zugriff verweigert: Eingeschränktes Manufaktur-Monitor-Token.');
+        }
+        \Illuminate\Support\Facades\Auth::setUser($user);
+    } elseif ($user && !$user instanceof \App\Models\Admin\Admin) {
         abort(403, 'Nur Admins dürfen Bestellungen verwalten.');
-    }
-    if (method_exists($user, 'currentAccessToken') && $user->currentAccessToken() && !$user->tokenCan('*')) {
-        abort(403, 'Zugriff verweigert: Eingeschränktes Manufaktur-Monitor-Token.');
     }
 
     return $downloadService->downloadLaserSvg($itemId, $side);
-})->middleware('throttle:30,1');
+})->name('api.funki.shop.laser-file')->middleware('throttle:30,1');
 
-// --- Secure Private Music Stream (Supports Bearer Token or ?token= Query Param + HTTP 206 Range Requests) ---
+// --- Secure Private Music Stream (Supports Bearer Token, Signed URL, or ?token= Query Param + HTTP 206 Range Requests) ---
 Route::get('/funki/music/stream/{id}', function (\Illuminate\Http\Request $request, $id) {
+    $hasValidSignature = \Illuminate\Support\Facades\URL::hasValidSignature($request);
     $tokenString = $request->query('token');
     if (is_string($tokenString) && $tokenString !== '') {
         $token = \Laravel\Sanctum\PersonalAccessToken::findToken($tokenString);
-        if ($token && !$token->can('*')) {
+        if (!$token) {
+            abort(401, 'Unauthorized');
+        }
+        if ($token->expires_at && $token->expires_at->isPast()) {
+            abort(401, 'Token abgelaufen.');
+        }
+        if (!$token->can('*')) {
             abort(403, 'Zugriff verweigert: Eingeschränktes Manufaktur-Monitor-Token.');
         }
-        if ($token && (!$token->expires_at || !$token->expires_at->isPast()) && $token->tokenable) {
+        if ($token->tokenable) {
             $user = $token->tokenable;
-            $request->setUserResolver(fn() => $user);
+            if (method_exists($user, 'withAccessToken')) {
+                $user->withAccessToken($token);
+            }
+            \Illuminate\Support\Facades\Auth::setUser($user);
+            $request->setUserResolver(fn () => $user);
         }
     } elseif ($request->bearerToken()) {
         $pat = \Laravel\Sanctum\PersonalAccessToken::findToken((string) $request->bearerToken());
-        if ($pat && !$pat->can('*')) {
+        if (!$pat) {
+            abort(401, 'Unauthorized');
+        }
+        if ($pat->expires_at && $pat->expires_at->isPast()) {
+            abort(401, 'Token abgelaufen.');
+        }
+        if (!$pat->can('*')) {
             abort(403, 'Zugriff verweigert: Eingeschränktes Manufaktur-Monitor-Token.');
+        }
+        if ($pat->tokenable) {
+            $user = $pat->tokenable;
+            if (method_exists($user, 'withAccessToken')) {
+                $user->withAccessToken($pat);
+            }
+            \Illuminate\Support\Facades\Auth::setUser($user);
+            $request->setUserResolver(fn () => $user);
         }
     }
 
     $user = $request->user() ?: $request->user('sanctum');
-    if (!$user || !$user instanceof \App\Models\Admin\Admin) {
-        abort(401, 'Unauthorized');
-    }
-    if (method_exists($user, 'currentAccessToken') && $user->currentAccessToken() && !$user->tokenCan('*')) {
-        abort(403, 'Zugriff verweigert: Eingeschränktes Manufaktur-Monitor-Token.');
+    if (!$hasValidSignature) {
+        if (!$user) {
+            abort(401, 'Unauthorized');
+        }
+        if (!$user instanceof \App\Models\Admin\Admin) {
+            abort(403, 'Nur Administratoren dürfen den Musik-Stream abrufen.');
+        }
+        if (method_exists($user, 'currentAccessToken') && $user->currentAccessToken() && !$user->tokenCan('*')) {
+            abort(403, 'Zugriff verweigert: Eingeschränktes Manufaktur-Monitor-Token.');
+        }
+    } elseif ($user && !$user instanceof \App\Models\Admin\Admin) {
+        abort(403, 'Nur Administratoren dürfen den Musik-Stream abrufen.');
     }
 
     if (session_status() === PHP_SESSION_ACTIVE) {
@@ -446,37 +537,42 @@ Route::get('/funki/music/stream/{id}', function (\Illuminate\Http\Request $reque
         }
         $rel = "leitung/music/tracks/{$vid}.m4a";
         $cand = storage_path("app/{$rel}");
-        if (file_exists($cand) && filesize($cand) > 10000) {
+        if (file_exists($cand) && !is_link($cand) && filesize($cand) > 10000) {
             $fullPath = $cand;
             if ($track->status !== 'cached') {
                 $track->update(['file_path' => $rel, 'status' => 'cached', 'file_size' => filesize($cand)]);
             }
         } else {
-            // Instant on-the-fly download if not yet cached
-            $ytDlp = storage_path('app/leitung/music/bin/yt-dlp');
-            $tracksDir = storage_path('app/leitung/music/tracks');
-            if (!is_dir($tracksDir)) {
-                @mkdir($tracksDir, 0775, true);
-            }
-            $outPattern = storage_path('app/leitung/music/tracks/%(id)s.%(ext)s');
-            $cmd = escapeshellarg($ytDlp)
-                . ' --no-playlist -f "140/ba[ext=m4a]/ba" --concurrent-fragments 4 --no-warnings -o '
-                . escapeshellarg($outPattern) . ' -- '
-                . escapeshellarg("https://www.youtube.com/watch?v={$vid}") . ' 2>&1';
-            @shell_exec($cmd);
-
-            if (file_exists($cand) && filesize($cand) > 10000) {
-                $fullPath = $cand;
-                $track->update(['file_path' => $rel, 'status' => 'cached', 'file_size' => filesize($cand)]);
-            } else {
-                $matches = glob(storage_path("app/leitung/music/tracks/{$vid}.*"));
-                if (!empty($matches) && filesize($matches[0]) > 10000) {
-                    $fullPath = $matches[0];
+            $matches = glob(storage_path("app/leitung/music/tracks/{$vid}.*")) ?: [];
+            foreach ($matches as $matchPath) {
+                if (is_file($matchPath) && !is_link($matchPath) && filesize($matchPath) > 10000) {
+                    $fullPath = $matchPath;
                     $track->update([
                         'file_path' => 'leitung/music/tracks/' . basename($fullPath),
                         'status' => 'cached',
                         'file_size' => filesize($fullPath),
                     ]);
+                    break;
+                }
+            }
+
+            // Niemals PHP-FPM Worker synchron durch yt-dlp Downloads blockieren: nur asynchron im Hintergrund anstoßen
+            if (!$fullPath && !app()->environment('testing')) {
+                $ytDlp = storage_path('app/leitung/music/bin/yt-dlp');
+                if (file_exists($ytDlp)) {
+                    $bgLock = \Illuminate\Support\Facades\Cache::lock("funkenwerk_music_track_{$vid}", 90);
+                    if ($bgLock->get()) {
+                        $tracksDir = storage_path('app/leitung/music/tracks');
+                        if (!is_dir($tracksDir)) {
+                            @mkdir($tracksDir, 0775, true);
+                        }
+                        $outPattern = storage_path('app/leitung/music/tracks/%(id)s.%(ext)s');
+                        $bgCmd = 'nohup timeout 60s ' . escapeshellarg($ytDlp)
+                            . ' --no-playlist -f "140/ba[ext=m4a]/ba" --concurrent-fragments 4 --no-warnings -o '
+                            . escapeshellarg($outPattern) . ' -- '
+                            . escapeshellarg("https://www.youtube.com/watch?v={$vid}") . ' >/dev/null 2>&1 &';
+                        @exec($bgCmd);
+                    }
                 }
             }
         }
@@ -545,7 +641,7 @@ Route::get('/funki/music/stream/{id}', function (\Illuminate\Http\Request $reque
         }
         fclose($fp);
     }, $status, $headers);
-})->middleware('throttle:240,1');
+})->name('api.funki.music.stream')->middleware('throttle:240,1');
 
 // --- 2. Geschützte API-Routen (Sanctum) ---
 Route::middleware('auth:sanctum')->group(function () {
@@ -579,45 +675,38 @@ Route::middleware('auth:sanctum')->group(function () {
             return $firstClean;
         };
 
-        $validOrdersForTop = \App\Models\Order\OrderOrder::query()
+        $topCustomerRows = \App\Models\Order\OrderOrder::query()
             ->whereNotIn('status', ['cancelled', 'refunded'])
-            ->get(['customer_id', 'email', 'billing_address', 'total_price']);
+            ->where(function ($q) {
+                $q->whereNotNull('customer_id')
+                  ->orWhereRaw("TRIM(COALESCE(email, '')) != ''");
+            })
+            ->selectRaw("COALESCE(NULLIF(customer_id, ''), LOWER(TRIM(email))) as customer_key, SUM(total_price) as total_cents, COUNT(*) as orders_count, MAX(id) as sample_order_id")
+            ->groupByRaw("COALESCE(NULLIF(customer_id, ''), LOWER(TRIM(email)))")
+            ->orderByDesc('total_cents')
+            ->orderByDesc('orders_count')
+            ->limit(3)
+            ->get();
 
-        $groupedCustomers = [];
-        foreach ($validOrdersForTop as $row) {
-            $key = !empty($row->customer_id)
-                ? 'cid_' . $row->customer_id
-                : 'mail_' . mb_strtolower(trim((string) $row->email));
-            if ($key === 'mail_') {
-                continue;
-            }
-            if (!isset($groupedCustomers[$key])) {
-                $billing = is_array($row->billing_address) ? $row->billing_address : [];
-                $groupedCustomers[$key] = [
-                    'display_name' => $formatGdprShortName(
-                        $billing['first_name'] ?? null,
-                        $billing['last_name'] ?? null,
-                        $row->customer_name ?? null
-                    ),
-                    'total_cents' => 0,
-                    'orders_count' => 0,
-                ];
-            }
-            $groupedCustomers[$key]['total_cents'] += (int) $row->total_price;
-            $groupedCustomers[$key]['orders_count']++;
+        $sampleOrderIds = $topCustomerRows->pluck('sample_order_id')->filter()->all();
+        $sampleOrders = !empty($sampleOrderIds)
+            ? \App\Models\Order\OrderOrder::whereIn('id', $sampleOrderIds)
+                ->get(['id', 'billing_address', 'email', 'customer_id'])
+                ->keyBy('id')
+            : collect();
+
+        $topDisplayOnly = [];
+        foreach ($topCustomerRows as $aggRow) {
+            $sample = $sampleOrders->get($aggRow->sample_order_id);
+            $billing = ($sample && is_array($sample->billing_address)) ? $sample->billing_address : [];
+            $topDisplayOnly[] = [
+                'display_name' => $formatGdprShortName(
+                    $billing['first_name'] ?? null,
+                    $billing['last_name'] ?? null,
+                    $sample ? ($sample->customer_name ?? null) : null
+                ),
+            ];
         }
-
-        usort($groupedCustomers, static function (array $a, array $b): int {
-            if ($b['total_cents'] !== $a['total_cents']) {
-                return $b['total_cents'] <=> $a['total_cents'];
-            }
-            return $b['orders_count'] <=> $a['orders_count'];
-        });
-
-        $topDisplayOnly = array_map(
-            static fn(array $c): array => ['display_name' => $c['display_name']],
-            array_slice(array_values($groupedCustomers), 0, 3)
-        );
 
         $openBaseQuery = \App\Models\Order\OrderOrder::whereNotIn('status', ['completed', 'cancelled', 'refunded', 'shipped']);
 
@@ -669,43 +758,17 @@ Route::middleware('auth:sanctum')->group(function () {
             $activeRoutinePayload = null;
         }
 
-        // Jahreszeit, Feiertag & Shop-Wachstums-Stufe (1..5) für Funkiras 3D-Atelier
+        // Jahreszeit, Feiertag & Shop-Wachstums-Stufe (1..5) für Funkiras 3D-Atelier, Terrasse & Garten
         $nowB = \Carbon\Carbon::now('Europe/Berlin');
-        $m = (int) $nowB->month;
-        $d = (int) $nowB->day;
-        $season = in_array($m, [12, 1, 2], true) ? 'winter' : (in_array($m, [3, 4, 5], true) ? 'spring' : (in_array($m, [6, 7, 8], true) ? 'summer' : 'autumn'));
-        $occasion = 'standard';
-        if (($m === 12 && $d >= 24 && $d <= 26)) {
-            $occasion = 'christmas';
-        } elseif (($m === 11 && $d >= 24) || ($m === 12 && $d < 24)) {
-            $occasion = 'advent';
-        } elseif (($m === 12 && $d >= 30) || ($m === 1 && $d <= 2)) {
-            $occasion = 'new_year';
-        } elseif ($m === 2 && $d >= 7 && $d <= 14) {
-            $occasion = 'valentines';
-        } elseif ($m === 10 && $d >= 25) {
-            $occasion = 'halloween';
-        } elseif ($m === 11 && $d >= 1 && $d <= 3) {
-            $occasion = 'anniversary';
-        } elseif ($m === 5 && $d >= 8 && $d <= 14) {
-            $occasion = 'mothers_day';
-        } elseif (($m === 3 && $d >= 22) || ($m === 4 && $d <= 22)) {
-            try {
-                if (function_exists('easter_days')) {
-                    $easter = \Carbon\Carbon::create($nowB->year, 3, 21, 0, 0, 0, 'Europe/Berlin')->addDays(easter_days($nowB->year));
-                    if (abs($nowB->diffInDays($easter, false)) <= 5) {
-                        $occasion = 'easter';
-                    }
-                }
-            } catch (\Throwable $e) {
-            }
-        }
+        $seasonCtx = \App\Services\AI\AiPromptService::resolveSeasonAndHolidayContext($nowB);
+        $season = $seasonCtx['season'];
+        $occasion = $seasonCtx['occasion'];
 
         $validOrderCountBase = \App\Models\Order\OrderOrder::whereNotIn('status', ['cancelled', 'refunded']);
         $ordersToday = (clone $validOrderCountBase)->whereDate('created_at', $nowB->toDateString())->count();
         $ordersWeek = (clone $validOrderCountBase)->where('created_at', '>=', $nowB->copy()->startOfWeek())->count();
         $ordersMonth = (clone $validOrderCountBase)->where('created_at', '>=', $nowB->copy()->startOfMonth())->count();
-        $totalValidOrders = count($validOrdersForTop);
+        $totalValidOrders = (clone $validOrderCountBase)->count();
         $growthScore = max($ordersMonth, (int) floor($totalValidOrders / 2));
         $shopLevel = $growthScore >= 100 ? 5 : ($growthScore >= 50 ? 4 : ($growthScore >= 20 ? 3 : ($growthScore >= 5 ? 2 : 1)));
         $levelTitles = [
@@ -716,6 +779,14 @@ Route::middleware('auth:sanctum')->group(function () {
             5 => 'Seelenfunke Imperium',
         ];
 
+        $priorityOrderCheckin = null;
+        try {
+            $priorityOrderCheckin = app(\App\Services\Order\OrderProductionBatchService::class)
+                ->buildWorkshopCheckinSnapshot(null, $nowB);
+        } catch (\Throwable $checkinEx) {
+            $priorityOrderCheckin = null;
+        }
+
         return response()->json([
             'open_orders_count' => (clone $openBaseQuery)->count(),
             'express_orders_count' => (clone $openBaseQuery)->where('is_express', true)->count(),
@@ -724,13 +795,17 @@ Route::middleware('auth:sanctum')->group(function () {
             'latest_order_id' => (string) (\App\Models\Order\OrderOrder::max('id') ?? ''),
             'top_customers' => $topDisplayOnly,
             'active_routine' => $activeRoutinePayload,
+            'priority_order_checkin' => $priorityOrderCheckin,
             'pending_trichter_count' => \App\Services\System\MiniPcTrichterRelayService::countPending(),
             'open_system_errors_count' => class_exists(\App\Models\System\SystemLog::class)
                 ? \App\Models\System\SystemLog::where('status', 'error')->where('started_at', '>=', now()->subHours(24))->count()
                 : 0,
             'world_state' => [
                 'season' => $season,
+                'season_label' => $seasonCtx['season_label'],
                 'occasion' => $occasion,
+                'occasion_label' => $seasonCtx['occasion_label'],
+                'upcoming_holiday_hint' => $seasonCtx['upcoming_hint'],
                 'orders_today' => $ordersToday,
                 'orders_week' => $ordersWeek,
                 'orders_month' => $ordersMonth,
@@ -748,6 +823,9 @@ Route::middleware('auth:sanctum')->group(function () {
         $authorizeMiniPcTrichter = static function (\Illuminate\Http\Request $request): void {
             if ($request->bearerToken()) {
                 $pat = \Laravel\Sanctum\PersonalAccessToken::findToken((string) $request->bearerToken());
+                if ($pat && $pat->expires_at && $pat->expires_at->isPast()) {
+                    abort(401, 'Token abgelaufen.');
+                }
                 if (!$pat || (!$pat->can('ai:funkira') && !$pat->can('*'))) {
                     abort(403, 'Unzureichende Token-Berechtigung für Eingang-Trichter.');
                 }
@@ -809,6 +887,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
         if ($request->bearerToken()) {
             $pat = \Laravel\Sanctum\PersonalAccessToken::findToken((string) $request->bearerToken());
+            if ($pat && $pat->expires_at && $pat->expires_at->isPast()) {
+                abort(401, 'Token abgelaufen.');
+            }
             if (!$pat || (!$pat->can('*') && !$pat->can('ai:funkira') && !$pat->can('monitor:pulse'))) {
                 abort(403, 'Unzureichende Token-Berechtigung für Error-Sentinel.');
             }
@@ -852,6 +933,9 @@ Route::middleware('auth:sanctum')->group(function () {
             }
             if ($request->bearerToken()) {
                 $pat = \Laravel\Sanctum\PersonalAccessToken::findToken((string) $request->bearerToken());
+                if ($pat && $pat->expires_at && $pat->expires_at->isPast()) {
+                    abort(401, 'Token abgelaufen.');
+                }
                 if (!$pat || (!$pat->can('*') && !$pat->can('ai:funkira') && !$pat->can('monitor:pulse'))) {
                     abort(403, 'Unzureichende Token-Berechtigung für Telefon-Assistent.');
                 }
@@ -917,6 +1001,8 @@ Route::middleware('auth:sanctum')->group(function () {
                 'contact_id' => 'nullable|string|max:64',
                 'caller_name' => 'nullable|string|max:160',
                 'greeting_name' => 'nullable|string|max:120',
+                'caller_phone' => 'nullable|string|max:80',
+                'handled_by' => 'nullable|string|max:40',
                 'summary' => 'required|string|max:1000',
                 'urgency' => 'nullable|string|in:hoch,mittel,niedrig',
                 'callback_requested' => 'nullable|boolean',
@@ -1015,6 +1101,9 @@ Route::middleware('auth:sanctum')->group(function () {
             // Dateiverwaltung (Workspace & Dateitrichter)
             require __DIR__ . '/api/files.php';
 
+            // Privater Funkenwerk Android OTA Update-Kanal
+            require __DIR__ . '/api/system_ota.php';
+
             // Marketing & Content-Planer Live-Kontext (Shop-Produkte, Margen, Jahreszeiten & Feiertage)
             Route::get('/funki/marketing/live-context', function (\App\Services\Marketing\HolidayOfferAutopilotService $autopilot) {
                 return response()->json([
@@ -1023,11 +1112,13 @@ Route::middleware('auth:sanctum')->group(function () {
                 ]);
             });
 
-            // AI Chat
-            Route::get('/ai/agents', function() {
+            // AI Chat (projizierte UI-Spalten ohne rohen system_prompt)
+            Route::get('/ai/agents', function () {
                 return response()->json([
                     'success' => true,
-                    'data' => \App\Models\Ai\AiAgent::where('is_active', true)->orderBy('name')->get()
+                    'data' => \App\Models\Ai\AiAgent::where('is_active', true)
+                        ->orderBy('name')
+                        ->get(['id', 'name', 'role_description', 'color', 'icon', 'profile_picture', 'tts_enabled', 'is_active'])
                 ]);
             });
         });
@@ -1038,21 +1129,28 @@ Route::middleware('auth:sanctum')->group(function () {
 
 // --- First-Party Produkt-Telemetrie Beacon (DSGVO-konform, kein CSRF nötig) ---
 Route::post('/product-telemetry/beacon', function (\Illuminate\Http\Request $request) {
+    $validated = $request->validate([
+        'source' => 'nullable|string|max:30',
+        'product_id' => 'nullable|string|max:64',
+        'step' => 'nullable|integer|min:0|max:255',
+        'meta' => 'nullable|array|max:25',
+    ]);
+
     try {
-        $source = $request->input('source', 'configurator');
-        $productId = $request->input('product_id');
-        $step = $request->input('step');
-        $meta = $request->input('meta', []);
+        $source = $validated['source'] ?? 'configurator';
+        $productId = $validated['product_id'] ?? null;
+        $step = $validated['step'] ?? 0;
+        $meta = is_array($validated['meta'] ?? null) ? $validated['meta'] : [];
 
         if ($source === 'calculator') {
             \App\Services\ProductTrackingService::trackCalculatorAbandoned(
-                is_numeric($step) ? (int) $step : 0,
-                is_array($meta) ? $meta : []
+                (int) $step,
+                $meta
             );
         } else {
             \App\Services\ProductTrackingService::trackConfiguratorAbandoned(
                 $productId,
-                is_array($meta) ? $meta : []
+                $meta
             );
         }
 

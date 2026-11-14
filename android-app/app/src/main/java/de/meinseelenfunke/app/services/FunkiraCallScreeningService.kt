@@ -5,14 +5,15 @@ import android.os.Build
 import android.telecom.Call
 import android.telecom.CallScreeningService
 import de.meinseelenfunke.app.di.ServiceLocator
+import de.meinseelenfunke.app.util.ErrorSentinelReporter
 import de.meinseelenfunke.app.util.PhoneConciergeManager
 
 /**
  * Screens incoming cellular calls in < 20 ms against Alina's local Whitelist cache.
  * - Unknown numbers & non-whitelisted contacts are NEVER touched (phone rings normally).
  * - Whitelisted contacts (e.g. Papa) ring normally for `ringDelaySeconds`; if Alina does not
- *   pick up herself, `FunkiraPhoneConciergeService` accepts the call and bridges Bluetooth HFP
- *   to Funkira on the Mini-PC (`0,00 €` Twilio-free architecture).
+ *   pick up herself, `FunkiraPhoneConciergeService` accepts the call and runs Funkira live
+ *   directly on the smartphone as Alina's secretary (100% independent of the Mini-PC).
  */
 class FunkiraCallScreeningService : CallScreeningService() {
 
@@ -29,7 +30,6 @@ class FunkiraCallScreeningService : CallScreeningService() {
         if (!isIncoming) return
 
         ServiceLocator.ensureInitialized(applicationContext)
-        if (ServiceLocator.getAuthToken().isNullOrBlank()) return
         if (!PhoneConciergeManager.isEnabled(applicationContext)) return
         if (!PhoneConciergeManager.hasRequiredPermissions(applicationContext)) return
 
@@ -55,6 +55,13 @@ class FunkiraCallScreeningService : CallScreeningService() {
             } else {
                 applicationContext.startService(svcIntent)
             }
-        } catch (_: Exception) { }
+        } catch (e: Exception) {
+            ErrorSentinelReporter.captureError(
+                context = applicationContext,
+                tag = "phone_secretary_screening",
+                message = "FunkiraPhoneConciergeService konnte bei eingehendem Whitelist-Anruf nicht gestartet werden: ${e.message}",
+                throwable = e
+            )
+        }
     }
 }

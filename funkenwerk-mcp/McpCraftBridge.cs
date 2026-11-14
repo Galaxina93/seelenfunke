@@ -8,6 +8,7 @@ using System.Security.Principal;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -15,6 +16,21 @@ namespace FunkenwerkMcp
 {
     public static class McpCraftBridge
     {
+        private static readonly Regex SafeProjectNameRegex = new(@"^[A-Za-z0-9 _\-\.]{1,80}$", RegexOptions.Compiled);
+
+        public static readonly IReadOnlySet<string> AllowedFilmCraftBridgeMethods = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "engine.ping",
+            "engine.status",
+            "engine.version",
+            "engine.commands",
+            "project.info",
+            "project.status",
+            "sequence.info",
+            "timeline.info",
+            "playback.status"
+        };
+
         private static readonly HashSet<string> AllowedMediaExtensions = new(StringComparer.OrdinalIgnoreCase)
         {
             ".mp4", ".mov", ".mkv", ".webm", ".avi", ".m4v",
@@ -25,6 +41,86 @@ namespace FunkenwerkMcp
         {
             ".wav", ".mp3", ".ogg", ".flac", ".m4a"
         };
+
+        public static string ValidateSafeProjectName(string? rawName)
+        {
+            if (string.IsNullOrWhiteSpace(rawName))
+                throw new ArgumentException("projectName darf nicht leer sein.");
+
+            string trimmed = rawName.Trim();
+            if (!SafeProjectNameRegex.IsMatch(trimmed) ||
+                trimmed.Contains("..", StringComparison.Ordinal) ||
+                trimmed == "." ||
+                trimmed.EndsWith('.'))
+            {
+                throw new UnauthorizedAccessException("Ungueltiger projectName: Nur [A-Za-z0-9 _-.] (1-80 Zeichen, ohne '..') erlaubt.");
+            }
+
+            return trimmed;
+        }
+
+        public static string ValidateAllowedFilmCraftBridgeMethod(string? method)
+        {
+            if (string.IsNullOrWhiteSpace(method))
+                throw new ArgumentException("RPC-Methode fuer filmcraft_bridge darf nicht leer sein.");
+
+            string trimmed = method.Trim();
+            if (!AllowedFilmCraftBridgeMethods.Contains(trimmed))
+                throw new UnauthorizedAccessException($"FilmCraft-Bridge RPC-Methode '{trimmed}' ist nicht in der Sicherheits-Allowlist enthalten.");
+
+            return trimmed;
+        }
+
+        public static string ValidateSafeCraftWritePath(string? rawPath, string[] allowedExtensions)
+        {
+            if (string.IsNullOrWhiteSpace(rawPath))
+                throw new ArgumentException("Zielpfad darf nicht leer sein.");
+            if (rawPath.Length > 1024)
+                throw new UnauthorizedAccessException("Zielpfad ueberschreitet Maximallaenge.");
+
+            string trimmed = rawPath.Trim().Trim('"');
+            if (trimmed.IndexOf('\0') >= 0 || trimmed.Any(char.IsControl))
+                throw new UnauthorizedAccessException("Steuerzeichen im Zielpfad blockiert.");
+
+            if (trimmed.StartsWith(@"\\", StringComparison.Ordinal) ||
+                trimmed.StartsWith("//", StringComparison.Ordinal) ||
+                trimmed.Contains("..", StringComparison.Ordinal))
+            {
+                throw new UnauthorizedAccessException("UNC-/Device-Pfade und Pfad-Traversal ('..') sind fuer Craft-Schreibpfade strikt gesperrt.");
+            }
+
+            int colon = trimmed.IndexOf(':');
+            if (colon >= 0 && !(colon == 1 && char.IsLetter(trimmed[0]) && trimmed.IndexOf(':', 2) < 0))
+                throw new UnauthorizedAccessException("NTFS Alternate Data Streams (ADS) sind gesperrt.");
+
+            string full = Path.GetFullPath(trimmed);
+            string ext = Path.GetExtension(full).ToLowerInvariant();
+            if (string.IsNullOrEmpty(ext) || allowedExtensions == null || !allowedExtensions.Any(e => string.Equals(e, ext, StringComparison.OrdinalIgnoreCase)))
+                throw new UnauthorizedAccessException($"Dateierweiterung '{ext}' ist fuer diesen Craft-Schreibvorgang nicht freigegeben.");
+
+            string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            var allowedWriteRoots = new List<string>
+            {
+                EnsureTrailingSlash(CraftVideosDir),
+                EnsureTrailingSlash(Path.Combine(CraftRootDir, "Projects")),
+                EnsureTrailingSlash(Path.Combine(CraftRootDir, "Exports")),
+                EnsureTrailingSlash(Path.Combine(userProfile, "Documents", "Funkenwerk Craft")),
+                EnsureTrailingSlash(Path.Combine(userProfile, "Videos", "Funkenwerk Craft")),
+                EnsureTrailingSlash(Path.Combine(userProfile, "Videos", "Exports")),
+                EnsureTrailingSlash(Path.Combine(userProfile, "Videos"))
+            };
+
+            bool insideSandbox = allowedWriteRoots.Any(prefix => full.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
+            if (!insideSandbox)
+            {
+                throw new UnauthorizedAccessException("Zielpfad liegt ausserhalb der freigegebenen Craft-/Videos-/Exports-Schreibsandbox.");
+            }
+
+            if (McpSecurityGuard.HasReparsePointInAncestry(full))
+                throw new UnauthorizedAccessException("Reparse-Points/Symlinks/Junctions in Pfadhierarchie sind strikt blockiert.");
+
+            return full;
+        }
 
         public static string CraftRootDir =>
             Path.Combine(McpSecurityGuard.CollectionRootDir, "Funkenwerk Craft");
@@ -63,11 +159,11 @@ namespace FunkenwerkMcp
             string trimmed = rawPath.Trim().Trim('"');
             if (trimmed.IndexOf('\0') >= 0 || trimmed.Any(char.IsControl))
                 throw new UnauthorizedAccessException("Steuerzeichen im Pfad blockiert.");
-            if (trimmed.StartsWith(@"\\.\", StringComparison.Ordinal) ||
-                trimmed.StartsWith(@"\\?\", StringComparison.Ordinal) ||
+            if (trimmed.StartsWith(@"\\", StringComparison.Ordinal) ||
+                trimmed.StartsWith("//", StringComparison.Ordinal) ||
                 trimmed.Contains("..", StringComparison.Ordinal))
             {
-                throw new UnauthorizedAccessException("Device-Pfade und Pfad-Traversal ('..') sind im Sicherheitsfilter gesperrt.");
+                throw new UnauthorizedAccessException("UNC-/Device-Pfade und Pfad-Traversal ('..') sind im Sicherheitsfilter gesperrt.");
             }
 
             int colon = trimmed.IndexOf(':');
@@ -93,8 +189,11 @@ namespace FunkenwerkMcp
             if (!allowed)
             {
                 throw new UnauthorizedAccessException(
-                    "Medienpfad liegt außerhalb der freigegebenen Medienbereiche (Y:\\Medien, Funkenwerk Craft\\Videos, Funkenwerk Craft\\Sounds, Videos, Pictures, Downloads).");
+                    "Medienpfad liegt ausserhalb der freigegebenen Medienbereiche (Y:\\Medien, Funkenwerk Craft\\Videos, Funkenwerk Craft\\Sounds, Videos, Pictures, Downloads).");
             }
+
+            if (McpSecurityGuard.HasReparsePointInAncestry(full))
+                throw new UnauthorizedAccessException("Reparse-Points/Symlinks/Junctions in Pfadhierarchie sind blockiert.");
 
             if (allowDirectories && Directory.Exists(full))
             {
@@ -155,11 +254,19 @@ namespace FunkenwerkMcp
             }
             catch { }
 
-            // 2. Deterministic headless CLI invocation via temporary UTF-8 JSON request file
-            string tempReqFile = Path.Combine(McpSecurityGuard.McpDataDir, $"_craft_req_{Guid.NewGuid():N}.json");
+            // 2. Deterministic headless CLI invocation via ACL-locked temporary UTF-8 JSON request file
+            string tmpDir = Path.Combine(McpSecurityGuard.VaultDirectory, "tmp");
+            Directory.CreateDirectory(tmpDir);
+            McpSecurityGuard.LockDownDirectoryAcl(tmpDir);
+            string tempReqFile = Path.Combine(tmpDir, $"_craft_req_{Guid.NewGuid():N}.json");
             try
             {
-                await File.WriteAllTextAsync(tempReqFile, reqJson, new UTF8Encoding(false));
+                byte[] reqBytes = new UTF8Encoding(false).GetBytes(reqJson);
+                await using (var fs = new FileStream(tempReqFile, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous))
+                {
+                    await fs.WriteAsync(reqBytes, 0, reqBytes.Length);
+                    await fs.FlushAsync();
+                }
                 McpSecurityGuard.LockDownFileAcl(tempReqFile);
 
                 var psi = new ProcessStartInfo
@@ -178,14 +285,25 @@ namespace FunkenwerkMcp
 
                 using var proc = Process.Start(psi) ?? throw new InvalidOperationException("FunkenwerkCraft CLI konnte nicht gestartet werden.");
                 using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSec));
-                string stdout = await proc.StandardOutput.ReadToEndAsync(cts.Token);
-                string stderr = await proc.StandardError.ReadToEndAsync(cts.Token);
-                await proc.WaitForExitAsync(cts.Token);
+                try
+                {
+                    var stdoutTask = proc.StandardOutput.ReadToEndAsync(cts.Token);
+                    var stderrTask = proc.StandardError.ReadToEndAsync(cts.Token);
+                    await Task.WhenAll(stdoutTask, stderrTask);
+                    await proc.WaitForExitAsync(cts.Token);
 
-                if (string.IsNullOrWhiteSpace(stdout))
-                    throw new InvalidOperationException($"Keine Antwort von FunkenwerkCraft CLI ({stderr.Trim()}).");
+                    string stdout = await stdoutTask;
+                    string stderr = await stderrTask;
+                    if (string.IsNullOrWhiteSpace(stdout))
+                        throw new InvalidOperationException($"Keine Antwort von FunkenwerkCraft CLI ({stderr.Trim()}).");
 
-                return JsonNode.Parse(stdout.Trim()) ?? new JsonObject { ["ok"] = false, ["raw"] = stdout.Trim() };
+                    return JsonNode.Parse(stdout.Trim()) ?? new JsonObject { ["ok"] = false, ["raw"] = stdout.Trim() };
+                }
+                catch (OperationCanceledException)
+                {
+                    try { proc.Kill(entireProcessTree: true); } catch { }
+                    throw new TimeoutException($"FunkenwerkCraft CLI Zeitlimit ({timeoutSec}s) ueberschritten.");
+                }
             }
             finally
             {
@@ -279,10 +397,22 @@ namespace FunkenwerkMcp
 
             using var proc = Process.Start(psi) ?? throw new InvalidOperationException("soundcraft-cli Start fehlgeschlagen.");
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(25));
-            string stdout = await proc.StandardOutput.ReadToEndAsync(cts.Token);
-            string stderr = await proc.StandardError.ReadToEndAsync(cts.Token);
-            await proc.WaitForExitAsync(cts.Token);
-            return string.IsNullOrWhiteSpace(stdout) ? stderr.Trim() : stdout.Trim();
+            try
+            {
+                var stdoutTask = proc.StandardOutput.ReadToEndAsync(cts.Token);
+                var stderrTask = proc.StandardError.ReadToEndAsync(cts.Token);
+                await Task.WhenAll(stdoutTask, stderrTask);
+                await proc.WaitForExitAsync(cts.Token);
+
+                string stdout = await stdoutTask;
+                string stderr = await stderrTask;
+                return string.IsNullOrWhiteSpace(stdout) ? stderr.Trim() : stdout.Trim();
+            }
+            catch (OperationCanceledException)
+            {
+                try { proc.Kill(entireProcessTree: true); } catch { }
+                throw new TimeoutException("soundcraft-cli Zeitlimit (25s) ueberschritten.");
+            }
         }
     }
 }

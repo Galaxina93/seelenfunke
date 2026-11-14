@@ -12,10 +12,18 @@ namespace FunkenwerkBrowser
 
             if (e.Args.Any(a => string.Equals(a, "--self-test", StringComparison.OrdinalIgnoreCase)))
             {
-                bool ok = BrowserSelfTestRunner.RunSelfTest();
+                ShutdownMode = ShutdownMode.OnExplicitShutdown;
+                string? customReportPath = e.Args
+                    .FirstOrDefault(a => a.StartsWith("--report=", StringComparison.OrdinalIgnoreCase))
+                    ?.Substring("--report=".Length)
+                    .Trim('"');
+
+                bool ok = BrowserSelfTestRunner.RunSelfTest(customReportPath);
                 Environment.Exit(ok ? 0 : 1);
                 return;
             }
+
+            BrowserShieldAndSettings.EnsureDataDirLockedDown();
 
             string? initialUrl = e.Args.FirstOrDefault(a => !a.StartsWith("--", StringComparison.Ordinal));
             var win = new MainWindow(initialUrl);

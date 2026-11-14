@@ -13,7 +13,7 @@ class TwilioCallController extends Controller
      */
     public function outbound(Request $request)
     {
-        $configuredAccountSid = config('services.twilio.sid') ?: env('TWILIO_SID') ?: env('TWILIO_ACCOUNT_SID');
+        $configuredAccountSid = config('services.twilio.sid');
         if (!empty($configuredAccountSid)) {
             if (!$request->filled('AccountSid') || !is_string($request->input('AccountSid')) || !hash_equals((string) $configuredAccountSid, (string) $request->input('AccountSid'))) {
                 return response('Forbidden', 403);
@@ -36,7 +36,7 @@ class TwilioCallController extends Controller
         // Verbinde mit dem Node.js WebSocket (Host aus vertrauenswürdiger App-Konfiguration statt unvalidiertem Host-Header)
         $connect = $response->connect();
         $trustedHost = parse_url((string) config('app.url'), PHP_URL_HOST) ?: 'localhost';
-        $url = env('TWILIO_WSS_URL', 'wss://' . $trustedHost . ':8081/twilio-stream');
+        $url = config('services.twilio.wss_url') ?: ('wss://' . $trustedHost . ':8081/twilio-stream');
         $stream = $connect->stream([
             'url' => $url,
             'track' => 'both_tracks'
@@ -61,7 +61,7 @@ class TwilioCallController extends Controller
      */
     public function inbound(Request $request)
     {
-        $configuredAccountSid = config('services.twilio.sid') ?: env('TWILIO_SID') ?: env('TWILIO_ACCOUNT_SID');
+        $configuredAccountSid = config('services.twilio.sid');
         if (!empty($configuredAccountSid)) {
             if (!$request->filled('AccountSid') || !is_string($request->input('AccountSid')) || !hash_equals((string) $configuredAccountSid, (string) $request->input('AccountSid'))) {
                 return response('Forbidden', 403);
@@ -105,7 +105,7 @@ class TwilioCallController extends Controller
         
         // Direkter Twilio Fallback bei Fehlern (nur wenn eine gültige, existierende CallSid vorliegt)
         if ($request->has('CallStatus') && in_array($request->input('CallStatus'), ['failed', 'canceled', 'no-answer', 'busy'], true)) {
-            $configuredAccountSid = config('services.twilio.sid') ?: env('TWILIO_SID') ?: env('TWILIO_ACCOUNT_SID');
+            $configuredAccountSid = config('services.twilio.sid');
             if (!empty($configuredAccountSid)) {
                 if (!$request->filled('AccountSid') || !is_string($request->input('AccountSid')) || !hash_equals((string) $configuredAccountSid, (string) $request->input('AccountSid'))) {
                     return response()->json(['error' => 'Forbidden'], 403);
@@ -158,7 +158,7 @@ class TwilioCallController extends Controller
 
         // Bewerte den Call mit Gemini
         if (!empty($data['transcript'])) {
-            $apiKey = env('GEMINI_API_KEY') ?: env('GOOGLE_API_KEY');
+            $apiKey = config('services.gemini.key');
             if ($apiKey) {
                 try {
                     $transcriptLines = array_slice($data['transcript'], 0, 100);

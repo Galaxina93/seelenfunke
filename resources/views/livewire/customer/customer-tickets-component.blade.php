@@ -142,7 +142,7 @@
                                     $priceFormatted = number_format($o->total_price / 100, 2, ',', '.') . ' €';
                                 @endphp
                                 <option value="{{ $o->id }}">
-                                    #{{ $o->order_number }} · {{ $o->created_at->format('d.m.Y, H:i') }} Uhr ({{ $priceFormatted }})@if(!empty($itemsSummary)) – {{ \Illuminate\Support\Str::limit($itemsSummary, 45) }}@endif
+                                    #{{ $o->order_number }} · {{ $o->created_at->format('d.m.Y, H:i') }} Uhr ({{ $priceFormatted }})@if(!empty($itemsSummary)) · {{ \Illuminate\Support\Str::limit((string) $itemsSummary, 45) }}@endif
                                 </option>
                             @endforeach
                         </select>

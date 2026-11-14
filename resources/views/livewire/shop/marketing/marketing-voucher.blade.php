@@ -106,9 +106,9 @@
                                             $timeText = 'Abgelaufen';
                                             $barColor = 'bg-red-500';
                                         } else {
-                                            $daysPassed = (int) ceil($start->floatDiffInDays($now));
+                                            $daysPassed = (int) ceil($start->diffInDays($now));
                                             $progressPercent = min(100, max(0, ($daysPassed / $totalDays) * 100));
-                                            $daysLeft = (int) ceil($now->floatDiffInDays($end));
+                                            $daysLeft = (int) ceil($now->diffInDays($end));
                                             $timeText = "Noch {$daysLeft} " . ($daysLeft == 1 ? 'Tag' : 'Tage');
                                             
                                             // Ampel Logik

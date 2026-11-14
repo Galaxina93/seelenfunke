@@ -30,6 +30,19 @@ namespace FunkenwerkPlayer
             foreach (var ext in SupportedAudioExtensions) AllSupportedExtensions.Add(ext);
         }
 
+        public static string GetAppDataDirectory()
+        {
+            string dir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "FunkenwerkPlayer");
+            try
+            {
+                Directory.CreateDirectory(dir);
+            }
+            catch { }
+            return dir;
+        }
+
         public static bool IsAudioExtension(string? ext)
         {
             if (string.IsNullOrWhiteSpace(ext)) return false;
@@ -49,22 +62,31 @@ namespace FunkenwerkPlayer
 
         public static string GetExecutablePath()
         {
-            string desktopExe = @"C:\Users\konta\Desktop\Funkenwerk Player\FunkenwerkPlayer.exe";
-            if (File.Exists(desktopExe))
-                return desktopExe;
+            string? processPath = Environment.ProcessPath;
+            if (!string.IsNullOrWhiteSpace(processPath) &&
+                File.Exists(processPath) &&
+                !string.Equals(Path.GetFileName(processPath), "dotnet.exe", StringComparison.OrdinalIgnoreCase))
+            {
+                return Path.GetFullPath(processPath);
+            }
 
-            string? currentExe = Process.GetCurrentProcess().MainModule?.FileName;
-            if (!string.IsNullOrWhiteSpace(currentExe) && File.Exists(currentExe))
-                return currentExe;
+            string? mainModule = Process.GetCurrentProcess().MainModule?.FileName;
+            if (!string.IsNullOrWhiteSpace(mainModule) &&
+                File.Exists(mainModule) &&
+                !string.Equals(Path.GetFileName(mainModule), "dotnet.exe", StringComparison.OrdinalIgnoreCase))
+            {
+                return Path.GetFullPath(mainModule);
+            }
 
-            return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "FunkenwerkPlayer.exe");
+            return Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "FunkenwerkPlayer.exe"));
         }
 
         /// <summary>
         /// Registers Funkenwerk Player in HKCU\Software\Classes, HKCU\Software\RegisteredApplications,
         /// and OpenWithProgids for all supported video and audio extensions.
+        /// Only sets the per-extension default class mapping when setDefaultVerb is true.
         /// </summary>
-        public static bool RegisterAsWindowsMediaPlayer(out string message)
+        public static bool RegisterAsWindowsMediaPlayer(out string message, bool setDefaultVerb = false)
         {
             try
             {
@@ -129,12 +151,16 @@ namespace FunkenwerkPlayer
                     regAppsKey.SetValue(AppRegisteredName, capPath);
                 }
 
-                // 5. Register OpenWithProgids and default class mapping for each extension
+                // 5. Register OpenWithProgids (and only set default ProgID verb when explicitly requested by user)
                 foreach (var ext in AllSupportedExtensions)
                 {
                     using (var extKey = Registry.CurrentUser.CreateSubKey($@"Software\Classes\{ext}"))
                     {
-                        extKey.SetValue("", ProgId);
+                        if (setDefaultVerb)
+                        {
+                            extKey.SetValue("", ProgId);
+                        }
+
                         using (var openWithKey = extKey.CreateSubKey("OpenWithProgids"))
                         {
                             openWithKey.SetValue(ProgId, "");
@@ -142,10 +168,14 @@ namespace FunkenwerkPlayer
                     }
                 }
 
-                // 6. Notify Windows Shell immediately so Explorer refreshes associations
-                SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, IntPtr.Zero, IntPtr.Zero);
+                if (setDefaultVerb)
+                {
+                    SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, IntPtr.Zero, IntPtr.Zero);
+                }
 
-                message = "Funkenwerk Player wurde Windows-weit für alle Video- & Audioformate registriert.";
+                message = setDefaultVerb
+                    ? "Funkenwerk Player wurde als Standard-Player für Video- & Audioformate registriert."
+                    : "Funkenwerk Player Capabilities & OpenWith wurden registriert.";
                 return true;
             }
             catch (Exception ex)
@@ -181,6 +211,25 @@ namespace FunkenwerkPlayer
             catch { }
         }
 
+        public static ProcessStartInfo BuildOpenWithProcessStartInfo(string filePath)
+        {
+            if (string.IsNullOrWhiteSpace(filePath))
+                throw new ArgumentException("Dateipfad darf nicht leer sein.", nameof(filePath));
+
+            string fullPath = Path.GetFullPath(filePath);
+            string rundllPath = Path.Combine(Environment.SystemDirectory, "rundll32.exe");
+
+            var psi = new ProcessStartInfo
+            {
+                FileName = rundllPath,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            psi.ArgumentList.Add("shell32.dll,OpenAs_RunDLL");
+            psi.ArgumentList.Add(fullPath);
+            return psi;
+        }
+
         public static void OpenWindowsOpenWithDialog(string filePath)
         {
             if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
@@ -188,12 +237,8 @@ namespace FunkenwerkPlayer
 
             try
             {
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = "rundll32.exe",
-                    Arguments = $"shell32.dll,OpenAs_RunDLL \"{filePath}\"",
-                    UseShellExecute = true
-                });
+                var psi = BuildOpenWithProcessStartInfo(filePath);
+                Process.Start(psi);
             }
             catch { }
         }

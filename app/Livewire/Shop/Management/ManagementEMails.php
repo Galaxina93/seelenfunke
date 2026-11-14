@@ -155,7 +155,7 @@ class ManagementEMails extends Component
         $listId = $firstList ? $firstList->id : null;
         $maxPos = ManagementTask::where('task_list_id', $listId)->max('position') ?? 0;
 
-        $bodySnippet = Str::limit(strip_tags($mail->body_plain ?: $mail->body_html), 1000);
+        $bodySnippet = Str::limit(strip_tags((string) ($mail->body_plain ?: ($mail->body_html ?? ''))), 1000);
         $dateStr = $mail->received_at ? $mail->received_at->format('d.m.Y H:i') : now()->format('d.m.Y H:i');
 
         ManagementTask::create([

@@ -122,8 +122,17 @@ Route::prefix('funki/music')->group(function () {
             ], 422);
         }
 
+        $lock = \Illuminate\Support\Facades\Cache::lock('funkenwerk_music_import', 120);
+        if (!$lock->get()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Ein Musik-Import läuft bereits im Hintergrund. Bitte kurz warten.',
+            ], 429);
+        }
+
         $ytDlp = storage_path('app/leitung/music/bin/yt-dlp');
         if (!file_exists($ytDlp)) {
+            $lock->release();
             return response()->json(['success' => false, 'message' => 'yt-dlp Binary nicht gefunden.'], 500);
         }
 
@@ -142,7 +151,7 @@ Route::prefix('funki/music')->group(function () {
             'current_title' => 'Starte YouTube-Analyse & Audio-Extraktion...',
             'message' => 'Verbinde mit YouTube & lese Playlist-Struktur aus...',
             'updated_at' => now()->toIso8601String(),
-        ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+        ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT), LOCK_EX);
 
         $artisan = base_path('artisan');
         $cmdParts = [
@@ -167,7 +176,7 @@ Route::prefix('funki/music')->group(function () {
             'async' => true,
             'message' => 'YouTube-Import gestartet. Fortschritt wird live übertragen.',
         ]);
-    });
+    })->middleware('throttle:10,1');
 
     // 5b. Live Import Progress Status (for ProgressBar in Desktop, Web & Android)
     Route::get('/import-status', function () {
@@ -201,7 +210,7 @@ Route::prefix('funki/music')->group(function () {
         $ext = strtolower($file->getClientOriginalExtension());
         $mime = strtolower((string) $file->getMimeType());
         $blockedMimes = ['text/x-php', 'application/x-httpd-php', 'text/html', 'application/xhtml+xml', 'application/x-executable', 'application/x-msdownload'];
-        if (!in_array($ext, ['mp3', 'm4a', 'aac', 'wav', 'ogg', 'flac'], true) || in_array($mime, $blockedMimes, true)) {
+        if (!in_array($ext, ['mp3', 'm4a', 'aac', 'wav', 'ogg', 'flac', 'mp4'], true) || in_array($mime, $blockedMimes, true)) {
             return response()->json(['success' => false, 'message' => 'Nicht unterstütztes Audioformat.'], 422);
         }
 
@@ -297,7 +306,7 @@ Route::prefix('funki/music')->group(function () {
                         }
                     }
                     unset($pl, $tr);
-                    @file_put_contents($jsonFile, json_encode($decoded, JSON_UNESCAPED_UNICODE));
+                    @file_put_contents($jsonFile, json_encode($decoded, JSON_UNESCAPED_UNICODE), LOCK_EX);
                 }
             }
         }

@@ -1,5 +1,6 @@
 import { WebSocketServer } from 'ws';
 import http from 'http';
+import dns from 'dns';
 import dotenv from 'dotenv';
 import WebSocket from 'ws';
 import wavefile from 'wavefile';
@@ -9,8 +10,70 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
+// Bevorzuge IPv4 vor verzögerten IPv6-Stub-Resolvern (verhindert EAI_AGAIN / Resource temporarily unavailable auf Linux/Mittwald)
+try {
+    if (typeof dns.setDefaultResultOrder === 'function') {
+        dns.setDefaultResultOrder('ipv4first');
+    }
+} catch (_) {}
+
 // Zuerst dotenv konfigurieren, damit APP_URL sofort verfügbar ist
 dotenv.config();
+
+function resolveProxySecret() {
+    return process.env.GEMINI_BRIDGE_SECRET
+        || process.env.AI_PROXY_SECRET
+        || process.env.TWILIO_BRIDGE_SECRET
+        || process.env.BRIDGE_SECRET
+        || '';
+}
+
+function scrubBridgeSecrets(raw) {
+    if (!raw) return '';
+    return String(raw)
+        .replace(/AIza[A-Za-z0-9\-_]{16,}/g, 'AIza[REDACTED]')
+        .replace(/([?&](?:api[_-]?key|key|token|secret)=)[^&\s"']+/gi, '$1[REDACTED]')
+        .replace(/(Bearer\s+)[A-Za-z0-9\-._~+|/]+=*/gi, '$1[REDACTED]');
+}
+
+function isTransientNetworkError(err) {
+    const msg = ((err && (err.message || err.code || err.cause?.code || err.cause?.message)) || String(err || '')).toLowerCase();
+    return msg.includes('temporarily unavailable')
+        || msg.includes('eai_again')
+        || msg.includes('eagain')
+        || msg.includes('etimedout')
+        || msg.includes('econnreset')
+        || msg.includes('fetch failed')
+        || msg.includes('socket hang up');
+}
+
+async function fetchBackendWithRetry(url, options = {}, timeoutMs = 5000) {
+    const delaysMs = [0, 350, 900];
+    let lastErr = null;
+    for (let i = 0; i < delaysMs.length; i++) {
+        if (delaysMs[i] > 0) {
+            await new Promise(r => setTimeout(r, delaysMs[i]));
+        }
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        try {
+            const res = await fetch(url, { ...options, signal: controller.signal });
+            clearTimeout(timer);
+            if (res.status >= 502 && res.status <= 504 && i < delaysMs.length - 1) {
+                lastErr = new Error(`HTTP ${res.status}`);
+                continue;
+            }
+            return res;
+        } catch (err) {
+            clearTimeout(timer);
+            lastErr = err;
+            if (!isTransientNetworkError(err) && err?.name !== 'AbortError') {
+                break;
+            }
+        }
+    }
+    throw lastErr || new Error('Backend request failed');
+}
 
 const BRIDGE_VERSION = 'v1.3-stable';
 const bridgeStartedAt = new Date().toISOString();
@@ -114,6 +177,15 @@ function diagnoseWsIssue(code, reason, source = 'google') {
         };
     }
 
+    if (rLower.includes('temporarily unavailable') || rLower.includes('eai_again') || rLower.includes('eagain')) {
+        return {
+            category: 'network_dns_or_socket_eagain',
+            probable_cause: `Temporärer DNS- oder Socket-Engpass (EAI_AGAIN / errno 11: Resource temporarily unavailable) auf ${source}-Seite (${r}).`,
+            recommended_action: 'IPv4-first DNS und automatischer Retry in server-twilio.js fangen kurze Spitzen ab; bei Häufung Prozess-/Thread-Limits prüfen.',
+            severity: 'warning'
+        };
+    }
+
     if (numCode === 4001 || numCode === 4003) {
         return {
             category: 'bridge_token_auth_failed',
@@ -155,7 +227,8 @@ function sendLogToBackend(type, message, actionId, payload = {}) {
     };
 
     const backendUrl = process.env.APP_URL || 'http://localhost';
-    const proxySecret = process.env.AI_PROXY_SECRET || process.env.BRIDGE_SECRET || '';
+    const proxySecret = resolveProxySecret();
+    const safeMessage = scrubBridgeSecrets(message);
     fetch(`${backendUrl}/api/log/websocket`, {
         method: 'POST',
         headers: {
@@ -165,7 +238,7 @@ function sendLogToBackend(type, message, actionId, payload = {}) {
         },
         body: JSON.stringify({
             type: type, // 'crash', 'error', 'info', 'warning'
-            message: message,
+            message: safeMessage,
             action_id: actionId || `ws_${type}_${Date.now()}`,
             payload: enrichedPayload
         })
@@ -221,11 +294,11 @@ try {
 
 function debugLog(msg, err) {
     const timestamp = new Date().toISOString();
-    let formattedMsg = msg;
+    let formattedMsg = scrubBridgeSecrets(msg);
     if (err) {
-        formattedMsg += ` | Error: ${err.message || err}`;
+        formattedMsg += ` | Error: ${scrubBridgeSecrets(err.message || err)}`;
         if (err.stack) {
-            formattedMsg += `\n${err.stack}`;
+            formattedMsg += `\n${scrubBridgeSecrets(err.stack)}`;
         }
     }
     
@@ -376,6 +449,8 @@ function initGeminiLiveProxy(clientWs, creds, reqMeta = {}) {
     const WS_URL = `wss://${HOST}/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${creds.api_key}`;
     
     const googleWs = new WebSocket(WS_URL, {
+        family: 4,
+        handshakeTimeout: 8500,
         headers: {
             'Referer': process.env.APP_URL || 'https://stage.mein-seelenfunke.de'
         },
@@ -459,8 +534,8 @@ function initGeminiLiveProxy(clientWs, creds, reqMeta = {}) {
 
         debugLog(`💾 Sende Live-Transkript (${role}) an Backend: "${cleanText.substring(0, 60)}..." (Session: ${targetSessionId})`);
 
-        const proxySecret = process.env.AI_PROXY_SECRET || process.env.BRIDGE_SECRET || '';
-        fetch(`${backendUrl}/api/ai/save-live-transcript`, {
+        const proxySecret = resolveProxySecret();
+        fetchBackendWithRetry(`${backendUrl}/api/ai/save-live-transcript`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -469,7 +544,7 @@ function initGeminiLiveProxy(clientWs, creds, reqMeta = {}) {
                 'X-Bridge-Secret': proxySecret
             },
             body: JSON.stringify(payload)
-        })
+        }, 5500)
         .then(async res => {
             if (!res.ok) {
                 const errText = await res.text();
@@ -1277,15 +1352,9 @@ wss.on('connection', (ws, req) => {
         
         const backendUrl = process.env.APP_URL || 'http://localhost';
         debugLog(`🔑 Verifiziere Token gegen Backend: ${backendUrl}/api/ai/verify-token`);
-        
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => {
-            debugLog(`⏱️ Fetch-Timeout erreicht für Token-Verifizierung (${backendUrl})`);
-            controller.abort();
-        }, 5000); // 5 seconds timeout
- 
-        const proxySecret = process.env.AI_PROXY_SECRET || process.env.BRIDGE_SECRET || '';
-        fetch(`${backendUrl}/api/ai/verify-token`, {
+
+        const proxySecret = resolveProxySecret();
+        fetchBackendWithRetry(`${backendUrl}/api/ai/verify-token`, {
             method: 'POST',
             headers: { 
                 'Content-Type': 'application/json',
@@ -1293,11 +1362,9 @@ wss.on('connection', (ws, req) => {
                 'X-AI-Proxy-Secret': proxySecret,
                 'X-Bridge-Secret': proxySecret
             },
-            body: JSON.stringify({ token: token }),
-            signal: controller.signal
-        })
+            body: JSON.stringify({ token: token })
+        }, 5500)
         .then(async (res) => {
-            clearTimeout(timeoutId);
             if (!res.ok) {
                 const text = await res.text();
                 throw new Error(`Status ${res.status}: ${text.substring(0, 100)}`);
@@ -1324,9 +1391,8 @@ wss.on('connection', (ws, req) => {
             }
         })
         .catch((err) => {
-            clearTimeout(timeoutId);
             ws.off('message', handleEarlyMessage);
-            let errMsg = err.message;
+            let errMsg = scrubBridgeSecrets(err.message);
             if (err.name === 'AbortError') {
                 errMsg = `Timeout connecting to ${backendUrl}`;
             }

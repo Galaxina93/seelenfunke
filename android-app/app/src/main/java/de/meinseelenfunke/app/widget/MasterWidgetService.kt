@@ -150,7 +150,10 @@ class MasterWidgetViewsFactory(
             }
 
             MasterWidgetProvider.TAB_MUSIC -> {
-                if (MusicPlayerManager.allTracks.value.isEmpty()) {
+                de.meinseelenfunke.app.di.ServiceLocator.ensureInitialized(context.applicationContext)
+                if (!de.meinseelenfunke.app.di.ServiceLocator.getAuthToken().isNullOrBlank() &&
+                    MusicPlayerManager.allTracks.value.isEmpty()
+                ) {
                     MusicPlayerManager.fetchPlaylists(context)
                 }
                 val tracks = MusicPlayerManager.allTracks.value

@@ -1,34 +1,47 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Threading;
 using Microsoft.Win32;
 
 namespace FunkenwerkDrucker
 {
     public partial class App : Application
     {
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool TerminateProcess(IntPtr hProcess, uint uExitCode);
+
         protected override void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
 
-            RegisterOpenWithAssociation();
-
             if (e.Args.Any(a => string.Equals(a, "--self-test", StringComparison.OrdinalIgnoreCase)))
             {
+                System.Windows.Media.RenderOptions.ProcessRenderMode = System.Windows.Interop.RenderMode.SoftwareOnly;
+                ShutdownMode = ShutdownMode.OnExplicitShutdown;
+                uint code = 1;
                 try
                 {
-                    bool ok = Task.Run(() => PrinterSelfTestRunner.RunAllAsync()).GetAwaiter().GetResult();
-                    Environment.Exit(ok ? 0 : 1);
-                    return;
+                    bool ok = AwaitOnSta(PrinterSelfTestRunner.RunAllAsync());
+                    code = ok ? 0u : 1u;
                 }
                 catch (Exception ex)
                 {
-                    Console.Error.WriteLine("SELF-TEST ERROR: " + ex.Message);
-                    Environment.Exit(2);
-                    return;
+                    Console.Error.WriteLine("SELF-TEST ERROR: " + ex);
+                    code = 2u;
                 }
+                Console.Out.Flush();
+                Console.Error.Flush();
+                TerminateProcess(Process.GetCurrentProcess().Handle, code);
+                Shutdown((int)code);
+                return;
             }
+
+            RegisterOpenWithAssociation();
 
             bool startInScanMode = e.Args.Any(a =>
                 string.Equals(a, "--scan", StringComparison.OrdinalIgnoreCase) ||
@@ -41,7 +54,20 @@ namespace FunkenwerkDrucker
             win.Show();
         }
 
-        private static void RegisterOpenWithAssociation()
+        internal static T AwaitOnSta<T>(Task<T> task)
+        {
+            if (task.IsCompleted)
+            {
+                return task.GetAwaiter().GetResult();
+            }
+
+            var frame = new DispatcherFrame();
+            task.ContinueWith(_ => frame.Continue = false, TaskScheduler.Default);
+            Dispatcher.PushFrame(frame);
+            return task.GetAwaiter().GetResult();
+        }
+
+        public static void RegisterOpenWithAssociation()
         {
             try
             {

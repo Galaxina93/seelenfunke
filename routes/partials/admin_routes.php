@@ -35,59 +35,60 @@ Route::middleware(['auth:admin'])->group(function () {
         $track = \App\Models\Management\ManagementTrack::findOrFail($id);
         $fullPath = null;
         if (!empty($track->file_path)) {
-            $cand = storage_path('app/' . ltrim($track->file_path, '/'));
-            if (file_exists($cand) && filesize($cand) > 10000) {
-                $fullPath = $cand;
+            $relPath = ltrim(str_replace('\\', '/', (string) $track->file_path), '/');
+            if (!str_contains($relPath, '..') && !str_contains($relPath, "\0") && str_starts_with($relPath, 'leitung/music/')) {
+                $cand = storage_path('app/' . $relPath);
+                if (!is_link($cand) && file_exists($cand) && filesize($cand) > 10000) {
+                    $fullPath = $cand;
+                }
             }
         }
         if (!$fullPath && !empty($track->external_id)) {
-            $vid = preg_replace('/[^A-Za-z0-9_-]/', '', $track->external_id);
-            $rel = "leitung/music/tracks/{$vid}.m4a";
-            $cand = storage_path("app/{$rel}");
-            if (file_exists($cand) && filesize($cand) > 10000) {
-                $fullPath = $cand;
-                if ($track->status !== 'cached') {
-                    $track->update(['file_path' => $rel, 'status' => 'cached', 'file_size' => filesize($cand)]);
-                }
-            } else {
-                $matches = glob(storage_path("app/leitung/music/tracks/{$vid}.*"));
-                if (!empty($matches) && filesize($matches[0]) > 10000) {
-                    $fullPath = $matches[0];
+            $vid = preg_replace('/[^A-Za-z0-9_-]/', '', (string) $track->external_id);
+            if ($vid !== '' && preg_match('/^[A-Za-z0-9_-]{6,20}$/', $vid)) {
+                $rel = "leitung/music/tracks/{$vid}.m4a";
+                $cand = storage_path("app/{$rel}");
+                if (!is_link($cand) && file_exists($cand) && filesize($cand) > 10000) {
+                    $fullPath = $cand;
                     if ($track->status !== 'cached') {
-                        $track->update([
-                            'file_path' => 'leitung/music/tracks/' . basename($fullPath),
-                            'status' => 'cached',
-                            'file_size' => filesize($fullPath),
-                        ]);
+                        $track->update(['file_path' => $rel, 'status' => 'cached', 'file_size' => filesize($cand)]);
                     }
                 } else {
-                    $ytDlp = storage_path('app/leitung/music/bin/yt-dlp');
-                    if (file_exists($ytDlp)) {
-                        $tracksDir = storage_path('app/leitung/music/tracks');
-                        if (!is_dir($tracksDir)) {
-                            @mkdir($tracksDir, 0775, true);
-                        }
-                        $outPattern = storage_path('app/leitung/music/tracks/%(id)s.%(ext)s');
-                        $cmd = escapeshellarg($ytDlp)
-                            . ' --no-playlist -f "140/ba[ext=m4a]/ba" --concurrent-fragments 4 --no-warnings -o '
-                            . escapeshellarg($outPattern) . ' '
-                            . escapeshellarg("https://www.youtube.com/watch?v={$vid}") . ' 2>&1';
-                        @shell_exec($cmd);
-
-                        $matchesAfter = glob(storage_path("app/leitung/music/tracks/{$vid}.*"));
-                        if (!empty($matchesAfter) && filesize($matchesAfter[0]) > 10000) {
-                            $fullPath = $matchesAfter[0];
+                    $matches = array_values(array_filter(
+                        glob(storage_path("app/leitung/music/tracks/{$vid}.*")) ?: [],
+                        fn ($m) => !is_link($m) && is_file($m) && filesize($m) > 10000
+                    ));
+                    if (!empty($matches)) {
+                        $fullPath = $matches[0];
+                        if ($track->status !== 'cached') {
                             $track->update([
                                 'file_path' => 'leitung/music/tracks/' . basename($fullPath),
                                 'status' => 'cached',
                                 'file_size' => filesize($fullPath),
                             ]);
                         }
+                    } else {
+                        $ytDlp = storage_path('app/leitung/music/bin/yt-dlp');
+                        if (!is_link($ytDlp) && file_exists($ytDlp)) {
+                            $tracksDir = storage_path('app/leitung/music/tracks');
+                            if (!is_dir($tracksDir)) {
+                                @mkdir($tracksDir, 0775, true);
+                            }
+                            $lock = \Illuminate\Support\Facades\Cache::lock('ytdlp_dl_' . $vid, 65);
+                            if ($lock->get()) {
+                                $outPattern = storage_path('app/leitung/music/tracks/%(id)s.%(ext)s');
+                                $cmd = 'nohup timeout 60s ' . escapeshellarg($ytDlp)
+                                    . ' --no-playlist -f "140/ba[ext=m4a]/ba" --concurrent-fragments 4 --no-warnings -o '
+                                    . escapeshellarg($outPattern) . ' '
+                                    . escapeshellarg("https://www.youtube.com/watch?v={$vid}") . ' >/dev/null 2>&1 &';
+                                @exec($cmd);
+                            }
+                        }
                     }
                 }
             }
         }
-        if (!$fullPath || !file_exists($fullPath)) {
+        if (!$fullPath || is_link($fullPath) || !file_exists($fullPath)) {
             abort(404);
         }
 
@@ -203,6 +204,9 @@ Route::middleware(['auth:admin'])->group(function () {
     })->name('admin.employees.questionnaire.pdf');
 
     Route::get('/admin/employees/timesheet/{contract}/{year}/{month}/pdf', function (\App\Models\Employee\EmployeeContract $contract, int $year, int $month) {
+        if ($year < 2000 || $year > 2100 || $month < 1 || $month > 12) {
+            abort(404);
+        }
         $path = app(\App\Services\Employee\EmployeeHrService::class)->generateAndStoreTimesheetPdf($contract, $year, $month);
         if (!$path || str_contains($path, '..') || str_contains($path, "\0") || !str_starts_with($path, 'buchhaltung/receipts/') || !\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
             abort(404);
@@ -259,8 +263,10 @@ Route::middleware(['auth:admin'])->group(function () {
                 abort(403, 'Ungültiger Dateipfad.');
             }
             $safeMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf', 'text/plain'];
-            $contentType = $attachment->content_type ?: 'application/octet-stream';
-            $disposition = in_array(strtolower($contentType), $safeMimes, true) ? 'inline' : 'attachment';
+            $detectedMime = strtolower((string) (@\Illuminate\Support\Facades\Storage::mimeType($path) ?: $attachment->content_type ?: 'application/octet-stream'));
+            $isSafeInline = in_array($detectedMime, $safeMimes, true);
+            $contentType = $isSafeInline ? $detectedMime : 'application/octet-stream';
+            $disposition = $isSafeInline ? 'inline' : 'attachment';
             $cleanFilename = str_replace(['"', "\r", "\n", "\0"], '', basename($attachment->filename ?: 'attachment'));
 
             return response()->file($fullPath, [
@@ -302,6 +308,9 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::get('/admin/user-management', \App\Livewire\Shop\System\SystemUserManagement::class)->name('admin.user-management');
     Route::get('/admin/system/backups', \App\Livewire\Shop\System\SystemBackups::class)->name('admin.system.backups');
     Route::get('/admin/configuration', \App\Livewire\Shop\System\SystemShopConfig::class)->name('admin.configuration');
+    Route::get('/admin/system/funkenwerk-apk/download', function (\Illuminate\Http\Request $request, \App\Services\System\AndroidReleaseService $releaseService) {
+        return $releaseService->streamLatestApk($request);
+    })->middleware(['signed', 'throttle:ota-download'])->name('admin.system.funkenwerk-apk.download');
     Route::get('/admin/system/neural-analysis', \App\Livewire\Backend\System\SystemNeuralAnalysisIndex::class)->name('admin.system.neural-analysis');
 
     // -----------------------------------------------------------------------
@@ -376,8 +385,12 @@ Route::middleware(['auth:admin'])->group(function () {
         if (!is_string($path) || $path === '' || str_contains($path, '..') || str_contains($path, "\0") || str_starts_with($path, '/') || str_starts_with($path, '\\')) {
             abort(404);
         }
-        // Sicherheits-Whitelist: Nur Belege und Verträge dürfen über diesen Endpoint abgerufen werden
-        if (!str_starts_with($path, 'buchhaltung/receipts/') && !str_starts_with($path, 'buchhaltung/contracts/')) {
+        // Sicherheits-Whitelist: Nur Belege, Eingangs-E-Rechnungen und Verträge dürfen über diesen Endpoint abgerufen werden
+        if (
+            !str_starts_with($path, 'buchhaltung/receipts/')
+            && !str_starts_with($path, 'buchhaltung/contracts/')
+            && !str_starts_with($path, 'buchhaltung/incoming_einvoices/')
+        ) {
             abort(403, 'Zugriff verweigert.');
         }
 

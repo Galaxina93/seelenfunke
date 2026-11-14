@@ -22,10 +22,13 @@ import kotlinx.coroutines.launch
 class ShoppingListWidgetProvider : AppWidgetProvider() {
 
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
+        ServiceLocator.ensureInitialized(context.applicationContext)
         for (appWidgetId in appWidgetIds) {
             updateAppWidget(context, appWidgetManager, appWidgetId)
         }
-        triggerBackgroundSync(context)
+        if (!ServiceLocator.getAuthToken().isNullOrBlank()) {
+            triggerBackgroundSync(context)
+        }
         super.onUpdate(context, appWidgetManager, appWidgetIds)
     }
 
@@ -45,6 +48,13 @@ class ShoppingListWidgetProvider : AppWidgetProvider() {
         val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
 
         val resolvedAction = clickAction ?: rawAction
+        if (resolvedAction != null && resolvedAction != AppWidgetManager.ACTION_APPWIDGET_UPDATE) {
+            if (de.meinseelenfunke.app.util.SecurityIntentHelper.isDeviceLocked(context) ||
+                ServiceLocator.getAuthToken().isNullOrBlank()
+            ) {
+                return
+            }
+        }
 
         when (resolvedAction) {
             ACTION_REFRESH -> {
@@ -126,9 +136,10 @@ class ShoppingListWidgetProvider : AppWidgetProvider() {
             val views = RemoteViews(appContext.packageName, R.layout.widget_shopping_layout)
 
             // Compute live counts for header subtitle
+            ServiceLocator.ensureInitialized(appContext)
             val sharedPrefs = appContext.getSharedPreferences("shopping_widget_prefs", Context.MODE_PRIVATE)
             val allItems: List<ManagementShoppingItem> = try {
-                val json = sharedPrefs.getString("shopping_items_cache", null)
+                val json = ServiceLocator.getDecryptedPref(sharedPrefs, "shopping_items_cache")
                 if (json != null) {
                     Gson().fromJson(json, object : TypeToken<List<ManagementShoppingItem>>() {}.type)
                 } else emptyList()

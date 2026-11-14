@@ -12,16 +12,21 @@ use Illuminate\Support\Facades\Request;
 #[Layout('components.layouts.frontend_layout')]
 class MarketingLinktreePage extends Component
 {
+    #[\Livewire\Attributes\Locked]
     public $links = [];
+    #[\Livewire\Attributes\Locked]
     public $themeColor = '#C5A059';
+    #[\Livewire\Attributes\Locked]
     public $profileImage;
+    #[\Livewire\Attributes\Locked]
     public $bgVideo;
 
     public function mount()
     {
         $this->trackVisit();
 
-        $this->themeColor = shop_setting('linktree_theme_color', '#C5A059');
+        $rawColor = trim((string) shop_setting('linktree_theme_color', '#C5A059'));
+        $this->themeColor = preg_match('/^#[0-9A-Fa-f]{3,8}$/', $rawColor) ? $rawColor : '#C5A059';
         $this->profileImage = shop_setting('linktree_profile_image');
         $this->bgVideo = shop_setting('linktree_bg_video');
 
@@ -43,11 +48,17 @@ class MarketingLinktreePage extends Component
 
         $link = MarketingLinktree::find($linkId);
         if ($link) {
-            MarketingLinktreeClick::create([
-                'link_id' => $link->id,
-                'ip_hash' => $ipHash,
-                'device_type' => $device,
-            ]);
+            $alreadyClickedRecently = MarketingLinktreeClick::where('link_id', $link->id)
+                ->where('ip_hash', $ipHash)
+                ->where('created_at', '>=', now()->subSeconds(30))
+                ->exists();
+            if (!$alreadyClickedRecently) {
+                MarketingLinktreeClick::create([
+                    'link_id' => $link->id,
+                    'ip_hash' => $ipHash,
+                    'device_type' => $device,
+                ]);
+            }
         }
     }
 
@@ -96,7 +107,7 @@ class MarketingLinktreePage extends Component
 
     protected function detectDevice()
     {
-        $agent = strtolower(Request::header('User-Agent'));
+        $agent = strtolower((string) Request::header('User-Agent', ''));
         if (preg_match('/(tablet|ipad|playbook)|(android(?!.*(mobi|opera mini)))/i', $agent)) {
             return 'tablet';
         }

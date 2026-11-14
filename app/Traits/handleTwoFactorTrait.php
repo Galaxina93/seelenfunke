@@ -97,11 +97,16 @@ trait handleTwoFactorTrait
         if ($valid) {
             \Illuminate\Support\Facades\RateLimiter::clear($throttleKey);
 
+            $guestSessionId = session('2fa_guest_session_id') ?: session()->getId();
+
             Auth::guard($guard)->login($user);
             session()->regenerate();
 
-            session()->forget('2fa_user_id');
-            session()->forget('guard');
+            session()->forget(['2fa_user_id', 'guard', '2fa_guest_session_id']);
+
+            if ($guard === 'customer' && $user instanceof \App\Models\Customer\Customer) {
+                app(\App\Services\CartService::class)->mergeGuestCartIntoCustomer($user, (string) $guestSessionId);
+            }
 
             // Berechtigungen in der Session hinterlegen (analog zu AuthLogin)
             $permissions = [];
@@ -138,7 +143,10 @@ trait handleTwoFactorTrait
             if (property_exists($this, 'isRedirecting')) {
                 $this->isRedirecting = true;
             }
-            $this->redirect(route($guard . '.dashboard'));
+            $targetUrl = $guard === 'customer'
+                ? \App\Services\CartService::resolveSafeCustomerIntendedUrl(route('customer.dashboard'))
+                : route($guard . '.dashboard');
+            $this->redirect($targetUrl);
             return;
         }
 

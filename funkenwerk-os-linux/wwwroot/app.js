@@ -5,10 +5,11 @@
   // 0. PROACTIVE CLIENT ERROR SENTINEL -> CENTRAL PORTAL LOGGING
   // =========================================================================
   let lastClientErrorSentAt = 0;
-  function reportBrowserErrorToSentinel(component, title, message, stacktrace) {
+  function reportBrowserErrorToSentinel(component, title, message, stacktrace, extra = {}) {
+    const isAutoHealed = !!extra?.autoHealed;
     const now = Date.now();
-    if (now - lastClientErrorSentAt < 12000) return;
-    lastClientErrorSentAt = now;
+    if (!isAutoHealed && (now - lastClientErrorSentAt < 12000)) return;
+    if (!isAutoHealed) lastClientErrorSentAt = now;
     try {
       fetch('/api/system/client-error', {
         method: 'POST',
@@ -17,7 +18,11 @@
           component: component || 'browser_ui',
           title: String(title || 'Browser-Fehler').slice(0, 220),
           message: String(message || '').slice(0, 1200),
-          stacktrace: String(stacktrace || '').slice(0, 2500)
+          stacktrace: String(stacktrace || '').slice(0, 2500),
+          autoHealed: isAutoHealed,
+          healSummary: String(extra?.healSummary || '').slice(0, 600),
+          severity: String(extra?.severity || (isAutoHealed ? 'warning' : 'error')),
+          context: (extra && typeof extra.context === 'object' && extra.context) ? extra.context : {}
         })
       }).catch(() => {});
     } catch { }
@@ -592,10 +597,115 @@
   let fkOwnerFaceEnrolled = false;
   let fkOwnerVoiceEnrolled = false;
   let fkFaceIdentity = 'unenrolled';
+  let fkVoiceIdentity = 'unenrolled';
+  let fkSpeakerName = '';
   let fkCompanionBadge = '';
   let fkRecentVoicePcmChunks = [];
+  let fkLastVoiceChunkAtMs = 0;
   let fkLastVoiceCheckMs = 0;
+  let fkVoiceCheckBusy = false;
+  let fkVoiceCheckedInUtterance = false;
+  let fkVoiceEnrollBusy = false;
   let fkLatestShopLevel = 2;
+  let fkLastClientOrderCheckinKey = '';
+  let fkLastClientOrderCheckinMs = 0;
+  let fkOrderCheckinBusy = false;
+
+  function getActiveSpeakerDisplayLabel() {
+    if (fkPhoneCallActive) return fkPhoneCallerLabel || 'Anrufer';
+    if (fkVoiceIdentity === 'alina') return '🎙 Alina';
+    if (fkVoiceIdentity === 'companion' && fkSpeakerName) return `🎙 ${fkSpeakerName}`;
+    if (fkVoiceIdentity === 'visitor_voice') {
+      if (fkFaceIdentity === 'alina_with_companion' && fkCompanionBadge && fkCompanionBadge !== 'Begleitung') {
+        return `🎙 ${fkCompanionBadge}`;
+      }
+      return '🎙 Gast';
+    }
+    if (fkOwnerFaceEnrolled && fkFaceIdentity === 'alina') return 'Alina';
+    return 'Du';
+  }
+
+  async function recordFreshVoiceSampleBase64(durationMs = 2800, onProgress = null) {
+    let tempStream = null;
+    let streamToUse = (fkMediaStream && fkMediaStream.getAudioTracks().length > 0) ? fkMediaStream : null;
+    if (!streamToUse) {
+      tempStream = await navigator.mediaDevices.getUserMedia({
+        audio: { channelCount: { ideal: 1 }, echoCancellation: { ideal: true }, noiseSuppression: { ideal: true }, autoGainControl: { ideal: true } }
+      });
+      streamToUse = tempStream;
+    }
+
+    const AudioCtxCtor = window.AudioContext || window.webkitAudioContext;
+    const recCtx = new AudioCtxCtor();
+    if (recCtx.state === 'suspended') await recCtx.resume().catch(() => {});
+
+    const src = recCtx.createMediaStreamSource(streamToUse);
+    const proc = recCtx.createScriptProcessor(4096, 1, 1);
+    const chunks16k = [];
+    const sr = recCtx.sampleRate || 48000;
+
+    proc.onaudioprocess = (ev) => {
+      if (ev.outputBuffer) {
+        for (let ch = 0; ch < ev.outputBuffer.numberOfChannels; ch++) ev.outputBuffer.getChannelData(ch).fill(0);
+      }
+      const inp = ev.inputBuffer.getChannelData(0);
+      let samples = inp;
+      if (sr !== 16000) {
+        const ratio = sr / 16000;
+        const outLen = Math.round(inp.length / ratio);
+        const resampled = new Float32Array(outLen);
+        for (let i = 0; i < outLen; i++) {
+          const pos = i * ratio;
+          const idx = Math.floor(pos);
+          const frac = pos - idx;
+          resampled[i] = (idx + 1 < inp.length) ? inp[idx] * (1 - frac) + inp[idx + 1] * frac : inp[idx];
+        }
+        samples = resampled;
+      }
+      const pcm = new Int16Array(samples.length);
+      for (let i = 0; i < samples.length; i++) {
+        const s = Math.max(-1, Math.min(1, samples[i]));
+        pcm[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+      }
+      chunks16k.push(new Uint8Array(pcm.buffer));
+    };
+
+    src.connect(proc);
+    proc.connect(recCtx.destination);
+
+    const startMs = Date.now();
+    const tickTimer = onProgress ? setInterval(() => {
+      const rem = Math.max(0, Math.ceil((durationMs - (Date.now() - startMs)) / 1000));
+      onProgress(rem);
+    }, 300) : null;
+
+    try {
+      await new Promise(res => setTimeout(res, durationMs));
+    } finally {
+      if (tickTimer) clearInterval(tickTimer);
+      try { src.disconnect(); } catch { }
+      try { proc.disconnect(); } catch { }
+      try { await recCtx.close(); } catch { }
+      if (tempStream) {
+        tempStream.getTracks().forEach(t => { try { t.stop(); } catch { } });
+      }
+    }
+
+    const totalBytes = chunks16k.reduce((acc, a) => acc + a.byteLength, 0);
+    if (totalBytes < 12800) return '';
+    const merged = new Uint8Array(totalBytes);
+    let offset = 0;
+    for (const c of chunks16k) {
+      merged.set(c, offset);
+      offset += c.byteLength;
+    }
+    let outBin = '';
+    const step = 8192;
+    for (let i = 0; i < merged.byteLength; i += step) {
+      outBin += String.fromCharCode.apply(null, merged.subarray(i, Math.min(merged.byteLength, i + step)));
+    }
+    return window.btoa(outBin);
+  }
 
   function reportStageStateToBackend() {
     try {
@@ -679,6 +789,10 @@
   let fkPersonLastSeenMs = 0;
   let fkPersonWasAway = false;
   let fkProactiveSessionSent = false;
+  let fkLocalResilientMode = false;
+  let fkReconnectAttempts = 0;
+  let fkReconnectTimer = null;
+  let fkLastWsErrorReported = false;
   let fkPhoneCallActive = false;
   let fkPhoneCallId = '';
   let fkLastFinishedPhoneCallId = '';
@@ -2646,18 +2760,47 @@
 
       const b64Payload = encodeFrameToBase64(input);
       if (rms > 0.015 && !fkPhoneCallActive) {
-        fkRecentVoicePcmChunks.push(b64Payload);
-        if (fkRecentVoicePcmChunks.length > 14) fkRecentVoicePcmChunks.shift();
         const nowMs = Date.now();
-        if (fkOwnerVoiceEnrolled && fkRecentVoicePcmChunks.length >= 6 && (nowMs - fkLastVoiceCheckMs) > 9000) {
+        // Separate utterances cleanly: if > 750ms silence elapsed since previous voice frame, start a fresh speaker buffer!
+        if ((nowMs - fkLastVoiceChunkAtMs) > 750) {
+          fkRecentVoicePcmChunks = [];
+          fkVoiceCheckedInUtterance = false;
+        }
+        fkLastVoiceChunkAtMs = nowMs;
+        fkRecentVoicePcmChunks.push(b64Payload);
+        if (fkRecentVoicePcmChunks.length > 24) fkRecentVoicePcmChunks.shift();
+
+        if (fkOwnerVoiceEnrolled && !fkVoiceCheckBusy && fkRecentVoicePcmChunks.length >= 11 &&
+            (!fkVoiceCheckedInUtterance || (nowMs - fkLastVoiceCheckMs) > 2600)) {
+          fkVoiceCheckedInUtterance = true;
           fkLastVoiceCheckMs = nowMs;
+          fkVoiceCheckBusy = true;
           const voiceSample = getCombinedRecentVoicePcmBase64();
           if (voiceSample) {
             fetch('/api/funkira/voice-check', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ pcm16Base64: voiceSample })
-            }).catch(() => {});
+            })
+              .then(r => r.json())
+              .then(out => {
+                if (out && out.speechDetected) {
+                  fkVoiceIdentity = out.effectiveVoiceIdentity || out.voiceIdentity || 'uncertain';
+                  fkSpeakerName = out.speakerName || '';
+                  if (out.effectivePrivacyIdentity) fkFaceIdentity = out.effectivePrivacyIdentity;
+                  updateFaceAndTikTokBadges();
+                  if (fkCurrentUserText) {
+                    const uEl = document.getElementById('funkira-user-line');
+                    if (uEl && !uEl.classList.contains('hidden')) {
+                      uEl.textContent = `${getActiveSpeakerDisplayLabel()}: „${fkCurrentUserText}“`;
+                    }
+                  }
+                }
+              })
+              .catch(() => {})
+              .finally(() => { fkVoiceCheckBusy = false; });
+          } else {
+            fkVoiceCheckBusy = false;
           }
         }
       }
@@ -2828,6 +2971,8 @@
       window.Funkira3D?.executeMovement({
         target: data.target || 'stay',
         bodyAction: data.bodyAction || 'none',
+        itemAction: data.itemAction || 'none',
+        item: data.item || '',
         speed: data.speed || 'fast',
         distanceMeters: data.distanceMeters || 1.35,
         durationSeconds: data.durationSeconds || 8.0,
@@ -2888,6 +3033,29 @@
   let fkCurrentUserText = '';
   let fkLastAvatarMoveMs = 0;
 
+  let fkWorldItemsLoadedOnce = false;
+  window.onFunkiraWorldItemsChanged = (itemsSnapshot) => {
+    if (!itemsSnapshot || typeof itemsSnapshot !== 'object') return;
+    fetch('/api/world-items', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: itemsSnapshot })
+    }).catch(() => {});
+  };
+
+  async function loadServerWorldItemsInto3D() {
+    if (fkWorldItemsLoadedOnce) return;
+    try {
+      const res = await fetch('/api/world-items');
+      if (!res.ok) return;
+      const data = await res.json();
+      fkWorldItemsLoadedOnce = true;
+      if (data && data.items && typeof data.items === 'object' && Object.keys(data.items).length > 0) {
+        window.Funkira3D?.applySavedItemPlacements(data.items, true);
+      }
+    } catch { }
+  }
+
   function maybeTriggerReflexMoveFromUserTurn(rawUserText) {
     if (!rawUserText || fkPhoneCallActive || fkIdleAtelierMode) return;
     if ((Date.now() - fkLastAvatarMoveMs) < 4800) return;
@@ -2896,7 +3064,26 @@
 
     let target = 'stay';
     let bodyAction = 'none';
+    let itemAction = 'none';
+    let matchedItem = '';
     let speed = /\b(schnell|renn|sprint|flott|eil)\b/.test(t) ? 'sprint' : 'fast';
+
+    if (/\b(räum\s+(alles\s+|mal\s+)?(wieder\s+)?auf|stell\s+alles\s+(wieder\s+)?zurück|gegenstände\s+zurück)\b/.test(t)) {
+      fkLastAvatarMoveMs = Date.now();
+      window.Funkira3D?.executeMovement({ itemAction: 'reset_items', emotion: 'happy' });
+      return;
+    }
+
+    if (/\b(pokal|trophäe|trophaee)\b/.test(t)) matchedItem = 'trophy';
+    else if (/\b(blumentopf|pflanztopf|orchidee)\b/.test(t)) matchedItem = 'flowerpot';
+    else if (/\b(vase|rosenvase|blumenstrauß|blumenstrauss)\b/.test(t)) matchedItem = 'vase';
+    else if (/\b(spardose|sparschwein)\b/.test(t)) matchedItem = 'piggybank';
+    else if (/\b(tasse|kaffeetasse|becher)\b/.test(t)) matchedItem = 'mug';
+    else if (/\b(laterne|windlicht)\b/.test(t)) matchedItem = 'lantern';
+    else if (/\b(geschenkbox|schmuckbox|geschenkschachtel|westpack)\b/.test(t)) matchedItem = 'giftbox';
+    else if (/\b(bilderrahmen|fotorahmen)\b/.test(t)) matchedItem = 'frame';
+
+    const hasItemVerb = /\b(nimm|nehm|hol|hole|heb|aufheben|trag|trage|bring|bringe|stell|stelle|hinstellen|abstellen|leg|lege)\b/.test(t);
 
     if (/\b(duck\s+dich|in\s+die\s+hocke|mach\s+dich\s+klein|bück\s+dich)\b/.test(t)) bodyAction = 'duck';
     else if (/\b(steh\s+(wieder\s+)?auf|aufrichten|wieder\s+hinstellen)\b/.test(t)) bodyAction = 'stand_up';
@@ -2906,36 +3093,56 @@
     else if (/\b(verbeug\s+dich|mach\s+einen\s+knicks)\b/.test(t)) bodyAction = 'bow';
     else if (/\b(streck\s+dich|reck\s+dich)\b/.test(t)) bodyAction = 'stretch';
     else if (/\b(tanz\s+mal|tanzen)\b/.test(t)) bodyAction = 'dance';
+    else if (/\b(rasen\s+mäh|mäh\s+(mal\s+)?den\s+rasen|mähe\s+(mal\s+)?den\s+rasen|rasenmähen)\b/.test(t)) bodyAction = 'mow_lawn';
+    else if (/\b(gieß|giess|bewässer)\b/.test(t)) bodyAction = 'water_plants';
+    else if (/\b(gartenarbeit|beet\s+pfleg|unkraut|einpflanz|buddel|umgraben)\b/.test(t)) bodyAction = 'garden_work';
+    else if (/\b(laub\s+fegen|terrasse\s+fegen|schnee\s+fegen|schnee\s+schippen)\b/.test(t)) bodyAction = 'sweep_terrace';
 
-    const hasMoveVerb = /\b(geh|gehe|lauf|laufe|komm|komme|tritt|stell|beweg|renn|ab\s+in)\b/.test(t);
-    if (hasMoveVerb || /\bnäher\s+ans\s+bild\b/.test(t)) {
+    const hasMoveVerb = /\b(geh|gehe|lauf|laufe|komm|komme|tritt|stell|stelle|trag|trage|bring|bringe|beweg|renn|schau\s+mal|ab\s+(in|auf|nach))\b/.test(t);
+    if (hasMoveVerb || hasItemVerb || /\b(näher\s+ans\s+bild|nach\s+draußen|nach\s+draussen|in\s+den\s+garten|auf\s+die\s+terrasse)\b/.test(t)) {
       if (/\b(zur\s+seite|aus\s+dem\s+weg|beiseite)\b/.test(t)) target = 'step_aside';
       else if (/\bnach\s+links\b/.test(t)) target = 'step_left';
       else if (/\bnach\s+rechts\b/.test(t)) target = 'step_right';
       else if (/\b(ans\s+bild|ans\s+foto|zum\s+bild|zum\s+foto|gruppenfoto)\b/.test(t)) target = 'colleagues_photo';
       else if (/\b(näher\s+(zu\s+mir|ran|her|ans\s+glas|an\s+die\s+kamera))\b/.test(t)) target = 'closer_to_camera';
       else if (/\b(stück\s+zurück|schritt\s+zurück|weiter\s+weg|weiter\s+nach\s+hinten)\b/.test(t)) target = 'step_back';
+      else if (/\b(rasenmäher|mäher)\b/.test(t)) target = 'lawn_mower';
+      else if (/\b(hochbeet|kräuterbeet|gemüsebeet)\b/.test(t)) target = 'hochbeet';
+      else if (/\b(blumenbeet)\b/.test(t)) target = 'flowerbed';
+      else if (/\b(schneemann)\b/.test(t)) target = 'snowman';
+      else if (/\b(terrasse|veranda|terrassentisch)\b/.test(t)) target = 'terrace';
+      else if (/\b(garten|nach\s+draußen|nach\s+draussen|raus)\b/.test(t)) target = 'garden';
       else if (/\b(treppe\s+runter|nach\s+unten|ins\s+erdgeschoss)\b/.test(t)) target = 'stairs_down';
-      else if (/\b(treppe\s+(wieder\s+)?hoch|wieder\s+hoch|zurück\s+ins\s+atelier|in\s+die\s+mitte)\b/.test(t)) target = 'atelier_center';
+      else if (/\b(treppe\s+(wieder\s+)?hoch|wieder\s+hoch|zurück\s+ins\s+atelier|wieder\s+rein|ins\s+haus|in\s+die\s+mitte|ins\s+atelier)\b/.test(t)) target = 'atelier_center';
       else if (/\bauf\s+die\s+treppe\b/.test(t)) target = 'stairs_mid';
-      else if (/\bküche\b/.test(t)) target = 'kitchen';
-      else if (/\bwohnzimmer\b/.test(t)) target = 'living_room';
+      else if (/\b(küche|kücheninsel|küchentisch)\b/.test(t)) target = 'kitchen';
+      else if (/\b(wohnzimmer|sofa|couchtisch)\b/.test(t)) target = 'living_room';
       else if (/\b(esszimmer|esstisch)\b/.test(t)) target = 'dining_room';
-      else if (/\bbüro\b/.test(t)) target = 'office';
-      else if (/\bschlafzimmer\b/.test(t)) target = 'bedroom';
+      else if (/\b(büro|schreibtisch)\b/.test(t)) target = 'office';
+      else if (/\b(schlafzimmer|bett|betttruhe)\b/.test(t)) target = 'bedroom';
+      else if (/\b(studio|oben\s+ins\s+studio)\b/.test(t)) target = 'og_studio';
       else if (/\b(trainingsraum|fitnessraum|hantelbank)\b/.test(t)) target = 'gym';
       else if (/\bheizungsraum\b/.test(t)) target = 'utility_room';
-      else if (/\bdiele|flur\b/.test(t)) target = 'hallway';
-      else if (/\b(werkbank|pokal|trophä)\b/.test(t)) target = 'workbench';
+      else if (/\b(diele|flur|garderobe)\b/.test(t)) target = 'hallway';
+      else if (/\bwerkbank\b/.test(t)) target = 'workbench';
+      else if (!hasItemVerb && /\b(pokal|trophä)\b/.test(t)) target = 'workbench';
       else if (/\b(leuchtschild|schild)\b/.test(t)) target = 'brand_sign';
-      else if (/\blaser\b/.test(t)) target = 'laser';
+      else if (/\b(laser|vitrine)\b/.test(t)) target = 'laser';
       else if (/\bfenster\b/.test(t)) target = 'atelier_window';
     }
 
-    if (target !== 'stay' || bodyAction !== 'none') {
+    if (matchedItem && hasItemVerb) {
+      itemAction = (target !== 'stay') ? 'move_item' : 'pick_up';
+    } else if (!matchedItem && window.Funkira3D?.carriedItemId && /\b(abstellen|ablegen|stell\s+(es|ihn|sie)\s+(hier\s+)?(ab|hin)|leg\s+(es|ihn|sie)\s+(hier\s+)?ab)\b/.test(t)) {
+      itemAction = 'place_down';
+      matchedItem = window.Funkira3D.carriedItemId;
+    }
+
+    if (itemAction !== 'none' || target !== 'stay' || bodyAction !== 'none') {
       fkLastAvatarMoveMs = Date.now();
-      if (target === 'colleagues_photo') setFunkiraExpress('proud', 'point_photo', 8.5, true);
-      window.Funkira3D?.executeMovement({ target, bodyAction, speed, distanceMeters: 1.35, durationSeconds: 8.0, emotion: 'happy' });
+      if (target === 'colleagues_photo' && itemAction === 'none') setFunkiraExpress('proud', 'point_photo', 8.5, true);
+      const dur = (bodyAction === 'mow_lawn') ? 15.0 : ((bodyAction === 'water_plants' || bodyAction === 'garden_work' || bodyAction === 'sweep_terrace') ? 12.0 : 8.0);
+      window.Funkira3D?.executeMovement({ target, bodyAction, itemAction, item: matchedItem, speed, distanceMeters: 1.35, durationSeconds: dur, emotion: 'happy' });
     }
   }
 
@@ -2943,16 +3150,20 @@
     const faceBtn = document.getElementById('btn-funkira-face');
     if (faceBtn) {
       faceBtn.classList.remove('face-owner', 'face-visitor');
-      if (!fkOwnerFaceEnrolled) {
-        faceBtn.textContent = '👑 Gesicht einrichten';
+      const spkSuffix = (fkVoiceIdentity === 'companion' && fkSpeakerName)
+        ? ` · 🎙 ${fkSpeakerName}`
+        : (fkVoiceIdentity === 'alina' ? ' · 🎙 Alina' : (fkOwnerVoiceEnrolled ? ' · 🎙' : ''));
+
+      if (!fkOwnerFaceEnrolled && !fkOwnerVoiceEnrolled) {
+        faceBtn.textContent = '👑 Gesicht & Stimme';
       } else if (fkFaceIdentity === 'visitor') {
         faceBtn.textContent = '🛡 Besucher-Schutz';
         faceBtn.classList.add('face-visitor');
       } else if (fkFaceIdentity === 'alina_with_companion') {
-        faceBtn.textContent = `👑 Alina + ${fkCompanionBadge || 'Begleitung'}`;
+        faceBtn.textContent = `👑 Alina + ${fkCompanionBadge || 'Begleitung'}${fkVoiceIdentity === 'companion' && fkSpeakerName ? ` (🎙 ${fkSpeakerName})` : ''}`;
         faceBtn.classList.add('face-owner');
       } else {
-        faceBtn.textContent = fkOwnerVoiceEnrolled ? '👑 Alina · 🎙' : '👑 Alina erkannt';
+        faceBtn.textContent = `👑 Alina${spkSuffix}`;
         faceBtn.classList.add('face-owner');
       }
     }
@@ -2983,6 +3194,7 @@
   function releaseBrowserMediaOnly() {
     fkSetupComplete = false;
     fkToolRunning = false;
+    if (fkReconnectTimer) { clearTimeout(fkReconnectTimer); fkReconnectTimer = null; }
     if (fkPingInterval) { clearInterval(fkPingInterval); fkPingInterval = null; }
     if (fkCamInterval) { clearInterval(fkCamInterval); fkCamInterval = null; }
     if (fkFaceCheckInterval) { clearInterval(fkFaceCheckInterval); fkFaceCheckInterval = null; }
@@ -3034,13 +3246,19 @@
         const d = await r.json();
         if (funkiraStageOpen && fkIdleAtelierMode && window.Funkira3D?.currentRoom) {
           const rm = window.Funkira3D.currentRoom;
-          const icon = /Wohn/i.test(rm) ? '🛋'
+          const ws = window.Funkira3D.worldState || {};
+          const outdoorIcon = (ws.occasion === 'silvester' || ws.occasion === 'new_year') ? '🎆'
+            : (ws.season === 'winter' ? '❄' : (ws.season === 'summer' ? '☀' : '🌿'));
+          const icon = /Terrasse|Garten/i.test(rm) ? outdoorIcon
+            : (/Wohn/i.test(rm) ? '🛋'
             : (/Küche/i.test(rm) ? '☕'
             : (/Schlaf/i.test(rm) ? '🛏'
             : (/Training/i.test(rm) ? '🏋'
             : (/Büro|Studio/i.test(rm) ? '💻'
-            : (/Treppe/i.test(rm) ? '🪜' : '✦')))));
-          const loc = /Küche|Diele/i.test(rm) ? `In der ${rm}` : (/Treppe/i.test(rm) ? 'Auf der Treppe' : `Im ${rm}`);
+            : (/Treppe/i.test(rm) ? '🪜' : '✦'))))));
+          const loc = /Küche|Diele/i.test(rm)
+            ? `In der ${rm}`
+            : (/Treppe|Terrasse/i.test(rm) ? `Auf der ${rm}` : `Im ${rm}`);
           setFunkiraStatusUi(`${icon} ${loc} · Ruf einfach „Funkira“`, 'online');
         }
         if (d && d.triggered) {
@@ -3120,7 +3338,54 @@
     }
   }
 
-  function connectFunkiraLiveWebSocket(initialReason = '', pendingTextPrompt = '', phoneCallId = '') {
+  function connectFunkiraLiveWebSocket(initialReason = '', pendingTextPrompt = '', phoneCallId = '', isAutoRetry = false) {
+    if (!isAutoRetry) {
+      fkReconnectAttempts = 0;
+      fkLastWsErrorReported = false;
+    }
+    if (fkReconnectTimer) {
+      clearTimeout(fkReconnectTimer);
+      fkReconnectTimer = null;
+    }
+    if (fkWs) {
+      fkWs.onclose = null;
+      fkWs.onerror = null;
+      fkWs.onmessage = null;
+      try { fkWs.close(1000, 'reconnecting'); } catch { }
+      fkWs = null;
+    }
+
+    const scheduleAutoReconnect = (errReason) => {
+      if (!funkiraStageOpen || fkIdleAtelierMode || fkMagicDissolveActive) return;
+      const retryDelays = [900, 1800, 3200, 5000];
+      if (fkReconnectAttempts < retryDelays.length) {
+        const delayMs = retryDelays[fkReconnectAttempts];
+        fkReconnectAttempts += 1;
+        setFunkiraStatusUi(`Verbinde erneut (${fkReconnectAttempts}/${retryDelays.length})...`, 'offline');
+        document.getElementById('funkira-ai-line').textContent =
+          `Kurze Netzwerkverzögerung erkannt. Ich verbinde mich automatisch neu (Versuch ${fkReconnectAttempts}/${retryDelays.length})...`;
+        fkReconnectTimer = setTimeout(() => {
+          fkReconnectTimer = null;
+          if (funkiraStageOpen && !fkIdleAtelierMode && !fkMagicDissolveActive) {
+            connectFunkiraLiveWebSocket(initialReason, pendingTextPrompt, phoneCallId, true);
+          }
+        }, delayMs);
+      } else {
+        setFunkiraStatusUi('Verbindungsfehler', 'offline');
+        document.getElementById('funkira-ai-line').textContent = errReason || 'Verbindungsfehler.';
+        if (!fkLastWsErrorReported) {
+          fkLastWsErrorReported = true;
+          reportBrowserErrorToSentinel(
+            'funkira_ws_ui',
+            'Funkira Live-WebSocket nach Auto-Reconnect nicht verbunden',
+            errReason || 'Verbindungsfehler',
+            '',
+            { severity: 'error', context: { attempts: String(fkReconnectAttempts), reason: String(initialReason || 'manual') } }
+          );
+        }
+      }
+    };
+
     const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsQuery = (initialReason === 'phone_concierge' && phoneCallId)
       ? `?mode=phone_concierge&callId=${encodeURIComponent(phoneCallId)}`
@@ -3149,12 +3414,18 @@
       }
 
       if (data.type === 'funkiraError') {
-        setFunkiraStatusUi('Verbindungsfehler', 'offline');
-        document.getElementById('funkira-ai-line').textContent = data.message || 'Verbindungsfehler.';
+        const errMsg = data.message || 'Verbindungsfehler.';
+        if (fkWs) {
+          fkWs.onclose = null;
+          try { fkWs.close(1000, 'error_retry'); } catch { }
+          fkWs = null;
+        }
+        scheduleAutoReconnect(errMsg);
         return;
       }
 
       if (data.type === 'funkiraSessionInfo') {
+        fkLocalResilientMode = !!data.localResilientMode;
         if (data.cameraName) {
           document.getElementById('funkira-eye-label').textContent = data.cameraName;
         }
@@ -3215,6 +3486,21 @@
       }
 
       if (data.setupComplete) {
+        if (fkReconnectAttempts > 0) {
+          reportBrowserErrorToSentinel(
+            'funkira_ws_ui',
+            'Funkira Live-WebSocket automatisch wiederhergestellt',
+            `Wiederverbunden nach Versuch #${fkReconnectAttempts}`,
+            '',
+            {
+              autoHealed: true,
+              healSummary: `Browser-UI hat Funkira nach kurzer Trennung im Versuch #${fkReconnectAttempts} automatisch wiederverbunden.`,
+              context: { attempts: String(fkReconnectAttempts) }
+            }
+          );
+        }
+        fkReconnectAttempts = 0;
+        fkLastWsErrorReported = false;
         fkSetupComplete = true;
         fkSetupCompleteAtMs = Date.now();
         fkLastInteractionMs = Date.now();
@@ -3224,7 +3510,12 @@
           document.getElementById('funkira-ai-line').textContent = `Eingehender Anruf von ${fkPhoneCallerLabel || 'Whitelist-Kontakt'}. Ich gehe für dich ran...`;
           return;
         }
-        setFunkiraStatusUi(`Funkira hört zu · Atelier Stufe ${fkLatestShopLevel}`, 'online');
+        setFunkiraStatusUi(
+          fkLocalResilientMode
+            ? `Funkira hört zu · Atelier (Lokal-Modus)`
+            : `Funkira hört zu · Atelier Stufe ${fkLatestShopLevel}`,
+          'online'
+        );
 
         if (pendingTextPrompt) {
           fkProactiveSessionSent = true;
@@ -3256,9 +3547,9 @@
           fkIdlePromptAsked = false;
           fkIdlePromptFinishMs = 0;
           fkCurrentUserText = (fkCurrentUserText + ' ' + uTxt).replace(/\s+/g, ' ').trim();
-            const uEl = document.getElementById('funkira-user-line');
-            uEl.textContent = `${fkPhoneCallActive ? (fkPhoneCallerLabel || 'Anrufer') : 'Du'}: „${fkCurrentUserText}“`;
-            uEl.classList.remove('hidden');
+          const uEl = document.getElementById('funkira-user-line');
+          uEl.textContent = `${getActiveSpeakerDisplayLabel()}: „${fkCurrentUserText}“`;
+          uEl.classList.remove('hidden');
           inferFunkiraExpressFromText(fkCurrentUserText, true);
         }
 
@@ -3316,8 +3607,8 @@
     };
 
     fkWs.onclose = () => {
-      if (funkiraStageOpen && !fkIdleAtelierMode) {
-        setFunkiraStatusUi('Verbindung getrennt', 'offline');
+      if (funkiraStageOpen && !fkIdleAtelierMode && !fkMagicDissolveActive) {
+        scheduleAutoReconnect('Live-Verbindung kurzzeitig unterbrochen.');
       }
     };
   }
@@ -3329,7 +3620,7 @@
     try {
       const stRes = await fetch('/api/funkira/status');
       const st = await stRes.json();
-      if (!st.hasToken) {
+      if (!st.hasToken && !st.hasGeminiKey) {
         pendingOpenFunkiraAfterLogin = true;
         document.getElementById('login-status-msg').textContent = 'Einmalig anmelden, um Funkira & Bestell-Monitor zu verbinden.';
         document.getElementById('modal-overlay').classList.remove('hidden');
@@ -3375,6 +3666,7 @@
     const c3d = document.getElementById('funkira-3d-canvas');
     if (window.Funkira3D && c3d) {
       window.Funkira3D.init(c3d);
+      loadServerWorldItemsInto3D();
       if (initialReason === 'wake_word') {
         window.Funkira3D.runToCamera(true);
       } else {
@@ -3547,25 +3839,41 @@
   // Offline Face & Voice Guard Modal Handlers
   document.getElementById('btn-funkira-face')?.addEventListener('click', () => {
     const st = document.getElementById('face-modal-status');
-    const voiceInfo = fkOwnerVoiceEnrolled ? ' · Stimme verifiziert' : '';
+    const voiceInfo = fkOwnerVoiceEnrolled
+      ? ` · 512-Float Stimmprofil aktiv${fkSpeakerName ? ` (zuletzt: ${fkSpeakerName})` : ''}`
+      : ' · Stimme noch nicht eingelernt';
     const compInfo = (fkFaceIdentity === 'alina_with_companion' && fkCompanionBadge) ? ` · Begleitung: ${fkCompanionBadge}` : '';
-    st.textContent = fkOwnerFaceEnrolled
+    st.textContent = (fkOwnerFaceEnrolled || fkOwnerVoiceEnrolled)
       ? `Status: ${fkFaceIdentity === 'visitor' ? 'Besucher-Schutz aktiv (interne Daten gesperrt)' : 'Alina verifiziert (AES-256-GCM lokal)'}${voiceInfo}${compInfo}.`
-      : 'Noch kein Chefin-Gesicht gespeichert. Schau kurz in die Logitech C920 und klicke auf Gesicht einlernen.';
+      : 'Noch kein Chefin-Profil gespeichert. Schau in die C920 für Gesicht einlernen oder klicke auf Stimme einlernen.';
     document.getElementById('face-modal-overlay')?.classList.remove('hidden');
   });
   document.getElementById('btn-close-face-modal')?.addEventListener('click', () => {
     document.getElementById('face-modal-overlay')?.classList.add('hidden');
   });
   document.getElementById('btn-voice-enroll')?.addEventListener('click', async () => {
+    if (fkVoiceEnrollBusy) return;
+    fkVoiceEnrollBusy = true;
     const st = document.getElementById('face-modal-status');
-    const pcmB64 = getCombinedRecentVoicePcmBase64();
-    if (!pcmB64) {
-      st.textContent = 'Bitte sprich zuerst kurz einen Satz mit aktivem Mikrofon und klicke dann auf Stimme einlernen.';
-      return;
-    }
-    st.textContent = 'Berechne lokalen 48-Float Stimmvektor...';
+    const btn = document.getElementById('btn-voice-enroll');
+    if (btn) btn.disabled = true;
     try {
+      st.textContent = '🎙 Bitte sprich jetzt einen ganzen Satz (3 Sek.), z. B.: „Hallo Funkira, hier spricht deine Chefin Alina.“';
+      let pcmB64 = '';
+      try {
+        pcmB64 = await recordFreshVoiceSampleBase64(2900, (remSec) => {
+          if (remSec > 0) {
+            st.textContent = `🎙 Aufnahme läuft (${remSec}s) · Bitte sprich jetzt normal weiter...`;
+          }
+        });
+      } catch {
+        pcmB64 = getCombinedRecentVoicePcmBase64();
+      }
+      if (!pcmB64) {
+        st.textContent = 'Kein Mikrofonsignal empfangen. Bitte kurz prüfen, ob die Logitech C920 angeschlossen ist.';
+        return;
+      }
+      st.textContent = 'Berechne lokalen neuronalen 512-Float Stimmvektor (WeSpeaker CAM++ ONNX)...';
       const res = await fetch('/api/funkira/voice-enroll', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -3575,10 +3883,16 @@
       st.textContent = out.message || (out.ok ? 'Stimme gespeichert!' : 'Fehler.');
       if (out.ok) {
         fkOwnerVoiceEnrolled = true;
+        fkVoiceIdentity = 'alina';
+        fkSpeakerName = 'Alina';
+        fkRecentVoicePcmChunks = [];
         updateFaceAndTikTokBadges();
       }
     } catch (e) {
       st.textContent = 'Fehler: ' + e.message;
+    } finally {
+      fkVoiceEnrollBusy = false;
+      if (btn) btn.disabled = false;
     }
   });
   document.getElementById('btn-face-enroll')?.addEventListener('click', async () => {
@@ -3612,6 +3926,8 @@
     fkOwnerFaceEnrolled = false;
     fkOwnerVoiceEnrolled = false;
     fkFaceIdentity = 'unenrolled';
+    fkVoiceIdentity = 'unenrolled';
+    fkSpeakerName = '';
     fkCompanionBadge = '';
     updateFaceAndTikTokBadges();
     document.getElementById('face-modal-status').textContent = 'Lokale Gesichts- & Stimmvektoren gelöscht.';
@@ -3708,6 +4024,7 @@
       const c3d = document.getElementById('funkira-3d-canvas');
       if (window.Funkira3D && c3d) {
         window.Funkira3D.init(c3d);
+        loadServerWorldItemsInto3D();
         window.Funkira3D.start();
         window.Funkira3D.resize();
         window.Funkira3D.setPhoneCallState(true, fkPhoneCallerLabel);
@@ -3992,7 +4309,7 @@
       // Bold Gold Active Routine Banner Centered Below Golden Crystal Orb (Visible in Normal & Focus Mode!)
       const routineBannerEl = document.getElementById('gewerbe-routine-banner');
       if (routineBannerEl) {
-        const cleanBanner = (p.activeRoutineBanner || '').replace(/\s[–—]\s/g, ' · ').trim();
+        const cleanBanner = (p.activeRoutineBanner || '').replace(/\s[\u2013\u2014]\s/g, ' · ').trim();
         routineBannerEl.textContent = cleanBanner;
       }
 
@@ -4002,6 +4319,8 @@
       if (typeof data.ownerFaceEnrolled === 'boolean') fkOwnerFaceEnrolled = data.ownerFaceEnrolled;
       if (typeof data.ownerVoiceEnrolled === 'boolean') fkOwnerVoiceEnrolled = data.ownerVoiceEnrolled;
       if (data.faceIdentity) fkFaceIdentity = data.faceIdentity;
+      if (data.voiceIdentity) fkVoiceIdentity = data.voiceIdentity;
+      if (typeof data.speakerName === 'string') fkSpeakerName = data.speakerName;
       if (typeof data.companionBadge === 'string') fkCompanionBadge = data.companionBadge;
       if (p.shopLevel) fkLatestShopLevel = p.shopLevel;
       updateFaceAndTikTokBadges();
@@ -4043,6 +4362,47 @@
 
       if (p.newOrderJustArrived) {
         triggerOrderCelebration();
+      }
+
+      // Proactive 2-Hour Workshop Order Check-in (Strict Owner-Only, Routine-Safe & Anti-Nagging)
+      const poc = p.priorityOrderCheckin;
+      if (poc && poc.isCheckinDue && !poc.workshopCheckinPaused && !fkTikTokLiveMode && !fkPhoneCallActive && !document.body.classList.contains('focus-mode') && fkFaceIdentity !== 'visitor') {
+        const stKey = poc.checkinStateKey || `${poc.orderNumber}|${poc.status}|${poc.workshopNoteUpdatedAt || ''}`;
+        const nowMs = Date.now();
+        const alreadyAskedRecently = (fkLastClientOrderCheckinKey === stKey) && ((nowMs - fkLastClientOrderCheckinMs) < 7200000);
+
+        if (!alreadyAskedRecently && !fkOrderCheckinBusy) {
+          const ownerVerified = (fkOwnerFaceEnrolled && (fkFaceIdentity === 'alina' || fkFaceIdentity === 'alina_with_companion'))
+            || (fkOwnerVoiceEnrolled && fkVoiceIdentity === 'alina')
+            || (!fkOwnerFaceEnrolled && !fkOwnerVoiceEnrolled);
+
+          if (funkiraStageOpen && !fkIdleAtelierMode && fkSetupComplete && fkWs && fkWs.readyState === WebSocket.OPEN) {
+            const quietLongEnough = !fkIsSpeaking && !fkIsAiTurn && fkActiveSources.length === 0 && !fkToolRunning && ((nowMs - fkLastInteractionMs) >= 9000);
+            if (ownerVerified && quietLongEnough) {
+              fkLastClientOrderCheckinKey = stKey;
+              fkLastClientOrderCheckinMs = nowMs;
+              fkLastInteractionMs = nowMs;
+              fkWs.send(JSON.stringify({ type: 'personPresenceEvent', reason: 'order_checkin_due', position: 'vor dem Monitor', personDetected: true }));
+            }
+          } else if (funkiraStageOpen && fkIdleAtelierMode && !fkWakeTransitionBusy && ((fkOwnerFaceEnrolled && (fkFaceIdentity === 'alina' || fkFaceIdentity === 'alina_with_companion')) || (fkOwnerVoiceEnrolled && fkVoiceIdentity === 'alina'))) {
+            fkOrderCheckinBusy = true;
+            try {
+              const chkRes = await fetch('/api/funkira/order-checkin-check', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ stageActivelyOpen: false, phoneCallActive: fkPhoneCallActive })
+              });
+              const chkOut = await chkRes.json();
+              if (chkOut && chkOut.shouldAsk && chkOut.promptCue) {
+                fkLastClientOrderCheckinKey = stKey;
+                fkLastClientOrderCheckinMs = Date.now();
+                await wakeFunkiraFromAtelier('order_checkin_due', chkOut.promptCue);
+              }
+            } catch { } finally {
+              fkOrderCheckinBusy = false;
+            }
+          }
+        }
       }
     } catch { }
   }
@@ -4099,8 +4459,28 @@
   // =========================================================================
   document.getElementById('btn-test-chime').addEventListener('click', () => triggerOrderCelebration());
 
+  function isWeekendAheadLocal() {
+    const now = new Date();
+    const dow = now.getDay(); // 0=Sun, 5=Fri, 6=Sat
+    if (dow === 6 || dow === 0) return true;
+    if (dow === 5 && (now.getHours() > 7 || (now.getHours() === 7 && now.getMinutes() >= 58))) return true;
+    return false;
+  }
+
+  function updateNightSleepButtonLabel() {
+    const btn = document.getElementById('btn-night-sleep');
+    if (!btn) return;
+    btn.textContent = isWeekendAheadLocal() ? '☾ Ruhemodus (Mo 08:00)' : '☾ Nachtruhe (08:00)';
+  }
+  updateNightSleepButtonLabel();
+  setInterval(updateNightSleepButtonLabel, 60000);
+
   document.getElementById('btn-night-sleep').addEventListener('click', async () => {
-    if (!confirm('Mini-PC jetzt in die Nachtruhe versetzen und um Punkt 08:00 Uhr automatisch aufwecken?')) return;
+    const weekend = isWeekendAheadLocal();
+    const msg = weekend
+      ? 'Mini-PC jetzt in den Energiesparmodus versetzen? Am Wochenende bleibt er aus und wacht erst am Montag um 08:00 Uhr auf.'
+      : 'Mini-PC jetzt in die Nachtruhe versetzen und um Punkt 08:00 Uhr automatisch aufwecken?';
+    if (!confirm(msg)) return;
     await fetch('/api/power/night-sleep', { method: 'POST' });
   });
 
@@ -4441,6 +4821,12 @@
     win.addEventListener('pointerdown', () => { win.style.zIndex = ++topZ; });
     win.querySelector('.max-btn').addEventListener('click', () => win.classList.toggle('maximized'));
     win.querySelector('.close').addEventListener('click', () => {
+      if (typeof win._onClose === 'function') {
+        try { win._onClose(); } catch { }
+      }
+      if (appId === 'tresor') {
+        fetch('/api/tresor/lock', { method: 'POST' }).catch(() => {});
+      }
       win.remove();
       openWindows.delete(appId);
       syncTaskbar();
@@ -4762,13 +5148,27 @@
           <td><button class="pill-btn" style="padding:3px 9px;font-size:11.5px;">Passwort kopieren (12s)</button></td>
         `;
         tr.querySelector('button').addEventListener('click', async (ev) => {
-          await copyWithFallback(e.password);
-          ev.target.textContent = '✓ Kopiert (12s)';
-          setTimeout(() => { copyWithFallback(''); ev.target.textContent = 'Passwort kopieren (12s)'; }, 12000);
+          try {
+            const secRes = await fetch('/api/tresor/entry-secret', {
+              method: 'POST',
+              headers: {'Content-Type':'application/json'},
+              body: JSON.stringify({ uuid: e.uuid })
+            });
+            const secData = await secRes.json();
+            if (!secData || !secData.ok) return;
+            await copyWithFallback(secData.secret || '');
+            ev.target.textContent = '✓ Kopiert (12s)';
+            setTimeout(() => { copyWithFallback(''); ev.target.textContent = 'Passwort kopieren (12s)'; }, 12000);
+          } catch { }
         });
         rows.appendChild(tr);
       });
     }
+
+    win._onClose = () => {
+      allEntries = [];
+      fetch('/api/tresor/lock', { method: 'POST' }).catch(() => {});
+    };
 
     body.querySelector('#tr-open-btn').addEventListener('click', async () => {
       const res = await fetch('/api/tresor/open', {

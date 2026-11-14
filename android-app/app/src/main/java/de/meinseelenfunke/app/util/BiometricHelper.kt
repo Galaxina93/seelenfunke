@@ -8,41 +8,41 @@ import androidx.fragment.app.FragmentActivity
 
 object BiometricHelper {
 
-    private fun resolveAllowedAuthenticators(context: Context): Int {
-        val biometricManager = BiometricManager.from(context)
-        return if (biometricManager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) == BiometricManager.BIOMETRIC_SUCCESS) {
-            BiometricManager.Authenticators.BIOMETRIC_STRONG
-        } else {
-            BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.BIOMETRIC_WEAK
-        }
+    const val ALLOWED_AUTHENTICATORS: Int =
+        BiometricManager.Authenticators.BIOMETRIC_STRONG or
+            BiometricManager.Authenticators.DEVICE_CREDENTIAL
+
+    fun resolveAllowedAuthenticators(@Suppress("UNUSED_PARAMETER") context: Context? = null): Int {
+        return ALLOWED_AUTHENTICATORS
     }
 
     fun isBiometricAvailable(context: Context): Boolean {
         val biometricManager = BiometricManager.from(context)
-        val strongResult = biometricManager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG)
-        if (strongResult == BiometricManager.BIOMETRIC_SUCCESS) return true
-        val fallbackResult = biometricManager.canAuthenticate(
-            BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.BIOMETRIC_WEAK
-        )
-        return fallbackResult == BiometricManager.BIOMETRIC_SUCCESS
+        return biometricManager.canAuthenticate(ALLOWED_AUTHENTICATORS) == BiometricManager.BIOMETRIC_SUCCESS
     }
 
     fun showBiometricPrompt(
         activity: FragmentActivity,
         title: String = "Biometrische Anmeldung",
-        subtitle: String = "Bestätige deine Identität mit dem Fingerabdruck",
-        negativeButtonText: String = "Passwort nutzen",
+        subtitle: String = "Bestätige deine Identität",
+        @Suppress("UNUSED_PARAMETER") negativeButtonText: String = "Passwort nutzen",
         onSuccess: (BiometricPrompt.AuthenticationResult) -> Unit,
         onError: (errorCode: Int, errString: CharSequence) -> Unit = { _, _ -> },
         onFailed: () -> Unit = {}
     ) {
         val executor = ContextCompat.getMainExecutor(activity)
-        val promptInfo = BiometricPrompt.PromptInfo.Builder()
+        val authenticators = resolveAllowedAuthenticators(activity)
+        val promptBuilder = BiometricPrompt.PromptInfo.Builder()
             .setTitle(title)
             .setSubtitle(subtitle)
-            .setNegativeButtonText(negativeButtonText)
-            .setAllowedAuthenticators(resolveAllowedAuthenticators(activity))
-            .build()
+            .setAllowedAuthenticators(authenticators)
+
+        // AndroidX BiometricPrompt forbids setting negativeButtonText when DEVICE_CREDENTIAL is enabled.
+        if ((authenticators and BiometricManager.Authenticators.DEVICE_CREDENTIAL) == 0) {
+            promptBuilder.setNegativeButtonText(negativeButtonText)
+        }
+
+        val promptInfo = promptBuilder.build()
 
         val biometricPrompt = BiometricPrompt(
             activity,

@@ -213,4 +213,62 @@ class AuthProfileDropdownTest extends TestCase
 
         $this->assertGuest('customer');
     }
+
+    public function test_customer_can_toggle_marketing_consent_and_email_change_requires_fresh_double_opt_in()
+    {
+        \Illuminate\Support\Facades\Notification::fake();
+
+        $this->user->forceFill(['email_verified_at' => now()])->save();
+        $this->user->profile()->update([
+            'email_verified_at' => now(),
+            'cart_reminder_unsubscribed_at' => now()->subDay(),
+        ]);
+        $this->actingAs($this->user->fresh(), 'customer');
+
+        // 1. Im Profil aktivieren -> hebt alten Opt-Out auf und setzt verifiziertes Opt-In
+        Livewire::test(AuthProfileDropdown::class)
+            ->assertSet('marketingConsent', false)
+            ->set('marketingConsent', true)
+            ->assertSet('marketingConsent', true);
+
+        $this->assertTrue($this->user->fresh()->hasMarketingConsent());
+        $this->assertNull($this->user->fresh()->profile->cart_reminder_unsubscribed_at);
+
+        // 2. E-Mail-Adresse im Profil ändern -> alte Adresse wird ausgetragen, neue wartet auf E-Mail-Bestätigung (DOI)
+        Livewire::test(AuthProfileDropdown::class)
+            ->set('email', 'neu@kunde.de')
+            ->call('saveProfile')
+            ->assertSet('marketingConsent', false);
+
+        $this->assertDatabaseMissing('marketing_newsletter_subscribers', ['email' => 'test@kunde.de']);
+        $this->assertDatabaseHas('marketing_newsletter_subscribers', [
+            'email' => 'neu@kunde.de',
+            'is_verified' => false,
+            'privacy_accepted' => true,
+        ]);
+        $this->assertFalse($this->user->fresh()->hasMarketingConsent());
+
+        // Nach Klick auf den Verifizierungslink der neuen E-Mail ist das Opt-In wieder aktiv
+        $verifyUrl = \Illuminate\Support\Facades\URL::temporarySignedRoute(
+            'customer.verification.verify',
+            now()->addMinutes(60),
+            [
+                'id' => $this->user->id,
+                'hash' => sha1('neu@kunde.de'),
+            ]
+        );
+        $this->get($verifyUrl)->assertRedirect(route('login'));
+        $this->assertTrue($this->user->fresh()->hasMarketingConsent());
+
+        // 3. Im Profil wieder deaktivieren -> sofortiger Widerruf
+        $this->actingAs($this->user->fresh(), 'customer');
+        Livewire::test(AuthProfileDropdown::class)
+            ->assertSet('marketingConsent', true)
+            ->set('marketingConsent', false)
+            ->assertSet('marketingConsent', false);
+
+        $this->assertFalse($this->user->fresh()->hasMarketingConsent());
+        $this->assertNotNull($this->user->fresh()->profile->cart_reminder_unsubscribed_at);
+        $this->assertDatabaseMissing('marketing_newsletter_subscribers', ['email' => 'neu@kunde.de']);
+    }
 }

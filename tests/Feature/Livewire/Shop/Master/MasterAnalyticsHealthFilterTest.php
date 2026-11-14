@@ -75,7 +75,7 @@ class MasterAnalyticsHealthFilterTest extends TestCase
         ]);
 
         // 4. Generiere operative Daten: Abandoned Carts (Rot / Über 24h)
-        $product = Product::forceCreate(['id' => \Illuminate\Support\Str::uuid(), 'name' => 'Test', 'slug' => 'test-' . uniqid(), 'price' => 1000]);
+        $product = Product::forceCreate(['id' => \Illuminate\Support\Str::uuid(), 'name' => 'Test', 'slug' => 'test-' . uniqid(), 'price' => 1000, 'status' => 'active']);
         $b2bCart = Cart::create(['session_id' => '123', 'customer_id' => $b2bCustomer->id]);
         CartItem::create(['cart_id' => $b2bCart->id, 'product_id' => $product->id, 'quantity' => 1, 'unit_price' => 1000]);
         \Illuminate\Support\Facades\DB::table('carts')->where('id', $b2bCart->id)->update(['updated_at' => Carbon::now()->subHours(25)]);

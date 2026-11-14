@@ -513,16 +513,122 @@ trait ManagesAiChat
 
     protected function isSafeChatUploadedFile($file): bool
     {
+        return $this->resolveSafeChatUploadSpec($file) !== null;
+    }
+
+    protected function resolveSafeChatUploadSpec($file): ?array
+    {
         if (!is_object($file) || !method_exists($file, 'getClientOriginalName')) {
-            return false;
+            return null;
         }
-        $origName = (string) $file->getClientOriginalName();
-        if (preg_match('/\.(php[0-9]?|phtml|phar|sh|bash|exe|bat|cmd|cgi|pl|py|asp|aspx|jsp|shtml|env|htaccess|html?|svg|js|mjs)(\.|$)/i', $origName)) {
-            return false;
+
+        if (method_exists($file, 'getSize')) {
+            $size = (int) $file->getSize();
+            if ($size <= 0 || $size > 20 * 1024 * 1024) {
+                return null;
+            }
         }
+
+        $origName = basename(str_replace('\\', '/', (string) $file->getClientOriginalName()));
+        if ($origName === '' || preg_match('/\.(php[0-9]?|phtml|phar|sh|bash|exe|bat|cmd|cgi|pl|py|asp|aspx|jsp|shtml|env|htaccess|html?|xhtml|svg|xml|js|mjs)(\.|$)/i', $origName)) {
+            return null;
+        }
+
         $ext = strtolower(pathinfo($origName, PATHINFO_EXTENSION));
         $allowedExts = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'pdf', 'txt', 'csv', 'md', 'json', 'doc', 'docx', 'xls', 'xlsx', 'mp3', 'wav', 'ogg', 'm4a'];
-        return in_array($ext, $allowedExts, true);
+        if (!in_array($ext, $allowedExts, true)) {
+            return null;
+        }
+
+        $detectedMime = method_exists($file, 'getMimeType') ? strtolower((string) $file->getMimeType()) : '';
+        if (method_exists($file, 'getRealPath')) {
+            $realPath = $file->getRealPath();
+            if (is_string($realPath) && $realPath !== '' && is_file($realPath)) {
+                $finfo = finfo_open(FILEINFO_MIME_TYPE);
+                if ($finfo) {
+                    $probed = finfo_file($finfo, $realPath);
+                    finfo_close($finfo);
+                    if (is_string($probed) && $probed !== '') {
+                        $detectedMime = strtolower($probed);
+                    }
+                }
+
+                // Blockiere HTML/SVG/PHP-Polyglots in Textdateien
+                $head = (string) @file_get_contents($realPath, false, null, 0, 1024);
+                if (preg_match('/<\s*(\?php|!doctype\s+html|html\b|script\b|svg\b|iframe\b)/i', $head)) {
+                    return null;
+                }
+            }
+        }
+
+        $blockedMimes = [
+            'text/html',
+            'application/xhtml+xml',
+            'image/svg+xml',
+            'text/xml',
+            'application/xml',
+            'text/x-php',
+            'application/x-php',
+            'application/x-httpd-php',
+            'application/javascript',
+            'text/javascript',
+        ];
+        if ($detectedMime === '' || in_array($detectedMime, $blockedMimes, true)) {
+            return null;
+        }
+
+        $mimeToSafeExts = [
+            'image/jpeg' => ['jpg', 'jpeg'],
+            'image/png' => ['png'],
+            'image/webp' => ['webp'],
+            'image/gif' => ['gif'],
+            'application/pdf' => ['pdf'],
+            'text/plain' => ['txt', 'csv', 'md', 'json'],
+            'text/csv' => ['csv', 'txt'],
+            'text/markdown' => ['md', 'txt'],
+            'application/json' => ['json', 'txt'],
+            'application/msword' => ['doc'],
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document' => ['docx'],
+            'application/vnd.ms-excel' => ['xls', 'csv'],
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' => ['xlsx'],
+            'audio/mpeg' => ['mp3'],
+            'audio/mp3' => ['mp3'],
+            'audio/wav' => ['wav'],
+            'audio/x-wav' => ['wav'],
+            'audio/ogg' => ['ogg'],
+            'audio/mp4' => ['m4a'],
+            'audio/x-m4a' => ['m4a'],
+        ];
+
+        if (!isset($mimeToSafeExts[$detectedMime]) || !in_array($ext, $mimeToSafeExts[$detectedMime], true)) {
+            return null;
+        }
+
+        return [
+            'safe_ext' => $ext,
+            'mime' => $detectedMime,
+            'orig_name' => $origName,
+        ];
+    }
+
+    protected function storeSafeChatUploadedFile($file): ?array
+    {
+        $spec = $this->resolveSafeChatUploadSpec($file);
+        if (!$spec) {
+            return null;
+        }
+
+        $safeFilename = \Illuminate\Support\Str::uuid()->toString() . '.' . $spec['safe_ext'];
+        $path = $file->storeAs('agenten/workspace/chat-medien', $safeFilename, 'public');
+        if (!$path) {
+            return null;
+        }
+
+        return [
+            'path' => $path,
+            'name' => $spec['orig_name'],
+            'mime' => $spec['mime'],
+        ];
     }
 
     public function sendMessage()
@@ -535,15 +641,10 @@ trait ManagesAiChat
         $localUploads = [];
         if (!empty($this->uploadedFiles)) {
             foreach ($this->uploadedFiles as $file) {
-                if (!$this->isSafeChatUploadedFile($file)) {
-                    continue;
+                $stored = $this->storeSafeChatUploadedFile($file);
+                if ($stored) {
+                    $localUploads[] = $stored;
                 }
-                $path = $file->store('agenten/workspace/chat-medien', 'public');
-                $localUploads[] = [
-                    'path' => $path,
-                    'name' => $file->getClientOriginalName(),
-                    'mime' => $file->getMimeType(),
-                ];
             }
         }
 
@@ -751,6 +852,9 @@ trait ManagesAiChat
 
         $agent = AiAgent::find($targetId);
         if ($agent) {
+            if (!AiAuthHelper::isAdmin() && strtolower(trim((string) $agent->name)) === 'funkira') {
+                return;
+            }
             $this->activeAgentIds = [$agent->id];
             $this->forcedAgentIds = [$agent->id];
             if (AiAuthHelper::isAdmin()) {
@@ -810,7 +914,8 @@ trait ManagesAiChat
         }
 
         $agent = AiAgent::find($agentId);
-        if (!$agent) {
+        if (!$agent || (!AiAuthHelper::isAdmin() && strtolower(trim((string) $agent->name)) === 'funkira')) {
+             $inferenceLock->release();
              $this->typingAgents = array_diff($this->typingAgents, [$agentId]);
              return;
         }
@@ -1379,15 +1484,10 @@ trait ManagesAiChat
         $localUploads = [];
         if (!empty($this->uploadedFiles)) {
             foreach ($this->uploadedFiles as $file) {
-                if (!$this->isSafeChatUploadedFile($file)) {
-                    continue;
+                $stored = $this->storeSafeChatUploadedFile($file);
+                if ($stored) {
+                    $localUploads[] = $stored;
                 }
-                $path = $file->store('agenten/workspace/chat-medien', 'public');
-                $localUploads[] = [
-                    'path' => $path,
-                    'name' => $file->getClientOriginalName(),
-                    'mime' => $file->getMimeType()
-                ];
             }
             $meta['local_uploads'] = $localUploads;
         }

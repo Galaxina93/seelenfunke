@@ -33,23 +33,82 @@ import kotlin.math.sqrt
  */
 class WakeWordService : Service() {
 
+    @Volatile
     private var isRunning = false
     private var audioRecord: AudioRecord? = null
     private var recordThread: Thread? = null
+    private val cadenceGate = SpeechCadenceGate()
 
     companion object {
         private const val TAG = "WakeWordService"
         private const val CHANNEL_ID = "seelenfunke_wakeword_channel"
         private const val NOTIFICATION_ID = 1002
-        
+
         // Audio parameters for speech recognition / VAD
         private const val SAMPLE_RATE = 16000
         private const val CHANNEL_CONFIG = AudioFormat.CHANNEL_IN_MONO
         private const val AUDIO_FORMAT = AudioFormat.ENCODING_PCM_16BIT
-        
-        // Increased energy threshold (RMS) for wake-word validation to prevent false alarms
-        private const val AMPLITUDE_THRESHOLD = 6000.0
+
+        // Voiced speech energy + zero-crossing-rate gating to reject ambient transients/spikes
+        const val SPEECH_RMS_THRESHOLD = 3200.0
+        const val MIN_SPEECH_ZCR = 0.02
+        const val MAX_SPEECH_ZCR = 0.28
         private const val COOLDOWN_MS = 4000L
+
+        fun computeRmsAndZcr(samples: ShortArray, length: Int = samples.size): Pair<Double, Double> {
+            val n = length.coerceIn(0, samples.size)
+            if (n <= 0) return 0.0 to 0.0
+            var sumSq = 0.0
+            var zeroCrossings = 0
+            for (i in 0 until n) {
+                val s = samples[i].toDouble()
+                sumSq += s * s
+                if (i > 0) {
+                    val prev = samples[i - 1].toInt()
+                    val curr = samples[i].toInt()
+                    if ((prev >= 0 && curr < 0) || (prev < 0 && curr >= 0)) {
+                        zeroCrossings++
+                    }
+                }
+            }
+            val rms = sqrt(sumSq / n)
+            val zcr = if (n > 1) zeroCrossings.toDouble() / (n - 1).toDouble() else 0.0
+            return rms to zcr
+        }
+
+        fun isVoicedSpeechFrame(samples: ShortArray, length: Int = samples.size): Boolean {
+            val n = length.coerceIn(0, samples.size)
+            if (n < 160) return false
+            val (rms, zcr) = computeRmsAndZcr(samples, n)
+            return rms >= SPEECH_RMS_THRESHOLD && zcr in MIN_SPEECH_ZCR..MAX_SPEECH_ZCR
+        }
+
+        class SpeechCadenceGate(
+            private val requiredVoicedFrames: Int = 3,
+            private val windowSize: Int = 8
+        ) {
+            private val window = ArrayDeque<Boolean>(windowSize)
+
+            @Synchronized
+            fun onFrame(samples: ShortArray, length: Int = samples.size): Boolean {
+                val voiced = isVoicedSpeechFrame(samples, length)
+                if (window.size >= windowSize) {
+                    window.removeFirst()
+                }
+                window.addLast(voiced)
+                val voicedCount = window.count { it }
+                if (voiced && voicedCount >= requiredVoicedFrames) {
+                    window.clear()
+                    return true
+                }
+                return false
+            }
+
+            @Synchronized
+            fun reset() {
+                window.clear()
+            }
+        }
     }
 
     override fun onCreate() {
@@ -92,17 +151,20 @@ class WakeWordService : Service() {
                 var lastTriggerTime = 0L
 
                 while (isRunning) {
-                    // Yield the microphone to the foreground call if active
-                    if (de.meinseelenfunke.app.util.NavigationBridge.isLiveCallActive) {
+                    // Yield the microphone if live call is active or device is locked
+                    if (de.meinseelenfunke.app.util.NavigationBridge.isLiveCallActive ||
+                        de.meinseelenfunke.app.util.SecurityIntentHelper.isDeviceLocked(applicationContext)
+                    ) {
                         if (audioRecord != null) {
-                            Log.d(TAG, "Live call active. Releasing microphone in background service.")
+                            Log.d(TAG, "Live call active or device locked. Releasing microphone in background service.")
                             stopAudioRecord()
                         }
+                        cadenceGate.reset()
                         Thread.sleep(500)
                         continue
                     }
 
-                    // Re-acquire microphone if live call is inactive
+                    // Re-acquire microphone when unlocked and live call is inactive
                     if (audioRecord == null) {
                         Log.d(TAG, "Live call inactive. Re-acquiring microphone in background service.")
                         audioRecord = AudioRecord(
@@ -123,17 +185,11 @@ class WakeWordService : Service() {
 
                     val readResult = audioRecord?.read(audioBuffer, 0, audioBuffer.size) ?: 0
                     if (readResult > 0) {
-                        var sum = 0.0
-                        for (i in 0 until readResult) {
-                            sum += audioBuffer[i] * audioBuffer[i]
-                        }
-                        val rms = sqrt(sum / readResult)
-
-                        if (rms > AMPLITUDE_THRESHOLD) {
+                        if (cadenceGate.onFrame(audioBuffer, readResult)) {
                             val currentTime = System.currentTimeMillis()
                             if (currentTime - lastTriggerTime > COOLDOWN_MS) {
                                 lastTriggerTime = currentTime
-                                Log.d(TAG, "Wake word / audio activity detected! RMS: $rms")
+                                Log.d(TAG, "Sustained voiced speech cadence detected!")
                                 triggerActivation()
                             }
                         }
@@ -142,6 +198,8 @@ class WakeWordService : Service() {
                 }
             } catch (e: SecurityException) {
                 Log.e(TAG, "Microphone permission not granted for WakeWordService", e)
+            } catch (e: InterruptedException) {
+                Log.d(TAG, "WakeWordListenThread interrupted cleanly")
             } catch (e: Exception) {
                 Log.e(TAG, "Error in wake word recording loop", e)
             } finally {
@@ -151,11 +209,16 @@ class WakeWordService : Service() {
     }
 
     private fun triggerActivation() {
+        val context = applicationContext
+        ServiceLocator.ensureInitialized(context)
+        if (de.meinseelenfunke.app.util.SecurityIntentHelper.isDeviceLocked(context) ||
+            ServiceLocator.getAuthToken().isNullOrBlank()
+        ) {
+            return
+        }
+
         // 1. Play activation sound
         SoundManager.playSound(R.raw.open_project_brain)
-
-        // 2. Post a high-priority alert notification with a full-screen intent to bypass Android background activity blocks
-        val context = applicationContext
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra("start_voice_call", true)

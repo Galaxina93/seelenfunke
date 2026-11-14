@@ -1,6 +1,8 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Windows;
 using Microsoft.Win32;
 
@@ -8,26 +10,36 @@ namespace FunkenwerkPdf
 {
     public partial class App : Application
     {
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool TerminateProcess(IntPtr hProcess, uint uExitCode);
+
         protected override void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
 
-            RegisterWindowsPdfAssociation();
-
             if (e.Args.Any(a => string.Equals(a, "--self-test", StringComparison.OrdinalIgnoreCase)))
             {
+                System.Windows.Media.RenderOptions.ProcessRenderMode = System.Windows.Interop.RenderMode.SoftwareOnly;
+                ShutdownMode = ShutdownMode.OnExplicitShutdown;
+                uint code = 1;
                 try
                 {
                     bool ok = PdfSelfTestRunner.RunEndToEndSelfTest();
-                    Environment.Exit(ok ? 0 : 1);
-                    return;
+                    code = ok ? 0u : 1u;
                 }
-                catch
+                catch (Exception ex)
                 {
-                    Environment.Exit(2);
-                    return;
+                    Console.Error.WriteLine("SELF-TEST ERROR: " + ex);
+                    code = 2u;
                 }
+                Console.Out.Flush();
+                Console.Error.Flush();
+                TerminateProcess(Process.GetCurrentProcess().Handle, code);
+                Shutdown((int)code);
+                return;
             }
+
+            RegisterWindowsPdfAssociation();
 
             string? initialPdf = e.Args.FirstOrDefault(a => !a.StartsWith("-") && File.Exists(a));
             var win = new MainWindow(initialPdf);
@@ -64,7 +76,7 @@ namespace FunkenwerkPdf
                 using (var appCapKey = Registry.CurrentUser.CreateSubKey(@"Software\Funkenwerk\FunkenwerkPdf\Capabilities"))
                 {
                     appCapKey?.SetValue("ApplicationName", "Funkenwerk PDF");
-                    appCapKey?.SetValue("ApplicationDescription", "Funkenwerk PDF – Öffnen, Ausfüllen, Unterschreiben & Bearbeiten");
+                    appCapKey?.SetValue("ApplicationDescription", "Funkenwerk PDF · Öffnen, Ausfüllen, Unterschreiben & Bearbeiten");
                     using var fa = appCapKey?.CreateSubKey("FileAssociations");
                     fa?.SetValue(".pdf", progId);
                 }

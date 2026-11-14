@@ -216,6 +216,24 @@ data class PhoneConciergePollResponse(
     val data: PhoneConciergePollPayload?
 )
 
+data class PhoneConciergeCompleteBody(
+    val call_id: String? = null,
+    val is_simulation: Boolean = false,
+    val contact_id: String? = null,
+    val caller_name: String,
+    val greeting_name: String? = null,
+    val caller_phone: String? = null,
+    val handled_by: String = "android_secretary",
+    val summary: String,
+    val urgency: String = "mittel",
+    val callback_requested: Boolean = true
+)
+
+data class PhoneConciergeCompleteResponse(
+    val success: Boolean,
+    val data: PhoneConciergeCompletedDto?
+)
+
 interface OrganizerApi {
     // --- Tasks ---
     @GET("funki/tasks/lists")
@@ -434,4 +452,9 @@ interface OrganizerApi {
 
     @GET("system/phone-concierge/poll")
     suspend fun pollPhoneConciergeState(): PhoneConciergePollResponse
+
+    @POST("system/phone-concierge/complete")
+    suspend fun completePhoneConciergeCall(
+        @Body body: PhoneConciergeCompleteBody
+    ): PhoneConciergeCompleteResponse
 }

@@ -36,14 +36,65 @@ namespace FunkenwerkTresor
 
     public sealed class OpenedVaultSession
     {
+        private static readonly byte[] s_sessionDpapiEntropy = RandomNumberGenerator.GetBytes(32);
+        private byte[]? _protectedCompositeKey;
+
         public KdbxDatabase Database { get; set; } = null!;
-        public string MasterPassword { get; set; } = "";
         public string? KeyfilePath { get; set; }
         public KdbxGroup? SelectedGroup { get; set; }
         public KdbxEntry? SelectedEntry { get; set; }
+        public bool HasValidCredentials => _protectedCompositeKey is { Length: > 0 };
+
         public string DisplayTitle => string.IsNullOrWhiteSpace(Database.FilePath)
             ? $"{Database.DatabaseName}.kdbx"
             : Path.GetFileName(Database.FilePath);
+
+        public void SetCompositeKey(ReadOnlySpan<byte> compositeKey)
+        {
+            if (_protectedCompositeKey != null)
+            {
+                CryptographicOperations.ZeroMemory(_protectedCompositeKey);
+                _protectedCompositeKey = null;
+            }
+            if (compositeKey.Length == 32)
+            {
+                byte[] temp = compositeKey.ToArray();
+                try
+                {
+                    _protectedCompositeKey = ProtectedData.Protect(temp, s_sessionDpapiEntropy, DataProtectionScope.CurrentUser);
+                }
+                finally
+                {
+                    CryptographicOperations.ZeroMemory(temp);
+                }
+            }
+        }
+
+        public void SaveDatabaseFile()
+        {
+            if (_protectedCompositeKey == null || _protectedCompositeKey.Length == 0 || string.IsNullOrWhiteSpace(Database.FilePath))
+                throw new InvalidOperationException("Keine gültigen Tresor-Anmeldedaten zum Speichern vorhanden.");
+
+            byte[] rawCompositeKey = ProtectedData.Unprotect(_protectedCompositeKey, s_sessionDpapiEntropy, DataProtectionScope.CurrentUser);
+            try
+            {
+                KdbxCryptoEngine.SaveKdbxFileWithCompositeKey(Database, Database.FilePath, rawCompositeKey);
+            }
+            finally
+            {
+                CryptographicOperations.ZeroMemory(rawCompositeKey);
+            }
+        }
+
+        public void WipeSession()
+        {
+            if (_protectedCompositeKey != null)
+            {
+                CryptographicOperations.ZeroMemory(_protectedCompositeKey);
+                _protectedCompositeKey = null;
+            }
+            Database?.WipeAllInMemory();
+        }
     }
 
     public sealed class UsernameSuggestionItem
@@ -63,7 +114,6 @@ namespace FunkenwerkTresor
         private OpenedVaultSession? _activeSession;
 
         private KdbxDatabase? _activeDb;
-        private string? _activeMasterPassword;
         private string? _activeKeyfilePath;
 
         private KdbxGroup? _selectedGroup;
@@ -77,6 +127,9 @@ namespace FunkenwerkTresor
         private KdbxEntry? _editingEntry;
         private bool _isCreatingNewEntry;
         private List<KdbxAttachment> _editingAttachments = new();
+        private bool _suppressIconPickerEvent;
+        private bool _entryIconChangedByUser;
+        private bool _groupIconChangedByUser;
 
         private KdbxGroup? _editingGroupTarget;
         private bool _isCreatingNewSubgroup;
@@ -114,12 +167,22 @@ namespace FunkenwerkTresor
             var selectableIcons = KeePassIconRenderer.GetSelectableIcons();
             EditEntryIconPicker.ItemsSource = selectableIcons;
             GroupModalIconPicker.ItemsSource = selectableIcons;
+            EditEntryIconPicker.SelectionChanged += (_, _) =>
+            {
+                if (!_suppressIconPickerEvent) _entryIconChangedByUser = true;
+            };
+            GroupModalIconPicker.SelectionChanged += (_, _) =>
+            {
+                if (!_suppressIconPickerEvent) _groupIconChangedByUser = true;
+            };
 
             // Optionaler Auto-Sperre Schalter initialisieren (Standard: AUS -> bleibt geöffnet)
             AutoLockCheckBox.IsChecked = _settings.AutoLockEnabled;
             AutoLockCombo.IsEnabled = _settings.AutoLockEnabled;
             SelectAutoLockComboMinutes(_settings.AutoLockMinutes);
             MenuScreenShield.IsChecked = _settings.ScreenCaptureProtection;
+            if (MenuLockOnWinLock != null)
+                MenuLockOnWinLock.IsChecked = _settings.LockOnWindowsLock;
             _suppressAutoLockEvents = false;
             UpdateAutoLockStatusText();
 
@@ -167,8 +230,7 @@ namespace FunkenwerkTresor
         {
             if (e.Reason == SessionSwitchReason.SessionLock || e.Reason == SessionSwitchReason.RemoteDisconnect)
             {
-                // Nur automatisch sperren, wenn die optionale Auto-Sperre aktiviert ist
-                if (_settings.AutoLockEnabled)
+                if (_settings.LockOnWindowsLock)
                 {
                     Dispatcher.Invoke(() => LockVault("Tresor wegen Windows-Sitzungssperre automatisch gesperrt."));
                 }
@@ -382,7 +444,7 @@ namespace FunkenwerkTresor
             return _activeSession;
         }
 
-        private void RegisterOrSwitchDatabaseSession(KdbxDatabase db, string masterPassword, string? keyfilePath, string? selectGroupName = null)
+        private void RegisterOrSwitchDatabaseSession(KdbxDatabase db, ReadOnlySpan<byte> compositeKey, string? keyfilePath, string? selectGroupName = null)
         {
             db.RefreshHierarchyReferences();
 
@@ -398,7 +460,7 @@ namespace FunkenwerkTresor
                 if (!ReferenceEquals(existing.Database, db))
                     existing.Database.WipeAllInMemory();
                 existing.Database = db;
-                existing.MasterPassword = masterPassword;
+                existing.SetCompositeKey(compositeKey);
                 existing.KeyfilePath = keyfilePath;
                 SwitchActiveDatabaseSession(existing, selectGroupName: selectGroupName);
             }
@@ -407,10 +469,10 @@ namespace FunkenwerkTresor
                 var newSession = new OpenedVaultSession
                 {
                     Database = db,
-                    MasterPassword = masterPassword,
                     KeyfilePath = keyfilePath,
                     SelectedGroup = db.RootGroup
                 };
+                newSession.SetCompositeKey(compositeKey);
                 _openSessions.Add(newSession);
                 SwitchActiveDatabaseSession(newSession, selectGroupName: selectGroupName);
             }
@@ -426,7 +488,6 @@ namespace FunkenwerkTresor
 
             _activeSession = session;
             _activeDb = session.Database;
-            _activeMasterPassword = session.MasterPassword;
             _activeKeyfilePath = session.KeyfilePath;
 
             UpdateWindowHeaderAndBadges();
@@ -552,23 +613,24 @@ namespace FunkenwerkTresor
 
         private void CloseSingleDatabaseSession(OpenedVaultSession session)
         {
-            if (session.Database.IsDirty && !string.IsNullOrWhiteSpace(session.Database.FilePath) && !string.IsNullOrEmpty(session.MasterPassword))
+            if (session.Database.IsDirty && !string.IsNullOrWhiteSpace(session.Database.FilePath) && session.HasValidCredentials)
             {
                 try
                 {
-                    KdbxCryptoEngine.SaveKdbxFile(session.Database, session.Database.FilePath, session.MasterPassword, session.KeyfilePath);
+                    session.SaveDatabaseFile();
                 }
                 catch { }
             }
 
-            session.Database.WipeAllInMemory();
+            session.WipeSession();
             _openSessions.Remove(session);
+            KeePassIconRenderer.ClearCustomCache();
 
             if (_openSessions.Count == 0)
             {
                 _activeSession = null;
                 _activeDb = null;
-                _activeMasterPassword = null;
+                _activeKeyfilePath = null;
                 _selectedGroup = null;
                 _selectedEntry = null;
                 SetVaultLockedUiState(isLocked: true);
@@ -586,9 +648,9 @@ namespace FunkenwerkTresor
             }
         }
 
-        private void LoadDatabaseIntoWorkspace(KdbxDatabase db, string? selectGroupName = null)
+        private void LoadDatabaseIntoWorkspace(KdbxDatabase db, ReadOnlySpan<byte> compositeKey, string? selectGroupName = null)
         {
-            RegisterOrSwitchDatabaseSession(db, _activeMasterPassword ?? "", _activeKeyfilePath, selectGroupName);
+            RegisterOrSwitchDatabaseSession(db, compositeKey, _activeKeyfilePath, selectGroupName);
             StatusReadyText.Text = "Ready.";
         }
 
@@ -604,7 +666,7 @@ namespace FunkenwerkTresor
 
             var sessionsToRender = _openSessions.Count > 0
                 ? _openSessions
-                : new List<OpenedVaultSession> { new OpenedVaultSession { Database = _activeDb, MasterPassword = _activeMasterPassword ?? "" } };
+                : new List<OpenedVaultSession> { new OpenedVaultSession { Database = _activeDb } };
 
             TreeViewItem BuildNode(OpenedVaultSession ownerSession, KdbxGroup group, bool isRoot)
             {
@@ -706,7 +768,6 @@ namespace FunkenwerkTresor
                 {
                     _activeSession = ownerSession;
                     _activeDb = ownerSession.Database;
-                    _activeMasterPassword = ownerSession.MasterPassword;
                     _activeKeyfilePath = ownerSession.KeyfilePath;
                     UpdateWindowHeaderAndBadges();
                     RenderOpenDatabasesTabBar();
@@ -1148,7 +1209,7 @@ namespace FunkenwerkTresor
         private void UpdateBottomPaneAndStatusBar()
         {
             int total = EntriesListBox.Items.Count;
-            int sel = _selectedEntry != null ? 1 : 0;
+            int sel = EntriesListBox.SelectedItems.Count;
             StatusSelectedText.Text = $"{sel} of {total} selected";
 
             if (_selectedEntry == null)
@@ -1259,7 +1320,10 @@ namespace FunkenwerkTresor
             _isCreatingNewSubgroup = true;
             GroupModalHeaderText.Text = $"Neue Untergruppe in „{parent.Name}“";
             GroupModalNameBox.Text = "";
+            _suppressIconPickerEvent = true;
             SelectIconInListBox(GroupModalIconPicker, 48);
+            _suppressIconPickerEvent = false;
+            _groupIconChangedByUser = false;
             GroupEditorModal.Visibility = Visibility.Visible;
             GroupModalNameBox.Focus();
         }
@@ -1272,7 +1336,10 @@ namespace FunkenwerkTresor
             _isCreatingNewSubgroup = false;
             GroupModalHeaderText.Text = $"Gruppe „{_selectedGroup.Name}“ bearbeiten";
             GroupModalNameBox.Text = _selectedGroup.Name;
+            _suppressIconPickerEvent = true;
             SelectIconInListBox(GroupModalIconPicker, _selectedGroup.IsRootGroup && _selectedGroup.IconId == 48 ? 1048 : _selectedGroup.IconId);
+            _suppressIconPickerEvent = false;
+            _groupIconChangedByUser = false;
             GroupEditorModal.Visibility = Visibility.Visible;
             GroupModalNameBox.Focus();
             GroupModalNameBox.SelectAll();
@@ -1280,6 +1347,7 @@ namespace FunkenwerkTresor
 
         private void CloseGroupModal_Click(object sender, RoutedEventArgs e)
         {
+            GroupModalNameBox.Text = "";
             GroupEditorModal.Visibility = Visibility.Collapsed;
         }
 
@@ -1303,7 +1371,7 @@ namespace FunkenwerkTresor
 
             if (_isCreatingNewSubgroup)
             {
-                var newSub = _editingGroupTarget.AddChild(name, chosenIconId, expanded: true);
+                var newSub = _editingGroupTarget.AddChild(name, chosenIconId == 1048 ? 48 : chosenIconId, expanded: true);
                 _editingGroupTarget.IsExpanded = true;
                 _activeDb.IsDirty = true;
                 GroupEditorModal.Visibility = Visibility.Collapsed;
@@ -1313,8 +1381,12 @@ namespace FunkenwerkTresor
             else
             {
                 _editingGroupTarget.Name = name;
-                _editingGroupTarget.IconId = chosenIconId;
-                _editingGroupTarget.CustomIconUuidHex = "";
+                if (_groupIconChangedByUser || string.IsNullOrWhiteSpace(_editingGroupTarget.CustomIconUuidHex))
+                {
+                    _editingGroupTarget.IconId = chosenIconId == 1048 ? 48 : chosenIconId;
+                    if (_groupIconChangedByUser)
+                        _editingGroupTarget.CustomIconUuidHex = "";
+                }
                 _editingGroupTarget.ModifiedUtc = DateTime.UtcNow;
                 if (_editingGroupTarget.IsRootGroup)
                     _activeDb.DatabaseName = name;
@@ -1422,13 +1494,13 @@ namespace FunkenwerkTresor
             EditPassBox.Visibility = Visibility.Visible;
             EditPassTextBox.Visibility = Visibility.Collapsed;
             EditPassBox.Password = entry.Password;
-            EditPassTextBox.Text = entry.Password;
+            EditPassTextBox.Text = "";
 
             _editTotpEyeVisible = false;
             EditTotpBox.Visibility = Visibility.Visible;
             EditTotpTextBox.Visibility = Visibility.Collapsed;
             EditTotpBox.Password = entry.TotpSecretOrUri;
-            EditTotpTextBox.Text = entry.TotpSecretOrUri;
+            EditTotpTextBox.Text = "";
 
             // Gruppen-Combo mit Pfaden befüllen
             var groupOptions = new List<GroupComboOption>();
@@ -1445,7 +1517,10 @@ namespace FunkenwerkTresor
                                        ?? groupOptions.FirstOrDefault(o => ReferenceEquals(o.Group, _selectedGroup))
                                        ?? groupOptions.FirstOrDefault();
 
+            _suppressIconPickerEvent = true;
             SelectIconInListBox(EditEntryIconPicker, entry.IconId);
+            _suppressIconPickerEvent = false;
+            _entryIconChangedByUser = false;
 
             _editingAttachments = entry.Attachments.Select(a =>
             {
@@ -1680,10 +1755,31 @@ namespace FunkenwerkTresor
             }
         }
 
+        private void ClearEntryModalSensitiveInputs()
+        {
+            _editPassEyeVisible = false;
+            EditPassBox.Password = "";
+            EditPassTextBox.Text = "";
+            EditPassTextBox.Visibility = Visibility.Collapsed;
+            EditPassBox.Visibility = Visibility.Visible;
+
+            _editTotpEyeVisible = false;
+            EditTotpBox.Password = "";
+            EditTotpTextBox.Text = "";
+            EditTotpTextBox.Visibility = Visibility.Collapsed;
+            EditTotpBox.Visibility = Visibility.Visible;
+
+            foreach (var att in _editingAttachments)
+                CryptographicOperations.ZeroMemory(att.Data);
+            _editingAttachments.Clear();
+            EditAttachmentsList.ItemsSource = null;
+        }
+
         private void CloseEntryModal_Click(object sender, RoutedEventArgs e)
         {
             if (UserSuggestionsPopupBorder != null)
                 UserSuggestionsPopupBorder.Visibility = Visibility.Collapsed;
+            ClearEntryModalSensitiveInputs();
             EntryEditorModal.Visibility = Visibility.Collapsed;
         }
 
@@ -1700,7 +1796,18 @@ namespace FunkenwerkTresor
             }
 
             string pass = _editPassEyeVisible ? EditPassTextBox.Text : EditPassBox.Password;
-            string totp = _editTotpEyeVisible ? EditTotpTextBox.Text : EditTotpBox.Password;
+            string totp = (_editTotpEyeVisible ? EditTotpTextBox.Text : EditTotpBox.Password).Trim();
+            if (!string.IsNullOrWhiteSpace(totp) && !TotpEngine.IsValidSecretOrUri(totp))
+            {
+                MessageBox.Show(
+                    this,
+                    "Das eingegebene 2FA / TOTP Secret ist ungültig. Bitte einen gültigen Base32-Schlüssel (A-Z, 2-7, mindestens 8 Zeichen) oder eine gültige otpauth://totp/...-URI eingeben.",
+                    "Ungültiges 2FA / TOTP Secret",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+
             var targetGroup = (EditGroupCombo.SelectedItem as GroupComboOption)?.Group ?? _selectedGroup ?? _activeDb.RootGroup;
             int iconId = (EditEntryIconPicker.SelectedItem as KeePassIconOption)?.IconId ?? 0;
 
@@ -1710,10 +1817,27 @@ namespace FunkenwerkTresor
             _editingEntry.Url = (EditUrlBox.Text ?? "").Trim();
             _editingEntry.Notes = EditNotesBox.Text ?? "";
             _editingEntry.TotpSecretOrUri = totp;
-            _editingEntry.IconId = iconId;
+            if (_isCreatingNewEntry || _entryIconChangedByUser || string.IsNullOrWhiteSpace(_editingEntry.CustomIconUuidHex))
+            {
+                _editingEntry.IconId = iconId == 1048 ? 48 : iconId;
+                if (_entryIconChangedByUser)
+                    _editingEntry.CustomIconUuidHex = "";
+            }
             _editingEntry.ModifiedUtc = DateTime.UtcNow;
+
+            foreach (var oldAtt in _editingEntry.Attachments)
+                CryptographicOperations.ZeroMemory(oldAtt.Data);
             _editingEntry.Attachments.Clear();
-            _editingEntry.Attachments.AddRange(_editingAttachments);
+            foreach (var att in _editingAttachments)
+            {
+                byte[] copy = new byte[att.Data.Length];
+                Buffer.BlockCopy(att.Data, 0, copy, 0, att.Data.Length);
+                _editingEntry.Attachments.Add(new KdbxAttachment
+                {
+                    FileName = Path.GetFileName((att.FileName ?? "anhang.bin").Replace('\\', '/')),
+                    Data = copy
+                });
+            }
 
             if (_isCreatingNewEntry)
             {
@@ -1730,10 +1854,12 @@ namespace FunkenwerkTresor
                 targetGroup.Entries.Add(_editingEntry);
             }
 
+            string savedUuid = _editingEntry.UuidHex;
             _activeDb.IsDirty = true;
+            ClearEntryModalSensitiveInputs();
             EntryEditorModal.Visibility = Visibility.Collapsed;
             RebuildGroupTreeView(selectGroupUuid: targetGroup.UuidHex);
-            RefreshEntriesTable(selectEntryUuid: _editingEntry.UuidHex);
+            RefreshEntriesTable(selectEntryUuid: savedUuid);
             AutoSaveIfPossible($"Eintrag „{title}“ gespeichert.");
         }
 
@@ -1751,16 +1877,38 @@ namespace FunkenwerkTresor
 
         private void DeleteEntry_Click(object sender, RoutedEventArgs e)
         {
-            if (_activeDb == null || _selectedEntry == null) return;
-            var group = _activeDb.FindGroupByUuid(_selectedEntry.GroupUuidHex) ?? _selectedGroup;
-            if (group == null) return;
+            if (_activeDb == null) return;
 
-            string title = _selectedEntry.Title;
-            group.Entries.Remove(_selectedEntry);
+            var selectedEntries = EntriesListBox.SelectedItems
+                .OfType<EntryRowViewModel>()
+                .Select(r => r.Entry)
+                .ToList();
+
+            if (selectedEntries.Count == 0 && _selectedEntry != null)
+                selectedEntries.Add(_selectedEntry);
+
+            if (selectedEntries.Count == 0) return;
+
+            int deletedCount = 0;
+            string firstTitle = selectedEntries[0].Title;
+            foreach (var entry in selectedEntries)
+            {
+                var group = _activeDb.FindGroupByUuid(entry.GroupUuidHex) ?? _selectedGroup;
+                if (group != null && group.Entries.Remove(entry))
+                {
+                    entry.WipeSensitiveMemory();
+                    deletedCount++;
+                }
+            }
+
+            if (deletedCount == 0) return;
+
             _selectedEntry = null;
             _activeDb.IsDirty = true;
             RefreshEntriesTable();
-            AutoSaveIfPossible($"Eintrag „{title}“ gelöscht.");
+            AutoSaveIfPossible(deletedCount == 1
+                ? $"Eintrag „{firstTitle}“ gelöscht."
+                : $"{deletedCount} Einträge gelöscht.");
         }
 
         private static void SelectIconInListBox(ListBox lb, int iconId)
@@ -1893,11 +2041,16 @@ namespace FunkenwerkTresor
         {
             if ((sender as FrameworkElement)?.DataContext is KdbxAttachment att)
             {
-                var dlg = new SaveFileDialog { FileName = att.FileName };
+                string safeFileName = Path.GetFileName((att.FileName ?? "").Replace('\\', '/').Trim());
+                if (string.IsNullOrWhiteSpace(safeFileName))
+                    safeFileName = "anhang.bin";
+
+                var dlg = new SaveFileDialog { FileName = safeFileName };
                 if (dlg.ShowDialog(this) == true)
                 {
                     File.WriteAllBytes(dlg.FileName, att.Data);
-                    StatusReadyText.Text = $"Anhang „{att.FileName}“ gespeichert.";
+                    TresorAppSettings.LockDownFileAcl(dlg.FileName);
+                    StatusReadyText.Text = $"Anhang „{safeFileName}“ gespeichert.";
                 }
             }
         }
@@ -2142,23 +2295,26 @@ namespace FunkenwerkTresor
                 return;
             }
 
+            byte[]? compositeKey = null;
             try
             {
                 Mouse.OverrideCursor = Cursors.Wait;
-                var loadedDb = KdbxCryptoEngine.OpenKdbxFile(dbPath, masterPass, keyfile);
+                var loadedDb = KdbxCryptoEngine.OpenKdbxFileAndDeriveCompositeKey(dbPath, masterPass, keyfile, out compositeKey);
 
-                _activeMasterPassword = masterPass;
                 _activeKeyfilePath = keyfile;
 
+                _openMasterEyeVisible = false;
                 OpenMasterPassBox.Password = "";
                 OpenMasterPassTextBox.Text = "";
+                OpenMasterPassTextBox.Visibility = Visibility.Collapsed;
+                OpenMasterPassBox.Visibility = Visibility.Visible;
 
                 _settings.AddRecentDatabase(dbPath);
                 _settings.LastKeyfilePath = keyfile ?? "";
                 _settings.Save();
 
                 SetVaultLockedUiState(isLocked: false);
-                LoadDatabaseIntoWorkspace(loadedDb);
+                LoadDatabaseIntoWorkspace(loadedDb, compositeKey);
                 StatusReadyText.Text = $"Datenbank „{Path.GetFileName(dbPath)}“ erfolgreich entsperrt.";
             }
             catch (Exception ex)
@@ -2168,6 +2324,8 @@ namespace FunkenwerkTresor
             }
             finally
             {
+                if (compositeKey != null && compositeKey.Length > 0)
+                    CryptographicOperations.ZeroMemory(compositeKey);
                 Mouse.OverrideCursor = null;
             }
         }
@@ -2235,9 +2393,12 @@ namespace FunkenwerkTresor
                 return;
             }
 
+            byte[]? compositeKey = null;
             try
             {
                 Mouse.OverrideCursor = Cursors.Wait;
+                compositeKey = KdbxCryptoEngine.BuildCompositeKey(p1, keyfile);
+
                 KdbxDatabase targetDb;
                 if (_saveCurrentTreeOnCreate && _activeDb != null)
                 {
@@ -2251,22 +2412,26 @@ namespace FunkenwerkTresor
                 }
 
                 targetDb.FilePath = dbPath;
-                KdbxCryptoEngine.SaveKdbxFile(targetDb, dbPath, p1, keyfile);
+                KdbxCryptoEngine.SaveKdbxFileWithCompositeKey(targetDb, dbPath, compositeKey);
 
-                _activeMasterPassword = p1;
                 _activeKeyfilePath = keyfile;
 
+                _createMasterEyeVisible = false;
                 CreateMasterPassBox.Password = "";
                 CreateMasterRepeatBox.Password = "";
                 CreateMasterPassTextBox.Text = "";
                 CreateMasterRepeatTextBox.Text = "";
+                CreateMasterPassTextBox.Visibility = Visibility.Collapsed;
+                CreateMasterRepeatTextBox.Visibility = Visibility.Collapsed;
+                CreateMasterPassBox.Visibility = Visibility.Visible;
+                CreateMasterRepeatBox.Visibility = Visibility.Visible;
 
                 _settings.AddRecentDatabase(dbPath);
                 _settings.LastKeyfilePath = keyfile ?? "";
                 _settings.Save();
 
                 SetVaultLockedUiState(isLocked: false);
-                LoadDatabaseIntoWorkspace(targetDb, selectGroupName: "Emails");
+                LoadDatabaseIntoWorkspace(targetDb, compositeKey, selectGroupName: "Emails");
                 StatusReadyText.Text = $"Tresor gespeichert unter: {dbPath}";
             }
             catch (Exception ex)
@@ -2275,6 +2440,8 @@ namespace FunkenwerkTresor
             }
             finally
             {
+                if (compositeKey != null)
+                    CryptographicOperations.ZeroMemory(compositeKey);
                 Mouse.OverrideCursor = null;
             }
         }
@@ -2302,7 +2469,7 @@ namespace FunkenwerkTresor
         {
             if (_activeDb == null) return;
 
-            if (string.IsNullOrWhiteSpace(_activeDb.FilePath) || _activeMasterPassword == null)
+            if (string.IsNullOrWhiteSpace(_activeDb.FilePath) || _activeSession == null || !_activeSession.HasValidCredentials)
             {
                 ShowGatekeeperOverlay(openTab: false, preserveCurrentTreeOnCreate: true);
                 return;
@@ -2317,8 +2484,8 @@ namespace FunkenwerkTresor
 
                 foreach (var s in sessionsToSave)
                 {
-                    if (!string.IsNullOrWhiteSpace(s.Database.FilePath) && !string.IsNullOrEmpty(s.MasterPassword))
-                        KdbxCryptoEngine.SaveKdbxFile(s.Database, s.Database.FilePath, s.MasterPassword, s.KeyfilePath);
+                    if (!string.IsNullOrWhiteSpace(s.Database.FilePath) && s.HasValidCredentials)
+                        s.SaveDatabaseFile();
                 }
 
                 UpdateDirtyIndicator();
@@ -2345,22 +2512,22 @@ namespace FunkenwerkTresor
 
             foreach (var s in _openSessions.Where(x => x.Database.IsDirty))
             {
-                if (!string.IsNullOrWhiteSpace(s.Database.FilePath) && !string.IsNullOrEmpty(s.MasterPassword))
+                if (!string.IsNullOrWhiteSpace(s.Database.FilePath) && s.HasValidCredentials)
                 {
                     try
                     {
-                        KdbxCryptoEngine.SaveKdbxFile(s.Database, s.Database.FilePath, s.MasterPassword, s.KeyfilePath);
+                        s.SaveDatabaseFile();
                         anySaved = true;
                     }
                     catch { }
                 }
             }
 
-            if (!anySaved && _activeDb != null && _activeDb.IsDirty && !string.IsNullOrWhiteSpace(_activeDb.FilePath) && _activeMasterPassword != null)
+            if (!anySaved && _activeSession != null && _activeSession.Database.IsDirty && !string.IsNullOrWhiteSpace(_activeSession.Database.FilePath) && _activeSession.HasValidCredentials)
             {
                 try
                 {
-                    KdbxCryptoEngine.SaveKdbxFile(_activeDb, _activeDb.FilePath, _activeMasterPassword, _activeKeyfilePath);
+                    _activeSession.SaveDatabaseFile();
                     anySaved = true;
                 }
                 catch { }
@@ -2394,15 +2561,15 @@ namespace FunkenwerkTresor
         {
             foreach (var s in _openSessions)
             {
-                if (s.Database.IsDirty && !string.IsNullOrWhiteSpace(s.Database.FilePath) && !string.IsNullOrEmpty(s.MasterPassword))
+                if (s.Database.IsDirty && !string.IsNullOrWhiteSpace(s.Database.FilePath) && s.HasValidCredentials)
                 {
                     try
                     {
-                        KdbxCryptoEngine.SaveKdbxFile(s.Database, s.Database.FilePath, s.MasterPassword, s.KeyfilePath);
+                        s.SaveDatabaseFile();
                     }
                     catch { }
                 }
-                s.Database.WipeAllInMemory();
+                s.WipeSession();
             }
             _openSessions.Clear();
             _activeSession = null;
@@ -2410,12 +2577,24 @@ namespace FunkenwerkTresor
             string lastFile = _activeDb?.FilePath ?? _settings.GetMostRecentDatabasePath();
             _activeDb?.WipeAllInMemory();
             _activeDb = null;
-            _activeMasterPassword = null;
+            _activeKeyfilePath = null;
             _selectedGroup = null;
             _selectedEntry = null;
 
+            KeePassIconRenderer.ClearCustomCache();
             TresorSecurityGuard.ClearClipboardNow();
             ClipboardGuardBar.Visibility = Visibility.Collapsed;
+
+            ClearEntryModalSensitiveInputs();
+            ImportSourcePassBox.Password = "";
+            ImportSourcePassTextBox.Text = "";
+            GenOutputBox.Text = "";
+            OpenMasterPassBox.Password = "";
+            OpenMasterPassTextBox.Text = "";
+            CreateMasterPassBox.Password = "";
+            CreateMasterPassTextBox.Text = "";
+            CreateMasterRepeatBox.Password = "";
+            CreateMasterRepeatTextBox.Text = "";
 
             EntryEditorModal.Visibility = Visibility.Collapsed;
             GroupEditorModal.Visibility = Visibility.Collapsed;
@@ -2453,13 +2632,21 @@ namespace FunkenwerkTresor
         // =====================================================================
         private void OpenImportModal_Click(object sender, RoutedEventArgs e)
         {
+            _importPassEyeVisible = false;
             ImportSourcePassBox.Password = "";
             ImportSourcePassTextBox.Text = "";
+            ImportSourcePassTextBox.Visibility = Visibility.Collapsed;
+            ImportSourcePassBox.Visibility = Visibility.Visible;
             ImportModalOverlay.Visibility = Visibility.Visible;
         }
 
         private void CloseImportModal_Click(object sender, RoutedEventArgs e)
         {
+            _importPassEyeVisible = false;
+            ImportSourcePassBox.Password = "";
+            ImportSourcePassTextBox.Text = "";
+            ImportSourcePassTextBox.Visibility = Visibility.Collapsed;
+            ImportSourcePassBox.Visibility = Visibility.Visible;
             ImportModalOverlay.Visibility = Visibility.Collapsed;
         }
 
@@ -2506,6 +2693,11 @@ namespace FunkenwerkTresor
                 sourceDb.WipeAllInMemory();
                 _activeDb.RefreshHierarchyReferences();
 
+                ImportSourcePassBox.Password = "";
+                ImportSourcePassTextBox.Text = "";
+                _importPassEyeVisible = false;
+                ImportSourcePassTextBox.Visibility = Visibility.Collapsed;
+                ImportSourcePassBox.Visibility = Visibility.Visible;
                 ImportModalOverlay.Visibility = Visibility.Collapsed;
                 RebuildGroupTreeView();
                 AutoSaveIfPossible($"Import abgeschlossen: {stats.ImportedGroups} Gruppen, {stats.ImportedEntries} neue Einträge ({stats.SkippedDuplicates} Dubletten übersprungen).");
@@ -2531,6 +2723,7 @@ namespace FunkenwerkTresor
 
         private void CloseGeneratorModal_Click(object sender, RoutedEventArgs e)
         {
+            GenOutputBox.Text = "";
             GeneratorModalOverlay.Visibility = Visibility.Collapsed;
         }
 
@@ -2571,8 +2764,16 @@ namespace FunkenwerkTresor
         private void GenerateInlinePassword_Click(object sender, RoutedEventArgs e)
         {
             string pwd = PasswordGeneratorEngine.GeneratePassword(20, true, true, true, true);
-            EditPassBox.Password = pwd;
-            EditPassTextBox.Text = pwd;
+            if (_editPassEyeVisible)
+            {
+                EditPassTextBox.Text = pwd;
+                EditPassBox.Password = "";
+            }
+            else
+            {
+                EditPassBox.Password = pwd;
+                EditPassTextBox.Text = "";
+            }
         }
 
         private void OpenAuditModal_Click(object sender, RoutedEventArgs e)
@@ -2580,15 +2781,41 @@ namespace FunkenwerkTresor
             if (_activeDb == null) return;
             var all = _activeDb.GetAllEntriesFlat(includeRecycleBin: false);
             var issues = PasswordGeneratorEngine.AuditEntries(all);
-            int weakCount = issues.Count(i => i.Severity == "Kritisch");
-            int dupCount = issues.Count(i => i.Severity == "Warnung");
+
+            var weakIssues = issues.Where(i => i.Category == "Weak").ToList();
+            var reusedIssues = issues.Where(i => i.Category == "Reused").ToList();
+            var expiredIssues = issues.Where(i => i.Category == "Expired").ToList();
+
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine($"Offline Sicherheits-Audit für „{_activeDb.DatabaseName}“:");
+            sb.AppendLine();
+            sb.AppendLine($"• Geprüfte Einträge: {all.Count}");
+            sb.AppendLine($"• Schwache Passwörter (< 12 Zeichen / < 50 Bit): {weakIssues.Count}");
+            sb.AppendLine($"• Mehrfach verwendete Passwörter: {reusedIssues.Count}");
+            sb.AppendLine($"• Abgelaufene Einträge: {expiredIssues.Count}");
+
+            void AppendSection(string heading, List<PasswordAuditIssue> items)
+            {
+                if (items.Count == 0) return;
+                sb.AppendLine();
+                sb.AppendLine(heading);
+                foreach (var issue in items.Take(10))
+                {
+                    string title = string.IsNullOrWhiteSpace(issue.Entry.Title) ? "(Ohne Titel)" : issue.Entry.Title;
+                    string grp = string.IsNullOrWhiteSpace(issue.Entry.GroupName) ? "" : $" [{issue.Entry.GroupName}]";
+                    sb.AppendLine($"  - {title}{grp}: {issue.Reason}");
+                }
+                if (items.Count > 10)
+                    sb.AppendLine($"  ... und {items.Count - 10} weitere.");
+            }
+
+            AppendSection("Schwache / leere Passwörter:", weakIssues);
+            AppendSection("Mehrfach verwendete Passwörter:", reusedIssues);
+            AppendSection("Abgelaufene Einträge:", expiredIssues);
 
             MessageBox.Show(
                 this,
-                $"Offline Sicherheits-Audit für „{_activeDb.DatabaseName}“:\n\n" +
-                $"• Geprüfte Einträge: {all.Count}\n" +
-                $"• Schwache Passwörter (< 12 Zeichen / < 50 Bit): {weakCount}\n" +
-                $"• Doppelt verwendete Passwörter: {dupCount}",
+                sb.ToString(),
                 "Sicherheits-Audit",
                 MessageBoxButton.OK,
                 issues.Count == 0 ? MessageBoxImage.Information : MessageBoxImage.Warning);
@@ -2604,6 +2831,15 @@ namespace FunkenwerkTresor
                 : "Screenshot-Schutz deaktiviert.";
         }
 
+        private void MenuLockOnWinLock_Click(object sender, RoutedEventArgs e)
+        {
+            _settings.LockOnWindowsLock = MenuLockOnWinLock.IsChecked;
+            _settings.Save();
+            StatusReadyText.Text = _settings.LockOnWindowsLock
+                ? "Sperre bei Windows-Sitzungssperre (Win+L) aktiviert."
+                : "Sperre bei Windows-Sitzungssperre (Win+L) deaktiviert.";
+        }
+
         // =====================================================================
         // PASSWORT-AUGE TOGGLES (👁)
         // =====================================================================
@@ -2613,12 +2849,14 @@ namespace FunkenwerkTresor
             if (_openMasterEyeVisible)
             {
                 OpenMasterPassTextBox.Text = OpenMasterPassBox.Password;
+                OpenMasterPassBox.Password = "";
                 OpenMasterPassBox.Visibility = Visibility.Collapsed;
                 OpenMasterPassTextBox.Visibility = Visibility.Visible;
             }
             else
             {
                 OpenMasterPassBox.Password = OpenMasterPassTextBox.Text;
+                OpenMasterPassTextBox.Text = "";
                 OpenMasterPassTextBox.Visibility = Visibility.Collapsed;
                 OpenMasterPassBox.Visibility = Visibility.Visible;
             }
@@ -2631,6 +2869,8 @@ namespace FunkenwerkTresor
             {
                 CreateMasterPassTextBox.Text = CreateMasterPassBox.Password;
                 CreateMasterRepeatTextBox.Text = CreateMasterRepeatBox.Password;
+                CreateMasterPassBox.Password = "";
+                CreateMasterRepeatBox.Password = "";
                 CreateMasterPassBox.Visibility = Visibility.Collapsed;
                 CreateMasterRepeatBox.Visibility = Visibility.Collapsed;
                 CreateMasterPassTextBox.Visibility = Visibility.Visible;
@@ -2640,6 +2880,8 @@ namespace FunkenwerkTresor
             {
                 CreateMasterPassBox.Password = CreateMasterPassTextBox.Text;
                 CreateMasterRepeatBox.Password = CreateMasterRepeatTextBox.Text;
+                CreateMasterPassTextBox.Text = "";
+                CreateMasterRepeatTextBox.Text = "";
                 CreateMasterPassTextBox.Visibility = Visibility.Collapsed;
                 CreateMasterRepeatTextBox.Visibility = Visibility.Collapsed;
                 CreateMasterPassBox.Visibility = Visibility.Visible;
@@ -2653,12 +2895,14 @@ namespace FunkenwerkTresor
             if (_editPassEyeVisible)
             {
                 EditPassTextBox.Text = EditPassBox.Password;
+                EditPassBox.Password = "";
                 EditPassBox.Visibility = Visibility.Collapsed;
                 EditPassTextBox.Visibility = Visibility.Visible;
             }
             else
             {
                 EditPassBox.Password = EditPassTextBox.Text;
+                EditPassTextBox.Text = "";
                 EditPassTextBox.Visibility = Visibility.Collapsed;
                 EditPassBox.Visibility = Visibility.Visible;
             }
@@ -2670,12 +2914,14 @@ namespace FunkenwerkTresor
             if (_editTotpEyeVisible)
             {
                 EditTotpTextBox.Text = EditTotpBox.Password;
+                EditTotpBox.Password = "";
                 EditTotpBox.Visibility = Visibility.Collapsed;
                 EditTotpTextBox.Visibility = Visibility.Visible;
             }
             else
             {
                 EditTotpBox.Password = EditTotpTextBox.Text;
+                EditTotpTextBox.Text = "";
                 EditTotpTextBox.Visibility = Visibility.Collapsed;
                 EditTotpBox.Visibility = Visibility.Visible;
             }
@@ -2687,12 +2933,14 @@ namespace FunkenwerkTresor
             if (_importPassEyeVisible)
             {
                 ImportSourcePassTextBox.Text = ImportSourcePassBox.Password;
+                ImportSourcePassBox.Password = "";
                 ImportSourcePassBox.Visibility = Visibility.Collapsed;
                 ImportSourcePassTextBox.Visibility = Visibility.Visible;
             }
             else
             {
                 ImportSourcePassBox.Password = ImportSourcePassTextBox.Text;
+                ImportSourcePassTextBox.Text = "";
                 ImportSourcePassTextBox.Visibility = Visibility.Collapsed;
                 ImportSourcePassBox.Visibility = Visibility.Visible;
             }
@@ -2751,6 +2999,11 @@ namespace FunkenwerkTresor
                         e.Handled = true;
                         return;
                     }
+                    ClearEntryModalSensitiveInputs();
+                    GroupModalNameBox.Text = "";
+                    ImportSourcePassBox.Password = "";
+                    ImportSourcePassTextBox.Text = "";
+                    GenOutputBox.Text = "";
                     EntryEditorModal.Visibility = Visibility.Collapsed;
                     GroupEditorModal.Visibility = Visibility.Collapsed;
                     ImportModalOverlay.Visibility = Visibility.Collapsed;
@@ -2761,7 +3014,7 @@ namespace FunkenwerkTresor
                     EditSelectedEntry_Click(sender, e);
                     e.Handled = true;
                 }
-                else if (e.Key == Key.Delete && EntriesListBox.IsKeyboardFocusWithin && _selectedEntry != null)
+                else if (e.Key == Key.Delete && EntriesListBox.IsKeyboardFocusWithin && (EntriesListBox.SelectedItems.Count > 0 || _selectedEntry != null))
                 {
                     DeleteEntry_Click(sender, e);
                     e.Handled = true;
@@ -2776,30 +3029,47 @@ namespace FunkenwerkTresor
 
         private void Window_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
         {
+            _mainTickTimer.Stop();
             SystemEvents.SessionSwitch -= SystemEvents_SessionSwitch;
             foreach (var s in _openSessions)
             {
-                if (s.Database.IsDirty && !string.IsNullOrWhiteSpace(s.Database.FilePath) && !string.IsNullOrEmpty(s.MasterPassword))
+                if (s.Database.IsDirty && !string.IsNullOrWhiteSpace(s.Database.FilePath) && s.HasValidCredentials)
                 {
                     try
                     {
-                        KdbxCryptoEngine.SaveKdbxFile(s.Database, s.Database.FilePath, s.MasterPassword, s.KeyfilePath);
+                        s.SaveDatabaseFile();
                     }
                     catch { }
                 }
-                s.Database.WipeAllInMemory();
+                s.WipeSession();
             }
             _openSessions.Clear();
 
-            if (_activeDb != null && _activeDb.IsDirty && !string.IsNullOrWhiteSpace(_activeDb.FilePath) && _activeMasterPassword != null)
+            if (_activeSession != null && _activeSession.Database.IsDirty && !string.IsNullOrWhiteSpace(_activeSession.Database.FilePath) && _activeSession.HasValidCredentials)
             {
                 try
                 {
-                    KdbxCryptoEngine.SaveKdbxFile(_activeDb, _activeDb.FilePath, _activeMasterPassword, _activeKeyfilePath);
+                    _activeSession.SaveDatabaseFile();
                 }
                 catch { }
             }
+            _activeSession?.WipeSession();
+            _activeSession = null;
             _activeDb?.WipeAllInMemory();
+            _activeDb = null;
+
+            ClearEntryModalSensitiveInputs();
+            OpenMasterPassBox.Password = "";
+            OpenMasterPassTextBox.Text = "";
+            CreateMasterPassBox.Password = "";
+            CreateMasterPassTextBox.Text = "";
+            CreateMasterRepeatBox.Password = "";
+            CreateMasterRepeatTextBox.Text = "";
+            ImportSourcePassBox.Password = "";
+            ImportSourcePassTextBox.Text = "";
+            GenOutputBox.Text = "";
+
+            KeePassIconRenderer.ClearCustomCache();
             TresorSecurityGuard.ClearClipboardNow();
         }
     }

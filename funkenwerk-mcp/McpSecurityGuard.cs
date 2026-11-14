@@ -43,6 +43,19 @@ namespace FunkenwerkMcp
         public List<string> ActiveHardeningLayers { get; set; } = new();
     }
 
+    public sealed class StageShopAssetSyncResultDto
+    {
+        public bool Success { get; set; }
+        public bool DryRun { get; set; }
+        public string TargetHost { get; set; } = "";
+        public string TargetRemoteStorageDir { get; set; } = "";
+        public int TotalManifestFiles { get; set; }
+        public int UnchangedOnStageCount { get; set; }
+        public int UploadedCount { get; set; }
+        public long UploadedBytes { get; set; }
+        public List<string> UploadedFiles { get; set; } = new();
+    }
+
     public static class McpSecurityGuard
     {
         public const long MaxPdfFileBytes = 50L * 1024L * 1024L; // 50 MB hard cap
@@ -118,25 +131,100 @@ namespace FunkenwerkMcp
             ".exe", ".dll", ".bat", ".cmd", ".ps1", ".vbs", ".js", ".msi", ".scr", ".com", ".reg", ".lnk", ".hta"
         };
 
-        // Outbound DLP Regexes — prevents ANY accidental credential/token/key leakage to stdout
+        // Outbound DLP Regexes - prevents ANY accidental credential/token/key leakage to stdout
         private static readonly Regex[] OutboundSecretPatterns =
         {
             new(@"\b\d+\|[A-Za-z0-9]{32,}\b", RegexOptions.Compiled),                                   // Laravel Sanctum tokens
             new(@"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z0-9 ]*PRIVATE KEY-----", RegexOptions.Compiled),
             new(@"PuTTY-User-Key-File-\d+:[\s\S]{16,}", RegexOptions.Compiled),                         // PuTTY .ppk material
             new(@"FWVAULT2:[A-Za-z0-9+/=]{16,}", RegexOptions.Compiled),                                // Funkenwerk Vault v2
-            new(@"FWAES256GCM1:[A-Za-z0-9+/=]{16,}", RegexOptions.Compiled),                            // Funkenwerk FTP Vault
+            new(@"FWAES256GCM1:[A-Za-z0-9+/=]{16,}", RegexOptions.Compiled),                            // Funkenwerk AES-256-GCM Vault
             new(@"FWSSHAES256GCM1:[A-Za-z0-9+/=]{16,}", RegexOptions.Compiled),                         // Funkenwerk SSH Vault
             new(@"DPAPI:[A-Za-z0-9+/=]{16,}", RegexOptions.Compiled),                                   // Legacy DPAPI
             new(@"(?i)(APP_KEY|DB_PASSWORD|MAIL_PASSWORD|STRIPE_SECRET|AWS_SECRET_ACCESS_KEY|GEMINI_API_KEY|API_TOKEN)\s*[=:]\s*\S+", RegexOptions.Compiled),
+            new(@"(?i)""(?:password|passwd|pwd|tapo_password|secret|api_token)""\s*:\s*""[^""\r\n]+""", RegexOptions.Compiled), // JSON password/secret fields
             new(@"\bAIza[0-9A-Za-z\-_]{30,}\b", RegexOptions.Compiled),                                 // Google API keys
             new(@"\bsk-[A-Za-z0-9\-_]{24,}\b", RegexOptions.Compiled),                                  // OpenAI/Stripe secret keys
             new(@"\b(?:ghp_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,})\b", RegexOptions.Compiled),   // GitHub PATs
             new(@"\beyJ[A-Za-z0-9_\-]{10,}\.eyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}\b", RegexOptions.Compiled), // JWTs
-            new(@"(?i)https?://[^/\s:@]+:[^/\s@]+@[^\s/]+", RegexOptions.Compiled),                     // Basic-Auth credentials in URLs
+            new(@"(?i)https?://[^/\s:@]+:[^/\s@]+@[^\s/]+", RegexOptions.Compiled),                     // Basic-Auth credentials in HTTP URLs
+            new(@"(?i)rtsps?://[^/\s:@""']+:[^/\s@""']+@[^\s""']+", RegexOptions.Compiled),             // RTSP camera credentials in URLs
             new(@"(?i)Bearer\s+[A-Za-z0-9\-._~+/|=]{20,}", RegexOptions.Compiled)                       // Raw Bearer headers
         };
 
+        public const string StageAllowedHost = "ssh.altgemeinde.project.host";
+        public const string StageWebRemoteDir = "/home/p-g27wim/html/seelenfunke-stage";
+        public const string StageWorkerRemoteDir = "/home/p-g27wim/html/worker-stage-3";
+        public const string DefaultLocalStorageAppRoot = @"\\wsl.localhost\Ubuntu\home\ubuntuxina\meine-projekte\seelenfunke\storage\app";
+
+        public static readonly IReadOnlyList<string> SafeReadonlySshPresets = new[]
+        {
+            "disk_usage",
+            "uptime_and_load",
+            "php_version",
+            "artisan_about",
+            "git_status",
+            "git_log",
+            "git_branch",
+            "list_dir",
+            "stage_git_pull",
+            "stage_deploy",
+            "stage_worker_restart"
+        };
+
+        private static readonly string[] AllowedShopAssetPrefixes =
+        {
+            "public/produkte/",
+            "produkte/products-secure/",
+            "public/marketing/blog/",
+            "public/shopverwaltung/"
+        };
+
+        private static readonly string[] BlockedShopRootPrefixes =
+        {
+            "leitung/",
+            "public/leitung/",
+            "buchhaltung/",
+            "public/buchhaltung/",
+            "agenten/",
+            "public/agenten/",
+            "support/",
+            "public/support/",
+            "bestellungen/",
+            "public/bestellungen/",
+            "private/",
+            "system/",
+            "public/system/",
+            "temp/",
+            "print_queue/",
+            "dhl_labels/"
+        };
+
+        private static readonly HashSet<string> BlockedShopSegments = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "music",
+            "buchhaltung",
+            "wiki",
+            "health",
+            "gesundheit",
+            "kameraaufnahmen",
+            "person_profiles",
+            "backup",
+            "backups",
+            "reviews",
+            "documents",
+            "echtgold-seelen-herz",
+            ".git"
+        };
+
+        private static readonly HashSet<string> AllowedShopExtensions = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ".png", ".jpg", ".jpeg", ".webp", ".svg", ".gif",
+            ".glb", ".gltf", ".mp4", ".webm", ".pdf", ".zip", ".json"
+        };
+
+        private static readonly Regex SafeShopRelPathRegex = new(@"^[A-Za-z0-9_./\-]+$", RegexOptions.Compiled);
+        private static readonly Regex SafeSecureZipRegex = new(@"^produkte/products-secure/[A-Za-z0-9_\-]+\.zip$", RegexOptions.Compiled);
         private static readonly Regex SafeHostRegex = new(@"^[A-Za-z0-9.\-]+$", RegexOptions.Compiled);
         private static readonly Regex SafeSshUserRegex = new(@"^[A-Za-z0-9._@\-]+$", RegexOptions.Compiled);
         private static readonly Regex SafeRemoteDirRegex = new(@"^[A-Za-z0-9/_.\-~]+$", RegexOptions.Compiled);
@@ -169,17 +257,66 @@ namespace FunkenwerkMcp
         [DllImport("kernel32.dll", SetLastError = true)]
         private static extern IntPtr LocalFree(IntPtr hMem);
 
+        private static string? _vaultDirOverride;
+        private static string? _testAllowedRootOverride;
+
+        public static string VaultDirectory => McpDataDir;
+
         public static string McpDataDir
         {
             get
             {
-                string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FunkenwerkMcp");
+                string dir = !string.IsNullOrWhiteSpace(_vaultDirOverride)
+                    ? _vaultDirOverride!
+                    : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FunkenwerkMcp");
                 if (!Directory.Exists(dir))
                 {
                     Directory.CreateDirectory(dir);
                     LockDownDirectoryAcl(dir);
                 }
                 return dir;
+            }
+        }
+
+        public static IDisposable UseTemporaryVaultDirectory(string tempVaultDir, string? tempAllowedDocsDir = null)
+        {
+            string? prevVault = _vaultDirOverride;
+            string? prevDocs = _testAllowedRootOverride;
+            Directory.CreateDirectory(tempVaultDir);
+            LockDownDirectoryAcl(tempVaultDir);
+            if (!string.IsNullOrWhiteSpace(tempAllowedDocsDir))
+            {
+                Directory.CreateDirectory(tempAllowedDocsDir);
+            }
+            _vaultDirOverride = tempVaultDir;
+            _testAllowedRootOverride = tempAllowedDocsDir;
+            ResetRateLimiterForTests();
+            return new TempVaultScope(prevVault, prevDocs);
+        }
+
+        private sealed class TempVaultScope : IDisposable
+        {
+            private readonly string? _prevVault;
+            private readonly string? _prevDocs;
+            public TempVaultScope(string? prevVault, string? prevDocs)
+            {
+                _prevVault = prevVault;
+                _prevDocs = prevDocs;
+            }
+            public void Dispose()
+            {
+                _vaultDirOverride = _prevVault;
+                _testAllowedRootOverride = _prevDocs;
+                ResetRateLimiterForTests();
+            }
+        }
+
+        internal static void ResetRateLimiterForTests()
+        {
+            lock (RateLimitLock)
+            {
+                GeneralCallWindow.Clear();
+                SshCallWindow.Clear();
             }
         }
 
@@ -206,6 +343,10 @@ namespace FunkenwerkMcp
                 Path.Combine(userProfile, "Desktop"),
                 Path.Combine(userProfile, "Pictures")
             };
+            if (!string.IsNullOrWhiteSpace(_testAllowedRootOverride))
+            {
+                roots.Add(_testAllowedRootOverride!);
+            }
             try
             {
                 if (Directory.Exists(@"\\wsl.localhost\Ubuntu\home\ubuntuxina\meine-projekte\seelenfunke"))
@@ -274,7 +415,7 @@ namespace FunkenwerkMcp
             try
             {
                 var fi = new FileInfo(filePath);
-                if (!fi.Exists) return true;
+                if (!fi.Exists) return false;
 
                 var currentUser = WindowsIdentity.GetCurrent().User;
                 if (currentUser == null) return false;
@@ -382,8 +523,14 @@ namespace FunkenwerkMcp
             }
 
             // Check sensitive path segments & sensitive filenames (including Funkenwerk Collection binaries!)
+            string? activeTestDocsRoot = _testAllowedRootOverride;
+            bool insideIsolatedTestDocs = !string.IsNullOrWhiteSpace(activeTestDocsRoot) &&
+                fullPath.StartsWith(Path.GetFullPath(activeTestDocsRoot).TrimEnd('\\', '/') + "\\", StringComparison.OrdinalIgnoreCase);
+
             foreach (string frag in BlockedPathFragments)
             {
+                if (insideIsolatedTestDocs && string.Equals(frag, @"\appdata\", StringComparison.Ordinal))
+                    continue;
                 if (lowerFull.Contains(frag, StringComparison.Ordinal))
                     throw new UnauthorizedAccessException("Zugriff auf geschütztes Programm-, System- oder Schlüsselverzeichnis verweigert.");
             }
@@ -436,11 +583,11 @@ namespace FunkenwerkMcp
 
         /// <summary>
         /// Verifies that an existing file genuinely begins with the ISO-32000 '%PDF-' magic header
-        /// within the first 1024 bytes, preventing reading of disguised/symlinked non-PDF files.
+        /// at byte offset 0 (or offset 3 immediately following a UTF-8 BOM), rejecting polyglot files.
         /// </summary>
         public static void VerifyPdfMagicHeader(string fullPath)
         {
-            byte[] header = new byte[1024];
+            byte[] header = new byte[8];
             int read;
             using (var fs = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.Read))
             {
@@ -450,9 +597,24 @@ namespace FunkenwerkMcp
             if (read < 5)
                 throw new UnauthorizedAccessException("Ungültige oder leere PDF-Datei (Magic-Header fehlt).");
 
-            string ascii = Encoding.ASCII.GetString(header, 0, read);
-            if (!ascii.Contains("%PDF-", StringComparison.Ordinal))
-                throw new UnauthorizedAccessException("Datei besitzt keinen gültigen '%PDF-' Magic-Header (Tarnungs-/Symlink-Schutz hat ausgelöst).");
+            bool atZero = header[0] == (byte)'%' &&
+                          header[1] == (byte)'P' &&
+                          header[2] == (byte)'D' &&
+                          header[3] == (byte)'F' &&
+                          header[4] == (byte)'-';
+
+            bool afterUtf8Bom = read >= 8 &&
+                                header[0] == 0xEF &&
+                                header[1] == 0xBB &&
+                                header[2] == 0xBF &&
+                                header[3] == (byte)'%' &&
+                                header[4] == (byte)'P' &&
+                                header[5] == (byte)'D' &&
+                                header[6] == (byte)'F' &&
+                                header[7] == (byte)'-';
+
+            if (!atZero && !afterUtf8Bom)
+                throw new UnauthorizedAccessException("Datei besitzt keinen gültigen '%PDF-' Magic-Header an Byte-Offset 0 (Tarnungs-/Polyglot-Schutz hat ausgelöst).");
         }
 
         /// <summary>
@@ -502,8 +664,10 @@ namespace FunkenwerkMcp
             }
         }
 
-        private static void RejectReparsePointsInHierarchy(string fullPath)
+        public static bool HasReparsePointInAncestry(string fullPath)
         {
+            if (string.IsNullOrWhiteSpace(fullPath)) return false;
+
             bool isWslUnc = fullPath.StartsWith(@"\\wsl.localhost\Ubuntu\", StringComparison.OrdinalIgnoreCase)
                          || fullPath.StartsWith(@"\\wsl$\Ubuntu\", StringComparison.OrdinalIgnoreCase);
 
@@ -522,18 +686,14 @@ namespace FunkenwerkMcp
                     {
                         var attr = File.GetAttributes(cur);
                         if ((attr & FileAttributes.ReparsePoint) != 0)
-                            throw new UnauthorizedAccessException("Symlink/Junction-Zugriff auf Datei wurde blockiert.");
+                            return true;
                     }
                     else if (Directory.Exists(cur))
                     {
                         var di = new DirectoryInfo(cur);
                         if (di.Parent != null && (di.Attributes & FileAttributes.ReparsePoint) != 0)
-                            throw new UnauthorizedAccessException($"Ordner-Junction/Symlink ('{di.Name}') wurde blockiert.");
+                            return true;
                     }
-                }
-                catch (UnauthorizedAccessException)
-                {
-                    throw;
                 }
                 catch
                 {
@@ -542,6 +702,14 @@ namespace FunkenwerkMcp
 
                 cur = Path.GetDirectoryName(cur);
             }
+
+            return false;
+        }
+
+        public static void RejectReparsePointsInHierarchy(string fullPath)
+        {
+            if (HasReparsePointInAncestry(fullPath))
+                throw new UnauthorizedAccessException("Symlink/Junction/Reparse-Point in Pfadhierarchie wurde blockiert.");
         }
 
         // =====================================================================
@@ -701,8 +869,8 @@ namespace FunkenwerkMcp
                 string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
                 string[] settingsFiles =
                 {
-                    Path.Combine(CollectionRootDir, "Funkenwerk", "settings.json"),
                     Path.Combine(localAppData, "Funkenwerk", "settings.json"),
+                    Path.Combine(CollectionRootDir, "Funkenwerk", "settings.json"),
                     Path.Combine(localAppData, "FunkenwerkOS", "os_settings.json")
                 };
 
@@ -719,7 +887,6 @@ namespace FunkenwerkMcp
                     if (isStage && root.TryGetProperty("EncryptedTokenStage", out var ets)) candidates.Add(ets.GetString());
                     if (isLive && root.TryGetProperty("ApiTokenLive", out var tlv)) candidates.Add(tlv.GetString());
                     if (isLive && root.TryGetProperty("EncryptedTokenLive", out var etlv)) candidates.Add(etlv.GetString());
-                    if (root.TryGetProperty("ApiToken", out var ta)) candidates.Add(ta.GetString());
 
                     foreach (string? stored in candidates)
                     {
@@ -735,10 +902,16 @@ namespace FunkenwerkMcp
             return "";
         }
 
-        private static string UnprotectFunkenwerkMainVaultSecret(string storedText)
+        internal static string UnprotectFunkenwerkMainVaultSecret(string storedText)
         {
-            const string prefix = "FWVAULT2:";
-            if (!storedText.StartsWith(prefix, StringComparison.Ordinal))
+            const string prefixAes = "FWAES256GCM1:";
+            const string prefixLegacy = "FWVAULT2:";
+            string b64Payload;
+            if (storedText.StartsWith(prefixAes, StringComparison.Ordinal))
+                b64Payload = storedText.Substring(prefixAes.Length);
+            else if (storedText.StartsWith(prefixLegacy, StringComparison.Ordinal))
+                b64Payload = storedText.Substring(prefixLegacy.Length);
+            else
                 return "";
 
             byte[]? envelope = null;
@@ -747,7 +920,7 @@ namespace FunkenwerkMcp
             byte[]? pwdBytes = null;
             try
             {
-                byte[] dpapiCipher = Convert.FromBase64String(storedText.Substring(prefix.Length));
+                byte[] dpapiCipher = Convert.FromBase64String(b64Payload);
                 envelope = DpapiUnprotectWin32(dpapiCipher, FunkenwerkMainEntropy);
                 if (envelope == null || envelope.Length < 45 || envelope[0] != 0x02)
                     return "";
@@ -1220,11 +1393,126 @@ namespace FunkenwerkMcp
             }
         }
 
+        public static void ValidateStageOnlyTarget(string host, string? remoteDirectory, bool allowWorkerStage = false)
+        {
+            string normHost = (host ?? "").Trim();
+            string normDir = (remoteDirectory ?? "").Trim().Replace('\\', '/').TrimEnd('/');
+
+            if (string.IsNullOrWhiteSpace(normDir)
+                || normDir.Contains("..", StringComparison.Ordinal)
+                || normDir.Contains("live", StringComparison.OrdinalIgnoreCase)
+                || normDir.Contains("production", StringComparison.OrdinalIgnoreCase)
+                || normDir.Contains("steinhauer-invest", StringComparison.OrdinalIgnoreCase))
+            {
+                AppendAuditLog("stage_airgap_guard", $"{normHost}:{normDir}", "DENY:live_airgap_blocked");
+                throw new UnauthorizedAccessException("LIVE-AIR-GAP SPERRE: Zugriff auf Live-/Production- oder Fremdpfade ist technisch gesperrt.");
+            }
+
+            if (!string.Equals(normHost, StageAllowedHost, StringComparison.OrdinalIgnoreCase))
+            {
+                AppendAuditLog("stage_airgap_guard", $"{normHost}:{normDir}", "DENY:non_stage_host");
+                throw new UnauthorizedAccessException($"Stage-Operationen sind ausschließlich auf '{StageAllowedHost}' erlaubt.");
+            }
+
+            bool isStageWeb = string.Equals(normDir, StageWebRemoteDir, StringComparison.Ordinal);
+            bool isStageWorker = allowWorkerStage && string.Equals(normDir, StageWorkerRemoteDir, StringComparison.Ordinal);
+
+            if (!isStageWeb && !isStageWorker)
+            {
+                AppendAuditLog("stage_airgap_guard", $"{normHost}:{normDir}", "DENY:non_stage_dir");
+                string expected = allowWorkerStage ? $"{StageWebRemoteDir} oder {StageWorkerRemoteDir}" : StageWebRemoteDir;
+                throw new UnauthorizedAccessException($"Stage-Operation abgelehnt: Zielpfad '{normDir}' entspricht nicht exakt '{expected}'.");
+            }
+        }
+
+        public static string ValidatePureShopAssetRelativePath(string relPath)
+        {
+            string norm = (relPath ?? "").Trim().Replace('\\', '/');
+
+            if (string.IsNullOrWhiteSpace(norm)
+                || norm.Length > 240
+                || norm.StartsWith("/", StringComparison.Ordinal)
+                || norm.EndsWith("/", StringComparison.Ordinal)
+                || norm.Contains("//", StringComparison.Ordinal)
+                || norm.Contains("..", StringComparison.Ordinal)
+                || norm.Contains(":", StringComparison.Ordinal)
+                || norm.Any(c => char.IsControl(c))
+                || !SafeShopRelPathRegex.IsMatch(norm))
+            {
+                throw new UnauthorizedAccessException($"Ungültiger Shop-Asset-Pfad blockiert: '{relPath}'.");
+            }
+
+            foreach (string blockedPrefix in BlockedShopRootPrefixes)
+            {
+                if (norm.StartsWith(blockedPrefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    AppendAuditLog("shop_asset_guard", norm, "DENY:local_only_root_blocked");
+                    throw new UnauthorizedAccessException($"LOKAL-SPERRE: Pfad '{norm}' (Musik/Buchhaltung/Leitung/Privat) darf niemals synchronisiert werden.");
+                }
+            }
+
+            string[] segments = norm.Split('/');
+            foreach (string seg in segments)
+            {
+                if (string.IsNullOrWhiteSpace(seg) || seg == "." || seg == "..")
+                    throw new UnauthorizedAccessException($"Ungültiges Pfadsegment in '{norm}'.");
+
+                if (BlockedShopSegments.Contains(seg)
+                    || seg.StartsWith(".env", StringComparison.OrdinalIgnoreCase)
+                    || seg.StartsWith("firebase", StringComparison.OrdinalIgnoreCase))
+                {
+                    AppendAuditLog("shop_asset_guard", norm, "DENY:local_only_segment_blocked");
+                    throw new UnauthorizedAccessException($"LOKAL-SPERRE: Segment '{seg}' in '{norm}' ist zu 100 % lokal gesperrt.");
+                }
+            }
+
+            string fileName = segments[^1];
+            if (fileName.Contains("_orig_backup.", StringComparison.OrdinalIgnoreCase)
+                || fileName.EndsWith(".bak", StringComparison.OrdinalIgnoreCase)
+                || fileName.StartsWith("echtgold-seelen-herz-", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new UnauthorizedAccessException($"Backup-/Altdatei '{norm}' ist vom Stage-Sync ausgeschlossen.");
+            }
+
+            bool hasAllowedPrefix = AllowedShopAssetPrefixes.Any(p => norm.StartsWith(p, StringComparison.OrdinalIgnoreCase));
+            if (!hasAllowedPrefix)
+            {
+                AppendAuditLog("shop_asset_guard", norm, "DENY:outside_shop_whitelist");
+                throw new UnauthorizedAccessException($"Pfad '{norm}' liegt außerhalb der 4 erlaubten Shop-Asset-Verzeichnisse.");
+            }
+
+            string ext = Path.GetExtension(fileName);
+            if (string.IsNullOrWhiteSpace(ext) || !AllowedShopExtensions.Contains(ext))
+            {
+                AppendAuditLog("shop_asset_guard", norm, "DENY:blocked_extension");
+                throw new UnauthorizedAccessException($"Dateiendung '{ext}' ist für den Shop-Asset-Sync gesperrt.");
+            }
+
+            if (string.Equals(ext, ".json", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!norm.StartsWith("public/produkte/configurator/", StringComparison.OrdinalIgnoreCase)
+                    && !norm.StartsWith("public/produkte/configurator-presets/", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new UnauthorizedAccessException($"JSON-Datei '{norm}' außerhalb des Konfigurators ist gesperrt.");
+                }
+            }
+
+            if (string.Equals(ext, ".zip", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!SafeSecureZipRegex.IsMatch(norm))
+                {
+                    throw new UnauthorizedAccessException($"ZIP-Datei '{norm}' außerhalb von produkte/products-secure/ ist gesperrt.");
+                }
+            }
+
+            return norm;
+        }
+
         public static async Task<string> ExecutePinnedSshPresetAsync(string profileName, string preset, string? safeSubdirectory = null)
         {
             EnforceRateLimit("ssh_exec_safe_readonly", isSshCall: true);
 
-            // Strict preset command allowlist — NO arbitrary shell strings ever accepted!
+            // Strict preset command allowlist - NO arbitrary shell strings ever accepted!
             string remoteCommand = preset switch
             {
                 "git_status" => "git status --short --branch",
@@ -1233,19 +1521,34 @@ namespace FunkenwerkMcp
                 "php_version" => "php -v",
                 "artisan_about" => "php artisan --version",
                 "disk_usage" => "df -h .",
+                "uptime_and_load" => "uptime",
                 "list_dir" => "ls -la",
-                "stage_git_pull" => "git pull --ff-only",
+                "stage_git_pull" => "git pull --ff-only origin main",
+                "stage_deploy" => "bash ./funki stage-deploy",
+                "stage_worker_restart" => "(mittnitectl job restart 2>/dev/null || php artisan queue:restart) && (mittnitectl job status 2>/dev/null || true)",
                 _ => throw new UnauthorizedAccessException($"SSH-Preset '{preset}' ist nicht in der Sicherheits-Allowlist enthalten.")
             };
+
+            bool isStageMutationPreset = preset is "stage_git_pull" or "stage_deploy" or "stage_worker_restart";
 
             if (!string.IsNullOrWhiteSpace(safeSubdirectory))
             {
                 if (safeSubdirectory.Length > 512 || !SafeRemoteDirRegex.IsMatch(safeSubdirectory) || safeSubdirectory.Contains("..", StringComparison.Ordinal))
                     throw new UnauthorizedAccessException("Ungültiger Server-Pfad im Sicherheitsfilter blockiert.");
+
+                if (isStageMutationPreset)
+                {
+                    ValidateStageOnlyTarget(StageAllowedHost, safeSubdirectory, allowWorkerStage: preset == "stage_worker_restart");
+                }
             }
 
             using var creds = ResolveProfileInternal(profileName, safeSubdirectory)
                 ?? throw new InvalidOperationException($"Profil '{profileName}' wurde nicht gefunden.");
+
+            if (isStageMutationPreset)
+            {
+                ValidateStageOnlyTarget(creds.Host, creds.RemoteDirectory, allowWorkerStage: preset == "stage_worker_restart");
+            }
 
             // FAIL-CLOSED SHA-256 HOST-KEY PINNING (Checks FunkenwerkSsh, FunkenwerkFtp, and OpenSSH ~/.ssh/known_hosts)
             if (!HasAnySha256PinForHost(creds.Host, creds.Port))
@@ -1257,6 +1560,12 @@ namespace FunkenwerkMcp
             }
 
             var fwPinned = LoadFunkenwerkPinnedHostKeysSha256();
+            int timeoutSeconds = preset switch
+            {
+                "stage_deploy" => 150,
+                "stage_worker_restart" => 35,
+                _ => 15
+            };
 
             return await Task.Run(() =>
             {
@@ -1278,7 +1587,7 @@ namespace FunkenwerkMcp
 
                     var connInfo = new ConnectionInfo(creds.Host, creds.Port, creds.Username, authMethods.ToArray())
                     {
-                        Timeout = TimeSpan.FromSeconds(10)
+                        Timeout = TimeSpan.FromSeconds(12)
                     };
 
                     using var client = new SshClient(connInfo);
@@ -1321,9 +1630,10 @@ namespace FunkenwerkMcp
                         : remoteCommand;
 
                     using var cmd = client.CreateCommand(fullCmd);
-                    cmd.CommandTimeout = TimeSpan.FromSeconds(15);
+                    cmd.CommandTimeout = TimeSpan.FromSeconds(timeoutSeconds);
                     string stdout = cmd.Execute();
                     string stderr = cmd.Error ?? "";
+                    int exitCode = cmd.ExitStatus ?? 0;
                     client.Disconnect();
 
                     string combined = string.IsNullOrWhiteSpace(stderr) ? stdout : $"{stdout}\n{stderr}";
@@ -1331,8 +1641,271 @@ namespace FunkenwerkMcp
                     if (combined.Length > 16384)
                         combined = combined.Substring(0, 16384) + "\n...[Ausgabe gekürzt]";
 
+                    if (isStageMutationPreset && exitCode != 0)
+                    {
+                        AppendAuditLog("ssh_exec_safe_readonly", $"{creds.Name}:{preset}:exit={exitCode}", "ERROR");
+                        throw new InvalidOperationException($"Stage-Preset '{preset}' meldete Exit-Code {exitCode}:\n{ScrubSecrets(combined.Trim())}");
+                    }
+
                     AppendAuditLog("ssh_exec_safe_readonly", $"{creds.Name}:{preset}", "ALLOW");
                     return ScrubSecrets(combined.Trim());
+                }
+                finally
+                {
+                    keyFile?.Dispose();
+                }
+            });
+        }
+
+        public static async Task<StageShopAssetSyncResultDto> SyncStageShopAssetsDeltaAsync(
+            string profileName = "Mittwald",
+            bool dryRun = false,
+            string? customLocalStorageAppRoot = null)
+        {
+            EnforceRateLimit("stage_sync_shop_assets", isSshCall: true);
+
+            string storageRoot = string.IsNullOrWhiteSpace(customLocalStorageAppRoot)
+                ? DefaultLocalStorageAppRoot
+                : Path.GetFullPath(customLocalStorageAppRoot);
+
+            if (!Directory.Exists(storageRoot))
+                throw new DirectoryNotFoundException($"Lokales storage/app Verzeichnis nicht gefunden: {storageRoot}");
+
+            string manifestPath = Path.Combine(storageRoot, "private", "shop-asset-manifest.json");
+            if (!File.Exists(manifestPath))
+                throw new FileNotFoundException("shop-asset-manifest.json fehlt. Bitte zuerst 'php artisan system:shop-asset-manifest --write' ausführen.");
+
+            if (HasReparsePointInAncestry(manifestPath))
+                throw new UnauthorizedAccessException("Reparse-Point / Symlink auf shop-asset-manifest.json blockiert.");
+
+            var validatedEntries = new List<(string RelPath, string LocalPath, long Size, string Sha256Lower)>();
+            using (var doc = JsonDocument.Parse(await File.ReadAllTextAsync(manifestPath), new JsonDocumentOptions { MaxDepth = 12 }))
+            {
+                var root = doc.RootElement;
+                string scope = root.TryGetProperty("scope", out var sp) ? (sp.GetString() ?? "") : "";
+                if (!string.Equals(scope, "pure_shop_assets_only", StringComparison.Ordinal))
+                    throw new UnauthorizedAccessException("Ungültiger Manifest-Scope (erwartet: pure_shop_assets_only).");
+
+                if (!root.TryGetProperty("files", out var filesArr) || filesArr.ValueKind != JsonValueKind.Array)
+                    throw new InvalidOperationException("Manifest enthält kein gültiges 'files'-Array.");
+
+                if (filesArr.GetArrayLength() > 2500)
+                    throw new InvalidOperationException("Manifest überschreitet das Sicherheitslimit von 2.500 Shop-Assets.");
+
+                foreach (var item in filesArr.EnumerateArray())
+                {
+                    string rawRel = item.TryGetProperty("rel_path", out var rp) ? (rp.GetString() ?? "") : "";
+                    string safeRel = ValidatePureShopAssetRelativePath(rawRel);
+
+                    string localFile = Path.Combine(storageRoot, safeRel.Replace('/', Path.DirectorySeparatorChar));
+                    if (!File.Exists(localFile))
+                        continue;
+
+                    if (HasReparsePointInAncestry(localFile))
+                        throw new UnauthorizedAccessException($"Symlink/Junction in Shop-Asset blockiert: {safeRel}");
+
+                    var fi = new FileInfo(localFile);
+                    if (fi.Length <= 0 || fi.Length > 60L * 1024L * 1024L)
+                        throw new UnauthorizedAccessException($"Dateigröße außerhalb des zulässigen Shop-Asset-Rahmens (1B..60MB): {safeRel}");
+
+                    await using var fs = new FileStream(localFile, FileMode.Open, FileAccess.Read, FileShare.Read);
+                    byte[] hashBytes = await SHA256.HashDataAsync(fs);
+                    string actualSha256 = Convert.ToHexString(hashBytes).ToLowerInvariant();
+
+                    validatedEntries.Add((safeRel, localFile, fi.Length, actualSha256));
+                }
+            }
+
+            using var creds = ResolveProfileInternal(profileName, StageWebRemoteDir)
+                ?? throw new InvalidOperationException($"Profil '{profileName}' wurde nicht gefunden.");
+
+            ValidateStageOnlyTarget(creds.Host, creds.RemoteDirectory, allowWorkerStage: false);
+
+            if (!HasAnySha256PinForHost(creds.Host, creds.Port))
+            {
+                AppendAuditLog("stage_sync_shop_assets", $"{creds.Host}:{creds.Port}", "DENY:unpinned_host_key");
+                throw new UnauthorizedAccessException($"Host '{creds.Host}:{creds.Port}' ist nicht per SHA-256 gepinnt.");
+            }
+
+            var fwPinned = LoadFunkenwerkPinnedHostKeysSha256();
+            string remoteStorageApp = $"{StageWebRemoteDir}/storage/app";
+
+            return await Task.Run(() =>
+            {
+                var authMethods = new List<AuthenticationMethod>();
+                PrivateKeyFile? keyFile = null;
+                try
+                {
+                    if (!string.IsNullOrWhiteSpace(creds.PrivateKeyPath) && File.Exists(creds.PrivateKeyPath))
+                    {
+                        keyFile = new PrivateKeyFile(creds.PrivateKeyPath);
+                        authMethods.Add(new PrivateKeyAuthenticationMethod(creds.Username, keyFile));
+                    }
+                    if (creds.PasswordUtf8 != null && creds.PasswordUtf8.Length > 0)
+                    {
+                        authMethods.Add(new PasswordAuthenticationMethod(creds.Username, Encoding.UTF8.GetString(creds.PasswordUtf8)));
+                    }
+                    if (authMethods.Count == 0)
+                        throw new InvalidOperationException("Keine gültige Authentifizierungsmethode im Tresor hinterlegt.");
+
+                    bool VerifyPinnedKey(byte[] hostKeyBytes, string hostKeyName)
+                    {
+                        string actualFp = "SHA256:" + Convert.ToBase64String(SHA256.HashData(hostKeyBytes)).TrimEnd('=');
+                        byte[] actualBytes = Encoding.ASCII.GetBytes(actualFp);
+
+                        var allowedFps = new List<string>();
+                        string exactKey = $"{creds.Host.ToLowerInvariant()}:{creds.Port}:{hostKeyName}";
+                        if (fwPinned.TryGetValue(exactKey, out string? fwExact)) allowedFps.Add(fwExact);
+                        if (fwPinned.TryGetValue($"{creds.Host}:{creds.Port}", out string? fwHostPort)) allowedFps.Add(fwHostPort);
+                        allowedFps.AddRange(FindOpenSshPinnedFingerprintsForHost(creds.Host, creds.Port, hostKeyName));
+
+                        foreach (string candidateFp in allowedFps)
+                        {
+                            byte[] expectedBytes = Encoding.ASCII.GetBytes(candidateFp.Trim());
+                            if (actualBytes.Length == expectedBytes.Length &&
+                                CryptographicOperations.FixedTimeEquals(actualBytes, expectedBytes))
+                            {
+                                return true;
+                            }
+                        }
+                        return false;
+                    }
+
+                    var connInfo = new ConnectionInfo(creds.Host, creds.Port, creds.Username, authMethods.ToArray())
+                    {
+                        Timeout = TimeSpan.FromSeconds(15)
+                    };
+
+                    // 1. Schneller Remote-SHA256-Abgleich über SSH in 80er-Batches
+                    var remoteHashes = new Dictionary<string, string>(StringComparer.Ordinal);
+                    using (var ssh = new SshClient(connInfo))
+                    {
+                        bool sshPinned = false;
+                        ssh.HostKeyReceived += (s, e) => { sshPinned = VerifyPinnedKey(e.HostKey, e.HostKeyName); e.CanTrust = sshPinned; };
+                        ssh.Connect();
+                        if (!sshPinned || !ssh.IsConnected)
+                            throw new UnauthorizedAccessException("SSH Host-Key-Prüfung für Stage-Delta fehlgeschlagen.");
+
+                        const int batchSize = 80;
+                        for (int i = 0; i < validatedEntries.Count; i += batchSize)
+                        {
+                            var batch = validatedEntries.Skip(i).Take(batchSize).Select(x => $"'{x.RelPath}'");
+                            string hashCmd = $"cd -- '{remoteStorageApp}' && sha256sum -- {string.Join(" ", batch)} 2>/dev/null || true";
+                            using var cmd = ssh.CreateCommand(hashCmd);
+                            cmd.CommandTimeout = TimeSpan.FromSeconds(30);
+                            string outText = cmd.Execute() ?? "";
+                            foreach (string line in outText.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                            {
+                                string trimmed = line.Trim();
+                                if (trimmed.Length <= 66) continue;
+                                int spaceIdx = trimmed.IndexOf(' ');
+                                if (spaceIdx != 64) continue;
+                                string hashHex = trimmed.Substring(0, 64).ToLowerInvariant();
+                                string rel = trimmed.Substring(64).TrimStart(' ', '*');
+                                remoteHashes[rel] = hashHex;
+                            }
+                        }
+                        ssh.Disconnect();
+                    }
+
+                    var deltaList = validatedEntries
+                        .Where(e => !remoteHashes.TryGetValue(e.RelPath, out string? rHash) || !string.Equals(rHash, e.Sha256Lower, StringComparison.Ordinal))
+                        .ToList();
+
+                    var result = new StageShopAssetSyncResultDto
+                    {
+                        Success = true,
+                        DryRun = dryRun,
+                        TargetHost = creds.Host,
+                        TargetRemoteStorageDir = remoteStorageApp,
+                        TotalManifestFiles = validatedEntries.Count,
+                        UnchangedOnStageCount = validatedEntries.Count - deltaList.Count,
+                        UploadedCount = 0,
+                        UploadedBytes = 0
+                    };
+
+                    if (deltaList.Count == 0 || dryRun)
+                    {
+                        if (dryRun)
+                        {
+                            result.UploadedCount = deltaList.Count;
+                            result.UploadedBytes = deltaList.Sum(x => x.Size);
+                            result.UploadedFiles = deltaList.Select(x => x.RelPath).ToList();
+                        }
+                        AppendAuditLog("stage_sync_shop_assets", $"delta={deltaList.Count},dryRun={dryRun}", "ALLOW");
+                        return result;
+                    }
+
+                    // 2. Atomarer SFTP-Upload ausschließlich der geänderten/neuen Shop-Dateien
+                    using (var sftp = new SftpClient(connInfo))
+                    {
+                        bool sftpPinned = false;
+                        sftp.HostKeyReceived += (s, e) => { sftpPinned = VerifyPinnedKey(e.HostKey, e.HostKeyName); e.CanTrust = sftpPinned; };
+                        sftp.Connect();
+                        if (!sftpPinned || !sftp.IsConnected)
+                            throw new UnauthorizedAccessException("SFTP Host-Key-Prüfung für Stage-Sync fehlgeschlagen.");
+
+                        var verifiedDirs = new HashSet<string>(StringComparer.Ordinal);
+                        void EnsureSafeRemoteDir(string fullRemoteDir)
+                        {
+                            if (verifiedDirs.Contains(fullRemoteDir)) return;
+                            string[] parts = fullRemoteDir.Trim('/').Split('/');
+                            string current = "";
+                            foreach (string part in parts)
+                            {
+                                current += "/" + part;
+                                if (!current.StartsWith(StageWebRemoteDir, StringComparison.Ordinal))
+                                    continue;
+
+                                if (sftp.Exists(current))
+                                {
+                                    var attr = sftp.GetAttributes(current);
+                                    if (attr.IsSymbolicLink)
+                                        throw new UnauthorizedAccessException($"Remote-Symlink-Verzeichnis verweigert: {current}");
+                                }
+                                else
+                                {
+                                    sftp.CreateDirectory(current);
+                                }
+                            }
+                            verifiedDirs.Add(fullRemoteDir);
+                        }
+
+                        foreach (var item in deltaList)
+                        {
+                            string finalRemote = $"{remoteStorageApp}/{item.RelPath}";
+                            int lastSlash = finalRemote.LastIndexOf('/');
+                            string parentDir = finalRemote.Substring(0, lastSlash);
+                            EnsureSafeRemoteDir(parentDir);
+
+                            string tmpRemote = $"{finalRemote}.fwtmp_{Guid.NewGuid():N}";
+                            using (var fs = new FileStream(item.LocalPath, FileMode.Open, FileAccess.Read, FileShare.Read))
+                            {
+                                sftp.UploadFile(fs, tmpRemote, canOverride: true);
+                            }
+
+                            if (sftp.Exists(finalRemote))
+                            {
+                                var existingAttr = sftp.GetAttributes(finalRemote);
+                                if (existingAttr.IsSymbolicLink)
+                                {
+                                    try { sftp.DeleteFile(tmpRemote); } catch { }
+                                    throw new UnauthorizedAccessException($"Überschreiben eines Remote-Symlinks verweigert: {finalRemote}");
+                                }
+                                sftp.DeleteFile(finalRemote);
+                            }
+
+                            sftp.RenameFile(tmpRemote, finalRemote);
+                            result.UploadedCount++;
+                            result.UploadedBytes += item.Size;
+                            result.UploadedFiles.Add(item.RelPath);
+                        }
+
+                        sftp.Disconnect();
+                    }
+
+                    AppendAuditLog("stage_sync_shop_assets", $"uploaded={result.UploadedCount},bytes={result.UploadedBytes}", "ALLOW");
+                    return result;
                 }
                 finally
                 {
@@ -1446,6 +2019,10 @@ namespace FunkenwerkMcp
         public static SecurityAuditStatusDto RunSecuritySelfAudit()
         {
             bool dirAclOk = LockDownDirectoryAcl(McpDataDir);
+            if (!File.Exists(AuditLogFile))
+            {
+                AppendAuditLog("security_self_audit", "audit_log_bootstrap", "INIT");
+            }
             bool fileAclOk = LockDownFileAcl(AuditLogFile);
             var (chainOk, count) = VerifyAuditChain();
             int pinnedCount = CountTotalPinnedHostEntries();

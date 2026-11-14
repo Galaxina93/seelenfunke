@@ -10,6 +10,7 @@ use Livewire\Component;
 
 class MarketingBlogShow extends Component
 {
+    #[\Livewire\Attributes\Locked]
     public $post;
 
     public function mount($slug)

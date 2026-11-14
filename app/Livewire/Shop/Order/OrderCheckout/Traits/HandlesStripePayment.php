@@ -192,13 +192,20 @@ trait HandlesStripePayment
                     return;
                 }
 
+                $isAsyncProcessing = false;
                 Stripe::setApiKey($stripeSecret);
                 try {
                     $intent = PaymentIntent::retrieve($order->stripe_payment_intent_id);
 
-                    if ($intent->status !== 'succeeded') {
-                        Log::warning("Zahlungsverifikation fehlgeschlagen für Order {$order->order_number}: Status ist '{$intent->status}' (erwartet: 'succeeded').");
+                    if (!in_array($intent->status, ['succeeded', 'processing'], true)) {
+                        Log::warning("Zahlungsverifikation fehlgeschlagen für Order {$order->order_number}: Status ist '{$intent->status}' (erwartet: 'succeeded' oder 'processing').");
                         $this->addError('payment', 'Die Zahlung wurde von Stripe noch nicht freigegeben.');
+                        return;
+                    }
+
+                    if (strtolower((string) ($intent->currency ?? '')) !== 'eur') {
+                        Log::error("Währungs-Mismatch bei Order {$order->order_number}: Stripe={$intent->currency}");
+                        $this->addError('payment', 'Ungültige Zahlungswährung.');
                         return;
                     }
 
@@ -207,6 +214,8 @@ trait HandlesStripePayment
                         $this->addError('payment', 'Der bezahlte Betrag stimmt nicht mit der Auftragssumme überein.');
                         return;
                     }
+
+                    $isAsyncProcessing = ($intent->status === 'processing');
                 } catch (\Exception $e) {
                     Log::error("Stripe API Fehler bei Verifikation von Order {$order->order_number}: " . $e->getMessage());
                     $this->addError('payment', 'Zahlung konnte serverseitig nicht verifiziert werden.');
@@ -215,20 +224,24 @@ trait HandlesStripePayment
             }
         }
 
-        // Fulfill the order using the unified, idempotent completePayment method
-        try {
-            $order->completePayment($order->stripe_payment_intent_id ?: $this->currentPaymentIntentId);
-        } catch (\Throwable $e) {
-            Log::error("Fehler beim Abschluss von Order {$order->order_number}: " . $e->getMessage());
-            $this->addError('payment', $e->getMessage());
-            return;
+        // Fulfill the order using the unified, idempotent completePayment method (bei SEPA 'processing' übernimmt der Webhook nach Geldeingang)
+        if (empty($isAsyncProcessing)) {
+            try {
+                $order->completePayment($order->stripe_payment_intent_id ?: $this->currentPaymentIntentId);
+            } catch (\Throwable $e) {
+                Log::error("Fehler beim Abschluss von Order {$order->order_number}: " . $e->getMessage());
+                $this->addError('payment', $e->getMessage());
+                return;
+            }
         }
         Session::forget('checkout_order_id');
 
         $this->finalOrderId = (string) $order->id;
         $this->finalOrderNumber = $order->order_number;
         $this->email = $order->email ?: $this->email;
-        $this->instantDownloads = $order->fresh(['items.product'])?->getInstantDownloads() ?? [];
+        $this->instantDownloads = empty($isAsyncProcessing)
+            ? ($order->fresh(['items.product'])?->getInstantDownloads() ?? [])
+            : [];
 
         try {
             $this->earnedSparks = app(\App\Services\Gamification\GamificationService::class)->calculateOrderSparks($order);

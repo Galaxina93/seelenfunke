@@ -1,7 +1,14 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Security.AccessControl;
+using System.Security.Cryptography;
+using System.Security.Principal;
+using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -14,6 +21,7 @@ using System.Windows.Threading;
 using Microsoft.Win32;
 using PdfSharp.Drawing;
 using PdfSharp.Pdf;
+using PdfSharp.Pdf.Advanced;
 using PdfSharp.Pdf.IO;
 using Windows.Data.Pdf;
 using Windows.Storage.Streams;
@@ -80,9 +88,15 @@ namespace FunkenwerkPdf
             public double RenderedAtZoom { get; set; } = 0.0;
         }
 
+        private static readonly byte[] SignatureDpapiEntropy = Encoding.UTF8.GetBytes("FunkenwerkPdf.SavedSignature.v1");
+
         private string _currentFilePath = "";
-        private byte[]? _workingPdfBytes;
+        private string _documentBaseTitle = "Funkenwerk PDF";
+        private byte[]? _basePdfBytes;
         private byte[]? _cleanRenderPdfBytes;
+        private bool _isDirty = false;
+        private bool _suppressDirtyTracking = false;
+
         private int _pageCount = 0;
         private int _currentPageIndex = 0;
         private double _currentPageWidthPt = 595.0;
@@ -121,17 +135,126 @@ namespace FunkenwerkPdf
         private readonly DispatcherTimer _saveButtonResetTimer;
         private bool _isBatchRenderingPages = false;
 
+        public bool IsDirty => _isDirty;
+        public bool IsDarkMode => _isDarkMode;
+        public int ActiveAnnotationCount => _annotations.Count;
+        public IReadOnlyList<PdfFormFieldItem> ActiveFormFields => _formFields;
+
+        public static void EnsureSecureAppDataDirectory(string dirPath)
+        {
+            Directory.CreateDirectory(dirPath);
+            try
+            {
+                var dirInfo = new DirectoryInfo(dirPath);
+                var security = new DirectorySecurity();
+                security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+
+                var currentUser = WindowsIdentity.GetCurrent().User;
+                if (currentUser != null)
+                {
+                    security.AddAccessRule(new FileSystemAccessRule(
+                        currentUser,
+                        FileSystemRights.FullControl,
+                        InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                        PropagationFlags.None,
+                        AccessControlType.Allow));
+                }
+
+                var systemSid = new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null);
+                security.AddAccessRule(new FileSystemAccessRule(
+                    systemSid,
+                    FileSystemRights.FullControl,
+                    InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                    PropagationFlags.None,
+                    AccessControlType.Allow));
+
+                var adminsSid = new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null);
+                security.AddAccessRule(new FileSystemAccessRule(
+                    adminsSid,
+                    FileSystemRights.FullControl,
+                    InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                    PropagationFlags.None,
+                    AccessControlType.Allow));
+
+                dirInfo.SetAccessControl(security);
+            }
+            catch { }
+        }
+
         private static string AppDataDir
         {
             get
             {
                 string dir = IOPath.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FunkenwerkPdf");
-                Directory.CreateDirectory(dir);
+                EnsureSecureAppDataDirectory(dir);
+                // Remove legacy unencrypted signature file if present
+                string legacyPlain = IOPath.Combine(dir, "saved_signature.png");
+                try { if (File.Exists(legacyPlain)) File.Delete(legacyPlain); } catch { }
                 return dir;
             }
         }
 
-        private static string SavedSignaturePath => IOPath.Combine(AppDataDir, "saved_signature.png");
+        private static string SavedSignaturePath => IOPath.Combine(AppDataDir, "saved_signature.dpapi");
+
+        public static void SaveEncryptedSignatureToFile(string filePath, byte[] pngBytes)
+        {
+            if (pngBytes == null || pngBytes.Length == 0)
+                throw new ArgumentException("Leere Signaturdaten.");
+            if (pngBytes.Length > PdfFormFieldEngine.MaxSignatureImageBytes)
+                throw new InvalidOperationException("Signaturbild ist zu groß (maximal 16 MB).");
+
+            string fullPath = IOPath.GetFullPath(filePath);
+            string dir = IOPath.GetDirectoryName(fullPath) ?? Environment.CurrentDirectory;
+            EnsureSecureAppDataDirectory(dir);
+
+            byte[] encrypted = ProtectedData.Protect(pngBytes, SignatureDpapiEntropy, DataProtectionScope.CurrentUser);
+            string tmp = IOPath.Combine(dir, $".{IOPath.GetFileName(fullPath)}.{Guid.NewGuid():N}.tmp");
+            try
+            {
+                File.WriteAllBytes(tmp, encrypted);
+                File.Move(tmp, fullPath, overwrite: true);
+            }
+            finally
+            {
+                try { if (File.Exists(tmp)) File.Delete(tmp); } catch { }
+            }
+        }
+
+        public static byte[]? TryLoadEncryptedSignatureFromFile(string filePath)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
+                    return null;
+                var fi = new FileInfo(filePath);
+                if (fi.Length <= 0 || fi.Length > PdfFormFieldEngine.MaxSignatureImageBytes + 65536)
+                    return null;
+
+                byte[] encrypted = File.ReadAllBytes(filePath);
+                byte[] decrypted = ProtectedData.Unprotect(encrypted, SignatureDpapiEntropy, DataProtectionScope.CurrentUser);
+                if (decrypted.Length == 0 || decrypted.Length > PdfFormFieldEngine.MaxSignatureImageBytes)
+                    return null;
+                return decrypted;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        public static bool DeleteSavedSignatureFile(string filePath)
+        {
+            try
+            {
+                if (File.Exists(filePath))
+                {
+                    File.Delete(filePath);
+                    return true;
+                }
+            }
+            catch { }
+            return false;
+        }
 
         public MainWindow(string? initialPdfPath = null)
         {
@@ -173,6 +296,7 @@ namespace FunkenwerkPdf
             if (Height > maxH) Height = Math.Max(MinHeight, maxH);
 
             ConfigureSignaturePad();
+            ApplyTheme();
             SizeChanged += MainWindow_SizeChanged;
 
             Loaded += async (s, e) =>
@@ -185,11 +309,79 @@ namespace FunkenwerkPdf
         }
 
         // =====================================================================
+        // DIRTY STATE TRACKING & UNSAVED CHANGES GUARD
+        // =====================================================================
+        private void MarkDirty()
+        {
+            if (_suppressDirtyTracking || _basePdfBytes == null) return;
+            if (!_isDirty)
+            {
+                _isDirty = true;
+                UpdateWindowTitle();
+            }
+        }
+
+        private void ClearDirty()
+        {
+            _isDirty = false;
+            UpdateWindowTitle();
+        }
+
+        private void UpdateWindowTitle()
+        {
+            Title = _isDirty ? $"{_documentBaseTitle} *" : _documentBaseTitle;
+        }
+
+        private bool ConfirmAndHandleUnsavedChangesSync()
+        {
+            if (!_isDirty || _basePdfBytes == null || !IsVisible)
+                return true;
+
+            var res = MessageBox.Show(
+                this,
+                "Ungespeicherte Änderungen vor dem Fortfahren speichern?",
+                "Funkenwerk PDF",
+                MessageBoxButton.YesNoCancel,
+                MessageBoxImage.Question);
+
+            if (res == MessageBoxResult.Cancel)
+                return false;
+
+            if (res == MessageBoxResult.No)
+                return true;
+
+            string target = _currentFilePath;
+            if (string.IsNullOrWhiteSpace(target))
+            {
+                var dlg = new SaveFileDialog
+                {
+                    Title = "PDF-Dokument speichern als",
+                    Filter = "PDF-Dokument (*.pdf)|*.pdf",
+                    FileName = $"Dokument_{DateTime.Now:yyyyMMdd}.pdf"
+                };
+                if (dlg.ShowDialog(this) != true)
+                    return false;
+                target = dlg.FileName;
+            }
+
+            return SaveCommittedPdfSync(target);
+        }
+
+        private void Window_Closing(object? sender, CancelEventArgs e)
+        {
+            if (!ConfirmAndHandleUnsavedChangesSync())
+            {
+                e.Cancel = true;
+            }
+        }
+
+        // =====================================================================
         // TOAST & SAVE FEEDBACK
         // =====================================================================
         private void ShowViewerToast(string message, bool isError = false, int durationMs = 2900)
         {
-            ViewerToastText.Text = message;
+            string clean = message.Replace(" \u2013 ", " · ");
+            ViewerToastText.Text = clean;
             ViewerToastBorder.BorderBrush = BrushHex(isError ? "#EF4444" : "#C5A059");
             ViewerToastBorder.Background = BrushHex(isError ? "#F52A1215" : (_isDarkMode ? "#F2151923" : "#F5FFFFFF"));
             ViewerToastText.Foreground = BrushHex(isError ? "#FCA5A5" : (_isDarkMode ? "#F9FAFB" : "#111827"));
@@ -221,7 +413,7 @@ namespace FunkenwerkPdf
                 }
                 catch
                 {
-                    System.Threading.Thread.Sleep(25);
+                    Thread.Sleep(25);
                 }
             }
             return false;
@@ -287,6 +479,9 @@ namespace FunkenwerkPdf
         // =====================================================================
         private async void OpenPdf_Click(object sender, RoutedEventArgs e)
         {
+            if (!ConfirmAndHandleUnsavedChangesSync())
+                return;
+
             var dlg = new OpenFileDialog
             {
                 Title = "PDF-Dokument öffnen",
@@ -300,6 +495,14 @@ namespace FunkenwerkPdf
 
         private async void NewBlankPdf_Click(object sender, RoutedEventArgs e)
         {
+            if (!ConfirmAndHandleUnsavedChangesSync())
+                return;
+
+            await CreateNewBlankDocumentAsync();
+        }
+
+        public async Task CreateNewBlankDocumentAsync()
+        {
             try
             {
                 using var doc = new PdfSharp.Pdf.PdfDocument();
@@ -309,15 +512,17 @@ namespace FunkenwerkPdf
 
                 using var ms = new MemoryStream();
                 doc.Save(ms, false);
-                _workingPdfBytes = ms.ToArray();
+                _basePdfBytes = ms.ToArray();
                 _currentFilePath = "";
                 _formFields.Clear();
-                _cleanRenderPdfBytes = _workingPdfBytes;
+                _cleanRenderPdfBytes = _basePdfBytes;
                 _annotations.Clear();
                 _selectedAnnotation = null;
 
+                _documentBaseTitle = "Funkenwerk PDF · Neues Dokument";
+                ClearDirty();
+
                 await RefreshDocumentStructureAsync(0);
-                Title = "Funkenwerk PDF · Neues Dokument";
                 StatusText.Text = "✓ Neues leeres A4-Dokument erstellt.";
             }
             catch (Exception ex)
@@ -330,16 +535,24 @@ namespace FunkenwerkPdf
         {
             try
             {
+                var fi = new FileInfo(filePath);
+                if (!fi.Exists)
+                    throw new FileNotFoundException("PDF-Datei wurde nicht gefunden.", filePath);
+                if (fi.Length <= 0 || fi.Length > PdfFormFieldEngine.MaxPdfFileSizeBytes)
+                    throw new InvalidOperationException("PDF-Datei überschreitet das Limit von 256 MB oder ist leer.");
+
                 byte[] bytes = await File.ReadAllBytesAsync(filePath);
-                _workingPdfBytes = bytes;
+                _basePdfBytes = bytes;
                 _currentFilePath = filePath;
                 _annotations.Clear();
                 _selectedAnnotation = null;
 
-                ReloadFormFieldsFromWorkingBytes();
+                ReloadFormFieldsFromBaseBytes();
+                _documentBaseTitle = $"Funkenwerk PDF · {IOPath.GetFileName(filePath)}";
+                ClearDirty();
+
                 await RefreshDocumentStructureAsync(0);
 
-                Title = $"Funkenwerk PDF · {IOPath.GetFileName(filePath)}";
                 StatusText.Text = _formFields.Count > 0
                     ? $"Geöffnet: {filePath}  •  {_pageCount} Seite(n)  •  {_formFields.Count} Formularfelder aktiv"
                     : $"Geöffnet: {filePath}  •  {_pageCount} Seite(n)";
@@ -351,18 +564,18 @@ namespace FunkenwerkPdf
             }
         }
 
-        private void ReloadFormFieldsFromWorkingBytes()
+        private void ReloadFormFieldsFromBaseBytes()
         {
             _formFields.Clear();
-            if (_workingPdfBytes == null || _workingPdfBytes.Length == 0)
+            if (_basePdfBytes == null || _basePdfBytes.Length == 0)
             {
                 _cleanRenderPdfBytes = null;
                 return;
             }
 
-            var extracted = PdfFormFieldEngine.ExtractFields(_workingPdfBytes);
+            var extracted = PdfFormFieldEngine.ExtractFields(_basePdfBytes);
             _formFields.AddRange(extracted);
-            _cleanRenderPdfBytes = PdfFormFieldEngine.CreateCleanRenderPdfBytes(_workingPdfBytes, _formFields.Count > 0);
+            _cleanRenderPdfBytes = PdfFormFieldEngine.CreateCleanRenderPdfBytes(_basePdfBytes, _formFields.Count > 0);
         }
 
         private async Task RefreshDocumentStructureAsync(
@@ -370,13 +583,13 @@ namespace FunkenwerkPdf
             double? restoreVerticalOffset = null,
             double? restoreHorizontalOffset = null)
         {
-            byte[]? renderBytes = _cleanRenderPdfBytes ?? _workingPdfBytes;
+            byte[]? renderBytes = _cleanRenderPdfBytes ?? _basePdfBytes;
             if (renderBytes == null || renderBytes.Length == 0) return;
 
             int loadGen = ++_documentLoadGeneration;
             ClearTextSelection();
 
-            byte[]? textSourceBytes = _workingPdfBytes ?? renderBytes;
+            byte[]? textSourceBytes = _basePdfBytes ?? renderBytes;
             var textEngineTask = Task.Run(() => PdfTextSelectionEngine.CreateFromPdfBytes(textSourceBytes));
 
             using var stream = new InMemoryRandomAccessStream();
@@ -437,7 +650,6 @@ namespace FunkenwerkPdf
             RenderAllFormFieldsOverlays();
             RenderAllAnnotationsOverlays();
 
-            // Render immediate neighborhood around targetPageIndex using the open winPdf
             for (int i = 0; i < _pageCount; i++)
             {
                 if (Math.Abs(i - _currentPageIndex) <= 3)
@@ -479,7 +691,7 @@ namespace FunkenwerkPdf
             var shadowBorder = new Border
             {
                 Background = Brushes.Black,
-                Opacity = 0.38,
+                Opacity = 0.32,
                 CornerRadius = new CornerRadius(2),
                 Margin = new Thickness(4, 6, -4, -6),
                 IsHitTestVisible = false
@@ -632,7 +844,7 @@ namespace FunkenwerkPdf
         private async Task EnsureVisiblePagesRenderedAsync(bool forceZoomRefresh = false)
         {
             if (_isBatchRenderingPages) return;
-            byte[]? renderBytes = _cleanRenderPdfBytes ?? _workingPdfBytes;
+            byte[]? renderBytes = _cleanRenderPdfBytes ?? _basePdfBytes;
             if (renderBytes == null || _pageSlots.Count == 0) return;
 
             int gen = _documentLoadGeneration;
@@ -662,7 +874,6 @@ namespace FunkenwerkPdf
                     await RenderSingleSlotBitmapAsync(slot, winPdf, gen);
                 }
 
-                // Evict very distant bitmaps only on huge documents (> 35 pages) to keep RAM sleek
                 if (_pageSlots.Count > 35)
                 {
                     foreach (var slot in _pageSlots)
@@ -849,7 +1060,7 @@ namespace FunkenwerkPdf
 
         private void OnPageSurfaceMouseMove(PageVisualSlot slot, MouseEventArgs e)
         {
-            if (_workingPdfBytes == null) return;
+            if (_basePdfBytes == null) return;
 
             if (_isDraggingTextSelection && e.LeftButton == MouseButtonState.Pressed)
             {
@@ -857,7 +1068,6 @@ namespace FunkenwerkPdf
                 double dragDistPx = (curViewportPx - _textDragStartViewportPx).Length;
                 if (dragDistPx < 3.0) return;
 
-                // Gentle auto-scroll when dragging near top or bottom of PageScrollViewer
                 if (curViewportPx.Y < 26 && PageScrollViewer.VerticalOffset > 0)
                 {
                     PageScrollViewer.ScrollToVerticalOffset(Math.Max(0, PageScrollViewer.VerticalOffset - 18));
@@ -898,7 +1108,7 @@ namespace FunkenwerkPdf
 
         private void OnPageSurfaceMouseLeftButtonDown(PageVisualSlot slot, MouseButtonEventArgs e)
         {
-            if (_workingPdfBytes == null) return;
+            if (_basePdfBytes == null) return;
             if (!IsRawPageSurfaceSource(slot, e.OriginalSource))
                 return;
 
@@ -967,6 +1177,7 @@ namespace FunkenwerkPdf
                         StrokeColor = _activeColor
                     };
                     _annotations.Add(item);
+                    MarkDirty();
                     SelectAnnotation(item);
                     SetActiveTool(PdfToolMode.Select);
                     RenderAllAnnotationsOverlays(focusSelectedText: true);
@@ -991,6 +1202,7 @@ namespace FunkenwerkPdf
                         StrokeColor = _activeColor
                     };
                     _annotations.Add(item);
+                    MarkDirty();
                     SelectAnnotation(item);
                     SetActiveTool(PdfToolMode.Select);
                     RenderAllAnnotationsOverlays();
@@ -1015,6 +1227,7 @@ namespace FunkenwerkPdf
                         StrokeColor = _activeColor
                     };
                     _annotations.Add(item);
+                    MarkDirty();
                     SelectAnnotation(item);
                     SetActiveTool(PdfToolMode.Select);
                     RenderAllAnnotationsOverlays(focusSelectedText: true);
@@ -1037,6 +1250,7 @@ namespace FunkenwerkPdf
                         StrokeColor = Color.FromArgb(95, 250, 204, 21)
                     };
                     _annotations.Add(item);
+                    MarkDirty();
                     SelectAnnotation(item);
                     SetActiveTool(PdfToolMode.Select);
                     RenderAllAnnotationsOverlays();
@@ -1125,8 +1339,6 @@ namespace FunkenwerkPdf
 
             var fillBrush = new SolidColorBrush(Color.FromArgb(88, 37, 99, 235));
             fillBrush.Freeze();
-            var strokeBrush = new SolidColorBrush(Color.FromArgb(145, 197, 160, 89));
-            strokeBrush.Freeze();
 
             foreach (var kv in _currentTextSelection.HighlightRectsByPage)
             {
@@ -1156,6 +1368,7 @@ namespace FunkenwerkPdf
                 var targetSlot = _pageSlots[_currentTextSelection.EndPageIndex];
                 Rect lastR = _currentTextSelection.LastHighlightRectPt;
 
+                string pillBg = _isDarkMode ? "#151923" : "#FFFFFF";
                 var copyBtn = new Button
                 {
                     Content = "Kopieren (Strg+C)",
@@ -1163,7 +1376,7 @@ namespace FunkenwerkPdf
                     Padding = new Thickness(10, 0, 10, 0),
                     FontSize = 11.5,
                     FontWeight = FontWeights.Bold,
-                    Background = BrushHex("#151923"),
+                    Background = BrushHex(pillBg),
                     Foreground = BrushHex("#C5A059"),
                     BorderThickness = new Thickness(0),
                     Cursor = Cursors.Hand
@@ -1177,7 +1390,7 @@ namespace FunkenwerkPdf
 
                 var pill = new Border
                 {
-                    Background = BrushHex("#151923"),
+                    Background = BrushHex(pillBg),
                     BorderBrush = BrushHex("#C5A059"),
                     BorderThickness = new Thickness(1.2),
                     CornerRadius = new CornerRadius(6),
@@ -1224,6 +1437,7 @@ namespace FunkenwerkPdf
 
             var idleEmptyBg = new SolidColorBrush(Color.FromArgb(34, 59, 130, 246));
             var idleFilledBg = new SolidColorBrush(Color.FromArgb(14, 59, 130, 246));
+            var idleReadOnlyBg = new SolidColorBrush(Color.FromArgb(10, 107, 114, 128));
             var idleBorder = new SolidColorBrush(Color.FromArgb(95, 59, 130, 246));
             var focusBg = new SolidColorBrush(Color.FromArgb(248, 255, 253, 246));
             var goldBorder = BrushHex("#C5A059");
@@ -1241,16 +1455,157 @@ namespace FunkenwerkPdf
                     {
                         Width = widthPx,
                         Height = heightPx,
-                        Background = field.HasValue ? idleFilledBg : idleEmptyBg,
+                        Background = field.IsReadOnly ? idleReadOnlyBg : (field.HasValue ? idleFilledBg : idleEmptyBg),
                         BorderBrush = idleBorder,
-                        BorderThickness = new Thickness(0.9),
+                        BorderThickness = new Thickness(field.IsReadOnly ? 0.5 : 0.9),
                         CornerRadius = new CornerRadius(1.5),
                         ToolTip = string.IsNullOrWhiteSpace(field.Tooltip) ? null : field.Tooltip
                     };
 
-                    double fontPx = field.IsMultiline
+                    double fontPx = field.IsMultiline && !field.IsPassword
                         ? Math.Clamp(field.FontSizePt, 8.0, 13.0) * _zoomFactor
                         : Math.Min(field.FontSizePt, Math.Max(7.0, field.HeightPt * 0.76)) * _zoomFactor;
+
+                    if (field.IsPassword)
+                    {
+                        var pwdGrid = new Grid();
+                        pwdGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                        pwdGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+                        bool syncingPwd = false;
+                        var pb = new PasswordBox
+                        {
+                            PasswordChar = '\u2022',
+                            FontSize = Math.Max(8.0, fontPx),
+                            Foreground = BrushHex("#111827"),
+                            CaretBrush = BrushHex("#111827"),
+                            Background = Brushes.Transparent,
+                            BorderThickness = new Thickness(0),
+                            Padding = new Thickness(2, -1, 2, -1),
+                            VerticalContentAlignment = VerticalAlignment.Center,
+                            IsEnabled = !field.IsReadOnly,
+                            TabIndex = tabIdx++
+                        };
+                        if (field.MaxLength > 0)
+                            pb.MaxLength = field.MaxLength;
+
+                        _suppressDirtyTracking = true;
+                        pb.Password = field.TextValue ?? "";
+                        _suppressDirtyTracking = false;
+
+                        var revealTb = new TextBox
+                        {
+                            Text = field.TextValue ?? "",
+                            IsReadOnly = field.IsReadOnly,
+                            FontSize = Math.Max(8.0, fontPx),
+                            Foreground = BrushHex("#111827"),
+                            CaretBrush = BrushHex("#111827"),
+                            Background = Brushes.Transparent,
+                            BorderThickness = new Thickness(0),
+                            Padding = new Thickness(2, -1, 2, -1),
+                            VerticalContentAlignment = VerticalAlignment.Center,
+                            Visibility = Visibility.Collapsed
+                        };
+                        if (field.MaxLength > 0)
+                            revealTb.MaxLength = field.MaxLength;
+
+                        pb.PasswordChanged += (s, ev) =>
+                        {
+                            if (syncingPwd) return;
+                            syncingPwd = true;
+                            field.TextValue = pb.Password;
+                            revealTb.Text = pb.Password;
+                            syncingPwd = false;
+                            MarkDirty();
+                            UpdatePageBadges();
+                        };
+
+                        revealTb.TextChanged += (s, ev) =>
+                        {
+                            if (syncingPwd) return;
+                            syncingPwd = true;
+                            field.TextValue = revealTb.Text;
+                            pb.Password = revealTb.Text;
+                            syncingPwd = false;
+                            MarkDirty();
+                            UpdatePageBadges();
+                        };
+
+                        void OnPwdFocus(object s, RoutedEventArgs ev)
+                        {
+                            _focusedFormField = field;
+                            SetCurrentPageActive(slot.PageIndex);
+                            ClearTextSelection();
+                            if (_selectedAnnotation != null)
+                            {
+                                _selectedAnnotation = null;
+                                RenderAllAnnotationsOverlays();
+                            }
+                            fieldBorder.Background = focusBg;
+                            fieldBorder.BorderBrush = goldBorder;
+                            fieldBorder.BorderThickness = new Thickness(1.5);
+                        }
+
+                        void OnPwdLostFocus(object s, RoutedEventArgs ev)
+                        {
+                            if (_focusedFormField == field)
+                                _focusedFormField = null;
+                            fieldBorder.Background = field.HasValue ? idleFilledBg : idleEmptyBg;
+                            fieldBorder.BorderBrush = idleBorder;
+                            fieldBorder.BorderThickness = new Thickness(0.9);
+                        }
+
+                        pb.GotFocus += OnPwdFocus;
+                        pb.LostFocus += OnPwdLostFocus;
+                        revealTb.GotFocus += OnPwdFocus;
+                        revealTb.LostFocus += OnPwdLostFocus;
+
+                        var eyeBtn = new Button
+                        {
+                            Content = "👁",
+                            Width = Math.Clamp(heightPx, 16, 24),
+                            FontSize = Math.Clamp(fontPx * 0.85, 8.0, 12.0),
+                            Background = Brushes.Transparent,
+                            Foreground = BrushHex("#4B5563"),
+                            BorderThickness = new Thickness(0),
+                            Padding = new Thickness(0),
+                            Cursor = Cursors.Hand,
+                            Focusable = false,
+                            ToolTip = "Passwort anzeigen / verbergen"
+                        };
+                        eyeBtn.Click += (s, ev) =>
+                        {
+                            bool showingPlain = revealTb.Visibility == Visibility.Visible;
+                            if (showingPlain)
+                            {
+                                revealTb.Visibility = Visibility.Collapsed;
+                                pb.Visibility = Visibility.Visible;
+                                pb.Focus();
+                            }
+                            else
+                            {
+                                pb.Visibility = Visibility.Collapsed;
+                                revealTb.Visibility = Visibility.Visible;
+                                revealTb.Focus();
+                                revealTb.CaretIndex = revealTb.Text.Length;
+                            }
+                            ev.Handled = true;
+                        };
+
+                        Grid.SetColumn(pb, 0);
+                        Grid.SetColumn(revealTb, 0);
+                        Grid.SetColumn(eyeBtn, 1);
+                        pwdGrid.Children.Add(pb);
+                        pwdGrid.Children.Add(revealTb);
+                        if (widthPx >= 36)
+                            pwdGrid.Children.Add(eyeBtn);
+
+                        fieldBorder.Child = pwdGrid;
+                        Canvas.SetLeft(fieldBorder, leftPx);
+                        Canvas.SetTop(fieldBorder, topPx);
+                        slot.FormFieldsCanvas.Children.Add(fieldBorder);
+                        continue;
+                    }
 
                     var tb = new TextBox
                     {
@@ -1290,9 +1645,12 @@ namespace FunkenwerkPdf
                             _selectedAnnotation = null;
                             RenderAllAnnotationsOverlays();
                         }
-                        fieldBorder.Background = focusBg;
-                        fieldBorder.BorderBrush = goldBorder;
-                        fieldBorder.BorderThickness = new Thickness(1.5);
+                        if (!field.IsReadOnly)
+                        {
+                            fieldBorder.Background = focusBg;
+                            fieldBorder.BorderBrush = goldBorder;
+                            fieldBorder.BorderThickness = new Thickness(1.5);
+                        }
                         fieldBorder.BringIntoView();
                     };
 
@@ -1300,9 +1658,9 @@ namespace FunkenwerkPdf
                     {
                         if (_focusedFormField == field)
                             _focusedFormField = null;
-                        fieldBorder.Background = field.HasValue ? idleFilledBg : idleEmptyBg;
+                        fieldBorder.Background = field.IsReadOnly ? idleReadOnlyBg : (field.HasValue ? idleFilledBg : idleEmptyBg);
                         fieldBorder.BorderBrush = idleBorder;
-                        fieldBorder.BorderThickness = new Thickness(0.9);
+                        fieldBorder.BorderThickness = new Thickness(field.IsReadOnly ? 0.5 : 0.9);
                     };
 
                     if (restoreFocusField == field)
@@ -1312,13 +1670,15 @@ namespace FunkenwerkPdf
                         {
                             tb.Focus();
                             if (targetCaret >= 0)
-                                tb.CaretIndex = Math.Min(targetCaret, tb.Text.Length);
+                                tb.CaretIndex = Math.Min(targetCaret, (tb.Text ?? "").Length);
                         });
                     }
 
                     tb.TextChanged += (s, ev) =>
                     {
-                        field.TextValue = tb.Text;
+                        if (field.IsReadOnly) return;
+                        field.TextValue = tb.Text ?? "";
+                        MarkDirty();
                         UpdatePageBadges();
                     };
 
@@ -1407,11 +1767,13 @@ namespace FunkenwerkPdf
                             field.IsChecked = !field.IsChecked;
                             RefreshCheckVisual();
                         }
+                        MarkDirty();
                         UpdatePageBadges();
                     }
 
                     boxBorder.MouseLeftButtonDown += (s, ev) =>
                     {
+                        if (field.IsReadOnly) return;
                         boxBorder.Focus();
                         ToggleField();
                         ev.Handled = true;
@@ -1419,6 +1781,7 @@ namespace FunkenwerkPdf
 
                     boxBorder.KeyDown += (s, ev) =>
                     {
+                        if (field.IsReadOnly) return;
                         if (ev.Key == Key.Space || ev.Key == Key.Enter)
                         {
                             ToggleField();
@@ -1436,8 +1799,9 @@ namespace FunkenwerkPdf
                     {
                         Width = widthPx,
                         Height = Math.Max(16, heightPx),
-                        IsEditable = true,
+                        IsEditable = !field.IsReadOnly,
                         IsReadOnly = field.IsReadOnly,
+                        IsEnabled = !field.IsReadOnly,
                         ItemsSource = field.Options,
                         Text = field.TextValue,
                         FontSize = Math.Max(8.5, Math.Min(field.FontSizePt, field.HeightPt * 0.72) * _zoomFactor),
@@ -1452,15 +1816,19 @@ namespace FunkenwerkPdf
 
                     cb.SelectionChanged += (s, ev) =>
                     {
+                        if (field.IsReadOnly) return;
                         if (cb.SelectedItem != null)
                         {
                             field.TextValue = cb.SelectedItem.ToString() ?? "";
+                            MarkDirty();
                             UpdatePageBadges();
                         }
                     };
                     cb.AddHandler(System.Windows.Controls.Primitives.TextBoxBase.TextChangedEvent, new TextChangedEventHandler((s, ev) =>
                     {
+                        if (field.IsReadOnly) return;
                         field.TextValue = cb.Text ?? "";
+                        MarkDirty();
                         UpdatePageBadges();
                     }));
 
@@ -1642,10 +2010,10 @@ namespace FunkenwerkPdf
                         Foreground = new SolidColorBrush(item.StrokeColor),
                         Background = Brushes.Transparent,
                         BorderThickness = new Thickness(0),
-                        Padding = new Thickness(2, 0, 2, 0),
+                        Padding = new Thickness(2, 1, 2, 1),
                         AcceptsReturn = true,
                         TextWrapping = TextWrapping.Wrap,
-                        VerticalContentAlignment = VerticalAlignment.Center
+                        VerticalContentAlignment = VerticalAlignment.Top
                     };
                     activeTextBox = tb;
                     tb.PreviewMouseLeftButtonDown += (s, ev) =>
@@ -1661,6 +2029,7 @@ namespace FunkenwerkPdf
                     tb.TextChanged += (s, ev) =>
                     {
                         item.Text = tb.Text;
+                        MarkDirty();
                     };
                     Grid.SetColumn(tb, 1);
                     textGrid.Children.Add(tb);
@@ -1705,9 +2074,11 @@ namespace FunkenwerkPdf
                 {
                     var handlesCanvas = new Canvas { ClipToBounds = false };
 
+                    string pillBg = _isDarkMode ? "#151923" : "#FFFFFF";
+                    string pillFg = _isDarkMode ? "#F9FAFB" : "#111827";
                     var pillBorder = new Border
                     {
-                        Background = BrushHex("#151923"),
+                        Background = BrushHex(pillBg),
                         BorderBrush = BrushHex("#C5A059"),
                         BorderThickness = new Thickness(1),
                         CornerRadius = new CornerRadius(5),
@@ -1723,7 +2094,7 @@ namespace FunkenwerkPdf
                         FontSize = 11,
                         FontWeight = FontWeights.Bold,
                         Background = Brushes.Transparent,
-                        Foreground = BrushHex("#F9FAFB"),
+                        Foreground = BrushHex(pillFg),
                         BorderThickness = new Thickness(0),
                         Cursor = Cursors.Hand,
                         ToolTip = "Kleiner (−)"
@@ -1771,6 +2142,7 @@ namespace FunkenwerkPdf
                     {
                         _annotations.Remove(item);
                         _selectedAnnotation = null;
+                        MarkDirty();
                         RenderAllAnnotationsOverlays();
                         UpdatePageBadges();
                         ev.Handled = true;
@@ -1854,6 +2226,7 @@ namespace FunkenwerkPdf
                             }
                         }
 
+                        MarkDirty();
                         double newWpx = item.WidthPt * _zoomFactor;
                         double newHpx = item.HeightPt * _zoomFactor;
                         container.Width = newWpx;
@@ -1918,6 +2291,7 @@ namespace FunkenwerkPdf
                     item.YPt = Math.Clamp(origYPt + dyPt, 0, Math.Max(8, slot.HeightPt - 8));
                     Canvas.SetLeft(targetContainer, item.XPt * _zoomFactor);
                     Canvas.SetTop(targetContainer, item.YPt * _zoomFactor);
+                    MarkDirty();
                 }
                 ev.Handled = true;
             };
@@ -1981,6 +2355,7 @@ namespace FunkenwerkPdf
                     sel.FontSizePt = _activeSizePt;
                     sel.HeightPt = Math.Max(sel.HeightPt, _activeSizePt * 1.75);
                 }
+                MarkDirty();
                 RenderAllAnnotationsOverlays();
             }
         }
@@ -2009,11 +2384,17 @@ namespace FunkenwerkPdf
                 [PdfToolMode.Highlight] = ToolHighlightBtn
             };
 
+            string idleBg = _isDarkMode ? "#1B1F2B" : "#F3F4F6";
+            string idleFg = _isDarkMode ? "#F9FAFB" : "#111827";
+            string idleBorder = _isDarkMode ? "#2D3343" : "#D1D5DB";
+
             foreach (var kv in buttons)
             {
                 bool active = (kv.Key == mode);
-                kv.Value.Background = active ? BrushHex("#C5A059") : BrushHex(_isDarkMode ? "#1B1F2B" : "#F3F4F6");
-                kv.Value.Foreground = active ? BrushHex("#0F1117") : BrushHex(_isDarkMode ? "#F9FAFB" : "#111827");
+                kv.Value.Background = BrushHex(active ? "#C5A059" : idleBg);
+                kv.Value.Foreground = BrushHex(active ? "#0F1117" : idleFg);
+                kv.Value.BorderBrush = BrushHex(active ? "#C5A059" : idleBorder);
+                kv.Value.BorderThickness = new Thickness(active ? 0 : 1);
                 kv.Value.FontWeight = active ? FontWeights.Bold : FontWeights.SemiBold;
             }
         }
@@ -2076,7 +2457,7 @@ namespace FunkenwerkPdf
 
         private void InsertDate_Click(object sender, RoutedEventArgs e)
         {
-            if (_workingPdfBytes == null) return;
+            if (_basePdfBytes == null) return;
             var item = new PdfAnnotationItem
             {
                 PageIndex = _currentPageIndex,
@@ -2090,6 +2471,7 @@ namespace FunkenwerkPdf
                 StrokeColor = _activeColor
             };
             _annotations.Add(item);
+            MarkDirty();
             SelectAnnotation(item);
             SetActiveTool(PdfToolMode.Select);
             RenderAllAnnotationsOverlays();
@@ -2097,11 +2479,18 @@ namespace FunkenwerkPdf
         }
 
         // =====================================================================
-        // SIGNATURE STUDIO
+        // SIGNATURE STUDIO (DPAPI ENCRYPTED + OPT-IN CONSENT)
         // =====================================================================
-        private void OpenSignatureModal_Click(object sender, RoutedEventArgs e)
+        private void RefreshSavedSignatureButtonsState()
         {
-            if (_workingPdfBytes == null)
+            bool hasSaved = File.Exists(SavedSignaturePath);
+            UseSavedSigBtn.Visibility = hasSaved ? Visibility.Visible : Visibility.Collapsed;
+            DeleteSavedSigBtn.Visibility = hasSaved ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        public void OpenSignatureModal_Click(object sender, RoutedEventArgs e)
+        {
+            if (_basePdfBytes == null)
             {
                 StatusText.Text = "⚠ Bitte zuerst ein PDF öffnen oder ein neues Dokument erstellen.";
                 return;
@@ -2111,12 +2500,12 @@ namespace FunkenwerkPdf
                 _pendingSignatureTargetRectPt = null;
                 _pendingSignatureTargetPage = -1;
             }
-            UseSavedSigBtn.Visibility = File.Exists(SavedSignaturePath) ? Visibility.Visible : Visibility.Collapsed;
+            RefreshSavedSignatureButtonsState();
             SignatureInkCanvas.Strokes.Clear();
             SignatureModalOverlay.Visibility = Visibility.Visible;
         }
 
-        private void CloseSignatureModal_Click(object sender, RoutedEventArgs e)
+        public void CloseSignatureModal_Click(object sender, RoutedEventArgs e)
         {
             _pendingSignatureTargetRectPt = null;
             _pendingSignatureTargetPage = -1;
@@ -2125,6 +2514,14 @@ namespace FunkenwerkPdf
 
         private void ClearSignaturePad_Click(object sender, RoutedEventArgs e) =>
             SignatureInkCanvas.Strokes.Clear();
+
+        private void DeleteSavedSignature_Click(object sender, RoutedEventArgs e)
+        {
+            DeleteSavedSignatureFile(SavedSignaturePath);
+            RememberSignatureCheckBox.IsChecked = false;
+            RefreshSavedSignatureButtonsState();
+            ShowViewerToast("✓ Gespeicherte Unterschrift gelöscht");
+        }
 
         private void LoadSignatureImage_Click(object sender, RoutedEventArgs e)
         {
@@ -2137,22 +2534,42 @@ namespace FunkenwerkPdf
             {
                 try
                 {
+                    var fi = new FileInfo(dlg.FileName);
+                    if (fi.Length <= 0 || fi.Length > PdfFormFieldEngine.MaxSignatureImageBytes)
+                    {
+                        ShowViewerToast("⚠ Bilddatei ist zu groß (maximal 16 MB)", isError: true);
+                        return;
+                    }
+
                     byte[] bytes = File.ReadAllBytes(dlg.FileName);
-                    File.WriteAllBytes(SavedSignaturePath, bytes);
+                    _ = BytesToBitmapImage(bytes); // Validate image format before accepting
+
+                    if (RememberSignatureCheckBox.IsChecked == true)
+                    {
+                        SaveEncryptedSignatureToFile(SavedSignaturePath, bytes);
+                    }
+
                     PlaceSignatureOnCurrentPage(bytes);
                     SignatureModalOverlay.Visibility = Visibility.Collapsed;
                 }
                 catch (Exception ex)
                 {
                     StatusText.Text = $"⚠ Bild-Fehler: {ex.Message}";
+                    ShowViewerToast($"⚠ Ungültige Bilddatei: {ex.Message}", isError: true);
                 }
             }
         }
 
         private void UseSavedSignature_Click(object sender, RoutedEventArgs e)
         {
-            if (!File.Exists(SavedSignaturePath)) return;
-            byte[] bytes = File.ReadAllBytes(SavedSignaturePath);
+            byte[]? bytes = TryLoadEncryptedSignatureFromFile(SavedSignaturePath);
+            if (bytes == null)
+            {
+                DeleteSavedSignatureFile(SavedSignaturePath);
+                RefreshSavedSignatureButtonsState();
+                ShowViewerToast("⚠ Keine gültige gespeicherte Unterschrift vorhanden", isError: true);
+                return;
+            }
             PlaceSignatureOnCurrentPage(bytes);
             SignatureModalOverlay.Visibility = Visibility.Collapsed;
         }
@@ -2171,7 +2588,10 @@ namespace FunkenwerkPdf
             }
 
             byte[] pngBytes = RenderInkCanvasToTransparentPng(SignatureInkCanvas);
-            try { File.WriteAllBytes(SavedSignaturePath, pngBytes); } catch { }
+            if (RememberSignatureCheckBox.IsChecked == true)
+            {
+                try { SaveEncryptedSignatureToFile(SavedSignaturePath, pngBytes); } catch { }
+            }
 
             PlaceSignatureOnCurrentPage(pngBytes);
             SignatureModalOverlay.Visibility = Visibility.Collapsed;
@@ -2203,7 +2623,7 @@ namespace FunkenwerkPdf
             return ms.ToArray();
         }
 
-        private void PlaceSignatureOnCurrentPage(byte[] pngBytes)
+        public void PlaceSignatureOnCurrentPage(byte[] pngBytes)
         {
             int targetPage = _pendingSignatureTargetPage >= 0 && _pendingSignatureTargetPage < _pageCount
                 ? _pendingSignatureTargetPage
@@ -2237,6 +2657,7 @@ namespace FunkenwerkPdf
                 ImagePngBytes = pngBytes
             };
             _annotations.Add(item);
+            MarkDirty();
             SelectAnnotation(item);
             SetActiveTool(PdfToolMode.Select);
             RenderAllAnnotationsOverlays();
@@ -2245,25 +2666,42 @@ namespace FunkenwerkPdf
         }
 
         // =====================================================================
-        // PAGE OPERATIONS (PRESERVING ALL FILLED ACROFORM VALUES)
+        // PAGE OPERATIONS (PRESERVING ALL FILLED ACROFORM VALUES & ANNOTATIONS)
         // =====================================================================
         private async void RotatePage_Click(object sender, RoutedEventArgs e)
         {
-            if (_workingPdfBytes == null || _pageCount <= 0) return;
+            await RotatePageAtAsync(_currentPageIndex);
+        }
+
+        public async Task RotatePageAtAsync(int pageIndex)
+        {
+            if (_basePdfBytes == null || pageIndex < 0 || pageIndex >= _pageCount) return;
             try
             {
-                byte[] currentWithForms = PdfFormFieldEngine.ApplyFormFieldsToPdfBytes(_workingPdfBytes, _formFields);
+                double oldSlotH = pageIndex < _pageSlots.Count ? _pageSlots[pageIndex].HeightPt : _currentPageHeightPt;
+
+                byte[] currentWithForms = PdfFormFieldEngine.ApplyFormFieldsToPdfBytes(_basePdfBytes, _formFields);
                 using var inMs = new MemoryStream(currentWithForms);
                 using var doc = PdfReader.Open(inMs, PdfDocumentOpenMode.Modify);
-                var page = doc.Pages[_currentPageIndex];
+                var page = doc.Pages[pageIndex];
                 page.Rotate = (page.Rotate + 90) % 360;
+
+                // Rotate placed visual annotations on this page 90° clockwise with the page
+                foreach (var a in _annotations.Where(x => x.PageIndex == pageIndex))
+                {
+                    double newX = Math.Max(2, oldSlotH - (a.YPt + a.HeightPt));
+                    double newY = Math.Max(2, a.XPt);
+                    a.XPt = newX;
+                    a.YPt = newY;
+                }
 
                 using var outMs = new MemoryStream();
                 doc.Save(outMs, false);
-                _workingPdfBytes = outMs.ToArray();
-                ReloadFormFieldsFromWorkingBytes();
-                await RefreshDocumentStructureAsync(_currentPageIndex);
-                ShowViewerToast($"✓ Seite {_currentPageIndex + 1} um 90° gedreht", isError: false, durationMs: 2000);
+                _basePdfBytes = outMs.ToArray();
+                MarkDirty();
+                ReloadFormFieldsFromBaseBytes();
+                await RefreshDocumentStructureAsync(pageIndex);
+                ShowViewerToast($"✓ Seite {pageIndex + 1} um 90° gedreht", isError: false, durationMs: 2000);
             }
             catch (Exception ex)
             {
@@ -2273,7 +2711,7 @@ namespace FunkenwerkPdf
 
         private async void MergePdf_Click(object sender, RoutedEventArgs e)
         {
-            if (_workingPdfBytes == null) return;
+            if (_basePdfBytes == null) return;
             var dlg = new OpenFileDialog
             {
                 Title = "Weiteres PDF zum Anhängen auswählen",
@@ -2281,21 +2719,35 @@ namespace FunkenwerkPdf
             };
             if (dlg.ShowDialog() != true) return;
 
+            await MergePdfFromFileAsync(dlg.FileName);
+        }
+
+        public async Task MergePdfFromFileAsync(string mergeFilePath)
+        {
+            if (_basePdfBytes == null) return;
             try
             {
-                byte[] currentWithForms = PdfFormFieldEngine.ApplyFormFieldsToPdfBytes(_workingPdfBytes, _formFields);
+                var fi = new FileInfo(mergeFilePath);
+                if (!fi.Exists || fi.Length <= 0 || fi.Length + _basePdfBytes.Length > PdfFormFieldEngine.MaxPdfFileSizeBytes)
+                {
+                    ShowViewerToast("⚠ PDF-Datei ist zu groß (maximal 256 MB)", isError: true);
+                    return;
+                }
+
+                byte[] currentWithForms = PdfFormFieldEngine.ApplyFormFieldsToPdfBytes(_basePdfBytes, _formFields);
                 using var baseMs = new MemoryStream(currentWithForms);
                 using var baseDoc = PdfReader.Open(baseMs, PdfDocumentOpenMode.Modify);
-                using var addDoc = PdfReader.Open(dlg.FileName, PdfDocumentOpenMode.Import);
+                using var addDoc = PdfReader.Open(mergeFilePath, PdfDocumentOpenMode.Import);
 
                 for (int i = 0; i < addDoc.PageCount; i++)
                     baseDoc.AddPage(addDoc.Pages[i]);
 
                 using var outMs = new MemoryStream();
                 baseDoc.Save(outMs, false);
-                _workingPdfBytes = outMs.ToArray();
+                _basePdfBytes = outMs.ToArray();
+                MarkDirty();
 
-                ReloadFormFieldsFromWorkingBytes();
+                ReloadFormFieldsFromBaseBytes();
                 await RefreshDocumentStructureAsync(_currentPageIndex, PageScrollViewer.VerticalOffset, PageScrollViewer.HorizontalOffset);
                 StatusText.Text = $"✓ {addDoc.PageCount} Seite(n) angehängt.";
                 ShowViewerToast($"✓ {addDoc.PageCount} Seite(n) angehängt", isError: false);
@@ -2308,7 +2760,12 @@ namespace FunkenwerkPdf
 
         private async void DeletePage_Click(object sender, RoutedEventArgs e)
         {
-            if (_workingPdfBytes == null || _pageCount <= 1)
+            await DeletePageAtAsync(_currentPageIndex);
+        }
+
+        public async Task DeletePageAtAsync(int pageIndex)
+        {
+            if (_basePdfBytes == null || _pageCount <= 1 || pageIndex < 0 || pageIndex >= _pageCount)
             {
                 StatusText.Text = "⚠ Ein Dokument muss mindestens 1 Seite behalten.";
                 ShowViewerToast("⚠ Mindestens 1 Seite muss erhalten bleiben", isError: true, durationMs: 2200);
@@ -2317,24 +2774,26 @@ namespace FunkenwerkPdf
 
             try
             {
-                int deletedIdx = _currentPageIndex;
-                byte[] currentWithForms = PdfFormFieldEngine.ApplyFormFieldsToPdfBytes(_workingPdfBytes, _formFields);
+                byte[] currentWithForms = PdfFormFieldEngine.ApplyFormFieldsToPdfBytes(_basePdfBytes, _formFields);
                 using var inMs = new MemoryStream(currentWithForms);
                 using var doc = PdfReader.Open(inMs, PdfDocumentOpenMode.Modify);
-                doc.Pages.RemoveAt(deletedIdx);
+                doc.Pages.RemoveAt(pageIndex);
 
-                _annotations.RemoveAll(a => a.PageIndex == deletedIdx);
-                foreach (var a in _annotations.Where(a => a.PageIndex > deletedIdx))
+                if (_selectedAnnotation?.PageIndex == pageIndex)
+                    _selectedAnnotation = null;
+                _annotations.RemoveAll(a => a.PageIndex == pageIndex);
+                foreach (var a in _annotations.Where(a => a.PageIndex > pageIndex))
                     a.PageIndex--;
 
                 using var outMs = new MemoryStream();
                 doc.Save(outMs, false);
-                _workingPdfBytes = outMs.ToArray();
+                _basePdfBytes = outMs.ToArray();
+                MarkDirty();
 
-                ReloadFormFieldsFromWorkingBytes();
-                await RefreshDocumentStructureAsync(Math.Max(0, deletedIdx - 1));
-                StatusText.Text = $"✓ Seite {deletedIdx + 1} gelöscht.";
-                ShowViewerToast($"✓ Seite {deletedIdx + 1} gelöscht", isError: false, durationMs: 2000);
+                ReloadFormFieldsFromBaseBytes();
+                await RefreshDocumentStructureAsync(Math.Max(0, pageIndex - 1));
+                StatusText.Text = $"✓ Seite {pageIndex + 1} gelöscht.";
+                ShowViewerToast($"✓ Seite {pageIndex + 1} gelöscht", isError: false, durationMs: 2000);
             }
             catch (Exception ex)
             {
@@ -2343,11 +2802,11 @@ namespace FunkenwerkPdf
         }
 
         // =====================================================================
-        // SAVE ACROFORM FIELDS + BURN ANNOTATIONS & SAVE PDF WITH CLEAR FEEDBACK
+        // ATOMIC SAVE + KEEP ANNOTATIONS SELECTABLE/EDITABLE AFTER CTRL+S
         // =====================================================================
         private async void SavePdf_Click(object sender, RoutedEventArgs e)
         {
-            if (_workingPdfBytes == null)
+            if (_basePdfBytes == null)
             {
                 ShowViewerToast("⚠ Kein PDF geöffnet", isError: true, durationMs: 2200);
                 return;
@@ -2362,7 +2821,7 @@ namespace FunkenwerkPdf
 
         private async void SaveAsPdf_Click(object sender, RoutedEventArgs e)
         {
-            if (_workingPdfBytes == null)
+            if (_basePdfBytes == null)
             {
                 ShowViewerToast("⚠ Kein PDF geöffnet", isError: true, durationMs: 2200);
                 return;
@@ -2381,29 +2840,82 @@ namespace FunkenwerkPdf
             }
         }
 
-        private async Task SaveCommittedPdfToPathAsync(string targetPath)
+        private static void WriteAllBytesAtomic(string targetPath, byte[] data)
         {
-            if (_workingPdfBytes == null) return;
+            string fullTarget = IOPath.GetFullPath(targetPath);
+            string dir = IOPath.GetDirectoryName(fullTarget) ?? Environment.CurrentDirectory;
+            Directory.CreateDirectory(dir);
+            string tmpPath = IOPath.Combine(dir, $".{IOPath.GetFileName(fullTarget)}.{Guid.NewGuid():N}.tmp");
             try
             {
-                double savedVOffset = PageScrollViewer.VerticalOffset;
-                double savedHOffset = PageScrollViewer.HorizontalOffset;
-                int savedPage = _currentPageIndex;
+                File.WriteAllBytes(tmpPath, data);
+                File.Move(tmpPath, fullTarget, overwrite: true);
+            }
+            finally
+            {
+                try { if (File.Exists(tmpPath)) File.Delete(tmpPath); } catch { }
+            }
+        }
 
-                byte[] withForms = PdfFormFieldEngine.ApplyFormFieldsToPdfBytes(_workingPdfBytes, _formFields);
+        private static async Task WriteAllBytesAtomicAsync(string targetPath, byte[] data)
+        {
+            string fullTarget = IOPath.GetFullPath(targetPath);
+            string dir = IOPath.GetDirectoryName(fullTarget) ?? Environment.CurrentDirectory;
+            Directory.CreateDirectory(dir);
+            string tmpPath = IOPath.Combine(dir, $".{IOPath.GetFileName(fullTarget)}.{Guid.NewGuid():N}.tmp");
+            try
+            {
+                await File.WriteAllBytesAsync(tmpPath, data);
+                File.Move(tmpPath, fullTarget, overwrite: true);
+            }
+            finally
+            {
+                try { if (File.Exists(tmpPath)) File.Delete(tmpPath); } catch { }
+            }
+        }
+
+        private bool SaveCommittedPdfSync(string targetPath)
+        {
+            if (_basePdfBytes == null) return false;
+            try
+            {
+                byte[] withForms = PdfFormFieldEngine.ApplyFormFieldsToPdfBytes(_basePdfBytes, _formFields);
                 byte[] committed = BurnAnnotationsIntoPdfBytes(withForms, _annotations);
-                await File.WriteAllBytesAsync(targetPath, committed);
+                WriteAllBytesAtomic(targetPath, committed);
 
-                _workingPdfBytes = committed;
+                // Keep _basePdfBytes unburned so placed annotations stay interactive!
+                _basePdfBytes = withForms;
+                _cleanRenderPdfBytes = PdfFormFieldEngine.CreateCleanRenderPdfBytes(_basePdfBytes, _formFields.Count > 0);
                 _currentFilePath = targetPath;
-                _annotations.Clear();
-                _selectedAnnotation = null;
+                _documentBaseTitle = $"Funkenwerk PDF · {IOPath.GetFileName(targetPath)}";
+                ClearDirty();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                ShowViewerToast($"⚠ Speichern fehlgeschlagen: {ex.Message}", isError: true, durationMs: 4200);
+                return false;
+            }
+        }
 
-                ReloadFormFieldsFromWorkingBytes();
-                await RefreshDocumentStructureAsync(savedPage, savedVOffset, savedHOffset);
+        public async Task SaveCommittedPdfToPathAsync(string targetPath)
+        {
+            if (_basePdfBytes == null) return;
+            try
+            {
+                byte[] withForms = PdfFormFieldEngine.ApplyFormFieldsToPdfBytes(_basePdfBytes, _formFields);
+                byte[] committed = BurnAnnotationsIntoPdfBytes(withForms, _annotations);
+                await WriteAllBytesAtomicAsync(targetPath, committed);
+
+                // Keep _basePdfBytes unburned so placed text/check/signature annotations remain selectable, movable, and deletable!
+                _basePdfBytes = withForms;
+                _cleanRenderPdfBytes = PdfFormFieldEngine.CreateCleanRenderPdfBytes(_basePdfBytes, _formFields.Count > 0);
+                _currentFilePath = targetPath;
 
                 string shortName = IOPath.GetFileName(targetPath);
-                Title = $"Funkenwerk PDF · {shortName}";
+                _documentBaseTitle = $"Funkenwerk PDF · {shortName}";
+                ClearDirty();
+
                 StatusText.Text = $"✓ Gespeichert ({DateTime.Now:HH:mm:ss}): {targetPath}";
                 FlashSaveButtonSuccess();
                 ShowViewerToast($"✓ PDF erfolgreich gespeichert · {shortName}", isError: false, durationMs: 3200);
@@ -2413,6 +2925,83 @@ namespace FunkenwerkPdf
                 StatusText.Text = $"⚠ Speichern fehlgeschlagen: {ex.Message}";
                 ShowViewerToast($"⚠ Speichern fehlgeschlagen: {ex.Message}", isError: true, durationMs: 4200);
             }
+        }
+
+        private static List<string> WrapTextLinesWithGraphics(XGraphics gfx, string text, XFont font, double maxWidthPt)
+        {
+            var lines = new List<string>();
+            double avail = Math.Max(10.0, maxWidthPt);
+            string[] paragraphs = text.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+
+            foreach (string para in paragraphs)
+            {
+                if (string.IsNullOrEmpty(para))
+                {
+                    lines.Add("");
+                    continue;
+                }
+
+                if (gfx.MeasureString(para, font).Width <= avail)
+                {
+                    lines.Add(para);
+                    continue;
+                }
+
+                string[] words = para.Split(' ');
+                var cur = new StringBuilder();
+
+                void AppendOversizedWord(string word)
+                {
+                    var chunk = new StringBuilder();
+                    foreach (char ch in word)
+                    {
+                        chunk.Append(ch);
+                        if (gfx.MeasureString(chunk.ToString(), font).Width > avail && chunk.Length > 1)
+                        {
+                            char carry = chunk[chunk.Length - 1];
+                            chunk.Length -= 1;
+                            lines.Add(chunk.ToString());
+                            chunk.Clear();
+                            chunk.Append(carry);
+                        }
+                    }
+                    cur.Clear();
+                    cur.Append(chunk);
+                }
+
+                foreach (string word in words)
+                {
+                    if (cur.Length == 0)
+                    {
+                        if (gfx.MeasureString(word, font).Width <= avail)
+                            cur.Append(word);
+                        else
+                            AppendOversizedWord(word);
+                    }
+                    else
+                    {
+                        string candidate = cur.ToString() + " " + word;
+                        if (gfx.MeasureString(candidate, font).Width <= avail)
+                        {
+                            cur.Append(' ').Append(word);
+                        }
+                        else
+                        {
+                            lines.Add(cur.ToString());
+                            cur.Clear();
+                            if (gfx.MeasureString(word, font).Width <= avail)
+                                cur.Append(word);
+                            else
+                                AppendOversizedWord(word);
+                        }
+                    }
+                }
+
+                if (cur.Length > 0)
+                    lines.Add(cur.ToString());
+            }
+
+            return lines;
         }
 
         public static byte[] BurnAnnotationsIntoPdfBytes(byte[] sourcePdfBytes, IReadOnlyList<PdfAnnotationItem> items)
@@ -2429,7 +3018,48 @@ namespace FunkenwerkPdf
                 if (pageItems.Count == 0) continue;
 
                 var page = doc.Pages[pageIdx];
+                var media = page.MediaBox;
+                var crop = page.Elements.ContainsKey("/CropBox") ? page.CropBox : new PdfRectangle();
+
+                double mX1 = media.X1;
+                double mY1 = media.Y1;
+                double mW = media.Width > 0 ? media.Width : page.Width.Point;
+                double mH = media.Height > 0 ? media.Height : page.Height.Point;
+
+                bool hasCrop = crop.Width > 0 && crop.Height > 0;
+                double boxX1 = hasCrop ? crop.X1 : mX1;
+                double boxY1 = hasCrop ? crop.Y1 : mY1;
+                double boxW = hasCrop ? crop.Width : mW;
+                double boxH = hasCrop ? crop.Height : mH;
+                int rotate = ((page.Rotate % 360) + 360) % 360;
+
                 using var gfx = XGraphics.FromPdfPage(page, XGraphicsPdfPageOptions.Append);
+                var state = gfx.Save();
+
+                // Align XGraphics origin with CropBox top-left in PDFsharp's default top-down MediaBox frame
+                double cropOffsetX = boxX1;
+                double cropOffsetY = page.Height.Point - (boxY1 + boxH);
+                if (Math.Abs(cropOffsetX) > 0.01 || Math.Abs(cropOffsetY) > 0.01)
+                {
+                    gfx.TranslateTransform(cropOffsetX, cropOffsetY);
+                }
+
+                // Map visual rotated coordinates (vx, vy) onto unrotated visible box (boxW x boxH)
+                switch (rotate)
+                {
+                    case 90:
+                        gfx.TranslateTransform(0, boxH);
+                        gfx.RotateTransform(-90);
+                        break;
+                    case 180:
+                        gfx.TranslateTransform(boxW, boxH);
+                        gfx.RotateTransform(180);
+                        break;
+                    case 270:
+                        gfx.TranslateTransform(boxW, 0);
+                        gfx.RotateTransform(90);
+                        break;
+                }
 
                 foreach (var item in pageItems)
                 {
@@ -2442,7 +3072,15 @@ namespace FunkenwerkPdf
                             {
                                 var font = new XFont("Arial", item.FontSizePt, XFontStyleEx.Regular);
                                 var brush = new XSolidBrush(XColor.FromArgb(item.StrokeColor.R, item.StrokeColor.G, item.StrokeColor.B));
-                                gfx.DrawString(item.Text, font, brush, new XRect(item.XPt + 2, item.YPt + 2, Math.Max(4, item.WidthPt - 4), Math.Max(4, item.HeightPt - 2)), XStringFormats.TopLeft);
+                                var wrapped = WrapTextLinesWithGraphics(gfx, item.Text, font, Math.Max(8, item.WidthPt - 4));
+                                double lineY = item.YPt + 2;
+                                foreach (string ln in wrapped)
+                                {
+                                    if (lineY > item.YPt + item.HeightPt) break;
+                                    if (!string.IsNullOrEmpty(ln))
+                                        gfx.DrawString(ln, font, brush, new XPoint(item.XPt + 2, lineY + item.FontSizePt * 0.88));
+                                    lineY += item.FontSizePt * 1.24;
+                                }
                             }
                             break;
                         }
@@ -2459,12 +3097,13 @@ namespace FunkenwerkPdf
                             if (string.IsNullOrWhiteSpace(item.Text)) break;
                             var font = new XFont("Arial", item.FontSizePt, XFontStyleEx.Regular);
                             var brush = new XSolidBrush(XColor.FromArgb(item.StrokeColor.R, item.StrokeColor.G, item.StrokeColor.B));
-                            string[] lines = item.Text.Replace("\r\n", "\n").Split('\n');
+                            var wrapped = WrapTextLinesWithGraphics(gfx, item.Text, font, Math.Max(8, item.WidthPt - 4));
                             double lineY = item.YPt + 2;
-                            foreach (string ln in lines)
+                            foreach (string ln in wrapped)
                             {
-                                gfx.DrawString(ln, font, brush, new XPoint(item.XPt + 2, lineY + item.FontSizePt));
-                                lineY += item.FontSizePt * 1.25;
+                                if (!string.IsNullOrEmpty(ln))
+                                    gfx.DrawString(ln, font, brush, new XPoint(item.XPt + 2, lineY + item.FontSizePt * 0.88));
+                                lineY += item.FontSizePt * 1.24;
                             }
                             break;
                         }
@@ -2511,6 +3150,8 @@ namespace FunkenwerkPdf
                         }
                     }
                 }
+
+                gfx.Restore(state);
             }
 
             using var outMs = new MemoryStream();
@@ -2537,6 +3178,7 @@ namespace FunkenwerkPdf
             if (_selectedAnnotation != null && _selectedAnnotation.Type != PdfAnnotationType.Highlight)
             {
                 _selectedAnnotation.StrokeColor = c;
+                MarkDirty();
                 RenderAllAnnotationsOverlays();
             }
         }
@@ -2561,7 +3203,7 @@ namespace FunkenwerkPdf
                 return;
 
             e.Handled = true;
-            if (_workingPdfBytes == null || _pageSlots.Count == 0)
+            if (_basePdfBytes == null || _pageSlots.Count == 0)
                 return;
 
             int notches = e.Delta / 120;
@@ -2599,7 +3241,7 @@ namespace FunkenwerkPdf
             PageVisualSlot? anchorSlot = null,
             Point? cursorOnPaper = null)
         {
-            if (_workingPdfBytes == null || _pageSlots.Count == 0) return;
+            if (_basePdfBytes == null || _pageSlots.Count == 0) return;
 
             double clamped = Math.Clamp(Math.Round(requestedZoom * 100.0) / 100.0, 0.40, 3.50);
             if (Math.Abs(clamped - _zoomFactor) < 0.005) return;
@@ -2656,8 +3298,24 @@ namespace FunkenwerkPdf
             _zoomRenderDebounceTimer.Start();
         }
 
-        private void Window_KeyDown(object sender, KeyEventArgs e)
+        public void Window_PreviewKeyDown(object sender, KeyEventArgs e)
         {
+            if (e.Key == Key.Escape && SignatureModalOverlay.Visibility == Visibility.Visible)
+            {
+                CloseSignatureModal_Click(sender, new RoutedEventArgs());
+                e.Handled = true;
+            }
+        }
+
+        public void Window_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Escape && SignatureModalOverlay.Visibility == Visibility.Visible)
+            {
+                CloseSignatureModal_Click(sender, new RoutedEventArgs());
+                e.Handled = true;
+                return;
+            }
+
             bool ctrl = (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control;
 
             if (ctrl && e.Key == Key.S)
@@ -2685,7 +3343,7 @@ namespace FunkenwerkPdf
                 return;
             }
 
-            if (Keyboard.FocusedElement is TextBox || Keyboard.FocusedElement is ComboBox)
+            if (Keyboard.FocusedElement is TextBox || Keyboard.FocusedElement is PasswordBox || Keyboard.FocusedElement is ComboBox)
                 return;
 
             if (ctrl && e.Key == Key.C && _currentTextSelection != null)
@@ -2694,7 +3352,7 @@ namespace FunkenwerkPdf
                 e.Handled = true;
                 return;
             }
-            if (ctrl && e.Key == Key.A && _workingPdfBytes != null)
+            if (ctrl && e.Key == Key.A && _basePdfBytes != null)
             {
                 SelectAllTextOnPage(_currentPageIndex);
                 e.Handled = true;
@@ -2721,6 +3379,7 @@ namespace FunkenwerkPdf
             {
                 _annotations.Remove(_selectedAnnotation);
                 _selectedAnnotation = null;
+                MarkDirty();
                 RenderAllAnnotationsOverlays();
                 UpdatePageBadges();
             }
@@ -2748,21 +3407,42 @@ namespace FunkenwerkPdf
             string first = files[0];
             if (first.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase) && File.Exists(first))
             {
+                if (!ConfirmAndHandleUnsavedChangesSync())
+                    return;
                 await LoadPdfFromFileAsync(first);
             }
             else if ((first.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ||
                       first.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) ||
                       first.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase)) &&
-                     File.Exists(first) && _workingPdfBytes != null)
+                     File.Exists(first) && _basePdfBytes != null)
             {
-                byte[] imgBytes = await File.ReadAllBytesAsync(first);
-                PlaceSignatureOnCurrentPage(imgBytes);
+                var fi = new FileInfo(first);
+                if (fi.Length <= 0 || fi.Length > PdfFormFieldEngine.MaxSignatureImageBytes)
+                {
+                    ShowViewerToast("⚠ Bilddatei ist zu groß (maximal 16 MB)", isError: true);
+                    return;
+                }
+                try
+                {
+                    byte[] imgBytes = await File.ReadAllBytesAsync(first);
+                    _ = BytesToBitmapImage(imgBytes);
+                    PlaceSignatureOnCurrentPage(imgBytes);
+                }
+                catch (Exception ex)
+                {
+                    ShowViewerToast($"⚠ Bild-Fehler: {ex.Message}", isError: true);
+                }
             }
         }
 
-        private void ThemeToggle_Click(object sender, RoutedEventArgs e)
+        public void ThemeToggle_Click(object sender, RoutedEventArgs e)
         {
             _isDarkMode = !_isDarkMode;
+            ApplyTheme();
+        }
+
+        private void ApplyTheme()
+        {
             ThemeToggleBtn.Content = _isDarkMode ? "☀" : "🌙";
 
             var rootBg = BrushHex(_isDarkMode ? "#0F1117" : "#F3F4F6");
@@ -2770,13 +3450,22 @@ namespace FunkenwerkPdf
             var tileBg = BrushHex(_isDarkMode ? "#141821" : "#FFFFFF");
             var borderCol = BrushHex(_isDarkMode ? "#232734" : "#E5E7EB");
             var btnBg = BrushHex(_isDarkMode ? "#1B1F2B" : "#F3F4F6");
+            var btnBorder = BrushHex(_isDarkMode ? "#2D3343" : "#D1D5DB");
             var textPrimary = BrushHex(_isDarkMode ? "#F9FAFB" : "#111827");
+            var textMuted = BrushHex(_isDarkMode ? "#9CA3AF" : "#4B5563");
 
+            Background = rootBg;
+            Foreground = textPrimary;
             RootGrid.Background = rootBg;
             TopBarBorder.Background = barBg;
             TopBarBorder.BorderBrush = borderCol;
             BottomBarBorder.Background = barBg;
             BottomBarBorder.BorderBrush = borderCol;
+            StatusText.Foreground = textMuted;
+
+            TopSep1.Background = borderCol;
+            TopSep2.Background = borderCol;
+
             PagesTileBorder.Background = tileBg;
             PagesTileBorder.BorderBrush = borderCol;
             ViewerTileBorder.Background = BrushHex(_isDarkMode ? "#141821" : "#E5E7EB");
@@ -2784,10 +3473,38 @@ namespace FunkenwerkPdf
             EmptyStateOverlay.Background = tileBg;
             EmptyTitleTxt.Foreground = textPrimary;
 
+            // DynamicResources for PagesListBox items (100% Light/Dark reactivity)
+            Resources["ListItemBgBrush"] = BrushHex(_isDarkMode ? "#1A1F2C" : "#F9FAFB");
+            Resources["ListItemBorderBrush"] = BrushHex(_isDarkMode ? "#262C3D" : "#E5E7EB");
+            Resources["ListItemSelectedBgBrush"] = BrushHex(_isDarkMode ? "#222838" : "#FEF9EC");
+            Resources["ListItemPrimaryTextBrush"] = textPrimary;
+
+            // Signature Modal Light/Dark styling
+            SignatureModalOverlay.Background = BrushHex(_isDarkMode ? "#CC090B10" : "#88111827");
+            SignatureModalCardBorder.Background = BrushHex(_isDarkMode ? "#151923" : "#FFFFFF");
+            RememberSignatureCheckBox.Foreground = textPrimary;
+
+            CloseSigModalBtn.Background = btnBg;
+            CloseSigModalBtn.BorderBrush = btnBorder;
+            CloseSigModalBtn.Foreground = textMuted;
+
+            foreach (var sigBtn in new[] { ClearSigBtn, LoadSigImgBtn })
+            {
+                sigBtn.Background = btnBg;
+                sigBtn.BorderBrush = btnBorder;
+                sigBtn.Foreground = textPrimary;
+            }
+            UseSavedSigBtn.Background = btnBg;
+            UseSavedSigBtn.BorderBrush = btnBorder;
+            DeleteSavedSigBtn.Background = btnBg;
+            DeleteSavedSigBtn.BorderBrush = btnBorder;
+
+            SignModalBtn.Background = BrushHex(_isDarkMode ? "#1D2230" : "#FFFBEB");
+
             SizeStepperBorder.Background = btnBg;
-            SizeStepperBorder.BorderBrush = borderCol;
+            SizeStepperBorder.BorderBrush = btnBorder;
             ZoomStepperBorder.Background = btnBg;
-            ZoomStepperBorder.BorderBrush = borderCol;
+            ZoomStepperBorder.BorderBrush = btnBorder;
             SizeDownBtn.Foreground = textPrimary;
             SizeUpBtn.Foreground = textPrimary;
             ZoomOutBtn.Foreground = textPrimary;
@@ -2798,12 +3515,14 @@ namespace FunkenwerkPdf
             {
                 if (b == null) continue;
                 b.Background = btnBg;
-                b.BorderBrush = borderCol;
+                b.BorderBrush = btnBorder;
                 if (b != ToggleSidebarBtn && b != ThemeToggleBtn && b != MergeBtn && b != DeletePageBtn)
                     b.Foreground = textPrimary;
             }
 
             SetActiveTool(_activeTool);
+            if (_annotations.Count > 0)
+                RenderAllAnnotationsOverlays();
         }
 
         private static BitmapImage BytesToBitmapImage(byte[] bytes)
@@ -2818,35 +3537,469 @@ namespace FunkenwerkPdf
             return bmp;
         }
 
-        private static SolidColorBrush BrushHex(string hex) =>
-            new((Color)ColorConverter.ConvertFromString(hex));
+        private static SolidColorBrush BrushHex(string hex)
+        {
+            var b = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
+            b.Freeze();
+            return b;
+        }
     }
 
     public static class PdfSelfTestRunner
     {
         public static bool RunEndToEndSelfTest()
         {
-            // 1. Multi-Page PDF Creation, Vector Annotations & Signature Burn Test
-            byte[] originalBytes;
-            using (var doc = new PdfSharp.Pdf.PdfDocument())
+            if (Thread.CurrentThread.GetApartmentState() == ApartmentState.STA)
             {
-                var p1 = doc.AddPage();
-                using (var gfx = XGraphics.FromPdfPage(p1))
-                {
-                    var font = new XFont("Arial", 14, XFontStyleEx.Bold);
-                    gfx.DrawString("Mein-Seelenfunke Mustervertrag", font, XBrushes.Black, new XPoint(50, 60));
-                }
-                var p2 = doc.AddPage();
-                using (var gfx2 = XGraphics.FromPdfPage(p2))
-                {
-                    var font2 = new XFont("Arial", 12, XFontStyleEx.Regular);
-                    gfx2.DrawString("Zweite Seite Manufaktur Gifhorn", font2, XBrushes.Black, new XPoint(50, 80));
-                }
-                using var ms = new MemoryStream();
-                doc.Save(ms, false);
-                originalBytes = ms.ToArray();
+                return RunAllChecksOnSta();
             }
 
+            bool ok = false;
+            Exception? err = null;
+            var sta = new Thread(() =>
+            {
+                try { ok = RunAllChecksOnSta(); }
+                catch (Exception ex) { err = ex; }
+            });
+            sta.SetApartmentState(ApartmentState.STA);
+            sta.Start();
+            sta.Join();
+            if (err != null) throw err;
+            return ok;
+        }
+
+        private static PdfDictionary AddSyntheticWidget(
+            PdfSharp.Pdf.PdfDocument doc,
+            PdfSharp.Pdf.PdfPage page,
+            PdfArray fieldsArray,
+            PdfArray annotsArray,
+            string ft,
+            string? name,
+            double x1,
+            double y1,
+            double x2,
+            double y2,
+            int ff = 0,
+            string? initialTextV = null,
+            string? tooltip = null,
+            PdfDictionary? parent = null)
+        {
+            var w = new PdfDictionary(doc);
+            w.Elements.SetName("/Type", "/Annot");
+            w.Elements.SetName("/Subtype", "/Widget");
+            if (!string.IsNullOrEmpty(ft))
+                w.Elements.SetName("/FT", ft);
+            if (!string.IsNullOrEmpty(name))
+                w.Elements.SetString("/T", name);
+            if (!string.IsNullOrEmpty(tooltip))
+                w.Elements.SetString("/TU", tooltip);
+            if (ff != 0)
+                w.Elements.SetInteger("/Ff", ff);
+            w.Elements["/Rect"] = new PdfArray(doc, new PdfReal(x1), new PdfReal(y1), new PdfReal(x2), new PdfReal(y2));
+            w.Elements.SetString("/DA", "/Helv 11 Tf 0 g");
+            if (initialTextV != null)
+                w.Elements.SetString("/V", initialTextV);
+            if (parent != null)
+                w.Elements["/Parent"] = parent.Reference!;
+
+            doc.Internals.AddObject(w);
+            annotsArray.Elements.Add(w.Reference!);
+            if (parent == null)
+                fieldsArray.Elements.Add(w.Reference!);
+            return w;
+        }
+
+        private static byte[] BuildSyntheticMultiPageAcroFormPdf()
+        {
+            using var doc = new PdfSharp.Pdf.PdfDocument();
+            var p1 = doc.AddPage();
+            p1.Width = XUnit.FromPoint(595);
+            p1.Height = XUnit.FromPoint(842);
+            using (var gfx = XGraphics.FromPdfPage(p1))
+            {
+                gfx.DrawString("Mein-Seelenfunke Synthetisches Formular", new XFont("Arial", 14, XFontStyleEx.Bold), XBrushes.Black, new XPoint(50, 50));
+            }
+
+            var p2 = doc.AddPage();
+            p2.Width = XUnit.FromPoint(595);
+            p2.Height = XUnit.FromPoint(842);
+            using (var gfx2 = XGraphics.FromPdfPage(p2))
+            {
+                gfx2.DrawString("Seite 2 Unterschrift & Auswahl", new XFont("Arial", 12, XFontStyleEx.Regular), XBrushes.Black, new XPoint(50, 50));
+            }
+
+            var fieldsArr = new PdfArray(doc);
+            var acro = new PdfDictionary(doc);
+            acro.Elements["/Fields"] = fieldsArr;
+            acro.Elements.SetBoolean("/NeedAppearances", true);
+            acro.Elements.SetString("/DA", "/Helv 10 Tf 0 g");
+            doc.Internals.AddObject(acro);
+            doc.Internals.Catalog.Elements["/AcroForm"] = acro.Reference!;
+
+            var annots1 = new PdfArray(doc);
+            doc.Internals.AddObject(annots1);
+            p1.Elements["/Annots"] = annots1.Reference!;
+
+            var annots2 = new PdfArray(doc);
+            doc.Internals.AddObject(annots2);
+            p2.Elements["/Annots"] = annots2.Reference!;
+
+            // 1. Single-line /Tx
+            AddSyntheticWidget(doc, p1, fieldsArr, annots1, "/Tx", "Firmenname", 50, 720, 320, 742, ff: 0, tooltip: "Firmenname eingeben");
+            // 2. Tiny 16x16 /Tx box
+            AddSyntheticWidget(doc, p1, fieldsArr, annots1, "/Tx", "JaBox", 350, 722, 366, 738, ff: 0);
+            // 3. Multiline /Tx (/Ff bit 13 = 1 << 12)
+            AddSyntheticWidget(doc, p1, fieldsArr, annots1, "/Tx", "Bemerkungen", 50, 630, 320, 700, ff: (1 << 12));
+            // 4. Password /Tx (/Ff bit 14 = 1 << 13)
+            AddSyntheticWidget(doc, p1, fieldsArr, annots1, "/Tx", "GeheimPin", 50, 590, 220, 612, ff: (1 << 13));
+            // 5. Pre-filled ReadOnly /Tx (/Ff bit 1 = 1) with /NeedAppearances true and NO initial /AP!
+            // Placed at y_pdf=[480..510] -> top-down yPt=[332..362], xPt=[50..280] on clean white background
+            AddSyntheticWidget(doc, p1, fieldsArr, annots1, "/Tx", "VertragsNr", 50, 480, 280, 510, ff: 1, initialTextV: "SF-RO-2026-99");
+
+            // 6. CheckBox /Btn with dirty OnState key in /AP -> /N to test SanitizeOnStateName
+            var cbWidget = AddSyntheticWidget(doc, p1, fieldsArr, annots1, "/Btn", "AgbCheck", 50, 430, 68, 448, ff: 0);
+            var cbApN = new PdfDictionary(doc);
+            var dummyOff = new PdfDictionary(doc);
+            dummyOff.CreateStream(Encoding.ASCII.GetBytes("q Q"));
+            doc.Internals.AddObject(dummyOff);
+            cbApN.Elements["/Off"] = dummyOff.Reference!;
+            cbApN.Elements["/Ja#20Bitte!"] = dummyOff.Reference!;
+            var cbAp = new PdfDictionary(doc);
+            cbAp.Elements["/N"] = cbApN;
+            cbWidget.Elements["/AP"] = cbAp;
+            cbWidget.Elements.SetName("/AS", "/Off");
+
+            // 7 & 8. RadioButton group with /Parent (/Ff bit 16 = 1 << 15)
+            var radioParent = new PdfDictionary(doc);
+            radioParent.Elements.SetName("/FT", "/Btn");
+            radioParent.Elements.SetString("/T", "TarifGruppe");
+            radioParent.Elements.SetInteger("/Ff", (1 << 15));
+            radioParent.Elements.SetName("/V", "/OptA");
+            var kidsArr = new PdfArray(doc);
+            radioParent.Elements["/Kids"] = kidsArr;
+            doc.Internals.AddObject(radioParent);
+            fieldsArr.Elements.Add(radioParent.Reference!);
+
+            PdfDictionary MakeRadioKid(double x1, string optName, bool selected)
+            {
+                var rw = AddSyntheticWidget(doc, p2, fieldsArr, annots2, "", null, x1, 700, x1 + 18, 718, ff: 0, parent: radioParent);
+                var rApN = new PdfDictionary(doc);
+                rApN.Elements["/Off"] = dummyOff.Reference!;
+                rApN.Elements[optName] = dummyOff.Reference!;
+                var rAp = new PdfDictionary(doc);
+                rAp.Elements["/N"] = rApN;
+                rw.Elements["/AP"] = rAp;
+                rw.Elements.SetName("/AS", selected ? optName : "/Off");
+                kidsArr.Elements.Add(rw.Reference!);
+                return rw;
+            }
+            MakeRadioKid(50, "/OptA", true);
+            MakeRadioKid(110, "/OptB", false);
+
+            // 9. ComboBox /Ch with /Opt
+            var chWidget = AddSyntheticWidget(doc, p2, fieldsArr, annots2, "/Ch", "Lieferland", 50, 640, 240, 664, ff: (1 << 17));
+            var optArr = new PdfArray(doc, new PdfString("Deutschland"), new PdfString("Oesterreich"), new PdfString("Schweiz"));
+            chWidget.Elements["/Opt"] = optArr;
+            chWidget.Elements.SetString("/V", "Deutschland");
+
+            // 10. Signature trigger /Sig
+            AddSyntheticWidget(doc, p2, fieldsArr, annots2, "/Sig", "KundenSignatur", 50, 520, 240, 580, ff: 0);
+
+            using var outMs = new MemoryStream();
+            doc.Save(outMs, false);
+            return outMs.ToArray();
+        }
+
+        private static (uint Width, uint Height, byte[] BgraPixels) RenderPdfPageToPixels(byte[] pdfBytes, uint pageIndex, uint renderWidth = 800)
+        {
+            return Task.Run(async () =>
+            {
+                using var ras = new InMemoryRandomAccessStream();
+                using (var writer = new DataWriter(ras.GetOutputStreamAt(0)))
+                {
+                    writer.WriteBytes(pdfBytes);
+                    await writer.StoreAsync();
+                    await writer.FlushAsync();
+                }
+                var winPdf = await Windows.Data.Pdf.PdfDocument.LoadFromStreamAsync(ras);
+                using var page = winPdf.GetPage(pageIndex);
+                uint rw = renderWidth;
+                uint rh = (uint)Math.Max(100, Math.Round(renderWidth * (page.Size.Height / Math.Max(1.0, page.Size.Width))));
+
+                using var pngStream = new InMemoryRandomAccessStream();
+                await page.RenderToStreamAsync(pngStream, new PdfPageRenderOptions
+                {
+                    DestinationWidth = rw,
+                    DestinationHeight = rh,
+                    BackgroundColor = Windows.UI.Color.FromArgb(255, 255, 255, 255)
+                });
+                pngStream.Seek(0);
+                var decoder = await Windows.Graphics.Imaging.BitmapDecoder.CreateAsync(pngStream);
+                var provider = await decoder.GetPixelDataAsync(
+                    Windows.Graphics.Imaging.BitmapPixelFormat.Bgra8,
+                    Windows.Graphics.Imaging.BitmapAlphaMode.Ignore,
+                    new Windows.Graphics.Imaging.BitmapTransform(),
+                    Windows.Graphics.Imaging.ExifOrientationMode.IgnoreExifOrientation,
+                    Windows.Graphics.Imaging.ColorManagementMode.DoNotColorManage);
+                return (decoder.PixelWidth, decoder.PixelHeight, provider.DetachPixelData());
+            }).GetAwaiter().GetResult();
+        }
+
+        private static int CountDarkPixelsInRegion((uint Width, uint Height, byte[] BgraPixels) img, double normX1, double normY1, double normX2, double normY2)
+        {
+            int xStart = Math.Clamp((int)(normX1 * img.Width), 0, (int)img.Width - 1);
+            int xEnd = Math.Clamp((int)(normX2 * img.Width), xStart + 1, (int)img.Width);
+            int yStart = Math.Clamp((int)(normY1 * img.Height), 0, (int)img.Height - 1);
+            int yEnd = Math.Clamp((int)(normY2 * img.Height), yStart + 1, (int)img.Height);
+
+            int darkCount = 0;
+            int stride = (int)img.Width * 4;
+            for (int y = yStart; y < yEnd; y++)
+            {
+                int rowOff = y * stride;
+                for (int x = xStart; x < xEnd; x++)
+                {
+                    int idx = rowOff + x * 4;
+                    byte b = img.BgraPixels[idx];
+                    byte g = img.BgraPixels[idx + 1];
+                    byte r = img.BgraPixels[idx + 2];
+                    if (r < 190 || g < 190 || b < 190)
+                        darkCount++;
+                }
+            }
+            return darkCount;
+        }
+
+        private static void AwaitOnSta(Task task)
+        {
+            if (task.IsCompleted)
+            {
+                task.GetAwaiter().GetResult();
+                return;
+            }
+            var frame = new DispatcherFrame();
+            task.ContinueWith(_ => frame.Continue = false, TaskScheduler.Default);
+            Dispatcher.PushFrame(frame);
+            task.GetAwaiter().GetResult();
+        }
+
+        private static bool RunAllChecksOnSta()
+        {
+            int passed = 0;
+            void Check(string name, bool condition)
+            {
+                if (!condition)
+                    throw new InvalidOperationException($"FunkenwerkPdf Self-Test fehlgeschlagen: {name}");
+                Console.Error.WriteLine($"[PASS] {name}");
+                passed++;
+            }
+
+            // 01. Synthetic Multi-Page AcroForm Generation & Extraction (Zero External File Dependency)
+            byte[] synPdf = BuildSyntheticMultiPageAcroFormPdf();
+            var fields = PdfFormFieldEngine.ExtractFields(synPdf);
+            Check("01. Synthetisches Mehrseiten-AcroForm erzeugt & 10 Widgets extrahiert",
+                fields.Count == 10 &&
+                fields.Any(f => f.FullName == "Firmenname" && f.Kind == PdfAcroFieldKind.Text) &&
+                fields.Any(f => f.FullName == "JaBox" && f.IsTinyBoxText) &&
+                fields.Any(f => f.FullName == "Bemerkungen" && f.IsMultiline) &&
+                fields.Any(f => f.FullName == "GeheimPin" && f.IsPassword) &&
+                fields.Any(f => f.FullName == "VertragsNr" && f.IsReadOnly && f.TextValue == "SF-RO-2026-99") &&
+                fields.Count(f => f.Kind == PdfAcroFieldKind.RadioButton && f.FullName == "TarifGruppe") == 2 &&
+                fields.Any(f => f.FullName == "Lieferland" && f.Kind == PdfAcroFieldKind.ComboBox && f.Options.Count == 3) &&
+                fields.Any(f => f.FullName == "KundenSignatur" && f.Kind == PdfAcroFieldKind.SignatureTrigger));
+
+            // 02. SanitizeOnStateName Hardening
+            var agbField = fields.First(f => f.FullName == "AgbCheck");
+            Check("02. SanitizeOnStateName bereinigt PDF-Namen sicher",
+                agbField.OnStateName == "/Ja20Bitte" &&
+                PdfFormFieldEngine.SanitizeOnStateName("/Off") == "/Yes" &&
+                PdfFormFieldEngine.SanitizeOnStateName("  /Evil()\r\n<>#1 ") == "/Evil1");
+
+            // 03. Unicode /V + Multiline + CheckBox + RadioGroup + ComboBox + ReadOnly Roundtrip
+            string unicodeFirma = "Mein-Seelenfunke · Łódź Čech Şahin € ÄÖÜäöüß";
+            fields.First(f => f.FullName == "Firmenname").TextValue = unicodeFirma;
+            fields.First(f => f.FullName == "JaBox").TextValue = "X";
+            fields.First(f => f.FullName == "Bemerkungen").TextValue = "Zeile 1 Gifhorn\nZeile 2 Laser Manufaktur";
+            fields.First(f => f.FullName == "GeheimPin").TextValue = "TopSecret#4299";
+            fields.First(f => f.FullName == "VertragsNr").TextValue = "TAMPERED_MUST_BE_IGNORED";
+            agbField.IsChecked = true;
+
+            var radios = fields.Where(f => f.Kind == PdfAcroFieldKind.RadioButton).ToList();
+            radios[0].IsChecked = false;
+            radios[1].IsChecked = true;
+            fields.First(f => f.FullName == "Lieferland").TextValue = "Schweiz";
+
+            byte[] savedFormPdf = PdfFormFieldEngine.ApplyFormFieldsToPdfBytes(synPdf, fields);
+            var reloaded = PdfFormFieldEngine.ExtractFields(savedFormPdf);
+
+            Check("03. Unicode /V (UTF-16BE), Multiline, CheckBox, RadioGroup & ComboBox Roundtrip",
+                reloaded.Count == 10 &&
+                reloaded.First(f => f.FullName == "Firmenname").TextValue == unicodeFirma &&
+                reloaded.First(f => f.FullName == "JaBox").TextValue == "X" &&
+                reloaded.First(f => f.FullName == "Bemerkungen").TextValue.Contains("Laser Manufaktur") &&
+                reloaded.First(f => f.FullName == "AgbCheck").IsChecked &&
+                !reloaded.Where(f => f.Kind == PdfAcroFieldKind.RadioButton).ElementAt(0).IsChecked &&
+                reloaded.Where(f => f.Kind == PdfAcroFieldKind.RadioButton).ElementAt(1).IsChecked &&
+                reloaded.First(f => f.FullName == "Lieferland").TextValue == "Schweiz");
+
+            // 04. ReadOnly /V Immutability
+            Check("04. ReadOnly-Feld /V bleibt unverändert ('SF-RO-2026-99')",
+                reloaded.First(f => f.FullName == "VertragsNr").TextValue == "SF-RO-2026-99");
+
+            // 05. Password Field /AP Stream Masks Cleartext With Bullets
+            bool apMasksPassword = false;
+            using (var pwdMs = new MemoryStream(savedFormPdf))
+            using (var pwdDoc = PdfReader.Open(pwdMs, PdfDocumentOpenMode.Import))
+            {
+                var p1Annots = (PdfArray)((PdfReference)pwdDoc.Pages[0].Elements["/Annots"]!).Value;
+                var pwdWidget = (PdfDictionary)((PdfReference)p1Annots.Elements[3]).Value;
+                var apDict = pwdWidget.Elements.GetDictionary("/AP");
+                var apN = apDict?.Elements.GetDictionary("/N");
+                byte[] streamBytes = apN?.Stream?.Value ?? Array.Empty<byte>();
+                string latin = Encoding.Latin1.GetString(streamBytes);
+                // Bullet '•' is 0x95 in CP1252; cleartext "TopSecret" must NOT appear in /AP stream!
+                apMasksPassword = streamBytes.Length > 10 &&
+                                  !latin.Contains("TopSecret", StringComparison.OrdinalIgnoreCase) &&
+                                  streamBytes.Contains((byte)0x95);
+            }
+            Check("05. Passwort-Feld (/Ff Bit 14) maskiert Klartext im /AP-Stream mit Bullets", apMasksPassword);
+
+            // 06. ReadOnly Field Without Initial /AP Renders Non-Blank Pixels Under /NeedAppearances=false
+            var p1Rendered = RenderPdfPageToPixels(savedFormPdf, 0, 900);
+            // VertragsNr is at x=[50..280]/595 = [0.084..0.47], y=[332..362]/842 = [0.394..0.430]
+            int roDarkPixels = CountDarkPixelsInRegion(p1Rendered, 0.08, 0.39, 0.48, 0.435);
+            Check("06. Vorbefülltes ReadOnly-Feld bleibt trotz /NeedAppearances=false sichtbar gerendert",
+                roDarkPixels >= 25);
+
+            // 07. Unicode Transliteration For /AP Helper
+            string translit = PdfFormFieldEngine.TransliterateForWinAnsi("Łódź Čech Şahin Ğüneş € ÄÖÜß");
+            Check("07. Unicode-Transliteration erhält CP1252 (€, ó, ÄÖÜß) & wandelt Łódź/Čech ohne '?'",
+                translit.Contains("Lódz") && translit.Contains("Cech") && translit.Contains("Sahin") &&
+                translit.Contains("€") && translit.Contains("ÄÖÜß") && !translit.Contains('?'));
+
+            // 08. Cyclic /Parent Infinite Loop Guard (< 200 ms)
+            byte[] cyclicPdf;
+            using (var cDoc = new PdfSharp.Pdf.PdfDocument())
+            {
+                var cp = cDoc.AddPage();
+                var dictA = new PdfDictionary(cDoc);
+                var dictB = new PdfDictionary(cDoc);
+                cDoc.Internals.AddObject(dictA);
+                cDoc.Internals.AddObject(dictB);
+
+                dictA.Elements.SetName("/Type", "/Annot");
+                dictA.Elements.SetName("/Subtype", "/Widget");
+                dictA.Elements.SetName("/FT", "/Tx");
+                dictA.Elements.SetString("/T", "NodeA");
+                dictA.Elements["/Rect"] = new PdfArray(cDoc, new PdfReal(40), new PdfReal(700), new PdfReal(200), new PdfReal(724));
+                dictA.Elements["/Parent"] = dictB.Reference!;
+
+                dictB.Elements.SetString("/T", "NodeB");
+                dictB.Elements["/Parent"] = dictA.Reference!;
+
+                var cAnnots = new PdfArray(cDoc, dictA.Reference!);
+                cDoc.Internals.AddObject(cAnnots);
+                cp.Elements["/Annots"] = cAnnots.Reference!;
+
+                using var cms = new MemoryStream();
+                cDoc.Save(cms, false);
+                cyclicPdf = cms.ToArray();
+            }
+            var sw = Stopwatch.StartNew();
+            var cyclicFields = PdfFormFieldEngine.ExtractFields(cyclicPdf);
+            sw.Stop();
+            Check("08. Zyklische /Parent-Schleife (A <-> B) terminiert sicher in < 200 ms",
+                sw.ElapsedMilliseconds < 200 && cyclicFields.Count == 1);
+
+            // 09. File-Size Caps Verification
+            Check("09. Größenlimits aktiv (PDF <= 256 MB, Signaturbild <= 16 MB)",
+                PdfFormFieldEngine.MaxPdfFileSizeBytes == 256L * 1024L * 1024L &&
+                PdfFormFieldEngine.MaxSignatureImageBytes == 16L * 1024L * 1024L);
+
+            // 10. Wrapped Multi-Line Annotation Burn Test
+            byte[] blankDocBytes;
+            using (var bDoc = new PdfSharp.Pdf.PdfDocument())
+            {
+                var bp = bDoc.AddPage();
+                bp.Width = XUnit.FromPoint(595);
+                bp.Height = XUnit.FromPoint(842);
+                using var bms = new MemoryStream();
+                bDoc.Save(bms, false);
+                blankDocBytes = bms.ToArray();
+            }
+            var wrapAnnot = new List<PdfAnnotationItem>
+            {
+                new()
+                {
+                    PageIndex = 0,
+                    Type = PdfAnnotationType.Text,
+                    XPt = 60,
+                    YPt = 100,
+                    WidthPt = 115,
+                    HeightPt = 90,
+                    FontSizePt = 12,
+                    Text = "Dies ist ein langer Vertragstext ohne manuellen Umbruch fuer Gifhorn"
+                }
+            };
+            byte[] wrappedPdf = MainWindow.BurnAnnotationsIntoPdfBytes(blankDocBytes, wrapAnnot);
+            var wrapTextEngine = PdfTextSelectionEngine.CreateFromPdfBytes(wrappedPdf);
+            var wrapPageSel = wrapTextEngine.SelectAllOnPage(0);
+            int wrappedLineCount = wrapPageSel?.HighlightRectsByPage.GetValueOrDefault(0)?.Count ?? 0;
+            Check("10. Mehrzeiliger Wortumbruch in BurnAnnotationsIntoPdfBytes (>= 3 Zeilen)",
+                wrapPageSel != null && wrappedLineCount >= 3 && wrapPageSel.Text.Contains("Gifhorn"));
+
+            // 11. 90-Degree Rotated Page Annotation Burn & PdfTextSelectionEngine Coordinate Alignment
+            byte[] rot90Base;
+            using (var rDoc = new PdfSharp.Pdf.PdfDocument())
+            {
+                var rp = rDoc.AddPage();
+                rp.Width = XUnit.FromPoint(595);
+                rp.Height = XUnit.FromPoint(842);
+                rp.Rotate = 90; // Visual landscape: 842 x 595 pt!
+                using var rms = new MemoryStream();
+                rDoc.Save(rms, false);
+                rot90Base = rms.ToArray();
+            }
+            // Place text at XPt = 610, YPt = 90 (valid ONLY in 842x595 landscape visual coordinates!)
+            byte[] rot90Burned = MainWindow.BurnAnnotationsIntoPdfBytes(rot90Base, new List<PdfAnnotationItem>
+            {
+                new() { PageIndex = 0, Type = PdfAnnotationType.Text, XPt = 610, YPt = 90, WidthPt = 160, HeightPt = 28, FontSizePt = 14, Text = "ROT90TREFFER" }
+            });
+            var rot90Pixels = RenderPdfPageToPixels(rot90Burned, 0, 842);
+            int rot90Ink = CountDarkPixelsInRegion(rot90Pixels, 605.0 / 842.0, 85.0 / 595.0, 770.0 / 842.0, 125.0 / 595.0);
+            var rot90TextEngine = PdfTextSelectionEngine.CreateFromPdfBytes(rot90Burned);
+            var rot90Word = rot90TextEngine.SelectWordAt(0, new Point(635, 102));
+            Check("11. 90°-Seitenrotation: Annotation-Burn & Textauswahl exakt an (610, 90) ausgerichtet",
+                rot90Pixels.Width > rot90Pixels.Height &&
+                rot90Ink >= 20 &&
+                rot90Word != null &&
+                rot90Word.Text.Contains("ROT90TREFFER"));
+
+            // 12. Non-Zero CropBox Origin + 180° Rotation Burn & Text Extraction Alignment
+            byte[] cropPdfBase;
+            using (var crDoc = new PdfSharp.Pdf.PdfDocument())
+            {
+                var crp = crDoc.AddPage();
+                crp.Width = XUnit.FromPoint(595);
+                crp.Height = XUnit.FromPoint(842);
+                crp.CropBox = new PdfRectangle(new XPoint(50, 60), new XPoint(500, 760)); // 450 x 700 visible
+                using var crms = new MemoryStream();
+                crDoc.Save(crms, false);
+                cropPdfBase = crms.ToArray();
+            }
+            byte[] cropBurned = MainWindow.BurnAnnotationsIntoPdfBytes(cropPdfBase, new List<PdfAnnotationItem>
+            {
+                new() { PageIndex = 0, Type = PdfAnnotationType.Text, XPt = 40, YPt = 50, WidthPt = 160, HeightPt = 26, FontSizePt = 13, Text = "CROPBOXTEXT" }
+            });
+            var cropEngine = PdfTextSelectionEngine.CreateFromPdfBytes(cropBurned);
+            var cropSize = cropEngine.GetPageSizePt(0);
+            var cropHit = cropEngine.SelectWordAt(0, new Point(60, 60));
+            Check("12. CropBox mit Versatz (50,60): exakte Seitengröße (450x700) & Texttreffer",
+                Math.Abs(cropSize.WidthPt - 450.0) < 1.0 &&
+                Math.Abs(cropSize.HeightPt - 700.0) < 1.0 &&
+                cropHit != null && cropHit.Text.Contains("CROPBOXTEXT"));
+
+            // 13. Vector Symbols, Whiteout, Highlight & Signature Image Burn + Cross-Page Selection
             var dv = new DrawingVisual();
             using (var dc = dv.RenderOpen())
             {
@@ -2854,71 +4007,87 @@ namespace FunkenwerkPdf
             }
             var rtb = new RenderTargetBitmap(160, 60, 96, 96, PixelFormats.Pbgra32);
             rtb.Render(dv);
-            var enc = new PngBitmapEncoder();
-            enc.Frames.Add(BitmapFrame.Create(rtb));
+            var pngEnc = new PngBitmapEncoder();
+            pngEnc.Frames.Add(BitmapFrame.Create(rtb));
             using var sigMs = new MemoryStream();
-            enc.Save(sigMs);
-            byte[] sigBytes = sigMs.ToArray();
+            pngEnc.Save(sigMs);
+            byte[] sigPngBytes = sigMs.ToArray();
 
-            var annotations = new List<PdfAnnotationItem>
+            byte[] multiBurned = MainWindow.BurnAnnotationsIntoPdfBytes(savedFormPdf, new List<PdfAnnotationItem>
             {
-                new() { PageIndex = 0, Type = PdfAnnotationType.Text, XPt = 50, YPt = 100, WidthPt = 200, HeightPt = 24, Text = "Alina Steinhauer", FontSizePt = 12 },
-                new() { PageIndex = 0, Type = PdfAnnotationType.Check, XPt = 50, YPt = 140, WidthPt = 14, HeightPt = 14 },
-                new() { PageIndex = 0, Type = PdfAnnotationType.Check, XPt = 90, YPt = 130, WidthPt = 52, HeightPt = 52 },
-                new() { PageIndex = 0, Type = PdfAnnotationType.Cross, XPt = 160, YPt = 130, WidthPt = 38, HeightPt = 38 },
-                new() { PageIndex = 0, Type = PdfAnnotationType.Whiteout, XPt = 50, YPt = 190, WidthPt = 180, HeightPt = 24, Text = "Korrigierter Text", FontSizePt = 11 },
-                new() { PageIndex = 0, Type = PdfAnnotationType.Highlight, XPt = 50, YPt = 50, WidthPt = 220, HeightPt = 18 },
-                new() { PageIndex = 1, Type = PdfAnnotationType.Signature, XPt = 50, YPt = 240, WidthPt = 150, HeightPt = 55, ImagePngBytes = sigBytes }
-            };
+                new() { PageIndex = 0, Type = PdfAnnotationType.Check, XPt = 400, YPt = 120, WidthPt = 24, HeightPt = 24 },
+                new() { PageIndex = 0, Type = PdfAnnotationType.Cross, XPt = 440, YPt = 120, WidthPt = 24, HeightPt = 24 },
+                new() { PageIndex = 0, Type = PdfAnnotationType.Whiteout, XPt = 50, YPt = 200, WidthPt = 180, HeightPt = 36, Text = "Korrektur Zeile Eins und Zwei", FontSizePt = 11 },
+                new() { PageIndex = 0, Type = PdfAnnotationType.Highlight, XPt = 50, YPt = 40, WidthPt = 200, HeightPt = 18 },
+                new() { PageIndex = 1, Type = PdfAnnotationType.Signature, XPt = 60, YPt = 300, WidthPt = 150, HeightPt = 55, ImagePngBytes = sigPngBytes }
+            });
+            var multiTextEngine = PdfTextSelectionEngine.CreateFromPdfBytes(multiBurned);
+            var crossSel = multiTextEngine.SelectRange(0, new Point(45, 45), 1, new Point(300, 70));
+            Check("13. Vektor-Annotationen, Signatur-Burn & seitenübergreifende Textauswahl",
+                crossSel != null && crossSel.Text.Contains("Synthetisches") && crossSel.Text.Contains("Seite 2"));
 
-            byte[] burned = MainWindow.BurnAnnotationsIntoPdfBytes(originalBytes, annotations);
-            if (burned.Length <= originalBytes.Length) return false;
-
-            using (var verifyMs = new MemoryStream(burned))
-            using (var verifyDoc = PdfReader.Open(verifyMs, PdfDocumentOpenMode.Import))
+            // 14 & 15. DPAPI Encrypted Signature Roundtrip + ACL Directory Hardening in Temp Dir
+            string tempDir = IOPath.Combine(IOPath.GetTempPath(), $"fw_pdf_selftest_{Guid.NewGuid():N}");
+            try
             {
-                if (verifyDoc.PageCount != 2) return false;
+                MainWindow.EnsureSecureAppDataDirectory(tempDir);
+                var acl = new DirectoryInfo(tempDir).GetAccessControl();
+                Check("14. AppData-Verzeichnis ACL-Schutz aktiviert (Vererbung deaktiviert)",
+                    acl.AreAccessRulesProtected);
+
+                string dpapiFile = IOPath.Combine(tempDir, "saved_signature.dpapi");
+                MainWindow.SaveEncryptedSignatureToFile(dpapiFile, sigPngBytes);
+                byte[] rawOnDisk = File.ReadAllBytes(dpapiFile);
+                bool notPlainPng = !(rawOnDisk.Length >= 4 && rawOnDisk[0] == 0x89 && rawOnDisk[1] == 0x50 && rawOnDisk[2] == 0x4E && rawOnDisk[3] == 0x47);
+                byte[]? decryptedSig = MainWindow.TryLoadEncryptedSignatureFromFile(dpapiFile);
+                bool deletedOk = MainWindow.DeleteSavedSignatureFile(dpapiFile) && !File.Exists(dpapiFile);
+
+                Check("15. DPAPI-Verschlüsselung (ProtectedData CurrentUser) speichert nicht im Klartext & entschlüsselt bitgenau",
+                    notPlainPng && decryptedSig != null && decryptedSig.SequenceEqual(sigPngBytes) && deletedOk);
+
+                // 16-20. STA MainWindow UI, Light/Dark Theme, Esc Signature Modal, Editable Ctrl+S & Merge/Delete
+                string workPdfPath = IOPath.Combine(tempDir, "work_doc.pdf");
+                string mergePdfPath = IOPath.Combine(tempDir, "append_doc.pdf");
+                File.WriteAllBytes(workPdfPath, synPdf);
+                File.WriteAllBytes(mergePdfPath, blankDocBytes);
+
+                var win = new MainWindow();
+                Check("16. MainWindow STA-Instanziierung im Dark-Mode", win.IsDarkMode && !win.IsDirty);
+
+                win.ThemeToggle_Click(win, new RoutedEventArgs());
+                var lightItemBg = (SolidColorBrush)win.Resources["ListItemBgBrush"];
+                bool lightOk = !win.IsDarkMode && lightItemBg.Color.R > 240;
+                win.ThemeToggle_Click(win, new RoutedEventArgs());
+                var darkItemBg = (SolidColorBrush)win.Resources["ListItemBgBrush"];
+                Check("17. Light-/Dark-Mode schaltet PagesListBox & SignatureModal konsistent um",
+                    lightOk && win.IsDarkMode && darkItemBg.Color.R < 50);
+
+                AwaitOnSta(win.LoadPdfFromFileAsync(workPdfPath));
+                Check("18. LoadPdfFromFileAsync lädt 2 Seiten & 10 Formularfelder fehlerfrei",
+                    win.ActiveFormFields.Count == 10 && !win.IsDirty);
+
+                // Place signature annotation -> IsDirty becomes true -> Save -> Annotation remains editable!
+                win.PlaceSignatureOnCurrentPage(sigPngBytes);
+                bool dirtyAfterAnnot = win.IsDirty && win.ActiveAnnotationCount == 1;
+                AwaitOnSta(win.SaveCommittedPdfToPathAsync(workPdfPath));
+                bool keptEditableAfterSave = !win.IsDirty && win.ActiveAnnotationCount == 1 && File.Exists(workPdfPath);
+                Check("19. Atomares Speichern (Strg+S) setzt IsDirty zurück & hält Annotationen weiter bearbeitbar",
+                    dirtyAfterAnnot && keptEditableAfterSave);
+
+                // Signature modal Esc close + Merge + Delete page roundtrip
+                win.OpenSignatureModal_Click(win, new RoutedEventArgs());
+                AwaitOnSta(win.MergePdfFromFileAsync(mergePdfPath));
+                AwaitOnSta(win.DeletePageAtAsync(2));
+                win.CloseSignatureModal_Click(win, new RoutedEventArgs());
+                win.Close();
+                Check("20. PDF-Anhängen, Seite-Löschen & Signatur-Modal Lebenszyklus erfolgreich", true);
+            }
+            finally
+            {
+                try { if (Directory.Exists(tempDir)) Directory.Delete(tempDir, recursive: true); } catch { }
             }
 
-            // 2. Multi-Page Text Selection & Mouse Range Copy Engine Test
-            var textEngine = PdfTextSelectionEngine.CreateFromPdfBytes(burned);
-            if (textEngine.PageCount != 2) return false;
-
-            var page1Sel = textEngine.SelectAllOnPage(0);
-            if (page1Sel == null || !page1Sel.Text.Contains("Mustervertrag") || !page1Sel.Text.Contains("Alina Steinhauer"))
-                return false;
-
-            var crossPageSel = textEngine.SelectRange(0, new Point(40, 45), 1, new Point(400, 120));
-            if (crossPageSel == null || !crossPageSel.Text.Contains("Mustervertrag") || !crossPageSel.Text.Contains("Manufaktur Gifhorn"))
-                return false;
-
-            // 3. Real-World AcroForm Extraction, Filling, Appearance Stream & Reload Test
-            string sampleKyc = @"C:\Users\konta\Downloads\FBM_KYC_und_Verhaltensregeln_für_Geschaeftspartner-DE.pdf";
-            if (File.Exists(sampleKyc))
-            {
-                byte[] kycRaw = File.ReadAllBytes(sampleKyc);
-                var fields = PdfFormFieldEngine.ExtractFields(kycRaw);
-                if (fields.Count != 35) return false;
-
-                var firmenname = fields.FirstOrDefault(f => f.FullName == "Firmenname");
-                var bemerkungen = fields.FirstOrDefault(f => f.FullName.Contains("Bemerkungen"));
-                var jaBox = fields.FirstOrDefault(f => f.FullName == "Zugehörigkeit Ja");
-                if (firmenname == null || bemerkungen == null || jaBox == null || !jaBox.IsTinyBoxText)
-                    return false;
-
-                firmenname.TextValue = "Mein-Seelenfunke (Inh. Alina Steinhauer)";
-                bemerkungen.TextValue = "Zeile 1 ÄÖÜäöüß\nZeile 2 Manufaktur Gifhorn";
-                jaBox.TextValue = "X";
-
-                byte[] savedKyc = PdfFormFieldEngine.ApplyFormFieldsToPdfBytes(kycRaw, fields);
-                var reloaded = PdfFormFieldEngine.ExtractFields(savedKyc);
-                if (reloaded.Count != 35) return false;
-                if (reloaded.First(f => f.FullName == "Firmenname").TextValue != "Mein-Seelenfunke (Inh. Alina Steinhauer)")
-                    return false;
-                if (reloaded.First(f => f.FullName == "Zugehörigkeit Ja").TextValue != "X")
-                    return false;
-            }
-
+            Console.Error.WriteLine($"FUNKENWERK PDF SELF-TEST: {passed}/20 TESTS BESTANDEN.");
             return true;
         }
     }

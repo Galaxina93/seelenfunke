@@ -30,6 +30,19 @@ class AppServiceProvider extends ServiceProvider
     {
         Schema::defaultStringLength(191);
 
+        \Illuminate\Support\Facades\RateLimiter::for('ota-check', function (\Illuminate\Http\Request $request) {
+            return \Illuminate\Cache\RateLimiting\Limit::perMinute(60)
+                ->by('ota-check:' . ($request->user()?->getAuthIdentifier() ?: $request->ip()));
+        });
+        \Illuminate\Support\Facades\RateLimiter::for('ota-download', function (\Illuminate\Http\Request $request) {
+            return \Illuminate\Cache\RateLimiting\Limit::perMinute(20)
+                ->by('ota-download:' . ($request->user()?->getAuthIdentifier() ?: $request->ip()));
+        });
+        \Illuminate\Support\Facades\RateLimiter::for('ota-publish', function (\Illuminate\Http\Request $request) {
+            return \Illuminate\Cache\RateLimiting\Limit::perMinute(10)
+                ->by('ota-publish:' . ($request->user()?->getAuthIdentifier() ?: $request->ip()));
+        });
+
         if (class_exists(\Livewire\Livewire::class)) {
             \Livewire\Livewire::addPersistentMiddleware([
                 \App\Http\Middleware\EnforcePasswordChange::class,
@@ -360,14 +373,43 @@ class AppServiceProvider extends ServiceProvider
 
         \Illuminate\Support\Facades\Event::listen(\Illuminate\Console\Events\CommandFinished::class, function (\Illuminate\Console\Events\CommandFinished $event) {
             try {
+                if (app()->runningUnitTests() || app()->environment('testing')) {
+                    return;
+                }
+
                 $cmdName = trim((string) $event->command);
-                if ($cmdName === '' || in_array($cmdName, ['schedule:run', 'schedule:finish', 'list', 'help', 'tinker'], true)) {
+                $ignoredInteractiveCommands = [
+                    '', 'schedule:run', 'schedule:finish', 'schedule:list', 'schedule:work',
+                    'list', 'help', 'tinker', 'test', 'dusk', 'inspire', 'serve', 'pail',
+                    'about', 'env', 'db', 'db:seed', 'db:show', 'db:table', 'db:monitor',
+                    'migrate', 'migrate:status', 'migrate:fresh', 'migrate:refresh', 'migrate:rollback', 'migrate:reset',
+                    'vendor:publish', 'package:discover', 'clear-compiled', 'storage:link',
+                    'optimize', 'optimize:clear', 'config:cache', 'config:clear', 'cache:clear',
+                    'route:cache', 'route:clear', 'route:list', 'view:cache', 'view:clear',
+                    'event:cache', 'event:clear', 'ai:generate-map', 'system:check-routes',
+                ];
+                if (in_array($cmdName, $ignoredInteractiveCommands, true) || str_starts_with($cmdName, 'make:') || str_starts_with($cmdName, 'ide-helper:')) {
                     return;
                 }
 
                 $cronjob = null;
                 if (class_exists(\App\Models\System\SystemCronjob::class) && Schema::hasTable('system_cronjobs')) {
-                    $cronjob = \App\Models\System\SystemCronjob::where('command', $cmdName)->first();
+                    $cronjob = \App\Models\System\SystemCronjob::where('command', $cmdName)
+                        ->orWhere('command', 'like', $cmdName . ' %')
+                        ->first();
+                }
+
+                $isOperationalCronCommand = $cronjob !== null || (bool) preg_match('/^(crm:|shop:|dhl:|funki:|backup:|gamification:|support:|system:|send-newsletters$)/', $cmdName);
+
+                if ($cronjob && $cmdName !== 'system:heartbeat' && class_exists(\App\Models\System\SystemSchedulerLog::class) && Schema::hasTable('system_scheduler_logs')) {
+                    \App\Models\System\SystemSchedulerLog::create([
+                        'task_id' => (string) $cronjob->id,
+                        'task_name' => (string) ($cronjob->name ?: $cmdName),
+                        'started_at' => now(),
+                        'finished_at' => now(),
+                        'status' => $event->exitCode === 0 ? 'success' : 'error',
+                        'output' => $event->exitCode === 0 ? 'OK' : ('Exit-Code: ' . (int) $event->exitCode),
+                    ]);
                 }
 
                 if ($event->exitCode !== 0) {
@@ -378,7 +420,7 @@ class AppServiceProvider extends ServiceProvider
                         ]);
                     }
 
-                    if (class_exists(\App\Services\System\SystemErrorLogger::class)) {
+                    if ($isOperationalCronCommand && class_exists(\App\Services\System\SystemErrorLogger::class)) {
                         \App\Services\System\SystemErrorLogger::recordCommandFailure(
                             $cmdName,
                             (int) $event->exitCode,

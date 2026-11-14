@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -18,6 +19,15 @@ namespace FunkenwerkSsh
 {
     public partial class MainWindow : Window
     {
+        public enum ActiveSessionMode
+        {
+            None,
+            PtyShell,
+            ExecShell,
+            SftpShell
+        }
+
+        private readonly string? _startupHandoffNonce;
         private List<SshConnectionProfile> _profiles = new();
         private bool _isDarkMode = true;
         private bool _isPassVisible = false;
@@ -32,15 +42,24 @@ namespace FunkenwerkSsh
         private string _currentRemoteDir = "/";
         private string _activeUserHost = "";
         private string _sftpInputBuffer = "";
+        private string _execInputBuffer = "";
+        private bool _execCommandRunning = false;
 
-        private enum TerminalSessionMode { None, PtyShell, ExecShell, SftpShell }
-        private TerminalSessionMode _sessionMode = TerminalSessionMode.None;
-
+        private ActiveSessionMode _sessionMode = ActiveSessionMode.None;
         private readonly PuTTYAnsiScreenBuffer _screen = new();
 
-        public MainWindow()
+        private bool _closeCleanupDone;
+        private bool _closeCleanupInProgress;
+
+        public bool IsDarkMode => _isDarkMode;
+        public ActiveSessionMode CurrentSessionMode => _sessionMode;
+        public string CurrentHostText => HostBox.Text;
+
+        public MainWindow(string? startupHandoffNonce = null)
         {
+            _startupHandoffNonce = string.IsNullOrWhiteSpace(startupHandoffNonce) ? null : startupHandoffNonce.Trim();
             InitializeComponent();
+            ApplyTheme();
             LoadProfilesIntoUi();
             _screen.Reset();
             _screen.WriteSystemLine("Funkenwerk SSH · Bereit. Wähle links eine Verbindung oder klicke auf VERBINDEN.");
@@ -48,62 +67,99 @@ namespace FunkenwerkSsh
             Loaded += MainWindow_Loaded;
         }
 
+        public void SetTheme(bool isDark)
+        {
+            _isDarkMode = isDark;
+            ApplyTheme();
+        }
+
         private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
-            var ticket = FunkenwerkSshSecurity.ConsumeHandoffTicket();
-            if (ticket == null || string.IsNullOrWhiteSpace(ticket.Host)) return;
+            // Only consume handoff_ticket.dpapi when explicitly launched with --handoff <nonce>
+            if (string.IsNullOrWhiteSpace(_startupHandoffNonce))
+                return;
 
-            var match = _profiles.FirstOrDefault(p =>
-                string.Equals(p.Host, ticket.Host, StringComparison.OrdinalIgnoreCase) &&
-                string.Equals(p.Username, ticket.Username, StringComparison.OrdinalIgnoreCase))
-                ?? _profiles.FirstOrDefault(p => string.Equals(p.Host, ticket.Host, StringComparison.OrdinalIgnoreCase));
-
-            if (match != null)
+            var ticket = FunkenwerkSshSecurity.ConsumeHandoffTicket(_startupHandoffNonce);
+            if (ticket == null || string.IsNullOrWhiteSpace(ticket.Host))
             {
-                match.Username = ticket.Username;
-                match.StartupDirectory = ticket.RemoteDirectory;
-                if (!string.IsNullOrEmpty(ticket.Password))
-                    match.EncryptedPassword = FunkenwerkSshSecurity.EncryptSecret(ticket.Password);
-                if (!string.IsNullOrWhiteSpace(ticket.PrivateKeyPath))
-                    match.PrivateKeyPath = ticket.PrivateKeyPath;
-                ProfilesListBox.SelectedItem = match;
+                StatusText.Text = "⚠ SSH-Handoff-Ticket ungültig oder abgelaufen.";
+                return;
+            }
+
+            // Match strictly on Host + Port + Username; NEVER overwrite another profile's credentials!
+            var exactMatch = FunkenwerkSshSecurity.FindMatchingHandoffProfile(_profiles, ticket);
+            if (exactMatch != null)
+            {
+                _suppressPassSync = true;
+                ProfilesListBox.SelectedItem = exactMatch;
+                _suppressPassSync = false;
+            }
+            else
+            {
+                // Create clean transient UI session when username or port differs from saved profiles
+                ProfilesListBox.SelectedItem = null;
             }
 
             HostBox.Text = ticket.Host;
             PortBox.Text = ticket.Port.ToString();
             UserBox.Text = ticket.Username;
             SetPasswordValue(ticket.Password);
-            _selectedPrivateKeyPath = ticket.PrivateKeyPath ?? "";
+            _selectedPrivateKeyPath = FunkenwerkSshSecurity.ResolveOpenSshKeyPath(ticket.PrivateKeyPath);
+            UpdateKeyButtonTooltip();
 
             await ConnectOrReconnectSshAsync(ticket.RemoteDirectory);
         }
 
         private void LoadProfilesIntoUi()
         {
-            _profiles = FunkenwerkSshSecurity.LoadAndImportProfiles();
-            ProfilesListBox.ItemsSource = null;
-            ProfilesListBox.ItemsSource = _profiles;
-            if (_profiles.Count > 0)
+            try
             {
-                var preferred = _profiles.FirstOrDefault(p => p.Name.Equals("Mittwald", StringComparison.OrdinalIgnoreCase))
-                                ?? _profiles.FirstOrDefault(p => p.Name.Contains("Mittwald", StringComparison.OrdinalIgnoreCase))
-                                ?? _profiles[0];
-                ProfilesListBox.SelectedItem = preferred;
+                _profiles = FunkenwerkSshSecurity.LoadAndImportProfiles();
+                ProfilesListBox.ItemsSource = null;
+                ProfilesListBox.ItemsSource = _profiles;
+                if (_profiles.Count > 0)
+                {
+                    var preferred = _profiles.FirstOrDefault(p => p.Name.Equals("Mittwald", StringComparison.OrdinalIgnoreCase))
+                                    ?? _profiles.FirstOrDefault(p => p.Name.Contains("Mittwald", StringComparison.OrdinalIgnoreCase))
+                                    ?? _profiles[0];
+                    ProfilesListBox.SelectedItem = preferred;
+                }
             }
+            catch (Exception ex)
+            {
+                _profiles = new List<SshConnectionProfile>();
+                ProfilesListBox.ItemsSource = _profiles;
+                StatusText.Text = $"🚨 Tresor-Schutz aktiv: {ex.Message}";
+            }
+        }
+
+        private void UpdateKeyButtonTooltip()
+        {
+            PickKeyBtn.ToolTip = string.IsNullOrWhiteSpace(_selectedPrivateKeyPath)
+                ? "OpenSSH Private Key wählen"
+                : $"SSH Key: {_selectedPrivateKeyPath}";
         }
 
         private void ProfilesListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
+            if (_suppressPassSync) return;
             if (ProfilesListBox.SelectedItem is not SshConnectionProfile p) return;
 
             HostBox.Text = p.Host;
             PortBox.Text = p.Port.ToString();
             UserBox.Text = p.Username;
-            SetPasswordValue(FunkenwerkSshSecurity.DecryptSecret(p.EncryptedPassword));
+            try
+            {
+                SetPasswordValue(FunkenwerkSshSecurity.DecryptSecret(p.EncryptedPassword));
+            }
+            catch (Exception ex)
+            {
+                SetPasswordValue("");
+                StatusText.Text = $"🚨 Tresor-Warnung ({p.Name}): {ex.Message}";
+            }
+
             _selectedPrivateKeyPath = p.PrivateKeyPath ?? "";
-            PickKeyBtn.ToolTip = string.IsNullOrWhiteSpace(_selectedPrivateKeyPath)
-                ? "OpenSSH Private Key wählen"
-                : $"SSH Key: {_selectedPrivateKeyPath}";
+            UpdateKeyButtonTooltip();
         }
 
         private async void ProfilesListBox_MouseDoubleClick(object sender, MouseButtonEventArgs e)
@@ -158,6 +214,7 @@ namespace FunkenwerkSsh
             if (dlg.ShowDialog() == true)
             {
                 _selectedPrivateKeyPath = dlg.FileName;
+                UpdateKeyButtonTooltip();
                 StatusText.Text = $"🔑 SSH-Key ausgewählt: {Path.GetFileName(_selectedPrivateKeyPath)}";
             }
         }
@@ -168,6 +225,8 @@ namespace FunkenwerkSsh
             HostBox.Text = "";
             PortBox.Text = "22";
             UserBox.Text = "";
+            _selectedPrivateKeyPath = "";
+            UpdateKeyButtonTooltip();
             SetPasswordValue("");
             HostBox.Focus();
         }
@@ -178,16 +237,15 @@ namespace FunkenwerkSsh
             {
                 string host = FunkenwerkSshSecurity.SanitizeHost(HostBox.Text);
                 if (string.IsNullOrWhiteSpace(host)) return;
-                int port = int.TryParse(PortBox.Text, out int pt) ? pt : 22;
+                int port = int.TryParse(PortBox.Text, out int pt) && pt > 0 && pt <= 65535 ? pt : 22;
                 string user = UserBox.Text.Trim();
                 string pass = GetPasswordValue();
 
                 if (ProfilesListBox.SelectedItem is SshConnectionProfile current &&
-                    string.Equals(current.Host, host, StringComparison.OrdinalIgnoreCase))
+                    string.Equals(current.Host, host, StringComparison.OrdinalIgnoreCase) &&
+                    current.Port == port &&
+                    string.Equals(current.Username, user, StringComparison.OrdinalIgnoreCase))
                 {
-                    current.Host = host;
-                    current.Port = port;
-                    current.Username = user;
                     current.EncryptedPassword = FunkenwerkSshSecurity.EncryptSecret(pass);
                     current.PrivateKeyPath = _selectedPrivateKeyPath;
                 }
@@ -222,6 +280,9 @@ namespace FunkenwerkSsh
         private void DeleteProfile_Click(object sender, RoutedEventArgs e)
         {
             if (ProfilesListBox.SelectedItem is not SshConnectionProfile current) return;
+            if (!ShowCleanConfirmDialog("Profil entfernen", $"Gespeichertes SSH-Profil '{current.Name}' wirklich entfernen?", "Entfernen", isDanger: true))
+                return;
+
             _profiles.Remove(current);
             FunkenwerkSshSecurity.SaveProfiles(_profiles);
             ProfilesListBox.ItemsSource = null;
@@ -257,9 +318,40 @@ namespace FunkenwerkSsh
                 }
             }
             catch { }
-            return "kontakt@mein-seelenfunke.de";
+            return Path.GetFileName(keyPath);
         }
 
+        // =====================================================================
+        // POSIX SINGLE-QUOTE COMMAND INJECTION GUARD
+        // =====================================================================
+        public static string ValidateSafeRemoteDirectoryNoControlChars(string dir)
+        {
+            if (string.IsNullOrWhiteSpace(dir))
+                throw new ArgumentException("Remote-Verzeichnis darf nicht leer sein.", nameof(dir));
+            if (dir.IndexOfAny(new[] { '\r', '\n', '\0' }) >= 0)
+                throw new ArgumentException("Steuerzeichen im Remote-Verzeichnis blockiert.", nameof(dir));
+            return dir.Trim();
+        }
+
+        /// <summary>
+        /// Quotes target directory strictly with POSIX single quotes (' -> '\'') and rejects \r, \n, \0
+        /// so $(...), `...`, $VAR, ", \, ;, |, & can NEVER execute commands!
+        /// </summary>
+        public static string BuildSafePosixCdCommand(string dir)
+        {
+            string clean = ValidateSafeRemoteDirectoryNoControlChars(dir);
+            return "cd -- '" + clean.Replace("'", "'\\''", StringComparison.Ordinal) + "' && clear\r";
+        }
+
+        public static string QuotePosixSingleArgument(string arg)
+        {
+            string clean = ValidateSafeRemoteDirectoryNoControlChars(arg);
+            return "'" + clean.Replace("'", "'\\''", StringComparison.Ordinal) + "'";
+        }
+
+        // =====================================================================
+        // SECURE SSH / EXEC / SFTP CONNECTION ENGINE
+        // =====================================================================
         private async Task ConnectOrReconnectSshAsync(string? overrideStartupDir = null)
         {
             await DisconnectSshAsync();
@@ -273,10 +365,10 @@ namespace FunkenwerkSsh
                     return;
                 }
 
-                int port = int.TryParse(PortBox.Text, out int pt) ? pt : 22;
+                int port = int.TryParse(PortBox.Text, out int pt) && pt > 0 && pt <= 65535 ? pt : 22;
                 string user = UserBox.Text.Trim();
 
-                // Automatically map Mittwald SFTP-only user (sftp-...) to the interactive SSH container user
+                // Map Mittwald SFTP-only user (sftp-...) to the interactive SSH container user
                 if (host.Equals("ssh.altgemeinde.project.host", StringComparison.OrdinalIgnoreCase) &&
                     (string.IsNullOrWhiteSpace(user) || user.StartsWith("sftp-", StringComparison.OrdinalIgnoreCase)))
                 {
@@ -291,17 +383,23 @@ namespace FunkenwerkSsh
                     return;
                 }
 
+                string rawTargetDir = !string.IsNullOrWhiteSpace(overrideStartupDir)
+                    ? overrideStartupDir
+                    : (ProfilesListBox.SelectedItem as SshConnectionProfile)?.StartupDirectory ?? "";
+
+                if (!string.IsNullOrEmpty(rawTargetDir) && rawTargetDir.IndexOfAny(new[] { '\r', '\n', '\0' }) >= 0)
+                {
+                    StatusText.Text = "🚨 Sicherheitsblockade: Steuerzeichen im Startverzeichnis erkannt!";
+                    return;
+                }
+
+                string targetDir = rawTargetDir.Trim();
                 string pass = GetPasswordValue();
                 var authMethods = new List<AuthenticationMethod>();
                 bool hasPublicKeyAuth = false;
-                string keyComment = "kontakt@mein-seelenfunke.de";
+                string keyComment = "";
 
-                if (string.IsNullOrWhiteSpace(_selectedPrivateKeyPath))
-                {
-                    string defaultKey = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".ssh", "id_ed25519");
-                    if (File.Exists(defaultKey)) _selectedPrivateKeyPath = defaultKey;
-                }
-
+                // Strictly use ONLY an explicitly configured PrivateKeyPath (never auto-load ~/.ssh/id_ed25519 when empty!)
                 if (!string.IsNullOrWhiteSpace(_selectedPrivateKeyPath) && File.Exists(_selectedPrivateKeyPath))
                 {
                     keyComment = ExtractPublicKeyComment(_selectedPrivateKeyPath);
@@ -340,7 +438,7 @@ namespace FunkenwerkSsh
 
                 if (authMethods.Count == 0)
                 {
-                    StatusText.Text = "⚠ Bitte Passwort oder SSH-Key angeben.";
+                    StatusText.Text = "⚠ Bitte Passwort oder expliziten SSH-Key angeben.";
                     return;
                 }
 
@@ -366,39 +464,93 @@ namespace FunkenwerkSsh
                 };
 
                 bool mitmAbort = false;
+                bool rejectedNewKeyAbort = false;
+                string? hostKeyVaultError = null;
                 string negotiatedKeyAlgo = "";
 
-                client.HostKeyReceived += (s, hkArgs) =>
+                void HandleHostKeyVerification(HostKeyEventArgs hkArgs)
                 {
-                    negotiatedKeyAlgo = hkArgs.HostKeyName;
-                    var verify = FunkenwerkSshSecurity.VerifyAndPinHostKey(host, port, hkArgs.HostKeyName, hkArgs.HostKey);
-                    _lastPinnedFingerprint = verify.FingerprintSha256;
-                    if (verify.IsChanged)
+                    try
                     {
-                        mitmAbort = true;
+                        negotiatedKeyAlgo = hkArgs.HostKeyName;
+                        var verify = FunkenwerkSshSecurity.VerifyAndPinHostKey(
+                            host,
+                            port,
+                            hkArgs.HostKeyName,
+                            hkArgs.HostKey,
+                            trustNewKeys: false,
+                            confirmNewKeyCallback: fp => Dispatcher.Invoke(() =>
+                                ShowCleanConfirmDialog(
+                                    "SSH-Host-Key prüfen",
+                                    $"Neuer Server-Schlüssel für '{host}:{port}' ({hkArgs.HostKeyName}):\n\n{fp}\n\nDiesem Fingerabdruck vertrauen und dauerhaft pinnen?",
+                                    "Vertrauen & Pinnen",
+                                    isDanger: false)));
+
+                        _lastPinnedFingerprint = verify.FingerprintSha256;
+                        if (verify.IsChanged)
+                        {
+                            mitmAbort = true;
+                            hkArgs.CanTrust = false;
+                        }
+                        else if (!verify.IsTrusted)
+                        {
+                            rejectedNewKeyAbort = true;
+                            hkArgs.CanTrust = false;
+                        }
+                        else
+                        {
+                            hkArgs.CanTrust = true;
+                        }
+                    }
+                    catch (Exception hkEx)
+                    {
+                        hostKeyVaultError = hkEx.Message;
                         hkArgs.CanTrust = false;
                     }
-                    else
-                    {
-                        hkArgs.CanTrust = verify.IsTrusted;
-                    }
-                };
+                }
 
-                await Task.Run(() => client.Connect());
+                client.HostKeyReceived += (_, hkArgs) => HandleHostKeyVerification(hkArgs);
 
-                if (mitmAbort)
+                try
+                {
+                    await Task.Run(() => client.Connect());
+                }
+                catch
                 {
                     client.Dispose();
-                    _screen.WriteSystemLine("🚨 Host-Key geändert! Verbindung durch MITM-Schutz blockiert.");
-                    RenderTerminalScreen();
-                    StatusText.Text = "🚨 MITM-Schutz hat die Verbindung blockiert (Host-Key geändert)!";
-                    ConnectBtn.IsEnabled = true;
+                    if (!string.IsNullOrEmpty(hostKeyVaultError))
+                    {
+                        _screen.WriteSystemLine($"🚨 Host-Key-Datenbank blockiert: {hostKeyVaultError}");
+                        RenderTerminalScreen();
+                        StatusText.Text = $"🚨 Host-Key-Datenbank blockiert: {hostKeyVaultError}";
+                        return;
+                    }
+                    if (mitmAbort)
+                    {
+                        _screen.WriteSystemLine("🚨 Host-Key geändert! Verbindung durch MITM-Schutz blockiert.");
+                        RenderTerminalScreen();
+                        StatusText.Text = "🚨 MITM-Schutz hat die Verbindung blockiert (Host-Key geändert)!";
+                        return;
+                    }
+                    if (rejectedNewKeyAbort)
+                    {
+                        _screen.WriteSystemLine("Verbindung abgebrochen (Server-Host-Key nicht bestätigt).");
+                        RenderTerminalScreen();
+                        StatusText.Text = "Verbindung abgebrochen (Server-Host-Key nicht bestätigt).";
+                        return;
+                    }
+                    throw;
+                }
+
+                if (mitmAbort || rejectedNewKeyAbort || !string.IsNullOrEmpty(hostKeyVaultError))
+                {
+                    client.Dispose();
+                    StatusText.Text = mitmAbort
+                        ? "🚨 MITM-Schutz hat die Verbindung blockiert (Host-Key geändert)!"
+                        : $"🚨 Verbindung blockiert: {hostKeyVaultError ?? "Host-Key abgelehnt."}";
                     return;
                 }
 
-                string targetDir = !string.IsNullOrWhiteSpace(overrideStartupDir)
-                    ? overrideStartupDir.Trim()
-                    : (ProfilesListBox.SelectedItem as SshConnectionProfile)?.StartupDirectory?.Trim() ?? "";
                 _currentRemoteDir = string.IsNullOrWhiteSpace(targetDir) ? "/" : targetDir;
                 _activeUserHost = $"{user}@{host}";
 
@@ -411,7 +563,7 @@ namespace FunkenwerkSsh
                 try
                 {
                     shell = await Task.Run(() => client.CreateShellStream("xterm-256color", 140, 42, 1120, 680, 8192, terminalModes));
-                    _sessionMode = TerminalSessionMode.PtyShell;
+                    _sessionMode = ActiveSessionMode.PtyShell;
                 }
                 catch
                 {
@@ -423,21 +575,20 @@ namespace FunkenwerkSsh
                             return cmd.Execute();
                         });
                         if (!string.IsNullOrWhiteSpace(testOut))
-                            _sessionMode = TerminalSessionMode.ExecShell;
+                            _sessionMode = ActiveSessionMode.ExecShell;
                     }
                     catch { }
                 }
 
-                if (_sessionMode == TerminalSessionMode.PtyShell && shell != null)
+                if (_sessionMode == ActiveSessionMode.PtyShell && shell != null)
                 {
                     _sshClient = client;
                     _shellStream = shell;
 
-                    // If a startup directory is specified (from profile or Funkenwerk FTP handoff), cd into it and clear cleanly
                     if (!string.IsNullOrWhiteSpace(targetDir) && targetDir != "/")
                     {
-                        string safeDir = targetDir.Replace("\"", "");
-                        byte[] initCmd = Encoding.UTF8.GetBytes($"cd \"{safeDir}\" && clear\r");
+                        string safeCdCmd = BuildSafePosixCdCommand(targetDir);
+                        byte[] initCmd = Encoding.UTF8.GetBytes(safeCdCmd);
                         await shell.WriteAsync(initCmd, 0, initCmd.Length);
                         await shell.FlushAsync();
                     }
@@ -445,19 +596,37 @@ namespace FunkenwerkSsh
                     _readerCts = new CancellationTokenSource();
                     _ = ReadShellStreamLoopAsync(shell, _readerCts.Token);
                 }
+                else if (_sessionMode == ActiveSessionMode.ExecShell)
+                {
+                    _sshClient = client;
+                    _execInputBuffer = "";
+
+                    if (!string.IsNullOrWhiteSpace(targetDir) && targetDir != "/")
+                    {
+                        string quotedDir = QuotePosixSingleArgument(targetDir);
+                        string resolvedDir = await Task.Run(() =>
+                        {
+                            using var c = client.CreateCommand($"cd -- {quotedDir} && pwd");
+                            return c.Execute();
+                        });
+                        string lastLine = (resolvedDir ?? "").Split('\n', StringSplitOptions.RemoveEmptyEntries).LastOrDefault()?.Trim() ?? "";
+                        if (!string.IsNullOrEmpty(lastLine))
+                            _currentRemoteDir = lastLine;
+                    }
+
+                    WritePromptBanner();
+                    RenderTerminalScreen();
+                }
                 else
                 {
                     // SFTP fallback shell for SFTP-only server accounts
                     try { client.Disconnect(); client.Dispose(); } catch { }
                     var sftp = new SftpClient(connInfo) { KeepAliveInterval = TimeSpan.FromSeconds(15) };
-                    sftp.HostKeyReceived += (s, hkArgs) =>
-                    {
-                        var verify = FunkenwerkSshSecurity.VerifyAndPinHostKey(host, port, hkArgs.HostKeyName, hkArgs.HostKey);
-                        hkArgs.CanTrust = !verify.IsChanged && verify.IsTrusted;
-                    };
+                    sftp.HostKeyReceived += (_, hkArgs) => HandleHostKeyVerification(hkArgs);
                     await Task.Run(() => sftp.Connect());
                     _sftpFallbackClient = sftp;
-                    _sessionMode = TerminalSessionMode.SftpShell;
+                    _sessionMode = ActiveSessionMode.SftpShell;
+                    _sftpInputBuffer = "";
 
                     await Task.Run(() =>
                     {
@@ -469,7 +638,7 @@ namespace FunkenwerkSsh
                         }
                         catch { _currentRemoteDir = sftp.WorkingDirectory; }
                     });
-                    _screen.ProcessAnsiStream($"\x1B[1;37m\x1B[48;2;132;122;253m {user} @ \x1B[0m\x1B[1;37m\x1B[48;2;0;84;245m [{host}] \x1B[0m\x1B[1;37m\x1B[48;2;0;199;149m {_currentRemoteDir} \x1B[0m ");
+                    WritePromptBanner();
                     RenderTerminalScreen();
                 }
 
@@ -492,6 +661,11 @@ namespace FunkenwerkSsh
             }
         }
 
+        private void WritePromptBanner()
+        {
+            _screen.ProcessAnsiStream($"\x1B[1;37m\x1B[48;2;197;160;89m {_activeUserHost} \x1B[0m\x1B[1;37m\x1B[48;2;30;64;175m {_currentRemoteDir} \x1B[0m ");
+        }
+
         private async Task ReadShellStreamLoopAsync(ShellStream stream, CancellationToken ct)
         {
             byte[] buffer = new byte[8192];
@@ -504,10 +678,10 @@ namespace FunkenwerkSsh
                         int read = await stream.ReadAsync(buffer, 0, buffer.Length, ct);
                         if (read > 0)
                         {
-                            string chunk = Encoding.UTF8.GetString(buffer, 0, read);
+                            byte[] packet = buffer.AsSpan(0, read).ToArray();
                             await Dispatcher.InvokeAsync(() =>
                             {
-                                _screen.ProcessAnsiStream(chunk);
+                                _screen.ProcessUtf8Bytes(packet, 0, packet.Length);
                                 RenderTerminalScreen();
                             });
                         }
@@ -556,7 +730,9 @@ namespace FunkenwerkSsh
                         try { sc.Dispose(); } catch { }
                     });
                 }
-                _sessionMode = TerminalSessionMode.None;
+                _sessionMode = ActiveSessionMode.None;
+                _execInputBuffer = "";
+                _sftpInputBuffer = "";
             }
             catch { }
 
@@ -564,6 +740,46 @@ namespace FunkenwerkSsh
             ConnectBtn.Background = new SolidColorBrush(Color.FromRgb(197, 160, 89));
             ConnectBtn.Foreground = new SolidColorBrush(Color.FromRgb(15, 17, 23));
             StatusText.Text = "🔒 SSHv2 Outbound-Only (0 offene Ports) · Verbindung getrennt.";
+        }
+
+        // =====================================================================
+        // BRACKETED PASTE & MULTI-LINE PASTE GUARD
+        // =====================================================================
+        public static (string Payload, string CleanedPreview, bool IsMultiLine, int LineCount) PrepareSafePastePayload(
+            string? rawClipboardText,
+            bool bracketedPasteActive)
+        {
+            if (string.IsNullOrEmpty(rawClipboardText))
+                return ("", "", false, 0);
+
+            var sb = new StringBuilder(rawClipboardText.Length);
+            foreach (char ch in rawClipboardText)
+            {
+                // Strip ESC (\x1B), DEL (\x7F), C1 controls (0x80..0x9F), and dangerous C0 controls except \t, \r, \n
+                if (ch == '\x1B' || ch == '\x7F')
+                    continue;
+                if (ch >= '\x80' && ch <= '\x9F')
+                    continue;
+                if (ch < ' ' && ch != '\t' && ch != '\r' && ch != '\n')
+                    continue;
+
+                sb.Append(ch);
+            }
+
+            string cleaned = sb.ToString();
+            if (cleaned.Length == 0)
+                return ("", "", false, 0);
+
+            bool isMultiLine = cleaned.IndexOfAny(new[] { '\r', '\n' }) >= 0;
+            string normalizedPreview = cleaned.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n');
+            int lineCount = normalizedPreview.Split('\n').Length;
+
+            string ptyText = cleaned.Replace("\r\n", "\r", StringComparison.Ordinal).Replace('\n', '\r');
+            string finalPayload = bracketedPasteActive
+                ? "\x1B[200~" + ptyText + "\x1B[201~"
+                : ptyText;
+
+            return (finalPayload, normalizedPreview, isMultiLine, lineCount);
         }
 
         // =====================================================================
@@ -576,14 +792,21 @@ namespace FunkenwerkSsh
 
         private void TerminalRichBox_MouseRightButtonUp(object sender, MouseButtonEventArgs e)
         {
-            // PuTTY behavior: Right-click pastes clipboard into terminal
             PasteClipboardToTerminal();
             e.Handled = true;
         }
 
+        public static ActiveSessionMode ResolveSessionDispatchTarget(ActiveSessionMode mode) => mode switch
+        {
+            ActiveSessionMode.PtyShell => ActiveSessionMode.PtyShell,
+            ActiveSessionMode.ExecShell => ActiveSessionMode.ExecShell,
+            ActiveSessionMode.SftpShell => ActiveSessionMode.SftpShell,
+            _ => ActiveSessionMode.None
+        };
+
         private void SendRawToShell(string data)
         {
-            if (_sessionMode == TerminalSessionMode.PtyShell && _shellStream != null && _sshClient != null && _sshClient.IsConnected)
+            if (_sessionMode == ActiveSessionMode.PtyShell && _shellStream != null && _sshClient != null && _sshClient.IsConnected)
             {
                 try
                 {
@@ -593,7 +816,11 @@ namespace FunkenwerkSsh
                 }
                 catch { }
             }
-            else if (_sessionMode == TerminalSessionMode.SftpShell)
+            else if (_sessionMode == ActiveSessionMode.ExecShell)
+            {
+                HandleExecKeyInput(data);
+            }
+            else if (_sessionMode == ActiveSessionMode.SftpShell)
             {
                 HandleSftpKeyInput(data);
             }
@@ -601,14 +828,25 @@ namespace FunkenwerkSsh
 
         private void PasteClipboardToTerminal()
         {
+            if (!IsAnySessionConnected()) return;
+
             try
             {
-                if (Clipboard.ContainsText())
+                if (!Clipboard.ContainsText()) return;
+
+                string rawText = Clipboard.GetText();
+                bool useBracketed = _sessionMode == ActiveSessionMode.PtyShell && _screen.BracketedPasteEnabled;
+                var prepared = PrepareSafePastePayload(rawText, useBracketed);
+                if (string.IsNullOrEmpty(prepared.Payload))
+                    return;
+
+                if (prepared.IsMultiLine)
                 {
-                    string text = Clipboard.GetText().Replace("\r\n", "\r").Replace("\n", "\r");
-                    if (!string.IsNullOrEmpty(text))
-                        SendRawToShell(text);
+                    if (!ShowMultiLinePasteConfirmDialog(prepared.CleanedPreview, prepared.LineCount))
+                        return;
                 }
+
+                SendRawToShell(prepared.Payload);
             }
             catch { }
         }
@@ -617,7 +855,6 @@ namespace FunkenwerkSsh
         {
             if (!IsAnySessionConnected() || string.IsNullOrEmpty(e.Text)) return;
 
-            // Ignore control characters here because PreviewKeyDown handles Enter, Backspace, Tab, Ctrl+C, Esc
             if (e.Text.Length == 1 && (e.Text[0] < 32 || e.Text[0] == 127))
             {
                 e.Handled = true;
@@ -630,18 +867,32 @@ namespace FunkenwerkSsh
 
         private void TerminalRichBox_PreviewKeyDown(object sender, KeyEventArgs e)
         {
-            if (!IsAnySessionConnected()) return;
-
             bool ctrl = (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control;
 
-            if (ctrl)
+            // Allow Ctrl+C selection copy even when disconnected
+            if (ctrl && e.Key == Key.C)
             {
-                if (e.Key == Key.C)
+                if (!TerminalRichBox.Selection.IsEmpty && !string.IsNullOrEmpty(TerminalRichBox.Selection.Text))
                 {
-                    SendRawToShell("\x03"); // SIGINT
+                    try { Clipboard.SetText(TerminalRichBox.Selection.Text); } catch { }
+                    TerminalRichBox.Selection.Select(TerminalRichBox.Selection.End, TerminalRichBox.Selection.End);
+                    StatusText.Text = "📋 Markierter Text kopiert.";
                     e.Handled = true;
                     return;
                 }
+
+                if (IsAnySessionConnected())
+                {
+                    SendRawToShell("\x03"); // SIGINT when selection is empty
+                    e.Handled = true;
+                }
+                return;
+            }
+
+            if (!IsAnySessionConnected()) return;
+
+            if (ctrl)
+            {
                 if (e.Key == Key.V)
                 {
                     PasteClipboardToTerminal();
@@ -650,13 +901,13 @@ namespace FunkenwerkSsh
                 }
                 if (e.Key == Key.D)
                 {
-                    SendRawToShell("\x04"); // EOF
+                    SendRawToShell("\x04");
                     e.Handled = true;
                     return;
                 }
                 if (e.Key == Key.L)
                 {
-                    SendRawToShell("\x0C"); // Clear
+                    SendRawToShell("\x0C");
                     e.Handled = true;
                     return;
                 }
@@ -715,12 +966,118 @@ namespace FunkenwerkSsh
             }
         }
 
+        private async void HandleExecKeyInput(string data)
+        {
+            if (_sshClient == null || !_sshClient.IsConnected || _execCommandRunning) return;
+
+            foreach (char ch in data)
+            {
+                if (ch == '\x03')
+                {
+                    _execInputBuffer = "";
+                    _screen.ProcessAnsiStream("^C\r\n");
+                    WritePromptBanner();
+                    RenderTerminalScreen();
+                }
+                else if (ch == '\x0C')
+                {
+                    _execInputBuffer = "";
+                    _screen.ClearKeepHeader();
+                    WritePromptBanner();
+                    RenderTerminalScreen();
+                }
+                else if (ch == '\r' || ch == '\n')
+                {
+                    string cmdText = _execInputBuffer.Trim();
+                    _execInputBuffer = "";
+                    _screen.ProcessAnsiStream("\r\n");
+
+                    if (cmdText == "clear" || cmdText == "cls")
+                    {
+                        _screen.ClearKeepHeader();
+                        WritePromptBanner();
+                        RenderTerminalScreen();
+                        continue;
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(cmdText))
+                    {
+                        _execCommandRunning = true;
+                        try
+                        {
+                            const string pwdMarker = "__FW_EXEC_PWD__:";
+                            string safeDirArg = QuotePosixSingleArgument(string.IsNullOrWhiteSpace(_currentRemoteDir) ? "/" : _currentRemoteDir);
+                            string fullExec = $"cd -- {safeDirArg} 2>/dev/null; {cmdText}; printf '\\n{pwdMarker}%s\\n' \"$PWD\"";
+
+                            var (stdout, stderr) = await Task.Run(() =>
+                            {
+                                using var sshCmd = _sshClient.CreateCommand(fullExec);
+                                string outStr = sshCmd.Execute();
+                                return (outStr ?? "", sshCmd.Error ?? "");
+                            });
+
+                            int markerIdx = stdout.LastIndexOf(pwdMarker, StringComparison.Ordinal);
+                            if (markerIdx >= 0)
+                            {
+                                string after = stdout.Substring(markerIdx + pwdMarker.Length).Trim();
+                                int nl = after.IndexOfAny(new[] { '\r', '\n' });
+                                string parsedPwd = (nl >= 0 ? after.Substring(0, nl) : after).Trim();
+                                if (!string.IsNullOrEmpty(parsedPwd) && parsedPwd.IndexOfAny(new[] { '\r', '\n', '\0' }) < 0)
+                                    _currentRemoteDir = parsedPwd;
+                                stdout = stdout.Substring(0, markerIdx);
+                            }
+
+                            if (!string.IsNullOrEmpty(stdout))
+                                _screen.ProcessAnsiStream(stdout.Replace("\r\n", "\n", StringComparison.Ordinal).Replace("\n", "\r\n", StringComparison.Ordinal));
+                            if (!string.IsNullOrEmpty(stderr))
+                                _screen.ProcessAnsiStream("\x1B[91m" + stderr.Replace("\r\n", "\n", StringComparison.Ordinal).Replace("\n", "\r\n", StringComparison.Ordinal) + "\x1B[0m");
+                            if (!stdout.EndsWith("\n", StringComparison.Ordinal) && !string.IsNullOrEmpty(stdout))
+                                _screen.ProcessAnsiStream("\r\n");
+                        }
+                        catch (Exception ex)
+                        {
+                            _screen.ProcessAnsiStream($"\x1B[91m{ex.Message}\x1B[0m\r\n");
+                        }
+                        finally
+                        {
+                            _execCommandRunning = false;
+                        }
+                    }
+
+                    WritePromptBanner();
+                    RenderTerminalScreen();
+                }
+                else if (ch == '\x7F' || ch == '\b')
+                {
+                    if (_execInputBuffer.Length > 0)
+                    {
+                        _execInputBuffer = _execInputBuffer.Substring(0, _execInputBuffer.Length - 1);
+                        _screen.ProcessAnsiStream("\b\x1B[K");
+                        RenderTerminalScreen();
+                    }
+                }
+                else if (ch >= 32)
+                {
+                    _execInputBuffer += ch;
+                    _screen.ProcessAnsiStream(ch.ToString());
+                    RenderTerminalScreen();
+                }
+            }
+        }
+
         private async void HandleSftpKeyInput(string data)
         {
             if (_sftpFallbackClient == null || !_sftpFallbackClient.IsConnected) return;
             foreach (char ch in data)
             {
-                if (ch == '\r' || ch == '\n')
+                if (ch == '\x03')
+                {
+                    _sftpInputBuffer = "";
+                    _screen.ProcessAnsiStream("^C\r\n");
+                    WritePromptBanner();
+                    RenderTerminalScreen();
+                }
+                else if (ch == '\r' || ch == '\n')
                 {
                     string cmd = _sftpInputBuffer.Trim();
                     _sftpInputBuffer = "";
@@ -731,8 +1088,11 @@ namespace FunkenwerkSsh
                         {
                             try
                             {
-                                if (cmd == "pwd") _screen.ProcessAnsiStream(_currentRemoteDir + "\r\n");
-                                else if (cmd.StartsWith("cd "))
+                                if (cmd == "pwd")
+                                {
+                                    _screen.ProcessAnsiStream(_currentRemoteDir + "\r\n");
+                                }
+                                else if (cmd.StartsWith("cd ", StringComparison.Ordinal))
                                 {
                                     _sftpFallbackClient.ChangeDirectory(cmd.Substring(3).Trim().Trim('"', '\''));
                                     _currentRemoteDir = _sftpFallbackClient.WorkingDirectory;
@@ -740,14 +1100,14 @@ namespace FunkenwerkSsh
                                 else if (cmd == "ls" || cmd == "ll" || cmd == "dir")
                                 {
                                     foreach (var item in _sftpFallbackClient.ListDirectory(_currentRemoteDir).Where(x => x.Name != "." && x.Name != ".."))
-                                        _screen.ProcessAnsiStream((item.IsDirectory ? $"\x1B[1;34m{item.Name}/\x1B[0m  " : $"{item.Name}  "));
+                                        _screen.ProcessAnsiStream(item.IsDirectory ? $"\x1B[1;34m{item.Name}/\x1B[0m  " : $"{item.Name}  ");
                                     _screen.ProcessAnsiStream("\r\n");
                                 }
                             }
                             catch (Exception ex) { _screen.ProcessAnsiStream($"{ex.Message}\r\n"); }
                         });
                     }
-                    _screen.ProcessAnsiStream($"\x1B[1;37m\x1B[48;2;132;122;253m {_activeUserHost} \x1B[0m\x1B[1;37m\x1B[48;2;0;199;149m {_currentRemoteDir} \x1B[0m ");
+                    WritePromptBanner();
                     RenderTerminalScreen();
                 }
                 else if (ch == '\x7F' || ch == '\b')
@@ -770,72 +1130,271 @@ namespace FunkenwerkSsh
 
         private void ClearTerminal_Click(object sender, RoutedEventArgs e)
         {
-            if (_sessionMode == TerminalSessionMode.PtyShell)
+            if (_sessionMode == ActiveSessionMode.PtyShell)
             {
                 SendRawToShell("\x0C");
             }
             else
             {
                 _screen.ClearKeepHeader();
+                if (_sessionMode == ActiveSessionMode.ExecShell || _sessionMode == ActiveSessionMode.SftpShell)
+                    WritePromptBanner();
                 RenderTerminalScreen();
             }
             TerminalRichBox.Focus();
         }
 
-        private void RenderTerminalScreen()
+        private ScrollViewer? FindTerminalScrollViewer()
         {
-            _screen.RenderInto(TerminalDoc);
-            TerminalRichBox.ScrollToEnd();
+            if (VisualTreeHelper.GetChildrenCount(TerminalRichBox) == 0) return null;
+            DependencyObject cur = VisualTreeHelper.GetChild(TerminalRichBox, 0);
+            while (cur != null)
+            {
+                if (cur is ScrollViewer sv) return sv;
+                if (VisualTreeHelper.GetChildrenCount(cur) == 0) break;
+                cur = VisualTreeHelper.GetChild(cur, 0);
+            }
+            return null;
         }
 
+        private void RenderTerminalScreen()
+        {
+            var sv = FindTerminalScrollViewer();
+            bool followBottom = sv == null ||
+                                sv.ExtentHeight <= sv.ViewportHeight ||
+                                (sv.VerticalOffset + sv.ViewportHeight >= sv.ExtentHeight - 24.0);
+            double savedOffset = sv?.VerticalOffset ?? 0.0;
+
+            _screen.RenderInto(TerminalDoc);
+
+            if (followBottom)
+            {
+                TerminalRichBox.ScrollToEnd();
+            }
+            else
+            {
+                sv?.ScrollToVerticalOffset(savedOffset);
+            }
+        }
+
+        // =====================================================================
+        // CLEAN LIGHT/DARK MODAL DIALOGS (HOST KEY & MULTI-LINE PASTE PREVIEW)
+        // =====================================================================
+        private bool ShowCleanConfirmDialog(string title, string message, string confirmLabel, bool isDanger)
+        {
+            var dlg = new Window
+            {
+                Title = title,
+                Owner = IsLoaded ? this : null,
+                WindowStartupLocation = IsLoaded ? WindowStartupLocation.CenterOwner : WindowStartupLocation.CenterScreen,
+                Width = 460,
+                SizeToContent = SizeToContent.Height,
+                ResizeMode = ResizeMode.NoResize,
+                Background = BrushHex(_isDarkMode ? "#141821" : "#FFFFFF"),
+                Foreground = BrushHex(_isDarkMode ? "#F9FAFB" : "#111827"),
+                FontFamily = new FontFamily("Segoe UI")
+            };
+
+            var root = new StackPanel { Margin = new Thickness(20) };
+            root.Children.Add(new TextBlock
+            {
+                Text = title,
+                FontSize = 15,
+                FontWeight = FontWeights.Bold,
+                Foreground = BrushHex(isDanger ? "#EF4444" : "#C5A059"),
+                Margin = new Thickness(0, 0, 0, 10)
+            });
+            root.Children.Add(new TextBlock
+            {
+                Text = message,
+                FontSize = 13,
+                TextWrapping = TextWrapping.Wrap,
+                Foreground = BrushHex(_isDarkMode ? "#F9FAFB" : "#111827"),
+                Margin = new Thickness(0, 0, 0, 18)
+            });
+
+            var btnBar = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+            var cancelBtn = new Button
+            {
+                Content = "Abbrechen",
+                IsCancel = true,
+                Height = 32,
+                Padding = new Thickness(14, 0, 14, 0),
+                Margin = new Thickness(0, 0, 8, 0),
+                Cursor = Cursors.Hand,
+                Background = BrushHex(_isDarkMode ? "#1D2230" : "#F3F4F6"),
+                Foreground = BrushHex(_isDarkMode ? "#F9FAFB" : "#111827"),
+                BorderBrush = BrushHex(_isDarkMode ? "#2D3343" : "#D1D5DB")
+            };
+            cancelBtn.Click += (_, _) => { dlg.DialogResult = false; dlg.Close(); };
+
+            var okBtn = new Button
+            {
+                Content = confirmLabel,
+                IsDefault = !isDanger,
+                Height = 32,
+                Padding = new Thickness(16, 0, 16, 0),
+                Cursor = Cursors.Hand,
+                FontWeight = FontWeights.Bold,
+                Background = BrushHex(isDanger ? "#EF4444" : "#C5A059"),
+                Foreground = isDanger ? Brushes.White : BrushHex("#0F1117"),
+                BorderThickness = new Thickness(0)
+            };
+            okBtn.Click += (_, _) => { dlg.DialogResult = true; dlg.Close(); };
+
+            btnBar.Children.Add(cancelBtn);
+            btnBar.Children.Add(okBtn);
+            root.Children.Add(btnBar);
+            dlg.Content = root;
+
+            return dlg.ShowDialog() == true;
+        }
+
+        private bool ShowMultiLinePasteConfirmDialog(string previewText, int lineCount)
+        {
+            var dlg = new Window
+            {
+                Title = "Mehrzeiliges Einfügen prüfen",
+                Owner = IsLoaded ? this : null,
+                WindowStartupLocation = IsLoaded ? WindowStartupLocation.CenterOwner : WindowStartupLocation.CenterScreen,
+                Width = 560,
+                SizeToContent = SizeToContent.Height,
+                ResizeMode = ResizeMode.NoResize,
+                Background = BrushHex(_isDarkMode ? "#141821" : "#FFFFFF"),
+                Foreground = BrushHex(_isDarkMode ? "#F9FAFB" : "#111827"),
+                FontFamily = new FontFamily("Segoe UI")
+            };
+
+            var root = new StackPanel { Margin = new Thickness(20) };
+            root.Children.Add(new TextBlock
+            {
+                Text = $"Mehrzeiliger Text ({lineCount} Zeilen / Zeilenumbruch erkannt)",
+                FontSize = 15,
+                FontWeight = FontWeights.Bold,
+                Foreground = BrushHex("#C5A059"),
+                Margin = new Thickness(0, 0, 0, 10)
+            });
+
+            var previewBox = new TextBox
+            {
+                Text = previewText.Length > 4000 ? previewText.Substring(0, 4000) + "\n..." : previewText,
+                IsReadOnly = true,
+                FontFamily = new FontFamily("Consolas, Cascadia Mono, Courier New"),
+                FontSize = 12.5,
+                MaxHeight = 220,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+                Padding = new Thickness(10),
+                Margin = new Thickness(0, 0, 0, 16),
+                Background = BrushHex(_isDarkMode ? "#0F1117" : "#F9FAFB"),
+                Foreground = BrushHex(_isDarkMode ? "#F9FAFB" : "#111827"),
+                BorderBrush = BrushHex(_isDarkMode ? "#2D3343" : "#D1D5DB")
+            };
+            root.Children.Add(previewBox);
+
+            var btnBar = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+            var cancelBtn = new Button
+            {
+                Content = "Abbrechen",
+                IsCancel = true,
+                IsDefault = true,
+                Height = 32,
+                Padding = new Thickness(14, 0, 14, 0),
+                Margin = new Thickness(0, 0, 8, 0),
+                Cursor = Cursors.Hand,
+                Background = BrushHex(_isDarkMode ? "#1D2230" : "#F3F4F6"),
+                Foreground = BrushHex(_isDarkMode ? "#F9FAFB" : "#111827"),
+                BorderBrush = BrushHex(_isDarkMode ? "#2D3343" : "#D1D5DB")
+            };
+            cancelBtn.Click += (_, _) => { dlg.DialogResult = false; dlg.Close(); };
+
+            var pasteBtn = new Button
+            {
+                Content = "In Terminal einfügen",
+                Height = 32,
+                Padding = new Thickness(16, 0, 16, 0),
+                Cursor = Cursors.Hand,
+                FontWeight = FontWeights.Bold,
+                Background = BrushHex("#C5A059"),
+                Foreground = BrushHex("#0F1117"),
+                BorderThickness = new Thickness(0)
+            };
+            pasteBtn.Click += (_, _) => { dlg.DialogResult = true; dlg.Close(); };
+
+            btnBar.Children.Add(cancelBtn);
+            btnBar.Children.Add(pasteBtn);
+            root.Children.Add(btnBar);
+            dlg.Content = root;
+
+            return dlg.ShowDialog() == true;
+        }
+
+        // =====================================================================
+        // 100% LIGHT- & DARK-MODE CONSISTENCY
+        // =====================================================================
         private void ThemeToggle_Click(object sender, RoutedEventArgs e)
         {
             _isDarkMode = !_isDarkMode;
-            ThemeToggleBtn.Content = _isDarkMode ? "☀" : "🌙";
-
-            var rootBg = BrushHex(_isDarkMode ? "#0F1117" : "#F3F4F6");
-            var barBg = BrushHex(_isDarkMode ? "#12151E" : "#FFFFFF");
-            var sideBg = BrushHex(_isDarkMode ? "#141821" : "#FFFFFF");
-            var borderCol = BrushHex(_isDarkMode ? "#232734" : "#E5E7EB");
-            var inputBg = BrushHex(_isDarkMode ? "#181C26" : "#F9FAFB");
-            var textPrimary = BrushHex(_isDarkMode ? "#F9FAFB" : "#111827");
-
-            RootGrid.Background = rootBg;
-            TopBarBorder.Background = barBg;
-            TopBarBorder.BorderBrush = borderCol;
-            BottomBarBorder.Background = barBg;
-            BottomBarBorder.BorderBrush = borderCol;
-            SidebarTileBorder.Background = sideBg;
-            SidebarTileBorder.BorderBrush = borderCol;
-
-            foreach (var tb in new[] { HostBox, PortBox, UserBox })
-            {
-                tb.Background = inputBg;
-                tb.Foreground = textPrimary;
-                tb.BorderBrush = borderCol;
-            }
-            PassContainerBorder.Background = inputBg;
-            PassContainerBorder.BorderBrush = borderCol;
-            PassBox.Foreground = textPrimary;
-            PassVisibleBox.Foreground = textPrimary;
+            ApplyTheme();
         }
 
-        private static SolidColorBrush BrushHex(string hex) =>
-            new((Color)ColorConverter.ConvertFromString(hex));
-
-        private async void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
+        private void ApplyTheme()
         {
-            await DisconnectSshAsync();
+            ThemeToggleBtn.Content = _isDarkMode ? "☀" : "🌙";
+            var res = Application.Current.Resources;
+
+            res["SshBgRoot"] = BrushHex(_isDarkMode ? "#0F1117" : "#F3F4F6");
+            res["SshBgBar"] = BrushHex(_isDarkMode ? "#12151E" : "#FFFFFF");
+            res["SshBgSidebar"] = BrushHex(_isDarkMode ? "#141821" : "#FFFFFF");
+            res["SshBgCard"] = BrushHex(_isDarkMode ? "#1A1F2C" : "#F9FAFB");
+            res["SshBgCardHover"] = BrushHex(_isDarkMode ? "#24C5A059" : "#1FC5A059");
+            res["SshBgCardSelected"] = BrushHex(_isDarkMode ? "#33C5A059" : "#2AC5A059");
+            res["SshBgInput"] = BrushHex(_isDarkMode ? "#181C26" : "#F9FAFB");
+            res["SshBgButton"] = BrushHex(_isDarkMode ? "#1B1F2B" : "#F3F4F6");
+            res["SshBorderSubtle"] = BrushHex(_isDarkMode ? "#232734" : "#E5E7EB");
+            res["SshBorderStrong"] = BrushHex(_isDarkMode ? "#2D3343" : "#D1D5DB");
+            res["SshFgPrimary"] = BrushHex(_isDarkMode ? "#F9FAFB" : "#111827");
+            res["SshFgSecondary"] = BrushHex(_isDarkMode ? "#9CA3AF" : "#4B5563");
+        }
+
+        private static SolidColorBrush BrushHex(string hex)
+        {
+            var b = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
+            b.Freeze();
+            return b;
+        }
+
+        private async void Window_Closing(object sender, CancelEventArgs e)
+        {
+            if (_closeCleanupDone) return;
+            e.Cancel = true;
+            if (_closeCleanupInProgress) return;
+            _closeCleanupInProgress = true;
+            try
+            {
+                await DisconnectSshAsync();
+            }
+            catch { }
+            finally
+            {
+                _closeCleanupDone = true;
+                _closeCleanupInProgress = false;
+            }
+            Close();
         }
     }
 
     /// <summary>
     /// PuTTY-Style VT100 / xterm-256color / 24-Bit TrueColor Screen Buffer & WPF FlowDocument Renderer.
-    /// Supports 38;2;R;G;B / 48;2;R;G;B TrueColor badges (e.g. Mittwald's Violet/Blue/Green prompt),
-    /// cursor movements, backspace/erase-in-line (\x1B[K), clear screen (\x1B[2J), and the classic PuTTY Green Block Cursor.
+    /// Hardened with strict column/row/escape DoS clamps, stateful multi-byte UTF-8 decoding across socket chunks,
+    /// DECSET ?2004h/l bracketed paste tracking, OSC 52 & DSR 5n/6n blocking, and complete VT100 cursor/erase commands.
     /// </summary>
-    internal sealed class PuTTYAnsiScreenBuffer
+    public sealed class PuTTYAnsiScreenBuffer
     {
+        public const int MaxCols = 512;
+        public const int MaxRows = 5000;
+        public const int MaxPendingEscapeLength = 4096;
+
         public struct StyledCell : IEquatable<StyledCell>
         {
             public char Ch;
@@ -851,6 +1410,7 @@ namespace FunkenwerkSsh
         }
 
         private readonly List<List<StyledCell>> _lines = new();
+        private Decoder _utf8Decoder = Encoding.UTF8.GetDecoder();
         private int _headerLineCount = 0;
         private int _row = 0;
         private int _col = 0;
@@ -859,13 +1419,20 @@ namespace FunkenwerkSsh
         private bool _curBold = false;
         private string _pendingEscape = "";
 
-        private static readonly Color DefaultFgColor = Color.FromRgb(217, 217, 217); // PuTTY light gray
-        private static readonly Color PuTTYCursorGreen = Color.FromRgb(0, 255, 0);   // Classic PuTTY #00FF00 cursor
+        public bool BracketedPasteEnabled { get; private set; }
+        public int CursorRow => _row;
+        public int CursorCol => _col;
+        public int RowCount => _lines.Count;
+        public int PendingEscapeLength => _pendingEscape.Length;
+
+        private static readonly Color DefaultFgColor = Color.FromRgb(217, 217, 217);
+        private static readonly Color PuTTYCursorGreen = Color.FromRgb(0, 255, 0);
 
         public void Reset()
         {
             _lines.Clear();
             _lines.Add(new List<StyledCell>());
+            _utf8Decoder = Encoding.UTF8.GetDecoder();
             _headerLineCount = 0;
             _row = 0;
             _col = 0;
@@ -873,6 +1440,34 @@ namespace FunkenwerkSsh
             _curBg = null;
             _curBold = false;
             _pendingEscape = "";
+            BracketedPasteEnabled = false;
+        }
+
+        public int GetLineLength(int row)
+        {
+            if (row < 0 || row >= _lines.Count) return 0;
+            return _lines[row].Count;
+        }
+
+        public string GetLineText(int row)
+        {
+            if (row < 0 || row >= _lines.Count) return "";
+            var line = _lines[row];
+            var sb = new StringBuilder(line.Count);
+            foreach (var c in line)
+                sb.Append(c.Ch == '\0' ? ' ' : c.Ch);
+            return sb.ToString();
+        }
+
+        public string GetPlainScreenText()
+        {
+            var sb = new StringBuilder();
+            for (int r = 0; r < _lines.Count; r++)
+            {
+                if (r > 0) sb.Append('\n');
+                sb.Append(GetLineText(r));
+            }
+            return sb.ToString();
         }
 
         public void WriteHeaderLine(string text)
@@ -881,9 +1476,10 @@ namespace FunkenwerkSsh
             _lines[_row].Clear();
             foreach (char c in text)
             {
+                if (_lines[_row].Count >= MaxCols) break;
                 _lines[_row].Add(new StyledCell { Ch = c, Fg = DefaultFgColor, Bg = null, Bold = false });
             }
-            _row++;
+            _row = Math.Min(MaxRows - 1, _row + 1);
             EnsureRow(_row);
             _col = 0;
             _headerLineCount = _row;
@@ -894,9 +1490,10 @@ namespace FunkenwerkSsh
             EnsureRow(_row);
             foreach (char c in text)
             {
+                if (_lines[_row].Count >= MaxCols) break;
                 _lines[_row].Add(new StyledCell { Ch = c, Fg = DefaultFgColor, Bg = null, Bold = false });
             }
-            _row++;
+            _row = Math.Min(MaxRows - 1, _row + 1);
             EnsureRow(_row);
             _col = 0;
         }
@@ -912,15 +1509,48 @@ namespace FunkenwerkSsh
 
         private void EnsureRow(int r)
         {
-            while (_lines.Count <= r)
+            int clamped = Math.Clamp(r, 0, MaxRows - 1);
+            while (_lines.Count <= clamped)
                 _lines.Add(new List<StyledCell>());
+        }
+
+        /// <summary>
+        /// Stateful UTF-8 byte stream decoder so multi-byte characters (äöüß, box-drawing, emojis)
+        /// split across TCP/SSH socket read boundaries never corrupt into U+FFFD!
+        /// </summary>
+        public void ProcessUtf8Bytes(byte[] buffer, int offset, int count)
+        {
+            if (buffer == null || count <= 0) return;
+            int maxChars = Encoding.UTF8.GetMaxCharCount(count) + 4;
+            char[] chars = new char[maxChars];
+            int decoded = _utf8Decoder.GetChars(buffer, offset, count, chars, 0, flush: false);
+            if (decoded > 0)
+            {
+                ProcessAnsiStream(new string(chars, 0, decoded));
+            }
         }
 
         public void ProcessAnsiStream(string chunk)
         {
             if (string.IsNullOrEmpty(chunk)) return;
-            string data = _pendingEscape + chunk;
-            _pendingEscape = "";
+
+            string data;
+            if (_pendingEscape.Length > 0)
+            {
+                if (_pendingEscape.Length + chunk.Length > MaxPendingEscapeLength &&
+                    chunk.IndexOf('\x07') < 0 && chunk.IndexOf('\x1B') < 0)
+                {
+                    // Oversized unterminated OSC/CSI sequence: drop escape state to prevent memory DoS
+                    _pendingEscape = "";
+                    return;
+                }
+                data = _pendingEscape + chunk;
+                _pendingEscape = "";
+            }
+            else
+            {
+                data = chunk;
+            }
 
             int i = 0;
             int len = data.Length;
@@ -933,18 +1563,20 @@ namespace FunkenwerkSsh
                 {
                     if (i + 1 >= len)
                     {
-                        _pendingEscape = data.Substring(i);
+                        _pendingEscape = "\x1B";
                         break;
                     }
 
                     char next = data[i + 1];
 
                     // 1. OSC Sequence: \x1B ] ... (\x07 or \x1B\\)
+                    // Note: OSC 52 clipboard writes are strictly ignored (zero clipboard access!)
                     if (next == ']')
                     {
                         int endOsc = -1;
                         int advance = 1;
-                        for (int k = i + 2; k < len; k++)
+                        int maxScan = Math.Min(len, i + MaxPendingEscapeLength + 2);
+                        for (int k = i + 2; k < maxScan; k++)
                         {
                             if (data[k] == '\x07')
                             {
@@ -959,11 +1591,20 @@ namespace FunkenwerkSsh
                                 break;
                             }
                         }
+
                         if (endOsc == -1)
                         {
-                            _pendingEscape = data.Substring(i);
-                            break;
+                            int remaining = len - i;
+                            if (remaining <= MaxPendingEscapeLength)
+                            {
+                                _pendingEscape = data.Substring(i);
+                                break;
+                            }
+                            // Unterminated OSC exceeded MaxPendingEscapeLength: discard safely up to maxScan
+                            i = maxScan;
+                            continue;
                         }
+
                         i = endOsc + advance;
                         continue;
                     }
@@ -972,7 +1613,8 @@ namespace FunkenwerkSsh
                     if (next == '[')
                     {
                         int finalIdx = -1;
-                        for (int k = i + 2; k < len; k++)
+                        int maxScan = Math.Min(len, i + MaxPendingEscapeLength + 2);
+                        for (int k = i + 2; k < maxScan; k++)
                         {
                             char fc = data[k];
                             if (fc >= '@' && fc <= '~')
@@ -981,10 +1623,17 @@ namespace FunkenwerkSsh
                                 break;
                             }
                         }
+
                         if (finalIdx == -1)
                         {
-                            _pendingEscape = data.Substring(i);
-                            break;
+                            int remaining = len - i;
+                            if (remaining <= MaxPendingEscapeLength)
+                            {
+                                _pendingEscape = data.Substring(i);
+                                break;
+                            }
+                            i = maxScan;
+                            continue;
                         }
 
                         string paramStr = data.Substring(i + 2, finalIdx - (i + 2));
@@ -1006,6 +1655,31 @@ namespace FunkenwerkSsh
                         continue;
                     }
 
+                    if (next == 'M') // Reverse Index (RI)
+                    {
+                        _row = Math.Max(_headerLineCount, _row - 1);
+                        EnsureRow(_row);
+                        i += 2;
+                        continue;
+                    }
+
+                    if (next == 'D') // Index (IND)
+                    {
+                        _row = Math.Min(MaxRows - 1, _row + 1);
+                        EnsureRow(_row);
+                        i += 2;
+                        continue;
+                    }
+
+                    if (next == 'E') // Next Line (NEL)
+                    {
+                        _row = Math.Min(MaxRows - 1, _row + 1);
+                        EnsureRow(_row);
+                        _col = 0;
+                        i += 2;
+                        continue;
+                    }
+
                     i += 2;
                     continue;
                 }
@@ -1019,7 +1693,16 @@ namespace FunkenwerkSsh
 
                 if (c == '\n')
                 {
-                    _row++;
+                    if (_row + 1 >= MaxRows)
+                    {
+                        if (_lines.Count > _headerLineCount + 1)
+                            _lines.RemoveAt(_headerLineCount);
+                        _row = MaxRows - 1;
+                    }
+                    else
+                    {
+                        _row++;
+                    }
                     EnsureRow(_row);
                     i++;
                     continue;
@@ -1041,12 +1724,14 @@ namespace FunkenwerkSsh
                 if (c == '\t')
                 {
                     int spaces = 8 - (_col % 8);
-                    for (int s = 0; s < spaces; s++) PutChar(' ');
+                    for (int s = 0; s < spaces && _col < MaxCols; s++)
+                        PutChar(' ');
                     i++;
                     continue;
                 }
 
-                if (c >= 32)
+                // Ignore C0/DEL/C1 control characters in display output
+                if (c >= 32 && c != '\x7F' && !(c >= '\x80' && c <= '\x9F'))
                 {
                     PutChar(c);
                 }
@@ -1054,95 +1739,232 @@ namespace FunkenwerkSsh
                 i++;
             }
 
-            // Trim scrollback to max 600 lines for instant rendering performance
-            if (_lines.Count > 600)
+            // Keep scrollback lean while strictly honoring MaxRows
+            if (_lines.Count > 1200)
             {
-                int removeCount = _lines.Count - 500;
-                _lines.RemoveRange(_headerLineCount, removeCount);
-                _row = Math.Max(_headerLineCount, _row - removeCount);
+                int removeCount = _lines.Count - 1000;
+                int safeRemove = Math.Min(removeCount, Math.Max(0, _lines.Count - _headerLineCount - 1));
+                if (safeRemove > 0)
+                {
+                    _lines.RemoveRange(_headerLineCount, safeRemove);
+                    _row = Math.Clamp(_row - safeRemove, _headerLineCount, MaxRows - 1);
+                    EnsureRow(_row);
+                }
             }
         }
 
         private void PutChar(char ch)
         {
+            if (_col >= MaxCols)
+            {
+                // Line wrap within bounded MaxCols / MaxRows
+                if (_row + 1 < MaxRows)
+                    _row++;
+                EnsureRow(_row);
+                _col = 0;
+            }
+
+            _row = Math.Clamp(_row, 0, MaxRows - 1);
             EnsureRow(_row);
             var line = _lines[_row];
-            while (line.Count <= _col)
+            while (line.Count <= _col && line.Count < MaxCols)
             {
                 line.Add(new StyledCell { Ch = ' ', Fg = null, Bg = null, Bold = false });
             }
-            line[_col] = new StyledCell
+
+            if (_col < line.Count)
             {
-                Ch = ch,
-                Fg = _curFg,
-                Bg = _curBg,
-                Bold = _curBold
-            };
-            _col++;
+                line[_col] = new StyledCell
+                {
+                    Ch = ch,
+                    Fg = _curFg,
+                    Bg = _curBg,
+                    Bold = _curBold
+                };
+            }
+            _col = Math.Min(MaxCols - 1, _col + 1);
+        }
+
+        private static int ParseClampedPositiveParam(string raw, int defaultVal, int maxVal)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return defaultVal;
+            string s = raw.Trim();
+            bool allDigits = true;
+            for (int i = 0; i < s.Length; i++)
+            {
+                if (s[i] < '0' || s[i] > '9') { allDigits = false; break; }
+            }
+            if (!allDigits) return defaultVal;
+            if (s.Length > 7) return maxVal; // Huge numeric repeat count -> clamp directly without overflow!
+            if (!int.TryParse(s, out int val) || val <= 0) return defaultVal;
+            return Math.Min(val, maxVal);
         }
 
         private void HandleCsiSequence(string paramStr, char cmd)
         {
+            // DEC Private Mode Set/Reset (\x1B[?...h / \x1B[?...l)
             if (paramStr.StartsWith("?", StringComparison.Ordinal))
-                return; // Private mode toggles like ?2004h (bracketed paste)
+            {
+                if (cmd == 'h' || cmd == 'l')
+                {
+                    bool enable = (cmd == 'h');
+                    string[] modes = paramStr.Substring(1).Split(';');
+                    foreach (string m in modes)
+                    {
+                        if (m == "2004")
+                        {
+                            BracketedPasteEnabled = enable;
+                        }
+                    }
+                }
+                // Note: ?6n (DECXCPR) and all other private status reports are never reflected back
+                return;
+            }
 
             switch (cmd)
             {
+                case 'n':
+                    // Block CSI 5n / 6n Device Status Report reflection completely
+                    break;
+
                 case 'm':
                     ApplySgrParameters(paramStr);
                     break;
 
-                case 'K': // Erase in Line (EL)
+                case 'A': // Cursor Up (CUU)
+                {
+                    int n = ParseClampedPositiveParam(paramStr, 1, MaxRows);
+                    _row = Math.Max(_headerLineCount, _row - n);
+                    EnsureRow(_row);
+                    break;
+                }
+
+                case 'B': // Cursor Down (CUD)
+                {
+                    int n = ParseClampedPositiveParam(paramStr, 1, MaxRows);
+                    _row = Math.Clamp(_row + n, _headerLineCount, MaxRows - 1);
+                    EnsureRow(_row);
+                    break;
+                }
+
+                case 'C': // Cursor Forward (CUF) - clamped to MaxCols - 1
+                {
+                    int n = ParseClampedPositiveParam(paramStr, 1, MaxCols);
+                    _col = Math.Clamp(_col + n, 0, MaxCols - 1);
+                    break;
+                }
+
+                case 'D': // Cursor Back (CUB)
+                {
+                    int n = ParseClampedPositiveParam(paramStr, 1, MaxCols);
+                    _col = Math.Max(0, _col - n);
+                    break;
+                }
+
+                case 'E': // Cursor Next Line (CNL)
+                {
+                    int n = ParseClampedPositiveParam(paramStr, 1, MaxRows);
+                    _row = Math.Clamp(_row + n, _headerLineCount, MaxRows - 1);
+                    EnsureRow(_row);
+                    _col = 0;
+                    break;
+                }
+
+                case 'F': // Cursor Preceding Line (CPL)
+                {
+                    int n = ParseClampedPositiveParam(paramStr, 1, MaxRows);
+                    _row = Math.Max(_headerLineCount, _row - n);
+                    EnsureRow(_row);
+                    _col = 0;
+                    break;
+                }
+
+                case 'G': // Cursor Character Absolute (CHA, 1-based column)
+                case '`':
+                {
+                    int col1 = ParseClampedPositiveParam(paramStr, 1, MaxCols);
+                    _col = Math.Clamp(col1 - 1, 0, MaxCols - 1);
+                    break;
+                }
+
+                case 'd': // Vertical Line Position Absolute (VPA, 1-based row)
+                {
+                    int row1 = ParseClampedPositiveParam(paramStr, 1, MaxRows);
+                    long targetRow = (long)_headerLineCount + row1 - 1;
+                    _row = (int)Math.Clamp(targetRow, _headerLineCount, MaxRows - 1);
+                    EnsureRow(_row);
+                    break;
+                }
+
+                case 'H': // Cursor Position (CUP, 1-based row;col)
+                case 'f':
+                {
+                    int row1 = 1;
+                    int col1 = 1;
+                    if (!string.IsNullOrEmpty(paramStr))
+                    {
+                        string[] parts = paramStr.Split(';');
+                        if (parts.Length >= 1 && !string.IsNullOrWhiteSpace(parts[0]))
+                            row1 = ParseClampedPositiveParam(parts[0], 1, MaxRows);
+                        if (parts.Length >= 2 && !string.IsNullOrWhiteSpace(parts[1]))
+                            col1 = ParseClampedPositiveParam(parts[1], 1, MaxCols);
+                    }
+
+                    long targetRow = (long)_headerLineCount + row1 - 1;
+                    _row = (int)Math.Clamp(targetRow, _headerLineCount, MaxRows - 1);
+                    EnsureRow(_row);
+                    _col = Math.Clamp(col1 - 1, 0, MaxCols - 1);
+                    break;
+                }
+
+                case 'K': // Erase in Line (EL: 0=cursor..end, 1=start..cursor, 2=entire line)
                 {
                     EnsureRow(_row);
                     var line = _lines[_row];
-                    int mode = int.TryParse(paramStr, out int m) ? m : 0;
-                    if (mode == 0) // Cursor to end of line
+                    int mode = string.IsNullOrWhiteSpace(paramStr) ? 0 : (int.TryParse(paramStr, out int m) ? m : 0);
+                    if (mode == 0)
                     {
                         if (_col < line.Count)
                             line.RemoveRange(_col, line.Count - _col);
                     }
-                    else if (mode == 2) // Entire line
+                    else if (mode == 1)
+                    {
+                        int end = Math.Min(_col, line.Count - 1);
+                        for (int x = 0; x <= end; x++)
+                            line[x] = new StyledCell { Ch = ' ', Fg = null, Bg = _curBg, Bold = false };
+                    }
+                    else if (mode == 2)
                     {
                         line.Clear();
-                        _col = 0;
                     }
                     break;
                 }
 
-                case 'J': // Erase in Display (ED)
+                case 'J': // Erase in Display (ED: 0=cursor..end, 1=start..cursor, 2/3=entire display)
                 {
-                    int mode = int.TryParse(paramStr, out int m) ? m : 0;
-                    if (mode == 2 || mode == 3 || string.IsNullOrEmpty(paramStr))
+                    EnsureRow(_row);
+                    int mode = string.IsNullOrWhiteSpace(paramStr) ? 0 : (int.TryParse(paramStr, out int m) ? m : 0);
+                    if (mode == 0)
+                    {
+                        var line = _lines[_row];
+                        if (_col < line.Count)
+                            line.RemoveRange(_col, line.Count - _col);
+                        if (_row + 1 < _lines.Count)
+                            _lines.RemoveRange(_row + 1, _lines.Count - (_row + 1));
+                    }
+                    else if (mode == 1)
+                    {
+                        for (int r = _headerLineCount; r < _row && r < _lines.Count; r++)
+                            _lines[r].Clear();
+                        var line = _lines[_row];
+                        int end = Math.Min(_col, line.Count - 1);
+                        for (int x = 0; x <= end; x++)
+                            line[x] = new StyledCell { Ch = ' ', Fg = null, Bg = _curBg, Bold = false };
+                    }
+                    else if (mode == 2 || mode == 3)
                     {
                         ClearKeepHeader();
                     }
-                    break;
-                }
-
-                case 'H': // Cursor Position (CUP)
-                case 'f':
-                {
-                    if (string.IsNullOrEmpty(paramStr) || paramStr == "1;1" || paramStr == ";")
-                    {
-                        _row = _headerLineCount;
-                        EnsureRow(_row);
-                        _col = 0;
-                    }
-                    break;
-                }
-
-                case 'C': // Cursor Forward
-                {
-                    int n = int.TryParse(paramStr, out int v) && v > 0 ? v : 1;
-                    _col += n;
-                    break;
-                }
-
-                case 'D': // Cursor Back
-                {
-                    int n = int.TryParse(paramStr, out int v) && v > 0 ? v : 1;
-                    _col = Math.Max(0, _col - n);
                     break;
                 }
 
@@ -1150,7 +1972,7 @@ namespace FunkenwerkSsh
                 {
                     EnsureRow(_row);
                     var line = _lines[_row];
-                    int n = int.TryParse(paramStr, out int v) && v > 0 ? v : 1;
+                    int n = ParseClampedPositiveParam(paramStr, 1, MaxCols);
                     if (_col < line.Count)
                     {
                         int count = Math.Min(n, line.Count - _col);
@@ -1159,15 +1981,19 @@ namespace FunkenwerkSsh
                     break;
                 }
 
-                case '@': // Insert Character (ICH)
+                case '@': // Insert Character (ICH) - clamped to MaxCols
                 {
                     EnsureRow(_row);
                     var line = _lines[_row];
-                    int n = int.TryParse(paramStr, out int v) && v > 0 ? v : 1;
-                    if (_col <= line.Count)
+                    int n = ParseClampedPositiveParam(paramStr, 1, MaxCols);
+                    int maxInsert = Math.Max(0, MaxCols - _col);
+                    int count = Math.Min(n, maxInsert);
+                    if (_col <= line.Count && count > 0)
                     {
-                        for (int k = 0; k < n; k++)
+                        for (int k = 0; k < count; k++)
                             line.Insert(_col, new StyledCell { Ch = ' ' });
+                        if (line.Count > MaxCols)
+                            line.RemoveRange(MaxCols, line.Count - MaxCols);
                     }
                     break;
                 }
@@ -1269,19 +2095,20 @@ namespace FunkenwerkSsh
                 (5, false) => Color.FromRgb(187, 0, 187),
                 (6, false) => Color.FromRgb(0, 187, 187),
                 (7, false) => Color.FromRgb(217, 217, 217),
-                (0, true)  => Color.FromRgb(102, 102, 102),
-                (1, true)  => Color.FromRgb(255, 85, 85),
-                (2, true)  => Color.FromRgb(85, 255, 85),
-                (3, true)  => Color.FromRgb(255, 255, 85),
-                (4, true)  => Color.FromRgb(128, 170, 250),
-                (5, true)  => Color.FromRgb(255, 85, 255),
-                (6, true)  => Color.FromRgb(85, 255, 255),
-                _          => Color.FromRgb(255, 255, 255),
+                (0, true) => Color.FromRgb(102, 102, 102),
+                (1, true) => Color.FromRgb(255, 85, 85),
+                (2, true) => Color.FromRgb(85, 255, 85),
+                (3, true) => Color.FromRgb(255, 255, 85),
+                (4, true) => Color.FromRgb(128, 170, 250),
+                (5, true) => Color.FromRgb(255, 85, 255),
+                (6, true) => Color.FromRgb(85, 255, 255),
+                _ => Color.FromRgb(255, 255, 255),
             };
         }
 
         private static Color GetXterm256Color(int n)
         {
+            n = Math.Clamp(n, 0, 255);
             if (n < 8) return GetAnsi16Color(n, false);
             if (n < 16) return GetAnsi16Color(n - 8, true);
             if (n >= 232)
@@ -1312,6 +2139,8 @@ namespace FunkenwerkSsh
             };
 
             int lastNonEmptyRow = _lines.Count - 1;
+            int clampedCursorCol = Math.Clamp(_col, 0, MaxCols - 1);
+
             for (int r = 0; r <= lastNonEmptyRow; r++)
             {
                 var line = _lines[r];
@@ -1323,7 +2152,7 @@ namespace FunkenwerkSsh
                     continue;
                 }
 
-                int maxCol = isCursorRow ? Math.Max(line.Count, _col + 1) : line.Count;
+                int maxCol = isCursorRow ? Math.Min(MaxCols, Math.Max(line.Count, clampedCursorCol + 1)) : Math.Min(MaxCols, line.Count);
                 var sb = new StringBuilder();
                 StyledCell currentStyle = default;
                 bool hasRun = false;
@@ -1349,7 +2178,7 @@ namespace FunkenwerkSsh
                         ? line[c]
                         : new StyledCell { Ch = ' ', Fg = null, Bg = null, Bold = false };
 
-                    if (isCursorRow && c == _col)
+                    if (isCursorRow && c == clampedCursorCol)
                     {
                         FlushRun();
                         var cursorRun = new Run(cell.Ch == '\0' ? " " : cell.Ch.ToString())

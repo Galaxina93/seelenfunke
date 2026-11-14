@@ -1,8 +1,8 @@
 <div style="--theme-color: #C9A66B; --theme-color-10: #C9A66B1A; --theme-color-20: #C9A66B33; --theme-color-30: #C9A66B4D; --theme-color-50: #C9A66B80;">
     @section('title', ($landingPage->title ?: $product->name) . ' | Mein Seelenfunke')
-    @section('meta_description', \Illuminate\Support\Str::limit(strip_tags($landingPage->sales_copy ?: ($landingPage->headline ?: $product->description)), 155))
-    @section('og_title', ($landingPage->title ?: $product->name) . ' – ' . ($landingPage->headline ?: 'Geschenke, die bleiben.'))
-    @section('og_description', \Illuminate\Support\Str::limit(strip_tags($landingPage->sales_copy ?: ($landingPage->headline ?: $product->description)), 155))
+    @section('meta_description', \Illuminate\Support\Str::limit(strip_tags((string) ($landingPage->sales_copy ?: ($landingPage->headline ?: ($product->description ?? '')))), 155))
+    @section('og_title', ($landingPage->title ?: $product->name) . ' | ' . ($landingPage->headline ?: 'Geschenke, die bleiben.'))
+    @section('og_description', \Illuminate\Support\Str::limit(strip_tags((string) ($landingPage->sales_copy ?: ($landingPage->headline ?: ($product->description ?? '')))), 155))
     @if(!empty($heroImageMeta['url']))
         @section('og_image', $heroImageMeta['url'])
     @endif

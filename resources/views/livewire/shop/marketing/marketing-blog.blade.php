@@ -421,7 +421,7 @@
                             <div>
                                 <h3 class="font-serif font-bold text-xl text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-800 pb-4 mb-6 tracking-wide">Kachelbild (Übersicht)</h3>
                             <div class="mb-6">
-                                @if ($image)
+                                @if ($image && method_exists($image, 'isPreviewable') && $image->isPreviewable())
                                     <div class="relative group rounded-2xl overflow-hidden border-2 border-[var(--theme-color)] shadow-sm dark:shadow-[0_0_15px_var(--theme-color-20)]">
                                         <img src="{{ $image->temporaryUrl() }}" class="w-full h-48 object-cover">
                                         <div class="absolute inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
@@ -453,7 +453,7 @@
                             <div class="pt-6 border-t border-gray-200 dark:border-gray-800">
                                 <h3 class="font-serif font-bold text-xl text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-800 pb-4 mb-6 tracking-wide">Hintergrundbild (Artikel)</h3>
                                 <div class="mb-6">
-                                    @if ($headerImage)
+                                    @if ($headerImage && method_exists($headerImage, 'isPreviewable') && $headerImage->isPreviewable())
                                         <div class="relative group rounded-2xl overflow-hidden border-2 border-[var(--theme-color)] shadow-sm dark:shadow-[0_0_15px_var(--theme-color-20)]">
                                             <img src="{{ $headerImage->temporaryUrl() }}" class="w-full h-48 object-cover">
                                             <div class="absolute inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">

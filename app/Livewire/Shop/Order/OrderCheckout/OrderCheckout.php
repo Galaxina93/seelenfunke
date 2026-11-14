@@ -385,6 +385,8 @@ class OrderCheckout extends Component
                     '2fa_user_id' => $customer->id,
                     'guard' => 'customer',
                     'remember' => false,
+                    '2fa_guest_session_id' => $guestCart?->session_id ?: Session::getId(),
+                    'url.intended' => route('checkout'),
                 ]);
                 SystemSecurityService::logEvent(
                     'security:checkout_2fa_challenge',
@@ -396,6 +398,8 @@ class OrderCheckout extends Component
                 return redirect()->route('login');
             }
 
+            $guestSessionId = $guestCart?->session_id ?: Session::getId();
+
             Auth::guard('customer')->login($customer);
             \Illuminate\Support\Facades\RateLimiter::clear($throttleKey);
             session()->regenerate();
@@ -404,46 +408,9 @@ class OrderCheckout extends Component
 
             $user = $customer;
 
-            $userCart = Cart::firstOrCreate(
-                ['customer_id' => $user->id]
-            );
+            $userCart = $cartService->mergeGuestCartIntoCustomer($user, (string) $guestSessionId);
 
-            $userCart->update(['session_id' => Session::getId()]);
-
-            if ($guestCart && $guestCart->id !== $userCart->id) {
-                $existingUserItems = $userCart->items()->get();
-                foreach ($guestCart->items as $item) {
-                    $matchingItem = $existingUserItems->first(function ($uItem) use ($item) {
-                        return (string) $uItem->product_id === (string) $item->product_id
-                            && json_encode($uItem->configuration) === json_encode($item->configuration);
-                    });
-
-                    if ($matchingItem) {
-                        $maxQty = Session::has('checkout_from_quote_id') ? 10000 : 100;
-                        $newQty = min($maxQty, $matchingItem->quantity + $item->quantity);
-                        $unitPrice = $item->product
-                            ? $cartService->resolveItemUnitPrice($item->product, $newQty, $matchingItem->configuration)
-                            : $matchingItem->unit_price;
-                        $matchingItem->update([
-                            'quantity' => $newQty,
-                            'unit_price' => $unitPrice,
-                            'total_price' => $unitPrice * $newQty,
-                        ]);
-                        $item->delete();
-                    } else {
-                        $item->update(['cart_id' => $userCart->id]);
-                        $existingUserItems->push($item);
-                    }
-                }
-
-                if ($guestCart->coupon_code && !$userCart->coupon_code) {
-                    $userCart->update(['coupon_code' => $guestCart->coupon_code]);
-                }
-
-                $guestCart->delete();
-            }
-
-            if ($wasExpress) {
+            if ($wasExpress && !$userCart->is_express) {
                 $userCart->update(['is_express' => true]);
             }
 

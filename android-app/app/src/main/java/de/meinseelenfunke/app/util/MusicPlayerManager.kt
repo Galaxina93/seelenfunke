@@ -21,6 +21,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -79,10 +81,14 @@ object MusicPlayerManager {
     private val httpClient = OkHttpClient.Builder()
         .connectTimeout(4, TimeUnit.SECONDS)
         .readTimeout(45, TimeUnit.SECONDS)
+        .followRedirects(false)
+        .followSslRedirects(false)
         .build()
     private val fastMetaClient = OkHttpClient.Builder()
         .connectTimeout(3, TimeUnit.SECONDS)
         .readTimeout(8, TimeUnit.SECONDS)
+        .followRedirects(false)
+        .followSslRedirects(false)
         .build()
 
     private var appContext: Context? = null
@@ -96,6 +102,10 @@ object MusicPlayerManager {
     private var audioFocusRequest: AudioFocusRequest? = null
 
     private val transitionSeq = AtomicLong(0L)
+    private val playerMutex = Mutex()
+
+    @Volatile
+    private var localDiskScannedOnce: Boolean = false
 
     @Volatile
     private var isTransitioningTrack: Boolean = false
@@ -154,6 +164,57 @@ object MusicPlayerManager {
 
     private fun getCatalogCacheFile(context: Context): File {
         return File(getCacheDir(context), "playlists_cache.json")
+    }
+
+    private fun getOrphanMetaCacheFile(context: Context): File {
+        return File(getCacheDir(context), "orphan_meta_cache.json")
+    }
+
+    private data class OrphanTrackMeta(
+        val title: String,
+        val artist: String,
+        val durationSeconds: Int,
+        val fileSize: Long
+    )
+
+    private fun loadOrphanMetaMap(context: Context): MutableMap<String, OrphanTrackMeta> {
+        val map = mutableMapOf<String, OrphanTrackMeta>()
+        val f = getOrphanMetaCacheFile(context)
+        if (!f.exists() || f.length() <= 2L) return map
+        try {
+            val root = JSONObject(f.readText(Charsets.UTF_8))
+            val keys = root.keys()
+            while (keys.hasNext()) {
+                val k = keys.next()
+                val obj = root.optJSONObject(k) ?: continue
+                map[k] = OrphanTrackMeta(
+                    title = obj.optString("t", ""),
+                    artist = obj.optString("a", ""),
+                    durationSeconds = obj.optInt("d", 0),
+                    fileSize = obj.optLong("s", 0L)
+                )
+            }
+        } catch (_: Exception) { }
+        return map
+    }
+
+    private fun saveOrphanMetaMap(context: Context, map: Map<String, OrphanTrackMeta>) {
+        if (map.isEmpty()) return
+        try {
+            val root = JSONObject()
+            for ((k, v) in map) {
+                root.put(
+                    k,
+                    JSONObject().apply {
+                        put("t", v.title)
+                        put("a", v.artist)
+                        put("d", v.durationSeconds)
+                        put("s", v.fileSize)
+                    }
+                )
+            }
+            getOrphanMetaCacheFile(context).writeText(root.toString(), Charsets.UTF_8)
+        } catch (_: Exception) { }
     }
 
     private fun parsePlaylistsJson(jsonStr: String): List<MusicPlaylistDto> {
@@ -228,17 +289,28 @@ object MusicPlayerManager {
     }
 
     private fun savePlaylistsToLocalCache(context: Context, playlists: List<MusicPlaylistDto>) {
-        if (playlists.sumOf { it.tracks.size } == 0) return
+        val persistable = playlists.filter { it.id != "local_offline_cache" }
+        if (persistable.sumOf { it.tracks.size } == 0) return
         try {
             val file = getCatalogCacheFile(context)
-            file.writeText(serializePlaylistsJson(playlists), Charsets.UTF_8)
+            file.writeText(serializePlaylistsJson(persistable), Charsets.UTF_8)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to save playlists to local cache", e)
         }
     }
 
-    private fun loadPlaylistsFromLocalCache(context: Context): List<MusicPlaylistDto> {
-        val catalogFile = getCatalogCacheFile(context)
+    /**
+     * Ultra-fast (~2ms) synchronous catalog bootstrap for cold-start Widget / Notification / Tab opens.
+     * Reads playlists_cache.json + orphan_meta_cache.json without blocking on MediaMetadataRetriever or HTTP.
+     */
+    @Synchronized
+    fun ensureCatalogLoadedFast(context: Context) {
+        val appCtx = context.applicationContext
+        appContext = appCtx
+        ServiceLocator.ensureInitialized(appCtx)
+        if (_allTracks.value.isNotEmpty()) return
+
+        val catalogFile = getCatalogCacheFile(appCtx)
         val cachedPlaylists = if (catalogFile.exists() && catalogFile.length() > 10L) {
             try {
                 parsePlaylistsJson(catalogFile.readText(Charsets.UTF_8)).toMutableList()
@@ -249,38 +321,25 @@ object MusicPlayerManager {
             mutableListOf()
         }
 
-        // Ensure any local .m4a files on disk that aren't in playlists_cache.json are still visible
         val knownTrackIds = cachedPlaylists.flatMap { it.tracks }.map { it.id }.toSet()
-        val orphanFiles = getCacheDir(context)
+        val orphanMetaMap = loadOrphanMetaMap(appCtx)
+        val orphanFiles = getCacheDir(appCtx)
             .listFiles { _, name -> name.endsWith(".m4a") }
-            ?.filter { it.length() > 10240L && it.nameWithoutExtension !in knownTrackIds && isValidAudioFile(it) }
+            ?.filter { it.length() > 10240L && it.nameWithoutExtension !in knownTrackIds }
             ?.sortedByDescending { it.lastModified() }
             ?: emptyList()
 
         if (orphanFiles.isNotEmpty()) {
             val orphanPlId = "local_offline_cache"
             val orphanTracks = orphanFiles.mapIndexed { idx, f ->
-                var title = "Lokaler Song #${idx + 1}"
-                var artist = "Offline-Speicher"
-                var durSec = 0
-                try {
-                    val mmr = android.media.MediaMetadataRetriever()
-                    mmr.setDataSource(f.absolutePath)
-                    val metaTitle = mmr.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_TITLE)
-                    val metaArtist = mmr.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_ARTIST)
-                    val metaDur = mmr.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
-                    if (!metaTitle.isNullOrBlank()) title = metaTitle
-                    if (!metaArtist.isNullOrBlank()) artist = metaArtist
-                    if (metaDur != null && metaDur > 0) durSec = (metaDur / 1000L).toInt()
-                    mmr.release()
-                } catch (_: Exception) { }
-
+                val id = f.nameWithoutExtension
+                val cachedMeta = orphanMetaMap[id]?.takeIf { it.fileSize == f.length() }
                 MusicTrackDto(
-                    id = f.nameWithoutExtension,
+                    id = id,
                     playlistId = orphanPlId,
-                    title = title,
-                    artist = artist,
-                    durationSeconds = durSec,
+                    title = cachedMeta?.title?.takeIf { it.isNotBlank() } ?: "Lokaler Song #${idx + 1}",
+                    artist = cachedMeta?.artist?.takeIf { it.isNotBlank() } ?: "Offline-Speicher",
+                    durationSeconds = cachedMeta?.durationSeconds ?: 0,
                     fileSize = f.length(),
                     isFavorite = false,
                     position = idx + 1
@@ -296,6 +355,92 @@ object MusicPlayerManager {
             )
         }
 
+        if (cachedPlaylists.isNotEmpty()) {
+            applyPlaylistsToState(appCtx, cachedPlaylists)
+        }
+    }
+
+    private fun loadPlaylistsFromLocalCache(context: Context): List<MusicPlaylistDto> {
+        val catalogFile = getCatalogCacheFile(context)
+        val cachedPlaylists = if (catalogFile.exists() && catalogFile.length() > 10L) {
+            try {
+                parsePlaylistsJson(catalogFile.readText(Charsets.UTF_8)).toMutableList()
+            } catch (_: Exception) {
+                mutableListOf()
+            }
+        } else {
+            mutableListOf()
+        }
+
+        // Ensure any local .m4a files on disk that aren't in playlists_cache.json are still visible,
+        // persisting extracted metadata in orphan_meta_cache.json so MediaMetadataRetriever only runs once per new file.
+        val knownTrackIds = cachedPlaylists.flatMap { it.tracks }.map { it.id }.toSet()
+        val orphanMetaMap = loadOrphanMetaMap(context)
+        var orphanMapDirty = false
+
+        val orphanFiles = getCacheDir(context)
+            .listFiles { _, name -> name.endsWith(".m4a") }
+            ?.filter { it.length() > 10240L && it.nameWithoutExtension !in knownTrackIds && isValidAudioFile(it) }
+            ?.sortedByDescending { it.lastModified() }
+            ?: emptyList()
+
+        if (orphanFiles.isNotEmpty()) {
+            val orphanPlId = "local_offline_cache"
+            val orphanTracks = orphanFiles.mapIndexed { idx, f ->
+                val id = f.nameWithoutExtension
+                val existingMeta = orphanMetaMap[id]?.takeIf { it.fileSize == f.length() }
+                val resolvedMeta = if (existingMeta != null) {
+                    existingMeta
+                } else {
+                    var title = "Lokaler Song #${idx + 1}"
+                    var artist = "Offline-Speicher"
+                    var durSec = 0
+                    try {
+                        val mmr = android.media.MediaMetadataRetriever()
+                        try {
+                            mmr.setDataSource(f.absolutePath)
+                            val metaTitle = mmr.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_TITLE)
+                            val metaArtist = mmr.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_ARTIST)
+                            val metaDur = mmr.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
+                            if (!metaTitle.isNullOrBlank()) title = metaTitle
+                            if (!metaArtist.isNullOrBlank()) artist = metaArtist
+                            if (metaDur != null && metaDur > 0) durSec = (metaDur / 1000L).toInt()
+                        } finally {
+                            try { mmr.release() } catch (_: Exception) { }
+                        }
+                    } catch (_: Exception) { }
+
+                    OrphanTrackMeta(title, artist, durSec, f.length()).also {
+                        orphanMetaMap[id] = it
+                        orphanMapDirty = true
+                    }
+                }
+
+                MusicTrackDto(
+                    id = id,
+                    playlistId = orphanPlId,
+                    title = resolvedMeta.title,
+                    artist = resolvedMeta.artist,
+                    durationSeconds = resolvedMeta.durationSeconds,
+                    fileSize = f.length(),
+                    isFavorite = false,
+                    position = idx + 1
+                )
+            }
+            if (orphanMapDirty) {
+                saveOrphanMetaMap(context, orphanMetaMap)
+            }
+            cachedPlaylists.add(
+                MusicPlaylistDto(
+                    id = orphanPlId,
+                    name = "Offline auf dem Handy",
+                    description = "Lokal gespeicherte Audiodateien",
+                    tracks = orphanTracks
+                )
+            )
+        }
+
+        localDiskScannedOnce = true
         return cachedPlaylists
     }
 
@@ -318,8 +463,15 @@ object MusicPlayerManager {
 
         val remotePlIds = merged.map { it.id }.toSet()
         val remotePlNames = merged.map { it.name.lowercase() }.toSet()
+        val mergedTrackIds = merged.flatMap { it.tracks }.map { it.id }.toSet()
         for (lPl in local) {
-            if (lPl.id == "local_offline_cache") continue
+            if (lPl.id == "local_offline_cache") {
+                val stillOrphan = lPl.tracks.filter { it.id !in mergedTrackIds }
+                if (stillOrphan.isNotEmpty()) {
+                    merged.add(lPl.copy(tracks = stillOrphan))
+                }
+                continue
+            }
             if (lPl.id !in remotePlIds && lPl.name.lowercase() !in remotePlNames && lPl.tracks.isNotEmpty()) {
                 merged.add(lPl)
             }
@@ -400,12 +552,30 @@ object MusicPlayerManager {
         }
     }
 
+    private fun hasKnownAudioContainerMagic(header: ByteArray, read: Int): Boolean {
+        if (read < 8) return false
+        val boxType = String(header, 4, 4, Charsets.ISO_8859_1)
+        if (boxType == "ftyp" || boxType == "moov" || boxType == "styp" || boxType == "free" || boxType == "wide") {
+            return true
+        }
+        val magic4 = String(header, 0, 4, Charsets.ISO_8859_1)
+        if (magic4.startsWith("ID3") || magic4 == "OggS" || magic4 == "RIFF" || magic4 == "fLaC") {
+            return true
+        }
+        val b0 = header[0].toInt() and 0xFF
+        val b1 = header[1].toInt() and 0xFF
+        if (b0 == 0xFF && (b1 and 0xE0) == 0xE0) return true // ADTS AAC / MP3 frame sync
+        if (b0 == 0x1A && b1 == 0x45) return true // WebM / Matroska EBML
+        return false
+    }
+
     private fun isValidAudioFile(file: File): Boolean {
         if (!file.exists() || file.length() <= 10240L) return false
         return try {
             val header = ByteArray(16)
             val read = FileInputStream(file).use { it.read(header) }
             if (read < 8) return false
+            if (hasKnownAudioContainerMagic(header, read)) return true
             val prefix = String(header, 0, read, Charsets.ISO_8859_1).trimStart()
             // Reject HTML login redirects or JSON error bodies that might have been cached
             !prefix.startsWith("<") && !prefix.startsWith("{")
@@ -553,11 +723,16 @@ object MusicPlayerManager {
     }
 
     private fun getCandidateBaseUrls(): List<String> {
-        val primary = try { ServiceLocator.getBaseUrl().trimEnd('/') } catch (_: Exception) { "https://stage.mein-seelenfunke.de/api" }
-        val list = mutableListOf(primary)
-        if (primary != "https://stage.mein-seelenfunke.de/api") list.add("https://stage.mein-seelenfunke.de/api")
-        if (primary != "https://mein-seelenfunke.de/api") list.add("https://mein-seelenfunke.de/api")
-        return list.distinct()
+        val primary = try {
+            ServiceLocator.getBaseUrl().trimEnd('/')
+        } catch (_: Exception) {
+            "https://stage.mein-seelenfunke.de/api"
+        }
+        return if (ServiceLocator.shouldAttachBearerToken(primary)) {
+            listOf(primary)
+        } else {
+            emptyList()
+        }
     }
 
     fun selectPlaylist(playlistId: String, context: Context? = null, autoPlayRandom: Boolean = true) {
@@ -565,8 +740,8 @@ object MusicPlayerManager {
         val filtered = getFilteredTracks()
         if (filtered.isNotEmpty()) {
             currentQueue = filtered
+            val appCtx = context?.applicationContext ?: appContext
             if (autoPlayRandom) {
-                val appCtx = context?.applicationContext ?: appContext
                 if (appCtx != null) {
                     val cachedPool = filtered.filter { isTrackCached(appCtx, it.id) }
                     val pool = if (cachedPool.isNotEmpty()) cachedPool else filtered
@@ -577,6 +752,16 @@ object MusicPlayerManager {
                     }
                     val randomTrack = candidates.random()
                     playTrack(appCtx, randomTrack, filtered)
+                }
+            } else if (!_isPlaying.value) {
+                val cur = _currentTrack.value
+                if (cur == null || filtered.none { it.id == cur.id }) {
+                    _currentTrack.value = filtered.first()
+                    _durationSec.value = filtered.first().durationSeconds
+                    _currentPositionSec.value = 0
+                    if (appCtx != null) {
+                        MusicWidgetProvider.updateAllWidgets(appCtx)
+                    }
                 }
             }
         }
@@ -599,14 +784,25 @@ object MusicPlayerManager {
     fun fetchPlaylists(context: Context, onComplete: (() -> Unit)? = null) {
         val appCtx = context.applicationContext
         appContext = appCtx
+        ServiceLocator.ensureInitialized(appCtx)
+        ensureCatalogLoadedFast(appCtx)
         scope.launch {
             try {
-                // 1. Instant local offline load (0ms network wait) so music is always visible
-                val localCached = withContext(Dispatchers.IO) {
-                    loadPlaylistsFromLocalCache(appCtx)
+                // 1. Instant local offline load (skip redundant disk scan on periodic polls once scanned)
+                val localCached = if (localDiskScannedOnce && _playlists.value.isNotEmpty()) {
+                    _playlists.value
+                } else {
+                    withContext(Dispatchers.IO) {
+                        loadPlaylistsFromLocalCache(appCtx)
+                    }
                 }
                 if (localCached.isNotEmpty() && _allTracks.value.isEmpty()) {
                     applyPlaylistsToState(appCtx, localCached)
+                    val cachedFilesCount = withContext(Dispatchers.IO) { getCachedCount(appCtx) }
+                    if (!_isPlaying.value) {
+                        _statusText.value = "⚡ $cachedFilesCount Songs offline auf dem Handy bereit"
+                    }
+                } else if (!_isPlaying.value && _statusText.value == "Bereit für Sofort-Stream" && _allTracks.value.isNotEmpty()) {
                     val cachedFilesCount = withContext(Dispatchers.IO) { getCachedCount(appCtx) }
                     if (!_isPlaying.value) {
                         _statusText.value = "⚡ $cachedFilesCount Songs offline auf dem Handy bereit"
@@ -810,6 +1006,8 @@ object MusicPlayerManager {
     ) {
         val appCtx = context.applicationContext
         appContext = appCtx
+        ServiceLocator.ensureInitialized(appCtx)
+        ensureCatalogLoadedFast(appCtx)
 
         if (queue != null && queue.isNotEmpty()) {
             currentQueue = queue
@@ -821,6 +1019,7 @@ object MusicPlayerManager {
         val txId = transitionSeq.incrementAndGet()
         isTransitioningTrack = true
         progressJob?.cancel()
+        playJob?.cancel()
 
         acquireWakeLock(appCtx)
         requestAudioFocus(appCtx)
@@ -862,35 +1061,47 @@ object MusicPlayerManager {
 
             try {
                 val mp = withContext(Dispatchers.IO) {
-                    val player = mediaPlayer ?: MediaPlayer().also { mediaPlayer = it }
-                    try {
-                        player.setOnCompletionListener(null)
-                        player.setOnErrorListener(null)
-                        player.reset()
-                    } catch (_: Exception) {
-                        try { player.release() } catch (_: Exception) { }
-                        MediaPlayer().also { mediaPlayer = it }
-                    }
+                    playerMutex.withLock {
+                        if (transitionSeq.get() != txId) return@withLock null
+                        var player = mediaPlayer ?: MediaPlayer().also { mediaPlayer = it }
+                        try {
+                            player.setOnCompletionListener(null)
+                            player.setOnErrorListener(null)
+                            player.reset()
+                        } catch (_: Exception) {
+                            try { player.release() } catch (_: Exception) { }
+                            player = MediaPlayer().also { mediaPlayer = it }
+                        }
 
-                    val activePlayer = mediaPlayer!!
-                    try {
-                        activePlayer.setWakeMode(appCtx, PowerManager.PARTIAL_WAKE_LOCK)
-                    } catch (_: Exception) { }
+                        try {
+                            player.setWakeMode(appCtx, PowerManager.PARTIAL_WAKE_LOCK)
+                        } catch (_: Exception) { }
 
-                    activePlayer.setAudioAttributes(
-                        AudioAttributes.Builder()
+                        val audioAttrs = AudioAttributes.Builder()
                             .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
                             .setUsage(AudioAttributes.USAGE_MEDIA)
                             .build()
-                    )
+                        player.setAudioAttributes(audioAttrs)
 
-                    FileInputStream(localFile).use { fis ->
-                        activePlayer.setDataSource(fis.fd)
-                        activePlayer.isLooping = false
-                        activePlayer.prepare()
+                        try {
+                            FileInputStream(localFile).use { fis ->
+                                player.setDataSource(fis.fd, 0L, localFile.length())
+                                player.isLooping = false
+                                player.prepare()
+                            }
+                        } catch (fdErr: Exception) {
+                            Log.w(TAG, "FD setDataSource failed for [${track.title}], retrying with file path: ${fdErr.message}")
+                            try { player.release() } catch (_: Exception) { }
+                            player = MediaPlayer().also { mediaPlayer = it }
+                            try { player.setWakeMode(appCtx, PowerManager.PARTIAL_WAKE_LOCK) } catch (_: Exception) { }
+                            player.setAudioAttributes(audioAttrs)
+                            player.setDataSource(localFile.absolutePath)
+                            player.isLooping = false
+                            player.prepare()
+                        }
+                        player
                     }
-                    activePlayer
-                }
+                } ?: return@launch
 
                 if (transitionSeq.get() != txId) return@launch
 
@@ -945,7 +1156,10 @@ object MusicPlayerManager {
             } catch (e: Exception) {
                 Log.e(TAG, "MediaPlayer error on track ${track.title}", e)
                 isTransitioningTrack = false
-                try { localFile.delete() } catch (_: Exception) { }
+                // Only remove localFile if it is genuinely corrupted (not a valid audio container)
+                if (!isValidAudioFile(localFile)) {
+                    try { localFile.delete() } catch (_: Exception) { }
+                }
                 try {
                     mediaPlayer?.release()
                 } catch (_: Exception) { }
@@ -1016,8 +1230,11 @@ object MusicPlayerManager {
     fun togglePlayPause(context: Context) {
         val appCtx = context.applicationContext
         appContext = appCtx
+        ServiceLocator.ensureInitialized(appCtx)
+        ensureCatalogLoadedFast(appCtx)
+
         val mp = mediaPlayer
-        if (mp != null) {
+        if (mp != null && !isTransitioningTrack) {
             try {
                 if (mp.isPlaying) {
                     mp.pause()
@@ -1044,6 +1261,8 @@ object MusicPlayerManager {
             val q = getFilteredTracks().ifEmpty { _allTracks.value }
             playTrack(appCtx, q.first(), q)
         } else {
+            // Promote ForegroundService immediately while still inside user gesture / PendingIntent broadcast window
+            MusicPlaybackService.startOrUpdate(appCtx)
             fetchPlaylists(appCtx) {
                 if (_allTracks.value.isNotEmpty()) {
                     val q = getFilteredTracks().ifEmpty { _allTracks.value }
@@ -1056,11 +1275,15 @@ object MusicPlayerManager {
     fun playNext(context: Context) {
         val appCtx = context.applicationContext
         appContext = appCtx
+        ServiceLocator.ensureInitialized(appCtx)
+        ensureCatalogLoadedFast(appCtx)
+
         if (currentQueue.isEmpty()) {
             currentQueue = getFilteredTracks().ifEmpty { _allTracks.value }
         }
         if (currentQueue.isEmpty()) {
             isTransitioningTrack = false
+            MusicPlaybackService.startOrUpdate(appCtx)
             fetchPlaylists(appCtx) {
                 if (_allTracks.value.isNotEmpty()) {
                     val q = getFilteredTracks().ifEmpty { _allTracks.value }
@@ -1086,9 +1309,12 @@ object MusicPlayerManager {
     fun playPrevious(context: Context) {
         val appCtx = context.applicationContext
         appContext = appCtx
+        ServiceLocator.ensureInitialized(appCtx)
+        ensureCatalogLoadedFast(appCtx)
+
         val mp = mediaPlayer
         try {
-            if (mp != null && mp.currentPosition > 3500) {
+            if (mp != null && !isTransitioningTrack && mp.currentPosition > 3500) {
                 mp.seekTo(0)
                 _currentPositionSec.value = 0
                 MusicPlaybackService.startOrUpdate(appCtx)
@@ -1395,6 +1621,7 @@ object MusicPlayerManager {
     }
 
     fun stopAndClearSession(context: Context) {
+        val appCtx = context.applicationContext
         favPollJob?.cancel()
         backgroundSyncJob?.cancel()
         importPollJob?.cancel()
@@ -1405,9 +1632,25 @@ object MusicPlayerManager {
         try { mediaPlayer?.release() } catch (_: Exception) {}
         mediaPlayer = null
         _isPlaying.value = false
+        _currentTrack.value = null
+        _playlists.value = emptyList()
+        _allTracks.value = emptyList()
+        _currentPositionSec.value = 0
+        _durationSec.value = 0
+        _statusText.value = "Bereit für Sofort-Stream"
+        currentQueue = emptyList()
+        localDiskScannedOnce = false
+        try { getCatalogCacheFile(appCtx).delete() } catch (_: Exception) {}
+        try { getOrphanMetaCacheFile(appCtx).delete() } catch (_: Exception) {}
+        try {
+            appCtx.getSharedPreferences("music_widget_prefs", Context.MODE_PRIVATE).edit().clear().apply()
+        } catch (_: Exception) {}
         try { if (wakeLock?.isHeld == true) wakeLock?.release() } catch (_: Exception) {}
         try {
-            context.stopService(android.content.Intent(context.applicationContext, MusicPlaybackService::class.java))
+            MusicPlaybackService.stop(appCtx)
+        } catch (_: Exception) {}
+        try {
+            appCtx.stopService(android.content.Intent(appCtx, MusicPlaybackService::class.java))
         } catch (_: Exception) {}
     }
 }

@@ -71,14 +71,14 @@ class TextInputActivity : ComponentActivity() {
         }
 
         val sharedPrefs = getSharedPreferences("tasks_widget_prefs", Context.MODE_PRIVATE)
-        val initialValue = sharedPrefs.getString(prefKey, "") ?: ""
+        val initialValue = ServiceLocator.getDecryptedPref(sharedPrefs, prefKey) ?: ""
 
         setContent {
             TextInputScreen(
                 title = title,
                 initialValue = initialValue,
                 onSave = { newValue ->
-                    sharedPrefs.edit().putString(prefKey, newValue).apply()
+                    ServiceLocator.putEncryptedPref(sharedPrefs, prefKey, newValue)
                     // Refresh widget to display new value inline
                     ServiceLocator.organizerRepository.triggerTasksWidgetUpdate(this)
                     finish()

@@ -60,8 +60,10 @@ class TrackVisitor
                 'url'         => $request->fullUrl(),
                 'path'        => $request->path(),
                 'method'      => $request->method(),
-                'user_agent'  => \Illuminate\Support\Str::limit($request->userAgent(), 250),
-                'referer'     => \Illuminate\Support\Str::limit($request->headers->get('referer'), 250),
+                'user_agent'  => \Illuminate\Support\Str::limit((string) ($request->userAgent() ?? ''), 250),
+                'referer'     => $request->headers->get('referer') !== null
+                    ? \Illuminate\Support\Str::limit((string) $request->headers->get('referer'), 250)
+                    : null,
                 'customer_id' => \Illuminate\Support\Facades\Auth::guard('customer')->id(), // Erfasst, ob es ein eingeloggter Kunde ist
             ]);
 

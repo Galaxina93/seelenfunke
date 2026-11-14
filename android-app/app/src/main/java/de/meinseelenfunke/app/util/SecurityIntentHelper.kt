@@ -51,6 +51,25 @@ object SecurityIntentHelper {
     }
 
     /**
+     * Returns true when the device keyguard is currently locked.
+     */
+    fun isDeviceLocked(context: Context): Boolean {
+        val keyguardManager = context.getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
+        return keyguardManager?.isDeviceLocked == true
+    }
+
+    /**
+     * Guards widget mutation receivers/actions: blocks mutations when the device is locked
+     * or when no authenticated Sanctum session token is present.
+     */
+    fun canExecuteWidgetMutation(context: Context): Boolean {
+        ServiceLocator.ensureInitialized(context.applicationContext)
+        if (isDeviceLocked(context)) return false
+        if (ServiceLocator.getAuthToken().isNullOrBlank()) return false
+        return true
+    }
+
+    /**
      * Protects widget overlay dialog activities:
      * - Blocks access when the device is locked (Keyguard)
      * - Blocks access when logged out (no Sanctum auth token)
@@ -63,8 +82,7 @@ object SecurityIntentHelper {
             activity.setRecentsScreenshotEnabled(false)
         }
 
-        val keyguardManager = activity.getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
-        if (keyguardManager?.isDeviceLocked == true) {
+        if (isDeviceLocked(activity)) {
             if (showToastOnLocked) {
                 Toast.makeText(activity, "Bitte zuerst das Gerät entsperren.", Toast.LENGTH_SHORT).show()
             }

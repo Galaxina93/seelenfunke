@@ -4,7 +4,9 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
+using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -132,7 +134,25 @@ namespace FunkenwerkOS
         private bool _suppressVolumeEvent;
         private bool _isLoginPwdVisible;
         private bool _isWifiPwdVisible;
+        private bool _isLockPwdVisible;
+        private bool _isLockPinSetupVisible;
+        private bool _desktopLiveBootInitialized;
         private WifiNetworkDto? _selectedWifiNet;
+
+        [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        private static extern bool LogonUser(
+            string lpszUsername,
+            string lpszDomain,
+            string lpszPassword,
+            int dwLogonType,
+            int dwLogonProvider,
+            out IntPtr phToken);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool CloseHandle(IntPtr hObject);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool LockWorkStation();
         private string _selectedLoginEnv = "live";
         private bool _initialOrdersSeeded;
         private bool _focusMusicActive;
@@ -189,6 +209,7 @@ namespace FunkenwerkOS
             UpdateDefaultProgramsButtonsUi();
             UpdateStorageAndFunnelSettingsUi();
             UpdateFirewallAppButtonsUi();
+            UpdateVisitorPrivacyButtonsUi();
             UpdateOrderChimeButtonUi();
             RefreshExplorerDrivesSidebar();
 
@@ -206,23 +227,30 @@ namespace FunkenwerkOS
 
             SizeChanged += (_, _) => ClampFloatingWindowsToBounds();
             Loaded += MainWindow_Loaded;
-            Closed += (_, _) =>
+            Closed += (_, _) => DisposeManagedResources();
+        }
+
+        public void DisposeManagedResources()
+        {
+            try { _winKeyHook?.Dispose(); _winKeyHook = null; } catch { }
+            try { _desktopFsWatcher?.Dispose(); _desktopFsWatcher = null; } catch { }
+            try { _funnelFsWatcher?.Dispose(); _funnelFsWatcher = null; } catch { }
+            try { _meineDatenRootWatcher?.Dispose(); _meineDatenRootWatcher = null; } catch { }
+            try { _downloadsFsWatcher?.Dispose(); _downloadsFsWatcher = null; } catch { }
+            foreach (var cw in _cloudInboxWatchers)
             {
-                _winKeyHook?.Dispose();
-                _desktopFsWatcher?.Dispose();
-                _funnelFsWatcher?.Dispose();
-                _meineDatenRootWatcher?.Dispose();
-                _downloadsFsWatcher?.Dispose();
-                foreach (var cw in _cloudInboxWatchers) cw.Dispose();
-                _cloudInboxWatchers.Clear();
-                _fsDebounceTimer.Stop();
-                _wallpaperLoopTimer.Stop();
-                _fastSystemTimer.Stop();
-                _dashboardSyncTimer.Stop();
-                DesktopSparksLayer.SetRunning(false);
-                _secondaryWallWindow?.Close();
-                _gewerbeMonitorWindow?.Close();
-            };
+                try { cw.Dispose(); } catch { }
+            }
+            _cloudInboxWatchers.Clear();
+            _fsDebounceTimer.Stop();
+            _wallpaperLoopTimer.Stop();
+            _fastSystemTimer.Stop();
+            _dashboardSyncTimer.Stop();
+            _toastTimer.Stop();
+            try { DesktopSparksLayer.SetRunning(false); } catch { }
+            try { _secondaryWallWindow?.Close(); _secondaryWallWindow = null; } catch { }
+            try { _gewerbeMonitorWindow?.Close(); _gewerbeMonitorWindow = null; } catch { }
+            OsHardwareAndAudioEngine.ReleaseHighResTimerPeriod();
         }
 
         private void InitLiveFileSystemWatchers()
@@ -285,7 +313,7 @@ namespace FunkenwerkOS
                     _meineDatenRootWatcher.Renamed += (_, _) => onFunnelChange(null!, null!);
                 }
 
-                string winDownloads = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
+                string winDownloads = Path.Combine(OsVaultAndStorage.UserProfileDir, "Downloads");
                 if (Directory.Exists(winDownloads))
                 {
                     _downloadsFsWatcher = new FileSystemWatcher(winDownloads)
@@ -359,7 +387,7 @@ namespace FunkenwerkOS
 
         private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
-            OsHardwareAndAudioEngine.EnsureWindowsExplorerTaskbarRunning();
+            OsHardwareAndAudioEngine.EnsureWindowsExplorerTaskbarRunning(_isShellBoot);
             WindowState = WindowState.Maximized;
 
             try
@@ -418,6 +446,7 @@ namespace FunkenwerkOS
             if (string.Equals(_initialWorkspace, "leitstand", StringComparison.OrdinalIgnoreCase))
                 OpenInternalWindowAnimated("LeitstandWin");
 
+            _desktopLiveBootInitialized = true;
             _ = RefreshLanInfrastructureAsync();
             await RefreshDashboardLiveAsync();
         }
@@ -1734,6 +1763,9 @@ namespace FunkenwerkOS
             if (item.IsDeletable && !string.IsNullOrEmpty(item.FullFilePath))
             {
                 string path = item.FullFilePath;
+                string iconExt = Path.GetExtension(path).ToLowerInvariant();
+                if (iconExt is ".cmd" or ".bat" or ".ps1" or ".exe")
+                    AddContextBtn("🛡   Als Administrator ausführen", () => ConfirmAndExecuteElevated(path));
                 AddContextSeparator();
                 AddContextBtn("📋   Kopieren", () => SetFileClipboard(new[] { path }, isCut: false));
                 AddContextBtn("✂   Ausschneiden", () => SetFileClipboard(new[] { path }, isCut: true));
@@ -2963,7 +2995,7 @@ namespace FunkenwerkOS
                 });
                 if (isScriptOrExe)
                 {
-                    AddContextBtn("🛡   Als Administrator ausführen", () => ExecuteLocalScriptOrExecutable(dto.FullPath, runAsAdmin: true));
+                    AddContextBtn("🛡   Als Administrator ausführen", () => ConfirmAndExecuteElevated(dto.FullPath));
                     if (entryExt is ".cmd" or ".bat" or ".ps1")
                         AddContextBtn("✎   Im Text-Editor bearbeiten", () => OpenTextFileInBuiltInEditor(dto.FullPath));
                 }
@@ -3174,66 +3206,74 @@ namespace FunkenwerkOS
 
             if (ext is ".cmd" or ".bat" or ".ps1" or ".exe" or ".lnk")
             {
-                ExecuteLocalScriptOrExecutable(fullPath, runAsAdmin: ShouldAutoElevateScript(fullPath));
+                ExecuteLocalScriptOrExecutable(fullPath, confirmedRunAsAdmin: false);
                 return;
             }
 
             OpenTextFileInBuiltInEditor(fullPath);
         }
 
-        private static bool ShouldAutoElevateScript(string fullPath)
+        private void ConfirmAndExecuteElevated(string fullPath)
         {
-            string name = Path.GetFileName(fullPath);
-            return name.Contains("UPDATE", StringComparison.OrdinalIgnoreCase)
-                || name.Contains("INSTALL", StringComparison.OrdinalIgnoreCase)
-                || name.Contains("FIX", StringComparison.OrdinalIgnoreCase)
-                || name.Contains("SETUP", StringComparison.OrdinalIgnoreCase)
-                || name.Contains("NOTFALL", StringComparison.OrdinalIgnoreCase)
-                || name.Contains("FORTRESS", StringComparison.OrdinalIgnoreCase);
+            if (!File.Exists(fullPath)) return;
+            string fileName = Path.GetFileName(fullPath);
+            if (MessageBox.Show(
+                    $"Soll '{fileName}' mit Administratorrechten ausgeführt werden?",
+                    "Administrator-Bestätigung",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning) != MessageBoxResult.Yes)
+            {
+                return;
+            }
+
+            ExecuteLocalScriptOrExecutable(fullPath, confirmedRunAsAdmin: true);
         }
 
-        private void ExecuteLocalScriptOrExecutable(string fullPath, bool runAsAdmin)
+        /// <summary>
+        /// Builds a safe ProcessStartInfo without cmd.exe /c string interpolation, without
+        /// -ExecutionPolicy Bypass, and without automatic keyword-based Verb="runas" elevation.
+        /// </summary>
+        public static ProcessStartInfo BuildSafeLocalScriptOrExeStartInfo(string fullPath, bool confirmedRunAsAdmin)
+        {
+            if (string.IsNullOrWhiteSpace(fullPath))
+                throw new ArgumentException("Executable path must not be empty.", nameof(fullPath));
+
+            string ext = Path.GetExtension(fullPath).ToLowerInvariant();
+            string workDir = Path.GetDirectoryName(fullPath) ?? "";
+
+            ProcessStartInfo psi;
+            if (ext == ".ps1")
+            {
+                psi = new ProcessStartInfo
+                {
+                    FileName = "powershell.exe",
+                    Arguments = $"-NoProfile -File \"{fullPath}\"",
+                    WorkingDirectory = workDir,
+                    UseShellExecute = true
+                };
+            }
+            else
+            {
+                psi = new ProcessStartInfo
+                {
+                    FileName = fullPath,
+                    WorkingDirectory = workDir,
+                    UseShellExecute = true
+                };
+            }
+
+            if (confirmedRunAsAdmin && ext != ".lnk")
+                psi.Verb = "runas";
+
+            return psi;
+        }
+
+        private void ExecuteLocalScriptOrExecutable(string fullPath, bool confirmedRunAsAdmin)
         {
             try
             {
                 if (!File.Exists(fullPath)) return;
-                string ext = Path.GetExtension(fullPath).ToLowerInvariant();
-                string workDir = Path.GetDirectoryName(fullPath) ?? "";
-
-                ProcessStartInfo psi;
-                if (ext is ".cmd" or ".bat")
-                {
-                    psi = new ProcessStartInfo
-                    {
-                        FileName = "cmd.exe",
-                        Arguments = $"/c \"\"{fullPath}\"\"",
-                        WorkingDirectory = workDir,
-                        UseShellExecute = true
-                    };
-                }
-                else if (ext == ".ps1")
-                {
-                    psi = new ProcessStartInfo
-                    {
-                        FileName = "powershell.exe",
-                        Arguments = $"-NoProfile -ExecutionPolicy Bypass -File \"{fullPath}\"",
-                        WorkingDirectory = workDir,
-                        UseShellExecute = true
-                    };
-                }
-                else
-                {
-                    psi = new ProcessStartInfo
-                    {
-                        FileName = fullPath,
-                        WorkingDirectory = workDir,
-                        UseShellExecute = true
-                    };
-                }
-
-                if (runAsAdmin && ext != ".lnk")
-                    psi.Verb = "runas";
-
+                var psi = BuildSafeLocalScriptOrExeStartInfo(fullPath, confirmedRunAsAdmin);
                 Process.Start(psi);
                 ShowToast($"✓ Starte '{Path.GetFileName(fullPath)}'...");
             }
@@ -4337,6 +4377,7 @@ namespace FunkenwerkOS
 
         private void OpenInstantWindowsKeySearch()
         {
+            if (IsLockScreenActive) return;
             if (StartMenuFlyout.Visibility == Visibility.Visible && string.IsNullOrEmpty(StartSearchBox.Text))
             {
                 StartMenuFlyout.Visibility = Visibility.Collapsed;
@@ -5143,7 +5184,10 @@ namespace FunkenwerkOS
             _settings.FirewallExtraApps[key] = next;
             OsVaultAndStorage.SaveSettings(_settings);
             UpdateFirewallAppButtonsUi();
-            ShowToast(next ? "✓ Freigabe aktiviert" : "Freigabe geschlossen");
+            bool synced = FortressProvisioningEngine.SyncExtraAppFirewallRuleIfActive(key, next);
+            ShowToast(next
+                ? (synced ? "✓ Firewall-Freigabe aktiv" : "✓ Freigabe aktiviert")
+                : (synced ? "✓ Firewall-Freigabe gesperrt" : "Freigabe geschlossen"));
         }
 
         private void SelectLoginEnvUi(string env)
@@ -5323,7 +5367,7 @@ namespace FunkenwerkOS
         {
             SetBorderlessFullscreen(false);
             FortressProvisioningEngine.SetCustomShellForCurrentUser(false);
-            OsHardwareAndAudioEngine.EnsureWindowsExplorerTaskbarRunning();
+            OsHardwareAndAudioEngine.EnsureWindowsExplorerTaskbarRunning(isShellLaunch: false, forceResetCustomShell: true);
             FortressProvisioningEngine.RunElevatedFortressScript("RestoreWindows");
             FortressProvisioningEngine.StartMaintenanceExplorer();
             RefreshFortressAuditUi();
@@ -5333,22 +5377,71 @@ namespace FunkenwerkOS
         // =====================================================================
         // 11. LIVE LEITSTAND & KEYBOARD SHORTCUTS (INCL. CTRL+C/X/V/A, F2, DEL)
         // =====================================================================
+        public string DisplayedLeitstandRevenue => KpiRevenueTxt.Text;
+        public string DisplayedLeitstandAvailable => KpiAvailableTxt.Text;
+        public string DisplayedLeitstandPriority => PrioOrderMainTxt.Text;
+        public bool IsLockScreenActive => LockScreenOverlay.Visibility == Visibility.Visible;
+
         private async Task RefreshDashboardLiveAsync()
         {
             var snap = await SeelenfunkeLiveClient.FetchDashboardSnapshotAsync(_settings);
+            ApplyDashboardSnapshotToUi(snap);
+        }
+
+        public void ApplyDashboardSnapshotToUi(OsDashboardSnapshot snap)
+        {
             _lastSnapshot = snap;
+            bool visitorPrivacy = _settings.VisitorPrivacyMode;
 
             TrayApiDot.Fill = Solid(snap.IsConnected ? "#10B981" : "#F59E0B");
             StartUserOnlineDot.Fill = Solid(snap.IsConnected ? "#10B981" : "#F59E0B");
 
             KpiOpenOrdersTxt.Text = snap.OpenOrdersCount.ToString();
             KpiRevenueLabelTxt.Text = string.IsNullOrWhiteSpace(snap.MonthLabel) ? "UMSATZ MONAT" : $"UMSATZ · {snap.MonthLabel.ToUpperInvariant()}";
-            KpiRevenueTxt.Text = snap.ShopRevenueFormatted;
-            KpiAvailableTxt.Text = snap.AvailableLiquidityFormatted;
+            KpiRevenueTxt.Text = visitorPrivacy ? "•••" : snap.ShopRevenueFormatted;
+            KpiAvailableTxt.Text = visitorPrivacy ? "•••" : snap.AvailableLiquidityFormatted;
             KpiOpenTasksTxt.Text = snap.OpenTasksCount.ToString();
-            PrioOrderMainTxt.Text = snap.PriorityOrder.HasPriorityOrder ? $"FOKUS: {snap.PriorityOrder.OrderNumber} · {snap.PriorityOrder.TotalFormatted}" : "BESTELLUNGEN";
 
-            OrdersItemsControl.ItemsSource = snap.ActiveOrders;
+            if (snap.PriorityOrder.HasPriorityOrder)
+            {
+                if (visitorPrivacy)
+                {
+                    PrioOrderMainTxt.Text = $"FOKUS: {snap.PriorityOrder.OrderNumber} · Gesperrt · •••";
+                }
+                else
+                {
+                    string gdprCust = GewerbeMonitorWindow.AnonymizeCustomerNameGdpr(snap.PriorityOrder.CustomerName);
+                    PrioOrderMainTxt.Text = string.IsNullOrWhiteSpace(snap.PriorityOrder.CustomerName)
+                        ? $"FOKUS: {snap.PriorityOrder.OrderNumber} · {snap.PriorityOrder.TotalFormatted}"
+                        : $"FOKUS: {snap.PriorityOrder.OrderNumber} · {gdprCust} · {snap.PriorityOrder.TotalFormatted}";
+                }
+            }
+            else
+            {
+                PrioOrderMainTxt.Text = "BESTELLUNGEN";
+            }
+
+            var displayOrders = snap.ActiveOrders.Select(o =>
+            {
+                string gdprName = GewerbeMonitorWindow.AnonymizeCustomerNameGdpr(o.CustomerName);
+                string statusText = visitorPrivacy
+                    ? (string.IsNullOrWhiteSpace(o.StatusLabel) ? "Gesperrt" : $"{o.StatusLabel} · Gesperrt")
+                    : (string.IsNullOrWhiteSpace(o.CustomerName) ? o.StatusLabel : $"{gdprName} · {o.StatusLabel}");
+                return new OsOrderItemDto
+                {
+                    Id = o.Id,
+                    OrderUuid = o.OrderUuid,
+                    OrderNumber = o.OrderNumber,
+                    CustomerName = visitorPrivacy ? "Gesperrt" : gdprName,
+                    StatusLabel = statusText,
+                    StatusBadgeHex = o.StatusBadgeHex,
+                    ItemCount = o.ItemCount,
+                    TotalFormatted = visitorPrivacy ? "•••" : o.TotalFormatted,
+                    IsExpress = o.IsExpress
+                };
+            }).ToList();
+
+            OrdersItemsControl.ItemsSource = displayOrders;
             TasksItemsControl.ItemsSource = snap.OpenTasks;
 
             if (snap.IsConnected)
@@ -5361,8 +5454,41 @@ namespace FunkenwerkOS
                 _settings.KnownOpenOrderIds = ids;
                 _initialOrdersSeeded = true;
             }
-            _secondaryWallWindow?.UpdateSnapshot(snap);
-            _gewerbeMonitorWindow?.UpdateFromSnapshot(snap);
+            _secondaryWallWindow?.UpdateFromSnapshot(snap, visitorPrivacy);
+            _gewerbeMonitorWindow?.UpdateFromSnapshot(snap, visitorPrivacy);
+        }
+
+        public void SetVisitorPrivacyMode(bool enabled)
+        {
+            _settings.VisitorPrivacyMode = enabled;
+            OsVaultAndStorage.SaveSettings(_settings);
+            UpdateVisitorPrivacyButtonsUi();
+            ApplyDashboardSnapshotToUi(_lastSnapshot);
+        }
+
+        private void UpdateVisitorPrivacyButtonsUi()
+        {
+            Style gold = (Style)Resources["NobleGoldBtn"];
+            Style glass = (Style)Resources["GlassBtn"];
+            bool active = _settings.VisitorPrivacyMode;
+            string label = active ? "Besuchermodus: AKTIV" : "Besuchermodus: AUS";
+
+            if (VisitorModeToggleBtn != null)
+            {
+                VisitorModeToggleBtn.Content = label;
+                VisitorModeToggleBtn.Style = active ? gold : glass;
+            }
+            if (LeitstandVisitorToggleBtn != null)
+            {
+                LeitstandVisitorToggleBtn.Content = label;
+                LeitstandVisitorToggleBtn.Style = active ? gold : glass;
+            }
+        }
+
+        private void ToggleVisitorPrivacyMode_Click(object sender, RoutedEventArgs e)
+        {
+            SetVisitorPrivacyMode(!_settings.VisitorPrivacyMode);
+            ShowToast(_settings.VisitorPrivacyMode ? "✓ Besuchermodus aktiv" : "Besuchermodus beendet");
         }
 
         private async void ManualRefreshDashboard_Click(object sender, RoutedEventArgs e) => await RefreshDashboardLiveAsync();
@@ -5410,6 +5536,12 @@ namespace FunkenwerkOS
             ApplyWallpaperAndSparksSettings();
             _fastSystemTimer.Start();
             _dashboardSyncTimer.Start();
+            if (!_desktopLiveBootInitialized)
+            {
+                _desktopLiveBootInitialized = true;
+                _ = RefreshLanInfrastructureAsync();
+                _ = RefreshDashboardLiveAsync();
+            }
         }
 
         private void OpenOrFocusGewerbeMonitor()
@@ -5447,7 +5579,7 @@ namespace FunkenwerkOS
                 RefreshTaskbarStrip();
             };
             _gewerbeMonitorWindow.Show();
-            _gewerbeMonitorWindow.UpdateFromSnapshot(_lastSnapshot);
+            _gewerbeMonitorWindow.UpdateFromSnapshot(_lastSnapshot, _settings.VisitorPrivacyMode);
             _gewerbeMonitorWindow.Activate();
         }
 
@@ -5457,11 +5589,174 @@ namespace FunkenwerkOS
             _secondaryWallWindow = new SecondaryWallWindow(_settings.DarkMode);
             _secondaryWallWindow.Closed += (_, _) => _secondaryWallWindow = null;
             _secondaryWallWindow.Show();
-            _secondaryWallWindow.UpdateSnapshot(_lastSnapshot);
+            _secondaryWallWindow.UpdateFromSnapshot(_lastSnapshot, _settings.VisitorPrivacyMode);
         }
 
-        private void LockScreenNow_Click(object sender, RoutedEventArgs e) { CloseAllFlyoutsAndMenus(); LockScreenOverlay.Visibility = Visibility.Visible; AnimateOpacity(LockScreenOverlay, 0.0, 1.0, 180); }
-        private async void UnlockWithMagicPortal_Click(object sender, RoutedEventArgs e) { LockScreenOverlay.Visibility = Visibility.Collapsed; await RunMagicPortalAwakeningAsync("SEELENFUNKEN ENTFESSELT"); }
+        public void LockScreenProgrammatically()
+        {
+            CloseAllFlyoutsAndMenus();
+            _isLockPwdVisible = false;
+            LockPasswordBox.Password = "";
+            LockPasswordRevealBox.Text = "";
+            LockPasswordRevealBox.Visibility = Visibility.Collapsed;
+            LockPasswordBox.Visibility = Visibility.Visible;
+            LockEyeSlashPath.Visibility = Visibility.Collapsed;
+            LockErrorTxt.Text = "";
+            LockErrorTxt.Visibility = Visibility.Collapsed;
+            LockPromptLabelTxt.Text = !string.IsNullOrWhiteSpace(_settings.EncryptedLockPin)
+                ? "SPERRBILDSCHIRM-PIN ODER WINDOWS-PASSWORT"
+                : "WINDOWS-PASSWORT";
+            LockScreenOverlay.Visibility = Visibility.Visible;
+            AnimateOpacity(LockScreenOverlay, 0.0, 1.0, 180);
+            LockPasswordBox.Focus();
+        }
+
+        private void LockScreenNow_Click(object sender, RoutedEventArgs e) => LockScreenProgrammatically();
+
+        private void NativeLockWorkStation_Click(object sender, RoutedEventArgs e)
+        {
+            try { LockWorkStation(); } catch { }
+        }
+
+        private void ToggleLockPasswordEye_Click(object sender, RoutedEventArgs e)
+        {
+            _isLockPwdVisible = !_isLockPwdVisible;
+            if (_isLockPwdVisible)
+            {
+                LockPasswordRevealBox.Text = LockPasswordBox.Password;
+                LockPasswordBox.Visibility = Visibility.Collapsed;
+                LockPasswordRevealBox.Visibility = Visibility.Visible;
+                LockEyeSlashPath.Visibility = Visibility.Visible;
+                LockPasswordRevealBox.Focus();
+                LockPasswordRevealBox.CaretIndex = LockPasswordRevealBox.Text.Length;
+            }
+            else
+            {
+                LockPasswordBox.Password = LockPasswordRevealBox.Text;
+                LockPasswordRevealBox.Visibility = Visibility.Collapsed;
+                LockPasswordBox.Visibility = Visibility.Visible;
+                LockEyeSlashPath.Visibility = Visibility.Collapsed;
+                LockPasswordBox.Focus();
+            }
+        }
+
+        private void ToggleLockPinSetupEye_Click(object sender, RoutedEventArgs e)
+        {
+            _isLockPinSetupVisible = !_isLockPinSetupVisible;
+            if (_isLockPinSetupVisible)
+            {
+                LockPinSetupRevealBox.Text = LockPinSetupBox.Password;
+                LockPinSetupBox.Visibility = Visibility.Collapsed;
+                LockPinSetupRevealBox.Visibility = Visibility.Visible;
+                LockPinSetupEyeSlashPath.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                LockPinSetupBox.Password = LockPinSetupRevealBox.Text;
+                LockPinSetupRevealBox.Visibility = Visibility.Collapsed;
+                LockPinSetupBox.Visibility = Visibility.Visible;
+                LockPinSetupEyeSlashPath.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        private void SaveLockPin_Click(object sender, RoutedEventArgs e)
+        {
+            string pin = (_isLockPinSetupVisible ? LockPinSetupRevealBox.Text : LockPinSetupBox.Password).Trim();
+            if (pin.Length < 4)
+            {
+                ShowToast("PIN muss mindestens 4 Zeichen lang sein");
+                return;
+            }
+            _settings.EncryptedLockPin = OsVaultAndStorage.ProtectOsVaultSecret(pin);
+            OsVaultAndStorage.SaveSettings(_settings);
+            LockPinSetupBox.Password = "";
+            LockPinSetupRevealBox.Text = "";
+            ShowToast("✓ Sperrbildschirm-PIN verschlüsselt gespeichert");
+        }
+
+        private void ClearLockPin_Click(object sender, RoutedEventArgs e)
+        {
+            _settings.EncryptedLockPin = "";
+            OsVaultAndStorage.SaveSettings(_settings);
+            LockPinSetupBox.Password = "";
+            LockPinSetupRevealBox.Text = "";
+            ShowToast("Sperrbildschirm-PIN entfernt");
+        }
+
+        public static bool VerifyUnlockCredential(string? candidateSecret, OsSettings settings, bool allowWindowsLogonCheck = true)
+        {
+            if (string.IsNullOrWhiteSpace(candidateSecret) || settings == null)
+                return false;
+
+            if (!string.IsNullOrWhiteSpace(settings.EncryptedLockPin))
+            {
+                byte[]? expectedBytes = null;
+                byte[]? candidateBytes = null;
+                try
+                {
+                    string expectedPin = OsVaultAndStorage.UnprotectVaultSecret(settings.EncryptedLockPin);
+                    if (!string.IsNullOrEmpty(expectedPin))
+                    {
+                        expectedBytes = Encoding.UTF8.GetBytes(expectedPin);
+                        candidateBytes = Encoding.UTF8.GetBytes(candidateSecret);
+                        if (CryptographicOperations.FixedTimeEquals(expectedBytes, candidateBytes))
+                            return true;
+                    }
+                }
+                finally
+                {
+                    if (expectedBytes != null) CryptographicOperations.ZeroMemory(expectedBytes);
+                    if (candidateBytes != null) CryptographicOperations.ZeroMemory(candidateBytes);
+                }
+            }
+
+            if (!allowWindowsLogonCheck)
+                return false;
+
+            const int LOGON32_LOGON_INTERACTIVE = 2;
+            const int LOGON32_PROVIDER_DEFAULT = 0;
+            string user = Environment.UserName;
+            string[] domains = new[] { ".", Environment.UserDomainName };
+            foreach (string domain in domains.Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                IntPtr hToken = IntPtr.Zero;
+                try
+                {
+                    if (LogonUser(user, domain, candidateSecret, LOGON32_LOGON_INTERACTIVE, LOGON32_PROVIDER_DEFAULT, out hToken) && hToken != IntPtr.Zero)
+                        return true;
+                }
+                catch { }
+                finally
+                {
+                    if (hToken != IntPtr.Zero)
+                        CloseHandle(hToken);
+                }
+            }
+
+            return false;
+        }
+
+        private async void UnlockWithMagicPortal_Click(object sender, RoutedEventArgs e) => await TryUnlockScreenAsync();
+
+        private async Task TryUnlockScreenAsync()
+        {
+            string candidate = _isLockPwdVisible ? LockPasswordRevealBox.Text : LockPasswordBox.Password;
+            if (!VerifyUnlockCredential(candidate, _settings, allowWindowsLogonCheck: true))
+            {
+                LockPasswordBox.Password = "";
+                LockPasswordRevealBox.Text = "";
+                LockErrorTxt.Text = "Zugangsdaten ungültig";
+                LockErrorTxt.Visibility = Visibility.Visible;
+                return;
+            }
+
+            LockPasswordBox.Password = "";
+            LockPasswordRevealBox.Text = "";
+            LockErrorTxt.Text = "";
+            LockErrorTxt.Visibility = Visibility.Collapsed;
+            LockScreenOverlay.Visibility = Visibility.Collapsed;
+            await RunMagicPortalAwakeningAsync("SEELENFUNKEN ENTFESSELT");
+        }
 
         // =====================================================================
         // 11B. BUILT-IN OS APPS: TASCHENRECHNER, AUSSCHNEIDEN & KURZNOTIZEN
@@ -5766,6 +6061,25 @@ namespace FunkenwerkOS
             ActiveStickyTextBox.Focus();
         }
 
+        public static string StageStickyNoteForDragExport(StickyNoteDto dto)
+        {
+            string exportDir = OsVaultAndStorage.StickyDragStagingDir;
+            string rawTitle = (dto?.Content ?? "").Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault()?.Trim() ?? "Notiz";
+            if (rawTitle.Length > 36) rawTitle = rawTitle.Substring(0, 36).Trim();
+            foreach (char c in Path.GetInvalidFileNameChars()) rawTitle = rawTitle.Replace(c.ToString(), "");
+            if (string.IsNullOrWhiteSpace(rawTitle)) rawTitle = "Notiz";
+            string tempFile = Path.Combine(exportDir, $"{rawTitle}.txt");
+
+            // Pre-create empty file and apply non-inherited user-only ACL before writing note contents
+            using (var fs = new FileStream(tempFile, FileMode.Create, FileAccess.Write, FileShare.None))
+            {
+            }
+            OsVaultAndStorage.LockDownFileAcl(tempFile);
+            File.WriteAllText(tempFile, dto?.Content ?? "", new UTF8Encoding(false));
+            OsVaultAndStorage.LockDownFileAcl(tempFile);
+            return tempFile;
+        }
+
         private void StickyNoteCard_MouseMove(object sender, MouseEventArgs e)
         {
             if (e.LeftButton != MouseButtonState.Pressed || sender is not FrameworkElement fe || fe.Tag is not StickyNoteDto dto)
@@ -5776,15 +6090,7 @@ namespace FunkenwerkOS
             {
                 try
                 {
-                    string exportDir = Path.Combine(Path.GetTempPath(), "FunkenwerkOS_Notes");
-                    Directory.CreateDirectory(exportDir);
-                    string rawTitle = (dto.Content ?? "").Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault()?.Trim() ?? "Notiz";
-                    if (rawTitle.Length > 36) rawTitle = rawTitle.Substring(0, 36).Trim();
-                    foreach (char c in Path.GetInvalidFileNameChars()) rawTitle = rawTitle.Replace(c.ToString(), "");
-                    if (string.IsNullOrWhiteSpace(rawTitle)) rawTitle = "Notiz";
-                    string tempFile = Path.Combine(exportDir, $"{rawTitle}.txt");
-                    File.WriteAllText(tempFile, dto.Content ?? "", new System.Text.UTF8Encoding(false));
-
+                    string tempFile = StageStickyNoteForDragExport(dto);
                     var data = new DataObject(DataFormats.FileDrop, new[] { tempFile });
                     DragDrop.DoDragDrop(fe, data, DragDropEffects.Copy);
                 }
@@ -5881,8 +6187,47 @@ namespace FunkenwerkOS
 
         private void NotesSearchBox_TextChanged(object sender, TextChangedEventArgs e) => RefreshStickyNotesListUi();
 
+        /// <summary>
+        /// Evaluates whether a key gesture must be blocked while LockScreenOverlay is visible.
+        /// Returns true if the event is swallowed/handled while locked.
+        /// </summary>
+        public bool ShouldBlockKeyWhileLocked(Key key, ModifierKeys modifiers, IInputElement? focusedElement, out bool triggerUnlockAttempt)
+        {
+            triggerUnlockAttempt = false;
+            if (!IsLockScreenActive)
+                return false;
+
+            if (key == Key.Enter && modifiers == ModifierKeys.None)
+            {
+                triggerUnlockAttempt = true;
+                return true;
+            }
+
+            bool inLockInput = ReferenceEquals(focusedElement, LockPasswordBox) || ReferenceEquals(focusedElement, LockPasswordRevealBox);
+            bool globalShortcutOrSystemKey = key is Key.LWin or Key.RWin or Key.Snapshot or Key.F11 or Key.Escape or Key.System or Key.Apps
+                || (modifiers & (ModifierKeys.Alt | ModifierKeys.Windows)) != 0
+                || ((modifiers & ModifierKeys.Control) != 0 && key is not (Key.A or Key.Back));
+
+            if (!inLockInput || globalShortcutOrSystemKey)
+                return true;
+
+            // Allow typing into LockPasswordBox / LockPasswordRevealBox while still stopping global window handlers below
+            return false;
+        }
+
         private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
         {
+            if (IsLockScreenActive)
+            {
+                if (ShouldBlockKeyWhileLocked(e.Key, Keyboard.Modifiers, Keyboard.FocusedElement, out bool tryUnlock))
+                {
+                    e.Handled = true;
+                    if (tryUnlock)
+                        _ = TryUnlockScreenAsync();
+                }
+                return;
+            }
+
             if (e.Key is Key.LWin or Key.RWin && Keyboard.Modifiers == ModifierKeys.None)
             {
                 e.Handled = true;

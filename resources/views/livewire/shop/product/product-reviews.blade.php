@@ -248,8 +248,12 @@
                                                                 <i class="bi bi-film text-2xl mb-1"></i>
                                                                 <span class="text-[10px] uppercase font-bold text-gray-400">Video</span>
                                                             </div>
-                                                        @else
+                                                        @elseif(method_exists($file, 'isPreviewable') && $file->isPreviewable())
                                                             <img src="{{ $file->temporaryUrl() }}" class="w-full h-full object-cover">
+                                                        @else
+                                                            <div class="w-full h-full bg-gray-100 flex flex-col items-center justify-center text-gray-500">
+                                                                <span class="text-[10px] uppercase font-bold text-gray-400">Datei</span>
+                                                            </div>
                                                         @endif
                                                         <button type="button" wire:click="removeAccumulatedMedia({{ $index }})" class="absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 shadow-sm">
                                                             <i class="bi bi-x text-lg"></i>

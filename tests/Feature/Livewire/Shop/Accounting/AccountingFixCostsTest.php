@@ -382,10 +382,13 @@ class AccountingFixCostsTest extends TestCase
             'position' => 1
         ]);
 
-        $realPdfPath = storage_path('app/buchhaltung/contracts/2026/08/2026-08-11_ADAC_Autoversicherung.pdf');
+        $candidates = glob(storage_path('app/buchhaltung/contracts/2026/08/*ADAC*Autoversicherung*.pdf')) ?: [];
+        $realPdfPath = $candidates[0] ?? storage_path('app/buchhaltung/contracts/2026/08/2026-08-11_ADAC_Autoversicherung.pdf');
         if (!file_exists($realPdfPath)) {
             $this->markTestSkipped('ADAC contract file does not exist.');
         }
+
+        $relativeContractPath = ltrim(str_replace(storage_path('app/'), '', str_replace('\\', '/', $realPdfPath)), '/');
 
         $item = AccountingCostItem::create([
             'accounting_group_id' => $group->id,
@@ -393,7 +396,7 @@ class AccountingFixCostsTest extends TestCase
             'amount' => 0,
             'interval_months' => 1,
             'first_payment_date' => '2026-08-11',
-            'contract_file_path' => 'buchhaltung/contracts/2026/08/2026-08-11_ADAC_Autoversicherung.pdf'
+            'contract_file_path' => $relativeContractPath
         ]);
 
         $component = Livewire::test(AccountingFixCosts::class)
@@ -417,7 +420,8 @@ class AccountingFixCostsTest extends TestCase
             'position' => 1
         ]);
 
-        $realPdfPath = storage_path('app/buchhaltung/contracts/2026/08/2026-08-11_ADAC_Autoversicherung.pdf');
+        $candidates = glob(storage_path('app/buchhaltung/contracts/2026/08/*ADAC*Autoversicherung*.pdf')) ?: [];
+        $realPdfPath = $candidates[0] ?? storage_path('app/buchhaltung/contracts/2026/08/2026-08-11_ADAC_Autoversicherung.pdf');
         if (!file_exists($realPdfPath)) {
             $this->markTestSkipped('ADAC contract file does not exist.');
         }

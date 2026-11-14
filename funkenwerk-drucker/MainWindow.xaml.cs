@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Net;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -50,10 +52,13 @@ namespace FunkenwerkDrucker
         private CancellationTokenSource? _busyCts;
         private readonly DispatcherTimer _toastTimer;
         private bool _suppressListEvents = false;
-        private string _loadedDocumentTitle = "Funkenwerk Dokument";
+        private string _loadedDocumentTitle = "Funkenwerk_Dokument";
 
         private const string AccountingReceiptsUncDir = @"\\wsl.localhost\Ubuntu\home\ubuntuxina\meine-projekte\seelenfunke\storage\app\buchhaltung\receipts";
-        private const string FunkenwerkPdfExePath = @"C:\Users\konta\Desktop\Funkenwerk Collection\Funkenwerk PDF\FunkenwerkPdf.exe";
+
+        public bool IsDarkMode => _isDarkMode;
+        public double PreviewImageWidthDip => PreviewPageImage.Width;
+        public double PreviewSheetWidthDip => PaperSheetBorder.Width;
 
         public MainWindow(string? initialFilePath = null, bool startInScanMode = false)
         {
@@ -104,17 +109,79 @@ namespace FunkenwerkDrucker
             };
         }
 
+        public static string? ResolveFunkenwerkPdfExePath()
+        {
+            try
+            {
+                string siblingExe = IOPath.GetFullPath(IOPath.Combine(AppContext.BaseDirectory, "..", "Funkenwerk PDF", "FunkenwerkPdf.exe"));
+                if (File.Exists(siblingExe))
+                    return siblingExe;
+            }
+            catch { }
+
+            try
+            {
+                string desktopCollectionExe = IOPath.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),
+                    "Funkenwerk Collection",
+                    "Funkenwerk PDF",
+                    "FunkenwerkPdf.exe");
+                if (File.Exists(desktopCollectionExe))
+                    return desktopCollectionExe;
+            }
+            catch { }
+
+            try
+            {
+                using var cmdKey = Registry.CurrentUser.OpenSubKey(@"Software\Classes\FunkenwerkPdf.Document\shell\open\command");
+                string? rawCmd = cmdKey?.GetValue("")?.ToString();
+                if (!string.IsNullOrWhiteSpace(rawCmd))
+                {
+                    var m = Regex.Match(rawCmd, "^\"([^\"]+\\.exe)\"", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+                    if (m.Success)
+                    {
+                        string regExe = m.Groups[1].Value;
+                        if (string.Equals(IOPath.GetFileName(regExe), "FunkenwerkPdf.exe", StringComparison.OrdinalIgnoreCase) &&
+                            File.Exists(regExe))
+                        {
+                            return regExe;
+                        }
+                    }
+                }
+            }
+            catch { }
+
+            return null;
+        }
+
+        public void LoadPageForSelfTest(DocumentPageItem item)
+        {
+            _pages.Clear();
+            _pages.Add(item);
+            ReindexPages();
+            _currentPageIndex = 0;
+            RefreshDocumentView();
+        }
+
         // =====================================================================
         // TOAST & BUSY OVERLAY
         // =====================================================================
         private void ShowToast(string message, bool isError = false, int durationMs = 3200)
         {
-            // Strictly enforce Rule 3.1: Never emit " – "
-            string clean = message.Replace(" – ", " · ");
+            string clean = (message ?? "")
+                .Replace(" \u2013 ", " · ")
+                .Replace(" \u2014 ", " · ")
+                .Replace('\u2013', '-')
+                .Replace('\u2014', '-');
+
             ViewerToastText.Text = clean;
             ViewerToastBorder.BorderBrush = BrushHex(isError ? "#EF4444" : "#C5A059");
-            ViewerToastBorder.Background = BrushHex(isError ? "#F52A1215" : (_isDarkMode ? "#F2151923" : "#F5FFFFFF"));
-            ViewerToastText.Foreground = BrushHex(isError ? "#FCA5A5" : (_isDarkMode ? "#F9FAFB" : "#111827"));
+            ViewerToastBorder.Background = BrushHex(isError
+                ? (_isDarkMode ? "#F52A1215" : "#F5FEF2F2")
+                : (_isDarkMode ? "#F2151923" : "#F5FFFFFF"));
+            ViewerToastText.Foreground = BrushHex(isError
+                ? (_isDarkMode ? "#FCA5A5" : "#B91C1C")
+                : (_isDarkMode ? "#F9FAFB" : "#111827"));
             ViewerToastBorder.Visibility = Visibility.Visible;
 
             _toastTimer.Stop();
@@ -156,13 +223,14 @@ namespace FunkenwerkDrucker
             return b;
         }
 
-        private void ThemeToggle_Click(object sender, RoutedEventArgs e)
+        public void ThemeToggle_Click(object sender, RoutedEventArgs e)
         {
             _isDarkMode = !_isDarkMode;
             _settings.IsDarkMode = _isDarkMode;
             _settings.Save();
             ApplyTheme();
             UpdateAllOptionButtonsVisuals();
+            UpdateInkTelemetryVisuals();
         }
 
         private void ApplyTheme()
@@ -177,10 +245,22 @@ namespace FunkenwerkDrucker
             string btnBg = _isDarkMode ? "#1B1F2B" : "#F3F4F6";
             string btnBorder = _isDarkMode ? "#2D3343" : "#D1D5DB";
 
+            Resources["ListItemBgBrush"] = BrushHex(_isDarkMode ? "#1A1F2C" : "#F9FAFB");
+            Resources["ListItemSelectedBgBrush"] = BrushHex(_isDarkMode ? "#222838" : "#FEF9EC");
+            Resources["ListItemBorderBrush"] = BrushHex(_isDarkMode ? "#262C3D" : "#E5E7EB");
+            Resources["PrimaryTextBrush"] = BrushHex(fgMain);
+            Resources["SecondaryTextBrush"] = BrushHex(fgMuted);
+            Resources["BadgeBgBrush"] = BrushHex(_isDarkMode ? "#12151E" : "#F3F4F6");
+            Resources["BadgeBorderBrush"] = BrushHex(btnBorder);
+            Resources["TrackBgBrush"] = BrushHex(_isDarkMode ? "#1E2433" : "#E5E7EB");
+            Resources["CancelJobBgBrush"] = BrushHex(_isDarkMode ? "#2A161B" : "#FEF2F2");
+            Resources["CancelJobBorderBrush"] = BrushHex(_isDarkMode ? "#4C1D24" : "#FECACA");
+
             Background = BrushHex(bgRoot);
             RootGrid.Background = BrushHex(bgRoot);
             TopBarBorder.Background = BrushHex(bgBar);
             TopBarBorder.BorderBrush = BrushHex(borderCol);
+            TopBarDivider.Background = BrushHex(btnBorder);
             FooterBorder.Background = BrushHex(bgBar);
             FooterBorder.BorderBrush = BrushHex(borderCol);
 
@@ -190,6 +270,7 @@ namespace FunkenwerkDrucker
             ViewportTileBorder.BorderBrush = BrushHex(borderCol);
             RightTileBorder.Background = BrushHex(bgTile);
             RightTileBorder.BorderBrush = BrushHex(borderCol);
+            PaperSheetBorder.BorderBrush = BrushHex(_isDarkMode ? "#374151" : "#D1D5DB");
 
             EmptyStateOverlay.Background = BrushHex(bgTile);
             QueueWorkspaceOverlay.Background = BrushHex(bgTile);
@@ -199,6 +280,11 @@ namespace FunkenwerkDrucker
             HardwareMaintCardBorder.BorderBrush = BrushHex(borderCol);
             InkCardBorder.Background = BrushHex(bgSubCard);
             InkCardBorder.BorderBrush = BrushHex(borderCol);
+
+            CropActionPill.Background = BrushHex(_isDarkMode ? "#F2141822" : "#F5FFFFFF");
+            BusyOverlayBorder.Background = BrushHex(_isDarkMode ? "#CC090B10" : "#AA111827");
+            BusyCardBorder.Background = BrushHex(_isDarkMode ? "#151923" : "#FFFFFF");
+            BusyOverlaySubTxt.Foreground = BrushHex(fgMain);
 
             BrandTitleTxt.Foreground = BrushHex(fgMain);
             EmptyTitleTxt.Foreground = BrushHex(fgMain);
@@ -215,6 +301,16 @@ namespace FunkenwerkDrucker
             ZoomInBtn.Foreground = BrushHex(fgMain);
             ZoomOutBtn.Foreground = BrushHex(fgMain);
 
+            PrintCopiesStepperBorder.Background = BrushHex(btnBg);
+            PrintCopiesStepperBorder.BorderBrush = BrushHex(btnBorder);
+            PrintCopiesDownBtn.Foreground = BrushHex(fgMain);
+            PrintCopiesUpBtn.Foreground = BrushHex(fgMain);
+
+            CopyCopiesStepperBorder.Background = BrushHex(btnBg);
+            CopyCopiesStepperBorder.BorderBrush = BrushHex(btnBorder);
+            CopyCopiesDownBtn.Foreground = BrushHex(fgMain);
+            CopyCopiesUpBtn.Foreground = BrushHex(fgMain);
+
             CustomIpTextBox.Background = BrushHex(btnBg);
             CustomIpTextBox.Foreground = BrushHex(fgMain);
             CustomIpTextBox.BorderBrush = BrushHex(btnBorder);
@@ -225,12 +321,35 @@ namespace FunkenwerkDrucker
             StyleSecondaryButton(ToggleSidebarBtn, true);
             StyleSecondaryButton(OpenFileBtn, false);
             StyleSecondaryButton(SavePdfTopBtn, false);
+            StyleGoldOutlinedButton(OpenInFwPdfBtn);
             StyleSecondaryButton(SaveReceiptBtn, false);
+
             StyleSecondaryButton(RotatePageBtn, false);
+            StyleDangerSecondaryButton(DeletePageBtn);
+            StyleSecondaryButton(MovePageUpBtn, false);
+            StyleSecondaryButton(MovePageDownBtn, false);
             StyleSecondaryButton(AppendFilesBtn, true);
             StyleSecondaryButton(ClearAllPagesBtn, false);
-            StyleSecondaryButton(RefreshPrintersBtn, true);
+
+            StyleSecondaryButton(ResetCropBtn, false);
+            StyleSecondaryButton(CancelCropBtn, false);
+            StyleGoldOutlinedButton(EmptyScanBtn);
             StyleSecondaryButton(EmptyTestPageBtn, false);
+
+            StyleSecondaryButton(QueueRefreshBtn, false);
+            StyleSecondaryButton(MaintCalibBtn, false);
+            StyleSecondaryButton(MaintWebUiBtn, true);
+            StyleSecondaryButton(MaintWinPrnBtn, false);
+            StyleDangerSecondaryButton(OpenWindowsAppsBtn);
+            StyleDangerSecondaryButton(BusyCancelBtn);
+
+            StyleSecondaryButton(RefreshPrintersBtn, true);
+            StyleGoldOutlinedButton(AppendScanBtn);
+            StyleSecondaryButton(ScanSavePdfBtn, false);
+            StyleSecondaryButton(ScanSavePngBtn, false);
+            StyleGoldOutlinedButton(ScanOpenFwPdfBtn);
+            StyleSecondaryButton(ScanSaveReceiptBtn, false);
+            StyleSecondaryButton(StartColorCopyBtn, false);
         }
 
         private void StyleSegmentButton(Button btn, bool active)
@@ -258,6 +377,20 @@ namespace FunkenwerkDrucker
             btn.Background = BrushHex(_isDarkMode ? "#1B1F2B" : "#F3F4F6");
             btn.Foreground = BrushHex(goldText ? "#C5A059" : (_isDarkMode ? "#E5E7EB" : "#1F2937"));
             btn.BorderBrush = BrushHex(_isDarkMode ? "#2D3343" : "#D1D5DB");
+        }
+
+        private void StyleGoldOutlinedButton(Button btn)
+        {
+            btn.Background = BrushHex(_isDarkMode ? "#1D2230" : "#FFFBEB");
+            btn.Foreground = BrushHex(_isDarkMode ? "#C5A059" : "#926B22");
+            btn.BorderBrush = BrushHex("#C5A059");
+        }
+
+        private void StyleDangerSecondaryButton(Button btn)
+        {
+            btn.Background = BrushHex(_isDarkMode ? "#1D2230" : "#FEF2F2");
+            btn.Foreground = BrushHex(_isDarkMode ? "#F87171" : "#DC2626");
+            btn.BorderBrush = BrushHex(_isDarkMode ? "#3B2328" : "#FECACA");
         }
 
         private void UpdateAllOptionButtonsVisuals()
@@ -440,8 +573,8 @@ namespace FunkenwerkDrucker
             if (p == null || p.IsVirtualPrinter)
             {
                 InkSummaryRightTxt.Text = "Virtuell";
-                BlackInkPctTxt.Text = "—";
-                ColorInkPctTxt.Text = "—";
+                BlackInkPctTxt.Text = "--";
+                ColorInkPctTxt.Text = "--";
                 BlackInkFillBar.Width = 0;
                 ColorInkFillBar.Width = 0;
                 return;
@@ -450,14 +583,15 @@ namespace FunkenwerkDrucker
             if (p.BlackInkPercent.HasValue || p.ColorInkPercent.HasValue)
             {
                 InkSummaryRightTxt.Text = p.ResolvedIpAddress;
-                SetSingleInkBar(BlackInkFillBar, BlackInkPctTxt, p.BlackInkPercent, "#E5E7EB");
+                string blackHex = _isDarkMode ? "#E5E7EB" : "#1F2937";
+                SetSingleInkBar(BlackInkFillBar, BlackInkPctTxt, p.BlackInkPercent, blackHex);
                 SetSingleInkBar(ColorInkFillBar, ColorInkPctTxt, p.ColorInkPercent, "#C5A059");
             }
             else
             {
                 InkSummaryRightTxt.Text = p.LanHttpOnline ? "Lokal aktiv" : "Standby";
-                BlackInkPctTxt.Text = "—";
-                ColorInkPctTxt.Text = "—";
+                BlackInkPctTxt.Text = "--";
+                ColorInkPctTxt.Text = "--";
                 BlackInkFillBar.Width = 0;
                 ColorInkFillBar.Width = 0;
             }
@@ -468,7 +602,7 @@ namespace FunkenwerkDrucker
             if (!pct.HasValue)
             {
                 fillBar.Width = 0;
-                pctTxt.Text = "—";
+                pctTxt.Text = "--";
                 return;
             }
 
@@ -515,7 +649,15 @@ namespace FunkenwerkDrucker
 
         private async void SaveCustomIp_Click(object sender, RoutedEventArgs e)
         {
-            _settings.CustomPrinterIp = (CustomIpTextBox.Text ?? "").Trim();
+            string raw = (CustomIpTextBox.Text ?? "").Trim();
+            if (!PrinterHardwareEngine.TryValidateCustomPrinterTarget(raw, out string cleaned, out string errorMsg))
+            {
+                ShowToast(errorMsg, isError: true, durationMs: 4200);
+                return;
+            }
+
+            CustomIpTextBox.Text = cleaned;
+            _settings.CustomPrinterIp = cleaned;
             _settings.Save();
             await RefreshPrintersAndQueueAsync(silent: false);
         }
@@ -526,15 +668,17 @@ namespace FunkenwerkDrucker
             if (string.IsNullOrWhiteSpace(ip))
                 ip = (_settings.CustomPrinterIp ?? "").Trim();
 
-            if (string.IsNullOrWhiteSpace(ip))
+            if (string.IsNullOrWhiteSpace(ip) ||
+                !IPAddress.TryParse(ip, out var parsed) ||
+                !PrinterHardwareEngine.IsPrivateLanIp(parsed))
             {
-                ShowToast("Keine lokale Drucker-IP bekannt (bitte Gerät einschalten)", isError: true);
+                ShowToast("Keine gültige private Heimnetz-Drucker-IP bekannt (bitte Gerät einschalten)", isError: true);
                 return;
             }
 
             try
             {
-                Process.Start(new ProcessStartInfo($"http://{ip}") { UseShellExecute = true });
+                Process.Start(new ProcessStartInfo($"http://{parsed}") { UseShellExecute = true });
             }
             catch (Exception ex)
             {
@@ -601,7 +745,7 @@ namespace FunkenwerkDrucker
                 if (!append)
                 {
                     _pages.Clear();
-                    _loadedDocumentTitle = IOPath.GetFileNameWithoutExtension(arr[0]);
+                    _loadedDocumentTitle = DocumentAndPrintEngine.SanitizeSafeFileStem(IOPath.GetFileNameWithoutExtension(arr[0]));
                 }
 
                 int firstAddedIdx = _pages.Count;
@@ -652,7 +796,7 @@ namespace FunkenwerkDrucker
             var testPage = DocumentAndPrintEngine.CreateCalibrationTestPage();
             _pages.Clear();
             _pages.Add(testPage);
-            _loadedDocumentTitle = "Funkenwerk Prüfblatt";
+            _loadedDocumentTitle = "Funkenwerk_Pruefblatt";
             ReindexPages();
             _currentPageIndex = 0;
             if (_mode == WorkspaceMode.Queue)
@@ -715,8 +859,10 @@ namespace FunkenwerkDrucker
             PreviewPageImage.Source = bmp;
 
             var (paperWmm, paperHmm, _) = DocumentAndPrintEngine.GetPaperDimensionsMm(_paperFormat);
+            var (effWmm, effHmm) = DocumentAndPrintEngine.GetEffectivePhysicalSizeMm(cur);
+
             bool landscape = _orientationMode == PrintOrientationMode.Landscape ||
-                             (_orientationMode == PrintOrientationMode.Auto && bmp.PixelWidth > bmp.PixelHeight * 1.05);
+                             (_orientationMode == PrintOrientationMode.Auto && effWmm > effHmm * 1.02);
 
             double sheetMmW = landscape ? paperHmm : paperWmm;
             double sheetMmH = landscape ? paperWmm : paperHmm;
@@ -726,8 +872,24 @@ namespace FunkenwerkDrucker
             PaperSheetBorder.Width = Math.Max(140, sheetMmW * dipPerMm);
             PaperSheetBorder.Height = Math.Max(180, sheetMmH * dipPerMm);
 
-            double pad = _scaleMode == PrintScaleMode.FitPrintableArea ? Math.Max(4, 4.2 * dipPerMm) : 0;
-            PreviewPageImage.Margin = new Thickness(pad);
+            if (_scaleMode == PrintScaleMode.ActualSize100)
+            {
+                // True 1:1 physical millimeter proportion relative to the paper sheet
+                PreviewPageImage.Width = Math.Max(8, effWmm * dipPerMm);
+                PreviewPageImage.Height = Math.Max(8, effHmm * dipPerMm);
+                PreviewPageImage.Stretch = Stretch.Fill;
+                PreviewPageImage.Margin = new Thickness(0);
+            }
+            else
+            {
+                double pad = (_paperFormat == PrintPaperFormat.Label100x150 || _paperFormat == PrintPaperFormat.Photo10x15)
+                    ? Math.Max(1, 1.0 * dipPerMm)
+                    : Math.Max(4, 4.2 * dipPerMm);
+                PreviewPageImage.Width = double.NaN;
+                PreviewPageImage.Height = double.NaN;
+                PreviewPageImage.Stretch = Stretch.Uniform;
+                PreviewPageImage.Margin = new Thickness(pad);
+            }
 
             ZoomLabel.Text = $"{(int)Math.Round(_zoomFactor * 100)}%";
             FooterRightTxt.Text = $"Seite {_currentPageIndex + 1} / {_pages.Count} · {sheetMmW:0}×{sheetMmH:0} mm";
@@ -867,13 +1029,12 @@ namespace FunkenwerkDrucker
 
         private void ApplyCrop_Click(object sender, RoutedEventArgs e)
         {
-            if (_pages.Count == 0 || PreviewPageImage.Source is not BitmapSource bmp)
+            if (_pages.Count == 0 || PreviewPageImage.Source is not BitmapSource)
             {
                 ExitCropMode();
                 return;
             }
 
-            // Map CropOverlayCanvas coordinates onto rendered PreviewPageImage bounds
             GeneralTransform gt = PreviewPageImage.TransformToAncestor(PaperContentGrid);
             Rect imgBounds = gt.TransformBounds(new Rect(0, 0, PreviewPageImage.ActualWidth, PreviewPageImage.ActualHeight));
 
@@ -953,7 +1114,7 @@ namespace FunkenwerkDrucker
                 if (!appendToExisting)
                 {
                     _pages.Clear();
-                    _loadedDocumentTitle = $"Scan_{DateTime.Now:yyyy-MM-dd_HHmm}";
+                    _loadedDocumentTitle = DocumentAndPrintEngine.SanitizeSafeFileStem($"Scan_{DateTime.Now:yyyy-MM-dd_HHmm}");
                 }
 
                 int firstNew = _pages.Count;
@@ -972,7 +1133,7 @@ namespace FunkenwerkDrucker
             }
             catch (OperationCanceledException)
             {
-                ShowToast("Scan abgebrochen");
+                ShowToast("Vorgang abgebrochen");
             }
             catch (Exception ex)
             {
@@ -1000,11 +1161,20 @@ namespace FunkenwerkDrucker
                 return;
             }
 
-            var indices = DocumentAndPrintEngine.ResolveSelectedPageIndices(
-                _pages.Count,
-                _currentPageIndex,
-                _pageRangeMode,
-                CustomPageRangeBox.Text);
+            List<int> indices;
+            try
+            {
+                indices = DocumentAndPrintEngine.ResolveSelectedPageIndices(
+                    _pages.Count,
+                    _currentPageIndex,
+                    _pageRangeMode,
+                    CustomPageRangeBox.Text);
+            }
+            catch (Exception rangeEx)
+            {
+                ShowToast(rangeEx.Message, isError: true, durationMs: 4500);
+                return;
+            }
 
             BeginBusy("Sende Druckauftrag …", _selectedPrinter.DisplayName);
             try
@@ -1019,7 +1189,7 @@ namespace FunkenwerkDrucker
                     _paperFormat,
                     _orientationMode,
                     _scaleMode,
-                    _loadedDocumentTitle);
+                    DocumentAndPrintEngine.SanitizeSafeFileStem(_loadedDocumentTitle));
 
                 ShowToast($"✓ {summary}", durationMs: 4200);
                 await RefreshQueueOnlyAsync();
@@ -1082,7 +1252,7 @@ namespace FunkenwerkDrucker
 
                 BusyOverlaySubTxt.Text = "2. Drucke Kopie …";
                 var allIdx = Enumerable.Range(0, _pages.Count).ToList();
-                string msg = await DocumentAndPrintEngine.ExecutePrintJobAsync(
+                await DocumentAndPrintEngine.ExecutePrintJobAsync(
                     _selectedPrinter,
                     _pages,
                     allIdx,
@@ -1092,9 +1262,13 @@ namespace FunkenwerkDrucker
                     PrintPaperFormat.A4,
                     PrintOrientationMode.Auto,
                     PrintScaleMode.FitPrintableArea,
-                    "Funkenwerk Direktkopie");
+                    "Funkenwerk_Direktkopie");
 
                 ShowToast($"✓ Kopie gestartet ({_pages.Count} S. × {_copies})");
+            }
+            catch (OperationCanceledException)
+            {
+                ShowToast("Vorgang abgebrochen");
             }
             catch (Exception ex)
             {
@@ -1117,15 +1291,22 @@ namespace FunkenwerkDrucker
                 return;
             }
 
+            string safeStem = DocumentAndPrintEngine.SanitizeSafeFileStem(_loadedDocumentTitle);
             var dlg = new SaveFileDialog
             {
                 Title = "Als PDF speichern",
                 Filter = "PDF-Dokument (*.pdf)|*.pdf",
-                FileName = $"{_loadedDocumentTitle}.pdf"
+                FileName = $"{safeStem}.pdf"
             };
             if (dlg.ShowDialog(this) == true)
             {
-                await DocumentAndPrintEngine.ExportPagesToPdfAsync(_pages, dlg.FileName);
+                await DocumentAndPrintEngine.ExportPagesToPdfAsync(
+                    _pages,
+                    dlg.FileName,
+                    forceGrayscale: _mode == WorkspaceMode.Print && _printColorMode == PrintColorMode.Grayscale,
+                    paperFormat: _paperFormat,
+                    orientationMode: _orientationMode,
+                    scaleMode: _scaleMode);
                 ShowToast($"✓ PDF gespeichert ({_pages.Count} Seiten)");
             }
         }
@@ -1138,11 +1319,12 @@ namespace FunkenwerkDrucker
                 return;
             }
 
+            string safeStem = DocumentAndPrintEngine.SanitizeSafeFileStem(_loadedDocumentTitle);
             var dlg = new SaveFileDialog
             {
                 Title = "Seite als Bild speichern",
                 Filter = "PNG-Bild (*.png)|*.png|JPEG-Bild (*.jpg)|*.jpg",
-                FileName = $"{_loadedDocumentTitle}_Seite{_currentPageIndex + 1}.png"
+                FileName = $"{safeStem}_Seite{_currentPageIndex + 1}.png"
             };
             if (dlg.ShowDialog(this) == true)
             {
@@ -1163,6 +1345,13 @@ namespace FunkenwerkDrucker
                 return;
             }
 
+            string? fwPdfExe = ResolveFunkenwerkPdfExePath();
+            if (string.IsNullOrWhiteSpace(fwPdfExe) || !File.Exists(fwPdfExe))
+            {
+                ShowToast("Funkenwerk PDF wurde nicht gefunden", isError: true);
+                return;
+            }
+
             try
             {
                 string exportDir = IOPath.Combine(
@@ -1170,25 +1359,25 @@ namespace FunkenwerkDrucker
                     "Funkenwerk Scans");
                 Directory.CreateDirectory(exportDir);
 
-                string outPdf = IOPath.Combine(exportDir, $"{_loadedDocumentTitle}_{DateTime.Now:HHmmss}.pdf");
-                await DocumentAndPrintEngine.ExportPagesToPdfAsync(_pages, outPdf);
+                string safeStem = DocumentAndPrintEngine.SanitizeSafeFileStem(_loadedDocumentTitle);
+                string outPdf = IOPath.Combine(exportDir, $"{safeStem}_{DateTime.Now:HHmmss}.pdf");
+                await DocumentAndPrintEngine.ExportPagesToPdfAsync(
+                    _pages,
+                    outPdf,
+                    forceGrayscale: false,
+                    paperFormat: _paperFormat,
+                    orientationMode: _orientationMode,
+                    scaleMode: _scaleMode);
 
-                if (File.Exists(FunkenwerkPdfExePath))
+                var psi = new ProcessStartInfo
                 {
-                    var psi = new ProcessStartInfo
-                    {
-                        FileName = FunkenwerkPdfExePath,
-                        WorkingDirectory = IOPath.GetDirectoryName(FunkenwerkPdfExePath)!,
-                        UseShellExecute = false
-                    };
-                    psi.ArgumentList.Add(outPdf);
-                    Process.Start(psi);
-                    ShowToast("✓ In Funkenwerk PDF geöffnet");
-                }
-                else
-                {
-                    Process.Start(new ProcessStartInfo(outPdf) { UseShellExecute = true });
-                }
+                    FileName = fwPdfExe,
+                    WorkingDirectory = IOPath.GetDirectoryName(fwPdfExe)!,
+                    UseShellExecute = false
+                };
+                psi.ArgumentList.Add(outPdf);
+                Process.Start(psi);
+                ShowToast("✓ In Funkenwerk PDF geöffnet");
             }
             catch (Exception ex)
             {
@@ -1218,7 +1407,13 @@ namespace FunkenwerkDrucker
 
             if (dlg.ShowDialog(this) == true)
             {
-                await DocumentAndPrintEngine.ExportPagesToPdfAsync(_pages, dlg.FileName);
+                await DocumentAndPrintEngine.ExportPagesToPdfAsync(
+                    _pages,
+                    dlg.FileName,
+                    forceGrayscale: false,
+                    paperFormat: _paperFormat,
+                    orientationMode: _orientationMode,
+                    scaleMode: _scaleMode);
                 ShowToast($"✓ Beleg abgelegt: {IOPath.GetFileName(dlg.FileName)}");
             }
         }
@@ -1253,8 +1448,8 @@ namespace FunkenwerkDrucker
         private void OrientPortrait_Click(object sender, RoutedEventArgs e) { _orientationMode = PrintOrientationMode.Portrait; RefreshDocumentView(); }
         private void OrientLandscape_Click(object sender, RoutedEventArgs e) { _orientationMode = PrintOrientationMode.Landscape; RefreshDocumentView(); }
 
-        private void ScaleFit_Click(object sender, RoutedEventArgs e) { _scaleMode = PrintScaleMode.FitPrintableArea; _settings.LastScaleMode = _scaleMode; _settings.Save(); RefreshDocumentView(); }
-        private void Scale100_Click(object sender, RoutedEventArgs e) { _scaleMode = PrintScaleMode.ActualSize100; _settings.LastScaleMode = _scaleMode; _settings.Save(); RefreshDocumentView(); }
+        public void ScaleFit_Click(object sender, RoutedEventArgs e) { _scaleMode = PrintScaleMode.FitPrintableArea; _settings.LastScaleMode = _scaleMode; _settings.Save(); RefreshDocumentView(); }
+        public void Scale100_Click(object sender, RoutedEventArgs e) { _scaleMode = PrintScaleMode.ActualSize100; _settings.LastScaleMode = _scaleMode; _settings.Save(); RefreshDocumentView(); }
 
         private void RangeAll_Click(object sender, RoutedEventArgs e) { _pageRangeMode = PrintPageRangeMode.All; UpdateAllOptionButtonsVisuals(); }
         private void RangeCurrent_Click(object sender, RoutedEventArgs e) { _pageRangeMode = PrintPageRangeMode.Current; UpdateAllOptionButtonsVisuals(); }

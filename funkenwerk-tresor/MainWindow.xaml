@@ -323,7 +323,8 @@
                     <MenuItem Header="Sicherheits-Audit (Schwache &amp; Doppelte Passwörter)..." Click="OpenAuditModal_Click"/>
                     <MenuItem Header="Datenbank auf Argon2id (KDBX 4) härten" Click="UpgradeToArgon2id_Click"/>
                     <Separator/>
-                    <MenuItem x:Name="MenuScreenShield" Header="Screenshot-Schutz aktiv (Optional)" IsCheckable="True" IsChecked="False" Click="MenuScreenShield_Click"/>
+                    <MenuItem x:Name="MenuScreenShield" Header="Screenshot-Schutz aktiv" IsCheckable="True" IsChecked="True" Click="MenuScreenShield_Click"/>
+                    <MenuItem x:Name="MenuLockOnWinLock" Header="Bei Windows-Sperre (Win+L) automatisch sperren" IsCheckable="True" IsChecked="True" Click="MenuLockOnWinLock_Click"/>
                 </MenuItem>
             </Menu>
         </Border>

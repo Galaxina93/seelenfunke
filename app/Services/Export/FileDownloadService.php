@@ -153,19 +153,40 @@ class FileDownloadService
             abort(403, 'Ungültiger Dateipfad.');
         }
 
-        if (!Storage::exists($path) || is_link(Storage::path($path))) {
+        if (!Storage::exists($path)) {
             abort(404, 'Datei im Tresor nicht gefunden.');
+        }
+
+        $rawFullPath = Storage::path($path);
+        if (is_link($rawFullPath)) {
+            abort(403, 'Ungültiger Dateipfad.');
+        }
+
+        $storageRoot = realpath(Storage::path(''));
+        $resolvedPath = realpath($rawFullPath);
+        if (
+            $storageRoot === false
+            || $resolvedPath === false
+            || ($resolvedPath !== $storageRoot && !str_starts_with($resolvedPath, rtrim($storageRoot, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR))
+        ) {
+            abort(403, 'Ungültiger Dateipfad.');
         }
 
         $safeMimes = [
             'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf', 'text/plain'
         ];
-        $contentType = $attachment->content_type ?: 'application/octet-stream';
-        $disposition = in_array(strtolower($contentType), $safeMimes, true) ? 'inline' : 'attachment';
+        $detectedMime = strtolower((string) (@Storage::mimeType($path) ?: $attachment->content_type ?: 'application/octet-stream'));
+        $isSafeInline = in_array($detectedMime, $safeMimes, true);
+        $contentType = $isSafeInline ? $detectedMime : 'application/octet-stream';
+        $disposition = $isSafeInline ? 'inline' : 'attachment';
         $cleanFilename = preg_replace('/[^A-Za-z0-9._-]/', '_', basename($attachment->filename ?: 'attachment')) ?: 'attachment';
 
         return response()->streamDownload(function () use ($path) {
-            echo Storage::get($path);
+            $stream = Storage::readStream($path);
+            if (is_resource($stream)) {
+                fpassthru($stream);
+                fclose($stream);
+            }
         }, $cleanFilename, [
             'Content-Type' => $contentType,
             'Content-Disposition' => $disposition . '; filename="' . $cleanFilename . '"',
@@ -206,7 +227,12 @@ class FileDownloadService
 
     public function downloadLaserSvg($itemId, $side = 'front')
     {
-        $item = ($itemId instanceof OrderOrderItem) ? $itemId : OrderOrderItem::findOrFail($itemId);
+        if ($itemId instanceof OrderOrderItem || $itemId instanceof \App\Models\Order\OrderQuoteRequestItem) {
+            $item = $itemId;
+        } else {
+            $item = OrderOrderItem::find($itemId)
+                ?? \App\Models\Order\OrderQuoteRequestItem::with(['product', 'quoteRequest'])->findOrFail($itemId);
+        }
 
         $isAdminOrEmployee = \Illuminate\Support\Facades\Auth::guard('admin')->check()
             || \App\Services\AI\AiAuthHelper::isAdmin()
@@ -214,7 +240,9 @@ class FileDownloadService
         $isCustomerOwner = false;
         if (\Illuminate\Support\Facades\Auth::guard('customer')->check()) {
             $customer = \Illuminate\Support\Facades\Auth::guard('customer')->user();
-            if ($item->order && (string)$item->order->customer_id === (string)$customer->id) {
+            if ($item instanceof OrderOrderItem && $item->order && (string)$item->order->customer_id === (string)$customer->id) {
+                $isCustomerOwner = true;
+            } elseif ($item instanceof \App\Models\Order\OrderQuoteRequestItem && $item->quoteRequest && strtolower((string) $item->quoteRequest->email) === strtolower((string) $customer->email)) {
                 $isCustomerOwner = true;
             }
         }
@@ -232,7 +260,9 @@ class FileDownloadService
             ? ($config['texts_back'] ?? $config['back']['texts'] ?? []) 
             : ($config['texts'] ?? $config['front']['texts'] ?? []);
 
-        $productConfig = is_string($product->configurator_settings) ? json_decode($product->configurator_settings, true) : ($product->configurator_settings ?? []);
+        $productConfig = $product
+            ? (is_string($product->configurator_settings) ? json_decode($product->configurator_settings, true) : ($product->configurator_settings ?? []))
+            : [];
 
         // Fallback & Aufbereitung für Schnell-Personalisierung / Neuling-Modus (custom_fields_data)
         $hasNonEmptyTexts = collect($texts)->contains(fn($t) => is_array($t) && trim((string) ($t['text'] ?? '')) !== '');
@@ -691,44 +721,22 @@ class FileDownloadService
                                 ['order_item_id' => $item->id, 'ext' => $ext]
                             );
                         }
-                    } elseif (filter_var($url, FILTER_VALIDATE_URL)) {
-                        $parsedUrl = parse_url($url);
-                        $host = $parsedUrl['host'] ?? '';
-                        $scheme = strtolower($parsedUrl['scheme'] ?? '');
-
-                        if (
-                            in_array($scheme, ['http', 'https'], true)
-                            && !empty($host)
-                            && !in_array(strtolower($host), ['localhost', '0.0.0.0', '::1'], true)
-                            && !str_ends_with(strtolower($host), '.local')
-                            && !str_ends_with(strtolower($host), '.internal')
-                        ) {
-                            $resolvedIps = @gethostbynamel($host) ?: [];
-                            $allPublicIps = !empty($resolvedIps);
-                            foreach ($resolvedIps as $ip) {
-                                $isPublicIp = filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE);
-                                if (!$isPublicIp || $ip === '127.0.0.1' || str_starts_with($ip, '169.254.') || str_starts_with($ip, '127.')) {
-                                    $allPublicIps = false;
-                                    break;
+                    } elseif (filter_var($url, FILTER_VALIDATE_URL) && str_starts_with(strtolower($url), 'https://')) {
+                        $parsedHost = strtolower((string) parse_url($url, PHP_URL_HOST));
+                        $appHost = strtolower((string) parse_url((string) config('app.url'), PHP_URL_HOST));
+                        $resolvedIps = $parsedHost !== '' ? (@gethostbynamel($parsedHost) ?: []) : [];
+                        $allIpsPublic = !empty($resolvedIps) && collect($resolvedIps)->every(
+                            fn ($ip) => filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) !== false
+                        );
+                        $candidateExt = strtolower(pathinfo((string) parse_url($url, PHP_URL_PATH), PATHINFO_EXTENSION));
+                        if ($parsedHost !== '' && $parsedHost === $appHost && $allIpsPublic && in_array($candidateExt, ['svg', 'png', 'jpg', 'jpeg', 'webp'], true)) {
+                            try {
+                                $remoteResp = \Illuminate\Support\Facades\Http::timeout(5)->withoutRedirecting()->get($url);
+                                if ($remoteResp->successful() && strlen($remoteResp->body()) <= 10 * 1024 * 1024) {
+                                    $ext = $candidateExt;
+                                    $data = $remoteResp->body();
                                 }
-                            }
-
-                            if ($allPublicIps) {
-                                try {
-                                    $resp = \Illuminate\Support\Facades\Http::timeout(5)->withoutRedirecting()->get($url);
-                                    if ($resp->successful()) {
-                                        $data = $resp->body();
-                                        $ext = strtolower(pathinfo($urlPath, PATHINFO_EXTENSION));
-                                        if (!$ext && $resp->header('Content-Type')) {
-                                            $ct = $resp->header('Content-Type');
-                                            if (str_contains($ct, 'svg')) $ext = 'svg';
-                                            elseif (str_contains($ct, 'png')) $ext = 'png';
-                                            elseif (str_contains($ct, 'jpeg') || str_contains($ct, 'jpg')) $ext = 'jpg';
-                                        }
-                                    }
-                                } catch (\Exception $e) {
-                                    \Illuminate\Support\Facades\Log::warning("Could not fetch remote logo for SVG export: " . $url . " - " . $e->getMessage());
-                                }
+                            } catch (\Throwable) {
                             }
                         }
                     }
@@ -736,18 +744,13 @@ class FileDownloadService
 
                 if ($data !== null) {
                     if ($ext === 'svg') {
+                        // SVG strikt per DOMDocument-Allowlist bereinigen (kein SSRF, kein XSS, keine fremden Namespaces)
+                        $cleanSvgDoc = \App\Support\SafeHtmlAndSvgSanitizer::sanitizeSvg((string) $data);
+                        if ($cleanSvgDoc === '') {
+                            continue;
+                        }
                         // SVG inlinen, aber OHNE <svg> Tag, da XCS verschachtelte SVGs ignoriert!
-                        $innerSvg = preg_replace('/<\?xml.*?\?>/is', '', $data);
-                        $innerSvg = preg_replace('/<!--.*?-->/is', '', $innerSvg);
-                        $innerSvg = preg_replace('/<!DOCTYPE.*?>/is', '', $innerSvg);
-
-                        // XSS / Malicious Elements Prevention: Strip script, iframe, object, foreignObject, embed
-                        $innerSvg = preg_replace('/<script\b[^>]*>(.*?)<\/script>/is', '', $innerSvg);
-                        $innerSvg = preg_replace('/<script\b[^>]*\/?>/is', '', $innerSvg);
-                        $innerSvg = preg_replace('/<(foreignObject|iframe|object|embed)\b[^>]*>(.*?)<\/\1>/is', '', $innerSvg);
-                        $innerSvg = preg_replace('/<(foreignObject|iframe|object|embed)\b[^>]*\/?>/is', '', $innerSvg);
-                        $innerSvg = preg_replace('/\son\w+\s*=\s*("[^"]*"|\'[^\']*\'|[^\s>]+)/i', '', $innerSvg);
-                        $innerSvg = preg_replace('/(?:xlink:)?href\s*=\s*["\']\s*(?:javascript|data:text\/html|vbscript):[^"\']*["\']/i', '', $innerSvg);
+                        $innerSvg = preg_replace('/<\?xml.*?\?>/is', '', $cleanSvgDoc);
 
                         $viewBoxW = 24; $viewBoxH = 24; $vX = 0; $vY = 0;
                         if (preg_match('/<svg[^>]*viewBox="([^"]+)"/i', $innerSvg, $m)) {
@@ -967,9 +970,11 @@ class FileDownloadService
             ]];
         }
 
-        $productConfig = is_string($product->configurator_settings)
-            ? json_decode($product->configurator_settings, true)
-            : ($product->configurator_settings ?? []);
+        $productConfig = $product
+            ? (is_string($product->configurator_settings)
+                ? json_decode($product->configurator_settings, true)
+                : ($product->configurator_settings ?? []))
+            : [];
         $overlayType = $config['overlay_type'] ?? ($productConfig['overlay_type'] ?? 'plane');
 
         $widthMm = null;

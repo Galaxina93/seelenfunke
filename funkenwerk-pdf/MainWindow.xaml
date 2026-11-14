@@ -13,7 +13,16 @@
         PreviewDragOver="Window_PreviewDragOver"
         PreviewDrop="Window_PreviewDrop"
         PreviewMouseWheel="Window_PreviewMouseWheel"
-        KeyDown="Window_KeyDown">
+        PreviewKeyDown="Window_PreviewKeyDown"
+        KeyDown="Window_KeyDown"
+        Closing="Window_Closing">
+
+    <Window.Resources>
+        <SolidColorBrush x:Key="ListItemBgBrush" Color="#1A1F2C"/>
+        <SolidColorBrush x:Key="ListItemBorderBrush" Color="#262C3D"/>
+        <SolidColorBrush x:Key="ListItemSelectedBgBrush" Color="#222838"/>
+        <SolidColorBrush x:Key="ListItemPrimaryTextBrush" Color="#F9FAFB"/>
+    </Window.Resources>
 
     <Grid x:Name="RootGrid" Background="#0F1117">
         <Grid.RowDefinitions>
@@ -44,7 +53,7 @@
                 <Button x:Name="SaveAsBtn" Content="Speichern als" Height="28" Padding="9,0" FontSize="12" Click="SaveAsPdf_Click"
                         Background="#1B1F2B" Foreground="#E5E7EB" BorderBrush="#2D3343" Cursor="Hand" Margin="0,2,6,2"/>
 
-                <Border Width="1" Height="20" Background="#2A3042" VerticalAlignment="Center" Margin="2,2,8,2"/>
+                <Border x:Name="TopSep1" Width="1" Height="20" Background="#2A3042" VerticalAlignment="Center" Margin="2,2,8,2"/>
 
                 <!-- Edit / Fill / Sign Tools (Individual Wrap Items so Nothing Ever Clips) -->
                 <Button x:Name="ToolSelectBtn" Content="↖ Auswahl" Height="28" Padding="9,0" FontSize="12" Click="ToolSelect_Click"
@@ -64,7 +73,7 @@
                 <Button x:Name="SignModalBtn" Content="✍ Unterschrift" Height="28" Padding="10,0" FontSize="12" Click="OpenSignatureModal_Click"
                         Background="#1D2230" Foreground="#C5A059" BorderBrush="#C5A059" BorderThickness="1.2" FontWeight="Bold" Cursor="Hand" Margin="0,2,6,2"/>
 
-                <Border Width="1" Height="20" Background="#2A3042" VerticalAlignment="Center" Margin="2,2,8,2"/>
+                <Border x:Name="TopSep2" Width="1" Height="20" Background="#2A3042" VerticalAlignment="Center" Margin="2,2,8,2"/>
 
                 <!-- Element Size Stepper (Scales Checkmark, Cross, Text & Signature) -->
                 <Border x:Name="SizeStepperBorder" Background="#181C26" BorderBrush="#2D3343" BorderThickness="1" CornerRadius="5" Height="28" Margin="0,2,6,2"
@@ -153,14 +162,17 @@
                                 <Setter Property="Template">
                                     <Setter.Value>
                                         <ControlTemplate TargetType="ListBoxItem">
-                                            <Border x:Name="ItemBorder" Padding="10,7" CornerRadius="8" Background="#1A1F2C" BorderBrush="#262C3D" BorderThickness="1" Cursor="Hand">
+                                            <Border x:Name="ItemBorder" Padding="10,7" CornerRadius="8"
+                                                    Background="{DynamicResource ListItemBgBrush}"
+                                                    BorderBrush="{DynamicResource ListItemBorderBrush}"
+                                                    BorderThickness="1" Cursor="Hand">
                                                 <ContentPresenter/>
                                             </Border>
                                             <ControlTemplate.Triggers>
                                                 <Trigger Property="IsSelected" Value="True">
                                                     <Setter TargetName="ItemBorder" Property="BorderBrush" Value="#C5A059"/>
                                                     <Setter TargetName="ItemBorder" Property="BorderThickness" Value="1.5"/>
-                                                    <Setter TargetName="ItemBorder" Property="Background" Value="#222838"/>
+                                                    <Setter TargetName="ItemBorder" Property="Background" Value="{DynamicResource ListItemSelectedBgBrush}"/>
                                                 </Trigger>
                                             </ControlTemplate.Triggers>
                                         </ControlTemplate>
@@ -175,7 +187,7 @@
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="{Binding Title}" Foreground="#F9FAFB" FontWeight="SemiBold" FontSize="12"/>
+                                    <TextBlock Grid.Column="0" Text="{Binding Title}" Foreground="{DynamicResource ListItemPrimaryTextBrush}" FontWeight="SemiBold" FontSize="12"/>
                                     <TextBlock Grid.Column="1" Text="{Binding Badge}" Foreground="#C5A059" FontSize="11" FontWeight="Bold" VerticalAlignment="Center"/>
                                 </Grid>
                             </DataTemplate>
@@ -237,7 +249,7 @@
                     <!-- INTEGRATED SIGNATURE PAD MODAL                        -->
                     <!-- ===================================================== -->
                     <Border x:Name="SignatureModalOverlay" Background="#CC090B10" CornerRadius="10" Visibility="Collapsed">
-                        <Border MaxWidth="520" Margin="16" VerticalAlignment="Center" HorizontalAlignment="Center"
+                        <Border x:Name="SignatureModalCardBorder" MaxWidth="540" Margin="16" VerticalAlignment="Center" HorizontalAlignment="Center"
                                 Background="#151923" BorderBrush="#C5A059" BorderThickness="1.5" CornerRadius="14" Padding="16">
                             <StackPanel>
                                 <Grid Margin="0,0,0,10">
@@ -246,25 +258,35 @@
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Text="✍ UNTERSCHRIFT" Foreground="#C5A059" FontSize="13.5" FontWeight="Bold" VerticalAlignment="Center"/>
-                                    <Button Grid.Column="1" Content="✕" Width="26" Height="26" Click="CloseSignatureModal_Click"
+                                    <Button x:Name="CloseSigModalBtn" Grid.Column="1" Content="✕" Width="26" Height="26" Click="CloseSignatureModal_Click"
                                             Background="#1D2230" Foreground="#9CA3AF" BorderBrush="#2D3343" Cursor="Hand"/>
                                 </Grid>
 
-                                <Border Background="#FFFFFF" BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="8" Width="460" Height="175" Margin="0,0,0,12">
+                                <Border Background="#FFFFFF" BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="8" Width="480" Height="175" Margin="0,0,0,10">
                                     <Grid>
-                                        <Line X1="20" Y1="135" X2="440" Y2="135" Stroke="#E5E7EB" StrokeThickness="1.5" StrokeDashArray="4 2"/>
+                                        <Line X1="20" Y1="135" X2="460" Y2="135" Stroke="#E5E7EB" StrokeThickness="1.5" StrokeDashArray="4 2"/>
                                         <InkCanvas x:Name="SignatureInkCanvas" Background="Transparent"/>
                                     </Grid>
                                 </Border>
 
+                                <CheckBox x:Name="RememberSignatureCheckBox"
+                                          Content="Für künftige Dokumente merken"
+                                          IsChecked="False"
+                                          Foreground="#E5E7EB"
+                                          FontSize="12"
+                                          Margin="0,0,0,10"
+                                          Cursor="Hand"/>
+
                                 <WrapPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                    <Button Content="Leeren" Height="30" Padding="12,0" Click="ClearSignaturePad_Click"
+                                    <Button x:Name="ClearSigBtn" Content="Leeren" Height="30" Padding="11,0" Click="ClearSignaturePad_Click"
                                             Background="#1D2230" Foreground="#E5E7EB" BorderBrush="#2D3343" Cursor="Hand" Margin="0,2,6,2"/>
-                                    <Button Content="Bild laden" Height="30" Padding="12,0" Click="LoadSignatureImage_Click"
+                                    <Button x:Name="LoadSigImgBtn" Content="Bild laden" Height="30" Padding="11,0" Click="LoadSignatureImage_Click"
                                             Background="#1D2230" Foreground="#E5E7EB" BorderBrush="#2D3343" Cursor="Hand" Margin="0,2,6,2"/>
-                                    <Button x:Name="UseSavedSigBtn" Content="Gespeicherte nutzen" Height="30" Padding="12,0" Click="UseSavedSignature_Click"
+                                    <Button x:Name="UseSavedSigBtn" Content="Gespeicherte nutzen" Height="30" Padding="11,0" Click="UseSavedSignature_Click"
                                             Background="#1D2230" Foreground="#C5A059" BorderBrush="#2D3343" FontWeight="SemiBold" Cursor="Hand" Margin="0,2,6,2"/>
-                                    <Button Content="✓ EINFÜGEN" Height="30" Padding="16,0" Click="ApplySignaturePad_Click"
+                                    <Button x:Name="DeleteSavedSigBtn" Content="Gespeicherte löschen" Height="30" Padding="11,0" Click="DeleteSavedSignature_Click"
+                                            Background="#1D2230" Foreground="#F87171" BorderBrush="#2D3343" Cursor="Hand" Margin="0,2,6,2"/>
+                                    <Button x:Name="ApplySigBtn" Content="✓ EINFÜGEN" Height="30" Padding="15,0" Click="ApplySignaturePad_Click"
                                             Background="#C5A059" Foreground="#0F1117" FontWeight="Bold" BorderThickness="0" Cursor="Hand" Margin="0,2,0,2"/>
                                 </WrapPanel>
                             </StackPanel>

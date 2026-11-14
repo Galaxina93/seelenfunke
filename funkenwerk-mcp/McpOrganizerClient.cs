@@ -16,19 +16,45 @@ namespace FunkenwerkMcp
         private static readonly Regex SafeResourceIdRegex = new(@"^[A-Za-z0-9_\-]+$", RegexOptions.Compiled);
         private static readonly Regex SafeIsoDateRegex = new(@"^[0-9]{4}-[0-9]{2}-[0-9]{2}(?:[T ][0-9]{2}:[0-9]{2}(?::[0-9]{2})?(?:\.[0-9]+)?(?:Z|[+\-][0-9]{2}:?[0-9]{2})?)?$", RegexOptions.Compiled);
 
+        internal static HttpClient? TestHttpClientOverride { get; set; }
+        internal static string? TestBaseUrlOverride { get; set; }
+
+        public static string? NormalizeTaskPriority(string? priority)
+        {
+            if (string.IsNullOrWhiteSpace(priority)) return null;
+            string low = priority.Trim().ToLowerInvariant();
+            return low switch
+            {
+                "low" or "niedrig" => "niedrig",
+                "normal" or "medium" or "mittel" => "mittel",
+                "high" or "urgent" or "dringend" or "hoch" => "hoch",
+                _ => throw new ArgumentException($"Ungueltige Aufgaben-Prioritaet '{priority}'. Erlaubt: low, normal, high, urgent, niedrig, mittel, hoch.")
+            };
+        }
+
         private static async Task<JsonDocument> SendJsonAsync(
             HttpMethod method,
             string relativePath,
             object? payload = null,
             string? environment = "active")
         {
-            string baseUrl = McpSecurityGuard.ResolveApiBaseUrlForEnv(environment);
+            string baseUrl = !string.IsNullOrWhiteSpace(TestBaseUrlOverride)
+                ? TestBaseUrlOverride!
+                : McpSecurityGuard.ResolveApiBaseUrlForEnv(environment);
             if (!McpSecurityGuard.IsAllowedApiUrl(baseUrl, out string normalizedBase))
-                throw new UnauthorizedAccessException("Nicht vertrauenswürdige API-Basis-URL blockiert (SSRF-Schutz).");
+                throw new UnauthorizedAccessException("Nicht vertrauenswuerdige API-Basis-URL blockiert (SSRF-Schutz).");
 
             string fullUrl = $"{normalizedBase}/{relativePath.TrimStart('/')}";
             using var req = new HttpRequestMessage(method, fullUrl);
-            McpSecurityGuard.AttachZeroSecretAdminAuth(req, normalizedBase);
+            if (TestHttpClientOverride == null)
+            {
+                McpSecurityGuard.AttachZeroSecretAdminAuth(req, normalizedBase);
+            }
+            else
+            {
+                req.Headers.TryAddWithoutValidation("Authorization", "Bearer test-mock-token");
+                req.Headers.TryAddWithoutValidation("Accept", "application/json");
+            }
 
             if (payload != null)
             {
@@ -36,7 +62,8 @@ namespace FunkenwerkMcp
                 req.Content = new StringContent(jsonBody, new UTF8Encoding(false), "application/json");
             }
 
-            using var resp = await Http.SendAsync(req);
+            HttpClient client = TestHttpClientOverride ?? Http;
+            using var resp = await client.SendAsync(req);
             string body = await resp.Content.ReadAsStringAsync();
 
             if (!resp.IsSuccessStatusCode)
@@ -141,6 +168,7 @@ namespace FunkenwerkMcp
                 }
             }
 
+            string? normalizedFilterPrio = NormalizeTaskPriority(priority);
             var tasks = new List<object>();
             if (tasksDoc.RootElement.TryGetProperty("data", out var tArr) && tArr.ValueKind == JsonValueKind.Array)
             {
@@ -150,7 +178,7 @@ namespace FunkenwerkMcp
                     if (onlyOpen && isCompleted) continue;
 
                     string prio = t.TryGetProperty("priority", out var pr) ? (pr.GetString() ?? "niedrig") : "niedrig";
-                    if (!string.IsNullOrWhiteSpace(priority) && !string.Equals(prio, priority.Trim(), StringComparison.OrdinalIgnoreCase))
+                    if (!string.IsNullOrWhiteSpace(normalizedFilterPrio) && !string.Equals(prio, normalizedFilterPrio, StringComparison.OrdinalIgnoreCase))
                         continue;
 
                     string lName = t.TryGetProperty("list_name", out var ln) ? (ln.GetString() ?? "Aufgaben") : "Aufgaben";
@@ -201,7 +229,7 @@ namespace FunkenwerkMcp
                 case "create":
                 {
                     if (string.IsNullOrWhiteSpace(title))
-                        throw new ArgumentException("Für 'create' ist 'title' erforderlich.");
+                        throw new ArgumentException("Fuer 'create' ist 'title' erforderlich.");
 
                     string cleanList = string.IsNullOrWhiteSpace(listIdOrAlias) ? "default" : listIdOrAlias.Trim();
                     ValidateSafeResourceId(cleanList, "listIdOrAlias");
@@ -209,7 +237,7 @@ namespace FunkenwerkMcp
                     var body = new Dictionary<string, object?>
                     {
                         ["title"] = title.Trim(),
-                        ["priority"] = ValidatePriority(priority) ?? "niedrig",
+                        ["priority"] = NormalizeTaskPriority(priority) ?? "mittel",
                         ["list_name"] = listName,
                         ["relevant_from"] = string.IsNullOrWhiteSpace(relevantFrom) ? null : ValidateIsoDateString(relevantFrom, "relevantFrom"),
                         ["ai_plan"] = notes,
@@ -224,7 +252,7 @@ namespace FunkenwerkMcp
                     ValidateSafeResourceId(taskId, "taskId");
                     var body = new Dictionary<string, object?>();
                     if (!string.IsNullOrWhiteSpace(title)) body["title"] = title.Trim();
-                    if (!string.IsNullOrWhiteSpace(priority)) body["priority"] = ValidatePriority(priority);
+                    if (!string.IsNullOrWhiteSpace(priority)) body["priority"] = NormalizeTaskPriority(priority);
                     if (isCompleted.HasValue) body["is_completed"] = isCompleted.Value;
                     if (!string.IsNullOrWhiteSpace(relevantFrom)) body["relevant_from"] = ValidateIsoDateString(relevantFrom, "relevantFrom");
                     if (notes != null) body["ai_plan"] = notes;
@@ -265,14 +293,26 @@ namespace FunkenwerkMcp
             string? startDate = null,
             string? endDate = null,
             int daysAhead = 14,
-            string? environment = "active")
+            string? environment = "active",
+            string? date = null)
         {
-            string start = string.IsNullOrWhiteSpace(startDate)
-                ? DateTime.Today.ToString("yyyy-MM-dd")
-                : ValidateIsoDateString(startDate!, "startDate");
-            string end = string.IsNullOrWhiteSpace(endDate)
-                ? DateTime.Today.AddDays(Math.Clamp(daysAhead, 1, 365)).ToString("yyyy-MM-dd")
-                : ValidateIsoDateString(endDate!, "endDate");
+            string start;
+            string end;
+            if (!string.IsNullOrWhiteSpace(date))
+            {
+                string exactDate = ValidateIsoDateString(date!, "date");
+                start = exactDate;
+                end = exactDate;
+            }
+            else
+            {
+                start = string.IsNullOrWhiteSpace(startDate)
+                    ? DateTime.Today.ToString("yyyy-MM-dd")
+                    : ValidateIsoDateString(startDate!, "startDate");
+                end = string.IsNullOrWhiteSpace(endDate)
+                    ? DateTime.Today.AddDays(Math.Clamp(daysAhead, 1, 365)).ToString("yyyy-MM-dd")
+                    : ValidateIsoDateString(endDate!, "endDate");
+            }
 
             string path = $"funki/calendar/events?start={Uri.EscapeDataString(start)}&end={Uri.EscapeDataString(end)}";
             using var doc = await SendJsonAsync(HttpMethod.Get, path, null, environment);
@@ -334,7 +374,8 @@ namespace FunkenwerkMcp
             string? name = null,
             int quantity = 1,
             string? statusFilter = null,
-            string? environment = "active")
+            string? environment = "active",
+            string? category = null)
         {
             string act = (action ?? "list").Trim().ToLowerInvariant();
             switch (act)
@@ -350,8 +391,25 @@ namespace FunkenwerkMcp
                 case "add":
                 {
                     if (string.IsNullOrWhiteSpace(name))
-                        throw new ArgumentException("Für 'add' ist 'name' erforderlich.");
-                    using var doc = await SendJsonAsync(HttpMethod.Post, "funki/shopping/items", new { name = name.Trim(), quantity = Math.Max(1, quantity) }, environment);
+                        throw new ArgumentException("Fuer 'add' ist 'name' erforderlich.");
+
+                    string? resolvedCategoryId = await ResolveShoppingCategoryIdAsync(category, environment);
+                    var payload = new Dictionary<string, object?>
+                    {
+                        ["name"] = name.Trim(),
+                        ["quantity"] = Math.Max(1, quantity)
+                    };
+                    if (!string.IsNullOrWhiteSpace(resolvedCategoryId))
+                    {
+                        payload["shopping_category_id"] = resolvedCategoryId;
+                        payload["category_id"] = resolvedCategoryId;
+                    }
+                    else if (!string.IsNullOrWhiteSpace(category))
+                    {
+                        payload["category"] = category.Trim();
+                    }
+
+                    using var doc = await SendJsonAsync(HttpMethod.Post, "funki/shopping/items", payload, environment);
                     return JsonSerializer.Deserialize<object>(doc.RootElement.GetRawText())!;
                 }
                 case "toggle":
@@ -371,16 +429,84 @@ namespace FunkenwerkMcp
             }
         }
 
-        private static string? ValidatePriority(string? p)
+        private static async Task<string?> ResolveShoppingCategoryIdAsync(string? rawCategory, string? environment)
         {
-            if (string.IsNullOrWhiteSpace(p)) return null;
-            string low = p.Trim().ToLowerInvariant();
-            return low switch
+            if (string.IsNullOrWhiteSpace(rawCategory)) return null;
+            string trimmed = rawCategory.Trim();
+
+            if (Guid.TryParse(trimmed, out _) || Regex.IsMatch(trimmed, @"^\d+$"))
             {
-                "hoch" or "high" => "hoch",
-                "mittel" or "medium" => "mittel",
-                _ => "niedrig"
-            };
+                return trimmed;
+            }
+
+            try
+            {
+                using var doc = await SendJsonAsync(HttpMethod.Get, "funki/shopping/items", null, environment);
+                var root = doc.RootElement;
+
+                string? TryFindInCategoriesArray(JsonElement arr)
+                {
+                    if (arr.ValueKind != JsonValueKind.Array) return null;
+                    string? partialId = null;
+                    foreach (var cat in arr.EnumerateArray())
+                    {
+                        string? catName = cat.TryGetProperty("name", out var nm) ? nm.GetString() : null;
+                        string? catId = cat.TryGetProperty("id", out var idEl)
+                            ? (idEl.ValueKind == JsonValueKind.Number ? idEl.GetRawText() : idEl.GetString())
+                            : null;
+                        if (string.IsNullOrWhiteSpace(catName) || string.IsNullOrWhiteSpace(catId)) continue;
+
+                        if (string.Equals(catName.Trim(), trimmed, StringComparison.OrdinalIgnoreCase))
+                            return catId;
+                        if (partialId == null && catName.Contains(trimmed, StringComparison.OrdinalIgnoreCase))
+                            partialId = catId;
+                    }
+                    return partialId;
+                }
+
+                if (root.TryGetProperty("categories", out var topCats))
+                {
+                    string? found = TryFindInCategoriesArray(topCats);
+                    if (!string.IsNullOrWhiteSpace(found)) return found;
+                }
+                if (root.TryGetProperty("data", out var dataEl))
+                {
+                    if (dataEl.ValueKind == JsonValueKind.Object && dataEl.TryGetProperty("categories", out var nestedCats))
+                    {
+                        string? found = TryFindInCategoriesArray(nestedCats);
+                        if (!string.IsNullOrWhiteSpace(found)) return found;
+                    }
+                    else if (dataEl.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var item in dataEl.EnumerateArray())
+                        {
+                            if (item.TryGetProperty("category", out var cObj) && cObj.ValueKind == JsonValueKind.Object)
+                            {
+                                string? cName = cObj.TryGetProperty("name", out var nm) ? nm.GetString() : null;
+                                string? cId = cObj.TryGetProperty("id", out var idEl)
+                                    ? (idEl.ValueKind == JsonValueKind.Number ? idEl.GetRawText() : idEl.GetString())
+                                    : null;
+                                if (!string.IsNullOrWhiteSpace(cName) && !string.IsNullOrWhiteSpace(cId) &&
+                                    string.Equals(cName.Trim(), trimmed, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    return cId;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Fallback: probe dedicated shopping/categories endpoint if items payload had no matching category list
+                using var catDoc = await SendJsonAsync(HttpMethod.Get, "funki/shopping/categories", null, environment);
+                if (catDoc.RootElement.TryGetProperty("data", out var catData))
+                {
+                    string? found = TryFindInCategoriesArray(catData);
+                    if (!string.IsNullOrWhiteSpace(found)) return found;
+                }
+            }
+            catch { }
+
+            return null;
         }
 
         private static string ValidateIsoDateString(string raw, string paramName)

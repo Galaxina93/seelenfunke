@@ -108,6 +108,37 @@ namespace FunkenwerkOS
             return true;
         }
 
+        public static bool IsTrustedWssUrl(string rawUrl, out string normalizedWss)
+        {
+            normalizedWss = "";
+            if (string.IsNullOrWhiteSpace(rawUrl)) return false;
+            if (!Uri.TryCreate(rawUrl.Trim(), UriKind.Absolute, out Uri? uri)) return false;
+            if (!string.IsNullOrEmpty(uri.UserInfo)) return false;
+
+            bool hostAllowed = AllowedHosts.Any(h => string.Equals(h, uri.Host, StringComparison.OrdinalIgnoreCase));
+            if (!hostAllowed) return false;
+
+            bool isLoopback = uri.Host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase)
+                           || uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase)
+                           || uri.Host.Equals("seelenfunke.test", StringComparison.OrdinalIgnoreCase);
+
+            if (IsDedicatedMiniPcKiosk())
+            {
+                if (isLoopback || !uri.Scheme.Equals("wss", StringComparison.OrdinalIgnoreCase))
+                    return false;
+            }
+            else
+            {
+                if (!isLoopback && !uri.Scheme.Equals("wss", StringComparison.OrdinalIgnoreCase))
+                    return false;
+                if (isLoopback && !uri.Scheme.Equals("ws", StringComparison.OrdinalIgnoreCase) && !uri.Scheme.Equals("wss", StringComparison.OrdinalIgnoreCase))
+                    return false;
+            }
+
+            normalizedWss = uri.GetLeftPart(UriPartial.Authority) + uri.AbsolutePath.TrimEnd('/');
+            return true;
+        }
+
         public static async Task<OsLoginResult> LoginAsync(OsSettings settings, string env, string email, string password, string? twoFactorCode)
         {
             string baseUrl = GetBaseUrlForEnvironment(env);
@@ -736,18 +767,8 @@ namespace FunkenwerkOS
 
         private static string FormatEuroFromCents(int cents) => (cents / 100.0).ToString("N2", DeCulture) + " €";
 
-        private static string AnonymizeCustomerNameGdpr(string raw)
-        {
-            if (string.IsNullOrWhiteSpace(raw)) return "";
-            string[] parts = raw.Trim().Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length == 0) return "";
-            string first = parts[0];
-            if (first.Length > 18) first = first.Substring(0, 18);
-            if (parts.Length == 1) return first;
-            string last = parts[parts.Length - 1].Trim('.');
-            if (string.IsNullOrEmpty(last)) return first;
-            return $"{first} {char.ToUpperInvariant(last[0])}.";
-        }
+        private static string AnonymizeCustomerNameGdpr(string raw) =>
+            GewerbeMonitorWindow.AnonymizeCustomerNameGdpr(raw);
 
         private static string GetStr(JsonElement el, string prop, string fallback)
         {

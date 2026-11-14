@@ -260,7 +260,7 @@ trait HandlesConfiguratorLogic
         $this->clearUnusedEmptyTextsOnActiveSide();
     }
 
-    public function addFilesToStage($newPaths = null)
+    protected function addFilesToStage($newPaths = null)
     {
         $coords = $this->getBeginnerPositionCoordinates();
         $centerX = $coords['center_x'] ?? ($this->configSettings['area_left'] + ($this->configSettings['area_width'] / 2));
@@ -320,8 +320,18 @@ trait HandlesConfiguratorLogic
         unset($this->uploaded_files[$index]);
         $this->uploaded_files = array_values($this->uploaded_files);
 
-        // WICHTIG: Pfad validieren, um Path Traversal oder unbefugtes Löschen zu verhindern
-        if (is_string($path) && str_starts_with($path, 'bestellungen/cart-uploads/') && !str_contains($path, '..')) {
+        // WICHTIG: Pfad validieren & nur Session-eigene (nicht in Templates genutzte) Dateien physisch löschen
+        $ownedUploads = (array) session('configurator_owned_uploads', []);
+        $isStaff = auth()->guard('admin')->check()
+            || \App\Services\AI\AiAuthHelper::isAdmin()
+            || \App\Services\AI\AiAuthHelper::isEmployee();
+        if (
+            is_string($path)
+            && str_starts_with($path, 'bestellungen/cart-uploads/')
+            && !str_contains($path, '..')
+            && ($isStaff || in_array($path, $ownedUploads, true))
+            && !app(\App\Services\CartFileCleanupService::class)->isFileUsedInTemplates(basename($path))
+        ) {
             if (Storage::disk('public')->exists($path)) {
                 Storage::disk('public')->delete($path);
             }

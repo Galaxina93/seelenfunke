@@ -1168,6 +1168,12 @@ trait AiAgentsFuncs
 
         // Prevent non-admin staff (employees) from delegating instructions to Admin-specialist agents
         if (\App\Services\AI\AiAuthHelper::check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            if (strtolower(trim((string) $originalAgent->name)) === 'funkira') {
+                return [
+                    'status' => 'error',
+                    'message' => "Zugriff verweigert: Mitarbeiter dürfen keine Aufgaben an Administrator-Spezialagenten ('{$originalAgent->name}') delegieren."
+                ];
+            }
             $adminOnlyToolPrefixes = [
                 'admin_',
                 'finance_',

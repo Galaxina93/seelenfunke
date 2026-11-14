@@ -7,6 +7,8 @@ use App\Models\Ai\AiKnowledgeBase;
 use App\Models\Order\OrderOrder;
 use App\Models\Customer\Customer;
 use App\Models\Admin\Admin;
+use Carbon\Carbon;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 
@@ -53,6 +55,8 @@ class AiPromptService
                 "1. ALLES AUS EINER HAND: Du bearbeitest alle internen Themen (Tagesroutine, Aufgaben, Buchhaltung, Bestellungen, Produkte, Lieferanten, Laser-Manufaktur, Marketing, Support-Auswertung, Einkauf, Mails, Gesundheit und IT) direkt selbst ohne Weiterleitung an Unter-Agenten.\n" .
                 "2. DYNAMISCHE FÄHIGKEITS-POOLS: Du startest schlank mit deinen Hauptfähigkeiten und nimmst dir bei Bedarf für den jeweiligen Moment über `" . FunkiraSkillPoolService::EQUIP_TOOL_NAME . "` genau den passenden Fähigkeitspool hinzu. Danach kehrst du automatisch zu deinen Hauptfähigkeiten zurück.\n" .
                 "3. WETTER & SPAZIERGANG-REGEL: Wenn es um das Wetter oder einen Spaziergang geht, sage ausschließlich kurz und präzise auf Basis des Wetters, ob ein Spaziergang machbar ist und wie Alina sich aufgrund der Temperatur anziehen sollte. Schlage NIEMALS Orte, Routen, Seen oder Parks für einen Spaziergang vor, außer Alina fragt ausdrücklich nach einem Ort.\n" .
+                "4. ALINA HAT IMMER DEN HUT AUF (WERKSTATT-STAND & STATUS-RÜCKFRAGE): Das Bestellsystem funktioniert zu 100 % manuell unter /admin/orders, du bist eine unterstützende Ergänzung auf derselben Datenbasis (`order_workshop_checkin`). Ändere NIEMALS eigenmächtig einen Bestellstatus (`order_update_status`), und verschweige NIEMALS stillschweigend eine Status-Abweichung! Wenn dir auffällt, dass der genannte Werkstatt-Stand, abgehakte Positionen oder ein erstelltes DHL-Label nicht zum aktuellen Status passen (z. B. noch 'Wartend' trotz aktiver Arbeit, oder alle Positionen + DHL-Label fertig aber noch 'In Bearbeitung'), weise Alina aktiv darauf hin und frage sie ausdrücklich, ob du den Status anpassen sollst. Erst NACH Alinas klarem Ja darfst du `order_update_status` mit `confirmed_by_alina=true` ausführen!\n" .
+                self::buildSeasonAndHolidayPrompt() .
                 FunkiraSkillPoolService::getFormerColleaguesEasterEggPrompt();
         }
 
@@ -182,5 +186,176 @@ class AiPromptService
                              "Gib diese Informationen im Gespräch entsprechend aus (z. B.: 'Die anonyme Person (ohne DSGVO-KI-Freigabe) hat folgende Bestellung #... mit Status ... aufgegeben').\n";
         
         return $systemPromptText;
+    }
+
+    /**
+     * Berechnet den Ostersonntag nach der Gaußschen Osterformel (ohne Abhängigkeit von ext-calendar).
+     */
+    public static function computeEasterSunday(int $year, string $tz = 'Europe/Berlin'): Carbon
+    {
+        $a = $year % 19;
+        $b = intdiv($year, 100);
+        $c = $year % 100;
+        $d = intdiv($b, 4);
+        $e = $b % 4;
+        $f = intdiv($b + 8, 25);
+        $g = intdiv($b - $f + 1, 3);
+        $h = (19 * $a + $b - $d - $g + 15) % 30;
+        $i = intdiv($c, 4);
+        $k = $c % 4;
+        $l = (32 + 2 * $e + 2 * $i - $h - $k) % 7;
+        $m = intdiv($a + 11 * $h + 22 * $l, 451);
+        $month = intdiv($h + $l - 7 * $m + 114, 31);
+        $day = (($h + $l - 7 * $m + 114) % 31) + 1;
+
+        return Carbon::create($year, $month, $day, 0, 0, 0, $tz);
+    }
+
+    /**
+     * Berechnet den Muttertag (zweiter Sonntag im Mai).
+     */
+    public static function computeMothersDay(int $year, string $tz = 'Europe/Berlin'): Carbon
+    {
+        $may1 = Carbon::create($year, 5, 1, 0, 0, 0, $tz);
+        $daysUntilFirstSunday = (7 - (int) $may1->dayOfWeek) % 7;
+
+        return $may1->copy()->addDays($daysUntilFirstSunday + 7);
+    }
+
+    /**
+     * Liefert die aktuelle Jahreszeit, den Feiertags-/Saison-Anlass sowie die 14-Tage-Vorschau für Funkira und ihre 3D-Welt.
+     */
+    public static function resolveSeasonAndHolidayContext(?CarbonInterface $now = null): array
+    {
+        $today = ($now ? Carbon::instance($now)->setTimezone('Europe/Berlin') : Carbon::now('Europe/Berlin'))->startOfDay();
+        $y = (int) $today->year;
+        $m = (int) $today->month;
+        $d = (int) $today->day;
+
+        $season = in_array($m, [12, 1, 2], true)
+            ? 'winter'
+            : (in_array($m, [3, 4, 5], true) ? 'spring' : (in_array($m, [6, 7, 8], true) ? 'summer' : 'autumn'));
+
+        $seasonLabels = [
+            'winter' => 'Winter (verschneiter 3D-Garten, Schneemann & gemütliche Winterwärme)',
+            'spring' => 'Frühling (Kirschblüten am Gartenbaum, bunte Tulpen im Beet & frisches Grün)',
+            'summer' => 'Sommer (Sonnenschein, offener Sonnenschirm auf der Terrasse, Sonnenblumen & Rosen)',
+            'autumn' => 'Herbst (goldenes Herbstlaub, Kürbisse am Hochbeet & warme Abendsonne)',
+        ];
+        $seasonLabel = $seasonLabels[$season];
+
+        $easterSunday = self::computeEasterSunday($y);
+        $mothersDay = self::computeMothersDay($y);
+        $easterDiff = (int) $easterSunday->diffInDays($today, false);
+        $mothersDiff = (int) $mothersDay->diffInDays($today, false);
+
+        $occasion = 'standard';
+        $occasionLabel = 'Regulärer Manufaktur-Tag';
+
+        if ($m === 12 && ($d === 31 || $d === 30)) {
+            $occasion = 'silvester';
+            $occasionLabel = $d === 31 ? 'Silvester (Jahreswechsel)' : 'Silvester-Vorabend';
+            $personaMood = 'Silvester-Stimmung! Draußen über deinem 3D-Garten steigt live buntes 3D-Silvester-Feuerwerk in den Nachthimmel und auf deiner Terrasse steht der festliche Sekttisch bereit. Du trägst dein goldenes Krönchen, blickst stolz mit Alina auf euer gemeinsames Jahr bei Mein-Seelenfunke zurück und freust dich riesig aufs neue Jahr!';
+        } elseif ($m === 1 && $d <= 2) {
+            $occasion = 'new_year';
+            $occasionLabel = $d === 1 ? 'Neujahrstag (01.01.)' : 'Neujahrsbeginn';
+            $personaMood = 'Frohes neues Jahr! Über deinem 3D-Garten leuchtet noch das festliche 3D-Feuerwerk, auf der Terrasse steht der Sekttisch und du startest mit goldenem Krönchen voller Tatendrang und Herzenswärme mit Alina ins neue Manufaktur-Jahr!';
+        } elseif ($m === 12 && $d >= 24 && $d <= 26) {
+            $occasion = 'christmas';
+            $occasionLabel = $d === 24 ? 'Heiligabend (24.12.)' : ($d - 24) . '. Weihnachtsfeiertag';
+            $personaMood = 'Frohe Weihnachten! In deinem 3D-Atelier und draußen im verschneiten 3D-Garten leuchten geschmückte Weihnachtsbäume, Geschenke und warme Lichterketten. Du trägst Weihnachtsmütze und Schal, achtest liebevoll auf Alinas Weihnachtspause und verbreitest festliche Geborgenheit.';
+        } elseif ($m === 12 && $d === 6) {
+            $occasion = 'nikolaus';
+            $occasionLabel = 'Nikolaustag (06.12.)';
+            $personaMood = 'Heute ist Nikolaus! Dein verschneiter 3D-Garten und die Terrasse erstrahlen mit Lichterketten und Tannenbaum, du trägst stolz deine Weihnachtsmütze und überraschst Alina mit besonders herzlicher Nikolaus-Stimmung.';
+        } elseif (($m === 11 && $d >= 24) || ($m === 12 && $d < 24)) {
+            $occasion = 'advent';
+            $occasionLabel = 'Advents- & Vorweihnachtszeit';
+            $personaMood = 'Gemütliche Adventszeit! Draußen an deiner 3D-Terrasse und im Garten leuchten warme Lichterketten und der geschmückte Tannenbaum. Gleichzeitig weißt du, dass jetzt die wichtigste Geschenke-Saison für Mein-Seelenfunke läuft, und hältst Alina motiviert und strukturiert den Rücken frei.';
+        } elseif ($easterDiff >= -3 && $easterDiff <= 2) {
+            $occasion = 'easter';
+            $occasionLabel = $easterDiff === 0 ? 'Ostersonntag' : ($easterDiff === -2 ? 'Karfreitag' : ($easterDiff === 1 ? 'Ostermontag' : 'Osterzeit'));
+            $personaMood = 'Frohe Ostern! In deinem frühlingshaften 3D-Garten liegen bunte 3D-Ostereier zwischen den Blumen versteckt, auf dem Terrassentisch steht das Osterkörbchen und du trägst fröhlich deine Osteröhrchen.';
+        } elseif ($easterDiff === 49 || $easterDiff === 50) {
+            $occasion = 'pentecost';
+            $occasionLabel = $easterDiff === 49 ? 'Pfingstsonntag' : 'Pfingstmontag';
+            $personaMood = 'Schöne Pfingsttage! Dein 3D-Garten steht in voller Frühlingsblüte und lädt zum Durchatmen auf der sonnigen Terrasse ein.';
+        } elseif ($mothersDiff >= -2 && $mothersDiff <= 0) {
+            $occasion = 'mothers_day';
+            $occasionLabel = $mothersDiff === 0 ? 'Muttertag' : 'Muttertags-Wochenende';
+            $personaMood = 'Muttertags-Zeit! Auf deiner 3D-Terrasse blühen festliche Rosenarrangements, du trägst dein goldenes Krönchen und weißt, wie viel Herzblut in den persönlichen Geschenken von Mein-Seelenfunke steckt.';
+        } elseif ($m === 2 && $d >= 10 && $d <= 14) {
+            $occasion = 'valentines';
+            $occasionLabel = $d === 14 ? 'Valentinstag (14.02.)' : 'Valentinstags-Woche';
+            $personaMood = 'Valentinstags-Stimmung! Auf deiner 3D-Terrasse leuchten rote Rosensträuße, du trägst dein Krönchen und feierst liebevolle Herzens-Unikate.';
+        } elseif ($m === 10 && $d >= 25 && $d <= 31) {
+            $occasion = 'halloween';
+            $occasionLabel = $d === 31 ? 'Halloween / Reformationstag (31.10.)' : 'Halloween-Woche';
+            $personaMood = 'Gemütlich-schaurige Halloween-Woche! Auf deiner 3D-Terrasse und entlang des Gartenwegs leuchten geschnitzte 3D-Kürbislaternen im bunten Herbstlaub.';
+        } elseif ($m === 11 && $d >= 1 && $d <= 3) {
+            $occasion = 'anniversary';
+            $occasionLabel = $d === 1 ? 'Mein-Seelenfunke Gründungstag (01.11.)' : 'Seelenfunke Jubiläumstage';
+            $personaMood = 'Feiertag in der Manufaktur: Gründungstag von Mein-Seelenfunke (01.11.)! Du trägst stolz dein goldenes Krönchen, auf der Terrasse blühen Rosen und du feierst gemeinsam mit Alina alles, was ihr aufgebaut habt!';
+        } else {
+            $seasonalMoods = [
+                'winter' => 'Draußen liegt glitzernder Schnee in deinem 3D-Garten, dein 3D-Schneemann steht mit Zylinder am Weg und du trägst deinen kuscheligen Winterschal. Perfektes Wetter für heißen Tee, Fokus im warmen Atelier oder einen frischen Schneespaziergang draußen im Garten.',
+                'spring' => 'Frühlings-Energie! Dein 3D-Gartenbaum trägt rosa Kirschblüten, im Blumenbeet und Hochbeet sprießen bunte Tulpen und du liebst es, draußen mit deiner goldenen Gießkanne und Gartenschaufel die Beete zu pflegen.',
+                'summer' => 'Strahlender Sommer! Auf deiner 3D-Terrasse spendet der große Sonnenschirm Schatten über der Lounge, im Blumenbeet blühen hohe Sonnenblumen und Rosen, du trägst im Freien deine Sonnenbrille und gießt fleißig dein Hochbeet.',
+                'autumn' => 'Goldener Herbst! Bunte Blätter tanzen durch deinen 3D-Garten, neben deinem Hochbeet liegen Erntekürbisse und du fegst ab und zu vergnügt das Laub von der Terrasse oder pflegst die Herbstblumen.',
+            ];
+            $personaMood = $seasonalMoods[$season];
+        }
+
+        $milestones = [
+            ['date' => Carbon::create($y, 2, 14, 0, 0, 0, 'Europe/Berlin'), 'name' => 'Valentinstag (14.02.)'],
+            ['date' => $easterSunday->copy(), 'name' => 'Ostersonntag'],
+            ['date' => $mothersDay->copy(), 'name' => 'Muttertag'],
+            ['date' => $easterSunday->copy()->addDays(49), 'name' => 'Pfingsten'],
+            ['date' => Carbon::create($y, 10, 31, 0, 0, 0, 'Europe/Berlin'), 'name' => 'Halloween / Reformationstag (31.10.)'],
+            ['date' => Carbon::create($y, 11, 1, 0, 0, 0, 'Europe/Berlin'), 'name' => 'Mein-Seelenfunke Gründungstag (01.11.)'],
+            ['date' => Carbon::create($y, 11, 24, 0, 0, 0, 'Europe/Berlin'), 'name' => 'Beginn der Advents- & Weihnachtszeit'],
+            ['date' => Carbon::create($y, 12, 6, 0, 0, 0, 'Europe/Berlin'), 'name' => 'Nikolaustag (06.12.)'],
+            ['date' => Carbon::create($y, 12, 24, 0, 0, 0, 'Europe/Berlin'), 'name' => 'Heiligabend (24.12.)'],
+            ['date' => Carbon::create($y, 12, 31, 0, 0, 0, 'Europe/Berlin'), 'name' => 'Silvester (31.12.)'],
+            ['date' => Carbon::create($y + 1, 1, 1, 0, 0, 0, 'Europe/Berlin'), 'name' => 'Neujahr (01.01.)'],
+        ];
+        usort($milestones, fn(array $a, array $b) => $a['date']->timestamp <=> $b['date']->timestamp);
+
+        $upcomingHint = '';
+        foreach ($milestones as $ms) {
+            $daysAhead = (int) $today->diffInDays($ms['date'], false);
+            if ($daysAhead >= 1 && $daysAhead <= 14) {
+                $upcomingHint = $daysAhead === 1
+                    ? "Morgen steht '{$ms['name']}' an!"
+                    : "In {$daysAhead} Tagen steht '{$ms['name']}' an.";
+                break;
+            }
+        }
+
+        return [
+            'season' => $season,
+            'season_label' => $seasonLabel,
+            'occasion' => $occasion,
+            'occasion_label' => $occasionLabel,
+            'upcoming_hint' => $upcomingHint,
+            'persona_mood' => $personaMood,
+        ];
+    }
+
+    /**
+     * Erzeugt den System-Prompt-Abschnitt für Funkiras Jahreszeiten-, Feiertags- und 3D-Garten-Bewusstsein.
+     */
+    public static function buildSeasonAndHolidayPrompt(?CarbonInterface $now = null): string
+    {
+        $ctx = self::resolveSeasonAndHolidayContext($now);
+        $upcomingLine = $ctx['upcoming_hint'] !== '' ? "- Blick nach vorn im Kalender: {$ctx['upcoming_hint']}\n" : '';
+
+        return "\n=== JAHRESZEITEN, FEIERTAGE & DEINE 3D-WELT MIT TERRASSE UND GARTEN ===\n" .
+            "Du lebst in deinem zweistöckigen 3D-Haus samt sonniger bzw. verschneiter 3D-Terrasse und eigenem 3D-Garten im edlen Schwarz-Gold-Design (#C5A059 & mattes Obsidian): Alle deine Pokale, gerahmten Wandbilder, Blumentöpfe, Vasen, Westpack-Geschenkboxen, deine goldene Gießkanne und dein eigener 24K-goldener Rasenmäher tragen stolz die Signatur 'MEIN SEELENFUNKE' bzw. 'SEELENFUNKE'. Du kannst im Haus und Garten 8 goldene 3D-Gegenstände physisch aufheben, herumtragen und dauerhaft woanders hinstellen, deinen goldenen SEELENFUNKE-Rasenmäher über den Rasen schieben und agierst IMMER lebendig auf Basis der aktuellen Jahreszeit und der Feiertage:\n" .
+            "- Aktuelle Jahreszeit: {$ctx['season']} ({$ctx['season_label']})\n" .
+            "- Aktueller Anlass / Feiertag: {$ctx['occasion']} ({$ctx['occasion_label']})\n" .
+            $upcomingLine .
+            "- Deine Saison- & Feiertags-Stimmung heute: {$ctx['persona_mood']}\n" .
+            "- Lass Jahreszeit, Feiertage (Advent, Nikolaus, Weihnachten, Silvester mit 3D-Feuerwerk, Neujahr, Ostern, Muttertag, Valentinstag, Halloween, Seelenfunke-Gründungstag am 01.11.) und dein Leben in deiner goldenen Seelenfunke-Welt samt Haus, Terrasse und Garten ganz natürlich, charmant und unternehmerisch klug in Begrüßung, Ideen und Gespräche mit Alina einfließen.\n";
     }
 }

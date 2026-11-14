@@ -63,7 +63,7 @@
                         </div>
                         <h3 class="text-xs sm:text-sm font-bold text-gray-900 dark:text-white truncate mb-1">{{ $t->subject }}</h3>
                         <p class="text-[10px] sm:text-xs text-gray-600 dark:text-gray-400 truncate flex items-center gap-1.5">
-                            {{ $t->customer->first_name }} {{ $t->customer->last_name }}
+                            {{ $t->customer?->first_name ?? 'Gelöschter' }} {{ $t->customer?->last_name ?? 'Kunde' }}
                         </p>
                     </div>
                 @empty
@@ -99,8 +99,8 @@
                                 </span>
                             </td>
                             <td class="px-4 xl:px-6 py-3 min-w-[200px]">
-                                <div class="font-bold text-gray-900 dark:text-white text-sm">{{ $t->customer->first_name }} {{ $t->customer->last_name }}</div>
-                                <div class="text-[10px] text-gray-500">{{ $t->customer->email }}</div>
+                                <div class="font-bold text-gray-900 dark:text-white text-sm">{{ $t->customer?->first_name ?? 'Gelöschter' }} {{ $t->customer?->last_name ?? 'Kunde' }}</div>
+                                <div class="text-[10px] text-gray-500">{{ $t->customer?->email ?? '-' }}</div>
                             </td>
                             <td class="px-4 xl:px-6 py-3 min-w-[250px]">
                                 <div class="font-bold text-gray-800 dark:text-gray-200 line-clamp-2 text-sm">{{ $t->subject }}</div>
@@ -352,7 +352,7 @@
                     </div>
                     <h2 class="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white mb-2 leading-tight break-words whitespace-pre-wrap">{{ $activeTicket->subject }}</h2>
                     <p class="text-xs sm:text-sm text-gray-500 dark:text-gray-400 flex items-center gap-2">
-                        <span class="text-[var(--theme-color)]">{{ $activeTicket->customer->first_name }} {{ $activeTicket->customer->last_name }}</span>
+                        <span class="text-[var(--theme-color)]">{{ $activeTicket->customer?->first_name ?? 'Gelöschter' }} {{ $activeTicket->customer?->last_name ?? 'Kunde' }}</span>
                     </p>
                 </div>
                 <div class="shrink-0">
@@ -402,7 +402,7 @@
                                         </div>
                                     @endif
                                 </div>
-                                <p class="text-[9px] sm:text-[10px] text-gray-500 font-bold mt-2 px-1">{{ $activeTicket->customer->first_name }} {{ $activeTicket->customer->last_name }} • {{ $msg->created_at->format('H:i') }}</p>
+                                <p class="text-[9px] sm:text-[10px] text-gray-500 font-bold mt-2 px-1">{{ $activeTicket->customer?->first_name ?? 'Gelöschter' }} {{ $activeTicket->customer?->last_name ?? 'Kunde' }} • {{ $msg->created_at->format('H:i') }}</p>
                             </div>
                         </div>
                     @else
@@ -450,8 +450,12 @@
                         @if($replyAttachments)
                             <div class="mb-3 flex flex-wrap gap-2 bg-white dark:bg-gray-900 p-2 rounded-xl border border-gray-200 dark:border-gray-800 dark:shadow-inner">
                                 @foreach($replyAttachments as $index => $photo)
-                                    <div class="relative w-12 h-12 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 group">
-                                        <img src="{{ $photo->temporaryUrl() }}" class="w-full h-full object-cover">
+                                    <div class="relative w-12 h-12 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 group bg-gray-50 dark:bg-gray-950 flex items-center justify-center">
+                                        @if(method_exists($photo, 'isPreviewable') && $photo->isPreviewable())
+                                            <img src="{{ $photo->temporaryUrl() }}" class="w-full h-full object-cover">
+                                        @else
+                                            <span class="text-[9px] font-black uppercase text-gray-500 dark:text-gray-400 px-1 truncate">{{ strtoupper((string) ($photo->getClientOriginalExtension() ?: 'FILE')) }}</span>
+                                        @endif
                                         <button type="button" wire:click="removeAttachment({{ $index }})" class="absolute inset-0 bg-red-500/80 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                                             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
                                         </button>

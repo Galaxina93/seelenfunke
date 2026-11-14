@@ -25,7 +25,10 @@ import kotlinx.coroutines.launch
 class TasksWidgetProvider : AppWidgetProvider() {
 
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
-        triggerBackgroundSync(context)
+        ServiceLocator.ensureInitialized(context.applicationContext)
+        if (!ServiceLocator.getAuthToken().isNullOrBlank()) {
+            triggerBackgroundSync(context)
+        }
         for (appWidgetId in appWidgetIds) {
             updateAppWidget(context, appWidgetManager, appWidgetId)
         }
@@ -50,6 +53,13 @@ class TasksWidgetProvider : AppWidgetProvider() {
         val sharedPrefs = appContext.getSharedPreferences("tasks_widget_prefs", Context.MODE_PRIVATE)
 
         val resolvedAction = clickAction ?: rawAction
+        if (resolvedAction != null && resolvedAction != AppWidgetManager.ACTION_APPWIDGET_UPDATE) {
+            if (de.meinseelenfunke.app.util.SecurityIntentHelper.isDeviceLocked(context) ||
+                ServiceLocator.getAuthToken().isNullOrBlank()
+            ) {
+                return
+            }
+        }
 
         when (resolvedAction) {
             ACTION_REFRESH -> {
@@ -66,8 +76,12 @@ class TasksWidgetProvider : AppWidgetProvider() {
                 if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID && listId != null) {
                     sharedPrefs.edit()
                         .putString("$PREF_SELECTED_LIST_ID_PREFIX$appWidgetId", listId)
-                        .putString("$PREF_SELECTED_LIST_NAME_PREFIX$appWidgetId", listName ?: "Aufgaben")
                         .apply()
+                    ServiceLocator.putEncryptedPref(
+                        sharedPrefs,
+                        "$PREF_SELECTED_LIST_NAME_PREFIX$appWidgetId",
+                        listName ?: "Aufgaben"
+                    )
                     updateAppWidget(appContext, appWidgetManager, appWidgetId)
                     appWidgetManager.notifyAppWidgetViewDataChanged(appWidgetId, R.id.tasks_widget_list)
                 }
@@ -197,14 +211,18 @@ class TasksWidgetProvider : AppWidgetProvider() {
 
             AppWidgetManager.ACTION_APPWIDGET_UPDATE -> {
                 appWidgetManager.notifyAppWidgetViewDataChanged(appWidgetIds, R.id.tasks_widget_list)
+                for (appWidgetId in appWidgetIds) {
+                    updateAppWidget(appContext, appWidgetManager, appWidgetId)
+                }
             }
         }
     }
 
     private fun optimisticUpdateTaskPriority(context: Context, taskId: String, nextPriority: String) {
         try {
+            ServiceLocator.ensureInitialized(context.applicationContext)
             val sharedPrefs = context.getSharedPreferences("tasks_widget_prefs", Context.MODE_PRIVATE)
-            val json = sharedPrefs.getString("tasks_cache", null) ?: return
+            val json = ServiceLocator.getDecryptedPref(sharedPrefs, "tasks_cache") ?: return
             val gson = Gson()
             val type = object : TypeToken<List<ManagementTask>>() {}.type
             val tasks: List<ManagementTask> = gson.fromJson(json, type)
@@ -287,14 +305,15 @@ class TasksWidgetProvider : AppWidgetProvider() {
 
         fun updateAppWidget(context: Context, appWidgetManager: AppWidgetManager, appWidgetId: Int) {
             val appContext = context.applicationContext
+            ServiceLocator.ensureInitialized(appContext)
             val sharedPrefs = appContext.getSharedPreferences("tasks_widget_prefs", Context.MODE_PRIVATE)
             val selectedListId = sharedPrefs.getString("$PREF_SELECTED_LIST_ID_PREFIX$appWidgetId", null)
-            val selectedListName = sharedPrefs.getString("$PREF_SELECTED_LIST_NAME_PREFIX$appWidgetId", null)
+            val selectedListName = ServiceLocator.getDecryptedPref(sharedPrefs, "$PREF_SELECTED_LIST_NAME_PREFIX$appWidgetId")
 
             // Parse cached lists & tasks for live subtitle counts
             val gson = Gson()
             val lists: List<ManagementTaskList> = try {
-                val json = sharedPrefs.getString("task_lists_cache", null)
+                val json = ServiceLocator.getDecryptedPref(sharedPrefs, "task_lists_cache")
                 if (json != null) {
                     gson.fromJson(json, object : TypeToken<List<ManagementTaskList>>() {}.type)
                 } else emptyList()
@@ -303,7 +322,7 @@ class TasksWidgetProvider : AppWidgetProvider() {
             }
 
             val allTasks: List<ManagementTask> = try {
-                val json = sharedPrefs.getString("tasks_cache", null)
+                val json = ServiceLocator.getDecryptedPref(sharedPrefs, "tasks_cache")
                 if (json != null) {
                     gson.fromJson(json, object : TypeToken<List<ManagementTask>>() {}.type)
                 } else emptyList()

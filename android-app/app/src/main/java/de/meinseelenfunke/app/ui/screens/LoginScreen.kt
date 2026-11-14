@@ -241,6 +241,7 @@ fun LoginScreen(
                     baseUrl.contains("127.0.0.1") -> "USB ADB (80)"
                     baseUrl.contains("10.0.2.2") -> "Emulator (80)"
                     baseUrl.contains("stage") -> "Stage Online"
+                    baseUrl.contains("mein-seelenfunke.de") -> "Live Online"
                     else -> "Custom Server"
                 }
 
@@ -504,7 +505,7 @@ fun LoginScreen(
                                     )
                                 }
 
-                                if (errorMsg.contains("127.0.0.1") || errorMsg.contains("connect") || errorMsg.contains("8081")) {
+                                if (de.meinseelenfunke.app.BuildConfig.DEBUG && (errorMsg.contains("127.0.0.1") || errorMsg.contains("connect") || errorMsg.contains("8081"))) {
                                     Button(
                                         onClick = {
                                             viewModel.updateBaseUrl("http://192.168.188.119/api/")
@@ -522,6 +523,7 @@ fun LoginScreen(
                     }
 
                     val canSubmit = email.isNotBlank() && password.isNotBlank() && (!requiresTwoFactor || twoFactorCode.isNotBlank())
+                    val hasActiveToken = !ServiceLocator.getAuthToken().isNullOrBlank()
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -576,8 +578,8 @@ fun LoginScreen(
                             }
                         }
 
-                        // Dedicated Biometric Button
-                        if (activity != null && BiometricHelper.isBiometricAvailable(context)) {
+                        // Dedicated Biometric Session Unlock Button (shown only when an active token exists)
+                        if (hasActiveToken && activity != null && BiometricHelper.isBiometricAvailable(context)) {
                             Box(
                                 modifier = Modifier
                                     .size(50.dp)
@@ -585,21 +587,15 @@ fun LoginScreen(
                                     .background(AppTheme.colors.glassSurface)
                                     .border(1.5.dp, Gold, RoundedCornerShape(14.dp))
                                     .clickable {
-                                        val promptEmail = email.ifBlank { viewModel.getSavedEmail() }
-                                        val promptPassword = password.ifBlank { viewModel.getSavedPassword() }
-                                        if (promptEmail.isNotBlank() && promptPassword.isNotBlank()) {
-                                            BiometricHelper.showBiometricPrompt(
-                                                activity = activity,
-                                                title = "Biometrische Anmeldung",
-                                                subtitle = "Bestätige mit deinem Fingerabdruck",
-                                                negativeButtonText = "Abbrechen",
-                                                onSuccess = {
-                                                    viewModel.login(promptEmail, promptPassword, rememberMe = true)
-                                                }
-                                            )
-                                        } else {
-                                            Toast.makeText(context, "Bitte erst einmal mit E-Mail & Passwort anmelden", Toast.LENGTH_SHORT).show()
-                                        }
+                                        BiometricHelper.showBiometricPrompt(
+                                            activity = activity,
+                                            title = "Biometrische Anmeldung",
+                                            subtitle = "Bestätige deine Identität",
+                                            negativeButtonText = "Abbrechen",
+                                            onSuccess = {
+                                                onLoginSuccess()
+                                            }
+                                        )
                                     },
                                 contentAlignment = Alignment.Center
                             ) {
@@ -715,13 +711,16 @@ fun LoginScreen(
                             fontSize = 11.sp
                         )
 
-                        // Presets Grid
-                        val presets = listOf(
-                            Triple("WLAN PC", "http://192.168.188.119/api/", Icons.Default.Wifi),
-                            Triple("USB ADB", "http://127.0.0.1/api/", Icons.Default.Usb),
-                            Triple("Emulator", "http://10.0.2.2/api/", Icons.Default.Computer),
-                            Triple("Stage Online", "https://stage.mein-seelenfunke.de/api/", Icons.Default.Public)
-                        )
+                        // Presets Grid (cleartext local LAN/ADB presets only shown in debug builds)
+                        val presets = buildList {
+                            if (de.meinseelenfunke.app.BuildConfig.DEBUG) {
+                                add(Triple("WLAN PC", "http://192.168.188.119/api/", Icons.Default.Wifi))
+                                add(Triple("USB ADB", "http://127.0.0.1/api/", Icons.Default.Usb))
+                                add(Triple("Emulator", "http://10.0.2.2/api/", Icons.Default.Computer))
+                            }
+                            add(Triple("Stage Online", "https://stage.mein-seelenfunke.de/api/", Icons.Default.Public))
+                            add(Triple("Live Online", "https://mein-seelenfunke.de/api/", Icons.Default.Public))
+                        }
 
                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             presets.forEach { (name, url, icon) ->

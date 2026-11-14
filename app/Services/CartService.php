@@ -32,7 +32,10 @@ class CartService
             if (!$createIfNotExists) {
                 $cart = Cart::where('customer_id', $user->id)->first();
                 if ($cart && $cart->session_id !== Session::getId()) {
-                    $cart->update(['session_id' => Session::getId()]);
+                    \Illuminate\Support\Facades\DB::table('carts')
+                        ->where('id', $cart->id)
+                        ->update(['session_id' => Session::getId()]);
+                    $cart->session_id = Session::getId();
                 }
             } else {
                 $cart = Cart::firstOrCreate(
@@ -40,9 +43,12 @@ class CartService
                     ['session_id' => Session::getId()]
                 );
 
-                // Session ID aktuell halten
+                // Session ID aktuell halten, ohne den Inaktivitäts-Zeitstempel (updated_at) bei bloßem Seitenaufruf zu verfälschen
                 if ($cart->session_id !== Session::getId()) {
-                    $cart->update(['session_id' => Session::getId()]);
+                    \Illuminate\Support\Facades\DB::table('carts')
+                        ->where('id', $cart->id)
+                        ->update(['session_id' => Session::getId()]);
+                    $cart->session_id = Session::getId();
                 }
             }
         } else {
@@ -118,6 +124,7 @@ class CartService
         $quantity = max(1, min($maxQty, $quantity));
         $configuration = $this->sanitizeConfiguration($product, $configuration);
         $cart = $this->getCart();
+        $wasEmpty = !$cart->items()->exists();
 
         // Suche nach existierendem Item mit gleicher Konfiguration
         // Wir nutzen json_encode zum Vergleich der Arrays
@@ -146,6 +153,11 @@ class CartService
                 'total_price' => $unitPrice * $quantity,
                 'configuration' => $configuration
             ]);
+        }
+
+        // Neuen Erinnerungs-Zyklus freigeben, wenn der Warenkorb zuvor leer war oder ein neues Produkt hinzugefügt wurde
+        if ($cart->reminder_email_sent_at !== null && ($wasEmpty || !$existingItem)) {
+            $cart->reminder_email_sent_at = null;
         }
 
         // Express sync wird nun von refreshTotals übernommen
@@ -276,6 +288,9 @@ class CartService
             }
 
             $item->delete();
+            if ($cart && !$cart->items()->exists() && $cart->reminder_email_sent_at !== null) {
+                $cart->reminder_email_sent_at = null;
+            }
             $this->refreshTotals($cart);
         }
     }
@@ -292,8 +307,136 @@ class CartService
             }
             $item->delete();
         }
-        $cart->update(['coupon_code' => null, 'is_express' => false]);
+        $cart->update([
+            'coupon_code' => null,
+            'is_express' => false,
+            'reminder_email_sent_at' => null,
+        ]);
         $this->refreshTotals($cart);
+    }
+
+    /**
+     * Überführt vorhandene Gast-Warenkörbe (vor/nach Session-Regeneration) sicher in den Kunden-Warenkorb,
+     * damit konfigurierte Artikel beim Login oder der Registrierung erhalten bleiben und für Erinnerungen verknüpft sind.
+     */
+    public function mergeGuestCartIntoCustomer(\App\Models\Customer\Customer $customer, ?string $previousSessionId = null): Cart
+    {
+        $currentSessionId = (string) Session::getId();
+        $sessionIds = array_values(array_unique(array_filter([
+            trim((string) $previousSessionId),
+            trim($currentSessionId),
+        ])));
+
+        $guestCarts = !empty($sessionIds)
+            ? Cart::with('items.product')
+                ->whereNull('customer_id')
+                ->whereIn('session_id', $sessionIds)
+                ->get()
+            : collect();
+
+        $userCart = Cart::firstOrCreate(
+            ['customer_id' => $customer->id],
+            ['session_id' => $currentSessionId]
+        );
+
+        if ($currentSessionId !== '' && $userCart->session_id !== $currentSessionId) {
+            \Illuminate\Support\Facades\DB::table('carts')
+                ->where('id', $userCart->id)
+                ->update(['session_id' => $currentSessionId]);
+            $userCart->session_id = $currentSessionId;
+        }
+
+        $mergedAnyItem = false;
+        $wasExpress = (bool) $userCart->is_express;
+        $existingUserItems = $userCart->items()->get();
+
+        foreach ($guestCarts as $guestCart) {
+            if ((string) $guestCart->id === (string) $userCart->id) {
+                continue;
+            }
+
+            if ($guestCart->is_express) {
+                $wasExpress = true;
+            }
+
+            foreach ($guestCart->items as $item) {
+                $mergedAnyItem = true;
+                $matchingItem = $existingUserItems->first(function ($uItem) use ($item) {
+                    return (string) $uItem->product_id === (string) $item->product_id
+                        && json_encode($uItem->configuration) === json_encode($item->configuration);
+                });
+
+                if ($matchingItem) {
+                    $maxQty = Session::has('checkout_from_quote_id') ? 10000 : 100;
+                    $newQty = min($maxQty, $matchingItem->quantity + $item->quantity);
+                    $unitPrice = $item->product
+                        ? $this->resolveItemUnitPrice($item->product, $newQty, $matchingItem->configuration)
+                        : $matchingItem->unit_price;
+                    $matchingItem->update([
+                        'quantity' => $newQty,
+                        'unit_price' => $unitPrice,
+                        'total_price' => $unitPrice * $newQty,
+                    ]);
+                    $item->delete();
+                } else {
+                    $item->update(['cart_id' => $userCart->id]);
+                    $existingUserItems->push($item);
+                }
+            }
+
+            if ($guestCart->coupon_code && !$userCart->coupon_code) {
+                $userCart->coupon_code = $guestCart->coupon_code;
+                $mergedAnyItem = true;
+            }
+
+            $guestCart->delete();
+        }
+
+        if ($mergedAnyItem) {
+            $userCart->is_express = $wasExpress;
+            $userCart->reminder_email_sent_at = null;
+            $this->refreshTotals($userCart);
+        } elseif (!$existingUserItems->count() && $userCart->reminder_email_sent_at !== null) {
+            \Illuminate\Support\Facades\DB::table('carts')
+                ->where('id', $userCart->id)
+                ->update(['reminder_email_sent_at' => null]);
+            $userCart->reminder_email_sent_at = null;
+        }
+
+        return $userCart;
+    }
+
+    /**
+     * Löst nach dem Kunden-Login eine sichere interne Ziel-URL (z. B. /warenkorb aus einer Erinnerungs-Mail) auf
+     * und schützt strikt vor Open-Redirect-Manipulationen.
+     */
+    public static function resolveSafeCustomerIntendedUrl(string $fallbackUrl): string
+    {
+        $intended = session()->pull('url.intended');
+        if (!is_string($intended) || trim($intended) === '') {
+            return $fallbackUrl;
+        }
+
+        $intended = trim($intended);
+        $appUrl = rtrim((string) config('app.url'), '/');
+        $relativeCandidate = null;
+
+        if ($appUrl !== '' && str_starts_with($intended, $appUrl . '/')) {
+            $relativeCandidate = substr($intended, strlen($appUrl));
+        } elseif (str_starts_with($intended, '/') && !str_starts_with($intended, '//') && !str_starts_with($intended, '/\\')) {
+            $relativeCandidate = $intended;
+        }
+
+        if ($relativeCandidate === null) {
+            return $fallbackUrl;
+        }
+
+        $pathOnly = strtolower((string) parse_url($relativeCandidate, PHP_URL_PATH));
+        if ($pathOnly === '' || in_array($pathOnly, ['/login', '/register', '/logout'], true) || str_starts_with($pathOnly, '/auth/')) {
+            return $fallbackUrl;
+        }
+
+        return $relativeCandidate;
     }
 
     /**
@@ -569,19 +712,62 @@ class CartService
 
         foreach (['logos', 'logos_back'] as $logoKey) {
             if (isset($configuration[$logoKey]) && is_array($configuration[$logoKey])) {
-                $configuration[$logoKey] = array_values(array_filter($configuration[$logoKey], function ($logo) {
+                $configuration[$logoKey] = array_values(array_filter(array_map(function ($logo) {
                     if (!is_array($logo) || !isset($logo['value']) || !is_string($logo['value'])) {
-                        return false;
+                        return null;
                     }
-                    $v = $logo['value'];
-                    return !str_contains($v, '..') && !str_contains($v, "\0") && !str_starts_with($v, '/') && !str_starts_with($v, '\\');
-                }));
+                    $v = trim($logo['value']);
+                    if (
+                        $v === ''
+                        || str_contains($v, '..')
+                        || str_contains($v, "\0")
+                        || str_contains($v, '\\')
+                        || str_starts_with($v, '/')
+                        || preg_match('#^https?://#i', $v)
+                    ) {
+                        return null;
+                    }
+                    unset($logo['src']);
+                    if (isset($logo['url']) && is_string($logo['url'])) {
+                        $u = trim($logo['url']);
+                        if (
+                            str_contains($u, '..')
+                            || str_contains($u, "\0")
+                            || str_contains($u, '\\')
+                            || (preg_match('#^https?://#i', $u) && (parse_url($u, PHP_URL_HOST) !== parse_url((string) config('app.url'), PHP_URL_HOST)))
+                        ) {
+                            unset($logo['url']);
+                        }
+                    }
+                    return $logo;
+                }, $configuration[$logoKey])));
             }
         }
 
         foreach (['logo_path', 'snapshot_path', 'snapshot_back_path', 'purchased_image_path'] as $pathKey) {
-            if (isset($configuration[$pathKey]) && is_string($configuration[$pathKey])) {
-                if (str_contains($configuration[$pathKey], '..') || str_contains($configuration[$pathKey], "\0")) {
+            if (isset($configuration[$pathKey])) {
+                if (is_string($configuration[$pathKey])) {
+                    if (
+                        str_contains($configuration[$pathKey], '..')
+                        || str_contains($configuration[$pathKey], "\0")
+                        || str_contains($configuration[$pathKey], '\\')
+                        || preg_match('#^https?://#i', $configuration[$pathKey])
+                    ) {
+                        unset($configuration[$pathKey]);
+                    }
+                } elseif (is_array($configuration[$pathKey])) {
+                    foreach ($configuration[$pathKey] as $subKey => $subVal) {
+                        if (
+                            !is_string($subVal)
+                            || str_contains($subVal, '..')
+                            || str_contains($subVal, "\0")
+                            || str_contains($subVal, '\\')
+                            || preg_match('#^https?://#i', $subVal)
+                        ) {
+                            unset($configuration[$pathKey][$subKey]);
+                        }
+                    }
+                } else {
                     unset($configuration[$pathKey]);
                 }
             }

@@ -15,6 +15,19 @@
         PreviewMouseWheel="Window_PreviewMouseWheel"
         KeyDown="Window_KeyDown">
 
+    <Window.Resources>
+        <SolidColorBrush x:Key="ListItemBgBrush" Color="#1A1F2C"/>
+        <SolidColorBrush x:Key="ListItemSelectedBgBrush" Color="#222838"/>
+        <SolidColorBrush x:Key="ListItemBorderBrush" Color="#262C3D"/>
+        <SolidColorBrush x:Key="PrimaryTextBrush" Color="#F9FAFB"/>
+        <SolidColorBrush x:Key="SecondaryTextBrush" Color="#9CA3AF"/>
+        <SolidColorBrush x:Key="BadgeBgBrush" Color="#12151E"/>
+        <SolidColorBrush x:Key="BadgeBorderBrush" Color="#2D3343"/>
+        <SolidColorBrush x:Key="TrackBgBrush" Color="#1E2433"/>
+        <SolidColorBrush x:Key="CancelJobBgBrush" Color="#2A161B"/>
+        <SolidColorBrush x:Key="CancelJobBorderBrush" Color="#4C1D24"/>
+    </Window.Resources>
+
     <Grid x:Name="RootGrid" Background="#0F1117">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -45,7 +58,7 @@
                 <Button x:Name="ModeQueueBtn" Content="GERÄT &amp; QUEUE" Height="28" Padding="11,0" FontSize="11.5" Click="ModeQueue_Click"
                         Background="#1B1F2B" Foreground="#F9FAFB" BorderBrush="#2D3343" FontWeight="SemiBold" Cursor="Hand" Margin="0,2,8,2"/>
 
-                <Border Width="1" Height="20" Background="#2A3042" VerticalAlignment="Center" Margin="2,2,8,2"/>
+                <Border x:Name="TopBarDivider" Width="1" Height="20" Background="#2A3042" VerticalAlignment="Center" Margin="2,2,8,2"/>
 
                 <!-- Document & Ecosystem Quick Actions -->
                 <Button x:Name="OpenFileBtn" Content="Öffnen" Height="28" Padding="10,0" FontSize="12" Click="OpenFile_Click"
@@ -113,7 +126,7 @@
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <TextBlock Text="SEITEN" Foreground="#C5A059" FontSize="11.5" FontWeight="Bold" VerticalAlignment="Center"/>
-                        <TextBlock x:Name="PageCountBadgeTxt" Grid.Column="1" Text="0" Foreground="#9CA3AF" FontSize="11" FontWeight="Bold"/>
+                        <TextBlock x:Name="PageCountBadgeTxt" Grid.Column="1" Text="0" Foreground="{DynamicResource SecondaryTextBrush}" FontSize="11" FontWeight="Bold"/>
                     </Grid>
 
                     <!-- Transform Tools Row 1 -->
@@ -130,7 +143,7 @@
                                 Background="#1D2230" Foreground="#E5E7EB" BorderBrush="#2D3343" Cursor="Hand" Margin="0,0,4,0"
                                 ToolTip="Seite interaktiv zuschneiden"/>
                         <Button x:Name="DeletePageBtn" Grid.Column="2" Content="✕" Height="26" FontSize="11" Click="DeletePage_Click"
-                                Background="#1D2230" Foreground="#F87171" BorderBrush="#2D3343" FontWeight="Bold" Cursor="Hand"
+                                Background="#1D2230" Foreground="#EF4444" BorderBrush="#2D3343" FontWeight="Bold" Cursor="Hand"
                                 ToolTip="Aktuelle Seite entfernen (Entf)"/>
                     </Grid>
 
@@ -164,14 +177,17 @@
                                 <Setter Property="Template">
                                     <Setter.Value>
                                         <ControlTemplate TargetType="ListBoxItem">
-                                            <Border x:Name="ItemBorder" Padding="10,7" CornerRadius="8" Background="#1A1F2C" BorderBrush="#262C3D" BorderThickness="1" Cursor="Hand">
+                                            <Border x:Name="ItemBorder" Padding="10,7" CornerRadius="8"
+                                                    Background="{DynamicResource ListItemBgBrush}"
+                                                    BorderBrush="{DynamicResource ListItemBorderBrush}"
+                                                    BorderThickness="1" Cursor="Hand">
                                                 <ContentPresenter/>
                                             </Border>
                                             <ControlTemplate.Triggers>
                                                 <Trigger Property="IsSelected" Value="True">
                                                     <Setter TargetName="ItemBorder" Property="BorderBrush" Value="#C5A059"/>
                                                     <Setter TargetName="ItemBorder" Property="BorderThickness" Value="1.5"/>
-                                                    <Setter TargetName="ItemBorder" Property="Background" Value="#222838"/>
+                                                    <Setter TargetName="ItemBorder" Property="Background" Value="{DynamicResource ListItemSelectedBgBrush}"/>
                                                 </Trigger>
                                             </ControlTemplate.Triggers>
                                         </ControlTemplate>
@@ -186,7 +202,7 @@
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="{Binding Title}" Foreground="#F9FAFB" FontWeight="SemiBold" FontSize="12"/>
+                                    <TextBlock Grid.Column="0" Text="{Binding Title}" Foreground="{DynamicResource PrimaryTextBrush}" FontWeight="SemiBold" FontSize="12"/>
                                     <TextBlock Grid.Column="1" Text="{Binding Badge}" Foreground="#C5A059" FontSize="10.5" FontWeight="Bold" VerticalAlignment="Center"/>
                                 </Grid>
                             </DataTemplate>
@@ -267,9 +283,9 @@
                         <StackPanel Orientation="Horizontal">
                             <Button Content="✓ Zuschnitt übernehmen" Height="28" Padding="12,0" Click="ApplyCrop_Click"
                                     Background="#C5A059" Foreground="#0F1117" FontWeight="Bold" BorderThickness="0" Cursor="Hand" Margin="0,0,6,0"/>
-                            <Button Content="Original wiederherstellen" Height="28" Padding="10,0" Click="ResetCrop_Click"
+                            <Button x:Name="ResetCropBtn" Content="Original wiederherstellen" Height="28" Padding="10,0" Click="ResetCrop_Click"
                                     Background="#1D2230" Foreground="#E5E7EB" BorderBrush="#2D3343" Cursor="Hand" Margin="0,0,6,0"/>
-                            <Button Content="✕" Width="28" Height="28" Click="CancelCrop_Click"
+                            <Button x:Name="CancelCropBtn" Content="✕" Width="28" Height="28" Click="CancelCrop_Click"
                                     Background="#1D2230" Foreground="#9CA3AF" BorderBrush="#2D3343" Cursor="Hand"/>
                         </StackPanel>
                     </Border>
@@ -310,7 +326,7 @@
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Text="DRUCK-WARTESCHLANGE" Foreground="#C5A059" FontSize="13.5" FontWeight="Bold" VerticalAlignment="Center"/>
                                 <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                    <Button Content="↻ Aktualisieren" Height="30" Padding="12,0" Click="RefreshPrintersAndQueue_Click"
+                                    <Button x:Name="QueueRefreshBtn" Content="↻ Aktualisieren" Height="30" Padding="12,0" Click="RefreshPrintersAndQueue_Click"
                                             Background="#1D2230" Foreground="#E5E7EB" BorderBrush="#2D3343" Cursor="Hand" Margin="0,0,6,0"/>
                                     <Button Content="Warteschlange leeren" Height="30" Padding="12,0" Click="PurgeQueue_Click"
                                             Background="#EF4444" Foreground="White" FontWeight="Bold" BorderThickness="0" Cursor="Hand"
@@ -331,7 +347,10 @@
                                                 <Setter Property="Template">
                                                     <Setter.Value>
                                                         <ControlTemplate TargetType="ListBoxItem">
-                                                            <Border Padding="12,9" CornerRadius="8" Background="#181C27" BorderBrush="#262C3D" BorderThickness="1">
+                                                            <Border Padding="12,9" CornerRadius="8"
+                                                                    Background="{DynamicResource ListItemBgBrush}"
+                                                                    BorderBrush="{DynamicResource ListItemBorderBrush}"
+                                                                    BorderThickness="1">
                                                                 <ContentPresenter/>
                                                             </Border>
                                                         </ControlTemplate>
@@ -349,12 +368,12 @@
                                                         <ColumnDefinition Width="70"/>
                                                         <ColumnDefinition Width="32"/>
                                                     </Grid.ColumnDefinitions>
-                                                    <TextBlock Grid.Column="0" Text="{Binding DocumentName}" Foreground="#F9FAFB" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                                    <TextBlock Grid.Column="0" Text="{Binding DocumentName}" Foreground="{DynamicResource PrimaryTextBrush}" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
                                                     <TextBlock Grid.Column="1" Text="{Binding StatusText}" Foreground="#C5A059" FontSize="11.5" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                                                    <TextBlock Grid.Column="2" Text="{Binding PagesText}" Foreground="#9CA3AF" FontSize="11.5" VerticalAlignment="Center"/>
-                                                    <TextBlock Grid.Column="3" Text="{Binding SubmittedText}" Foreground="#9CA3AF" FontSize="11.5" VerticalAlignment="Center"/>
+                                                    <TextBlock Grid.Column="2" Text="{Binding PagesText}" Foreground="{DynamicResource SecondaryTextBrush}" FontSize="11.5" VerticalAlignment="Center"/>
+                                                    <TextBlock Grid.Column="3" Text="{Binding SubmittedText}" Foreground="{DynamicResource SecondaryTextBrush}" FontSize="11.5" VerticalAlignment="Center"/>
                                                     <Button Grid.Column="4" Content="✕" Width="26" Height="24" Tag="{Binding JobId}" Click="CancelSingleJob_Click"
-                                                            Background="#2A161B" Foreground="#F87171" BorderBrush="#4C1D24" FontWeight="Bold" Cursor="Hand"
+                                                            Background="{DynamicResource CancelJobBgBrush}" Foreground="#EF4444" BorderBrush="{DynamicResource CancelJobBorderBrush}" FontWeight="Bold" Cursor="Hand"
                                                             ToolTip="Diesen Druckauftrag abbrechen"/>
                                                 </Grid>
                                             </DataTemplate>
@@ -363,7 +382,7 @@
 
                                     <TextBlock x:Name="EmptyQueuePlaceholderTxt"
                                                Text="Keine offenen Druckaufträge"
-                                               Foreground="#6B7280"
+                                               Foreground="{DynamicResource SecondaryTextBrush}"
                                                FontSize="13"
                                                FontWeight="SemiBold"
                                                HorizontalAlignment="Center"
@@ -383,27 +402,27 @@
                                             <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Grid.Column="0" Text="LAN-IP / Host:" Foreground="#D1D5DB" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                        <TextBlock x:Name="MaintIpLabelTxt" Grid.Column="0" Text="LAN-IP / Host:" Foreground="{DynamicResource PrimaryTextBrush}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0"/>
                                         <TextBox x:Name="CustomIpTextBox" Grid.Column="1" Height="28" VerticalContentAlignment="Center" Padding="8,0"
                                                  Background="#181C27" Foreground="#F9FAFB" BorderBrush="#2D3343" CaretBrush="#C5A059" FontSize="12"
-                                                 ToolTip="Optional feste Drucker-IP (z. B. 192.168.188.26) oder leer für Auto-Erkennung"/>
+                                                 ToolTip="Optional feste Heimnetz-Drucker-IP (z. B. 192.168.188.26) oder leer für Auto-Erkennung"/>
                                         <Button Grid.Column="2" Content="IP übernehmen" Height="28" Padding="11,0" Click="SaveCustomIp_Click"
                                                 Background="#C5A059" Foreground="#0F1117" FontWeight="Bold" BorderThickness="0" Cursor="Hand" Margin="8,0,0,0"/>
-                                        <TextBlock x:Name="HpAppStatusBadgeTxt" Grid.Column="3" Text="" Foreground="#9CA3AF" FontSize="11.5"
+                                        <TextBlock x:Name="HpAppStatusBadgeTxt" Grid.Column="3" Text="" Foreground="{DynamicResource SecondaryTextBrush}" FontSize="11.5"
                                                    VerticalAlignment="Center" HorizontalAlignment="Right"/>
                                     </Grid>
 
                                     <WrapPanel Orientation="Horizontal">
-                                        <Button Content="Prüfblatt (100 mm) öffnen" Height="30" Padding="12,0" Click="LoadCalibrationPage_Click"
+                                        <Button x:Name="MaintCalibBtn" Content="Prüfblatt (100 mm) öffnen" Height="30" Padding="12,0" Click="LoadCalibrationPage_Click"
                                                 Background="#1D2230" Foreground="#E5E7EB" BorderBrush="#2D3343" Cursor="Hand" Margin="0,0,6,4"
                                                 ToolTip="Lädt das Funkenwerk Prüfblatt mit CMYK-Test und 100-mm-Lineal"/>
-                                        <Button Content="Drucker-Webseite (LAN)" Height="30" Padding="12,0" Click="OpenPrinterWebUi_Click"
+                                        <Button x:Name="MaintWebUiBtn" Content="Drucker-Webseite (LAN)" Height="30" Padding="12,0" Click="OpenPrinterWebUi_Click"
                                                 Background="#1D2230" Foreground="#C5A059" BorderBrush="#2D3343" FontWeight="SemiBold" Cursor="Hand" Margin="0,0,6,4"
                                                 ToolTip="Öffnet die lokale Weboberfläche des Druckers im Heimnetz (ohne Cloud)"/>
-                                        <Button Content="Windows-Druckereinstellungen" Height="30" Padding="12,0" Click="OpenWindowsPrintersSettings_Click"
+                                        <Button x:Name="MaintWinPrnBtn" Content="Windows-Druckereinstellungen" Height="30" Padding="12,0" Click="OpenWindowsPrintersSettings_Click"
                                                 Background="#1D2230" Foreground="#E5E7EB" BorderBrush="#2D3343" Cursor="Hand" Margin="0,0,6,4"/>
                                         <Button x:Name="OpenWindowsAppsBtn" Content="Installierte Apps (HP Smart entfernen)" Height="30" Padding="12,0" Click="OpenWindowsAppsSettings_Click"
-                                                Background="#1D2230" Foreground="#F87171" BorderBrush="#3B2328" Cursor="Hand" Margin="0,0,0,4"
+                                                Background="#1D2230" Foreground="#EF4444" BorderBrush="#3B2328" Cursor="Hand" Margin="0,0,0,4"
                                                 ToolTip="Öffnet die Windows App-Verwaltung zum Deinstallieren von HP Smart"/>
                                     </WrapPanel>
                                 </StackPanel>
@@ -413,13 +432,13 @@
 
                     <!-- Busy / Scan Progress Overlay -->
                     <Border x:Name="BusyOverlayBorder" Background="#CC090B10" CornerRadius="10" Visibility="Collapsed">
-                        <Border Padding="24,18" CornerRadius="12" Background="#151923" BorderBrush="#C5A059" BorderThickness="1.5"
+                        <Border x:Name="BusyCardBorder" Padding="24,18" CornerRadius="12" Background="#151923" BorderBrush="#C5A059" BorderThickness="1.5"
                                 HorizontalAlignment="Center" VerticalAlignment="Center">
                             <StackPanel HorizontalAlignment="Center">
                                 <TextBlock x:Name="BusyOverlayTitleTxt" Text="Scanner arbeitet …" Foreground="#C5A059" FontSize="14" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,0,0,8"/>
                                 <TextBlock x:Name="BusyOverlaySubTxt" Text="Direktverbindung über LAN" Foreground="#E5E7EB" FontSize="12" HorizontalAlignment="Center" Margin="0,0,0,12"/>
-                                <Button Content="Abbrechen" Height="28" Padding="14,0" Click="CancelBusyOperation_Click"
-                                        Background="#1D2230" Foreground="#F87171" BorderBrush="#2D3343" Cursor="Hand" HorizontalAlignment="Center"/>
+                                <Button x:Name="BusyCancelBtn" Content="Abbrechen" Height="28" Padding="14,0" Click="CancelBusyOperation_Click"
+                                        Background="#1D2230" Foreground="#EF4444" BorderBrush="#2D3343" Cursor="Hand" HorizontalAlignment="Center"/>
                             </StackPanel>
                         </Border>
                     </Border>
@@ -464,7 +483,7 @@
                                     ToolTip="Druckerstatus, LAN-IP und Tintenstand lokal abfragen"/>
                         </Grid>
 
-                        <!-- Clean Themed Printer List (No ugly white OS ComboBox!) -->
+                        <!-- Clean Themed Printer List -->
                         <ListBox x:Name="PrintersListBox" MaxHeight="164" Background="Transparent" BorderThickness="0"
                                  SelectionChanged="PrintersListBox_SelectionChanged"
                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
@@ -477,14 +496,17 @@
                                     <Setter Property="Template">
                                         <Setter.Value>
                                             <ControlTemplate TargetType="ListBoxItem">
-                                                <Border x:Name="PrnItemBorder" Padding="9,7" CornerRadius="8" Background="#1A1F2C" BorderBrush="#262C3D" BorderThickness="1" Cursor="Hand">
+                                                <Border x:Name="PrnItemBorder" Padding="9,7" CornerRadius="8"
+                                                        Background="{DynamicResource ListItemBgBrush}"
+                                                        BorderBrush="{DynamicResource ListItemBorderBrush}"
+                                                        BorderThickness="1" Cursor="Hand">
                                                     <ContentPresenter/>
                                                 </Border>
                                                 <ControlTemplate.Triggers>
                                                     <Trigger Property="IsSelected" Value="True">
                                                         <Setter TargetName="PrnItemBorder" Property="BorderBrush" Value="#C5A059"/>
                                                         <Setter TargetName="PrnItemBorder" Property="BorderThickness" Value="1.5"/>
-                                                        <Setter TargetName="PrnItemBorder" Property="Background" Value="#222838"/>
+                                                        <Setter TargetName="PrnItemBorder" Property="Background" Value="{DynamicResource ListItemSelectedBgBrush}"/>
                                                     </Trigger>
                                                 </ControlTemplate.Triggers>
                                             </ControlTemplate>
@@ -502,10 +524,13 @@
                                         </Grid.ColumnDefinitions>
                                         <Ellipse Grid.Column="0" Width="8" Height="8" Fill="{Binding StatusDotBrush}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                                         <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                            <TextBlock Text="{Binding DisplayName}" Foreground="#F9FAFB" FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
-                                            <TextBlock Text="{Binding EffectiveStatusLabel}" Foreground="#9CA3AF" FontSize="10.5" TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Text="{Binding DisplayName}" Foreground="{DynamicResource PrimaryTextBrush}" FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Text="{Binding EffectiveStatusLabel}" Foreground="{DynamicResource SecondaryTextBrush}" FontSize="10.5" TextTrimming="CharacterEllipsis"/>
                                         </StackPanel>
-                                        <Border Grid.Column="2" Background="#12151E" BorderBrush="#2D3343" BorderThickness="1" CornerRadius="5" Padding="5,1" Margin="6,0,0,0" VerticalAlignment="Center">
+                                        <Border Grid.Column="2"
+                                                Background="{DynamicResource BadgeBgBrush}"
+                                                BorderBrush="{DynamicResource BadgeBorderBrush}"
+                                                BorderThickness="1" CornerRadius="5" Padding="5,1" Margin="6,0,0,0" VerticalAlignment="Center">
                                             <TextBlock Text="{Binding BadgeText}" Foreground="#C5A059" FontSize="9.5" FontWeight="Bold"/>
                                         </Border>
                                     </Grid>
@@ -521,7 +546,7 @@
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Text="TINTENSTAND (LOKAL)" Foreground="#9CA3AF" FontSize="10.5" FontWeight="Bold"/>
+                                    <TextBlock Text="TINTENSTAND (LOKAL)" Foreground="{DynamicResource SecondaryTextBrush}" FontSize="10.5" FontWeight="Bold"/>
                                     <TextBlock x:Name="InkSummaryRightTxt" Grid.Column="1" Text="Standby" Foreground="#C5A059" FontSize="10.5" FontWeight="Bold"/>
                                 </Grid>
 
@@ -532,11 +557,11 @@
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="36"/>
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="Schwarz" Foreground="#D1D5DB" FontSize="11" VerticalAlignment="Center"/>
-                                    <Border Grid.Column="1" Height="7" Background="#1E2433" CornerRadius="3.5" VerticalAlignment="Center" ClipToBounds="True">
+                                    <TextBlock Grid.Column="0" Text="Schwarz" Foreground="{DynamicResource PrimaryTextBrush}" FontSize="11" VerticalAlignment="Center"/>
+                                    <Border Grid.Column="1" Height="7" Background="{DynamicResource TrackBgBrush}" CornerRadius="3.5" VerticalAlignment="Center" ClipToBounds="True">
                                         <Border x:Name="BlackInkFillBar" HorizontalAlignment="Left" Width="0" Background="#E5E7EB" CornerRadius="3.5"/>
                                     </Border>
-                                    <TextBlock x:Name="BlackInkPctTxt" Grid.Column="2" Text="—" Foreground="#9CA3AF" FontSize="11" TextAlignment="Right" VerticalAlignment="Center"/>
+                                    <TextBlock x:Name="BlackInkPctTxt" Grid.Column="2" Text="--" Foreground="{DynamicResource SecondaryTextBrush}" FontSize="11" TextAlignment="Right" VerticalAlignment="Center"/>
                                 </Grid>
 
                                 <!-- Color CMY Ink -->
@@ -546,11 +571,11 @@
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="36"/>
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="Farbe" Foreground="#D1D5DB" FontSize="11" VerticalAlignment="Center"/>
-                                    <Border Grid.Column="1" Height="7" Background="#1E2433" CornerRadius="3.5" VerticalAlignment="Center" ClipToBounds="True">
+                                    <TextBlock Grid.Column="0" Text="Farbe" Foreground="{DynamicResource PrimaryTextBrush}" FontSize="11" VerticalAlignment="Center"/>
+                                    <Border Grid.Column="1" Height="7" Background="{DynamicResource TrackBgBrush}" CornerRadius="3.5" VerticalAlignment="Center" ClipToBounds="True">
                                         <Border x:Name="ColorInkFillBar" HorizontalAlignment="Left" Width="0" Background="#C5A059" CornerRadius="3.5"/>
                                     </Border>
-                                    <TextBlock x:Name="ColorInkPctTxt" Grid.Column="2" Text="—" Foreground="#9CA3AF" FontSize="11" TextAlignment="Right" VerticalAlignment="Center"/>
+                                    <TextBlock x:Name="ColorInkPctTxt" Grid.Column="2" Text="--" Foreground="{DynamicResource SecondaryTextBrush}" FontSize="11" TextAlignment="Right" VerticalAlignment="Center"/>
                                 </Grid>
                             </StackPanel>
                         </Border>
@@ -570,18 +595,18 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Text="KOPIEN" Foreground="#9CA3AF" FontSize="11" FontWeight="Bold" VerticalAlignment="Center"/>
-                                <Border Grid.Column="1" Background="#181C26" BorderBrush="#2D3343" BorderThickness="1" CornerRadius="6" Height="28">
+                                <TextBlock Text="KOPIEN" Foreground="{DynamicResource SecondaryTextBrush}" FontSize="11" FontWeight="Bold" VerticalAlignment="Center"/>
+                                <Border x:Name="PrintCopiesStepperBorder" Grid.Column="1" Background="#181C26" BorderBrush="#2D3343" BorderThickness="1" CornerRadius="6" Height="28">
                                     <StackPanel Orientation="Horizontal">
-                                        <Button Content="−" Width="28" Height="26" Click="CopiesDown_Click" Background="Transparent" Foreground="#E5E7EB" BorderThickness="0" FontWeight="Bold" Cursor="Hand"/>
+                                        <Button x:Name="PrintCopiesDownBtn" Content="−" Width="28" Height="26" Click="CopiesDown_Click" Background="Transparent" Foreground="#E5E7EB" BorderThickness="0" FontWeight="Bold" Cursor="Hand"/>
                                         <TextBlock x:Name="CopiesValueTxt" Text="1" Width="32" TextAlignment="Center" VerticalAlignment="Center" Foreground="#C5A059" FontWeight="Bold" FontSize="12"/>
-                                        <Button Content="+" Width="28" Height="26" Click="CopiesUp_Click" Background="Transparent" Foreground="#E5E7EB" BorderThickness="0" FontWeight="Bold" Cursor="Hand"/>
+                                        <Button x:Name="PrintCopiesUpBtn" Content="+" Width="28" Height="26" Click="CopiesUp_Click" Background="Transparent" Foreground="#E5E7EB" BorderThickness="0" FontWeight="Bold" Cursor="Hand"/>
                                     </StackPanel>
                                 </Border>
                             </Grid>
 
                             <!-- Color Mode -->
-                            <TextBlock Text="FARBMODUS" Foreground="#9CA3AF" FontSize="11" FontWeight="Bold" Margin="0,0,0,5"/>
+                            <TextBlock Text="FARBMODUS" Foreground="{DynamicResource SecondaryTextBrush}" FontSize="11" FontWeight="Bold" Margin="0,0,0,5"/>
                             <UniformGrid Columns="2" Margin="0,0,0,10">
                                 <Button x:Name="PrintColorBtn" Content="Farbe" Height="28" FontSize="11.5" Click="SetPrintColor_Click"
                                         Background="#C5A059" Foreground="#0F1117" FontWeight="Bold" BorderThickness="0" Cursor="Hand" Margin="0,0,3,0"/>
@@ -591,7 +616,7 @@
                             </UniformGrid>
 
                             <!-- Duplex -->
-                            <TextBlock Text="BEIDSEITIG" Foreground="#9CA3AF" FontSize="11" FontWeight="Bold" Margin="0,0,0,5"/>
+                            <TextBlock Text="BEIDSEITIG" Foreground="{DynamicResource SecondaryTextBrush}" FontSize="11" FontWeight="Bold" Margin="0,0,0,5"/>
                             <UniformGrid Columns="3" Margin="0,0,0,10">
                                 <Button x:Name="DuplexOffBtn" Content="Einseitig" Height="28" FontSize="11" Click="DuplexOff_Click"
                                         Background="#C5A059" Foreground="#0F1117" FontWeight="Bold" BorderThickness="0" Cursor="Hand" Margin="0,0,3,0"/>
@@ -604,7 +629,7 @@
                             </UniformGrid>
 
                             <!-- Paper Size -->
-                            <TextBlock Text="PAPIERFORMAT" Foreground="#9CA3AF" FontSize="11" FontWeight="Bold" Margin="0,0,0,5"/>
+                            <TextBlock Text="PAPIERFORMAT" Foreground="{DynamicResource SecondaryTextBrush}" FontSize="11" FontWeight="Bold" Margin="0,0,0,5"/>
                             <UniformGrid Columns="3" Margin="0,0,0,10">
                                 <Button x:Name="FormatA4Btn" Content="DIN A4" Height="28" FontSize="11" Click="FormatA4_Click"
                                         Background="#C5A059" Foreground="#0F1117" FontWeight="Bold" BorderThickness="0" Cursor="Hand" Margin="0,0,3,0"/>
@@ -612,11 +637,11 @@
                                         Background="#1B1F2B" Foreground="#E5E7EB" BorderBrush="#2D3343" Cursor="Hand" Margin="2,0,2,0"/>
                                 <Button x:Name="FormatLabelBtn" Content="10×15" Height="28" FontSize="11" Click="FormatLabel_Click"
                                         Background="#1B1F2B" Foreground="#E5E7EB" BorderBrush="#2D3343" Cursor="Hand" Margin="3,0,0,0"
-                                        ToolTip="DHL Versandetikett / 10×15 cm Fotoformat"/>
+                                        ToolTip="DHL Versandetikett / 10×15 cm Format"/>
                             </UniformGrid>
 
                             <!-- Orientation -->
-                            <TextBlock Text="AUSRICHTUNG" Foreground="#9CA3AF" FontSize="11" FontWeight="Bold" Margin="0,0,0,5"/>
+                            <TextBlock Text="AUSRICHTUNG" Foreground="{DynamicResource SecondaryTextBrush}" FontSize="11" FontWeight="Bold" Margin="0,0,0,5"/>
                             <UniformGrid Columns="3" Margin="0,0,0,10">
                                 <Button x:Name="OrientAutoBtn" Content="Auto" Height="28" FontSize="11" Click="OrientAuto_Click"
                                         Background="#C5A059" Foreground="#0F1117" FontWeight="Bold" BorderThickness="0" Cursor="Hand" Margin="0,0,3,0"/>
@@ -627,7 +652,7 @@
                             </UniformGrid>
 
                             <!-- Scale -->
-                            <TextBlock Text="SKALIERUNG" Foreground="#9CA3AF" FontSize="11" FontWeight="Bold" Margin="0,0,0,5"/>
+                            <TextBlock Text="SKALIERUNG" Foreground="{DynamicResource SecondaryTextBrush}" FontSize="11" FontWeight="Bold" Margin="0,0,0,5"/>
                             <UniformGrid Columns="2" Margin="0,0,0,10">
                                 <Button x:Name="ScaleFitBtn" Content="Einpassen" Height="28" FontSize="11" Click="ScaleFit_Click"
                                         Background="#C5A059" Foreground="#0F1117" FontWeight="Bold" BorderThickness="0" Cursor="Hand" Margin="0,0,3,0"
@@ -638,7 +663,7 @@
                             </UniformGrid>
 
                             <!-- Page Range -->
-                            <TextBlock Text="SEITENBEREICH" Foreground="#9CA3AF" FontSize="11" FontWeight="Bold" Margin="0,0,0,5"/>
+                            <TextBlock Text="SEITENBEREICH" Foreground="{DynamicResource SecondaryTextBrush}" FontSize="11" FontWeight="Bold" Margin="0,0,0,5"/>
                             <UniformGrid Columns="3" Margin="0,0,0,6">
                                 <Button x:Name="RangeAllBtn" Content="Alle" Height="28" FontSize="11" Click="RangeAll_Click"
                                         Background="#C5A059" Foreground="#0F1117" FontWeight="Bold" BorderThickness="0" Cursor="Hand" Margin="0,0,3,0"/>
@@ -666,7 +691,7 @@
                                     ToolTip="Nächstes Blatt scannen und als weitere PDF-Seite anfügen"/>
 
                             <!-- Source -->
-                            <TextBlock Text="QUELLE" Foreground="#9CA3AF" FontSize="11" FontWeight="Bold" Margin="0,0,0,5"/>
+                            <TextBlock Text="QUELLE" Foreground="{DynamicResource SecondaryTextBrush}" FontSize="11" FontWeight="Bold" Margin="0,0,0,5"/>
                             <UniformGrid Columns="3" Margin="0,0,0,10">
                                 <Button x:Name="ScanSrcFlatbedBtn" Content="Glas" Height="28" FontSize="11" Click="ScanSrcFlatbed_Click"
                                         Background="#C5A059" Foreground="#0F1117" FontWeight="Bold" BorderThickness="0" Cursor="Hand" Margin="0,0,3,0"
@@ -679,7 +704,7 @@
                             </UniformGrid>
 
                             <!-- Resolution -->
-                            <TextBlock Text="AUFLÖSUNG" Foreground="#9CA3AF" FontSize="11" FontWeight="Bold" Margin="0,0,0,5"/>
+                            <TextBlock Text="AUFLÖSUNG" Foreground="{DynamicResource SecondaryTextBrush}" FontSize="11" FontWeight="Bold" Margin="0,0,0,5"/>
                             <UniformGrid Columns="3" Margin="0,0,0,10">
                                 <Button x:Name="ScanDpi150Btn" Content="150 DPI" Height="28" FontSize="11" Click="ScanDpi150_Click"
                                         Background="#1B1F2B" Foreground="#E5E7EB" BorderBrush="#2D3343" Cursor="Hand" Margin="0,0,3,0"/>
@@ -690,7 +715,7 @@
                             </UniformGrid>
 
                             <!-- Scan Color -->
-                            <TextBlock Text="MODUS" Foreground="#9CA3AF" FontSize="11" FontWeight="Bold" Margin="0,0,0,5"/>
+                            <TextBlock Text="MODUS" Foreground="{DynamicResource SecondaryTextBrush}" FontSize="11" FontWeight="Bold" Margin="0,0,0,5"/>
                             <UniformGrid Columns="3" Margin="0,0,0,10">
                                 <Button x:Name="ScanColColorBtn" Content="Farbe" Height="28" FontSize="11" Click="ScanColColor_Click"
                                         Background="#C5A059" Foreground="#0F1117" FontWeight="Bold" BorderThickness="0" Cursor="Hand" Margin="0,0,3,0"/>
@@ -702,7 +727,7 @@
                             </UniformGrid>
 
                             <!-- Scan Protocol -->
-                            <TextBlock Text="VERBINDUNG" Foreground="#9CA3AF" FontSize="11" FontWeight="Bold" Margin="0,0,0,5"/>
+                            <TextBlock Text="VERBINDUNG" Foreground="{DynamicResource SecondaryTextBrush}" FontSize="11" FontWeight="Bold" Margin="0,0,0,5"/>
                             <UniformGrid Columns="3" Margin="0,0,0,14">
                                 <Button x:Name="ProtoAutoBtn" Content="Auto" Height="28" FontSize="11" Click="ProtoAuto_Click"
                                         Background="#C5A059" Foreground="#0F1117" FontWeight="Bold" BorderThickness="0" Cursor="Hand" Margin="0,0,3,0"
@@ -714,16 +739,16 @@
                             </UniformGrid>
 
                             <!-- 1-Click Export Actions -->
-                            <TextBlock Text="WEITERVERARBEITUNG" Foreground="#9CA3AF" FontSize="11" FontWeight="Bold" Margin="0,0,0,6"/>
+                            <TextBlock Text="WEITERVERARBEITUNG" Foreground="{DynamicResource SecondaryTextBrush}" FontSize="11" FontWeight="Bold" Margin="0,0,0,6"/>
                             <UniformGrid Columns="2" Margin="0,0,0,6">
-                                <Button Content="Als PDF speichern" Height="30" FontSize="11.5" Click="SaveAsPdf_Click"
+                                <Button x:Name="ScanSavePdfBtn" Content="Als PDF speichern" Height="30" FontSize="11.5" Click="SaveAsPdf_Click"
                                         Background="#1D2230" Foreground="#F9FAFB" BorderBrush="#2D3343" FontWeight="SemiBold" Cursor="Hand" Margin="0,0,3,0"/>
-                                <Button Content="Als PNG speichern" Height="30" FontSize="11.5" Click="SaveCurrentPageImage_Click"
+                                <Button x:Name="ScanSavePngBtn" Content="Als PNG speichern" Height="30" FontSize="11.5" Click="SaveCurrentPageImage_Click"
                                         Background="#1D2230" Foreground="#F9FAFB" BorderBrush="#2D3343" FontWeight="SemiBold" Cursor="Hand" Margin="3,0,0,0"/>
                             </UniformGrid>
-                            <Button Content="✍ In Funkenwerk PDF unterschreiben" Height="32" FontSize="11.5" Click="OpenInFunkenwerkPdf_Click"
+                            <Button x:Name="ScanOpenFwPdfBtn" Content="✍ In Funkenwerk PDF unterschreiben" Height="32" FontSize="11.5" Click="OpenInFunkenwerkPdf_Click"
                                     Background="#1D2230" Foreground="#C5A059" BorderBrush="#C5A059" BorderThickness="1" FontWeight="Bold" Cursor="Hand" Margin="0,0,0,6"/>
-                            <Button Content="Beleg → Buchhaltung ablegen" Height="30" FontSize="11.5" Click="SaveToAccountingReceipts_Click"
+                            <Button x:Name="ScanSaveReceiptBtn" Content="Beleg → Buchhaltung ablegen" Height="30" FontSize="11.5" Click="SaveToAccountingReceipts_Click"
                                     Background="#1D2230" Foreground="#E5E7EB" BorderBrush="#2D3343" Cursor="Hand"/>
                         </StackPanel>
 
@@ -736,7 +761,7 @@
                                     Background="#C5A059" Foreground="#0F1117" FontSize="13" FontWeight="Bold" BorderThickness="0" Cursor="Hand" Margin="0,0,0,8"
                                     ToolTip="Scannt mit Beleg-Kontrast und druckt sofort rein schwarzweiß"/>
 
-                            <Button Content="FARBKOPIE STARTEN" Height="36" Click="StartColorCopy_Click"
+                            <Button x:Name="StartColorCopyBtn" Content="FARBKOPIE STARTEN" Height="36" Click="StartColorCopy_Click"
                                     Background="#1D2230" Foreground="#F9FAFB" BorderBrush="#2D3343" FontSize="12.5" FontWeight="Bold" Cursor="Hand" Margin="0,0,0,14"/>
 
                             <!-- Copy Count -->
@@ -745,17 +770,17 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Text="ANZAHL KOPIEN" Foreground="#9CA3AF" FontSize="11" FontWeight="Bold" VerticalAlignment="Center"/>
-                                <Border Grid.Column="1" Background="#181C26" BorderBrush="#2D3343" BorderThickness="1" CornerRadius="6" Height="28">
+                                <TextBlock Text="ANZAHL KOPIEN" Foreground="{DynamicResource SecondaryTextBrush}" FontSize="11" FontWeight="Bold" VerticalAlignment="Center"/>
+                                <Border x:Name="CopyCopiesStepperBorder" Grid.Column="1" Background="#181C26" BorderBrush="#2D3343" BorderThickness="1" CornerRadius="6" Height="28">
                                     <StackPanel Orientation="Horizontal">
-                                        <Button Content="−" Width="28" Height="26" Click="CopiesDown_Click" Background="Transparent" Foreground="#E5E7EB" BorderThickness="0" FontWeight="Bold" Cursor="Hand"/>
+                                        <Button x:Name="CopyCopiesDownBtn" Content="−" Width="28" Height="26" Click="CopiesDown_Click" Background="Transparent" Foreground="#E5E7EB" BorderThickness="0" FontWeight="Bold" Cursor="Hand"/>
                                         <TextBlock x:Name="CopyTabCountTxt" Text="1" Width="32" TextAlignment="Center" VerticalAlignment="Center" Foreground="#C5A059" FontWeight="Bold" FontSize="12"/>
-                                        <Button Content="+" Width="28" Height="26" Click="CopiesUp_Click" Background="Transparent" Foreground="#E5E7EB" BorderThickness="0" FontWeight="Bold" Cursor="Hand"/>
+                                        <Button x:Name="CopyCopiesUpBtn" Content="+" Width="28" Height="26" Click="CopiesUp_Click" Background="Transparent" Foreground="#E5E7EB" BorderThickness="0" FontWeight="Bold" Cursor="Hand"/>
                                     </StackPanel>
                                 </Border>
                             </Grid>
 
-                            <TextBlock Text="VORLAGENQUELLE" Foreground="#9CA3AF" FontSize="11" FontWeight="Bold" Margin="0,0,0,5"/>
+                            <TextBlock Text="VORLAGENQUELLE" Foreground="{DynamicResource SecondaryTextBrush}" FontSize="11" FontWeight="Bold" Margin="0,0,0,5"/>
                             <UniformGrid Columns="2" Margin="0,0,0,10">
                                 <Button x:Name="CopySrcFlatbedBtn" Content="Flachbett" Height="28" FontSize="11.5" Click="ScanSrcFlatbed_Click"
                                         Background="#C5A059" Foreground="#0F1117" FontWeight="Bold" BorderThickness="0" Cursor="Hand" Margin="0,0,3,0"/>

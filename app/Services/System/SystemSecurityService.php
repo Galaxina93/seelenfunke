@@ -126,17 +126,24 @@ class SystemSecurityService
     }
 
     /**
+     * Optionale Test-Auflösung für DNS-Abfragen in SystemSecurityService::isSafeMailHost().
+     * Signatur: fn(string $host): array<int, string>
+     */
+    public static ?\Closure $dnsResolver = null;
+
+    /**
      * Prüft, ob ein interner Bridge-/Webhook-Aufruf von einer vertrauenswürdigen lokalen Quelle
      * oder mit gültigem Bridge-Secret erfolgt.
      */
     public static function isTrustedBridgeRequest(Request $request): bool
     {
-        $configuredSecrets = array_filter([
+        $configuredSecrets = array_values(array_unique(array_filter([
             config('services.gemini.bridge_secret'),
+            config('services.ai.proxy_secret'),
             config('services.twilio.bridge_secret'),
-            env('BRIDGE_SECRET'),
-            env('AI_PROXY_SECRET'),
-        ], fn ($v) => is_string($v) && trim($v) !== '');
+            app()->configurationIsCached() ? null : env('BRIDGE_SECRET'),
+            app()->configurationIsCached() ? null : env('AI_PROXY_SECRET'),
+        ], fn ($v) => is_string($v) && trim($v) !== '')));
 
         $providedSecret = $request->header('X-Bridge-Secret')
             ?: $request->header('X-AI-Proxy-Secret')
@@ -152,6 +159,22 @@ class SystemSecurityService
             return false;
         }
 
+        // Sobald ein Bridge-Secret konfiguriert ist oder die Umgebung production/staging ist,
+        // muss IMMER ein gültiges X-Bridge-Secret per hash_equals nachgewiesen werden (auch von 127.0.0.1)
+        if (!empty($configuredSecrets) || app()->environment(['production', 'staging'])) {
+            return false;
+        }
+
+        // Requests mit Reverse-Proxy-Headern ohne gültiges Bridge-Secret immer VOR einer Loopback-Prüfung ablehnen
+        if (
+            $request->headers->has('X-Forwarded-For')
+            || $request->headers->has('X-Real-IP')
+            || $request->headers->has('CF-Connecting-IP')
+            || $request->headers->has('Forwarded')
+        ) {
+            return false;
+        }
+
         $clientIp = (string) $request->ip();
         $serverIp = (string) ($request->server('SERVER_ADDR') ?? '');
 
@@ -162,31 +185,11 @@ class SystemSecurityService
             $serverIp,
         ]);
 
-        if (in_array($clientIp, $trustedLoopbackIps, true)) {
-            return true;
-        }
-
-        // Wenn ein Bridge-Secret konfiguriert ist, sind nicht-lokale Zugriffe ohne gültiges Secret unzulässig
-        if (!empty($configuredSecrets)) {
-            return false;
-        }
-
-        // Wenn der Request über einen Reverse-Proxy (X-Forwarded-For / X-Real-IP / CF-Connecting-IP) kam,
-        // stammt er von extern und darf sich nicht allein über die Docker-Proxy-IP authentifizieren
-        if ($request->headers->has('X-Forwarded-For') || $request->headers->has('X-Real-IP') || $request->headers->has('CF-Connecting-IP')) {
-            return false;
-        }
-
-        // Erlaube private/interne Container- & Server-Subnetze (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16)
-        if (preg_match('/^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/', $clientIp)) {
-            return true;
-        }
-
-        return false;
+        return in_array($clientIp, $trustedLoopbackIps, true);
     }
 
     /**
-     * Prüft, ob ein IMAP/SMTP-Host sicher ist (verhindert SSRF auf Loopback, Metadaten-Endpunkte oder interne Dienste).
+     * Prüft, ob ein IMAP/SMTP-Host sicher ist (verhindert SSRF & DNS-Rebinding auf Loopback, Metadaten-Endpunkte oder interne Dienste).
      */
     public static function isSafeMailHost(string $host): bool
     {
@@ -201,6 +204,11 @@ class SystemSecurityService
             $cleanHost = trim(explode(']', $cleanHost)[0], '[]');
         } else {
             $cleanHost = explode(':', $cleanHost)[0];
+        }
+        $cleanHost = rtrim($cleanHost, '.');
+
+        if ($cleanHost === '') {
+            return false;
         }
 
         $forbiddenHosts = [
@@ -225,8 +233,27 @@ class SystemSecurityService
             'mailhog',
         ];
 
-        if (in_array($cleanHost, $forbiddenHosts, true) || str_ends_with($cleanHost, '.internal') || str_ends_with($cleanHost, '.local') || str_ends_with($cleanHost, '.docker')) {
+        $forbiddenSuffixes = [
+            '.internal',
+            '.local',
+            '.docker',
+            '.localhost',
+            '.nip.io',
+            '.sslip.io',
+            '.xip.io',
+            '.traefik.me',
+            '.localtest.me',
+            '.lvh.me',
+        ];
+
+        if (in_array($cleanHost, $forbiddenHosts, true)) {
             return false;
+        }
+
+        foreach ($forbiddenSuffixes as $suffix) {
+            if (str_ends_with($cleanHost, $suffix)) {
+                return false;
+            }
         }
 
         if (filter_var($cleanHost, FILTER_VALIDATE_IP)) {
@@ -237,12 +264,90 @@ class SystemSecurityService
             return true;
         }
 
-        // Öffentliche Mail-Hosts müssen immer eine Domain mit mindestens einem Punkt sein (blockiert interne Single-Label Container-Namen)
-        if (!str_contains($cleanHost, '.')) {
+        // Öffentliche Mail-Hosts müssen immer eine gültige Domain mit mindestens einem Punkt sein (blockiert Single-Label Container-Namen)
+        if (!str_contains($cleanHost, '.') || !preg_match('/^[a-z0-9.-]+$/', $cleanHost)) {
             return false;
         }
 
+        // DNS-Auflösung prüfen (verhindert DNS-Rebinding / Domains, die auf 127.0.0.1, 169.254.169.254 oder Docker-LAN zeigen)
+        $resolvedIps = [];
+        $dnsOverrides = config('services.mail_host_dns_override', []);
+
+        if (self::$dnsResolver instanceof \Closure) {
+            $resolvedIps = (array) (self::$dnsResolver)($cleanHost);
+        } elseif (is_array($dnsOverrides) && array_key_exists($cleanHost, $dnsOverrides)) {
+            $resolvedIps = (array) $dnsOverrides[$cleanHost];
+        } else {
+            $records = @dns_get_record($cleanHost, DNS_A | DNS_AAAA);
+            if (is_array($records)) {
+                foreach ($records as $rec) {
+                    if (!empty($rec['ip']) && is_string($rec['ip'])) {
+                        $resolvedIps[] = $rec['ip'];
+                    }
+                    if (!empty($rec['ipv6']) && is_string($rec['ipv6'])) {
+                        $resolvedIps[] = $rec['ipv6'];
+                    }
+                }
+            }
+            if (empty($resolvedIps)) {
+                $v4List = @gethostbynamel($cleanHost);
+                if (is_array($v4List)) {
+                    foreach ($v4List as $ip) {
+                        if (is_string($ip) && $ip !== '') {
+                            $resolvedIps[] = $ip;
+                        }
+                    }
+                }
+            }
+        }
+
+        $resolvedIps = array_values(array_unique(array_filter($resolvedIps, fn ($ip) => is_string($ip) && trim($ip) !== '')));
+
+        if (empty($resolvedIps)) {
+            // In PHPUnit/Testing ohne aktive Internetverbindung syntaktisch saubere Public-Domains zulassen,
+            // sofern kein explizites Override auf [] gesetzt wurde; in Produktion/Stage ablehnen.
+            if (
+                app()->environment('testing')
+                && !(self::$dnsResolver instanceof \Closure)
+                && !(is_array($dnsOverrides) && array_key_exists($cleanHost, $dnsOverrides))
+            ) {
+                return true;
+            }
+            return false;
+        }
+
+        foreach ($resolvedIps as $resolvedIp) {
+            if (!filter_var($resolvedIp, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
+                return false;
+            }
+        }
+
         return true;
+    }
+
+    /**
+     * Erlaubte Standard-Mail-Ports für benutzerdefinierte IMAP/SMTP-Konten.
+     */
+    public static function isAllowedMailPort(int $port): bool
+    {
+        return in_array($port, [143, 465, 587, 993, 2525], true);
+    }
+
+    /**
+     * Verhindert unverschlüsselte Klartext-Mailverbindungen ('none') auf Nicht-Loopback-Hosts.
+     */
+    public static function isSafeMailEncryption(?string $encryption, string $host): bool
+    {
+        $enc = strtolower(trim((string) ($encryption ?? 'ssl')));
+        if (in_array($enc, ['ssl', 'tls', 'starttls'], true)) {
+            return true;
+        }
+
+        $cleanHost = strtolower(trim($host));
+        $cleanHost = preg_replace('#^[a-z0-9+.-]+://#i', '', $cleanHost);
+        $cleanHost = trim(explode(':', $cleanHost)[0], '[]');
+
+        return in_array($cleanHost, ['127.0.0.1', '::1', 'localhost'], true);
     }
 
     private static function inferCategory(string $actionId): string

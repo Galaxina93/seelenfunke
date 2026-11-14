@@ -31,7 +31,7 @@ data class SentinelQueuedEvent(
     val message: String = "",
     val stacktrace: String? = null,
     val fingerprint: String = "",
-    val app_version: String = "1.3.3",
+    val app_version: String = "1.5.0",
     val device: String = "${Build.MANUFACTURER} ${Build.MODEL}".trim(),
     val auto_healed: Boolean = false,
     val heal_summary: String? = null,
@@ -41,8 +41,10 @@ data class SentinelQueuedEvent(
 
 object ErrorSentinelReporter {
     private const val QUEUE_FILE_NAME = "error_sentinel_queue.json"
+    private const val HISTORY_FILE_NAME = "error_sentinel_history.json"
     private const val MAX_QUEUE_SIZE = 50
-    private const val APP_VERSION_LABEL = "1.3.3"
+    private const val MAX_HISTORY_SIZE = 100
+    private const val APP_VERSION_LABEL = "1.5.0"
 
     private val installed = AtomicBoolean(false)
     private val flushing = AtomicBoolean(false)
@@ -86,12 +88,34 @@ object ErrorSentinelReporter {
         triggerAsyncFlush(appCtx)
     }
 
+    fun isBenignCancellation(throwable: Throwable?, message: String? = null): Boolean {
+        var cur: Throwable? = throwable
+        var depth = 0
+        while (cur != null && depth < 6) {
+            if (cur is java.util.concurrent.CancellationException) {
+                return true
+            }
+            val cls = cur.javaClass.name.lowercase(Locale.ROOT)
+            if (cls.contains("cancellationexception") || cls.contains("mutationinterruptedexception")) {
+                return true
+            }
+            cur = cur.cause
+            depth++
+        }
+        val msgLower = (message ?: "").lowercase(Locale.ROOT)
+        return msgLower.contains("leftcompositioncancellationexception") ||
+            msgLower.contains("standalonecoroutine was cancelled") ||
+            msgLower.contains("job was cancelled")
+    }
+
     fun captureError(
         context: Context?,
         tag: String,
         message: String,
-        throwable: Throwable? = null
+        throwable: Throwable? = null,
+        extraContext: Map<String, String> = emptyMap()
     ) {
+        if (isBenignCancellation(throwable, message)) return
         val appCtx = resolveContext(context) ?: return
         val cleanTag = tag.trim().ifEmpty { "android_app" }
         val shortTitle = if (throwable != null) {
@@ -107,7 +131,8 @@ object ErrorSentinelReporter {
             throwable = throwable,
             autoHealed = false,
             healSummary = null,
-            severity = "error"
+            severity = "error",
+            extraContext = extraContext
         )
         if (added) {
             triggerAsyncFlush(appCtx)
@@ -119,7 +144,8 @@ object ErrorSentinelReporter {
         component: String,
         title: String,
         message: String,
-        healSummary: String
+        healSummary: String,
+        extraContext: Map<String, String> = emptyMap()
     ) {
         val appCtx = resolveContext(context) ?: return
         val added = enqueueSynchronously(
@@ -130,7 +156,8 @@ object ErrorSentinelReporter {
             throwable = null,
             autoHealed = true,
             healSummary = healSummary,
-            severity = "warning"
+            severity = "warning",
+            extraContext = extraContext
         )
         if (added) {
             triggerAsyncFlush(appCtx)
@@ -142,9 +169,25 @@ object ErrorSentinelReporter {
         var s = raw
         s = s.replace(Regex("(?i)(Bearer\\s+)[A-Za-z0-9\\-._~+/=|]+"), "$1[REDACTED]")
         s = s.replace(Regex("enc_v1:[A-Za-z0-9+/=:]+"), "enc_v1:[REDACTED]")
-        s = s.replace(Regex("(?i)((?:api[_-]?key|token|password|passwd|secret|authorization)\\s*[:=]\\s*[\"']?)([^\\s\"'&,;}{]+)"), "$1[REDACTED]")
-        s = s.replace(Regex("(?i)([?&](?:key|token|password|secret)=)[^&\\s]+"), "$1[REDACTED]")
+        s = s.replace(Regex("AIza[A-Za-z0-9\\-_]{16,}"), "AIza[REDACTED]")
+        s = s.replace(Regex("(?i)([?&](?:api[_-]?key|key|token|password|passwd|secret)=)[^&\\s\"']+"), "$1[REDACTED]")
+        s = s.replace(Regex("(?i)(\\b(?:api[_-]?key|key|token|password|passwd|secret|authorization)[\"']?\\s*[:=]\\s*[\"']?)([^\\s\"'&,;}{]+)"), "$1[REDACTED]")
+        s = s.replace(Regex("\\b\\d+\\|[A-Za-z0-9]{16,}"), "[REDACTED]")
         return if (s.length > 3800) s.take(3800) else s
+    }
+
+    fun clearQueue(context: Context?) {
+        recentFingerprints.clear()
+        val appCtx = resolveContext(context) ?: return
+        synchronized(queueLock) {
+            try {
+                val file = File(appCtx.filesDir, QUEUE_FILE_NAME)
+                if (file.exists()) {
+                    file.delete()
+                }
+            } catch (_: Throwable) {
+            }
+        }
     }
 
     fun computeFingerprint(component: String, title: String): String {
@@ -181,7 +224,8 @@ object ErrorSentinelReporter {
         throwable: Throwable?,
         autoHealed: Boolean,
         healSummary: String?,
-        severity: String
+        severity: String,
+        extraContext: Map<String, String> = emptyMap()
     ): Boolean {
         val safeComp = scrubSecrets(component).take(100)
         val safeTitle = scrubSecrets(title).take(220)
@@ -196,6 +240,17 @@ object ErrorSentinelReporter {
         }
         recentFingerprints[throttleKey] = nowMs
 
+        val mergedCtx = LinkedHashMap<String, String>().apply {
+            put("sdk_int", Build.VERSION.SDK_INT.toString())
+            put("model", Build.MODEL)
+            for ((k, v) in extraContext) {
+                val ck = scrubSecrets(k).take(60)
+                if (ck.isNotBlank()) {
+                    put(ck, scrubSecrets(v).take(300))
+                }
+            }
+        }
+
         val event = SentinelQueuedEvent(
             platform = "android",
             severity = if (autoHealed) "warning" else severity,
@@ -209,13 +264,11 @@ object ErrorSentinelReporter {
             auto_healed = autoHealed,
             heal_summary = healSummary?.let { scrubSecrets(it) },
             occurred_at = Instant.now().toString(),
-            context = mapOf(
-                "sdk_int" to Build.VERSION.SDK_INT.toString(),
-                "model" to Build.MODEL
-            )
+            context = mergedCtx
         )
 
         synchronized(queueLock) {
+            appendHistoryUnsafe(appCtx, event)
             val list = loadQueueUnsafe(appCtx)
             list.removeAll { it.fingerprint == event.fingerprint && it.auto_healed == event.auto_healed }
             list.add(event)
@@ -225,6 +278,24 @@ object ErrorSentinelReporter {
             saveQueueUnsafe(appCtx, list)
         }
         return true
+    }
+
+    fun getRecentHistory(context: Context?, limit: Int = 30): List<SentinelQueuedEvent> {
+        val appCtx = resolveContext(context) ?: return emptyList()
+        val capped = limit.coerceIn(1, MAX_HISTORY_SIZE)
+        return synchronized(queueLock) {
+            val all = loadJsonListUnsafe(appCtx, HISTORY_FILE_NAME)
+            all.takeLast(capped).asReversed()
+        }
+    }
+
+    private fun appendHistoryUnsafe(appCtx: Context, event: SentinelQueuedEvent) {
+        val hist = loadJsonListUnsafe(appCtx, HISTORY_FILE_NAME)
+        hist.add(event)
+        while (hist.size > MAX_HISTORY_SIZE) {
+            hist.removeAt(0)
+        }
+        saveJsonListUnsafe(appCtx, HISTORY_FILE_NAME, hist)
     }
 
     fun triggerAsyncFlush(context: Context?) {
@@ -247,7 +318,7 @@ object ErrorSentinelReporter {
 
             val baseUrl = try { ServiceLocator.getBaseUrl() } catch (_: Throwable) { return }
             val endpoint = "${baseUrl.trimEnd('/')}/system/error-ingest"
-            if (!ServiceLocator.isAllowedApiRequestUrl(endpoint)) return
+            if (!ServiceLocator.isAllowedApiRequestUrl(endpoint) || !ServiceLocator.shouldAttachBearerToken(endpoint)) return
 
             val bodyJson = gson.toJson(mapOf("events" to batch))
             val req = Request.Builder()
@@ -273,25 +344,34 @@ object ErrorSentinelReporter {
         }
     }
 
-    private fun loadQueueUnsafe(appCtx: Context): MutableList<SentinelQueuedEvent> {
+    private fun loadQueueUnsafe(appCtx: Context): MutableList<SentinelQueuedEvent> =
+        loadJsonListUnsafe(appCtx, QUEUE_FILE_NAME)
+
+    private fun saveQueueUnsafe(appCtx: Context, list: List<SentinelQueuedEvent>) =
+        saveJsonListUnsafe(appCtx, QUEUE_FILE_NAME, list)
+
+    private fun loadJsonListUnsafe(appCtx: Context, fileName: String): MutableList<SentinelQueuedEvent> {
         return try {
-            val file = File(appCtx.filesDir, QUEUE_FILE_NAME)
+            val file = File(appCtx.filesDir, fileName)
             if (!file.exists()) return mutableListOf()
+            val raw = file.readText(Charsets.UTF_8)
+            val json = ServiceLocator.decryptPayloadFromPrefs(raw) ?: return mutableListOf()
             val type = object : TypeToken<MutableList<SentinelQueuedEvent>>() {}.type
-            gson.fromJson<MutableList<SentinelQueuedEvent>>(file.readText(Charsets.UTF_8), type) ?: mutableListOf()
+            gson.fromJson<MutableList<SentinelQueuedEvent>>(json, type) ?: mutableListOf()
         } catch (_: Throwable) {
             mutableListOf()
         }
     }
 
-    private fun saveQueueUnsafe(appCtx: Context, list: List<SentinelQueuedEvent>) {
+    private fun saveJsonListUnsafe(appCtx: Context, fileName: String, list: List<SentinelQueuedEvent>) {
         try {
-            val file = File(appCtx.filesDir, QUEUE_FILE_NAME)
+            val file = File(appCtx.filesDir, fileName)
             if (list.isEmpty()) {
                 if (file.exists()) file.delete()
                 return
             }
-            file.writeText(gson.toJson(list), Charsets.UTF_8)
+            val encrypted = ServiceLocator.encryptPayloadForPrefs(gson.toJson(list))
+            file.writeText(encrypted, Charsets.UTF_8)
         } catch (_: Throwable) {
         }
     }

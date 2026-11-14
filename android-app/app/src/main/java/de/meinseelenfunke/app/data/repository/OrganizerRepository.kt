@@ -17,7 +17,7 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
     private fun loadTaskListsFromCache(): List<ManagementTaskList>? {
         return try {
             val sharedPrefs = serviceLocator.context.getSharedPreferences("tasks_widget_prefs", android.content.Context.MODE_PRIVATE)
-            val json = sharedPrefs.getString("task_lists_cache", null) ?: return null
+            val json = ServiceLocator.getDecryptedPref(sharedPrefs, "task_lists_cache", null) ?: return null
             val type = object : com.google.gson.reflect.TypeToken<List<ManagementTaskList>>() {}.type
             com.google.gson.Gson().fromJson(json, type)
         } catch (_: Exception) {
@@ -28,7 +28,7 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
     private fun loadTasksFromCache(): List<ManagementTask>? {
         return try {
             val sharedPrefs = serviceLocator.context.getSharedPreferences("tasks_widget_prefs", android.content.Context.MODE_PRIVATE)
-            val json = sharedPrefs.getString("tasks_cache", null) ?: return null
+            val json = ServiceLocator.getDecryptedPref(sharedPrefs, "tasks_cache", null) ?: return null
             val type = object : com.google.gson.reflect.TypeToken<List<ManagementTask>>() {}.type
             com.google.gson.Gson().fromJson(json, type)
         } catch (_: Exception) {
@@ -39,7 +39,7 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
     private fun loadShoppingItemsFromCache(): List<ManagementShoppingItem>? {
         return try {
             val sharedPrefs = serviceLocator.context.getSharedPreferences("shopping_widget_prefs", android.content.Context.MODE_PRIVATE)
-            val json = sharedPrefs.getString("shopping_items_cache", null) ?: return null
+            val json = ServiceLocator.getDecryptedPref(sharedPrefs, "shopping_items_cache", null) ?: return null
             val type = object : com.google.gson.reflect.TypeToken<List<ManagementShoppingItem>>() {}.type
             com.google.gson.Gson().fromJson(json, type)
         } catch (_: Exception) {
@@ -50,7 +50,7 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
     private fun loadCalendarEventsFromCache(): List<CalendarEvent>? {
         return try {
             val sharedPrefs = serviceLocator.context.getSharedPreferences("calendar_widget_prefs", android.content.Context.MODE_PRIVATE)
-            val json = sharedPrefs.getString("calendar_events_cache", null) ?: return null
+            val json = ServiceLocator.getDecryptedPref(sharedPrefs, "calendar_events_cache", null) ?: return null
             val type = object : com.google.gson.reflect.TypeToken<List<CalendarEvent>>() {}.type
             com.google.gson.Gson().fromJson(json, type)
         } catch (_: Exception) {
@@ -66,10 +66,15 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
                 triggerTasksWidgetUpdate(serviceLocator.context)
                 Result.success(response.data)
             } else {
-                Result.success(loadTaskListsFromCache() ?: emptyList())
+                val cached = loadTaskListsFromCache()
+                if (cached != null) Result.success(cached)
+                else Result.failure(Exception("Aufgabenlisten konnten nicht geladen werden."))
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
-            Result.success(loadTaskListsFromCache() ?: emptyList())
+            val cached = loadTaskListsFromCache()
+            if (cached != null) Result.success(cached) else Result.failure(e)
         }
     }
 
@@ -81,10 +86,15 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
                 triggerTasksWidgetUpdate(serviceLocator.context)
                 Result.success(response.data)
             } else {
-                Result.success(loadTasksFromCache() ?: emptyList())
+                val cached = loadTasksFromCache()
+                if (cached != null) Result.success(cached)
+                else Result.failure(Exception("Aufgaben konnten nicht geladen werden."))
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
-            Result.success(loadTasksFromCache() ?: emptyList())
+            val cached = loadTasksFromCache()
+            if (cached != null) Result.success(cached) else Result.failure(e)
         }
     }
 
@@ -364,7 +374,7 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
             val context = serviceLocator.context
             val sharedPrefs = context.getSharedPreferences("shopping_widget_prefs", android.content.Context.MODE_PRIVATE)
             val json = com.google.gson.Gson().toJson(items)
-            sharedPrefs.edit().putString("shopping_items_cache", json).apply()
+            ServiceLocator.putEncryptedPref(sharedPrefs, "shopping_items_cache", json)
         } catch (e: Exception) {
             de.meinseelenfunke.app.util.AppLogger.error(serviceLocator.context, "OrganizerRepo", "saveShoppingItemsToCache error", e)
         }
@@ -373,11 +383,8 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
     private fun updateCachedItem(updatedItem: ManagementShoppingItem) {
         try {
             val context = serviceLocator.context
-            val sharedPrefs = context.getSharedPreferences("shopping_widget_prefs", android.content.Context.MODE_PRIVATE)
-            val json = sharedPrefs.getString("shopping_items_cache", null)
-            if (json != null) {
-                val type = object : com.google.gson.reflect.TypeToken<List<ManagementShoppingItem>>() {}.type
-                val items: List<ManagementShoppingItem> = com.google.gson.Gson().fromJson(json, type)
+            val items = loadShoppingItemsFromCache()
+            if (items != null) {
                 val updatedList = items.map { if (it.id == updatedItem.id) updatedItem else it }
                 saveShoppingItemsToCache(updatedList)
                 triggerShoppingWidgetUpdate(context)
@@ -390,14 +397,7 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
     private fun addCachedItem(newItem: ManagementShoppingItem) {
         try {
             val context = serviceLocator.context
-            val sharedPrefs = context.getSharedPreferences("shopping_widget_prefs", android.content.Context.MODE_PRIVATE)
-            val json = sharedPrefs.getString("shopping_items_cache", null)
-            val items: List<ManagementShoppingItem> = if (json != null) {
-                val type = object : com.google.gson.reflect.TypeToken<List<ManagementShoppingItem>>() {}.type
-                com.google.gson.Gson().fromJson(json, type)
-            } else {
-                emptyList()
-            }
+            val items = loadShoppingItemsFromCache() ?: emptyList()
             val updatedList = listOf(newItem) + items
             saveShoppingItemsToCache(updatedList)
             triggerShoppingWidgetUpdate(context)
@@ -409,11 +409,8 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
     private fun deleteCachedItem(id: String) {
         try {
             val context = serviceLocator.context
-            val sharedPrefs = context.getSharedPreferences("shopping_widget_prefs", android.content.Context.MODE_PRIVATE)
-            val json = sharedPrefs.getString("shopping_items_cache", null)
-            if (json != null) {
-                val type = object : com.google.gson.reflect.TypeToken<List<ManagementShoppingItem>>() {}.type
-                val items: List<ManagementShoppingItem> = com.google.gson.Gson().fromJson(json, type)
+            val items = loadShoppingItemsFromCache()
+            if (items != null) {
                 val updatedList = items.filter { it.id != id }
                 saveShoppingItemsToCache(updatedList)
                 triggerShoppingWidgetUpdate(context)
@@ -426,11 +423,8 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
     fun optimisticToggleShoppingItem(id: String) {
         try {
             val context = serviceLocator.context
-            val sharedPrefs = context.getSharedPreferences("shopping_widget_prefs", android.content.Context.MODE_PRIVATE)
-            val json = sharedPrefs.getString("shopping_items_cache", null)
-            if (json != null) {
-                val type = object : com.google.gson.reflect.TypeToken<List<ManagementShoppingItem>>() {}.type
-                val items: List<ManagementShoppingItem> = com.google.gson.Gson().fromJson(json, type)
+            val items = loadShoppingItemsFromCache()
+            if (items != null) {
                 val updatedList = items.map { item ->
                     if (item.id == id) {
                         val newStatus = if (item.status == "needed") "stocked" else "needed"
@@ -466,7 +460,7 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
             val context = serviceLocator.context
             val sharedPrefs = context.getSharedPreferences("tasks_widget_prefs", android.content.Context.MODE_PRIVATE)
             val json = com.google.gson.Gson().toJson(lists)
-            sharedPrefs.edit().putString("task_lists_cache", json).apply()
+            ServiceLocator.putEncryptedPref(sharedPrefs, "task_lists_cache", json)
         } catch (e: Exception) {
             de.meinseelenfunke.app.util.AppLogger.error(serviceLocator.context, "OrganizerRepo", "saveTaskListsToCache error", e)
         }
@@ -475,11 +469,8 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
     private fun updateCachedTaskList(updatedList: ManagementTaskList) {
         try {
             val context = serviceLocator.context
-            val sharedPrefs = context.getSharedPreferences("tasks_widget_prefs", android.content.Context.MODE_PRIVATE)
-            val json = sharedPrefs.getString("task_lists_cache", null)
-            if (json != null) {
-                val type = object : com.google.gson.reflect.TypeToken<List<ManagementTaskList>>() {}.type
-                val items: List<ManagementTaskList> = com.google.gson.Gson().fromJson(json, type)
+            val items = loadTaskListsFromCache()
+            if (items != null) {
                 val updated = items.map { if (it.id == updatedList.id) updatedList else it }
                 saveTaskListsToCache(updated)
                 triggerTasksWidgetUpdate(context)
@@ -494,7 +485,7 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
             val context = serviceLocator.context
             val sharedPrefs = context.getSharedPreferences("tasks_widget_prefs", android.content.Context.MODE_PRIVATE)
             val json = com.google.gson.Gson().toJson(tasks)
-            sharedPrefs.edit().putString("tasks_cache", json).apply()
+            ServiceLocator.putEncryptedPref(sharedPrefs, "tasks_cache", json)
         } catch (e: Exception) {
             de.meinseelenfunke.app.util.AppLogger.error(serviceLocator.context, "OrganizerRepo", "saveTasksToCache error", e)
         }
@@ -503,11 +494,8 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
     private fun updateCachedTask(updatedTask: ManagementTask) {
         try {
             val context = serviceLocator.context
-            val sharedPrefs = context.getSharedPreferences("tasks_widget_prefs", android.content.Context.MODE_PRIVATE)
-            val json = sharedPrefs.getString("tasks_cache", null)
-            if (json != null) {
-                val type = object : com.google.gson.reflect.TypeToken<List<ManagementTask>>() {}.type
-                val items: List<ManagementTask> = com.google.gson.Gson().fromJson(json, type)
+            val items = loadTasksFromCache()
+            if (items != null) {
                 val updatedList = items.map { if (it.id == updatedTask.id) updatedTask else it }
                 saveTasksToCache(updatedList)
                 triggerTasksWidgetUpdate(context)
@@ -520,14 +508,7 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
     private fun addCachedTask(newTask: ManagementTask) {
         try {
             val context = serviceLocator.context
-            val sharedPrefs = context.getSharedPreferences("tasks_widget_prefs", android.content.Context.MODE_PRIVATE)
-            val json = sharedPrefs.getString("tasks_cache", null)
-            val items: List<ManagementTask> = if (json != null) {
-                val type = object : com.google.gson.reflect.TypeToken<List<ManagementTask>>() {}.type
-                com.google.gson.Gson().fromJson(json, type)
-            } else {
-                emptyList()
-            }
+            val items = loadTasksFromCache() ?: emptyList()
             val updatedList = items + newTask
             saveTasksToCache(updatedList)
             triggerTasksWidgetUpdate(context)
@@ -540,11 +521,8 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
     fun optimisticToggleTask(id: String) {
         try {
             val context = serviceLocator.context
-            val sharedPrefs = context.getSharedPreferences("tasks_widget_prefs", android.content.Context.MODE_PRIVATE)
-            val json = sharedPrefs.getString("tasks_cache", null)
-            if (json != null) {
-                val type = object : com.google.gson.reflect.TypeToken<List<ManagementTask>>() {}.type
-                val items: List<ManagementTask> = com.google.gson.Gson().fromJson(json, type)
+            val items = loadTasksFromCache()
+            if (items != null) {
                 val updatedList = items.map { item ->
                     if (item.id == id) {
                         item.copy(is_completed = !item.is_completed)
@@ -563,11 +541,8 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
     private fun deleteCachedTask(id: String) {
         try {
             val context = serviceLocator.context
-            val sharedPrefs = context.getSharedPreferences("tasks_widget_prefs", android.content.Context.MODE_PRIVATE)
-            val json = sharedPrefs.getString("tasks_cache", null)
-            if (json != null) {
-                val type = object : com.google.gson.reflect.TypeToken<List<ManagementTask>>() {}.type
-                val items: List<ManagementTask> = com.google.gson.Gson().fromJson(json, type)
+            val items = loadTasksFromCache()
+            if (items != null) {
                 val updatedList = items.filter { it.id != id && it.parent_id != id }
                 saveTasksToCache(updatedList)
                 triggerTasksWidgetUpdate(context)
@@ -599,10 +574,15 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
                 triggerShoppingWidgetUpdate(serviceLocator.context)
                 Result.success(response.data)
             } else {
-                Result.success(loadShoppingItemsFromCache() ?: emptyList())
+                val cached = loadShoppingItemsFromCache()
+                if (cached != null) Result.success(cached)
+                else Result.failure(Exception("Einkaufsliste konnte nicht geladen werden."))
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
-            Result.success(loadShoppingItemsFromCache() ?: emptyList())
+            val cached = loadShoppingItemsFromCache()
+            if (cached != null) Result.success(cached) else Result.failure(e)
         }
     }
 
@@ -697,9 +677,9 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
             // Reschedule local alarms (looks up the old cache in SharedPreferences before we write the new one)
             de.meinseelenfunke.app.util.CalendarAlarmScheduler.scheduleAlarmsForEvents(context, events)
 
-            // Save new cache
+            // Save new encrypted cache
             val json = com.google.gson.Gson().toJson(events)
-            sharedPrefs.edit().putString("calendar_events_cache", json).apply()
+            ServiceLocator.putEncryptedPref(sharedPrefs, "calendar_events_cache", json)
 
             triggerCalendarWidgetUpdate(context)
         } catch (e: Exception) {

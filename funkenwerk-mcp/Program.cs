@@ -4,6 +4,8 @@ using System.Diagnostics;
 using System.IO;
 using System.IO.Pipes;
 using System.Linq;
+using System.Net;
+using System.Net.Http;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
@@ -13,6 +15,226 @@ using System.Threading.Tasks;
 
 namespace FunkenwerkMcp
 {
+    public readonly struct JsonRpcFrameResult
+    {
+        public bool IsEof { get; init; }
+        public bool UseContentLength { get; init; }
+        public string? RawJson { get; init; }
+        public string? ProtocolError { get; init; }
+
+        public static JsonRpcFrameResult Eof() => new() { IsEof = true };
+        public static JsonRpcFrameResult Success(string json, bool useContentLength) =>
+            new() { RawJson = json, UseContentLength = useContentLength };
+        public static JsonRpcFrameResult Error(string error, bool useContentLength) =>
+            new() { ProtocolError = error, UseContentLength = useContentLength };
+    }
+
+    public sealed class JsonRpcByteFrameReader
+    {
+        private readonly Stream _stream;
+        private readonly byte[] _buffer = new byte[16384];
+        private int _pos;
+        private int _len;
+
+        public JsonRpcByteFrameReader(Stream stream)
+        {
+            _stream = stream ?? throw new ArgumentNullException(nameof(stream));
+        }
+
+        private async ValueTask<int> ReadByteAsync(CancellationToken ct)
+        {
+            if (_pos < _len)
+                return _buffer[_pos++];
+
+            _pos = 0;
+            _len = await _stream.ReadAsync(_buffer.AsMemory(0, _buffer.Length), ct);
+            if (_len <= 0)
+                return -1;
+
+            return _buffer[_pos++];
+        }
+
+        private async Task<int> ReadExactBytesAsync(byte[] destination, int count, CancellationToken ct)
+        {
+            int offset = 0;
+            int buffered = _len - _pos;
+            if (buffered > 0 && count > 0)
+            {
+                int take = Math.Min(buffered, count);
+                Buffer.BlockCopy(_buffer, _pos, destination, 0, take);
+                _pos += take;
+                offset += take;
+            }
+
+            while (offset < count)
+            {
+                int n = await _stream.ReadAsync(destination.AsMemory(offset, count - offset), ct);
+                if (n <= 0)
+                    break;
+                offset += n;
+            }
+
+            return offset;
+        }
+
+        private async Task DrainBytesAsync(long count, CancellationToken ct)
+        {
+            long remaining = count;
+            int buffered = _len - _pos;
+            if (buffered > 0 && remaining > 0)
+            {
+                int take = (int)Math.Min(buffered, remaining);
+                _pos += take;
+                remaining -= take;
+            }
+
+            byte[] discard = new byte[8192];
+            while (remaining > 0)
+            {
+                int chunk = (int)Math.Min(discard.Length, remaining);
+                int n = await _stream.ReadAsync(discard.AsMemory(0, chunk), ct);
+                if (n <= 0)
+                    break;
+                remaining -= n;
+            }
+        }
+
+        private async Task<(byte[]? Bytes, bool ExceededLimit, bool HitEof)> ReadRawLineBytesAsync(int maxBytes, CancellationToken ct)
+        {
+            using var ms = new MemoryStream(256);
+            bool anyRead = false;
+            bool exceeded = false;
+
+            while (true)
+            {
+                int b = await ReadByteAsync(ct);
+                if (b < 0)
+                {
+                    if (!anyRead)
+                        return (null, false, true);
+                    break;
+                }
+
+                anyRead = true;
+                if (b == '\n')
+                    break;
+                if (b == '\r')
+                    continue;
+
+                if (!exceeded)
+                {
+                    if (ms.Length >= maxBytes)
+                        exceeded = true;
+                    else
+                        ms.WriteByte((byte)b);
+                }
+            }
+
+            return (exceeded ? null : ms.ToArray(), exceeded, false);
+        }
+
+        private static string StripLeadingBom(string text) =>
+            text.Length > 0 && text[0] == '\uFEFF' ? text.Substring(1) : text;
+
+        public async Task<JsonRpcFrameResult> ReadNextFrameAsync(CancellationToken ct = default)
+        {
+            while (true)
+            {
+                var (firstLineBytes, exceeded, hitEof) = await ReadRawLineBytesAsync(McpSecurityGuard.MaxJsonRpcMessageBytes, ct);
+                if (hitEof)
+                    return JsonRpcFrameResult.Eof();
+
+                if (exceeded)
+                {
+                    return JsonRpcFrameResult.Error(
+                        "Invalid Request: JSON-RPC Nachricht ueberschreitet das 512 KB Sicherheitslimit.",
+                        useContentLength: false);
+                }
+
+                if (firstLineBytes == null || firstLineBytes.Length == 0)
+                    continue;
+
+                int prefixCheckLen = Math.Min(firstLineBytes.Length, 64);
+                string asciiPrefix = StripLeadingBom(Encoding.UTF8.GetString(firstLineBytes, 0, prefixCheckLen)).TrimStart();
+
+                if (asciiPrefix.StartsWith("Content-Length:", StringComparison.OrdinalIgnoreCase) ||
+                    asciiPrefix.StartsWith("Content-Type:", StringComparison.OrdinalIgnoreCase))
+                {
+                    long? declaredLength = null;
+                    string firstHeader = StripLeadingBom(Encoding.UTF8.GetString(firstLineBytes)).Trim();
+                    if (firstHeader.StartsWith("Content-Length:", StringComparison.OrdinalIgnoreCase))
+                    {
+                        string numPart = firstHeader.Substring("Content-Length:".Length).Trim();
+                        if (long.TryParse(numPart, out long parsed))
+                            declaredLength = parsed;
+                        else
+                            declaredLength = -1;
+                    }
+
+                    int headerCount = 1;
+                    bool tooManyHeaders = false;
+                    while (true)
+                    {
+                        var (hBytes, hExceeded, hEof) = await ReadRawLineBytesAsync(4096, ct);
+                        if (hEof)
+                            return JsonRpcFrameResult.Eof();
+                        if (hExceeded)
+                            return JsonRpcFrameResult.Error("Invalid Request: Uebergrosser JSON-RPC Header.", useContentLength: true);
+                        if (hBytes == null || hBytes.Length == 0)
+                            break;
+
+                        if (++headerCount > 32)
+                        {
+                            tooManyHeaders = true;
+                            continue;
+                        }
+
+                        string headerLine = Encoding.ASCII.GetString(hBytes).Trim();
+                        if (headerLine.StartsWith("Content-Length:", StringComparison.OrdinalIgnoreCase))
+                        {
+                            string numPart = headerLine.Substring("Content-Length:".Length).Trim();
+                            if (long.TryParse(numPart, out long parsed))
+                                declaredLength = parsed;
+                            else
+                                declaredLength = -1;
+                        }
+                    }
+
+                    if (tooManyHeaders)
+                        return JsonRpcFrameResult.Error("Invalid Request: Zu viele Header-Zeilen im JSON-RPC Frame.", useContentLength: true);
+
+                    if (!declaredLength.HasValue || declaredLength.Value < 0)
+                        return JsonRpcFrameResult.Error("Invalid Request: Ungueltiger Content-Length Header.", useContentLength: true);
+
+                    long contentLength = declaredLength.Value;
+                    if (contentLength > McpSecurityGuard.MaxJsonRpcMessageBytes)
+                    {
+                        if (contentLength <= 16L * 1024L * 1024L)
+                            await DrainBytesAsync(contentLength, ct);
+
+                        return JsonRpcFrameResult.Error(
+                            $"Invalid Request: Content-Length ({contentLength} Bytes) ueberschreitet das 512 KB Sicherheitslimit.",
+                            useContentLength: true);
+                    }
+
+                    if (contentLength == 0)
+                        continue;
+
+                    byte[] payload = new byte[(int)contentLength];
+                    int totalRead = await ReadExactBytesAsync(payload, (int)contentLength, ct);
+                    if (totalRead < (int)contentLength)
+                        return JsonRpcFrameResult.Eof();
+
+                    string decoded = StripLeadingBom(Encoding.UTF8.GetString(payload, 0, totalRead));
+                    return JsonRpcFrameResult.Success(decoded, useContentLength: true);
+                }
+
+                string lineJson = StripLeadingBom(Encoding.UTF8.GetString(firstLineBytes));
+                return JsonRpcFrameResult.Success(lineJson, useContentLength: false);
+            }
+        }
+    }
+
     public static class Program
     {
         private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
@@ -43,8 +265,18 @@ namespace FunkenwerkMcp
                 return await McpSelfTestSuite.RunAllAsync();
             }
 
+            if (args.Any(a => string.Equals(a, "--stage-sync-shop-assets", StringComparison.OrdinalIgnoreCase)))
+            {
+                return await RunStageShopSyncCliAsync(args);
+            }
+
+            if (args.Any(a => string.Equals(a, "--stage-deploy", StringComparison.OrdinalIgnoreCase)))
+            {
+                return await RunStageDeployCliAsync(args);
+            }
+
             // Ensure ACL lockdown on MCP data directory immediately at startup
-            McpSecurityGuard.LockDownDirectoryAcl(McpSecurityGuard.McpDataDir);
+            McpSecurityGuard.LockDownDirectoryAcl(McpSecurityGuard.VaultDirectory);
 
             // Capture raw stdin/stdout streams FIRST, then redirect Console.Out -> Console.Error
             // so no library (PDFsharp, SSH.NET, WPF) can ever pollute the JSON-RPC wire!
@@ -52,37 +284,112 @@ namespace FunkenwerkMcp
             using var stdout = Console.OpenStandardOutput();
             Console.SetOut(Console.Error);
 
-            using var reader = new StreamReader(stdin, Utf8NoBom, detectEncodingFromByteOrderMarks: true, bufferSize: 16384, leaveOpen: true);
+            await RunStdioServerLoopAsync(stdin, stdout);
+            return 0;
+        }
 
-            while (true)
+        private static async Task<int> RunStageShopSyncCliAsync(string[] args)
+        {
+            try
             {
-                string? rawMessage;
-                bool useContentLengthHeader;
+                McpSecurityGuard.LockDownDirectoryAcl(McpSecurityGuard.VaultDirectory);
+                bool dryRun = args.Any(a => string.Equals(a, "--dry-run", StringComparison.OrdinalIgnoreCase));
+                var res = await McpSecurityGuard.SyncStageShopAssetsDeltaAsync("Mittwald", dryRun: dryRun);
+                Console.WriteLine(McpSecurityGuard.ScrubSecrets(JsonSerializer.Serialize(res, JsonPretty)));
+                return res.Success ? 0 : 1;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"❌ Stage Shop-Asset-Sync Fehler: {McpSecurityGuard.ScrubSecrets(ex.Message)}");
+                return 1;
+            }
+        }
+
+        private static async Task<int> RunStageDeployCliAsync(string[] args)
+        {
+            try
+            {
+                McpSecurityGuard.LockDownDirectoryAcl(McpSecurityGuard.VaultDirectory);
+                bool skipAssets = args.Any(a => string.Equals(a, "--skip-shop-assets", StringComparison.OrdinalIgnoreCase));
+
+                StageShopAssetSyncResultDto? syncRes = null;
+                if (!skipAssets)
+                {
+                    Console.WriteLine("🛍️ [1/3] Prüfe reines Shop-Asset-Delta per SHA-256 (Musik, Buchhaltung & Privatdaten 100 % gesperrt)...");
+                    syncRes = await McpSecurityGuard.SyncStageShopAssetsDeltaAsync("Mittwald", dryRun: false);
+                    Console.WriteLine($"   ✓ Manifest: {syncRes.TotalManifestFiles} Shop-Assets | Unverändert: {syncRes.UnchangedOnStageCount} | Hochgeladen: {syncRes.UploadedCount} ({syncRes.UploadedBytes / 1024.0:F1} KB)");
+                }
+                else
+                {
+                    Console.WriteLine("⏭️ [1/3] Shop-Asset-Abgleich übersprungen (--skip-shop-assets).");
+                }
+
+                Console.WriteLine("🚀 [2/3] Führe Stage-Deploy auf 'Mittwald' (/home/p-g27wim/html/seelenfunke-stage) aus...");
+                string deployOut = await McpSecurityGuard.ExecutePinnedSshPresetAsync("Mittwald", "stage_deploy");
+                Console.WriteLine(deployOut);
+
+                Console.WriteLine("👷 [3/3] Starte isolierten Stage-Worker neu ('Mittwald Websocket' / worker-stage-3)...");
+                string workerOut = await McpSecurityGuard.ExecutePinnedSshPresetAsync("Mittwald Websocket", "stage_worker_restart");
+                if (!string.IsNullOrWhiteSpace(workerOut))
+                    Console.WriteLine(workerOut);
+
+                Console.WriteLine("✅ Stage-Autopilot komplett erfolgreich abgeschlossen (Live-Server blieb 100 % unberührt).");
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"❌ Stage-Autopilot abgebrochen: {McpSecurityGuard.ScrubSecrets(ex.Message)}");
+                return 1;
+            }
+        }
+
+        public static async Task RunStdioServerLoopAsync(Stream stdin, Stream stdout, CancellationToken ct = default)
+        {
+            var frameReader = new JsonRpcByteFrameReader(stdin);
+
+            while (!ct.IsCancellationRequested)
+            {
+                JsonRpcFrameResult frame;
                 try
                 {
-                    (rawMessage, useContentLengthHeader) = await ReadNextJsonRpcMessageAsync(reader);
+                    frame = await frameReader.ReadNextFrameAsync(ct);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
                 }
                 catch (Exception ex)
                 {
                     string errJson = BuildErrorResponse(null, -32600, ex.Message);
                     await WriteJsonRpcResponseAsync(stdout, errJson, false);
-                    break;
+                    continue;
                 }
 
-                if (rawMessage == null)
-                    break; // EOF on stdin -> clean shutdown
+                if (frame.IsEof)
+                    break;
 
-                if (string.IsNullOrWhiteSpace(rawMessage))
+                if (frame.ProtocolError != null)
+                {
+                    string errJson = BuildErrorResponse(null, -32600, frame.ProtocolError);
+                    await WriteJsonRpcResponseAsync(stdout, errJson, frame.UseContentLength);
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(frame.RawJson))
                     continue;
 
-                string? responseJson = await ProcessJsonRpcMessageAsync(rawMessage);
+                string? responseJson = await ProcessJsonRpcMessageAsync(frame.RawJson);
                 if (responseJson != null)
                 {
-                    await WriteJsonRpcResponseAsync(stdout, responseJson, useContentLengthHeader);
+                    await WriteJsonRpcResponseAsync(stdout, responseJson, frame.UseContentLength);
                 }
             }
+        }
 
-            return 0;
+        public static Task<JsonRpcFrameResult> ReadNextJsonRpcMessageAsync(Stream stdin, CancellationToken ct = default)
+        {
+            var reader = new JsonRpcByteFrameReader(stdin);
+            return reader.ReadNextFrameAsync(ct);
         }
 
         private static async Task<string?> ReadBoundedLineAsync(StreamReader reader, int maxChars)
@@ -106,48 +413,11 @@ namespace FunkenwerkMcp
                     continue;
 
                 if (sb.Length >= maxChars)
-                    throw new InvalidOperationException("JSON-RPC Nachricht überschreitet das 512 KB Sicherheitslimit.");
+                    throw new InvalidOperationException("IPC Zeile ueberschreitet das Sicherheitslimit.");
 
                 sb.Append(c);
             }
             return sb.ToString();
-        }
-
-        private static async Task<(string? Json, bool UseContentLength)> ReadNextJsonRpcMessageAsync(StreamReader reader)
-        {
-            string? line = await ReadBoundedLineAsync(reader, McpSecurityGuard.MaxJsonRpcMessageBytes);
-            if (line == null)
-                return (null, false);
-
-            // Support optional LSP-style Content-Length framing if a client uses it
-            if (line.StartsWith("Content-Length:", StringComparison.OrdinalIgnoreCase))
-            {
-                string lenPart = line.Substring("Content-Length:".Length).Trim();
-                if (!int.TryParse(lenPart, out int contentLength) || contentLength < 0 || contentLength > McpSecurityGuard.MaxJsonRpcMessageBytes)
-                    throw new InvalidOperationException("Ungültiger Content-Length Header.");
-
-                int headerLines = 0;
-                while (true)
-                {
-                    if (++headerLines > 32)
-                        throw new InvalidOperationException("Zu viele Header-Zeilen im JSON-RPC Frame.");
-                    string? headerLine = await ReadBoundedLineAsync(reader, 4096);
-                    if (headerLine == null || headerLine.Length == 0)
-                        break;
-                }
-
-                char[] buf = new char[contentLength];
-                int readTotal = 0;
-                while (readTotal < contentLength)
-                {
-                    int n = await reader.ReadAsync(buf, readTotal, contentLength - readTotal);
-                    if (n <= 0) break;
-                    readTotal += n;
-                }
-                return (new string(buf, 0, readTotal), true);
-            }
-
-            return (line, false);
         }
 
         private static async Task WriteJsonRpcResponseAsync(Stream stdout, string singleLineJson, bool useContentLength)
@@ -427,7 +697,7 @@ namespace FunkenwerkMcp
                   "type": "object",
                   "properties": {
                     "onlyOpen": { "type": "boolean", "description": "Nur offene Aufgaben anzeigen (Standard: true)." },
-                    "priority": { "type": "string", "enum": ["hoch", "mittel", "niedrig"] },
+                    "priority": { "type": "string", "enum": ["hoch", "mittel", "niedrig", "low", "normal", "high", "urgent"] },
                     "listName": { "type": "string" },
                     "search": { "type": "string" },
                     "environment": { "type": "string", "enum": ["active", "local", "stage", "live"] }
@@ -447,7 +717,7 @@ namespace FunkenwerkMcp
                     "action": { "type": "string", "enum": ["create", "update", "toggle", "subtask", "delete"] },
                     "taskId": { "type": "string", "description": "Erforderlich bei update, toggle, subtask, delete." },
                     "title": { "type": "string", "description": "Aufgabentitel (erforderlich bei create und subtask)." },
-                    "priority": { "type": "string", "enum": ["hoch", "mittel", "niedrig"] },
+                    "priority": { "type": "string", "enum": ["hoch", "mittel", "niedrig", "low", "normal", "high", "urgent"] },
                     "listIdOrAlias": { "type": "string", "description": "z. B. 'default', 'my_day', 'important', 'planned' oder Listen-UUID." },
                     "listName": { "type": "string" },
                     "relevantFrom": { "type": "string", "description": "Fälligkeits-/Startdatum YYYY-MM-DD." },
@@ -468,6 +738,7 @@ namespace FunkenwerkMcp
                 {
                   "type": "object",
                   "properties": {
+                    "date": { "type": "string", "description": "Einzeltag YYYY-MM-DD (setzt Start- und Enddatum auf diesen Tag)." },
                     "startDate": { "type": "string", "description": "YYYY-MM-DD (Standard: heute)." },
                     "endDate": { "type": "string", "description": "YYYY-MM-DD." },
                     "daysAhead": { "type": "integer", "description": "Zeitraum in Tagen ab heute, falls endDate leer ist (Standard: 14)." },
@@ -511,6 +782,8 @@ namespace FunkenwerkMcp
                     "itemId": { "type": "string" },
                     "name": { "type": "string" },
                     "quantity": { "type": "integer" },
+                    "category": { "type": "string", "description": "Optionaler Kategoriename oder Kategorie-UUID beim Hinzufügen." },
+                    "categoryId": { "type": "string", "description": "Optionale Kategorie-UUID." },
                     "statusFilter": { "type": "string", "enum": ["needed", "stocked"] },
                     "environment": { "type": "string", "enum": ["active", "local", "stage", "live"] }
                   },
@@ -551,19 +824,34 @@ namespace FunkenwerkMcp
             new
             {
                 name = "ssh_exec_safe_readonly",
-                description = "Führt ein streng freigegebenes Diagnose- oder Stage-Git-Pull-Preset auf einem per SHA-256 Host-Key gepinnten SSH-Profil aus (keine freien Shell-Befehle möglich, Zero-Secret Schutz).",
+                description = "Führt ein streng freigegebenes Diagnose- oder Stage-Rollout-Preset auf einem per SHA-256 Host-Key gepinnten SSH-Profil aus (keine freien Shell-Befehle möglich, Zero-Secret Schutz, Live-Server technisch gesperrt).",
                 inputSchema = JsonNode.Parse("""
                 {
                   "type": "object",
                   "properties": {
-                    "profileName": { "type": "string", "description": "Name des gespeicherten Profils (z. B. 'Mittwald')." },
+                    "profileName": { "type": "string", "description": "Name des gespeicherten Profils (z. B. 'Mittwald' oder 'Mittwald Websocket')." },
                     "preset": {
                       "type": "string",
-                      "enum": ["git_status", "git_log", "git_branch", "php_version", "artisan_about", "disk_usage", "list_dir", "stage_git_pull"]
+                      "enum": ["disk_usage", "uptime_and_load", "php_version", "artisan_about", "git_status", "git_log", "git_branch", "list_dir", "stage_git_pull", "stage_deploy", "stage_worker_restart"]
                     },
                     "remoteDirectory": { "type": "string", "description": "Optionaler sicherer Zielordner auf dem Server." }
                   },
                   "required": ["profileName", "preset"],
+                  "additionalProperties": false
+                }
+                """)
+            },
+            new
+            {
+                name = "stage_sync_shop_assets",
+                description = "Synchronisiert per SHA-256-Delta-SFTP ausschließlich reine öffentliche Shop-, Produkt-, 3D-, Konfigurator- und Blog-Medien aus shop-asset-manifest.json auf den Stage-Server (/home/p-g27wim/html/seelenfunke-stage). Musik, Buchhaltung, Leitung, Agenten, Support und Privatdaten sowie der Live-Server sind im C#-Code zu 100 % technisch gesperrt.",
+                inputSchema = JsonNode.Parse("""
+                {
+                  "type": "object",
+                  "properties": {
+                    "profileName": { "type": "string", "description": "Stage-Profilname (Standard: 'Mittwald')." },
+                    "dryRun": { "type": "boolean", "description": "Nur Delta berechnen ohne SFTP-Upload (Standard: false)." }
+                  },
                   "additionalProperties": false
                 }
                 """)
@@ -578,7 +866,7 @@ namespace FunkenwerkMcp
                   "properties": {
                     "action": { "type": "string", "enum": ["status", "launch", "stammdaten", "security_audit"] },
                     "app": { "type": "string", "enum": ["funkenwerk", "tresor", "player", "video", "craft", "ftp", "ssh", "pdf", "drucker", "os", "browser"], "description": "Ziel-App bei action='launch'." },
-                    "filePath": { "type": "string", "description": "Optionaler sicherer Dateipfad (für 'pdf'/'drucker'/'player') oder Projektname (für 'craft') oder '--scan' (für 'drucker')." }
+                    "filePath": { "type": "string", "description": "Optionaler sicherer Dateipfad (für 'pdf'/'drucker'/'player'), HTTPS-URL (für 'browser') oder Projektname (für 'craft'). CLI-Flags sind gesperrt." }
                   },
                   "required": ["action"],
                   "additionalProperties": false
@@ -651,6 +939,8 @@ namespace FunkenwerkMcp
                   "properties": {
                     "action": { "type": "string", "enum": ["list", "get", "save", "import_media"] },
                     "projectName": { "type": "string", "description": "Name des Projekts unter Videos\\<Projektname>, z. B. 'Projekt 1'." },
+                    "projectPath": { "type": "string", "description": "Optionaler Zielpfad der Projektdatei innerhalb von Funkenwerk Craft\\Videos." },
+                    "outputPath": { "type": "string", "description": "Optionaler Zielpfad des Exportvideos innerhalb von Funkenwerk Craft\\Videos." },
                     "aspectRatio": { "type": "string", "enum": ["9:16", "1:1", "16:9"], "description": "Zielformat: '9:16' (Instagram Reel / TikTok / Shorts), '1:1' (Feed), '16:9' (YouTube)." },
                     "transitionDurationSec": { "type": "number", "minimum": 0.08, "maximum": 1.20, "description": "Standard-Übergangsdauer in Sekunden (Standard 0.20s für knackige Beat-Cuts)." },
                     "colorGrade": { "type": "string", "enum": ["dark_luxury", "natural"], "description": "Farbgrading: 'dark_luxury' (Obsidian-Kontrast & warme Kristall-Highlights) oder 'natural'." },
@@ -741,6 +1031,7 @@ namespace FunkenwerkMcp
                   "type": "object",
                   "properties": {
                     "projectName": { "type": "string", "description": "Projektname unter Videos\\<Projektname>, z. B. 'Projekt 1'." },
+                    "outputPath": { "type": "string", "description": "Optionaler Zielpfad des MP4-Videos innerhalb von Funkenwerk Craft\\Videos." },
                     "openInCraftUi": { "type": "boolean", "description": "Öffnet nach erfolgreichem Rendern optional Funkenwerk Craft zur Live-Vorschau (Standard: false)." }
                   },
                   "required": ["projectName"],
@@ -964,7 +1255,8 @@ namespace FunkenwerkMcp
                         startDate: GetOptString(args, "startDate"),
                         endDate: GetOptString(args, "endDate"),
                         daysAhead: args["daysAhead"] != null ? args["daysAhead"]!.GetValue<int>() : 14,
-                        environment: GetOptString(args, "environment") ?? "active");
+                        environment: GetOptString(args, "environment") ?? "active",
+                        date: GetOptString(args, "date"));
 
                 case "calendar_create":
                     return await McpOrganizerClient.CreateCalendarEventAsync(
@@ -984,7 +1276,8 @@ namespace FunkenwerkMcp
                         name: GetOptString(args, "name"),
                         quantity: args["quantity"] != null ? args["quantity"]!.GetValue<int>() : 1,
                         statusFilter: GetOptString(args, "statusFilter"),
-                        environment: GetOptString(args, "environment") ?? "active");
+                        environment: GetOptString(args, "environment") ?? "active",
+                        category: GetOptString(args, "category") ?? GetOptString(args, "categoryId"));
 
                 case "server_list_profiles":
                     return new
@@ -1002,7 +1295,7 @@ namespace FunkenwerkMcp
                     if (client == "ssh" && !string.IsNullOrWhiteSpace(profileName))
                     {
                         McpSecurityGuard.CreateBlindSshHandoffTicket(profileName!, remoteDir);
-                        bool ok = LaunchCollectionExecutable("ssh", "--handoff");
+                        bool ok = LaunchCollectionExecutable("ssh", null, trustedInternalFlag: "--handoff");
                         return new { success = ok, launched = "Funkenwerk SSH", mode = "dpapi_blind_handoff", profile = profileName, remoteDirectory = remoteDir ?? "default" };
                     }
                     else if (client == "ftp" || client == "ssh")
@@ -1028,6 +1321,13 @@ namespace FunkenwerkMcp
                     };
                 }
 
+                case "stage_sync_shop_assets":
+                {
+                    string profileName = GetOptString(args, "profileName") ?? "Mittwald";
+                    bool dryRun = GetBool(args, "dryRun", false);
+                    return await McpSecurityGuard.SyncStageShopAssetsDeltaAsync(profileName, dryRun);
+                }
+
                 case "collection_control":
                 {
                     string action = GetString(args, "action").ToLowerInvariant();
@@ -1046,16 +1346,23 @@ namespace FunkenwerkMcp
                             string? safeArg = null;
                             if (!string.IsNullOrWhiteSpace(rawFile))
                             {
-                                if (appKey == "drucker" && string.Equals(rawFile.Trim(), "--scan", StringComparison.OrdinalIgnoreCase))
+                                string trimmed = rawFile.Trim();
+                                if (trimmed.StartsWith('-') || trimmed.StartsWith('/'))
+                                    throw new UnauthorizedAccessException("CLI-Flags sind beim App-Start aus Sicherheitsgruenden gesperrt.");
+
+                                if (appKey == "craft")
                                 {
-                                    safeArg = "--scan";
+                                    safeArg = McpCraftBridge.ValidateSafeProjectName(trimmed);
                                 }
-                                else if (appKey == "craft")
+                                else if (appKey == "browser")
                                 {
-                                    string cleanProj = rawFile.Trim();
-                                    if (cleanProj.Length > 80 || cleanProj.Contains("..") || cleanProj.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
-                                        throw new UnauthorizedAccessException("Ungültiger Craft-Projektname.");
-                                    safeArg = cleanProj;
+                                    if (!Uri.TryCreate(trimmed, UriKind.Absolute, out var browserUri) ||
+                                        !string.Equals(browserUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) ||
+                                        !string.IsNullOrEmpty(browserUri.UserInfo))
+                                    {
+                                        throw new UnauthorizedAccessException("Funkenwerk Browser akzeptiert per MCP nur sichere https:// URLs.");
+                                    }
+                                    safeArg = browserUri.AbsoluteUri;
                                 }
                                 else
                                 {
@@ -1067,15 +1374,15 @@ namespace FunkenwerkMcp
                                         _ => Array.Empty<string>()
                                     };
                                     if (allowedExts.Length == 0)
-                                        throw new UnauthorizedAccessException("Dateiparameter werden aus Sicherheitsgründen nur für 'pdf', 'drucker' und 'player' akzeptiert.");
+                                        throw new UnauthorizedAccessException("Dateiparameter werden aus Sicherheitsgründen nur für 'pdf', 'drucker', 'player', 'browser' und 'craft' akzeptiert.");
 
-                                    string validated = McpSecurityGuard.ValidateSafeFilePath(rawFile, allowedExts, mustExist: true, maxBytes: 500L * 1024L * 1024L);
+                                    string validated = McpSecurityGuard.ValidateSafeFilePath(trimmed, allowedExts, mustExist: true, maxBytes: 500L * 1024L * 1024L);
                                     safeArg = validated;
                                 }
                             }
 
                             bool ok = LaunchCollectionExecutable(appKey, safeArg);
-                            return new { success = ok, app = appKey, openedFile = rawFile };
+                            return new { success = ok, app = appKey, openedFile = safeArg };
                         }
                         default:
                             throw new ArgumentException("Erlaubte collection_control Aktionen: status, launch, stammdaten, security_audit.");
@@ -1139,19 +1446,36 @@ namespace FunkenwerkMcp
                             return await McpCraftBridge.InvokeCraftActionAsync(new JsonObject { ["action"] = "list_projects" });
 
                         case "get":
+                        {
+                            string safeProjectName = McpCraftBridge.ValidateSafeProjectName(GetOptString(args, "projectName", 80) ?? "Projekt 1");
                             return await McpCraftBridge.InvokeCraftActionAsync(new JsonObject
                             {
                                 ["action"] = "get_project",
-                                ["projectName"] = GetOptString(args, "projectName", 120) ?? "Projekt 1"
+                                ["projectName"] = safeProjectName
                             });
+                        }
 
                         case "save":
                         {
+                            string safeProjectName = McpCraftBridge.ValidateSafeProjectName(GetOptString(args, "projectName", 80) ?? "Projekt 1");
                             var req = new JsonObject
                             {
                                 ["action"] = "save_project",
-                                ["projectName"] = GetOptString(args, "projectName", 120) ?? "Projekt 1"
+                                ["projectName"] = safeProjectName
                             };
+
+                            string? rawProjectPath = GetOptString(args, "projectPath");
+                            if (!string.IsNullOrWhiteSpace(rawProjectPath))
+                            {
+                                req["projectPath"] = McpCraftBridge.ValidateSafeCraftWritePath(rawProjectPath, new[] { ".json", ".fcproj" });
+                            }
+
+                            string? rawOutputPath = GetOptString(args, "outputPath");
+                            if (!string.IsNullOrWhiteSpace(rawOutputPath))
+                            {
+                                req["outputPath"] = McpCraftBridge.ValidateSafeCraftWritePath(rawOutputPath, new[] { ".mp4", ".mov", ".webm" });
+                            }
+
                             if (args["aspectRatio"] != null) req["aspectRatio"] = GetOptString(args, "aspectRatio", 16);
                             if (args["transitionDurationSec"] != null) req["transitionDurationSec"] = args["transitionDurationSec"]!.GetValue<double>();
                             if (args["colorGrade"] != null) req["colorGrade"] = GetOptString(args, "colorGrade", 32);
@@ -1163,7 +1487,19 @@ namespace FunkenwerkMcp
                             if (args["outroAccentSfx"] != null) req["outroAccentSfx"] = GetOptString(args, "outroAccentSfx", 260);
                             if (args["showBrandHeader"] != null) req["showBrandHeader"] = args["showBrandHeader"]!.GetValue<bool>();
                             if (args["brandHeaderText"] != null) req["brandHeaderText"] = GetOptString(args, "brandHeaderText", 160);
-                            if (args["outputFileName"] != null) req["outputFileName"] = GetOptString(args, "outputFileName", 160);
+                            if (args["outputFileName"] != null)
+                            {
+                                string outName = GetOptString(args, "outputFileName", 160) ?? "";
+                                if (outName.Contains("..", StringComparison.Ordinal) ||
+                                    outName.Contains('/') || outName.Contains('\\') || outName.Contains(':') ||
+                                    outName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+                                {
+                                    throw new UnauthorizedAccessException("Ungültiger outputFileName (keine Pfadtrenner oder '..' erlaubt).");
+                                }
+                                string candidatePath = Path.Combine(McpCraftBridge.CraftVideosDir, safeProjectName, outName);
+                                McpCraftBridge.ValidateSafeCraftWritePath(candidatePath, new[] { ".mp4", ".mov", ".webm" });
+                                req["outputFileName"] = outName;
+                            }
                             if (args["scenes"] is JsonArray scArr)
                             {
                                 if (scArr.Count > 60)
@@ -1175,7 +1511,7 @@ namespace FunkenwerkMcp
 
                         case "import_media":
                         {
-                            string projName = GetOptString(args, "projectName", 120) ?? "Projekt 1";
+                            string projName = McpCraftBridge.ValidateSafeProjectName(GetOptString(args, "projectName", 80) ?? "Projekt 1");
                             var validatedPaths = new JsonArray();
                             if (args["sourcePaths"] is JsonArray spArr)
                             {
@@ -1222,10 +1558,11 @@ namespace FunkenwerkMcp
                         var items = new List<JsonNode?>();
                         foreach (string f in files)
                         {
+                            string safeFile = McpCraftBridge.ValidateSafeMediaSourceOrCraftPath(f, allowAudio: false, allowDirectories: false);
                             var res = await McpCraftBridge.InvokeCraftActionAsync(new JsonObject
                             {
                                 ["action"] = "inspect_media",
-                                ["filePath"] = f
+                                ["filePath"] = safeFile
                             });
                             items.Add(res["media"]?.DeepClone());
                         }
@@ -1262,13 +1599,20 @@ namespace FunkenwerkMcp
 
                 case "craft_render_social_video":
                 {
-                    string projName = GetString(args, "projectName", 120);
-                    bool openUi = GetBool(args, "openInCraftUi", false);
-                    var renderRes = await McpCraftBridge.InvokeCraftActionAsync(new JsonObject
+                    string projName = McpCraftBridge.ValidateSafeProjectName(GetString(args, "projectName", 80));
+                    string? rawOutputPath = GetOptString(args, "outputPath");
+                    var renderReq = new JsonObject
                     {
                         ["action"] = "render_video",
                         ["projectName"] = projName
-                    }, timeoutSec: 420);
+                    };
+                    if (!string.IsNullOrWhiteSpace(rawOutputPath))
+                    {
+                        renderReq["outputPath"] = McpCraftBridge.ValidateSafeCraftWritePath(rawOutputPath, new[] { ".mp4", ".mov", ".webm" });
+                    }
+
+                    bool openUi = GetBool(args, "openInCraftUi", false);
+                    var renderRes = await McpCraftBridge.InvokeCraftActionAsync(renderReq, timeoutSec: 420);
 
                     if (openUi && renderRes["ok"]?.GetValue<bool>() == true)
                     {
@@ -1285,14 +1629,15 @@ namespace FunkenwerkMcp
                         case "launch":
                         {
                             string eng = GetOptString(args, "engine", 32) ?? "artcraft";
-                            string? proj = GetOptString(args, "projectName", 120);
+                            string? rawProj = GetOptString(args, "projectName", 80);
                             string? targetPath = null;
-                            if (eng == "filmcraft" && !string.IsNullOrWhiteSpace(proj))
+                            if (eng == "filmcraft" && !string.IsNullOrWhiteSpace(rawProj))
                             {
+                                string safeProj = McpCraftBridge.ValidateSafeProjectName(rawProj);
                                 var exp = await McpCraftBridge.InvokeCraftActionAsync(new JsonObject
                                 {
                                     ["action"] = "export_filmcraft",
-                                    ["projectName"] = proj
+                                    ["projectName"] = safeProj
                                 });
                                 targetPath = exp["filmcraftProjectPath"]?.GetValue<string>();
                             }
@@ -1320,7 +1665,7 @@ namespace FunkenwerkMcp
 
                         case "export_fcproj":
                         {
-                            string proj = GetOptString(args, "projectName", 120) ?? "Projekt 1";
+                            string proj = McpCraftBridge.ValidateSafeProjectName(GetOptString(args, "projectName", 80) ?? "Projekt 1");
                             return await McpCraftBridge.InvokeCraftActionAsync(new JsonObject
                             {
                                 ["action"] = "export_filmcraft",
@@ -1330,11 +1675,12 @@ namespace FunkenwerkMcp
 
                         case "filmcraft_bridge":
                         {
-                            string method = GetString(args, "bridgeMethod", 120);
+                            string rawMethod = GetString(args, "bridgeMethod", 120);
+                            string safeMethod = McpCraftBridge.ValidateAllowedFilmCraftBridgeMethod(rawMethod);
                             return await McpCraftBridge.InvokeCraftActionAsync(new JsonObject
                             {
                                 ["action"] = "filmcraft_bridge",
-                                ["method"] = method,
+                                ["method"] = safeMethod,
                                 ["params"] = args["bridgeParams"]?.DeepClone() ?? new JsonObject()
                             });
                         }
@@ -1430,9 +1776,13 @@ namespace FunkenwerkMcp
             return new { ok = false, funkenwerkRunning = false };
         }
 
-        private static bool LaunchCollectionExecutable(string appKey, string? rawArguments)
+        public static ProcessStartInfo BuildValidatedCollectionStartInfo(
+            string appKey,
+            string? userArgument,
+            string? trustedInternalFlag = null,
+            bool requireBinaryExists = true)
         {
-            (string subFolder, string exeName) = appKey switch
+            (string subFolder, string exeName) = (appKey ?? "").Trim().ToLowerInvariant() switch
             {
                 "funkenwerk" => ("Funkenwerk", "Funkenwerk.exe"),
                 "tresor" => ("Funkenwerk Tresor", "FunkenwerkTresor.exe"),
@@ -1449,23 +1799,40 @@ namespace FunkenwerkMcp
             };
 
             string exePath = Path.Combine(McpSecurityGuard.CollectionRootDir, subFolder, exeName);
-            if (!File.Exists(exePath))
+            if (requireBinaryExists && !File.Exists(exePath))
                 throw new FileNotFoundException($"App-Binary nicht gefunden: {exePath}");
 
             var psi = new ProcessStartInfo
             {
                 FileName = exePath,
                 WorkingDirectory = Path.GetDirectoryName(exePath)!,
-                UseShellExecute = true
+                UseShellExecute = false
             };
 
-            if (!string.IsNullOrWhiteSpace(rawArguments))
+            if (!string.IsNullOrWhiteSpace(trustedInternalFlag))
             {
-                psi.Arguments = rawArguments == "--handoff"
-                    ? "--handoff"
-                    : $"\"{rawArguments.Trim('"').Replace("\"", "")}\"";
+                if (appKey != "ssh" || trustedInternalFlag != "--handoff")
+                    throw new UnauthorizedAccessException("Unbekanntes internes Handoff-Flag.");
+                psi.ArgumentList.Add("--handoff");
             }
 
+            if (!string.IsNullOrWhiteSpace(userArgument))
+            {
+                string cleanArg = userArgument.Trim();
+                if (cleanArg.StartsWith('-') || cleanArg.StartsWith('/'))
+                    throw new UnauthorizedAccessException("CLI-Flags (beginnend mit '-' oder '/') sind in LaunchCollectionExecutable strikt verboten.");
+                if (cleanArg.Any(c => c == '\0' || c == '\r' || c == '\n'))
+                    throw new UnauthorizedAccessException("Steuerzeichen im Argument sind verboten.");
+
+                psi.ArgumentList.Add(cleanArg);
+            }
+
+            return psi;
+        }
+
+        private static bool LaunchCollectionExecutable(string appKey, string? userArgument, string? trustedInternalFlag = null)
+        {
+            var psi = BuildValidatedCollectionStartInfo(appKey, userArgument, trustedInternalFlag, requireBinaryExists: true);
             Process.Start(psi);
             return true;
         }
@@ -1491,10 +1858,118 @@ namespace FunkenwerkMcp
     }
 
     // =========================================================================
-    // AUTOMATED 22-POINT SECURITY PENETRATION & E2E INTEGRATION SELF-TEST SUITE
+    // PORTABLE, DETERMINISTIC 36-POINT SECURITY & E2E SELF-TEST SUITE
     // =========================================================================
     public static class McpSelfTestSuite
     {
+        private sealed class MockOrganizerHttpHandler : HttpMessageHandler
+        {
+            public List<(HttpMethod Method, Uri Uri, string Body)> CapturedRequests { get; } = new();
+
+            protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+            {
+                string body = request.Content != null ? await request.Content.ReadAsStringAsync(cancellationToken) : "";
+                lock (CapturedRequests)
+                {
+                    CapturedRequests.Add((request.Method, request.RequestUri!, body));
+                }
+
+                string pathAndQuery = request.RequestUri!.PathAndQuery;
+                string responseJson;
+
+                if (pathAndQuery.StartsWith("/api/funki/tasks/lists/", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Post)
+                {
+                    using var doc = JsonDocument.Parse(string.IsNullOrWhiteSpace(body) ? "{}" : body);
+                    string prio = doc.RootElement.TryGetProperty("priority", out var p) ? p.GetString() ?? "mittel" : "mittel";
+                    string title = doc.RootElement.TryGetProperty("title", out var t) ? t.GetString() ?? "" : "";
+                    responseJson = JsonSerializer.Serialize(new
+                    {
+                        success = true,
+                        data = new { id = "99999999-1111-2222-3333-444444444444", title, priority = prio, is_completed = false }
+                    });
+                }
+                else if (pathAndQuery.StartsWith("/api/funki/tasks/lists", StringComparison.OrdinalIgnoreCase))
+                {
+                    responseJson = """
+                    {
+                      "success": true,
+                      "data": [
+                        {
+                          "id": "11111111-1111-1111-1111-111111111111",
+                          "name": "Operativer Status",
+                          "tasks": [
+                            { "id": "22222222-2222-2222-2222-222222222222", "title": "Laser Rohlinge pruefen", "priority": "hoch", "is_completed": false }
+                          ]
+                        }
+                      ]
+                    }
+                    """;
+                }
+                else if (pathAndQuery.StartsWith("/api/funki/calendar/events", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Get)
+                {
+                    responseJson = """
+                    {
+                      "success": true,
+                      "data": [
+                        { "id": "33333333-3333-3333-3333-333333333333", "title": "Steuerberater Export", "start": "2026-11-14T10:00:00", "end": "2026-11-14T11:00:00", "is_all_day": false, "category": "business" }
+                      ]
+                    }
+                    """;
+                }
+                else if (pathAndQuery.StartsWith("/api/funki/calendar/events", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Post)
+                {
+                    responseJson = """{"success":true,"data":{"id":"44444444-4444-4444-4444-444444444444"}}""";
+                }
+                else if (pathAndQuery.StartsWith("/api/funki/shopping/categories", StringComparison.OrdinalIgnoreCase))
+                {
+                    responseJson = """
+                    {
+                      "success": true,
+                      "data": [
+                        { "id": "cat-uuid-verpackung-001", "name": "Verpackung" },
+                        { "id": "cat-uuid-rohlinge-002", "name": "Rohlinge" }
+                      ]
+                    }
+                    """;
+                }
+                else if (pathAndQuery.StartsWith("/api/funki/shopping/items", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Post)
+                {
+                    using var doc = JsonDocument.Parse(string.IsNullOrWhiteSpace(body) ? "{}" : body);
+                    string? catId = doc.RootElement.TryGetProperty("shopping_category_id", out var sc) ? sc.GetString() : null;
+                    string? itemName = doc.RootElement.TryGetProperty("name", out var nm) ? nm.GetString() : null;
+                    responseJson = JsonSerializer.Serialize(new
+                    {
+                        success = true,
+                        data = new { id = "shop-item-001", name = itemName, shopping_category_id = catId }
+                    });
+                }
+                else if (pathAndQuery.StartsWith("/api/funki/shopping/items", StringComparison.OrdinalIgnoreCase))
+                {
+                    responseJson = """
+                    {
+                      "success": true,
+                      "categories": [
+                        { "id": "cat-uuid-verpackung-001", "name": "Verpackung" },
+                        { "id": "cat-uuid-rohlinge-002", "name": "Rohlinge" }
+                      ],
+                      "data": [
+                        { "id": "shop-item-001", "name": "Westpack Boxen", "quantity": 50 }
+                      ]
+                    }
+                    """;
+                }
+                else
+                {
+                    responseJson = """{"success":true,"data":{}}""";
+                }
+
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(responseJson, Encoding.UTF8, "application/json")
+                };
+            }
+        }
+
         public static async Task<int> RunAllAsync()
         {
             int passed = 0;
@@ -1527,258 +2002,629 @@ namespace FunkenwerkMcp
                 }
             }
 
-            Console.WriteLine("=== FUNKENWERK MCP v1.3 HARDENED SECURITY & E2E SELF-TEST (26 CHECKS) ===");
+            string tempRoot = Path.Combine(Path.GetTempPath(), $"FunkenwerkMcpSelfTest_{Guid.NewGuid():N}");
+            string tempVaultDir = Path.Combine(tempRoot, "Vault");
+            string tempDocsDir = Path.Combine(tempRoot, "AllowedDocs");
+            Directory.CreateDirectory(tempVaultDir);
+            Directory.CreateDirectory(tempDocsDir);
 
-            // 1. Path Traversal Defense
-            AssertThrowsSecurity("01. Block Path Traversal (..\\..\\Windows\\System32)", () =>
-                McpSecurityGuard.ValidateSafeFilePath(@"C:\Users\konta\Downloads\..\..\Windows\System32\drivers\etc\hosts", new[] { ".pdf" }, false));
+            using var mockHandler = new MockOrganizerHttpHandler();
+            using var mockClient = new HttpClient(mockHandler) { Timeout = TimeSpan.FromSeconds(5) };
 
-            // 2. SSH Private Key Sandbox Defense
-            AssertThrowsSecurity("02. Block .ssh Private Key Access (id_ed25519)", () =>
-                McpSecurityGuard.ValidateSafeFilePath(@"C:\Users\konta\.ssh\id_ed25519", Array.Empty<string>(), false));
-
-            // 3. Antigravity .gemini Config Defense
-            AssertThrowsSecurity("03. Block .gemini Config Access (mcp_config.json)", () =>
-                McpSecurityGuard.ValidateSafeFilePath(@"C:\Users\konta\.gemini\config\mcp_config.json", Array.Empty<string>(), false));
-
-            // 4. AppData DPAPI Vault Defense
-            AssertThrowsSecurity("04. Block AppData Vault Access (profiles_vault.json)", () =>
-                McpSecurityGuard.ValidateSafeFilePath(
-                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FunkenwerkFtp", "profiles_vault.json"),
-                    Array.Empty<string>(), false));
-
-            // 5. Funkenwerk Collection Suite Directory Defense (Blocks ALL reads/writes inside Desktop\Funkenwerk Collection\*)
-            AssertThrowsSecurity("05. Block Entire Desktop\\Funkenwerk Collection Binary/Vault Tree", () =>
-                McpSecurityGuard.ValidateSafeFilePath(@"C:\Users\konta\Desktop\Funkenwerk Collection\Funkenwerk PDF\trojan.pdf", new[] { ".pdf" }, false));
-
-            // 6. NTFS Alternate Data Stream (ADS) Defense
-            AssertThrowsSecurity("06. Block NTFS Alternate Data Stream (test.pdf:Zone.Identifier)", () =>
-                McpSecurityGuard.ValidateSafeFilePath(@"C:\Users\konta\Downloads\test.pdf:Zone.Identifier", new[] { ".pdf" }, false));
-
-            // 7. Executable Extension Defense
-            AssertThrowsSecurity("07. Block Executable File Extensions (.exe / .ps1 / .lnk)", () =>
-                McpSecurityGuard.ValidateSafeFilePath(@"C:\Users\konta\Downloads\exploit.ps1", new[] { ".ps1" }, false));
-
-            // 8. Windows DOS Reserved Device & Named-Pipe Defense (Second-Pass Hardening)
-            AssertThrowsSecurity("08. Block Windows DOS Reserved Device Names & Named Pipes (CON.pdf / \\\\.\\pipe)", () =>
-            {
-                McpSecurityGuard.ValidateSafeFilePath(@"C:\Users\konta\Downloads\CON.pdf", new[] { ".pdf" }, false);
-            });
-
-            // 9. Fake/Disguised PDF Magic-Header Defense (Second-Pass Hardening)
-            string fakePdf = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads", "_mcp_fake_secret_test.pdf");
             try
             {
+                using var vaultScope = McpSecurityGuard.UseTemporaryVaultDirectory(tempVaultDir, tempDocsDir);
+                McpSecurityGuard.ResetRateLimiterForTests();
+                McpOrganizerClient.TestHttpClientOverride = mockClient;
+                McpOrganizerClient.TestBaseUrlOverride = "https://stage.mein-seelenfunke.de/api";
+
+                Console.WriteLine("=== FUNKENWERK MCP v1.5 HARDENED ZERO-TRUST & E2E SELF-TEST (40 CHECKS) ===");
+
+                // 01. Path Traversal Defense
+                AssertThrowsSecurity("01. Block Path Traversal (..\\..\\Windows\\System32)", () =>
+                    McpSecurityGuard.ValidateSafeFilePath(Path.Combine(tempDocsDir, @"..\..\Windows\System32\drivers\etc\hosts"), new[] { ".pdf" }, false));
+
+                // 02. SSH Private Key Sandbox Defense
+                string userHome = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                AssertThrowsSecurity("02. Block .ssh Private Key Access (id_ed25519)", () =>
+                    McpSecurityGuard.ValidateSafeFilePath(Path.Combine(userHome, ".ssh", "id_ed25519"), Array.Empty<string>(), false));
+
+                // 03. Antigravity .gemini Config Defense
+                AssertThrowsSecurity("03. Block .gemini Config Access (mcp_config.json)", () =>
+                    McpSecurityGuard.ValidateSafeFilePath(Path.Combine(userHome, ".gemini", "config", "mcp_config.json"), Array.Empty<string>(), false));
+
+                // 04. AppData DPAPI Vault Defense
+                AssertThrowsSecurity("04. Block AppData Vault Access (profiles_vault.json)", () =>
+                    McpSecurityGuard.ValidateSafeFilePath(
+                        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FunkenwerkFtp", "profiles_vault.json"),
+                        Array.Empty<string>(), false));
+
+                // 05. Funkenwerk Collection Suite Directory Defense
+                AssertThrowsSecurity("05. Block Entire Desktop\\Funkenwerk Collection Binary/Vault Tree", () =>
+                    McpSecurityGuard.ValidateSafeFilePath(Path.Combine(McpSecurityGuard.CollectionRootDir, "Funkenwerk PDF", "trojan.pdf"), new[] { ".pdf" }, false));
+
+                // 06. NTFS Alternate Data Stream (ADS) Defense
+                AssertThrowsSecurity("06. Block NTFS Alternate Data Stream (test.pdf:Zone.Identifier)", () =>
+                    McpSecurityGuard.ValidateSafeFilePath(Path.Combine(tempDocsDir, "test.pdf:Zone.Identifier"), new[] { ".pdf" }, false));
+
+                // 07. Executable Extension Defense
+                AssertThrowsSecurity("07. Block Executable File Extensions (.exe / .ps1 / .lnk)", () =>
+                    McpSecurityGuard.ValidateSafeFilePath(Path.Combine(tempDocsDir, "exploit.ps1"), new[] { ".ps1" }, false));
+
+                // 08. Windows DOS Reserved Device Names Defense
+                AssertThrowsSecurity("08. Block Windows DOS Reserved Device Names (CON.pdf)", () =>
+                    McpSecurityGuard.ValidateSafeFilePath(Path.Combine(tempDocsDir, "CON.pdf"), new[] { ".pdf" }, false));
+
+                // 09. Disguised Non-PDF File Rejected + UTF-8 BOM Offset-3 PDF Accepted
+                string fakePdf = Path.Combine(tempDocsDir, "_fake_env.pdf");
+                string bomPdf = Path.Combine(tempDocsDir, "_valid_bom.pdf");
                 await File.WriteAllTextAsync(fakePdf, "APP_KEY=base64:FakeDisguisedEnvFileNotAPdf");
-                AssertThrowsSecurity("09. Block Disguised Non-PDF File Missing '%PDF-' Magic Header", () =>
-                    McpSecurityGuard.ValidateSafeFilePath(fakePdf, new[] { ".pdf" }, mustExist: true));
-            }
-            finally
-            {
-                if (File.Exists(fakePdf)) File.Delete(fakePdf);
-            }
+                byte[] syntheticPdfBytes = McpPdfEngine.CreateSyntheticAcroFormPdfBytes();
+                byte[] bomPdfBytes = new byte[3 + syntheticPdfBytes.Length];
+                bomPdfBytes[0] = 0xEF; bomPdfBytes[1] = 0xBB; bomPdfBytes[2] = 0xBF;
+                Buffer.BlockCopy(syntheticPdfBytes, 0, bomPdfBytes, 3, syntheticPdfBytes.Length);
+                await File.WriteAllBytesAsync(bomPdf, bomPdfBytes);
+                bool disguisedBlocked = false;
+                try { McpSecurityGuard.ValidateSafeFilePath(fakePdf, new[] { ".pdf" }, mustExist: true); }
+                catch (UnauthorizedAccessException) { disguisedBlocked = true; }
+                string validatedBom = McpSecurityGuard.ValidateSafeFilePath(bomPdf, new[] { ".pdf" }, mustExist: true);
+                AssertTest("09. Disguised Non-PDF Blocked & Valid Offset-0 / UTF-8 BOM Offset-3 PDF Accepted",
+                    disguisedBlocked && File.Exists(validatedBom));
 
-            // 10. Outbound DLP 14-Pattern Secret Redactor Defense
-            string simulatedLeak = "Sanctum: 1|CTIWGm2Ryb0d60ixSJPME2J6uSUkR1tm6Ga6DEfBd86476e9 Vault: FWVAULT2:YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXo= Env: DB_PASSWORD=SuperGeheim123! Url: https://admin:GeheimPass@mein-seelenfunke.de/api";
-            string scrubbed = McpSecurityGuard.ScrubSecrets(simulatedLeak);
-            AssertTest("10. Outbound DLP Redacts Sanctum, FWVAULT2, DB_PASSWORD & BasicAuth URLs",
-                !scrubbed.Contains("CTIWGm2R") && !scrubbed.Contains("YWJjZGVm") && !scrubbed.Contains("SuperGeheim123") && !scrubbed.Contains("GeheimPass") && scrubbed.Contains("[REDACTED-BY-FUNKENWERK-DLP]"),
-                scrubbed);
+                // 10. Polyglot PDF with '%PDF-' Shifted to Byte Offset 20 Strictly Rejected
+                string polyglotPdf = Path.Combine(tempDocsDir, "_polyglot_offset20.pdf");
+                byte[] polyBytes = new byte[20 + syntheticPdfBytes.Length];
+                Encoding.ASCII.GetBytes("MZ_HTML_POLYGLOT_PAD").CopyTo(polyBytes, 0);
+                Buffer.BlockCopy(syntheticPdfBytes, 0, polyBytes, 20, syntheticPdfBytes.Length);
+                await File.WriteAllBytesAsync(polyglotPdf, polyBytes);
+                AssertThrowsSecurity("10. Block Polyglot File With '%PDF-' Shifted to Byte Offset 20", () =>
+                    McpSecurityGuard.ValidateSafeFilePath(polyglotPdf, new[] { ".pdf" }, mustExist: true));
 
-            // 11. SSRF, UserInfo & HTTP Downgrade Defense
-            bool evilBlocked = !McpSecurityGuard.IsAllowedApiUrl("https://attacker.example.com/api", out _);
-            bool httpRemoteBlocked = !McpSecurityGuard.IsAllowedApiUrl("http://stage.mein-seelenfunke.de/api", out _);
-            bool userInfoBlocked = !McpSecurityGuard.IsAllowedApiUrl("https://user:pass@stage.mein-seelenfunke.de/api", out _);
-            bool httpsStageAllowed = McpSecurityGuard.IsAllowedApiUrl("https://stage.mein-seelenfunke.de/api", out _);
-            AssertTest("11. SSRF Guard, UserInfo Rejection & HTTPS Enforcement", evilBlocked && httpRemoteBlocked && userInfoBlocked && httpsStageAllowed);
+                // 11. NTFS Junction / Reparse Point Ancestry Blocked
+                string junctionTarget = Path.Combine(tempRoot, "OutsideSecretDir");
+                Directory.CreateDirectory(junctionTarget);
+                string secretTargetPdf = Path.Combine(junctionTarget, "secret.pdf");
+                await File.WriteAllBytesAsync(secretTargetPdf, syntheticPdfBytes);
+                string junctionLink = Path.Combine(tempDocsDir, "JunctionEscape");
+                using (var mkProc = Process.Start(new ProcessStartInfo("cmd.exe")
+                {
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    ArgumentList = { "/c", "mklink", "/J", junctionLink, junctionTarget }
+                })!)
+                {
+                    await mkProc.WaitForExitAsync();
+                }
+                string viaJunctionFile = Path.Combine(junctionLink, "secret.pdf");
+                bool reparseDetected = McpSecurityGuard.HasReparsePointInAncestry(viaJunctionFile);
+                bool safePathBlockedJunction = false;
+                try { McpSecurityGuard.ValidateSafeFilePath(viaJunctionFile, new[] { ".pdf" }, mustExist: true); }
+                catch (UnauthorizedAccessException) { safePathBlockedJunction = true; }
+                bool craftBlockedJunction = false;
+                try { McpCraftBridge.ValidateSafeMediaSourceOrCraftPath(viaJunctionFile, allowAudio: false); }
+                catch (UnauthorizedAccessException) { craftBlockedJunction = true; }
+                try { Directory.Delete(junctionLink); } catch { }
+                AssertTest("11. NTFS Junction / Reparse Point Ancestry Blocked Across SafePath & Craft",
+                    reparseDetected && safePathBlockedJunction && craftBlockedJunction);
 
-            // 12. Arbitrary SSH Command Injection Defense
-            bool sshInjectionBlocked = false;
-            try
-            {
-                await McpSecurityGuard.ExecutePinnedSshPresetAsync("Mittwald", "rm -rf /; cat ~/.ssh/id_ed25519");
-            }
-            catch (UnauthorizedAccessException)
-            {
-                sshInjectionBlocked = true;
-            }
-            AssertTest("12. Block Arbitrary SSH Command Outside Strict Preset Enum", sshInjectionBlocked);
+                // 12. Outbound DLP Scrubber Redacts Sanctum, FWAES256GCM1, FWVAULT2, JWT, JSON password & RTSP URLs
+                string simulatedLeak =
+                    "Sanctum: 12|AbCdEfGhIjKlMnOpQrStUvWxYz0123456789ABCD " +
+                    "VaultNew: FWAES256GCM1:YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXo= " +
+                    "VaultOld: FWVAULT2:YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXo= " +
+                    "Jwt: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U " +
+                    "JsonPass: {\"password\":\"GeheimJsonPass99!\"} " +
+                    "Rtsp: rtsp://admin:KameraGeheim77@192.168.178.55:554/stream1 " +
+                    "Env: DB_PASSWORD=SuperGeheim123! " +
+                    "Url: https://admin:GeheimPass@mein-seelenfunke.de/api";
+                string scrubbed = McpSecurityGuard.ScrubSecrets(simulatedLeak);
+                AssertTest("12. Outbound DLP Redacts Sanctum, FWAES256GCM1, JWT, JSON Password & RTSP Credentials",
+                    !scrubbed.Contains("AbCdEfGhIjKl")
+                    && !scrubbed.Contains("YWJjZGVm")
+                    && !scrubbed.Contains("dozjgNryP4J3")
+                    && !scrubbed.Contains("GeheimJsonPass99")
+                    && !scrubbed.Contains("KameraGeheim77")
+                    && !scrubbed.Contains("SuperGeheim123")
+                    && !scrubbed.Contains("GeheimPass")
+                    && scrubbed.Contains("[REDACTED-BY-FUNKENWERK-DLP]"),
+                    scrubbed);
 
-            // 13. SSH Subdirectory Shell-Metacharacter / Traversal Injection Defense
-            bool sshDirBlocked = false;
-            try
-            {
-                await McpSecurityGuard.ExecutePinnedSshPresetAsync("Mittwald", "git_status", "/home/p-g27wim'; id #");
-            }
-            catch (UnauthorizedAccessException)
-            {
-                sshDirBlocked = true;
-            }
-            AssertTest("13. Block SSH RemoteDirectory Shell-Escape / Metacharacter Injection", sshDirBlocked);
+                // 13. SSRF, UserInfo & HTTP Downgrade Defense
+                bool evilBlocked = !McpSecurityGuard.IsAllowedApiUrl("https://attacker.example.com/api", out _);
+                bool httpRemoteBlocked = !McpSecurityGuard.IsAllowedApiUrl("http://stage.mein-seelenfunke.de/api", out _);
+                bool userInfoBlocked = !McpSecurityGuard.IsAllowedApiUrl("https://user:pass@stage.mein-seelenfunke.de/api", out _);
+                bool httpsStageAllowed = McpSecurityGuard.IsAllowedApiUrl("https://stage.mein-seelenfunke.de/api", out _);
+                bool httpsLiveAllowed = McpSecurityGuard.IsAllowedApiUrl("https://mein-seelenfunke.de/api", out _);
+                AssertTest("13. SSRF Guard, UserInfo Rejection & HTTPS Enforcement",
+                    evilBlocked && httpRemoteBlocked && userInfoBlocked && httpsStageAllowed && httpsLiveAllowed);
 
-            // 14. NTFS Directory + File ACL & SHA-256 Hash-Chained Audit Log Integrity
-            McpSecurityGuard.AppendAuditLog("self_test", "integrity_probe_v1_1", "ALLOW");
-            var auditStatus = McpSecurityGuard.RunSecuritySelfAudit();
-            AssertTest("14. NTFS CurrentUser Dir+File ACL & Live SHA-256 Audit Chain Verified",
-                auditStatus.DirectoryAclRestrictedToCurrentUser && auditStatus.AuditFileAclRestrictedToCurrentUser && auditStatus.AuditHashChainValid && auditStatus.AuditEntriesCount >= 1);
+                // 14. Arbitrary SSH Command Injection Blocked + 11 Safe Presets Verified (incl. stage_deploy & stage_worker_restart)
+                bool sshInjectionBlocked = false;
+                try { await McpSecurityGuard.ExecutePinnedSshPresetAsync("Mittwald", "rm -rf /; cat ~/.ssh/id_ed25519"); }
+                catch (UnauthorizedAccessException) { sshInjectionBlocked = true; }
+                bool hasAll11Presets = McpSecurityGuard.SafeReadonlySshPresets.Count == 11
+                    && McpSecurityGuard.SafeReadonlySshPresets.Contains("uptime_and_load")
+                    && McpSecurityGuard.SafeReadonlySshPresets.Contains("disk_usage")
+                    && McpSecurityGuard.SafeReadonlySshPresets.Contains("stage_git_pull")
+                    && McpSecurityGuard.SafeReadonlySshPresets.Contains("stage_deploy")
+                    && McpSecurityGuard.SafeReadonlySshPresets.Contains("stage_worker_restart");
+                AssertTest("14. Arbitrary SSH Command Blocked & 11 SafeReadonlySshPresets (incl. stage_deploy) Verified",
+                    sshInjectionBlocked && hasAll11Presets);
 
-            // 15. Cryptographic Audit Hash-Chain Tamper Detection Proof (Second-Pass Hardening)
-            string tempChain = Path.Combine(McpSecurityGuard.McpDataDir, "_tamper_test_chain.jsonl");
-            try
-            {
-                if (File.Exists(tempChain)) File.Delete(tempChain);
+                // 15. SSH RemoteDirectory Metacharacter Injection Blocked
+                bool sshDirBlocked = false;
+                try { await McpSecurityGuard.ExecutePinnedSshPresetAsync("Mittwald", "git_status", "/home/p-g27wim'; id #"); }
+                catch (UnauthorizedAccessException) { sshDirBlocked = true; }
+                AssertTest("15. Block SSH RemoteDirectory Shell-Escape / Metacharacter Injection", sshDirBlocked);
+
+                // 16. RunSecuritySelfAudit Bootstraps Missing security_audit.jsonl Before LockDownFileAcl (Isolated Vault)
+                string isolatedAuditLog = Path.Combine(McpSecurityGuard.VaultDirectory, "security_audit.jsonl");
+                if (File.Exists(isolatedAuditLog)) File.Delete(isolatedAuditLog);
+                var freshAuditStatus = McpSecurityGuard.RunSecuritySelfAudit();
+                McpSecurityGuard.AppendAuditLog("self_test", "integrity_probe_v1_4", "ALLOW");
+                var afterEntryAudit = McpSecurityGuard.RunSecuritySelfAudit();
+                AssertTest("16. RunSecuritySelfAudit Creates & ACL-Locks security_audit.jsonl in Isolated Temp Vault",
+                    File.Exists(isolatedAuditLog)
+                    && freshAuditStatus.DirectoryAclRestrictedToCurrentUser
+                    && freshAuditStatus.AuditFileAclRestrictedToCurrentUser
+                    && afterEntryAudit.AuditHashChainValid
+                    && afterEntryAudit.AuditEntriesCount >= 1);
+
+                // 17. Cryptographic Audit Hash-Chain Tamper Detection
+                string tempChain = Path.Combine(tempVaultDir, "_tamper_test_chain.jsonl");
                 McpSecurityGuard.AppendAuditLog("t1", "alpha", "ALLOW", tempChain);
                 McpSecurityGuard.AppendAuditLog("t2", "beta", "DENY", tempChain);
                 McpSecurityGuard.AppendAuditLog("t3", "gamma", "ALLOW", tempChain);
                 var (validBefore, countBefore) = McpSecurityGuard.VerifyAuditChain(tempChain);
-
-                // Tamper 1 word ("DENY" -> "ALLOW") in entry #2 without knowing future chain hashes
-                string[] lines = await File.ReadAllLinesAsync(tempChain);
-                lines[1] = lines[1].Replace("\"DENY\"", "\"ALLOW\"");
-                await File.WriteAllLinesAsync(tempChain, lines);
+                string[] chainLines = await File.ReadAllLinesAsync(tempChain);
+                chainLines[1] = chainLines[1].Replace("\"DENY\"", "\"ALLOW\"");
+                await File.WriteAllLinesAsync(tempChain, chainLines);
                 var (validAfter, _) = McpSecurityGuard.VerifyAuditChain(tempChain);
-
-                AssertTest("15. SHA-256 Audit Hash-Chain Detects 1-Byte Log Tampering",
+                AssertTest("17. SHA-256 Audit Hash-Chain Detects 1-Byte Log Tampering",
                     validBefore && countBefore == 3 && !validAfter);
+
+                // 18. Deeply Nested JSON Bomb Defense (MaxDepth = 24)
+                string jsonBomb = "{\"jsonrpc\":\"2.0\",\"id\":99,\"method\":\"ping\",\"params\":{\"a\":" + new string('[', 40) + "1" + new string(']', 40) + "}}";
+                string? bombResp = await Program.ProcessJsonRpcMessageAsync(jsonBomb);
+                AssertTest("18. Deeply Nested JSON Bomb Rejected Cleanly (MaxDepth=24 -> -32700)",
+                    bombResp != null && bombResp.Contains("-32700"));
+
+                // 19. Oversized Tool Argument (> 4096 chars) Rejected Safely
+                string hugePathReq = "{\"jsonrpc\":\"2.0\",\"id\":100,\"method\":\"tools/call\",\"params\":{\"name\":\"pdf_inspect\",\"arguments\":{\"filePath\":\"" + new string('A', 5000) + ".pdf\"}}}";
+                string? hugeResp = await Program.ProcessJsonRpcMessageAsync(hugePathReq);
+                AssertTest("19. Oversized Tool Argument (>4 KB) Rejected Safely",
+                    hugeResp != null && hugeResp.Contains("\"isError\":true"));
+
+                // 20. Zero-Secret Server Profile Listing
+                var sanitizedProfiles = McpSecurityGuard.GetSanitizedServerProfiles();
+                string profilesJson = JsonSerializer.Serialize(sanitizedProfiles);
+                AssertTest("20. Zero-Secret Server Profiles Serialization (Zero Passwords/Keys Exposed)",
+                    !profilesJson.Contains("EncryptedPassword") && !profilesJson.Contains("FWAES256GCM1:") && !profilesJson.Contains("FWSSHAES256GCM1:"));
+
+                // 21. CRITICAL Real UTF-8 Multi-Byte Content-Length Byte-Stream Framing (< 200ms, Zero Hang!)
+                {
+                    string utf8ReqBody = """{"jsonrpc":"2.0","id":701,"method":"tools/call","params":{"name":"tasks_manage","arguments":{"action":"create","title":"Alina Steinhauer · Größe 50€ äöüß ✨","priority":"normal"}}}""";
+                    byte[] utf8PayloadBytes = Encoding.UTF8.GetBytes(utf8ReqBody);
+                    byte[] headerBytes = Encoding.ASCII.GetBytes($"Content-Length: {utf8PayloadBytes.Length}\r\n\r\n");
+
+                    using var inMs = new MemoryStream();
+                    inMs.Write(headerBytes, 0, headerBytes.Length);
+                    inMs.Write(utf8PayloadBytes, 0, utf8PayloadBytes.Length);
+                    inMs.Position = 0;
+
+                    using var outMs = new MemoryStream();
+                    var sw = Stopwatch.StartNew();
+                    var loopTask = Program.RunStdioServerLoopAsync(inMs, outMs);
+                    bool finishedFast = await Task.WhenAny(loopTask, Task.Delay(200)) == loopTask;
+                    sw.Stop();
+
+                    string wireOut = Encoding.UTF8.GetString(outMs.ToArray());
+                    AssertTest("21. UTF-8 Multi-Byte Content-Length Framing ('Alina Steinhauer · Größe 50€ äöüß ✨') < 200ms",
+                        finishedFast
+                        && sw.ElapsedMilliseconds < 200
+                        && utf8PayloadBytes.Length > utf8ReqBody.Length
+                        && wireOut.StartsWith("Content-Length:", StringComparison.Ordinal)
+                        && wireOut.Contains("\"id\":701")
+                        && wireOut.Contains("Alina Steinhauer"),
+                        $"elapsed={sw.ElapsedMilliseconds}ms, out={wireOut}");
+                }
+
+                // 22. Oversized Frame Returns JSON-RPC -32600 Error WITHOUT Breaking Server Loop
+                {
+                    int overLen = McpSecurityGuard.MaxJsonRpcMessageBytes + 1024;
+                    byte[] overBody = Encoding.ASCII.GetBytes(new string('X', overLen));
+                    byte[] overHdr = Encoding.ASCII.GetBytes($"Content-Length: {overLen}\r\n\r\n");
+                    string followUpPing = "{\"jsonrpc\":\"2.0\",\"id\":702,\"method\":\"ping\"}\n";
+                    byte[] pingBytes = Encoding.UTF8.GetBytes(followUpPing);
+
+                    using var inMs = new MemoryStream();
+                    inMs.Write(overHdr, 0, overHdr.Length);
+                    inMs.Write(overBody, 0, overBody.Length);
+                    inMs.Write(pingBytes, 0, pingBytes.Length);
+                    inMs.Position = 0;
+
+                    using var outMs = new MemoryStream();
+                    await Program.RunStdioServerLoopAsync(inMs, outMs);
+                    string wireOut = Encoding.UTF8.GetString(outMs.ToArray());
+                    AssertTest("22. Oversized Frame Returns -32600 And Keeps Server Loop Alive For Next Frame",
+                        wireOut.Contains("-32600") && wireOut.Contains("\"id\":702"),
+                        wireOut);
+                }
+
+                // 23. Synthetic AcroForm PDF E2E: pdf_inspect + pdf_fill_form (Rotated /MK /R 90 + Unicode + CheckBox + Overwrite Guard)
+                string synthInputPdf = Path.Combine(tempDocsDir, "Synthetic_Haendlerbogen.pdf");
+                string synthFilledPdf = Path.Combine(tempDocsDir, "Synthetic_Haendlerbogen_Filled.pdf");
+                await File.WriteAllBytesAsync(synthInputPdf, syntheticPdfBytes);
+                {
+                    var inspectReq = new JsonObject
+                    {
+                        ["jsonrpc"] = "2.0",
+                        ["id"] = 2301,
+                        ["method"] = "tools/call",
+                        ["params"] = new JsonObject
+                        {
+                            ["name"] = "pdf_inspect",
+                            ["arguments"] = new JsonObject { ["filePath"] = synthInputPdf }
+                        }
+                    };
+                    string? inspectResp = await Program.ProcessJsonRpcMessageAsync(inspectReq.ToJsonString());
+
+                    var fillReq = new JsonObject
+                    {
+                        ["jsonrpc"] = "2.0",
+                        ["id"] = 2302,
+                        ["method"] = "tools/call",
+                        ["params"] = new JsonObject
+                        {
+                            ["name"] = "pdf_fill_form",
+                            ["arguments"] = new JsonObject
+                            {
+                                ["inputPath"] = synthInputPdf,
+                                ["outputPath"] = synthFilledPdf,
+                                ["overwrite"] = false,
+                                ["openInFunkenwerkPdf"] = false,
+                                ["fieldValues"] = new JsonObject
+                                {
+                                    ["Firmenname"] = "Mein-Seelenfunke",
+                                    ["Name des Inhabers"] = "Alina Steinhauer · Größe 50€ Čech ✨",
+                                    ["NotizRotiert90"] = "Rotiert 90 Grad OK",
+                                    ["AGB_Akzeptiert"] = "X"
+                                }
+                            }
+                        }
+                    };
+                    string? fillResp = await Program.ProcessJsonRpcMessageAsync(fillReq.ToJsonString());
+                    // Second call with overwrite=false must return isError=true
+                    string? dupFillResp = await Program.ProcessJsonRpcMessageAsync(fillReq.ToJsonString());
+
+                    var verifyFilled = McpPdfEngine.InspectPdf(synthFilledPdf);
+                    var rotField = verifyFilled.Fields.FirstOrDefault(f => f.Name == "NotizRotiert90");
+                    var ownerField = verifyFilled.Fields.FirstOrDefault(f => f.Name == "Name des Inhabers");
+                    var chkField = verifyFilled.Fields.FirstOrDefault(f => f.Name == "AGB_Akzeptiert");
+
+                    AssertTest("23. Synthetic AcroForm PDF Inspect + Fill (Rotated /MK /R 90 + Unicode + Overwrite Guard)",
+                        inspectResp != null && inspectResp.Contains("NotizRotiert90")
+                        && fillResp != null && fillResp.Contains("\"isError\":false")
+                        && dupFillResp != null && dupFillResp.Contains("\"isError\":true")
+                        && rotField != null && rotField.WidgetRotation == 90 && rotField.Value.Contains("Rotiert 90 Grad OK")
+                        && ownerField != null && ownerField.Value.Contains("Alina Steinhauer")
+                        && chkField != null && chkField.IsChecked);
+                }
+
+                // 24. Synthetic AcroForm PDF E2E: pdf_autofill_stammdaten (Zero Downloads Dependency)
+                string synthStammdatenOut = Path.Combine(tempDocsDir, "Synthetic_Haendlerbogen_Stammdaten.pdf");
+                {
+                    var autoReq = new JsonObject
+                    {
+                        ["jsonrpc"] = "2.0",
+                        ["id"] = 2401,
+                        ["method"] = "tools/call",
+                        ["params"] = new JsonObject
+                        {
+                            ["name"] = "pdf_autofill_stammdaten",
+                            ["arguments"] = new JsonObject
+                            {
+                                ["inputPath"] = synthInputPdf,
+                                ["outputPath"] = synthStammdatenOut,
+                                ["overwrite"] = true,
+                                ["openInFunkenwerkPdf"] = false,
+                                ["overrides"] = new JsonObject { ["AGB_Akzeptiert"] = "X" }
+                            }
+                        }
+                    };
+                    string? autoResp = await Program.ProcessJsonRpcMessageAsync(autoReq.ToJsonString());
+                    var verifyAuto = McpPdfEngine.InspectPdf(synthStammdatenOut);
+                    AssertTest("24. Synthetic AcroForm PDF Stammdaten Autofill (Mein-Seelenfunke / Gifhorn / FYRST)",
+                        autoResp != null && autoResp.Contains("\"isError\":false")
+                        && verifyAuto.Fields.First(f => f.Name == "Firmenname").Value == "Mein-Seelenfunke"
+                        && verifyAuto.Fields.First(f => f.Name == "Name des Inhabers").Value == "Alina Steinhauer"
+                        && verifyAuto.Fields.First(f => f.Name == "PLZ").Value == "38518"
+                        && verifyAuto.Fields.First(f => f.Name == "Ort").Value == "Gifhorn"
+                        && verifyAuto.Fields.First(f => f.Name == "Bank-Name").Value == "FYRST (Deutsche Bank AG)");
+                }
+
+                // 25. MCP JSON-RPC 2.0 Handshake, Notification Silence & Tools Catalog
+                string? initResp = await Program.ProcessJsonRpcMessageAsync("""{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"antigravity","version":"2.0"}}}""");
+                string? notifResp = await Program.ProcessJsonRpcMessageAsync("""{"jsonrpc":"2.0","method":"notifications/initialized"}""");
+                string? toolsResp = await Program.ProcessJsonRpcMessageAsync("""{"jsonrpc":"2.0","id":3,"method":"tools/list","params":{}}""");
+                AssertTest("25. MCP JSON-RPC 2.0 Handshake, Notification Silence & 21-Tool Schema Catalog",
+                    initResp != null && initResp.Contains("\"funkenwerk-mcp\"")
+                    && notifResp == null
+                    && toolsResp != null && toolsResp.Contains("\"uptime_and_load\"") && toolsResp.Contains("\"pdf_autofill_stammdaten\"")
+                    && toolsResp.Contains("\"stage_sync_shop_assets\"") && toolsResp.Contains("\"stage_deploy\""));
+
+                // 26. MCP resources/list & resources/read E2E
+                string? resListResp = await Program.ProcessJsonRpcMessageAsync("""{"jsonrpc":"2.0","id":2601,"method":"resources/list","params":{}}""");
+                string? resStammdatenResp = await Program.ProcessJsonRpcMessageAsync("""{"jsonrpc":"2.0","id":2602,"method":"resources/read","params":{"uri":"funkenwerk://company/stammdaten"}}""");
+                string? resPolicyResp = await Program.ProcessJsonRpcMessageAsync("""{"jsonrpc":"2.0","id":2603,"method":"resources/read","params":{"uri":"funkenwerk://security/policy"}}""");
+                string? resInvalidResp = await Program.ProcessJsonRpcMessageAsync("""{"jsonrpc":"2.0","id":2604,"method":"resources/read","params":{"uri":"funkenwerk://unknown/secret"}}""");
+                AssertTest("26. MCP resources/list & resources/read (Stammdaten + Security Policy + Invalid URI Error)",
+                    resListResp != null && resListResp.Contains("funkenwerk://company/stammdaten")
+                    && resStammdatenResp != null && resStammdatenResp.Contains("Carl-Goerdeler-Ring 26")
+                    && resPolicyResp != null && resPolicyResp.Contains("AuditHashChainValid")
+                    && resInvalidResp != null && resInvalidResp.Contains("-32603"));
+
+                // 27. Mocked HttpMessageHandler: tasks_manage Priority Mapping (low->niedrig, normal->mittel, urgent->hoch)
+                mockHandler.CapturedRequests.Clear();
+                await McpOrganizerClient.ManageTaskAsync(action: "create", title: "T1", priority: "low");
+                await McpOrganizerClient.ManageTaskAsync(action: "create", title: "T2", priority: "normal");
+                await McpOrganizerClient.ManageTaskAsync(action: "create", title: "T3", priority: "urgent");
+                await McpOrganizerClient.ManageTaskAsync(action: "create", title: "T4", priority: "high");
+                bool invalidPrioRejected = false;
+                try { await McpOrganizerClient.ManageTaskAsync(action: "create", title: "T5", priority: "critical_invalid"); }
+                catch (ArgumentException) { invalidPrioRejected = true; }
+                var postBodies = mockHandler.CapturedRequests.Where(r => r.Method == HttpMethod.Post).Select(r => r.Body).ToList();
+                AssertTest("27. Organizer tasks_manage Priority Normalization (low->niedrig, normal->mittel, urgent|high->hoch)",
+                    postBodies.Count == 4
+                    && postBodies[0].Contains("\"priority\":\"niedrig\"")
+                    && postBodies[1].Contains("\"priority\":\"mittel\"")
+                    && postBodies[2].Contains("\"priority\":\"hoch\"")
+                    && postBodies[3].Contains("\"priority\":\"hoch\"")
+                    && invalidPrioRejected);
+
+                // 28. Mocked HttpMessageHandler: calendar_list 'date' Parameter & calendar_create
+                mockHandler.CapturedRequests.Clear();
+                string? calDateResp = await Program.ProcessJsonRpcMessageAsync("""{"jsonrpc":"2.0","id":2801,"method":"tools/call","params":{"name":"calendar_list","arguments":{"date":"2026-11-14"}}}""");
+                string? calCreateResp = await Program.ProcessJsonRpcMessageAsync("""{"jsonrpc":"2.0","id":2802,"method":"tools/call","params":{"name":"calendar_create","arguments":{"title":"Laser Wartung","start":"2026-11-15T09:00:00"}}}""");
+                bool exactDateQuerySent = mockHandler.CapturedRequests.Any(r =>
+                    r.Method == HttpMethod.Get &&
+                    r.Uri.Query.Contains("start=2026-11-14", StringComparison.Ordinal) &&
+                    r.Uri.Query.Contains("end=2026-11-14", StringComparison.Ordinal));
+                AssertTest("28. Organizer calendar_list Single-Day 'date' Parameter & calendar_create Verified",
+                    calDateResp != null && calDateResp.Contains("Steuerberater Export") && exactDateQuerySent
+                    && calCreateResp != null && calCreateResp.Contains("\"isError\":false"));
+
+                // 29. Mocked HttpMessageHandler: shopping_manage Category Name Resolution & UUID Passthrough
+                mockHandler.CapturedRequests.Clear();
+                string? shopByNameResp = await Program.ProcessJsonRpcMessageAsync("""{"jsonrpc":"2.0","id":2901,"method":"tools/call","params":{"name":"shopping_manage","arguments":{"action":"add","name":"Schmuckboxen Schwarz","quantity":100,"category":"Verpackung"}}}""");
+                string directUuid = "88888888-4444-4444-4444-121212121212";
+                string? shopByUuidResp = await Program.ProcessJsonRpcMessageAsync(new JsonObject
+                {
+                    ["jsonrpc"] = "2.0",
+                    ["id"] = 2902,
+                    ["method"] = "tools/call",
+                    ["params"] = new JsonObject
+                    {
+                        ["name"] = "shopping_manage",
+                        ["arguments"] = new JsonObject
+                        {
+                            ["action"] = "add",
+                            ["name"] = "Edelstahl Rohlinge",
+                            ["quantity"] = 25,
+                            ["category"] = directUuid
+                        }
+                    }
+                }.ToJsonString());
+                var shopPosts = mockHandler.CapturedRequests.Where(r => r.Method == HttpMethod.Post && r.Uri.AbsolutePath.EndsWith("/shopping/items")).Select(r => r.Body).ToList();
+                AssertTest("29. Organizer shopping_manage Category Name->UUID Resolution & Direct UUID Passthrough",
+                    shopByNameResp != null && shopByNameResp.Contains("cat-uuid-verpackung-001")
+                    && shopByUuidResp != null && shopByUuidResp.Contains(directUuid)
+                    && shopPosts.Count == 2);
+
+                // 30. LaunchCollectionExecutable Hardening (UseShellExecute=false, ArgumentList, Reject '-flag' & '/flag')
+                var safePsi = Program.BuildValidatedCollectionStartInfo("pdf", synthFilledPdf, requireBinaryExists: false);
+                bool dashFlagRejected = false;
+                try { Program.BuildValidatedCollectionStartInfo("browser", "--remote-debugging-port=9222", requireBinaryExists: false); }
+                catch (UnauthorizedAccessException) { dashFlagRejected = true; }
+                bool slashFlagRejected = false;
+                try { Program.BuildValidatedCollectionStartInfo("pdf", "/print-to-default", requireBinaryExists: false); }
+                catch (UnauthorizedAccessException) { slashFlagRejected = true; }
+                AssertTest("30. LaunchCollectionExecutable Uses UseShellExecute=false + ArgumentList & Blocks CLI Flags",
+                    !safePsi.UseShellExecute
+                    && safePsi.ArgumentList.Count == 1
+                    && safePsi.ArgumentList[0] == synthFilledPdf
+                    && dashFlagRejected
+                    && slashFlagRejected);
+
+                // 31. Craft projectName Sanitization Guard
+                AssertThrowsSecurity("31. Block Craft projectName Traversal & Invalid Characters ('../evil')", () =>
+                {
+                    string okName = McpCraftBridge.ValidateSafeProjectName("Reel Herbst 2026_v1");
+                    if (okName != "Reel Herbst 2026_v1") throw new Exception("Valid name rejected");
+                    McpCraftBridge.ValidateSafeProjectName("../evil_escape");
+                });
+
+                // 32. Craft Write Sandbox (projectPath & outputPath Outside Craft\Videos Blocked, Inside Allowed)
+                string allowedCraftExport = Path.Combine(McpCraftBridge.CraftVideosDir, "Exports", "social_master.mp4");
+                string validatedCraftOut = McpCraftBridge.ValidateSafeCraftWritePath(allowedCraftExport, new[] { ".mp4" });
+                string? craftSaveOutsideResp = await Program.ProcessJsonRpcMessageAsync(new JsonObject
+                {
+                    ["jsonrpc"] = "2.0",
+                    ["id"] = 3201,
+                    ["method"] = "tools/call",
+                    ["params"] = new JsonObject
+                    {
+                        ["name"] = "craft_project_manage",
+                        ["arguments"] = new JsonObject
+                        {
+                            ["action"] = "save",
+                            ["projectName"] = "Projekt 1",
+                            ["outputPath"] = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "outside_escape.mp4")
+                        }
+                    }
+                }.ToJsonString());
+                string? craftRenderOutsideResp = await Program.ProcessJsonRpcMessageAsync(new JsonObject
+                {
+                    ["jsonrpc"] = "2.0",
+                    ["id"] = 3202,
+                    ["method"] = "tools/call",
+                    ["params"] = new JsonObject
+                    {
+                        ["name"] = "craft_render_social_video",
+                        ["arguments"] = new JsonObject
+                        {
+                            ["projectName"] = "Projekt 1",
+                            ["outputPath"] = Path.Combine(tempDocsDir, "outside_escape.mp4")
+                        }
+                    }
+                }.ToJsonString());
+                AssertTest("32. Craft Write Sandbox Enforced For projectPath & outputPath",
+                    validatedCraftOut == Path.GetFullPath(allowedCraftExport)
+                    && craftSaveOutsideResp != null && craftSaveOutsideResp.Contains("\"isError\":true")
+                    && craftRenderOutsideResp != null && craftRenderOutsideResp.Contains("\"isError\":true"));
+
+                // 33. Craft filmcraft_bridge RPC Method Allowlist
+                string allowedRpc = McpCraftBridge.ValidateAllowedFilmCraftBridgeMethod("engine.ping");
+                string? blockedBridgeResp = await Program.ProcessJsonRpcMessageAsync("""{"jsonrpc":"2.0","id":3301,"method":"tools/call","params":{"name":"craft_storytold_engine","arguments":{"action":"filmcraft_bridge","bridgeMethod":"system.exec"}}}""");
+                AssertTest("33. Craft filmcraft_bridge RPC Method Allowlist ('engine.ping' Allowed, 'system.exec' Blocked)",
+                    allowedRpc == "engine.ping"
+                    && blockedBridgeResp != null && blockedBridgeResp.Contains("\"isError\":true"));
+
+                // 34. Craft Media Inspect Path Guard (Blocks System & UNC Paths) + Craft Workspace Check
+                string? mediaWinIniResp = await Program.ProcessJsonRpcMessageAsync("""{"jsonrpc":"2.0","id":3401,"method":"tools/call","params":{"name":"craft_media_inspect","arguments":{"targetPath":"C:\\Windows\\win.ini"}}}""");
+                string? mediaUncResp = await Program.ProcessJsonRpcMessageAsync("""{"jsonrpc":"2.0","id":3402,"method":"tools/call","params":{"name":"craft_media_inspect","arguments":{"targetPath":"\\\\attacker.local\\share\\clip.mp4"}}}""");
+                bool craftCheckOk = mediaWinIniResp != null && mediaWinIniResp.Contains("\"isError\":true")
+                    && mediaUncResp != null && mediaUncResp.Contains("\"isError\":true");
+                if (File.Exists(McpCraftBridge.CraftExePath))
+                {
+                    string? craftStatusResp = await Program.ProcessJsonRpcMessageAsync("""{"jsonrpc":"2.0","id":3403,"method":"tools/call","params":{"name":"craft_workspace_status","arguments":{"includeMedienCoverage":false}}}""");
+                    craftCheckOk = craftCheckOk && craftStatusResp != null && craftStatusResp.Contains("\"isError\":false");
+                }
+                AssertTest("34. Craft Media Inspect Blocks System/UNC Paths & Verifies Craft Bridge", craftCheckOk);
+
+                // 35. Music & SmartHome Control Tools + Ecosystem Health Probe
+                var health = await McpOrganizerClient.ProbeEcosystemHealthAsync();
+                string healthJson = JsonSerializer.Serialize(health);
+                string? volInvalidResp = await Program.ProcessJsonRpcMessageAsync("""{"jsonrpc":"2.0","id":3501,"method":"tools/call","params":{"name":"music_control","arguments":{"action":"set_volume","volume":150}}}""");
+                string? musicStatusResp = await Program.ProcessJsonRpcMessageAsync("""{"jsonrpc":"2.0","id":3502,"method":"tools/call","params":{"name":"music_control","arguments":{"action":"status","autoStartApp":false}}}""");
+                string? smartStatusResp = await Program.ProcessJsonRpcMessageAsync("""{"jsonrpc":"2.0","id":3503,"method":"tools/call","params":{"name":"smarthome_control","arguments":{"action":"status","autoStartApp":false}}}""");
+                AssertTest("35. Ecosystem Health, Music 0..100 Volume Guard & CurrentUser Pipe Probes",
+                    healthJson.Contains("\"apiOnline\":true")
+                    && volInvalidResp != null && volInvalidResp.Contains("\"isError\":true")
+                    && musicStatusResp != null && musicStatusResp.Contains("\"isError\":false")
+                    && smartStatusResp != null && smartStatusResp.Contains("\"isError\":false"));
+
+                // 36. Sliding-Window Rate Limiter Exhaustion Test (60 Allowed -> 61st Blocked)
+                McpSecurityGuard.ResetRateLimiterForTests();
+                bool all60Allowed = true;
+                for (int i = 0; i < 60; i++)
+                {
+                    try { McpSecurityGuard.EnforceRateLimit("rate_test_tool"); }
+                    catch { all60Allowed = false; break; }
+                }
+                bool call61Blocked = false;
+                try { McpSecurityGuard.EnforceRateLimit("rate_test_tool"); }
+                catch (InvalidOperationException) { call61Blocked = true; }
+                McpSecurityGuard.ResetRateLimiterForTests();
+                AssertTest("36. Sliding-Window Rate Limiter Allows 60/min And Rejects 61st Burst Call",
+                    all60Allowed && call61Blocked);
+
+                // 37. Stage Live-Air-Gap Guard Blocks seelenfunke-live, steinhauer-invest, production & Non-Mittwald Hosts
+                {
+                    bool liveBlocked = false;
+                    try { McpSecurityGuard.ValidateStageOnlyTarget("ssh.altgemeinde.project.host", "/home/p-g27wim/html/seelenfunke-live"); }
+                    catch (UnauthorizedAccessException) { liveBlocked = true; }
+
+                    bool investBlocked = false;
+                    try { McpSecurityGuard.ValidateStageOnlyTarget("ssh.altgemeinde.project.host", "/home/p-g27wim/html/steinhauer-invest"); }
+                    catch (UnauthorizedAccessException) { investBlocked = true; }
+
+                    bool wrongHostBlocked = false;
+                    try { McpSecurityGuard.ValidateStageOnlyTarget("mein-seelenfunke.de", "/home/p-g27wim/html/seelenfunke-stage"); }
+                    catch (UnauthorizedAccessException) { wrongHostBlocked = true; }
+
+                    McpSecurityGuard.ValidateStageOnlyTarget("ssh.altgemeinde.project.host", "/home/p-g27wim/html/seelenfunke-stage");
+                    McpSecurityGuard.ValidateStageOnlyTarget("ssh.altgemeinde.project.host", "/home/p-g27wim/html/worker-stage-3", allowWorkerStage: true);
+
+                    AssertTest("37. Stage Live-Air-Gap Guard Blocks seelenfunke-live, steinhauer-invest & Non-Stage Hosts",
+                        liveBlocked && investBlocked && wrongHostBlocked);
+                }
+
+                // 38. Stage Pure-Shop Asset Guard Blocks Music (.mp3/.m4a), Buchhaltung, Health, Env & Traversal
+                {
+                    string[] blockedSamples =
+                    {
+                        "leitung/music/tracks/song.m4a",
+                        "leitung/music/playlists_catalog.json",
+                        "buchhaltung/receipts/2026-11-01_Beleg.pdf",
+                        "buchhaltung/contracts/Vertrag.pdf",
+                        "buchhaltung/erictresor/cert.pfx",
+                        "agenten/workspace/Gesundheit/befund.pdf",
+                        "public/support/wiki/health/rezept.jpg",
+                        "public/leitung/person_profiles/avatar.webp",
+                        "private/system-brain-map.json",
+                        "firebase-service-account.json",
+                        ".env",
+                        "public/produkte/products/echtgold-seelen-herz/overlay.png",
+                        "public/produkte/products/seelen-kristall/backup/old.png",
+                        "public/produkte/../../.env"
+                    };
+
+                    bool allForbiddenBlocked = true;
+                    foreach (string bad in blockedSamples)
+                    {
+                        bool threw = false;
+                        try { McpSecurityGuard.ValidatePureShopAssetRelativePath(bad); }
+                        catch (UnauthorizedAccessException) { threw = true; }
+                        if (!threw) { allForbiddenBlocked = false; break; }
+                    }
+                    AssertTest("38. Stage Pure-Shop Asset Guard Hard-Blocks Music, Buchhaltung, Health, Env & Backups",
+                        allForbiddenBlocked);
+                }
+
+                // 39. Stage Pure-Shop Asset Guard Accepts Active Product, 3D GLB, Configurator, Digital ZIP & Blog Assets
+                {
+                    string p1 = McpSecurityGuard.ValidatePureShopAssetRelativePath("public/produkte/products/seelen-kristall/t_seelenk.glb");
+                    string p2 = McpSecurityGuard.ValidatePureShopAssetRelativePath("public/produkte/product-templates/seelen-kristall-weihnachten.jpg");
+                    string p3 = McpSecurityGuard.ValidatePureShopAssetRelativePath("public/produkte/laser-anleitungen/Anleitung_1_360_Grad_Gravur_xTool_RA3.pdf");
+                    string p4 = McpSecurityGuard.ValidatePureShopAssetRelativePath("produkte/products-secure/KI_Agenten_Management_Paket.zip");
+                    string p5 = McpSecurityGuard.ValidatePureShopAssetRelativePath("public/marketing/blog/herzensprojekt.webp");
+                    AssertTest("39. Stage Pure-Shop Asset Guard Accepts Valid 3D GLB, Templates, Laser-Guides, Digital ZIP & Blog",
+                        p1.EndsWith(".glb") && p2.EndsWith(".jpg") && p3.EndsWith(".pdf") && p4.EndsWith(".zip") && p5.EndsWith(".webp"));
+                }
+
+                // 40. SSH Preset stage_deploy Rejects Live Target Path Before Any Network Socket Opens
+                {
+                    bool livePresetRejected = false;
+                    try
+                    {
+                        await McpSecurityGuard.ExecutePinnedSshPresetAsync("Mittwald", "stage_deploy", "/home/p-g27wim/html/seelenfunke-live");
+                    }
+                    catch (UnauthorizedAccessException)
+                    {
+                        livePresetRejected = true;
+                    }
+                    AssertTest("40. SSH Preset stage_deploy Rejects /seelenfunke-live Before Opening Any Network Socket",
+                        livePresetRejected);
+                }
+
+                Console.WriteLine($"=== RESULT: {passed} PASSED, {failed} FAILED ===");
+                return failed == 0 ? 0 : 1;
             }
             finally
             {
-                if (File.Exists(tempChain)) File.Delete(tempChain);
-            }
-
-            // 16. Deeply Nested JSON Bomb Defense (MaxDepth = 24)
-            string jsonBomb = "{\"jsonrpc\":\"2.0\",\"id\":99,\"method\":\"ping\",\"params\":{\"a\":" + new string('[', 40) + "1" + new string(']', 40) + "}}";
-            string? bombResp = await Program.ProcessJsonRpcMessageAsync(jsonBomb);
-            AssertTest("16. Deeply Nested JSON Bomb Rejected Cleanly (MaxDepth=24 -> -32700)",
-                bombResp != null && bombResp.Contains("-32700"));
-
-            // 17. Oversized String Parameter Defense (> 4096 chars)
-            string hugePathReq = "{\"jsonrpc\":\"2.0\",\"id\":100,\"method\":\"tools/call\",\"params\":{\"name\":\"pdf_inspect\",\"arguments\":{\"filePath\":\"" + new string('A', 5000) + ".pdf\"}}}";
-            string? hugeResp = await Program.ProcessJsonRpcMessageAsync(hugePathReq);
-            AssertTest("17. Oversized Tool Argument (>4 KB) Rejected Safely",
-                hugeResp != null && hugeResp.Contains("\"isError\":true"));
-
-            // 18. Zero-Secret Server Profile Listing + OpenSSH SHA-256 Pin Recognition
-            var sanitizedProfiles = McpSecurityGuard.GetSanitizedServerProfiles();
-            string profilesJson = JsonSerializer.Serialize(sanitizedProfiles);
-            AssertTest("18. Zero-Secret Server Profiles Serialization (Zero Passwords/Keys Exposed)",
-                !profilesJson.Contains("EncryptedPassword") && !profilesJson.Contains("FWAES256GCM1:") && !profilesJson.Contains("FWSSHAES256GCM1:"));
-
-            // 19. Atomic PDF Write + Overwrite-Protection + FBM KYC Stammdaten Autofill E2E
-            string sampleKyc = @"C:\Users\konta\Downloads\FBM_KYC_und_Verhaltensregeln_für_Geschaeftspartner-DE.pdf";
-            if (File.Exists(sampleKyc))
-            {
-                string tempOut = @"C:\Users\konta\Downloads\_mcp_selftest_temp_kyc.pdf";
+                McpOrganizerClient.TestHttpClientOverride = null;
+                McpOrganizerClient.TestBaseUrlOverride = null;
+                McpSecurityGuard.ResetRateLimiterForTests();
                 try
                 {
-                    if (File.Exists(tempOut)) File.Delete(tempOut);
-                    var inspect = McpPdfEngine.InspectPdf(sampleKyc);
-                    var autoMap = McpPdfEngine.BuildSeelenfunkeStammdatenMapping(inspect.Fields);
-                    autoMap["Zugehörigkeit Nein"] = "X";
-
-                    byte[] rawBytes = await File.ReadAllBytesAsync(sampleKyc);
-                    var (saved, _, _) = McpPdfEngine.ApplyFormValuesAndOverlays(rawBytes, autoMap, null);
-                    await McpSecurityGuard.WriteSafeFileAtomicAsync(tempOut, new[] { ".pdf" }, saved, allowOverwrite: false);
-
-                    // Verify overwrite=false blocks accidental overwrite!
-                    bool overwriteBlocked = false;
-                    try
-                    {
-                        await McpSecurityGuard.WriteSafeFileAtomicAsync(tempOut, new[] { ".pdf" }, saved, allowOverwrite: false);
-                    }
-                    catch (InvalidOperationException)
-                    {
-                        overwriteBlocked = true;
-                    }
-
-                    // Verify overwrite=true succeeds atomically
-                    await McpSecurityGuard.WriteSafeFileAtomicAsync(tempOut, new[] { ".pdf" }, saved, allowOverwrite: true);
-
-                    var verifyInspect = McpPdfEngine.InspectPdf(tempOut);
-                    string firmVal = verifyInspect.Fields.First(f => f.Name == "Firmenname").Value;
-                    string ownerVal = verifyInspect.Fields.First(f => f.Name == "Name des Inhabers").Value;
-                    string bankVal = verifyInspect.Fields.First(f => f.Name == "Bank-Name").Value;
-                    string neinVal = verifyInspect.Fields.First(f => f.Name == "Zugehörigkeit Nein").Value;
-
-                    AssertTest("19. Atomic PDF Write, Overwrite-Guard & FBM KYC Stammdaten Autofill",
-                        overwriteBlocked
-                        && inspect.FormFieldCount == 35
-                        && firmVal == "Mein-Seelenfunke"
-                        && ownerVal == "Alina Steinhauer"
-                        && bankVal == "FYRST (Deutsche Bank AG)"
-                        && neinVal == "X");
+                    if (Directory.Exists(tempRoot))
+                        Directory.Delete(tempRoot, recursive: true);
                 }
-                finally
-                {
-                    if (File.Exists(tempOut)) File.Delete(tempOut);
-                }
+                catch { }
             }
-
-            // 20. Full JSON-RPC 2.0 MCP Protocol Handshake, Resources & Tool Call Simulation
-            string? initResp = await Program.ProcessJsonRpcMessageAsync("""{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"antigravity","version":"2.0"}}}""");
-            string? notifResp = await Program.ProcessJsonRpcMessageAsync("""{"jsonrpc":"2.0","method":"notifications/initialized"}""");
-            string? resListResp = await Program.ProcessJsonRpcMessageAsync("""{"jsonrpc":"2.0","id":2,"method":"resources/list","params":{}}""");
-            string? toolsResp = await Program.ProcessJsonRpcMessageAsync("""{"jsonrpc":"2.0","id":3,"method":"tools/list","params":{}}""");
-            string? callResp = await Program.ProcessJsonRpcMessageAsync("""{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"collection_control","arguments":{"action":"stammdaten"}}}""");
-
-            AssertTest("20. MCP JSON-RPC 2.0 Handshake, Resources, Tools & Notification Silence",
-                initResp != null && initResp.Contains("\"funkenwerk-mcp\"")
-                && notifResp == null
-                && resListResp != null && resListResp.Contains("funkenwerk://security/policy")
-                && toolsResp != null && toolsResp.Contains("\"pdf_autofill_stammdaten\"") && toolsResp.Contains("\"tasks_manage\"")
-                && callResp != null && callResp.Contains("Alina Steinhauer") && callResp.Contains("\"isError\":false"));
-
-            // 21. Live 3-Way Organizer Sync Read Verification (Tasks + Calendar via Zero-Secret FWVAULT2 Bridge)
-            var tasksObj = await McpOrganizerClient.ListTasksAsync(onlyOpen: true);
-            var calObj = await McpOrganizerClient.ListCalendarEventsAsync(daysAhead: 14);
-            string orgJson = JsonSerializer.Serialize(new { tasksObj, calObj });
-            AssertTest("21. Live 3-Way Organizer API Sync (Tasks + Calendar via FWVAULT2 Zero-Secret Auth)",
-                orgJson.Contains("\"lists\"") && orgJson.Contains("\"events\"") && !orgJson.Contains("FWVAULT2:"));
-
-            // 22. Ecosystem Health & Collection Binaries Verification
-            var health = await McpOrganizerClient.ProbeEcosystemHealthAsync();
-            string healthJson = JsonSerializer.Serialize(health);
-            AssertTest("22. Live Ecosystem Health & 6 Collection Binaries Verified",
-                healthJson.Contains("\"apiOnline\":true") && healthJson.Contains("FunkenwerkPdf.exe\"") && !healthJson.Contains("FWVAULT2:"),
-                healthJson);
-
-            // 23. Music & SmartHome Live Control Tools Registration & Volume Bounds Guard
-            string? volInvalidResp = await Program.ProcessJsonRpcMessageAsync("""{"jsonrpc":"2.0","id":23,"method":"tools/call","params":{"name":"music_control","arguments":{"action":"set_volume","volume":150}}}""");
-            string? musicStatusResp = await Program.ProcessJsonRpcMessageAsync("""{"jsonrpc":"2.0","id":24,"method":"tools/call","params":{"name":"music_control","arguments":{"action":"status","autoStartApp":false}}}""");
-            string? smartStatusResp = await Program.ProcessJsonRpcMessageAsync("""{"jsonrpc":"2.0","id":25,"method":"tools/call","params":{"name":"smarthome_control","arguments":{"action":"status","autoStartApp":false}}}""");
-            AssertTest("23. Music & SmartHome Control Tools + 0..100 Volume Guard + CurrentUser IPC",
-                toolsResp != null && toolsResp.Contains("\"music_control\"") && toolsResp.Contains("\"smarthome_control\"")
-                && volInvalidResp != null && volInvalidResp.Contains("\"isError\":true")
-                && musicStatusResp != null && musicStatusResp.Contains("\"isError\":false")
-                && smartStatusResp != null && smartStatusResp.Contains("\"isError\":false"));
-
-            // 24. All 10 Funkenwerk Collection Binaries Verified (incl. FunkenwerkTresor.exe, FunkenwerkDrucker.exe, FunkenwerkBrowser.exe & FunkenwerkOS.exe)
-            AssertTest("24. All 10 Funkenwerk Collection Binaries Verified",
-                healthJson.Contains("Funkenwerk.exe\"")
-                && healthJson.Contains("FunkenwerkTresor.exe\"")
-                && healthJson.Contains("FunkenwerkPdf.exe\"")
-                && healthJson.Contains("FunkenwerkDrucker.exe\"")
-                && healthJson.Contains("FunkenwerkOS.exe\"")
-                && healthJson.Contains("FunkenwerkBrowser.exe\"")
-                && healthJson.Contains("FunkenwerkFtp.exe\"")
-                && healthJson.Contains("FunkenwerkSsh.exe\"")
-                && healthJson.Contains("FunkenwerkPlayer.exe\"")
-                && healthJson.Contains("FunkenwerkVideo.exe\"")
-                && healthJson.Contains("FunkenwerkCraft.exe\""),
-                healthJson);
-
-            // 25. Craft Media Sandbox Guard & Storytold ArtCraft/FilmCraft/SoundCraft + CC0 SoundPool Verification
-            AssertThrowsSecurity("25. Block Craft Media Escape Outside Allowed Media Roots (C:\\Windows\\win.ini)", () =>
-                McpCraftBridge.ValidateSafeMediaSourceOrCraftPath(@"C:\Windows\win.ini", allowAudio: true));
-
-            string? craftStatusResp = await Program.ProcessJsonRpcMessageAsync("""{"jsonrpc":"2.0","id":26,"method":"tools/call","params":{"name":"craft_workspace_status","arguments":{"includeMedienCoverage":true}}}""");
-            string? craftSoundResp = await Program.ProcessJsonRpcMessageAsync("""{"jsonrpc":"2.0","id":27,"method":"tools/call","params":{"name":"craft_soundpool_browser","arguments":{"category":"Uebergaenge_Whoosh"}}}""");
-            AssertTest("26. Funkenwerk Craft MCP Tools (ArtCraft + FilmCraft + SoundCraft + 32 CC0 Sounds + Y:\\Medien Coverage)",
-                craftStatusResp != null && craftStatusResp.Contains("\"isError\":false") && craftStatusResp.Contains("artcraft.exe") && craftStatusResp.Contains("filmcraft.exe")
-                && craftSoundResp != null && craftSoundResp.Contains("Whoosh_Klassisch_Schnell_01.wav"));
-
-            Console.WriteLine($"=== RESULT: {passed} PASSED, {failed} FAILED ===");
-            return failed == 0 ? 0 : 1;
         }
     }
 }

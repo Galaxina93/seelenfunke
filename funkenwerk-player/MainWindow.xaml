@@ -12,9 +12,10 @@
         AllowDrop="True"
         DragOver="Window_DragOver"
         Drop="Window_Drop"
-        KeyDown="Window_KeyDown"
+        PreviewKeyDown="Window_PreviewKeyDown"
         MouseMove="Window_MouseMove"
-        MouseWheel="Window_MouseWheel">
+        MouseWheel="Window_MouseWheel"
+        Closed="MainWindow_Closed">
 
     <Grid x:Name="RootGrid" Background="#000000">
         <Grid.RowDefinitions>
@@ -52,19 +53,19 @@
 
                 <!-- Top Actions -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button Click="OpenFile_Click" Background="#181B24" Foreground="#F9FAFB" BorderBrush="#262A36" BorderThickness="1"
+                    <Button Click="OpenFile_Click" Focusable="False" Background="#181B24" Foreground="#F9FAFB" BorderBrush="#262A36" BorderThickness="1"
                             Padding="11,5" Margin="0,0,7,0" Cursor="Hand" FontSize="11.5" FontWeight="SemiBold" Content="＋ Öffnen">
                         <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
                     </Button>
-                    <Button x:Name="DefaultPlayerBtn" Click="SetDefaultPlayer_Click" Background="#26231F" Foreground="#C5A059" BorderBrush="#C5A059" BorderThickness="1"
+                    <Button x:Name="DefaultPlayerBtn" Click="SetDefaultPlayer_Click" Focusable="False" Background="#26231F" Foreground="#C5A059" BorderBrush="#C5A059" BorderThickness="1"
                             Padding="11,5" Margin="0,0,7,0" Cursor="Hand" FontSize="11.5" FontWeight="Bold" Content="★ Standard-Player">
                         <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
                     </Button>
-                    <Button x:Name="PlaylistToggleBtn" Click="TogglePlaylist_Click" Background="#181B24" Foreground="#F9FAFB" BorderBrush="#262A36" BorderThickness="1"
+                    <Button x:Name="PlaylistToggleBtn" Click="TogglePlaylist_Click" Focusable="False" Background="#181B24" Foreground="#F9FAFB" BorderBrush="#262A36" BorderThickness="1"
                             Padding="11,5" Margin="0,0,7,0" Cursor="Hand" FontSize="11.5" FontWeight="SemiBold" Content="☰ Playlist (0)">
                         <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
                     </Button>
-                    <Button x:Name="ThemeToggleBtn" Click="ThemeToggle_Click" Background="#181B24" Foreground="#F9FAFB" BorderBrush="#262A36" BorderThickness="1"
+                    <Button x:Name="ThemeToggleBtn" Click="ThemeToggle_Click" Focusable="False" Background="#181B24" Foreground="#F9FAFB" BorderBrush="#262A36" BorderThickness="1"
                             Padding="10,5" Cursor="Hand" FontSize="11.5" FontWeight="SemiBold" Content="🌙">
                         <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
                     </Button>
@@ -115,11 +116,11 @@
                             <TextBlock Text="FUNKENWERK PLAYER" Foreground="#F9FAFB" FontSize="17" FontWeight="Bold" HorizontalAlignment="Center"/>
                             <TextBlock Text="Video- oder Audiodatei hierher ziehen oder klicken zum Öffnen" Foreground="#9CA3AF" FontSize="12.5" HorizontalAlignment="Center" Margin="0,6,0,16"/>
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                <Button Click="OpenFile_Click" Background="#26231F" Foreground="#C5A059" BorderBrush="#C5A059" BorderThickness="1"
+                                <Button Click="OpenFile_Click" Focusable="False" Background="#26231F" Foreground="#C5A059" BorderBrush="#C5A059" BorderThickness="1"
                                         Padding="16,8" Margin="0,0,10,0" Cursor="Hand" FontSize="12.5" FontWeight="Bold" Content="📂 Datei auswählen">
                                     <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="9"/></Style></Button.Resources>
                                 </Button>
-                                <Button Click="OpenLatestDesktopVideo_Click" Background="#181B24" Foreground="#F9FAFB" BorderBrush="#262A36" BorderThickness="1"
+                                <Button Click="OpenLatestDesktopVideo_Click" Focusable="False" Background="#181B24" Foreground="#F9FAFB" BorderBrush="#262A36" BorderThickness="1"
                                         Padding="16,8" Cursor="Hand" FontSize="12.5" FontWeight="SemiBold" Content="⚡ Letztes Desktop-Video">
                                     <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="9"/></Style></Button.Resources>
                                 </Button>
@@ -152,11 +153,11 @@
                         </Grid.ColumnDefinitions>
                         <TextBlock Text="WIEDERGABELISTE" Foreground="#C5A059" FontSize="12" FontWeight="Bold" VerticalAlignment="Center"/>
                         <StackPanel Grid.Column="1" Orientation="Horizontal">
-                            <Button Click="OpenFile_Click" Background="#181B24" Foreground="#C5A059" BorderBrush="#262A36" BorderThickness="1"
+                            <Button Click="OpenFile_Click" Focusable="False" Background="#181B24" Foreground="#C5A059" BorderBrush="#262A36" BorderThickness="1"
                                     Padding="8,3" Margin="0,0,5,0" Cursor="Hand" FontSize="11" FontWeight="Bold" Content="＋">
                                 <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style></Button.Resources>
                             </Button>
-                            <Button Click="ClearPlaylist_Click" Background="#181B24" Foreground="#F87171" BorderBrush="#262A36" BorderThickness="1"
+                            <Button Click="ClearPlaylist_Click" Focusable="False" Background="#181B24" Foreground="#F87171" BorderBrush="#262A36" BorderThickness="1"
                                     Padding="8,3" Cursor="Hand" FontSize="11" FontWeight="Bold" Content="🗑">
                                 <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style></Button.Resources>
                             </Button>
@@ -179,10 +180,13 @@
                 <Grid Margin="0,0,0,8">
                     <Slider x:Name="TimelineSlider"
                             Minimum="0" Maximum="100" Value="0"
-                            IsMoveToPointEnabled="True"
+                            Focusable="False"
+                            IsMoveToPointEnabled="False"
                             Cursor="Hand"
                             PreviewMouseLeftButtonDown="TimelineSlider_PreviewMouseLeftButtonDown"
+                            PreviewMouseMove="TimelineSlider_PreviewMouseMove"
                             PreviewMouseLeftButtonUp="TimelineSlider_PreviewMouseLeftButtonUp"
+                            LostMouseCapture="TimelineSlider_LostMouseCapture"
                             ValueChanged="TimelineSlider_ValueChanged"/>
                 </Grid>
 
@@ -200,17 +204,17 @@
                         <TextBlock Text=" / " Foreground="#9CA3AF" FontSize="12.5" VerticalAlignment="Center"/>
                         <TextBlock x:Name="TimeTotalTxt" Text="00:00" Foreground="#9CA3AF" FontSize="12.5" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,14,0"/>
 
-                        <Button x:Name="LoopBtn" Click="LoopToggle_Click" Background="#26231F" Foreground="#C5A059" BorderBrush="#C5A059" BorderThickness="1"
+                        <Button x:Name="LoopBtn" Click="LoopToggle_Click" Focusable="False" Background="#26231F" Foreground="#C5A059" BorderBrush="#C5A059" BorderThickness="1"
                                 Padding="9,4" Margin="0,0,6,0" Cursor="Hand" FontSize="11" FontWeight="Bold" ToolTip="Endlosschleife (L)" Content="🔁 Loop An">
                             <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style></Button.Resources>
                         </Button>
 
-                        <Button x:Name="SpeedBtn" Click="SpeedCycle_Click" Background="#181B24" Foreground="#F9FAFB" BorderBrush="#262A36" BorderThickness="1"
+                        <Button x:Name="SpeedBtn" Click="SpeedCycle_Click" Focusable="False" Background="#181B24" Foreground="#F9FAFB" BorderBrush="#262A36" BorderThickness="1"
                                 Padding="9,4" Margin="0,0,6,0" Cursor="Hand" FontSize="11" FontWeight="Bold" ToolTip="Geschwindigkeit" Content="1.0x">
                             <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style></Button.Resources>
                         </Button>
 
-                        <Button x:Name="AbLoopBtn" Click="AbLoop_Click" Background="#181B24" Foreground="#D1D5DB" BorderBrush="#262A36" BorderThickness="1"
+                        <Button x:Name="AbLoopBtn" Click="AbLoop_Click" Focusable="False" Background="#181B24" Foreground="#D1D5DB" BorderBrush="#262A36" BorderThickness="1"
                                 Padding="9,4" Cursor="Hand" FontSize="11" FontWeight="SemiBold" ToolTip="A-B Abschnitt wiederholen" Content="A↔B">
                             <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style></Button.Resources>
                         </Button>
@@ -218,32 +222,32 @@
 
                     <!-- Center: Main Play / Pause / Skip / Frame-Step Transport -->
                     <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                        <Button Click="PrevTrack_Click" Background="#181B24" Foreground="#F9FAFB" BorderBrush="#262A36" BorderThickness="1"
+                        <Button Click="PrevTrack_Click" Focusable="False" Background="#181B24" Foreground="#F9FAFB" BorderBrush="#262A36" BorderThickness="1"
                                 Width="36" Height="34" Margin="0,0,6,0" Cursor="Hand" FontSize="12" FontWeight="Bold" ToolTip="Vorherige Datei (P)" Content="⏮">
                             <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
                         </Button>
 
-                        <Button Click="SkipBackward_Click" Background="#181B24" Foreground="#F9FAFB" BorderBrush="#262A36" BorderThickness="1"
+                        <Button Click="SkipBackward_Click" Focusable="False" Background="#181B24" Foreground="#F9FAFB" BorderBrush="#262A36" BorderThickness="1"
                                 Padding="10,0" Height="34" Margin="0,0,6,0" Cursor="Hand" FontSize="11.5" FontWeight="Bold" ToolTip="5 Sekunden zurück (←)" Content="-5s">
                             <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
                         </Button>
 
-                        <Button x:Name="PlayPauseBtn" Click="PlayPause_Click" Background="#26231F" Foreground="#C5A059" BorderBrush="#C5A059" BorderThickness="1.5"
+                        <Button x:Name="PlayPauseBtn" Click="PlayPause_Click" Focusable="False" Background="#26231F" Foreground="#C5A059" BorderBrush="#C5A059" BorderThickness="1.5"
                                 Width="54" Height="38" Margin="0,0,6,0" Cursor="Hand" FontSize="15" FontWeight="Bold" ToolTip="Wiedergabe / Pause (Leertaste)" Content="▶">
                             <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="10"/></Style></Button.Resources>
                         </Button>
 
-                        <Button Click="SkipForward_Click" Background="#181B24" Foreground="#F9FAFB" BorderBrush="#262A36" BorderThickness="1"
+                        <Button Click="SkipForward_Click" Focusable="False" Background="#181B24" Foreground="#F9FAFB" BorderBrush="#262A36" BorderThickness="1"
                                 Padding="10,0" Height="34" Margin="0,0,6,0" Cursor="Hand" FontSize="11.5" FontWeight="Bold" ToolTip="5 Sekunden vor (→)" Content="+5s">
                             <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
                         </Button>
 
-                        <Button Click="NextTrack_Click" Background="#181B24" Foreground="#F9FAFB" BorderBrush="#262A36" BorderThickness="1"
+                        <Button Click="NextTrack_Click" Focusable="False" Background="#181B24" Foreground="#F9FAFB" BorderBrush="#262A36" BorderThickness="1"
                                 Width="36" Height="34" Margin="0,0,6,0" Cursor="Hand" FontSize="12" FontWeight="Bold" ToolTip="Nächste Datei (N)" Content="⏭">
                             <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
                         </Button>
 
-                        <Button Click="Stop_Click" Background="#181B24" Foreground="#D1D5DB" BorderBrush="#262A36" BorderThickness="1"
+                        <Button Click="Stop_Click" Focusable="False" Background="#181B24" Foreground="#D1D5DB" BorderBrush="#262A36" BorderThickness="1"
                                 Width="36" Height="34" Cursor="Hand" FontSize="12" FontWeight="Bold" ToolTip="Stopp" Content="⏹">
                             <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
                         </Button>
@@ -251,27 +255,27 @@
 
                     <!-- Right: Volume + Aspect/Zoom + Snapshot + Fullscreen -->
                     <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                        <Button x:Name="MuteBtn" Click="Mute_Click" Background="Transparent" Foreground="#F9FAFB" BorderThickness="0"
+                        <Button x:Name="MuteBtn" Click="Mute_Click" Focusable="False" Background="Transparent" Foreground="#F9FAFB" BorderThickness="0"
                                 Padding="6,4" Cursor="Hand" FontSize="13" FontWeight="Bold" VerticalAlignment="Center" ToolTip="Stumm (M)" Content="🔊"/>
 
                         <Slider x:Name="VolumeSlider" Width="88" Minimum="0" Maximum="100" Value="85"
-                                IsMoveToPointEnabled="True" VerticalAlignment="Center" Cursor="Hand"
+                                Focusable="False" IsMoveToPointEnabled="True" VerticalAlignment="Center" Cursor="Hand"
                                 ValueChanged="VolumeSlider_ValueChanged"/>
 
                         <TextBlock x:Name="VolumePercentTxt" Text="85%" Width="34" Foreground="#9CA3AF" FontSize="11" FontWeight="Bold"
                                    VerticalAlignment="Center" Margin="5,0,10,0"/>
 
-                        <Button x:Name="AspectBtn" Click="AspectToggle_Click" Background="#181B24" Foreground="#F9FAFB" BorderBrush="#262A36" BorderThickness="1"
+                        <Button x:Name="AspectBtn" Click="AspectToggle_Click" Focusable="False" Background="#181B24" Foreground="#F9FAFB" BorderBrush="#262A36" BorderThickness="1"
                                 Padding="9,4" Margin="0,0,6,0" Cursor="Hand" FontSize="11" FontWeight="SemiBold" ToolTip="Bildformat (Einpassen / Ausfüllen)" Content="Einpassen">
                             <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style></Button.Resources>
                         </Button>
 
-                        <Button Click="Snapshot_Click" Background="#181B24" Foreground="#C5A059" BorderBrush="#262A36" BorderThickness="1"
+                        <Button Click="Snapshot_Click" Focusable="False" Background="#181B24" Foreground="#C5A059" BorderBrush="#262A36" BorderThickness="1"
                                 Width="34" Height="30" Margin="0,0,6,0" Cursor="Hand" FontSize="12" ToolTip="Frame-Screenshot auf Desktop speichern (S)" Content="📷">
                             <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style></Button.Resources>
                         </Button>
 
-                        <Button x:Name="FullscreenBtn" Click="Fullscreen_Click" Background="#26231F" Foreground="#C5A059" BorderBrush="#C5A059" BorderThickness="1"
+                        <Button x:Name="FullscreenBtn" Click="Fullscreen_Click" Focusable="False" Background="#26231F" Foreground="#C5A059" BorderBrush="#C5A059" BorderThickness="1"
                                 Width="34" Height="30" Cursor="Hand" FontSize="13" FontWeight="Bold" ToolTip="Vollbild (F11 / Doppelklick)" Content="⛶">
                             <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style></Button.Resources>
                         </Button>

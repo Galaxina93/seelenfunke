@@ -28,16 +28,20 @@ Route::get('/funki/financials/kpis', function (Request $request) {
             if (!$item->first_payment_date) continue;
             try {
                 $firstPaymentDate = Carbon::parse($item->first_payment_date);
-                $startMonth = $firstPaymentDate->month;
             } catch (\Exception $e) {
                 continue;
             }
-            $interval = $item->interval_months ?: 1;
-            $diff = ($month - $startMonth);
-            if ($diff < 0) $diff += 12;
-            if (($diff % $interval) === 0) {
-                if ($item->amount >= 0) $fixedIncome += $item->amount;
-                else $fixedExpenses += $item->amount;
+            if (!$firstPaymentDate->copy()->startOfMonth()->lte($now->copy()->endOfMonth())) {
+                continue;
+            }
+            $interval = max(1, (int) ($item->interval_months ?: 1));
+            $elapsedMonths = (($now->year - $firstPaymentDate->year) * 12) + ($now->month - $firstPaymentDate->month);
+            if ($elapsedMonths >= 0 && ($elapsedMonths % $interval) === 0) {
+                if ($item->amount >= 0) {
+                    $fixedIncome += $item->amount;
+                } else {
+                    $fixedExpenses += $item->amount;
+                }
             }
         }
     }
@@ -204,13 +208,22 @@ Route::post('/funki/financials/scan-receipt', function (Request $request) {
             $amount = -$amount;
         }
 
+        $execDate = now()->format('Y-m-d');
+        if (!empty($aiResult['date'])) {
+            try {
+                $execDate = \Carbon\Carbon::parse((string) $aiResult['date'])->format('Y-m-d');
+            } catch (\Throwable $dateErr) {
+                $execDate = now()->format('Y-m-d');
+            }
+        }
+
         $issue = AccountingSpecialIssue::create([
             'id' => Str::uuid(),
             'admin_id' => $request->user()->id,
             'title' => $aiResult['title'],
             'amount' => $amount,
             'category' => $aiResult['category'] ?: 'Sonstiges',
-            'execution_date' => $aiResult['date'] ?: now()->format('Y-m-d'),
+            'execution_date' => $execDate,
             'is_business' => $aiResult['is_business'],
             'location' => $aiResult['location'] ?: 'App Beleg-Scan',
             'tax_rate' => $aiResult['is_business'] ? $aiResult['tax_rate'] : null,

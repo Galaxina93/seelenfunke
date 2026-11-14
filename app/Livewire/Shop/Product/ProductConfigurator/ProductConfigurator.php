@@ -269,7 +269,8 @@ class ProductConfigurator extends Component
         }
         $this->giftWrapMode = ($restoredWrapMode === 'loose') ? 'loose' : 'wrapped';
         $this->uploaded_files = is_array($source['files'] ?? null) ? $source['files'] : [];
-        if (!empty($this->uploaded_files)) {
+        // Nur für eigene Warenkorb-Positionen (nicht bei Produkt-Vorlagen aus $initialData!) als Session-Eigentum registrieren
+        if (!empty($this->uploaded_files) && $this->cartItem && empty($initialData)) {
             $this->registerSessionOwnedUploads($this->uploaded_files);
         }
         $rawSnapshot = $source['snapshot_path'] ?? [];
@@ -1144,12 +1145,25 @@ class ProductConfigurator extends Component
         if ($oldValue === '' || str_contains($oldValue, '..') || str_contains($oldValue, "\0")) {
             return null;
         }
+        if ($originalValue === '' || str_contains($originalValue, '..') || str_contains($originalValue, "\0")) {
+            return null;
+        }
 
-        $isAllowedSource = str_starts_with($oldValue, 'bestellungen/cart-uploads/')
-            || str_starts_with($oldValue, 'vectors/')
-            || in_array($oldValue, $this->uploaded_files ?? [], true);
+        $ownedUploads = session('configurator_owned_uploads', []);
+        if (!is_array($ownedUploads)) {
+            $ownedUploads = [];
+        }
+        $isStaff = auth()->guard('admin')->check()
+            || \App\Services\AI\AiAuthHelper::isAdmin()
+            || \App\Services\AI\AiAuthHelper::isEmployee();
 
-        if (!$isAllowedSource) {
+        $isAllowedSource = str_starts_with($oldValue, 'vectors/')
+            || (str_starts_with($oldValue, 'bestellungen/cart-uploads/') && ($isStaff || in_array($oldValue, $ownedUploads, true) || in_array($oldValue, $this->uploaded_files ?? [], true)));
+
+        $isAllowedOriginal = str_starts_with($originalValue, 'vectors/')
+            || (str_starts_with($originalValue, 'bestellungen/cart-uploads/') && ($isStaff || in_array($originalValue, $ownedUploads, true) || in_array($originalValue, $this->uploaded_files ?? [], true)));
+
+        if (!$isAllowedSource || !$isAllowedOriginal) {
             return null;
         }
 
@@ -1201,7 +1215,14 @@ class ProductConfigurator extends Component
         }
 
         $finalUrl = asset('storage/' . $finalPath);
-        $this->registerSessionOwnedUploads([$finalPath, $originalValue]);
+        $toRegister = [$finalPath];
+        if (
+            str_starts_with($originalValue, 'bestellungen/cart-uploads/')
+            && ($isStaff || in_array($originalValue, $ownedUploads, true) || in_array($originalValue, $this->uploaded_files ?? [], true))
+        ) {
+            $toRegister[] = $originalValue;
+        }
+        $this->registerSessionOwnedUploads($toRegister);
 
         $foundInUploaded = false;
         foreach ($this->uploaded_files as $idx => $uf) {
@@ -1215,12 +1236,14 @@ class ProductConfigurator extends Component
         }
         $this->uploaded_files = array_values(array_unique($this->uploaded_files));
 
-        // Wenn $oldValue bereits ein Zwischen-Zuschnitt war (und nicht das Originalbild), Zwischen-Datei aufräumen
+        // Wenn $oldValue bereits ein eigener Zwischen-Zuschnitt war (und in keinem Template genutzt wird), Zwischen-Datei aufräumen
         if (
             $oldValue !== $finalPath
             && $oldValue !== $originalValue
             && str_starts_with($oldValue, 'bestellungen/cart-uploads/')
             && str_ends_with($oldValue, '_crop.png')
+            && in_array($oldValue, $ownedUploads, true)
+            && !app(\App\Services\CartFileCleanupService::class)->isFileUsedInTemplates(basename($oldValue))
             && Storage::disk('public')->exists($oldValue)
         ) {
             Storage::disk('public')->delete($oldValue);
@@ -1275,6 +1298,8 @@ class ProductConfigurator extends Component
             $currentValue !== $originalValue
             && str_starts_with($currentValue, 'bestellungen/cart-uploads/')
             && str_ends_with($currentValue, '_crop.png')
+            && in_array($currentValue, $ownedUploads, true)
+            && !app(\App\Services\CartFileCleanupService::class)->isFileUsedInTemplates(basename($currentValue))
             && Storage::disk('public')->exists($currentValue)
         ) {
             Storage::disk('public')->delete($currentValue);
@@ -1480,8 +1505,16 @@ class ProductConfigurator extends Component
                             );
                             continue;
                         }
-                        if ($val !== '' && !str_starts_with($val, 'vectors/') && !str_starts_with($val, 'bestellungen/cart-uploads/') && !in_array($val, $this->uploaded_files, true)) {
-                            continue;
+                        if ($val !== '' && !str_starts_with($val, 'vectors/')) {
+                            $ownedUploads = (array) session('configurator_owned_uploads', []);
+                            $isStaff = auth()->guard('admin')->check()
+                                || \App\Services\AI\AiAuthHelper::isAdmin()
+                                || \App\Services\AI\AiAuthHelper::isEmployee();
+                            $allowedCartUpload = str_starts_with($val, 'bestellungen/cart-uploads/')
+                                && ($isStaff || in_array($val, $ownedUploads, true) || in_array($val, $this->uploaded_files, true) || app(\App\Services\CartFileCleanupService::class)->isFileUsedInTemplates(basename($val)));
+                            if (!$allowedCartUpload && !in_array($val, $this->uploaded_files, true)) {
+                                continue;
+                            }
                         }
                         $cleaned[] = $l;
                     }
@@ -1699,19 +1732,20 @@ class ProductConfigurator extends Component
                     $this->dispatch('order-item-updated', itemId: $orderItem->id);
                 }
             });
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             SystemLog::create([
-                'type' => 'error',
-                'agent_id' => null,
+                'title' => 'Konfigurator Speicherfehler',
+                'type' => 'system',
+                'status' => 'error',
                 'action_id' => 'configurator_save',
                 'message' => 'Fehler beim Speichern der Konfiguration: ' . $e->getMessage(),
-                'details' => json_encode([
+                'payload' => [
                     'file' => $e->getFile(),
                     'line' => $e->getLine(),
-                    'trace' => $e->getTraceAsString(),
+                    'trace_excerpt' => mb_substr($e->getTraceAsString(), 0, 2000),
                     'product_id' => $this->product->id ?? null,
-                    'context' => $this->context
-                ])
+                    'context' => $this->context,
+                ],
             ]);
 
             session()->flash('error', 'Die Konfiguration konnte nicht gespeichert werden.');
@@ -1769,102 +1803,11 @@ class ProductConfigurator extends Component
             return false;
         }
 
-        // Must contain an <svg tag
-        if (!preg_match('/<svg[\s>]/i', $content)) {
-            if (file_exists($filePath)) unlink($filePath);
-            return false;
-        }
-
-        // Strip DOCTYPE and ENTITY declarations to prevent XXE
-        $content = preg_replace('/<!DOCTYPE[^>]*>/i', '', $content);
-        $content = preg_replace('/<!ENTITY[^>]*>/i', '', $content);
-
-        $dom = new \DOMDocument();
-        $libxml_flags = LIBXML_NONET | LIBXML_NOENT | LIBXML_NOXMLDECL;
-        libxml_use_internal_errors(true);
-
-        if (!$dom->loadXML($content, $libxml_flags)) {
-            libxml_clear_errors();
-            if (file_exists($filePath)) unlink($filePath);
-            return false;
-        }
-        libxml_clear_errors();
-
-        // Root element MUST be svg
-        if (!$dom->documentElement || strtolower($dom->documentElement->tagName) !== 'svg') {
-            if (file_exists($filePath)) unlink($filePath);
-            return false;
-        }
-
-        // 1. Remove dangerous elements (case-insensitive)
-        $badElements = [
-            'script', 'foreignobject', 'iframe', 'object', 'embed', 'meta', 'link',
-            'style', 'handler', 'listener', 'applet', 'form', 'input', 'button',
-            'textarea', 'select', 'isindex', 'audio', 'video', 'canvas', 'portal',
-            'feimage', 'animate', 'set', 'animatetransform', 'animatemotion', 'base'
-        ];
-
-        $xpath = new \DOMXPath($dom);
-        $nodesToRemove = [];
-        foreach ($xpath->query('//*') as $node) {
-            $lowerTag = strtolower($node->localName);
-            if (in_array($lowerTag, $badElements, true)) {
-                $nodesToRemove[] = $node;
+        $sanitizedXml = \App\Support\SafeHtmlAndSvgSanitizer::sanitizeSvg($content);
+        if ($sanitizedXml === '' || !str_contains($sanitizedXml, '<svg')) {
+            if (file_exists($filePath)) {
+                @unlink($filePath);
             }
-        }
-        foreach ($nodesToRemove as $node) {
-            if ($node->parentNode) {
-                $node->parentNode->removeChild($node);
-            }
-        }
-
-        // 2. Remove dangerous attributes across all remaining elements
-        $allElements = $xpath->query('//*');
-
-        foreach ($allElements as $element) {
-            $attrsToRemove = [];
-            foreach ($element->attributes as $attrName => $attrNode) {
-                $lowerName = strtolower($attrNode->localName);
-                $nodeName = strtolower($attrNode->nodeName);
-                $val = trim($attrNode->value);
-                $cleanVal = preg_replace('/[\s\x00-\x1F\x7F-\x9F]/u', '', strtolower($val));
-
-                // 2a. Any event handler (on*)
-                if (str_starts_with($lowerName, 'on') || str_starts_with($nodeName, 'on')) {
-                    $attrsToRemove[] = $attrNode;
-                    continue;
-                }
-
-                // 2b. Dangerous URI schemes or external references in href/xlink:href/src/action/data
-                $isUriAttr = in_array($lowerName, ['href', 'src', 'action', 'formaction', 'data'], true)
-                    || str_ends_with($lowerName, ':href')
-                    || str_ends_with($nodeName, ':href');
-
-                if ($isUriAttr) {
-                    // Only allow local anchor references (e.g. #myGradient, #clipPath)
-                    if (!str_starts_with($val, '#')) {
-                        $attrsToRemove[] = $attrNode;
-                        continue;
-                    }
-                }
-
-                // 2c. Dangerous style attributes
-                if ($lowerName === 'style') {
-                    if (preg_match('/(expression|behavior|javascript|vbscript|-moz-binding|@import|url\s*\()/i', $val)) {
-                        $attrsToRemove[] = $attrNode;
-                        continue;
-                    }
-                }
-            }
-
-            foreach ($attrsToRemove as $node) {
-                $element->removeAttributeNode($node);
-            }
-        }
-
-        $sanitizedXml = $dom->saveXML();
-        if (empty($sanitizedXml) || !str_contains($sanitizedXml, '<svg')) {
-            if (file_exists($filePath)) unlink($filePath);
             return false;
         }
 

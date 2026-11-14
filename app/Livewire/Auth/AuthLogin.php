@@ -43,6 +43,11 @@ class AuthLogin extends Component
 
     public function mount()
     {
+        $prefillEmail = session()->pull('login_prefill_email');
+        if (is_string($prefillEmail) && filter_var($prefillEmail, FILTER_VALIDATE_EMAIL)) {
+            $this->email = $prefillEmail;
+        }
+
         if (session()->has('2fa_user_id') && session()->has('guard')) {
             $sessionGuard = (string) session('guard');
             if (!in_array($sessionGuard, ['admin', 'employee', 'customer'], true)) {
@@ -97,7 +102,7 @@ class AuthLogin extends Component
 
         if ($recentAttempts->count() >= $maxFailedAttempts && $recentAttempts->every(fn($attempt) => !$attempt->success)) {
             $lastFailed = $recentAttempts->first()->created_at;
-            $diff = now()->diffInRealSeconds($lastFailed);
+            $diff = (float) abs(now()->diffInSeconds($lastFailed));
             $secondsRemaining = (int) max(1, ceil($lockoutSeconds - $diff));
             if ($diff < $lockoutSeconds) {
                 throw ValidationException::withMessages([
@@ -156,15 +161,26 @@ class AuthLogin extends Component
         $this->logLoginAttempt($this->email, true);
 
         if ($this->user->profile && $this->user->profile->two_factor_is_active) {
-            session(['2fa_user_id' => $this->user->id, 'guard' => $this->guard]);
+            session([
+                '2fa_user_id' => $this->user->id,
+                'guard' => $this->guard,
+                '2fa_guest_session_id' => session()->getId(),
+            ]);
             $this->activeView = 'twoFactor';
             return;
         }
+
+        $previousSessionId = session()->getId();
 
         if (Auth::guard($this->guard)->attempt(['email' => $this->email, 'password' => $this->password], $this->remember)) {
             session()->regenerate();
 
             $loggedInUser = Auth::guard($this->guard)->user();
+
+            if ($this->guard === 'customer' && $loggedInUser instanceof \App\Models\Customer\Customer) {
+                app(\App\Services\CartService::class)->mergeGuestCartIntoCustomer($loggedInUser, $previousSessionId);
+            }
+
             $permissions = [];
 
             if (method_exists($loggedInUser, 'roles')) {
@@ -193,7 +209,10 @@ class AuthLogin extends Component
             }
 
             $this->isRedirecting = true;
-            $this->redirect(route($this->guard . '.dashboard'));
+            $targetUrl = $this->guard === 'customer'
+                ? \App\Services\CartService::resolveSafeCustomerIntendedUrl(route('customer.dashboard'))
+                : route($this->guard . '.dashboard');
+            $this->redirect($targetUrl);
             return;
         }
 

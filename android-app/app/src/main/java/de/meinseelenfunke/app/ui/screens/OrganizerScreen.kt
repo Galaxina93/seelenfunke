@@ -303,7 +303,11 @@ fun OrganizerScreen(
                         selected = isSelected,
                         onClick = {
                             scope.launch {
-                                pagerState.animateScrollToPage(index)
+                                if (kotlin.math.abs(pagerState.currentPage - index) > 1) {
+                                    pagerState.scrollToPage(index)
+                                } else {
+                                    pagerState.animateScrollToPage(index)
+                                }
                             }
                         },
                         selectedContentColor = Gold,

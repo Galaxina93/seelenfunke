@@ -14,7 +14,11 @@ import de.meinseelenfunke.app.util.MusicPlayerManager
 class MusicWidgetProvider : AppWidgetProvider() {
 
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
-        if (MusicPlayerManager.allTracks.value.isEmpty()) {
+        val appContext = context.applicationContext
+        de.meinseelenfunke.app.di.ServiceLocator.ensureInitialized(appContext)
+        if (!de.meinseelenfunke.app.di.ServiceLocator.getAuthToken().isNullOrBlank() &&
+            MusicPlayerManager.allTracks.value.isEmpty()
+        ) {
             MusicPlayerManager.fetchPlaylists(context)
         }
         for (appWidgetId in appWidgetIds) {
@@ -32,6 +36,13 @@ class MusicWidgetProvider : AppWidgetProvider() {
         }
         super.onReceive(context, intent)
         de.meinseelenfunke.app.di.ServiceLocator.ensureInitialized(context.applicationContext)
+        if (action != null && action != AppWidgetManager.ACTION_APPWIDGET_UPDATE) {
+            if (de.meinseelenfunke.app.util.SecurityIntentHelper.isDeviceLocked(context) ||
+                de.meinseelenfunke.app.di.ServiceLocator.getAuthToken().isNullOrBlank()
+            ) {
+                return
+            }
+        }
         when (action) {
             ACTION_PLAY_PAUSE -> {
                 MusicPlayerManager.togglePlayPause(context)

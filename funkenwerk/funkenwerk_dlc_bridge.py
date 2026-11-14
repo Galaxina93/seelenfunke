@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from __future__ import annotations
 """
 Funkenwerk Kamera Studio <-> Deep-Live-Cam Authentic Shared-Memory AI Bridge (v3)
 =================================================================================
@@ -25,17 +26,14 @@ import sys
 import time
 import mmap
 import struct
+import tempfile
 import traceback
-import cv2
-import numpy as np
 
 DLC_ROOT = r"C:\Users\konta\Documents\Deep-Live-Cam"
 if DLC_ROOT not in sys.path:
     sys.path.insert(0, DLC_ROOT)
 
-import onnxruntime as ort
-import insightface
-from insightface.app.common import Face
+ALLOWED_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 
 SHM_NAME = "FunkenwerkDeepFakeShm_v3"
 MAX_W = 1920
@@ -45,16 +43,123 @@ HEADER_SIZE = 576  # 0..63 metadata + 64..575 UTF-8 source face path (512 bytes)
 OUT_OFFSET = HEADER_SIZE + FRAME_STRIDE
 TOTAL_SHM_SIZE = HEADER_SIZE + FRAME_STRIDE * 2
 
-# Original Deep-Live-Cam soft elliptical alpha mask in 128x128 aligned-face space
-# (matches _get_soft_alpha(128) in Deep-Live-Cam/modules/processors/frame/face_swapper.py)
-SOFT_ALPHA_128 = np.zeros((128, 128), dtype=np.uint8)
-cv2.ellipse(SOFT_ALPHA_128, (64, 64), (int(128 * 0.44), int(128 * 0.44)), 0, 0, 360, 255, -1)
-SOFT_ALPHA_128 = cv2.GaussianBlur(SOFT_ALPHA_128, (31, 31), 12)
+cv2 = None
+np = None
+SOFT_ALPHA_128 = None
+INNER_MOUTH_MASK_128 = None
 
-# Tight inner-lip mask in 128x128 aligned space (only active when user explicitly enables Mouth Mask)
-INNER_MOUTH_MASK_128 = np.zeros((128, 128), dtype=np.float32)
-cv2.ellipse(INNER_MOUTH_MASK_128, (64, 99), (13, 5), 0, 0, 360, 1.0, -1)
-INNER_MOUTH_MASK_128 = cv2.GaussianBlur(INNER_MOUTH_MASK_128, (9, 9), 3.0)[:, :, np.newaxis]
+
+def validate_safe_source_image_path(raw_path: str, must_exist: bool = True) -> str:
+    """
+    Validates a source portrait path from Shared Memory or config file.
+    Strictly rejects UNC/SMB shares (NTLM leak defense), Win32 device paths,
+    path traversal ('..'), NTFS ADS, symlinks to UNC targets, and non-image extensions.
+    """
+    if not isinstance(raw_path, str):
+        raise ValueError("Path must be a string.")
+
+    cleaned = raw_path.lstrip("\ufeff").strip().strip('"')
+    if not cleaned or len(cleaned) > 1024:
+        raise ValueError("Empty or oversized image path.")
+
+    if "\x00" in cleaned or any(ord(ch) < 32 for ch in cleaned):
+        raise ValueError("Control characters in image path are forbidden.")
+
+    # Reject UNC shares (\\server\share or //server/share) and Win32 device namespaces (\\.\, \\?\)
+    if cleaned.startswith("\\\\") or cleaned.startswith("//"):
+        raise PermissionError("UNC and Win32 device paths are strictly forbidden.")
+
+    # Reject NTFS Alternate Data Streams (colon anywhere other than drive letter C:)
+    colon_idx = cleaned.find(":")
+    if colon_idx != -1:
+        if not (colon_idx == 1 and cleaned[0].isalpha() and cleaned.find(":", 2) == -1):
+            raise PermissionError("NTFS Alternate Data Streams are forbidden.")
+
+    # Reject explicit '..' traversal segments before canonicalization
+    raw_parts = cleaned.replace("/", "\\").split("\\")
+    if ".." in raw_parts:
+        raise PermissionError("Path traversal ('..') is forbidden.")
+
+    resolved = os.path.realpath(cleaned)
+    if resolved.startswith("\\\\") or resolved.startswith("//"):
+        raise PermissionError("Resolved symlink/reparse target points to a forbidden UNC/device path.")
+
+    _, ext = os.path.splitext(resolved)
+    if ext.lower() not in ALLOWED_IMAGE_EXTENSIONS:
+        raise PermissionError(f"Disallowed source image extension: '{ext}'.")
+
+    if must_exist and not os.path.isfile(resolved):
+        raise FileNotFoundError("Validated source image file does not exist.")
+
+    return resolved
+
+
+def run_self_test() -> int:
+    passed = 0
+    failed = 0
+
+    def check(name: str, ok: bool, detail: str = ""):
+        nonlocal passed, failed
+        if ok:
+            passed += 1
+            print(f"  [PASS] {name}")
+        else:
+            failed += 1
+            print(f"  [FAIL] {name} -> {detail}")
+
+    def expect_reject(name: str, bad_path: str):
+        try:
+            validate_safe_source_image_path(bad_path, must_exist=True)
+            check(name, False, f"Accepted forbidden path: {bad_path}")
+        except (PermissionError, ValueError, FileNotFoundError):
+            check(name, True)
+
+    print("=== FUNKENWERK DLC BRIDGE SECURITY SELF-TEST ===")
+    expect_reject("01. Reject backslash UNC SMB path", r"\\evil.attacker.local\share\face.png")
+    expect_reject("02. Reject forward-slash UNC SMB path", "//evil.attacker.local/share/face.jpg")
+    expect_reject("03. Reject Win32 device path", r"\\.\GLOBALROOT\Device\HarddiskVolume1\face.png")
+    expect_reject("04. Reject relative path traversal", r"C:\Temp\..\..\Windows\System32\drivers\etc\hosts.png")
+    expect_reject("05. Reject NTFS Alternate Data Stream", r"C:\Temp\portrait.png:Zone.Identifier")
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        bad_ext_file = os.path.join(tmp_dir, "payload.py")
+        with open(bad_ext_file, "wb") as f:
+            f.write(b"print('not an image')")
+        expect_reject("06. Reject existing non-image extension (.py)", bad_ext_file)
+
+        valid_png = os.path.join(tmp_dir, "portrait_ok.webp")
+        with open(valid_png, "wb") as f:
+            f.write(b"RIFF\x14\x00\x00\x00WEBPVP8 ")
+        resolved_ok = validate_safe_source_image_path(valid_png, must_exist=True)
+        check("07. Accept canonical local image path via os.path.realpath",
+              resolved_ok == os.path.realpath(valid_png))
+
+    with open(os.path.abspath(__file__), "r", encoding="utf-8") as src_f:
+        own_source = src_f.read()
+    # Ensure zero process-signal termination calls exist in bridge source
+    kill_token = "os." + "kill("
+    check("08. Verify zero arbitrary PID signal-termination calls in bridge", kill_token not in own_source)
+
+    print(f"=== DLC BRIDGE SELF-TEST RESULT: {passed} PASSED, {failed} FAILED ===")
+    return 0 if failed == 0 else 1
+
+
+def _init_vision_globals():
+    global cv2, np, SOFT_ALPHA_128, INNER_MOUTH_MASK_128
+    if cv2 is not None and np is not None:
+        return
+    import cv2 as _cv2
+    import numpy as _np
+    cv2 = _cv2
+    np = _np
+
+    SOFT_ALPHA_128 = np.zeros((128, 128), dtype=np.uint8)
+    cv2.ellipse(SOFT_ALPHA_128, (64, 64), (int(128 * 0.44), int(128 * 0.44)), 0, 0, 360, 255, -1)
+    SOFT_ALPHA_128 = cv2.GaussianBlur(SOFT_ALPHA_128, (31, 31), 12)
+
+    INNER_MOUTH_MASK_128 = np.zeros((128, 128), dtype=np.float32)
+    cv2.ellipse(INNER_MOUTH_MASK_128, (64, 99), (13, 5), 0, 0, 360, 1.0, -1)
+    INNER_MOUTH_MASK_128 = cv2.GaussianBlur(INNER_MOUTH_MASK_128, (9, 9), 3.0)[:, :, np.newaxis]
 
 
 def apply_dlc_lab_color_transfer_128(fake_128: np.ndarray, orig_128: np.ndarray) -> np.ndarray:
@@ -265,17 +370,24 @@ def apply_ar_effect_rgba(overlay_bgra: np.ndarray, target_face, current_bgr: np.
     except Exception:
         pass
 
-    return ax1, ay1, ax2, ax2 if False else ay2
+    return ax1, ay1, ax2, ay2
 
 
 def main():
+    _init_vision_globals()
+    import onnxruntime as ort
+    import insightface
+    from insightface.app.common import Face
+
     my_pid = os.getpid()
     config_dir = os.path.dirname(os.path.abspath(__file__))
-    source_cfg_file = os.path.join(config_dir, "funkenwerk_dlc_source.txt")
+    local_app_data = os.environ.get("LOCALAPPDATA") or config_dir
+    appdata_cfg_file = os.path.join(local_app_data, "Funkenwerk", "funkenwerk_dlc_source.txt")
+    legacy_cfg_file = os.path.join(config_dir, "funkenwerk_dlc_source.txt")
 
     shm = mmap.mmap(-1, TOTAL_SHM_SIZE, tagname=SHM_NAME)
 
-    # Register our PID in Shared Memory offset 56 so any older worker exits immediately
+    # Register our PID in Shared Memory offset 56 so any older worker exits cooperatively (no os-level kill)
     shm.seek(56)
     shm.write(struct.pack("<i", my_pid))
 
@@ -323,38 +435,44 @@ def main():
             nul = raw.find(b"\x00")
             if nul >= 0:
                 raw = raw[:nul]
-            path = raw.decode("utf-8", errors="ignore").lstrip("\ufeff").strip()
-            if path and os.path.exists(path):
-                return path
+            candidate = raw.decode("utf-8", errors="ignore").lstrip("\ufeff").strip()
+            if candidate:
+                return validate_safe_source_image_path(candidate, must_exist=True)
         except Exception:
             pass
-        if os.path.exists(source_cfg_file):
-            try:
-                with open(source_cfg_file, "r", encoding="utf-8-sig") as f:
-                    p = f.read().lstrip("\ufeff").strip()
-                if p and os.path.exists(p):
-                    return p
-            except Exception:
-                pass
+        for cfg_file in (appdata_cfg_file, legacy_cfg_file):
+            if os.path.isfile(cfg_file):
+                try:
+                    with open(cfg_file, "r", encoding="utf-8-sig") as f:
+                        p = f.read().lstrip("\ufeff").strip()
+                    if p:
+                        return validate_safe_source_image_path(p, must_exist=True)
+                except Exception:
+                    pass
         return ""
 
     def ensure_source_face_loaded():
         nonlocal source_face, loaded_source_path
         path = read_shm_source_path()
         if not path:
-            # Fallback to default Elon Musk portrait in Deep-Live-Cam media folder
             default_musk = os.path.join(DLC_ROOT, "media", "Elon_Musk_-_54820081119_(cropped).jpg.webp")
-            if os.path.exists(default_musk):
-                path = default_musk
+            if os.path.isfile(default_musk):
+                try:
+                    path = validate_safe_source_image_path(default_musk, must_exist=True)
+                except Exception:
+                    path = ""
             else:
                 default_one = os.path.join(DLC_ROOT, "media", "1.png")
-                if os.path.exists(default_one):
-                    path = default_one
+                if os.path.isfile(default_one):
+                    try:
+                        path = validate_safe_source_image_path(default_one, must_exist=True)
+                    except Exception:
+                        path = ""
 
-        if not path or not os.path.exists(path):
+        if not path or not os.path.isfile(path):
             return
 
-        norm_path = os.path.normcase(os.path.abspath(path))
+        norm_path = os.path.normcase(os.path.realpath(path))
         if norm_path == loaded_source_path and source_face is not None:
             return
 
@@ -503,4 +621,6 @@ def main():
 
 
 if __name__ == "__main__":
+    if any(arg.lower() == "--self-test" for arg in sys.argv[1:]):
+        sys.exit(run_self_test())
     main()

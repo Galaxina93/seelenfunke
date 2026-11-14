@@ -4,8 +4,9 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.content.pm.ApplicationInfo
 import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyPermanentlyInvalidatedException
 import android.security.keystore.KeyProperties
-import android.util.Base64
+import de.meinseelenfunke.app.BuildConfig
 import de.meinseelenfunke.app.data.api.AiApi
 import de.meinseelenfunke.app.data.api.AuthApi
 import de.meinseelenfunke.app.data.api.EmailApi
@@ -20,6 +21,8 @@ import de.meinseelenfunke.app.data.repository.OrderRepository
 import de.meinseelenfunke.app.data.repository.OrganizerRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -27,6 +30,8 @@ import retrofit2.converter.gson.GsonConverterFactory
 import java.net.URI
 import java.security.KeyStore
 import java.security.SecureRandom
+import java.security.Security
+import java.util.Base64
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
@@ -97,12 +102,17 @@ object ServiceLocator {
         "localhost",
         "10.0.2.2",
         "192.168.188.119",
+        "192.168.188.123",
         "seelenfunke.test"
     )
 
     // Volatile RAM-only fallback if AndroidKeyStore is ever temporarily unavailable;
     // NEVER writes secrets in plaintext to disk.
     private val sessionFallbackSecrets = ConcurrentHashMap<String, String>()
+
+    // Used exclusively in host-side JVM unit tests where the AndroidKeyStore JCE provider is absent.
+    @Volatile
+    private var jvmUnitTestSecretKey: SecretKey? = null
 
     @Synchronized
     fun ensureInitialized(ctx: Context) {
@@ -111,9 +121,21 @@ object ServiceLocator {
         }
     }
 
-    private fun getOrCreateSecretKey(recreateIfCorrupted: Boolean = false): SecretKey {
+    @Synchronized
+    private fun getOrCreateJvmUnitTestKey(recreate: Boolean = false): SecretKey {
+        val current = jvmUnitTestSecretKey
+        if (current != null && !recreate) return current
+        val kg = KeyGenerator.getInstance("AES")
+        kg.init(256, SecureRandom())
+        return kg.generateKey().also { jvmUnitTestSecretKey = it }
+    }
+
+    private fun getOrCreateSecretKey(recreateOnPermanentlyInvalidated: Boolean = false): SecretKey {
+        if (Security.getProvider("AndroidKeyStore") == null) {
+            return getOrCreateJvmUnitTestKey(recreate = recreateOnPermanentlyInvalidated)
+        }
         val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-        if (recreateIfCorrupted && keyStore.containsAlias(KEYSTORE_ALIAS)) {
+        if (recreateOnPermanentlyInvalidated && keyStore.containsAlias(KEYSTORE_ALIAS)) {
             keyStore.deleteEntry(KEYSTORE_ALIAS)
         }
         val existingKey = keyStore.getEntry(KEYSTORE_ALIAS, null) as? KeyStore.SecretKeyEntry
@@ -133,6 +155,93 @@ object ServiceLocator {
         return keyGenerator.generateKey()
     }
 
+    /**
+     * Encrypts an arbitrary sensitive payload (e.g. cached widget JSON) using AES-256-GCM
+     * with a fresh 96-bit IV and 128-bit authentication tag.
+     */
+    fun encryptPayloadForPrefs(plaintext: String): String {
+        if (plaintext.isEmpty()) return ""
+        return try {
+            encryptWithMasterKey(plaintext, recreateOnPermanentlyInvalidated = false)
+        } catch (_: KeyPermanentlyInvalidatedException) {
+            encryptWithMasterKey(plaintext, recreateOnPermanentlyInvalidated = true)
+        }
+    }
+
+    private fun encryptWithMasterKey(plaintext: String, recreateOnPermanentlyInvalidated: Boolean): String {
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.ENCRYPT_MODE, getOrCreateSecretKey(recreateOnPermanentlyInvalidated))
+        val iv = Base64.getEncoder().encodeToString(cipher.iv)
+        val encrypted = Base64.getEncoder().encodeToString(cipher.doFinal(plaintext.toByteArray(Charsets.UTF_8)))
+        return "$ENC_PREFIX$iv:$encrypted"
+    }
+
+    /**
+     * Decrypts an AES-256-GCM `enc_v1:` payload. Returns null if tampered, truncated, or invalid.
+     * Never deletes `KEYSTORE_ALIAS` when a single ciphertext fails verification.
+     */
+    fun decryptPayloadFromPrefs(stored: String?): String? {
+        if (stored == null) return null
+        if (stored.isEmpty()) return ""
+        if (!stored.startsWith(ENC_PREFIX)) {
+            val trimmed = stored.trim()
+            if ((trimmed.startsWith("{") && trimmed.endsWith("}")) ||
+                (trimmed.startsWith("[") && trimmed.endsWith("]"))
+            ) {
+                return stored
+            }
+            return null
+        }
+        return try {
+            val payload = stored.removePrefix(ENC_PREFIX)
+            val parts = payload.split(":", limit = 2)
+            if (parts.size != 2 || parts[0].isBlank() || parts[1].isBlank()) return null
+            val iv = Base64.getMimeDecoder().decode(parts[0])
+            val cipherBytes = Base64.getMimeDecoder().decode(parts[1])
+            if (iv.isEmpty() || cipherBytes.size < 16) return null
+            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+            cipher.init(Cipher.DECRYPT_MODE, getOrCreateSecretKey(recreateOnPermanentlyInvalidated = false), GCMParameterSpec(128, iv))
+            String(cipher.doFinal(cipherBytes), Charsets.UTF_8)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /**
+     * Stores an AES-256-GCM encrypted string in the given SharedPreferences file.
+     */
+    fun putEncryptedPref(prefs: SharedPreferences, key: String, plaintext: String?) {
+        if (plaintext == null) {
+            prefs.edit().remove(key).apply()
+            return
+        }
+        if (plaintext.isEmpty()) {
+            prefs.edit().putString(key, "").apply()
+            return
+        }
+        try {
+            val encrypted = encryptPayloadForPrefs(plaintext)
+            prefs.edit().putString(key, encrypted).apply()
+        } catch (_: Exception) {
+            // Never persist unencrypted sensitive cache payloads on encryption failure
+            prefs.edit().remove(key).apply()
+        }
+    }
+
+    /**
+     * Reads and decrypts an AES-256-GCM string from SharedPreferences, transparently migrating
+     * any legacy plaintext JSON entry to encrypted `enc_v1:` storage on first read.
+     */
+    fun getDecryptedPref(prefs: SharedPreferences, key: String, default: String? = null): String? {
+        val raw = prefs.getString(key, null) ?: return default
+        if (raw.isEmpty()) return ""
+        if (!raw.startsWith(ENC_PREFIX)) {
+            putEncryptedPref(prefs, key, raw)
+            return raw
+        }
+        return decryptPayloadFromPrefs(raw) ?: default
+    }
+
     private fun putEncryptedString(key: String, value: String) {
         if (value.isEmpty()) {
             sessionFallbackSecrets.remove(key)
@@ -140,26 +249,26 @@ object ServiceLocator {
             return
         }
         try {
-            encryptAndPersist(key, value, recreateKey = false)
+            encryptAndPersist(key, value, recreateOnPermanentlyInvalidated = false)
             sessionFallbackSecrets.remove(key)
-        } catch (_: Exception) {
+        } catch (_: KeyPermanentlyInvalidatedException) {
             try {
-                encryptAndPersist(key, value, recreateKey = true)
+                encryptAndPersist(key, value, recreateOnPermanentlyInvalidated = true)
                 sessionFallbackSecrets.remove(key)
             } catch (_: Exception) {
                 // Keep secret strictly in volatile RAM; never persist plaintext to disk!
                 sessionFallbackSecrets[key] = value
                 sharedPreferences.edit().remove(key).apply()
             }
+        } catch (_: Exception) {
+            // Transient KeyStore error: NEVER delete KEYSTORE_ALIAS so existing encrypted secrets survive!
+            sessionFallbackSecrets[key] = value
         }
     }
 
-    private fun encryptAndPersist(key: String, value: String, recreateKey: Boolean) {
-        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-        cipher.init(Cipher.ENCRYPT_MODE, getOrCreateSecretKey(recreateIfCorrupted = recreateKey))
-        val iv = Base64.encodeToString(cipher.iv, Base64.NO_WRAP)
-        val encrypted = Base64.encodeToString(cipher.doFinal(value.toByteArray(Charsets.UTF_8)), Base64.NO_WRAP)
-        sharedPreferences.edit().putString(key, "$ENC_PREFIX$iv:$encrypted").apply()
+    private fun encryptAndPersist(key: String, value: String, recreateOnPermanentlyInvalidated: Boolean) {
+        val encoded = encryptWithMasterKey(value, recreateOnPermanentlyInvalidated)
+        sharedPreferences.edit().putString(key, encoded).apply()
     }
 
     private fun getDecryptedString(key: String, default: String? = null): String? {
@@ -171,18 +280,7 @@ object ServiceLocator {
             putEncryptedString(key, raw)
             return raw
         }
-        return try {
-            val payload = raw.removePrefix(ENC_PREFIX)
-            val parts = payload.split(":", limit = 2)
-            if (parts.size != 2) return default
-            val iv = Base64.decode(parts[0], Base64.NO_WRAP)
-            val cipherBytes = Base64.decode(parts[1], Base64.NO_WRAP)
-            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-            cipher.init(Cipher.DECRYPT_MODE, getOrCreateSecretKey(), GCMParameterSpec(128, iv))
-            String(cipher.doFinal(cipherBytes), Charsets.UTF_8)
-        } catch (_: Exception) {
-            default
-        }
+        return decryptPayloadFromPrefs(raw) ?: default
     }
 
     private val _userTypeState = MutableStateFlow<String?>(null)
@@ -252,42 +350,67 @@ object ServiceLocator {
                 || android.os.Build.PRODUCT.contains("simulator")
     }
 
-    fun getDynamicDefaultBaseUrl(): String {
-        // Default physical devices to TLS-encrypted HTTPS so Bearer tokens are never sent in cleartext on foreign Wi-Fi.
-        return if (isEmulator()) "http://10.0.2.2/api/" else "https://stage.mein-seelenfunke.de/api/"
+    fun getDynamicDefaultBaseUrl(isDebugBuild: Boolean = BuildConfig.DEBUG): String {
+        // Default physical devices and all release builds strictly to TLS-encrypted HTTPS
+        // so Bearer tokens are never sent in cleartext on foreign Wi-Fi.
+        return if (isDebugBuild && isEmulator()) "http://10.0.2.2/api/" else "https://stage.mein-seelenfunke.de/api/"
     }
 
     fun isAllowedCleartextHost(host: String): Boolean {
         return ALLOWED_CLEARTEXT_HOSTS.contains(host.lowercase(Locale.ROOT))
     }
 
-    fun isAllowedBaseUrl(rawUrl: String?): Boolean {
+    fun isAllowedBaseUrl(rawUrl: String?, isDebugBuild: Boolean = BuildConfig.DEBUG): Boolean {
         if (rawUrl.isNullOrBlank()) return false
         val trimmed = rawUrl.trim()
+        if (trimmed.contains('@') || trimmed.contains('\\')) return false
         val uri = try {
             URI(trimmed)
         } catch (_: Exception) {
             return false
         }
-        if (uri.userInfo != null) return false
-        val scheme = uri.scheme?.lowercase(Locale.ROOT) ?: return false
-        val host = uri.host?.lowercase(Locale.ROOT) ?: return false
+        if (uri.userInfo != null || uri.rawUserInfo != null) return false
+        val httpUrl = trimmed.toHttpUrlOrNull() ?: return false
+        if (httpUrl.username.isNotEmpty() || httpUrl.password.isNotEmpty()) return false
+        val scheme = httpUrl.scheme.lowercase(Locale.ROOT)
+        val host = httpUrl.host.lowercase(Locale.ROOT)
         return when (scheme) {
             "https" -> ALLOWED_HTTPS_HOSTS.contains(host)
-            "http" -> ALLOWED_CLEARTEXT_HOSTS.contains(host)
+            "http" -> isDebugBuild && ALLOWED_CLEARTEXT_HOSTS.contains(host)
             else -> false
         }
     }
 
-    fun isAllowedApiRequestUrl(fullUrl: String): Boolean {
-        return isAllowedBaseUrl(fullUrl)
+    fun isAllowedApiRequestUrl(fullUrl: String, isDebugBuild: Boolean = BuildConfig.DEBUG): Boolean {
+        return isAllowedBaseUrl(fullUrl, isDebugBuild)
     }
 
-    fun sanitizeBaseUrl(rawUrl: String?): String {
-        val fallback = getDynamicDefaultBaseUrl()
+    /**
+     * Determines whether a Sanctum Bearer token is permitted on [url].
+     * NEVER attaches Bearer tokens to non-HTTPS requests unless [isDebugBuild] is true
+     * AND the target host is in [ALLOWED_CLEARTEXT_HOSTS] (loopback / explicit dev LAN).
+     */
+    fun shouldAttachBearerToken(url: HttpUrl, isDebugBuild: Boolean = BuildConfig.DEBUG): Boolean {
+        if (url.username.isNotEmpty() || url.password.isNotEmpty()) return false
+        val host = url.host.lowercase(Locale.ROOT)
+        return if (url.isHttps) {
+            ALLOWED_HTTPS_HOSTS.contains(host)
+        } else {
+            isDebugBuild && ALLOWED_CLEARTEXT_HOSTS.contains(host)
+        }
+    }
+
+    fun shouldAttachBearerToken(rawUrl: String, isDebugBuild: Boolean = BuildConfig.DEBUG): Boolean {
+        if (rawUrl.contains('@') || rawUrl.contains('\\')) return false
+        val parsed = rawUrl.trim().toHttpUrlOrNull() ?: return false
+        return shouldAttachBearerToken(parsed, isDebugBuild)
+    }
+
+    fun sanitizeBaseUrl(rawUrl: String?, isDebugBuild: Boolean = BuildConfig.DEBUG): String {
+        val fallback = getDynamicDefaultBaseUrl(isDebugBuild)
         if (rawUrl.isNullOrBlank()) return fallback
         val normalized = if (rawUrl.trim().endsWith("/")) rawUrl.trim() else "${rawUrl.trim()}/"
-        return if (isAllowedBaseUrl(normalized)) normalized else fallback
+        return if (isAllowedBaseUrl(normalized, isDebugBuild)) normalized else fallback
     }
 
     @Synchronized
@@ -342,7 +465,7 @@ object ServiceLocator {
         }
         val bytes = ByteArray(32)
         SecureRandom().nextBytes(bytes)
-        val generated = Base64.encodeToString(bytes, Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING)
+        val generated = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
         putEncryptedString(KEY_INTERNAL_INTENT_TOKEN, generated)
         return generated
     }
@@ -465,7 +588,8 @@ object ServiceLocator {
                     val original = chain.request()
                     val requestBuilder = original.newBuilder()
 
-                    getAuthToken()?.let { token ->
+                    val token = getAuthToken()
+                    if (!token.isNullOrBlank() && shouldAttachBearerToken(original.url, BuildConfig.DEBUG)) {
                         requestBuilder.header("Authorization", "Bearer $token")
                     }
 
@@ -476,7 +600,7 @@ object ServiceLocator {
                         chain.proceed(builtRequest)
                     } catch (e: java.io.IOException) {
                         val host = builtRequest.url.host
-                        if (host == "192.168.188.119" && (e is java.net.ConnectException || e is java.net.SocketTimeoutException || e is java.net.NoRouteToHostException)) {
+                        if (BuildConfig.DEBUG && host == "192.168.188.119" && (e is java.net.ConnectException || e is java.net.SocketTimeoutException || e is java.net.NoRouteToHostException)) {
                             val stageUrl = builtRequest.url.newBuilder()
                                 .scheme("https")
                                 .host("stage.mein-seelenfunke.de")

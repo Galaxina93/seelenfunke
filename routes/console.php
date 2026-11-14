@@ -125,6 +125,9 @@ try {
                     if ($commandClean === 'gamification:award-loyalty-sparks') {
                         $loyaltySparksRegistered = true;
                     }
+                    if ($commandClean === 'shop:send-abandoned-cart-reminders') {
+                        $abandonedCartReminderRegistered = true;
+                    }
                     $event->withoutOverlapping();
                     if (!isset($_GET['sync_schedule']) && getenv('SYNC_SCHEDULE') !== '1') {
                         $event->runInBackground();
@@ -227,6 +230,15 @@ try {
         Schedule::command('gamification:award-loyalty-sparks')
             ->dailyAt('08:15')
             ->withoutOverlapping();
+    }
+
+    // Ausfallsicherer Fallback für freundliche Warenkorb-Erinnerungen (nur falls noch nicht in system_cronjobs hinterlegt)
+    if ((!isset($abandonedCartReminderRegistered) || !$abandonedCartReminderRegistered)
+        && (!Schema::hasTable('system_cronjobs') || !SystemCronjob::where('command', 'shop:send-abandoned-cart-reminders')->exists())) {
+        Schedule::command('shop:send-abandoned-cart-reminders')
+            ->everyFiveMinutes()
+            ->withoutOverlapping()
+            ->runInBackground();
     }
 } catch (\Throwable $e) {
     // Fange DB-Verbindungsfehler oder ähnliche globale Ausnahmen ab

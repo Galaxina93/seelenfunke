@@ -239,19 +239,35 @@ namespace FunkenwerkOS
             }
         }
 
-        public void UpdateSnapshot(OsDashboardSnapshot snap)
+        public string DisplayedRevenue => _revenueValTxt.Text;
+        public string DisplayedPriorityTitle => _prioOrderTitleTxt.Text;
+        public string DisplayedPriorityMeta => _prioOrderMetaTxt.Text;
+
+        public void UpdateSnapshot(OsDashboardSnapshot snap, bool visitorPrivacyMode = false) =>
+            UpdateFromSnapshot(snap, visitorPrivacyMode);
+
+        public void UpdateFromSnapshot(OsDashboardSnapshot snap, bool visitorPrivacyMode = false)
         {
+            if (snap == null) return;
+
             _clockTxt.Text = DateTime.Now.ToString("HH:mm:ss  ·  dd.MM.yyyy");
             _openOrdersValTxt.Text = snap.OpenOrdersCount.ToString();
             _expressValTxt.Text = snap.ExpressOrdersCount.ToString();
-            _revenueValTxt.Text = snap.ShopRevenueFormatted;
+            _revenueValTxt.Text = visitorPrivacyMode ? "•••" : snap.ShopRevenueFormatted;
             _tasksValTxt.Text = snap.OpenTasksCount.ToString();
 
             if (snap.PriorityOrder.HasPriorityOrder)
             {
                 string exp = snap.PriorityOrder.IsExpress ? " · EXPRESS" : "";
-                _prioOrderTitleTxt.Text = $"{snap.PriorityOrder.OrderNumber}  ·  {snap.PriorityOrder.TotalFormatted}{exp}";
-                _prioOrderMetaTxt.Text = $"{snap.PriorityOrder.ItemCount} Pos.  ·  {snap.PriorityOrder.CustomerName}";
+                string prioTotal = visitorPrivacyMode ? "•••" : snap.PriorityOrder.TotalFormatted;
+                string safeCustomer = visitorPrivacyMode
+                    ? "Gesperrt"
+                    : GewerbeMonitorWindow.AnonymizeCustomerNameGdpr(snap.PriorityOrder.CustomerName);
+                if (string.IsNullOrWhiteSpace(safeCustomer))
+                    safeCustomer = visitorPrivacyMode ? "Gesperrt" : "Kunde";
+
+                _prioOrderTitleTxt.Text = $"{snap.PriorityOrder.OrderNumber}  ·  {prioTotal}{exp}";
+                _prioOrderMetaTxt.Text = $"{snap.PriorityOrder.ItemCount} Pos.  ·  {safeCustomer}";
             }
             else
             {
@@ -281,10 +297,12 @@ namespace FunkenwerkOS
                 rg.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(110) });
                 rg.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(130) });
 
+                string rowTotal = visitorPrivacyMode ? "•••" : ord.TotalFormatted;
+
                 var numTxt = new TextBlock { Text = ord.OrderNumber, Foreground = fgMain, FontWeight = FontWeights.Bold, FontSize = 15 };
                 var stTxt = new TextBlock { Text = ord.StatusLabel, Foreground = Solid(ord.StatusBadgeHex), FontWeight = FontWeights.Bold, FontSize = 14 };
                 var posTxt = new TextBlock { Text = ord.ItemCountLabel, Foreground = fgMain, FontSize = 14 };
-                var totTxt = new TextBlock { Text = ord.TotalFormatted, Foreground = Solid("#C5A059"), FontWeight = FontWeights.Bold, FontSize = 15, HorizontalAlignment = System.Windows.HorizontalAlignment.Right };
+                var totTxt = new TextBlock { Text = rowTotal, Foreground = Solid("#C5A059"), FontWeight = FontWeights.Bold, FontSize = 15, HorizontalAlignment = System.Windows.HorizontalAlignment.Right };
 
                 Grid.SetColumn(numTxt, 0);
                 Grid.SetColumn(stTxt, 1);

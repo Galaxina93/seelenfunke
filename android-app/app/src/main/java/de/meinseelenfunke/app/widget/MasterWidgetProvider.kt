@@ -47,11 +47,23 @@ object MasterWidgetRamCache {
     @Volatile var shoppingItems: List<ManagementShoppingItem> = emptyList()
         private set
 
+    fun clear() {
+        lastTaskListsJson = null
+        taskLists = emptyList()
+        lastTasksJson = null
+        allTasks = emptyList()
+        lastEventsJson = null
+        allEvents = emptyList()
+        lastShoppingJson = null
+        shoppingItems = emptyList()
+    }
+
     fun refreshFromPrefsIfChanged(context: Context) {
         val appContext = context.applicationContext
+        ServiceLocator.ensureInitialized(appContext)
 
         val tasksPrefs = appContext.getSharedPreferences("tasks_widget_prefs", Context.MODE_PRIVATE)
-        val listsJson = tasksPrefs.getString("task_lists_cache", null)
+        val listsJson = ServiceLocator.getDecryptedPref(tasksPrefs, "task_lists_cache")
         if (listsJson != lastTaskListsJson) {
             lastTaskListsJson = listsJson
             taskLists = if (listsJson != null) {
@@ -63,7 +75,7 @@ object MasterWidgetRamCache {
             } else emptyList()
         }
 
-        val tasksJson = tasksPrefs.getString("tasks_cache", null)
+        val tasksJson = ServiceLocator.getDecryptedPref(tasksPrefs, "tasks_cache")
         if (tasksJson != lastTasksJson) {
             lastTasksJson = tasksJson
             allTasks = if (tasksJson != null) {
@@ -76,7 +88,7 @@ object MasterWidgetRamCache {
         }
 
         val calPrefs = appContext.getSharedPreferences("calendar_widget_prefs", Context.MODE_PRIVATE)
-        val eventsJson = calPrefs.getString("calendar_events_cache", null)
+        val eventsJson = ServiceLocator.getDecryptedPref(calPrefs, "calendar_events_cache")
         if (eventsJson != lastEventsJson) {
             lastEventsJson = eventsJson
             allEvents = if (eventsJson != null) {
@@ -89,7 +101,7 @@ object MasterWidgetRamCache {
         }
 
         val shopPrefs = appContext.getSharedPreferences("shopping_widget_prefs", Context.MODE_PRIVATE)
-        val shopJson = shopPrefs.getString("shopping_items_cache", null)
+        val shopJson = ServiceLocator.getDecryptedPref(shopPrefs, "shopping_items_cache")
         if (shopJson != lastShoppingJson) {
             lastShoppingJson = shopJson
             shoppingItems = if (shopJson != null) {
@@ -106,7 +118,10 @@ object MasterWidgetRamCache {
 class MasterWidgetProvider : AppWidgetProvider() {
 
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
-        triggerGlobalSync(context)
+        ServiceLocator.ensureInitialized(context.applicationContext)
+        if (!ServiceLocator.getAuthToken().isNullOrBlank()) {
+            triggerGlobalSync(context)
+        }
         for (appWidgetId in appWidgetIds) {
             updateAppWidget(context, appWidgetManager, appWidgetId, isPartialUpdate = false)
         }
@@ -128,6 +143,14 @@ class MasterWidgetProvider : AppWidgetProvider() {
         val appWidgetManager = AppWidgetManager.getInstance(appContext)
         val prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val resolvedAction = clickAction ?: rawAction
+
+        if (resolvedAction != null && resolvedAction != AppWidgetManager.ACTION_APPWIDGET_UPDATE) {
+            if (de.meinseelenfunke.app.util.SecurityIntentHelper.isDeviceLocked(context) ||
+                ServiceLocator.getAuthToken().isNullOrBlank()
+            ) {
+                return
+            }
+        }
 
         when (resolvedAction) {
             ACTION_SWITCH_TAB -> {
@@ -156,8 +179,12 @@ class MasterWidgetProvider : AppWidgetProvider() {
                 if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID && listId != null) {
                     prefs.edit()
                         .putString("$PREF_SELECTED_LIST_ID_PREFIX$appWidgetId", listId)
-                        .putString("$PREF_SELECTED_LIST_NAME_PREFIX$appWidgetId", listName ?: "Aufgaben")
                         .commit()
+                    ServiceLocator.putEncryptedPref(
+                        prefs,
+                        "$PREF_SELECTED_LIST_NAME_PREFIX$appWidgetId",
+                        listName ?: "Aufgaben"
+                    )
                     updateAppWidget(appContext, appWidgetManager, appWidgetId, isPartialUpdate = true)
                     appWidgetManager.notifyAppWidgetViewDataChanged(appWidgetId, R.id.master_widget_list)
                 }
@@ -185,10 +212,15 @@ class MasterWidgetProvider : AppWidgetProvider() {
             ACTION_PLAY_TRACK -> {
                 val trackId = intent.getStringExtra(EXTRA_TRACK_ID)
                 if (!trackId.isNullOrBlank()) {
-                    val allTracks = MusicPlayerManager.allTracks.value
-                    val target = allTracks.firstOrNull { it.id == trackId }
-                    if (target != null) {
-                        MusicPlayerManager.playTrack(appContext, target, allTracks)
+                    MusicPlayerManager.ensureCatalogLoadedFast(appContext)
+                    if (MusicPlayerManager.currentTrack.value?.id == trackId) {
+                        MusicPlayerManager.togglePlayPause(appContext)
+                    } else {
+                        val allTracks = MusicPlayerManager.allTracks.value
+                        val target = allTracks.firstOrNull { it.id == trackId }
+                        if (target != null) {
+                            MusicPlayerManager.playTrack(appContext, target, allTracks)
+                        }
                     }
                 }
                 updateAllWidgets(appContext, isPartial = true)
@@ -285,10 +317,11 @@ class MasterWidgetProvider : AppWidgetProvider() {
             isPartialUpdate: Boolean = false
         ) {
             val appContext = context.applicationContext
+            ServiceLocator.ensureInitialized(appContext)
             val masterPrefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             val activeTab = masterPrefs.getInt("$PREF_ACTIVE_TAB_PREFIX$appWidgetId", TAB_TASKS)
             val selectedListId = masterPrefs.getString("$PREF_SELECTED_LIST_ID_PREFIX$appWidgetId", null)
-            val selectedListName = masterPrefs.getString("$PREF_SELECTED_LIST_NAME_PREFIX$appWidgetId", null)
+            val selectedListName = ServiceLocator.getDecryptedPref(masterPrefs, "$PREF_SELECTED_LIST_NAME_PREFIX$appWidgetId")
 
             MasterWidgetRamCache.refreshFromPrefsIfChanged(appContext)
             val taskLists = MasterWidgetRamCache.taskLists

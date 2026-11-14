@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Media;
@@ -167,6 +169,7 @@ namespace FunkenwerkDrucker
         public bool ForceBwText { get; set; }
         public Rect NormalizedCrop { get; set; } = new Rect(0, 0, 1, 1);
 
+        public double EffectiveDpi { get; set; } = 300.0;
         public double WidthMm { get; set; } = 210.0;
         public double HeightMm { get; set; } = 297.0;
 
@@ -187,12 +190,53 @@ namespace FunkenwerkDrucker
         public PrintPaperFormat LastPaperFormat { get; set; } = PrintPaperFormat.A4;
         public PrintScaleMode LastScaleMode { get; set; } = PrintScaleMode.FitPrintableArea;
 
+        public static void EnsureSecureDirectory(string dirPath)
+        {
+            var dirInfo = Directory.CreateDirectory(dirPath);
+            try
+            {
+                var currentUserSid = WindowsIdentity.GetCurrent().User;
+                if (currentUserSid == null) return;
+
+                var security = new DirectorySecurity();
+                security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+
+                var flags = InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit;
+                security.AddAccessRule(new FileSystemAccessRule(
+                    currentUserSid,
+                    FileSystemRights.FullControl,
+                    flags,
+                    PropagationFlags.None,
+                    AccessControlType.Allow));
+
+                security.AddAccessRule(new FileSystemAccessRule(
+                    new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null),
+                    FileSystemRights.FullControl,
+                    flags,
+                    PropagationFlags.None,
+                    AccessControlType.Allow));
+
+                security.AddAccessRule(new FileSystemAccessRule(
+                    new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null),
+                    FileSystemRights.FullControl,
+                    flags,
+                    PropagationFlags.None,
+                    AccessControlType.Allow));
+
+                dirInfo.SetAccessControl(security);
+            }
+            catch
+            {
+                // Keep directory usable if filesystem does not support NTFS ACLs
+            }
+        }
+
         public static string DataDirectory
         {
             get
             {
                 string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FunkenwerkDrucker");
-                Directory.CreateDirectory(dir);
+                EnsureSecureDirectory(dir);
                 return dir;
             }
         }
@@ -205,9 +249,26 @@ namespace FunkenwerkDrucker
             {
                 if (File.Exists(SettingsFilePath))
                 {
-                    string json = File.ReadAllText(SettingsFilePath);
-                    var loaded = JsonSerializer.Deserialize<FunkenwerkDruckerSettings>(json);
-                    if (loaded != null) return loaded;
+                    var fi = new FileInfo(SettingsFilePath);
+                    if (fi.Length > 0 && fi.Length <= 256 * 1024)
+                    {
+                        string json = File.ReadAllText(SettingsFilePath);
+                        var loaded = JsonSerializer.Deserialize<FunkenwerkDruckerSettings>(json);
+                        if (loaded != null)
+                        {
+                            if (!string.IsNullOrWhiteSpace(loaded.CustomPrinterIp) &&
+                                !PrinterHardwareEngine.TryValidateCustomPrinterTarget(loaded.CustomPrinterIp, out string cleaned, out _))
+                            {
+                                loaded.CustomPrinterIp = "";
+                            }
+                            else if (!string.IsNullOrWhiteSpace(loaded.CustomPrinterIp) &&
+                                     PrinterHardwareEngine.TryValidateCustomPrinterTarget(loaded.CustomPrinterIp, out string norm, out _))
+                            {
+                                loaded.CustomPrinterIp = norm;
+                            }
+                            return loaded;
+                        }
+                    }
                 }
             }
             catch { }
@@ -218,6 +279,14 @@ namespace FunkenwerkDrucker
         {
             try
             {
+                if (!string.IsNullOrWhiteSpace(CustomPrinterIp))
+                {
+                    if (PrinterHardwareEngine.TryValidateCustomPrinterTarget(CustomPrinterIp, out string cleaned, out _))
+                        CustomPrinterIp = cleaned;
+                    else
+                        CustomPrinterIp = "";
+                }
+
                 string tmp = SettingsFilePath + "." + Guid.NewGuid().ToString("N") + ".tmp";
                 string json = JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true });
                 File.WriteAllText(tmp, json);

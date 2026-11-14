@@ -67,10 +67,13 @@ case "$1" in
         echo -e "  \033[1;32m🤖 mailworker\033[0m    Lässt die KI autonom E-Mails lesen, sortieren und beantworten."
         echo -e "  \033[1;32m📞 telefon\033[0m       Startet die KI-Telefonie Audio-Bridge (Twilio WebSocket)."
         echo -e "  \033[1;32m🛡️ security\033[0m      Prüft Pakete & CVEs (oder 'funki security update' für sichere Paket-Updates + Test)."
+        echo -e "  \033[1;32m✅ check\033[0m         Schnelltest aller Frontend-, Backend- & Portal-Routen inkl. Projekt-Gehirn."
         echo -e "  \033[1;32m🧪 test\033[0m          Führt automatisierte Tests aus (z.B. 'funki test --filter ShopProcessTest')."
         echo -e "  \033[1;32m🔐 rights\033[0m        Repariere die Dateiberechtigungen (www-data) und leert Caches sicher."
         echo -e "  \033[1;32m🧹 cache\033[0m         Leert alle Anwendungs- und System-Caches auf einen Schlag restlos aus."
         echo -e "  \033[1;32m🔄 sync-worker\033[0m   Kopiert den aktuellen Code in den isolierten Worker-Stage-Container."
+        echo -e "  \033[1;32m🚢 stage-deploy\033[0m  Spielt gepushte Änderungen & reine Shop-Assets sicher auf Stage ein (Live gesperrt)."
+        echo -e "  \033[1;32m🛍️ shop-manifest\033[0m Erzeugt das reine Shop-Asset-Manifest (ohne Musik, Buchhaltung & Privatdaten)."
         echo -e "  \033[1;32m🛠️ artisan\033[0m       Führt beliebige Artisan-Befehle aus."
         echo -e "  \033[1;32mℹ️ info\033[0m          Zeigt genau dieses schicke Hilfemenü an.\n"
         echo -e "💡 \033[1;33mBeispiel:\033[0m funki artisan make:model Product -m"
@@ -363,6 +366,101 @@ case "$1" in
         echo "👉 Status prüfen kannst du dort mit:"
         echo "   mittnitectl job status"
         ;;
+    shop-manifest)
+        shift
+        $PREFIX_DEFAULT php artisan system:shop-asset-manifest --write "$@"
+        ;;
+    stage-deploy)
+        shift
+        if [ "$IS_LOCAL" = true ]; then
+            echo "🛍️ Aktualisiere reines Shop-Asset-Manifest (Musik, Buchhaltung & Privatdaten bleiben 100 % lokal)..."
+            $PREFIX_DEFAULT php artisan system:shop-asset-manifest --write
+            MCP_EXE="/mnt/c/Users/konta/Desktop/Funkenwerk Collection/Funkenwerk MCP/FunkenwerkMcp.exe"
+            if [ -f "$MCP_EXE" ]; then
+                echo "🚢 Starte verschlüsselten Stage-Autopilot über Funkenwerk MCP..."
+                "$MCP_EXE" --stage-deploy "$@"
+                exit $?
+            else
+                echo "❌ FunkenwerkMcp.exe nicht unter '$MCP_EXE' gefunden."
+                exit 1
+            fi
+        fi
+
+        (
+            set -e
+            STAGE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+            cd "$STAGE_DIR"
+
+            # 1. Harte Pfad-Sperre gegen Live (seelenfunke-live / steinhauer-invest)
+            if [[ "$STAGE_DIR" == *"seelenfunke-live"* ]] || [[ "$STAGE_DIR" == *"steinhauer-invest"* ]] || [[ "$STAGE_DIR" != *"/seelenfunke-stage" ]]; then
+                echo "❌ LIVE-AIR-GAP SPERRE: stage-deploy ist ausschließlich in '/seelenfunke-stage' erlaubt (aktuell: '$STAGE_DIR')!"
+                exit 1
+            fi
+
+            # 2. Harte .env-Sperre gegen Live / Production
+            if [ ! -f "$STAGE_DIR/.env" ]; then
+                echo "❌ Fehler: Keine .env in '$STAGE_DIR' gefunden!"
+                exit 1
+            fi
+            ENV_APP_ENV="$(grep -E '^APP_ENV=' "$STAGE_DIR/.env" | head -n 1 | cut -d'=' -f2- | tr -d ' "\r')"
+            ENV_APP_URL="$(grep -E '^APP_URL=' "$STAGE_DIR/.env" | head -n 1 | cut -d'=' -f2- | tr -d ' "\r' | sed 's:/*$::')"
+            if [ "$ENV_APP_ENV" = "production" ] || [ "$ENV_APP_URL" != "https://stage.mein-seelenfunke.de" ]; then
+                echo "❌ LIVE-AIR-GAP SPERRE: .env meldet APP_ENV='$ENV_APP_ENV' / APP_URL='$ENV_APP_URL' (erwartet: Stage)!"
+                exit 1
+            fi
+
+            # 3. Git-Branch-Sperre (nur Branch 'main' auf Stage erlaubt)
+            CUR_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+            if [ "$CUR_BRANCH" != "main" ]; then
+                echo "❌ Git-Branch-Sperre: Auf Stage wird Branch 'main' erwartet (aktuell: '$CUR_BRANCH')!"
+                exit 1
+            fi
+
+            echo "🧹 Bereinige DomPDF-Fontcache & alte Test-/Altdateien auf Stage..."
+            git checkout -- storage/fonts/ 2>/dev/null || true
+            rm -f "$STAGE_DIR/storage/app/test_dummy_file.php" \
+                  "$STAGE_DIR/storage/app/public/system-brain-map.json" \
+                  "$STAGE_DIR/app/Services/AI/Functions/execute_role_update.php" 2>/dev/null || true
+            rm -rf "$STAGE_DIR/storage/app/public/support/wiki/health" 2>/dev/null || true
+
+            OLD_LOCK_HASH="$(sha256sum composer.lock 2>/dev/null | cut -d' ' -f1 || true)"
+
+            echo "📥 Ziehe neuesten Stand von origin/main..."
+            git pull --ff-only origin main
+
+            NEW_LOCK_HASH="$(sha256sum composer.lock 2>/dev/null | cut -d' ' -f1 || true)"
+            if [ "$OLD_LOCK_HASH" != "$NEW_LOCK_HASH" ]; then
+                echo "📦 composer.lock geändert -> aktualisiere PHP-Pakete (--no-dev)..."
+                if [ -f "$STAGE_DIR/composer.phar" ]; then
+                    php "$STAGE_DIR/composer.phar" install --no-dev --optimize-autoloader --no-interaction --ignore-platform-req=ext-calendar
+                else
+                    composer install --no-dev --optimize-autoloader --no-interaction --ignore-platform-req=ext-calendar
+                fi
+            fi
+
+            echo "🗄️ Führe nicht-destruktive Migrationen aus (migrate --force)..."
+            php artisan migrate --force
+
+            if [ ! -L "$STAGE_DIR/public/storage" ]; then
+                php artisan storage:link || true
+            fi
+
+            echo "🧠 Erneuere Caches & Projekt-Gehirn auf Stage..."
+            php artisan optimize:clear
+            php artisan view:clear
+            php artisan system:brain:generate
+            chmod -R 775 storage/ bootstrap/cache/ 2>/dev/null || true
+
+            echo "🔄 Synchronisiere Worker-Container (worker-stage-3)..."
+            bash "$STAGE_DIR/funki" sync-worker
+
+            echo "✅ Prüfe Stage-Routen-Gesundheit..."
+            php artisan system:check-routes --routes-only
+
+            echo "🎉 Stage-Deploy auf https://stage.mein-seelenfunke.de zu 100 % erfolgreich abgeschlossen!"
+        )
+        exit $?
+        ;;
     cache)
         echo "🧹 Leere alle Framework-Caches restlos aus..."
         $PREFIX_DEFAULT php artisan optimize:clear
@@ -386,6 +484,11 @@ case "$1" in
         else
             $PREFIX_DEFAULT php artisan system:security-audit "$@"
         fi
+        ;;
+    check)
+        shift
+        $PREFIX_DEFAULT php artisan system:check-routes "$@"
+        exit $?
         ;;
     test)
         shift

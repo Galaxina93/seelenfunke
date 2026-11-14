@@ -39,9 +39,9 @@ class OrderQuoteAcceptance extends Component
     #[Locked]
     public $editingItem = null; // Das QuoteRequestItem Model, das gerade bearbeitet wird
 
-    public function mount($token)
+    public function mount(string $token = '')
     {
-        $this->token = $token;
+        $this->token = trim($token);
         $this->refreshQuote();
 
         if (!$this->quote) {
@@ -62,6 +62,10 @@ class OrderQuoteAcceptance extends Component
 
     public function refreshQuote()
     {
+        if (trim((string) $this->token) === '') {
+            $this->quote = null;
+            return;
+        }
         $this->quote = OrderQuoteRequest::where('token', $this->token)
             ->with(['items.product.supplier'])
             ->first();

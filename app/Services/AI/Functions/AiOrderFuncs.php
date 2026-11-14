@@ -64,7 +64,7 @@ trait AiOrderFuncs
             ],
             [
                 'name' => 'order_update_status',
-                'description' => 'Ändert den Hauptstatus oder Zahlungsstatus einer Bestellung. Status-Möglichkeiten: pending, processing, shipped, completed, cancelled, refunded. Zahlungsstatus-Möglichkeiten: paid, unpaid, pending, refunded.',
+                'description' => 'Ändert den Hauptstatus oder Zahlungsstatus einer Bestellung. PFLICHTREGEL: Alina hat immer den Hut auf! Ändere NIEMALS eigenmächtig einen Bestellstatus, sondern frage Alina bei Status-Abweichungen immer zuerst ausdrücklich um Freigabe und setze confirmed_by_alina erst nach ihrem klaren Ja auf true.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
@@ -81,11 +81,48 @@ trait AiOrderFuncs
                             'type' => 'string',
                             'description' => 'Der neue Zahlungsstatus. Gültige Werte: paid, unpaid, pending, refunded.',
                             'enum' => ['paid', 'unpaid', 'pending', 'refunded']
+                        ],
+                        'confirmed_by_alina' => [
+                            'type' => 'boolean',
+                            'description' => 'PFLICHT-SCHUTZ: Darf NUR dann true sein, wenn Alina dir im unmittelbaren Gespräch zuvor AUSDRÜCKLICH bestätigt hat, dass du diesen Status jetzt ändern sollst. Ohne Rückfrage immer false übergeben!'
                         ]
                     ],
-                    'required' => ['order_number']
+                    'required' => ['order_number', 'confirmed_by_alina']
                 ],
                 'callable' => [self::class, 'executeOrderUpdateStatus']
+            ],
+            [
+                'name' => 'order_workshop_checkin',
+                'description' => 'Liest oder speichert den internen Werkstatt-Stand (workshop_note) und die Wiedervorlage (Standard: 2 Stunden) der aktuell wichtigsten zu bearbeitenden Bestellung (oder einer gezielten Bestellnummer). Identische Datenbasis wie Alinas manuelle Werkstatt-Stand-Karte unter /admin/orders. Ändert NIEMALS eigenmächtig den Bestellstatus, sondern meldet etwaige Status-Abweichungen zurück, damit du Alina gezielt fragen kannst!',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'action' => [
+                            'type' => 'string',
+                            'description' => 'Aktion: get_priority_checkin (aktuell wichtigste offene Bestellung + Stand prüfen), save_progress (Alinas genannten Werkstatt-Stand notieren + Wiedervorlage setzen), snooze (nur Wiedervorlage verschieben), pause_checkin (Check-ins für diesen Auftrag pausieren) oder clear (Stand leeren).',
+                            'enum' => ['get_priority_checkin', 'save_progress', 'snooze', 'pause_checkin', 'clear']
+                        ],
+                        'order_number' => [
+                            'type' => 'string',
+                            'description' => 'Optionale Bestellnummer (z. B. ORD-...). Wenn leer gelassen, wird automatisch die aktuell wichtigste offene Prioritäts-Bestellung gewählt.'
+                        ],
+                        'workshop_note' => [
+                            'type' => 'string',
+                            'description' => 'Der von Alina genannte aktuelle Werkstatt-Stand (z. B. Vorderseite gelasert, Rückseite läuft gerade). Niemals für Kunden sichtbar.'
+                        ],
+                        'followup_mode' => [
+                            'type' => 'string',
+                            'description' => 'Wann du frühestens wieder nachfragen sollst: 2h (Standard bei aktiver Arbeit: in 2 Stunden), 1h (in 1 Stunde), tomorrow (nächster Werktag 09:30 Uhr, z. B. beim Warten auf Kundenfoto/Lieferant), custom_minutes oder pause.',
+                            'enum' => ['2h', '1h', 'tomorrow', 'custom_minutes', 'pause']
+                        ],
+                        'followup_minutes' => [
+                            'type' => 'integer',
+                            'description' => 'Nur bei followup_mode=custom_minutes: Minuten bis zur nächsten Nachfrage (15 bis 4320).'
+                        ]
+                    ],
+                    'required' => ['action']
+                ],
+                'callable' => [self::class, 'executeOrderWorkshopCheckin']
             ],
             [
                 'name' => 'order_generate_xtool_svg',
@@ -326,6 +363,12 @@ trait AiOrderFuncs
                     ],
                     'items_count' => count($itemsDetail),
                     'items' => $itemsDetail,
+                    'workshop_checkin' => [
+                        'workshop_note' => $o->workshop_note,
+                        'workshop_note_updated_at' => $o->workshop_note_updated_at ? $o->workshop_note_updated_at->copy()->timezone('Europe/Berlin')->format('d.m.Y H:i') : null,
+                        'workshop_next_check_at' => $o->workshop_next_check_at ? $o->workshop_next_check_at->copy()->timezone('Europe/Berlin')->format('d.m.Y H:i') : null,
+                        'workshop_checkin_paused' => (bool) ($o->workshop_checkin_paused ?? false),
+                    ],
                     'date' => $o->created_at->format('d.m.Y H:i')
                 ];
             }
@@ -370,6 +413,28 @@ trait AiOrderFuncs
 
             if (empty($updates)) {
                 return ['status' => 'error', 'message' => 'Keine Statuswerte zum Aktualisieren übergeben.'];
+            }
+
+            $confirmedByAlina = filter_var($args['confirmed_by_alina'] ?? false, FILTER_VALIDATE_BOOLEAN);
+            if (!$confirmedByAlina) {
+                $currentLabel = \App\Services\Order\OrderProductionBatchService::statusLabelDe((string) $order->status);
+                $targetLabel = !empty($updates['status'])
+                    ? \App\Services\Order\OrderProductionBatchService::statusLabelDe((string) $updates['status'])
+                    : null;
+
+                return [
+                    'status' => 'confirmation_required',
+                    'changed' => false,
+                    'order_number' => $order->order_number,
+                    'current_status' => $order->status,
+                    'current_status_label' => $currentLabel,
+                    'requested_updates' => $updates,
+                    'message' => 'RÜCKFRAGE-SCHUTZ AKTIV: Der Status von #' . $order->order_number . ' wurde noch NICHT geändert! Alina hat immer den Hut auf. Frage Alina jetzt zuerst ausdrücklich um Freigabe' . ($targetLabel ? " (ob du von '{$currentLabel}' auf '{$targetLabel}' umstellen sollst)" : '') . ' und rufe order_update_status erst nach ihrem klaren Ja mit confirmed_by_alina=true auf.',
+                ];
+            }
+
+            if (!empty($updates['status']) && in_array($updates['status'], ['shipped', 'completed', 'cancelled', 'refunded'], true)) {
+                $updates['workshop_next_check_at'] = null;
             }
 
             $oldPaymentStatus = $order->payment_status;
@@ -600,6 +665,140 @@ trait AiOrderFuncs
             return ['status' => 'success', 'reviews' => $formatted];
         } catch (\Exception $e) {
             return ['status' => 'error', 'message' => 'Produktbewertungen konnten nicht geladen werden: ' . $e->getMessage()];
+        }
+    }
+
+    public static function executeOrderWorkshopCheckin(array $args)
+    {
+        if ($denied = self::assertOrderStaffAccess()) {
+            return $denied;
+        }
+
+        try {
+            $batchService = app(\App\Services\Order\OrderProductionBatchService::class);
+            $action = strtolower(trim((string) ($args['action'] ?? 'get_priority_checkin')));
+            $rawOrderNo = ltrim(trim((string) ($args['order_number'] ?? '')), '#');
+
+            $order = null;
+            if ($rawOrderNo !== '') {
+                $order = OrderOrder::with(['items.product.supplier', 'shipments'])
+                    ->where('order_number', $rawOrderNo)
+                    ->first();
+                if (!$order) {
+                    return ['status' => 'error', 'message' => "Bestellung #{$rawOrderNo} wurde nicht gefunden."];
+                }
+            }
+
+            if ($action === 'get_priority_checkin') {
+                $snapshot = $batchService->buildWorkshopCheckinSnapshot($order);
+                if (!$snapshot) {
+                    return [
+                        'status' => 'success',
+                        'has_open_orders' => false,
+                        'message' => 'Aktuell liegen keine offenen Bestellungen vor.',
+                    ];
+                }
+
+                return [
+                    'status' => 'success',
+                    'has_open_orders' => true,
+                    'order_status_changed' => false,
+                    'checkin' => $snapshot,
+                    'requires_alina_status_question' => (bool) $snapshot['has_discrepancy'],
+                    'instruction_for_funkira' => $snapshot['has_discrepancy']
+                        ? ('WICHTIG: Verschweige diese Status-Abweichung NICHT und ändere den Status NICHT eigenmächtig! Sprich Alina direkt darauf an: ' . $snapshot['ask_alina_prompt'])
+                        : 'Nenne oder erfrage kurz den aktuellen Werkstatt-Stand. Ändere niemals ohne Alinas ausdrückliche Rückfrage den Bestellstatus.',
+                ];
+            }
+
+            if (!$order) {
+                $openOrders = OrderOrder::with(['items.product.supplier', 'shipments'])
+                    ->whereIn('status', ['pending', 'processing'])
+                    ->get();
+                $queue = $batchService->buildSmartQueue($openOrders);
+                $order = $queue['priority_order'] ?? null;
+                if (!$order) {
+                    return [
+                        'status' => 'error',
+                        'message' => 'Es liegt aktuell keine offene Prioritäts-Bestellung vor.',
+                    ];
+                }
+            }
+
+            if ($action === 'clear') {
+                $order->update([
+                    'workshop_note' => null,
+                    'workshop_note_updated_at' => null,
+                    'workshop_next_check_at' => null,
+                    'workshop_checkin_paused' => false,
+                ]);
+                $snapshot = $batchService->buildWorkshopCheckinSnapshot($order->fresh(['items.product.supplier', 'shipments']));
+                return [
+                    'status' => 'success',
+                    'order_status_changed' => false,
+                    'message' => "Werkstatt-Stand für #{$order->order_number} wurde geleert.",
+                    'checkin' => $snapshot,
+                ];
+            }
+
+            if ($action === 'pause_checkin') {
+                $note = array_key_exists('workshop_note', $args)
+                    ? trim((string) $args['workshop_note'])
+                    : trim((string) ($order->workshop_note ?? ''));
+                $order->update([
+                    'workshop_note' => $note !== '' ? mb_substr($note, 0, 1000) : $order->workshop_note,
+                    'workshop_note_updated_at' => now(),
+                    'workshop_next_check_at' => null,
+                    'workshop_checkin_paused' => true,
+                ]);
+                $snapshot = $batchService->buildWorkshopCheckinSnapshot($order->fresh(['items.product.supplier', 'shipments']));
+                return [
+                    'status' => 'success',
+                    'order_status_changed' => false,
+                    'message' => "Check-ins für #{$order->order_number} wurden pausiert.",
+                    'checkin' => $snapshot,
+                ];
+            }
+
+            $incomingNote = trim((string) ($args['workshop_note'] ?? ''));
+            $effectiveNote = $action === 'snooze' && $incomingNote === ''
+                ? trim((string) ($order->workshop_note ?? ''))
+                : $incomingNote;
+
+            $requestedMode = strtolower(trim((string) ($args['followup_mode'] ?? '')));
+            if ($requestedMode === '') {
+                $isWaiting = $effectiveNote !== '' && (bool) preg_match(
+                    '/(warte\s+auf|rückfrage|rueckfrage|kundenfoto|foto\s+fehlt|kunde\s+meldet|lieferant|rohling\s+bestellt|rohling\s+fehlt|morgen)/iu',
+                    $effectiveNote
+                );
+                $requestedMode = $isWaiting ? 'tomorrow' : '2h';
+            }
+
+            $customMins = isset($args['followup_minutes']) ? (int) $args['followup_minutes'] : null;
+            $schedule = \App\Services\Order\OrderProductionBatchService::resolveNextWorkshopCheckinAt($requestedMode, null, $customMins);
+
+            $order->update([
+                'workshop_note' => $effectiveNote !== '' ? mb_substr($effectiveNote, 0, 1000) : $order->workshop_note,
+                'workshop_note_updated_at' => now(),
+                'workshop_next_check_at' => $schedule['next_check_at'],
+                'workshop_checkin_paused' => $schedule['paused'],
+            ]);
+
+            $freshOrder = $order->fresh(['items.product.supplier', 'shipments']);
+            $snapshot = $batchService->buildWorkshopCheckinSnapshot($freshOrder);
+
+            return [
+                'status' => 'success',
+                'order_status_changed' => false,
+                'followup_label' => $schedule['mode_label'],
+                'checkin' => $snapshot,
+                'requires_alina_status_question' => (bool) ($snapshot['has_discrepancy'] ?? false),
+                'instruction_for_funkira' => !empty($snapshot['has_discrepancy'])
+                    ? ('STAND GESPEICHERT, ABER STATUS-RÜCKFRAGE PFLICHT: Ändere den Bestellstatus NICHT heimlich und verschweige die Abweichung NICHT! Bestätige kurz den notierten Stand und frage Alina jetzt ausdrücklich: ' . $snapshot['ask_alina_prompt'])
+                    : ('Bestätige Alina kurz in einem Satz, dass der Werkstatt-Stand zu #' . $freshOrder->order_number . ' vermerkt ist (' . $schedule['mode_label'] . ').'),
+            ];
+        } catch (\Exception $e) {
+            return ['status' => 'error', 'message' => 'Fehler beim Werkstatt-Check-in: ' . $e->getMessage()];
         }
     }
 }

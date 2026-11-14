@@ -86,12 +86,7 @@ class AiKnowledgeBase extends Component
 
     public static function sanitizeKnowledgeHtml(string $html): string
     {
-        $clean = preg_replace('/<\s*(script|iframe|object|embed|applet|meta|base|form)\b[^>]*>.*?<\s*\/\s*\1\s*>/is', '', $html) ?? $html;
-        $clean = preg_replace('/<\s*\/?\s*(script|iframe|object|embed|applet|meta|base|form)\b[^>]*>/i', '', $clean) ?? $clean;
-        $clean = preg_replace('/\s+on[a-z]+\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s>]+)/i', '', $clean) ?? $clean;
-        $clean = preg_replace('/\b(href|src|action|formaction|xlink:href)\s*=\s*(["\']?)\s*(?:javascript|vbscript|data\s*:\s*text\/html)[^"\'>\s]*\2/i', '$1="#"', $clean) ?? $clean;
-
-        return $clean;
+        return \App\Support\SafeHtmlAndSvgSanitizer::sanitizeHtml($html);
     }
 
     public function boot(): void
@@ -275,12 +270,15 @@ class AiKnowledgeBase extends Component
                 if (!in_array($detectedMime, $allowedWikiMimes, true)) {
                     continue;
                 }
+                $head = (string) @file_get_contents($realPath, false, null, 0, 1024);
+                if (preg_match('/<\s*(\?php|!doctype\s+html|html\b|script\b|svg\b|iframe\b)/i', $head)) {
+                    continue;
+                }
             }
             $cleanName = basename((string) $file->getClientOriginalName());
             $ext = strtolower(pathinfo($cleanName, PATHINFO_EXTENSION));
             if (!in_array($ext, $allowedWikiExts, true)) {
-                $guessed = strtolower((string) $file->guessExtension());
-                $ext = in_array($guessed, $allowedWikiExts, true) ? $guessed : 'txt';
+                continue;
             }
             $base = preg_replace('/[^a-zA-Z0-9_\-]/', '_', (string) pathinfo($cleanName, PATHINFO_FILENAME));
             $base = trim((string) $base, '._-') ?: ('wiki_' . time());

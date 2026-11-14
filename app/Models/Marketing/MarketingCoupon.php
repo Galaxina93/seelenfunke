@@ -53,7 +53,7 @@ class MarketingCoupon extends Model implements HasSystemBlueprint
 
 use HasUuids, HasFactory, SoftDeletes;
 
-    protected $table = 'marketing_coupons';
+    protected $table = 'marketing_vouchers';
 
     protected $guarded = [];
 

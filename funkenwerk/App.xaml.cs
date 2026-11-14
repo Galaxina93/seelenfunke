@@ -39,21 +39,18 @@ namespace Funkenwerk
         private static readonly HttpClient s_http = FunkenwerkSecurityVault.CreateSecureHttpClient(TimeSpan.FromSeconds(12));
         private static int s_flushing;
 
-        private static string QueuePath
-        {
-            get
-            {
-                string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Funkenwerk");
-                Directory.CreateDirectory(dir);
-                return Path.Combine(dir, "error_sentinel_queue.json");
-            }
-        }
+        private static string QueuePath => FunkenwerkSecurityVault.GetAppDataFilePath("error_sentinel_queue.json", migrateFromBaseDir: true);
 
         public static string ScrubSecrets(string? raw)
         {
             if (string.IsNullOrEmpty(raw)) return "";
             string s = Regex.Replace(raw, @"(Bearer\s+)[A-Za-z0-9\-._~+/=|]+", "$1[REDACTED]", RegexOptions.IgnoreCase);
+            s = Regex.Replace(s, @"\b\d+\|[A-Za-z0-9]{32,}\b", "[REDACTED_SANCTUM]");
+            s = Regex.Replace(s, @"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b", "[REDACTED_JWT]");
+            s = Regex.Replace(s, @"(rtsps?://)[^\s""'@]+@", "$1[REDACTED_RTSP_AUTH]@", RegexOptions.IgnoreCase);
+            s = Regex.Replace(s, @"FWAES256GCM1:[A-Za-z0-9+/=]+", "FWAES256GCM1:[REDACTED]", RegexOptions.IgnoreCase);
             s = Regex.Replace(s, @"FWVAULT2:[A-Za-z0-9+/=]+", "FWVAULT2:[REDACTED]", RegexOptions.IgnoreCase);
+            s = Regex.Replace(s, @"DPAPI:[A-Za-z0-9+/=]+", "DPAPI:[REDACTED]", RegexOptions.IgnoreCase);
             s = Regex.Replace(s, @"(""password""\s*:\s*"")[^""]*("")", "$1[REDACTED]$2", RegexOptions.IgnoreCase);
             s = Regex.Replace(s, @"(?i)((?:api[_-]?key|token|password|passwd|secret|authorization)\s*[:=]\s*[""']?)([^\s""'&,;}{]+)", "$1[REDACTED]");
             s = Regex.Replace(s, @"(?i)([?&](?:key|token|password|secret)=)[^&\s]+", "$1[REDACTED]");
@@ -147,6 +144,7 @@ namespace Funkenwerk
 
         public static async Task FlushAsync()
         {
+            if (FunkenwerkSecurityVault.IsUsingTemporaryAppData) return;
             if (Interlocked.Exchange(ref s_flushing, 1) == 1) return;
             try
             {
@@ -157,18 +155,23 @@ namespace Funkenwerk
                 }
                 if (batch.Count == 0) return;
 
-                string settingsPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "settings.json");
+                string settingsPath = FunkenwerkSecurityVault.GetAppDataFilePath("settings.json", migrateFromBaseDir: true);
                 if (!File.Exists(settingsPath)) return;
 
                 var cfg = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(settingsPath));
                 if (cfg == null) return;
 
-                string baseUrl = FunkenwerkSecurityVault.NormalizeSecureApiUrl(string.IsNullOrWhiteSpace(cfg.ApiBaseUrl) ? "https://stage.mein-seelenfunke.de/api" : cfg.ApiBaseUrl);
-                string token = FunkenwerkSecurityVault.UnprotectSecret(cfg.ApiToken);
-                if (string.IsNullOrWhiteSpace(token))
-                    token = FunkenwerkSecurityVault.UnprotectSecret(cfg.ApiTokenLive);
-                if (string.IsNullOrWhiteSpace(token))
-                    token = FunkenwerkSecurityVault.UnprotectSecret(cfg.ApiTokenStage);
+                string rawCandidateUrl = string.IsNullOrWhiteSpace(cfg.ApiBaseUrl) ? "https://stage.mein-seelenfunke.de/api" : cfg.ApiBaseUrl;
+                // NormalizeSecureApiUrl enforces the strict host allowlist and throws UnauthorizedAccessException on untrusted hosts
+                string baseUrl = FunkenwerkSecurityVault.NormalizeSecureApiUrl(rawCandidateUrl);
+                if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var validatedUri) ||
+                    !FunkenwerkSecurityVault.IsAllowedApiHost(validatedUri.Host))
+                {
+                    return;
+                }
+
+                // Strictly select ONLY the token matching the validated target environment (never cross-environment!)
+                string token = MainWindow.ResolveSavedTokenForEnvironment(cfg, baseUrl);
                 if (string.IsNullOrWhiteSpace(token)) return;
 
                 var wireEvents = batch.Select(e => new
@@ -233,7 +236,7 @@ namespace Funkenwerk
                     if (File.Exists(QueuePath)) File.Delete(QueuePath);
                     return;
                 }
-                File.WriteAllText(QueuePath, JsonSerializer.Serialize(list), new UTF8Encoding(false));
+                FunkenwerkSecurityVault.WriteSecureFileText(QueuePath, JsonSerializer.Serialize(list));
             }
             catch { }
         }
@@ -244,20 +247,51 @@ namespace Funkenwerk
         [DllImport("kernel32.dll")]
         private static extern bool AttachConsole(int dwProcessId);
 
+        private IDisposable? _selfTestAppDataScope;
+        private string? _selfTestTempDir;
+
         private static string RedactSensitiveCrashDetails(string raw) => WindowsErrorSentinel.ScrubSecrets(raw);
 
         protected override void OnStartup(StartupEventArgs e)
         {
-            string reportPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "KameraMedien", "verification_report.txt");
+            bool isMigrateMode = e.Args != null && e.Args.Contains("--migrate-configs", StringComparer.OrdinalIgnoreCase);
+            if (isMigrateMode)
+            {
+                AttachConsole(-1);
+                try
+                {
+                    string summary = Funkenwerk.MainWindow.MigrateAllLocalConfigsHeadless();
+                    Console.WriteLine(summary);
+                    Environment.Exit(0);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("MIGRATE-CONFIGS ERROR: " + RedactSensitiveCrashDetails(ex.Message));
+                    Environment.Exit(1);
+                }
+                return;
+            }
+
+            bool isSelfTest = e.Args != null && e.Args.Contains("--self-test", StringComparer.OrdinalIgnoreCase);
+            if (isSelfTest)
+            {
+                _selfTestTempDir = Path.Combine(Path.GetTempPath(), "fw_suite_selftest_" + Guid.NewGuid().ToString("N"));
+                _selfTestAppDataScope = FunkenwerkSecurityVault.UseTemporaryAppDataDirectory(_selfTestTempDir);
+            }
+
+            string reportPath = Path.Combine(FunkenwerkSecurityVault.AppDataDirectory, "KameraMedien", "verification_report.txt");
             Directory.CreateDirectory(Path.GetDirectoryName(reportPath)!);
 
-            _ = Task.Run(WindowsErrorSentinel.FlushAsync);
+            if (!isSelfTest)
+            {
+                _ = Task.Run(WindowsErrorSentinel.FlushAsync);
+            }
 
             AppDomain.CurrentDomain.UnhandledException += (_, args) =>
             {
                 if (args.ExceptionObject is Exception ex)
                 {
-                    WindowsErrorSentinel.RecordException("wpf.appdomain", "Unbehandelte Ausnahme in Funkenwerk Suite", ex, flushSynchronously: true);
+                    WindowsErrorSentinel.RecordException("wpf.appdomain", "Unbehandelte Ausnahme in Funkenwerk Suite", ex, flushSynchronously: !isSelfTest);
                 }
             };
 
@@ -274,35 +308,43 @@ namespace Funkenwerk
             this.DispatcherUnhandledException += (s, exArgs) =>
             {
                 try { File.WriteAllText(reportPath, "UNHANDLED EXCEPTION:\r\n" + RedactSensitiveCrashDetails(exArgs.Exception.ToString())); } catch { }
-                WindowsErrorSentinel.RecordException("wpf.dispatcher", "UI-Ausnahme in Funkenwerk Suite", exArgs.Exception, flushSynchronously: true);
+                WindowsErrorSentinel.RecordException("wpf.dispatcher", "UI-Ausnahme in Funkenwerk Suite", exArgs.Exception, flushSynchronously: !isSelfTest);
                 exArgs.Handled = true;
                 Shutdown(1);
             };
 
             base.OnStartup(e);
 
-            if (e.Args != null && e.Args.Contains("--self-test", StringComparer.OrdinalIgnoreCase))
+            if (isSelfTest)
             {
                 AttachConsole(-1);
                 Dispatcher.InvokeAsync(async () =>
                 {
+                    int exitCode = 1;
                     try
                     {
                         if (MainWindow is MainWindow mw)
                         {
                             bool ok = await mw.RunAutomatedSuiteSelfTestAsync();
-                            Environment.Exit(ok ? 0 : 1);
-                        }
-                        else
-                        {
-                            Environment.Exit(1);
+                            exitCode = ok ? 0 : 1;
                         }
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine("SELF-TEST EXCEPTION: " + RedactSensitiveCrashDetails(ex.Message));
-                        Environment.Exit(2);
+                        Console.WriteLine("SELF-TEST EXCEPTION: " + RedactSensitiveCrashDetails(ex.ToString()));
+                        exitCode = 2;
                     }
+                    finally
+                    {
+                        try { _selfTestAppDataScope?.Dispose(); } catch { }
+                        try
+                        {
+                            if (!string.IsNullOrEmpty(_selfTestTempDir) && Directory.Exists(_selfTestTempDir))
+                                Directory.Delete(_selfTestTempDir, recursive: true);
+                        }
+                        catch { }
+                    }
+                    Environment.Exit(exitCode);
                 });
                 return;
             }

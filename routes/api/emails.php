@@ -140,8 +140,10 @@ Route::prefix('funki/emails')->group(function () {
     // 1b. All Ever-Received & Sent Email Addresses Sorted by Frequency (for Recipient Autocomplete)
     Route::get('/recipients', function () {
         $rows = MailMessage::query()
-            ->select(['id', 'from_email', 'from_name', 'to_email', 'cc_email', 'bcc_email', 'folder', 'received_at'])
+            ->select(['from_email', 'from_name', 'to_email', 'cc_email', 'bcc_email', 'received_at'])
+            ->distinct()
             ->orderBy('received_at', 'desc')
+            ->limit(1000)
             ->get();
 
         $map = [];
@@ -211,7 +213,7 @@ Route::prefix('funki/emails')->group(function () {
 
         return response()->json([
             'success' => true,
-            'data' => $list,
+            'data' => array_slice($list, 0, 500),
         ]);
     });
 
@@ -649,15 +651,27 @@ Route::prefix('funki/emails')->group(function () {
         );
 
         // Build primary + auto-healing fallback SMTP transport candidates (465 SSL <-> 587 STARTTLS)
+        $smtpHostClean = trim((string) $account->smtp_host);
         $primaryPort = (int) trim((string) $account->smtp_port ?: '465');
         $primaryEnc = strtolower(trim((string) $account->smtp_encryption ?: ($primaryPort === 465 ? 'ssl' : 'tls')));
+
+        if (
+            !\App\Services\System\SystemSecurityService::isSafeMailHost($smtpHostClean)
+            || !\App\Services\System\SystemSecurityService::isAllowedMailPort($primaryPort)
+            || !\App\Services\System\SystemSecurityService::isSafeMailEncryption($primaryEnc, $smtpHostClean)
+        ) {
+            return response()->json([
+                'error' => 'Ungültige oder unverschlüsselte SMTP-Server-Konfiguration blockiert.',
+            ], 422);
+        }
+
         $smtpCandidates = [
-            ['host' => trim($account->smtp_host), 'port' => $primaryPort, 'enc' => $primaryEnc],
+            ['host' => $smtpHostClean, 'port' => $primaryPort, 'enc' => $primaryEnc],
         ];
         if ($primaryPort === 465) {
-            $smtpCandidates[] = ['host' => trim($account->smtp_host), 'port' => 587, 'enc' => 'tls'];
+            $smtpCandidates[] = ['host' => $smtpHostClean, 'port' => 587, 'enc' => 'tls'];
         } elseif ($primaryPort === 587) {
-            $smtpCandidates[] = ['host' => trim($account->smtp_host), 'port' => 465, 'enc' => 'ssl'];
+            $smtpCandidates[] = ['host' => $smtpHostClean, 'port' => 465, 'enc' => 'ssl'];
         }
 
         $sentOk = false;
@@ -761,12 +775,21 @@ Route::prefix('funki/emails')->group(function () {
                     ->delete();
             }
 
+            $normalizedThreadSubject = trim((string) preg_replace('/^(?:(?:re|aw|wg|fwd|fw)\s*:\s*)+/iu', '', (string) ($data['subject'] ?? '')));
+
             foreach ($toList as $singleTo) {
                 $cleanTo = strtolower(trim((string) $singleTo));
                 if ($cleanTo !== '') {
-                    $importantFromRecipient = MailMessage::whereRaw('LOWER(from_email) = ?', [$cleanTo])
-                        ->where('priority', 'high')
-                        ->get();
+                    $importantQuery = MailMessage::where('mail_account_id', $account->id)
+                        ->whereRaw('LOWER(from_email) = ?', [$cleanTo])
+                        ->where('priority', 'high');
+
+                    if ($normalizedThreadSubject !== '') {
+                        $escapedSubj = '%' . addcslashes($normalizedThreadSubject, '%_\\') . '%';
+                        $importantQuery->where('subject', 'like', $escapedSubj);
+                    }
+
+                    $importantFromRecipient = $importantQuery->get();
                     foreach ($importantFromRecipient as $imp) {
                         $tags = is_array($imp->tags) ? $imp->tags : [];
                         $tags['importance'] = 'Normal';
@@ -1068,8 +1091,10 @@ Route::prefix('funki/emails')->group(function () {
             ]);
         }
 
-        if ($folder === 'Archive' || $folder === 'Trash') {
+        if ($folder === 'Archive') {
             $msg->update(['folder' => 'Archive', 'is_archived' => true, 'is_read' => true]);
+        } elseif ($folder === 'Trash') {
+            $msg->update(['folder' => 'Trash', 'is_archived' => false, 'is_read' => true]);
         } else {
             $msg->update(['folder' => $folder, 'is_archived' => false]);
         }
@@ -1141,11 +1166,11 @@ Route::prefix('funki/emails')->group(function () {
             'email' => 'required|email|max:255',
             'password' => 'nullable|string|max:500',
             'imap_host' => 'required|string|max:255',
-            'imap_port' => 'required|integer|min:1|max:65535',
+            'imap_port' => 'required|integer|in:143,465,587,993,2525',
             'imap_encryption' => 'nullable|string|in:ssl,tls,starttls,none',
             'imap_username' => 'nullable|string|max:255',
             'smtp_host' => 'required|string|max:255',
-            'smtp_port' => 'required|integer|min:1|max:65535',
+            'smtp_port' => 'required|integer|in:143,465,587,993,2525',
             'smtp_encryption' => 'nullable|string|in:ssl,tls,starttls,none',
             'smtp_username' => 'nullable|string|max:255',
             'signature' => 'nullable|string|max:20000',
@@ -1162,6 +1187,17 @@ Route::prefix('funki/emails')->group(function () {
                 'idor_integrity'
             );
             return response()->json(['error' => 'Ungültiger oder intern gesperrter Mail-Server Hostname.'], 422);
+        }
+
+        $imapEnc = $data['imap_encryption'] ?? 'ssl';
+        $smtpEnc = $data['smtp_encryption'] ?? 'ssl';
+        if (
+            !\App\Services\System\SystemSecurityService::isSafeMailEncryption($imapEnc, $data['imap_host'])
+            || !\App\Services\System\SystemSecurityService::isSafeMailEncryption($smtpEnc, $data['smtp_host'])
+        ) {
+            return response()->json([
+                'error' => 'Unverschlüsselte Klartext-Mailverbindungen (none) sind für externe Mail-Server unzulässig.',
+            ], 422);
         }
 
         if (!empty($data['id'])) {
@@ -1387,7 +1423,7 @@ Route::prefix('funki/emails')->group(function () {
         $listId = $targetList->id;
         $maxPos = \App\Models\Management\ManagementTask::where('task_list_id', $listId)->max('position') ?? 0;
 
-        $bodySnippet = \Illuminate\Support\Str::limit(strip_tags($mail->body_plain ?: $mail->body_html), 1000);
+        $bodySnippet = \Illuminate\Support\Str::limit(strip_tags((string) ($mail->body_plain ?: $mail->body_html ?: '')), 1000);
         $dateStr = $mail->received_at ? $mail->received_at->format('d.m.Y H:i') : now()->format('d.m.Y H:i');
 
         $task = \App\Models\Management\ManagementTask::create([
@@ -1499,7 +1535,7 @@ Route::prefix('funki/emails')->group(function () {
             $orderData['folders'][$accId] = array_values(array_map('strval', $request->folders));
         }
 
-        file_put_contents($orderFile, json_encode($orderData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+        file_put_contents($orderFile, json_encode($orderData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE), LOCK_EX);
         return response()->json(['success' => true, 'data' => $orderData]);
     });
 

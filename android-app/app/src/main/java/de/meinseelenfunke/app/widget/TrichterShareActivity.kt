@@ -232,13 +232,38 @@ class TrichterShareActivity : ComponentActivity() {
         }
 
         val appDataCanonical = try { File(applicationInfo.dataDir).canonicalPath } catch (_: Exception) { "/data/data/$packageName" }
-        return raw.filter { uri ->
-            val scheme = uri.scheme?.lowercase() ?: return@filter false
-            if (scheme != "content") return@filter false
-            val auth = uri.authority?.lowercase() ?: ""
-            if (auth.startsWith(packageName.lowercase())) return@filter false
+        return filterSafeExternalUris(raw, packageName, appDataCanonical)
+    }
+
+    companion object {
+        fun isSafeExternalShareUri(
+            uri: Uri?,
+            ownPackageName: String,
+            appDataCanonicalPath: String = "/data/data/$ownPackageName"
+        ): Boolean {
+            if (uri == null) return false
+            val scheme = uri.scheme?.lowercase() ?: return false
+            if (scheme != "content") return false
+            val pkgLower = ownPackageName.lowercase()
+            val auth = uri.authority?.lowercase() ?: return false
+            if (auth.isBlank() || auth == pkgLower || auth.startsWith("$pkgLower.")) return false
             val path = uri.path ?: ""
-            !path.contains(appDataCanonical)
-        }.take(20)
+            if (path.contains("..")) return false
+            if (appDataCanonicalPath.isNotBlank() && path.contains(appDataCanonicalPath, ignoreCase = true)) return false
+            if (path.contains("/data/data/$pkgLower", ignoreCase = true) ||
+                path.contains("/data/user/", ignoreCase = true)
+            ) {
+                return false
+            }
+            return true
+        }
+
+        fun filterSafeExternalUris(
+            uris: List<Uri>,
+            ownPackageName: String,
+            appDataCanonicalPath: String = "/data/data/$ownPackageName"
+        ): List<Uri> {
+            return uris.filter { isSafeExternalShareUri(it, ownPackageName, appDataCanonicalPath) }.take(20)
+        }
     }
 }

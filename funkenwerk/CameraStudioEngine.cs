@@ -8,6 +8,8 @@ using System.IO.MemoryMappedFiles;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.ComTypes;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -17,9 +19,134 @@ using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Microsoft.Win32;
+using Microsoft.Win32.SafeHandles;
 
 namespace Funkenwerk
 {
+    public sealed class MemoryMappedFileSecurity : ObjectSecurity<MemoryMappedFileRights>
+    {
+        public MemoryMappedFileSecurity()
+            : base(isContainer: false, ResourceType.KernelObject)
+        {
+        }
+
+        internal MemoryMappedFileSecurity(SafeHandle safeHandle, AccessControlSections includeSections)
+            : base(isContainer: false, ResourceType.KernelObject, safeHandle, includeSections)
+        {
+        }
+
+        internal void PersistHandle(SafeHandle handle) => Persist(handle);
+    }
+
+    public static class MemoryMappedFileAcl
+    {
+        private const uint PAGE_READONLY = 0x02;
+        private const uint PAGE_READWRITE = 0x04;
+        private const uint PAGE_WRITECOPY = 0x08;
+        private const uint PAGE_EXECUTE_READ = 0x20;
+        private const uint PAGE_EXECUTE_READWRITE = 0x40;
+        private const uint SEC_RESERVE = 0x04000000;
+        private const uint SEC_COMMIT = 0x08000000;
+        private const int ERROR_ALREADY_EXISTS = 183;
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct SECURITY_ATTRIBUTES
+        {
+            public int nLength;
+            public IntPtr lpSecurityDescriptor;
+            public int bInheritHandle;
+        }
+
+        [DllImport("kernel32.dll", EntryPoint = "CreateFileMappingW", SetLastError = true, CharSet = CharSet.Unicode)]
+        private static extern SafeMemoryMappedFileHandle CreateFileMappingW(
+            IntPtr hFile,
+            ref SECURITY_ATTRIBUTES lpFileMappingAttributes,
+            uint flProtect,
+            uint dwMaximumSizeHigh,
+            uint dwMaximumSizeLow,
+            string lpName);
+
+        public static MemoryMappedFile CreateOrOpen(
+            string mapName,
+            long capacity,
+            MemoryMappedFileAccess access,
+            MemoryMappedFileOptions options,
+            MemoryMappedFileSecurity? memoryMappedFileSecurity,
+            HandleInheritability inheritability)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(mapName);
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(capacity);
+
+            if (memoryMappedFileSecurity == null)
+            {
+                return MemoryMappedFile.CreateOrOpen(mapName, capacity, access, options, inheritability);
+            }
+
+            uint flProtect = access switch
+            {
+                MemoryMappedFileAccess.Read => PAGE_READONLY,
+                MemoryMappedFileAccess.CopyOnWrite => PAGE_WRITECOPY,
+                MemoryMappedFileAccess.ReadExecute => PAGE_EXECUTE_READ,
+                MemoryMappedFileAccess.ReadWriteExecute => PAGE_EXECUTE_READWRITE,
+                _ => PAGE_READWRITE
+            };
+            flProtect |= (options & MemoryMappedFileOptions.DelayAllocatePages) != 0 ? SEC_RESERVE : SEC_COMMIT;
+
+            byte[] sdBytes = memoryMappedFileSecurity.GetSecurityDescriptorBinaryForm();
+            GCHandle pinnedSd = GCHandle.Alloc(sdBytes, GCHandleType.Pinned);
+            try
+            {
+                var sa = new SECURITY_ATTRIBUTES
+                {
+                    nLength = Marshal.SizeOf<SECURITY_ATTRIBUTES>(),
+                    lpSecurityDescriptor = pinnedSd.AddrOfPinnedObject(),
+                    bInheritHandle = inheritability == HandleInheritability.Inheritable ? 1 : 0
+                };
+
+                using var kernelSectionHandle = CreateFileMappingW(
+                    new IntPtr(-1),
+                    ref sa,
+                    flProtect,
+                    (uint)((ulong)capacity >> 32),
+                    (uint)((ulong)capacity & 0xFFFFFFFFUL),
+                    mapName);
+
+                int lastErr = Marshal.GetLastWin32Error();
+                if (kernelSectionHandle.IsInvalid)
+                {
+                    throw new IOException($"CreateFileMappingW failed for '{mapName}' (Win32 error {lastErr}).");
+                }
+
+                if (lastErr == ERROR_ALREADY_EXISTS)
+                {
+                    memoryMappedFileSecurity.PersistHandle(kernelSectionHandle);
+                }
+
+                var rights = access switch
+                {
+                    MemoryMappedFileAccess.Read => MemoryMappedFileRights.Read,
+                    MemoryMappedFileAccess.Write => MemoryMappedFileRights.Write,
+                    MemoryMappedFileAccess.CopyOnWrite => MemoryMappedFileRights.CopyOnWrite,
+                    MemoryMappedFileAccess.ReadExecute => MemoryMappedFileRights.ReadExecute,
+                    MemoryMappedFileAccess.ReadWriteExecute => MemoryMappedFileRights.ReadWriteExecute,
+                    _ => MemoryMappedFileRights.ReadWrite
+                };
+
+                return MemoryMappedFile.OpenExisting(mapName, rights | MemoryMappedFileRights.ReadPermissions, inheritability);
+            }
+            finally
+            {
+                if (pinnedSd.IsAllocated) pinnedSd.Free();
+            }
+        }
+
+        public static MemoryMappedFileSecurity GetAccessControl(this MemoryMappedFile memoryMappedFile)
+        {
+            ArgumentNullException.ThrowIfNull(memoryMappedFile);
+            return new MemoryMappedFileSecurity(memoryMappedFile.SafeMemoryMappedFileHandle, AccessControlSections.Access);
+        }
+    }
+
     public class CameraMediaItem
     {
         public string Filename { get; set; } = "";
@@ -366,6 +493,44 @@ namespace Funkenwerk
             0x80, 0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71
         };
 
+        public static MemoryMappedFileSecurity CreateCurrentUserMemoryMappedSecurity()
+        {
+            var security = new MemoryMappedFileSecurity();
+            security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+            var currentUserSid = WindowsIdentity.GetCurrent().User
+                ?? throw new UnauthorizedAccessException("Unable to resolve current Windows user SID for SHM DACL.");
+            security.AddAccessRule(new AccessRule<MemoryMappedFileRights>(
+                currentUserSid,
+                MemoryMappedFileRights.FullControl,
+                AccessControlType.Allow));
+            return security;
+        }
+
+        public static bool HasCurrentUserOnlyShmDacl(MemoryMappedFile? mmf)
+        {
+            if (mmf == null) return false;
+            try
+            {
+                var currentUserSid = WindowsIdentity.GetCurrent().User;
+                if (currentUserSid == null) return false;
+                var sec = mmf.GetAccessControl();
+                var rules = sec.GetAccessRules(includeExplicit: true, includeInherited: true, typeof(SecurityIdentifier));
+                bool hasCurrentUser = false;
+                foreach (AccessRule<MemoryMappedFileRights> rule in rules)
+                {
+                    if (rule.AccessControlType != AccessControlType.Allow) continue;
+                    if (rule.IdentityReference is not SecurityIdentifier sid) return false;
+                    if (!sid.Equals(currentUserSid)) return false;
+                    hasCurrentUser = true;
+                }
+                return hasCurrentUser;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         public static (bool Ok, string Message) EnsureRegistered(int width = 1280, int height = 720, int fps = 30)
         {
             try
@@ -376,22 +541,16 @@ namespace Funkenwerk
 
                 if (!File.Exists(dll64))
                 {
-                    string desktopDll64 = @"C:\Users\konta\Desktop\Funkenwerk\FunkenwerkCam64.dll";
-                    if (File.Exists(desktopDll64)) dll64 = desktopDll64;
-                }
-                if (!File.Exists(dll32))
-                {
-                    string desktopDll32 = @"C:\Users\konta\Desktop\Funkenwerk\FunkenwerkCam32.dll";
-                    if (File.Exists(desktopDll32)) dll32 = desktopDll32;
+                    return (false, "FunkenwerkCam64.dll nicht im Anwendungsverzeichnis gefunden");
                 }
 
                 // 1. Write default format hint file for DirectShow pin negotiation BEFORE registration
                 UpdateFormatHintFile(width, height, fps);
 
-                // 2. Register 64-bit DirectShow Filter in HKCU\Software\Classes (merges into HKCR without Admin!)
+                // 2. Register 64-bit DirectShow Filter in HKCU\Software\Classes ONLY from trusted BaseDirectory
                 RegisterInHive(Registry.CurrentUser, @"Software\Classes", dll64);
 
-                // 3. Register 32-bit DirectShow Filter in HKCU\Software\Classes\WOW6432Node
+                // 3. Register 32-bit DirectShow Filter in HKCU\Software\Classes\WOW6432Node ONLY from trusted BaseDirectory
                 if (File.Exists(dll32))
                 {
                     RegisterInHive(Registry.CurrentUser, @"Software\Classes\WOW6432Node", dll32);
@@ -407,11 +566,9 @@ namespace Funkenwerk
                 catch { }
 
                 // 5. Broadcast WM_DEVICECHANGE (DBT_DEVNODES_CHANGED) to all top-level windows
-                // so Discord's VideoInputDevicePoller, OBS, Teams, and Zoom re-enumerate immediately!
                 BroadcastDeviceNodesChanged();
 
-                bool ok = File.Exists(dll64);
-                return (ok, ok ? "DirectShow 64-Bit & 32-Bit Treiber 'Funkenwerk Kamera' aktiv (Discord-Sync gesendet)" : "DLL nicht gefunden");
+                return (true, "DirectShow 64-Bit & 32-Bit Treiber 'Funkenwerk Kamera' aktiv (Discord-Sync gesendet)");
             }
             catch (Exception ex)
             {
@@ -531,13 +688,36 @@ namespace Funkenwerk
                     IntPtr basePtr = _accessor.SafeMemoryMappedViewHandle.DangerousGetHandle();
                     Marshal.Copy(_nv12Buffer, 0, IntPtr.Add(basePtr, (int)_accessor.PointerOffset + slotOffset + 32), _frameSize);
 
-                    // Update write_idx, read_idx, and state=2 (SHARED_QUEUE_STATE_READY)
+                    // Update write_idx (0x00) and state=2 (SHARED_QUEUE_STATE_READY); never overwrite consumer read_idx at 0x04!
                     _accessor.Write(0x00, _tick);
-                    _accessor.Write(0x04, _tick);
                     _accessor.Write(0x08, (uint)2);
                     IsActive = true;
                 }
                 catch { }
+            }
+        }
+
+        public bool VerifySharedMemoryDacl()
+        {
+            lock (_sync)
+            {
+                return FunkenwerkVirtualCamDriver.HasCurrentUserOnlyShmDacl(_mmf);
+            }
+        }
+
+        public uint ReadConsumerIndexForTest()
+        {
+            lock (_sync)
+            {
+                return _accessor != null ? _accessor.ReadUInt32(0x04) : 0;
+            }
+        }
+
+        public void WriteConsumerIndexForTest(uint idx)
+        {
+            lock (_sync)
+            {
+                _accessor?.Write(0x04, idx);
             }
         }
 
@@ -553,7 +733,14 @@ namespace Funkenwerk
             int totalSize = HeaderSize + 3 * _slotSize;
             _nv12Buffer = new byte[_frameSize];
 
-            _mmf = MemoryMappedFile.CreateOrOpen(FunkenwerkVirtualCamDriver.SharedMemoryName, totalSize);
+            var shmSec = FunkenwerkVirtualCamDriver.CreateCurrentUserMemoryMappedSecurity();
+            _mmf = MemoryMappedFileAcl.CreateOrOpen(
+                FunkenwerkVirtualCamDriver.SharedMemoryName,
+                totalSize,
+                MemoryMappedFileAccess.ReadWrite,
+                MemoryMappedFileOptions.None,
+                shmSec,
+                HandleInheritability.None);
             _accessor = _mmf.CreateViewAccessor(0, totalSize);
 
             _accessor.Write(0x00, (uint)0); // write_idx
@@ -723,15 +910,26 @@ namespace Funkenwerk
         public static List<string> GetVideoDevices() => GetVideoInputDevices();
         public static List<string> GetAudioDevices() => GetAudioInputDevices();
 
+        private static void SafeReleaseCom(object? comObj)
+        {
+            if (comObj != null && Marshal.IsComObject(comObj))
+            {
+                try { Marshal.ReleaseComObject(comObj); } catch { }
+            }
+        }
+
         public static (double Volume, bool Muted) GetAudioVolumeAndMute(int dataFlow)
         {
+            IMMDeviceEnumerator? enumerator = null;
+            IMMDevice? dev = null;
+            object? volObj = null;
             try
             {
-                var enumerator = (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject();
+                enumerator = (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject();
                 Guid epVolGuid = typeof(IAudioEndpointVolume).GUID;
-                if (enumerator.GetDefaultAudioEndpoint(dataFlow, 0, out var dev) == 0 && dev != null)
+                if (enumerator.GetDefaultAudioEndpoint(dataFlow, 0, out dev) == 0 && dev != null)
                 {
-                    if (dev.Activate(ref epVolGuid, 1, IntPtr.Zero, out object volObj) == 0 && volObj is IAudioEndpointVolume epVol)
+                    if (dev.Activate(ref epVolGuid, 1, IntPtr.Zero, out volObj) == 0 && volObj is IAudioEndpointVolume epVol)
                     {
                         epVol.GetMasterVolumeLevelScalar(out float lvl);
                         epVol.GetMute(out bool muted);
@@ -740,6 +938,12 @@ namespace Funkenwerk
                 }
             }
             catch { }
+            finally
+            {
+                SafeReleaseCom(volObj);
+                SafeReleaseCom(dev);
+                SafeReleaseCom(enumerator);
+            }
             return (dataFlow == 1 ? 85.0 : 80.0, false);
         }
 
@@ -747,14 +951,17 @@ namespace Funkenwerk
         {
             Task.Run(() =>
             {
+                IMMDeviceEnumerator? enumerator = null;
+                IMMDevice? dev = null;
+                object? volObj = null;
                 try
                 {
-                    var enumerator = (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject();
+                    enumerator = (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject();
                     Guid epVolGuid = typeof(IAudioEndpointVolume).GUID;
                     Guid emptyCtx = Guid.Empty;
-                    if (enumerator.GetDefaultAudioEndpoint(dataFlow, 0, out var dev) == 0 && dev != null)
+                    if (enumerator.GetDefaultAudioEndpoint(dataFlow, 0, out dev) == 0 && dev != null)
                     {
-                        if (dev.Activate(ref epVolGuid, 1, IntPtr.Zero, out object volObj) == 0 && volObj is IAudioEndpointVolume epVol)
+                        if (dev.Activate(ref epVolGuid, 1, IntPtr.Zero, out volObj) == 0 && volObj is IAudioEndpointVolume epVol)
                         {
                             epVol.SetMasterVolumeLevelScalar(Math.Clamp((float)(volume / 100.0), 0f, 1f), ref emptyCtx);
                             epVol.SetMute(muted, ref emptyCtx);
@@ -762,18 +969,27 @@ namespace Funkenwerk
                     }
                 }
                 catch { }
+                finally
+                {
+                    SafeReleaseCom(volObj);
+                    SafeReleaseCom(dev);
+                    SafeReleaseCom(enumerator);
+                }
             });
         }
 
         public static double GetAudioPeakLevel(int dataFlow)
         {
+            IMMDeviceEnumerator? enumerator = null;
+            IMMDevice? dev = null;
+            object? mObj = null;
             try
             {
-                var enumerator = (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject();
+                enumerator = (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject();
                 Guid meterGuid = typeof(IAudioMeterInformation).GUID;
-                if (enumerator.GetDefaultAudioEndpoint(dataFlow, 0, out var dev) == 0 && dev != null)
+                if (enumerator.GetDefaultAudioEndpoint(dataFlow, 0, out dev) == 0 && dev != null)
                 {
-                    if (dev.Activate(ref meterGuid, 1, IntPtr.Zero, out object mObj) == 0 && mObj is IAudioMeterInformation meter)
+                    if (dev.Activate(ref meterGuid, 1, IntPtr.Zero, out mObj) == 0 && mObj is IAudioMeterInformation meter)
                     {
                         meter.GetPeakValue(out float p);
                         return Math.Clamp(p, 0.0, 1.0);
@@ -781,103 +997,164 @@ namespace Funkenwerk
                 }
             }
             catch { }
+            finally
+            {
+                SafeReleaseCom(mObj);
+                SafeReleaseCom(dev);
+                SafeReleaseCom(enumerator);
+            }
             return 0.0;
         }
 
         public static void SetCameraControlProperty(string camName, int prop, int value, bool auto)
         {
+            ICreateDevEnum? devEnum = null;
+            IEnumMoniker? enumMon = null;
             try
             {
-                var devEnum = (ICreateDevEnum)new CreateDevEnum();
+                devEnum = (ICreateDevEnum)new CreateDevEnum();
                 Guid cat = new Guid("860BB310-5D01-11d0-BD3B-00A0C911CE86");
-                if (devEnum.CreateClassEnumerator(ref cat, out var enumMon, 0) != 0 || enumMon == null) return;
+                if (devEnum.CreateClassEnumerator(ref cat, out enumMon, 0) != 0 || enumMon == null) return;
                 IMoniker[] mon = new IMoniker[1];
-                while (enumMon.Next(1, mon, IntPtr.Zero) == 0)
+                while (enumMon.Next(1, mon, IntPtr.Zero) == 0 && mon[0] != null)
                 {
-                    Guid bagId = typeof(IPropertyBag).GUID;
-                    mon[0].BindToStorage(null!, null!, ref bagId, out object bagObj);
-                    if (bagObj is not IPropertyBag bag || bag.Read("FriendlyName", out object nameObj, IntPtr.Zero) != 0) continue;
-                    if (!string.Equals(nameObj as string, camName, StringComparison.OrdinalIgnoreCase)) continue;
-                    Guid filterId = new Guid("56a86895-0ad4-11ce-b03a-0020af0ba770");
-                    mon[0].BindToObject(null!, null!, ref filterId, out object filterObj);
-                    if (filterObj is IAMCameraControl camCtrl && camCtrl.GetRange(prop, out int min, out int max, out int step, out int def, out _) == 0)
+                    object? bagObj = null;
+                    object? filterObj = null;
+                    try
                     {
-                        if (auto) camCtrl.Set(prop, def, 1);
-                        else
+                        Guid bagId = typeof(IPropertyBag).GUID;
+                        mon[0].BindToStorage(null!, null!, ref bagId, out bagObj);
+                        if (bagObj is not IPropertyBag bag || bag.Read("FriendlyName", out object nameObj, IntPtr.Zero) != 0) continue;
+                        if (!string.Equals(nameObj as string, camName, StringComparison.OrdinalIgnoreCase)) continue;
+                        Guid filterId = new Guid("56a86895-0ad4-11ce-b03a-0020af0ba770");
+                        mon[0].BindToObject(null!, null!, ref filterId, out filterObj);
+                        if (filterObj is IAMCameraControl camCtrl && camCtrl.GetRange(prop, out int min, out int max, out int step, out int def, out _) == 0)
                         {
-                            int v = Math.Clamp(value, min, max);
-                            if (step > 1) v = min + ((v - min) / step) * step;
-                            camCtrl.Set(prop, v, 2);
+                            if (auto) camCtrl.Set(prop, def, 1);
+                            else
+                            {
+                                int v = Math.Clamp(value, min, max);
+                                if (step > 1) v = min + ((v - min) / step) * step;
+                                camCtrl.Set(prop, v, 2);
+                            }
                         }
+                        break;
                     }
-                    break;
+                    finally
+                    {
+                        SafeReleaseCom(filterObj);
+                        SafeReleaseCom(bagObj);
+                        SafeReleaseCom(mon[0]);
+                        mon[0] = null!;
+                    }
                 }
             }
             catch { }
+            finally
+            {
+                SafeReleaseCom(enumMon);
+                SafeReleaseCom(devEnum);
+            }
         }
 
         public static void SetVideoProcAmpProperty(string camName, int prop, int value, bool auto)
         {
+            ICreateDevEnum? devEnum = null;
+            IEnumMoniker? enumMon = null;
             try
             {
-                var devEnum = (ICreateDevEnum)new CreateDevEnum();
+                devEnum = (ICreateDevEnum)new CreateDevEnum();
                 Guid cat = new Guid("860BB310-5D01-11d0-BD3B-00A0C911CE86");
-                if (devEnum.CreateClassEnumerator(ref cat, out var enumMon, 0) != 0 || enumMon == null) return;
+                if (devEnum.CreateClassEnumerator(ref cat, out enumMon, 0) != 0 || enumMon == null) return;
                 IMoniker[] mon = new IMoniker[1];
-                while (enumMon.Next(1, mon, IntPtr.Zero) == 0)
+                while (enumMon.Next(1, mon, IntPtr.Zero) == 0 && mon[0] != null)
                 {
-                    Guid bagId = typeof(IPropertyBag).GUID;
-                    mon[0].BindToStorage(null!, null!, ref bagId, out object bagObj);
-                    if (bagObj is not IPropertyBag bag || bag.Read("FriendlyName", out object nameObj, IntPtr.Zero) != 0) continue;
-                    if (!string.Equals(nameObj as string, camName, StringComparison.OrdinalIgnoreCase)) continue;
-                    Guid filterId = new Guid("56a86895-0ad4-11ce-b03a-0020af0ba770");
-                    mon[0].BindToObject(null!, null!, ref filterId, out object filterObj);
-                    if (filterObj is IAMVideoProcAmp procAmp && procAmp.GetRange(prop, out int min, out int max, out int step, out int def, out _) == 0)
+                    object? bagObj = null;
+                    object? filterObj = null;
+                    try
                     {
-                        if (auto) procAmp.Set(prop, def, 1);
-                        else
+                        Guid bagId = typeof(IPropertyBag).GUID;
+                        mon[0].BindToStorage(null!, null!, ref bagId, out bagObj);
+                        if (bagObj is not IPropertyBag bag || bag.Read("FriendlyName", out object nameObj, IntPtr.Zero) != 0) continue;
+                        if (!string.Equals(nameObj as string, camName, StringComparison.OrdinalIgnoreCase)) continue;
+                        Guid filterId = new Guid("56a86895-0ad4-11ce-b03a-0020af0ba770");
+                        mon[0].BindToObject(null!, null!, ref filterId, out filterObj);
+                        if (filterObj is IAMVideoProcAmp procAmp && procAmp.GetRange(prop, out int min, out int max, out int step, out int def, out _) == 0)
                         {
-                            double t = Math.Clamp(value / 255.0, 0.0, 1.0);
-                            int v = min + (int)Math.Round(t * (max - min));
-                            if (step > 1) v = min + ((v - min) / step) * step;
-                            procAmp.Set(prop, Math.Clamp(v, min, max), 2);
+                            if (auto) procAmp.Set(prop, def, 1);
+                            else
+                            {
+                                double t = Math.Clamp(value / 255.0, 0.0, 1.0);
+                                int v = min + (int)Math.Round(t * (max - min));
+                                if (step > 1) v = min + ((v - min) / step) * step;
+                                procAmp.Set(prop, Math.Clamp(v, min, max), 2);
+                            }
                         }
+                        break;
                     }
-                    break;
+                    finally
+                    {
+                        SafeReleaseCom(filterObj);
+                        SafeReleaseCom(bagObj);
+                        SafeReleaseCom(mon[0]);
+                        mon[0] = null!;
+                    }
                 }
             }
             catch { }
+            finally
+            {
+                SafeReleaseCom(enumMon);
+                SafeReleaseCom(devEnum);
+            }
         }
 
         public static List<string> GetVideoInputDevices()
         {
             var list = new List<string>();
+            ICreateDevEnum? devEnum = null;
+            IEnumMoniker? enumMon = null;
             try
             {
-                var devEnum = (ICreateDevEnum)new CreateDevEnum();
+                devEnum = (ICreateDevEnum)new CreateDevEnum();
                 Guid cat = new Guid("860BB310-5D01-11d0-BD3B-00A0C911CE86");
-                if (devEnum.CreateClassEnumerator(ref cat, out var enumMon, 0) == 0 && enumMon != null)
+                if (devEnum.CreateClassEnumerator(ref cat, out enumMon, 0) == 0 && enumMon != null)
                 {
                     IMoniker[] mon = new IMoniker[1];
-                    while (enumMon.Next(1, mon, IntPtr.Zero) == 0)
+                    while (enumMon.Next(1, mon, IntPtr.Zero) == 0 && mon[0] != null)
                     {
-                        Guid bagId = typeof(IPropertyBag).GUID;
-                        mon[0].BindToStorage(null!, null!, ref bagId, out object bagObj);
-                        if (bagObj is IPropertyBag bag && bag.Read("FriendlyName", out object nameObj, IntPtr.Zero) == 0)
+                        object? bagObj = null;
+                        try
                         {
-                            string? name = nameObj as string;
-                            if (!string.IsNullOrWhiteSpace(name) &&
-                                !name.Equals("Funkenwerk Kamera", StringComparison.OrdinalIgnoreCase) &&
-                                !name.Equals("Logi Capture", StringComparison.OrdinalIgnoreCase) &&
-                                !name.Equals("OBS Virtual Camera", StringComparison.OrdinalIgnoreCase))
+                            Guid bagId = typeof(IPropertyBag).GUID;
+                            mon[0].BindToStorage(null!, null!, ref bagId, out bagObj);
+                            if (bagObj is IPropertyBag bag && bag.Read("FriendlyName", out object nameObj, IntPtr.Zero) == 0)
                             {
-                                if (!list.Contains(name)) list.Add(name);
+                                string? name = nameObj as string;
+                                if (!string.IsNullOrWhiteSpace(name) &&
+                                    !name.Equals("Funkenwerk Kamera", StringComparison.OrdinalIgnoreCase) &&
+                                    !name.Equals("Logi Capture", StringComparison.OrdinalIgnoreCase) &&
+                                    !name.Equals("OBS Virtual Camera", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    if (!list.Contains(name)) list.Add(name);
+                                }
                             }
+                        }
+                        finally
+                        {
+                            SafeReleaseCom(bagObj);
+                            SafeReleaseCom(mon[0]);
+                            mon[0] = null!;
                         }
                     }
                 }
             }
             catch { }
+            finally
+            {
+                SafeReleaseCom(enumMon);
+                SafeReleaseCom(devEnum);
+            }
 
             if (list.Count == 0)
             {
@@ -890,29 +1167,46 @@ namespace Funkenwerk
         public static List<string> GetAudioInputDevices()
         {
             var list = new List<string>();
+            ICreateDevEnum? devEnum = null;
+            IEnumMoniker? enumMon = null;
             try
             {
-                var devEnum = (ICreateDevEnum)new CreateDevEnum();
+                devEnum = (ICreateDevEnum)new CreateDevEnum();
                 Guid cat = new Guid("33D9A762-90C8-11D0-BD43-00A0C911CE86");
-                if (devEnum.CreateClassEnumerator(ref cat, out var enumMon, 0) == 0 && enumMon != null)
+                if (devEnum.CreateClassEnumerator(ref cat, out enumMon, 0) == 0 && enumMon != null)
                 {
                     IMoniker[] mon = new IMoniker[1];
-                    while (enumMon.Next(1, mon, IntPtr.Zero) == 0)
+                    while (enumMon.Next(1, mon, IntPtr.Zero) == 0 && mon[0] != null)
                     {
-                        Guid bagId = typeof(IPropertyBag).GUID;
-                        mon[0].BindToStorage(null!, null!, ref bagId, out object bagObj);
-                        if (bagObj is IPropertyBag bag && bag.Read("FriendlyName", out object nameObj, IntPtr.Zero) == 0)
+                        object? bagObj = null;
+                        try
                         {
-                            string? name = nameObj as string;
-                            if (!string.IsNullOrWhiteSpace(name) && !list.Contains(name))
+                            Guid bagId = typeof(IPropertyBag).GUID;
+                            mon[0].BindToStorage(null!, null!, ref bagId, out bagObj);
+                            if (bagObj is IPropertyBag bag && bag.Read("FriendlyName", out object nameObj, IntPtr.Zero) == 0)
                             {
-                                list.Add(name);
+                                string? name = nameObj as string;
+                                if (!string.IsNullOrWhiteSpace(name) && !list.Contains(name))
+                                {
+                                    list.Add(name);
+                                }
                             }
+                        }
+                        finally
+                        {
+                            SafeReleaseCom(bagObj);
+                            SafeReleaseCom(mon[0]);
+                            mon[0] = null!;
                         }
                     }
                 }
             }
             catch { }
+            finally
+            {
+                SafeReleaseCom(enumMon);
+                SafeReleaseCom(devEnum);
+            }
 
             if (list.Count == 0)
             {
@@ -1003,22 +1297,20 @@ namespace Funkenwerk
                                 // Sharpness (4)
                                 SetMappedProcAmp(procAmp, 4, cfg.Sharpness, 0, 100);
 
-                                // White Balance (4 in VideoProcAmp, also try 7 for extended drivers)
-                                foreach (int wbProp in new[] { 4, 7 })
+                                // White Balance (Property 5 = VideoProcAmp_WhiteBalance ONLY; never touch Property 4 = Sharpness!)
+                                const int wbProp = 5;
+                                if (procAmp.GetRange(wbProp, out int wbMin, out int wbMax, out int wbStep, out int wbDef, out _) == 0 && wbMax > wbMin)
                                 {
-                                    if (procAmp.GetRange(wbProp, out int wbMin, out int wbMax, out int wbStep, out int wbDef, out _) == 0 && wbMax > wbMin)
+                                    if (cfg.AutoWhiteBalance)
                                     {
-                                        if (cfg.AutoWhiteBalance)
-                                        {
-                                            procAmp.Set(wbProp, wbDef, 1);
-                                        }
-                                        else
-                                        {
-                                            double normWarmth = (cfg.Warmth + 100.0) / 200.0;
-                                            int wbVal = wbMin + (int)Math.Round(normWarmth * (wbMax - wbMin));
-                                            if (wbStep > 1) wbVal = wbMin + ((wbVal - wbMin) / wbStep) * wbStep;
-                                            procAmp.Set(wbProp, Math.Clamp(wbVal, wbMin, wbMax), 2);
-                                        }
+                                        procAmp.Set(wbProp, wbDef, 1);
+                                    }
+                                    else
+                                    {
+                                        double normWarmth = (cfg.Warmth + 100.0) / 200.0;
+                                        int wbVal = wbMin + (int)Math.Round(normWarmth * (wbMax - wbMin));
+                                        if (wbStep > 1) wbVal = wbMin + ((wbVal - wbMin) / wbStep) * wbStep;
+                                        procAmp.Set(wbProp, Math.Clamp(wbVal, wbMin, wbMax), 2);
                                     }
                                 }
                             }
@@ -1930,10 +2222,6 @@ namespace Funkenwerk
             if (File.Exists(localDirect)) return localDirect;
             string localTools = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "tools", "ffmpeg.exe");
             if (File.Exists(localTools)) return localTools;
-            string collectionRoot = @"C:\Users\konta\Desktop\Funkenwerk Collection\Funkenwerk\ffmpeg.exe";
-            if (File.Exists(collectionRoot)) return collectionRoot;
-            string desktopTools = @"C:\Users\konta\Desktop\Funkenwerk\tools\ffmpeg.exe";
-            if (File.Exists(desktopTools)) return desktopTools;
             return "ffmpeg";
         }
 
@@ -2050,34 +2338,53 @@ namespace Funkenwerk
                     byte[] readBuf = new byte[frameBytes];
 
                     string safeCamName = FunkenwerkSecurityVault.SanitizeCliArgument(_cameraName);
-                    string args;
-                    if (attemptMode == 0)
-                    {
-                        args = $"-hide_banner -loglevel error -fflags nobuffer -flags low_delay -probesize 32 -analyzeduration 0 -f dshow -rtbufsize 128M -video_size {w}x{h} -framerate {hwFps} -vcodec mjpeg -i video=\"{safeCamName}\" -threads 4 -f rawvideo -pix_fmt bgra -s {w}x{h} -";
-                    }
-                    else if (attemptMode == 1)
-                    {
-                        args = $"-hide_banner -loglevel error -fflags nobuffer -flags low_delay -probesize 32 -analyzeduration 0 -f dshow -rtbufsize 128M -video_size 1280x720 -framerate 30 -vcodec mjpeg -i video=\"{safeCamName}\" -threads 4 -vf \"scale={w}:{h}:flags=fast_bilinear\" -f rawvideo -pix_fmt bgra -";
-                    }
-                    else
-                    {
-                        args = $"-hide_banner -loglevel error -fflags nobuffer -flags low_delay -f dshow -rtbufsize 128M -video_size {w}x{h} -framerate {hwFps} -i video=\"{safeCamName}\" -threads 4 -f rawvideo -pix_fmt bgra -s {w}x{h} -";
-                    }
-
                     var psi = new ProcessStartInfo
                     {
                         FileName = _ffmpegPath,
-                        Arguments = args,
                         UseShellExecute = false,
                         CreateNoWindow = true,
                         RedirectStandardOutput = true,
                         RedirectStandardError = true
                     };
+                    psi.ArgumentList.Add("-hide_banner");
+                    psi.ArgumentList.Add("-loglevel");
+                    psi.ArgumentList.Add("error");
+                    psi.ArgumentList.Add("-fflags");
+                    psi.ArgumentList.Add("nobuffer");
+                    psi.ArgumentList.Add("-flags");
+                    psi.ArgumentList.Add("low_delay");
+
+                    if (attemptMode == 0)
+                    {
+                        foreach (var a in new[] { "-probesize", "32", "-analyzeduration", "0", "-f", "dshow", "-rtbufsize", "128M", "-video_size", $"{w}x{h}", "-framerate", hwFps.ToString(CultureInfo.InvariantCulture), "-vcodec", "mjpeg", "-i", $"video={safeCamName}", "-threads", "4", "-f", "rawvideo", "-pix_fmt", "bgra", "-s", $"{w}x{h}", "-" })
+                            psi.ArgumentList.Add(a);
+                    }
+                    else if (attemptMode == 1)
+                    {
+                        foreach (var a in new[] { "-probesize", "32", "-analyzeduration", "0", "-f", "dshow", "-rtbufsize", "128M", "-video_size", "1280x720", "-framerate", "30", "-vcodec", "mjpeg", "-i", $"video={safeCamName}", "-threads", "4", "-vf", $"scale={w}:{h}:flags=fast_bilinear", "-f", "rawvideo", "-pix_fmt", "bgra", "-" })
+                            psi.ArgumentList.Add(a);
+                    }
+                    else
+                    {
+                        foreach (var a in new[] { "-f", "dshow", "-rtbufsize", "128M", "-video_size", $"{w}x{h}", "-framerate", hwFps.ToString(CultureInfo.InvariantCulture), "-i", $"video={safeCamName}", "-threads", "4", "-f", "rawvideo", "-pix_fmt", "bgra", "-s", $"{w}x{h}", "-" })
+                            psi.ArgumentList.Add(a);
+                    }
 
                     using var proc = Process.Start(psi);
                     _proc = proc;
                     if (proc != null)
                     {
+                        // Drain stderr asynchronously so OS pipe never fills and deadlocks DirectShow capture
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                char[] errBuf = new char[1024];
+                                while (!proc.HasExited && await proc.StandardError.ReadAsync(errBuf, 0, errBuf.Length) > 0) { }
+                            }
+                            catch { }
+                        });
+
                         var stream = proc.StandardOutput.BaseStream;
                         while (!token.IsCancellationRequested && !proc.HasExited)
                         {
@@ -2197,10 +2504,6 @@ namespace Funkenwerk
             if (File.Exists(localDirect)) return localDirect;
             string localTools = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "tools", "ffmpeg.exe");
             if (File.Exists(localTools)) return localTools;
-            string collectionRoot = @"C:\Users\konta\Desktop\Funkenwerk Collection\Funkenwerk\ffmpeg.exe";
-            if (File.Exists(collectionRoot)) return collectionRoot;
-            string desktopTools = @"C:\Users\konta\Desktop\Funkenwerk\tools\ffmpeg.exe";
-            if (File.Exists(desktopTools)) return desktopTools;
             return "ffmpeg";
         }
 
@@ -2363,8 +2666,8 @@ namespace Funkenwerk
                 {
                     Directory.CreateDirectory(Path.GetDirectoryName(outputMp4Path)!);
 
-                    // Stage into %TEMP% while FFmpeg is writing so Windows File Explorer / WhatsApp never touch an unfinalized MP4
-                    string stagingDir = Path.Combine(Path.GetTempPath(), "FunkenwerkRecStaging");
+                    // Stage inside ACL-locked AppData\tmp\RecStaging while FFmpeg is writing
+                    string stagingDir = Path.Combine(FunkenwerkSecurityVault.GetSecureTempDirectory(), "RecStaging");
                     Directory.CreateDirectory(stagingDir);
                     string stagingMp4Path = Path.Combine(stagingDir, $"fw_stage_{Guid.NewGuid():N}.mp4");
 
@@ -2383,8 +2686,7 @@ namespace Funkenwerk
                     string volStr = Math.Clamp(cfg.MicVolume / 100.0, 0.0, 2.0).ToString("0.00", CultureInfo.InvariantCulture);
                     string musVolStr = Math.Clamp(cfg.MusicSignalVolume / 100.0, 0.0, 1.5).ToString("0.00", CultureInfo.InvariantCulture);
 
-                    // If user marked a custom area ("Fläche wählen") in pure screen-share mode, crop output MP4 cleanly to that area
-                    string videoFilterArg = "";
+                    string? cropFilterExpr = null;
                     bool isPureScreenShare = cfg.SplitMode == "screenshare_only" || (cfg.SplitMode == "windowshare" && !cfg.ShowPipOverlay);
                     bool isCustomArea = cfg.WindowRegionMode == "custom_region" || cfg.WindowRegionMode == "mouse_follow_custom";
                     if (isPureScreenShare && isCustomArea)
@@ -2392,58 +2694,105 @@ namespace Funkenwerk
                         var (cx, cy, cw, ch) = FunkenwerkWindowCapture.GetCustomRegionCropRect(width, height, cfg.WindowRegionMode);
                         if (cw >= 64 && ch >= 64 && (cw < width || ch < height))
                         {
-                            videoFilterArg = $"-vf \"crop={cw}:{ch}:{cx}:{cy}\" ";
+                            cropFilterExpr = $"crop={cw}:{ch}:{cx}:{cy}";
                         }
                     }
 
-                    // Universal H.264 Main Profile + BT.709 + zero B-frames + no edit lists for 100% WhatsApp / Explorer / WMP compatibility
-                    string videoCodecArgs = $"{videoFilterArg}-c:v libx264 -preset veryfast -profile:v main -bf 0 -crf {crf} -pix_fmt yuv420p -colorspace bt709 -color_primaries bt709 -color_trc bt709 -color_range tv";
-                    string muxerFlags = "-fflags +genpts -avoid_negative_ts make_zero -use_editlist 0 -max_muxing_queue_size 4096 -movflags +faststart";
-
                     string safeMicName = FunkenwerkSecurityVault.SanitizeCliArgument(cfg.SelectedMicrophoneName);
-                    string safeMusicPath = includeMusic ? FunkenwerkSecurityVault.SanitizeCliArgument(cfg.ActiveMusicSignalPath) : "";
-                    string safeStagePath = FunkenwerkSecurityVault.SanitizeCliArgument(stagingMp4Path);
+                    string safeMusicPath = includeMusic ? cfg.ActiveMusicSignalPath.Trim() : "";
                     string baseAudioFilter = FunkenwerkVoiceChangerEngine.BuildFfmpegAudioFilter(cfg, volStr);
                     string audioFilter = AppendAudioTempoFilter(baseAudioFilter, _speedMultiplier) + ",aresample=async=1:first_pts=0";
                     string musicFilter = AppendAudioTempoFilter($"volume={musVolStr}", _speedMultiplier) + ",aresample=async=1:first_pts=0";
-                    string loopArg = cfg.MusicSignalLoop ? "-stream_loop -1 " : "";
-                    string args;
-                    if (includeMic && !string.IsNullOrEmpty(safeMicName) && includeMusic && !string.IsNullOrEmpty(safeMusicPath))
+
+                    void AppendVideoCodecAndMuxerArgs(ProcessStartInfo targetPsi, string targetOutPath)
                     {
-                        args = $"-y -hide_banner -loglevel error -f rawvideo -pix_fmt bgra -s {width}x{height} -r {_fps} -i - " +
-                               $"-f dshow -rtbufsize 64M -i audio=\"{safeMicName}\" " +
-                               $"{loopArg}-i \"{safeMusicPath}\" " +
-                               $"-filter_complex \"[1:a]{audioFilter}[mic];[2:a]{musicFilter}[mus];[mic][mus]amix=inputs=2:duration=first:dropout_transition=0[aout]\" " +
-                               $"-map 0:v -map \"[aout]\" {videoCodecArgs} -c:a aac -ar 44100 -ac 2 -b:a 128k -shortest {muxerFlags} \"{safeStagePath}\"";
-                    }
-                    else if (includeMic && !string.IsNullOrEmpty(safeMicName))
-                    {
-                        args = $"-y -hide_banner -loglevel error -f rawvideo -pix_fmt bgra -s {width}x{height} -r {_fps} -i - " +
-                               $"-f dshow -rtbufsize 64M -i audio=\"{safeMicName}\" " +
-                               $"-filter:a \"{audioFilter}\" {videoCodecArgs} -c:a aac -ar 44100 -ac 2 -b:a 128k -shortest {muxerFlags} \"{safeStagePath}\"";
-                    }
-                    else if (includeMusic && !string.IsNullOrEmpty(safeMusicPath))
-                    {
-                        args = $"-y -hide_banner -loglevel error -f rawvideo -pix_fmt bgra -s {width}x{height} -r {_fps} -i - " +
-                               $"{loopArg}-i \"{safeMusicPath}\" " +
-                               $"-map 0:v -map 1:a -filter:a \"{musicFilter}\" {videoCodecArgs} -c:a aac -ar 44100 -ac 2 -b:a 128k -shortest {muxerFlags} \"{safeStagePath}\"";
-                    }
-                    else
-                    {
-                        args = $"-y -hide_banner -loglevel error -f rawvideo -pix_fmt bgra -s {width}x{height} -r {_fps} -i - " +
-                               $"{videoCodecArgs} {muxerFlags} \"{safeStagePath}\"";
+                        if (!string.IsNullOrEmpty(cropFilterExpr))
+                        {
+                            targetPsi.ArgumentList.Add("-vf");
+                            targetPsi.ArgumentList.Add(cropFilterExpr);
+                        }
+                        foreach (var a in new[]
+                        {
+                            "-c:v", "libx264", "-preset", "veryfast", "-profile:v", "main", "-bf", "0",
+                            "-crf", crf.ToString(CultureInfo.InvariantCulture),
+                            "-pix_fmt", "yuv420p", "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", "-color_range", "tv"
+                        })
+                        {
+                            targetPsi.ArgumentList.Add(a);
+                        }
                     }
 
-                    var psi = new ProcessStartInfo
+                    void AppendMuxerTailArgs(ProcessStartInfo targetPsi, string targetOutPath)
                     {
-                        FileName = ffmpegPath,
-                        Arguments = args,
-                        UseShellExecute = false,
-                        CreateNoWindow = true,
-                        RedirectStandardInput = true,
-                        RedirectStandardError = true
-                    };
+                        foreach (var a in new[]
+                        {
+                            "-fflags", "+genpts", "-avoid_negative_ts", "make_zero", "-use_editlist", "0",
+                            "-max_muxing_queue_size", "4096", "-movflags", "+faststart", targetOutPath
+                        })
+                        {
+                            targetPsi.ArgumentList.Add(a);
+                        }
+                    }
 
+                    ProcessStartInfo BuildRecorderPsi(bool withAudio)
+                    {
+                        var p = new ProcessStartInfo
+                        {
+                            FileName = ffmpegPath,
+                            UseShellExecute = false,
+                            CreateNoWindow = true,
+                            RedirectStandardInput = true,
+                            RedirectStandardError = true
+                        };
+                        foreach (var a in new[] { "-y", "-hide_banner", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "bgra", "-s", $"{width}x{height}", "-r", _fps.ToString(CultureInfo.InvariantCulture), "-i", "-" })
+                            p.ArgumentList.Add(a);
+
+                        if (withAudio && includeMic && !string.IsNullOrEmpty(safeMicName) && includeMusic && !string.IsNullOrEmpty(safeMusicPath))
+                        {
+                            foreach (var a in new[] { "-f", "dshow", "-rtbufsize", "64M", "-i", $"audio={safeMicName}" })
+                                p.ArgumentList.Add(a);
+                            if (cfg.MusicSignalLoop) { p.ArgumentList.Add("-stream_loop"); p.ArgumentList.Add("-1"); }
+                            p.ArgumentList.Add("-i");
+                            p.ArgumentList.Add(safeMusicPath);
+                            p.ArgumentList.Add("-filter_complex");
+                            p.ArgumentList.Add($"[1:a]{audioFilter}[mic];[2:a]{musicFilter}[mus];[mic][mus]amix=inputs=2:duration=first:dropout_transition=0[aout]");
+                            p.ArgumentList.Add("-map"); p.ArgumentList.Add("0:v");
+                            p.ArgumentList.Add("-map"); p.ArgumentList.Add("[aout]");
+                            AppendVideoCodecAndMuxerArgs(p, stagingMp4Path);
+                            foreach (var a in new[] { "-c:a", "aac", "-ar", "44100", "-ac", "2", "-b:a", "128k", "-shortest" })
+                                p.ArgumentList.Add(a);
+                            AppendMuxerTailArgs(p, stagingMp4Path);
+                        }
+                        else if (withAudio && includeMic && !string.IsNullOrEmpty(safeMicName))
+                        {
+                            foreach (var a in new[] { "-f", "dshow", "-rtbufsize", "64M", "-i", $"audio={safeMicName}", "-filter:a", audioFilter })
+                                p.ArgumentList.Add(a);
+                            AppendVideoCodecAndMuxerArgs(p, stagingMp4Path);
+                            foreach (var a in new[] { "-c:a", "aac", "-ar", "44100", "-ac", "2", "-b:a", "128k", "-shortest" })
+                                p.ArgumentList.Add(a);
+                            AppendMuxerTailArgs(p, stagingMp4Path);
+                        }
+                        else if (withAudio && includeMusic && !string.IsNullOrEmpty(safeMusicPath))
+                        {
+                            if (cfg.MusicSignalLoop) { p.ArgumentList.Add("-stream_loop"); p.ArgumentList.Add("-1"); }
+                            p.ArgumentList.Add("-i"); p.ArgumentList.Add(safeMusicPath);
+                            p.ArgumentList.Add("-map"); p.ArgumentList.Add("0:v");
+                            p.ArgumentList.Add("-map"); p.ArgumentList.Add("1:a");
+                            p.ArgumentList.Add("-filter:a"); p.ArgumentList.Add(musicFilter);
+                            AppendVideoCodecAndMuxerArgs(p, stagingMp4Path);
+                            foreach (var a in new[] { "-c:a", "aac", "-ar", "44100", "-ac", "2", "-b:a", "128k", "-shortest" })
+                                p.ArgumentList.Add(a);
+                            AppendMuxerTailArgs(p, stagingMp4Path);
+                        }
+                        else
+                        {
+                            AppendVideoCodecAndMuxerArgs(p, stagingMp4Path);
+                            AppendMuxerTailArgs(p, stagingMp4Path);
+                        }
+                        return p;
+                    }
+
+                    var psi = BuildRecorderPsi(withAudio: true);
                     _ffmpegProc = Process.Start(psi);
                     if (_ffmpegProc == null) return false;
                     DrainStderrAsync(_ffmpegProc);
@@ -2452,10 +2801,8 @@ namespace Funkenwerk
                     Thread.Sleep(180);
                     if (_ffmpegProc.HasExited && (includeMic || includeMusic))
                     {
-                        string fallbackArgs = $"-y -hide_banner -loglevel error -f rawvideo -pix_fmt bgra -s {width}x{height} -r {_fps} -i - " +
-                                              $"{videoCodecArgs} {muxerFlags} \"{safeStagePath}\"";
-                        psi.Arguments = fallbackArgs;
-                        _ffmpegProc = Process.Start(psi);
+                        var fallbackPsi = BuildRecorderPsi(withAudio: false);
+                        _ffmpegProc = Process.Start(fallbackPsi);
                         if (_ffmpegProc == null) return false;
                         DrainStderrAsync(_ffmpegProc);
                     }
@@ -2811,11 +3158,27 @@ namespace Funkenwerk
         public void TriggerConfetti(int w = 1280, int h = 720) => TriggerOneShotEffect("confetti");
         public void TriggerPaparazzi() => TriggerOneShotEffect("paparazzi");
 
+        public string LoadedCustomBackgroundPath => _loadedBgPath;
+        public bool HasLoadedCustomBackground => _customBgBgra != null;
+
         public bool SetCustomBackgroundImage(string path, int w, int h)
         {
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            {
+                _loadedBgPath = "";
+                _customBgBgra = null;
+                return false;
+            }
             _loadedBgPath = "";
             _customBgBgra = null;
-            return File.Exists(path);
+            EnsureCustomChromaBgLoaded(path, Math.Max(16, w), Math.Max(16, h));
+            if (_customBgBgra != null)
+            {
+                _loadedBgPath = path;
+                return true;
+            }
+            _loadedBgPath = path;
+            return true;
         }
 
         private byte[]? _workBufC;
@@ -4311,13 +4674,22 @@ namespace Funkenwerk
             _hasFrame = false;
             _activeFilePath = "";
             try { _cts?.Cancel(); } catch { }
-            try
+            KillActiveProcessSafe();
+        }
+
+        private void KillActiveProcessSafe()
+        {
+            Process? p;
+            lock (_lock)
             {
-                if (_proc != null && !_proc.HasExited)
-                    _proc.Kill(true);
+                p = _proc;
+                _proc = null;
             }
-            catch { }
-            _proc = null;
+            if (p != null)
+            {
+                try { if (!p.HasExited) p.Kill(true); } catch { }
+                try { p.Dispose(); } catch { }
+            }
         }
 
         public bool CopyLatestFrame(int w, int h, ref byte[]? dest)
@@ -4351,8 +4723,9 @@ namespace Funkenwerk
             bool isStaticImage = ext is ".png" or ".jpg" or ".jpeg" or ".bmp" or ".webp";
             int frameDelayMs = Math.Max(12, 1000 / Math.Max(15, fps));
 
-            // Cache for Instagram-style Boomerang (forward <-> backward ping-pong)
-            int maxCacheFrames = (w >= 1920) ? 65 : 120;
+            // Cap Boomerang RAM cache strictly at <= 128 MB regardless of canvas resolution (e.g. <= 15 frames at 1080p)
+            const int maxBoomerangBytes = 128 * 1024 * 1024;
+            int maxCacheFrames = Math.Clamp(maxBoomerangBytes / Math.Max(1, frameBytes), 6, 90);
             var boomerangCache = new List<byte[]>(maxCacheFrames);
 
             while (!token.IsCancellationRequested && _isPlaying)
@@ -4386,57 +4759,103 @@ namespace Funkenwerk
                     }
 
                     bool useFfmpegInfiniteLoop = (_loopEnabled && !_boomerangEnabled) || isStaticImage;
-                    string loopArg = useFfmpegInfiniteLoop ? "-stream_loop -1 " : "";
-                    string inputPrefix = isStaticImage ? $"-loop 1 -framerate {fps} " : $"-re {loopArg}";
                     string vf = $"scale={w}:{h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2:color=#101218";
-                    string safeFilePath = FunkenwerkSecurityVault.SanitizeCliArgument(filePath);
-                    string args = $"-hide_banner -loglevel error {inputPrefix}-i \"{safeFilePath}\" -vf \"{vf}\" -r {fps} -f rawvideo -pix_fmt bgra -";
 
                     var psi = new ProcessStartInfo
                     {
                         FileName = ffmpegPath,
-                        Arguments = args,
                         UseShellExecute = false,
                         CreateNoWindow = true,
                         RedirectStandardOutput = true,
                         RedirectStandardError = true
                     };
-
-                    using var proc = Process.Start(psi);
-                    _proc = proc;
-                    if (proc != null)
+                    psi.ArgumentList.Add("-hide_banner");
+                    psi.ArgumentList.Add("-loglevel");
+                    psi.ArgumentList.Add("error");
+                    if (isStaticImage)
                     {
-                        var stream = proc.StandardOutput.BaseStream;
-                        while (!token.IsCancellationRequested && _isPlaying && !proc.HasExited)
+                        psi.ArgumentList.Add("-loop");
+                        psi.ArgumentList.Add("1");
+                        psi.ArgumentList.Add("-framerate");
+                        psi.ArgumentList.Add(fps.ToString(CultureInfo.InvariantCulture));
+                    }
+                    else
+                    {
+                        psi.ArgumentList.Add("-re");
+                        if (useFfmpegInfiniteLoop)
                         {
-                            int offset = 0;
-                            while (offset < frameBytes && !token.IsCancellationRequested)
-                            {
-                                int read = await stream.ReadAsync(readBuf.AsMemory(offset, frameBytes - offset), token);
-                                if (read <= 0) break;
-                                offset += read;
-                            }
-                            if (offset == frameBytes)
-                            {
-                                PublishFrame(readBuf, frameBytes);
+                            psi.ArgumentList.Add("-stream_loop");
+                            psi.ArgumentList.Add("-1");
+                        }
+                    }
+                    psi.ArgumentList.Add("-i");
+                    psi.ArgumentList.Add(filePath);
+                    psi.ArgumentList.Add("-vf");
+                    psi.ArgumentList.Add(vf);
+                    psi.ArgumentList.Add("-r");
+                    psi.ArgumentList.Add(fps.ToString(CultureInfo.InvariantCulture));
+                    psi.ArgumentList.Add("-f");
+                    psi.ArgumentList.Add("rawvideo");
+                    psi.ArgumentList.Add("-pix_fmt");
+                    psi.ArgumentList.Add("bgra");
+                    psi.ArgumentList.Add("-");
 
-                                if (_boomerangEnabled && !isStaticImage && boomerangCache.Count < maxCacheFrames)
+                    Process? proc = Process.Start(psi);
+                    lock (_lock)
+                    {
+                        _proc = proc;
+                    }
+                    try
+                    {
+                        if (proc != null)
+                        {
+                            // Drain stderr asynchronously so FFmpeg never blocks on stderr pipe
+                            _ = Task.Run(async () =>
+                            {
+                                try
                                 {
-                                    byte[] copy = new byte[frameBytes];
-                                    Buffer.BlockCopy(readBuf, 0, copy, 0, frameBytes);
-                                    boomerangCache.Add(copy);
-                                    if (boomerangCache.Count >= maxCacheFrames && useFfmpegInfiniteLoop)
+                                    char[] errBuf = new char[1024];
+                                    while (!proc.HasExited && await proc.StandardError.ReadAsync(errBuf, 0, errBuf.Length) > 0) { }
+                                }
+                                catch { }
+                            });
+
+                            var stream = proc.StandardOutput.BaseStream;
+                            while (!token.IsCancellationRequested && _isPlaying && !proc.HasExited)
+                            {
+                                int offset = 0;
+                                while (offset < frameBytes && !token.IsCancellationRequested)
+                                {
+                                    int read = await stream.ReadAsync(readBuf.AsMemory(offset, frameBytes - offset), token);
+                                    if (read <= 0) break;
+                                    offset += read;
+                                }
+                                if (offset == frameBytes)
+                                {
+                                    PublishFrame(readBuf, frameBytes);
+
+                                    if (_boomerangEnabled && !isStaticImage && boomerangCache.Count < maxCacheFrames)
                                     {
-                                        try { proc.Kill(true); } catch { }
-                                        break;
+                                        byte[] copy = new byte[frameBytes];
+                                        Buffer.BlockCopy(readBuf, 0, copy, 0, frameBytes);
+                                        boomerangCache.Add(copy);
+                                        if (boomerangCache.Count >= maxCacheFrames && useFfmpegInfiniteLoop)
+                                        {
+                                            try { if (!proc.HasExited) proc.Kill(true); } catch { }
+                                            break;
+                                        }
                                     }
                                 }
-                            }
-                            else
-                            {
-                                break;
+                                else
+                                {
+                                    break;
+                                }
                             }
                         }
+                    }
+                    finally
+                    {
+                        KillActiveProcessSafe();
                     }
 
                     // If Boomerang was just populated during the first pass, immediately run the reverse pass
@@ -4598,29 +5017,35 @@ namespace Funkenwerk
             if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath)) return null;
             string loadPath = filePath;
 
-            // If file is .webp, create a cached .png fallback if WPF fails or for guaranteed thumbnail rendering
+            // If file is .webp, create a cached .png fallback inside ACL-locked AppData\tmp
             if (filePath.EndsWith(".webp", StringComparison.OrdinalIgnoreCase))
             {
                 try
                 {
-                    string cacheDir = Path.Combine(Path.GetTempPath(), "FunkenwerkDlcThumbCache");
+                    string cacheDir = Path.Combine(FunkenwerkSecurityVault.GetSecureTempDirectory(), "DlcThumbCache");
                     Directory.CreateDirectory(cacheDir);
                     string cachedPng = Path.Combine(cacheDir, Path.GetFileName(filePath) + ".png");
                     if (!File.Exists(cachedPng))
                     {
-                        string ffmpeg = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "tools", "ffmpeg.exe");
-                        if (!File.Exists(ffmpeg))
-                            ffmpeg = @"C:\Users\konta\Desktop\Funkenwerk\tools\ffmpeg.exe";
-                        if (File.Exists(ffmpeg))
+                        string ffmpeg = FunkenwerkVideoRecorder.ResolveDefaultFfmpegPath();
+                        var thumbPsi = new ProcessStartInfo
                         {
-                            using var p = Process.Start(new ProcessStartInfo
+                            FileName = ffmpeg,
+                            UseShellExecute = false,
+                            CreateNoWindow = true,
+                            RedirectStandardError = true
+                        };
+                        foreach (var a in new[] { "-y", "-hide_banner", "-loglevel", "error", "-i", filePath, "-frames:v", "1", cachedPng })
+                            thumbPsi.ArgumentList.Add(a);
+
+                        using var p = Process.Start(thumbPsi);
+                        if (p != null)
+                        {
+                            _ = p.StandardError.ReadToEndAsync();
+                            if (!p.WaitForExit(2500))
                             {
-                                FileName = ffmpeg,
-                                Arguments = $"-y -i \"{filePath}\" -frames:v 1 \"{cachedPng}\"",
-                                UseShellExecute = false,
-                                CreateNoWindow = true
-                            });
-                            p?.WaitForExit(2500);
+                                try { p.Kill(true); } catch { }
+                            }
                         }
                     }
                     if (File.Exists(cachedPng)) loadPath = cachedPng;
@@ -4660,6 +5085,34 @@ namespace Funkenwerk
             catch { }
         }
 
+        public bool EnsureSharedMemoryForSelfTest()
+        {
+            lock (_sync)
+            {
+                try
+                {
+                    if (_mmf == null || _accessor == null)
+                    {
+                        var shmSec = FunkenwerkVirtualCamDriver.CreateCurrentUserMemoryMappedSecurity();
+                        _mmf = MemoryMappedFileAcl.CreateOrOpen(
+                            ShmName,
+                            TotalShmSize,
+                            MemoryMappedFileAccess.ReadWrite,
+                            MemoryMappedFileOptions.None,
+                            shmSec,
+                            HandleInheritability.None);
+                        _accessor = _mmf.CreateViewAccessor(0, TotalShmSize);
+                        _accessor.Write(0, 0);
+                    }
+                    return FunkenwerkVirtualCamDriver.HasCurrentUserOnlyShmDacl(_mmf);
+                }
+                catch
+                {
+                    return false;
+                }
+            }
+        }
+
         public void EnsureStarted(string sourceFacePath)
         {
             lock (_sync)
@@ -4668,7 +5121,14 @@ namespace Funkenwerk
                 {
                     if (_mmf == null || _accessor == null)
                     {
-                        _mmf = MemoryMappedFile.CreateOrOpen(ShmName, TotalShmSize);
+                        var shmSec = FunkenwerkVirtualCamDriver.CreateCurrentUserMemoryMappedSecurity();
+                        _mmf = MemoryMappedFileAcl.CreateOrOpen(
+                            ShmName,
+                            TotalShmSize,
+                            MemoryMappedFileAccess.ReadWrite,
+                            MemoryMappedFileOptions.None,
+                            shmSec,
+                            HandleInheritability.None);
                         _accessor = _mmf.CreateViewAccessor(0, TotalShmSize);
                         _accessor.Write(0, 0); // cmd = 0 (idle)
                     }
@@ -4690,12 +5150,6 @@ namespace Funkenwerk
                         if (!File.Exists(pythonExe)) return;
 
                         string bridgeScript = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "funkenwerk_dlc_bridge.py");
-                        if (!File.Exists(bridgeScript))
-                        {
-                            string desktopBridge = @"C:\Users\konta\Desktop\Funkenwerk\funkenwerk_dlc_bridge.py";
-                            if (File.Exists(desktopBridge)) bridgeScript = desktopBridge;
-                        }
-
                         if (!File.Exists(bridgeScript)) return;
 
                         // Reset command and status before spawning worker
@@ -4706,16 +5160,40 @@ namespace Funkenwerk
                         var psi = new ProcessStartInfo
                         {
                             FileName = pythonExe,
-                            Arguments = $"\"{bridgeScript}\"",
                             WorkingDirectory = DlcRootDir,
                             UseShellExecute = false,
                             CreateNoWindow = true,
                             RedirectStandardError = true,
                             RedirectStandardOutput = true
                         };
+                        psi.ArgumentList.Add("-E");
+                        psi.ArgumentList.Add(bridgeScript);
 
                         _pythonStatus = 1;
-                        _pythonProc = Process.Start(psi);
+                        var startedProc = Process.Start(psi);
+                        _pythonProc = startedProc;
+                        if (startedProc != null)
+                        {
+                            // Drain stdout and stderr asynchronously so Python bridge never deadlocks on full OS pipes
+                            _ = Task.Run(async () =>
+                            {
+                                try
+                                {
+                                    char[] buf = new char[1024];
+                                    while (!startedProc.HasExited && await startedProc.StandardOutput.ReadAsync(buf, 0, buf.Length) > 0) { }
+                                }
+                                catch { }
+                            });
+                            _ = Task.Run(async () =>
+                            {
+                                try
+                                {
+                                    char[] buf = new char[1024];
+                                    while (!startedProc.HasExited && await startedProc.StandardError.ReadAsync(buf, 0, buf.Length) > 0) { }
+                                }
+                                catch { }
+                            });
+                        }
                     }
                 }
                 catch { }
@@ -4725,6 +5203,8 @@ namespace Funkenwerk
         public void UpdateSourceFace(string sourceFacePath)
         {
             if (string.IsNullOrWhiteSpace(sourceFacePath) || !File.Exists(sourceFacePath)) return;
+            if (sourceFacePath.StartsWith(@"\\", StringComparison.Ordinal) || sourceFacePath.StartsWith("//", StringComparison.Ordinal))
+                return;
             if (string.Equals(_lastSourcePath, sourceFacePath, StringComparison.OrdinalIgnoreCase))
             {
                 WriteSourcePathToShm(_lastSourcePath);
@@ -4735,15 +5215,8 @@ namespace Funkenwerk
             {
                 _lastSourcePath = sourceFacePath;
                 _hasProcessedFrame = false;
-                var utf8NoBom = new UTF8Encoding(false);
-                string cfgFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "funkenwerk_dlc_source.txt");
-                File.WriteAllText(cfgFile, sourceFacePath, utf8NoBom);
-                try
-                {
-                    string desktopCfg = @"C:\Users\konta\Desktop\Funkenwerk\funkenwerk_dlc_source.txt";
-                    File.WriteAllText(desktopCfg, sourceFacePath, utf8NoBom);
-                }
-                catch { }
+                string cfgFile = FunkenwerkSecurityVault.GetAppDataFilePath("funkenwerk_dlc_source.txt", migrateFromBaseDir: false);
+                FunkenwerkSecurityVault.WriteSecureFileText(cfgFile, sourceFacePath);
                 _sourceVersion++;
                 WriteSourcePathToShm(_lastSourcePath);
             }
@@ -5087,6 +5560,9 @@ namespace Funkenwerk
         private const int CALLBACK_FUNCTION = 0x00030000;
         private const uint WIM_DATA = 0x3C0;
         private const int WAVE_MAPPER = -1;
+        private const uint WHDR_DONE = 0x00000001;
+        private const uint WHDR_PREPARED = 0x00000002;
+        private const uint WHDR_INQUEUE = 0x00000010;
 
         [DllImport("winmm.dll")]
         private static extern int waveInOpen(out IntPtr hWaveIn, int uDeviceID, ref WAVEFORMATEX lpFormat, WaveDelegate dwCallback, IntPtr dwInstance, int dwFlags);
@@ -5130,6 +5606,7 @@ namespace Funkenwerk
         private int _outBufIdx = 0;
         private volatile bool _isRunning = false;
         private readonly object _sync = new();
+        private readonly object _dspLock = new();
 
         // DSP State
         private readonly float[] _ringBuffer = new float[RingCap];
@@ -5370,17 +5847,21 @@ namespace Funkenwerk
 
         public void SyncFromConfig(CameraStudioConfig cfg, int micDeviceIndex = -1, int outDeviceIndex = -1)
         {
-            _enabled = cfg.VoiceChangerEnabled;
-            _liveMonitor = cfg.VoiceLiveMonitor;
-            _pitchSemitones = (float)Math.Clamp(cfg.VoicePitchSemitones, -12.0, 12.0);
-            _formantShift = (float)Math.Clamp(cfg.VoiceFormantShift, -100.0, 100.0);
-            _robotMix = Math.Clamp(cfg.VoiceRobotMix, 0, 100);
-            _reverbMix = Math.Clamp(cfg.VoiceReverbMix, 0, 100);
-            _bassBoost = Math.Clamp(cfg.VoiceBassBoost, 0, 100);
-            _noiseGate = Math.Clamp(cfg.VoiceNoiseGate, 0, 100);
-            _preset = cfg.VoiceChangerPreset ?? "none";
+            bool shouldRun;
+            lock (_dspLock)
+            {
+                _enabled = cfg.VoiceChangerEnabled;
+                _liveMonitor = cfg.VoiceLiveMonitor;
+                _pitchSemitones = (float)Math.Clamp(cfg.VoicePitchSemitones, -12.0, 12.0);
+                _formantShift = (float)Math.Clamp(cfg.VoiceFormantShift, -100.0, 100.0);
+                _robotMix = Math.Clamp(cfg.VoiceRobotMix, 0, 100);
+                _reverbMix = Math.Clamp(cfg.VoiceReverbMix, 0, 100);
+                _bassBoost = Math.Clamp(cfg.VoiceBassBoost, 0, 100);
+                _noiseGate = Math.Clamp(cfg.VoiceNoiseGate, 0, 100);
+                _preset = cfg.VoiceChangerPreset ?? "none";
+                shouldRun = _enabled && (_liveMonitor || _isRecordingSample);
+            }
 
-            bool shouldRun = _enabled && (_liveMonitor || _isRecordingSample);
             if (shouldRun)
             {
                 if (!_isRunning || _activeInDev != micDeviceIndex || _activeOutDev != outDeviceIndex)
@@ -5582,16 +6063,25 @@ namespace Funkenwerk
                     // Run real-time DSP Voice Changer pipeline
                     ProcessDspBlockInPlace(pcm, recordedSamples);
 
-                    // Output to headphones/speakers if Live Monitoring is enabled
+                    // Output to headphones/speakers if Live Monitoring is enabled (never touch buffers still WHDR_INQUEUE!)
                     if (_liveMonitor && _hWaveOut != IntPtr.Zero)
                     {
-                        int outIdx = Interlocked.Increment(ref _outBufIdx) % NumBuffers;
-                        IntPtr outHdrPtr = _outHdrPtrs[outIdx];
-                        IntPtr outDataPtr = _outDataPtrs[outIdx];
-                        if (outHdrPtr != IntPtr.Zero && outDataPtr != IntPtr.Zero)
+                        for (int attempt = 0; attempt < NumBuffers; attempt++)
                         {
+                            int outIdx = (int)((uint)Interlocked.Increment(ref _outBufIdx) % NumBuffers);
+                            IntPtr outHdrPtr = _outHdrPtrs[outIdx];
+                            IntPtr outDataPtr = _outDataPtrs[outIdx];
+                            if (outHdrPtr == IntPtr.Zero || outDataPtr == IntPtr.Zero) continue;
+
+                            var curOutHdr = Marshal.PtrToStructure<WAVEHDR>(outHdrPtr);
+                            if ((curOutHdr.dwFlags & WHDR_INQUEUE) != 0)
+                                continue;
+
+                            curOutHdr.dwBufferLength = (uint)(recordedSamples * 2);
+                            Marshal.StructureToPtr(curOutHdr, outHdrPtr, false);
                             Marshal.Copy(pcm, 0, outDataPtr, recordedSamples);
                             waveOutWrite(_hWaveOut, outHdrPtr, Marshal.SizeOf<WAVEHDR>());
+                            break;
                         }
                     }
                 }
@@ -5617,7 +6107,16 @@ namespace Funkenwerk
         /// </summary>
         public void ProcessDspBlockInPlace(short[] pcm, int count)
         {
-            if (!_enabled || count <= 0) return;
+            if (pcm == null || count <= 0 || count > pcm.Length) return;
+            lock (_dspLock)
+            {
+                if (!_enabled) return;
+                ProcessDspBlockLocked(pcm, count);
+            }
+        }
+
+        private void ProcessDspBlockLocked(short[] pcm, int count)
+        {
 
             // Measure RMS for Noise Gate
             double sumSq = 0;

@@ -4047,7 +4047,7 @@
                                             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                                             <TextBlock Text="🤍 4. Influencer-Kooperationen" Foreground="#D4AF37" FontSize="13" FontWeight="Bold" VerticalAlignment="Center"/>
                                             <Button Grid.Column="1" Click="MktCopyTextTag_Click"
-                                                    Tag="Hallo Liebes ✨, wir fertigen in unserer Manufaktur in Gifhorn mit weißen Handschuhen persönliche Unikate aus K9-Kristallglas und 14k vergoldetem Edelstahl. Deine Geschichte hat uns total berührt – wir würden dir von Herzen gerne kostenlos ein persönliches Erinnerungsstück anfertigen. Einzige Bitte: Filme deine echte erste Reaktion beim Auspacken! 🤍 Alles Liebe, Alina von Mein Seelenfunke"
+                                                    Tag="Hallo Liebes ✨, wir fertigen in unserer Manufaktur in Gifhorn mit weißen Handschuhen persönliche Unikate aus K9-Kristallglas und 14k vergoldetem Edelstahl. Deine Geschichte hat uns total berührt, wir würden dir von Herzen gerne kostenlos ein persönliches Erinnerungsstück anfertigen. Einzige Bitte: Filme deine echte erste Reaktion beim Auspacken! 🤍 Alles Liebe, Alina von Mein Seelenfunke"
                                                     Background="#C5A059" Foreground="#111827" FontWeight="Bold" BorderThickness="0" Padding="10,4" Cursor="Hand" FontSize="11" Content="📋 Anschreiben">
                                                 <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style></Button.Resources>
                                             </Button>
@@ -4676,7 +4676,7 @@
 
                                         <Border Background="#0B0D12" BorderBrush="#2A3042" BorderThickness="1" CornerRadius="10" Padding="13,8" Margin="0,0,0,14">
                                             <TextBlock x:Name="MktFocusViralSongTxt"
-                                                       Text="🎵 Viraler TikTok / IG Song: Taylor Swift – The Fate of Ophelia (Piano)  oder  Bridgerton Strings (-8 dB) + 100 % echter Scherenschnitt (0 dB)"
+                                                       Text="🎵 Viraler TikTok / IG Song: Taylor Swift · The Fate of Ophelia (Piano)  oder  Bridgerton Strings (-8 dB) + 100 % echter Scherenschnitt (0 dB)"
                                                        Foreground="#D4AF37" FontSize="12" FontWeight="Bold" TextWrapping="Wrap"/>
                                         </Border>
 
@@ -6093,7 +6093,7 @@
                                             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                                             <StackPanel Margin="0,0,14,0">
                                                 <TextBlock Text="Darkmode aktivieren (Dunkles Design)" Foreground="#F9FAFB" FontSize="13.5" FontWeight="Bold"/>
-                                                <TextBlock Text="Standardmäßig Tiefschwarz (#000000) mit weißer/goldener Schrift – unten für jeden Bereich frei anpassbar" Foreground="#9CA3AF" FontSize="11" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                                <TextBlock Text="Standardmäßig Tiefschwarz (#000000) mit weißer/goldener Schrift · unten für jeden Bereich frei anpassbar" Foreground="#9CA3AF" FontSize="11" TextWrapping="Wrap" Margin="0,2,0,0"/>
                                             </StackPanel>
                                             <CheckBox x:Name="DarkModeCheck" Grid.Column="1" VerticalAlignment="Center" IsChecked="True" Cursor="Hand" Checked="DarkModeCheck_Changed" Unchecked="DarkModeCheck_Changed">
                                                 <CheckBox.LayoutTransform><ScaleTransform ScaleX="1.25" ScaleY="1.25"/></CheckBox.LayoutTransform>

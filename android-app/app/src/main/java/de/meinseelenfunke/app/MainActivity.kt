@@ -41,6 +41,7 @@ class MainActivity : FragmentActivity() {
         }
 
         ServiceLocator.ensureInitialized(this)
+        de.meinseelenfunke.app.util.AppUpdateManager.cleanupCacheAsync(this)
         de.meinseelenfunke.app.util.ErrorSentinelReporter.install(this)
         FunkenwerkAlarmManager.ensureInitialized(this)
 
@@ -110,11 +111,18 @@ class MainActivity : FragmentActivity() {
             val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             manager.cancel(1003)
             NavigationBridge.triggerWakeWord()
-        } else if (intent.getStringExtra("navigate_to") == "email") {
+        } else if (!intent.getStringExtra("navigate_to").isNullOrBlank()) {
+            val navigateTo = intent.getStringExtra("navigate_to")?.trim().orEmpty()
             if (intent.hasExtra("email_id")) {
                 NavigationBridge.pendingEmailId = intent.getStringExtra("email_id")
             }
-            NavigationBridge.triggerNavigation(tabIndex = 2, subTab = 4)
+            if (navigateTo.equals("email", ignoreCase = true) || navigateTo.equals("mail", ignoreCase = true)) {
+                NavigationBridge.triggerNavigation(NavigationBridge.NavTarget.ORGANIZER, subTab = 4)
+            } else {
+                val parsedTarget = NavigationBridge.parseTarget(navigateTo) ?: NavigationBridge.NavTarget.ZENTRUM
+                val subTab = intent.getIntExtra("open_subtab", 0)
+                NavigationBridge.triggerNavigation(parsedTarget, subTab = subTab)
+            }
         } else if (intent.hasExtra("open_tab")) {
             val tab = intent.getIntExtra("open_tab", 0)
             val subTab = intent.getIntExtra("open_subtab", 0)

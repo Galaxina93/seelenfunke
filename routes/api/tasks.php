@@ -95,24 +95,19 @@ Route::prefix('funki/tasks')->group(function () {
 
     // --- TASKS ---
     Route::get('/', function () {
-        $tasks = ManagementTask::with('list')
+        $tasks = ManagementTask::with(['list', 'parent'])
             ->where('is_archived', false)
-            ->orderByRaw("FIELD(COALESCE(priority, 'niedrig'), 'hoch', 'mittel', 'niedrig')")
+            ->orderByRaw("CASE priority WHEN 'hoch' THEN 1 WHEN 'high' THEN 1 WHEN 'mittel' THEN 2 WHEN 'medium' THEN 2 ELSE 3 END ASC")
             ->orderBy('position')
             ->orderBy('created_at', 'desc')
             ->get()
-            ->map(function($task) {
+            ->map(function ($task) {
                 $task->title = $task->title ?? 'Ohne Titel';
                 $task->list_name = $task->list ? $task->list->name : 'Aufgaben';
-                $parentTitle = null;
-                if($task->parent_id) {
-                    $parent = ManagementTask::find($task->parent_id);
-                    $parentTitle = $parent ? $parent->title : null;
-                }
-                $task->parent_title = $parentTitle;
+                $task->parent_title = $task->parent ? $task->parent->title : null;
                 return $task;
             });
-            
+
         return response()->json(['success' => true, 'data' => $tasks]);
     });
 

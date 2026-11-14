@@ -50,10 +50,29 @@ class AIController extends Controller
 
         $functionName = $request->input('function');
         $args = $request->input('args', []);
+        $isAdmin = \App\Services\AI\AiAuthHelper::isAdmin();
+
+        if (!$isAdmin) {
+            $isInternalEmployee = \App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isExternalPartner();
+            if (!$isInternalEmployee) {
+                $isPublicAllowed = str_starts_with((string) $functionName, 'support_') || $functionName === 'system_get_current_time';
+                if (!$isPublicAllowed) {
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => "Zugriff verweigert: Werkzeug '{$functionName}' ist für externe Rollen gesperrt.",
+                    ], 403);
+                }
+            } elseif (AIFunctionsRegistry::isToolRestrictedForEmployee((string) $functionName)) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => "Zugriff verweigert: Werkzeug '{$functionName}' erfordert Administrator-Rechte.",
+                ], 403);
+            }
+        }
 
         $sessionId = $request->input('chat_session_id') ?: $request->input('session_id');
         $currentUserId = \App\Services\AI\AiAuthHelper::getUserId();
-        if ($sessionId && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+        if ($sessionId && !$isAdmin) {
             $ownedSession = $currentUserId && \App\Models\Ai\AiChatSession::where('id', $sessionId)
                 ->where('user_id', $currentUserId)
                 ->exists();
@@ -79,17 +98,28 @@ class AIController extends Controller
         $agent = null;
         if ($agentId) {
             $agent = \App\Models\Ai\AiAgent::where('is_active', true)->find($agentId);
+            if ($agent && !$isAdmin && $this->isAdminOnlyAgent($agent)) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Zugriff verweigert: Die Admin-KI Funkira ist ausschließlich für Administratoren freigegeben.',
+                ], 403);
+            }
         }
         if (!$agent && \App\Services\AI\AiAuthHelper::check()) {
             $user = \App\Services\AI\AiAuthHelper::getUser();
             $candidateAgent = $user?->ai_agent;
-            if ($candidateAgent && $candidateAgent->is_active) {
+            if ($candidateAgent && $candidateAgent->is_active && ($isAdmin || !$this->isAdminOnlyAgent($candidateAgent))) {
                 $agent = $candidateAgent;
             }
         }
         if (!$agent) {
-            $agent = \App\Models\Ai\AiAgent::where('name', 'Funkira')->where('is_active', true)->first()
-                ?? \App\Models\Ai\AiAgent::where('is_active', true)->first();
+            if ($isAdmin) {
+                $agent = \App\Models\Ai\AiAgent::where('name', 'Funkira')->where('is_active', true)->first()
+                    ?? \App\Models\Ai\AiAgent::where('is_active', true)->first();
+            } else {
+                $agent = \App\Models\Ai\AiAgent::where('name', 'Funki')->where('is_active', true)->first()
+                    ?? \App\Models\Ai\AiAgent::where('is_active', true)->whereRaw('LOWER(name) != ?', ['funkira'])->first();
+            }
         }
 
         try {
@@ -194,12 +224,20 @@ class AIController extends Controller
                     && str_starts_with($imgPath, 'agenten/workspace/')
                     && in_array($ext, ['jpg', 'jpeg', 'png', 'webp', 'gif'], true);
 
-                if ($isSafeImagePath && \Illuminate\Support\Facades\Storage::disk('public')->exists($imgPath)) {
-                    $mimeType = \Illuminate\Support\Facades\Storage::disk('public')->mimeType($imgPath);
-                    if (is_string($mimeType) && str_starts_with($mimeType, 'image/')) {
-                        $base64 = base64_encode(\Illuminate\Support\Facades\Storage::disk('public')->get($imgPath));
-                        $dataUrl = "data:{$mimeType};base64,{$base64}";
-                        $contentArr[] = ['type' => 'image_url', 'image_url' => ['url' => $dataUrl]];
+                if ($isSafeImagePath) {
+                    $imgDisk = null;
+                    if (\Illuminate\Support\Facades\Storage::disk('workspace')->exists($imgPath)) {
+                        $imgDisk = 'workspace';
+                    } elseif (\Illuminate\Support\Facades\Storage::disk('public')->exists($imgPath)) {
+                        $imgDisk = 'public';
+                    }
+                    if ($imgDisk !== null) {
+                        $mimeType = \Illuminate\Support\Facades\Storage::disk($imgDisk)->mimeType($imgPath);
+                        if (is_string($mimeType) && str_starts_with($mimeType, 'image/')) {
+                            $base64 = base64_encode(\Illuminate\Support\Facades\Storage::disk($imgDisk)->get($imgPath));
+                            $dataUrl = "data:{$mimeType};base64,{$base64}";
+                            $contentArr[] = ['type' => 'image_url', 'image_url' => ['url' => $dataUrl]];
+                        }
                     }
                 }
                 
@@ -240,14 +278,19 @@ class AIController extends Controller
         $agentId = $request->input('agent_id');
         if ($agentId) {
             $aiAgent = \App\Models\Ai\AiAgent::where('is_active', true)->find($agentId);
-        } else {
-            if (\App\Services\AI\AiAuthHelper::isAdmin()) {
-                $aiAgent = \App\Models\Ai\AiAgent::where('name', 'Funkira')->where('is_active', true)->first();
-            } else {
-                $aiAgent = \App\Models\Ai\AiAgent::where('name', 'Funki')->where('is_active', true)->first();
+            if ($aiAgent && !$isAdmin && $this->isAdminOnlyAgent($aiAgent)) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Zugriff verweigert: Die Admin-KI Funkira ist ausschließlich für Administratoren freigegeben.',
+                ], 403);
             }
-            if (!$aiAgent) {
-                $aiAgent = \App\Models\Ai\AiAgent::where('is_active', true)->first();
+        } else {
+            if ($isAdmin) {
+                $aiAgent = \App\Models\Ai\AiAgent::where('name', 'Funkira')->where('is_active', true)->first()
+                    ?? \App\Models\Ai\AiAgent::where('is_active', true)->first();
+            } else {
+                $aiAgent = \App\Models\Ai\AiAgent::where('name', 'Funki')->where('is_active', true)->first()
+                    ?? \App\Models\Ai\AiAgent::where('is_active', true)->whereRaw('LOWER(name) != ?', ['funkira'])->first();
             }
         }
         
@@ -354,82 +397,23 @@ class AIController extends Controller
 
         if ($ttsEnabled && !empty($result['response_raw'] ?? $result['response']) && $aiAgent && $ttsProvider === 'gemini_native') {
             try {
-                $cleanText = $result['response_raw'] ?? $result['response'];
-                
+                $cleanText = (string) ($result['response_raw'] ?? $result['response']);
+
                 // Extract <speak> tag content if present
                 if (preg_match('/<speak>(.*?)<\/speak>/is', $cleanText, $matches)) {
                     $cleanText = trim($matches[1]);
                 } else {
-                    // Fallback to full text but strip markdown
+                    // Fallback to full text but strip markdown/HTML tags
                     $cleanText = strip_tags($cleanText);
                 }
 
                 $voiceName = $aiAgent->tts_voice ?: 'Puck';
-                $apiKey = config('services.gemini.key') ?: env('GEMINI_API_KEY');
-                
-                // Wir nutzen gemini-3.1-flash-tts-preview, was Audio Modalitäten nativ unterstützt.
-                $url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-tts-preview:generateContent';
-                
-                $data = [
-                    "contents" => [
-                        ["role" => "user", "parts" => [["text" => "Lies folgenden Text exakt so vor: " . $cleanText]]]
-                    ],
-                    "generationConfig" => [
-                        "responseModalities" => ["AUDIO"],
-                        "speechConfig" => [
-                            "voiceConfig" => [
-                                "prebuiltVoiceConfig" => [
-                                    "voiceName" => $voiceName
-                                ]
-                            ]
-                        ]
-                    ]
-                ];
-                
-                $ch = curl_init($url);
-                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                    'Content-Type: application/json',
-                    'x-goog-api-key: ' . $apiKey,
-                ]);
-                curl_setopt($ch, CURLOPT_POST, true);
-                curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-                curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
-                curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
-                curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
-                
-                $response = curl_exec($ch);
-                curl_close($ch);
-                
-                $json = json_decode($response, true);
-                if (isset($json['candidates'][0]['content']['parts'][0]['inlineData']['data'])) {
-                    // Gemini returned base64 string directly; it is raw PCM (24kHz, mono, 16-bit little-endian)
-                    $rawBase64 = $json['candidates'][0]['content']['parts'][0]['inlineData']['data'];
-                    $pcmData = base64_decode($rawBase64);
-                    
-                    // Wrap the RAW PCM into a compliant WAV container
-                    $numChannels = 1;
-                    $sampleRate = 24000;
-                    $bitsPerSample = 16;
-                    $byteRate = $sampleRate * $numChannels * ($bitsPerSample / 8);
-                    $blockAlign = $numChannels * ($bitsPerSample / 8);
-                    $subchunk2Size = strlen($pcmData);
-                    $chunkSize = 36 + $subchunk2Size;
-                    
-                    $wavHeader = pack('A4VA4A4VvvVVvvA4V',
-                        'RIFF', $chunkSize, 'WAVE',
-                        'fmt ', 16, 1, $numChannels, $sampleRate, $byteRate, $blockAlign, $bitsPerSample,
-                        'data', $subchunk2Size
-                    );
-                    
-                    $fullWavData = $wavHeader . $pcmData;
-                    $base64Audio = base64_encode($fullWavData);
-                } else {
-                    \Illuminate\Support\Facades\Log::warning("Gemini Native TTS Soft-Error in AIController: " . print_r($json, true));
+                $synthesizedWav = \App\Services\AI\GeminiTtsService::synthesizeWav($cleanText, $voiceName);
+                if (is_string($synthesizedWav) && $synthesizedWav !== '') {
+                    $base64Audio = $synthesizedWav;
                 }
-            } catch (\Exception $e) {
-                \Illuminate\Support\Facades\Log::error("Gemini Native TTS Fetch failed: " . $e->getMessage());
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error("Gemini Native TTS Fetch failed: " . \App\Services\System\SystemErrorLogger::sanitizeSensitiveText($e->getMessage()));
             }
         }
 
@@ -462,21 +446,17 @@ class AIController extends Controller
         $file = $request->file('image');
 
         $dir = 'agenten/workspace/Dokumente/Snapshots';
-        if (!\Illuminate\Support\Facades\Storage::disk('public')->exists($dir)) {
-            \Illuminate\Support\Facades\Storage::disk('public')->makeDirectory($dir);
-        }
         if (!\Illuminate\Support\Facades\Storage::disk('workspace')->exists($dir)) {
             \Illuminate\Support\Facades\Storage::disk('workspace')->makeDirectory($dir);
         }
 
         $filename = 'snapshot_' . date('Y-m-d_H-i-s') . '_' . \Illuminate\Support\Str::random(8) . '.jpg';
-        $path = $file->storeAs($dir, $filename, 'public');
-        \Illuminate\Support\Facades\Storage::disk('workspace')->put($path, file_get_contents($file->getRealPath()));
-        
+        $path = $file->storeAs($dir, $filename, 'workspace');
+
         return response()->json([
             'status' => 'success',
             'file_path' => $path,
-            'url' => \Illuminate\Support\Facades\Storage::url($path)
+            'url' => '/api/funki/files/download?path=' . rawurlencode($path),
         ]);
     }
 
@@ -495,6 +475,13 @@ class AIController extends Controller
         $aiAgent = null;
         if ($request->has('agent_id') && !empty($request->agent_id)) {
             $aiAgent = \App\Models\Ai\AiAgent::where('is_active', true)->find($request->agent_id);
+            if ($aiAgent && !$isAdminUser && $this->isAdminOnlyAgent($aiAgent)) {
+                return response()->json([
+                    'status' => 'error',
+                    'error' => 'Forbidden',
+                    'message' => 'Zugriff verweigert: Die Admin-KI Funkira ist ausschließlich für Administratoren freigegeben.',
+                ], 403);
+            }
         }
         if (!$aiAgent && $isAdminUser) {
             $user = auth()->user() ?: auth('admin')->user();
@@ -504,7 +491,13 @@ class AIController extends Controller
             }
         }
         if (!$aiAgent) {
-            $aiAgent = \App\Models\Ai\AiAgent::where('is_active', true)->first();
+            if ($isAdminUser) {
+                $aiAgent = \App\Models\Ai\AiAgent::where('name', 'Funkira')->where('is_active', true)->first()
+                    ?? \App\Models\Ai\AiAgent::where('is_active', true)->first();
+            } else {
+                $aiAgent = \App\Models\Ai\AiAgent::where('name', 'Funki')->where('is_active', true)->first()
+                    ?? \App\Models\Ai\AiAgent::where('is_active', true)->whereRaw('LOWER(name) != ?', ['funkira'])->first();
+            }
         }
         
         $voiceName = $aiAgent ? $aiAgent->tts_voice : 'Puck';
@@ -587,7 +580,17 @@ class AIController extends Controller
         $apiKey = config('services.gemini.key');
 
         if (empty($apiKey)) {
-            return response()->json(['error' => 'No Gemini API Key configured.'], 500);
+            \App\Services\System\SystemErrorLogger::recordCrossPlatformEvent([
+                'platform' => 'portal',
+                'severity' => 'error',
+                'component' => 'ai_live_credentials',
+                'title' => 'Gemini Live API-Key fehlt in der Konfiguration',
+                'message' => 'Aufruf von /api/ai/live-credentials schlug fehl, da config(services.gemini.key) leer ist.',
+                'context' => ['env' => (string) config('app.env')],
+            ]);
+            return response()->json(['error' => 'No Gemini API Key configured.'], 500, [
+                'Cache-Control' => 'no-store, no-cache, must-revalidate, private',
+            ]);
         }
 
         $isFunkiraAgent = $aiAgent && (
@@ -695,21 +698,42 @@ class AIController extends Controller
             $wsUrl = $configuredWsUrl ?: 'ws://' . $requestHost . ':8089/gemini-live';
         }
 
-        return response()->json([
+        $isStrictAdmin = $isAdminUser
+            || ($request->user() instanceof \App\Models\Admin\Admin)
+            || (auth('admin')->user() instanceof \App\Models\Admin\Admin);
+
+        $wantsDirect = $isStrictAdmin && (
+            $request->query('fallback') === 'direct'
+            || in_array($request->query('client'), ['android_native', 'android_secretary', 'minipc'], true)
+        );
+
+        $originUrl = rtrim((string) (config('app.url') ?: ($request->getSchemeAndHttpHost())), '/');
+
+        $responsePayload = [
             'token' => $token,
             'chat_session_id' => $sessionId,
             'ws_url' => $wsUrl,
+            'origin_url' => $originUrl,
             'system_instruction' => $systemInstruction,
             'voice_name' => $voiceName,
             'agent_id' => $aiAgent ? $aiAgent->id : null,
             'agent_name' => $agentName,
             'tools' => [['functionDeclarations' => $functionDeclarations]],
+        ];
+
+        if ($wantsDirect) {
+            $responsePayload['direct_ws_url'] = 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=' . rawurlencode((string) $apiKey);
+        }
+
+        return response()->json($responsePayload, 200, [
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, private',
+            'Pragma' => 'no-cache',
         ]);
     }
 
     /**
      * Lightweight health & latency ping for the "Live-AI" side widget.
-     * Measures TCP + HTTP /health latency to the Node.js WebSocket bridge.
+     * Measures HTTP /health or TCP latency to the Node.js WebSocket bridge without false loopback overwrites.
      */
     public function bridgePing(Request $request)
     {
@@ -718,59 +742,105 @@ class AIController extends Controller
             ?: 'ws://127.0.0.1:8089/gemini-live';
 
         $parsed = parse_url($wsUrl);
-        $scheme = $parsed['scheme'] ?? 'ws';
-        $host = $parsed['host'] ?? '127.0.0.1';
+        $scheme = strtolower((string) ($parsed['scheme'] ?? 'ws'));
+        $host = (string) ($parsed['host'] ?? '127.0.0.1');
         $port = (int) ($parsed['port'] ?? ($scheme === 'wss' ? 443 : 8089));
+        $isLoopbackHost = in_array($host, ['127.0.0.1', 'localhost', '::1'], true);
 
         $candidates = [[$host, $port, $scheme]];
-        if (in_array($host, ['127.0.0.1', 'localhost', '::1'], true)) {
+        if ($isLoopbackHost) {
             if ($port !== 8081) {
                 $candidates[] = ['127.0.0.1', 8081, 'ws'];
             }
             if ($port !== 8089) {
                 $candidates[] = ['127.0.0.1', 8089, 'ws'];
             }
-        } else {
-            $candidates[] = ['127.0.0.1', 8081, 'ws'];
-            $candidates[] = ['127.0.0.1', 8089, 'ws'];
         }
 
         $isOnline = false;
         $bridgePingMs = null;
         $bridgeHealth = null;
-        $pingError = null;
+        $primaryError = null;
 
-        foreach ($candidates as [$candHost, $candPort, $candScheme]) {
-            $startNs = hrtime(true);
-            $fp = @fsockopen($candHost, $candPort, $errno, $errstr, 1.2);
-            if ($fp) {
-                $bridgePingMs = max(1, (int) round((hrtime(true) - $startNs) / 1_000_000));
-                fclose($fp);
-                $isOnline = true;
+        foreach ($candidates as $idx => [$candHost, $candPort, $candScheme]) {
+            $httpScheme = ($candScheme === 'wss' || $candPort === 443) ? 'https' : 'http';
+            $portSuffix = (($httpScheme === 'https' && $candPort === 443) || ($httpScheme === 'http' && $candPort === 80))
+                ? ''
+                : ":{$candPort}";
+            $healthUrl = "{$httpScheme}://{$candHost}{$portSuffix}/health";
+
+            for ($attempt = 1; $attempt <= ($idx === 0 ? 2 : 1); $attempt++) {
+                $startNs = hrtime(true);
                 try {
-                    $httpScheme = ($candScheme === 'wss' || $candPort === 443) ? 'https' : 'http';
-                    $healthRes = \Illuminate\Support\Facades\Http::timeout(1.2)->get("{$httpScheme}://{$candHost}:{$candPort}/health");
+                    $healthRes = \Illuminate\Support\Facades\Http::connectTimeout(1.8)
+                        ->timeout(2.5)
+                        ->acceptJson()
+                        ->get($healthUrl);
+
                     if ($healthRes->successful()) {
+                        $bridgePingMs = max(1, (int) round((hrtime(true) - $startNs) / 1_000_000));
                         $bridgeHealth = $healthRes->json();
+                        $isOnline = true;
+                        break 2;
                     }
-                } catch (\Throwable $ignore) {
+                    if ($idx === 0) {
+                        $primaryError = 'HTTP ' . $healthRes->status();
+                    }
+                } catch (\Throwable $httpEx) {
+                    $errText = $httpEx->getMessage();
+                    if ($idx === 0) {
+                        $primaryError = $errText;
+                    }
+                    // Fallback auf rohen Socket-Check (z.B. lokaler Dev-Server ohne /health)
+                    $sockTarget = ($candScheme === 'wss' || $candPort === 443) ? "tls://{$candHost}" : $candHost;
+                    $fp = @fsockopen($sockTarget, $candPort, $errno, $errstr, 1.5);
+                    if ($fp) {
+                        $bridgePingMs = max(1, (int) round((hrtime(true) - $startNs) / 1_000_000));
+                        fclose($fp);
+                        $isOnline = true;
+                        break 2;
+                    }
+                    if ($idx === 0 && !empty($errstr)) {
+                        $primaryError = "[{$errno}] {$errstr}";
+                    }
+                    if ($attempt === 1 && str_contains(strtolower($primaryError ?? ''), 'temporarily unavailable')) {
+                        usleep(250_000);
+                        continue;
+                    }
                 }
-                break;
-            } else {
-                $pingError = "[{$errno}] {$errstr}";
             }
+        }
+
+        $lastIssue = is_array($bridgeHealth) ? ($bridgeHealth['last_issue'] ?? null) : null;
+        if (!$isOnline && !$isLoopbackHost && !app()->runningUnitTests()) {
+            \App\Services\System\SystemErrorLogger::recordCrossPlatformEvent([
+                'platform' => 'portal',
+                'severity' => 'warning',
+                'component' => 'ai_bridge_ping',
+                'title' => 'Live-AI WebSocket-Bridge nicht erreichbar (' . $host . ')',
+                'message' => 'Health-Check auf ' . $wsUrl . ' fehlgeschlagen: ' . ($primaryError ?: 'Unbekannter Verbindungsfehler'),
+                'context' => [
+                    'ws_url' => (string) $wsUrl,
+                    'host' => $host,
+                    'port' => (string) $port,
+                    'error' => (string) ($primaryError ?? ''),
+                ],
+            ]);
         }
 
         return response()->json([
             'status' => 'ok',
             'online' => $isOnline,
             'bridge_ping_ms' => $bridgePingMs,
-            'bridge_version' => $bridgeHealth['bridge_version'] ?? ($isOnline ? 'v1.2-diag' : null),
-            'uptime_sec' => $bridgeHealth['uptime_sec'] ?? null,
+            'bridge_version' => $bridgeHealth['bridge_version'] ?? ($isOnline ? 'v1.3-stable' : null),
+            'uptime_sec' => $bridgeHealth['uptime_sec'] ?? $bridgeHealth['uptime_seconds'] ?? null,
             'active_live_sessions' => $bridgeHealth['active_live_sessions'] ?? 0,
-            'memory_rss_mb' => $bridgeHealth['memory_rss_mb'] ?? null,
-            'error' => $isOnline ? null : $pingError,
+            'memory_rss_mb' => $bridgeHealth['memory_rss_mb'] ?? $bridgeHealth['memory_mb'] ?? null,
+            'last_issue' => $lastIssue,
+            'error' => $isOnline ? null : $primaryError,
             'checked_at' => now()->format('H:i:s'),
+        ], 200, [
+            'Cache-Control' => 'no-store, private',
         ]);
     }
 
@@ -781,12 +851,28 @@ class AIController extends Controller
     public function verifyToken(Request $request)
     {
         if (!\App\Services\System\SystemSecurityService::isTrustedBridgeRequest($request)) {
+            $hasSecretHeader = $request->headers->has('X-Bridge-Secret') || $request->headers->has('X-AI-Proxy-Secret');
+            $hasConfiguredSecret = !empty(config('services.gemini.bridge_secret')) || !empty(config('services.ai.proxy_secret'));
             \App\Services\System\SystemSecurityService::logEvent(
                 'security:bridge_verify_unauthorized',
-                'Unautorisierter Zugriff auf Bridge-Token-Endpunkt',
-                'Externer Zugriffsversuch auf /api/ai/verify-token von IP ' . $request->ip() . ' blockiert.',
+                'Unautorisierter Zugriff auf Bridge-Token-Endpunkt (Code 4003 Ursache)',
+                'Zugriff auf /api/ai/verify-token von IP ' . $request->ip() . ' abgelehnt (Header gesendet: ' . ($hasSecretHeader ? 'ja' : 'nein') . ', Server-Secret konfiguriert: ' . ($hasConfiguredSecret ? 'ja' : 'nein') . ').',
                 'error'
             );
+            \App\Services\System\SystemErrorLogger::recordCrossPlatformEvent([
+                'platform' => 'portal',
+                'severity' => 'error',
+                'component' => 'ai_bridge_verify',
+                'title' => 'Bridge Token-Verifizierung abgelehnt (HTTP 403 / Code 4003)',
+                'message' => 'Node-Bridge oder externer Aufrufer scheiterte an SystemSecurityService::isTrustedBridgeRequest.',
+                'context' => [
+                    'client_ip' => (string) $request->ip(),
+                    'has_secret_header' => $hasSecretHeader ? 'true' : 'false',
+                    'has_configured_secret' => $hasConfiguredSecret ? 'true' : 'false',
+                    'config_cached' => app()->configurationIsCached() ? 'true' : 'false',
+                    'x_forwarded_for' => $request->headers->has('X-Forwarded-For') ? 'present' : 'absent',
+                ],
+            ]);
             return response()->json(['error' => 'Forbidden'], 403);
         }
 
@@ -799,10 +885,55 @@ class AIController extends Controller
         $data = \Illuminate\Support\Facades\Cache::pull($cacheKey);
 
         if (!$data) {
+            \App\Services\System\SystemErrorLogger::recordCrossPlatformEvent([
+                'platform' => 'portal',
+                'severity' => 'warning',
+                'component' => 'ai_bridge_verify',
+                'title' => 'Abgelaufenes oder unbekanntes Gemini-Live-Einmaltoken',
+                'message' => 'Token-Lookup in Cache lieferte keinen Treffer (TTL 5 Min. überschritten oder mehrfach eingelöst).',
+                'context' => [
+                    'cache_driver' => (string) config('cache.default'),
+                ],
+            ]);
             return response()->json(['error' => 'Invalid or expired token'], 403);
         }
 
         return response()->json($data);
+    }
+
+    /**
+     * Strukturiertes Diagnose-Logging für Live-AI Web- & Client-Verbindungsfehler inkl. Auto-Heal-Protokollierung.
+     */
+    public function clientErrorLog(Request $request)
+    {
+        $validated = $request->validate([
+            'severity' => 'nullable|string|in:error,warning,info',
+            'component' => 'required|string|max:120',
+            'title' => 'required|string|max:240',
+            'message' => 'required|string|max:3500',
+            'stacktrace' => 'nullable|string|max:8000',
+            'auto_healed' => 'nullable|boolean',
+            'heal_summary' => 'nullable|string|max:500',
+            'context' => 'nullable|array',
+        ]);
+
+        $entry = \App\Services\System\SystemErrorLogger::recordCrossPlatformEvent([
+            'platform' => 'portal',
+            'severity' => $validated['severity'] ?? 'error',
+            'component' => $validated['component'],
+            'title' => $validated['title'],
+            'message' => $validated['message'],
+            'stack' => $validated['stacktrace'] ?? null,
+            'auto_healed' => (bool) ($validated['auto_healed'] ?? false),
+            'auto_heal_action' => $validated['heal_summary'] ?? null,
+            'device' => substr((string) $request->userAgent(), 0, 160),
+            'context' => is_array($validated['context'] ?? null) ? $validated['context'] : [],
+        ]);
+
+        return response()->json([
+            'status' => 'ok',
+            'log_id' => $entry?->id,
+        ], 200, ['Cache-Control' => 'no-store, private']);
     }
 
     /**
@@ -1024,5 +1155,17 @@ class AIController extends Controller
             'session_id' => $sessionId,
             'messages' => $messages
         ]);
+    }
+
+    /**
+     * Prüft, ob ein KI-Agent die exklusive Admin-Instanz (Funkira) ist.
+     */
+    private function isAdminOnlyAgent(\App\Models\Ai\AiAgent $agent): bool
+    {
+        if (method_exists(\App\Services\AI\FunkiraSkillPoolService::class, 'isFunkira')) {
+            return \App\Services\AI\FunkiraSkillPoolService::isFunkira($agent);
+        }
+
+        return strcasecmp(trim((string) ($agent->name ?? '')), 'Funkira') === 0;
     }
 }

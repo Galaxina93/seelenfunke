@@ -7,6 +7,7 @@ use Livewire\Attributes\Layout;
 use App\Mail\NewOrderShippedToCustomer;
 use App\Models\Order\OrderOrder;
 use App\Models\Order\OrderOrderItem;
+use App\Services\Order\OrderProductionBatchService;
 use Illuminate\Support\Facades\Mail;
 use Livewire\Component;
 use App\Livewire\Traits\WithDepartmentTheming;
@@ -51,6 +52,8 @@ class OrderOverview extends Component
     public $status;
     public $payment_status;
     public $notes;
+    public string $workshopNote = '';
+    public string $workshopFollowupMode = '2h';
     public $cancellationReason = '';
 
     // STATUS FÜR DAS SICHERHEITS-MODAL
@@ -284,6 +287,8 @@ class OrderOverview extends Component
             $this->status = $this->selectedOrder->status;
             $this->payment_status = $this->selectedOrder->payment_status;
             $this->notes = $this->selectedOrder->notes;
+            $this->workshopNote = (string) ($this->selectedOrder->workshop_note ?? '');
+            $this->workshopFollowupMode = $this->selectedOrder->workshop_checkin_paused ? 'pause' : '2h';
             $this->cancellationReason = $this->selectedOrder->cancellation_reason ?? '';
 
             if ($this->selectedOrder->items->isNotEmpty()) {
@@ -308,7 +313,78 @@ class OrderOverview extends Component
         $this->selectedOrderId = null;
         $this->selectedOrderItemId = null;
         $this->selectedOrder = null;
-        $this->reset(['status', 'payment_status', 'notes', 'cancellationReason']);
+        $this->reset(['status', 'payment_status', 'notes', 'workshopNote', 'workshopFollowupMode', 'cancellationReason']);
+    }
+
+    public function getSelectedOrderDiscrepancyProperty(): array
+    {
+        if (!$this->selectedOrder) {
+            return ['has_discrepancy' => false];
+        }
+
+        return app(OrderProductionBatchService::class)->evaluateOrderStatusDiscrepancy($this->selectedOrder);
+    }
+
+    public function saveWorkshopCheckin(?string $overrideMode = null): void
+    {
+        if (!$this->selectedOrder) {
+            return;
+        }
+
+        $this->validate([
+            'workshopNote' => 'nullable|string|max:1000',
+        ]);
+
+        $mode = $overrideMode ?: ($this->workshopFollowupMode ?: '2h');
+        $allowedModes = ['2h', '1h', 'tomorrow', 'pause'];
+        if (!in_array($mode, $allowedModes, true)) {
+            $mode = '2h';
+        }
+        $this->workshopFollowupMode = $mode;
+
+        $cleanNote = trim($this->workshopNote);
+        $schedule = OrderProductionBatchService::resolveNextWorkshopCheckinAt($mode);
+
+        $this->selectedOrder->update([
+            'workshop_note' => $cleanNote !== '' ? $cleanNote : null,
+            'workshop_note_updated_at' => now(),
+            'workshop_next_check_at' => $schedule['next_check_at'],
+            'workshop_checkin_paused' => $schedule['paused'],
+        ]);
+
+        $this->selectedOrder->refresh();
+        $this->selectedOrder->load(['items.product.supplier', 'invoices', 'shipments']);
+        $this->invalidateSmartQueueCache();
+
+        $this->notifyOrderFeedback(
+            'success',
+            'Werkstatt-Stand gespeichert',
+            $schedule['paused']
+                ? 'Interner Stand aktualisiert (Check-in pausiert).'
+                : ('Interner Stand aktualisiert · Wiedervorlage: ' . $schedule['mode_label'] . '.')
+        );
+    }
+
+    public function clearWorkshopCheckin(): void
+    {
+        if (!$this->selectedOrder) {
+            return;
+        }
+
+        $this->selectedOrder->update([
+            'workshop_note' => null,
+            'workshop_note_updated_at' => null,
+            'workshop_next_check_at' => null,
+            'workshop_checkin_paused' => false,
+        ]);
+
+        $this->workshopNote = '';
+        $this->workshopFollowupMode = '2h';
+        $this->selectedOrder->refresh();
+        $this->selectedOrder->load(['items.product.supplier', 'invoices', 'shipments']);
+        $this->invalidateSmartQueueCache();
+
+        $this->notifyOrderFeedback('info', 'Werkstatt-Stand geleert', 'Interne Werkstatt-Notiz und Wiedervorlage zurückgesetzt.');
     }
 
     public function selectItemForPreview($itemId)
@@ -363,6 +439,11 @@ class OrderOverview extends Component
                     session()->flash('success', 'Bestellung storniert.');
 
                 } else {
+                    if (in_array($previousStatus, ['cancelled', 'refunded'], true) && !in_array($this->status, ['cancelled', 'refunded'], true)) {
+                        session()->flash('error', 'Stornierte oder erstattete Bestellungen sind abgeschlossen und können nicht reaktiviert werden.');
+                        return;
+                    }
+
                     // Vollständige Rückabwicklung bei Erstattung VOR Status-Update
                     $isRefundingNow = $this->status === 'refunded'
                         || ($this->payment_status === 'refunded' && $previousPaymentStatus !== 'refunded');
@@ -418,6 +499,11 @@ class OrderOverview extends Component
 
         $order = OrderOrder::find($orderId);
         if (!$order) return;
+
+        if (in_array($order->status, ['cancelled', 'refunded'], true) && !in_array($newStatus, ['cancelled', 'refunded'], true)) {
+            session()->flash('error', 'Stornierte oder erstattete Bestellungen können nicht reaktiviert werden.');
+            return;
+        }
 
         if ($newStatus === 'shipped' && $order->status !== 'shipped') {
             $this->confirmingShipmentId = $orderId;

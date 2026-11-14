@@ -64,10 +64,14 @@ namespace FunkenwerkBrowser
 
     public static class BrowserAutofillAndVaultEngine
     {
+        private const int MinWrappedKeyLength = 1;
+        private const int MaxWrappedKeyLength = 4096;
+        private const int MaxCipherLength = 131072;
+
         private static readonly byte[] VaultEntropy = Encoding.UTF8.GetBytes("FunkenwerkBrowser::FWBVAULT1::Seelenfunke::2026");
         private static readonly ConcurrentDictionary<string, BitmapSource> MemoryIconCache = new(StringComparer.OrdinalIgnoreCase);
+        private static readonly ConcurrentDictionary<string, BitmapSource> GlobeIconByColorCache = new(StringComparer.OrdinalIgnoreCase);
         private static BitmapSource? _folderBadgeIcon;
-        private static BitmapSource? _defaultGlobeIcon;
 
         private static readonly HttpClient FaviconHttp = new(new SocketsHttpHandler
         {
@@ -92,15 +96,99 @@ namespace FunkenwerkBrowser
         public static string VaultFilePath => Path.Combine(BrowserShieldAndSettings.DataDir, "credentials_vault.json");
 
         // =====================================================================
+        // 0. STRICT ORIGIN NORMALIZATION, MATCHING & WEBMESSAGE VALIDATION
+        // =====================================================================
+        public static bool IsLoopbackHost(string? host)
+        {
+            if (string.IsNullOrWhiteSpace(host)) return false;
+            return string.Equals(host, "127.0.0.1", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(host, "localhost", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(host, "[::1]", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(host, "::1", StringComparison.OrdinalIgnoreCase);
+        }
+
+        public static string NormalizeStrictOrigin(string? url)
+        {
+            if (string.IsNullOrWhiteSpace(url)) return "";
+            if (!Uri.TryCreate(url.Trim(), UriKind.Absolute, out var uri)) return "";
+            if (string.IsNullOrWhiteSpace(uri.Host) || uri.Port <= 0) return "";
+
+            bool isHttps = string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase);
+            bool isHttpLoopback = string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) && IsLoopbackHost(uri.Host);
+            if (!isHttps && !isHttpLoopback)
+                return "";
+
+            string scheme = isHttps ? "https" : "http";
+            string host = uri.Host.ToLowerInvariant();
+            return uri.IsDefaultPort ? $"{scheme}://{host}" : $"{scheme}://{host}:{uri.Port}";
+        }
+
+        public static bool DoesLoginMatchStrictOrigin(SavedLoginEntryDto? entry, string? pageUrl)
+        {
+            if (entry == null || string.IsNullOrWhiteSpace(pageUrl)) return false;
+
+            string pageOrigin = NormalizeStrictOrigin(pageUrl);
+            if (string.IsNullOrEmpty(pageOrigin)) return false;
+            if (!Uri.TryCreate(pageUrl.Trim(), UriKind.Absolute, out var pageUri)) return false;
+
+            string rawEntryOrigin = (entry.OriginUrl ?? "").Trim();
+            if (!string.IsNullOrEmpty(rawEntryOrigin) && Uri.TryCreate(rawEntryOrigin, UriKind.Absolute, out _))
+            {
+                string entryOrigin = NormalizeStrictOrigin(rawEntryOrigin);
+                return !string.IsNullOrEmpty(entryOrigin) &&
+                       string.Equals(entryOrigin, pageOrigin, StringComparison.Ordinal);
+            }
+
+            // Legacy saved entries that stored only bare Host: match ONLY over https:// on default port 443 with exact host equality
+            string legacyHost = (entry.Host ?? "").Trim();
+            if (string.IsNullOrEmpty(legacyHost)) return false;
+
+            return string.Equals(pageUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) &&
+                   pageUri.Port == 443 &&
+                   string.Equals(pageUri.Host, legacyHost, StringComparison.OrdinalIgnoreCase);
+        }
+
+        public static bool TryValidateWebMessageLoginOrigin(string? argsSource, string? coreSource, out string validatedStrictOrigin)
+        {
+            validatedStrictOrigin = "";
+            if (string.IsNullOrWhiteSpace(argsSource) || string.IsNullOrWhiteSpace(coreSource))
+                return false;
+
+            if (!Uri.TryCreate(argsSource.Trim(), UriKind.Absolute, out var msgUri) ||
+                !Uri.TryCreate(coreSource.Trim(), UriKind.Absolute, out var topUri))
+            {
+                return false;
+            }
+
+            string msgStrictOrigin = NormalizeStrictOrigin(argsSource);
+            string topStrictOrigin = NormalizeStrictOrigin(coreSource);
+            if (string.IsNullOrEmpty(msgStrictOrigin) || string.IsNullOrEmpty(topStrictOrigin))
+                return false;
+
+            if (!string.Equals(msgUri.Host, topUri.Host, StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            if (!string.Equals(msgStrictOrigin, topStrictOrigin, StringComparison.Ordinal))
+                return false;
+
+            validatedStrictOrigin = msgStrictOrigin;
+            return true;
+        }
+
+        // =====================================================================
         // 1. DPAPI + AES-256-GCM PASSWORD VAULT (FWBVAULT1)
         // =====================================================================
         public static string ProtectSecret(string plainText)
         {
             if (string.IsNullOrEmpty(plainText)) return "";
+            byte[]? plainBytes = null;
+            byte[]? aesKey = null;
             try
             {
-                byte[] plainBytes = Encoding.UTF8.GetBytes(plainText);
-                byte[] aesKey = RandomNumberGenerator.GetBytes(32);
+                plainBytes = Encoding.UTF8.GetBytes(plainText);
+                if (plainBytes.Length > MaxCipherLength) return "";
+
+                aesKey = RandomNumberGenerator.GetBytes(32);
                 byte[] nonce = RandomNumberGenerator.GetBytes(12);
                 byte[] cipher = new byte[plainBytes.Length];
                 byte[] tag = new byte[16];
@@ -111,7 +199,6 @@ namespace FunkenwerkBrowser
                 }
 
                 byte[] wrappedKey = ProtectedData.Protect(aesKey, VaultEntropy, DataProtectionScope.CurrentUser);
-                CryptographicOperations.ZeroMemory(aesKey);
 
                 using var ms = new MemoryStream();
                 using var bw = new BinaryWriter(ms);
@@ -127,38 +214,68 @@ namespace FunkenwerkBrowser
             {
                 return "";
             }
+            finally
+            {
+                if (plainBytes != null) CryptographicOperations.ZeroMemory(plainBytes);
+                if (aesKey != null) CryptographicOperations.ZeroMemory(aesKey);
+            }
         }
 
         public static string UnprotectSecret(string protectedToken)
         {
             if (string.IsNullOrWhiteSpace(protectedToken)) return "";
+            byte[]? aesKey = null;
+            byte[]? plain = null;
             try
             {
                 if (!protectedToken.StartsWith("FWBVAULT1:", StringComparison.Ordinal))
                     return "";
 
-                byte[] raw = Convert.FromBase64String(protectedToken.Substring("FWBVAULT1:".Length));
-                using var ms = new MemoryStream(raw);
+                string b64 = protectedToken.Substring("FWBVAULT1:".Length);
+                if (b64.Length == 0 || b64.Length > 200000)
+                    return "";
+
+                byte[] raw = Convert.FromBase64String(b64);
+                if (raw.Length < 4 + MinWrappedKeyLength + 12 + 16 + 4)
+                    return "";
+
+                using var ms = new MemoryStream(raw, writable: false);
                 using var br = new BinaryReader(ms);
+
                 int keyLen = br.ReadInt32();
+                if (keyLen < MinWrappedKeyLength || keyLen > MaxWrappedKeyLength)
+                    return "";
+                if (ms.Length - ms.Position < (long)keyLen + 12 + 16 + 4)
+                    return "";
+
                 byte[] wrappedKey = br.ReadBytes(keyLen);
                 byte[] nonce = br.ReadBytes(12);
                 byte[] tag = br.ReadBytes(16);
+
                 int cipherLen = br.ReadInt32();
+                if (cipherLen < 0 || cipherLen > MaxCipherLength)
+                    return "";
+                if (ms.Length - ms.Position != cipherLen)
+                    return "";
+
                 byte[] cipher = br.ReadBytes(cipherLen);
 
-                byte[] aesKey = ProtectedData.Unprotect(wrappedKey, VaultEntropy, DataProtectionScope.CurrentUser);
-                byte[] plain = new byte[cipherLen];
+                aesKey = ProtectedData.Unprotect(wrappedKey, VaultEntropy, DataProtectionScope.CurrentUser);
+                plain = new byte[cipherLen];
                 using (var aes = new AesGcm(aesKey, 16))
                 {
                     aes.Decrypt(nonce, cipher, tag, plain, VaultEntropy);
                 }
-                CryptographicOperations.ZeroMemory(aesKey);
                 return Encoding.UTF8.GetString(plain);
             }
             catch
             {
                 return "";
+            }
+            finally
+            {
+                if (aesKey != null) CryptographicOperations.ZeroMemory(aesKey);
+                if (plain != null) CryptographicOperations.ZeroMemory(plain);
             }
         }
 
@@ -179,6 +296,10 @@ namespace FunkenwerkBrowser
                             loaded.ImportedFromChromeV1 = true;
                             SaveVault(loaded);
                         }
+                        else
+                        {
+                            BrowserShieldAndSettings.LockDownFileAcl(VaultFilePath);
+                        }
                         return loaded;
                     }
                 }
@@ -195,32 +316,51 @@ namespace FunkenwerkBrowser
         {
             try
             {
+                _ = BrowserShieldAndSettings.DataDir;
                 string tmp = VaultFilePath + ".tmp";
-                File.WriteAllText(tmp, JsonSerializer.Serialize(vault, new JsonSerializerOptions { WriteIndented = true }), new UTF8Encoding(false));
+                byte[] payload = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(vault, new JsonSerializerOptions { WriteIndented = true }));
+                using (var fs = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None))
+                {
+                    BrowserShieldAndSettings.LockDownFileAcl(tmp);
+                    fs.Write(payload, 0, payload.Length);
+                    fs.Flush(true);
+                }
+                BrowserShieldAndSettings.LockDownFileAcl(tmp);
                 File.Move(tmp, VaultFilePath, overwrite: true);
+                BrowserShieldAndSettings.LockDownFileAcl(VaultFilePath);
             }
             catch { }
         }
 
-        public static void UpsertLoginCredential(BrowserVaultData vault, string urlOrOrigin, string username, string plainPassword)
+        public static bool UpsertLoginCredential(BrowserVaultData vault, string urlOrOrigin, string username, string plainPassword)
         {
-            string host = ExtractHost(urlOrOrigin);
-            if (string.IsNullOrWhiteSpace(host) || string.IsNullOrWhiteSpace(username)) return;
+            string strictOrigin = NormalizeStrictOrigin(urlOrOrigin);
+            if (string.IsNullOrEmpty(strictOrigin) || string.IsNullOrWhiteSpace(username))
+                return false;
+
+            string host = ExtractHost(strictOrigin);
+            if (string.IsNullOrWhiteSpace(host))
+                return false;
 
             string cleanUser = username.Trim();
             var existing = vault.Logins.FirstOrDefault(x =>
-                string.Equals(x.Host, host, StringComparison.OrdinalIgnoreCase) &&
+                DoesLoginMatchStrictOrigin(x, strictOrigin) &&
                 string.Equals(x.Username, cleanUser, StringComparison.OrdinalIgnoreCase));
 
             if (existing == null)
             {
                 existing = new SavedLoginEntryDto
                 {
-                    OriginUrl = string.IsNullOrWhiteSpace(urlOrOrigin) ? $"https://{host}" : urlOrOrigin,
+                    OriginUrl = strictOrigin,
                     Host = host,
                     Username = cleanUser
                 };
                 vault.Logins.Insert(0, existing);
+            }
+            else
+            {
+                existing.OriginUrl = strictOrigin;
+                existing.Host = host;
             }
 
             if (!string.IsNullOrEmpty(plainPassword))
@@ -228,6 +368,7 @@ namespace FunkenwerkBrowser
 
             existing.UpdatedAtUtc = DateTime.UtcNow;
             SaveVault(vault);
+            return true;
         }
 
         public static int ImportPasswordsFromCsvFile(BrowserVaultData vault, string csvFilePath)
@@ -236,11 +377,12 @@ namespace FunkenwerkBrowser
             int count = 0;
             try
             {
-                string[] lines = File.ReadAllLines(csvFilePath, Encoding.UTF8);
-                if (lines.Length <= 1) return 0;
+                string rawCsv = File.ReadAllText(csvFilePath, Encoding.UTF8);
+                var records = ParseCsvRecords(rawCsv);
+                if (records.Count <= 1) return 0;
 
                 // Chrome CSV header: name,url,username,password,note
-                string[] headers = SplitCsvLine(lines[0]).Select(h => h.Trim().ToLowerInvariant()).ToArray();
+                string[] headers = records[0].Select(h => h.Trim().Trim('\uFEFF').ToLowerInvariant()).ToArray();
                 int idxUrl = Array.FindIndex(headers, h => h is "url" or "origin" or "website" or "login_uri");
                 int idxUser = Array.FindIndex(headers, h => h is "username" or "user" or "benutzername" or "login_username");
                 int idxPass = Array.FindIndex(headers, h => h is "password" or "passwort" or "login_password");
@@ -249,36 +391,40 @@ namespace FunkenwerkBrowser
                 if (idxUser < 0) idxUser = 2;
                 if (idxPass < 0) idxPass = 3;
 
-                for (int i = 1; i < lines.Length; i++)
+                for (int i = 1; i < records.Count; i++)
                 {
-                    if (string.IsNullOrWhiteSpace(lines[i])) continue;
-                    var cols = SplitCsvLine(lines[i]);
+                    var cols = records[i];
                     if (cols.Count <= Math.Max(idxUrl, Math.Max(idxUser, idxPass))) continue;
 
                     string url = cols[idxUrl].Trim();
                     string user = cols[idxUser].Trim();
                     string pass = cols[idxPass];
-                    if (string.IsNullOrEmpty(url) || (string.IsNullOrEmpty(user) && string.IsNullOrEmpty(pass))) continue;
+                    if (string.IsNullOrEmpty(url) || string.IsNullOrEmpty(user) || string.IsNullOrEmpty(pass))
+                        continue;
 
-                    UpsertLoginCredential(vault, url, user, pass);
-                    count++;
+                    if (UpsertLoginCredential(vault, url, user, pass))
+                        count++;
                 }
             }
             catch { }
             return count;
         }
 
-        private static List<string> SplitCsvLine(string line)
+        public static List<List<string>> ParseCsvRecords(string csvText)
         {
-            var result = new List<string>();
+            var records = new List<List<string>>();
+            if (string.IsNullOrEmpty(csvText)) return records;
+
+            var currentRow = new List<string>();
             var sb = new StringBuilder();
             bool inQuotes = false;
-            for (int i = 0; i < line.Length; i++)
+
+            for (int i = 0; i < csvText.Length; i++)
             {
-                char c = line[i];
+                char c = csvText[i];
                 if (c == '"')
                 {
-                    if (inQuotes && i + 1 < line.Length && line[i + 1] == '"')
+                    if (inQuotes && i + 1 < csvText.Length && csvText[i + 1] == '"')
                     {
                         sb.Append('"');
                         i++;
@@ -290,16 +436,34 @@ namespace FunkenwerkBrowser
                 }
                 else if (c == ',' && !inQuotes)
                 {
-                    result.Add(sb.ToString());
+                    currentRow.Add(sb.ToString());
                     sb.Clear();
+                }
+                else if ((c == '\r' || c == '\n') && !inQuotes)
+                {
+                    if (c == '\r' && i + 1 < csvText.Length && csvText[i + 1] == '\n')
+                        i++;
+
+                    currentRow.Add(sb.ToString());
+                    sb.Clear();
+                    if (currentRow.Count > 1 || !string.IsNullOrWhiteSpace(currentRow[0]))
+                        records.Add(currentRow);
+                    currentRow = new List<string>();
                 }
                 else
                 {
                     sb.Append(c);
                 }
             }
-            result.Add(sb.ToString());
-            return result;
+
+            if (sb.Length > 0 || currentRow.Count > 0)
+            {
+                currentRow.Add(sb.ToString());
+                if (currentRow.Count > 1 || !string.IsNullOrWhiteSpace(currentRow[0]))
+                    records.Add(currentRow);
+            }
+
+            return records;
         }
 
         // =====================================================================
@@ -338,18 +502,57 @@ namespace FunkenwerkBrowser
             return sr.ReadToEnd();
         }
 
-        private static bool CopyFileSharedReadWrite(string sourcePath, string destPath)
+        public static bool StageFileInLockedDataDir(string sourcePath, string stagePrefix, out string stagedPath)
         {
+            stagedPath = Path.Combine(BrowserShieldAndSettings.DataDir, $".stage_{stagePrefix}_{Guid.NewGuid():N}.db");
             try
             {
                 using var src = new FileStream(sourcePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-                using var dst = new FileStream(destPath, FileMode.Create, FileAccess.Write, FileShare.None);
-                src.CopyTo(dst);
+                using (var dst = new FileStream(stagedPath, FileMode.Create, FileAccess.Write, FileShare.None))
+                {
+                    BrowserShieldAndSettings.LockDownFileAcl(stagedPath);
+                    src.CopyTo(dst);
+                    dst.Flush(true);
+                }
+                BrowserShieldAndSettings.LockDownFileAcl(stagedPath);
                 return true;
             }
             catch
             {
+                SecureZeroDeleteFile(stagedPath);
                 return false;
+            }
+        }
+
+        public static void SecureZeroDeleteFile(string? path)
+        {
+            if (string.IsNullOrWhiteSpace(path)) return;
+            foreach (string candidate in new[] { path, path + "-wal", path + "-shm", path + "-journal" })
+            {
+                try
+                {
+                    if (!File.Exists(candidate)) continue;
+                    var fi = new FileInfo(candidate);
+                    long len = fi.Length;
+                    if (len > 0)
+                    {
+                        using var fs = new FileStream(candidate, FileMode.Open, FileAccess.Write, FileShare.None);
+                        byte[] zeros = new byte[(int)Math.Min(65536L, len)];
+                        long remaining = len;
+                        while (remaining > 0)
+                        {
+                            int chunk = (int)Math.Min(zeros.Length, remaining);
+                            fs.Write(zeros, 0, chunk);
+                            remaining -= chunk;
+                        }
+                        fs.Flush(true);
+                    }
+                    File.Delete(candidate);
+                }
+                catch
+                {
+                    try { if (File.Exists(candidate)) File.Delete(candidate); } catch { }
+                }
             }
         }
 
@@ -461,9 +664,10 @@ namespace FunkenwerkBrowser
 
         public static void ImportChromeAutofillAndLogins(BrowserVaultData vault)
         {
+            byte[]? chromeAesKey = null;
             try
             {
-                byte[]? chromeAesKey = TryReadChromeLocalStateKey();
+                chromeAesKey = TryReadChromeLocalStateKey();
 
                 foreach (string profile in new[] { "Default", "Profile 1" })
                 {
@@ -486,10 +690,16 @@ namespace FunkenwerkBrowser
                 }
             }
             catch { }
+            finally
+            {
+                if (chromeAesKey != null) CryptographicOperations.ZeroMemory(chromeAesKey);
+            }
         }
 
         private static byte[]? TryReadChromeLocalStateKey()
         {
+            byte[]? raw = null;
+            byte[]? dpapiBlob = null;
             try
             {
                 string localStatePath = Path.Combine(ChromeUserDataDir, "Local State");
@@ -500,24 +710,29 @@ namespace FunkenwerkBrowser
                 {
                     string? b64 = ek.GetString();
                     if (string.IsNullOrWhiteSpace(b64)) return null;
-                    byte[] raw = Convert.FromBase64String(b64);
+                    raw = Convert.FromBase64String(b64);
                     if (raw.Length > 5 && Encoding.ASCII.GetString(raw, 0, 5) == "DPAPI")
                     {
-                        byte[] dpapiBlob = raw.Skip(5).ToArray();
+                        dpapiBlob = raw.Skip(5).ToArray();
                         return ProtectedData.Unprotect(dpapiBlob, null, DataProtectionScope.CurrentUser);
                     }
                 }
             }
             catch { }
+            finally
+            {
+                if (raw != null) CryptographicOperations.ZeroMemory(raw);
+                if (dpapiBlob != null) CryptographicOperations.ZeroMemory(dpapiBlob);
+            }
             return null;
         }
 
         private static void ImportChromeWebDataSqlite(string webDataPath, AutofillProfileDto profile)
         {
-            string tmp = Path.Combine(Path.GetTempPath(), "fwb_wd_" + Guid.NewGuid().ToString("N") + ".db");
+            string? tmp = null;
             try
             {
-                if (!CopyFileSharedReadWrite(webDataPath, tmp)) return;
+                if (!StageFileInLockedDataDir(webDataPath, "wd", out tmp)) return;
                 if (WinSqliteNative.Open(tmp, out IntPtr db))
                 {
                     try
@@ -583,16 +798,16 @@ namespace FunkenwerkBrowser
             catch { }
             finally
             {
-                try { File.Delete(tmp); } catch { }
+                SecureZeroDeleteFile(tmp);
             }
         }
 
         private static void ImportChromeLoginDataSqlite(string loginDataPath, BrowserVaultData vault, byte[]? chromeAesKey)
         {
-            string tmp = Path.Combine(Path.GetTempPath(), "fwb_ld_" + Guid.NewGuid().ToString("N") + ".db");
+            string? tmp = null;
             try
             {
-                if (!CopyFileSharedReadWrite(loginDataPath, tmp)) return;
+                if (!StageFileInLockedDataDir(loginDataPath, "ld", out tmp)) return;
                 if (WinSqliteNative.Open(tmp, out IntPtr db))
                 {
                     try
@@ -608,28 +823,42 @@ namespace FunkenwerkBrowser
                                     string username = WinSqliteNative.ColumnText(stmt, 1).Trim();
                                     byte[]? pwdBlob = WinSqliteNative.ColumnBlob(stmt, 2);
 
-                                    string host = ExtractHost(originUrl);
-                                    if (string.IsNullOrEmpty(host) || string.IsNullOrEmpty(username)) continue;
-
-                                    string decryptedPwd = TryDecryptChromePasswordBlob(pwdBlob, chromeAesKey);
-
-                                    var existing = vault.Logins.FirstOrDefault(x =>
-                                        string.Equals(x.Host, host, StringComparison.OrdinalIgnoreCase) &&
-                                        string.Equals(x.Username, username, StringComparison.OrdinalIgnoreCase));
-
-                                    if (existing == null)
+                                    try
                                     {
-                                        vault.Logins.Add(new SavedLoginEntryDto
+                                        string strictOrigin = NormalizeStrictOrigin(originUrl);
+                                        string host = ExtractHost(strictOrigin);
+                                        if (string.IsNullOrEmpty(strictOrigin) || string.IsNullOrEmpty(host) || string.IsNullOrEmpty(username))
+                                            continue;
+
+                                        string decryptedPwd = TryDecryptChromePasswordBlob(pwdBlob, chromeAesKey);
+
+                                        var existing = vault.Logins.FirstOrDefault(x =>
+                                            DoesLoginMatchStrictOrigin(x, strictOrigin) &&
+                                            string.Equals(x.Username, username, StringComparison.OrdinalIgnoreCase));
+
+                                        if (existing == null)
                                         {
-                                            OriginUrl = originUrl,
-                                            Host = host,
-                                            Username = username,
-                                            EncryptedPassword = !string.IsNullOrEmpty(decryptedPwd) ? ProtectSecret(decryptedPwd) : ""
-                                        });
+                                            vault.Logins.Add(new SavedLoginEntryDto
+                                            {
+                                                OriginUrl = strictOrigin,
+                                                Host = host,
+                                                Username = username,
+                                                EncryptedPassword = !string.IsNullOrEmpty(decryptedPwd) ? ProtectSecret(decryptedPwd) : ""
+                                            });
+                                        }
+                                        else
+                                        {
+                                            existing.OriginUrl = strictOrigin;
+                                            existing.Host = host;
+                                            if (!existing.HasPassword && !string.IsNullOrEmpty(decryptedPwd))
+                                            {
+                                                existing.EncryptedPassword = ProtectSecret(decryptedPwd);
+                                            }
+                                        }
                                     }
-                                    else if (!existing.HasPassword && !string.IsNullOrEmpty(decryptedPwd))
+                                    finally
                                     {
-                                        existing.EncryptedPassword = ProtectSecret(decryptedPwd);
+                                        if (pwdBlob != null) CryptographicOperations.ZeroMemory(pwdBlob);
                                     }
                                 }
                             }
@@ -648,13 +877,14 @@ namespace FunkenwerkBrowser
             catch { }
             finally
             {
-                try { File.Delete(tmp); } catch { }
+                SecureZeroDeleteFile(tmp);
             }
         }
 
         private static string TryDecryptChromePasswordBlob(byte[]? blob, byte[]? aesKey)
         {
             if (blob == null || blob.Length < 4) return "";
+            byte[]? plain = null;
             try
             {
                 string prefix = Encoding.ASCII.GetString(blob, 0, 3);
@@ -663,19 +893,24 @@ namespace FunkenwerkBrowser
                     byte[] nonce = blob.Skip(3).Take(12).ToArray();
                     byte[] tag = blob.Skip(blob.Length - 16).ToArray();
                     int cipherLen = blob.Length - 3 - 12 - 16;
+                    if (cipherLen < 0 || cipherLen > MaxCipherLength) return "";
                     byte[] cipher = blob.Skip(15).Take(cipherLen).ToArray();
-                    byte[] plain = new byte[cipherLen];
+                    plain = new byte[cipherLen];
                     using var aes = new AesGcm(aesKey, 16);
                     aes.Decrypt(nonce, cipher, tag, plain);
                     return Encoding.UTF8.GetString(plain);
                 }
                 if (prefix != "v10" && prefix != "v20")
                 {
-                    byte[] plain = ProtectedData.Unprotect(blob, null, DataProtectionScope.CurrentUser);
+                    plain = ProtectedData.Unprotect(blob, null, DataProtectionScope.CurrentUser);
                     return Encoding.UTF8.GetString(plain);
                 }
             }
             catch { }
+            finally
+            {
+                if (plain != null) CryptographicOperations.ZeroMemory(plain);
+            }
             return "";
         }
 
@@ -693,10 +928,10 @@ namespace FunkenwerkBrowser
                 string favDbPath = Path.Combine(ChromeUserDataDir, profile, "Favicons");
                 if (!File.Exists(favDbPath)) continue;
 
-                string tmp = Path.Combine(Path.GetTempPath(), "fwb_fav_" + Guid.NewGuid().ToString("N") + ".db");
+                string? tmp = null;
                 try
                 {
-                    if (!CopyFileSharedReadWrite(favDbPath, tmp)) continue;
+                    if (!StageFileInLockedDataDir(favDbPath, "fav", out tmp)) continue;
                     if (WinSqliteNative.Open(tmp, out IntPtr db))
                     {
                         try
@@ -708,7 +943,9 @@ namespace FunkenwerkBrowser
                                 string cacheFile = GetHostFaviconCachePath(host);
                                 if (File.Exists(cacheFile)) continue;
 
-                                string safeHost = host.Replace("'", "");
+                                string safeHost = string.Concat(host.Where(c => char.IsLetterOrDigit(c) || c == '.' || c == '-'));
+                                if (string.IsNullOrEmpty(safeHost)) continue;
+
                                 string sql = $"SELECT fb.image_data FROM icon_mapping im JOIN favicon_bitmaps fb ON im.icon_id = fb.icon_id WHERE im.page_url LIKE '%{safeHost}%' ORDER BY fb.width DESC LIMIT 1;";
                                 if (WinSqliteNative.Prepare(db, sql, out IntPtr stmt))
                                 {
@@ -739,17 +976,19 @@ namespace FunkenwerkBrowser
                 catch { }
                 finally
                 {
-                    try { File.Delete(tmp); } catch { }
+                    SecureZeroDeleteFile(tmp);
                 }
             }
         }
 
-        private static void CollectAllUrlsRecursive(IEnumerable<BookmarkNodeDto> nodes, List<string> target)
+        private static void CollectAllUrlsRecursive(IEnumerable<BookmarkNodeDto> nodes, List<string> target, HashSet<string>? visited = null)
         {
+            visited ??= new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var n in nodes)
             {
-                if (n.IsFolder)
-                    CollectAllUrlsRecursive(n.Children, target);
+                if (!visited.Add(n.Id)) continue;
+                if (n.IsFolder && n.Children != null)
+                    CollectAllUrlsRecursive(n.Children, target, visited);
                 else if (!string.IsNullOrWhiteSpace(n.Url))
                     target.Add(n.Url);
             }
@@ -772,13 +1011,14 @@ namespace FunkenwerkBrowser
             return Path.Combine(FaviconCacheDir, clean + ".png");
         }
 
+        public static int MaskNonNegativeHash(int rawHash) => rawHash & 0x7FFFFFFF;
+
         public static BitmapSource GetFolderBadgeIcon()
         {
             if (_folderBadgeIcon != null) return _folderBadgeIcon;
             var dv = new DrawingVisual();
             using (var dc = dv.RenderOpen())
             {
-                // Chrome-authentic clean outline folder icon (matches Screenshot 1)
                 var pen = new Pen(new SolidColorBrush(System.Windows.Media.Color.FromRgb(196, 199, 197)), 1.75)
                 {
                     StartLineCap = PenLineCap.Round,
@@ -795,26 +1035,33 @@ namespace FunkenwerkBrowser
             return rtb;
         }
 
+        private static BitmapSource GetOrCreateGlobeIcon(string colorHex, double strokeWidth)
+        {
+            return GlobeIconByColorCache.GetOrAdd(colorHex, hex =>
+            {
+                var color = (System.Windows.Media.Color)ColorConverter.ConvertFromString(hex);
+                var dv = new DrawingVisual();
+                using (var dc = dv.RenderOpen())
+                {
+                    var pen = new Pen(new SolidColorBrush(color), strokeWidth);
+                    dc.DrawEllipse(null, pen, new Point(12, 12), 9, 9);
+                    dc.DrawLine(pen, new Point(3, 12), new Point(21, 12));
+                    dc.DrawEllipse(null, pen, new Point(12, 12), 4.5, 9);
+                }
+                var rtb = new RenderTargetBitmap(24, 24, 96, 96, PixelFormats.Pbgra32);
+                rtb.Render(dv);
+                rtb.Freeze();
+                return rtb;
+            });
+        }
+
         public static BitmapSource GetDefaultGlobeIcon(string? url = null)
         {
             if (!string.IsNullOrWhiteSpace(url) &&
                 (url.StartsWith("chrome://", StringComparison.OrdinalIgnoreCase) ||
                  url.StartsWith("edge://", StringComparison.OrdinalIgnoreCase)))
             {
-                if (_defaultGlobeIcon != null) return _defaultGlobeIcon;
-                var dvChrome = new DrawingVisual();
-                using (var dc = dvChrome.RenderOpen())
-                {
-                    var pen = new Pen(new SolidColorBrush(System.Windows.Media.Color.FromRgb(196, 199, 197)), 1.75);
-                    dc.DrawEllipse(null, pen, new Point(12, 12), 9, 9);
-                    dc.DrawLine(pen, new Point(3, 12), new Point(21, 12));
-                    dc.DrawEllipse(null, pen, new Point(12, 12), 4.5, 9);
-                }
-                var rtbChrome = new RenderTargetBitmap(24, 24, 96, 96, PixelFormats.Pbgra32);
-                rtbChrome.Render(dvChrome);
-                rtbChrome.Freeze();
-                _defaultGlobeIcon = rtbChrome;
-                return rtbChrome;
+                return GetOrCreateGlobeIcon("#C4C7C5", 1.75);
             }
 
             string host = ExtractHost(url);
@@ -827,8 +1074,7 @@ namespace FunkenwerkBrowser
                 char letter = char.ToUpperInvariant(cleanHost.FirstOrDefault(char.IsLetterOrDigit));
                 if (letter == '\0') letter = 'W';
 
-                // Deterministic noble color per host
-                int hash = Math.Abs(cleanHost.GetHashCode());
+                int hash = MaskNonNegativeHash(cleanHost.GetHashCode());
                 var palette = new[]
                 {
                     System.Windows.Media.Color.FromRgb(59, 130, 246),
@@ -861,20 +1107,7 @@ namespace FunkenwerkBrowser
                 return rtb;
             }
 
-            if (_defaultGlobeIcon != null) return _defaultGlobeIcon;
-            var dvG = new DrawingVisual();
-            using (var dc = dvG.RenderOpen())
-            {
-                var pen = new Pen(new SolidColorBrush(System.Windows.Media.Color.FromRgb(197, 160, 89)), 1.8);
-                dc.DrawEllipse(null, pen, new Point(12, 12), 9, 9);
-                dc.DrawLine(pen, new Point(3, 12), new Point(21, 12));
-                dc.DrawEllipse(null, pen, new Point(12, 12), 4.5, 9);
-            }
-            var rtbG = new RenderTargetBitmap(24, 24, 96, 96, PixelFormats.Pbgra32);
-            rtbG.Render(dvG);
-            rtbG.Freeze();
-            _defaultGlobeIcon = rtbG;
-            return rtbG;
+            return GetOrCreateGlobeIcon("#C5A059", 1.8);
         }
 
         public static BitmapSource? TryGetCachedFaviconSync(string url)
@@ -911,8 +1144,7 @@ namespace FunkenwerkBrowser
             string host = ExtractHost(url);
             if (string.IsNullOrEmpty(host)) return null;
 
-            // Avoid network calls for private LAN IPs if offline
-            string[] candidates = host is "127.0.0.1" or "localhost" || host.StartsWith("192.168.")
+            string[] candidates = IsLoopbackHost(host) || host.StartsWith("192.168.", StringComparison.Ordinal)
                 ? new[] { $"http://{host}/favicon.ico" }
                 : new[]
                 {
@@ -984,36 +1216,105 @@ namespace FunkenwerkBrowser
         }
 
         // =====================================================================
-        // 4. JAVASCRIPT AUTOFILL & PASSWORD AUTO-CAPTURE INJECTION
+        // 4. JAVASCRIPT AUTOFILL & PASSWORD CAPTURE INJECTION (STRICT ISOLATION)
         // =====================================================================
-        public static string BuildPageAutofillAndCaptureScript(BrowserVaultData vault, string currentUrl, bool forceFillForms)
+        public static string BuildPageAutofillAndCaptureScript(
+            BrowserVaultData vault,
+            string currentUrl,
+            bool forceFillForms,
+            SavedLoginEntryDto? preferredEntry = null)
         {
-            string host = ExtractHost(currentUrl);
-            var matchingLogins = vault.Logins
-                .Where(x => string.Equals(x.Host, host, StringComparison.OrdinalIgnoreCase) ||
-                            host.EndsWith("." + x.Host, StringComparison.OrdinalIgnoreCase) ||
-                            x.Host.EndsWith("." + host, StringComparison.OrdinalIgnoreCase))
-                .OrderByDescending(x => x.HasPassword)
-                .ThenByDescending(x => x.UpdatedAtUtc)
-                .ToList();
-
-            string bestUser = matchingLogins.FirstOrDefault()?.Username ?? "";
-            string bestPass = "";
-            var withPass = matchingLogins.FirstOrDefault(x => x.HasPassword);
-            if (withPass != null)
+            // When forceFillForms == false (page load / NavigationCompleted):
+            // NEVER serialize passwords, usernames, or AutofillProfile PII into page JS, and NEVER auto-fill!
+            if (!forceFillForms)
             {
-                bestUser = withPass.Username;
-                bestPass = UnprotectSecret(withPass.EncryptedPassword);
+                return @"
+(function() {
+    if (window.top !== window.self) return;
+    if (window.__fwbCaptureHooked) return;
+    window.__fwbCaptureHooked = true;
+
+    function isVisibleInput(el) {
+        if (window.top !== window.self) return false;
+        if (!el || el.disabled) return false;
+        const rect = el.getBoundingClientRect();
+        if (!rect || rect.width < 20 || rect.height < 12) return false;
+        const style = window.getComputedStyle(el);
+        if (!style) return false;
+        if (style.visibility === 'hidden' || style.display === 'none') return false;
+        if (parseFloat(style.opacity || '1') <= 0.05) return false;
+        return true;
+    }
+
+    function captureCredentials() {
+        try {
+            if (window.top !== window.self) return;
+            const pwds = Array.from(document.querySelectorAll('input[type=""password""]'))
+                .filter(x => isVisibleInput(x) && x.value && x.value.length > 0);
+            if (pwds.length === 0) return;
+            const pwdEl = pwds[0];
+            const scope = pwdEl.closest('form') || document.body;
+            const inputs = Array.from(scope.querySelectorAll('input:not([type=""hidden""]):not([type=""password""]):not([type=""submit""]):not([type=""button""]):not([type=""checkbox""]):not([type=""radio""])'))
+                .filter(isVisibleInput);
+            let userVal = '';
+            for (const inp of inputs) {
+                if (inp.value && inp.value.trim().length > 0) {
+                    userVal = inp.value.trim();
+                    break;
+                }
+            }
+            if (userVal && pwdEl.value && window.chrome && window.chrome.webview) {
+                window.chrome.webview.postMessage(JSON.stringify({
+                    type: 'fwb_save_login',
+                    username: userVal,
+                    password: pwdEl.value
+                }));
+            }
+        } catch(e) {}
+    }
+
+    document.addEventListener('submit', captureCredentials, true);
+    document.addEventListener('keydown', function(ev) { if (ev.key === 'Enter') captureCredentials(); }, true);
+    document.addEventListener('mousedown', function() {
+        try { if (window.chrome && window.chrome.webview) window.chrome.webview.postMessage(JSON.stringify({ type: 'fwb_webview_click' })); } catch(e) {}
+    }, true);
+})();";
             }
 
-            var p = vault.AutofillProfile;
-            var payload = new
+            // Explicit user-initiated Autofill click (forceFillForms == true):
+            // Require strict origin (https:// or loopback http://) and exact strict-origin match for credentials!
+            string strictOrigin = NormalizeStrictOrigin(currentUrl);
+            string bestUser = "";
+            string bestPass = "";
+            object? profileObj = null;
+
+            if (!string.IsNullOrEmpty(strictOrigin))
             {
-                host,
-                username = bestUser,
-                password = bestPass,
-                forceFillForms,
-                profile = new
+                SavedLoginEntryDto? selected = null;
+                if (preferredEntry != null && DoesLoginMatchStrictOrigin(preferredEntry, currentUrl))
+                {
+                    selected = preferredEntry;
+                }
+                else
+                {
+                    var matchingLogins = vault.Logins
+                        .Where(x => DoesLoginMatchStrictOrigin(x, currentUrl))
+                        .OrderByDescending(x => x.HasPassword)
+                        .ThenByDescending(x => x.UpdatedAtUtc)
+                        .ToList();
+
+                    selected = matchingLogins.FirstOrDefault(x => x.HasPassword) ?? matchingLogins.FirstOrDefault();
+                }
+
+                if (selected != null)
+                {
+                    bestUser = selected.Username;
+                    if (selected.HasPassword)
+                        bestPass = UnprotectSecret(selected.EncryptedPassword);
+                }
+
+                var p = vault.AutofillProfile;
+                profileObj = new
                 {
                     fullName = p.FullName,
                     firstName = p.FirstName,
@@ -1025,17 +1326,39 @@ namespace FunkenwerkBrowser
                     country = p.Country,
                     email = p.Email,
                     phone = p.Phone
-                }
+                };
+            }
+
+            var payload = new
+            {
+                strictOrigin,
+                username = bestUser,
+                password = bestPass,
+                forceFillForms = true,
+                profile = profileObj
             };
 
             string jsonConfig = JsonSerializer.Serialize(payload);
 
             return $@"
 (function() {{
+    if (window.top !== window.self) return;
     const cfg = {jsonConfig};
+
+    function isVisibleInput(el) {{
+        if (window.top !== window.self) return false;
+        if (!el || el.disabled || el.readOnly) return false;
+        const rect = el.getBoundingClientRect();
+        if (!rect || rect.width < 20 || rect.height < 12) return false;
+        const style = window.getComputedStyle(el);
+        if (!style) return false;
+        if (style.visibility === 'hidden' || style.display === 'none') return false;
+        if (parseFloat(style.opacity || '1') <= 0.05) return false;
+        return true;
+    }}
+
     function setNativeValue(el, val) {{
-        if (!el || !val) return false;
-        if (!cfg.forceFillForms && el.value && el.value.length > 0) return false;
+        if (!isVisibleInput(el) || !val) return false;
         try {{
             const proto = Object.getPrototypeOf(el);
             const desc = Object.getOwnPropertyDescriptor(proto, 'value');
@@ -1048,14 +1371,15 @@ namespace FunkenwerkBrowser
     }}
 
     function tryAutofillLogin() {{
+        if (window.top !== window.self) return;
         if (!cfg.username && !cfg.password) return;
-        const pwdInputs = Array.from(document.querySelectorAll('input[type=""password""]:not([disabled])'));
+        const pwdInputs = Array.from(document.querySelectorAll('input[type=""password""]:not([disabled])')).filter(isVisibleInput);
         if (pwdInputs.length === 0) return;
 
         for (const pwd of pwdInputs) {{
             if (cfg.password) setNativeValue(pwd, cfg.password);
             const form = pwd.closest('form') || document.body;
-            const candidates = Array.from(form.querySelectorAll('input:not([type=""hidden""]):not([type=""password""]):not([type=""submit""]):not([type=""button""]):not([type=""checkbox""]):not([type=""radio""])'));
+            const candidates = Array.from(form.querySelectorAll('input:not([type=""hidden""]):not([type=""password""]):not([type=""submit""]):not([type=""button""]):not([type=""checkbox""]):not([type=""radio""])')).filter(isVisibleInput);
             for (const inp of candidates) {{
                 const key = ((inp.name || '') + ' ' + (inp.id || '') + ' ' + (inp.autocomplete || '') + ' ' + (inp.placeholder || '') + ' ' + (inp.type || '')).toLowerCase();
                 if (key.includes('user') || key.includes('mail') || key.includes('login') || key.includes('account') || key.includes('name') || inp.type === 'email' || inp.type === 'text') {{
@@ -1067,9 +1391,10 @@ namespace FunkenwerkBrowser
     }}
 
     function tryAutofillAddressProfile() {{
+        if (window.top !== window.self) return;
         const p = cfg.profile;
         if (!p) return;
-        const inputs = Array.from(document.querySelectorAll('input:not([type=""hidden""]):not([type=""password""]):not([type=""submit""]):not([type=""button""]):not([disabled])'));
+        const inputs = Array.from(document.querySelectorAll('input:not([type=""hidden""]):not([type=""password""]):not([type=""submit""]):not([type=""button""]):not([disabled])')).filter(isVisibleInput);
         for (const inp of inputs) {{
             const k = ((inp.name || '') + ' ' + (inp.id || '') + ' ' + (inp.autocomplete || '') + ' ' + (inp.placeholder || '')).toLowerCase();
             if (k.includes('search') || k.includes('suche') || k.includes('query') || k === 'q') continue;
@@ -1087,40 +1412,7 @@ namespace FunkenwerkBrowser
     }}
 
     tryAutofillLogin();
-    if (cfg.forceFillForms) tryAutofillAddressProfile();
-
-    if (!window.__fwbCaptureHooked) {{
-        window.__fwbCaptureHooked = true;
-        function captureCredentials() {{
-            try {{
-                const pwds = Array.from(document.querySelectorAll('input[type=""password""]')).filter(x => x.value && x.value.length > 0);
-                if (pwds.length === 0) return;
-                const pwdEl = pwds[0];
-                const scope = pwdEl.closest('form') || document.body;
-                const inputs = Array.from(scope.querySelectorAll('input:not([type=""hidden""]):not([type=""password""]):not([type=""submit""]):not([type=""button""])'));
-                let userVal = '';
-                for (const inp of inputs) {{
-                    if (inp.value && inp.value.trim().length > 0) {{
-                        userVal = inp.value.trim();
-                        break;
-                    }}
-                }}
-                if (userVal && pwdEl.value && window.chrome && window.chrome.webview) {{
-                    window.chrome.webview.postMessage(JSON.stringify({{
-                        type: 'fwb_save_login',
-                        origin: window.location.origin,
-                        username: userVal,
-                        password: pwdEl.value
-                    }}));
-                }}
-            }} catch(e) {{}}
-        }}
-        document.addEventListener('submit', captureCredentials, true);
-        document.addEventListener('keydown', function(ev) {{ if (ev.key === 'Enter') captureCredentials(); }}, true);
-        document.addEventListener('mousedown', function() {{
-            try {{ if (window.chrome && window.chrome.webview) window.chrome.webview.postMessage(JSON.stringify({{ type: 'fwb_webview_click' }})); }} catch(e) {{}}
-        }}, true);
-    }}
+    tryAutofillAddressProfile();
 }})();";
         }
     }

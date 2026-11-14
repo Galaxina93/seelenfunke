@@ -69,8 +69,17 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
     }
 
     private fun sendNotification(title: String, messageBody: String, data: Map<String, String>) {
+        val isNewOrder = data.containsKey("order_id")
         val intent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            if (!data["navigate_to"].isNullOrBlank()) {
+                putExtra("navigate_to", data["navigate_to"])
+            } else if (isNewOrder && !data.containsKey("open_tab")) {
+                putExtra("navigate_to", "orders")
+            }
+            if (!data["email_id"].isNullOrBlank()) {
+                putExtra("email_id", data["email_id"])
+            }
             if (data.containsKey("open_tab")) {
                 putExtra("open_tab", (data["open_tab"]?.toIntOrNull() ?: 0).coerceIn(0, 5))
             }
@@ -85,7 +94,6 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
             PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val isNewOrder = data.containsKey("order_id")
         val channelId = if (isNewOrder) "orders_notification_channel_v4" else "default_notification_channel"
         val publicNotification = NotificationCompat.Builder(this, channelId)
             .setSmallIcon(R.mipmap.ic_launcher)

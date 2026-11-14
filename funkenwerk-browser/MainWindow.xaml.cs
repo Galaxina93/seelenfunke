@@ -17,6 +17,9 @@ namespace FunkenwerkBrowser
 {
     public partial class MainWindow : Window
     {
+        public const string WebViewBrowserArguments =
+            "--ignore-gpu-blocklist --enable-gpu-rasterization --autoplay-policy=no-user-gesture-required --disable-features=AutofillServerCommunication";
+
         private sealed class BrowserTabSession
         {
             public Guid Id { get; } = Guid.NewGuid();
@@ -52,8 +55,15 @@ namespace FunkenwerkBrowser
         private BookmarkNodeDto? _draggingBookmarkNode;
         private bool _suppressNextBookmarkClick;
 
-        // Password Vault UI State
+        // Password Vault UI State & Pending Save Prompt State (encrypted in memory)
         private bool _isNewPassRevealed;
+        private string? _pendingPromptStrictOrigin;
+        private string? _pendingPromptUsername;
+        private string? _pendingPromptEncryptedPass;
+
+        public MainWindow() : this(null)
+        {
+        }
 
         public MainWindow(string? startupUrl)
         {
@@ -82,12 +92,26 @@ namespace FunkenwerkBrowser
             Closed += (_, _) =>
             {
                 _airlockTickTimer.Stop();
+                ClearPendingLoginPrompt();
                 foreach (var t in _tabs)
                 {
                     try { t.View.Dispose(); } catch { }
                 }
             };
         }
+
+        public static void ApplyHardenedWebViewSettings(CoreWebView2Settings settings)
+        {
+            settings.IsPasswordAutosaveEnabled = false;
+            settings.IsGeneralAutofillEnabled = false;
+            settings.AreDefaultScriptDialogsEnabled = true;
+            settings.AreDevToolsEnabled = true;
+        }
+
+        internal void SetThemeForSelfTest(bool dark) => ApplyTheme(dark);
+        internal BrowserVaultData VaultForSelfTest => _vault;
+        internal void ConfirmLoginSavePromptForSelfTest() => ConfirmLoginSavePrompt_Click(this, new RoutedEventArgs());
+        internal void DismissLoginSavePromptForSelfTest() => DismissLoginSavePrompt_Click(this, new RoutedEventArgs());
 
         private void ApplyTheme(bool dark)
         {
@@ -116,6 +140,7 @@ namespace FunkenwerkBrowser
             }
             RebuildTabHeaders();
             RebuildBookmarksBarUi();
+            RebuildVaultLoginsListUi();
         }
 
         private void ToggleTheme_Click(object sender, RoutedEventArgs e)
@@ -127,7 +152,7 @@ namespace FunkenwerkBrowser
         private async Task<CoreWebView2Environment> EnsureEnvironmentAsync()
         {
             if (_sharedEnv != null) return _sharedEnv;
-            var opts = new CoreWebView2EnvironmentOptions("--ignore-gpu-blocklist --enable-gpu-rasterization --autoplay-policy=no-user-gesture-required --disable-features=msSmartScreenProtection,AutofillServerCommunication");
+            var opts = new CoreWebView2EnvironmentOptions(WebViewBrowserArguments);
             string? customFolder = ResolveInstalledWebView2Folder();
             _sharedEnv = await CoreWebView2Environment.CreateAsync(customFolder, BrowserShieldAndSettings.WebViewUserDataDir, opts);
             return _sharedEnv;
@@ -187,35 +212,58 @@ namespace FunkenwerkBrowser
                 await webView.EnsureCoreWebView2Async(env);
 
                 var core = webView.CoreWebView2;
-                core.Settings.IsPasswordAutosaveEnabled = true;
-                core.Settings.IsGeneralAutofillEnabled = true;
-                core.Settings.AreDefaultScriptDialogsEnabled = true;
-                core.Settings.AreDevToolsEnabled = true;
+                ApplyHardenedWebViewSettings(core.Settings);
 
-                // Network-level Ad, Tracker & Fortress Airlock Filter
+                // Network-level Ad, Tracker, file:// & Fortress Subresource Filter
                 core.AddWebResourceRequestedFilter("*", CoreWebView2WebResourceContext.All);
                 core.WebResourceRequested += (_, args) =>
                 {
                     string reqUri = args.Request.Uri;
-                    if (BrowserShieldAndSettings.IsAdOrTrackerUri(reqUri))
+                    bool isTracker = BrowserShieldAndSettings.IsAdOrTrackerUri(reqUri);
+                    bool enforceFortressOrScheme = (_settings.StrictFortressMode || reqUri.StartsWith("file:", StringComparison.OrdinalIgnoreCase))
+                                                   && !BrowserShieldAndSettings.IsAllowedNavigationUri(_settings, reqUri);
+
+                    if (isTracker || enforceFortressOrScheme)
                     {
                         args.Response = core.Environment.CreateWebResourceResponse(null, 403, "Blocked", "");
-                        Dispatcher.BeginInvoke(() =>
+                        if (isTracker)
                         {
-                            _blockedTrackersCount++;
-                            BlockedCountTxt.Text = $"🛡 {_blockedTrackersCount}";
-                        });
+                            Dispatcher.BeginInvoke(() =>
+                            {
+                                _blockedTrackersCount++;
+                                BlockedCountTxt.Text = $"🛡 {_blockedTrackersCount}";
+                            });
+                        }
                     }
                 };
 
-                // Allow Microphone & Webcam on HTTPS sites (YouTube, WhatsApp Web, Discord, Seelenfunke)
+                // Hardened Camera/Microphone & Permission Policy (BRW-SEC-03)
                 core.PermissionRequested += (_, args) =>
                 {
-                    if (args.PermissionKind is CoreWebView2PermissionKind.Microphone or CoreWebView2PermissionKind.Camera)
+                    var decision = BrowserShieldAndSettings.EvaluatePermissionRequest(args.Uri, args.PermissionKind);
+                    if (decision == BrowserPermissionDecision.Allow)
                     {
-                        if (args.Uri.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
-                            args.Uri.StartsWith("http://127.0.0.1", StringComparison.OrdinalIgnoreCase))
-                            args.State = CoreWebView2PermissionState.Allow;
+                        args.State = CoreWebView2PermissionState.Allow;
+                    }
+                    else if (decision == BrowserPermissionDecision.PromptUser)
+                    {
+                        string permLabel = args.PermissionKind == CoreWebView2PermissionKind.Camera ? "Kamera" : "Mikrofon";
+                        string originDisplay = Uri.TryCreate(args.Uri, UriKind.Absolute, out var u) ? u.Authority : args.Uri;
+                        var answer = MessageBox.Show(
+                            this,
+                            $"Zugriff auf {permLabel} für {originDisplay} erlauben?",
+                            "Berechtigung",
+                            MessageBoxButton.YesNo,
+                            MessageBoxImage.Question,
+                            MessageBoxResult.No);
+
+                        args.State = answer == MessageBoxResult.Yes
+                            ? CoreWebView2PermissionState.Allow
+                            : CoreWebView2PermissionState.Deny;
+                    }
+                    else
+                    {
+                        args.State = CoreWebView2PermissionState.Deny;
                     }
                 };
 
@@ -227,7 +275,7 @@ namespace FunkenwerkBrowser
                         await CreateAndSelectTabAsync(args.Uri);
                 };
 
-                // Route all Browser Downloads directly into Funkenwerk OS 00_Eingang_Trichter (Zero Standard Downloads Clutter!)
+                // Route all Browser Downloads directly into Funkenwerk OS 00_Eingang_Trichter
                 core.DownloadStarting += (_, args) =>
                 {
                     try
@@ -239,11 +287,17 @@ namespace FunkenwerkBrowser
                             "00_Eingang_Trichter");
                         System.IO.Directory.CreateDirectory(trichterDir);
 
-                        string fileName = System.IO.Path.GetFileName(args.ResultFilePath);
-                        if (string.IsNullOrWhiteSpace(fileName))
+                        string rawName = System.IO.Path.GetFileName(args.ResultFilePath);
+                        char[] invalidChars = System.IO.Path.GetInvalidFileNameChars();
+                        string fileName = string.Concat((rawName ?? "").Select(c => invalidChars.Contains(c) ? '_' : c)).Trim();
+                        if (string.IsNullOrWhiteSpace(fileName) || fileName is "." or "..")
                             fileName = $"Download_{DateTime.Now:yyyy-MM-dd_HHmmss}.bin";
 
-                        string destPath = System.IO.Path.Combine(trichterDir, fileName);
+                        string destPath = System.IO.Path.GetFullPath(System.IO.Path.Combine(trichterDir, fileName));
+                        string fullRoot = System.IO.Path.GetFullPath(trichterDir).TrimEnd(System.IO.Path.DirectorySeparatorChar) + System.IO.Path.DirectorySeparatorChar;
+                        if (!destPath.StartsWith(fullRoot, StringComparison.OrdinalIgnoreCase))
+                            destPath = System.IO.Path.Combine(trichterDir, $"Download_{DateTime.Now:yyyy-MM-dd_HHmmss}.bin");
+
                         if (System.IO.File.Exists(destPath))
                         {
                             string stem = System.IO.Path.GetFileNameWithoutExtension(fileName);
@@ -256,9 +310,18 @@ namespace FunkenwerkBrowser
                     catch { }
                 };
 
+                // Enforce Fortress allowlist & file:// block on subframes / iframes (BRW-SEC-04)
+                core.FrameNavigationStarting += (_, args) =>
+                {
+                    if (!BrowserShieldAndSettings.IsAllowedNavigationUri(_settings, args.Uri))
+                    {
+                        args.Cancel = true;
+                    }
+                };
+
                 core.NavigationStarting += (_, args) =>
                 {
-                    if (!BrowserShieldAndSettings.IsNavigationAllowedByFortress(_settings, args.Uri, out string blockedHost))
+                    if (!BrowserShieldAndSettings.IsAllowedNavigationUri(_settings, args.Uri, out string blockedHost))
                     {
                         args.Cancel = true;
                         tab.PendingBlockedUrl = args.Uri;
@@ -274,6 +337,7 @@ namespace FunkenwerkBrowser
                     if (_activeTab == tab)
                     {
                         AirlockBlockedOverlay.Visibility = Visibility.Collapsed;
+                        tab.View.Visibility = Visibility.Visible;
                         UpdateAddressBarFromTab(tab);
                     }
                 };
@@ -308,7 +372,7 @@ namespace FunkenwerkBrowser
                     catch { }
                 };
 
-                // Auto-Autofill & Form Submit Credential Capture
+                // Capture-only listener on page load (NEVER auto-fills passwords or PII on NavigationCompleted!)
                 core.NavigationCompleted += async (_, args) =>
                 {
                     if (!args.IsSuccess) return;
@@ -343,15 +407,16 @@ namespace FunkenwerkBrowser
                         }
                         else if (msgType == "fwb_save_login")
                         {
-                            string origin = doc.RootElement.TryGetProperty("origin", out var op) ? (op.GetString() ?? tab.CurrentUrl) : tab.CurrentUrl;
-                            string user = doc.RootElement.TryGetProperty("username", out var up) ? (up.GetString() ?? "") : "";
+                            // BRW-SEC-02: Ignore any page-supplied origin in JSON; validate exclusively via WebView2 args.Source + core.Source!
+                            if (!BrowserAutofillAndVaultEngine.TryValidateWebMessageLoginOrigin(args.Source, core.Source, out string trustedStrictOrigin))
+                                return;
+
+                            string user = doc.RootElement.TryGetProperty("username", out var up) ? (up.GetString() ?? "").Trim() : "";
                             string pass = doc.RootElement.TryGetProperty("password", out var pp) ? (pp.GetString() ?? "") : "";
-                            if (!string.IsNullOrWhiteSpace(user) && !string.IsNullOrWhiteSpace(pass))
-                            {
-                                BrowserAutofillAndVaultEngine.UpsertLoginCredential(_vault, origin, user, pass);
-                                SyncVaultQuickHeaderWithCurrentTab();
-                                RebuildVaultLoginsListUi();
-                            }
+                            if (string.IsNullOrWhiteSpace(user) || string.IsNullOrWhiteSpace(pass))
+                                return;
+
+                            QueueLoginSaveConfirmationPrompt(trustedStrictOrigin, user, pass);
                         }
                     }
                     catch { }
@@ -367,11 +432,73 @@ namespace FunkenwerkBrowser
             }
         }
 
+        internal void QueueLoginSaveConfirmationPrompt(string trustedStrictOrigin, string username, string plainPassword)
+        {
+            var exactExisting = _vault.Logins.FirstOrDefault(x =>
+                BrowserAutofillAndVaultEngine.DoesLoginMatchStrictOrigin(x, trustedStrictOrigin) &&
+                string.Equals(x.Username, username, StringComparison.OrdinalIgnoreCase));
+
+            if (exactExisting != null && exactExisting.HasPassword)
+            {
+                string currentPlain = BrowserAutofillAndVaultEngine.UnprotectSecret(exactExisting.EncryptedPassword);
+                if (string.Equals(currentPlain, plainPassword, StringComparison.Ordinal))
+                    return; // Unchanged password, nothing to prompt
+            }
+
+            bool hasExistingForOrigin = _vault.Logins.Any(x =>
+                BrowserAutofillAndVaultEngine.DoesLoginMatchStrictOrigin(x, trustedStrictOrigin));
+
+            _pendingPromptStrictOrigin = trustedStrictOrigin;
+            _pendingPromptUsername = username;
+            _pendingPromptEncryptedPass = BrowserAutofillAndVaultEngine.ProtectSecret(plainPassword);
+
+            LoginSavePromptTitleTxt.Text = hasExistingForOrigin
+                ? "🔑 Passwort überschreiben?"
+                : "🔑 Zugangsdaten speichern?";
+            ConfirmSavePromptBtn.Content = hasExistingForOrigin ? "Überschreiben" : "Speichern";
+            LoginSavePromptDetailTxt.Text = $"{trustedStrictOrigin}  ({username})";
+            LoginSavePromptBar.Visibility = Visibility.Visible;
+        }
+
+        private void ConfirmLoginSavePrompt_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (!string.IsNullOrEmpty(_pendingPromptStrictOrigin) &&
+                    !string.IsNullOrEmpty(_pendingPromptUsername) &&
+                    !string.IsNullOrEmpty(_pendingPromptEncryptedPass))
+                {
+                    string plain = BrowserAutofillAndVaultEngine.UnprotectSecret(_pendingPromptEncryptedPass);
+                    if (!string.IsNullOrEmpty(plain))
+                    {
+                        BrowserAutofillAndVaultEngine.UpsertLoginCredential(_vault, _pendingPromptStrictOrigin, _pendingPromptUsername, plain);
+                        SyncVaultQuickHeaderWithCurrentTab();
+                        RebuildVaultLoginsListUi();
+                    }
+                }
+            }
+            finally
+            {
+                ClearPendingLoginPrompt();
+            }
+        }
+
+        private void DismissLoginSavePrompt_Click(object sender, RoutedEventArgs e) => ClearPendingLoginPrompt();
+
+        private void ClearPendingLoginPrompt()
+        {
+            _pendingPromptStrictOrigin = null;
+            _pendingPromptUsername = null;
+            _pendingPromptEncryptedPass = null;
+            if (LoginSavePromptBar != null)
+                LoginSavePromptBar.Visibility = Visibility.Collapsed;
+        }
+
         private void NavigateTabTo(BrowserTabSession tab, string rawInput)
         {
             CloseAllFolderPopups();
             string url = BrowserShieldAndSettings.NormalizeUserUrlOrSearch(rawInput);
-            if (!BrowserShieldAndSettings.IsNavigationAllowedByFortress(_settings, url, out string blockedHost))
+            if (!BrowserShieldAndSettings.IsAllowedNavigationUri(_settings, url, out string blockedHost))
             {
                 tab.PendingBlockedUrl = url;
                 tab.PendingBlockedHost = blockedHost;
@@ -385,6 +512,8 @@ namespace FunkenwerkBrowser
             tab.PendingBlockedUrl = null;
             tab.PendingBlockedHost = null;
             AirlockBlockedOverlay.Visibility = Visibility.Collapsed;
+            if (_activeTab == tab)
+                tab.View.Visibility = Visibility.Visible;
             tab.CurrentUrl = url;
             UpdateAddressBarFromTab(tab);
 
@@ -397,6 +526,7 @@ namespace FunkenwerkBrowser
             BlockedDomainTitleTxt.Text = string.IsNullOrWhiteSpace(tab.PendingBlockedHost) ? "Fremde Domain" : tab.PendingBlockedHost;
             AddressBox.Text = tab.PendingBlockedUrl ?? "";
             SslIconTxt.Text = "🛡";
+            tab.View.Visibility = Visibility.Collapsed;
             AirlockBlockedOverlay.Visibility = Visibility.Visible;
         }
 
@@ -405,7 +535,7 @@ namespace FunkenwerkBrowser
             CloseAllFolderPopups();
             _activeTab = tab;
             foreach (var t in _tabs)
-                t.View.Visibility = (t == tab) ? Visibility.Visible : Visibility.Collapsed;
+                t.View.Visibility = (t == tab && string.IsNullOrEmpty(t.PendingBlockedUrl)) ? Visibility.Visible : Visibility.Collapsed;
 
             if (!string.IsNullOrEmpty(tab.PendingBlockedUrl))
                 ShowBlockedGateForTab(tab);
@@ -445,6 +575,7 @@ namespace FunkenwerkBrowser
 
         private void RebuildTabHeaders()
         {
+            if (TabsHeaderStack == null) return;
             TabsHeaderStack.Children.Clear();
             foreach (var tab in _tabs)
             {
@@ -633,7 +764,6 @@ namespace FunkenwerkBrowser
 
             btn.Content = row;
 
-            // HOVER-TO-SWITCH FOLDER: If any folder popup is already open, hovering over another folder opens it immediately!
             btn.MouseEnter += (_, _) =>
             {
                 if (BookmarkFolderPopup.IsOpen && node.IsFolder)
@@ -645,7 +775,6 @@ namespace FunkenwerkBrowser
                 }
             };
 
-            // Left-Click: Navigate URL or Toggle Folder Popup
             btn.Click += async (_, e) =>
             {
                 e.Handled = true;
@@ -677,7 +806,6 @@ namespace FunkenwerkBrowser
                 }
             };
 
-            // Middle-Click: Open in new tab
             btn.MouseUp += async (_, e) =>
             {
                 if (e.ChangedButton == MouseButton.Middle && !node.IsFolder && !string.IsNullOrWhiteSpace(node.Url))
@@ -688,7 +816,6 @@ namespace FunkenwerkBrowser
                 }
             };
 
-            // Right-Click: Open Rename / Edit Popover directly with Name focused & Enter to confirm
             btn.MouseRightButtonUp += (_, e) =>
             {
                 e.Handled = true;
@@ -696,7 +823,6 @@ namespace FunkenwerkBrowser
                 OpenBookmarkEditPopup(node, btn);
             };
 
-            // Drag & Drop to reorder folder/bookmark positions on the bar
             btn.PreviewMouseLeftButtonDown += (_, e) =>
             {
                 _bookmarkDragStartPoint = e.GetPosition(this);
@@ -841,11 +967,19 @@ namespace FunkenwerkBrowser
 
         private void FolderPopup_DragOver(object sender, DragEventArgs e)
         {
-            if (e.Data.GetDataPresent(typeof(BookmarkNodeDto)))
+            if (e.Data.GetDataPresent(typeof(BookmarkNodeDto)) &&
+                e.Data.GetData(typeof(BookmarkNodeDto)) is BookmarkNodeDto dragged &&
+                _openFolderStack.Count > 0)
             {
-                e.Effects = DragDropEffects.Move;
+                var currentFolder = _openFolderStack.Peek();
+                bool createsCycle = BrowserShieldAndSettings.ContainsDescendantId(dragged, currentFolder.Id);
+                e.Effects = createsCycle ? DragDropEffects.None : DragDropEffects.Move;
                 e.Handled = true;
+                return;
             }
+
+            e.Effects = DragDropEffects.None;
+            e.Handled = true;
         }
 
         private void FolderPopup_Drop(object sender, DragEventArgs e)
@@ -859,14 +993,8 @@ namespace FunkenwerkBrowser
             }
 
             var currentFolder = _openFolderStack.Peek();
-            if (string.Equals(currentFolder.Id, dragged.Id, StringComparison.OrdinalIgnoreCase)) return;
-
-            var (foundDragged, draggedParentList, _) = BrowserShieldAndSettings.FindNodeAndParent(_settings.BookmarkBarNodes, dragged.Id);
-            if (foundDragged == null || draggedParentList == null) return;
-
-            draggedParentList.Remove(foundDragged);
-            currentFolder.Children ??= new List<BookmarkNodeDto>();
-            currentFolder.Children.Add(foundDragged);
+            if (!BrowserShieldAndSettings.TryMoveNodeIntoFolder(_settings.BookmarkBarNodes, dragged.Id, currentFolder.Id))
+                return;
 
             BrowserShieldAndSettings.SaveSettings(_settings);
             RebuildBookmarksBarUi();
@@ -905,7 +1033,6 @@ namespace FunkenwerkBrowser
 
             RebuildFolderPopupItems();
 
-            // Re-anchoring an already-open Popup in WPF requires toggling IsOpen or PlacementTarget update
             BookmarkFolderPopup.IsOpen = false;
             BookmarkFolderPopup.PlacementTarget = anchorButton;
             BookmarkFolderPopup.Placement = PlacementMode.Bottom;
@@ -1037,7 +1164,6 @@ namespace FunkenwerkBrowser
 
             var capturedChild = child;
 
-            // Hover over subfolder inside open folder popup -> opens cascading side popup immediately!
             itemBtn.MouseEnter += (_, _) =>
             {
                 if (!isSubfolderPopup)
@@ -1090,7 +1216,6 @@ namespace FunkenwerkBrowser
                 OpenBookmarkEditPopup(capturedChild, anchor);
             };
 
-            // Drag & Drop inside folder popup to reorder items
             itemBtn.PreviewMouseLeftButtonDown += (_, ev) =>
             {
                 _bookmarkDragStartPoint = ev.GetPosition(this);
@@ -1116,17 +1241,10 @@ namespace FunkenwerkBrowser
                 ev.Handled = true;
                 if (ev.Data.GetDataPresent(typeof(BookmarkNodeDto)) &&
                     ev.Data.GetData(typeof(BookmarkNodeDto)) is BookmarkNodeDto dragged &&
-                    dragged.Id != capturedChild.Id)
+                    !string.Equals(dragged.Id, capturedChild.Id, StringComparison.OrdinalIgnoreCase))
                 {
-                    var (foundDragged, draggedParentList, _) = BrowserShieldAndSettings.FindNodeAndParent(_settings.BookmarkBarNodes, dragged.Id);
-                    var (_, targetParentList, _) = BrowserShieldAndSettings.FindNodeAndParent(_settings.BookmarkBarNodes, capturedChild.Id);
-                    if (foundDragged != null && draggedParentList != null && targetParentList != null)
+                    if (BrowserShieldAndSettings.MoveNodeRelativeToTarget(_settings.BookmarkBarNodes, dragged.Id, capturedChild.Id, insertAfter: false))
                     {
-                        draggedParentList.Remove(foundDragged);
-                        int targetIdx = targetParentList.IndexOf(capturedChild);
-                        if (targetIdx < 0) targetParentList.Add(foundDragged);
-                        else targetParentList.Insert(targetIdx, foundDragged);
-
                         BrowserShieldAndSettings.SaveSettings(_settings);
                         RebuildBookmarksBarUi();
                         RebuildFolderPopupItems();
@@ -1250,7 +1368,6 @@ namespace FunkenwerkBrowser
 
         // =====================================================================
         // RIGHT-CLICK BOOKMARK / FOLDER RENAME & MANAGER POPOVER
-        // (Supports empty name "" for Icon-Only, Enter to confirm!)
         // =====================================================================
         private void BookmarkStarBtn_Click(object sender, RoutedEventArgs e)
         {
@@ -1265,21 +1382,6 @@ namespace FunkenwerkBrowser
             {
                 AddBookmarkForCurrentPage(openEditorImmediately: true, targetFolder: null, anchor: BookmarkStarBtn);
             }
-        }
-
-        private void CreateNewRootFolder_Click(object sender, RoutedEventArgs e)
-        {
-            CloseAllFolderPopups();
-            var folder = new BookmarkNodeDto
-            {
-                Name = "Neuer Ordner",
-                Type = "folder",
-                Children = new List<BookmarkNodeDto>()
-            };
-            _settings.BookmarkBarNodes.Add(folder);
-            BrowserShieldAndSettings.SaveSettings(_settings);
-            RebuildBookmarksBarUi();
-            OpenBookmarkEditPopup(folder, BookmarkBarContainer);
         }
 
         private void AddBookmarkForCurrentPage(bool openEditorImmediately, BookmarkNodeDto? targetFolder, UIElement anchor)
@@ -1324,7 +1426,6 @@ namespace FunkenwerkBrowser
             EditBookmarkNameBox.Text = node.Name;
             EditBookmarkUrlBox.Text = node.Url;
 
-            // Populate Folder Destination Combo
             var (_, _, currentParentFolder) = BrowserShieldAndSettings.FindNodeAndParent(_settings.BookmarkBarNodes, node.Id);
             string currentParentId = currentParentFolder?.Id ?? "ROOT_BAR";
 
@@ -1388,7 +1489,6 @@ namespace FunkenwerkBrowser
                 return;
             }
 
-            // Name is allowed to be empty ("") for icon-only display in the Bookmark Bar!
             _editingNode.Name = (EditBookmarkNameBox.Text ?? "").Trim();
 
             if (!_editingNode.IsFolder)
@@ -1398,15 +1498,13 @@ namespace FunkenwerkBrowser
                     _editingNode.Url = BrowserShieldAndSettings.NormalizeUserUrlOrSearch(editedUrl);
             }
 
-            // Check if parent folder changed
             if (EditBookmarkFolderCombo.SelectedItem is FolderComboOption chosenFolder)
             {
-                var (found, oldParentList, oldParentFolder) = BrowserShieldAndSettings.FindNodeAndParent(_settings.BookmarkBarNodes, _editingNode.Id);
+                var (_, _, oldParentFolder) = BrowserShieldAndSettings.FindNodeAndParent(_settings.BookmarkBarNodes, _editingNode.Id);
                 string oldParentId = oldParentFolder?.Id ?? "ROOT_BAR";
-                if (found != null && oldParentList != null && !string.Equals(oldParentId, chosenFolder.FolderId, StringComparison.OrdinalIgnoreCase))
+                if (!string.Equals(oldParentId, chosenFolder.FolderId, StringComparison.OrdinalIgnoreCase))
                 {
-                    oldParentList.Remove(found);
-                    chosenFolder.TargetList.Add(found);
+                    BrowserShieldAndSettings.TryMoveNodeIntoFolder(_settings.BookmarkBarNodes, _editingNode.Id, chosenFolder.FolderId);
                 }
             }
 
@@ -1530,13 +1628,15 @@ namespace FunkenwerkBrowser
         private void SyncVaultQuickHeaderWithCurrentTab()
         {
             string url = _activeTab?.CurrentUrl ?? "";
-            string host = BrowserAutofillAndVaultEngine.ExtractHost(url);
-            VaultCurrentHostTxt.Text = string.IsNullOrEmpty(host) ? "Aktuelle Seite" : host;
+            string strictOrigin = BrowserAutofillAndVaultEngine.NormalizeStrictOrigin(url);
+            VaultCurrentHostTxt.Text = string.IsNullOrEmpty(strictOrigin) ? "Aktuelle Seite" : strictOrigin;
 
-            var match = _vault.Logins
-                .Where(x => string.Equals(x.Host, host, StringComparison.OrdinalIgnoreCase))
-                .OrderByDescending(x => x.HasPassword)
-                .FirstOrDefault();
+            var match = !string.IsNullOrEmpty(strictOrigin)
+                ? _vault.Logins
+                    .Where(x => BrowserAutofillAndVaultEngine.DoesLoginMatchStrictOrigin(x, url))
+                    .OrderByDescending(x => x.HasPassword)
+                    .FirstOrDefault()
+                : null;
 
             if (match != null)
             {
@@ -1588,7 +1688,17 @@ namespace FunkenwerkBrowser
             string pass = _isNewPassRevealed ? (VaultNewPassRevealBox.Text ?? "") : (VaultNewPassBox.Password ?? "");
 
             if (string.IsNullOrWhiteSpace(user)) return;
-            BrowserAutofillAndVaultEngine.UpsertLoginCredential(_vault, url, user, pass);
+            if (!BrowserAutofillAndVaultEngine.UpsertLoginCredential(_vault, url, user, pass))
+            {
+                MessageBox.Show(
+                    this,
+                    "Passwörter können nur für sichere HTTPS-Seiten (oder localhost / 127.0.0.1) gespeichert werden.",
+                    "Unsichere Verbindung",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+
             RebuildVaultLoginsListUi();
 
             if (_activeTab?.View.CoreWebView2 != null)
@@ -1622,13 +1732,14 @@ namespace FunkenwerkBrowser
             VaultLoginsListStack.Children.Clear();
 
             string q = (VaultSearchBox?.Text ?? "").Trim();
-            string currentHost = BrowserAutofillAndVaultEngine.ExtractHost(_activeTab?.CurrentUrl);
+            string currentUrl = _activeTab?.CurrentUrl ?? "";
 
             var items = _vault.Logins
                 .Where(x => string.IsNullOrEmpty(q) ||
                             x.Host.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                            x.OriginUrl.Contains(q, StringComparison.OrdinalIgnoreCase) ||
                             x.Username.Contains(q, StringComparison.OrdinalIgnoreCase))
-                .OrderByDescending(x => string.Equals(x.Host, currentHost, StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(x => BrowserAutofillAndVaultEngine.DoesLoginMatchStrictOrigin(x, currentUrl))
                 .ThenByDescending(x => x.HasPassword)
                 .ThenBy(x => x.Host)
                 .Take(140)
@@ -1636,7 +1747,7 @@ namespace FunkenwerkBrowser
 
             foreach (var entry in items)
             {
-                bool isCurrentSite = !string.IsNullOrEmpty(currentHost) && string.Equals(entry.Host, currentHost, StringComparison.OrdinalIgnoreCase);
+                bool isCurrentSite = BrowserAutofillAndVaultEngine.DoesLoginMatchStrictOrigin(entry, currentUrl);
 
                 var card = new Border
                 {
@@ -1653,22 +1764,24 @@ namespace FunkenwerkBrowser
                 g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
                 g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
+                string iconSourceUrl = !string.IsNullOrWhiteSpace(entry.OriginUrl) ? entry.OriginUrl : $"https://{entry.Host}";
                 var favImg = new Image
                 {
                     Width = 16,
                     Height = 16,
                     Margin = new Thickness(0, 0, 8, 0),
                     VerticalAlignment = VerticalAlignment.Center,
-                    Source = BrowserAutofillAndVaultEngine.TryGetCachedFaviconSync(entry.OriginUrl)
-                             ?? BrowserAutofillAndVaultEngine.GetDefaultGlobeIcon(entry.OriginUrl)
+                    Source = BrowserAutofillAndVaultEngine.TryGetCachedFaviconSync(iconSourceUrl)
+                             ?? BrowserAutofillAndVaultEngine.GetDefaultGlobeIcon(iconSourceUrl)
                 };
                 Grid.SetColumn(favImg, 0);
                 g.Children.Add(favImg);
 
+                string displayOrigin = !string.IsNullOrWhiteSpace(entry.OriginUrl) ? entry.OriginUrl : entry.Host;
                 var infoStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
                 infoStack.Children.Add(new TextBlock
                 {
-                    Text = entry.Host,
+                    Text = displayOrigin,
                     FontSize = 11.5,
                     FontWeight = FontWeights.Bold,
                     Foreground = isCurrentSite ? Solid("#C5A059") : (Brush)Resources["TextPrimaryBrush"],
@@ -1699,23 +1812,29 @@ namespace FunkenwerkBrowser
                 };
                 fillBtn.Click += async (_, _) =>
                 {
-                    VaultNewUserBox.Text = captured.Username;
-                    string plain = captured.HasPassword ? BrowserAutofillAndVaultEngine.UnprotectSecret(captured.EncryptedPassword) : "";
-                    VaultNewPassBox.Password = plain;
-                    VaultNewPassRevealBox.Text = plain;
+                    if (_activeTab == null) return;
 
-                    if (_activeTab != null)
+                    if (!BrowserAutofillAndVaultEngine.DoesLoginMatchStrictOrigin(captured, _activeTab.CurrentUrl))
                     {
-                        string currentTabHost = BrowserAutofillAndVaultEngine.ExtractHost(_activeTab.CurrentUrl);
-                        if (!string.Equals(currentTabHost, captured.Host, StringComparison.OrdinalIgnoreCase))
-                        {
-                            NavigateTabTo(_activeTab, captured.OriginUrl);
-                        }
-                        else if (_activeTab.View.CoreWebView2 != null)
-                        {
-                            string script = BrowserAutofillAndVaultEngine.BuildPageAutofillAndCaptureScript(_vault, _activeTab.CurrentUrl, forceFillForms: true);
-                            await _activeTab.View.CoreWebView2.ExecuteScriptAsync(script);
-                        }
+                        string navTarget = BrowserAutofillAndVaultEngine.NormalizeStrictOrigin(captured.OriginUrl);
+                        if (string.IsNullOrEmpty(navTarget) && !string.IsNullOrWhiteSpace(captured.Host))
+                            navTarget = $"https://{captured.Host}";
+                        if (!string.IsNullOrEmpty(navTarget))
+                            NavigateTabTo(_activeTab, navTarget);
+                    }
+                    else if (_activeTab.View.CoreWebView2 != null)
+                    {
+                        VaultNewUserBox.Text = captured.Username;
+                        string plain = captured.HasPassword ? BrowserAutofillAndVaultEngine.UnprotectSecret(captured.EncryptedPassword) : "";
+                        VaultNewPassBox.Password = plain;
+                        VaultNewPassRevealBox.Text = plain;
+
+                        string script = BrowserAutofillAndVaultEngine.BuildPageAutofillAndCaptureScript(
+                            _vault,
+                            _activeTab.CurrentUrl,
+                            forceFillForms: true,
+                            preferredEntry: captured);
+                        await _activeTab.View.CoreWebView2.ExecuteScriptAsync(script);
                     }
                 };
                 actions.Children.Add(fillBtn);
@@ -1793,6 +1912,7 @@ namespace FunkenwerkBrowser
                 _settings.BookmarkBarNodes = freshTree;
                 _settings.MigratedChromeBookmarkTreeV3 = true;
                 _settings.MigratedChromeBookmarkTreeV4 = true;
+                _settings.MigratedChromeBookmarkTreeV5 = true;
                 BrowserShieldAndSettings.SaveSettings(_settings);
                 RebuildBookmarksBarUi();
             }
@@ -1894,6 +2014,8 @@ namespace FunkenwerkBrowser
         {
             if (_activeTab == null || string.IsNullOrWhiteSpace(_activeTab.PendingBlockedHost)) return;
             string dom = _activeTab.PendingBlockedHost.Trim().ToLowerInvariant();
+            if (dom == "file://" || dom.Contains("://", StringComparison.Ordinal)) return;
+
             if (!_settings.CustomAllowedDomains.Contains(dom, StringComparer.OrdinalIgnoreCase))
             {
                 _settings.CustomAllowedDomains.Add(dom);

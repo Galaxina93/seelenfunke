@@ -15,8 +15,11 @@ namespace FunkenwerkTresor
         {
             try
             {
-                string logFile = Path.Combine(Path.GetTempPath(), "funkenwerk_tresor_boot.log");
+                string logFile = Path.Combine(TresorAppSettings.DataDir, "funkenwerk_tresor_boot.log");
+                bool created = !File.Exists(logFile);
                 File.AppendAllText(logFile, $"[{DateTime.Now:HH:mm:ss.fff}] [PID {Environment.ProcessId}] {msg}{Environment.NewLine}");
+                if (created)
+                    TresorAppSettings.LockDownFileAcl(logFile);
             }
             catch { }
         }

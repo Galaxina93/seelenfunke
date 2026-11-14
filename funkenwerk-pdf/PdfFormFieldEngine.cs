@@ -63,12 +63,18 @@ namespace FunkenwerkPdf
 
     public static class PdfFormFieldEngine
     {
+        public const long MaxPdfFileSizeBytes = 256L * 1024L * 1024L;     // 256 MB
+        public const long MaxSignatureImageBytes = 16L * 1024L * 1024L;   // 16 MB
+        private const int MaxParentTraversalDepth = 32;
+
         private static readonly Encoding WinAnsi;
+        private static readonly Encoding WinAnsiStrict;
 
         static PdfFormFieldEngine()
         {
             Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
             WinAnsi = Encoding.GetEncoding(1252);
+            WinAnsiStrict = Encoding.GetEncoding(1252, EncoderFallback.ExceptionFallback, DecoderFallback.ExceptionFallback);
         }
 
         private static PdfDictionary? DerefDict(PdfItem? item) =>
@@ -77,15 +83,83 @@ namespace FunkenwerkPdf
         private static PdfArray? DerefArr(PdfItem? item) =>
             item is PdfReference r ? r.Value as PdfArray : item as PdfArray;
 
+        public static string SanitizeOnStateName(string? raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw))
+                return "/Yes";
+
+            string trimmed = raw.Trim().TrimStart('/');
+            var sb = new StringBuilder(Math.Min(64, trimmed.Length));
+            foreach (char c in trimmed)
+            {
+                if (sb.Length >= 64) break;
+                if ((c >= 'A' && c <= 'Z') ||
+                    (c >= 'a' && c <= 'z') ||
+                    (c >= '0' && c <= '9') ||
+                    c == '.' || c == '_' || c == '-' || c == '+')
+                {
+                    sb.Append(c);
+                }
+            }
+
+            string cleaned = sb.ToString();
+            if (string.IsNullOrEmpty(cleaned) || string.Equals(cleaned, "Off", StringComparison.OrdinalIgnoreCase))
+                return "/Yes";
+
+            return "/" + cleaned;
+        }
+
         private static string ReadPdfItemAsString(PdfItem? item)
         {
             if (item is PdfReference r) item = r.Value;
-            return item switch
+            if (item is PdfString s)
             {
-                PdfString s => s.Value ?? "",
-                PdfName n => n.Value?.TrimStart('/') ?? "",
-                _ => ""
-            };
+                string raw = s.Value ?? "";
+                // Handle raw UTF-16BE BOM strings if preserved as byte-mapped chars
+                if (raw.Length >= 2 && raw[0] == '\u00FE' && raw[1] == '\u00FF' && ((raw.Length - 2) % 2 == 0))
+                {
+                    bool allByteRange = true;
+                    for (int i = 2; i < raw.Length; i++)
+                    {
+                        if (raw[i] > 0xFF) { allByteRange = false; break; }
+                    }
+                    if (allByteRange)
+                    {
+                        byte[] utf16 = new byte[raw.Length - 2];
+                        for (int i = 2; i < raw.Length; i++)
+                            utf16[i - 2] = (byte)raw[i];
+                        return Encoding.BigEndianUnicode.GetString(utf16);
+                    }
+                }
+                return raw;
+            }
+            if (item is PdfName n)
+            {
+                return n.Value?.TrimStart('/') ?? "";
+            }
+            return "";
+        }
+
+        private static bool CanEncodeCp1252Lossless(string value)
+        {
+            if (string.IsNullOrEmpty(value)) return true;
+            foreach (char c in value)
+            {
+                if (c > 0x7F) return false;
+            }
+            return true;
+        }
+
+        private static void SetPdfTextValue(PdfDictionary holder, string key, string val)
+        {
+            if (CanEncodeCp1252Lossless(val))
+            {
+                holder.Elements.SetString(key, val);
+            }
+            else
+            {
+                holder.Elements[key] = new PdfString(val, PdfStringEncoding.Unicode);
+            }
         }
 
         private static double ParseDaFontSize(string? da)
@@ -97,10 +171,29 @@ namespace FunkenwerkPdf
             return 0;
         }
 
+        private static PdfItem? ResolveInheritedValueItem(PdfDictionary widget)
+        {
+            PdfItem? vItem = widget.Elements["/V"];
+            if (vItem != null) return vItem;
+
+            var visited = new HashSet<PdfDictionary>(ReferenceEqualityComparer.Instance) { widget };
+            int depth = 0;
+            var cur = DerefDict(widget.Elements["/Parent"]);
+            while (cur != null && depth < MaxParentTraversalDepth && visited.Add(cur))
+            {
+                depth++;
+                vItem = cur.Elements["/V"];
+                if (vItem != null) return vItem;
+                cur = DerefDict(cur.Elements["/Parent"]);
+            }
+            return null;
+        }
+
         public static List<PdfFormFieldItem> ExtractFields(byte[] pdfBytes)
         {
             var result = new List<PdfFormFieldItem>();
-            if (pdfBytes == null || pdfBytes.Length == 0) return result;
+            if (pdfBytes == null || pdfBytes.Length == 0 || pdfBytes.Length > MaxPdfFileSizeBytes)
+                return result;
 
             try
             {
@@ -116,7 +209,7 @@ namespace FunkenwerkPdf
                     var annots = DerefArr(page.Elements["/Annots"]);
                     if (annots == null) continue;
 
-                    var crop = page.CropBox;
+                    var crop = page.Elements.ContainsKey("/CropBox") ? page.CropBox : new PdfRectangle();
                     var media = page.MediaBox;
                     bool hasCrop = crop.Width > 0 && crop.Height > 0;
                     double boxX1 = hasCrop ? crop.X1 : media.X1;
@@ -150,12 +243,15 @@ namespace FunkenwerkPdf
                         string fullT = localT;
                         string groupId = fullT;
                         var parent = DerefDict(d.Elements["/Parent"]);
-                        if (parent != null && parent.Reference != null)
+                        if (parent != null && !ReferenceEquals(parent, d) && parent.Reference != null)
                             groupId = $"obj:{parent.Reference.ObjectID.ObjectNumber}";
 
+                        var visitedParents = new HashSet<PdfDictionary>(ReferenceEqualityComparer.Instance) { d };
+                        int depth = 0;
                         var curParent = parent;
-                        while (curParent != null)
+                        while (curParent != null && depth < MaxParentTraversalDepth && visitedParents.Add(curParent))
                         {
+                            depth++;
                             if (string.IsNullOrEmpty(ft)) ft = curParent.Elements.GetString("/FT");
                             if (ff == 0) ff = curParent.Elements.GetInteger("/Ff");
                             if (maxLen == 0) maxLen = curParent.Elements.GetInteger("/MaxLen");
@@ -255,7 +351,7 @@ namespace FunkenwerkPdf
                         else if (ft == "/Btn")
                         {
                             field.Kind = isRadio ? PdfAcroFieldKind.RadioButton : PdfAcroFieldKind.CheckBox;
-                            string onState = "/Yes";
+                            string rawOnState = "/Yes";
 
                             var ap = DerefDict(d.Elements["/AP"]);
                             var apN = ap != null ? DerefDict(ap.Elements["/N"]) : null;
@@ -263,19 +359,24 @@ namespace FunkenwerkPdf
                             {
                                 var nonOff = apN.Elements.Keys.FirstOrDefault(k => !string.Equals(k, "/Off", StringComparison.OrdinalIgnoreCase));
                                 if (!string.IsNullOrEmpty(nonOff))
-                                    onState = nonOff;
+                                    rawOnState = nonOff;
                             }
-                            field.OnStateName = onState;
+                            string safeOnState = SanitizeOnStateName(rawOnState);
+                            field.OnStateName = safeOnState;
 
                             string asVal = d.Elements.GetString("/AS");
                             string vName = vItem is PdfName pn ? pn.Value : (vItem is PdfString ps ? "/" + ps.Value : "");
 
                             if (!string.IsNullOrEmpty(asVal))
+                            {
                                 field.IsChecked = !string.Equals(asVal, "/Off", StringComparison.OrdinalIgnoreCase);
+                            }
                             else if (!string.IsNullOrEmpty(vName))
+                            {
                                 field.IsChecked = isRadio
-                                    ? string.Equals(vName, onState, StringComparison.Ordinal)
+                                    ? (string.Equals(vName, rawOnState, StringComparison.Ordinal) || string.Equals(vName, safeOnState, StringComparison.Ordinal))
                                     : !string.Equals(vName, "/Off", StringComparison.OrdinalIgnoreCase);
+                            }
                         }
                         else if (ft == "/Ch")
                         {
@@ -311,7 +412,7 @@ namespace FunkenwerkPdf
             }
             catch
             {
-                // Non-AcroForm or malformed widget dictionary — safely ignore
+                // Non-AcroForm or malformed widget dictionary: safely ignore
             }
 
             return result;
@@ -324,7 +425,7 @@ namespace FunkenwerkPdf
         /// </summary>
         public static byte[] CreateCleanRenderPdfBytes(byte[] pdfBytes, bool hasExtractedFields)
         {
-            if (!hasExtractedFields || pdfBytes == null || pdfBytes.Length == 0)
+            if (!hasExtractedFields || pdfBytes == null || pdfBytes.Length == 0 || pdfBytes.Length > MaxPdfFileSizeBytes)
                 return pdfBytes ?? Array.Empty<byte>();
 
             try
@@ -366,12 +467,12 @@ namespace FunkenwerkPdf
         /// <summary>
         /// Writes all interactive AcroForm values (/V, /AS) AND ISO-32000 Form XObject Appearance Streams (/AP -> /N)
         /// back into the PDF so the saved file stays interactively editable in Adobe Acrobat & Funkenwerk PDF
-        /// AND displays every filled value identically in all browsers, mobile devices, and PDF viewers.
+        /// AND displays every filled value (including pre-filled ReadOnly fields!) identically in all viewers.
         /// </summary>
         public static byte[] ApplyFormFieldsToPdfBytes(byte[] sourcePdfBytes, IReadOnlyList<PdfFormFieldItem> fields)
         {
-            if (fields == null || fields.Count == 0)
-                return sourcePdfBytes;
+            if (sourcePdfBytes == null || sourcePdfBytes.Length == 0 || fields == null || fields.Count == 0)
+                return sourcePdfBytes ?? Array.Empty<byte>();
 
             using var inMs = new MemoryStream(sourcePdfBytes);
             using var doc = PdfReader.Open(inMs, PdfDocumentOpenMode.Modify);
@@ -379,7 +480,7 @@ namespace FunkenwerkPdf
             var acro = DerefDict(doc.Internals.Catalog.Elements["/AcroForm"]);
             if (acro != null)
             {
-                // Keep /NeedAppearances = false because we generate exact /AP Form XObjects for every field
+                // Keep /NeedAppearances = false and ensure every field (including ReadOnly!) has an exact /AP -> /N stream
                 acro.Elements.SetBoolean("/NeedAppearances", false);
             }
 
@@ -392,35 +493,80 @@ namespace FunkenwerkPdf
 
                 foreach (var field in pageGroup)
                 {
-                    if (field.IsReadOnly || field.Kind == PdfAcroFieldKind.SignatureTrigger) continue;
+                    if (field.Kind == PdfAcroFieldKind.SignatureTrigger) continue;
                     if (field.AnnotIndex < 0 || field.AnnotIndex >= annots.Elements.Count) continue;
 
                     var widget = DerefDict(annots.Elements[field.AnnotIndex]);
                     if (widget == null) continue;
 
-                    var parent = DerefDict(widget.Elements["/Parent"]);
-                    var valueHolder = (parent != null && !widget.Elements.ContainsKey("/T")) ? parent : widget;
-
                     var rect = widget.Elements.GetRectangle("/Rect");
                     double w = Math.Max(2, Math.Abs(rect.X2 - rect.X1));
                     double h = Math.Max(2, Math.Abs(rect.Y2 - rect.Y1));
 
+                    // Preserve ReadOnly fields without altering /V, while generating missing /AP -> /N when /NeedAppearances becomes false
+                    if (field.IsReadOnly)
+                    {
+                        var existingAp = DerefDict(widget.Elements["/AP"]);
+                        var existingN = existingAp?.Elements["/N"];
+                        if (existingN == null)
+                        {
+                            if (field.Kind == PdfAcroFieldKind.Text || field.Kind == PdfAcroFieldKind.ComboBox)
+                            {
+                                string roVal = ReadPdfItemAsString(ResolveInheritedValueItem(widget));
+                                if (!string.IsNullOrEmpty(roVal))
+                                {
+                                    var apStream = BuildTextAppearanceXObject(
+                                        doc, roVal, w, h, field.FontSizePt, field.IsMultiline, field.Alignment, field.IsPassword);
+                                    var apDict = new PdfDictionary(doc);
+                                    apDict.Elements["/N"] = apStream.Reference!;
+                                    widget.Elements["/AP"] = apDict;
+                                }
+                            }
+                            else if (field.Kind == PdfAcroFieldKind.CheckBox || field.Kind == PdfAcroFieldKind.RadioButton)
+                            {
+                                if (field.IsChecked)
+                                {
+                                    string onKey = SanitizeOnStateName(field.OnStateName);
+                                    var stateDict = new PdfDictionary(doc);
+                                    var offObj = BuildCheckAppearanceXObject(doc, false, field.Kind == PdfAcroFieldKind.RadioButton, w, h);
+                                    var onObj = BuildCheckAppearanceXObject(doc, true, field.Kind == PdfAcroFieldKind.RadioButton, w, h);
+                                    stateDict.Elements["/Off"] = offObj.Reference!;
+                                    stateDict.Elements[onKey] = onObj.Reference!;
+
+                                    var apDict = new PdfDictionary(doc);
+                                    apDict.Elements["/N"] = stateDict;
+                                    widget.Elements["/AP"] = apDict;
+                                    if (string.IsNullOrEmpty(widget.Elements.GetString("/AS")))
+                                    {
+                                        widget.Elements.SetName("/AS", onKey);
+                                    }
+                                }
+                            }
+                        }
+                        continue;
+                    }
+
+                    var parent = DerefDict(widget.Elements["/Parent"]);
+                    if (ReferenceEquals(parent, widget)) parent = null;
+                    var valueHolder = (parent != null && !widget.Elements.ContainsKey("/T")) ? parent : widget;
+
                     if (field.Kind == PdfAcroFieldKind.Text || field.Kind == PdfAcroFieldKind.ComboBox)
                     {
                         string val = field.TextValue ?? "";
-                        valueHolder.Elements.SetString("/V", val);
+                        SetPdfTextValue(valueHolder, "/V", val);
                         if (valueHolder != widget && widget.Elements.ContainsKey("/V"))
-                            widget.Elements.SetString("/V", val);
+                            SetPdfTextValue(widget, "/V", val);
 
-                        var apStream = BuildTextAppearanceXObject(doc, val, w, h, field.FontSizePt, field.IsMultiline, field.Alignment);
+                        var apStream = BuildTextAppearanceXObject(
+                            doc, val, w, h, field.FontSizePt, field.IsMultiline, field.Alignment, field.IsPassword);
                         var apDict = new PdfDictionary(doc);
                         apDict.Elements["/N"] = apStream.Reference!;
                         widget.Elements["/AP"] = apDict;
                     }
                     else if (field.Kind == PdfAcroFieldKind.CheckBox || field.Kind == PdfAcroFieldKind.RadioButton)
                     {
-                        string stateName = field.IsChecked ? field.OnStateName : "/Off";
-                        if (!stateName.StartsWith("/")) stateName = "/" + stateName;
+                        string safeOnName = SanitizeOnStateName(field.OnStateName);
+                        string stateName = field.IsChecked ? safeOnName : "/Off";
 
                         widget.Elements.SetName("/AS", stateName);
                         if (field.Kind == PdfAcroFieldKind.CheckBox)
@@ -447,9 +593,8 @@ namespace FunkenwerkPdf
                             var stateDict = new PdfDictionary(doc);
                             var offObj = BuildCheckAppearanceXObject(doc, false, field.Kind == PdfAcroFieldKind.RadioButton, w, h);
                             var onObj = BuildCheckAppearanceXObject(doc, true, field.Kind == PdfAcroFieldKind.RadioButton, w, h);
-                            string onKey = field.OnStateName.StartsWith("/") ? field.OnStateName : "/" + field.OnStateName;
                             stateDict.Elements["/Off"] = offObj.Reference!;
-                            stateDict.Elements[onKey] = onObj.Reference!;
+                            stateDict.Elements[safeOnName] = onObj.Reference!;
 
                             var apDict = new PdfDictionary(doc);
                             apDict.Elements["/N"] = stateDict;
@@ -464,6 +609,97 @@ namespace FunkenwerkPdf
             return outMs.ToArray();
         }
 
+        public static string TransliterateForWinAnsi(string input)
+        {
+            if (string.IsNullOrEmpty(input)) return "";
+
+            // Fast path when all characters are already representable in CP1252
+            try
+            {
+                WinAnsiStrict.GetByteCount(input);
+                return input;
+            }
+            catch
+            {
+                // Fall through to character-by-character transliteration
+            }
+
+            var sb = new StringBuilder(input.Length);
+            foreach (char ch in input)
+            {
+                string single = ch.ToString();
+                try
+                {
+                    WinAnsiStrict.GetByteCount(single);
+                    sb.Append(ch);
+                    continue;
+                }
+                catch { }
+
+                string? mapped = ch switch
+                {
+                    'Ł' => "L",
+                    'ł' => "l",
+                    'Đ' or 'Ð' => "D",
+                    'đ' => "d",
+                    'Ħ' => "H",
+                    'ħ' => "h",
+                    'ı' => "i",
+                    'İ' => "I",
+                    'Ŀ' => "L",
+                    'ŀ' => "l",
+                    'Ŋ' => "NG",
+                    'ŋ' => "ng",
+                    'Ø' => "O",
+                    'ø' => "o",
+                    'Ŧ' => "T",
+                    'ŧ' => "t",
+                    '✓' or '✔' or '☑' => "X",
+                    '✗' or '✘' or '☒' => "X",
+                    '\u00A0' or '\u202F' or '\u2009' => " ",
+                    _ => null
+                };
+
+                if (mapped != null)
+                {
+                    sb.Append(mapped);
+                    continue;
+                }
+
+                // Decompose Latin accented characters (e.g. č -> c, ř -> r, ş -> s, ą -> a, ő -> o)
+                string decomposed = single.Normalize(NormalizationForm.FormD);
+                bool appendedBase = false;
+                foreach (char dc in decomposed)
+                {
+                    if (CharUnicodeInfo.GetUnicodeCategory(dc) == UnicodeCategory.NonSpacingMark)
+                        continue;
+                    try
+                    {
+                        WinAnsiStrict.GetByteCount(dc.ToString());
+                        sb.Append(dc);
+                        appendedBase = true;
+                    }
+                    catch { }
+                }
+
+                if (!appendedBase)
+                {
+                    sb.Append('?');
+                }
+            }
+
+            return sb.ToString();
+        }
+
+        private static string MaskPasswordBullets(string raw)
+        {
+            if (string.IsNullOrEmpty(raw)) return "";
+            var info = new StringInfo(raw);
+            int len = Math.Max(1, info.LengthInTextElements);
+            // '\u2022' is bullet '•' (0x95 in CP1252 WinAnsiEncoding)
+            return new string('\u2022', len);
+        }
+
         private static PdfDictionary BuildTextAppearanceXObject(
             PdfDocument doc,
             string text,
@@ -471,7 +707,8 @@ namespace FunkenwerkPdf
             double h,
             double requestedFontSize,
             bool isMultiline,
-            int alignment)
+            int alignment,
+            bool isPassword = false)
         {
             var fontDict = new PdfDictionary(doc);
             fontDict.Elements.SetName("/Type", "/Font");
@@ -498,13 +735,17 @@ namespace FunkenwerkPdf
                 ms.Write(b, 0, b.Length);
             }
 
-            if (string.IsNullOrEmpty(text))
+            string displayText = isPassword
+                ? MaskPasswordBullets(text)
+                : TransliterateForWinAnsi(text);
+
+            if (string.IsNullOrEmpty(displayText))
             {
                 WriteAscii("/Tx BMC q Q EMC");
             }
             else
             {
-                double fontSize = isMultiline
+                double fontSize = isMultiline && !isPassword
                     ? Math.Clamp(requestedFontSize, 7.0, 14.0)
                     : Math.Min(requestedFontSize, Math.Max(6.5, h * 0.78));
 
@@ -513,9 +754,9 @@ namespace FunkenwerkPdf
                     "/Tx BMC q 0 0 {0:0.##} {1:0.##} re W n BT /Helv {2:0.##} Tf 0 g ",
                     w, h, fontSize));
 
-                if (!isMultiline)
+                if (!isMultiline || isPassword)
                 {
-                    string single = text.Replace("\r", "").Replace("\n", " ");
+                    string single = displayText.Replace("\r", "").Replace("\n", " ");
                     double approxTextW = single.Length * fontSize * 0.52;
                     double tx = alignment switch
                     {
@@ -530,7 +771,7 @@ namespace FunkenwerkPdf
                 }
                 else
                 {
-                    var lines = WrapMultilineText(text, w - 4.0, fontSize);
+                    var lines = WrapMultilineText(displayText, w - 4.0, fontSize);
                     double lineHeight = fontSize * 1.22;
                     double curY = h - fontSize - 2.0;
 
@@ -616,7 +857,22 @@ namespace FunkenwerkPdf
                 {
                     if (cur.Length == 0)
                     {
-                        cur.Append(word);
+                        if (word.Length <= maxCharsPerLine)
+                        {
+                            cur.Append(word);
+                        }
+                        else
+                        {
+                            for (int idx = 0; idx < word.Length; idx += maxCharsPerLine)
+                            {
+                                int take = Math.Min(maxCharsPerLine, word.Length - idx);
+                                string chunk = word.Substring(idx, take);
+                                if (idx + take < word.Length)
+                                    result.Add(chunk);
+                                else
+                                    cur.Append(chunk);
+                            }
+                        }
                     }
                     else if (cur.Length + 1 + word.Length <= maxCharsPerLine)
                     {
@@ -625,7 +881,23 @@ namespace FunkenwerkPdf
                     else
                     {
                         result.Add(cur.ToString());
-                        cur.Clear().Append(word);
+                        cur.Clear();
+                        if (word.Length <= maxCharsPerLine)
+                        {
+                            cur.Append(word);
+                        }
+                        else
+                        {
+                            for (int idx = 0; idx < word.Length; idx += maxCharsPerLine)
+                            {
+                                int take = Math.Min(maxCharsPerLine, word.Length - idx);
+                                string chunk = word.Substring(idx, take);
+                                if (idx + take < word.Length)
+                                    result.Add(chunk);
+                                else
+                                    cur.Append(chunk);
+                            }
+                        }
                     }
                 }
                 if (cur.Length > 0) result.Add(cur.ToString());

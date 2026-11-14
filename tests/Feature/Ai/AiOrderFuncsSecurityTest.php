@@ -74,10 +74,19 @@ class AiOrderFuncsSecurityTest extends TestCase
             ],
         ]);
 
-        // Execute AI status update to cancelled
+        // Without Alina's explicit confirmation, AI status update MUST be held back (confirmation_required)
+        $unconfirmed = AiOrderFuncs::executeOrderUpdateStatus([
+            'order_number' => 'ORD-AI-CANCEL-1',
+            'status' => 'cancelled',
+        ]);
+        $this->assertEquals('confirmation_required', $unconfirmed['status']);
+        $this->assertEquals('processing', $order->fresh()->status);
+
+        // Execute AI status update to cancelled WITH explicit confirmation from Alina
         $result = AiOrderFuncs::executeOrderUpdateStatus([
             'order_number' => 'ORD-AI-CANCEL-1',
-            'status' => 'cancelled'
+            'status' => 'cancelled',
+            'confirmed_by_alina' => true,
         ]);
 
         $this->assertEquals('success', $result['status']);

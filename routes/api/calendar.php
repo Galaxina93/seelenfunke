@@ -53,7 +53,7 @@ Route::prefix('funki/calendar')->group(function () {
 
         foreach ($recurringTemplates as $tmpl) {
             if (!$tmpl->start_date || !in_array($tmpl->recurrence, $validRecurrences, true)) continue;
-            if ($tmpl->recurrence_end_date && $tmpl->recurrence_end_date < $start) continue;
+            if ($tmpl->recurrence_end_date && $tmpl->recurrence_end_date->copy()->endOfDay() < $start) continue;
 
             $simDate = $tmpl->start_date->copy();
 
@@ -72,14 +72,15 @@ Route::prefix('funki/calendar')->group(function () {
 
             $expandGuard = 0;
             while ($simDate <= $end && $expandGuard++ < 800) {
-                if ($tmpl->recurrence_end_date && $simDate > $tmpl->recurrence_end_date) break;
+                if ($tmpl->recurrence_end_date && $simDate > $tmpl->recurrence_end_date->copy()->endOfDay()) break;
 
                 $duration = $tmpl->end_date ? abs($tmpl->start_date->diffInSeconds($tmpl->end_date)) : 3600;
                 $simEnd = $simDate->copy()->addSeconds($duration);
 
                 $expandedEvents->push([
-                    'id' => (string)$tmpl->id,
-                    'master_id' => (string)$tmpl->id,
+                    'id' => "{$tmpl->id}_{$simDate->format('Ymd')}",
+                    'series_id' => (string) $tmpl->id,
+                    'master_id' => (string) $tmpl->id,
                     'title' => $tmpl->title ?? 'Serie',
                     'start' => $simDate->toIso8601String(),
                     'end' => $simEnd->toIso8601String(),
@@ -185,7 +186,11 @@ Route::prefix('funki/calendar')->group(function () {
     });
 
     Route::get('/events/{id}', function ($id) {
-        $event = ManagementCalendarEvent::findOrFail($id);
+        $idStr = (string) $id;
+        if (!str_starts_with($idStr, 'task_') && str_contains($idStr, '_')) {
+            $idStr = explode('_', $idStr, 2)[0];
+        }
+        $event = ManagementCalendarEvent::findOrFail($idStr);
         return response()->json(['success' => true, 'data' => $event]);
     });
 
@@ -365,11 +370,19 @@ Route::prefix('funki/calendar')->group(function () {
     });
 
     Route::delete('/events/{id}', function ($id) {
-        if (str_contains($id, '_')) {
-            $parts = explode('_', $id);
-            $id = $parts[0];
+        $idStr = (string) $id;
+        if (str_starts_with($idStr, 'task_')) {
+            $taskId = substr($idStr, 5);
+            $task = \App\Models\Management\ManagementTask::findOrFail($taskId);
+            \App\Models\Management\ManagementTask::where('parent_id', $task->id)->delete();
+            $task->delete();
+            return response()->json(['success' => true, 'deleted_task_id' => $taskId]);
         }
-        ManagementCalendarEvent::destroy($id);
+        if (str_contains($idStr, '_')) {
+            $parts = explode('_', $idStr, 2);
+            $idStr = $parts[0];
+        }
+        ManagementCalendarEvent::destroy($idStr);
         return response()->json(['success' => true]);
     });
 

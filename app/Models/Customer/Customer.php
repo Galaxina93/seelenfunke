@@ -151,8 +151,11 @@ use HasFactory, HasUuids, softDeletes, AuthenticatableTrait, HasApiTokens, Notif
         // Speichert den aktuellen Zeitstempel im Profil ab
         if ($this->profile) {
             $this->profile->email_verified_at = $ts;
-            return $this->profile->save();
+            $this->profile->save();
         }
+
+        $this->finalizePendingMarketingConsent();
+
         return true;
     }
 
@@ -192,11 +195,20 @@ use HasFactory, HasUuids, softDeletes, AuthenticatableTrait, HasApiTokens, Notif
      */
     public function hasMarketingConsent(): bool
     {
+        if (method_exists($this, 'trashed') && $this->trashed()) {
+            return false;
+        }
+
         if ($this->profile?->cart_reminder_unsubscribed_at !== null) {
             return false;
         }
 
-        return \App\Models\Marketing\MarketingNewsletterSubscriber::where('email', $this->email)
+        $normalizedEmail = mb_strtolower(trim((string) $this->email));
+        if ($normalizedEmail === '') {
+            return false;
+        }
+
+        return \App\Models\Marketing\MarketingNewsletterSubscriber::whereRaw('LOWER(email) = ?', [$normalizedEmail])
             ->where('is_verified', true)
             ->exists();
     }
@@ -206,6 +218,10 @@ use HasFactory, HasUuids, softDeletes, AuthenticatableTrait, HasApiTokens, Notif
      */
     public function allowsCartReminders(): bool
     {
+        if (method_exists($this, 'trashed') && $this->trashed()) {
+            return false;
+        }
+
         // 1. Wenn der Kunde ausdrücklich widersprochen hat (Opt-Out nach § 7 UWG / Art. 21 DSGVO)
         if ($this->profile?->cart_reminder_unsubscribed_at !== null) {
             return false;
@@ -215,6 +231,137 @@ use HasFactory, HasUuids, softDeletes, AuthenticatableTrait, HasApiTokens, Notif
         $requireConsent = filter_var(shop_setting('cart_abandoned_require_consent', true), FILTER_VALIDATE_BOOLEAN);
         if ($requireConsent) {
             return $this->hasMarketingConsent();
+        }
+
+        return true;
+    }
+
+    /**
+     * Aktualisiert die Einwilligung für freundliche Warenkorb-Erinnerungen & Manufaktur-Neuigkeiten (§ 7 Abs. 2 UWG / Art. 6 Abs. 1 lit. a & Art. 7 DSGVO).
+     * Ist die E-Mail-Adresse noch nicht bestätigt (z. B. bei Neuregistrierung), bleibt is_verified = false bis zum Klick auf den Bestätigungslink (echtes Double-Opt-In).
+     */
+    public function updateMarketingConsent(bool $consent, string $source = 'profile'): void
+    {
+        $normalizedEmail = mb_strtolower(trim((string) $this->email));
+        if ($normalizedEmail === '') {
+            return;
+        }
+
+        if (class_exists(\App\Livewire\Shop\Marketing\MarketingNewsletterPage::class)) {
+            \App\Livewire\Shop\Marketing\MarketingNewsletterPage::ensurePreferenceColumns();
+        }
+
+        $profile = $this->profile ?: $this->profile()->create([]);
+        $rawIp = (string) request()->ip();
+        $anonIp = class_exists(\Symfony\Component\HttpFoundation\IpUtils::class) && $rawIp !== ''
+            ? \Symfony\Component\HttpFoundation\IpUtils::anonymize($rawIp)
+            : $rawIp;
+
+        if ($consent) {
+            if ($profile->cart_reminder_unsubscribed_at !== null) {
+                $profile->update(['cart_reminder_unsubscribed_at' => null]);
+                $this->setRelation('profile', $profile->fresh());
+            }
+
+            $subscriber = \App\Models\Marketing\MarketingNewsletterSubscriber::whereRaw('LOWER(email) = ?', [$normalizedEmail])->first();
+            $isEmailAlreadyVerified = $this->hasVerifiedEmail() || ($subscriber && $subscriber->is_verified);
+
+            $payload = [
+                'email' => $normalizedEmail,
+                'ip_address' => $anonIp,
+                'privacy_accepted' => true,
+                'is_verified' => $isEmailAlreadyVerified,
+                'verification_token' => $isEmailAlreadyVerified ? null : \Illuminate\Support\Str::random(64),
+                'verified_at' => $isEmailAlreadyVerified ? ($subscriber?->verified_at ?? now()) : null,
+                'receive_newsletter' => true,
+                'receive_birthday_emails' => $subscriber ? (bool) ($subscriber->receive_birthday_emails ?? true) : true,
+                'receive_anniversary_emails' => $subscriber ? (bool) ($subscriber->receive_anniversary_emails ?? true) : true,
+            ];
+
+            if ($subscriber) {
+                $subscriber->update($payload);
+            } else {
+                \App\Models\Marketing\MarketingNewsletterSubscriber::create($payload);
+            }
+
+            if (class_exists(\App\Models\System\SystemLog::class)) {
+                \App\Models\System\SystemLog::create([
+                    'type' => 'system',
+                    'action_id' => $isEmailAlreadyVerified ? 'gdpr:marketing_consent_granted' : 'gdpr:marketing_consent_pending_doi',
+                    'title' => $isEmailAlreadyVerified ? 'Warenkorb- & News-Einwilligung aktiviert' : 'Warenkorb- & News-Einwilligung vorgemerkt (DOI)',
+                    'message' => sprintf(
+                        'Kundenkonto [%s] hat die Einwilligung für Warenkorb-Erinnerungen & Neuigkeiten über [%s] %s.',
+                        substr((string) $this->id, 0, 8),
+                        $source,
+                        $isEmailAlreadyVerified ? 'aktiviert' : 'vorgemerkt (wartet auf E-Mail-Bestätigung)'
+                    ),
+                    'status' => 'success',
+                    'started_at' => now(),
+                    'finished_at' => now(),
+                ]);
+            }
+
+            return;
+        }
+
+        // Widerruf / Opt-Out (Art. 7 Abs. 3 & Art. 21 DSGVO / § 7 Abs. 3 UWG)
+        $profile->update(['cart_reminder_unsubscribed_at' => now()]);
+        $this->setRelation('profile', $profile->fresh());
+
+        \App\Models\Marketing\MarketingNewsletterSubscriber::whereRaw('LOWER(email) = ?', [$normalizedEmail])->delete();
+
+        if (class_exists(\App\Models\System\SystemLog::class)) {
+            \App\Models\System\SystemLog::create([
+                'type' => 'system',
+                'action_id' => 'gdpr:marketing_consent_revoked',
+                'title' => 'Warenkorb- & News-Einwilligung widerrufen',
+                'message' => sprintf('Kundenkonto [%s] hat Warenkorb-Erinnerungen & Neuigkeiten über [%s] deaktiviert.', substr((string) $this->id, 0, 8), $source),
+                'status' => 'success',
+                'started_at' => now(),
+                'finished_at' => now(),
+            ]);
+        }
+    }
+
+    /**
+     * Schließt eine bei der Registrierung oder nach E-Mail-Änderung vorgemerkte Einwilligung
+     * beim Klick auf den E-Mail-Bestätigungslink rechtssicher als Double-Opt-In ab.
+     */
+    public function finalizePendingMarketingConsent(): bool
+    {
+        $normalizedEmail = mb_strtolower(trim((string) $this->email));
+        if ($normalizedEmail === '') {
+            return false;
+        }
+
+        if ($this->profile?->cart_reminder_unsubscribed_at !== null) {
+            return false;
+        }
+
+        $subscriber = \App\Models\Marketing\MarketingNewsletterSubscriber::whereRaw('LOWER(email) = ?', [$normalizedEmail])
+            ->where('privacy_accepted', true)
+            ->first();
+
+        if (!$subscriber || $subscriber->is_verified) {
+            return false;
+        }
+
+        $subscriber->update([
+            'is_verified' => true,
+            'verified_at' => now(),
+            'verification_token' => null,
+        ]);
+
+        if (class_exists(\App\Models\System\SystemLog::class)) {
+            \App\Models\System\SystemLog::create([
+                'type' => 'system',
+                'action_id' => 'gdpr:marketing_consent_doi_verified',
+                'title' => 'Double-Opt-In für Warenkorb-Erinnerungen bestätigt',
+                'message' => sprintf('Kundenkonto [%s] hat das Double-Opt-In per E-Mail-Verifizierung abgeschlossen.', substr((string) $this->id, 0, 8)),
+                'status' => 'success',
+                'started_at' => now(),
+                'finished_at' => now(),
+            ]);
         }
 
         return true;

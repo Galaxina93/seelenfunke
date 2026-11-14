@@ -90,6 +90,13 @@ class EmergencyProtocol extends Component
         }
 
         $throttleKey = 'emergency_auth_' . $ip;
+        $globalThrottleKey = 'emergency_auth_global_hourly';
+        if (RateLimiter::tooManyAttempts($globalThrottleKey, 25)) {
+            $minutes = max(1, (int) ceil(RateLimiter::availableIn($globalThrottleKey) / 60));
+            $this->errorMessage = "Zu viele globale Anmeldeversuche. Bitte warte {$minutes} Minute(n).";
+            return;
+        }
+
         if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
             $seconds = RateLimiter::availableIn($throttleKey);
             $minutes = ceil($seconds / 60);
@@ -124,6 +131,7 @@ class EmergencyProtocol extends Component
             $this->financeStates = json_decode(SystemSetting::where('key', 'emergency_finance_states')->value('value') ?? '{}', true);
         } else {
             RateLimiter::hit($throttleKey, 900); // 15 Minuten Throttling-Fenster
+            RateLimiter::hit($globalThrottleKey, 3600); // 60 Minuten globales Limit gegen IP-Rotation
             $remaining = RateLimiter::remaining($throttleKey, 5);
             SystemSecurityService::logEvent(
                 'security:emergency_auth_failed',

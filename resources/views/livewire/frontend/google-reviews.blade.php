@@ -208,9 +208,13 @@
                                         </div>
 
                                         {{-- Text --}}
-                                        <div class="text-gray-600 dark:text-gray-300 text-sm leading-relaxed italic flex-grow relative z-10 line-clamp-4">
-                                            "{{ Str::limit($review['text'], 200) }}"
-                                        </div>
+                                        @if(trim((string) ($review['text'] ?? '')) !== '')
+                                            <div class="text-gray-600 dark:text-gray-300 text-sm leading-relaxed italic flex-grow relative z-10 line-clamp-4">
+                                                "{{ Str::limit((string) ($review['text'] ?? ''), 200) }}"
+                                            </div>
+                                        @else
+                                            <div class="flex-grow"></div>
+                                        @endif
 
                                         {{-- Kundenbilder / Videos unterhalb des Kommentars --}}
                                         @if($mediaCount > 0)

@@ -72,8 +72,11 @@ class TelegramAgentController extends Controller
                 'warning',
                 ['chat_id' => $chatId, 'agent_name' => $agent->name]
             );
-            $rejectMessage = "⛔️ *Sicherheitsbereich*\n\nDu bist nicht berechtigt, mit diesem Agenten zu kommunizieren.\n\n_System-Log:_ Deine Telegram-ID lautet `" . $chatId . "`.\nBitte informiere den System-Administrator, damit er diese ID in die Agenten-Whitelist aufnehmen kann.";
-            $this->sendTelegramMessage($token, $chatId, $rejectMessage);
+            $throttleReplyKey = 'tg_unauth_reply_' . $agent->id . '_' . preg_replace('/[^0-9\-]/', '', (string) $chatId);
+            if (\Illuminate\Support\Facades\Cache::add($throttleReplyKey, true, 3600)) {
+                $rejectMessage = "⛔️ *Sicherheitsbereich*\n\nDu bist nicht berechtigt, mit diesem Agenten zu kommunizieren.\n\n_System-Log:_ Deine Telegram-ID lautet `" . $chatId . "`.\nBitte informiere den System-Administrator, damit er diese ID in die Agenten-Whitelist aufnehmen kann.";
+                $this->sendTelegramMessage($token, $chatId, $rejectMessage);
+            }
             return response()->json(['status' => 'unauthorized', 'message' => 'Chat ID not whitelisted']);
         }
 
@@ -416,9 +419,20 @@ class TelegramAgentController extends Controller
         ) {
             return false;
         }
-        if (filter_var($host, FILTER_VALIDATE_IP) && !filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
+        if (filter_var($host, FILTER_VALIDATE_IP)) {
+            return (bool) filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE);
+        }
+
+        $resolvedIps = @gethostbynamel($host);
+        if (!is_array($resolvedIps) || empty($resolvedIps)) {
             return false;
         }
+        foreach ($resolvedIps as $ip) {
+            if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
+                return false;
+            }
+        }
+
         return true;
     }
 }

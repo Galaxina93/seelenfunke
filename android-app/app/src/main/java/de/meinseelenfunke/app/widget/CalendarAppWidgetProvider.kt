@@ -27,10 +27,13 @@ import kotlinx.coroutines.launch
 class CalendarAppWidgetProvider : AppWidgetProvider() {
 
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
+        ServiceLocator.ensureInitialized(context.applicationContext)
         for (appWidgetId in appWidgetIds) {
             updateAppWidget(context, appWidgetManager, appWidgetId)
         }
-        triggerBackgroundSync(context)
+        if (!ServiceLocator.getAuthToken().isNullOrBlank()) {
+            triggerBackgroundSync(context)
+        }
         super.onUpdate(context, appWidgetManager, appWidgetIds)
     }
 
@@ -44,6 +47,13 @@ class CalendarAppWidgetProvider : AppWidgetProvider() {
         super.onReceive(context, intent)
         val appContext = context.applicationContext
         ServiceLocator.ensureInitialized(appContext)
+        if (action != null && action != AppWidgetManager.ACTION_APPWIDGET_UPDATE) {
+            if (de.meinseelenfunke.app.util.SecurityIntentHelper.isDeviceLocked(context) ||
+                ServiceLocator.getAuthToken().isNullOrBlank()
+            ) {
+                return
+            }
+        }
         val appWidgetManager = AppWidgetManager.getInstance(appContext)
         val componentName = ComponentName(appContext, CalendarAppWidgetProvider::class.java)
         val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
@@ -115,9 +125,10 @@ class CalendarAppWidgetProvider : AppWidgetProvider() {
             val views = RemoteViews(appContext.packageName, R.layout.widget_layout)
 
             // Calculate upcoming & today event counts for header subtitle
+            ServiceLocator.ensureInitialized(appContext)
             val sharedPrefs = appContext.getSharedPreferences("calendar_widget_prefs", Context.MODE_PRIVATE)
             val allEvents: List<CalendarEvent> = try {
-                val json = sharedPrefs.getString("calendar_events_cache", null)
+                val json = ServiceLocator.getDecryptedPref(sharedPrefs, "calendar_events_cache")
                 if (json != null) {
                     Gson().fromJson(json, object : TypeToken<List<CalendarEvent>>() {}.type)
                 } else emptyList()

@@ -31,6 +31,8 @@ data class ChatResponse(
 data class LiveCredentialsResponse(
     val token: String?,
     val ws_url: String?,
+    val direct_ws_url: String? = null,
+    val origin_url: String? = null,
     val system_instruction: String,
     val voice_name: String,
     val tools: JsonElement?
@@ -123,7 +125,9 @@ interface AiApi {
     @GET("ai/live-credentials")
     suspend fun getLiveCredentials(
         @Query("agent_id") agentId: String? = null,
-        @Query("chat_session_id") chatSessionId: String? = null
+        @Query("chat_session_id") chatSessionId: String? = null,
+        @Query("client") client: String? = null,
+        @Query("fallback") fallback: String? = null
     ): LiveCredentialsResponse
 
     @GET("ai/agents")

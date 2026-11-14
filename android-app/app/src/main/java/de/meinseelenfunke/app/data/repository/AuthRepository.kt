@@ -12,13 +12,19 @@ import de.meinseelenfunke.app.data.api.LoginRequest
 import de.meinseelenfunke.app.data.api.LoginResponse
 import de.meinseelenfunke.app.data.api.User
 import de.meinseelenfunke.app.di.ServiceLocator
+import de.meinseelenfunke.app.services.MusicPlaybackService
 import de.meinseelenfunke.app.services.WakeWordService
 import de.meinseelenfunke.app.util.AppLogger
+import de.meinseelenfunke.app.util.CalendarAlarmScheduler
+import de.meinseelenfunke.app.util.ErrorSentinelReporter
+import de.meinseelenfunke.app.util.FunkenwerkAlarmManager
 import de.meinseelenfunke.app.util.MusicPlayerManager
 import de.meinseelenfunke.app.util.SecureFileOpener
 import de.meinseelenfunke.app.widget.CalendarAppWidgetProvider
 import de.meinseelenfunke.app.widget.CalendarMonthWidgetProvider
 import de.meinseelenfunke.app.widget.MasterWidgetProvider
+import de.meinseelenfunke.app.widget.MasterWidgetRamCache
+import de.meinseelenfunke.app.widget.MusicWidgetProvider
 import de.meinseelenfunke.app.widget.ShoppingListWidgetProvider
 import de.meinseelenfunke.app.widget.TasksWidgetProvider
 import kotlinx.coroutines.CoroutineScope
@@ -79,6 +85,8 @@ class AuthRepository(private val serviceLocator: ServiceLocator) {
             }
             AppLogger.error(serviceLocator.context, "AuthRepo", "login HTTP error: code=${e.code()}")
             Result.failure(Exception("Anmeldung abgelehnt (HTTP ${e.code()})."))
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             AppLogger.error(serviceLocator.context, "AuthRepo", "login failed", e)
             Result.failure(e)
@@ -90,6 +98,8 @@ class AuthRepository(private val serviceLocator: ServiceLocator) {
             val user = serviceLocator.getAuthApi().getUser()
             user.user_type?.let { serviceLocator.saveUserType(it) }
             Result.success(user)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             AppLogger.error(serviceLocator.context, "AuthRepo", "getCurrentUser failed", e)
             Result.failure(e)
@@ -102,28 +112,46 @@ class AuthRepository(private val serviceLocator: ServiceLocator) {
         val fcmToken = serviceLocator.getFcmToken()
         val baseUrl = serviceLocator.getBaseUrl().trimEnd('/')
 
-        // 1. Immediately clear local token & stop live connections/services
+        // 1. Cancel scheduled alarms before clearing caches so alarm IDs are still resolvable
+        CalendarAlarmScheduler.cancelAllAlarms(ctx)
+        FunkenwerkAlarmManager.cancelAllAlarmsOnLogout(ctx)
+
+        // 2. Immediately clear local token & stop live connections/services
         serviceLocator.clearAuthToken()
         EmailWebSocketClient.disconnect()
         MusicPlayerManager.stopAndClearSession(ctx)
+        MusicPlaybackService.stop(ctx)
         try {
             ctx.stopService(Intent(ctx, WakeWordService::class.java))
         } catch (_: Exception) {
         }
+        try {
+            ctx.stopService(Intent(ctx, MusicPlaybackService::class.java))
+        } catch (_: Exception) {
+        }
 
-        // 2. Wipe cached personal/business data from homescreen widget SharedPreferences & temp cache directories
+        // 3. Wipe ALL cached personal/business data from SharedPreferences & RAM caches
         listOf(
             "tasks_widget_prefs",
             "calendar_widget_prefs",
             "shopping_widget_prefs",
-            "master_widget_prefs"
+            "master_widget_prefs",
+            "music_widget_prefs",
+            "funkenwerk_alarm_prefs"
         ).forEach { prefName ->
             try {
-                ctx.getSharedPreferences(prefName, Context.MODE_PRIVATE).edit().clear().apply()
+                ctx.getSharedPreferences(prefName, Context.MODE_PRIVATE).edit().clear().commit()
             } catch (_: Exception) {
             }
         }
+        MasterWidgetRamCache.clear()
 
+        // 4. Wipe persistent filesDir queues/briefings & cacheDir attachments
+        ErrorSentinelReporter.clearQueue(ctx)
+        try {
+            File(ctx.filesDir, "funkira_briefings").deleteRecursively()
+        } catch (_: Exception) {
+        }
         SecureFileOpener.purgeStaleDownloads(ctx, deleteAll = true)
         listOf("mail_attachments", "camera_captures", "calendar_exports").forEach { subDir ->
             try {
@@ -132,10 +160,15 @@ class AuthRepository(private val serviceLocator: ServiceLocator) {
             }
         }
 
+        // 5. Broadcast ACTION_APPWIDGET_UPDATE to ALL widget providers so zero confidential data remains on home screen
         refreshWidgetsAfterLogout(ctx)
 
-        // 3. Revoke Sanctum PersonalAccessToken & unregister FCM token on the server
-        if (!existingToken.isNullOrBlank() && ServiceLocator.isAllowedApiRequestUrl("$baseUrl/logout")) {
+        // 6. Revoke Sanctum PersonalAccessToken & unregister FCM token on the server (HTTPS / explicit debug host only)
+        val logoutUrl = "$baseUrl/logout"
+        if (!existingToken.isNullOrBlank() &&
+            ServiceLocator.isAllowedApiRequestUrl(logoutUrl) &&
+            ServiceLocator.shouldAttachBearerToken(logoutUrl)
+        ) {
             logoutScope.launch {
                 try {
                     val bodyJson = JSONObject().apply {
@@ -144,7 +177,7 @@ class AuthRepository(private val serviceLocator: ServiceLocator) {
                         }
                     }.toString()
                     val req = Request.Builder()
-                        .url("$baseUrl/logout")
+                        .url(logoutUrl)
                         .header("Authorization", "Bearer $existingToken")
                         .header("Accept", "application/json")
                         .post(bodyJson.toRequestBody("application/json".toMediaTypeOrNull()))
@@ -164,16 +197,19 @@ class AuthRepository(private val serviceLocator: ServiceLocator) {
                 CalendarAppWidgetProvider::class.java,
                 CalendarMonthWidgetProvider::class.java,
                 ShoppingListWidgetProvider::class.java,
-                MasterWidgetProvider::class.java
+                MasterWidgetProvider::class.java,
+                MusicWidgetProvider::class.java
             ).forEach { providerCls ->
-                val ids = mgr.getAppWidgetIds(ComponentName(ctx, providerCls))
-                if (ids.isNotEmpty()) {
-                    val updateIntent = Intent(ctx, providerCls).apply {
-                        action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
-                        putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
-                    }
-                    ctx.sendBroadcast(updateIntent)
+                val ids = try {
+                    mgr.getAppWidgetIds(ComponentName(ctx, providerCls))
+                } catch (_: Exception) {
+                    IntArray(0)
                 }
+                val updateIntent = Intent(ctx, providerCls).apply {
+                    action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
+                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
+                }
+                ctx.sendBroadcast(updateIntent)
             }
         } catch (_: Exception) {
         }
@@ -194,6 +230,8 @@ class AuthRepository(private val serviceLocator: ServiceLocator) {
                 AppLogger.error(context, "AuthRepo", "updateFcmToken failed", err)
                 Result.failure(err)
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             AppLogger.error(context, "AuthRepo", "updateFcmToken exception", e)
             Result.failure(e)
@@ -208,6 +246,8 @@ class AuthRepository(private val serviceLocator: ServiceLocator) {
             } else {
                 Result.failure(Exception(response.message))
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             AppLogger.error(serviceLocator.context, "AuthRepo", "sendPasswordResetEmail failed", e)
             Result.failure(e)

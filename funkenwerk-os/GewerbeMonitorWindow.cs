@@ -1495,7 +1495,7 @@ namespace FunkenwerkOS
         {
             try
             {
-                string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FunkenwerkOS");
+                string dir = OsVaultAndStorage.OsDataDir;
                 string flagFile = Path.Combine(dir, "trigger_test_order.flag");
                 if (File.Exists(flagFile))
                 {
@@ -1511,7 +1511,7 @@ namespace FunkenwerkOS
         {
             try
             {
-                string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FunkenwerkOS");
+                string dir = OsVaultAndStorage.OsDataDir;
                 string flagFile = Path.Combine(dir, "trigger_bt_pair.flag");
                 if (File.Exists(flagFile))
                 {
@@ -1562,7 +1562,7 @@ namespace FunkenwerkOS
 
                 try
                 {
-                    string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FunkenwerkOS");
+                    string dir = OsVaultAndStorage.OsDataDir;
                     File.WriteAllText(Path.Combine(dir, "bt_pair_status.log"),
                         $"TIME={DateTime.Now:HH:mm:ss} | OK={ok} | MSG={msg} | ACTIVE_OUT={postAudio.DeviceName} | TEUFEL_CONN={postAudio.IsTeufelConnected}");
                 }
@@ -1584,7 +1584,7 @@ namespace FunkenwerkOS
         {
             try
             {
-                string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FunkenwerkOS");
+                string dir = OsVaultAndStorage.OsDataDir;
                 Directory.CreateDirectory(dir);
                 string path = Path.Combine(dir, "gewerbe_fps_benchmark.txt");
                 string line = string.Format(
@@ -1847,20 +1847,8 @@ namespace FunkenwerkOS
             }
 
             int finalCarts = Math.Max(0, snap.OpenCartsCount);
-            string topFormatted;
-            if (snap.TopCustomersGdpr != null && snap.TopCustomersGdpr.Count > 0)
-            {
-                var parts = new List<string>(snap.TopCustomersGdpr.Count);
-                for (int i = 0; i < snap.TopCustomersGdpr.Count && i < 3; i++)
-                {
-                    parts.Add($"{i + 1}. {snap.TopCustomersGdpr[i]}");
-                }
-                topFormatted = "♛   TOP KUNDEN   ·   " + string.Join("   ·   ", parts);
-            }
-            else
-            {
-                topFormatted = "♛   TOP KUNDEN   ·   Noch keine Bestellungen";
-            }
+            bool visitorMode = _settings.VisitorPrivacyMode;
+            string topFormatted = FormatTopCustomersLine(snap.TopCustomersGdpr, visitorMode);
 
             bool countChanged = finalCount != _currentOrderCount;
             bool cartsChanged = finalCarts != _currentCartCount;
@@ -1868,7 +1856,7 @@ namespace FunkenwerkOS
 
             if (countChanged || cartsChanged || topChanged || envHasNew)
             {
-                _ = Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
+                void applyUi()
                 {
                     _currentOrderCount = finalCount;
                     _currentCartCount = finalCarts;
@@ -1890,13 +1878,68 @@ namespace FunkenwerkOS
                         PlayMatteOrderArrivalSound();
                         _portalRenderer.TriggerIncomingOrderSurge(5.0);
                     }
-                }));
+                }
+
+                if (Dispatcher.CheckAccess())
+                    applyUi();
+                else
+                    _ = Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(applyUi));
             }
         }
 
-        public void UpdateFromSnapshot(OsDashboardSnapshot snap)
+        public string DisplayedTopCustomersText => _topCustomersTxt.Text;
+
+        public static string AnonymizeCustomerNameGdpr(string? raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return "";
+            string cleaned = raw.Trim();
+            int atIdx = cleaned.IndexOf('@');
+            if (atIdx > 0)
+                cleaned = cleaned.Substring(0, atIdx).Replace('.', ' ').Replace('_', ' ').Replace('-', ' ');
+
+            string[] parts = cleaned.Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length == 0) return "";
+
+            string first = parts[0].Trim('.');
+            if (string.IsNullOrEmpty(first)) return "";
+            if (first.Length > 18) first = first.Substring(0, 18);
+            if (char.IsLower(first[0]))
+                first = char.ToUpperInvariant(first[0]) + (first.Length > 1 ? first.Substring(1) : "");
+
+            if (parts.Length == 1) return first;
+
+            string last = parts[parts.Length - 1].Trim('.');
+            if (string.IsNullOrEmpty(last)) return first;
+            return $"{first} {char.ToUpperInvariant(last[0])}.";
+        }
+
+        public static string FormatTopCustomersLine(IReadOnlyList<string>? rawCustomers, bool visitorPrivacyMode)
+        {
+            if (visitorPrivacyMode)
+                return "♛   TOP KUNDEN   ·   Gesperrt";
+
+            if (rawCustomers != null && rawCustomers.Count > 0)
+            {
+                var parts = new List<string>(3);
+                for (int i = 0; i < rawCustomers.Count && parts.Count < 3; i++)
+                {
+                    string safe = AnonymizeCustomerNameGdpr(rawCustomers[i]);
+                    if (!string.IsNullOrWhiteSpace(safe))
+                        parts.Add($"{parts.Count + 1}. {safe}");
+                }
+
+                if (parts.Count > 0)
+                    return "♛   TOP KUNDEN   ·   " + string.Join("   ·   ", parts);
+            }
+
+            return "♛   TOP KUNDEN   ·   Noch keine Bestellungen";
+        }
+
+        public void UpdateFromSnapshot(OsDashboardSnapshot snap, bool? visitorPrivacyOverride = null)
         {
             if (snap == null || !snap.IsConnected) return;
+            if (visitorPrivacyOverride.HasValue)
+                _settings.VisitorPrivacyMode = visitorPrivacyOverride.Value;
             string env = (_settings.ApiEnvironment ?? "live").Trim().ToLowerInvariant();
             EvaluateSingleEnvPulseOffUiThread(env, snap);
         }

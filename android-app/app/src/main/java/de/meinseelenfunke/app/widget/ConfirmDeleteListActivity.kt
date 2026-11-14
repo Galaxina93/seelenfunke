@@ -67,7 +67,7 @@ class ConfirmDeleteListActivity : ComponentActivity() {
 
         // Retrieve list name from cache to display in dialog
         val sharedPrefs = getSharedPreferences("tasks_widget_prefs", Context.MODE_PRIVATE)
-        val listsJson = sharedPrefs.getString("task_lists_cache", null)
+        val listsJson = ServiceLocator.getDecryptedPref(sharedPrefs, "task_lists_cache")
         var listName = "diese Liste"
         if (listsJson != null) {
             try {

@@ -71,6 +71,95 @@
             @endif
         </div>
 
+        {{-- 2b. INTERNER WERKSTATT-STAND & WIEDERVORLAGE (100% Manuell + Optional KI-synchron) --}}
+        @if($isOrder)
+            @php
+                $wsDiscrepancy = $this->selectedOrderDiscrepancy ?? ['has_discrepancy' => false];
+                $hasWsState = !empty($model->workshop_note) || !empty($model->workshop_next_check_at) || !empty($model->workshop_checkin_paused);
+            @endphp
+            <div class="bg-white dark:bg-gray-900/50 backdrop-blur-md p-5 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-inner space-y-3.5">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <div class="flex items-center gap-2">
+                        <h3 class="text-[10px] font-black uppercase text-gray-700 dark:text-gray-300 tracking-widest flex items-center gap-1.5">
+                            <svg class="w-3.5 h-3.5 text-[var(--theme-color)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                            <span>Werkstatt-Stand</span>
+                        </h3>
+                        <div class="relative group/wsinfo inline-flex items-center">
+                            <span class="w-4 h-4 rounded-full bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:text-[var(--theme-color)] hover:border-[var(--theme-color)] flex items-center justify-center text-[9px] font-black cursor-help transition-colors">!</span>
+                            <div class="absolute bottom-full left-0 mb-2 hidden group-hover/wsinfo:block z-50 w-64 p-3 rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-2xl text-[11px] font-medium text-gray-700 dark:text-gray-300 leading-relaxed pointer-events-none">
+                                Interne Fertigungsnotiz &amp; Wiedervorlage. Funktioniert 100 % manuell und synchron mit Funkira (niemals für Kunden sichtbar).
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-1.5">
+                        @if($model->workshop_note_updated_at)
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700">
+                                Stand {{ $model->workshop_note_updated_at->copy()->timezone('Europe/Berlin')->format('d.m. H:i') }}
+                            </span>
+                        @endif
+                        @if($model->workshop_checkin_paused)
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 border border-gray-300 dark:border-gray-700">
+                                Check-in pausiert
+                            </span>
+                        @elseif($model->workshop_next_check_at)
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-30)]">
+                                Check-in {{ $model->workshop_next_check_at->copy()->timezone('Europe/Berlin')->format('d.m. H:i') }}
+                            </span>
+                        @endif
+                        @if($hasWsState)
+                            <button type="button"
+                                    wire:click="clearWorkshopCheckin"
+                                    title="Werkstatt-Stand leeren"
+                                    class="p-1 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors cursor-pointer">
+                                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                            </button>
+                        @endif
+                    </div>
+                </div>
+
+                <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+                    <input type="text"
+                           wire:model="workshopNote"
+                           wire:keydown.enter="saveWorkshopCheckin"
+                           maxlength="1000"
+                           placeholder="Aktueller Stand (z. B. Vorderseite gelasert, Rückseite läuft...)"
+                           class="flex-1 bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-800 rounded-xl px-3.5 py-2.5 text-xs text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-[var(--theme-color-40)] focus:border-[var(--theme-color)] outline-none transition-all shadow-sm dark:shadow-inner">
+
+                    <div class="flex items-center gap-2 shrink-0">
+                        <select wire:model="workshopFollowupMode"
+                                aria-label="Wiedervorlage"
+                                class="bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-800 rounded-xl px-3 py-2.5 text-xs font-bold text-gray-800 dark:text-gray-200 focus:ring-2 focus:ring-[var(--theme-color-40)] focus:border-[var(--theme-color)] outline-none cursor-pointer shadow-sm dark:shadow-inner">
+                            <option value="2h">Check-in: 2 Std.</option>
+                            <option value="1h">Check-in: 1 Std.</option>
+                            <option value="tomorrow">Morgen 09:30</option>
+                            <option value="pause">Pausiert</option>
+                        </select>
+
+                        <button type="button"
+                                wire:click="saveWorkshopCheckin"
+                                class="px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider bg-[var(--theme-color)] text-gray-950 hover:opacity-90 transition-all shadow-sm cursor-pointer shrink-0">
+                            Speichern
+                        </button>
+                    </div>
+                </div>
+
+                @if(!empty($wsDiscrepancy['has_discrepancy']) && !empty($wsDiscrepancy['suggested_status']))
+                    <div class="flex flex-wrap items-center justify-between gap-2.5 pt-2.5 border-t border-gray-200/80 dark:border-gray-800/80">
+                        <span class="text-[11px] font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
+                            <span class="w-2 h-2 rounded-full bg-[var(--theme-color)] shrink-0"></span>
+                            <span>{{ $wsDiscrepancy['ui_hint'] }}</span>
+                        </span>
+                        <button type="button"
+                                wire:click="updateStatus('{{ $model->id }}', '{{ $wsDiscrepancy['suggested_status'] }}')"
+                                class="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-[var(--theme-color-15)] text-[var(--theme-color)] border border-[var(--theme-color-30)] hover:bg-[var(--theme-color)] hover:text-gray-950 transition-colors cursor-pointer shrink-0">
+                            Auf „{{ $wsDiscrepancy['suggested_status_label'] }}“ setzen
+                        </button>
+                    </div>
+                @endif
+            </div>
+        @endif
+
         {{-- 3. POSITIONEN --}}
         <div>
             <h3 class="font-serif font-bold text-gray-900 dark:text-white text-xl mb-4 flex items-center justify-between tracking-tight">

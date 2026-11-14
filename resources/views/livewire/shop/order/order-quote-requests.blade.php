@@ -90,8 +90,10 @@
                                                     <div
                                                         class="text-[10px] text-gray-400 uppercase tracking-wider font-medium flex flex-wrap gap-2">
                                                         @foreach($item->configuration as $key => $val)
-                                                            <span
-                                                                class="bg-gray-100 dark:bg-gray-950 px-2 py-0.5 rounded border border-gray-200 dark:border-gray-800 shadow-none dark:shadow-inner truncate max-w-[150px]">{{ $key }}: {{ Str::limit($val, 20) }}</span>
+                                                            @if(is_scalar($val) && trim((string) $val) !== '')
+                                                                <span
+                                                                    class="bg-gray-100 dark:bg-gray-950 px-2 py-0.5 rounded border border-gray-200 dark:border-gray-800 shadow-none dark:shadow-inner truncate max-w-[150px]">{{ $key }}: {{ Str::limit((string) $val, 20) }}</span>
+                                                            @endif
                                                         @endforeach
                                                     </div>
                                                 @endif

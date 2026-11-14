@@ -2,8 +2,8 @@
 
     {{-- Header --}}
     <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-white dark:bg-gray-900/80 backdrop-blur-md p-6 sm:p-10 rounded-[2.5rem] shadow-sm dark:shadow-2xl border border-gray-200 dark:border-gray-800 relative overflow-hidden animate-fade-in-up">
-        <div class="hidden dark:block absolute top-0 right-0 p-8 opacity-10 blur-sm pointer-events-none">
-            <x-heroicon-o-server-stack class="w-40 h-40 text-[var(--theme-color)] drop-shadow-[0_0_20px_var(--theme-color)1)]" />
+        <div class="hidden dark:block absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
+            <x-heroicon-o-server-stack class="w-40 h-40 text-[var(--theme-color)]" />
         </div>
         <div class="relative z-10">
             <h1 class="text-3xl sm:text-4xl font-serif font-bold text-gray-900 dark:text-white tracking-tight">Log</h1>
@@ -37,7 +37,7 @@
         <div class="bg-white dark:bg-gray-900/80 backdrop-blur-md rounded-[2rem] p-6 flex flex-col justify-between shadow-sm dark:shadow-2xl border border-gray-200 dark:border-gray-800 relative overflow-hidden group hover:border-gray-300 dark:hover:border-gray-700 transition-colors">
             <div class="flex justify-between items-start mb-4">
                 <div class="w-12 h-12 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 flex items-center justify-center text-emerald-600 dark:text-emerald-500 shadow-sm dark:shadow-inner group-hover:scale-110 transition-transform">
-                    <x-heroicon-o-chart-bar class="w-6 h-6 drop-shadow-none dark:drop-shadow-[0_0_8px_currentColor]"/>
+                    <x-heroicon-o-chart-bar class="w-6 h-6"/>
                 </div>
             </div>
             <div>
@@ -49,7 +49,7 @@
         <div class="bg-white dark:bg-gray-900/80 backdrop-blur-md rounded-[2rem] p-6 flex flex-col justify-between shadow-sm dark:shadow-2xl border border-red-200 dark:border-red-900/30 relative overflow-hidden group hover:border-red-300 dark:hover:border-red-500/50 transition-colors">
             <div class="flex justify-between items-start mb-4">
                 <div class="w-12 h-12 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 flex items-center justify-center text-red-600 dark:text-red-500 shadow-sm dark:shadow-inner group-hover:scale-110 transition-transform">
-                    <x-heroicon-o-exclamation-triangle class="w-6 h-6 drop-shadow-none dark:drop-shadow-[0_0_8px_currentColor]"/>
+                    <x-heroicon-o-exclamation-triangle class="w-6 h-6"/>
                 </div>
             </div>
             <div>
@@ -66,7 +66,7 @@
         <div class="bg-white dark:bg-gray-900/80 backdrop-blur-md rounded-[2rem] p-6 flex flex-col justify-between shadow-sm dark:shadow-2xl border border-gray-200 dark:border-gray-800 relative overflow-hidden group hover:border-gray-300 dark:hover:border-gray-700 transition-colors">
             <div class="flex justify-between items-start mb-4">
                 <div class="w-12 h-12 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 flex items-center justify-center text-sky-600 dark:text-sky-500 shadow-sm dark:shadow-inner group-hover:scale-110 transition-transform">
-                    <x-heroicon-o-cpu-chip class="w-6 h-6 drop-shadow-none dark:drop-shadow-[0_0_8px_currentColor]"/>
+                    <x-heroicon-o-cpu-chip class="w-6 h-6"/>
                 </div>
             </div>
             <div>
@@ -127,9 +127,12 @@
                         <th class="px-6 sm:px-8 py-6 w-[10%] text-right">Status</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-gray-100 dark:divide-gray-800/50">
-                    @forelse($logs as $log)
-                        <tbody x-data="{ expanded: false }" class="transition-colors group hover:bg-gray-50 dark:hover:bg-gray-800/40">
+                @forelse($logs as $log)
+                    @php
+                        $rowPayload = is_array($log->payload) ? $log->payload : (json_decode((string) $log->payload, true) ?? []);
+                        $displayOccurrences = max((int) ($log->error_count ?? 1), (int) ($rowPayload['occurrences_count'] ?? 1));
+                    @endphp
+                    <tbody wire:key="sys-log-{{ $log->id }}" x-data="{ expanded: false }" class="border-b border-gray-100 dark:border-gray-800/50 transition-colors group hover:bg-gray-50 dark:hover:bg-gray-800/40">
                             <tr @click="expanded = !expanded" class="cursor-pointer">
                                 <td class="px-6 sm:px-8 py-4 align-top border-l-[3px] {{ $log->status === 'error' ? 'border-red-500' : ($log->status === 'warning' ? 'border-amber-500' : ($log->status === 'success' ? 'border-emerald-500' : 'border-gray-700')) }}">
                                     <div class="flex flex-col mt-0.5">
@@ -191,17 +194,17 @@
                                                 <span class="w-1.5 h-1.5 rounded-full bg-sky-400 animate-ping"></span> EXECUTING
                                             </span>
                                         @elseif($log->status === 'error')
-                                            <button wire:click.stop="toggleStatus({{ $log->id }})" class="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border border-red-500/30 bg-red-500/10 text-red-400 shadow-[0_0_10px_rgba(239,68,68,0.1)] flex items-center gap-1.5 hover:bg-red-500/20 transition-colors">
+                                            <button wire:click.stop="toggleStatus({{ $log->id }})" class="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400 flex items-center gap-1.5 hover:bg-red-500/20 transition-colors">
                                                 FEHLER
-                                                @if($log->error_count > 1)
-                                                    <span class="bg-red-500 text-white rounded px-1.5 py-0.5 text-[8px] ml-1">{{ $log->error_count }}x</span>
+                                                @if($displayOccurrences > 1)
+                                                    <span class="bg-red-500 text-white rounded px-1.5 py-0.5 text-[8px] ml-1">{{ $displayOccurrences }}x</span>
                                                 @endif
                                             </button>
                                         @elseif($log->status === 'warning')
-                                            <button wire:click.stop="toggleStatus({{ $log->id }})" class="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border border-amber-500/30 bg-amber-500/10 text-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.1)] flex items-center gap-1.5 hover:bg-amber-500/20 transition-colors">
+                                            <button wire:click.stop="toggleStatus({{ $log->id }})" class="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center gap-1.5 hover:bg-amber-500/20 transition-colors">
                                                 WARNUNG
-                                                @if($log->error_count > 1)
-                                                    <span class="bg-amber-500 text-black rounded px-1.5 py-0.5 text-[8px] ml-1">{{ $log->error_count }}x</span>
+                                                @if($displayOccurrences > 1)
+                                                    <span class="bg-amber-500 text-black rounded px-1.5 py-0.5 text-[8px] ml-1">{{ $displayOccurrences }}x</span>
                                                 @endif
                                             </button>
                                         @else
@@ -222,7 +225,7 @@
                                         $tel = $cPayload['session_telemetry'] ?? null;
                                         $execCtx = $cPayload['execution_context'] ?? null;
                                         $traceList = $cPayload['trace_excerpt'] ?? null;
-                                        $rawStack = $cPayload['stack'] ?? null;
+                                        $rawStack = $cPayload['stack'] ?? $cPayload['stack_excerpt'] ?? null;
                                         $recentEvents = $cPayload['recent_events'] ?? null;
                                     @endphp
                                     <div class="space-y-4">
@@ -230,7 +233,7 @@
                                             <div class="flex-1 w-full">
                                                 <div class="text-[10px] font-black uppercase tracking-widest text-[var(--theme-color)] mb-2 flex items-center gap-2">
                                                     <x-heroicon-o-document-text class="w-3.5 h-3.5" />
-                                                    {{ $log->title ? $log->title . ' — ' : '' }}Nachrichten-Trace
+                                                    {{ $log->title ? $log->title . ': ' : '' }}Nachrichten-Trace
                                                 </div>
                                                 <div class="text-xs text-gray-800 dark:text-gray-300 whitespace-pre-wrap break-all p-4 bg-white dark:bg-black rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-inner font-mono leading-relaxed">{{ $log->message }}</div>
                                             </div>
@@ -301,7 +304,7 @@
                                                 </div>
                                                 <div class="p-3.5 bg-white dark:bg-black rounded-xl border border-gray-200 dark:border-gray-800 font-mono text-[10px] space-y-1 text-gray-700 dark:text-gray-300">
                                                     @foreach($recentEvents as $ev)
-                                                        <div><span class="text-sky-400">[+{{ $ev['t_ms'] ?? 0 }}ms]</span> <strong>{{ $ev['event'] ?? 'event' }}</strong> {{ !empty($ev['detail']) ? '— ' . $ev['detail'] : '' }}</div>
+                                                        <div><span class="text-sky-400">[+{{ $ev['t_ms'] ?? 0 }}ms]</span> <strong>{{ $ev['event'] ?? 'event' }}</strong>{{ !empty($ev['detail']) ? ': ' . $ev['detail'] : '' }}</div>
                                                     @endforeach
                                                 </div>
                                             </div>
@@ -379,15 +382,14 @@
                                     </div>
                                 </td>
                             </tr>
-                        </tbody>
-                    @empty
-                        <tbody>
-                            <tr>
-                                <td colspan="5" class="px-8 py-32 text-center text-gray-500 font-serif text-xl italic">Keine Logs gefunden...</td>
-                            </tr>
-                        </tbody>
-                    @endforelse
-                </tbody>
+                    </tbody>
+                @empty
+                    <tbody wire:key="sys-log-empty">
+                        <tr>
+                            <td colspan="5" class="px-8 py-32 text-center text-gray-500 font-serif text-xl italic">Keine Logs gefunden...</td>
+                        </tr>
+                    </tbody>
+                @endforelse
             </table>
         </div>
         @if($logs->hasPages())

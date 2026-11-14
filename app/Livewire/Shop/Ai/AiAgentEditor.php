@@ -201,12 +201,7 @@ class AiAgentEditor extends Component
 
     public static function sanitizeSvgIcon(string $svg): string
     {
-        $clean = preg_replace('/<\s*(script|iframe|object|embed|applet|meta|base|form|foreignObject)\b[^>]*>.*?<\s*\/\s*\1\s*>/is', '', $svg) ?? $svg;
-        $clean = preg_replace('/<\s*\/?\s*(script|iframe|object|embed|applet|meta|base|form|foreignObject)\b[^>]*>/i', '', $clean) ?? $clean;
-        $clean = preg_replace('/\s+on[a-z]+\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s>]+)/i', '', $clean) ?? $clean;
-        $clean = preg_replace('/\b(href|src|action|formaction|xlink:href)\s*=\s*(["\']?)\s*(?:javascript|vbscript|data\s*:\s*text\/html)[^"\'>\s]*\2/i', '$1="#"', $clean) ?? $clean;
-
-        return $clean;
+        return \App\Support\SafeHtmlAndSvgSanitizer::sanitizeSvg($svg);
     }
 
     public function boot(): void

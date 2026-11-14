@@ -92,7 +92,10 @@ Route::get('/newsletter/verify/{token}', [NewsletterController::class, 'verify']
     ->name('newsletter.verify')
     ->middleware('throttle:30,1');
 
-// Warenkorb-Erinnerungen Abmeldung (Opt-Out nach § 7 Abs. 3 UWG / Art. 21 DSGVO)
+// Warenkorb-Erinnerung nahtlos öffnen & Abmeldung (Opt-Out nach § 7 Abs. 3 UWG / Art. 21 DSGVO)
+Route::get('/warenkorb/erinnerung/oeffnen/{id}/{hash}', [\App\Http\Controllers\CartReminderUnsubscribeController::class, 'resume'])
+    ->name('cart.reminder.resume')
+    ->middleware('throttle:30,1');
 Route::get('/warenkorb/erinnerung/abmelden/{id}/{hash}', [\App\Http\Controllers\CartReminderUnsubscribeController::class, 'unsubscribe'])
     ->name('cart.reminder.unsubscribe')
     ->middleware('throttle:30,1');

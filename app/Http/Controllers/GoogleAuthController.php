@@ -23,8 +23,11 @@ class GoogleAuthController extends Controller
 {
     public function redirectToGoogle($guard = 'customer')
     {
-        // Guard speichern (wird aber durch intelligente Erkennung oft überschrieben)
-        Session::put('auth_guard', $guard);
+        $safeGuard = is_string($guard) && in_array($guard, ['customer', 'employee', 'admin'], true)
+            ? $guard
+            : 'customer';
+        Session::put('auth_guard', $safeGuard);
+        Session::put('oauth_guest_session_id', Session::getId());
         Session::save();
         return Socialite::driver('google')->redirect();
     }
@@ -130,8 +133,9 @@ class GoogleAuthController extends Controller
                 $guard = 'customer'; // Default für neue User
 
                 // Wir müssen Vor- und Nachnamen trennen
-                $nameParts = explode(' ', $googleUser->name, 2);
-                $firstName = $nameParts[0] ?? 'Kunde';
+                $rawGoogleName = trim((string) ($googleUser->name ?? ''));
+                $nameParts = $rawGoogleName !== '' ? explode(' ', $rawGoogleName, 2) : [];
+                $firstName = ($nameParts[0] ?? '') !== '' ? $nameParts[0] : 'Kunde';
                 $lastName = $nameParts[1] ?? '';
 
                 // Neuen Kunden anlegen
@@ -209,15 +213,25 @@ class GoogleAuthController extends Controller
 
             \App\Services\System\SystemSecurityService::recordLoginAttempt($user->email, request()->ip(), true, 'google_oauth');
 
+            $guestSessionId = Session::pull('oauth_guest_session_id') ?: Session::getId();
+
             // Wenn 2FA für das Konto aktiviert ist, darf Google OAuth 2FA NICHT überspringen!
             if ($user->profile && $user->profile->two_factor_is_active) {
                 session()->regenerate();
-                session(['2fa_user_id' => $user->id, 'guard' => $guard]);
+                session([
+                    '2fa_user_id' => $user->id,
+                    'guard' => $guard,
+                    '2fa_guest_session_id' => $guestSessionId,
+                ]);
                 return redirect()->route('login');
             }
 
             session()->regenerate();
             Auth::guard($guard)->login($user, true);
+
+            if ($guard === 'customer' && $user instanceof Customer) {
+                app(\App\Services\CartService::class)->mergeGuestCartIntoCustomer($user, (string) $guestSessionId);
+            }
 
             // Permissions laden
             $permissions = [];
@@ -243,8 +257,11 @@ class GoogleAuthController extends Controller
                 return redirect()->route('employee.tax-advisor.dashboard');
             }
 
-            // Redirect zum Dashboard des ermittelten Guards
-            return redirect()->route($guard . '.dashboard');
+            // Redirect zum beabsichtigten Ziel (z. B. /warenkorb) oder zum Dashboard des ermittelten Guards
+            $targetUrl = $guard === 'customer'
+                ? \App\Services\CartService::resolveSafeCustomerIntendedUrl(route('customer.dashboard'))
+                : route($guard . '.dashboard');
+            return redirect()->to($targetUrl);
 
         } catch (\Exception $e) {
             Log::error('Google Login Error: ' . $e->getMessage());

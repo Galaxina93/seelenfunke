@@ -182,13 +182,13 @@ class OrderShoppingCarts extends Component
     {
         $cart = Cart::with(['customer.profile', 'items.product'])->find($cartId);
 
-        if (!$cart || !$cart->customer || !$cart->customer->email) {
-            session()->flash('error', 'Dieser Warenkorb hat keinen hinterlegten Kunden mit E-Mail-Adresse.');
+        if (!$cart || !$cart->customer || !$cart->customer->email || (method_exists($cart->customer, 'trashed') && $cart->customer->trashed())) {
+            session()->flash('error', 'Dieser Warenkorb hat keinen aktiven Kunden mit E-Mail-Adresse.');
             return;
         }
 
-        if ($cart->items->isEmpty()) {
-            session()->flash('error', 'Für einen leeren Warenkorb kann keine Erinnerungs-E-Mail versendet werden.');
+        if ($cart->items->isEmpty() || !$cart->items->contains(fn($item) => $item->product && $item->product->status === 'active')) {
+            session()->flash('error', 'Dieser Warenkorb enthält keine aktiven Artikel für eine Erinnerungs-E-Mail.');
             return;
         }
 
@@ -206,7 +206,9 @@ class OrderShoppingCarts extends Component
 
         try {
             Mail::to($cart->customer->email)->send(new AbandonedCartReminder($cart));
-            $cart->update(['reminder_email_sent_at' => now()]);
+            $cart->timestamps = false;
+            $cart->forceFill(['reminder_email_sent_at' => now()])->save();
+            $cart->timestamps = true;
             session()->flash('success', 'Erinnerungsmail wurde erfolgreich an ' . $cart->customer->email . ' gesendet.');
             unset($this->carts); // Clear Computed property cache so UI updates instantly
         } catch (\Exception $e) {

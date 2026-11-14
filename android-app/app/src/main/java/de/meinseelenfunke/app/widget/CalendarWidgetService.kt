@@ -60,8 +60,9 @@ class CalendarWidgetViewsFactory(private val context: Context) : RemoteViewsServ
     }
 
     private fun loadEventsFromPrefs() {
+        de.meinseelenfunke.app.di.ServiceLocator.ensureInitialized(context.applicationContext)
         val sharedPrefs = context.getSharedPreferences("calendar_widget_prefs", Context.MODE_PRIVATE)
-        val json = sharedPrefs.getString("calendar_events_cache", null)
+        val json = de.meinseelenfunke.app.di.ServiceLocator.getDecryptedPref(sharedPrefs, "calendar_events_cache")
         if (json != null) {
             try {
                 val type = object : TypeToken<List<CalendarEvent>>() {}.type

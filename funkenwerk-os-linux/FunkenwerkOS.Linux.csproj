@@ -22,6 +22,8 @@
 
   <ItemGroup>
     <Compile Include="..\funkenwerk-tresor\KdbxCryptoEngine.cs" Link="KdbxCryptoEngine.cs" />
+    <Content Update="wwwroot\**" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="funkira_local_sense.py" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

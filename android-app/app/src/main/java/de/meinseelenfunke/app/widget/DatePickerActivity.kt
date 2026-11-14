@@ -81,7 +81,7 @@ class DatePickerActivity : ComponentActivity() {
                         val repository = ServiceLocator.organizerRepository
                         
                         // Optimistic local cache update
-                        val tasksJson = sharedPrefs.getString("tasks_cache", null)
+                        val tasksJson = ServiceLocator.getDecryptedPref(sharedPrefs, "tasks_cache")
                         if (tasksJson != null) {
                             try {
                                 val gson = com.google.gson.Gson()
@@ -102,11 +102,7 @@ class DatePickerActivity : ComponentActivity() {
                             finish()
                         }
                     } else if (!prefKey.isNullOrBlank()) {
-                        if (selectedDate == null) {
-                            sharedPrefs.edit().remove(prefKey).apply()
-                        } else {
-                            sharedPrefs.edit().putString(prefKey, selectedDate).apply()
-                        }
+                        ServiceLocator.putEncryptedPref(sharedPrefs, prefKey, selectedDate)
                         ServiceLocator.organizerRepository.triggerTasksWidgetUpdate(this@DatePickerActivity)
                         finish()
                     }

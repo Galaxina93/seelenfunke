@@ -209,4 +209,15 @@
 * **Problem:** In `OrderOverview::delete()` wurde lediglich auf `payment_status === 'paid'` und vorhandene `invoices` geprüft, während `refunded`, `shipped`, `completed` und `shipments` unberücksichtigt blieben. Zudem wurde der Button „Bestellung unwiderruflich löschen“ im UI auch bei GoBD-geschützten Bestellungen eingeblendet und führte im Backend nur ein `SoftDelete` auf `order_orders` aus, wodurch die zugehörigen `order_order_items` sowie deren Kunden-Uploads und 3D-Snapshots dauerhaft als Dateileichen erhalten blieben.
 * **Lösung:** Zentrale Prüfmethode [`OrderOrder::canBePermanentlyDeleted()`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Models/Order/OrderOrder.php#L1008-L1035), Ausblendung des Lösch-Buttons bei allen GoBD-geschützten Bestellungen sowie für Nicht-Admins in [`left.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/order/order-offer-detail-partials/left.blade.php#L737-L744) und rückstandsloses `forceDelete()` inkl. `order_order_items`, automatischer Datei-Bereinigung über [`CartFileCleanupService::cleanupOrderFilesAfterDeletion()`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/CartFileCleanupService.php#L315-L348) und revisionssicherem Audit-Log (`admin_order_force_delete` in `SystemLog`).
 
+---
+
+## 12. Phase 4 Vollständiges Navigations-, Livewire- & Datenaustausch-Audit inkl. Projekt-Gehirn-Kopplung (14.11.2026)
+
+* **DOM-basierter HTML- & SVG/XXE-Sanitizer (`SafeHtmlAndSvgSanitizer`):** Löst Regex-Filter in Wissensdatenbank, Agenten-Editor, Blog, Produkt-Konfigurator und Laser-SVG-Export durch striktes `DOMDocument`-Whitelisting (`LIBXML_NONET`) ab.
+* **Härtung über alle Backend-Navigationsseiten, Webhooks & Datei-Streams:** Schutz aktiver `ProductTemplate`-Assets im Konfigurator und `CartFileCleanupService`, konsistente Variantenpreis-Übernahme im `ProductCalculator`, Admin-Exklusivschutz für `Funkira` in `ManagesAiChat`/`AiWidget`, SSRF-/DNS-Rebinding-Schutz im Telegram- & Laser-Export-Pfad, Signatur-Vorprüfung im Stripe-Webhook (`HTTP 400`), Path-/Symlink-Containment im Musik-Stream sowie `isPreviewable()`-Absicherung aller Blade-`temporaryUrl()`-Vorschauen.
+* **Projekt-Gehirn Upgrade & Routen-Schnelltest (`./funki check`):** Echtzeit-Kopplung offener `SystemLog`-Fehler als **rote Fehlerkerne** inkl. ein- und ausgehender Nachbardateien sowie interaktiver **„System prüfen“**-Button in 2D (`/admin/system/neural-analysis`) und 3D (KI-Widget). Detaillierter Fachbericht: [`System_Projekt_Gehirn_und_Vollstaendige_Routen_Haertung.md`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/Abschlussberichte/System/System_Projekt_Gehirn_und_Vollstaendige_Routen_Haertung.md).
+* **Gesamttest-Ergebnis (`./funki test` & `./funki check`):** **1.214 Tests, 62.153 Assertions, 0 Errors, 0 Failures** sowie **93/93 Routen & 0 Fehlerkerne (100 % Grün).**
+
+
+
 

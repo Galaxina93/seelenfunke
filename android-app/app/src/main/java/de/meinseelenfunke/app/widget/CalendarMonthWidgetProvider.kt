@@ -25,10 +25,13 @@ import kotlinx.coroutines.launch
 class CalendarMonthWidgetProvider : AppWidgetProvider() {
 
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
+        ServiceLocator.ensureInitialized(context.applicationContext)
         for (appWidgetId in appWidgetIds) {
             updateAppWidget(context, appWidgetManager, appWidgetId)
         }
-        triggerBackgroundSync(context)
+        if (!ServiceLocator.getAuthToken().isNullOrBlank()) {
+            triggerBackgroundSync(context)
+        }
         super.onUpdate(context, appWidgetManager, appWidgetIds)
     }
 
@@ -42,6 +45,13 @@ class CalendarMonthWidgetProvider : AppWidgetProvider() {
         super.onReceive(context, intent)
         val appContext = context.applicationContext
         ServiceLocator.ensureInitialized(appContext)
+        if (action != null && action != AppWidgetManager.ACTION_APPWIDGET_UPDATE) {
+            if (de.meinseelenfunke.app.util.SecurityIntentHelper.isDeviceLocked(context) ||
+                ServiceLocator.getAuthToken().isNullOrBlank()
+            ) {
+                return
+            }
+        }
         val sharedPrefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val offset = sharedPrefs.getInt(KEY_MONTH_OFFSET, 0)
 
@@ -234,9 +244,10 @@ class CalendarMonthWidgetProvider : AppWidgetProvider() {
             val appContext = context.applicationContext
             val views = RemoteViews(appContext.packageName, R.layout.widget_month_layout)
 
+            ServiceLocator.ensureInitialized(appContext)
             val sharedPrefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             val offset = sharedPrefs.getInt(KEY_MONTH_OFFSET, 0)
-            val json = sharedPrefs.getString(CACHE_KEY, null)
+            val json = ServiceLocator.getDecryptedPref(sharedPrefs, CACHE_KEY)
             val eventsList: List<CalendarEvent> = if (json != null) {
                 try {
                     val type = object : TypeToken<List<CalendarEvent>>() {}.type

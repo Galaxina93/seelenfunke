@@ -308,13 +308,32 @@ namespace FunkenwerkOS
             TriggerBtAudioOneShotProperty(deviceNameFragment, propId: 1); // 1 = KSPROPERTY_ONESHOT_DISCONNECT
         }
 
+        private static void ReleaseComObjectSafe(object? comObj)
+        {
+            if (comObj != null && Marshal.IsComObject(comObj))
+            {
+                try { Marshal.FinalReleaseComObject(comObj); } catch { }
+            }
+        }
+
+        private static bool IsBluetoothHandsFreeCaptureEndpoint(string? micName)
+        {
+            if (string.IsNullOrWhiteSpace(micName)) return false;
+            return micName.Contains("Hands-Free", StringComparison.OrdinalIgnoreCase)
+                || micName.Contains("Freisprech", StringComparison.OrdinalIgnoreCase)
+                || micName.Contains("Teufel", StringComparison.OrdinalIgnoreCase)
+                || micName.Contains("Bluetooth", StringComparison.OrdinalIgnoreCase);
+        }
+
         private static void TriggerBtAudioOneShotProperty(string deviceNameFragment, uint propId)
         {
+            IMMDeviceEnumerator? enumerator = null;
+            IMMDeviceCollection? col = null;
             try
             {
-                var enumerator = (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject();
+                enumerator = (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject();
                 // 0 = eRender, 0x0000000F = DEVICE_STATEMASK_ALL (includes UNPLUGGED Bluetooth endpoints!)
-                if (enumerator.EnumAudioEndpoints(0, 0x0000000F, out IMMDeviceCollection col) != 0 || col == null)
+                if (enumerator.EnumAudioEndpoints(0, 0x0000000F, out col) != 0 || col == null)
                     return;
 
                 col.GetCount(out uint count);
@@ -323,49 +342,73 @@ namespace FunkenwerkOS
 
                 for (uint i = 0; i < count; i++)
                 {
-                    if (col.Item(i, out IMMDevice dev) != 0 || dev == null) continue;
-                    string name = ReadDeviceFriendlyName(dev);
-                    bool isMatch = (!string.IsNullOrWhiteSpace(deviceNameFragment) && name.Contains(deviceNameFragment, StringComparison.OrdinalIgnoreCase))
-                                || (deviceNameFragment.Contains("Teufel", StringComparison.OrdinalIgnoreCase) && name.Contains("Teufel", StringComparison.OrdinalIgnoreCase));
-                    if (!isMatch) continue;
-
-                    var ksProp = new KSPROPERTY
+                    IMMDevice? dev = null;
+                    object? topoObj = null;
+                    IConnector? conn = null;
+                    IConnector? connTo = null;
+                    object? ksObj = null;
+                    object? directKsObj = null;
+                    try
                     {
-                        Set = KsPropSetIdBtAudio,
-                        Id = propId,
-                        Flags = 1 // KSPROPERTY_TYPE_GET
-                    };
+                        if (col.Item(i, out dev) != 0 || dev == null) continue;
+                        string name = ReadDeviceFriendlyName(dev);
+                        bool isMatch = (!string.IsNullOrWhiteSpace(deviceNameFragment) && name.Contains(deviceNameFragment, StringComparison.OrdinalIgnoreCase))
+                                    || (deviceNameFragment.Contains("Teufel", StringComparison.OrdinalIgnoreCase) && name.Contains("Teufel", StringComparison.OrdinalIgnoreCase));
+                        if (!isMatch) continue;
 
-                    // Try activating IKsControl via IDeviceTopology -> IConnector -> GetConnectedTo -> IPart
-                    if (dev.Activate(ref iidTopology, 1, IntPtr.Zero, out object topoObj) == 0 && topoObj is IDeviceTopology topo)
-                    {
-                        if (topo.GetConnector(0, out IConnector conn) == 0 && conn != null)
+                        var ksProp = new KSPROPERTY
                         {
-                            if (conn.GetConnectedTo(out IConnector connTo) == 0 && connTo is IPart part)
+                            Set = KsPropSetIdBtAudio,
+                            Id = propId,
+                            Flags = 1 // KSPROPERTY_TYPE_GET
+                        };
+
+                        // Try activating IKsControl via IDeviceTopology -> IConnector -> GetConnectedTo -> IPart
+                        if (dev.Activate(ref iidTopology, 1, IntPtr.Zero, out topoObj) == 0 && topoObj is IDeviceTopology topo)
+                        {
+                            if (topo.GetConnector(0, out conn) == 0 && conn != null)
                             {
-                                if (part.Activate(1, ref iidKsControl, out object ksObj) == 0 && ksObj is IKsControl ks)
+                                if (conn.GetConnectedTo(out connTo) == 0 && connTo is IPart part)
                                 {
-                                    ks.KsProperty(ref ksProp, (uint)Marshal.SizeOf<KSPROPERTY>(), IntPtr.Zero, 0, out _);
+                                    if (part.Activate(1, ref iidKsControl, out ksObj) == 0 && ksObj is IKsControl ks)
+                                    {
+                                        ks.KsProperty(ref ksProp, (uint)Marshal.SizeOf<KSPROPERTY>(), IntPtr.Zero, 0, out _);
+                                    }
                                 }
                             }
                         }
-                    }
 
-                    // Also try direct IKsControl activation on IMMDevice
-                    if (dev.Activate(ref iidKsControl, 1, IntPtr.Zero, out object directKsObj) == 0 && directKsObj is IKsControl directKs)
+                        // Also try direct IKsControl activation on IMMDevice
+                        if (dev.Activate(ref iidKsControl, 1, IntPtr.Zero, out directKsObj) == 0 && directKsObj is IKsControl directKs)
+                        {
+                            directKs.KsProperty(ref ksProp, (uint)Marshal.SizeOf<KSPROPERTY>(), IntPtr.Zero, 0, out _);
+                        }
+                    }
+                    finally
                     {
-                        directKs.KsProperty(ref ksProp, (uint)Marshal.SizeOf<KSPROPERTY>(), IntPtr.Zero, 0, out _);
+                        ReleaseComObjectSafe(directKsObj);
+                        ReleaseComObjectSafe(ksObj);
+                        ReleaseComObjectSafe(connTo);
+                        ReleaseComObjectSafe(conn);
+                        ReleaseComObjectSafe(topoObj);
+                        ReleaseComObjectSafe(dev);
                     }
                 }
             }
             catch { }
+            finally
+            {
+                ReleaseComObjectSafe(col);
+                ReleaseComObjectSafe(enumerator);
+            }
         }
 
         private static string ReadDeviceFriendlyName(IMMDevice device)
         {
+            IPropertyStore? store = null;
             try
             {
-                if (device.OpenPropertyStore(0, out IPropertyStore store) == 0 && store != null)
+                if (device.OpenPropertyStore(0, out store) == 0 && store != null)
                 {
                     var pkey = new PROPERTYKEY
                     {
@@ -382,6 +425,10 @@ namespace FunkenwerkOS
                 }
             }
             catch { }
+            finally
+            {
+                ReleaseComObjectSafe(store);
+            }
             return "Audio-Ausgang";
         }
 
@@ -421,9 +468,9 @@ namespace FunkenwerkOS
             catch { }
             finally
             {
-                if (volObj != null && Marshal.IsComObject(volObj)) { try { Marshal.ReleaseComObject(volObj); } catch { } }
-                if (device != null && Marshal.IsComObject(device)) { try { Marshal.ReleaseComObject(device); } catch { } }
-                if (enumerator != null && Marshal.IsComObject(enumerator)) { try { Marshal.ReleaseComObject(enumerator); } catch { } }
+                ReleaseComObjectSafe(volObj);
+                ReleaseComObjectSafe(device);
+                ReleaseComObjectSafe(enumerator);
             }
 
             CachedAudioState = state;
@@ -433,48 +480,65 @@ namespace FunkenwerkOS
         public static List<AudioOutputDeviceDto> ListAudioOutputDevices()
         {
             var result = new List<AudioOutputDeviceDto>();
+            IMMDeviceEnumerator? enumerator = null;
+            IMMDeviceCollection? col = null;
             try
             {
-                var enumerator = (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject();
+                enumerator = (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject();
                 string defaultId = "";
-                if (enumerator.GetDefaultAudioEndpoint(0, 1, out IMMDevice defDev) == 0 && defDev != null)
+                IMMDevice? defDev = null;
+                try
                 {
-                    defDev.GetId(out defaultId);
-                    if (Marshal.IsComObject(defDev)) Marshal.ReleaseComObject(defDev);
+                    if (enumerator.GetDefaultAudioEndpoint(0, 1, out defDev) == 0 && defDev != null)
+                        defDev.GetId(out defaultId);
+                }
+                finally
+                {
+                    ReleaseComObjectSafe(defDev);
                 }
 
                 // eRender = 0, DEVICE_STATE_ACTIVE = 1
-                if (enumerator.EnumAudioEndpoints(0, 1, out IMMDeviceCollection col) == 0 && col != null)
+                if (enumerator.EnumAudioEndpoints(0, 1, out col) == 0 && col != null)
                 {
                     col.GetCount(out uint count);
                     for (uint i = 0; i < count; i++)
                     {
-                        if (col.Item(i, out IMMDevice dev) == 0 && dev != null)
+                        IMMDevice? dev = null;
+                        string id = "";
+                        string name = "";
+                        try
                         {
-                            dev.GetId(out string id);
-                            string name = ReadDeviceFriendlyName(dev);
-                            if (Marshal.IsComObject(dev)) Marshal.ReleaseComObject(dev);
-
-                            // Never route music or sounds to a muffled/stuttering 8 kHz Bluetooth Hands-Free telephony endpoint
-                            if (name.Contains("Hands-Free", StringComparison.OrdinalIgnoreCase) ||
-                                name.Contains("Freisprech", StringComparison.OrdinalIgnoreCase))
-                            {
-                                continue;
-                            }
-
-                            result.Add(new AudioOutputDeviceDto
-                            {
-                                DeviceId = id ?? "",
-                                Name = name,
-                                IsDefault = string.Equals(id, defaultId, StringComparison.OrdinalIgnoreCase)
-                            });
+                            if (col.Item(i, out dev) != 0 || dev == null) continue;
+                            dev.GetId(out id);
+                            name = ReadDeviceFriendlyName(dev);
                         }
+                        finally
+                        {
+                            ReleaseComObjectSafe(dev);
+                        }
+
+                        // Never route music or sounds to a muffled/stuttering 8 kHz Bluetooth Hands-Free telephony endpoint
+                        if (name.Contains("Hands-Free", StringComparison.OrdinalIgnoreCase) ||
+                            name.Contains("Freisprech", StringComparison.OrdinalIgnoreCase))
+                        {
+                            continue;
+                        }
+
+                        result.Add(new AudioOutputDeviceDto
+                        {
+                            DeviceId = id ?? "",
+                            Name = name,
+                            IsDefault = string.Equals(id, defaultId, StringComparison.OrdinalIgnoreCase)
+                        });
                     }
-                    if (Marshal.IsComObject(col)) Marshal.ReleaseComObject(col);
                 }
-                if (Marshal.IsComObject(enumerator)) Marshal.ReleaseComObject(enumerator);
             }
             catch { }
+            finally
+            {
+                ReleaseComObjectSafe(col);
+                ReleaseComObjectSafe(enumerator);
+            }
 
             return result
                 .OrderByDescending(d => d.IsTeufel)
@@ -486,47 +550,61 @@ namespace FunkenwerkOS
         public static List<AudioOutputDeviceDto> ListAudioInputMicrophones()
         {
             var result = new List<AudioOutputDeviceDto>();
+            IMMDeviceEnumerator? enumerator = null;
+            IMMDeviceCollection? col = null;
             try
             {
-                var enumerator = (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject();
+                enumerator = (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject();
                 string defaultId = "";
                 // eCapture = 1, eCommunications = 2
-                if (enumerator.GetDefaultAudioEndpoint(1, 2, out IMMDevice defDev) == 0 && defDev != null)
+                IMMDevice? defDev = null;
+                try
                 {
-                    defDev.GetId(out defaultId);
-                    if (Marshal.IsComObject(defDev)) Marshal.ReleaseComObject(defDev);
+                    if (enumerator.GetDefaultAudioEndpoint(1, 2, out defDev) == 0 && defDev != null)
+                        defDev.GetId(out defaultId);
+                }
+                finally
+                {
+                    ReleaseComObjectSafe(defDev);
                 }
 
-                if (enumerator.EnumAudioEndpoints(1, 1, out IMMDeviceCollection col) == 0 && col != null)
+                if (enumerator.EnumAudioEndpoints(1, 1, out col) == 0 && col != null)
                 {
                     col.GetCount(out uint count);
                     for (uint i = 0; i < count; i++)
                     {
-                        if (col.Item(i, out IMMDevice dev) == 0 && dev != null)
+                        IMMDevice? dev = null;
+                        string id = "";
+                        string name = "";
+                        try
                         {
-                            dev.GetId(out string id);
-                            string name = ReadDeviceFriendlyName(dev);
-                            if (Marshal.IsComObject(dev)) Marshal.ReleaseComObject(dev);
-
-                            if (name.Contains("Hands-Free", StringComparison.OrdinalIgnoreCase) ||
-                                name.Contains("Teufel", StringComparison.OrdinalIgnoreCase))
-                            {
-                                continue;
-                            }
-
-                            result.Add(new AudioOutputDeviceDto
-                            {
-                                DeviceId = id ?? "",
-                                Name = name,
-                                IsDefault = string.Equals(id, defaultId, StringComparison.OrdinalIgnoreCase)
-                            });
+                            if (col.Item(i, out dev) != 0 || dev == null) continue;
+                            dev.GetId(out id);
+                            name = ReadDeviceFriendlyName(dev);
                         }
+                        finally
+                        {
+                            ReleaseComObjectSafe(dev);
+                        }
+
+                        if (IsBluetoothHandsFreeCaptureEndpoint(name))
+                            continue;
+
+                        result.Add(new AudioOutputDeviceDto
+                        {
+                            DeviceId = id ?? "",
+                            Name = name,
+                            IsDefault = string.Equals(id, defaultId, StringComparison.OrdinalIgnoreCase)
+                        });
                     }
-                    if (Marshal.IsComObject(col)) Marshal.ReleaseComObject(col);
                 }
-                if (Marshal.IsComObject(enumerator)) Marshal.ReleaseComObject(enumerator);
             }
             catch { }
+            finally
+            {
+                ReleaseComObjectSafe(col);
+                ReleaseComObjectSafe(enumerator);
+            }
 
             return result.OrderByDescending(d => d.IsDefault).ThenBy(d => d.Name).ToList();
         }
@@ -544,12 +622,8 @@ namespace FunkenwerkOS
                     string micName = ReadDeviceFriendlyName(device);
                     // CRITICAL: Never activate IAudioEndpointVolume on a Bluetooth Hands-Free / Teufel capture endpoint!
                     // Touching a Bluetooth Hands-Free capture endpoint wakes SCO telephony and causes A2DP stereo dropouts!
-                    if (micName.Contains("Hands-Free", StringComparison.OrdinalIgnoreCase) ||
-                        micName.Contains("Teufel", StringComparison.OrdinalIgnoreCase) ||
-                        micName.Contains("Bluetooth", StringComparison.OrdinalIgnoreCase))
-                    {
+                    if (IsBluetoothHandsFreeCaptureEndpoint(micName))
                         return true;
-                    }
 
                     Guid iidVol = typeof(IAudioEndpointVolume).GUID;
                     if (device.Activate(ref iidVol, 23, IntPtr.Zero, out volObj) == 0 && volObj is IAudioEndpointVolume epVol)
@@ -562,22 +636,30 @@ namespace FunkenwerkOS
             catch { }
             finally
             {
-                if (volObj != null && Marshal.IsComObject(volObj)) { try { Marshal.ReleaseComObject(volObj); } catch { } }
-                if (device != null && Marshal.IsComObject(device)) { try { Marshal.ReleaseComObject(device); } catch { } }
-                if (enumerator != null && Marshal.IsComObject(enumerator)) { try { Marshal.ReleaseComObject(enumerator); } catch { } }
+                ReleaseComObjectSafe(volObj);
+                ReleaseComObjectSafe(device);
+                ReleaseComObjectSafe(enumerator);
             }
             return false;
         }
 
         public static bool ToggleMicrophoneMute()
         {
+            IMMDeviceEnumerator? enumerator = null;
+            IMMDevice? device = null;
+            object? volObj = null;
             try
             {
-                var enumerator = (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject();
-                if (enumerator.GetDefaultAudioEndpoint(1, 2, out IMMDevice device) == 0 && device != null)
+                enumerator = (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject();
+                if (enumerator.GetDefaultAudioEndpoint(1, 2, out device) == 0 && device != null)
                 {
+                    string micName = ReadDeviceFriendlyName(device);
+                    // Apply identical non-Bluetooth Hands-Free capture filter so SCO telephony is never woken
+                    if (IsBluetoothHandsFreeCaptureEndpoint(micName))
+                        return true;
+
                     Guid iidVol = typeof(IAudioEndpointVolume).GUID;
-                    if (device.Activate(ref iidVol, 23, IntPtr.Zero, out object volObj) == 0 && volObj is IAudioEndpointVolume epVol)
+                    if (device.Activate(ref iidVol, 23, IntPtr.Zero, out volObj) == 0 && volObj is IAudioEndpointVolume epVol)
                     {
                         if (epVol.GetMute(out bool muted) == 0)
                         {
@@ -589,15 +671,22 @@ namespace FunkenwerkOS
                 }
             }
             catch { }
+            finally
+            {
+                ReleaseComObjectSafe(volObj);
+                ReleaseComObjectSafe(device);
+                ReleaseComObjectSafe(enumerator);
+            }
             return false;
         }
 
         public static bool SetDefaultAudioOutputDevice(string deviceId)
         {
             if (string.IsNullOrWhiteSpace(deviceId)) return false;
+            IPolicyConfig? policy = null;
             try
             {
-                var policy = (IPolicyConfig)new PolicyConfigClientComObject();
+                policy = (IPolicyConfig)new PolicyConfigClientComObject();
                 policy.SetDefaultEndpoint(deviceId, 0); // eConsole
                 policy.SetDefaultEndpoint(deviceId, 1); // eMultimedia
                 policy.SetDefaultEndpoint(deviceId, 2); // eCommunications
@@ -607,18 +696,25 @@ namespace FunkenwerkOS
             {
                 return false;
             }
+            finally
+            {
+                ReleaseComObjectSafe(policy);
+            }
         }
 
         public static bool SetSystemVolumeExact(int volume0To100)
         {
             int clamped = Math.Clamp(volume0To100, 0, 100);
+            IMMDeviceEnumerator? enumerator = null;
+            IMMDevice? device = null;
+            object? volObj = null;
             try
             {
-                var enumerator = (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject();
-                if (enumerator.GetDefaultAudioEndpoint(0, 1, out IMMDevice device) == 0 && device != null)
+                enumerator = (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject();
+                if (enumerator.GetDefaultAudioEndpoint(0, 1, out device) == 0 && device != null)
                 {
                     Guid iidVol = typeof(IAudioEndpointVolume).GUID;
-                    if (device.Activate(ref iidVol, 23, IntPtr.Zero, out object volObj) == 0 && volObj is IAudioEndpointVolume epVol)
+                    if (device.Activate(ref iidVol, 23, IntPtr.Zero, out volObj) == 0 && volObj is IAudioEndpointVolume epVol)
                     {
                         Guid ctx = Guid.Empty;
                         float scalar = clamped / 100.0f;
@@ -630,18 +726,27 @@ namespace FunkenwerkOS
                 }
             }
             catch { }
+            finally
+            {
+                ReleaseComObjectSafe(volObj);
+                ReleaseComObjectSafe(device);
+                ReleaseComObjectSafe(enumerator);
+            }
             return false;
         }
 
         public static bool ToggleSystemMute()
         {
+            IMMDeviceEnumerator? enumerator = null;
+            IMMDevice? device = null;
+            object? volObj = null;
             try
             {
-                var enumerator = (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject();
-                if (enumerator.GetDefaultAudioEndpoint(0, 1, out IMMDevice device) == 0 && device != null)
+                enumerator = (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject();
+                if (enumerator.GetDefaultAudioEndpoint(0, 1, out device) == 0 && device != null)
                 {
                     Guid iidVol = typeof(IAudioEndpointVolume).GUID;
-                    if (device.Activate(ref iidVol, 23, IntPtr.Zero, out object volObj) == 0 && volObj is IAudioEndpointVolume epVol)
+                    if (device.Activate(ref iidVol, 23, IntPtr.Zero, out volObj) == 0 && volObj is IAudioEndpointVolume epVol)
                     {
                         if (epVol.GetMute(out bool muted) == 0)
                         {
@@ -653,6 +758,12 @@ namespace FunkenwerkOS
                 }
             }
             catch { }
+            finally
+            {
+                ReleaseComObjectSafe(volObj);
+                ReleaseComObjectSafe(device);
+                ReleaseComObjectSafe(enumerator);
+            }
             return false;
         }
 
@@ -1176,6 +1287,38 @@ namespace FunkenwerkOS
             return false;
         }
 
+        public static string WriteSecureWlanProfileTempFile(string ssid, string? password, string authMode)
+        {
+            string wlanTempDir = Path.Combine(OsVaultAndStorage.OsDataDir, "WlanTemp");
+            Directory.CreateDirectory(wlanTempDir);
+            OsVaultAndStorage.LockDownDirectoryAcl(wlanTempDir);
+
+            string tempXml = Path.Combine(wlanTempDir, $"fw_wlan_{Guid.NewGuid():N}.xml");
+            using (var preCreate = new FileStream(tempXml, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            {
+                preCreate.Flush(flushToDisk: true);
+            }
+            OsVaultAndStorage.LockDownFileAcl(tempXml);
+
+            string xml = BuildWlanProfileXml(ssid, password, authMode);
+            byte[] xmlBytes = new UTF8Encoding(false).GetBytes(xml);
+            try
+            {
+                using (var fs = new FileStream(tempXml, FileMode.Truncate, FileAccess.Write, FileShare.None))
+                {
+                    fs.Write(xmlBytes, 0, xmlBytes.Length);
+                    fs.Flush(flushToDisk: true);
+                }
+                OsVaultAndStorage.LockDownFileAcl(tempXml);
+            }
+            finally
+            {
+                CryptographicOperations.ZeroMemory(xmlBytes);
+            }
+
+            return tempXml;
+        }
+
         public static async Task<(bool Success, string Message)> ConnectWifiNetworkAsync(string ssid, string? password, bool isOpenNetwork, string? securityHint = null)
         {
             if (string.IsNullOrWhiteSpace(ssid))
@@ -1185,7 +1328,7 @@ namespace FunkenwerkOS
             {
                 EnsureWirelessServicesAndLocationConsent();
                 string cleanSsid = ssid.Replace("\"", "");
-                string tempXml = Path.Combine(Path.GetTempPath(), $"fw_wlan_{Guid.NewGuid():N}.xml");
+                string? tempXml = null;
                 try
                 {
                     // If no password supplied and profile already saved on system, try direct connect first
@@ -1210,9 +1353,17 @@ namespace FunkenwerkOS
 
                     foreach (string mode in modesToTry)
                     {
-                        string xml = BuildWlanProfileXml(ssid, password, mode);
-                        File.WriteAllText(tempXml, xml, new UTF8Encoding(false));
+                        if (!string.IsNullOrEmpty(tempXml))
+                        {
+                            OsVaultAndStorage.SecureZeroWipeAndDeleteFile(tempXml);
+                            tempXml = null;
+                        }
+
+                        tempXml = WriteSecureWlanProfileTempFile(ssid, password, mode);
                         RunProcessCapture("netsh.exe", $"wlan add profile filename=\"{tempXml}\" user=all");
+                        OsVaultAndStorage.SecureZeroWipeAndDeleteFile(tempXml);
+                        tempXml = null;
+
                         RunProcessCapture("netsh.exe", $"wlan connect name=\"{cleanSsid}\" ssid=\"{cleanSsid}\"");
 
                         for (int wait = 0; wait < 7; wait++)
@@ -1231,16 +1382,8 @@ namespace FunkenwerkOS
                 }
                 finally
                 {
-                    try
-                    {
-                        if (File.Exists(tempXml))
-                        {
-                            byte[] zeros = new byte[512];
-                            File.WriteAllBytes(tempXml, zeros);
-                            File.Delete(tempXml);
-                        }
-                    }
-                    catch { }
+                    if (!string.IsNullOrEmpty(tempXml))
+                        OsVaultAndStorage.SecureZeroWipeAndDeleteFile(tempXml);
                 }
             });
         }
@@ -1770,7 +1913,8 @@ namespace FunkenwerkOS
 
                                 try
                                 {
-                                    string diagDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FunkenwerkOS");
+                                    string diagDir = OsVaultAndStorage.OsDataDir;
+                                    Directory.CreateDirectory(diagDir);
                                     File.WriteAllText(Path.Combine(diagDir, "bt_lowlevel.log"),
                                         $"ADDR={dev.BluetoothAddress:X12} | WINRT={winRtPairDiag} | CB={s_lastAuthCallbackDiag} | AUTH_RES={authRes} | SINK_RES={sSink} | AV_RES={sAv} | CONN={bdi.fConnected} | REM={bdi.fRemembered} | AUTH={bdi.fAuthenticated}");
                                 }
@@ -1901,8 +2045,32 @@ namespace FunkenwerkOS
             });
         }
 
-        public static void EnsureWindowsExplorerTaskbarRunning()
+        public static bool IsCustomShellIntentionallyActive()
         {
+            try
+            {
+                var settings = OsVaultAndStorage.LoadSettings();
+                if (settings.IntentionalCustomShellEnabled)
+                    return true;
+
+                using var cuWinlogon = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows NT\CurrentVersion\Winlogon", writable: false);
+                string? shellVal = cuWinlogon?.GetValue("Shell") as string;
+                if (!string.IsNullOrWhiteSpace(shellVal) && shellVal.Contains("FunkenwerkOS", StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+            catch { }
+            return false;
+        }
+
+        public static void EnsureWindowsExplorerTaskbarRunning(bool isShellLaunch = false, bool forceResetCustomShell = false)
+        {
+            if (OsVaultAndStorage.IsSelfTestSandboxActive)
+                return;
+
+            // Never clear Winlogon\Shell or spawn explorer.exe when launched with --shell or when custom shell is intentionally active
+            if (!forceResetCustomShell && (isShellLaunch || IsCustomShellIntentionallyActive()))
+                return;
+
             try
             {
                 using var cuWinlogon = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows NT\CurrentVersion\Winlogon", writable: true);
@@ -2285,6 +2453,26 @@ namespace FunkenwerkOS
                         LineJoin = PenLineJoin.Round
                     };
                 }
+                else if (lowKind == "craft") // 8. Craft (Social Reel & Kreativstudio): Matte Rose-Champagne & Gold (#C5A059)
+                {
+                    outerBorderBrush = new LinearGradientBrush(
+                        System.Windows.Media.Color.FromRgb(234, 198, 134),
+                        System.Windows.Media.Color.FromRgb(176, 114, 78),
+                        new System.Windows.Point(0, 0),
+                        new System.Windows.Point(0, 1));
+                    rimPen = new System.Windows.Media.Pen(new SolidColorBrush(System.Windows.Media.Color.FromArgb(150, 197, 160, 89)), 1.2);
+                    accentFill = new LinearGradientBrush(
+                        System.Windows.Media.Color.FromRgb(244, 212, 148),
+                        System.Windows.Media.Color.FromRgb(197, 160, 89),
+                        new System.Windows.Point(0, 0),
+                        new System.Windows.Point(1, 1));
+                    accentPen = new System.Windows.Media.Pen(accentFill, 4.2)
+                    {
+                        StartLineCap = PenLineCap.Round,
+                        EndLineCap = PenLineCap.Round,
+                        LineJoin = PenLineJoin.Round
+                    };
+                }
 
                 if (lowKind == "browser") // 6. Browser: 3/3 Rot, Gelb und Grün
                 {
@@ -2455,6 +2643,13 @@ namespace FunkenwerkOS
                         dc.DrawEllipse(innerEmerald, null, new System.Windows.Point(48, 48), 6.2, 6.2);
                         break;
                     }
+                    case "craft":
+                    {
+                        dc.DrawRoundedRectangle(null, accentPen, new Rect(26, 20, 44, 56), 9, 9);
+                        dc.DrawGeometry(accentFill, null, Geometry.Parse("M 43,39 L 43,57 L 57,48 Z"));
+                        dc.DrawGeometry(accentFill, null, Geometry.Parse("M 62,24 L 64,29 L 69,31 L 64,33 L 62,38 L 60,33 L 55,31 L 60,29 Z"));
+                        break;
+                    }
                     default: // file_text / file_generic
                     {
                         dc.DrawGeometry(null, accentPen, Geometry.Parse("M 29,23 L 55,23 L 67,35 L 67,71 L 29,71 Z"));
@@ -2536,8 +2731,11 @@ namespace FunkenwerkOS
             ("ssh", "SSH", "SSH", "Funkenwerk SSH", "FunkenwerkSsh.exe", "funkenwerk_ssh.png", "FunkenwerkSsh"),
             ("player", "Mediaplayer", "Mediaplayer", "Funkenwerk Player", "FunkenwerkPlayer.exe", "funkenwerk_player.png", "FunkenwerkPlayer"),
             ("video", "Videostudio", "Videostudio", "Funkenwerk Video", "FunkenwerkVideo.exe", "funkenwerk_video.png", "FunkenwerkVideo"),
+            ("craft", "Craft", "Craft", "Funkenwerk Craft", "FunkenwerkCraft.exe", "funkenwerk_craft.png", "FunkenwerkCraft"),
             ("tresor", "Tresor", "Tresor", "Funkenwerk Tresor", "FunkenwerkTresor.exe", "funkenwerk_tresor.png", "FunkenwerkTresor")
         };
+
+        public static int KnownCollectionAppsCount => KnownApps.Length;
 
         private static readonly Dictionary<string, BitmapSource?> IconCache = new(StringComparer.OrdinalIgnoreCase);
         private static List<OsCollectionAppDto>? s_cachedCollectionApps;
@@ -2597,20 +2795,23 @@ namespace FunkenwerkOS
                 if (!IconCache.ContainsKey(appFolder))
                 {
                     IconCache[appFolder] = customBadge;
-                    try
+                    if (!OsVaultAndStorage.IsSelfTestSandboxActive)
                     {
-                        if (Directory.Exists(appFolder))
+                        try
                         {
-                            string pngPath = Path.Combine(appFolder, pngFileName);
-                            SnipCaptureOverlayWindow.SaveBitmapSourceAsPng(customBadge, pngPath);
+                            if (Directory.Exists(appFolder))
+                            {
+                                string pngPath = Path.Combine(appFolder, pngFileName);
+                                SnipCaptureOverlayWindow.SaveBitmapSourceAsPng(customBadge, pngPath);
+                            }
                         }
+                        catch { }
                     }
-                    catch { }
                 }
                 return customBadge;
             }
 
-            if (IconCache.TryGetValue(appFolder, out var cached))
+            if (IconCache.TryGetValue(appFolder, out var cached) && cached != null)
                 return cached;
 
             try
@@ -2623,6 +2824,19 @@ namespace FunkenwerkOS
                     bi.CacheOption = BitmapCacheOption.OnLoad;
                     bi.DecodePixelWidth = 96;
                     bi.UriSource = new Uri(pngPath, UriKind.Absolute);
+                    bi.EndInit();
+                    bi.Freeze();
+                    IconCache[appFolder] = bi;
+                    return bi;
+                }
+
+                string icoPath = Path.Combine(appFolder, Path.ChangeExtension(pngFileName, ".ico"));
+                if (File.Exists(icoPath))
+                {
+                    var bi = new BitmapImage();
+                    bi.BeginInit();
+                    bi.CacheOption = BitmapCacheOption.OnLoad;
+                    bi.UriSource = new Uri(icoPath, UriKind.Absolute);
                     bi.EndInit();
                     bi.Freeze();
                     IconCache[appFolder] = bi;
@@ -2651,8 +2865,9 @@ namespace FunkenwerkOS
             }
             catch { }
 
-            IconCache[appFolder] = null;
-            return null;
+            var fallbackBadge = GetSystemBadgeIcon(appKey);
+            IconCache[appFolder] = fallbackBadge;
+            return fallbackBadge;
         }
 
         public static string? ResolveInstalledWebView2Folder()
@@ -2685,6 +2900,31 @@ namespace FunkenwerkOS
             return null;
         }
 
+        public static ProcessStartInfo BuildCollectionAppStartInfo(string exePath, string? optionalFileArg = null)
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = exePath,
+                WorkingDirectory = Path.GetDirectoryName(exePath) ?? "",
+                UseShellExecute = false
+            };
+            if (Directory.Exists(@"C:\Program Files\dotnet"))
+            {
+                psi.Environment["DOTNET_ROOT"] = @"C:\Program Files\dotnet";
+                psi.Environment["DOTNET_ROLL_FORWARD"] = "LatestMajor";
+            }
+            // OS-SEC-01: Keep full Chromium renderer and GPU sandboxes active; never pass --no-sandbox or --disable-gpu-sandbox!
+            psi.Environment["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = "--ignore-gpu-blocklist --enable-gpu-rasterization";
+            string? wvFolder = ResolveInstalledWebView2Folder();
+            if (!string.IsNullOrEmpty(wvFolder))
+                psi.Environment["WEBVIEW2_BROWSER_EXECUTABLE_FOLDER"] = wvFolder;
+
+            if (!string.IsNullOrWhiteSpace(optionalFileArg))
+                psi.ArgumentList.Add(optionalFileArg);
+
+            return psi;
+        }
+
         public static bool LaunchOrFocusCollectionApp(string appKey, string? optionalFileArg = null)
         {
             var spec = KnownApps.FirstOrDefault(a => string.Equals(a.Key, appKey, StringComparison.OrdinalIgnoreCase));
@@ -2714,25 +2954,7 @@ namespace FunkenwerkOS
 
             try
             {
-                var psi = new ProcessStartInfo
-                {
-                    FileName = exePath,
-                    WorkingDirectory = Path.GetDirectoryName(exePath) ?? "",
-                    UseShellExecute = false
-                };
-                if (Directory.Exists(@"C:\Program Files\dotnet"))
-                {
-                    psi.Environment["DOTNET_ROOT"] = @"C:\Program Files\dotnet";
-                    psi.Environment["DOTNET_ROLL_FORWARD"] = "LatestMajor";
-                }
-                psi.Environment["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = "--no-sandbox --disable-gpu-sandbox --ignore-gpu-blocklist --enable-gpu-rasterization";
-                string? wvFolder = ResolveInstalledWebView2Folder();
-                if (!string.IsNullOrEmpty(wvFolder))
-                    psi.Environment["WEBVIEW2_BROWSER_EXECUTABLE_FOLDER"] = wvFolder;
-
-                if (!string.IsNullOrWhiteSpace(optionalFileArg))
-                    psi.ArgumentList.Add(optionalFileArg);
-
+                var psi = BuildCollectionAppStartInfo(exePath, optionalFileArg);
                 Process.Start(psi);
                 return true;
             }
@@ -2919,6 +3141,9 @@ namespace FunkenwerkOS
         [DllImport("winmm.dll")]
         private static extern uint timeBeginPeriod(uint uPeriod);
 
+        [DllImport("winmm.dll")]
+        private static extern uint timeEndPeriod(uint uPeriod);
+
         [DllImport("powrprof.dll", SetLastError = true)]
         private static extern bool SetSuspendState(bool hibernate, bool forceCritical, bool disableWakeEvent);
 
@@ -2936,6 +3161,7 @@ namespace FunkenwerkOS
         private const uint ES_DISPLAY_REQUIRED = 0x00000002;
         private const uint ES_CONTINUOUS = 0x80000000;
         private static int _kioskPowerConfigured;
+        private static int _highResTimerActive;
         private static IntPtr _rtcWakeTimerHandle = IntPtr.Zero;
 
         /// <summary>
@@ -2983,10 +3209,28 @@ namespace FunkenwerkOS
         /// </summary>
         public static void KeepDisplayAndSystemAwake()
         {
+            if (OsVaultAndStorage.IsSelfTestSandboxActive)
+                return;
+
             try
             {
-                timeBeginPeriod(1);
+                if (Interlocked.CompareExchange(ref _highResTimerActive, 1, 0) == 0)
+                {
+                    timeBeginPeriod(1);
+                }
                 SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_DISPLAY_REQUIRED);
+            }
+            catch { }
+        }
+
+        public static void ReleaseHighResTimerPeriod()
+        {
+            try
+            {
+                if (Interlocked.Exchange(ref _highResTimerActive, 0) == 1)
+                {
+                    timeEndPeriod(1);
+                }
             }
             catch { }
         }
@@ -3016,6 +3260,9 @@ namespace FunkenwerkOS
         /// </summary>
         public static void EnsureKioskPowerAndDotNetIntegrity()
         {
+            if (OsVaultAndStorage.IsSelfTestSandboxActive)
+                return;
+
             KeepDisplayAndSystemAwake();
             if (Interlocked.Exchange(ref _kioskPowerConfigured, 1) != 0)
                 return;
@@ -3142,8 +3389,11 @@ namespace FunkenwerkOS
                             using var runKey = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", writable: true);
                             runKey?.SetValue("FunkenwerkOS", $"\"{miniPcExe}\" --shell --workspace gewerbe", RegistryValueKind.String);
 
-                            using var cuWinlogon = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows NT\CurrentVersion\Winlogon", writable: true);
-                            cuWinlogon?.DeleteValue("Shell", throwOnMissingValue: false);
+                            if (!IsCustomShellIntentionallyActive())
+                            {
+                                using var cuWinlogon = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows NT\CurrentVersion\Winlogon", writable: true);
+                                cuWinlogon?.DeleteValue("Shell", throwOnMissingValue: false);
+                            }
 
                             using var winlogon = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon", writable: true);
                             if (winlogon != null && string.Equals(Environment.UserName, "Alina", StringComparison.OrdinalIgnoreCase))
@@ -3335,15 +3585,13 @@ namespace FunkenwerkOS
             });
         }
 
-        private static void RegisterMorning0800WakeTask(string exePath)
+        public static string BuildMorning0800WakeTaskXml(string user, string exePath, string workDir)
         {
-            try
-            {
-                string workDir = Path.GetDirectoryName(exePath) ?? @"C:\Funkenwerk Collection\Funkenwerk OS";
-                string user = Environment.UserName;
-                string xmlPathMorning = Path.Combine(Path.GetTempPath(), "fw_morning_wake_0800.xml");
+            string safeUser = SecurityElement.Escape(user ?? "") ?? "";
+            string safeExe = SecurityElement.Escape(exePath ?? "") ?? "";
+            string safeWorkDir = SecurityElement.Escape(workDir ?? "") ?? "";
 
-                string morningXml = $@"<?xml version=""1.0"" encoding=""UTF-16""?>
+            return $@"<?xml version=""1.0"" encoding=""UTF-16""?>
 <Task version=""1.3"" xmlns=""http://schemas.microsoft.com/windows/2004/02/mit/task"">
   <RegistrationInfo>
     <Description>Weckt den Manufaktur Mini-PC jeden Morgen um 08:00 Uhr automatisch per Hardware-RTC aus dem Ruhemodus und aktiviert den Monitor Gewerbebereich.</Description>
@@ -3360,7 +3608,7 @@ namespace FunkenwerkOS
   </Triggers>
   <Principals>
     <Principal id=""Author"">
-      <UserId>{user}</UserId>
+      <UserId>{safeUser}</UserId>
       <LogonType>InteractiveToken</LogonType>
       <RunLevel>LeastPrivilege</RunLevel>
     </Principal>
@@ -3382,14 +3630,39 @@ namespace FunkenwerkOS
   </Settings>
   <Actions Context=""Author"">
     <Exec>
-      <Command>{exePath}</Command>
+      <Command>{safeExe}</Command>
       <Arguments>--wake-gewerbe</Arguments>
-      <WorkingDirectory>{workDir}</WorkingDirectory>
+      <WorkingDirectory>{safeWorkDir}</WorkingDirectory>
     </Exec>
   </Actions>
 </Task>";
+        }
 
+        private static void RegisterMorning0800WakeTask(string exePath)
+        {
+            if (OsVaultAndStorage.IsSelfTestSandboxActive)
+                return;
+
+            string? xmlPathMorning = null;
+            try
+            {
+                string workDir = Path.GetDirectoryName(exePath) ?? @"C:\Funkenwerk Collection\Funkenwerk OS";
+                string user = Environment.UserName;
+                string dataDir = OsVaultAndStorage.OsDataDir;
+                Directory.CreateDirectory(dataDir);
+                OsVaultAndStorage.LockDownDirectoryAcl(dataDir);
+
+                xmlPathMorning = Path.Combine(dataDir, $"fw_morning_wake_0800_{Guid.NewGuid():N}.xml");
+                using (var preCreate = new FileStream(xmlPathMorning, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                {
+                    preCreate.Flush(flushToDisk: true);
+                }
+                OsVaultAndStorage.LockDownFileAcl(xmlPathMorning);
+
+                string morningXml = BuildMorning0800WakeTaskXml(user, exePath, workDir);
                 File.WriteAllText(xmlPathMorning, morningXml, Encoding.Unicode);
+                OsVaultAndStorage.LockDownFileAcl(xmlPathMorning);
+
                 using (var p = Process.Start(new ProcessStartInfo("schtasks.exe", $"/Create /TN \"Funkenwerk_Morgenstart_0800\" /XML \"{xmlPathMorning}\" /F")
                 {
                     CreateNoWindow = true,
@@ -3421,6 +3694,11 @@ namespace FunkenwerkOS
                 }
             }
             catch { }
+            finally
+            {
+                if (!string.IsNullOrEmpty(xmlPathMorning))
+                    OsVaultAndStorage.SecureZeroWipeAndDeleteFile(xmlPathMorning);
+            }
         }
 
         public static void TurnOffMonitors(IntPtr ownerHwnd)

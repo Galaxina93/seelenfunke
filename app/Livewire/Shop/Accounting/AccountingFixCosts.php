@@ -74,7 +74,7 @@ class AccountingFixCosts extends Component
     public ?string $editingItemId = null;
     public ?string $addingToGroupId = null;
     public ?string $targetGroupId = null;
-    public $isRestoring = false;
+    protected bool $isRestoring = false;
 
     // --- KI & Dokumentenprüfung ---
     public $aiContractAnalysis = null;

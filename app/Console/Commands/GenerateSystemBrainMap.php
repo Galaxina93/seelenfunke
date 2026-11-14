@@ -82,11 +82,11 @@ class GenerateSystemBrainMap extends Command
                 $viewName = str_replace(['resources/views/', '.blade.php', '/'], ['', '', '.'], $relativePath);
                 $fileIndex['view:' . $viewName] = $relativePath;
             } else {
-                // e.g. app/Models/User.php -> App\Models\User
+                // e.g. app/Models/User.php -> App\Models\User (supports class, trait, interface, enum)
                 $namespaceMatch = [];
                 preg_match('/namespace\s+([^;]+);/', $content, $namespaceMatch);
                 $classNameMatch = [];
-                preg_match('/class\s+([A-Za-z0-9_]+)/', $content, $classNameMatch);
+                preg_match('/\b(?:class|trait|interface|enum)\s+([A-Za-z0-9_]+)/', $content, $classNameMatch);
                 
                 if (!empty($namespaceMatch[1]) && !empty($classNameMatch[1])) {
                     $fullClass = trim($namespaceMatch[1]) . '\\' . trim($classNameMatch[1]);
@@ -128,65 +128,112 @@ class GenerateSystemBrainMap extends Command
             $relativePath = str_replace(base_path() . '/', '', $file->getRealPath());
             $content = file_get_contents($file->getRealPath());
 
+            // Inline FQCN references (works in both PHP, Routes, and Blade @php blocks)
+            preg_match_all('/\\\\?(App\\\\[A-Za-z0-9_\\\\]+)/', $content, $fqcnMatches);
+            if (!empty($fqcnMatches[1])) {
+                foreach ($fqcnMatches[1] as $fqcnRaw) {
+                    $cleanFqcn = trim($fqcnRaw, '\\');
+                    if (isset($fileIndex['class:' . $cleanFqcn])) {
+                        $links[] = ['source' => $relativePath, 'target' => $fileIndex['class:' . $cleanFqcn]];
+                    }
+                }
+            }
+
             if (str_ends_with($relativePath, '.blade.php')) {
-                // Check for includes, extends, livewire tags, components
-                
-                // @include('...') or @extends('...')
-                preg_match_all('/@(include|extends)\(\s*[\'"]([^\'"]+)[\'"]/', $content, $matches);
-                if (!empty($matches[2])) {
-                    foreach ($matches[2] as $viewName) {
+                // @include('...'), @includeIf('...'), @extends('...')
+                preg_match_all('/@(?:include|includeIf|extends)\(\s*[\'"]([^\'"]+)[\'"]/', $content, $matches);
+                if (!empty($matches[1])) {
+                    foreach ($matches[1] as $viewName) {
                         if (isset($fileIndex['view:' . $viewName])) {
                             $links[] = ['source' => $relativePath, 'target' => $fileIndex['view:' . $viewName]];
                         }
                     }
                 }
 
-                // <livewire:component-name />
-                preg_match_all('/<livewire:([a-zA-Z0-9\-\.]+)[\s\/>]/', $content, $matches);
-                if (!empty($matches[1])) {
-                    foreach ($matches[1] as $lwName) {
-                        // livewire component names can be 'shop.ai.ai-widget'
-                        // Often corresponds to App\Livewire\Shop\Ai\AiWidget or similar
-                        // We map it to view first: livewire.shop.ai.ai-widget
-                        $expectedView = 'livewire.' . str_replace('/', '.', $lwName);
-                        if (isset($fileIndex['view:' . $expectedView])) {
-                            $links[] = ['source' => $relativePath, 'target' => $fileIndex['view:' . $expectedView]];
-                        }
+                // <livewire:component-name /> and @livewire('component-name')
+                $lwNames = [];
+                if (preg_match_all('/<livewire:([a-zA-Z0-9\-\.\/]+)[\s\/>]/', $content, $matches)) {
+                    $lwNames = array_merge($lwNames, $matches[1]);
+                }
+                if (preg_match_all('/@livewire\(\s*[\'"]([a-zA-Z0-9\-\.\/]+)[\'"]/', $content, $matchesAt)) {
+                    $lwNames = array_merge($lwNames, $matchesAt[1]);
+                }
+                foreach (array_unique($lwNames) as $lwName) {
+                    $normalizedLw = str_replace('/', '.', $lwName);
+                    $expectedView = 'livewire.' . $normalizedLw;
+                    if (isset($fileIndex['view:' . $expectedView])) {
+                        $links[] = ['source' => $relativePath, 'target' => $fileIndex['view:' . $expectedView]];
+                    }
+                    $studlyParts = array_map(fn ($seg) => Str::studly($seg), explode('.', $normalizedLw));
+                    $expectedLwClass = 'App\\Livewire\\' . implode('\\', $studlyParts);
+                    if (isset($fileIndex['class:' . $expectedLwClass])) {
+                        $links[] = ['source' => $relativePath, 'target' => $fileIndex['class:' . $expectedLwClass]];
                     }
                 }
-                
+
                 // <x-component-name />
                 preg_match_all('/<x-([a-zA-Z0-9\-\.]+)[\s\/>]/', $content, $matches);
                 if (!empty($matches[1])) {
                     foreach ($matches[1] as $xName) {
+                        if (str_starts_with($xName, 'heroicon-')) {
+                            continue;
+                        }
                         $expectedView = 'components.' . str_replace('/', '.', $xName);
                         if (isset($fileIndex['view:' . $expectedView])) {
                             $links[] = ['source' => $relativePath, 'target' => $fileIndex['view:' . $expectedView]];
                         }
                     }
                 }
-
             } else {
                 // PHP Files: check use statements, injections, instantiations
-                preg_match_all('/use\s+([^;]+);/', $content, $matches);
+                preg_match_all('/\buse\s+([A-Za-z0-9_\\\\\s,{}]+);/', $content, $matches);
                 if (!empty($matches[1])) {
-                    foreach ($matches[1] as $usedClass) {
-                        $usedClass = trim(str_replace(' as ', '', preg_replace('/ as [A-Za-z0-9_]+/', '', $usedClass)));
-                        // sometimes it has traits like 'use TraitName;' which is not full namespace.
-                        if (isset($fileIndex['class:' . $usedClass])) {
-                            $links[] = ['source' => $relativePath, 'target' => $fileIndex['class:' . $usedClass]];
-                        } elseif (isset($fileIndex['shortclass:' . $usedClass])) {
-                            $links[] = ['source' => $relativePath, 'target' => $fileIndex['shortclass:' . $usedClass]];
+                    foreach ($matches[1] as $usedClause) {
+                        // Support grouped imports like App\Models\{A, B}
+                        if (str_contains($usedClause, '{') && preg_match('/^([A-Za-z0-9_\\\\]+)\\\\\{([^}]+)\}/', trim($usedClause), $grp)) {
+                            $prefix = rtrim(trim($grp[1]), '\\') . '\\';
+                            foreach (explode(',', $grp[2]) as $sub) {
+                                $subClean = trim((string) preg_replace('/\s+as\s+[A-Za-z0-9_]+/i', '', trim($sub)));
+                                if ($subClean !== '' && isset($fileIndex['class:' . $prefix . $subClean])) {
+                                    $links[] = ['source' => $relativePath, 'target' => $fileIndex['class:' . $prefix . $subClean]];
+                                }
+                            }
+                            continue;
+                        }
+
+                        foreach (explode(',', $usedClause) as $singleUse) {
+                            $usedClass = trim((string) preg_replace('/\s+as\s+[A-Za-z0-9_]+/i', '', trim($singleUse)), " \t\n\r\0\x0B\\");
+                            if ($usedClass === '') {
+                                continue;
+                            }
+                            if (isset($fileIndex['class:' . $usedClass])) {
+                                $links[] = ['source' => $relativePath, 'target' => $fileIndex['class:' . $usedClass]];
+                            } elseif (isset($fileIndex['shortclass:' . $usedClass])) {
+                                $links[] = ['source' => $relativePath, 'target' => $fileIndex['shortclass:' . $usedClass]];
+                            }
                         }
                     }
                 }
-                
-                // view('view.name')
-                preg_match_all('/view\([\'"]([^\'"]+)[\'"]/', $content, $matches);
+
+                // view('view.name') or ->layout('components.layouts....')
+                preg_match_all('/(?:view|->layout)\(\s*[\'"]([^\'"]+)[\'"]/', $content, $matches);
                 if (!empty($matches[1])) {
                     foreach ($matches[1] as $viewName) {
                         if (isset($fileIndex['view:' . $viewName])) {
                             $links[] = ['source' => $relativePath, 'target' => $fileIndex['view:' . $viewName]];
+                        }
+                    }
+                }
+
+                // require / require_once __DIR__ . '/...' (e.g. routes/web.php -> routes/partials/*.php)
+                preg_match_all('/(?:require|require_once|include|include_once)\s+__DIR__\s*\.\s*[\'"]([^\'"]+\.php)[\'"]/', $content, $reqMatches);
+                if (!empty($reqMatches[1])) {
+                    $dirRel = dirname($relativePath);
+                    foreach ($reqMatches[1] as $subRel) {
+                        $candRel = ltrim(($dirRel === '.' ? '' : $dirRel . '/') . ltrim($subRel, '/'), '/');
+                        if (File::exists(base_path($candRel))) {
+                            $normRel = str_replace(base_path() . '/', '', realpath(base_path($candRel)) ?: base_path($candRel));
+                            $links[] = ['source' => $relativePath, 'target' => $normRel];
                         }
                     }
                 }
@@ -235,22 +282,31 @@ class GenerateSystemBrainMap extends Command
         
         DB::beginTransaction();
         try {
-            // Prepare link mapping (source -> array of targets)
-            $depsBySource = [];
+            // Prepare bidirectional link mappings (outgoing targets & incoming callers)
+            $outgoingByNode = [];
+            $incomingByNode = [];
             foreach ($uniqueLinks as $link) {
-                if (!isset($depsBySource[$link['source']])) {
-                    $depsBySource[$link['source']] = [];
-                }
-                $depsBySource[$link['source']][] = $link['target'];
+                $outgoingByNode[$link['source']][] = $link['target'];
+                $incomingByNode[$link['target']][] = $link['source'];
             }
 
             $dbRecords = [];
             foreach ($nodes as $node) {
                 $path = base_path($node['path']);
                 $content = file_exists($path) ? file_get_contents($path) : '';
-                
+
+                $outgoing = array_values(array_unique($outgoingByNode[$node['path']] ?? []));
+                $incoming = array_values(array_unique($incomingByNode[$node['path']] ?? []));
+                sort($outgoing);
+                sort($incoming);
+                $allConnected = array_values(array_unique(array_merge($outgoing, $incoming)));
+                sort($allConnected);
+
                 $methods = [];
-                $properties = [];
+                $properties = [
+                    'outgoing_dependencies' => $outgoing,
+                    'incoming_dependents' => $incoming,
+                ];
                 if (isset($node['blueprint']) && is_array($node['blueprint'])) {
                     $properties['blueprint'] = $node['blueprint'];
                 }
@@ -268,7 +324,7 @@ class GenerateSystemBrainMap extends Command
                     'file_path' => $node['path'],
                     'name' => $node['name'],
                     'group_id' => $node['group'],
-                    'dependencies' => json_encode($depsBySource[$node['path']] ?? []),
+                    'dependencies' => json_encode($allConnected),
                     'methods' => json_encode($methods),
                     'properties' => json_encode($properties),
                     'content_hash' => md5($content),

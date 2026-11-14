@@ -140,46 +140,46 @@ Route::group(['middleware' => [function ($request, $next) {
             return $firstClean;
         };
 
-        $validOrdersForTop = OrderOrder::query()
+        $topCustomerRows = OrderOrder::query()
             ->whereNotIn('status', ['cancelled', 'refunded'])
-            ->get(['customer_id', 'email', 'billing_address', 'total_price']);
+            ->where(function ($q) {
+                $q->whereNotNull('customer_id')
+                  ->orWhereRaw("TRIM(COALESCE(email, '')) != ''");
+            })
+            ->selectRaw("COALESCE(NULLIF(customer_id, ''), LOWER(TRIM(email))) as customer_key, SUM(total_price) as total_cents, COUNT(*) as orders_count, MAX(id) as sample_order_id")
+            ->groupByRaw("COALESCE(NULLIF(customer_id, ''), LOWER(TRIM(email)))")
+            ->orderByDesc('total_cents')
+            ->orderByDesc('orders_count')
+            ->limit(3)
+            ->get();
 
-        $groupedCustomers = [];
-        foreach ($validOrdersForTop as $row) {
-            $key = !empty($row->customer_id)
-                ? 'cid_' . $row->customer_id
-                : 'mail_' . mb_strtolower(trim((string) $row->email));
-            if ($key === 'mail_') {
-                continue;
-            }
-            if (!isset($groupedCustomers[$key])) {
-                $billing = is_array($row->billing_address) ? $row->billing_address : [];
-                $groupedCustomers[$key] = [
-                    'display_name' => $formatGdprShortName(
-                        $billing['first_name'] ?? null,
-                        $billing['last_name'] ?? null,
-                        $row->customer_name ?? null
-                    ),
-                    'total_cents' => 0,
-                    'orders_count' => 0,
-                ];
-            }
-            $groupedCustomers[$key]['total_cents'] += (int) $row->total_price;
-            $groupedCustomers[$key]['orders_count']++;
+        $sampleOrderIds = $topCustomerRows->pluck('sample_order_id')->filter()->all();
+        $sampleOrders = !empty($sampleOrderIds)
+            ? OrderOrder::whereIn('id', $sampleOrderIds)
+                ->get(['id', 'billing_address', 'email', 'customer_id'])
+                ->keyBy('id')
+            : collect();
+
+        $topCustomers = [];
+        foreach ($topCustomerRows as $aggRow) {
+            $sample = $sampleOrders->get($aggRow->sample_order_id);
+            $billing = ($sample && is_array($sample->billing_address)) ? $sample->billing_address : [];
+            $topCustomers[] = [
+                'display_name' => $formatGdprShortName(
+                    $billing['first_name'] ?? null,
+                    $billing['last_name'] ?? null,
+                    $sample ? ($sample->customer_name ?? null) : null
+                ),
+                'total_cents' => (int) $aggRow->total_cents,
+                'orders_count' => (int) $aggRow->orders_count,
+            ];
         }
-
-        usort($groupedCustomers, static function (array $a, array $b): int {
-            if ($b['total_cents'] !== $a['total_cents']) {
-                return $b['total_cents'] <=> $a['total_cents'];
-            }
-            return $b['orders_count'] <=> $a['orders_count'];
-        });
 
         $responseData = $orders->toArray();
         $responseData['priority_order'] = $priorityOrderData;
         $responseData['open_orders_count'] = OrderOrder::whereNotIn('status', ['completed', 'cancelled', 'refunded', 'shipped'])->count();
         $responseData['open_carts_count'] = \App\Models\Cart\Cart::whereHas('items')->count();
-        $responseData['top_customers'] = array_slice(array_values($groupedCustomers), 0, 3);
+        $responseData['top_customers'] = $topCustomers;
         $responseData['latest_order_id'] = (string) (OrderOrder::max('id') ?? '');
         
         return response()->json($responseData);
@@ -258,6 +258,13 @@ Route::group(['middleware' => [function ($request, $next) {
         $previousStatus = $order->status;
         $previousPaymentStatus = $order->payment_status;
 
+        if (in_array($previousStatus, ['cancelled', 'refunded'], true) && !in_array($data['status'], ['cancelled', 'refunded'], true)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Stornierte oder erstattete Bestellungen können nicht reaktiviert werden.',
+            ], 422);
+        }
+
         // Geschäftslogische Rückabwicklung bei Stornierung oder Erstattung:
         // Vor dem Überschreiben von $order->status ausführen, damit handleCancellation() nicht am eigenen Früh-Exit scheitert.
         if (in_array($data['status'], ['cancelled', 'refunded'], true) && !in_array($previousStatus, ['cancelled', 'refunded'], true)) {
@@ -320,67 +327,74 @@ Route::group(['middleware' => [function ($request, $next) {
     });
 
     // --- FUNKENWERK NETZWERK-LABELDRUCKER (MUNBYN ITPP941AP) QUEUE API ---
+    $registerPrinterQueueRoutes = static function (string $prefix): void {
+        Route::prefix($prefix)->middleware('throttle:120,1')->group(function () {
+            Route::get('/jobs', function (Request $request, \App\Services\System\FunkenwerkPrintService $printService) {
+                $includePdf = $request->boolean('include_pdf', true);
+                return response()->json([
+                    'success' => true,
+                    'data' => $printService->getQueueState($includePdf),
+                ])->withHeaders([
+                    'Cache-Control' => 'no-store, no-cache, must-revalidate, private',
+                    'X-Content-Type-Options' => 'nosniff',
+                ]);
+            });
+
+            Route::post('/jobs/test', function (Request $request, \App\Services\System\FunkenwerkPrintService $printService) {
+                $data = $request->validate([
+                    'printer_ip' => 'nullable|string|max:45',
+                ]);
+                $ip = \App\Services\System\FunkenwerkPrintService::sanitizePrivateLanIp($data['printer_ip'] ?? '192.168.188.149');
+                $job = $printService->enqueueTestLabel($ip);
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Test-Label in die Funkenwerk-Druckwarteschlange eingereiht.',
+                    'job' => $job,
+                ])->withHeaders(['Cache-Control' => 'no-store, private']);
+            });
+
+            Route::post('/jobs/clear', function (Request $request, \App\Services\System\FunkenwerkPrintService $printService) {
+                $printService->clearQueue($request->boolean('include_pending', false));
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Druck-Historie bereinigt.',
+                ])->withHeaders(['Cache-Control' => 'no-store, private']);
+            });
+
+            Route::post('/jobs/{jobId}/ack', function (Request $request, string $jobId, \App\Services\System\FunkenwerkPrintService $printService) {
+                $data = $request->validate([
+                    'status' => 'required|string|in:completed,failed,printing',
+                    'error_message' => 'nullable|string|max:500',
+                    'printer_ip' => 'nullable|string|max:45',
+                ]);
+
+                $job = $printService->acknowledgeJob(
+                    $jobId,
+                    $data['status'],
+                    $data['error_message'] ?? null,
+                    $data['printer_ip'] ?? null
+                );
+
+                return response()->json([
+                    'success' => $job !== null,
+                    'job' => $job,
+                ], $job !== null ? 200 : 404)->withHeaders(['Cache-Control' => 'no-store, private']);
+            })->whereUuid('jobId');
+
+            Route::post('/jobs/{jobId}/requeue', function (string $jobId, \App\Services\System\FunkenwerkPrintService $printService) {
+                $job = $printService->requeueJob($jobId);
+                return response()->json([
+                    'success' => $job !== null,
+                    'job' => $job,
+                ], $job !== null ? 200 : 404)->withHeaders(['Cache-Control' => 'no-store, private']);
+            })->whereUuid('jobId');
+        });
+    };
+
+    $registerPrinterQueueRoutes('printer');
+    $registerPrinterQueueRoutes('funki/printer');
+
     Route::middleware('throttle:120,1')->group(function () {
-        Route::get('/printer/jobs', function (Request $request, \App\Services\System\FunkenwerkPrintService $printService) {
-            $includePdf = $request->boolean('include_pdf', true);
-            return response()->json([
-                'success' => true,
-                'data' => $printService->getQueueState($includePdf),
-            ])->withHeaders([
-                'Cache-Control' => 'no-store, no-cache, must-revalidate, private',
-                'X-Content-Type-Options' => 'nosniff',
-            ]);
-        });
-
-        Route::post('/printer/jobs/test', function (Request $request, \App\Services\System\FunkenwerkPrintService $printService) {
-            $data = $request->validate([
-                'printer_ip' => 'nullable|string|max:45',
-            ]);
-            $ip = \App\Services\System\FunkenwerkPrintService::sanitizePrivateLanIp($data['printer_ip'] ?? '192.168.188.149');
-            $job = $printService->enqueueTestLabel($ip);
-            return response()->json([
-                'success' => true,
-                'message' => 'Test-Label in die Funkenwerk-Druckwarteschlange eingereiht.',
-                'job' => $job,
-            ])->withHeaders(['Cache-Control' => 'no-store, private']);
-        });
-
-        Route::post('/printer/jobs/clear', function (Request $request, \App\Services\System\FunkenwerkPrintService $printService) {
-            $printService->clearQueue($request->boolean('include_pending', false));
-            return response()->json([
-                'success' => true,
-                'message' => 'Druck-Historie bereinigt.',
-            ])->withHeaders(['Cache-Control' => 'no-store, private']);
-        });
-
-        Route::post('/printer/jobs/{jobId}/ack', function (Request $request, string $jobId, \App\Services\System\FunkenwerkPrintService $printService) {
-            $data = $request->validate([
-                'status' => 'required|string|in:completed,failed,printing',
-                'error_message' => 'nullable|string|max:500',
-                'printer_ip' => 'nullable|string|max:45',
-            ]);
-
-            $job = $printService->acknowledgeJob(
-                $jobId,
-                $data['status'],
-                $data['error_message'] ?? null,
-                $data['printer_ip'] ?? null
-            );
-
-            return response()->json([
-                'success' => $job !== null,
-                'job' => $job,
-            ], $job !== null ? 200 : 404)->withHeaders(['Cache-Control' => 'no-store, private']);
-        })->whereUuid('jobId');
-
-        Route::post('/printer/jobs/{jobId}/requeue', function (string $jobId, \App\Services\System\FunkenwerkPrintService $printService) {
-            $job = $printService->requeueJob($jobId);
-            return response()->json([
-                'success' => $job !== null,
-                'job' => $job,
-            ], $job !== null ? 200 : 404)->withHeaders(['Cache-Control' => 'no-store, private']);
-        })->whereUuid('jobId');
-
         Route::post('/shop/orders/{id}/print-label', function (string $id, \App\Services\System\FunkenwerkPrintService $printService) {
             try {
                 $order = OrderOrder::with(['items.product', 'shipments'])->findOrFail($id);

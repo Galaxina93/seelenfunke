@@ -33,5 +33,9 @@ crash.log
 /funkenwerk-*/obj/
 __pycache__/
 *.pyc
+/storage/app/private/releases/
+*.jks
+*.keystore
+keystore.properties
 
 

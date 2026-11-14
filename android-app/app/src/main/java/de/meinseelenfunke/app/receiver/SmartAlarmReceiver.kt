@@ -16,6 +16,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -55,7 +56,10 @@ class SmartAlarmReceiver : BroadcastReceiver() {
                 val target = FunkenwerkAlarmManager.alarmsFlow.value.find { it.id == alarmId }
                 if (target != null && target.isEnabled) {
                     FunkenwerkAlarmManager.toggleAlarm(context, alarmId)
-                    pushPackageToBackendAsync(context)
+                    val appCtx = context.applicationContext
+                    runReceiverAsync {
+                        syncPackageSuspend(appCtx)
+                    }
                 } else {
                     FunkenwerkAlarmManager.updateActiveAlarmStatusNotification(context)
                 }
@@ -95,7 +99,10 @@ class SmartAlarmReceiver : BroadcastReceiver() {
                     scheduledTime = scheduledTime,
                     actualWakeTime = actualWakeTime
                 )
-                pushPackageToBackendAsync(context)
+                val appCtx = context.applicationContext
+                runReceiverAsync {
+                    syncPackageSuspend(appCtx)
+                }
                 return
             }
 
@@ -104,7 +111,10 @@ class SmartAlarmReceiver : BroadcastReceiver() {
                 FunkenwerkAlarmManager.stopAlarmSound(context)
                 notificationManager.cancel(alarmId.hashCode())
                 FunkenwerkAlarmManager.scheduleSnoozeAlarm(context, alarmId, alarmLabel, scheduledTime, snoozeMins)
-                pushPackageToBackendAsync(context)
+                val appCtx = context.applicationContext
+                runReceiverAsync {
+                    syncPackageSuspend(appCtx)
+                }
                 return
             }
 
@@ -146,12 +156,7 @@ class SmartAlarmReceiver : BroadcastReceiver() {
                     customTrackId = customTrackId
                 )
 
-                // 2. Trigger Smart-Home Wi-Fi Plugs if enabled
-                if (triggerPlugs && plugIps.isNotEmpty()) {
-                    FunkenwerkAlarmManager.triggerSmartPlugsAsync(context, plugIps, turnOn = true)
-                }
-
-                // 3. Record wake-up log & sync to /admin/routine if enabled
+                // 2. Record wake-up log
                 val actualWakeTime = SimpleDateFormat("HH:mm", Locale.GERMANY).format(Date())
                 FunkenwerkAlarmManager.recordWakeUpLog(
                     context = context,
@@ -160,8 +165,19 @@ class SmartAlarmReceiver : BroadcastReceiver() {
                     plugsTriggered = triggerPlugs && plugIps.isNotEmpty(),
                     aiBriefingSpoken = aiBriefing
                 )
-                if (syncRoutine) {
-                    pushPackageToBackendAsync(context)
+
+                // 3. Execute Smart-Home Wi-Fi Plugs & Routine Sync under goAsync() so Doze never kills coroutines mid-flight
+                val shouldSwitchPlugs = triggerPlugs && plugIps.isNotEmpty()
+                if (shouldSwitchPlugs || syncRoutine) {
+                    val appCtx = context.applicationContext
+                    runReceiverAsync {
+                        if (shouldSwitchPlugs) {
+                            FunkenwerkAlarmManager.triggerSmartPlugsSuspend(appCtx, plugIps, turnOn = true)
+                        }
+                        if (syncRoutine) {
+                            syncPackageSuspend(appCtx)
+                        }
+                    }
                 }
 
                 // 4. Reschedule next repeating alarm occurrence
@@ -216,7 +232,7 @@ class SmartAlarmReceiver : BroadcastReceiver() {
                 )
 
                 val subInfo = buildList {
-                    if (triggerPlugs && plugIps.isNotEmpty()) add("⚡ ${plugIps.size} Steckdose(n) EIN")
+                    if (shouldSwitchPlugs) add("⚡ ${plugIps.size} Steckdose(n) EIN")
                     if (aiBriefing) add("🎙️ KI-Briefing aktiv")
                     if (syncRoutine) add("🔄 Routine-Sync")
                 }.joinToString(" · ").ifBlank { "Guten Morgen!" }
@@ -242,15 +258,31 @@ class SmartAlarmReceiver : BroadcastReceiver() {
         }
     }
 
-    private fun pushPackageToBackendAsync(context: Context) {
-        FunkenwerkAlarmManager.pushAlarmPackageToAllEndpointsAsync(context)
+    private fun runReceiverAsync(block: suspend () -> Unit) {
+        val pendingResult = try { goAsync() } catch (_: Exception) { null }
         scope.launch {
             try {
-                ServiceLocator.ensureInitialized(context.applicationContext)
-                ServiceLocator.organizerRepository.syncAlarmPackageToPortal(context.applicationContext)
+                withTimeoutOrNull(8_500L) {
+                    block()
+                }
             } catch (e: Exception) {
-                Log.e(TAG, "Background alarm sync failed")
+                Log.e(TAG, "Async receiver work failed", e)
+            } finally {
+                try {
+                    pendingResult?.finish()
+                } catch (_: Exception) {
+                }
             }
+        }
+    }
+
+    private suspend fun syncPackageSuspend(appCtx: Context) {
+        ServiceLocator.ensureInitialized(appCtx)
+        FunkenwerkAlarmManager.pushAlarmPackageToConfiguredEndpoint(appCtx)
+        try {
+            ServiceLocator.organizerRepository.syncAlarmPackageToPortal(appCtx)
+        } catch (e: Exception) {
+            Log.e(TAG, "Background alarm sync failed")
         }
     }
 }

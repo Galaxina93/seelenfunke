@@ -251,7 +251,11 @@ class FetchMailsCommand extends Command
 
             } catch (\Throwable $e) {
                 $failedAccounts++;
-                Log::error("IMAP Fetch failed for {$account->email}: " . $e->getMessage(), ['exception' => $e]);
+                $throttleKey = 'imap_fetch_error_logged_' . $account->id;
+                if (!\Illuminate\Support\Facades\Cache::has($throttleKey)) {
+                    \Illuminate\Support\Facades\Cache::put($throttleKey, true, now()->addMinutes(60));
+                    Log::error("IMAP Fetch failed for {$account->email}: " . $e->getMessage(), ['exception' => $e]);
+                }
                 $this->error("FEHLER beim Abruf von {$account->email}: " . $e->getMessage());
 
                 $account->update(['status' => 'error']);

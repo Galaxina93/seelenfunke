@@ -826,4 +826,297 @@ class OrderProductionBatchService
 
         return $item->resolveDisplayImageUrl();
     }
+
+    public static function statusLabelDe(string $status): string
+    {
+        return match ($status) {
+            'pending' => 'Wartend',
+            'processing' => 'In Bearbeitung',
+            'shipped' => 'Versendet',
+            'completed' => 'Abgeschlossen',
+            'cancelled' => 'Storniert',
+            'refunded' => 'Erstattet',
+            'failed' => 'Fehlgeschlagen',
+            default => $status,
+        };
+    }
+
+    /**
+     * Berechnet den nächsten Wiedervorlage-Zeitpunkt für den Werkstatt-Check-in (100% identisch für Manuell & KI).
+     *
+     * @return array{next_check_at: \Carbon\Carbon|null, paused: bool, mode_label: string}
+     */
+    public static function resolveNextWorkshopCheckinAt(
+        string $mode = '2h',
+        ?\Carbon\CarbonInterface $now = null,
+        ?int $customMinutes = null
+    ): array {
+        $base = ($now ? \Carbon\Carbon::instance($now) : now())->copy()->timezone('Europe/Berlin');
+        $normalized = strtolower(trim($mode));
+
+        if (in_array($normalized, ['pause', 'paused', 'none', 'off'], true)) {
+            return [
+                'next_check_at' => null,
+                'paused' => true,
+                'mode_label' => 'Check-in pausiert',
+            ];
+        }
+
+        if (in_array($normalized, ['tomorrow', 'waiting_customer', 'waiting_supplier', 'next_workday'], true)) {
+            $next = $base->copy()->addDay()->setTime(9, 30, 0);
+            while ($next->isWeekend()) {
+                $next->addDay();
+            }
+            return [
+                'next_check_at' => $next->timezone(config('app.timezone', 'Europe/Berlin')),
+                'paused' => false,
+                'mode_label' => 'Nächster Werktag 09:30 Uhr',
+            ];
+        }
+
+        if ($normalized === '1h' || $normalized === '60m') {
+            return [
+                'next_check_at' => $base->copy()->addMinutes(60)->timezone(config('app.timezone', 'Europe/Berlin')),
+                'paused' => false,
+                'mode_label' => 'In 1 Std.',
+            ];
+        }
+
+        if ($normalized === 'custom_minutes' && $customMinutes !== null) {
+            $mins = max(15, min(4320, $customMinutes));
+            return [
+                'next_check_at' => $base->copy()->addMinutes($mins)->timezone(config('app.timezone', 'Europe/Berlin')),
+                'paused' => false,
+                'mode_label' => 'In ' . $mins . ' Min.',
+            ];
+        }
+
+        return [
+            'next_check_at' => $base->copy()->addMinutes(120)->timezone(config('app.timezone', 'Europe/Berlin')),
+            'paused' => false,
+            'mode_label' => 'In 2 Std.',
+        ];
+    }
+
+    /**
+     * Erkennt Status-Abweichungen zwischen realem Werkstatt-Stand / Fertigungsfortschritt und dem Bestellstatus.
+     * Ändert NIEMALS eigenmächtig den Status, sondern liefert einen klaren Vorschlag für Alina (Manuell & KI).
+     *
+     * @return array{
+     *     has_discrepancy: bool,
+     *     discrepancy_code: string|null,
+     *     suggested_status: string|null,
+     *     suggested_status_label: string|null,
+     *     ui_hint: string|null,
+     *     ask_alina_prompt: string|null
+     * }
+     */
+    public function evaluateOrderStatusDiscrepancy(
+        OrderOrder $order,
+        ?array $analysis = null,
+        ?string $latestNoteOverride = null
+    ): array {
+        $empty = [
+            'has_discrepancy' => false,
+            'discrepancy_code' => null,
+            'suggested_status' => null,
+            'suggested_status_label' => null,
+            'ui_hint' => null,
+            'ask_alina_prompt' => null,
+        ];
+
+        $status = (string) $order->status;
+        if (!in_array($status, ['pending', 'processing'], true)) {
+            return $empty;
+        }
+
+        $a = $analysis ?? $this->analyzeOrder($order);
+        if (empty($a['is_paid'])) {
+            return $empty;
+        }
+
+        $note = trim((string) ($latestNoteOverride ?? $order->workshop_note ?? ''));
+        $noteLower = mb_strtolower($note);
+        $totalItems = (int) ($a['total_items_count'] ?? 0);
+        $completedItems = max(0, $totalItems - (int) ($a['incomplete_items_count'] ?? 0));
+        $hasShipmentAny = $order->relationLoaded('shipments')
+            ? $order->shipments->isNotEmpty()
+            : $order->shipments()->exists();
+        $hasDhlLabel = !empty($a['has_printable_label']) || $hasShipmentAny;
+        $statusLabel = self::statusLabelDe($status);
+        $ordNo = '#' . $order->order_number;
+
+        // 1. Alle physischen Positionen abgehakt + DHL-Label vorhanden, Status aber noch pending/processing
+        if ($totalItems > 0 && $completedItems >= $totalItems && empty($a['is_only_digital']) && $hasDhlLabel) {
+            return [
+                'has_discrepancy' => true,
+                'discrepancy_code' => 'ready_for_shipped',
+                'suggested_status' => 'shipped',
+                'suggested_status_label' => 'Versendet',
+                'ui_hint' => "Alle Positionen abgehakt und DHL-Label erstellt, Status steht noch auf „{$statusLabel}“.",
+                'ask_alina_prompt' => "Mir ist bei {$ordNo} aufgefallen: Alle Positionen sind abgehakt und das DHL-Label ist bereits erstellt, der Status steht aber noch auf '{$statusLabel}'. Soll ich die Bestellung jetzt für dich auf 'Versendet' umstellen (dann geht auch die Versandmail an den Kunden raus), oder liegt das Paket noch am Packtisch?",
+            ];
+        }
+
+        // 2. Rein digitale bezahlte Bestellung steht noch auf pending/processing
+        if (!empty($a['is_only_digital']) && $status !== 'completed') {
+            return [
+                'has_discrepancy' => true,
+                'discrepancy_code' => 'digital_ready_for_completed',
+                'suggested_status' => 'completed',
+                'suggested_status_label' => 'Abgeschlossen',
+                'ui_hint' => "Bezahlte Digital-Bestellung steht noch auf „{$statusLabel}“.",
+                'ask_alina_prompt' => "Mir ist bei {$ordNo} aufgefallen: Es ist eine bezahlte Digital-Bestellung, der Status steht aber noch auf '{$statusLabel}'. Soll ich den Status für dich auf 'Abgeschlossen' stellen?",
+            ];
+        }
+
+        $isWaitingNote = $note !== '' && (bool) preg_match(
+            '/(warte\s+auf|rückfrage|rueckfrage|kundenfoto|foto\s+fehlt|kunde\s+meldet|lieferant|rohling\s+bestellt|rohling\s+fehlt|nachbestell)/iu',
+            $noteLower
+        );
+
+        // 3. Aktive Bearbeitung läuft (Positionen angearbeitet oder aktiver Werkstatt-Stand), Status steht noch auf 'pending' (Wartend)
+        if ($status === 'pending' && ($completedItems > 0 || ($note !== '' && !$isWaitingNote))) {
+            return [
+                'has_discrepancy' => true,
+                'discrepancy_code' => 'active_work_while_pending',
+                'suggested_status' => 'processing',
+                'suggested_status_label' => 'In Bearbeitung',
+                'ui_hint' => 'Fertigung gestartet, Status steht noch auf „Wartend“.',
+                'ask_alina_prompt' => "Mir ist aufgefallen, {$ordNo} steht im System noch auf 'Wartend', obwohl du daran arbeitest. Soll ich den Status für dich auf 'In Bearbeitung' anpassen?",
+            ];
+        }
+
+        // 4. Auftrag wartet auf Kunden-Rückmeldung / Foto / Lieferant, Status steht aber auf 'processing' (In Bearbeitung)
+        if ($status === 'processing' && (!empty($a['photo_issue_items']) || $isWaitingNote)) {
+            return [
+                'has_discrepancy' => true,
+                'discrepancy_code' => 'waiting_block_while_processing',
+                'suggested_status' => 'pending',
+                'suggested_status_label' => 'Wartend',
+                'ui_hint' => 'Wartet auf Rückmeldung oder Zulieferung, Status steht aktuell auf „In Bearbeitung“.',
+                'ask_alina_prompt' => "Mir ist aufgefallen, bei {$ordNo} wartest du aktuell auf eine Rückmeldung oder Zulieferung, der Status steht aber auf 'In Bearbeitung'. Soll ich ihn solange zurück auf 'Wartend' stellen oder auf 'In Bearbeitung' lassen?",
+            ];
+        }
+
+        return $empty;
+    }
+
+    /**
+     * Erzeugt einen Zero-PII Check-in-Snapshot für die aktuell wichtigste offene Bestellung (oder einen gezielten Auftrag).
+     * Dient sowohl dem manuellen Werkstatt-Überblick als auch Funkiras 2-Stunden-Rückfrage auf dem Mini-PC.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function buildWorkshopCheckinSnapshot(
+        ?OrderOrder $specificOrder = null,
+        ?\Carbon\CarbonInterface $now = null
+    ): ?array {
+        $nowRef = ($now ? \Carbon\Carbon::instance($now) : now())->copy();
+
+        $order = $specificOrder;
+        $analysis = null;
+
+        if (!$order) {
+            $openOrders = OrderOrder::with(['items.product.supplier', 'shipments'])
+                ->whereIn('status', ['pending', 'processing'])
+                ->get();
+
+            if ($openOrders->isEmpty()) {
+                return null;
+            }
+
+            $queue = $this->buildSmartQueue($openOrders);
+            /** @var OrderOrder|null $order */
+            $order = $queue['priority_order'] ?? null;
+            if (!$order) {
+                return null;
+            }
+            $analysis = $queue['analyses'][(string) $order->id] ?? null;
+        } else {
+            $order->loadMissing(['items.product.supplier', 'shipments']);
+        }
+
+        $a = $analysis ?? $this->analyzeOrder($order);
+        $totalItems = (int) ($a['total_items_count'] ?? 0);
+        $completedItems = max(0, $totalItems - (int) ($a['incomplete_items_count'] ?? 0));
+        $hasShipmentAny = $order->relationLoaded('shipments')
+            ? $order->shipments->isNotEmpty()
+            : $order->shipments()->exists();
+        $hasDhlLabel = !empty($a['has_printable_label']) || $hasShipmentAny;
+
+        $productParts = [];
+        foreach ($order->items->take(3) as $item) {
+            $pName = trim((string) ($item->product_name ?: ($item->product->name ?? 'Artikel')));
+            $productParts[] = ((int) $item->quantity) . 'x ' . $pName;
+        }
+        if ($order->items->count() > 3) {
+            $productParts[] = '+' . ($order->items->count() - 3) . ' weitere';
+        }
+        $productSummary = implode(', ', $productParts);
+
+        $note = trim((string) ($order->workshop_note ?? ''));
+        $paused = (bool) ($order->workshop_checkin_paused ?? false);
+        $discrepancy = $this->evaluateOrderStatusDiscrepancy($order, $a, $note);
+
+        $isOpen = in_array((string) $order->status, ['pending', 'processing'], true);
+        $isPaid = !empty($a['is_paid']);
+        $ageMinutes = $order->created_at ? (int) $order->created_at->diffInMinutes($nowRef) : 0;
+        $initialThresholdMin = $order->is_express ? 10 : 30;
+
+        $isCheckinDue = false;
+        $checkinReason = 'none';
+
+        if ($isOpen && $isPaid && !$paused) {
+            if ($order->workshop_next_check_at !== null && $nowRef->gte($order->workshop_next_check_at)) {
+                $isCheckinDue = true;
+                $checkinReason = 'followup_due';
+            } elseif ($discrepancy['has_discrepancy'] && ($order->workshop_next_check_at === null || $nowRef->gte($order->workshop_next_check_at))) {
+                $isCheckinDue = true;
+                $checkinReason = 'status_discrepancy';
+            } elseif ($note === '' && $order->workshop_next_check_at === null && $ageMinutes >= $initialThresholdMin) {
+                $isCheckinDue = true;
+                $checkinReason = 'initial_open';
+            }
+        }
+
+        $updatedKey = $order->workshop_note_updated_at ? $order->workshop_note_updated_at->format('YmdHis') : 'none';
+        $nextKey = $order->workshop_next_check_at ? $order->workshop_next_check_at->format('YmdHis') : 'none';
+        $discKey = $discrepancy['discrepancy_code'] ?? 'ok';
+        $stateKey = "{$order->order_number}|{$order->status}|{$updatedKey}|{$nextKey}|{$discKey}";
+
+        return [
+            'order_id' => (string) $order->id,
+            'order_number' => (string) $order->order_number,
+            'status' => (string) $order->status,
+            'status_label_de' => self::statusLabelDe((string) $order->status),
+            'payment_status' => (string) $order->payment_status,
+            'is_express' => (bool) $order->is_express,
+            'product_summary' => $productSummary,
+            'items_total' => $totalItems,
+            'items_completed' => $completedItems,
+            'has_dhl_label' => $hasDhlLabel,
+            'stage' => (string) ($a['stage'] ?? ''),
+            'workshop_note' => $note,
+            'workshop_note_updated_at' => $order->workshop_note_updated_at
+                ? $order->workshop_note_updated_at->copy()->timezone('Europe/Berlin')->format('d.m. H:i')
+                : null,
+            'workshop_next_check_at' => $order->workshop_next_check_at
+                ? $order->workshop_next_check_at->copy()->timezone('Europe/Berlin')->format('d.m. H:i')
+                : null,
+            'workshop_next_check_iso' => $order->workshop_next_check_at
+                ? $order->workshop_next_check_at->toIso8601String()
+                : null,
+            'workshop_checkin_paused' => $paused,
+            'is_checkin_due' => $isCheckinDue,
+            'checkin_reason' => $checkinReason,
+            'has_discrepancy' => (bool) $discrepancy['has_discrepancy'],
+            'discrepancy_code' => $discrepancy['discrepancy_code'],
+            'suggested_status' => $discrepancy['suggested_status'],
+            'suggested_status_label' => $discrepancy['suggested_status_label'],
+            'discrepancy_ui_hint' => $discrepancy['ui_hint'],
+            'ask_alina_prompt' => $discrepancy['ask_alina_prompt'],
+            'checkin_state_key' => $stateKey,
+        ];
+    }
 }

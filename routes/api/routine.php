@@ -433,9 +433,14 @@ Route::prefix('funki/routine')->group(function () {
         ]);
     })->middleware('throttle:30,1');
 
-    Route::match(['get', 'post'], '/morning-briefing-tts', function (Request $request) {
-        $text = trim((string) $request->input('text', ''));
-        $voice = trim((string) $request->input('voice', 'Aoede')) ?: 'Aoede';
+    Route::post('/morning-briefing-tts', function (Request $request) {
+        $validated = $request->validate([
+            'text' => 'nullable|string|max:1200',
+            'voice' => 'nullable|string|max:40',
+        ]);
+
+        $text = trim((string) ($validated['text'] ?? ''));
+        $voice = trim((string) ($validated['voice'] ?? 'Aoede')) ?: 'Aoede';
         if ($text === '') {
             $timeStr = Carbon::now('Europe/Berlin')->format('H:i');
             $text = "Guten Morgen Alina! Es ist {$timeStr} Uhr. Dein Seelenfunke Fokus-Start Wecker ist aktiv. Starte entspannt und erfolgreich in deinen Tag!";
@@ -449,7 +454,7 @@ Route::prefix('funki/routine')->group(function () {
             'text' => $text,
             'audio_base64' => $wavBase64,
         ]);
-    });
+    })->middleware('throttle:20,1');
 
     Route::post('/alarm-sync', function (Request $request) use ($defaultAlarmPackage) {
         $raw = SystemSetting::where('key', 'funki_alarm_sync_package')->value('value');

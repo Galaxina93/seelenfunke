@@ -84,6 +84,20 @@ trait handleProfilesTrait
         if ($this->guard === 'customer') {
             $this->isBusiness = $this->user->profile->is_business ?? 0;
             $this->birthday = $this->user->profile->birthday ? \Carbon\Carbon::parse($this->user->profile->birthday)->format('Y-m-d') : '';
+
+            if (property_exists($this, 'marketingConsent') && $this->user instanceof \App\Models\Customer\Customer) {
+                $this->marketingConsent = $this->user->hasMarketingConsent();
+                if ($this->marketingConsent) {
+                    $sub = MarketingNewsletterSubscriber::whereRaw('LOWER(email) = ?', [mb_strtolower(trim((string) $this->user->email))])
+                        ->where('is_verified', true)
+                        ->first();
+                    $this->marketingConsentAt = !empty($sub?->verified_at)
+                        ? \Carbon\Carbon::parse($sub->verified_at)->format('d.m.Y H:i')
+                        : null;
+                } else {
+                    $this->marketingConsentAt = null;
+                }
+            }
         }
 
         $this->aiDataConsent = (bool) ($this->user->profile->ai_data_consent ?? false);
@@ -137,6 +151,9 @@ trait handleProfilesTrait
         if ($this->guard === 'customer') {
             $rules['isBusiness'] = 'required|boolean';
             $rules['birthday'] = 'nullable|date';
+            if (property_exists($this, 'marketingConsent')) {
+                $rules['marketingConsent'] = 'boolean';
+            }
         }
 
         $validatedData = $this->validate($rules);
@@ -177,6 +194,10 @@ trait handleProfilesTrait
         }
         $oldData['ai_data_consent'] = (bool) ($this->user->profile->ai_data_consent ?? false);
 
+        $oldMarketingConsent = ($this->guard === 'customer' && $this->user instanceof \App\Models\Customer\Customer)
+            ? $this->user->hasMarketingConsent()
+            : false;
+
         $emailChanged = $this->user->email !== $validatedData['email'];
         $this->user->first_name = $validatedData['firstName'];
         $this->user->last_name = $validatedData['lastName'];
@@ -184,12 +205,20 @@ trait handleProfilesTrait
 
         // Sicherheitsmaßnahme: Bei Änderung der Kunden-E-Mail Verifizierung zurücksetzen und neuen Bestätigungslink senden
         if ($emailChanged && $this->guard === 'customer') {
+            if (!empty($oldData['email'])) {
+                MarketingNewsletterSubscriber::whereRaw('LOWER(email) = ?', [mb_strtolower(trim((string) $oldData['email']))])->delete();
+            }
             $this->user->email_verified_at = null;
             if ($this->user->profile) {
                 $this->user->profile->email_verified_at = null;
                 $this->user->profile->save();
             }
             $this->user->save();
+            if (property_exists($this, 'marketingConsent') && (bool) $this->marketingConsent && $this->user instanceof \App\Models\Customer\Customer) {
+                $this->user->updateMarketingConsent(true, 'profile_email_change');
+                $this->marketingConsent = false;
+                $this->marketingConsentAt = null;
+            }
             try {
                 if (method_exists($this->user, 'sendEmailVerificationNotification')) {
                     $this->user->sendEmailVerificationNotification();
@@ -231,6 +260,24 @@ trait handleProfilesTrait
         } else {
             session()->forget('ai_chat_privacy_accepted');
             $this->aiDataConsentAt = null;
+        }
+
+        if (!$emailChanged && $this->guard === 'customer' && property_exists($this, 'marketingConsent') && $this->user instanceof \App\Models\Customer\Customer) {
+            $desiredMarketingConsent = (bool) $this->marketingConsent;
+            if ($oldMarketingConsent !== $desiredMarketingConsent) {
+                $this->user->updateMarketingConsent($desiredMarketingConsent, 'profile_save');
+            }
+            $this->marketingConsent = $this->user->hasMarketingConsent();
+            if ($this->marketingConsent) {
+                $sub = MarketingNewsletterSubscriber::whereRaw('LOWER(email) = ?', [mb_strtolower(trim((string) $this->user->email))])
+                    ->where('is_verified', true)
+                    ->first();
+                $this->marketingConsentAt = !empty($sub?->verified_at)
+                    ? \Carbon\Carbon::parse($sub->verified_at)->format('d.m.Y H:i')
+                    : now()->format('d.m.Y H:i');
+            } else {
+                $this->marketingConsentAt = null;
+            }
         }
 
         // Erfasse den Zustand NACH dem Update für das Delta

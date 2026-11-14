@@ -5,12 +5,9 @@
         
         {{-- HEADER / TITLE --}}
         <div class="bg-white/80 dark:bg-gray-900/80 backdrop-blur-md rounded-[2rem] sm:rounded-[3rem] shadow-sm dark:shadow-2xl border border-gray-200 dark:border-gray-800 relative overflow-hidden mb-8 sm:mb-12 group transition-all duration-500 p-6 sm:p-10 flex flex-col justify-center text-center">
-            <h2 class="font-serif font-bold text-3xl sm:text-4xl text-gray-900 dark:text-white mb-3 tracking-tight">
+            <h2 class="font-serif font-bold text-3xl sm:text-4xl text-gray-900 dark:text-white tracking-tight">
                 Verlassene Warenkörbe
             </h2>
-            <p class="text-gray-600 dark:text-gray-400 text-sm sm:text-base font-medium leading-relaxed max-w-2xl mx-auto">
-                Behalte die Übersicht über abgebrochene oder pausierte Einkaufsprozesse. Sende Zahlungserinnerungen, passe Mengen an oder lösche blockierte Körbe.
-            </p>
             
             {{-- LEGENDE --}}
             <div class="mt-6 flex flex-wrap items-center justify-center gap-4 sm:gap-6 text-xs sm:text-sm text-gray-600 dark:text-gray-300 font-medium">
@@ -87,13 +84,13 @@
                             <input type="number" wire:model.defer="cartRedLimit" min="1" class="w-full bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-xl px-3 py-2 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-red-500/50 outline-none transition-all shadow-none dark:shadow-inner">
                         </div>
                         <div class="pt-2 border-t border-gray-100 dark:border-gray-800">
-                            <label class="flex items-start gap-2.5 cursor-pointer">
-                                <input type="checkbox" wire:model.defer="cartRequireConsent" class="mt-0.5 rounded border-gray-300 text-[var(--theme-color)] focus:ring-[var(--theme-color)] dark:border-gray-700 dark:bg-gray-950">
-                                <span class="text-xs text-gray-700 dark:text-gray-300">
-                                    <strong class="block text-gray-900 dark:text-white">Rechtssicherheits-Filter</strong>
-                                    <span class="block text-[10px] text-gray-500 mt-0.5 leading-normal">Automatischer Cronjob sendet nur bei verifiziertem Werbe-Opt-In (§ 7 Abs. 2 UWG / DSGVO)</span>
-                                </span>
-                            </label>
+                            <div class="flex items-center justify-between gap-2">
+                                <label class="flex items-center gap-2.5 cursor-pointer">
+                                    <input type="checkbox" wire:model.defer="cartRequireConsent" class="rounded border-gray-300 text-[var(--theme-color)] focus:ring-[var(--theme-color)] dark:border-gray-700 dark:bg-gray-950">
+                                    <span class="text-xs font-bold text-gray-900 dark:text-white">Rechtssicherheits-Filter</span>
+                                </label>
+                                <span class="w-4 h-4 rounded-full bg-gray-100 dark:bg-gray-800 text-[10px] font-bold text-gray-500 dark:text-gray-300 inline-flex items-center justify-center cursor-help" title="Automatischer Versand nur bei verifiziertem Werbe-Opt-In (§ 7 Abs. 2 UWG / DSGVO)">!</span>
+                            </div>
                         </div>
                         <button wire:click="saveSettings" @click="open = false" class="w-full py-2.5 mt-2 bg-[var(--theme-color-10)] text-[var(--theme-color)] hover:bg-[var(--theme-color-20)] border border-[var(--theme-color-30)] rounded-xl text-xs font-bold transition-colors">
                             Speichern

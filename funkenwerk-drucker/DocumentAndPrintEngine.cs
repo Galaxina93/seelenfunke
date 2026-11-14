@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Printing;
 using System.Text;
@@ -24,10 +25,89 @@ namespace FunkenwerkDrucker
 {
     public static class DocumentAndPrintEngine
     {
+        public const long MaxPdfInputBytes = 256L * 1024L * 1024L;   // 256 MB cap
+        public const long MaxImageInputBytes = 64L * 1024L * 1024L;  // 64 MB cap
+
+        private static readonly HashSet<string> ReservedWindowsNames = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "CON", "PRN", "AUX", "NUL",
+            "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+            "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"
+        };
+
         public static readonly string[] SupportedExtensions =
         {
             ".pdf", ".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff"
         };
+
+        public static string SanitizeSafeFileStem(string? rawTitle, string fallback = "Funkenwerk_Dokument")
+        {
+            if (string.IsNullOrWhiteSpace(rawTitle))
+                return fallback;
+
+            char[] invalid = IOPath.GetInvalidFileNameChars();
+            var sb = new StringBuilder(rawTitle.Length);
+            foreach (char c in rawTitle)
+            {
+                if (char.IsControl(c) || c == '/' || c == '\\' || c == ':' || Array.IndexOf(invalid, c) >= 0)
+                {
+                    sb.Append('_');
+                }
+                else
+                {
+                    sb.Append(c);
+                }
+            }
+
+            string cleaned = sb.ToString();
+            while (cleaned.Contains("..", StringComparison.Ordinal))
+                cleaned = cleaned.Replace("..", "_", StringComparison.Ordinal);
+
+            cleaned = cleaned.Trim(' ', '.', '_');
+            if (cleaned.Length > 120)
+                cleaned = cleaned.Substring(0, 120).TrimEnd(' ', '.', '_');
+
+            if (string.IsNullOrWhiteSpace(cleaned) || ReservedWindowsNames.Contains(cleaned))
+                return fallback;
+
+            return cleaned;
+        }
+
+        public static bool IsUncropped(Rect crop) =>
+            crop.X <= 0.002 && crop.Y <= 0.002 && crop.Width >= 0.996 && crop.Height >= 0.996;
+
+        public static (double WidthMm, double HeightMm) GetEffectivePhysicalSizeMm(DocumentPageItem page)
+        {
+            int rot = ((page.RotationDegrees % 360) + 360) % 360;
+            bool rotSwapped = rot == 90 || rot == 270;
+            double rotW = rotSwapped ? page.HeightMm : page.WidthMm;
+            double rotH = rotSwapped ? page.WidthMm : page.HeightMm;
+
+            double cropW = Math.Clamp(page.NormalizedCrop.Width, 0.02, 1.0);
+            double cropH = Math.Clamp(page.NormalizedCrop.Height, 0.02, 1.0);
+            return (Math.Max(2.0, rotW * cropW), Math.Max(2.0, rotH * cropH));
+        }
+
+        public static BitmapSource NormalizeBitmapDpi(BitmapSource src, double targetDpi)
+        {
+            if (targetDpi <= 10.0) targetDpi = 300.0;
+            if (Math.Abs(src.DpiX - targetDpi) < 0.5 && Math.Abs(src.DpiY - targetDpi) < 0.5)
+                return src;
+
+            var bgra = src.Format == PixelFormats.Bgra32
+                ? src
+                : new FormatConvertedBitmap(src, PixelFormats.Bgra32, null, 0);
+
+            int w = bgra.PixelWidth;
+            int h = bgra.PixelHeight;
+            int stride = w * 4;
+            byte[] pixels = new byte[h * stride];
+            bgra.CopyPixels(pixels, stride, 0);
+
+            var normalized = BitmapSource.Create(w, h, targetDpi, targetDpi, PixelFormats.Bgra32, null, pixels, stride);
+            normalized.Freeze();
+            return normalized;
+        }
 
         public static async Task<List<DocumentPageItem>> LoadFilesAsync(IEnumerable<string> filePaths)
         {
@@ -37,9 +117,14 @@ namespace FunkenwerkDrucker
             {
                 if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) continue;
                 string ext = IOPath.GetExtension(path).ToLowerInvariant();
+                var fi = new FileInfo(path);
 
                 if (ext == ".pdf")
                 {
+                    if (fi.Length < 8) continue;
+                    if (fi.Length > MaxPdfInputBytes)
+                        throw new InvalidOperationException("Die PDF-Datei überschreitet das Sicherheitslimit von 256 MB.");
+
                     byte[] pdfBytes = await File.ReadAllBytesAsync(path);
                     if (pdfBytes.Length < 8) continue;
 
@@ -48,6 +133,7 @@ namespace FunkenwerkDrucker
                     {
                         writer.WriteBytes(pdfBytes);
                         await writer.StoreAsync();
+                        await writer.FlushAsync();
                     }
 
                     var winPdf = await Windows.Data.Pdf.PdfDocument.LoadFromStreamAsync(ras);
@@ -78,7 +164,7 @@ namespace FunkenwerkDrucker
                         using var netStream = pageStream.AsStreamForRead();
                         using var ms = new MemoryStream();
                         await netStream.CopyToAsync(ms);
-                        var bmp = PrinterHardwareEngine.DecodeBytesToFrozenBitmap(ms.ToArray());
+                        var bmp = NormalizeBitmapDpi(PrinterHardwareEngine.DecodeBytesToFrozenBitmap(ms.ToArray()), 180.0);
 
                         result.Add(new DocumentPageItem
                         {
@@ -87,6 +173,7 @@ namespace FunkenwerkDrucker
                             SourcePdfBytes = pdfBytes,
                             OriginalBitmap = bmp,
                             ProcessedBitmap = bmp,
+                            EffectiveDpi = 180.0,
                             WidthMm = wMm,
                             HeightMm = hMm
                         });
@@ -94,6 +181,10 @@ namespace FunkenwerkDrucker
                 }
                 else if (SupportedExtensions.Contains(ext))
                 {
+                    if (fi.Length <= 0) continue;
+                    if (fi.Length > MaxImageInputBytes)
+                        throw new InvalidOperationException("Die Bilddatei überschreitet das Sicherheitslimit von 64 MB.");
+
                     byte[] bytes = await File.ReadAllBytesAsync(path);
                     using var ms = new MemoryStream(bytes);
                     var decoder = BitmapDecoder.Create(ms, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
@@ -118,6 +209,7 @@ namespace FunkenwerkDrucker
                             SourceKind = "Bild",
                             OriginalBitmap = frozen,
                             ProcessedBitmap = frozen,
+                            EffectiveDpi = dpiX,
                             WidthMm = wMm,
                             HeightMm = hMm
                         });
@@ -131,15 +223,18 @@ namespace FunkenwerkDrucker
         public static DocumentPageItem CreateScannedPageItem(BitmapSource rawScan, int dpi, bool receiptContrast, bool forceBw)
         {
             double effDpi = dpi > 50 ? dpi : (rawScan.DpiX > 50 ? rawScan.DpiX : 300.0);
+            BitmapSource normalizedScan = NormalizeBitmapDpi(rawScan, effDpi);
+
             var item = new DocumentPageItem
             {
                 SourceKind = "Scan",
-                OriginalBitmap = rawScan,
-                ProcessedBitmap = rawScan,
+                OriginalBitmap = normalizedScan,
+                ProcessedBitmap = normalizedScan,
+                EffectiveDpi = effDpi,
                 EnhanceReceiptContrast = receiptContrast,
                 ForceBwText = forceBw,
-                WidthMm = rawScan.PixelWidth / effDpi * 25.4,
-                HeightMm = rawScan.PixelHeight / effDpi * 25.4
+                WidthMm = normalizedScan.PixelWidth / effDpi * 25.4,
+                HeightMm = normalizedScan.PixelHeight / effDpi * 25.4
             };
             RebuildProcessedBitmap(item);
             return item;
@@ -147,6 +242,10 @@ namespace FunkenwerkDrucker
 
         public static void RebuildProcessedBitmap(DocumentPageItem item)
         {
+            double targetDpi = item.EffectiveDpi > 10
+                ? item.EffectiveDpi
+                : (item.OriginalBitmap.DpiX > 10 ? item.OriginalBitmap.DpiX : 300.0);
+
             BitmapSource current = item.OriginalBitmap;
 
             // 1. Rotation
@@ -164,7 +263,7 @@ namespace FunkenwerkDrucker
 
             // 2. Normalized Crop
             Rect c = item.NormalizedCrop;
-            if (c.X > 0.002 || c.Y > 0.002 || c.Width < 0.996 || c.Height < 0.996)
+            if (!IsUncropped(c))
             {
                 int px = Math.Clamp((int)Math.Round(c.X * current.PixelWidth), 0, Math.Max(0, current.PixelWidth - 16));
                 int py = Math.Clamp((int)Math.Round(c.Y * current.PixelHeight), 0, Math.Max(0, current.PixelHeight - 16));
@@ -179,7 +278,11 @@ namespace FunkenwerkDrucker
             // 3. Receipt Contrast / Clean White Paper / B&W Enhancement
             if (item.EnhanceReceiptContrast || item.ForceBwText)
             {
-                current = ApplyDocumentEnhancement(current, item.EnhanceReceiptContrast, item.ForceBwText);
+                current = ApplyDocumentEnhancement(current, item.EnhanceReceiptContrast, item.ForceBwText, targetDpi);
+            }
+            else if (Math.Abs(current.DpiX - targetDpi) > 0.5 || Math.Abs(current.DpiY - targetDpi) > 0.5)
+            {
+                current = NormalizeBitmapDpi(current, targetDpi);
             }
 
             item.ProcessedBitmap = current;
@@ -187,10 +290,15 @@ namespace FunkenwerkDrucker
 
         public static BitmapSource ConvertToGrayscaleBitmap(BitmapSource src)
         {
-            return ApplyDocumentEnhancement(src, whitenPaper: false, pureGrayscale: true);
+            double dpi = src.DpiX > 10 ? src.DpiX : 300.0;
+            return ApplyDocumentEnhancement(src, whitenPaper: false, pureGrayscale: true, dpi);
         }
 
-        private static BitmapSource ApplyDocumentEnhancement(BitmapSource src, bool whitenPaper, bool pureGrayscale)
+        public static BitmapSource ApplyDocumentEnhancement(
+            BitmapSource src,
+            bool whitenPaper,
+            bool pureGrayscale,
+            double preferredDpi = 0)
         {
             var bgra = src.Format == PixelFormats.Bgra32
                 ? src
@@ -223,7 +331,6 @@ namespace FunkenwerkDrucker
 
                 if (whitenPaper)
                 {
-                    // Stretch shadow paper (>202 -> pure 255 white, saves ink!), deepen dark ink (<95 -> crisp black)
                     int stretched;
                     if (lum >= 202) stretched = 255;
                     else if (lum <= 68) stretched = 0;
@@ -262,8 +369,8 @@ namespace FunkenwerkDrucker
                 }
             }
 
-            double dpiX = src.DpiX > 10 ? src.DpiX : 300;
-            double dpiY = src.DpiY > 10 ? src.DpiY : 300;
+            double dpiX = preferredDpi > 10 ? preferredDpi : (src.DpiX > 10 ? src.DpiX : 300.0);
+            double dpiY = preferredDpi > 10 ? preferredDpi : (src.DpiY > 10 ? src.DpiY : dpiX);
             var outBmp = BitmapSource.Create(w, h, dpiX, dpiY, PixelFormats.Bgra32, null, pixels, stride);
             outBmp.Freeze();
             return outBmp;
@@ -272,12 +379,18 @@ namespace FunkenwerkDrucker
         // =====================================================================
         // MEHRSEITIGER PDF- & BILD-EXPORT (100 % OHNE HP-KONTO)
         // =====================================================================
-        public static async Task ExportPagesToPdfAsync(IReadOnlyList<DocumentPageItem> pages, string outputPath, bool forceGrayscale = false)
+        public static async Task ExportPagesToPdfAsync(
+            IReadOnlyList<DocumentPageItem> pages,
+            string outputPath,
+            bool forceGrayscale = false,
+            PrintPaperFormat paperFormat = PrintPaperFormat.A4,
+            PrintOrientationMode orientationMode = PrintOrientationMode.Auto,
+            PrintScaleMode scaleMode = PrintScaleMode.FitPrintableArea)
         {
             if (pages.Count == 0)
                 throw new InvalidOperationException("Keine Seiten zum Speichern vorhanden.");
 
-            byte[] pdfBytes = await Task.Run(() => BuildPdfBytesFromPages(pages, forceGrayscale));
+            byte[] pdfBytes = await Task.Run(() => BuildPdfBytesFromPages(pages, forceGrayscale, paperFormat, orientationMode, scaleMode));
 
             string dir = IOPath.GetDirectoryName(outputPath) ?? Environment.CurrentDirectory;
             Directory.CreateDirectory(dir);
@@ -286,44 +399,121 @@ namespace FunkenwerkDrucker
             File.Move(tmp, outputPath, overwrite: true);
         }
 
-        public static byte[] BuildPdfBytesFromPages(IReadOnlyList<DocumentPageItem> pages, bool forceGrayscale = false)
+        public static byte[] BuildPdfBytesFromPages(
+            IReadOnlyList<DocumentPageItem> pages,
+            bool forceGrayscale = false,
+            PrintPaperFormat paperFormat = PrintPaperFormat.A4,
+            PrintOrientationMode orientationMode = PrintOrientationMode.Auto,
+            PrintScaleMode scaleMode = PrintScaleMode.FitPrintableArea)
         {
             using var doc = new PdfSharp.Pdf.PdfDocument();
             doc.Info.Title = "Funkenwerk Dokument";
             doc.Info.Creator = "Funkenwerk Drucker";
 
-            foreach (var p in pages)
+            var (basePaperWmm, basePaperHmm, _) = GetPaperDimensionsMm(paperFormat);
+            double basePaperWpt = basePaperWmm / 25.4 * 72.0;
+            double basePaperHpt = basePaperHmm / 25.4 * 72.0;
+
+            var deferredDisposables = new List<IDisposable>();
+            try
             {
-                BitmapSource bmp = forceGrayscale
-                    ? ConvertToGrayscaleBitmap(p.ProcessedBitmap)
-                    : p.ProcessedBitmap;
+                foreach (var p in pages)
+                {
+                    var (effWmm, effHmm) = GetEffectivePhysicalSizeMm(p);
+                    bool isLandscape = orientationMode == PrintOrientationMode.Landscape ||
+                                       (orientationMode == PrintOrientationMode.Auto && effWmm > effHmm * 1.02);
 
-                bool isLandscape = bmp.PixelWidth > bmp.PixelHeight * 1.05;
-                var pdfPage = doc.AddPage();
+                    double pw = isLandscape ? basePaperHpt : basePaperWpt;
+                    double ph = isLandscape ? basePaperWpt : basePaperHpt;
 
-                // Standard A4 points (595 x 842 pt) matching orientation
-                pdfPage.Width = XUnit.FromPoint(isLandscape ? 841.89 : 595.28);
-                pdfPage.Height = XUnit.FromPoint(isLandscape ? 595.28 : 841.89);
+                    var pdfPage = doc.AddPage();
+                    pdfPage.Width = XUnit.FromPoint(pw);
+                    pdfPage.Height = XUnit.FromPoint(ph);
 
-                byte[] jpgBytes = EncodeBitmapAsJpeg(bmp, quality: 92);
-                using var imgStream = new MemoryStream(jpgBytes);
-                using var xImg = XImage.FromStream(imgStream);
-                using var gfx = XGraphics.FromPdfPage(pdfPage);
+                    double drawW;
+                    double drawH;
+                    if (scaleMode == PrintScaleMode.ActualSize100)
+                    {
+                        drawW = effWmm / 25.4 * 72.0;
+                        drawH = effHmm / 25.4 * 72.0;
+                    }
+                    else
+                    {
+                        double contentWpt = Math.Max(1.0, effWmm / 25.4 * 72.0);
+                        double contentHpt = Math.Max(1.0, effHmm / 25.4 * 72.0);
+                        double scale = Math.Min(pw / contentWpt, ph / contentHpt);
+                        drawW = contentWpt * scale;
+                        drawH = contentHpt * scale;
+                    }
 
-                double pw = pdfPage.Width.Point;
-                double ph = pdfPage.Height.Point;
-                double scale = Math.Min(pw / bmp.PixelWidth, ph / bmp.PixelHeight);
-                double drawW = bmp.PixelWidth * scale;
-                double drawH = bmp.PixelHeight * scale;
-                double dx = (pw - drawW) / 2.0;
-                double dy = (ph - drawH) / 2.0;
+                    double dx = (pw - drawW) / 2.0;
+                    double dy = (ph - drawH) / 2.0;
 
-                gfx.DrawImage(xImg, dx, dy, drawW, drawH);
+                    bool canEmbedVectorPdf =
+                        p.SourceKind == "PDF" &&
+                        p.SourcePdfBytes != null &&
+                        p.SourcePdfPageIndex >= 0 &&
+                        !forceGrayscale &&
+                        !p.EnhanceReceiptContrast &&
+                        !p.ForceBwText &&
+                        IsUncropped(p.NormalizedCrop);
+
+                    using var gfx = XGraphics.FromPdfPage(pdfPage);
+
+                    if (canEmbedVectorPdf)
+                    {
+                        var srcStream = new MemoryStream(p.SourcePdfBytes!, writable: false);
+                        deferredDisposables.Add(srcStream);
+                        var form = XPdfForm.FromStream(srcStream);
+                        deferredDisposables.Add(form);
+
+                        if (p.SourcePdfPageIndex < form.PageCount)
+                        {
+                            form.PageIndex = p.SourcePdfPageIndex;
+                            int rot = ((p.RotationDegrees % 360) + 360) % 360;
+                            if (rot == 0)
+                            {
+                                gfx.DrawImage(form, dx, dy, drawW, drawH);
+                            }
+                            else
+                            {
+                                var state = gfx.Save();
+                                gfx.TranslateTransform(dx + drawW * 0.5, dy + drawH * 0.5);
+                                gfx.RotateTransform(rot);
+                                if (rot == 90 || rot == 270)
+                                    gfx.DrawImage(form, -drawH * 0.5, -drawW * 0.5, drawH, drawW);
+                                else
+                                    gfx.DrawImage(form, -drawW * 0.5, -drawH * 0.5, drawW, drawH);
+                                gfx.Restore(state);
+                            }
+                            continue;
+                        }
+                    }
+
+                    BitmapSource bmp = forceGrayscale
+                        ? ConvertToGrayscaleBitmap(p.ProcessedBitmap)
+                        : p.ProcessedBitmap;
+
+                    byte[] jpgBytes = EncodeBitmapAsJpeg(bmp, quality: 92);
+                    var imgStream = new MemoryStream(jpgBytes, writable: false);
+                    deferredDisposables.Add(imgStream);
+                    var xImg = XImage.FromStream(imgStream);
+                    deferredDisposables.Add(xImg);
+
+                    gfx.DrawImage(xImg, dx, dy, drawW, drawH);
+                }
+
+                using var outStream = new MemoryStream();
+                doc.Save(outStream, closeStream: false);
+                return outStream.ToArray();
             }
-
-            using var outStream = new MemoryStream();
-            doc.Save(outStream, closeStream: false);
-            return outStream.ToArray();
+            finally
+            {
+                for (int i = deferredDisposables.Count - 1; i >= 0; i--)
+                {
+                    try { deferredDisposables[i].Dispose(); } catch { }
+                }
+            }
         }
 
         public static byte[] EncodeBitmapAsPng(BitmapSource bmp)
@@ -368,32 +558,56 @@ namespace FunkenwerkDrucker
                 return indices;
             }
 
+            string raw = (customRangeText ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                throw new InvalidOperationException($"Bitte einen gültigen Seitenbereich eingeben (1-{totalPages}).");
+            }
+
             var set = new SortedSet<int>();
-            string raw = customRangeText ?? "";
-            foreach (string token in raw.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries))
+            string[] tokens = raw.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries);
+            if (tokens.Length == 0)
+            {
+                throw new InvalidOperationException($"Bitte einen gültigen Seitenbereich eingeben (1-{totalPages}).");
+            }
+
+            foreach (string token in tokens)
             {
                 string part = token.Trim();
                 int dash = part.IndexOf('-');
-                if (dash > 0)
+                if (dash >= 0)
                 {
-                    if (int.TryParse(part.Substring(0, dash).Trim(), out int a) &&
-                        int.TryParse(part.Substring(dash + 1).Trim(), out int b))
+                    string left = part.Substring(0, dash).Trim();
+                    string right = part.Substring(dash + 1).Trim();
+                    if (!int.TryParse(left, NumberStyles.None, CultureInfo.InvariantCulture, out int a) ||
+                        !int.TryParse(right, NumberStyles.None, CultureInfo.InvariantCulture, out int b) ||
+                        a < 1 || b < 1)
                     {
-                        int start = Math.Max(1, Math.Min(a, b));
-                        int end = Math.Min(totalPages, Math.Max(a, b));
-                        for (int p = start; p <= end; p++) set.Add(p - 1);
+                        throw new InvalidOperationException($"Ungültige Seitenangabe \"{part}\". Erlaubt sind Seiten von 1 bis {totalPages}.");
                     }
+
+                    int lo = Math.Min(a, b);
+                    int hi = Math.Max(a, b);
+                    int start = Math.Max(1, lo);
+                    int end = Math.Min(totalPages, hi);
+                    for (int p = start; p <= end; p++)
+                        set.Add(p - 1);
                 }
-                else if (int.TryParse(part, out int single) && single >= 1 && single <= totalPages)
+                else
                 {
-                    set.Add(single - 1);
+                    if (!int.TryParse(part, NumberStyles.None, CultureInfo.InvariantCulture, out int single) || single < 1)
+                    {
+                        throw new InvalidOperationException($"Ungültige Seitenangabe \"{part}\". Erlaubt sind Seiten von 1 bis {totalPages}.");
+                    }
+
+                    if (single <= totalPages)
+                        set.Add(single - 1);
                 }
             }
 
             if (set.Count == 0)
             {
-                for (int i = 0; i < totalPages; i++) indices.Add(i);
-                return indices;
+                throw new InvalidOperationException($"Der gewählte Seitenbereich (\"{raw}\") liegt außerhalb des Dokuments (1-{totalPages}).");
             }
 
             return set.ToList();
@@ -413,6 +627,16 @@ namespace FunkenwerkDrucker
             };
         }
 
+        private static string GetIppMediaKeyword(PrintPaperFormat fmt)
+        {
+            return fmt switch
+            {
+                PrintPaperFormat.A5 => "iso_a5_148x210mm",
+                PrintPaperFormat.Label100x150 or PrintPaperFormat.Photo10x15 => "om_100x150mm_100x150mm",
+                _ => "iso_a4_210x297mm"
+            };
+        }
+
         private static async Task<BitmapSource> GetHighResPageBitmapForPrintAsync(DocumentPageItem page, bool grayscale)
         {
             BitmapSource bmp = page.ProcessedBitmap;
@@ -421,10 +645,7 @@ namespace FunkenwerkDrucker
             if (page.SourceKind == "PDF" &&
                 page.SourcePdfBytes != null &&
                 page.SourcePdfPageIndex >= 0 &&
-                page.NormalizedCrop.X <= 0.002 &&
-                page.NormalizedCrop.Y <= 0.002 &&
-                page.NormalizedCrop.Width >= 0.996 &&
-                page.NormalizedCrop.Height >= 0.996)
+                IsUncropped(page.NormalizedCrop))
             {
                 try
                 {
@@ -451,7 +672,7 @@ namespace FunkenwerkDrucker
                         using var ns = ps.AsStreamForRead();
                         using var ms = new MemoryStream();
                         await ns.CopyToAsync(ms);
-                        bmp = PrinterHardwareEngine.DecodeBytesToFrozenBitmap(ms.ToArray());
+                        bmp = NormalizeBitmapDpi(PrinterHardwareEngine.DecodeBytesToFrozenBitmap(ms.ToArray()), 300.0);
 
                         int rot = ((page.RotationDegrees % 360) + 360) % 360;
                         if (rot != 0)
@@ -462,7 +683,7 @@ namespace FunkenwerkDrucker
                         }
                         if (page.EnhanceReceiptContrast)
                         {
-                            bmp = ApplyDocumentEnhancement(bmp, whitenPaper: true, pureGrayscale: grayscale);
+                            bmp = ApplyDocumentEnhancement(bmp, whitenPaper: true, pureGrayscale: grayscale, preferredDpi: 300.0);
                         }
                     }
                 }
@@ -492,26 +713,31 @@ namespace FunkenwerkDrucker
 
             bool useGray = colorMode == PrintColorMode.Grayscale;
             var selectedItems = pageIndices.Select(i => allPages[i]).ToList();
+            string cleanTitle = SanitizeSafeFileStem(jobTitle, "Funkenwerk_Druckauftrag");
 
-            // Bypass Windows WSD "Offline" bug automatically if printer is awake via LAN IPP :631!
+            // Bypass Windows WSD "Offline" bug automatically if printer is awake via verified private LAN IPP :631!
             if (!printer.IsVirtualPrinter &&
                 printer.SpoolerReportsOffline &&
                 printer.LanIppOnline &&
-                !string.IsNullOrWhiteSpace(printer.ResolvedIpAddress))
+                !string.IsNullOrWhiteSpace(printer.ResolvedIpAddress) &&
+                IPAddress.TryParse(printer.ResolvedIpAddress, out var parsedIppIp) &&
+                PrinterHardwareEngine.IsPrivateLanIp(parsedIppIp))
             {
                 bool ippSent = await TrySendDirectIppPdfJobAsync(
-                    printer.ResolvedIpAddress,
+                    parsedIppIp.ToString(),
                     selectedItems,
                     copies,
                     useGray,
                     duplexMode,
-                    jobTitle);
+                    paperFormat,
+                    orientationMode,
+                    scaleMode,
+                    cleanTitle);
 
                 if (ippSent)
-                    return $"Direkt per LAN-IPP an {printer.ResolvedIpAddress} gesendet ({selectedItems.Count} S. × {copies})";
+                    return $"Direkt per LAN-IPP an {parsedIppIp} gesendet ({selectedItems.Count} S. × {copies})";
             }
 
-            // Prepare high-res bitmaps on background/async first
             var printBitmaps = new List<(BitmapSource Bitmap, DocumentPageItem Meta)>();
             foreach (var item in selectedItems)
             {
@@ -521,7 +747,6 @@ namespace FunkenwerkDrucker
 
             var (paperWmm, paperHmm, mediaName) = GetPaperDimensionsMm(paperFormat);
 
-            // Dispatch FixedDocument printing on WPF UI thread (required by XpsDocumentWriter)
             await Application.Current.Dispatcher.InvokeAsync(() =>
             {
                 using var server = new PrintServer();
@@ -537,8 +762,9 @@ namespace FunkenwerkDrucker
                     _ => Duplexing.OneSided
                 };
 
+                var (firstEffW, firstEffH) = GetEffectivePhysicalSizeMm(printBitmaps[0].Meta);
                 bool firstIsLandscape = orientationMode == PrintOrientationMode.Landscape ||
-                    (orientationMode == PrintOrientationMode.Auto && printBitmaps[0].Bitmap.PixelWidth > printBitmaps[0].Bitmap.PixelHeight * 1.05);
+                    (orientationMode == PrintOrientationMode.Auto && firstEffW > firstEffH * 1.02);
 
                 double baseWdip = paperWmm / 25.4 * 96.0;
                 double baseHdip = paperHmm / 25.4 * 96.0;
@@ -552,8 +778,9 @@ namespace FunkenwerkDrucker
 
                 foreach (var (bmp, meta) in printBitmaps)
                 {
+                    var (effWmm, effHmm) = GetEffectivePhysicalSizeMm(meta);
                     bool pageLandscape = orientationMode == PrintOrientationMode.Landscape ||
-                        (orientationMode == PrintOrientationMode.Auto && bmp.PixelWidth > bmp.PixelHeight * 1.05);
+                        (orientationMode == PrintOrientationMode.Auto && effWmm > effHmm * 1.02);
 
                     double pageW = pageLandscape ? baseHdip : baseWdip;
                     double pageH = pageLandscape ? baseWdip : baseHdip;
@@ -568,17 +795,13 @@ namespace FunkenwerkDrucker
                     double drawW, drawH, offsetX, offsetY;
                     if (scaleMode == PrintScaleMode.ActualSize100)
                     {
-                        bool rotSwapped = (meta.RotationDegrees % 180) != 0;
-                        double mmW = rotSwapped ? meta.HeightMm : meta.WidthMm;
-                        double mmH = rotSwapped ? meta.WidthMm : meta.HeightMm;
-                        drawW = mmW / 25.4 * 96.0;
-                        drawH = mmH / 25.4 * 96.0;
+                        drawW = effWmm / 25.4 * 96.0;
+                        drawH = effHmm / 25.4 * 96.0;
                         offsetX = (pageW - drawW) / 2.0;
                         offsetY = (pageH - drawH) / 2.0;
                     }
                     else
                     {
-                        // Safe hardware printable margin (4.2 mm = ~16 DIPs, 0 margin for labels/photos)
                         double marginDip = (paperFormat == PrintPaperFormat.Label100x150 || paperFormat == PrintPaperFormat.Photo10x15)
                             ? 4.0
                             : 16.0;
@@ -616,60 +839,100 @@ namespace FunkenwerkDrucker
             return $"Druckauftrag gesendet an {printer.DisplayName} ({selectedItems.Count} S. × {copies})";
         }
 
+        public static byte[] BuildIppPrintJobPayload(
+            string printerUri,
+            byte[] pdfBytes,
+            int copies,
+            bool grayscale,
+            PrintDuplexMode duplex,
+            PrintPaperFormat paperFormat,
+            PrintOrientationMode orientationMode,
+            string jobTitle)
+        {
+            using var ms = new MemoryStream();
+            using (var bw = new BinaryWriter(ms, Encoding.UTF8, leaveOpen: true))
+            {
+                bw.Write((byte)0x02); // IPP 2.0
+                bw.Write((byte)0x00);
+                bw.Write((byte)0x00); // Operation 0x0002 = Print-Job
+                bw.Write((byte)0x02);
+                bw.Write(new byte[] { 0x00, 0x00, 0x00, 0x02 }); // request-id
+
+                bw.Write((byte)0x01); // operation-attributes-tag
+                WriteIppStr(bw, 0x47, "attributes-charset", "utf-8");
+                WriteIppStr(bw, 0x48, "attributes-natural-language", "de");
+                WriteIppStr(bw, 0x45, "printer-uri", printerUri);
+                WriteIppStr(bw, 0x42, "requesting-user-name", "Funkenwerk");
+                WriteIppStr(bw, 0x42, "job-name", string.IsNullOrWhiteSpace(jobTitle) ? "Funkenwerk Druckauftrag" : jobTitle);
+                WriteIppStr(bw, 0x49, "document-format", "application/pdf");
+
+                bw.Write((byte)0x02); // job-attributes-tag
+                WriteIppInt(bw, 0x21, "copies", Math.Clamp(copies, 1, 99));
+                WriteIppStr(bw, 0x44, "print-color-mode", grayscale ? "monochrome" : "color");
+                WriteIppStr(bw, 0x44, "media", GetIppMediaKeyword(paperFormat));
+
+                if (orientationMode != PrintOrientationMode.Auto)
+                {
+                    // RFC 8011 enum 0x23: 3 = portrait, 4 = landscape
+                    WriteIppInt(bw, 0x23, "orientation-requested", orientationMode == PrintOrientationMode.Landscape ? 4 : 3);
+                }
+
+                string sides = duplex switch
+                {
+                    PrintDuplexMode.LongEdge => "two-sided-long-edge",
+                    PrintDuplexMode.ShortEdge => "two-sided-short-edge",
+                    _ => "one-sided"
+                };
+                WriteIppStr(bw, 0x44, "sides", sides);
+
+                bw.Write((byte)0x03); // end-of-attributes-tag
+                if (pdfBytes != null && pdfBytes.Length > 0)
+                    bw.Write(pdfBytes);
+            }
+            return ms.ToArray();
+        }
+
         private static async Task<bool> TrySendDirectIppPdfJobAsync(
             string ip,
             IReadOnlyList<DocumentPageItem> pages,
             int copies,
             bool grayscale,
             PrintDuplexMode duplex,
+            PrintPaperFormat paperFormat,
+            PrintOrientationMode orientationMode,
+            PrintScaleMode scaleMode,
             string jobTitle)
         {
+            if (!IPAddress.TryParse(ip, out var parsedIp) || !PrinterHardwareEngine.IsPrivateLanIp(parsedIp))
+                return false;
+
             try
             {
-                byte[] pdfBytes = await Task.Run(() => BuildPdfBytesFromPages(pages, grayscale));
+                byte[] pdfBytes = await Task.Run(() => BuildPdfBytesFromPages(pages, grayscale, paperFormat, orientationMode, scaleMode));
+                byte[] payload = BuildIppPrintJobPayload(
+                    $"ipp://{parsedIp}:631/ipp/print",
+                    pdfBytes,
+                    copies,
+                    grayscale,
+                    duplex,
+                    paperFormat,
+                    orientationMode,
+                    jobTitle);
 
-                using var ms = new MemoryStream();
-                using (var bw = new BinaryWriter(ms, Encoding.UTF8, leaveOpen: true))
+                var handler = new SocketsHttpHandler
                 {
-                    bw.Write((byte)0x02); // IPP 2.0
-                    bw.Write((byte)0x00);
-                    bw.Write((byte)0x00); // Operation 0x0002 = Print-Job
-                    bw.Write((byte)0x02);
-                    bw.Write(new byte[] { 0x00, 0x00, 0x00, 0x02 }); // request-id
-
-                    bw.Write((byte)0x01); // operation-attributes-tag
-                    WriteIppStr(bw, 0x47, "attributes-charset", "utf-8");
-                    WriteIppStr(bw, 0x48, "attributes-natural-language", "de");
-                    WriteIppStr(bw, 0x45, "printer-uri", $"ipp://{ip}:631/ipp/print");
-                    WriteIppStr(bw, 0x42, "requesting-user-name", "Funkenwerk");
-                    WriteIppStr(bw, 0x42, "job-name", jobTitle);
-                    WriteIppStr(bw, 0x49, "document-format", "application/pdf");
-
-                    bw.Write((byte)0x02); // job-attributes-tag
-                    WriteIppInt(bw, 0x21, "copies", Math.Clamp(copies, 1, 99));
-                    WriteIppStr(bw, 0x44, "print-color-mode", grayscale ? "monochrome" : "color");
-                    string sides = duplex switch
-                    {
-                        PrintDuplexMode.LongEdge => "two-sided-long-edge",
-                        PrintDuplexMode.ShortEdge => "two-sided-short-edge",
-                        _ => "one-sided"
-                    };
-                    WriteIppStr(bw, 0x44, "sides", sides);
-
-                    bw.Write((byte)0x03); // end-of-attributes-tag
-                    bw.Write(pdfBytes);
-                }
-
-                var handler = new SocketsHttpHandler { UseProxy = false, ConnectTimeout = TimeSpan.FromSeconds(3) };
+                    AllowAutoRedirect = false,
+                    UseProxy = false,
+                    ConnectTimeout = TimeSpan.FromSeconds(3)
+                };
                 using var http = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(25) };
-                using var content = new ByteArrayContent(ms.ToArray());
+                using var content = new ByteArrayContent(payload);
                 content.Headers.Remove("Content-Type");
                 content.Headers.TryAddWithoutValidation("Content-Type", "application/ipp");
 
-                var resp = await http.PostAsync($"http://{ip}:631/ipp/print", content);
+                using var resp = await http.PostAsync($"http://{parsedIp}:631/ipp/print", content);
                 if (!resp.IsSuccessStatusCode) return false;
-                byte[] rb = await resp.Content.ReadAsByteArrayAsync();
-                // IPP status-code in bytes [2..3]: 0x0000..0x00FF = successful-*
+                byte[] rb = await PrinterHardwareEngine.ReadBoundedResponseBytesAsync(resp, PrinterHardwareEngine.MaxControlPayloadBytes);
                 return rb.Length >= 4 && rb[2] == 0x00;
             }
             catch
@@ -678,23 +941,60 @@ namespace FunkenwerkDrucker
             }
         }
 
-        private static void WriteIppStr(BinaryWriter bw, byte tag, string name, string val)
+        public static byte[] SanitizeAndClampIppUtf8(string? raw, int maxUtf8Bytes)
         {
+            if (string.IsNullOrEmpty(raw) || maxUtf8Bytes <= 0)
+                return Array.Empty<byte>();
+
+            var cleanSb = new StringBuilder(Math.Min(raw.Length, maxUtf8Bytes));
+            int usedBytes = 0;
+
+            foreach (Rune rune in raw.EnumerateRunes())
+            {
+                // Strip ASCII & C1 control characters per RFC 8011
+                int v = rune.Value;
+                if (v < 0x20 || v == 0x7F || (v >= 0x80 && v <= 0x9F))
+                    continue;
+
+                int runeBytes = rune.Utf8SequenceLength;
+                if (usedBytes + runeBytes > maxUtf8Bytes)
+                    break;
+
+                cleanSb.Append(rune.ToString());
+                usedBytes += runeBytes;
+            }
+
+            return Encoding.UTF8.GetBytes(cleanSb.ToString());
+        }
+
+        internal static void WriteIppStr(BinaryWriter bw, byte tag, string name, string val)
+        {
+            // RFC 8011 attribute name <= 255 octets; value max octets depends on value-tag
+            int maxValueBytes = tag switch
+            {
+                0x45 => 1023, // uri
+                0x41 => 1023, // textWithoutLanguage
+                0x47 => 63,   // charset
+                0x48 => 63,   // naturalLanguage
+                _ => 255      // nameWithoutLanguage (0x42), keyword (0x44), mimeMediaType (0x49)
+            };
+
+            byte[] nb = SanitizeAndClampIppUtf8(name, 255);
+            byte[] vb = SanitizeAndClampIppUtf8(val, maxValueBytes);
+
             bw.Write(tag);
-            byte[] nb = Encoding.UTF8.GetBytes(name);
             bw.Write((byte)((nb.Length >> 8) & 0xFF));
             bw.Write((byte)(nb.Length & 0xFF));
             bw.Write(nb);
-            byte[] vb = Encoding.UTF8.GetBytes(val);
             bw.Write((byte)((vb.Length >> 8) & 0xFF));
             bw.Write((byte)(vb.Length & 0xFF));
             bw.Write(vb);
         }
 
-        private static void WriteIppInt(BinaryWriter bw, byte tag, string name, int val)
+        internal static void WriteIppInt(BinaryWriter bw, byte tag, string name, int val)
         {
+            byte[] nb = SanitizeAndClampIppUtf8(name, 255);
             bw.Write(tag);
-            byte[] nb = Encoding.UTF8.GetBytes(name);
             bw.Write((byte)((nb.Length >> 8) & 0xFF));
             bw.Write((byte)(nb.Length & 0xFF));
             bw.Write(nb);
@@ -738,7 +1038,6 @@ namespace FunkenwerkDrucker
             var dv = new DrawingVisual();
             using (var dc = dv.RenderOpen())
             {
-                // Render in 96 DIP coordinate space, then rasterize at 300 DPI
                 double dipW = 210.0 / 25.4 * 96.0;
                 double dipH = 297.0 / 25.4 * 96.0;
 
@@ -762,7 +1061,6 @@ namespace FunkenwerkDrucker
 
                 dc.DrawLine(new Pen(goldBrush, 2.0), new Point(56, 114), new Point(dipW - 56, 114));
 
-                // Ink-saving CMYK nozzle check bars
                 (string Label, Color Col)[] swatches =
                 {
                     ("K · Schwarz", Color.FromRgb(15, 15, 15)),
@@ -784,13 +1082,12 @@ namespace FunkenwerkDrucker
                     sx += 134;
                 }
 
-                // Exact 100 mm Calibration Ruler for Laser Templates (100 mm = 377.952756 DIPs)
                 double rulerY = 250;
                 double mmDip = 96.0 / 25.4;
                 double rulerLen = 100.0 * mmDip;
 
                 dc.DrawText(
-                    new FormattedText("MASSTABSKONTROLLE (EXAKT 100 MM BEI SKALIERUNG '100 % ORIGINALGRÖSSE')", CultureInfo.GetCultureInfo("de-DE"), FlowDirection.LeftToRight, tfBold, 10.5, darkBrush, 1.0),
+                    new FormattedText("MASSTABSKONTROLLE (EXAKT 100 MM BEI SKALIERUNG '100 % MASSTREU')", CultureInfo.GetCultureInfo("de-DE"), FlowDirection.LeftToRight, tfBold, 10.5, darkBrush, 1.0),
                     new Point(56, rulerY - 24));
 
                 dc.DrawLine(darkPen, new Point(56, rulerY), new Point(56 + rulerLen, rulerY));
@@ -817,6 +1114,7 @@ namespace FunkenwerkDrucker
                 SourceKind = "Prüfblatt",
                 OriginalBitmap = rtb,
                 ProcessedBitmap = rtb,
+                EffectiveDpi = dpi,
                 WidthMm = 210.0,
                 HeightMm = 297.0
             };

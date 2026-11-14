@@ -27,6 +27,9 @@ object AppLogger {
     }
 
     fun error(context: Context?, tag: String, message: String, throwable: Throwable? = null) {
+        if (ErrorSentinelReporter.isBenignCancellation(throwable, message)) {
+            return
+        }
         if (isDebuggable(context)) {
             if (throwable != null) {
                 Log.e(tag, message, throwable)

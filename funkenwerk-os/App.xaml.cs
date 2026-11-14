@@ -63,7 +63,7 @@ namespace FunkenwerkOS
             }
 
             bool isShellMode = e.Args.Any(a => string.Equals(a, "--shell", StringComparison.OrdinalIgnoreCase));
-            OsHardwareAndAudioEngine.EnsureWindowsExplorerTaskbarRunning();
+            OsHardwareAndAudioEngine.EnsureWindowsExplorerTaskbarRunning(isShellMode);
 
             _singleInstanceMutex = new System.Threading.Mutex(true, @"Local\FunkenwerkOS_SingleInstance_Mutex", out bool isFirstInstance);
             if (!isFirstInstance)
@@ -107,6 +107,18 @@ namespace FunkenwerkOS
             var win = new MainWindow(isShellMode, initialWorkspace);
             MainWindow = win;
             win.Show();
+        }
+
+        protected override void OnExit(ExitEventArgs e)
+        {
+            OsHardwareAndAudioEngine.ReleaseHighResTimerPeriod();
+            try
+            {
+                _singleInstanceMutex?.Dispose();
+                _singleInstanceMutex = null;
+            }
+            catch { }
+            base.OnExit(e);
         }
     }
 }

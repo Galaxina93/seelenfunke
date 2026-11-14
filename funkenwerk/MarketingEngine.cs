@@ -323,7 +323,7 @@ namespace Funkenwerk
                     SetupItems = "Weiße Handschuhe · Der Seelen-Talisman · xTool F2 Ultra UV · Schwarze Westpack-Box",
                     Hashtags = "#meinseelenfunke #seelentalisman #glücksbringer #koordinatenschmuck #liebesbeweis",
                     RecommendedFormat = "White-Glove ASMR & Beidseitiger Koordinaten-Reveal",
-                    DefaultHook = "Die Koordinaten des Ortes, an dem alles begann – auf ewig in Gold-Edelstahl ✨",
+                    DefaultHook = "Die Koordinaten des Ortes, an dem alles begann · auf ewig in Gold-Edelstahl ✨",
                     DefaultClips = "Clip 1: 4s Lasergravur der Koordinaten · Clip 2: 5s Wenden auf die Rückseite mit weißen Handschuhen · Clip 3: 5s Westpack-Box"
                 },
                 new ShopMarketingProductDto
@@ -457,7 +457,7 @@ namespace Funkenwerk
 
             // 1x IM MONAT (4 Säulen: Content-Säulen Update, Community-Challenge, Volle Analyse, 3 neue Formate)
             ("m1", "monthly", "1. CONTENT · 1x MONAT", "Content-Säulen Update", "Fokus-Produkte & saisonale Anlässe des Monats festlegen (Muttertag, Vatertag, Hochzeit, Weihnachten, Haustier-Gedenken).", "15 Min.", "plan"),
-            ("m2", "monthly", "2. COMMUNITY · 1x MONAT", "Community-Challenge („Seelen-Geschichte“)", "Follower teilen ihre bewegendste Geschichte in den Kommentaren – 1 Gewinner-Unikat wird kostenlos im Story-Video gefertigt.", "20 Min.", ""),
+            ("m2", "monthly", "2. COMMUNITY · 1x MONAT", "Community-Challenge („Seelen-Geschichte“)", "Follower teilen ihre bewegendste Geschichte in den Kommentaren · 1 Gewinner-Unikat wird kostenlos im Story-Video gefertigt.", "20 Min.", ""),
             ("m3", "monthly", "3. ZAHLEN · 1x MONAT", "Volle Content- & Funnel-Analyse", "Prüfen, welche Videos die meisten Klicks auf die Landingpages (/l/...) und 3D-Konfigurator-Bestellungen brachten; schwächste 20 % streichen.", "20 Min.", ""),
             ("m4", "monthly", "4. RADAR · 1x MONAT", "3 neue Video-Formate testen", "3 frische Hook- oder Kamerawinkel-Experimente (z. B. neuer Licht-Reveal, Makro-Perspektive, Split-Screen) für diesen Monat testen.", "15 Min.", "templates")
         };
@@ -582,7 +582,7 @@ namespace Funkenwerk
                     "3 Wochen Vorlauf auf das personalisierte 360°-Weizenglas, den Seelen-Talisman und die Hundemarke.",
                     "🍺 Vatertag & Männertag: „Charakterstarke Unikate mit 360°-Gravur für echte Helden.“",
                     "Das einzige Vatertags-Geschenk, das Papa wirklich jeden Abend stolz nutzt 🍺🔥",
-                    "🍺 Vatertags-Special: Ob 360°-Weizenglas oder massiver Seelen-Talisman – jetzt im 3D-Konfigurator für Papa gestalten!",
+                    "🍺 Vatertags-Special: Ob 360°-Weizenglas oder massiver Seelen-Talisman · jetzt im 3D-Konfigurator für Papa gestalten!",
                     "#vatertagsgeschenk #männergeschenk #besterpapa #bierglasgravur",
                     new[] { "weizenglas-personalisiert", "seelen-talisman", "seelen-pfote-hundemarke" }),
 
@@ -673,7 +673,7 @@ namespace Funkenwerk
                         PrimaryHolidayKey = h.Key,
                         PrimaryHolidayName = h.Name,
                         PrimaryHolidayBadge = h.Badge,
-                        PrimaryHolidayWindow = $"{startDate:dd.MM.} – {endDate:dd.MM.yyyy}",
+                        PrimaryHolidayWindow = $"{startDate:dd.MM.} · {endDate:dd.MM.yyyy}",
                         PrimaryHolidayCutoff = $"{endDate:dd.MM.yyyy}",
                         PrimaryHolidayStrategyHint = h.Hint,
                         PrimaryHolidayDiscountPercent = h.Discount,
@@ -702,6 +702,34 @@ namespace Funkenwerk
             EnsureMarketingInitialized();
         }
 
+        private int GetClampedDailyRecipeIndex()
+        {
+            int count = _mktVault?.DailyRecipes?.Count ?? 0;
+            if (count <= 0)
+            {
+                _currentDailyRecipeIndex = 0;
+                return 0;
+            }
+            _currentDailyRecipeIndex = Math.Clamp(_currentDailyRecipeIndex, 0, count - 1);
+            return _currentDailyRecipeIndex;
+        }
+
+        public int ClampDailyRecipeIndexForTest(int rawIndex)
+        {
+            EnsureMarketingInitialized();
+            _currentDailyRecipeIndex = rawIndex;
+            return GetClampedDailyRecipeIndex();
+        }
+
+        public static bool IsAllowedViralReferenceUrl(string? url)
+        {
+            if (string.IsNullOrWhiteSpace(url)) return false;
+            if (!Uri.TryCreate(url.Trim(), UriKind.Absolute, out var uri)) return false;
+            if (!string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)) return false;
+            if (!string.IsNullOrEmpty(uri.UserInfo)) return false;
+            return !string.IsNullOrWhiteSpace(uri.Host);
+        }
+
         private void EnsureMarketingInitialized()
         {
             if (_isMarketingInitialized) return;
@@ -709,12 +737,16 @@ namespace Funkenwerk
 
             try
             {
-                string vaultDir = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    "Funkenwerk",
-                    "MarketingVault");
-                Directory.CreateDirectory(vaultDir);
-                _marketingVaultPath = Path.Combine(vaultDir, "market_intelligence.json");
+                _marketingVaultPath = FunkenwerkSecurityVault.GetAppDataFilePath("market_intelligence.json", migrateFromBaseDir: true);
+                if (!File.Exists(_marketingVaultPath))
+                {
+                    string legacySubfolderPath = Path.Combine(FunkenwerkSecurityVault.AppDataDirectory, "MarketingVault", "market_intelligence.json");
+                    if (File.Exists(legacySubfolderPath))
+                    {
+                        string legacyJson = File.ReadAllText(legacySubfolderPath, Encoding.UTF8);
+                        FunkenwerkSecurityVault.WriteSecureFileText(_marketingVaultPath, legacyJson);
+                    }
+                }
 
                 LoadOrSeedMarketingVault();
             }
@@ -754,9 +786,9 @@ namespace Funkenwerk
                 }
                 else
                 {
-                    _currentDailyRecipeIndex = (DateTime.Today.DayOfYear - 1) % _mktVault.DailyRecipes.Count;
+                    _currentDailyRecipeIndex = Math.Max(0, (DateTime.Today.DayOfYear - 1)) % _mktVault.DailyRecipes.Count;
                 }
-                _selectedPlanRecipe = _mktVault.DailyRecipes[_currentDailyRecipeIndex];
+                _selectedPlanRecipe = _mktVault.DailyRecipes[GetClampedDailyRecipeIndex()];
             }
 
             if (_mktVault.ViralIdeas.Count > 0)
@@ -988,7 +1020,7 @@ namespace Funkenwerk
                         CategoryBadge = formatBadge,
                         BaseFormatTitle = formatBadge,
                         ProductVariantIndex = Math.Max(0, _mktVault.ShopProducts.IndexOf(prod)),
-                        Title = $"{prod.Name} – {formatBadge}",
+                        Title = $"{prod.Name} · {formatBadge}",
                         ProductName = !string.IsNullOrWhiteSpace(prod.FullDisplayName) ? prod.FullDisplayName : prod.Name,
                         DurationLabel = prod.UsesRotaryRa3 ? "17 Sek." : "15 Sek.",
                         CapCutTemplate = prod.UsesRotaryRa3 ? "Vorlage A: Pure Atelier ASMR (17s)" : "Vorlage A: Pure Atelier ASMR (15s)",
@@ -1141,7 +1173,7 @@ namespace Funkenwerk
                     double profitAtTarget = z.NetProfitAtTargetCpaCents / 100.0;
                     string focusTag = z.IsHolidayFocus ? " ⭐ [Saison-Fokus]" : "";
 
-                    sb.AppendLine($"✓ Zugpferd #{idx} – {z.Name} ({vk:0.00} € VK | ~{ek:0.00} € Direktkosten){focusTag}:");
+                    sb.AppendLine($"✓ Zugpferd #{idx} · {z.Name} ({vk:0.00} € VK | ~{ek:0.00} € Direktkosten){focusTag}:");
                     sb.AppendLine($"   · Ziel-CPA: {targetCpa:0.00} €   ·   Stopp-Grenze: max. {maxCpa:0.00} € CPA (bleiben ~{profitAtTarget:0.00} € Reingewinn!)");
                     idx++;
                 }
@@ -1155,7 +1187,7 @@ namespace Funkenwerk
 
                 if (gutschein != null)
                 {
-                    sb.AppendLine($"✓ Last-Minute-Retter – {gutschein.Name} ({gutschein.LandingSlug}):");
+                    sb.AppendLine($"✓ Last-Minute-Retter · {gutschein.Name} ({gutschein.LandingSlug}):");
                     sb.AppendLine($"   · Ab Manufaktur-Annahmeschluss ({s.PrimaryHolidayCutoff}) bis zum Festtag mit 5 €/Tag bewerben (Sofort-PDF & Goldkarte).");
                 }
 
@@ -1180,7 +1212,7 @@ namespace Funkenwerk
             PlaySoundActionPop();
 
             var s = _mktVault.SeasonContext ?? ComputeLocalSeasonAndHolidayContext(DateTime.Today);
-            var r = _mktVault.DailyRecipes[_currentDailyRecipeIndex];
+            var r = _mktVault.DailyRecipes[GetClampedDailyRecipeIndex()];
 
             if (!string.IsNullOrWhiteSpace(s.EffectiveHookPrefix))
             {
@@ -1276,8 +1308,14 @@ namespace Funkenwerk
                             r.IsCompletedToday = _mktVault.CompletedRecipeDays.Contains(r.DayNumber);
                             if (string.IsNullOrEmpty(r.BaseFormatTitle))
                             {
-                                int dashIdx = r.Title.IndexOf("–");
-                                r.BaseFormatTitle = dashIdx >= 0 ? r.Title.Substring(dashIdx + 1).Trim() : r.Title;
+                                int dashIdx = r.Title.IndexOf(" · ", StringComparison.Ordinal);
+                                if (dashIdx >= 0)
+                                    r.BaseFormatTitle = r.Title.Substring(dashIdx + 3).Trim();
+                                else
+                                {
+                                    int legacyDash = r.Title.IndexOf('\u2013');
+                                    r.BaseFormatTitle = legacyDash >= 0 ? r.Title.Substring(legacyDash + 1).Trim() : r.Title;
+                                }
                             }
                         }
                         var q5 = _mktVault.QuestionsCatalog.FirstOrDefault(q => q.Number == 5);
@@ -1286,6 +1324,7 @@ namespace Funkenwerk
                             q5.MarketFinding = "TikTok hat ein striktes 80-Zeichen-Limit (3 ultrakurze Zeilen); Instagram erlaubt 150 Zeichen (inkl. 4. CTA-Zeile).";
                             q5.SeelenfunkeRule = "TikTok (66/80 Zeichen): '✨ Unikate / 🤍 Glas, Schiefer & Metall / 🧤 Handveredelt aus Deutschland' (+ 4. CTA-Zeile auf Instagram).";
                         }
+                        FunkenwerkSecurityVault.LockDownFileAcl(_marketingVaultPath);
                         return;
                     }
                 }
@@ -1302,10 +1341,12 @@ namespace Funkenwerk
             {
                 if (string.IsNullOrEmpty(_marketingVaultPath)) return;
                 _mktVault.LastUpdated = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
-                _mktVault.ActiveDailyRecipeIndex = _currentDailyRecipeIndex;
-                _mktVault.ActiveViralIdeaIndex = _currentViralIdeaIndex;
+                _mktVault.ActiveDailyRecipeIndex = GetClampedDailyRecipeIndex();
+                _mktVault.ActiveViralIdeaIndex = _mktVault.ViralIdeas.Count > 0
+                    ? Math.Clamp(_currentViralIdeaIndex, 0, _mktVault.ViralIdeas.Count - 1)
+                    : 0;
                 string json = JsonSerializer.Serialize(_mktVault, new JsonSerializerOptions { WriteIndented = true });
-                File.WriteAllText(_marketingVaultPath, json, Encoding.UTF8);
+                FunkenwerkSecurityVault.WriteSecureFileText(_marketingVaultPath, json);
             }
             catch { }
         }
@@ -1323,8 +1364,14 @@ namespace Funkenwerk
 
             if (string.IsNullOrEmpty(r.BaseFormatTitle))
             {
-                int dashIdx = r.Title.IndexOf("–");
-                r.BaseFormatTitle = dashIdx >= 0 ? r.Title.Substring(dashIdx + 1).Trim() : r.CategoryBadge;
+                int dashIdx = r.Title.IndexOf(" · ", StringComparison.Ordinal);
+                if (dashIdx >= 0)
+                    r.BaseFormatTitle = r.Title.Substring(dashIdx + 3).Trim();
+                else
+                {
+                    int legacyDash = r.Title.IndexOf('\u2013');
+                    r.BaseFormatTitle = legacyDash >= 0 ? r.Title.Substring(legacyDash + 1).Trim() : r.CategoryBadge;
+                }
             }
 
             string seasonAddon = _mktVault.SeasonContext?.EffectiveCaptionAddon ?? "";
@@ -1332,7 +1379,7 @@ namespace Funkenwerk
 
             r.ProductName = !string.IsNullOrWhiteSpace(prod.FullDisplayName) ? prod.FullDisplayName : prod.Name;
             r.LandingPageSlug = !string.IsNullOrWhiteSpace(prod.LandingSlug) ? prod.LandingSlug : $"/produkt/{prod.Slug}";
-            r.Title = $"{prod.Name} – {r.BaseFormatTitle}";
+            r.Title = $"{prod.Name} · {r.BaseFormatTitle}";
             r.Step1Setup = !string.IsNullOrWhiteSpace(prod.SetupItems) ? prod.SetupItems : $"Weiße Handschuhe · {prod.Name} · xTool F2 Ultra UV";
             r.ReadyCaption = $"Jedes Unikat ({prod.Name}) wird in unserer Manufaktur in Gifhorn mit weißen Handschuhen und höchster Präzision für dich gefertigt. ✨🤍\n\n{(string.IsNullOrWhiteSpace(seasonAddon) ? "" : seasonAddon + "\n\n")}👉 Jetzt live im 3D-Konfigurator testen (Link in Bio: {r.LandingPageSlug})!\n\n{prod.Hashtags} {seasonTags}".Trim();
         }
@@ -1341,7 +1388,7 @@ namespace Funkenwerk
         {
             if (_mktVault.DailyRecipes.Count == 0) return;
             PlaySoundActionPop();
-            var r = _mktVault.DailyRecipes[_currentDailyRecipeIndex];
+            var r = _mktVault.DailyRecipes[GetClampedDailyRecipeIndex()];
             ApplyProductVariantToRecipe(r, r.ProductVariantIndex + 1);
             _selectedPlanRecipe = r;
             SaveMarketingVaultOffline();
@@ -1366,10 +1413,7 @@ namespace Funkenwerk
         private void RenderDailyHeroBanner()
         {
             if (_mktVault.DailyRecipes.Count == 0 || MktHeroTitleTxt == null) return;
-            if (_currentDailyRecipeIndex < 0 || _currentDailyRecipeIndex >= _mktVault.DailyRecipes.Count)
-                _currentDailyRecipeIndex = 0;
-
-            var r = _mktVault.DailyRecipes[_currentDailyRecipeIndex];
+            var r = _mktVault.DailyRecipes[GetClampedDailyRecipeIndex()];
             r.IsCompletedToday = _mktVault.CompletedRecipeDays.Contains(r.DayNumber);
             int totalDays = _mktVault.DailyRecipes.Count;
             var recTrack = GetRecommendedTrackForDailyRecipe(r);
@@ -1400,7 +1444,8 @@ namespace Funkenwerk
             if (MktFocusTitleTxt != null)
             {
                 string cleanTitle = !string.IsNullOrWhiteSpace(r.ProductName) ? r.ProductName : r.Title;
-                int dashIdx = cleanTitle.IndexOf('–');
+                int dashIdx = cleanTitle.IndexOf(" · ", StringComparison.Ordinal);
+                if (dashIdx < 0) dashIdx = cleanTitle.IndexOf('\u2013');
                 if (dashIdx > 0) cleanTitle = cleanTitle.Substring(0, dashIdx).Trim();
                 MktFocusTitleTxt.Text = cleanTitle;
                 MktFocusTitleTxt.Foreground = BrushFromHex("#F9FAFB");
@@ -1467,8 +1512,9 @@ namespace Funkenwerk
         {
             if (_mktVault.DailyRecipes.Count == 0) return;
             PlaySoundNav();
-            _currentDailyRecipeIndex = (_currentDailyRecipeIndex - 1 + _mktVault.DailyRecipes.Count) % _mktVault.DailyRecipes.Count;
-            _selectedPlanRecipe = _mktVault.DailyRecipes[_currentDailyRecipeIndex];
+            int cur = GetClampedDailyRecipeIndex();
+            _currentDailyRecipeIndex = (cur - 1 + _mktVault.DailyRecipes.Count) % _mktVault.DailyRecipes.Count;
+            _selectedPlanRecipe = _mktVault.DailyRecipes[GetClampedDailyRecipeIndex()];
             SaveMarketingVaultOffline();
             RenderDailyHeroBanner();
             if (_activeMarketingSubTab == "plan") RenderMarketingPlanPane();
@@ -1478,8 +1524,9 @@ namespace Funkenwerk
         {
             if (_mktVault.DailyRecipes.Count == 0) return;
             PlaySoundNav();
-            _currentDailyRecipeIndex = (_currentDailyRecipeIndex + 1) % _mktVault.DailyRecipes.Count;
-            _selectedPlanRecipe = _mktVault.DailyRecipes[_currentDailyRecipeIndex];
+            int cur = GetClampedDailyRecipeIndex();
+            _currentDailyRecipeIndex = (cur + 1) % _mktVault.DailyRecipes.Count;
+            _selectedPlanRecipe = _mktVault.DailyRecipes[GetClampedDailyRecipeIndex()];
             SaveMarketingVaultOffline();
             RenderDailyHeroBanner();
             if (_activeMarketingSubTab == "plan") RenderMarketingPlanPane();
@@ -1488,7 +1535,7 @@ namespace Funkenwerk
         private void MktCopyDailyCaption_Click(object sender, RoutedEventArgs e)
         {
             if (_mktVault.DailyRecipes.Count == 0) return;
-            var r = _mktVault.DailyRecipes[_currentDailyRecipeIndex];
+            var r = _mktVault.DailyRecipes[GetClampedDailyRecipeIndex()];
             Clipboard.SetText(r.ReadyCaption);
             PlaySoundActionPop();
             if (sender is Button btn)
@@ -1509,7 +1556,7 @@ namespace Funkenwerk
         private async void MktAddDailyToTodo_Click(object sender, RoutedEventArgs e)
         {
             if (_mktVault.DailyRecipes.Count == 0) return;
-            var r = _mktVault.DailyRecipes[_currentDailyRecipeIndex];
+            var r = _mktVault.DailyRecipes[GetClampedDailyRecipeIndex()];
             var recTrack = GetRecommendedTrackForDailyRecipe(r);
             string taskTitle = $"🎬 Video drehen ({r.DurationLabel}): {r.Title} [{r.CapCutTemplate} · Song: {recTrack.Title}]";
 
@@ -1548,7 +1595,7 @@ namespace Funkenwerk
         private void MktToggleDailyDone_Click(object sender, RoutedEventArgs e)
         {
             if (_mktVault.DailyRecipes.Count == 0) return;
-            var r = _mktVault.DailyRecipes[_currentDailyRecipeIndex];
+            var r = _mktVault.DailyRecipes[GetClampedDailyRecipeIndex()];
             if (_mktVault.CompletedRecipeDays.Contains(r.DayNumber))
             {
                 _mktVault.CompletedRecipeDays.Remove(r.DayNumber);
@@ -2252,12 +2299,22 @@ namespace Funkenwerk
         {
             var idea = _selectedViralIdea ?? _mktVault.ViralIdeas.FirstOrDefault();
             if (idea == null || string.IsNullOrWhiteSpace(idea.ReferenceTrendUrl)) return;
+            if (!IsAllowedViralReferenceUrl(idea.ReferenceTrendUrl))
+            {
+                MessageBox.Show(
+                    "Aus Sicherheitsgründen dürfen nur externe https:// Referenz-Links geöffnet werden.",
+                    "Sicherheits-Blockade",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
             PlaySoundNav();
             try
             {
+                var safeUri = new Uri(idea.ReferenceTrendUrl.Trim(), UriKind.Absolute);
                 Process.Start(new ProcessStartInfo
                 {
-                    FileName = idea.ReferenceTrendUrl,
+                    FileName = safeUri.AbsoluteUri,
                     UseShellExecute = true
                 });
             }
@@ -2316,16 +2373,16 @@ namespace Funkenwerk
                     DurationLabel = "9 Sek.",
                     EffortLabel = "5 Min. Dreh",
                     ViewsBenchmark = "4,5M–18M",
-                    ShortSongBadge = "Taylor Swift – The Fate of Ophelia (Piano) / Bridgerton Strings",
-                    TrendingSongs = "TikTok & Reels #1: Taylor Swift – The Fate of Ophelia (Piano / Instrumental)   |   #2: Vitamin String Quartet – Give Me Everything (Bridgerton Strings)   |   #3: Petit Biscuit – Sunset Lover (-8 dB) + 100 % echter Scheren-Schnipp (0 dB)",
+                    ShortSongBadge = "Taylor Swift · The Fate of Ophelia (Piano) / Bridgerton Strings",
+                    TrendingSongs = "TikTok & Reels #1: Taylor Swift · The Fate of Ophelia (Piano / Instrumental)   |   #2: Vitamin String Quartet · Give Me Everything (Bridgerton Strings)   |   #3: Petit Biscuit · Sunset Lover (-8 dB) + 100 % echter Scheren-Schnipp (0 dB)",
                     ReferenceTrendUrl = "https://www.tiktok.com/search?q=online%20business%20grand%20opening%20ribbon%20cutting%20phone",
                     OnScreenHook = "Wenn man eine Online-Manufaktur eröffnet und trotzdem feierlich das Band durchschneidet ✨✂️",
                     StructureBreakdown = "• Sek. 0,0–2,2 (Visueller Stopp): Smartphone liegt auf dunklem Schiefer, Display auf 100 % Helligkeit mit @meinseelenfunke / 3D-Konfigurator für {PRODUKT}. Ein goldenes oder schwarzes Satinband ist mit einer Schleife fest um das Handy gebunden. Die goldene Schere schwebt (mit weißen Handschuhen!) bereits an der Schleife.\n• Sek. 2,2–4,8 (ASMR-Schnitt): Ein einzelner, knackiger Scherenschnitt (0 dB Original-Ton!). Das Band fällt nach links und rechts auseinander.\n• Sek. 4,8–9,0 (Reveal & Loop): Der Finger (im weißen Handschuh) tippt live auf das freigelegte Display und dreht {PRODUKT} in 3D, während daneben das echte Unikat in der schwarzen Westpack-Box funkelt.",
-                    WhyItGoesViral = "1. Muster-Unterbrechung (Pattern Interrupt): Zuschauer kennen Band-Durchschneiden nur von echten Ladengeschäften – ein Handy in einer Geschenk-Schleife stoppt in 0,4 Sek. den Daumen.\n2. Sympathie-Trigger ('Support Small Business'): Tausende fremde Zuschauer kommentieren automatisch 'Herzlichen Glückwunsch zur Eröffnung!', was den Algorithmus explodieren lässt.",
+                    WhyItGoesViral = "1. Muster-Unterbrechung (Pattern Interrupt): Zuschauer kennen Band-Durchschneiden nur von echten Ladengeschäften · ein Handy in einer Geschenk-Schleife stoppt in 0,4 Sek. den Daumen.\n2. Sympathie-Trigger ('Support Small Business'): Tausende fremde Zuschauer kommentieren automatisch 'Herzlichen Glückwunsch zur Eröffnung!', was den Algorithmus explodieren lässt.",
                     Step1Setup = "1. Zweites Smartphone (Display-Timeout aus, 100 % Helligkeit, geöffnet auf @meinseelenfunke oder {PRODUKT}).\n2. 40 cm Satinband (Gold #C5A059 oder Schwarz) + scharfe Gold-Schere + weiße Baumwollhandschuhe.\n3. Echtes {PRODUKT} in geöffneter Westpack-Box rechts neben das Handy legen.",
                     Step2Shoot = "Binde das Band locker um das Handy (Schleife mittig auf dem Display). Starte die Aufnahme exakt, wenn die Schere das Band berührt (kein Leerlauf!). Schneide bei Sekunde 2,5 kräftig durch, ziehe die Bandenden zur Seite und drehe 3 Sekunden lang {PRODUKT} live auf dem Handybildschirm.",
                     Step3EditAndPost = "Schneide das Video auf knackige 8,5–9,5 Sekunden. Lass das echte 'Schnipp'-Geräusch der Schere bei 100 % (0 dB) und lege 'The Fate of Ophelia (Piano)' oder 'Bridgerton Strings' bei -8 dB darunter. Link in Bio auf {SLUG}.",
-                    ReadyCaptionAndTags = "Hiermit ist unsere Online-Manufaktur Mein-Seelenfunke offiziell eröffnet! ✂️✨ Da wir kein Straßengeschäft haben, mussten wir das feierliche Band eben auf unsere eigene Art durchschneiden. 🤍 Welches Stück würdest du als Erstes im 3D-Konfigurator gestalten – {PRODUKT} oder den Seelen Kristall? 👇\n\n👉 Schau dich jetzt in unserem Atelier um: mein-seelenfunke.de ({SLUG})\n\n#neueröffnung #grandopening #kleinesunternehmen #handgemacht #geschenkidee",
+                    ReadyCaptionAndTags = "Hiermit ist unsere Online-Manufaktur Mein-Seelenfunke offiziell eröffnet! ✂️✨ Da wir kein Straßengeschäft haben, mussten wir das feierliche Band eben auf unsere eigene Art durchschneiden. 🤍 Welches Stück würdest du als Erstes im 3D-Konfigurator gestalten · {PRODUKT} oder den Seelen Kristall? 👇\n\n👉 Schau dich jetzt in unserem Atelier um: mein-seelenfunke.de ({SLUG})\n\n#neueröffnung #grandopening #kleinesunternehmen #handgemacht #geschenkidee",
                     ProductVariantIndex = 1
                 },
                 new ViralConceptIdeaDto
@@ -2337,16 +2394,16 @@ namespace Funkenwerk
                     DurationLabel = "8 Sek.",
                     EffortLabel = "4 Min. Dreh",
                     ViewsBenchmark = "2,8M–9,4M",
-                    ShortSongBadge = "100 % Original Box-Snap + Petit Biscuit – Sunset Lover",
-                    TrendingSongs = "Original ASMR Ton (Samt-Streichen & Schachtel-Klacken auf 0 dB)   |   Hintergrund (-10 dB): Petit Biscuit – Sunset Lover (Slowed Instrumental) oder Ludovico Einaudi – Una Mattina",
+                    ShortSongBadge = "100 % Original Box-Snap + Petit Biscuit · Sunset Lover",
+                    TrendingSongs = "Original ASMR Ton (Samt-Streichen & Schachtel-Klacken auf 0 dB)   |   Hintergrund (-10 dB): Petit Biscuit · Sunset Lover (Slowed Instrumental) oder Ludovico Einaudi · Una Mattina",
                     ReferenceTrendUrl = "https://www.tiktok.com/search?q=luxury%20jewelry%20packaging%20white%20gloves%20asmr",
                     OnScreenHook = "POV: Dein Geschenk verlässt unsere Manufaktur erst nach dem White-Glove-Ritual 🧤✨",
-                    StructureBreakdown = "• Sek. 0,0–2,5: Blütenweiße Handschuhe streichen langsam über das funkelnde {PRODUKT} im warmen Streiflicht.\n• Sek. 2,5–5,5: Sanftes Einbetten in das schwarze Samt-Inlay der mattschwarzen Westpack-Schachtel.\n• Sek. 5,5–8,0: Der Deckel schließt mit einem satten, tiefen 'KLACK' – Ende exakt auf dem Schallimpuls.",
+                    StructureBreakdown = "• Sek. 0,0–2,5: Blütenweiße Handschuhe streichen langsam über das funkelnde {PRODUKT} im warmen Streiflicht.\n• Sek. 2,5–5,5: Sanftes Einbetten in das schwarze Samt-Inlay der mattschwarzen Westpack-Schachtel.\n• Sek. 5,5–8,0: Der Deckel schließt mit einem satten, tiefen 'KLACK' · Ende exakt auf dem Schallimpuls.",
                     WhyItGoesViral = "Hebt den wahrgenommenen Wert sofort auf 250-€-Juwelier-Niveau und löst bei Geschenk-Käufern das Gefühl aus: 'Ich muss nichts mehr selbst einpacken!'",
                     Step1Setup = "Mattschwarze Westpack-Schmuckbox · Blütenweiße Baumwollhandschuhe · Feiner Staubpinsel · {PRODUKT}.",
                     Step2Shoot = "Halte das Handy-Mikrofon 15 cm nah an die Schachtel. Streiche einmal mit dem Pinsel über {PRODUKT}, lege es in die Box und schließe den Deckel hörbar.",
                     Step3EditAndPost = "Kürze auf exakt 8 Sekunden. Der letzte Frame ist die geschlossene Box mit Gold-Logo (perfekter Loop!). Song bei -10 dB darunterlegen.",
-                    ReadyCaptionAndTags = "Kein Fingerabdruck, kein Staubkorn – jedes {PRODUKT} wird in unserer Manufaktur mit weißen Handschuhen geprüft und verschenkfertig gebettet. 🧤🖤 Für wen suchst du gerade ein besonderes Unikat? 👇\n\n👉 Direkt konfigurieren: {SLUG}\n\n#whiteglove #unboxingasmr #schmuckliebe #geschenkverpackung",
+                    ReadyCaptionAndTags = "Kein Fingerabdruck, kein Staubkorn · jedes {PRODUKT} wird in unserer Manufaktur mit weißen Handschuhen geprüft und verschenkfertig gebettet. 🧤🖤 Für wen suchst du gerade ein besonderes Unikat? 👇\n\n👉 Direkt konfigurieren: {SLUG}\n\n#whiteglove #unboxingasmr #schmuckliebe #geschenkverpackung",
                     ProductVariantIndex = 1
                 },
                 new ViralConceptIdeaDto
@@ -2358,8 +2415,8 @@ namespace Funkenwerk
                     DurationLabel = "10 Sek.",
                     EffortLabel = "5 Min. Dreh",
                     ViewsBenchmark = "3,9M–14M",
-                    ShortSongBadge = "Hans Zimmer – Cornfield Chase (Piano) / Einaudi – Experience",
-                    TrendingSongs = "TikTok & Reels #1: Hans Zimmer – Cornfield Chase (Dorian Marko Piano)   |   #2: Ludovico Einaudi – Experience (Violin Drop bei Sek. 3,5)",
+                    ShortSongBadge = "Hans Zimmer · Cornfield Chase (Piano) / Einaudi · Experience",
+                    TrendingSongs = "TikTok & Reels #1: Hans Zimmer · Cornfield Chase (Dorian Marko Piano)   |   #2: Ludovico Einaudi · Experience (Violin Drop bei Sek. 3,5)",
                     ReferenceTrendUrl = "https://www.tiktok.com/search?q=3d%20crystal%20photo%20light%20reveal%20in%20dark",
                     OnScreenHook = "Warte bis das Licht ausgeht... 🕯️✨ (Aus einem normalen 2D-Handyfoto!)",
                     StructureBreakdown = "• Sek. 0,0–3,0: Raum ist hell, Handy mit 2D-Foto wird neben den unbeleuchteten Glasblock gehalten.\n• Sek. 3,0–3,5: Raumlicht geht schlagartig aus (Klick-Geräusch des Schalters!).\n• Sek. 3,5–10,0: Der LED-Sockel schaltet sich ein und das 3D-Portrait im {PRODUKT} leuchtet magisch im Dunkeln, während weiße Handschuhe es um 45° drehen.",
@@ -2379,8 +2436,8 @@ namespace Funkenwerk
                     DurationLabel = "11 Sek.",
                     EffortLabel = "6 Min. Dreh",
                     ViewsBenchmark = "3,2M–11M",
-                    ShortSongBadge = "SYML – Where's My Love (Acoustic Piano) / Billie Eilish Instrumental",
-                    TrendingSongs = "TikTok & Reels #1: SYML – Where's My Love (Acoustic Piano Solo)   |   #2: Billie Eilish – What Was I Made For? (Piano Instrumental) + 3 Sek. echtes Laser-Singen",
+                    ShortSongBadge = "SYML · Where's My Love (Acoustic Piano) / Billie Eilish Instrumental",
+                    TrendingSongs = "TikTok & Reels #1: SYML · Where's My Love (Acoustic Piano Solo)   |   #2: Billie Eilish · What Was I Made For? (Piano Instrumental) + 3 Sek. echtes Laser-Singen",
                     ReferenceTrendUrl = "https://www.tiktok.com/search?q=handwriting%20engraved%20necklace%20memorial",
                     OnScreenHook = "„Kannst du die letzte Geburtstagskarte meiner Oma auf Gold verewigen?“ 🥺🤍",
                     StructureBreakdown = "• Sek. 0,0–2,5: Eine alte handgeschriebene Karte ('Hab dich lieb, deine Oma') liegt neben dem ungravierten {PRODUKT}.\n• Sek. 2,5–6,0: Makro-Aufnahme: Der xTool F2 Ultra brennt exakt diese Schwünge mit einem hellen Blitz ins Material.\n• Sek. 6,0–11,0: Weiße Handschuhe halten die Papierkarte und das fertige {PRODUKT} direkt nebeneinander ins warme Streiflicht.",
@@ -2388,7 +2445,7 @@ namespace Funkenwerk
                     Step1Setup = "Handgeschriebener Zettel/Karte · {PRODUKT} · Weiße Baumwollhandschuhe · xTool F2 Ultra UV.",
                     Step2Shoot = "Clip 1 (2,5s): Zettel neben Rohling. Clip 2 (3,5s): Laser-Gravur in Nahaufnahme. Clip 3 (5s): Fertiges Stück neben dem Zettel leicht im Licht kippen.",
                     Step3EditAndPost = "0–6s echter Laser-Ton hörbar lassen, ab Sekunde 6 sanftes Piano ('Where's My Love') aufblenden. Direktlink auf {SLUG}.",
-                    ReadyCaptionAndTags = "Manche Worte auf Papier verblassen mit den Jahren – aber auf {PRODUKT} bleiben sie für immer nah am Herzen tragbar. 🤍✨ Wessen Handschrift würdest du verewigen lassen? 👇\n\n👉 Handschrift einfach abfotografieren & hochladen: {SLUG}\n\n#handschriftgravur #erinnerungsschmuck #omageschenk #seelenfunke",
+                    ReadyCaptionAndTags = "Manche Worte auf Papier verblassen mit den Jahren · aber auf {PRODUKT} bleiben sie für immer nah am Herzen tragbar. 🤍✨ Wessen Handschrift würdest du verewigen lassen? 👇\n\n👉 Handschrift einfach abfotografieren & hochladen: {SLUG}\n\n#handschriftgravur #erinnerungsschmuck #omageschenk #seelenfunke",
                     ProductVariantIndex = 1
                 },
                 new ViralConceptIdeaDto
@@ -2400,16 +2457,16 @@ namespace Funkenwerk
                     DurationLabel = "7 Sek.",
                     EffortLabel = "3 Min. Dreh",
                     ViewsBenchmark = "1,9M–8,5M",
-                    ShortSongBadge = "100 % Original UV-Laser-Knistern (0 dB) + Øfdream – Thelema",
-                    TrendingSongs = "100 % Original xTool 5W UV-Laser-Knistern (0 dB)   |   Optional leise (-14 dB): Øfdream – Thelema (Slowed) oder Pure ASMR (ohne Musik)",
+                    ShortSongBadge = "100 % Original UV-Laser-Knistern (0 dB) + Øfdream · Thelema",
+                    TrendingSongs = "100 % Original xTool 5W UV-Laser-Knistern (0 dB)   |   Optional leise (-14 dB): Øfdream · Thelema (Slowed) oder Pure ASMR (ohne Musik)",
                     ReferenceTrendUrl = "https://www.tiktok.com/search?q=subsurface%20laser%20engraving%20crystal%20asmr",
                     OnScreenHook = "Wie kommt das Bild mitten ins Glas, ohne die Oberfläche zu berühren? 🤯🔮",
-                    StructureBreakdown = "• Sek. 0,0–4,5: Extreme 3x-Makro-Aufnahme durch die Laserschutz-Scheibe: Tausende violette Mikropunkte blitzen im K9-Kristall auf.\n• Sek. 4,5–7,0: Weiße Handschuhe streichen über die spiegelglatte Außenfläche des Glases – null Kratzer außen, 100 % 3D innen!",
+                    StructureBreakdown = "• Sek. 0,0–4,5: Extreme 3x-Makro-Aufnahme durch die Laserschutz-Scheibe: Tausende violette Mikropunkte blitzen im K9-Kristall auf.\n• Sek. 4,5–7,0: Weiße Handschuhe streichen über die spiegelglatte Außenfläche des Glases · null Kratzer außen, 100 % 3D innen!",
                     WhyItGoesViral = "Technik-Rätsel ('Wie ist das physikalisch möglich?') triggern hunderte Diskussionen in den Kommentaren, während das kurze 7s-Video 3x durchläuft.",
                     Step1Setup = "xTool F2 Ultra UV im laufenden Kristall-Job · Smartphone mit 2x/3x Zoom fest ans Schutzfenster halten · Weiße Handschuhe.",
                     Step2Shoot = "Filme 5 Sekunden lang das violette Aufblitzen im Kristall und 2 Sekunden lang, wie du mit dem behandschuhten Finger über die glatte Glas-Außenseite streichst.",
                     Step3EditAndPost = "Auf exakt 7,0 Sekunden schneiden. Keinen Abspann einbauen, damit das Video unbemerkt wieder von vorn startet.",
-                    ReadyCaptionAndTags = "Unser 5W UV-Laser bündelt das Licht exakt im Inneren des K9-Kristalls – die Oberfläche bleibt spiegelglatt und unversehrt! 🔮⚡ Faszinierend, oder? 👇\n\n👉 Erstelle dein eigenes 3D-Kristall-Unikat: {SLUG}\n\n#uvlaser #laserasmr #3dglasgravur #manufaktur #technikmagie",
+                    ReadyCaptionAndTags = "Unser 5W UV-Laser bündelt das Licht exakt im Inneren des K9-Kristalls · die Oberfläche bleibt spiegelglatt und unversehrt! 🔮⚡ Faszinierend, oder? 👇\n\n👉 Erstelle dein eigenes 3D-Kristall-Unikat: {SLUG}\n\n#uvlaser #laserasmr #3dglasgravur #manufaktur #technikmagie",
                     ProductVariantIndex = 0
                 },
                 new ViralConceptIdeaDto
@@ -2422,7 +2479,7 @@ namespace Funkenwerk
                     EffortLabel = "6 Min. Dreh",
                     ViewsBenchmark = "2,1M–6,8M",
                     ShortSongBadge = "Ruhige Gründer-Stimme + Warmes Lo-Fi Piano (-15 dB)",
-                    TrendingSongs = "Originalton / Ruhige Stimme (0 dB)   |   Hintergrund (-15 dB): Idealism – Both of Us (Lo-Fi Piano) oder Toshifumi Hinata – Reflections",
+                    TrendingSongs = "Originalton / Ruhige Stimme (0 dB)   |   Hintergrund (-15 dB): Idealism · Both of Us (Lo-Fi Piano) oder Toshifumi Hinata · Reflections",
                     ReferenceTrendUrl = "https://www.tiktok.com/search?q=why%20this%20order%20failed%20quality%20control%20jewelry",
                     OnScreenHook = "Warum dieses {PRODUKT} meine Qualitätskontrolle heute NICHT bestanden hat 🔍🧤",
                     StructureBreakdown = "• Sek. 0,0–4,0: Du hältst {PRODUKT} mit weißen Handschuhen unter die Lupe ins Streiflicht ('Für 99 % sieht es perfekt aus, aber die Gravur sitzt 0,4 mm zu weit links').\n• Sek. 4,0–9,0: Einlegen eines brandneuen Rohlings in den xTool Laser und perfekter Zweit-Durchlauf.\n• Sek. 9,0–13,0: Beide Stücke kurz vergleichen und das makellose Stück in die Westpack-Box betten.",
@@ -2442,8 +2499,8 @@ namespace Funkenwerk
                     DurationLabel = "8 Sek.",
                     EffortLabel = "4 Min. Dreh",
                     ViewsBenchmark = "1,8M–5,5M",
-                    ShortSongBadge = "Sabrina Carpenter – Espresso (Instrumental) / Beat-Transition",
-                    TrendingSongs = "TikTok & Reels #1: Sabrina Carpenter – Espresso (Instrumental Beat-Drop)   |   #2: Peggy Gou – (It Goes Like) Nanana (Instrumental)",
+                    ShortSongBadge = "Sabrina Carpenter · Espresso (Instrumental) / Beat-Transition",
+                    TrendingSongs = "TikTok & Reels #1: Sabrina Carpenter · Espresso (Instrumental Beat-Drop)   |   #2: Peggy Gou · (It Goes Like) Nanana (Instrumental)",
                     ReferenceTrendUrl = "https://www.tiktok.com/search?q=custom%203d%20preview%20to%20real%20product%20transition",
                     OnScreenHook = "Wenn du erst im 3D-Konfigurator spielst... und es 3 Tage später ECHT vor dir liegt ✨📱",
                     StructureBreakdown = "• Sek. 0,0–3,5: Eine Hand dreht {PRODUKT} live im 3D-Konfigurator auf dem Smartphone-Display.\n• Sek. 3,5–4,0: Die andere Hand (im weißen Handschuh) führt das echte {PRODUKT} exakt im gleichen Winkel vor die Kameralinse.\n• Sek. 4,0–8,0: Das echte Unikat funkelt im Streiflicht vor der schwarzen Westpack-Box.",
@@ -2463,8 +2520,8 @@ namespace Funkenwerk
                     DurationLabel = "9 Sek.",
                     EffortLabel = "4 Min. Dreh",
                     ViewsBenchmark = "2,4M–7,9M",
-                    ShortSongBadge = "Yiruma – River Flows in You + xTool Laser-Zischen",
-                    TrendingSongs = "Sek. 0–4: 100 % Original Laser-Zischen (0 dB)   |   Ab Sek. 4: Yiruma – River Flows in You (Warm Piano -8 dB)",
+                    ShortSongBadge = "Yiruma · River Flows in You + xTool Laser-Zischen",
+                    TrendingSongs = "Sek. 0–4: 100 % Original Laser-Zischen (0 dB)   |   Ab Sek. 4: Yiruma · River Flows in You (Warm Piano -8 dB)",
                     ReferenceTrendUrl = "https://www.tiktok.com/search?q=black%20metal%20laser%20engraving%20satisfying",
                     OnScreenHook = "Dieser Kontrast, wenn der Laser auf mattschwarzes Metall trifft... ⚡🖤",
                     StructureBreakdown = "• Sek. 0,0–4,0: Der Laserstrahl rast in Höchstgeschwindigkeit über das tiefschwarze Aluminium (Der Seelenanhänger) und legt in Echtzeit strahlendes Silber-Weiß frei.\n• Sek. 4,0–9,0: Weiße Handschuhe heben das Herz hoch und wenden es auf die Rückseite (geheime Botschaft).",
@@ -2484,10 +2541,10 @@ namespace Funkenwerk
                     DurationLabel = "7 Sek.",
                     EffortLabel = "3 Min. Dreh",
                     ViewsBenchmark = "1,5M–4,9M",
-                    ShortSongBadge = "Tyla – Water (Instrumental) / Luxury Lounge Beat",
-                    TrendingSongs = "TikTok & Reels #1: Tyla – Water (Instrumental Slowed)   |   #2: Kaytranada – Intimidated (Instrumental Lounge Beat)",
+                    ShortSongBadge = "Tyla · Water (Instrumental) / Luxury Lounge Beat",
+                    TrendingSongs = "TikTok & Reels #1: Tyla · Water (Instrumental Slowed)   |   #2: Kaytranada · Intimidated (Instrumental Lounge Beat)",
                     ReferenceTrendUrl = "https://www.tiktok.com/search?q=which%20one%20would%20you%20choose%20jewelry%20edition",
-                    OnScreenHook = "Ehrliche Frage: Über welches Geschenk würdest du dich mehr freuen – 1 oder 2? 👇✨",
+                    OnScreenHook = "Ehrliche Frage: Über welches Geschenk würdest du dich mehr freuen · 1 oder 2? 👇✨",
                     StructureBreakdown = "• Sek. 0,0–3,5: Links im Bild funkelt Das Goldene Seelen-Herz in der geöffneten Westpack-Box ('1').\n• Sek. 3,5–7,0: Kameraschwenk 15 cm nach rechts auf Den Seelen Kristall auf dem leuchtenden LED-Sockel ('2').",
                     WhyItGoesViral = "Menschen lieben es, in 1 Sekunde ihre Meinung abzugeben ('1' oder '2' tippen). Hunderte Kurz-Kommentare pushen das Video sofort in neue Feeds.",
                     Step1Setup = "Das Goldene Seelen-Herz (in Westpack-Box) + Der Seelen Kristall (auf LED-Sockel) nebeneinander auf dunklem Schiefer.",
@@ -2505,8 +2562,8 @@ namespace Funkenwerk
                     DurationLabel = "12 Sek.",
                     EffortLabel = "5 Min. Dreh",
                     ViewsBenchmark = "2,9M–10M",
-                    ShortSongBadge = "JVKE – golden hour (Piano Slowed)",
-                    TrendingSongs = "TikTok & Reels #1: JVKE – golden hour (Piano Slowed)   |   #2: Coldplay – Sparks (Instrumental Piano) + 3s Laser-Singen",
+                    ShortSongBadge = "JVKE · golden hour (Piano Slowed)",
+                    TrendingSongs = "TikTok & Reels #1: JVKE · golden hour (Piano Slowed)   |   #2: Coldplay · Sparks (Instrumental Piano) + 3s Laser-Singen",
                     ReferenceTrendUrl = "https://www.tiktok.com/search?q=custom%20pet%20memorial%20engraving%20dog",
                     OnScreenHook = "Für alle, deren Vierbeiner kein bloßes Haustier, sondern Familie ist 🐾🤍",
                     StructureBreakdown = "• Sek. 0,0–3,0: Smartphone mit einem süßen Hunde-/Katzenfoto liegt neben dem Rohling ({PRODUKT} / Seelen-Pfote).\n• Sek. 3,0–7,0: Präzisions-Gravur im xTool F2 Ultra.\n• Sek. 7,0–12,0: Das fertige Stück wird im goldenen Licht direkt neben das Haustier-Foto gehalten.",
@@ -2514,7 +2571,7 @@ namespace Funkenwerk
                     Step1Setup = "Die Seelen-Pfote oder Der Seelen Kristall ({PRODUKT}) · Handy mit Haustierfoto · Weiße Handschuhe.",
                     Step2Shoot = "Zeige 3s das Haustierfoto am Handy, 4s den Laserblitz und 5s das fertige Unikat in der weißen behandschuhten Hand.",
                     Step3EditAndPost = "Beim Übergang vom Laser zum fertigen Stück den Piano-Refrain von 'golden hour' einsetzen lassen.",
-                    ReadyCaptionAndTags = "Ob als täglicher Begleiter am Halsband oder als leuchtende Erinnerung für die Ewigkeit – wir verewigen deine Fellnase mit höchster Präzision. 🐾🤍 Wie heißt dein treuster Begleiter? 👇\n\n👉 Jetzt gestalten: {SLUG}\n\n#hundeliebe #katzenliebe #pfotenabdruck #haustiergeschenk #hundemarke",
+                    ReadyCaptionAndTags = "Ob als täglicher Begleiter am Halsband oder als leuchtende Erinnerung für die Ewigkeit · wir verewigen deine Fellnase mit höchster Präzision. 🐾🤍 Wie heißt dein treuster Begleiter? 👇\n\n👉 Jetzt gestalten: {SLUG}\n\n#hundeliebe #katzenliebe #pfotenabdruck #haustiergeschenk #hundemarke",
                     ProductVariantIndex = 3
                 },
                 new ViralConceptIdeaDto
@@ -2526,16 +2583,16 @@ namespace Funkenwerk
                     DurationLabel = "8 Sek.",
                     EffortLabel = "4 Min. Dreh",
                     ViewsBenchmark = "1,7M–6,2M",
-                    ShortSongBadge = "Stephen Sanchez – Until I Found You (Instrumental Strings)",
-                    TrendingSongs = "TikTok & Reels #1: Stephen Sanchez – Until I Found You (Strings Instrumental)   |   #2: Taylor Swift – Lover (Piano Instrumental)",
+                    ShortSongBadge = "Stephen Sanchez · Until I Found You (Instrumental Strings)",
+                    TrendingSongs = "TikTok & Reels #1: Stephen Sanchez · Until I Found You (Strings Instrumental)   |   #2: Taylor Swift · Lover (Piano Instrumental)",
                     ReferenceTrendUrl = "https://www.tiktok.com/search?q=secret%20message%20backside%20engraved%20necklace",
                     OnScreenHook = "Von vorne ein edles Schmuckstück... aber dreh es mal um 🤫✨",
-                    StructureBreakdown = "• Sek. 0,0–3,5: Weiße Handschuhe halten die glänzende Vorderseite von {PRODUKT} (mit den Koordinaten eines besonderen Ortes).\n• Sek. 3,5–8,0: Langsame 180°-Drehung zwischen den Fingern – auf der Rückseite erscheint eine persönliche Liebesbotschaft oder Handschrift.",
+                    StructureBreakdown = "• Sek. 0,0–3,5: Weiße Handschuhe halten die glänzende Vorderseite von {PRODUKT} (mit den Koordinaten eines besonderen Ortes).\n• Sek. 3,5–8,0: Langsame 180°-Drehung zwischen den Fingern · auf der Rückseite erscheint eine persönliche Liebesbotschaft oder Handschrift.",
                     WhyItGoesViral = "Neugier-Lücke ('Was steht auf der Rückseite?') zwingt den Zuschauer dranzubleiben und oft auf Pause zu drücken, um die geheime Gravur zu lesen.",
                     Step1Setup = "Beidseitig graviertes {PRODUKT} (z. B. Goldenes Seelen-Herz oder Seelen-Talisman) · Weiße Handschuhe · Schwarzer Hintergrund.",
                     Step2Shoot = "Halte {PRODUKT} ruhig ins Streiflicht, wende es bei Sekunde 3,5 sanft um 180° auf die Rückseite und lege es in die Westpack-Box.",
                     Step3EditAndPost = "Auf 8 Sekunden schneiden. Keinen Text über die Mitte legen, damit die Gravur frei lesbar bleibt.",
-                    ReadyCaptionAndTags = "Vorne die Koordinaten des Ortes, an dem alles begann – und auf der Rückseite nur für dich allein lesbar: Deine persönlichen Worte. 🤫💛 Welchen Ort würdest du verewigen? 👇\n\n👉 Vorder- & Rückseite im 3D-Konfigurator gestalten: {SLUG}\n\n#koordinatenschmuck #geheimebotschaft #partnergeschenk #jahrestagsgeschenk",
+                    ReadyCaptionAndTags = "Vorne die Koordinaten des Ortes, an dem alles begann · und auf der Rückseite nur für dich allein lesbar: Deine persönlichen Worte. 🤫💛 Welchen Ort würdest du verewigen? 👇\n\n👉 Vorder- & Rückseite im 3D-Konfigurator gestalten: {SLUG}\n\n#koordinatenschmuck #geheimebotschaft #partnergeschenk #jahrestagsgeschenk",
                     ProductVariantIndex = 2
                 },
                 new ViralConceptIdeaDto
@@ -2547,11 +2604,11 @@ namespace Funkenwerk
                     DurationLabel = "10 Sek.",
                     EffortLabel = "5 Min. Dreh",
                     ViewsBenchmark = "1,6M–5,8M",
-                    ShortSongBadge = "RA3 Servo-Sound (0 dB) + Daft Punk – Veridis Quo (Slowed)",
-                    TrendingSongs = "Sek. 0–5: 100 % Original RA3 Rotations- & Laser-Sound (0 dB)   |   Ab Sek. 5: Daft Punk – Veridis Quo (Slowed -8 dB)",
+                    ShortSongBadge = "RA3 Servo-Sound (0 dB) + Daft Punk · Veridis Quo (Slowed)",
+                    TrendingSongs = "Sek. 0–5: 100 % Original RA3 Rotations- & Laser-Sound (0 dB)   |   Ab Sek. 5: Daft Punk · Veridis Quo (Slowed -8 dB)",
                     ReferenceTrendUrl = "https://www.tiktok.com/search?q=rotary%20laser%20engraving%20beer%20glass%20satisfying",
                     OnScreenHook = "Wenn das Feierabend-Glas im 360°-Laser zum Einzelstück wird 🍺⚡",
-                    StructureBreakdown = "• Sek. 0,0–5,0: Das Weizenglas dreht sich im xTool RA3 Rotationsaufsatz wie ein Uhrwerk, während der UV-Laser das Wappen/Motiv schneeweiß ins Kristallglas brennt.\n• Sek. 5,0–10,0: Weiße Handschuhe heben das fertige Glas ins warme Gegenlicht – die milchweiße Frost-Gravur leuchtet gestochen scharf.",
+                    StructureBreakdown = "• Sek. 0,0–5,0: Das Weizenglas dreht sich im xTool RA3 Rotationsaufsatz wie ein Uhrwerk, während der UV-Laser das Wappen/Motiv schneeweiß ins Kristallglas brennt.\n• Sek. 5,0–10,0: Weiße Handschuhe heben das fertige Glas ins warme Gegenlicht · die milchweiße Frost-Gravur leuchtet gestochen scharf.",
                     WhyItGoesViral = "Mechanische Präzision + Rotation wirkt extrem hypnotisch und erschließt sofort die riesige Zielgruppe für Männer-, Papa-, Vereins- und Trauzeugen-Geschenke.",
                     Step1Setup = "Der Feierabend-Funke (Weizenglas) · xTool RA3 Rotationsaufsatz · Weiße Handschuhe · Gegenlicht-Lampe.",
                     Step2Shoot = "Filme 5s die Drehung im RA3 während des Laserns und 5s das fertige Glas im warmen Gegenlicht vor dunklem Hintergrund.",
@@ -2568,8 +2625,8 @@ namespace Funkenwerk
                     DurationLabel = "12 Sek.",
                     EffortLabel = "5 Min. Dreh",
                     ViewsBenchmark = "1,4M–4,6M",
-                    ShortSongBadge = "Packaging ASMR (0 dB) + Laufey – From The Start (Instrumental)",
-                    TrendingSongs = "Original ASMR Verpackungs-Geräusche (0 dB)   |   Hintergrund (-10 dB): Laufey – From The Start (Instrumental) oder Cozy Cafe Bossanova",
+                    ShortSongBadge = "Packaging ASMR (0 dB) + Laufey · From The Start (Instrumental)",
+                    TrendingSongs = "Original ASMR Verpackungs-Geräusche (0 dB)   |   Hintergrund (-10 dB): Laufey · From The Start (Instrumental) oder Cozy Cafe Bossanova",
                     ReferenceTrendUrl = "https://www.tiktok.com/search?q=pack%20an%20order%20with%20me%20small%20jewelry%20business%20asmr",
                     OnScreenHook = "Verpacke mit mir eine ganz besondere Bestellung aus unserer Manufaktur 📦🧤",
                     StructureBreakdown = "• Sek. 0,0–3,0: Weiße Handschuhe nehmen das frisch gravierte {PRODUKT} aus dem xTool F2 Ultra.\n• Sek. 3,0–7,5: Einlegen in die schwarze Westpack-Box, Schließen des Deckels (KLACK!).\n• Sek. 7,5–12,0: Optionales Schwarz-Gold-Geschenkpapier / Versandkarton + Beilegen der Dankeskarte.",
@@ -2589,16 +2646,16 @@ namespace Funkenwerk
                     DurationLabel = "8 Sek.",
                     EffortLabel = "4 Min. Dreh",
                     ViewsBenchmark = "1,9M–6,4M",
-                    ShortSongBadge = "Duomo – Wildest Dreams (Bridgerton Strings Cover)",
-                    TrendingSongs = "TikTok & Reels #1: Duomo – Wildest Dreams (Strings Cover)   |   #2: Edith Whiskers – Home (Instrumental)",
+                    ShortSongBadge = "Duomo · Wildest Dreams (Bridgerton Strings Cover)",
+                    TrendingSongs = "TikTok & Reels #1: Duomo · Wildest Dreams (Strings Cover)   |   #2: Edith Whiskers · Home (Instrumental)",
                     ReferenceTrendUrl = "https://www.tiktok.com/search?q=wedding%20gift%20idea%20better%20than%20money%20crystal",
                     OnScreenHook = "POV: Alle anderen schenken nur einen langweiligen Briefumschlag... und du kommst DAMIT an ✨🤍",
                     StructureBreakdown = "• Sek. 0,0–2,5: Die schwarze Westpack-Box (oder der beleuchtete Seelen Kristall) steht edel auf dem Tisch.\n• Sek. 2,5–8,0: Weiße Handschuhe öffnen langsam den Deckel und enthüllen {PRODUKT} mit den Initialen / dem Hochzeitsfoto des Paares.",
-                    WhyItGoesViral = "Jede Woche suchen tausende Gäste verzweifelt nach einem Geschenk für Hochzeit, Jahrestag oder runden Geburtstag – dieses Video wird extrem oft als Lesezeichen gespeichert!",
+                    WhyItGoesViral = "Jede Woche suchen tausende Gäste verzweifelt nach einem Geschenk für Hochzeit, Jahrestag oder runden Geburtstag · dieses Video wird extrem oft als Lesezeichen gespeichert!",
                     Step1Setup = "{PRODUKT} · Schwarze Westpack-Box oder LED-Sockel · Weiße Handschuhe.",
                     Step2Shoot = "Halte die Kamera nah an die geschlossene Box, öffne den Deckel langsam mit weißen Handschuhen im warmen Licht.",
                     Step3EditAndPost = "8 Sekunden Länge. Hinweis 'Speichere dir dieses Video für die nächste Einladung 📌' in die Caption setzen.",
-                    ReadyCaptionAndTags = "Geld ist nach zwei Wochen ausgegeben – ein persönliches Unikat aus unserer Manufaktur bleibt ein Leben lang. 🤍✨ Speichere dir dieses Video für die nächste Hochzeit, Taufe oder den nächsten Jahrestag! 📌\n\n👉 In 2 Minuten im 3D-Konfigurator gestalten: {SLUG}\n\n#hochzeitsgeschenk #jahrestagsgeschenk #besseralsgeld #geschenkidee #erinnerungsstück",
+                    ReadyCaptionAndTags = "Geld ist nach zwei Wochen ausgegeben · ein persönliches Unikat aus unserer Manufaktur bleibt ein Leben lang. 🤍✨ Speichere dir dieses Video für die nächste Hochzeit, Taufe oder den nächsten Jahrestag! 📌\n\n👉 In 2 Minuten im 3D-Konfigurator gestalten: {SLUG}\n\n#hochzeitsgeschenk #jahrestagsgeschenk #besseralsgeld #geschenkidee #erinnerungsstück",
                     ProductVariantIndex = 0
                 },
                 new ViralConceptIdeaDto
@@ -2610,8 +2667,8 @@ namespace Funkenwerk
                     DurationLabel = "8 Sek.",
                     EffortLabel = "4 Min. Dreh",
                     ViewsBenchmark = "1,1M–3,8M",
-                    ShortSongBadge = "Sabrina Carpenter – Please Please Please (Instrumental)",
-                    TrendingSongs = "TikTok & Reels #1: Sabrina Carpenter – Please Please Please (Instrumental)   |   #2: French Cafe Accordion / Upbeat Piano",
+                    ShortSongBadge = "Sabrina Carpenter · Please Please Please (Instrumental)",
+                    TrendingSongs = "TikTok & Reels #1: Sabrina Carpenter · Please Please Please (Instrumental)   |   #2: French Cafe Accordion / Upbeat Piano",
                     ReferenceTrendUrl = "https://www.tiktok.com/search?q=last%20minute%20personalized%20gift%20idea%20saved%20me",
                     OnScreenHook = "Wenn du morgen ein Geschenk brauchst, aber trotzdem etwas 100 % Persönliches schenken willst 🎁⚡",
                     StructureBreakdown = "• Sek. 0,0–3,0: Blick auf den Kalender / die Uhr ('Morgen ist der Ehrentag!').\n• Sek. 3,0–8,0: Weiße Handschuhe präsentieren den edlen Mein-Seelenfunke Geschenkgutschein neben einem funkelnden {PRODUKT} und dem 3D-Konfigurator am Handy.",
@@ -2619,7 +2676,7 @@ namespace Funkenwerk
                     Step1Setup = "Edler Seelenfunke-Gutschein (PDF/Karte) · Smartphone mit /gutschein Seite · {PRODUKT} als Deko daneben.",
                     Step2Shoot = "Zeige 3 Sekunden die Gutschein-Auswahl am Handy und 5 Sekunden die edle Übergabe mit {PRODUKT} im Hintergrund.",
                     Step3EditAndPost = "Besonders an den letzten 4 Tagen vor einem Feiertag (nach Versand-Cutoff!) posten. Link auf /gutschein.",
-                    ReadyCaptionAndTags = "Zu spät für den Paketversand dran? Kein Stress! Mit unserem Seelenfunke-Geschenkgutschein verschenkst du heute sofort die Vorfreude – und der Beschenkte gestaltet sich sein Unikat selbst in 3D! 🎁✨\n\n👉 Sofort als PDF-Download oder edle Karte sichern: /gutschein\n\n#lastminutegeschenk #geschenkgutschein #geschenkretter #meinseelenfunke",
+                    ReadyCaptionAndTags = "Zu spät für den Paketversand dran? Kein Stress! Mit unserem Seelenfunke-Geschenkgutschein verschenkst du heute sofort die Vorfreude · und der Beschenkte gestaltet sich sein Unikat selbst in 3D! 🎁✨\n\n👉 Sofort als PDF-Download oder edle Karte sichern: /gutschein\n\n#lastminutegeschenk #geschenkgutschein #geschenkretter #meinseelenfunke",
                     ProductVariantIndex = 6
                 }
             };
@@ -2642,10 +2699,11 @@ namespace Funkenwerk
                     r.CategoryBadge.Contains(_marketingSearchQuery, StringComparison.OrdinalIgnoreCase));
             }
 
+            int heroIdx = GetClampedDailyRecipeIndex();
             foreach (var r in recipes)
             {
                 bool isSelected = _selectedPlanRecipe != null && _selectedPlanRecipe.DayNumber == r.DayNumber;
-                bool isCurrentHero = _mktVault.DailyRecipes[_currentDailyRecipeIndex].DayNumber == r.DayNumber;
+                bool isCurrentHero = _mktVault.DailyRecipes.Count > 0 && _mktVault.DailyRecipes[heroIdx].DayNumber == r.DayNumber;
                 bool isDone = _mktVault.CompletedRecipeDays.Contains(r.DayNumber);
 
                 var card = new Border
@@ -2875,16 +2933,17 @@ namespace Funkenwerk
         private string? ResolveMarketingMusicFilePath(MarketingMusicTrackDto track)
         {
             if (track == null || string.IsNullOrWhiteSpace(track.FileName)) return null;
+            string safeFileName = Path.GetFileName(track.FileName);
+            if (string.IsNullOrWhiteSpace(safeFileName)) return null;
 
             string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-            string localAppData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Funkenwerk", "MarketingMusic");
+            string localAppData = Path.Combine(FunkenwerkSecurityVault.AppDataDirectory, "MarketingMusic");
 
             string[] candidates =
             {
-                Path.Combine(baseDir, "Assets", "MarketingMusic", track.FileName),
-                Path.Combine(localAppData, track.FileName),
-                Path.Combine(baseDir, track.FileName),
-                @"\\wsl.localhost\Ubuntu\home\ubuntuxina\meine-projekte\seelenfunke\funkenwerk\Assets\MarketingMusic\" + track.FileName
+                Path.Combine(baseDir, "Assets", "MarketingMusic", safeFileName),
+                Path.Combine(localAppData, safeFileName),
+                Path.Combine(baseDir, safeFileName)
             };
 
             foreach (var p in candidates)
@@ -3393,12 +3452,14 @@ namespace Funkenwerk
             string? path = first != null ? ResolveMarketingMusicFilePath(first) : null;
             string folder = !string.IsNullOrEmpty(path)
                 ? (Path.GetDirectoryName(path) ?? AppDomain.CurrentDomain.BaseDirectory)
-                : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Funkenwerk", "MarketingMusic");
+                : Path.Combine(FunkenwerkSecurityVault.AppDataDirectory, "MarketingMusic");
 
             try
             {
                 Directory.CreateDirectory(folder);
-                Process.Start(new ProcessStartInfo("explorer.exe", $"\"{folder}\"") { UseShellExecute = true });
+                var psi = new ProcessStartInfo("explorer.exe") { UseShellExecute = false };
+                psi.ArgumentList.Add(folder);
+                Process.Start(psi);
             }
             catch { }
         }
@@ -3482,7 +3543,7 @@ namespace Funkenwerk
                     MusicalKey = "A-Moll (A minor)",
                     DurationSeconds = 75,
                     DropTimingLabel = "⏱️ Sek. 0,0–3,2: Sanfte Spannung · Sek. 3,5: Licht-Aus & Leuchtsockel-Drop mit Kathedralen-Hall",
-                    ScenarioGuide = "• Maßgeschneidert für „Der Seelen Kristall“ im abgedunkelten Raum.\n• Sek. 0,0–3,2: Zeige das Handyfoto neben dem unbeleuchteten Kristallblock.\n• Sek. 3,5: Schalte das Raumlicht aus und den LED-Sockel ein – exakt hier öffnet sich die volle Kristall-Harfe.",
+                    ScenarioGuide = "• Maßgeschneidert für „Der Seelen Kristall“ im abgedunkelten Raum.\n• Sek. 0,0–3,2: Zeige das Handyfoto neben dem unbeleuchteten Kristallblock.\n• Sek. 3,5: Schalte das Raumlicht aus und den LED-Sockel ein · exakt hier öffnet sich die volle Kristall-Harfe.",
                     MixingGuide = "• Lass das echte Klick-Geräusch des Lichtschalters bei Sekunde 3,3 hörbar (0 dB) und lege den Drop von „Lights-Off Crystal“ exakt auf das Aufleuchten.",
                     InstrumentationGuide = "• A-Moll Filzklavier + analoger Cello-Bogen + hochfrequente 528 Hz / 880 Hz Kristallglas-Chimes, die im Kopf sofort mit leuchtendem K9-Kristallglas verknüpft werden.",
                     SunoUdioPrompt = "Cinematic dark luxury crystal reveal soundtrack, A minor, intimate felt piano, warm analog cello swell, dramatic silence at 3.2 seconds followed by magical glowing crystal glass harp chord drop at 3.5 seconds, deep sub bass warmth, cathedral shimmer reverb, 84 BPM, instrumental"
@@ -3519,11 +3580,11 @@ namespace Funkenwerk
                     CategoryKey = "camera",
                     CategoryLabel = "🎙️ Vor der Kamera & Storytelling",
                     Title = "Founder Trust Piano (Vor der Kamera & Voiceover)",
-                    Subtitle = "Warmer Neoklassik-Teppich mit Frequenz-Lücke in den Mitten – lässt deiner Stimme 100 % Raum",
+                    Subtitle = "Warmer Neoklassik-Teppich mit Frequenz-Lücke in den Mitten · lässt deiner Stimme 100 % Raum",
                     Bpm = 74,
                     MusicalKey = "D-Moll (D minor)",
                     DurationSeconds = 84,
-                    DropTimingLabel = "⏱️ Durchgehend ruhiger, vertrauenswürdiger Fluss (74 BPM) – übertönt niemals deine Sprechstimme",
+                    DropTimingLabel = "⏱️ Durchgehend ruhiger, vertrauenswürdiger Fluss (74 BPM) · übertönt niemals deine Sprechstimme",
                     ScenarioGuide = "• Dein Standard-Background-Song, wenn du selbst vor der Kamera sprichst („Hallo aus unserer Manufaktur in Gifhorn“, „Warum ich mich für den xTool F2 Ultra UV entschieden habe“, Fragerunden & Storytime).",
                     MixingGuide = "• Deine Stimme auf 0 dB (100 %), diesen Song auf -16 dB bis -18 dB darunterlegen. Durch das gedämpfte Filzklavier bleibt jede Silbe deiner Stimme glasklar verständlich.",
                     InstrumentationGuide = "• Speziell zwischen 800 Hz und 3.000 Hz (menschlicher Stimmfrequenzbereich) sanft abgesenkt: Weiches Felt Piano + tiefes warmes Cello-Pad.",
@@ -3584,7 +3645,7 @@ namespace Funkenwerk
                     Bpm = 86,
                     MusicalKey = "D-Moll (D minor)",
                     DurationSeconds = 78,
-                    DropTimingLabel = "⏱️ Rhythmisches 86-BPM-Handwerks-Pacing – trägt ASMR-Geräusche (Samt, Pinsel, Box-Klack), ohne sie zu überdecken",
+                    DropTimingLabel = "⏱️ Rhythmisches 86-BPM-Handwerks-Pacing · trägt ASMR-Geräusche (Samt, Pinsel, Box-Klack), ohne sie zu überdecken",
                     ScenarioGuide = "• Dein Signature-Sound, wenn du die Action-Cam auf dem Kopf trägst, weiße Baumwollhandschuhe anhast und der Zuschauer aus deiner Ich-Perspektive (POV) sieht, wie du das Unikat aus dem xTool F2 Ultra nimmst, abpinselst und in die schwarze Westpack-Box bettest.",
                     MixingGuide = "• Original-Werkstatt-ASMR (Pinsel-Streichen, Samt-Inlay, sattes Schachtel-Klacken) auf 100 % (0 dB) lassen! Diesen Song bei -9 dB als edlen Teppich darunterlegen.",
                     InstrumentationGuide = "• Rhythmische gedämpfte Filzklavier-Arpeggien in D-Moll + seidiger Sub-Bass + kristallklare Höhen, die den hohen Mittenbereich für echte ASMR-Geräusche komplett freihalten.",
@@ -3622,7 +3683,7 @@ namespace Funkenwerk
                     Bpm = 88,
                     MusicalKey = "D-Dorisch (D Dorian)",
                     DurationSeconds = 74,
-                    DropTimingLabel = "⏱️ Alle 2,7 Sek. sanfter Harmonie-Wechsel – ideal für 4–5 flüssige Verpackungs-Schnitte",
+                    DropTimingLabel = "⏱️ Alle 2,7 Sek. sanfter Harmonie-Wechsel · ideal für 4–5 flüssige Verpackungs-Schnitte",
                     ScenarioGuide = "• Für deine „Pack an Order with Me“-Videos mit Action-Cam: 1. Unikat prüfen -> 2. In schwarze Westpack-Box legen -> 3. Schwarz-Gold-Geschenkpapier / Dankeskarte dazu -> 4. Versandfertig machen.",
                     MixingGuide = "• Papier-Rascheln und Schachtel-Schließen auf 0 dB, Musik auf -8 dB.",
                     InstrumentationGuide = "• Positiv-edles D-Dorisch mit weichem Filzklavier, warmem Cello-Hauch und feinen Glöckchen-Obertönen.",
@@ -3640,13 +3701,13 @@ namespace Funkenwerk
                     ExportFileName = "Mein-Seelenfunke_10_Mystisches-Atelier-Login-Extended_60BPM_D-Dorisch.m4a",
                     CategoryKey = "atelier",
                     CategoryLabel = "🕯️ Mystisches Atelier & Ruhige Szenen",
-                    Title = "Mein Seelenfunke – Mystisches Atelier (Login-Song Extended)",
+                    Title = "Mein Seelenfunke · Mystisches Atelier (Login-Song Extended)",
                     Subtitle = "Dein geliebter, mystisch-warmer Funkenwerk-Login-Soundtrack in voller 1:30-Minuten-Albumlänge",
                     Bpm = 60,
                     MusicalKey = "D-Dorisch (D Dorian)",
                     DurationSeconds = 90,
                     DropTimingLabel = "⏱️ Sanftes Einfaden (0–3s) · Mystische Kristall-Harfe & Cello-Drone im 60-BPM-Ruhepuls",
-                    ScenarioGuide = "• Genau der mystische, ruhige Song aus deinem Funkenwerk-Loginbereich – hier in voller Länge (1:30 Min.) für ruhige Abend-Aufnahmen, edle Schiefer-/Glas-/Kerzenlicht-Kamerafahrten, Hochzeits-Unikate und Marken-Trailer.",
+                    ScenarioGuide = "• Genau der mystische, ruhige Song aus deinem Funkenwerk-Loginbereich · hier in voller Länge (1:30 Min.) für ruhige Abend-Aufnahmen, edle Schiefer-/Glas-/Kerzenlicht-Kamerafahrten, Hochzeits-Unikate und Marken-Trailer.",
                     MixingGuide = "• Wirkt sowohl pur auf 0 dB als epischer Marken-Soundtrack als auch auf -12 dB unter ruhigen Erzählungen.",
                     InstrumentationGuide = "• Warmer analoger Cello-Drone (D2 + A2) + mystische Kristallglas-Harfen-Chimes + gedämpftes Filzklavier in D-Dorisch + tiefer 60-BPM-Kathedralen-Raumklang.",
                     SunoUdioPrompt = "Dark luxury ambient cinematic soundtrack, warm analog cello drone, mystical resonant crystal glass harp chimes, soft felt piano in D Dorian, deep warm sub bass, slow atmospheric cathedral reverb, boutique jewelry atelier vibe, Hans Zimmer meets Nils Frahm and Olafur Arnalds, 60 BPM, instrumental, no drums, ultra clean mastering"
@@ -3683,7 +3744,7 @@ namespace Funkenwerk
                     Bpm = 64,
                     MusicalKey = "D-Moll (D minor)",
                     DurationSeconds = 82,
-                    DropTimingLabel = "⏱️ Sanfter, herzlicher Aufbau – ideal für Wochen-Rückblicke, Dankes-Videos & ruhige Werkbank-Szenen",
+                    DropTimingLabel = "⏱️ Sanfter, herzlicher Aufbau · ideal für Wochen-Rückblicke, Dankes-Videos & ruhige Werkbank-Szenen",
                     ScenarioGuide = "• Für deine Sonntags- oder Feierabend-Videos: „Während draußen alles ruhig ist, verpacke ich noch eure Herzens-Bestellungen für Montag“.",
                     MixingGuide = "• Mit Stimme auf -15 dB, ohne Stimme auf -4 dB + echte leise Handgriffe an der Werkbank.",
                     InstrumentationGuide = "• Warmes D-Moll Filzklavier + sanfter Kontrabass/Cello-Bogen + dezente goldene Oberton-Glöckchen.",
@@ -3893,7 +3954,7 @@ namespace Funkenwerk
                     {
                         PlaySoundTaskDone();
                         _currentDailyRecipeIndex = idx;
-                        _selectedPlanRecipe = _mktVault.DailyRecipes[idx];
+                        _selectedPlanRecipe = _mktVault.DailyRecipes[GetClampedDailyRecipeIndex()];
                         SaveMarketingVaultOffline();
                         RenderDailyHeroBanner();
                     }
@@ -4196,7 +4257,7 @@ namespace Funkenwerk
             {
                 new() {
                     DayNumber = 1, WeekdayLabel = "Montag", CategoryBadge = "White-Glove ASMR", DurationLabel = "14 Sek.",
-                    Title = "Das Goldene Seelen-Herz – 14k Gold-Gravur & Westpack-Box",
+                    Title = "Das Goldene Seelen-Herz · 14k Gold-Gravur & Westpack-Box",
                     ProductName = "Das Goldene Seelen-Herz (14k vergoldet)",
                     CapCutTemplate = "Vorlage A: Pure Atelier ASMR (14s)", LandingPageSlug = "/l/goldenes-seelen-herz",
                     OnScreenHookText = "Wenn eine Handschrift für die Ewigkeit in 14k Gold gebrannt wird ✨",
@@ -4209,7 +4270,7 @@ namespace Funkenwerk
                 },
                 new() {
                     DayNumber = 2, WeekdayLabel = "Dienstag", CategoryBadge = "Emotionale Story", DurationLabel = "28 Sek.",
-                    Title = "Der Seelen Kristall – Haustier-Erinnerung im Dunkeln erleuchtet",
+                    Title = "Der Seelen Kristall · Haustier-Erinnerung im Dunkeln erleuchtet",
                     ProductName = "Der Seelen Kristall (K9-Kristallglas 3D)",
                     CapCutTemplate = "Vorlage B: Kunden-Story & Licht-Reveal (28s)", LandingPageSlug = "/l/seelen-kristall",
                     OnScreenHookText = "„Er war 14 Jahre lang mein bester Freund... könnt ihr ihn verewigen?“ 🐾🤍",
@@ -4218,7 +4279,7 @@ namespace Funkenwerk
                     Step2Hook = "0–3s: Handyfoto des Hundes kurz neben den rohen K9-Kristallblock halten",
                     Step3Clips = "Clip 1: 6s UV-Laser im Glasinneren · Clip 2: 8s Polieren mit Handschuhen · Clip 3: 11s Raum dunkel & Licht an",
                     Step4Edit = "CapCut Vorlage B · Musik-Drop exakt bei Sekunde 14 wenn der Kristall im Dunkeln aufleuchtet",
-                    ReadyCaption = "Für immer im Herzen – und jetzt für die Ewigkeit in reinem K9-Kristallglas festgehalten. 🐾✨ Danke für euer Vertrauen bei so emotionalen Erinnerungsstücken.\n\n👇 Lade dein Lieblingsfoto jetzt unverbindlich in unseren 3D-Konfigurator (Link in Bio)!\n\n#meinseelenfunke #seelenkristall #3dglasgravur #hundeerinnerung #trauergeschenk #pfotenliebe"
+                    ReadyCaption = "Für immer im Herzen · und jetzt für die Ewigkeit in reinem K9-Kristallglas festgehalten. 🐾✨ Danke für euer Vertrauen bei so emotionalen Erinnerungsstücken.\n\n👇 Lade dein Lieblingsfoto jetzt unverbindlich in unseren 3D-Konfigurator (Link in Bio)!\n\n#meinseelenfunke #seelenkristall #3dglasgravur #hundeerinnerung #trauergeschenk #pfotenliebe"
                 },
                 new() {
                     DayNumber = 3, WeekdayLabel = "Mittwoch", CategoryBadge = "Gründerin & Vertrauen", DurationLabel = "34 Sek.",
@@ -4235,7 +4296,7 @@ namespace Funkenwerk
                 },
                 new() {
                     DayNumber = 4, WeekdayLabel = "Donnerstag", CategoryBadge = "Laser-ASMR Pur", DurationLabel = "15 Sek.",
-                    Title = "Die Seelen-Pfote – Knackige Tiefengravur mit Funkenflug",
+                    Title = "Die Seelen-Pfote · Knackige Tiefengravur mit Funkenflug",
                     ProductName = "Die Seelen-Pfote (Personalisierte Hundemarke)",
                     CapCutTemplate = "Vorlage A: Pure Atelier ASMR (15s)", LandingPageSlug = "/l/seelen-pfote",
                     OnScreenHookText = "Hör dir dieses Geräusch an, wenn aus Metall ein Unikat wird 🔥🐾",
@@ -4244,11 +4305,11 @@ namespace Funkenwerk
                     Step2Hook = "0–2s: Extremer Makro-Shot, wie der Laserstrahl die Pfoten-Kontur zieht",
                     Step3Clips = "Clip 1: 6s Laser-Gravur mit Originalton · Clip 2: 4s Abwischen mit Samttuch · Clip 3: 5s Schärfe-Reveal im Goldlicht",
                     Step4Edit = "CapCut Vorlage A · Höhen beim Laser-Audio leicht anheben (+2 dB) für Gänsehaut-ASMR",
-                    ReadyCaption = "Präzision auf den Hundertstelmillimeter – für deinen treuesten Begleiter. 🐾🔥\n\n👉 Gestalte deine eigene Seelen-Pfote in 60 Sekunden über den Link in der Bio!\n\n#meinseelenfunke #hundemarke #laserasmr #hundeliebe #personalisiert"
+                    ReadyCaption = "Präzision auf den Hundertstelmillimeter · für deinen treuesten Begleiter. 🐾🔥\n\n👉 Gestalte deine eigene Seelen-Pfote in 60 Sekunden über den Link in der Bio!\n\n#meinseelenfunke #hundemarke #laserasmr #hundeliebe #personalisiert"
                 },
                 new() {
                     DayNumber = 5, WeekdayLabel = "Freitag", CategoryBadge = "Wochenend-Impuls", DurationLabel = "17 Sek.",
-                    Title = "Der Feierabend-Funke – 360° Rotationsgravur auf Weizenglas",
+                    Title = "Der Feierabend-Funke · 360° Rotationsgravur auf Weizenglas",
                     ProductName = "Der Feierabend-Funke (Personalisiertes Weizenglas)",
                     CapCutTemplate = "Vorlage A: Pure Atelier ASMR (17s)", LandingPageSlug = "/l/weizenglas",
                     OnScreenHookText = "Das Männergeschenk, das garantiert nicht im Schrank verstaubt 🍺✨",
@@ -4261,7 +4322,7 @@ namespace Funkenwerk
                 },
                 new() {
                     DayNumber = 6, WeekdayLabel = "Samstag", CategoryBadge = "Emotionale Story", DurationLabel = "26 Sek.",
-                    Title = "Der Seelenanhänger – Omas letzte Zeilen für immer bei dir",
+                    Title = "Der Seelenanhänger · Omas letzte Zeilen für immer bei dir",
                     ProductName = "Der Seelenanhänger / Der Seelen-Talisman",
                     CapCutTemplate = "Vorlage B: Kunden-Story & Licht-Reveal (26s)", LandingPageSlug = "/l/seelen-anhaenger",
                     OnScreenHookText = "„Ich habe nur noch diese eine Geburtstagskarte von meiner Oma...“ 🤍",
@@ -4270,7 +4331,7 @@ namespace Funkenwerk
                     Step2Hook = "0–3s: Die handgeschriebenen Worte „Hab dich lieb“ auf Papier neben dem blanken Anhänger",
                     Step3Clips = "Clip 1: 5s Foto-Freistellung am Bildschirm · Clip 2: 8s Lasergravur · Clip 3: 10s Anhänger in Westpack-Box schließen",
                     Step4Edit = "CapCut Vorlage B · Sanfte Überblendung von der Papier-Unterschrift auf die fertige Metallgravur",
-                    ReadyCaption = "Ein Foto von einem alten Brief oder einer Karte reicht aus – wir übertragen die exakte Handschrift deiner Liebsten für die Ewigkeit auf deinen Seelenanhänger. 🤍✨\n\n👉 Gleich über den Link in der Bio ausprobieren!\n\n#meinseelenfunke #handschriftgravur #erinnerungsstück #geschenkmitherz #unikat"
+                    ReadyCaption = "Ein Foto von einem alten Brief oder einer Karte reicht aus · wir übertragen die exakte Handschrift deiner Liebsten für die Ewigkeit auf deinen Seelenanhänger. 🤍✨\n\n👉 Gleich über den Link in der Bio ausprobieren!\n\n#meinseelenfunke #handschriftgravur #erinnerungsstück #geschenkmitherz #unikat"
                 },
                 new() {
                     DayNumber = 7, WeekdayLabel = "Sonntag", CategoryBadge = "3D-Konfigurator Magie", DurationLabel = "21 Sek.",
@@ -4300,7 +4361,7 @@ namespace Funkenwerk
                 },
                 new() {
                     DayNumber = 9, WeekdayLabel = "Dienstag", CategoryBadge = "Emotionale Story", DurationLabel = "29 Sek.",
-                    Title = "Der Seelen-Talisman – Koordinaten des ersten Kennenlernens",
+                    Title = "Der Seelen-Talisman · Koordinaten des ersten Kennenlernens",
                     ProductName = "Der Seelen-Talisman",
                     CapCutTemplate = "Vorlage B: Kunden-Story & Licht-Reveal (29s)", LandingPageSlug = "/l/seelen-talisman",
                     OnScreenHookText = "„An genau diesem Ort hat vor 5 Jahren alles begonnen...“ 📍❤️",
@@ -4316,30 +4377,30 @@ namespace Funkenwerk
                     Title = "Wie kommt das Bild OHNE Kratzer mitten ins massive Glas?",
                     ProductName = "Der Seelen Kristall (UV-Laser Innengravur)",
                     CapCutTemplate = "Vorlage A: Pure Atelier ASMR (15s)", LandingPageSlug = "/l/seelen-kristall",
-                    OnScreenHookText = "Wie kommt das Foto mitten ins massive Glas – obwohl außen alles glatt bleibt? 🤯✨",
+                    OnScreenHookText = "Wie kommt das Foto mitten ins massive Glas · obwohl außen alles glatt bleibt? 🤯✨",
                     AudioDirection = "Hochfrequentes UV-Laser-Knistern + staunender Reveal-Akkord",
                     Step1Setup = "Seelen Kristall im xTool F2 Ultra UV · Weiße Handschuhe",
                     Step2Hook = "0–3s: Extreme Nahaufnahme des violetten UV-Laserpunkts mitten im Glasblock",
                     Step3Clips = "Clip 1: 6s Tausende Mikropunkte entstehen im Glas · Clip 2: 4s Finger mit weißem Handschuh gleitet über glatte Außenseite · Clip 3: 5s Leucht-Reveal",
                     Step4Edit = "CapCut Vorlage A · Kurzer erklärender 1-Zeiler bei Sekunde 5: „5W UV-Laser bündelt Licht exakt im Kern“",
-                    ReadyCaption = "Magie trifft auf deutsche Manufaktur-Präzision: Tausende feinste Lichtpunkte schweben mitten im massiven K9-Kristall – unzerstörbar für die Ewigkeit. ✨💎\n\n#meinseelenfunke #uvlaser #3dkristall #technikfakten #geschenkideen"
+                    ReadyCaption = "Magie trifft auf deutsche Manufaktur-Präzision: Tausende feinste Lichtpunkte schweben mitten im massiven K9-Kristall · unzerstörbar für die Ewigkeit. ✨💎\n\n#meinseelenfunke #uvlaser #3dkristall #technikfakten #geschenkideen"
                 },
                 new() {
                     DayNumber = 11, WeekdayLabel = "Donnerstag", CategoryBadge = "Haustier-Liebe", DurationLabel = "25 Sek.",
                     Title = "Die Seelen-Pfote + Seelenanhänger im Partner-Look (Mensch & Hund)",
                     ProductName = "Die Seelen-Pfote & Der Seelenanhänger",
                     CapCutTemplate = "Vorlage B: Kunden-Story & Licht-Reveal (25s)", LandingPageSlug = "/l/seelen-pfote",
-                    OnScreenHookText = "Einer für sein Halsband – und einer für deinen Schlüsselbund 🐾🔑",
+                    OnScreenHookText = "Einer für sein Halsband · und einer für deinen Schlüsselbund 🐾🔑",
                     AudioDirection = "Laser-Duett (2 schnelle Schnitte) + herzerwärmende Instrumentalmusik",
                     Step1Setup = "1x Seelen-Pfote + 1x Seelenanhänger · Weiße Handschuhe · Schwarzes Schiefer-Tablett",
                     Step2Hook = "0–3s: Beide Rohlinge liegen nebeneinander unter dem Laser-Positionierkreuz",
                     Step3Clips = "Clip 1: 7s Laser graviert beide Stücke · Clip 2: 8s Nebeneinander auf Schiefer anrichten · Clip 3: 10s Nahaufnahme der feinen Details",
                     Step4Edit = "CapCut Vorlage B · Am Ende Hinweis auf das Set-Geschenk einblenden",
-                    ReadyCaption = "Damit ihr immer miteinander verbunden seid – egal wohin der Weg führt. 🐾🤍\n\n👇 Entdecke unsere Seelen-Pfote und den passenden Anhänger über den Link in der Bio!\n\n#meinseelenfunke #hundemama #hundepapa #pfotenabdruck #hundezubehör"
+                    ReadyCaption = "Damit ihr immer miteinander verbunden seid · egal wohin der Weg führt. 🐾🤍\n\n👇 Entdecke unsere Seelen-Pfote und den passenden Anhänger über den Link in der Bio!\n\n#meinseelenfunke #hundemama #hundepapa #pfotenabdruck #hundezubehör"
                 },
                 new() {
                     DayNumber = 12, WeekdayLabel = "Freitag", CategoryBadge = "Bestseller-Vergleich", DurationLabel = "19 Sek.",
-                    Title = "Goldenes Seelen-Herz vs. Seelen Kristall – Welcher Typ bist du?",
+                    Title = "Goldenes Seelen-Herz vs. Seelen Kristall · Welcher Typ bist du?",
                     ProductName = "Das Goldene Seelen-Herz & Der Seelen Kristall",
                     CapCutTemplate = "Vorlage A: Kommentar-Trigger (19s)", LandingPageSlug = "/linktree",
                     OnScreenHookText = "Team 1 (14k Gold am Herzen tragen) oder Team 2 (Leuchtender 3D-Kristall)? 👇✨",
@@ -4352,7 +4413,7 @@ namespace Funkenwerk
                 },
                 new() {
                     DayNumber = 13, WeekdayLabel = "Samstag", CategoryBadge = "Hochzeit & Paare", DurationLabel = "27 Sek.",
-                    Title = "Der Seelen Kristall – Das Hochzeitsgeschenk, bei dem die Braut weinte",
+                    Title = "Der Seelen Kristall · Das Hochzeitsgeschenk, bei dem die Braut weinte",
                     ProductName = "Der Seelen Kristall (Hochzeits-Edition)",
                     CapCutTemplate = "Vorlage B: Kunden-Story & Licht-Reveal (27s)", LandingPageSlug = "/l/seelen-kristall",
                     OnScreenHookText = "Wenn Geld im Umschlag zur Hochzeit einfach zu unpersönlich ist... 💍✨",
@@ -4361,7 +4422,7 @@ namespace Funkenwerk
                     Step2Hook = "0–3s: Text-Hook über dem glitzernden Schliff des K9-Kristalls",
                     Step3Clips = "Clip 1: 8s Gravur des Brautpaars + Hochzeitsdatum · Clip 2: 9s Licht-Reveal im Dunkeln · Clip 3: 7s Sicheres Verpacken für den großen Tag",
                     Step4Edit = "CapCut Vorlage B · Fokus auf die funkelnden Facetten des K9-Kristalls im Streiflicht",
-                    ReadyCaption = "Geldgeschenke sind nach einer Woche ausgegeben – dieser Moment bleibt ein Leben lang. 💍🤍\n\n👉 Verewige das schönste Hochzeitsfoto jetzt in unserem 3D-Konfigurator (Link in Bio)!\n\n#meinseelenfunke #hochzeitsgeschenk #brautpaar #personalisiertehochzeit #3dglasgravur"
+                    ReadyCaption = "Geldgeschenke sind nach einer Woche ausgegeben · dieser Moment bleibt ein Leben lang. 💍🤍\n\n👉 Verewige das schönste Hochzeitsfoto jetzt in unserem 3D-Konfigurator (Link in Bio)!\n\n#meinseelenfunke #hochzeitsgeschenk #brautpaar #personalisiertehochzeit #3dglasgravur"
                 },
                 new() {
                     DayNumber = 14, WeekdayLabel = "Sonntag", CategoryBadge = "Gründerin & Manufaktur", DurationLabel = "31 Sek.",
@@ -4455,7 +4516,7 @@ namespace Funkenwerk
                     "Zeile 1: Pure Laser Sounds & Precision Engraving 🔊⚡ | Zeile 2: Custom Metal, Gold & Slate | Zeile 3: Turn Sound ON 🎧 | Zeile 4: Custom Orders Link",
                     "Schlanker Direkt-Shop für personalisierte Metall-Anhänger, Hundemarken und Schieferplatten.",
                     "4,9 ★ als spezialisiertes Laser-Gravur-Studio gelistet.",
-                    new[] { "Keinerlei Musik in den ersten 8 Sekunden – nur das knackige, melodische Singen des Lasers", "Richtet das Mikrofon im 45°-Winkel nah am Schutzgehäuse aus für satten Sound", "Millionen Views durch Zuschauer, die das Video wegen des Klangs 3–4 Mal hintereinander hören" },
+                    new[] { "Keinerlei Musik in den ersten 8 Sekunden · nur das knackige, melodische Singen des Lasers", "Richtet das Mikrofon im 45°-Winkel nah am Schutzgehäuse aus für satten Sound", "Millionen Views durch Zuschauer, die das Video wegen des Klangs 3–4 Mal hintereinander hören" },
                     "Die Seelen-Pfote", 4),
 
                 (12, "EngraveIt Studio", "@engraveitstudio", "TikTok & IG", "laser", "3. Laser, Metall, Glas & Schiefer-ASMR", "390K", "17s",
@@ -4490,12 +4551,12 @@ namespace Funkenwerk
                     "Zeile 1: Bespoke Heirlooms · White-Glove Standard 🧤✨ | Zeile 2: 14k Gold & Crystal Keepsakes | Zeile 3: Complimentary Luxury Box | Zeile 4: Private Atelier Shop",
                     "Ultra-cleaner Luxus-Shop ohne Rabatt-Schreierei; Fokus auf Wertigkeit, Schachtel und Handarbeit.",
                     "5,0 ★ Boutique-Profil; Kunden loben besonders die edle Verpackung und das Auspack-Erlebnis.",
-                    new[] { "Kein Produkt wird jemals mit bloßen Fingern berührt – immer blütenweiße Baumwollhandschuhe", "Verwendet feine Naturhaarpinsel und Messing-Pinzetten zur Qualitätsprüfung vor der Kamera", "Hebt den wahrgenommenen Wert eines 49–69 € Produkts optisch auf 250 € Juwelier-Niveau" },
+                    new[] { "Kein Produkt wird jemals mit bloßen Fingern berührt · immer blütenweiße Baumwollhandschuhe", "Verwendet feine Naturhaarpinsel und Messing-Pinzetten zur Qualitätsprüfung vor der Kamera", "Hebt den wahrgenommenen Wert eines 49–69 € Produkts optisch auf 250 € Juwelier-Niveau" },
                     "Goldenes Seelen-Herz", 8),
 
                 (17, "LuxuryBox Ritual", "@luxuryboxritual", "TikTok & IG", "luxury", "4. White-Glove Luxury & Packaging", "330K", "14s",
                     "Zeile 1: The Art of Gifting 🖤✨ | Zeile 2: Personalized Jewelry in Matte Black Signature Boxes | Zeile 3: Ready to Gift | Zeile 4: Order Yours",
-                    "Fokus auf 'Sofort verschenkfertig' – zeigt die schwarze matte Schmuckschachtel auf jedem Produktbild mit an.",
+                    "Fokus auf 'Sofort verschenkfertig' · zeigt die schwarze matte Schmuckschachtel auf jedem Produktbild mit an.",
                     "4,9 ★ mit unzähligen Unboxing-Reels von glücklichen Beschenkten.",
                     new[] { "Widmet die letzten 4 Sekunden jedes Videos exklusiv der mattschwarzen Schmuckschachtel mit Logodruck", "Lässt das satte Schließgeräusch der Schachtel als akustisches Markenzeichen am Videoende stehen", "Steigert die Kaufrate vor Weihnachten, Valentinstag und Muttertag massiv, weil keine Verpackung mehr nötig ist" },
                     "Goldenes Seelen-Herz", 8),
@@ -4510,14 +4571,14 @@ namespace Funkenwerk
                 (19, "MemorialCraft Studio", "@memorialcraftstudio", "Instagram & TikTok", "luxury", "4. White-Glove Luxury & Packaging", "380K", "28s",
                     "Zeile 1: Keeping Loved Ones Close Forever 🤍🕊️ | Zeile 2: Memorial Crystals, Paw Prints & Handwriting | Zeile 3: Handcrafted with Respect & Care | Zeile 4: Memorial Collection",
                     "Sanftes, würdevolles Shop-Design mit eigener Kategorie für Trauer- & Haustier-Erinnerungsstücke.",
-                    "5,0 ★ – extrem treue Weiterempfehlungs-Community durch einfühlsamen Umgang mit Erinnerungsstücken.",
+                    "5,0 ★ · extrem treue Weiterempfehlungs-Community durch einfühlsamen Umgang mit Erinnerungsstücken.",
                     new[] { "Behandelt jedes Kundenstück im Video mit sichtbarer Ehrfurcht (langsame Bewegungen, weiße Handschuhe, gedämpftes Licht)", "Verzichtet bei Trauer-/Gedenk-Videos auf laute Trend-Musik und nutzt nur warmes Klavier + echten Werkstatt-Ton", "Überdurchschnittlich hohe Weiterleitungs-Rate (Shares per WhatsApp innerhalb von Familien)" },
                     "Der Seelen Kristall", 2),
 
                 (20, "Heirloom Engravers", "@heirloomengravers", "Instagram & TikTok", "luxury", "4. White-Glove Luxury & Packaging", "295K", "23s",
                     "Zeile 1: Modern Laser Precision · Timeless Heirlooms ✨ | Zeile 2: Crystal · Gold · Glass · Metal | Zeile 3: 5.0 ★ Rated Atelier | Zeile 4: Configure in 3D 👇",
                     "Verbindet Bestseller-Landingpages mit echten Google-Bewertungs-Kacheln direkt unter dem Konfigurator.",
-                    "5,0 ★ – bindet seine besten Google-Bewertungen direkt als Social-Proof-Einblendung in Reels und Ads ein.",
+                    "5,0 ★ · bindet seine besten Google-Bewertungen direkt als Social-Proof-Einblendung in Reels und Ads ein.",
                     new[] { "Blendet bei Sekunde 3 kurz den echten Kundenwunsch oder eine 5-Sterne-Bewertung als Story-Einstieg ein", "Zeigt die komplette Bandbreite (Gold-Herz, 3D-Kristall, Weizenglas) unter einer einheitlichen schwarz-goldenen Bildsprache", "Schaltet nur die Top 10 % seiner organischen Videos als Spark Ads auf maßgeschneiderte Landingpages" },
                     "Alle Bestseller", 12)
             };
@@ -4548,7 +4609,7 @@ namespace Funkenwerk
             {
                 // Basis-Fragen 1–7
                 new() { Number = 1, CategoryKey = "base", CategoryName = "Basis-Analyse", Question = "Wie lang sind die erfolgreichsten Videos?", MarketFinding = "ASMR-Laserclips: 11–16 Sek. | Emotionale Kunden-Storys: 24–32 Sek. | Gründer-Einblicke: 30–42 Sek.", SeelenfunkeRule = "Reine Laser-/Handschuh-Videos strikt bei 13–15 Sek. halten; Story-Videos bei 26–30 Sek." },
-                new() { Number = 2, CategoryKey = "base", CategoryName = "Basis-Analyse", Question = "Was ist der exakte Inhalt der Top-Videos?", MarketFinding = "Immer nur 1 Produkt + 1 klares Gefühl pro Video (Entstehung vom Kundenfoto bis zum Licht-Reveal).", SeelenfunkeRule = "Nie mehrere Produkte durcheinander mischen – 1 Bestellung = 1 fokussiertes Video." },
+                new() { Number = 2, CategoryKey = "base", CategoryName = "Basis-Analyse", Question = "Was ist der exakte Inhalt der Top-Videos?", MarketFinding = "Immer nur 1 Produkt + 1 klares Gefühl pro Video (Entstehung vom Kundenfoto bis zum Licht-Reveal).", SeelenfunkeRule = "Nie mehrere Produkte durcheinander mischen · 1 Bestellung = 1 fokussiertes Video." },
                 new() { Number = 3, CategoryKey = "base", CategoryName = "Basis-Analyse", Question = "Welche Sounds werden verwendet?", MarketFinding = "Sekunde 0–3 immer 100 % echter Werkstatt-Sound (Laser-Singen/Box-Klacken), ab Reveal warmes Piano/Strings.", SeelenfunkeRule = "Dual-Layer-Audio in CapCut: Erst knackiges xTool-ASMR (0 dB), beim Aufleuchten Piano (-8 dB)." },
                 new() { Number = 4, CategoryKey = "base", CategoryName = "Basis-Analyse", Question = "Welche visuellen Besonderheiten stechen sofort ins Auge?", MarketFinding = "Blütenweiße Juwelierhandschuhe, schwarzer Untergrund, warmes Streiflicht und edle mattschwarze Schachtel.", SeelenfunkeRule = "Jeder Handgriff mit weißen Handschuhen + Abschluss in der schwarzen Westpack-Schmuckschachtel." },
                 new() { Number = 5, CategoryKey = "base", CategoryName = "Basis-Analyse", Question = "Wie sieht die Bio des Accounts aus (Aufbau, Struktur, Links)?", MarketFinding = "TikTok hat ein striktes 80-Zeichen-Limit (3 ultrakurze Zeilen); Instagram erlaubt 150 Zeichen (inkl. 4. CTA-Zeile).", SeelenfunkeRule = "TikTok (66/80 Zeichen): '✨ Unikate / 🤍 Glas, Schiefer & Metall / 🧤 Handveredelt aus Deutschland' (+ 4. CTA-Zeile auf Instagram)." },
@@ -4556,16 +4617,16 @@ namespace Funkenwerk
                 new() { Number = 7, CategoryKey = "base", CategoryName = "Basis-Analyse", Question = "Wie sieht deren Google Business Profil aus?", MarketFinding = "4,8–5,0 Sterne, echte Werkstatt-Fotos, Kurzvideos der Lasergravur und aktive Nachkauf-Bewertungsschleife.", SeelenfunkeRule = "Google Business für Manufaktur Gifhorn mit Werkstatt-Videos pflegen + QR-Code-Dankeskarte im Paket." },
 
                 // A. Hook-Psychologie (8–12)
-                new() { Number = 8, CategoryKey = "hook", CategoryName = "Hook (0–3s)", Question = "Welches Bild sieht man im allerersten Frame (Sekunde 0,0)?", MarketFinding = "Kein leeres Intro: Entweder blitzt bereits der Laserstrahl oder weiße Handschuhe halten Foto + Rohling.", SeelenfunkeRule = "In CapCut die ersten 0,5 Sekunden Leerlauf wegschneiden – Frame 1 startet mitten in der Bewegung." },
+                new() { Number = 8, CategoryKey = "hook", CategoryName = "Hook (0–3s)", Question = "Welches Bild sieht man im allerersten Frame (Sekunde 0,0)?", MarketFinding = "Kein leeres Intro: Entweder blitzt bereits der Laserstrahl oder weiße Handschuhe halten Foto + Rohling.", SeelenfunkeRule = "In CapCut die ersten 0,5 Sekunden Leerlauf wegschneiden · Frame 1 startet mitten in der Bewegung." },
                 new() { Number = 9, CategoryKey = "hook", CategoryName = "Hook (0–3s)", Question = "Welcher Text-Hook steht in den ersten 2 Sekunden im Bild?", MarketFinding = "Ein einziger emotionaler Satz in Augenhöhe (z. B. 'Als sie die letzte Notiz ihrer Oma schickte...').", SeelenfunkeRule = "Weiße Schrift mit dezenter abgerundeter dunkler Box oder Gold-Highlight (#C5A059) im oberen Drittel." },
                 new() { Number = 10, CategoryKey = "hook", CategoryName = "Hook (0–3s)", Question = "Welcher akustische Reiz stoppt das Weiterwischen in Sekunde 1?", MarketFinding = "Das hochfrequente Zischen des Lasers oder das satte Klacken beim Öffnen der Schmuckschachtel.", SeelenfunkeRule = "Mikrofon nah an die xTool-Haube: Sekunde 0 startet mit einem klaren akustischen Signal." },
-                new() { Number = 11, CategoryKey = "hook", CategoryName = "Hook (0–3s)", Question = "Wie bewegt sich die Kamera in der ersten Einstellung?", MarketFinding = "Entweder extrem ruhiges Makro-Stativ (Fokus auf Laser) oder sanfte Bewegung der weißen Handschuhe ins Licht.", SeelenfunkeRule = "Kein hektisches Verwackeln – Kamera fest fixieren, Bewegung kommt durch Laser und Hände." },
-                new() { Number = 12, CategoryKey = "hook", CategoryName = "Hook (0–3s)", Question = "Wie funktioniert der nahtlose Loop am Videoende?", MarketFinding = "Das Video endet exakt nach dem Reveal ohne Abspann, sodass es sofort wieder bei Sekunde 0 einrastet.", SeelenfunkeRule = "Kein 'Tschüss'-Outro am Ende – letzter Frame = geschlossene Westpack-Box -> springt direkt zum Start." },
+                new() { Number = 11, CategoryKey = "hook", CategoryName = "Hook (0–3s)", Question = "Wie bewegt sich die Kamera in der ersten Einstellung?", MarketFinding = "Entweder extrem ruhiges Makro-Stativ (Fokus auf Laser) oder sanfte Bewegung der weißen Handschuhe ins Licht.", SeelenfunkeRule = "Kein hektisches Verwackeln · Kamera fest fixieren, Bewegung kommt durch Laser und Hände." },
+                new() { Number = 12, CategoryKey = "hook", CategoryName = "Hook (0–3s)", Question = "Wie funktioniert der nahtlose Loop am Videoende?", MarketFinding = "Das Video endet exakt nach dem Reveal ohne Abspann, sodass es sofort wieder bei Sekunde 0 einrastet.", SeelenfunkeRule = "Kein 'Tschüss'-Outro am Ende · letzter Frame = geschlossene Westpack-Box -> springt direkt zum Start." },
 
                 // B. Kamera, Schnitt & White-Glove (13–18)
                 new() { Number = 13, CategoryKey = "camera", CategoryName = "Kamera & Handschuhe", Question = "Wie schnell ist der Schnitt-Rhythmus (Pacing)?", MarketFinding = "Schnelle 1,0–1,5 Sek. Schnitte während der Fertigung, aber 3,5–5,0 Sek. Ruhe beim finalen Licht-Reveal.", SeelenfunkeRule = "Prozess zügig schneiden, aber dem fertigen Kunstwerk im Licht mindestens 4 Sekunden Ruhe gönnen." },
                 new() { Number = 14, CategoryKey = "camera", CategoryName = "Kamera & Handschuhe", Question = "Wie wird das Licht beim Reveal inszeniert?", MarketFinding = "Dramatischer Kontrast: Arbeitslicht aus -> nur noch der LED-Sockel oder warmes Seitenlicht beleuchtet das Werkstück.", SeelenfunkeRule = "Beim Seelen Kristall für die letzte Aufnahme das Raumlicht löschen und nur von unten/seitlich beleuchten." },
-                new() { Number = 15, CategoryKey = "camera", CategoryName = "Kamera & Handschuhe", Question = "Welche Requisiten steigern den wahrgenommenen Produktwert?", MarketFinding = "Weiße Baumwollhandschuhe, feiner Pinsel, Lupe, schwarzer Schiefer und mattschwarze Logobox.", SeelenfunkeRule = "Immer weiße Handschuhe + Westpack-Schachtel im Bild haben – macht aus 69 € gefühlte 200 € Luxus." },
+                new() { Number = 15, CategoryKey = "camera", CategoryName = "Kamera & Handschuhe", Question = "Welche Requisiten steigern den wahrgenommenen Produktwert?", MarketFinding = "Weiße Baumwollhandschuhe, feiner Pinsel, Lupe, schwarzer Schiefer und mattschwarze Logobox.", SeelenfunkeRule = "Immer weiße Handschuhe + Westpack-Schachtel im Bild haben · macht aus 69 € gefühlte 200 € Luxus." },
                 new() { Number = 16, CategoryKey = "camera", CategoryName = "Kamera & Handschuhe", Question = "Wie viel Prozent des Videos sind extreme Makro-Aufnahmen?", MarketFinding = "Über 70 % sind Nahaufnahmen (Gravurtiefe, Funken, Glas-Facetten), damit Details auf dem Handybildschirm wirken.", SeelenfunkeRule = "Mit 2x/3x optischem Zoom nah ans Werkstück gehen, statt den ganzen Tisch aus der Ferne zu filmen." },
                 new() { Number = 17, CategoryKey = "camera", CategoryName = "Kamera & Handschuhe", Question = "Wie werden Originalton und Musik abgemischt (Audio-Ducking)?", MarketFinding = "Originalton beim Lasern auf 100 % (0 dB), beim Einsetzen der Reveal-Musik sinkt der Raumton auf -18 dB.", SeelenfunkeRule = "Feste Lautstärke-Kurve in den 3 CapCut-Master-Vorlagen hinterlegen." },
                 new() { Number = 18, CategoryKey = "camera", CategoryName = "Kamera & Handschuhe", Question = "Welcher Farblook (Color Grading) konvertiert am besten?", MarketFinding = "Tiefes Schwarz mit warmen Gold-Highlights (kein bläuliches, kaltes Neon-Werkstattlicht).", SeelenfunkeRule = "Warmes Streiflicht (ca. 3200K–4000K) nutzen, passend zur Markenfarbe Gold (#C5A059)." },
@@ -4588,7 +4649,7 @@ namespace Funkenwerk
                 new() { Number = 29, CategoryKey = "funnel", CategoryName = "Bio & Shop-Funnel", Question = "Welche 3 Videos müssen oben im Profil angepinnt sein?", MarketFinding = "Pin 1: Emotionalster Bestseller | Pin 2: Gründerin & Manufaktur-Vertrauen | Pin 3: 3D-Konfigurator in 15s erklärt.", SeelenfunkeRule = "Genau diese 3 Pinned-Posts auf @meinseelenfunke fest verankern." },
                 new() { Number = 30, CategoryKey = "funnel", CategoryName = "Bio & Shop-Funnel", Question = "Welche Instagram Story-Highlights schaffen sofort Vertrauen?", MarketFinding = "5 aufgeräumte Kreise in Schwarz/Gold: 'Unikate', 'Werkstatt', 'Kundenstimmen', '3D-Vorschau', 'Versand'.", SeelenfunkeRule = "Exakt diese 5 Highlight-Bubbles im Gold-Design (#C5A059) unter der Bio anlegen." },
                 new() { Number = 31, CategoryKey = "funnel", CategoryName = "Bio & Shop-Funnel", Question = "Wie viele Klicks liegen zwischen Bio-Link und Foto-Upload?", MarketFinding = "Bei den Marktführern maximal 2 Klicks (Bio-Link -> Direkt auf Produkt-Landingpage mit Upload-Button).", SeelenfunkeRule = "Unsere /linktree und /l/... Seiten führen ohne Zwischenmenüs direkt zum Produkt-Konfigurator." },
-                new() { Number = 32, CategoryKey = "funnel", CategoryName = "Bio & Shop-Funnel", Question = "Was muss auf der mobilen Landingpage sofort ohne Scrollen sichtbar sein?", MarketFinding = "Produkt-Loop, Preis, 'Handgefertigt in Deutschland', Lieferzeit (3–5 Werktage) und der goldene Konfigurator-Button.", SeelenfunkeRule = "Kein langer Text über dem Konfigurator – der Upload-/3D-Button steht mobil sofort im Sichtfeld." },
+                new() { Number = 32, CategoryKey = "funnel", CategoryName = "Bio & Shop-Funnel", Question = "Was muss auf der mobilen Landingpage sofort ohne Scrollen sichtbar sein?", MarketFinding = "Produkt-Loop, Preis, 'Handgefertigt in Deutschland', Lieferzeit (3–5 Werktage) und der goldene Konfigurator-Button.", SeelenfunkeRule = "Kein langer Text über dem Konfigurator · der Upload-/3D-Button steht mobil sofort im Sichtfeld." },
                 new() { Number = 33, CategoryKey = "funnel", CategoryName = "Bio & Shop-Funnel", Question = "Wie erhöhen die Top-Accounts ihren durchschnittlichen Warenkorbwert?", MarketFinding = "Durch passende Zusatzoptionen (LED-Leuchtsockel beim Kristall, Geschenkbox oder Partner-Zweitstück).", SeelenfunkeRule = "Im Video immer die edle Westpack-Schachtel und den Leuchteffekt mitzeigen." },
 
                 // F. Paid Ads, Influencer & Google (34–37)
@@ -4606,7 +4667,7 @@ namespace Funkenwerk
             return new List<ViralVideoAnalysisDto>
             {
                 new() { Rank = 1, Title = $"Emotionaler Kundenauftrag: Letzte Handschrift / Erinnerungsfoto ({baseProd})", Duration = avgLen, Views = "4.8M", HookFirst3Sec = "Original-Vorlage neben Rohling + weiße Handschuhe", SoundUsed = "3s Laser-Originalton -> Piano", SpecialFeature = "Licht-Reveal im abgedunkelten Raum", SeelenfunkeAdaptation = $"Tag {baseRecipeDay:00} im Drehplan (Vorlage B)", MappedRecipeDay = baseRecipeDay },
-                new() { Rank = 2, Title = $"Pure Laser-ASMR Nahaufnahme ohne Musik ({baseProd})", Duration = "13s", Views = "3.4M", HookFirst3Sec = "Laserblitz startet in Frame 1 auf Metall/Glas", SoundUsed = "100 % hochfrequentes Laser-Singen (0 dB)", SpecialFeature = "70 % Makro-Optik + Abpinseln", SeelenfunkeAdaptation = "Tag 04 / Tag 01 (Vorlage A – 14s ASMR)", MappedRecipeDay = 4 },
+                new() { Rank = 2, Title = $"Pure Laser-ASMR Nahaufnahme ohne Musik ({baseProd})", Duration = "13s", Views = "3.4M", HookFirst3Sec = "Laserblitz startet in Frame 1 auf Metall/Glas", SoundUsed = "100 % hochfrequentes Laser-Singen (0 dB)", SpecialFeature = "70 % Makro-Optik + Abpinseln", SeelenfunkeAdaptation = "Tag 04 / Tag 01 (Vorlage A · 14s ASMR)", MappedRecipeDay = 4 },
                 new() { Rank = 3, Title = "White-Glove Packaging & Schachtel-Ritual", Duration = "14s", Views = "2.9M", HookFirst3Sec = "Weiße Handschuhe streichen über mattschwarze Box", SoundUsed = "Samt-Rascheln + sattes Schachtel-Schließen", SpecialFeature = "Fokus auf Geschenkfertigkeit", SeelenfunkeAdaptation = "Tag 08 (Westpack-Ritual Vorlage A)", MappedRecipeDay = 8 },
                 new() { Rank = 4, Title = "Haustier-Gedenkstück: 'Er war 14 Jahre mein bester Freund'", Duration = "27s", Views = "2.5M", HookFirst3Sec = "Hundefoto am Handy neben dem ungravierten Stück", SoundUsed = "Leises Laser-Summen -> Streicher-Aufbau", SpecialFeature = "Vorher-Foto direkt neben fertigem Unikat", SeelenfunkeAdaptation = "Tag 02 (Seelen Kristall Haustier-Story)", MappedRecipeDay = 2 },
                 new() { Rank = 5, Title = "Qualitätskontrolle: 'Warum ich dieses Stück heute neu mache'", Duration = "33s", Views = "2.1M", HookFirst3Sec = "Prüfung mit Lupe & weißen Handschuhen im Streiflicht", SoundUsed = "Ruhige ehrliche Stimme + Werkstatt-Atmo", SpecialFeature = "Beweist kompromisslose Manufaktur-Qualität", SeelenfunkeAdaptation = "Tag 03 (Gründerin Perfektionismus-Check)", MappedRecipeDay = 3 },

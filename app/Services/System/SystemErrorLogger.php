@@ -36,6 +36,14 @@ class SystemErrorLogger
             ];
         }
 
+        if (str_contains($msgLower, 'is deprecated') || str_contains($msgLower, 'deprecated:')) {
+            return [
+                'category' => 'php_deprecation_notice',
+                'probable_cause' => 'PHP 8.4+ Typ- oder Funktions-Deprecation (z. B. Übergabe von null an eine String-Funktion).',
+                'recommended_action' => 'Prüfe Datei, Zeile und trace_excerpt im Payload und sichere optionale Werte per Null-Coalescing ((string) ($val ?? \'\')) ab.',
+            ];
+        }
+
         if (str_contains($msgLower, 'getaddrinfo') || str_contains($msgLower, 'redis') || str_contains($classLower, 'predis')) {
             return [
                 'category' => 'redis_connectivity_or_dns',
@@ -49,6 +57,37 @@ class SystemErrorLogger
                 'category' => 'database_query_or_connection',
                 'probable_cause' => 'Datenbank-Abfragefehler (fehlende Spalte/Tabelle, Constraint-Verletzung) oder Verbindungsabbruch zu MySQL.',
                 'recommended_action' => 'Prüfe SQL-Fehlermeldung, ausstehende Migrationen (php artisan migrate) und Datenbank-Zugangsdaten.',
+            ];
+        }
+
+        if (str_contains($msgLower, 'resource temporarily unavailable')
+            || str_contains($msgLower, 'eai_again')
+            || str_contains($msgLower, 'tryagain')
+            || str_contains($msgLower, '[11]')) {
+            return [
+                'category' => 'network_dns_or_socket_eagain',
+                'probable_cause' => 'Temporärer DNS- oder Socket-Engpass (errno 11 / EAI_AGAIN: Resource temporarily unavailable), typischerweise direkt nach dem Aufwachen aus dem Energiesparmodus (WLAN/DNS-Warmup) oder bei verzögertem IPv6-Stub-Resolver.',
+                'recommended_action' => 'Automatischer IPv4-first DNS-Retry und lokaler Vault-Resilienz-Fallback fangen dies ab. Bei Dauerauftreten Router-DNS (Fritz!Box IPv4/IPv6) und Server-Prozesslimits prüfen.',
+            ];
+        }
+
+        if (str_contains($msgLower, '4003')
+            || str_contains($msgLower, 'verify failed')
+            || str_contains($msgLower, 'bridge_verify')) {
+            return [
+                'category' => 'gemini_bridge_token_verification_failed',
+                'probable_cause' => 'Token-Verifizierung zwischen der Node.js Live-Bridge (api-live-bridge) und /api/ai/verify-token fehlgeschlagen (Code 4003, z. B. fehlendes/abweichendes AI_PROXY_SECRET oder abgelaufenes Einmal-Token).',
+                'recommended_action' => 'Prüfe AI_PROXY_SECRET in Laravel (.env + config/services.php) und im Node.js-Worker sowie den automatischen Direct-Gemini-Fallback im Payload.',
+            ];
+        }
+
+        if (str_contains($msgLower, 'phone_concierge')
+            || str_contains($msgLower, 'phone_secretary')
+            || str_contains($msgLower, 'telecommanager')) {
+            return [
+                'category' => 'funkira_phone_secretary_error',
+                'probable_cause' => 'Verbindungs-, Audio- oder Berechtigungsereignis im Funkira Telefon-Sekretärinnen-Dienst (Smartphone Standalone oder Mini-PC HFP).',
+                'recommended_action' => 'Prüfe Telefon-/Mikrofon-Freigaben in der Funkenwerk Android App sowie den Anruf-Kontext (audio_mode, ws_mode, stage) im Payload.',
             ];
         }
 
@@ -146,8 +185,14 @@ class SystemErrorLogger
             $text
         );
 
+        $clean = (string) preg_replace(
+            '/\bAIza[A-Za-z0-9\-_]{16,}\b/',
+            '[REDACTED_GEMINI_KEY]',
+            $clean
+        );
+
         return (string) preg_replace(
-            '/((?:api[_-]?key|key|token|access[_-]?token|refresh[_-]?token|password|passwd|secret|signature|pin|authorization)\s*[=:]\s*)([^\s&"\'\r\n]+)/i',
+            '/((?:api[_-]?key|key|token|access[_-]?token|refresh[_-]?token|password|passwd|secret|signature|pin|authorization)["\']?\s*[=:]\s*["\']?)([^\s&"\'\r\n},;]+)/i',
             '$1[REDACTED]',
             $clean
         );
@@ -163,7 +208,7 @@ class SystemErrorLogger
         }
 
         $out = [];
-        $sensitiveKeyPattern = '/^(?:password|passwd|secret|token|access_token|refresh_token|api_key|gemini_key|authorization|cookie|pin|two_factor_code)$/i';
+        $sensitiveKeyPattern = '/^(?:password|passwd|secret|token|access_token|refresh_token|api_key|gemini_api_key|gemini_key|direct_ws_url|authorization|cookie|pin|two_factor_code)$/i';
 
         foreach (array_slice($input, 0, 40, true) as $k => $v) {
             $keyStr = (string) $k;
@@ -273,6 +318,143 @@ class SystemErrorLogger
     }
 
     /**
+     * Extrahiert für Log::warning / Log::error Aufrufe ohne Throwable den echten Anwendungs-Aufrufer aus dem Call-Stack.
+     */
+    protected static function extractCallerTraceExcerpt(): array
+    {
+        $frames = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 22);
+        $skipPatterns = [
+            'SystemErrorLogger.php',
+            'AppServiceProvider.php',
+            '/Illuminate/Log/',
+            '\\Illuminate\\Log\\',
+            '/Monolog/',
+            '\\Monolog\\',
+            '/Illuminate/Events/',
+            '\\Illuminate\\Events\\',
+            '/Illuminate/Foundation/Bootstrap/HandleExceptions',
+            '\\Illuminate\\Foundation\\Bootstrap\\HandleExceptions',
+            '/Illuminate/Support/Facades/Facade',
+            '\\Illuminate\\Support\\Facades\\Facade',
+        ];
+
+        $filtered = [];
+        $callerFile = null;
+        $callerLine = null;
+
+        foreach ($frames as $frame) {
+            $file = (string) ($frame['file'] ?? '');
+            $class = (string) ($frame['class'] ?? '');
+            $haystack = $file . ' ' . $class;
+
+            $skip = false;
+            foreach ($skipPatterns as $pattern) {
+                if (str_contains($haystack, $pattern)) {
+                    $skip = true;
+                    break;
+                }
+            }
+
+            if ($skip) {
+                continue;
+            }
+
+            if ($callerFile === null && $file !== '' && !str_contains($file, '/vendor/')) {
+                $callerFile = $file;
+                $callerLine = isset($frame['line']) ? (int) $frame['line'] : null;
+            }
+
+            $filtered[] = ($file !== '' ? $file : '[internal]') . ':' . ($frame['line'] ?? '?')
+                . ' -> ' . $class . ($frame['type'] ?? '') . ($frame['function'] ?? '');
+
+            if (count($filtered) >= 10) {
+                break;
+            }
+        }
+
+        if ($callerFile === null && !empty($filtered)) {
+            foreach ($frames as $frame) {
+                if (!empty($frame['file'])) {
+                    $callerFile = (string) $frame['file'];
+                    $callerLine = isset($frame['line']) ? (int) $frame['line'] : null;
+                    break;
+                }
+            }
+        }
+
+        return [
+            'file' => $callerFile,
+            'line' => $callerLine,
+            'trace_excerpt' => $filtered,
+        ];
+    }
+
+    /**
+     * Prüft, ob es sich um einen harmlosen UI-/Coroutine-Lebenszyklus-Abbruch eines Clients handelt
+     * (z. B. Jetpack Compose LeftCompositionCancellationException beim Bildschirmwechsel).
+     */
+    public static function isBenignClientCancellation(string $message, ?string $errorClass = null, ?string $title = null): bool
+    {
+        $combined = strtolower($message . ' | ' . ($errorClass ?? '') . ' | ' . ($title ?? ''));
+        $benignMarkers = [
+            'leftcompositioncancellationexception',
+            'mutationinterruptedexception',
+            'childcancelledexception',
+            'jobcancellationexception',
+            'kotlin.coroutines.cancellation.cancellationexception',
+            'kotlinx.coroutines.cancellationexception',
+            'java.util.concurrent.cancellationexception',
+            'standalonecoroutine was cancelled',
+            'job was cancelled',
+            'composition was disposed',
+        ];
+
+        foreach ($benignMarkers as $marker) {
+            if (str_contains($combined, $marker)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Sucht einen identischen offenen SystemLog-Eintrag der letzten 24h anhand des Fingerprints und erhöht occurrences_count.
+     */
+    protected static function incrementRecentDuplicate(
+        string $type,
+        string $actionId,
+        array $statuses,
+        string $fingerprint,
+        int $addCount = 1
+    ): ?SystemLog {
+        try {
+            $candidates = SystemLog::where('type', $type)
+                ->where('action_id', $actionId)
+                ->whereIn('status', $statuses)
+                ->where('started_at', '>=', now()->subHours(24))
+                ->latest('id')
+                ->limit(15)
+                ->get();
+
+            foreach ($candidates as $candidate) {
+                $p = is_array($candidate->payload) ? $candidate->payload : [];
+                if (($p['fingerprint'] ?? null) === $fingerprint) {
+                    $p['occurrences_count'] = ((int) ($p['occurrences_count'] ?? 1)) + max(1, $addCount);
+                    $p['last_seen_at'] = now()->toIso8601String();
+                    $candidate->payload = $p;
+                    $candidate->finished_at = now();
+                    $candidate->save();
+                    return $candidate;
+                }
+            }
+        } catch (\Throwable $ignore) {
+        }
+
+        return null;
+    }
+
+    /**
      * Protokolliert eine unbehandelte oder abgefangene Exception sicher in system_logs.
      */
     public static function recordException(
@@ -297,15 +479,28 @@ class SystemErrorLogger
 
             $payload = self::buildExceptionPayload($e, $extraPayload);
             $category = $payload['diagnosis']['category'] ?? 'exception';
-            $resolvedActionId = $actionId ?: ('system:exception:' . $category);
+            $resolvedActionId = Str::limit($actionId ?: ('system:exception:' . $category), 190, '');
 
             $rawMessage = $e->getMessage() ?: ('Exception in ' . basename($e->getFile()) . ':' . $e->getLine());
+            $sanitizedMessage = self::sanitizeSensitiveText($rawMessage);
+            $normalizedSig = preg_replace('/\b\d+\b/', '#', strtolower($sanitizedMessage));
+            $fingerprint = hash('sha256', strtolower($type . '|' . $resolvedActionId . '|' . get_class($e) . '|' . $e->getFile() . '|' . $e->getLine() . '|' . mb_substr((string) $normalizedSig, 0, 160)));
+
+            $existing = self::incrementRecentDuplicate($type, $resolvedActionId, ['error', 'warning'], $fingerprint, 1);
+            if ($existing) {
+                return $existing;
+            }
+
+            $payload['fingerprint'] = $fingerprint;
+            $payload['occurrences_count'] = 1;
+            $payload['first_seen_at'] = now()->toIso8601String();
+            $payload['last_seen_at'] = now()->toIso8601String();
 
             return SystemLog::create([
                 'type' => $type,
-                'action_id' => Str::limit($resolvedActionId, 190, ''),
+                'action_id' => $resolvedActionId,
                 'title' => Str::limit(($titlePrefix ?: 'System-Fehler') . ' (' . class_basename($e) . ')', 190),
-                'message' => Str::limit(self::sanitizeSensitiveText($rawMessage), 2000),
+                'message' => Str::limit($sanitizedMessage, 2000),
                 'status' => 'error',
                 'payload' => $payload,
                 'started_at' => now(),
@@ -352,24 +547,41 @@ class SystemErrorLogger
                 } elseif (is_string($v)) {
                     $safeContext[$k] = self::sanitizeSensitiveText($v);
                 } elseif (is_scalar($v) || is_null($v) || is_array($v)) {
-                    $safeContext[$k] = $v;
+                    $safeContext[$k] = is_array($v) ? self::sanitizeArrayRecursive($v) : $v;
                 } else {
                     $safeContext[$k] = (string) json_encode($v);
                 }
             }
 
             $sanitizedMessage = self::sanitizeSensitiveText($message);
-            $diagnosis = self::diagnose($sanitizedMessage);
-            $actionId = 'system:log:' . strtolower($level) . ':' . ($diagnosis['category'] ?? 'general');
+            $callerInfo = self::extractCallerTraceExcerpt();
+            $diagnosis = self::diagnose($sanitizedMessage, null, $callerInfo['file']);
+            $actionId = Str::limit('system:log:' . strtolower($level) . ':' . ($diagnosis['category'] ?? 'general'), 190, '');
+            $status = in_array(strtolower($level), ['warning', 'notice'], true) ? 'warning' : 'error';
+
+            $normalizedSig = preg_replace('/\b\d+\b/', '#', strtolower($sanitizedMessage));
+            $fingerprint = hash('sha256', strtolower('system|' . $actionId . '|' . ($callerInfo['file'] ?? '') . '|' . mb_substr((string) $normalizedSig, 0, 160)));
+
+            $existing = self::incrementRecentDuplicate('system', $actionId, ['error', 'warning'], $fingerprint, 1);
+            if ($existing) {
+                return $existing;
+            }
 
             return SystemLog::create([
                 'type' => 'system',
-                'action_id' => Str::limit($actionId, 190, ''),
+                'action_id' => $actionId,
                 'title' => 'System-Log ' . strtoupper($level) . ' (' . ($diagnosis['category'] ?? 'general') . ')',
                 'message' => Str::limit($sanitizedMessage, 2000),
-                'status' => in_array(strtolower($level), ['warning', 'notice'], true) ? 'warning' : 'error',
+                'status' => $status,
                 'payload' => [
                     'level' => $level,
+                    'file' => $callerInfo['file'],
+                    'line' => $callerInfo['line'],
+                    'trace_excerpt' => $callerInfo['trace_excerpt'],
+                    'fingerprint' => $fingerprint,
+                    'occurrences_count' => 1,
+                    'first_seen_at' => now()->toIso8601String(),
+                    'last_seen_at' => now()->toIso8601String(),
                     'diagnosis' => $diagnosis,
                     'context' => $safeContext,
                     'execution_context' => self::buildExecutionContext(),
@@ -410,17 +622,24 @@ class SystemErrorLogger
 
             $sanitizedOutput = self::sanitizeSensitiveText(trim($output));
             $cronjobName = $extra['cronjob_name'] ?? $commandClean;
+            $actionId = Str::limit('scheduler:cronjob_failed:' . $commandClean, 190, '');
 
             $message = "Der Befehl '{$command}' wurde mit Fehler-Exit-Code {$exitCode} beendet.";
             if ($sanitizedOutput !== '') {
                 $message .= " Ausgabe: " . Str::limit($sanitizedOutput, 1500);
             }
 
+            $fingerprint = hash('sha256', strtolower('scheduler|' . $actionId . '|' . $exitCode));
+            $existing = self::incrementRecentDuplicate('scheduler', $actionId, ['error', 'warning'], $fingerprint, 1);
+            if ($existing) {
+                return $existing;
+            }
+
             $diagnosis = self::diagnose($message, null, 'Console/Commands');
 
             return SystemLog::create([
                 'type' => 'scheduler',
-                'action_id' => Str::limit('scheduler:cronjob_failed:' . $commandClean, 190, ''),
+                'action_id' => $actionId,
                 'title' => Str::limit('Cronjob fehlgeschlagen: ' . $cronjobName . ' (Exit ' . $exitCode . ')', 190),
                 'message' => Str::limit($message, 2000),
                 'status' => 'error',
@@ -428,6 +647,10 @@ class SystemErrorLogger
                     'command' => $command,
                     'exit_code' => $exitCode,
                     'console_output' => Str::limit($sanitizedOutput, 3000),
+                    'fingerprint' => $fingerprint,
+                    'occurrences_count' => 1,
+                    'first_seen_at' => now()->toIso8601String(),
+                    'last_seen_at' => now()->toIso8601String(),
                     'diagnosis' => $diagnosis,
                     'execution_context' => self::buildExecutionContext(),
                     'server_environment' => self::buildServerEnvironment(),
@@ -469,7 +692,7 @@ class SystemErrorLogger
             $componentSlug = Str::slug($component, '_') ?: 'general';
             $severity = strtolower(trim((string) ($data['severity'] ?? 'error')));
             $autoHealed = !empty($data['auto_healed']) || $severity === 'auto_healed';
-            $autoHealAction = self::sanitizeSensitiveText((string) ($data['auto_heal_action'] ?? ''));
+            $autoHealAction = self::sanitizeSensitiveText((string) ($data['auto_heal_action'] ?? $data['heal_summary'] ?? ''));
 
             $cleanMessage = self::sanitizeSensitiveText(trim((string) ($data['message'] ?? 'Unbekannter Fehler')));
             if ($cleanMessage === '') {
@@ -480,6 +703,10 @@ class SystemErrorLogger
             $file = self::sanitizeSensitiveText(trim((string) ($data['file'] ?? '')));
             $line = isset($data['line']) && is_numeric($data['line']) ? (int) $data['line'] : null;
             $rawTitle = self::sanitizeSensitiveText(trim((string) ($data['title'] ?? '')));
+
+            if (self::isBenignClientCancellation($cleanMessage, $errorClass ?: null, $rawTitle ?: null)) {
+                return null;
+            }
 
             $normalizedSig = preg_replace('/\b\d+\b/', '#', strtolower($cleanMessage));
             $providedFp = preg_replace('/[^a-f0-9]/i', '', (string) ($data['fingerprint'] ?? ''));
@@ -547,7 +774,7 @@ class SystemErrorLogger
                 return $existing;
             }
 
-            $diagnosis = self::diagnose($cleanMessage, $errorClass ?: null, $file ?: null);
+            $diagnosis = self::diagnose(trim($rawTitle . ' ' . $cleanMessage . ' ' . $componentSlug), $errorClass ?: null, $file ?: null);
             $baseTitle = $rawTitle !== ''
                 ? $rawTitle
                 : ($component !== '' ? ucfirst($component) : ($errorClass !== '' ? class_basename($errorClass) : 'Laufzeitfehler'));

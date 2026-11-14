@@ -54,7 +54,7 @@ class SendAbandonedCartReminders extends Command
         foreach ($carts as $cart) {
             $customer = $cart->customer;
 
-            if (!$customer || empty($customer->email)) {
+            if (!$customer || empty($customer->email) || (method_exists($customer, 'trashed') && $customer->trashed())) {
                 continue;
             }
 
@@ -77,15 +77,27 @@ class SendAbandonedCartReminders extends Command
                 continue;
             }
 
-            // C. Erinnerungs-Mail versenden
+            // C. Erinnerungs-Mail versenden (updated_at des Warenkorbs unverändert lassen)
             try {
                 Mail::to($customer->email)->send(new AbandonedCartReminder($cart));
-                $cart->update(['reminder_email_sent_at' => now()]);
+                $cart->timestamps = false;
+                $cart->forceFill(['reminder_email_sent_at' => now()])->save();
+                $cart->timestamps = true;
                 $sentCount++;
                 $this->info("Erinnerung erfolgreich an {$customer->email} für Warenkorb #{$cart->id} gesendet.");
             } catch (\Throwable $e) {
                 $failedCount++;
-                Log::error("Fehler beim automatischen Versand der Warenkorberinnerung an {$customer->email}: " . $e->getMessage(), ['exception' => $e]);
+                if (class_exists(\App\Services\System\SystemErrorLogger::class)) {
+                    \App\Services\System\SystemErrorLogger::recordException(
+                        $e,
+                        'scheduler',
+                        'cart_reminder:send_failed',
+                        'Warenkorb-Erinnerung konnte nicht gesendet werden',
+                        ['cart_id' => $cart->id, 'customer_id' => $customer->id]
+                    );
+                } else {
+                    Log::error("Fehler beim automatischen Versand der Warenkorberinnerung an {$customer->email}: " . $e->getMessage(), ['exception' => $e]);
+                }
                 $this->error("Fehler beim Versand an {$customer->email}: " . $e->getMessage());
             }
         }

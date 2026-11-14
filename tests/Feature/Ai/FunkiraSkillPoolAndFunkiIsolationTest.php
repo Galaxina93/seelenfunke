@@ -205,4 +205,74 @@ class FunkiraSkillPoolAndFunkiIsolationTest extends TestCase
         $response->assertOk()
             ->assertJsonPath('agent_name', 'Funkira');
     }
+
+    public function test_funkira_resolves_seasons_holidays_silvester_and_garden_persona_and_exposes_world_state(): void
+    {
+        $this->seed(AiAgentSeeder::class);
+        $admin = Admin::factory()->create();
+        Auth::guard('admin')->login($admin);
+
+        // 1. Deterministischer Jahreszeiten- & Feiertagskalender inkl. Gauß-Ostern, Muttertag, Nikolaus & Silvester
+        $silv = AiPromptService::resolveSeasonAndHolidayContext(\Carbon\Carbon::create(2026, 12, 31, 21, 0, 0, 'Europe/Berlin'));
+        $this->assertSame('winter', $silv['season']);
+        $this->assertSame('silvester', $silv['occasion']);
+        $this->assertStringContainsString('3D-Silvester-Feuerwerk', $silv['persona_mood']);
+
+        $ny = AiPromptService::resolveSeasonAndHolidayContext(\Carbon\Carbon::create(2027, 1, 1, 10, 0, 0, 'Europe/Berlin'));
+        $this->assertSame('winter', $ny['season']);
+        $this->assertSame('new_year', $ny['occasion']);
+
+        $xmas = AiPromptService::resolveSeasonAndHolidayContext(\Carbon\Carbon::create(2026, 12, 24, 18, 0, 0, 'Europe/Berlin'));
+        $this->assertSame('winter', $xmas['season']);
+        $this->assertSame('christmas', $xmas['occasion']);
+
+        $nik = AiPromptService::resolveSeasonAndHolidayContext(\Carbon\Carbon::create(2026, 12, 6, 9, 0, 0, 'Europe/Berlin'));
+        $this->assertSame('winter', $nik['season']);
+        $this->assertSame('nikolaus', $nik['occasion']);
+
+        $nov14 = AiPromptService::resolveSeasonAndHolidayContext(\Carbon\Carbon::create(2026, 11, 14, 14, 0, 0, 'Europe/Berlin'));
+        $this->assertSame('autumn', $nov14['season']);
+        $this->assertSame('standard', $nov14['occasion']);
+        $this->assertStringContainsString('Advents', $nov14['upcoming_hint']);
+
+        $easter = AiPromptService::resolveSeasonAndHolidayContext(\Carbon\Carbon::create(2026, 4, 5, 11, 0, 0, 'Europe/Berlin'));
+        $this->assertSame('spring', $easter['season']);
+        $this->assertSame('easter', $easter['occasion']);
+        $this->assertSame('Ostersonntag', $easter['occasion_label']);
+
+        $mothers = AiPromptService::resolveSeasonAndHolidayContext(\Carbon\Carbon::create(2026, 5, 10, 11, 0, 0, 'Europe/Berlin'));
+        $this->assertSame('spring', $mothers['season']);
+        $this->assertSame('mothers_day', $mothers['occasion']);
+
+        $summer = AiPromptService::resolveSeasonAndHolidayContext(\Carbon\Carbon::create(2026, 7, 15, 14, 0, 0, 'Europe/Berlin'));
+        $this->assertSame('summer', $summer['season']);
+        $this->assertStringContainsString('Sonnenschirm', $summer['persona_mood']);
+
+        // 2. Funkira erhält die Jahreszeiten-, Feiertags- und 3D-Garten-Direktive im System-Prompt, Funki bleibt isoliert
+        \Carbon\Carbon::setTestNow(\Carbon\Carbon::create(2026, 12, 31, 22, 0, 0, 'Europe/Berlin'));
+        try {
+            $funkira = AiAgent::where('name', 'Funkira')->with('role')->firstOrFail();
+            $funkiraPrompt = AiPromptService::getRichPrompt($funkira);
+            $this->assertStringContainsString('JAHRESZEITEN, FEIERTAGE & DEINE 3D-WELT MIT TERRASSE UND GARTEN', $funkiraPrompt);
+            $this->assertStringContainsString('MEIN SEELENFUNKE', $funkiraPrompt);
+            $this->assertStringContainsString('Rasenmäher', $funkiraPrompt);
+            $this->assertStringContainsString('silvester', $funkiraPrompt);
+            $this->assertStringContainsString('3D-Silvester-Feuerwerk', $funkiraPrompt);
+
+            $funki = AiAgent::where('name', 'Funki')->with('role')->firstOrFail();
+            $funkiPrompt = AiPromptService::getRichPrompt($funki);
+            $this->assertStringNotContainsString('JAHRESZEITEN, FEIERTAGE & DEINE 3D-WELT MIT TERRASSE UND GARTEN', $funkiPrompt);
+
+            // 3. /api/shop/monitor-pulse liefert konsistente world_state Felder inkl. silvester & Labels
+            Auth::guard('admin')->logout();
+            $token = $admin->createToken('test-minipc', ['monitor:pulse'])->plainTextToken;
+            $pulseResp = $this->withHeader('Authorization', 'Bearer ' . $token)
+                ->getJson('/api/shop/monitor-pulse');
+            $pulseResp->assertOk()
+                ->assertJsonPath('world_state.season', 'winter')
+                ->assertJsonPath('world_state.occasion', 'silvester');
+        } finally {
+            \Carbon\Carbon::setTestNow();
+        }
+    }
 }

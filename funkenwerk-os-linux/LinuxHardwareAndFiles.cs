@@ -136,6 +136,68 @@ namespace FunkenwerkOSLinux
             }
         }
 
+        public static async Task<(int ExitCode, string StdOut, string StdErr)> RunProcessWithStdinAsync(
+            string fileName,
+            IEnumerable<string> args,
+            string stdinText,
+            int timeoutMs = 8000)
+        {
+            try
+            {
+                var psi = new ProcessStartInfo
+                {
+                    FileName = fileName,
+                    RedirectStandardInput = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+                psi.Environment["LC_ALL"] = "C.UTF-8";
+                psi.Environment["LANG"] = "C.UTF-8";
+                string xdgRuntime = Environment.GetEnvironmentVariable("XDG_RUNTIME_DIR") ?? "/run/user/1000";
+                if (Directory.Exists(xdgRuntime))
+                    psi.Environment["XDG_RUNTIME_DIR"] = xdgRuntime;
+
+                foreach (string a in args)
+                    psi.ArgumentList.Add(a);
+
+                using var proc = Process.Start(psi);
+                if (proc == null) return (-1, "", "Process failed to start");
+
+                try
+                {
+                    await proc.StandardInput.WriteAsync(stdinText).ConfigureAwait(false);
+                    await proc.StandardInput.FlushAsync().ConfigureAwait(false);
+                }
+                catch { }
+                finally
+                {
+                    try { proc.StandardInput.Close(); } catch { }
+                }
+
+                var outTask = proc.StandardOutput.ReadToEndAsync();
+                var errTask = proc.StandardError.ReadToEndAsync();
+
+                using var cts = new System.Threading.CancellationTokenSource(timeoutMs);
+                try
+                {
+                    await proc.WaitForExitAsync(cts.Token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    try { proc.Kill(entireProcessTree: true); } catch { }
+                    return (-2, await outTask.ConfigureAwait(false), "Timeout");
+                }
+
+                return (proc.ExitCode, await outTask.ConfigureAwait(false), await errTask.ConfigureAwait(false));
+            }
+            catch (Exception ex)
+            {
+                return (-1, "", ex.Message);
+            }
+        }
+
         public static SystemStatsDto GetSystemStats()
         {
             var dto = new SystemStatsDto
@@ -1248,19 +1310,29 @@ namespace FunkenwerkOSLinux
                 .ToList();
         }
 
+        internal static (string[] Args, bool UsesStdin) BuildWifiConnectInvocation(string cleanSsid, string? password)
+        {
+            if (!string.IsNullOrEmpty(password))
+            {
+                return (new[] { "--ask", "dev", "wifi", "connect", cleanSsid }, true);
+            }
+            return (new[] { "dev", "wifi", "connect", cleanSsid }, false);
+        }
+
         public static async Task<(bool Success, string Message)> ConnectWifiAsync(string ssid, string? password)
         {
             if (string.IsNullOrWhiteSpace(ssid))
                 return (false, "Bitte WLAN auswählen.");
 
-            var args = new List<string> { "dev", "wifi", "connect", ssid.Trim() };
-            if (!string.IsNullOrEmpty(password))
-            {
-                args.Add("password");
-                args.Add(password);
-            }
+            string cleanSsid = ssid.Trim();
+            if (cleanSsid.StartsWith('-') || cleanSsid.IndexOfAny(new[] { '\0', '\r', '\n' }) >= 0)
+                return (false, "Ungültiger WLAN-Name.");
 
-            var (code, outTxt, errTxt) = await RunProcessAsync("nmcli", args, 18000).ConfigureAwait(false);
+            var (args, usesStdin) = BuildWifiConnectInvocation(cleanSsid, password);
+            var (code, outTxt, errTxt) = usesStdin
+                ? await RunProcessWithStdinAsync("nmcli", args, (password ?? "") + "\n", 18000).ConfigureAwait(false)
+                : await RunProcessAsync("nmcli", args, 18000).ConfigureAwait(false);
+
             if (code == 0 || outTxt.Contains("successfully activated", StringComparison.OrdinalIgnoreCase))
             {
                 return (true, "WLAN verbunden");
@@ -1269,8 +1341,22 @@ namespace FunkenwerkOSLinux
         }
 
         // =====================================================================
-        // POWER, 08:00 AM RTC WAKE (EUROPE/BERLIN) & CHROME MULTI-TAB LAUNCHER
+        // POWER, WORKDAY 08:00 AM RTC WAKE (WEEKEND-FREE!) & CHROME LAUNCHER
         // =====================================================================
+        public static DateTime ComputeNextWorkdayWakeupLocal(DateTime nowLocal)
+        {
+            DateTime target = new DateTime(nowLocal.Year, nowLocal.Month, nowLocal.Day, 8, 0, 0, DateTimeKind.Unspecified);
+            if (nowLocal >= target.AddMinutes(-2))
+                target = target.AddDays(1);
+
+            // Am Wochenende (Samstag & Sonntag) nicht automatisch aufwachen -> erst am Montag um 08:00 Uhr!
+            while (target.DayOfWeek == DayOfWeek.Saturday || target.DayOfWeek == DayOfWeek.Sunday)
+            {
+                target = target.AddDays(1);
+            }
+            return target;
+        }
+
         public static async Task<(bool Success, string Message)> EnterNightSleepUntil0800Async()
         {
             try
@@ -1280,7 +1366,7 @@ namespace FunkenwerkOSLinux
                 try
                 {
                     var (bkOk, bkSummary, copied, _) = await DocumentArchiveAndNasEngine
-                        .RunDeltaNasBackupAsync("Vor Nachtruhe", connectTimeoutMs: 5000)
+                        .RunDeltaNasBackupAsync("Vor Energiesparmodus", connectTimeoutMs: 5000)
                         .ConfigureAwait(false);
                     backupNote = bkOk ? $" · NAS-Backup: {copied} geändert" : $" · {bkSummary}";
                 }
@@ -1291,9 +1377,8 @@ namespace FunkenwerkOSLinux
                 catch { berlinTz = TimeZoneInfo.Local; }
 
                 DateTime nowBerlin = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, berlinTz);
-                DateTime targetBerlin = new DateTime(nowBerlin.Year, nowBerlin.Month, nowBerlin.Day, 8, 0, 0, DateTimeKind.Unspecified);
-                if (nowBerlin >= targetBerlin.AddMinutes(-2))
-                    targetBerlin = targetBerlin.AddDays(1);
+                DateTime targetBerlin = ComputeNextWorkdayWakeupLocal(nowBerlin);
+                bool skippedWeekend = (targetBerlin.Date - nowBerlin.Date).TotalDays > 1.5;
 
                 DateTime targetUtc = TimeZoneInfo.ConvertTimeToUtc(targetBerlin, berlinTz);
                 long unixEpoch = new DateTimeOffset(targetUtc).ToUnixTimeSeconds();
@@ -1301,10 +1386,11 @@ namespace FunkenwerkOSLinux
                 _ = Task.Run(async () =>
                 {
                     await Task.Delay(600).ConfigureAwait(false);
-                    await RunProcessAsync("sudo", new[] { "/usr/local/bin/fw-power", "sleep", unixEpoch.ToString(CultureInfo.InvariantCulture) }, 10000).ConfigureAwait(false);
+                    await RunProcessAsync("sudo", new[] { "-n", "/usr/local/bin/fw-power", "sleep", unixEpoch.ToString(CultureInfo.InvariantCulture) }, 10000).ConfigureAwait(false);
                 });
 
-                return (true, $"Nachtruhe aktiv · Aufwachen um {targetBerlin:dd.MM. HH:mm} Uhr{backupNote}");
+                string dayNote = skippedWeekend ? " (Wochenende frei)" : "";
+                return (true, $"Energiesparmodus aktiv · Aufwachen am {targetBerlin:dd.MM. HH:mm} Uhr{dayNote}{backupNote}");
             }
             catch (Exception ex)
             {
@@ -1318,17 +1404,26 @@ namespace FunkenwerkOSLinux
             _ = Task.Run(async () =>
             {
                 await Task.Delay(400).ConfigureAwait(false);
-                await RunProcessAsync("sudo", new[] { "/usr/local/bin/fw-power", cmd }, 5000).ConfigureAwait(false);
+                await RunProcessAsync("sudo", new[] { "-n", "/usr/local/bin/fw-power", cmd }, 5000).ConfigureAwait(false);
             });
         }
 
         public static void OpenFullBrowserWindow(string? url)
         {
             string target = string.IsNullOrWhiteSpace(url) ? "https://mein-seelenfunke.de" : url.Trim();
+            if (target.StartsWith('-') || target.IndexOfAny(new[] { '\0', '\r', '\n' }) >= 0)
+                return;
+
             if (!target.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
                 !target.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
             {
                 target = "https://" + target;
+            }
+
+            if (!Uri.TryCreate(target, UriKind.Absolute, out var parsedUri) ||
+                (parsedUri.Scheme != Uri.UriSchemeHttp && parsedUri.Scheme != Uri.UriSchemeHttps))
+            {
+                return;
             }
 
             try
@@ -1353,7 +1448,8 @@ namespace FunkenwerkOSLinux
                 psi.ArgumentList.Add("--enable-gpu-rasterization");
                 psi.ArgumentList.Add("--start-maximized");
                 psi.ArgumentList.Add("--new-window");
-                psi.ArgumentList.Add(target);
+                psi.ArgumentList.Add("--");
+                psi.ArgumentList.Add(parsedUri.AbsoluteUri);
                 Process.Start(psi);
             }
             catch { }
@@ -1367,23 +1463,94 @@ namespace FunkenwerkOSLinux
     {
         private static string OriginsFile => Path.Combine(LinuxVaultAndStorage.DataDir, "recycle_origins.json");
 
-        public static List<(string Label, string Path)> GetQuickRoots()
+        private static bool TryResolveRealPath(string rawFullPath, bool allowNonExistentLeaf, out string canonicalPath)
         {
-            string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            if (string.IsNullOrWhiteSpace(home)) home = "/home/alina";
-
-            string md = LinuxVaultAndStorage.MeineDatenRoot;
-            var list = new List<(string, string)>
+            canonicalPath = "";
+            try
             {
-                ("✦ Meine Daten", md),
-                ("📥 Daten-Trichter", Path.Combine(md, "00_Eingang_Trichter")),
-                ("⬇ Downloads", Path.Combine(home, "Downloads")),
-                ("🗑 Papierkorb", LinuxVaultAndStorage.TrashDir)
-            };
-            Directory.CreateDirectory(Path.Combine(home, "Downloads"));
+                string full = Path.GetFullPath(rawFullPath);
+                string? rootPart = Path.GetPathRoot(full);
+                if (string.IsNullOrEmpty(rootPart)) return false;
 
-            // Mounted USB drives under /media/alina or /media
-            foreach (string mediaBase in new[] { "/media/alina", "/media", "/mnt" })
+                string relative = full.Substring(rootPart.Length);
+                string[] segments = relative.Split(new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar }, StringSplitOptions.RemoveEmptyEntries);
+
+                string current = rootPart;
+                for (int i = 0; i < segments.Length; i++)
+                {
+                    string seg = segments[i];
+                    if (seg is "." or "..") return false;
+
+                    string next = Path.Combine(current, seg);
+                    var fi = new FileInfo(next);
+                    var di = new DirectoryInfo(next);
+                    bool isLink = fi.LinkTarget != null || di.LinkTarget != null;
+                    bool exists = fi.Exists || di.Exists;
+
+                    if (isLink)
+                    {
+                        FileSystemInfo? targetInfo = fi.LinkTarget != null
+                            ? fi.ResolveLinkTarget(returnFinalTarget: true)
+                            : di.ResolveLinkTarget(returnFinalTarget: true);
+                        if (targetInfo == null || (!targetInfo.Exists))
+                            return false;
+                        current = Path.GetFullPath(targetInfo.FullName);
+                    }
+                    else if (exists)
+                    {
+                        current = next;
+                    }
+                    else
+                    {
+                        if (i == segments.Length - 1 && allowNonExistentLeaf)
+                        {
+                            current = next;
+                        }
+                        else
+                        {
+                            return false;
+                        }
+                    }
+                }
+
+                canonicalPath = current.Length > 1 ? current.TrimEnd(Path.DirectorySeparatorChar) : current;
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static List<string> GetAllowedCanonicalRoots(bool allowTrashRoot, out string canonicalTrashRoot, out string canonicalDataDir)
+        {
+            string home = LinuxVaultAndStorage.UserHomeDir;
+            string downloadsDir = Path.Combine(home, "Downloads");
+            Directory.CreateDirectory(downloadsDir);
+
+            string mdRaw = LinuxVaultAndStorage.MeineDatenRoot;
+            string trRaw = LinuxVaultAndStorage.TrashDir;
+            string ddRaw = LinuxVaultAndStorage.DataDir;
+
+            canonicalTrashRoot = TryResolveRealPath(trRaw, false, out string trRes) ? trRes : Path.GetFullPath(trRaw).TrimEnd(Path.DirectorySeparatorChar);
+            canonicalDataDir = TryResolveRealPath(ddRaw, false, out string ddRes) ? ddRes : Path.GetFullPath(ddRaw).TrimEnd(Path.DirectorySeparatorChar);
+
+            var roots = new List<string>();
+            if (TryResolveRealPath(mdRaw, false, out string mdRes)) roots.Add(mdRes);
+            else roots.Add(Path.GetFullPath(mdRaw).TrimEnd(Path.DirectorySeparatorChar));
+
+            if (TryResolveRealPath(downloadsDir, false, out string dlRes)) roots.Add(dlRes);
+            else roots.Add(Path.GetFullPath(downloadsDir).TrimEnd(Path.DirectorySeparatorChar));
+
+            if (allowTrashRoot)
+                roots.Add(canonicalTrashRoot);
+
+            string userName = Environment.UserName;
+            var mediaBases = new List<string> { "/media/alina", "/media" };
+            if (!string.IsNullOrWhiteSpace(userName))
+                mediaBases.Insert(0, $"/media/{userName}");
+
+            foreach (string mediaBase in mediaBases.Distinct(StringComparer.Ordinal))
             {
                 if (!Directory.Exists(mediaBase)) continue;
                 try
@@ -1391,7 +1558,117 @@ namespace FunkenwerkOSLinux
                     foreach (string sub in Directory.GetDirectories(mediaBase))
                     {
                         string leaf = Path.GetFileName(sub);
-                        if (leaf is "c" or "wsl" or "wslg") continue;
+                        if (string.IsNullOrEmpty(leaf) || leaf.StartsWith('.') || leaf is "c" or "wsl" or "wslg")
+                            continue;
+                        if (TryResolveRealPath(sub, false, out string usbRes) &&
+                            !usbRes.Equals("/etc", StringComparison.Ordinal) &&
+                            !usbRes.StartsWith("/etc/", StringComparison.Ordinal))
+                        {
+                            roots.Add(usbRes);
+                        }
+                    }
+                }
+                catch { }
+            }
+
+            return roots.Distinct(StringComparer.Ordinal).ToList();
+        }
+
+        public static bool TryResolveJailedPath(string? rawPath, bool allowNonExistentLeaf, bool allowTrashRoot, out string canonicalPath)
+        {
+            canonicalPath = "";
+            if (string.IsNullOrWhiteSpace(rawPath) || rawPath.Contains('\0'))
+                return false;
+
+            // Reject any dotfile or traversal component in caller-supplied path below known roots
+            if (!TryResolveRealPath(rawPath, allowNonExistentLeaf, out string resolved))
+                return false;
+
+            var allowedRoots = GetAllowedCanonicalRoots(allowTrashRoot, out string canonicalTrash, out string canonicalDataDir);
+
+            // Explicit defense-in-depth denylist for sensitive system/secret directories
+            string realUserHome = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            foreach (string homeBase in new[] { LinuxVaultAndStorage.UserHomeDir, realUserHome }.Where(x => !string.IsNullOrWhiteSpace(x)))
+            {
+                string sshDir = Path.GetFullPath(Path.Combine(homeBase, ".ssh")).TrimEnd(Path.DirectorySeparatorChar);
+                if (resolved.Equals(sshDir, StringComparison.Ordinal) || resolved.StartsWith(sshDir + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+                    return false;
+            }
+            if (resolved.Equals("/etc", StringComparison.Ordinal) || resolved.StartsWith("/etc/", StringComparison.Ordinal))
+                return false;
+
+            // Block ~/.local/share/FunkenwerkOS except TrashDir when allowTrashRoot == true
+            if (resolved.Equals(canonicalDataDir, StringComparison.Ordinal) ||
+                resolved.StartsWith(canonicalDataDir + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+            {
+                if (!allowTrashRoot)
+                    return false;
+                if (!resolved.Equals(canonicalTrash, StringComparison.Ordinal) &&
+                    !resolved.StartsWith(canonicalTrash + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+                {
+                    return false;
+                }
+            }
+
+            string? matchedRoot = null;
+            foreach (string root in allowedRoots)
+            {
+                if (resolved.Equals(root, StringComparison.Ordinal) ||
+                    resolved.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+                {
+                    matchedRoot = root;
+                    break;
+                }
+            }
+
+            if (matchedRoot == null)
+                return false;
+
+            if (!resolved.Equals(matchedRoot, StringComparison.Ordinal))
+            {
+                string rel = Path.GetRelativePath(matchedRoot, resolved);
+                string[] relParts = rel.Split(new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar }, StringSplitOptions.RemoveEmptyEntries);
+                foreach (string part in relParts)
+                {
+                    if (part.StartsWith('.'))
+                        return false;
+                }
+            }
+
+            canonicalPath = resolved;
+            return true;
+        }
+
+        public static List<(string Label, string Path)> GetQuickRoots()
+        {
+            string home = LinuxVaultAndStorage.UserHomeDir;
+
+            string md = LinuxVaultAndStorage.MeineDatenRoot;
+            string dl = Path.Combine(home, "Downloads");
+            Directory.CreateDirectory(dl);
+
+            var list = new List<(string, string)>
+            {
+                ("✦ Meine Daten", md),
+                ("📥 Daten-Trichter", Path.Combine(md, "00_Eingang_Trichter")),
+                ("⬇ Downloads", dl),
+                ("🗑 Papierkorb", LinuxVaultAndStorage.TrashDir)
+            };
+
+            string userName = Environment.UserName;
+            var mediaBases = new List<string> { "/media/alina", "/media" };
+            if (!string.IsNullOrWhiteSpace(userName))
+                mediaBases.Insert(0, $"/media/{userName}");
+
+            foreach (string mediaBase in mediaBases.Distinct(StringComparer.Ordinal))
+            {
+                if (!Directory.Exists(mediaBase)) continue;
+                try
+                {
+                    foreach (string sub in Directory.GetDirectories(mediaBase))
+                    {
+                        string leaf = Path.GetFileName(sub);
+                        if (string.IsNullOrEmpty(leaf) || leaf.StartsWith('.') || leaf is "c" or "wsl" or "wslg") continue;
                         list.Add(($"💾 USB: {leaf}", sub));
                     }
                 }
@@ -1403,17 +1680,21 @@ namespace FunkenwerkOSLinux
 
         public static List<FileEntryDto> ListDirectory(string? requestedPath)
         {
-            string target = string.IsNullOrWhiteSpace(requestedPath)
-                ? LinuxVaultAndStorage.MeineDatenRoot
-                : Path.GetFullPath(requestedPath);
-
-            if (!Directory.Exists(target))
+            string target;
+            if (string.IsNullOrWhiteSpace(requestedPath))
+            {
                 target = LinuxVaultAndStorage.MeineDatenRoot;
+            }
+            else if (!TryResolveJailedPath(requestedPath, allowNonExistentLeaf: false, allowTrashRoot: true, out target) || !Directory.Exists(target))
+            {
+                return new List<FileEntryDto>();
+            }
 
             // Auto-sort 00_Eingang_Trichter if viewing Meine_Daten
             AutoSortTrichter();
 
-            bool isTrash = string.Equals(target.TrimEnd('/'), LinuxVaultAndStorage.TrashDir.TrimEnd('/'), StringComparison.Ordinal);
+            GetAllowedCanonicalRoots(allowTrashRoot: true, out string canonicalTrash, out _);
+            bool isTrash = string.Equals(target.TrimEnd('/'), canonicalTrash.TrimEnd('/'), StringComparison.Ordinal);
             var origins = isTrash ? LoadRecycleOrigins() : new Dictionary<string, string>();
 
             var items = new List<FileEntryDto>();
@@ -1422,6 +1703,7 @@ namespace FunkenwerkOSLinux
                 foreach (var d in new DirectoryInfo(target).GetDirectories().OrderBy(x => x.Name))
                 {
                     if (d.Name.StartsWith('.')) continue;
+                    if (!TryResolveJailedPath(d.FullName, allowNonExistentLeaf: false, allowTrashRoot: isTrash, out _)) continue;
                     items.Add(new FileEntryDto
                     {
                         Name = d.Name,
@@ -1435,6 +1717,7 @@ namespace FunkenwerkOSLinux
                 foreach (var f in new DirectoryInfo(target).GetFiles().OrderBy(x => x.Name))
                 {
                     if (f.Name.StartsWith('.')) continue;
+                    if (!TryResolveJailedPath(f.FullName, allowNonExistentLeaf: false, allowTrashRoot: isTrash, out _)) continue;
                     items.Add(new FileEntryDto
                     {
                         Name = f.Name,
@@ -1464,19 +1747,27 @@ namespace FunkenwerkOSLinux
 
         public static bool MoveToTrash(string fullPath)
         {
-            if (string.IsNullOrWhiteSpace(fullPath)) return false;
+            if (!TryResolveJailedPath(fullPath, allowNonExistentLeaf: false, allowTrashRoot: false, out string safeSource))
+                return false;
+
+            var topRoots = GetAllowedCanonicalRoots(allowTrashRoot: false, out _, out _);
+            if (topRoots.Any(r => string.Equals(r, safeSource, StringComparison.Ordinal)))
+                return false;
+
             try
             {
-                string name = Path.GetFileName(fullPath.TrimEnd('/'));
+                string name = Path.GetFileName(safeSource.TrimEnd('/'));
+                if (string.IsNullOrWhiteSpace(name) || name.StartsWith('.')) return false;
+
                 string dest = GetUniquePath(Path.Combine(LinuxVaultAndStorage.TrashDir, name));
                 string destLeaf = Path.GetFileName(dest);
 
-                if (File.Exists(fullPath)) File.Move(fullPath, dest);
-                else if (Directory.Exists(fullPath)) Directory.Move(fullPath, dest);
+                if (File.Exists(safeSource)) File.Move(safeSource, dest);
+                else if (Directory.Exists(safeSource)) Directory.Move(safeSource, dest);
                 else return false;
 
                 var origins = LoadRecycleOrigins();
-                origins[destLeaf] = fullPath;
+                origins[destLeaf] = safeSource;
                 SaveRecycleOrigins(origins);
                 return true;
             }
@@ -1488,18 +1779,38 @@ namespace FunkenwerkOSLinux
 
         public static bool RestoreFromTrash(string trashItemPath)
         {
-            if (string.IsNullOrWhiteSpace(trashItemPath)) return false;
+            if (!TryResolveJailedPath(trashItemPath, allowNonExistentLeaf: false, allowTrashRoot: true, out string safeTrashItem))
+                return false;
+
+            GetAllowedCanonicalRoots(allowTrashRoot: true, out string canonicalTrash, out _);
+            if (!safeTrashItem.StartsWith(canonicalTrash + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+                return false;
+
             try
             {
-                string leaf = Path.GetFileName(trashItemPath.TrimEnd('/'));
-                var origins = LoadRecycleOrigins();
-                string orig = origins.GetValueOrDefault(leaf, Path.Combine(LinuxVaultAndStorage.MeineDatenRoot, leaf));
-                string parent = Path.GetDirectoryName(orig) ?? LinuxVaultAndStorage.MeineDatenRoot;
-                Directory.CreateDirectory(parent);
-                string finalDest = GetUniquePath(orig);
+                string leaf = Path.GetFileName(safeTrashItem.TrimEnd('/'));
+                if (string.IsNullOrWhiteSpace(leaf) || leaf.StartsWith('.')) return false;
 
-                if (File.Exists(trashItemPath)) File.Move(trashItemPath, finalDest);
-                else if (Directory.Exists(trashItemPath)) Directory.Move(trashItemPath, finalDest);
+                var origins = LoadRecycleOrigins();
+                string candidateOrig = origins.GetValueOrDefault(leaf, Path.Combine(LinuxVaultAndStorage.MeineDatenRoot, leaf));
+
+                string? origParent = Path.GetDirectoryName(candidateOrig);
+                if (!string.IsNullOrEmpty(origParent) &&
+                    TryResolveJailedPath(origParent, allowNonExistentLeaf: true, allowTrashRoot: false, out string safeParent))
+                {
+                    Directory.CreateDirectory(safeParent);
+                }
+
+                if (!TryResolveJailedPath(candidateOrig, allowNonExistentLeaf: true, allowTrashRoot: false, out string safeDest))
+                {
+                    safeDest = Path.Combine(LinuxVaultAndStorage.MeineDatenRoot, leaf);
+                    if (!TryResolveJailedPath(safeDest, allowNonExistentLeaf: true, allowTrashRoot: false, out safeDest))
+                        return false;
+                }
+
+                string finalDest = GetUniquePath(safeDest);
+                if (File.Exists(safeTrashItem)) File.Move(safeTrashItem, finalDest);
+                else if (Directory.Exists(safeTrashItem)) Directory.Move(safeTrashItem, finalDest);
                 else return false;
 
                 origins.Remove(leaf);
@@ -1541,7 +1852,8 @@ namespace FunkenwerkOSLinux
         {
             try
             {
-                File.WriteAllText(OriginsFile, JsonSerializer.Serialize(map, new JsonSerializerOptions { WriteIndented = true }));
+                byte[] utf8 = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(map, new JsonSerializerOptions { WriteIndented = true }));
+                LinuxVaultAndStorage.WriteFileAtomically0600(OriginsFile, utf8);
             }
             catch { }
         }

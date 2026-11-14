@@ -84,7 +84,7 @@ class AddTaskWidgetActivity : ComponentActivity() {
 
         // Fetch task lists from cache
         val sharedPrefs = getSharedPreferences("tasks_widget_prefs", Context.MODE_PRIVATE)
-        val listsJson = sharedPrefs.getString("task_lists_cache", null)
+        val listsJson = ServiceLocator.getDecryptedPref(sharedPrefs, "task_lists_cache")
         val gson = Gson()
         val allLists: List<ManagementTaskList> = if (listsJson != null) {
             try {

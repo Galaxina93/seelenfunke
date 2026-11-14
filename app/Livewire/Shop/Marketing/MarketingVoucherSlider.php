@@ -63,11 +63,12 @@ class MarketingVoucherSlider extends Component
 
         if (Auth::guard('customer')->check()) {
             $customer = Auth::guard('customer')->user();
-
-            return MarketingVoucher::where('mode', 'manual')
-                ->where('recipient_email', $customer->email)
-                ->current()
-                ->exists();
+            if ($customer && $customer->hasVerifiedEmail()) {
+                return MarketingVoucher::where('mode', 'manual')
+                    ->where('recipient_email', $customer->email)
+                    ->current()
+                    ->exists();
+            }
         }
 
         return false;
@@ -127,16 +128,18 @@ class MarketingVoucherSlider extends Component
 
         $vouchers = $manualVouchers->merge($activeAutoVouchers);
 
-        // 4. Nur wenn der Kunde eingeloggt ist: eigene persönliche Belohnungsgutscheine ergänzen
+        // 4. Nur wenn der Kunde eingeloggt und E-Mail-verifiziert ist: eigene persönliche Belohnungsgutscheine ergänzen
         if (Auth::guard('customer')->check()) {
             $customer = Auth::guard('customer')->user();
 
-            $personalVouchers = MarketingVoucher::where('mode', 'manual')
-                ->where('recipient_email', $customer->email)
-                ->current()
-                ->get();
+            if ($customer && $customer->hasVerifiedEmail()) {
+                $personalVouchers = MarketingVoucher::where('mode', 'manual')
+                    ->where('recipient_email', $customer->email)
+                    ->current()
+                    ->get();
 
-            $vouchers = $vouchers->merge($personalVouchers)->unique('id')->values();
+                $vouchers = $vouchers->merge($personalVouchers)->unique('id')->values();
+            }
         }
 
         return view('livewire.shop.marketing.marketing-voucher-slider', [

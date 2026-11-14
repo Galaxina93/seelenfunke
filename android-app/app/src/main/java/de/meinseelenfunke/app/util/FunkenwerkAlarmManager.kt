@@ -346,7 +346,7 @@ object FunkenwerkAlarmManager {
         return if (result.isEmpty()) defaultTimers() else result.sortedBy { it.durationSeconds }
     }
 
-    private fun parseTimersJsonSelfHealing(timersJson: String): List<TimerPresetItem> {
+    internal fun parseTimersJsonSelfHealing(timersJson: String): List<TimerPresetItem> {
         return try {
             val arr = JSONArray(timersJson)
             val parsed = ArrayList<TimerPresetItem>(arr.length())
@@ -391,7 +391,7 @@ object FunkenwerkAlarmManager {
         }
 
         // 1. Load or seed default Alarms and migrate legacy plug IPs
-        val alarmsJson = prefs.getString(KEY_ALARMS, null)
+        val alarmsJson = ServiceLocator.getDecryptedPref(prefs, KEY_ALARMS, null)
         val rawAlarms: List<SmartAlarmItem> = if (!alarmsJson.isNullOrBlank()) {
             try {
                 val type = object : TypeToken<List<SmartAlarmItem>>() {}.type
@@ -404,21 +404,21 @@ object FunkenwerkAlarmManager {
         }
         val loadedAlarms = normalizeAlarms(rawAlarms).sortedWith(compareBy({ it.hour }, { it.minute }))
         _alarmsFlow.value = loadedAlarms
-        prefs.edit().putString(KEY_ALARMS, gson.toJson(loadedAlarms)).apply()
+        ServiceLocator.putEncryptedPref(prefs, KEY_ALARMS, gson.toJson(loadedAlarms))
 
         // 2. Load or seed default Timers (self-heals any R8-corrupted or missing IDs/labels)
-        val timersJson = prefs.getString(KEY_TIMERS, null)
+        val timersJson = ServiceLocator.getDecryptedPref(prefs, KEY_TIMERS, null)
         val loadedTimers: List<TimerPresetItem> = if (!timersJson.isNullOrBlank()) {
             parseTimersJsonSelfHealing(timersJson)
         } else {
             defaultTimers()
         }
         _timersFlow.value = loadedTimers
-        prefs.edit().putString(KEY_TIMERS, gson.toJson(loadedTimers)).apply()
+        ServiceLocator.putEncryptedPref(prefs, KEY_TIMERS, gson.toJson(loadedTimers))
         restorePersistedTimerState(appCtx, loadedTimers)
 
         // 3. Load and normalize Smart Plugs to match PC Funkenwerk SmartHome
-        val plugsJson = prefs.getString(KEY_SMART_PLUGS, null)
+        val plugsJson = ServiceLocator.getDecryptedPref(prefs, KEY_SMART_PLUGS, null)
         val rawPlugs: List<SmartPlugDevice> = if (!plugsJson.isNullOrBlank()) {
             try {
                 val type = object : TypeToken<List<SmartPlugDevice>>() {}.type
@@ -431,10 +431,10 @@ object FunkenwerkAlarmManager {
         }
         val loadedPlugs = normalizeSmartPlugs(rawPlugs)
         _smartPlugsFlow.value = loadedPlugs
-        prefs.edit().putString(KEY_SMART_PLUGS, gson.toJson(loadedPlugs)).apply()
+        ServiceLocator.putEncryptedPref(prefs, KEY_SMART_PLUGS, gson.toJson(loadedPlugs))
 
         // 4. Load Wake-Up Logs
-        val logsJson = prefs.getString(KEY_WAKE_LOGS, null)
+        val logsJson = ServiceLocator.getDecryptedPref(prefs, KEY_WAKE_LOGS, null)
         val loadedLogs: Map<String, WakeUpLogEntry> = if (!logsJson.isNullOrBlank()) {
             try {
                 val type = object : TypeToken<Map<String, WakeUpLogEntry>>() {}.type
@@ -466,8 +466,8 @@ object FunkenwerkAlarmManager {
 
     private fun restorePersistedTimerState(context: Context, presets: List<TimerPresetItem>) {
         val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val endJson = prefs.getString(KEY_TIMER_END_MILLIS, null)
-        val pausedJson = prefs.getString(KEY_TIMER_PAUSED_REM, null)
+        val endJson = ServiceLocator.getDecryptedPref(prefs, KEY_TIMER_END_MILLIS, null)
+        val pausedJson = ServiceLocator.getDecryptedPref(prefs, KEY_TIMER_PAUSED_REM, null)
 
         val savedEndMap: Map<String, Long> = if (!endJson.isNullOrBlank()) {
             try {
@@ -518,10 +518,8 @@ object FunkenwerkAlarmManager {
     private fun persistTimerState(context: Context) {
         val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val pausedMap = _timerRemainingFlow.value.filter { (id, _) -> _timerRunningFlow.value[id] != true }
-        prefs.edit()
-            .putString(KEY_TIMER_END_MILLIS, gson.toJson(_timerEndMillisMap))
-            .putString(KEY_TIMER_PAUSED_REM, gson.toJson(pausedMap))
-            .apply()
+        ServiceLocator.putEncryptedPref(prefs, KEY_TIMER_END_MILLIS, gson.toJson(_timerEndMillisMap))
+        ServiceLocator.putEncryptedPref(prefs, KEY_TIMER_PAUSED_REM, gson.toJson(pausedMap))
     }
 
     // =========================================================================
@@ -643,7 +641,7 @@ object FunkenwerkAlarmManager {
         return when {
             sorted.isEmpty() -> "Nicht geplant"
             sorted.size == 7 -> "Jeden Tag"
-            sorted == listOf(1, 2, 3, 4, 5) -> "Mo–Fr"
+            sorted == listOf(1, 2, 3, 4, 5) -> "Mo-Fr"
             sorted == listOf(6, 7) -> "Sa & So"
             else -> {
                 val names = mapOf(1 to "Mo", 2 to "Di", 3 to "Mi", 4 to "Do", 5 to "Fr", 6 to "Sa", 7 to "So")
@@ -662,10 +660,8 @@ object FunkenwerkAlarmManager {
     fun saveAlarms(context: Context, alarms: List<SmartAlarmItem>) {
         val sorted = normalizeAlarms(alarms).sortedWith(compareBy({ it.hour }, { it.minute }))
         _alarmsFlow.value = sorted
-        context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit()
-            .putString(KEY_ALARMS, gson.toJson(sorted))
-            .apply()
+        val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        ServiceLocator.putEncryptedPref(prefs, KEY_ALARMS, gson.toJson(sorted))
         scheduleAllActiveAlarms(context, sorted)
         prewarmAlarmBriefingsAsync(context.applicationContext)
         sorted.forEach { alarm ->
@@ -727,10 +723,8 @@ object FunkenwerkAlarmManager {
         val updated = (_timersFlow.value + newItem).sortedBy { it.durationSeconds }
         _timersFlow.value = updated
         syncTimerMapsWithPresets(updated)
-        context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit()
-            .putString(KEY_TIMERS, gson.toJson(updated))
-            .apply()
+        val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        ServiceLocator.putEncryptedPref(prefs, KEY_TIMERS, gson.toJson(updated))
     }
 
     fun deleteTimerPreset(context: Context, timerId: String) {
@@ -746,10 +740,8 @@ object FunkenwerkAlarmManager {
         _timerRunningFlow.value = runMap
         persistTimerState(appCtx)
         updateActiveTimerNotification(appCtx)
-        appCtx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit()
-            .putString(KEY_TIMERS, gson.toJson(updated))
-            .apply()
+        val prefs = appCtx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        ServiceLocator.putEncryptedPref(prefs, KEY_TIMERS, gson.toJson(updated))
     }
 
     fun toggleTimerPlayPause(context: Context, timerId: String) {
@@ -944,10 +936,8 @@ object FunkenwerkAlarmManager {
             current.add(device)
         }
         _smartPlugsFlow.value = current
-        context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit()
-            .putString(KEY_SMART_PLUGS, gson.toJson(current))
-            .apply()
+        val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        ServiceLocator.putEncryptedPref(prefs, KEY_SMART_PLUGS, gson.toJson(current))
     }
 
     fun saveTapoCredentials(context: Context, email: String, password: String) {
@@ -991,10 +981,8 @@ object FunkenwerkAlarmManager {
         val updated = _wakeLogsFlow.value.toMutableMap()
         updated[todayStr] = entry
         _wakeLogsFlow.value = updated
-        context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit()
-            .putString(KEY_WAKE_LOGS, gson.toJson(updated))
-            .apply()
+        val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        ServiceLocator.putEncryptedPref(prefs, KEY_WAKE_LOGS, gson.toJson(updated))
         return entry
     }
 
@@ -1017,7 +1005,6 @@ object FunkenwerkAlarmManager {
     ) {
         ensureInitialized(context)
         val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val editor = prefs.edit()
 
         if (!alarms.isNullOrEmpty()) {
             val localById = _alarmsFlow.value.associateBy { it.id }
@@ -1034,31 +1021,30 @@ object FunkenwerkAlarmManager {
             }
             val sorted = mergedAlarms.sortedWith(compareBy({ it.hour }, { it.minute }))
             _alarmsFlow.value = sorted
-            editor.putString(KEY_ALARMS, gson.toJson(sorted))
+            ServiceLocator.putEncryptedPref(prefs, KEY_ALARMS, gson.toJson(sorted))
             scheduleAllActiveAlarms(context, sorted)
         }
         if (!timers.isNullOrEmpty()) {
             val normalizedTimers = normalizeTimers(timers)
             _timersFlow.value = normalizedTimers
             syncTimerMapsWithPresets(normalizedTimers)
-            editor.putString(KEY_TIMERS, gson.toJson(normalizedTimers))
+            ServiceLocator.putEncryptedPref(prefs, KEY_TIMERS, gson.toJson(normalizedTimers))
         }
         if (!plugs.isNullOrEmpty()) {
             val normalizedPlugs = normalizeSmartPlugs(plugs)
             _smartPlugsFlow.value = normalizedPlugs
-            editor.putString(KEY_SMART_PLUGS, gson.toJson(normalizedPlugs))
+            ServiceLocator.putEncryptedPref(prefs, KEY_SMART_PLUGS, gson.toJson(normalizedPlugs))
         }
         if (!wakeLogs.isNullOrEmpty()) {
             val merged = _wakeLogsFlow.value.toMutableMap()
             merged.putAll(wakeLogs)
             _wakeLogsFlow.value = merged
-            editor.putString(KEY_WAKE_LOGS, gson.toJson(merged))
+            ServiceLocator.putEncryptedPref(prefs, KEY_WAKE_LOGS, gson.toJson(merged))
         }
         if (!lastSyncedAt.isNullOrBlank()) {
             _lastSyncFlow.value = lastSyncedAt
-            editor.putString(KEY_LAST_SYNC, lastSyncedAt)
+            prefs.edit().putString(KEY_LAST_SYNC, lastSyncedAt).apply()
         }
-        editor.apply()
     }
 
     fun exportSyncPayloadStrings(context: Context): Map<String, String> {
@@ -1075,50 +1061,80 @@ object FunkenwerkAlarmManager {
     }
 
     /**
-     * Pushes the current alarm, smart_plugs, and wake_up_logs package across all reachable Seelenfunke endpoints
-     * (LAN + Stage + Live) so /admin/routine is always synchronized even if one endpoint is unreachable.
+     * Resolves the single permitted API base URL for alarm sync without cross-environment spray.
+     * Returns null if [configuredBaseUrl] is disallowed or cleartext in a release build.
      */
+    fun resolveSingleApiBaseUrl(
+        configuredBaseUrl: String,
+        isDebugBuild: Boolean = de.meinseelenfunke.app.BuildConfig.DEBUG
+    ): String? {
+        if (!ServiceLocator.isAllowedBaseUrl(configuredBaseUrl, isDebugBuild)) return null
+        val sanitized = ServiceLocator.sanitizeBaseUrl(configuredBaseUrl, isDebugBuild).trim().removeSuffix("/")
+        if (!ServiceLocator.shouldAttachBearerToken(sanitized, isDebugBuild)) return null
+        return sanitized
+    }
+
+    fun resolveAlarmSyncEndpointUrl(
+        configuredBaseUrl: String,
+        isDebugBuild: Boolean = de.meinseelenfunke.app.BuildConfig.DEBUG
+    ): String? {
+        val base = resolveSingleApiBaseUrl(configuredBaseUrl, isDebugBuild) ?: return null
+        return "$base/funki/routine/alarm-sync"
+    }
+
+    /**
+     * Pushes the current alarm, smart_plugs, and wake_up_logs package strictly to the currently configured
+     * `ServiceLocator.getBaseUrl()` endpoint (never spraying Stage tokens to Live or Live tokens to Stage,
+     * and never sending Bearer tokens over cleartext HTTP in release).
+     */
+    suspend fun pushAlarmPackageToConfiguredEndpoint(context: Context): Boolean = withContext(Dispatchers.IO) {
+        val appCtx = context.applicationContext
+        try {
+            ensureInitialized(appCtx)
+            ServiceLocator.ensureInitialized(appCtx)
+            val endpoint = resolveAlarmSyncEndpointUrl(
+                configuredBaseUrl = ServiceLocator.getBaseUrl(),
+                isDebugBuild = de.meinseelenfunke.app.BuildConfig.DEBUG
+            ) ?: return@withContext false
+
+            val token = ServiceLocator.getAuthToken()
+            if (token.isNullOrBlank() || !ServiceLocator.shouldAttachBearerToken(endpoint, de.meinseelenfunke.app.BuildConfig.DEBUG)) {
+                return@withContext false
+            }
+
+            val payloadMap = exportSyncPayloadStrings(appCtx)
+            val bodyJson = JSONObject().apply {
+                payloadMap.forEach { (k, v) -> put(k, v) }
+            }.toString()
+
+            val isLan = endpoint.contains("192.168.") || endpoint.contains("10.0.") || endpoint.contains("127.0.0.1")
+            val conn = (URL(endpoint).openConnection() as HttpURLConnection).apply {
+                instanceFollowRedirects = false
+                requestMethod = "POST"
+                connectTimeout = if (isLan) 2200 else 4500
+                readTimeout = 5000
+                doOutput = true
+                setRequestProperty("Content-Type", "application/json")
+                setRequestProperty("Accept", "application/json")
+                setRequestProperty("Authorization", "Bearer $token")
+            }
+            conn.outputStream.use { it.write(bodyJson.toByteArray(Charsets.UTF_8)) }
+            val code = conn.responseCode
+            conn.disconnect()
+            if (code in 200..299) {
+                markSyncCompleted(appCtx, SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.GERMANY).format(Date()))
+                return@withContext true
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "pushAlarmPackageToConfiguredEndpoint failed: ${e.message}")
+        }
+        false
+    }
+
     fun pushAlarmPackageToAllEndpointsAsync(context: Context) {
         val appCtx = context.applicationContext
         scope.launch(Dispatchers.IO) {
-            try {
-                ensureInitialized(appCtx)
-                val payloadMap = exportSyncPayloadStrings(appCtx)
-                val bodyJson = JSONObject().apply {
-                    payloadMap.forEach { (k, v) -> put(k, v) }
-                }.toString()
-                val token = try {
-                    ServiceLocator.init(appCtx)
-                    ServiceLocator.getAuthToken()
-                } catch (_: Exception) {
-                    null
-                }
-                for (base in apiBaseCandidates(appCtx)) {
-                    try {
-                        val isLan = base.contains("192.168.") || base.contains("10.0.")
-                        val conn = (URL("$base/funki/routine/alarm-sync").openConnection() as HttpURLConnection).apply {
-                            requestMethod = "POST"
-                            connectTimeout = if (isLan) 2200 else 4500
-                            readTimeout = 5000
-                            doOutput = true
-                            setRequestProperty("Content-Type", "application/json")
-                            setRequestProperty("Accept", "application/json")
-                            if (!token.isNullOrBlank()) {
-                                setRequestProperty("Authorization", "Bearer $token")
-                            }
-                        }
-                        conn.outputStream.use { it.write(bodyJson.toByteArray(Charsets.UTF_8)) }
-                        val code = conn.responseCode
-                        conn.disconnect()
-                        if (code in 200..299) {
-                            markSyncCompleted(appCtx, SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.GERMANY).format(Date()))
-                        }
-                    } catch (_: Exception) {
-                    }
-                }
-            } catch (e: Exception) {
-                Log.w(TAG, "pushAlarmPackageToAllEndpointsAsync failed: ${e.message}")
-            }
+            pushAlarmPackageToConfiguredEndpoint(appCtx)
         }
     }
 
@@ -1126,10 +1142,17 @@ object FunkenwerkAlarmManager {
      * Computes today's dynamic routine time shift in minutes based on the active routine-synced alarm or today's wake-up log.
      * Matches ManagementRoutine.php::shiftRoutineTimeString on the web portal (/admin/routine).
      */
-    fun computeTodayRoutineShift(firstRoutineBaseStartTime: String): Pair<Int, String?> {
-        val todayStr = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
-        val todayWakeLog = _wakeLogsFlow.value[todayStr]?.actualWakeTime?.take(5)
-        val syncedAlarm = _alarmsFlow.value
+    fun computeTodayRoutineShift(
+        firstRoutineBaseStartTime: String,
+        overrideWakeLogs: Map<String, WakeUpLogEntry>? = null,
+        overrideAlarms: List<SmartAlarmItem>? = null,
+        overrideTodayIso: String? = null
+    ): Pair<Int, String?> {
+        val todayStr = overrideTodayIso ?: SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+        val wakeLogs = overrideWakeLogs ?: _wakeLogsFlow.value
+        val alarms = overrideAlarms ?: _alarmsFlow.value
+        val todayWakeLog = wakeLogs[todayStr]?.actualWakeTime?.take(5)
+        val syncedAlarm = alarms
             .filter { it.isEnabled && it.syncWithRoutine }
             .minByOrNull { it.hour * 60 + it.minute }
         val targetWakeTime = todayWakeLog ?: syncedAlarm?.timeFormatted ?: return Pair(0, null)
@@ -1169,7 +1192,7 @@ object FunkenwerkAlarmManager {
     fun scheduleAllActiveAlarms(context: Context, alarms: List<SmartAlarmItem>? = null) {
         if (alarms == null && (!isInitialized || _alarmsFlow.value.isEmpty())) {
             val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            val alarmsJson = prefs.getString(KEY_ALARMS, null)
+            val alarmsJson = ServiceLocator.getDecryptedPref(prefs, KEY_ALARMS, null)
             if (!alarmsJson.isNullOrBlank()) {
                 try {
                     val type = object : TypeToken<List<SmartAlarmItem>>() {}.type
@@ -1608,12 +1631,55 @@ object FunkenwerkAlarmManager {
         cancelSnoozeAlarm(context, alarmId)
     }
 
-    fun formatTimeUntilAlarm(alarm: SmartAlarmItem): String {
-        val nowMs = System.currentTimeMillis()
-        val effectiveDays = if (alarm.daysOfWeek.isEmpty()) listOf(1, 2, 3, 4, 5, 6, 7) else alarm.daysOfWeek
-        val triggerMs = computeNextTriggerMillis(alarm.hour, alarm.minute, effectiveDays)
-        val diffMs = (triggerMs - nowMs).coerceAtLeast(0L)
-        val totalMinutes = ((diffMs + 59_999L) / 60_000L).toInt().coerceAtLeast(1)
+    fun cancelAllAlarmsOnLogout(context: Context) {
+        val appCtx = context.applicationContext
+        try {
+            stopAlarmSound(appCtx)
+        } catch (_: Exception) {}
+        timerTickerJob?.cancel()
+        timerTickerJob = null
+        resetStopwatch()
+
+        val allAlarmIds = (_alarmsFlow.value.map { it.id } + listOf("alarm_0830", "alarm_0645", "alarm_1300")).distinct()
+        for (id in allAlarmIds) {
+            try { cancelAlarm(appCtx, id) } catch (_: Exception) {}
+        }
+        val allTimerIds = (_timersFlow.value.map { it.id } + _timerEndMillisMap.keys + defaultTimers().map { it.id }).distinct()
+        for (tid in allTimerIds) {
+            try { cancelTimerExactAlarm(appCtx, tid) } catch (_: Exception) {}
+        }
+
+        _timerEndMillisMap.clear()
+        _timerRunningFlow.value = emptyMap()
+        _timerRemainingFlow.value = emptyMap()
+        _alarmsFlow.value = emptyList()
+        _timersFlow.value = emptyList()
+        _smartPlugsFlow.value = emptyList()
+        _wakeLogsFlow.value = emptyMap()
+        _lastSyncFlow.value = null
+        _snoozedUntilTimeFlow.value = null
+        cachedGifhornWeatherSentence = null
+        cachedGifhornWeatherAtMs = 0L
+        isInitialized = false
+
+        try {
+            val nm = appCtx.getSystemService(Context.NOTIFICATION_SERVICE) as? android.app.NotificationManager
+            nm?.cancel(NOTIFICATION_ID_ACTIVE_ALARM)
+            nm?.cancel(NOTIFICATION_ID_ACTIVE_TIMER)
+            nm?.cancel(NOTIFICATION_ID_TIMER_FINISHED)
+            synchronized(activeAlarmNotificationIds) {
+                activeAlarmNotificationIds.forEach { nm?.cancel(it) }
+                activeAlarmNotificationIds.clear()
+            }
+        } catch (_: Exception) {}
+    }
+
+    fun formatRemainingDurationText(diffMs: Long): String {
+        val safeDiffMs = diffMs.coerceAtLeast(0L)
+        if (safeDiffMs < 60_000L) {
+            return "Wecker klingelt in weniger als 1 Minute"
+        }
+        val totalMinutes = ((safeDiffMs + 59_999L) / 60_000L).toInt().coerceAtLeast(1)
         val days = totalMinutes / (24 * 60)
         val remAfterDays = totalMinutes % (24 * 60)
         val hours = remAfterDays / 60
@@ -1639,9 +1705,17 @@ object FunkenwerkAlarmManager {
                 val hourPart = if (hours == 1) "1 Stunde" else "$hours Stunden"
                 "Wecker klingelt in $hourPart"
             }
-            minutes > 1 -> "Wecker klingelt in $minutes Minuten"
-            else -> "Wecker klingelt in weniger als 1 Minute"
+            minutes == 1 -> "Wecker klingelt in 1 Minute"
+            else -> "Wecker klingelt in $minutes Minuten"
         }
+    }
+
+    fun formatTimeUntilAlarm(alarm: SmartAlarmItem): String {
+        val nowMs = System.currentTimeMillis()
+        val effectiveDays = if (alarm.daysOfWeek.isEmpty()) listOf(1, 2, 3, 4, 5, 6, 7) else alarm.daysOfWeek
+        val triggerMs = computeNextTriggerMillis(alarm.hour, alarm.minute, effectiveDays)
+        val diffMs = (triggerMs - nowMs).coerceAtLeast(0L)
+        return formatRemainingDurationText(diffMs)
     }
 
     fun computeNextTriggerMillis(hour: Int, minute: Int, daysOfWeek: List<Int>): Long {
@@ -2463,6 +2537,7 @@ object FunkenwerkAlarmManager {
         try {
             val urlStr = "https://api.open-meteo.com/v1/forecast?latitude=52.4886&longitude=10.5458&current=temperature_2m,weather_code&hourly=temperature_2m,precipitation_probability,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Europe%2FBerlin&forecast_days=1"
             val conn = (URL(urlStr).openConnection() as HttpURLConnection).apply {
+                instanceFollowRedirects = false
                 requestMethod = "GET"
                 connectTimeout = 3500
                 readTimeout = 3500
@@ -2548,8 +2623,9 @@ object FunkenwerkAlarmManager {
                 val sentence = "In Gifhorn wird es heute $weatherCondition bei bis zu $dailyMax Grad, und $walkFeasibilityClause."
                 cachedGifhornWeatherSentence = sentence
                 cachedGifhornWeatherAtMs = nowMs
+                ServiceLocator.ensureInitialized(appCtx)
+                ServiceLocator.putEncryptedPref(prefs, KEY_LAST_WEATHER_SENTENCE, sentence)
                 prefs.edit()
-                    .putString(KEY_LAST_WEATHER_SENTENCE, sentence)
                     .putString(KEY_LAST_WEATHER_DATE, todayIso)
                     .apply()
                 return@withContext sentence
@@ -2560,8 +2636,9 @@ object FunkenwerkAlarmManager {
             Log.w(TAG, "Failed to fetch Gifhorn weather from Open-Meteo: ${e.message}")
         }
 
+        ServiceLocator.ensureInitialized(appCtx)
         val savedDate = prefs.getString(KEY_LAST_WEATHER_DATE, null)
-        val savedSentence = prefs.getString(KEY_LAST_WEATHER_SENTENCE, null)
+        val savedSentence = ServiceLocator.getDecryptedPref(prefs, KEY_LAST_WEATHER_SENTENCE)
         if (savedDate == todayIso && !savedSentence.isNullOrBlank()) {
             return@withContext savedSentence
         }
@@ -2786,6 +2863,7 @@ object FunkenwerkAlarmManager {
                 }.toString()
 
                 val conn = (URL("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent").openConnection() as HttpURLConnection).apply {
+                    instanceFollowRedirects = false
                     requestMethod = "POST"
                     connectTimeout = 4000
                     readTimeout = 6000
@@ -2815,7 +2893,7 @@ object FunkenwerkAlarmManager {
                 }
             }
 
-            // Authenticated Server-Side Fallback (keeps Master GEMINI_API_KEY strictly on server)
+            // Authenticated Server-Side Fallback (single configured environment, keeps Master GEMINI_API_KEY strictly on server)
             val token = ServiceLocator.getAuthToken()
             if (!token.isNullOrBlank()) {
                 val payload = JSONObject().apply {
@@ -2823,8 +2901,11 @@ object FunkenwerkAlarmManager {
                     put("mime_type", "audio/wav")
                 }.toString()
                 for (base in apiBaseCandidates(appCtx)) {
+                    val endpointUrl = "$base/funki/routine/alarm-transcribe"
+                    if (!ServiceLocator.shouldAttachBearerToken(endpointUrl)) continue
                     try {
-                        val conn = (URL("$base/funki/routine/alarm-transcribe").openConnection() as HttpURLConnection).apply {
+                        val conn = (URL(endpointUrl).openConnection() as HttpURLConnection).apply {
+                            instanceFollowRedirects = false
                             requestMethod = "POST"
                             connectTimeout = 3500
                             readTimeout = 7500
@@ -2994,12 +3075,13 @@ object FunkenwerkAlarmManager {
             else -> "Guten Abend Alina!"
         }
 
+        ServiceLocator.ensureInitialized(appCtx)
         val todayDateSentence = formatTodayGermanDateSentence()
         val todayIso = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
         val prefs = appCtx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val weatherSentence = preloadedWeatherSentence?.takeIf { it.isNotBlank() }
             ?: cachedGifhornWeatherSentence?.takeIf { it.isNotBlank() }
-            ?: prefs.getString(KEY_LAST_WEATHER_SENTENCE, null)?.takeIf {
+            ?: ServiceLocator.getDecryptedPref(prefs, KEY_LAST_WEATHER_SENTENCE)?.takeIf {
                 prefs.getString(KEY_LAST_WEATHER_DATE, null) == todayIso && it.isNotBlank()
             }
             ?: "In Gifhorn begleitet dich heute typisches Regionswetter, zieh dir heute Abend für den Spaziergang der Temperatur entsprechend eine bequeme Jacke an."
@@ -3009,7 +3091,7 @@ object FunkenwerkAlarmManager {
         var highPrioTasksCount = 0
         try {
             val taskPrefs = appCtx.getSharedPreferences("tasks_widget_prefs", Context.MODE_PRIVATE)
-            val tasksJson = taskPrefs.getString("tasks_cache", null)
+            val tasksJson = ServiceLocator.getDecryptedPref(taskPrefs, "tasks_cache")
             if (!tasksJson.isNullOrBlank()) {
                 val type = object : TypeToken<List<ManagementTask>>() {}.type
                 val tasks: List<ManagementTask> = gson.fromJson(tasksJson, type) ?: emptyList()
@@ -3024,7 +3106,7 @@ object FunkenwerkAlarmManager {
         var firstEventTitle: String? = null
         try {
             val calPrefs = appCtx.getSharedPreferences("calendar_widget_prefs", Context.MODE_PRIVATE)
-            val calJson = calPrefs.getString("calendar_events_cache", null)
+            val calJson = ServiceLocator.getDecryptedPref(calPrefs, "calendar_events_cache")
             if (!calJson.isNullOrBlank()) {
                 val type = object : TypeToken<List<CalendarEvent>>() {}.type
                 val events: List<CalendarEvent> = gson.fromJson(calJson, type) ?: emptyList()
@@ -3257,17 +3339,12 @@ object FunkenwerkAlarmManager {
     }
 
     private fun apiBaseCandidates(context: Context): List<String> {
-        val list = mutableListOf<String>()
-        try {
+        return try {
             ServiceLocator.ensureInitialized(context.applicationContext)
-            val saved = ServiceLocator.getBaseUrl().trim().removeSuffix("/")
-            if (saved.isNotBlank()) list.add(saved)
+            listOfNotNull(resolveSingleApiBaseUrl(ServiceLocator.getBaseUrl()))
         } catch (_: Exception) {
+            emptyList()
         }
-        // Never blindly broadcast Bearer tokens over cleartext LAN HTTP unless the user explicitly selected LAN mode
-        list.add("https://stage.mein-seelenfunke.de/api")
-        list.add("https://mein-seelenfunke.de/api")
-        return list.distinct()
     }
 
     /**
@@ -3275,7 +3352,7 @@ object FunkenwerkAlarmManager {
      * 1. Checks persistent filesDir/funkira_briefings by exact text SHA-256 hash (instant 0ms playback when pre-warmed,
      *    and guaranteed never to play a stale time when an alarm's hour/minute is changed!).
      * 2. Uses direct Gemini Native Audio API (Aoede) if Gemini key is stored in ServiceLocator.
-     * 3. Falls back to Seelenfunke Backend (/api/funki/routine/morning-briefing-tts) across LAN/Stage/Live.
+     * 3. Falls back to the single configured Seelenfunke Backend (/api/funki/routine/morning-briefing-tts).
      */
     private suspend fun fetchOrSynthesizeFunkiraWav(context: Context, text: String, alarmId: String? = null): File? = withContext(Dispatchers.IO) {
         val appCtx = context.applicationContext
@@ -3289,7 +3366,7 @@ object FunkenwerkAlarmManager {
 
         // 1. Direct Gemini TTS API with Funkira's voice ("Aoede") if API key is available on device
         try {
-            ServiceLocator.init(appCtx)
+            ServiceLocator.ensureInitialized(appCtx)
             val apiKey = ServiceLocator.getGeminiApiKey().trim()
             if (apiKey.isNotBlank()) {
                 val wavBytes = synthesizeGeminiAoedeDirect(apiKey, text)
@@ -3302,18 +3379,21 @@ object FunkenwerkAlarmManager {
             Log.w(TAG, "Direct Gemini Aoede TTS failed, trying backend", e)
         }
 
-        // 2. Backend /funki/routine/morning-briefing-tts across LAN / Stage / Live
+        // 2. Backend /funki/routine/morning-briefing-tts on single configured environment
         val token = try {
-            ServiceLocator.init(appCtx)
+            ServiceLocator.ensureInitialized(appCtx)
             ServiceLocator.getAuthToken()
         } catch (_: Exception) {
             null
         }
 
         for (base in apiBaseCandidates(appCtx)) {
+            val endpointUrl = "$base/funki/routine/morning-briefing-tts"
+            if (!ServiceLocator.shouldAttachBearerToken(endpointUrl)) continue
             try {
                 val isLan = base.contains("192.168.") || base.contains("10.0.")
-                val conn = (URL("$base/funki/routine/morning-briefing-tts").openConnection() as HttpURLConnection).apply {
+                val conn = (URL(endpointUrl).openConnection() as HttpURLConnection).apply {
+                    instanceFollowRedirects = false
                     requestMethod = "POST"
                     connectTimeout = if (isLan) 2200 else 5000
                     readTimeout = 14000
@@ -3380,6 +3460,7 @@ object FunkenwerkAlarmManager {
             try {
                 val url = URL("https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent")
                 val conn = (url.openConnection() as HttpURLConnection).apply {
+                    instanceFollowRedirects = false
                     requestMethod = "POST"
                     connectTimeout = 5000
                     readTimeout = 14000
@@ -3447,6 +3528,35 @@ object FunkenwerkAlarmManager {
     // =========================================================================
     // LOCAL WI-FI SMART-HOME PLUG CONTROL (TAPO P100/P110 KLAP v2 PROTOCOL)
     // =========================================================================
+    suspend fun triggerSmartPlugsSuspend(
+        context: Context,
+        ips: List<String>,
+        turnOn: Boolean = true
+    ): Pair<Boolean, String> {
+        if (ips.isEmpty()) {
+            return Pair(false, "Keine Smart-Home Steckdose ausgewählt.")
+        }
+        val appCtx = context.applicationContext
+        ensureInitialized(appCtx)
+        val (email, pass) = getTapoCredentials(appCtx)
+        val normalizedIps = ips.map { ip ->
+            val clean = ip.trim()
+            if (clean == "192.168.188.106") "192.168.188.110" else clean
+        }.distinct()
+        val plugNamesByIp = _smartPlugsFlow.value.associate { it.ip to it.name }
+
+        acquireAlarmWakeLock(appCtx, 30_000L)
+        val results = mutableListOf<String>()
+        var anySuccess = false
+        for (ip in normalizedIps) {
+            val (ok, msg) = setPlugStateKlapV2(ip, email, pass, turnOn)
+            if (ok) anySuccess = true
+            val label = plugNamesByIp[ip] ?: ip
+            results.add("$label: $msg")
+        }
+        return Pair(anySuccess, results.joinToString(" · "))
+    }
+
     fun triggerSmartPlugsAsync(
         context: Context,
         ips: List<String>,
@@ -3458,24 +3568,8 @@ object FunkenwerkAlarmManager {
             return
         }
         val appCtx = context.applicationContext
-        val (email, pass) = getTapoCredentials(appCtx)
-        val normalizedIps = ips.map { ip ->
-            val clean = ip.trim()
-            if (clean == "192.168.188.106") "192.168.188.110" else clean
-        }.distinct()
-        val plugNamesByIp = _smartPlugsFlow.value.associate { it.ip to it.name }
-
         scope.launch {
-            acquireAlarmWakeLock(appCtx, 30_000L)
-            val results = mutableListOf<String>()
-            var anySuccess = false
-            for (ip in normalizedIps) {
-                val (ok, msg) = setPlugStateKlapV2(ip, email, pass, turnOn)
-                if (ok) anySuccess = true
-                val label = plugNamesByIp[ip] ?: ip
-                results.add("$label: $msg")
-            }
-            val summary = results.joinToString(" · ")
+            val (anySuccess, summary) = triggerSmartPlugsSuspend(appCtx, ips, turnOn)
             withContext(Dispatchers.Main) {
                 onResult?.invoke(anySuccess, summary)
             }
@@ -3559,6 +3653,7 @@ object FunkenwerkAlarmManager {
 
     private fun postRawBytesWithCookie(urlStr: String, body: ByteArray, contentType: String, cookie: String?): Pair<ByteArray?, String?> {
         val conn = (URL(urlStr).openConnection() as HttpURLConnection).apply {
+            instanceFollowRedirects = false
             requestMethod = "POST"
             connectTimeout = 2800
             readTimeout = 2800

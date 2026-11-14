@@ -119,22 +119,41 @@ trait HandlesOrderCreation
         }
 
         // [SICHERHEIT] Artikel-Verfügbarkeit & Lagerbestand vor Order-Erstellung prüfen (außerhalb der Transaktion)
-        if (!session()->has('checkout_from_quote_id')) {
-            foreach ($cart->items as $item) {
-                $product = $item->product;
-                if (!$product || $product->status !== 'active') {
-                    throw \Illuminate\Validation\ValidationException::withMessages([
-                        'cart' => 'Ein Artikel in deinem Warenkorb ist derzeit nicht mehr verfügbar.'
-                    ]);
+        $approvedQuoteItemsByProduct = [];
+        if (session()->has('checkout_from_quote_id')) {
+            $activeQuote = \App\Models\Order\OrderQuoteRequest::with('items')->find(session('checkout_from_quote_id'));
+            if ($activeQuote && method_exists($activeQuote, 'isValid') && $activeQuote->isValid()) {
+                foreach ($activeQuote->items as $qItem) {
+                    $pid = (string) $qItem->product_id;
+                    $approvedQuoteItemsByProduct[$pid] = ($approvedQuoteItemsByProduct[$pid] ?? 0) + (int) $qItem->quantity;
                 }
-                if ($product->type === 'physical' && $product->track_quantity && !$product->continue_selling_when_out_of_stock) {
-                    $variantId = is_array($item->configuration) ? ($item->configuration['variant_id'] ?? null) : null;
-                    $availableStock = $cartService->resolveAvailableStock($product, $variantId);
-                    if ($availableStock < $item->quantity) {
-                        throw \Illuminate\Validation\ValidationException::withMessages([
-                            'cart' => "Der Artikel '{$product->name}' ist leider nicht mehr in der gewünschten Menge auf Lager."
-                        ]);
-                    }
+            } else {
+                session()->forget('checkout_from_quote_id');
+            }
+        }
+
+        foreach ($cart->items as $item) {
+            $product = $item->product;
+            if (!$product || $product->status !== 'active') {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'cart' => 'Ein Artikel in deinem Warenkorb ist derzeit nicht mehr verfügbar.'
+                ]);
+            }
+
+            $pid = (string) $product->id;
+            $coveredByQuote = isset($approvedQuoteItemsByProduct[$pid]) && $approvedQuoteItemsByProduct[$pid] >= (int) $item->quantity;
+            if ($coveredByQuote) {
+                $approvedQuoteItemsByProduct[$pid] -= (int) $item->quantity;
+                continue;
+            }
+
+            if ($product->type === 'physical' && $product->track_quantity && !$product->continue_selling_when_out_of_stock) {
+                $variantId = is_array($item->configuration) ? ($item->configuration['variant_id'] ?? null) : null;
+                $availableStock = $cartService->resolveAvailableStock($product, $variantId);
+                if ($availableStock < $item->quantity) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'cart' => "Der Artikel '{$product->name}' ist leider nicht mehr in der gewünschten Menge auf Lager."
+                    ]);
                 }
             }
         }
@@ -246,7 +265,10 @@ trait HandlesOrderCreation
             }
 
             if (!$customer) {
-                $customer = Customer::where('email', $this->email)->first();
+                $customer = Customer::withTrashed()->where('email', $this->email)->first();
+                if ($customer && $customer->trashed()) {
+                    $customer->restore();
+                }
             }
 
             if (!$customer) {

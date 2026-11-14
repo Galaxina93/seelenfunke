@@ -74,7 +74,7 @@ class AddSubtaskWidgetActivity : ComponentActivity() {
 
         // Fetch parent task to show its title
         val sharedPrefs = getSharedPreferences("tasks_widget_prefs", Context.MODE_PRIVATE)
-        val tasksJson = sharedPrefs.getString("tasks_cache", null)
+        val tasksJson = ServiceLocator.getDecryptedPref(sharedPrefs, "tasks_cache")
         val gson = Gson()
         val allTasks: List<ManagementTask> = if (tasksJson != null) {
             try {

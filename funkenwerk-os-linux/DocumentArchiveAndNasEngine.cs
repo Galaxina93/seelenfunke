@@ -85,6 +85,20 @@ namespace FunkenwerkOSLinux
 
         private static string ConnectionString => $"Data Source={IndexDbPath};Mode=ReadWriteCreate;Cache=Shared";
 
+        internal static void ResetForSelfTest()
+        {
+            s_dbInitLock.Wait();
+            try
+            {
+                s_dbInitialized = false;
+                SqliteConnection.ClearAllPools();
+            }
+            finally
+            {
+                s_dbInitLock.Release();
+            }
+        }
+
         // =====================================================================
         // 1.EXTENDED 8-PILLAR SUBFOLDER TAXONOMY
         // =====================================================================
@@ -877,7 +891,9 @@ namespace FunkenwerkOSLinux
             return ("", false);
         }
 
-        private static string ExtractOfficeZipXmlText(string fullPath, string ext)
+        internal const int MaxOfficeXmlEntryBytes = 4 * 1024 * 1024;
+
+        internal static string ExtractOfficeZipXmlText(string fullPath, string ext)
         {
             try
             {
@@ -886,9 +902,24 @@ namespace FunkenwerkOSLinux
                     ? "word/document.xml"
                     : (ext == ".odt" ? "content.xml" : "xl/sharedStrings.xml");
                 var entry = archive.GetEntry(entryName);
-                if (entry == null) return "";
-                using var sr = new StreamReader(entry.Open(), Encoding.UTF8);
-                string xml = sr.ReadToEnd();
+                if (entry == null || entry.Length > MaxOfficeXmlEntryBytes)
+                    return "";
+
+                using var entryStream = entry.Open();
+                using var ms = new MemoryStream(Math.Min((int)Math.Max(entry.Length, 4096), MaxOfficeXmlEntryBytes));
+                byte[] chunk = new byte[16384];
+                int totalRead = 0;
+                while (true)
+                {
+                    int r = entryStream.Read(chunk, 0, chunk.Length);
+                    if (r <= 0) break;
+                    totalRead += r;
+                    if (totalRead > MaxOfficeXmlEntryBytes)
+                        return "";
+                    ms.Write(chunk, 0, r);
+                }
+
+                string xml = Encoding.UTF8.GetString(ms.GetBuffer(), 0, (int)ms.Length);
                 string stripped = Regex.Replace(xml, "<[^>]+>", " ");
                 return NormalizeWhitespace(WebUtility.HtmlDecode(stripped));
             }
@@ -903,8 +934,12 @@ namespace FunkenwerkOSLinux
             try
             {
                 string payload = JsonSerializer.Serialize(new { filePath = fullPath, maxPages });
-                using var content = new StringContent(payload, Encoding.UTF8, "application/json");
-                using var resp = await s_ocrHttp.PostAsync("/ocr", content).ConfigureAwait(false);
+                using var req = new HttpRequestMessage(HttpMethod.Post, "/ocr")
+                {
+                    Content = new StringContent(payload, Encoding.UTF8, "application/json")
+                };
+                req.Headers.TryAddWithoutValidation("X-Sense-Token", LocalSenseBridge.SenseAuthToken);
+                using var resp = await s_ocrHttp.SendAsync(req).ConfigureAwait(false);
                 if (!resp.IsSuccessStatusCode) return "";
                 string json = await resp.Content.ReadAsStringAsync().ConfigureAwait(false);
                 using var doc = JsonDocument.Parse(json);
@@ -1379,6 +1414,26 @@ namespace FunkenwerkOSLinux
                 await ProcessTrichterDirectoryAsync().ConfigureAwait(false);
 
                 var st = LinuxVaultAndStorage.LoadSettings();
+                if (!LinuxVaultAndStorage.IsValidPrivateLanIpv4(st.NasHost))
+                {
+                    st.LastNasBackupResult = "NAS-Sicherung abgelehnt: Ungültige NAS-Adresse (nur RFC1918 Private-LAN-IPv4 erlaubt).";
+                    LinuxVaultAndStorage.SaveSettings(st);
+                    return (false, st.LastNasBackupResult, 0, 0);
+                }
+
+                string nasPass = LinuxVaultAndStorage.GetNasPassword(st);
+                string cleanUser = (st.NasUsername ?? "").Trim();
+                if (string.IsNullOrWhiteSpace(nasPass) ||
+                    string.IsNullOrWhiteSpace(cleanUser) ||
+                    string.Equals(cleanUser, "guest", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(cleanUser, "anonymous", StringComparison.OrdinalIgnoreCase))
+                {
+                    st.NasBackupPendingCatchUp = true;
+                    st.LastNasBackupResult = "NAS-Sicherung abgelehnt: Bitte NAS-Benutzer & Passwort in den Funkenwerk-Einstellungen hinterlegen (Gast-Login ist deaktiviert).";
+                    LinuxVaultAndStorage.SaveSettings(st);
+                    return (false, st.LastNasBackupResult, 0, 0);
+                }
+
                 string root = LinuxVaultAndStorage.MeineDatenRoot;
                 var manifest = LoadBackupManifest();
 
@@ -1414,17 +1469,11 @@ namespace FunkenwerkOSLinux
 
                 bool wasCatchUp = st.NasBackupPendingCatchUp;
 
-                // 2. Connect to Synology NAS via SMB2/SMB3
-                string nasPass = LinuxVaultAndStorage.GetNasPassword(st);
+                // 2. Connect to Synology NAS via SMB2/SMB3 (strictly RFC1918 IPv4 literal, never DNS or guest)
+                var nasIp = IPAddress.Parse(st.NasHost.Trim());
                 var client = new SMB2Client();
-                bool tcpOk = await Task.Run(() =>
-                {
-                    if (IPAddress.TryParse(st.NasHost, out var ip))
-                        return client.Connect(ip, SMBTransportType.DirectTCPTransport);
-                    var addrs = Dns.GetHostAddresses(st.NasHost);
-                    var ipv4 = addrs.FirstOrDefault(a => a.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork) ?? addrs.FirstOrDefault();
-                    return ipv4 != null && client.Connect(ipv4, SMBTransportType.DirectTCPTransport);
-                }).WaitAsync(TimeSpan.FromMilliseconds(connectTimeoutMs)).ConfigureAwait(false);
+                bool tcpOk = await Task.Run(() => client.Connect(nasIp, SMBTransportType.DirectTCPTransport))
+                    .WaitAsync(TimeSpan.FromMilliseconds(connectTimeoutMs)).ConfigureAwait(false);
 
                 if (!tcpOk)
                 {
@@ -1437,16 +1486,12 @@ namespace FunkenwerkOSLinux
 
                 try
                 {
-                    NTStatus loginStatus = string.IsNullOrWhiteSpace(nasPass)
-                        ? client.Login(string.Empty, "guest", string.Empty)
-                        : client.Login(string.Empty, st.NasUsername, nasPass);
+                    NTStatus loginStatus = client.Login(string.Empty, cleanUser, nasPass);
 
                     if (loginStatus != NTStatus.STATUS_SUCCESS)
                     {
                         st.NasBackupPendingCatchUp = true;
-                        st.LastNasBackupResult = string.IsNullOrWhiteSpace(nasPass)
-                            ? "Bitte einmalig NAS-Passwort (alina) in den Funkenwerk-Einstellungen hinterlegen."
-                            : $"NAS-Anmeldung fehlgeschlagen ({loginStatus}).";
+                        st.LastNasBackupResult = $"NAS-Anmeldung fehlgeschlagen ({loginStatus}).";
                         LinuxVaultAndStorage.SaveSettings(st);
                         ErrorSentinelAndWatchdog.RecordEvent("nas_backup", "NAS SMB-Anmeldung fehlgeschlagen", st.LastNasBackupResult, severity: "error");
                         return (false, st.LastNasBackupResult, 0, 0);
@@ -1914,6 +1959,17 @@ namespace FunkenwerkOSLinux
                 case "MOVE":
                 case "COPY":
                 {
+                    if (!File.Exists(localPath) && !Directory.Exists(localPath))
+                    {
+                        ctx.Response.StatusCode = StatusCodes.Status404NotFound;
+                        return;
+                    }
+                    if (localPath == root)
+                    {
+                        ctx.Response.StatusCode = StatusCodes.Status403Forbidden;
+                        return;
+                    }
+
                     string? destHeader = ctx.Request.Headers["Destination"].FirstOrDefault();
                     if (string.IsNullOrWhiteSpace(destHeader))
                     {
@@ -1923,27 +1979,59 @@ namespace FunkenwerkOSLinux
                     string destPathUri = Uri.TryCreate(destHeader, UriKind.Absolute, out var absU)
                         ? Uri.UnescapeDataString(absU.AbsolutePath)
                         : Uri.UnescapeDataString(destHeader);
-                    string destSub = destPathUri.StartsWith("/Meine_Daten", StringComparison.OrdinalIgnoreCase)
-                        ? destPathUri.Substring("/Meine_Daten".Length).Trim('/')
-                        : "";
+                    if (!destPathUri.StartsWith("/Meine_Daten", StringComparison.OrdinalIgnoreCase))
+                    {
+                        ctx.Response.StatusCode = StatusCodes.Status403Forbidden;
+                        return;
+                    }
+                    string destSub = destPathUri.Substring("/Meine_Daten".Length).Trim('/');
                     string? destLocal = ResolveSafePathInsideRoot(root, destSub);
                     if (destLocal == null || destLocal == root)
                     {
                         ctx.Response.StatusCode = StatusCodes.Status403Forbidden;
                         return;
                     }
+                    if (string.Equals(localPath, destLocal, StringComparison.Ordinal) ||
+                        destLocal.StartsWith(localPath + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+                    {
+                        ctx.Response.StatusCode = StatusCodes.Status403Forbidden;
+                        return;
+                    }
+
+                    string overwriteHdr = (ctx.Request.Headers["Overwrite"].FirstOrDefault() ?? "T").Trim().ToUpperInvariant();
+                    bool allowOverwrite = overwriteHdr != "F";
                     bool destExisted = File.Exists(destLocal) || Directory.Exists(destLocal);
+                    if (destExisted && !allowOverwrite)
+                    {
+                        ctx.Response.StatusCode = StatusCodes.Status412PreconditionFailed;
+                        return;
+                    }
+
                     string? destParent = Path.GetDirectoryName(destLocal);
                     if (!string.IsNullOrEmpty(destParent)) Directory.CreateDirectory(destParent);
 
                     if (File.Exists(localPath))
                     {
+                        if (Directory.Exists(destLocal))
+                            Directory.Delete(destLocal, recursive: true);
                         if (method == "MOVE") File.Move(localPath, destLocal, overwrite: true);
                         else File.Copy(localPath, destLocal, overwrite: true);
                     }
-                    else if (Directory.Exists(localPath) && method == "MOVE")
+                    else if (Directory.Exists(localPath))
                     {
-                        Directory.Move(localPath, destLocal);
+                        if (File.Exists(destLocal))
+                            File.Delete(destLocal);
+                        else if (Directory.Exists(destLocal))
+                            Directory.Delete(destLocal, recursive: true);
+
+                        if (method == "MOVE")
+                        {
+                            Directory.Move(localPath, destLocal);
+                        }
+                        else
+                        {
+                            CopyDirectoryRecursiveSafe(localPath, destLocal, root);
+                        }
                     }
                     else
                     {
@@ -2035,15 +2123,88 @@ namespace FunkenwerkOSLinux
             return string.Join("/", sub.Split('/', StringSplitOptions.RemoveEmptyEntries).Select(Uri.EscapeDataString));
         }
 
+        private static void CopyDirectoryRecursiveSafe(string sourceDir, string targetDir, string canonicalRoot)
+        {
+            Directory.CreateDirectory(targetDir);
+            var srcInfo = new DirectoryInfo(sourceDir);
+
+            foreach (var file in srcInfo.GetFiles())
+            {
+                if (file.Name.StartsWith('.') || file.LinkTarget != null)
+                    continue;
+                File.Copy(file.FullName, Path.Combine(targetDir, file.Name), overwrite: true);
+            }
+
+            foreach (var sub in srcInfo.GetDirectories())
+            {
+                if (sub.Name.StartsWith('.') || sub.LinkTarget != null)
+                    continue;
+                string fullSub = Path.GetFullPath(sub.FullName);
+                if (!fullSub.StartsWith(canonicalRoot + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+                    continue;
+                CopyDirectoryRecursiveSafe(sub.FullName, Path.Combine(targetDir, sub.Name), canonicalRoot);
+            }
+        }
+
         private static string? ResolveSafePathInsideRoot(string rootFullPath, string relativeSub)
         {
-            if (relativeSub.Contains('\0')) return null;
-            string combined = string.IsNullOrWhiteSpace(relativeSub)
-                ? rootFullPath
-                : Path.GetFullPath(Path.Combine(rootFullPath, relativeSub.Replace('/', Path.DirectorySeparatorChar)));
+            if (relativeSub == null || relativeSub.Contains('\0'))
+                return null;
 
-            if (combined == rootFullPath || combined.StartsWith(rootFullPath + Path.DirectorySeparatorChar, StringComparison.Ordinal))
-                return combined;
+            string realRoot = Path.GetFullPath(rootFullPath).TrimEnd(Path.DirectorySeparatorChar);
+            var rootDirInfo = new DirectoryInfo(realRoot);
+            if (rootDirInfo.LinkTarget != null)
+            {
+                var rootTarget = rootDirInfo.ResolveLinkTarget(returnFinalTarget: true);
+                if (rootTarget == null || !rootTarget.Exists)
+                    return null;
+                realRoot = Path.GetFullPath(rootTarget.FullName).TrimEnd(Path.DirectorySeparatorChar);
+            }
+
+            if (string.IsNullOrWhiteSpace(relativeSub))
+                return realRoot;
+
+            string[] parts = relativeSub.Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries);
+            string current = realRoot;
+
+            foreach (string part in parts)
+            {
+                if (part is "." or ".." || part.StartsWith('.'))
+                    return null;
+
+                string next = Path.Combine(current, part);
+                var fi = new FileInfo(next);
+                var di = new DirectoryInfo(next);
+                bool isLink = fi.LinkTarget != null || di.LinkTarget != null;
+
+                if (isLink)
+                {
+                    FileSystemInfo? resolvedLink = fi.LinkTarget != null
+                        ? fi.ResolveLinkTarget(returnFinalTarget: true)
+                        : di.ResolveLinkTarget(returnFinalTarget: true);
+                    if (resolvedLink == null || !resolvedLink.Exists)
+                        return null;
+                    string linkFull = Path.GetFullPath(resolvedLink.FullName).TrimEnd(Path.DirectorySeparatorChar);
+                    if (!linkFull.Equals(realRoot, StringComparison.Ordinal) &&
+                        !linkFull.StartsWith(realRoot + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+                    {
+                        return null;
+                    }
+                    current = linkFull;
+                }
+                else
+                {
+                    current = Path.GetFullPath(next).TrimEnd(Path.DirectorySeparatorChar);
+                    if (!current.StartsWith(realRoot + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+                        return null;
+                }
+            }
+
+            if (current.Equals(realRoot, StringComparison.Ordinal) ||
+                current.StartsWith(realRoot + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+            {
+                return current;
+            }
 
             return null;
         }

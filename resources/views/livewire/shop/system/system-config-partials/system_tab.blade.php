@@ -60,6 +60,98 @@
         </div>
     @endif
 
+    {{-- FUNKENWERK ANDROID OTA TRESOR --}}
+    <div class="bg-white dark:bg-gray-900/80 backdrop-blur-xl p-6 sm:p-8 rounded-2xl shadow-sm dark:shadow-xl dark:shadow-[var(--theme-color-10)] border border-gray-200 dark:border-gray-800 relative overflow-hidden">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            <div class="flex items-center gap-2.5">
+                <h2 class="text-xl sm:text-2xl font-black text-[var(--theme-color)] font-sans">Funkenwerk Android App</h2>
+                <div x-data="{ open: false }" class="relative inline-flex items-center" @mouseenter="open = true" @mouseleave="open = false">
+                    <button type="button" @click="open = !open" class="w-5 h-5 rounded-full border border-gray-300 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 text-[11px] font-black flex items-center justify-center hover:border-[var(--theme-color)] hover:text-[var(--theme-color)] transition-colors">!</button>
+                    <div x-show="open" x-cloak class="absolute left-0 top-7 z-30 w-72 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 p-3 text-xs text-gray-700 dark:text-gray-300 shadow-xl">
+                        Privater Admin-Tresor (storage/app/private/releases/android). Auslieferung erfolgt signiert, SHA-256-geprüft und ausschließlich für authentifizierte Administratoren (Browser & In-App OTA).
+                    </div>
+                </div>
+            </div>
+
+            @if(!empty($androidRelease) && !empty($androidDownloadUrl))
+                <a href="{{ $androidDownloadUrl }}" class="px-5 py-2.5 rounded-xl bg-[var(--theme-color)] text-gray-900 hover:brightness-110 text-xs font-black uppercase tracking-widest transition-all inline-flex items-center justify-center gap-2">
+                    <x-heroicon-o-arrow-down-tray class="w-4 h-4" />
+                    <span>APK herunterladen (v{{ $androidRelease['version_name'] }})</span>
+                </a>
+            @endif
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {{-- Aktueller Release-Status --}}
+            <div class="bg-gray-50/80 dark:bg-gray-900/60 border border-gray-200 dark:border-gray-800/60 rounded-xl p-5 flex flex-col justify-between gap-4">
+                @if(!empty($androidRelease))
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <div>
+                            <div class="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-1">Version</div>
+                            <div class="text-sm font-black text-gray-900 dark:text-white">v{{ $androidRelease['version_name'] }}</div>
+                        </div>
+                        <div>
+                            <div class="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-1">Build</div>
+                            <div class="text-sm font-black text-gray-900 dark:text-white">#{{ $androidRelease['version_code'] }}</div>
+                        </div>
+                        <div>
+                            <div class="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-1">Größe</div>
+                            <div class="text-sm font-black text-gray-900 dark:text-white">{{ number_format(($androidRelease['file_size'] ?? 0) / 1048576, 2, ',', '.') }} MB</div>
+                        </div>
+                        <div>
+                            <div class="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-1">Stand</div>
+                            <div class="text-xs font-bold text-gray-700 dark:text-gray-300">{{ !empty($androidRelease['published_at']) ? \Carbon\Carbon::parse($androidRelease['published_at'])->format('d.m.Y H:i') : '-' }}</div>
+                        </div>
+                    </div>
+                    <div class="pt-3 border-t border-gray-200 dark:border-gray-800 flex items-center justify-between gap-2">
+                        <span class="text-[10px] font-black uppercase tracking-widest text-gray-500">SHA-256</span>
+                        <code class="text-[11px] text-gray-700 dark:text-gray-300 font-mono truncate">{{ $androidRelease['sha256'] }}</code>
+                    </div>
+                @else
+                    <div class="flex items-center justify-center h-full py-6 text-gray-400 dark:text-gray-500 text-xs font-bold uppercase tracking-widest">
+                        Noch kein Release hinterlegt
+                    </div>
+                @endif
+            </div>
+
+            {{-- Manuelles APK-Release Bereitstellen --}}
+            <div class="bg-gray-50/80 dark:bg-gray-900/60 border border-gray-200 dark:border-gray-800/60 rounded-xl p-5 space-y-3">
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-[9px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-500 mb-1">Version</label>
+                        <input type="text" wire:model="androidVersionName" placeholder="1.4.0" class="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white rounded-xl text-xs p-2.5 outline-none focus:border-[var(--theme-color)]">
+                    </div>
+                    <div>
+                        <label class="block text-[9px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-500 mb-1">Build-Code</label>
+                        <input type="number" wire:model="androidVersionCode" min="1" class="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white rounded-xl text-xs p-2.5 outline-none focus:border-[var(--theme-color)]">
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <label class="flex-1 cursor-pointer rounded-xl border border-dashed border-gray-300 dark:border-gray-700 hover:border-[var(--theme-color)] bg-white dark:bg-gray-950 px-3 py-2.5 text-xs font-bold text-gray-700 dark:text-gray-300 truncate text-center transition-colors">
+                        <input type="file" wire:model="androidApkUpload" accept=".apk" class="hidden">
+                        <span wire:loading.remove wire:target="androidApkUpload">
+                            {{ $androidApkUpload ? $androidApkUpload->getClientOriginalName() : 'APK-Datei wählen' }}
+                        </span>
+                        <span wire:loading wire:target="androidApkUpload" class="text-[var(--theme-color)]">Lade Datei...</span>
+                    </label>
+
+                    <button type="button" wire:click="publishAndroidApk" wire:loading.attr="disabled" class="px-4 py-2.5 rounded-xl bg-[var(--theme-color)] text-gray-900 hover:brightness-110 text-xs font-black uppercase tracking-widest transition-all shrink-0">
+                        Bereitstellen
+                    </button>
+                </div>
+
+                @if($errors->has('androidApkUpload') || $errors->has('androidVersionName') || $errors->has('androidVersionCode'))
+                    <div class="rounded-xl border border-red-500/40 bg-red-500/10 p-2.5 text-xs font-bold text-red-500 space-y-0.5">
+                        @error('androidApkUpload') <div>{{ $message }}</div> @enderror
+                        @error('androidVersionName') <div>{{ $message }}</div> @enderror
+                        @error('androidVersionCode') <div>{{ $message }}</div> @enderror
+                    </div>
+                @endif
+            </div>
+        </div>
+    </div>
+
     <div class="bg-white dark:bg-gray-900/80 backdrop-blur-xl p-6 sm:p-8 rounded-2xl shadow-sm dark:shadow-xl dark:shadow-[var(--theme-color-10)] border border-gray-200 dark:border-gray-800 relative overflow-hidden">
         <div class="hidden dark:block absolute top-0 right-0 p-4 opacity-10 blur-sm pointer-events-none">
             <x-heroicon-o-document-duplicate class="w-32 h-32 text-[var(--theme-color)] drop-shadow-xl shadow-[var(--theme-color-10)]" />

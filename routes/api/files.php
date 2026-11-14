@@ -41,8 +41,32 @@ $sanitizeWorkspacePath = function (string $path): ?string {
     }
 
     $existingReal = realpath($candidatePath);
-    if ($diskRoot && $existingReal && $existingReal !== $diskRoot && !str_starts_with($existingReal, $diskRoot . DIRECTORY_SEPARATOR)) {
-        return null;
+    if ($diskRoot) {
+        if ($existingReal) {
+            if ($existingReal !== $diskRoot && !str_starts_with($existingReal, $diskRoot . DIRECTORY_SEPARATOR)) {
+                return null;
+            }
+        } else {
+            // Prüfe aufsteigende Elternverzeichnisse gegen Symlink-Escape bei noch nicht existierenden Zieldateien
+            $probe = dirname($candidatePath);
+            while ($probe && strlen($probe) >= strlen($diskRoot)) {
+                if (is_link($probe)) {
+                    return null;
+                }
+                if (file_exists($probe)) {
+                    $realProbe = realpath($probe);
+                    if (!$realProbe || ($realProbe !== $diskRoot && !str_starts_with($realProbe, $diskRoot . DIRECTORY_SEPARATOR))) {
+                        return null;
+                    }
+                    break;
+                }
+                $next = dirname($probe);
+                if ($next === $probe) {
+                    break;
+                }
+                $probe = $next;
+            }
+        }
     }
 
     return $normalized;

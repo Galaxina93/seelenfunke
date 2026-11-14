@@ -40,16 +40,33 @@ class AiWidget extends Component
         $this->loadDefaultChatSession();
         $this->agentId = $agentId;
         
-        $this->activeAgentIds = \App\Models\Ai\AiAgent::where('is_in_chat', true)->where('name', '!=', 'Funki')->pluck('id')->toArray();
+        $isAdmin = \App\Services\AI\AiAuthHelper::isAdmin();
+        $excludedNames = $isAdmin ? ['Funki'] : ['Funki', 'Funkira'];
+
+        $this->activeAgentIds = \App\Models\Ai\AiAgent::where('is_in_chat', true)
+            ->whereNotIn('name', $excludedNames)
+            ->pluck('id')
+            ->toArray();
         $this->forcedAgentIds = $this->activeAgentIds;
 
         // Ensure we have at least one fallback agent initialized if none are in chat yet
         if (empty($this->activeAgentIds)) {
-            $fallbackAgent = \App\Models\Ai\AiAgent::where('is_active', true)->where('name', '!=', 'Funki')->first();
+            $fallbackAgent = \App\Models\Ai\AiAgent::where('is_active', true)
+                ->whereNotIn('name', $excludedNames)
+                ->first();
             if ($fallbackAgent) {
-                $fallbackAgent->update(['is_in_chat' => true]);
+                if ($isAdmin) {
+                    $fallbackAgent->update(['is_in_chat' => true]);
+                }
                 $this->activeAgentIds[] = $fallbackAgent->id;
                 $this->forcedAgentIds[] = $fallbackAgent->id;
+            }
+        }
+
+        if ($this->agentId && !$isAdmin) {
+            $preselected = \App\Models\Ai\AiAgent::find($this->agentId);
+            if (!$preselected || strtolower(trim((string) $preselected->name)) === 'funkira') {
+                $this->agentId = $this->activeAgentIds[0] ?? null;
             }
         }
 
@@ -137,7 +154,12 @@ class AiWidget extends Component
 
     public function updatedAgentId($value)
     {
-        $agent = !empty($value) ? \App\Models\Ai\AiAgent::where('id', $value)->where('is_active', true)->first() : null;
+        $isAdmin = \App\Services\AI\AiAuthHelper::isAdmin();
+        $query = \App\Models\Ai\AiAgent::where('id', $value)->where('is_active', true);
+        if (!$isAdmin) {
+            $query->whereNotIn('name', ['Funki', 'Funkira']);
+        }
+        $agent = !empty($value) ? $query->first() : null;
         $validAgentId = $agent ? $agent->id : null;
 
         if (\App\Services\AI\AiAuthHelper::check() && $this->widgetConfig) {
@@ -169,7 +191,11 @@ class AiWidget extends Component
             $volume = isset($data['volume']) ? max(0, min(100, (int) $data['volume'])) : $this->widgetConfig->volume;
             $agentId = $this->widgetConfig->ai_agent_id;
             if (array_key_exists('agentId', $data)) {
-                $agentId = (!empty($data['agentId']) && \App\Models\Ai\AiAgent::where('id', $data['agentId'])->where('is_active', true)->exists())
+                $agentQuery = \App\Models\Ai\AiAgent::where('id', $data['agentId'])->where('is_active', true);
+                if (!\App\Services\AI\AiAuthHelper::isAdmin()) {
+                    $agentQuery->whereNotIn('name', ['Funki', 'Funkira']);
+                }
+                $agentId = (!empty($data['agentId']) && $agentQuery->exists())
                     ? $data['agentId']
                     : null;
             }
@@ -234,14 +260,21 @@ class AiWidget extends Component
 
     public function render()
     {
+        $isAdmin = \App\Services\AI\AiAuthHelper::isAdmin();
+        $excludedNames = $isAdmin ? ['Funki'] : ['Funki', 'Funkira'];
+
         return view('livewire.shop.ai.ai-widget', [
-            'tasks' => \App\Models\Ai\AiWorkspaceTask::with('agent')
-                        ->where('status', '!=', 'archived')
-                        ->whereIn('status', ['processing', 'pending', 'paused', 'awaiting_approval']) // Also show awaiting_approval so users can accept plans from widget
-                        ->latest('created_at')
-                        ->take(5) // Just the latest 5 in the widget to save space
-                        ->get(),
-            'availableAgents' => \App\Models\Ai\AiAgent::where('is_active', true)->where('name', '!=', 'Funki')->get(),
+            'tasks' => $isAdmin
+                ? \App\Models\Ai\AiWorkspaceTask::with('agent')
+                    ->where('status', '!=', 'archived')
+                    ->whereIn('status', ['processing', 'pending', 'paused', 'awaiting_approval'])
+                    ->latest('created_at')
+                    ->take(5)
+                    ->get()
+                : collect(),
+            'availableAgents' => \App\Models\Ai\AiAgent::where('is_active', true)
+                ->whereNotIn('name', $excludedNames)
+                ->get(),
         ]);
     }
 }

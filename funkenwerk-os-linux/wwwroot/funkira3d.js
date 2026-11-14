@@ -371,14 +371,16 @@ function makeBakedRugTexture() {
     return configureFastTexture(new THREE.CanvasTexture(c));
 }
 
-function paintScenicWindowCanvas(canvas, season, isLateNight) {
+function paintScenicWindowCanvas(canvas, season, isLateNight, occasion = 'none') {
     const W = canvas.width, H = canvas.height;
     const ctx = canvas.getContext('2d');
     const g = ctx.createLinearGradient(0, 0, 0, H);
+    const isFireworkOccasion = (occasion === 'silvester' || occasion === 'new_year');
+    const nightSky = isLateNight || isFireworkOccasion;
 
-    if (isLateNight) {
-        g.addColorStop(0, '#0b1022');
-        g.addColorStop(0.6, '#16213e');
+    if (nightSky) {
+        g.addColorStop(0, '#090d1d');
+        g.addColorStop(0.6, '#151f3c');
         g.addColorStop(1, '#232946');
     } else if (season === 'winter') {
         g.addColorStop(0, '#2a4060');
@@ -389,9 +391,9 @@ function paintScenicWindowCanvas(canvas, season, isLateNight) {
         g.addColorStop(0.65, '#7cb2d6');
         g.addColorStop(1, '#f7d9c4');
     } else if (season === 'summer') {
-        g.addColorStop(0, '#24588a');
-        g.addColorStop(0.68, '#6bb5e0');
-        g.addColorStop(1, '#fceabb');
+        g.addColorStop(0, '#1f5c94');
+        g.addColorStop(0.68, '#65b6e6');
+        g.addColorStop(1, '#fdf0c2');
     } else {
         g.addColorStop(0, '#2c223e');
         g.addColorStop(0.48, '#7a4557');
@@ -401,26 +403,54 @@ function paintScenicWindowCanvas(canvas, season, isLateNight) {
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, H);
 
-    if (isLateNight) {
+    if (nightSky) {
         ctx.fillStyle = 'rgba(255, 245, 210, 0.85)';
         for (let i = 0; i < 28; i++) {
             const sx = ((i * 73) % (W - 20)) + 10;
             const sy = ((i * 41) % (H * 0.65)) + 12;
             ctx.fillRect(sx, sy, (i % 3 === 0) ? 2.5 : 1.5, (i % 3 === 0) ? 2.5 : 1.5);
         }
-        ctx.fillStyle = '#ffe9ad';
+        ctx.fillStyle = occasion === 'halloween' ? '#ff9d3b' : '#ffe9ad';
         ctx.beginPath(); ctx.arc(W * 0.68, H * 0.28, 22, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = '#111933';
-        ctx.beginPath(); ctx.arc(W * 0.68 + 8, H * 0.28 - 4, 19, 0, Math.PI * 2); ctx.fill();
+        if (occasion !== 'halloween') {
+            ctx.fillStyle = '#111933';
+            ctx.beginPath(); ctx.arc(W * 0.68 + 8, H * 0.28 - 4, 19, 0, Math.PI * 2); ctx.fill();
+        }
+        if (isFireworkOccasion) {
+            const bursts = [
+                { cx: W * 0.28, cy: H * 0.34, r: 34, col: '#ffd978' },
+                { cx: W * 0.72, cy: H * 0.44, r: 28, col: '#ff7aa8' },
+                { cx: W * 0.48, cy: H * 0.22, r: 24, col: '#7ce8ff' }
+            ];
+            for (const b of bursts) {
+                ctx.strokeStyle = b.col;
+                ctx.lineWidth = 2.0;
+                for (let k = 0; k < 14; k++) {
+                    const a = (k / 14) * Math.PI * 2;
+                    ctx.beginPath();
+                    ctx.moveTo(b.cx + Math.cos(a) * 4, b.cy + Math.sin(a) * 4);
+                    ctx.lineTo(b.cx + Math.cos(a) * b.r, b.cy + Math.sin(a) * b.r);
+                    ctx.stroke();
+                }
+            }
+        }
     } else {
-        const sg = ctx.createRadialGradient(W * 0.62, H * 0.66, 8, W * 0.62, H * 0.66, 95);
-        sg.addColorStop(0, 'rgba(255, 244, 204, 0.85)');
+        const sunR = season === 'summer' ? 115 : 95;
+        const sg = ctx.createRadialGradient(W * 0.62, H * 0.56, 8, W * 0.62, H * 0.56, sunR);
+        sg.addColorStop(0, season === 'summer' ? 'rgba(255, 249, 214, 0.95)' : 'rgba(255, 244, 204, 0.85)');
         sg.addColorStop(1, 'rgba(255, 220, 150, 0)');
         ctx.fillStyle = sg;
         ctx.fillRect(0, 0, W, H);
     }
 
-    ctx.fillStyle = isLateNight ? '#090c18' : '#231924';
+    if (occasion === 'advent' || occasion === 'christmas' || occasion === 'nikolaus') {
+        ctx.fillStyle = '#fff0b8';
+        ctx.beginPath();
+        ctx.arc(W * 0.26, H * 0.24, 5.5, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    ctx.fillStyle = nightSky ? '#090c18' : (season === 'winter' ? '#dbe6f2' : '#231924');
     ctx.beginPath();
     ctx.moveTo(0, H);
     ctx.lineTo(0, H * 0.83);
@@ -431,6 +461,118 @@ function paintScenicWindowCanvas(canvas, season, isLateNight) {
     ctx.lineTo(W, H);
     ctx.closePath();
     ctx.fill();
+}
+
+function paintGardenGroundCanvas(canvas, season, occasion = 'none') {
+    const W = canvas.width, H = canvas.height;
+    const ctx = canvas.getContext('2d');
+
+    if (season === 'winter') {
+        const g = ctx.createLinearGradient(0, 0, 0, H);
+        g.addColorStop(0, '#e8eef5');
+        g.addColorStop(0.5, '#f2f6fb');
+        g.addColorStop(1, '#dde6f0');
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, W, H);
+
+        // Soft snowdrifts & subtle blue-silver winter contours
+        for (let i = 0; i < 36; i++) {
+            const sx = ((i * 97) % W);
+            const sy = ((i * 61) % H);
+            const rg = ctx.createRadialGradient(sx, sy, 4, sx, sy, 44 + (i % 3) * 18);
+            rg.addColorStop(0, 'rgba(255, 255, 255, 0.75)');
+            rg.addColorStop(1, 'rgba(205, 220, 238, 0)');
+            ctx.fillStyle = rg;
+            ctx.beginPath(); ctx.arc(sx, sy, 62, 0, Math.PI * 2); ctx.fill();
+        }
+    } else {
+        const basePalette = season === 'summer'
+            ? ['#3b7d3c', '#478f44', '#336e35']
+            : (season === 'spring'
+                ? ['#3f8646', '#4e9c52', '#37763d']
+                : ['#4d6e38', '#637a3a', '#425e31']);
+        const g = ctx.createLinearGradient(0, 0, W, H);
+        g.addColorStop(0, basePalette[0]);
+        g.addColorStop(0.52, basePalette[1]);
+        g.addColorStop(1, basePalette[2]);
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, W, H);
+
+        // Subtle mowed lawn stripes for manicured Seelenfunke garden look
+        const stripes = 14;
+        const stripeW = W / stripes;
+        for (let s = 0; s < stripes; s++) {
+            if (s % 2 === 0) {
+                ctx.fillStyle = 'rgba(255, 255, 235, 0.045)';
+                ctx.fillRect(s * stripeW, 0, stripeW, H);
+            }
+        }
+
+        // Seasonal lawn accents: spring daisies, summer clover/buttercups, autumn fallen leaves
+        for (let i = 0; i < 110; i++) {
+            const px = ((i * 79 + 17) % (W - 16)) + 8;
+            const py = ((i * 53 + 29) % (H - 16)) + 8;
+            if (season === 'spring' || (season === 'summer' && i % 2 === 0)) {
+                ctx.fillStyle = (i % 5 === 0) ? '#ffe47a' : '#fff9f2';
+                ctx.beginPath(); ctx.arc(px, py, (i % 4 === 0) ? 2.6 : 1.9, 0, Math.PI * 2); ctx.fill();
+            } else if (season === 'autumn') {
+                const leafCols = ['#d97828', '#c94a29', '#e3a636', '#9e3b24'];
+                ctx.fillStyle = leafCols[i % leafCols.length];
+                ctx.beginPath();
+                ctx.ellipse(px, py, 3.6, 2.1, (i * 0.7) % 3.14, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+    }
+
+    // Perimeter soil border shadow along fence
+    ctx.strokeStyle = season === 'winter' ? 'rgba(175, 192, 212, 0.55)' : 'rgba(34, 46, 24, 0.42)';
+    ctx.lineWidth = 14;
+    ctx.strokeRect(7, 7, W - 14, H - 14);
+}
+
+function paintTerraceDeckCanvas(canvas, season) {
+    const W = canvas.width, H = canvas.height;
+    const ctx = canvas.getContext('2d');
+
+    ctx.fillStyle = season === 'winter' ? '#7a6858' : (season === 'summer' ? '#9c6e46' : '#8a603d');
+    ctx.fillRect(0, 0, W, H);
+
+    const planks = 22;
+    const ph = H / planks;
+    for (let r = 0; r < planks; r++) {
+        const y = r * ph;
+        const v = ((r * 17) % 14) - 7;
+        const baseR = (season === 'winter' ? 132 : 158) + v;
+        const baseG = (season === 'winter' ? 114 : 112) + Math.round(v * 0.8);
+        const baseB = (season === 'winter' ? 98 : 72) + Math.round(v * 0.6);
+        ctx.fillStyle = `rgb(${baseR}, ${baseG}, ${baseB})`;
+        ctx.fillRect(2, y + 1.5, W - 4, ph - 2.8);
+
+        ctx.fillStyle = 'rgba(28, 18, 11, 0.52)';
+        ctx.fillRect(0, y, W, 1.5);
+
+        if (season === 'winter') {
+            ctx.fillStyle = 'rgba(238, 245, 255, 0.34)';
+            ctx.fillRect(4, y + 1.5, W - 8, 2.2);
+        } else if (season === 'summer') {
+            ctx.fillStyle = 'rgba(255, 236, 196, 0.12)';
+            ctx.fillRect(4, y + 2.0, W - 8, 2.0);
+        }
+    }
+
+    if (season === 'winter') {
+        // Frosted snow corners on terrace deck
+        const sg = ctx.createRadialGradient(W * 0.12, H * 0.86, 8, W * 0.12, H * 0.86, W * 0.36);
+        sg.addColorStop(0, 'rgba(244, 248, 255, 0.82)');
+        sg.addColorStop(1, 'rgba(244, 248, 255, 0)');
+        ctx.fillStyle = sg;
+        ctx.fillRect(0, 0, W, H);
+    }
+
+    ctx.strokeStyle = '#C5A059';
+    ctx.lineWidth = 5;
+    ctx.strokeRect(3, 3, W - 6, H - 6);
 }
 
 function makeSunbeamTexture() {
@@ -680,6 +822,164 @@ function makeSmartphoneScreenTexture(callerName = 'Papa') {
     return configureFastTexture(new THREE.CanvasTexture(c));
 }
 
+function makeSeelenfunkePlaqueTexture(mainText = 'MEIN SEELENFUNKE', subText = '', theme = 'obsidian_gold') {
+    const W = 256, H = 88;
+    const c = document.createElement('canvas');
+    c.width = W;
+    c.height = H;
+    const ctx = c.getContext('2d');
+
+    if (theme === 'gold_plate') {
+        const g = ctx.createLinearGradient(0, 0, W, H);
+        g.addColorStop(0, '#ebd08e');
+        g.addColorStop(0.5, '#c89f4d');
+        g.addColorStop(1, '#f5df9f');
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, W, H);
+        ctx.strokeStyle = '#18131d';
+        ctx.lineWidth = 4;
+        ctx.strokeRect(4, 4, W - 8, H - 8);
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(10, 10, W - 20, H - 20);
+        ctx.fillStyle = '#16121b';
+    } else {
+        const g = ctx.createLinearGradient(0, 0, 0, H);
+        g.addColorStop(0, '#1c1722');
+        g.addColorStop(0.5, '#120f17');
+        g.addColorStop(1, '#1a1520');
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, W, H);
+        ctx.strokeStyle = '#C5A059';
+        ctx.lineWidth = 4;
+        ctx.strokeRect(4, 4, W - 8, H - 8);
+        ctx.strokeStyle = 'rgba(247, 216, 139, 0.55)';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(10, 10, W - 20, H - 20);
+        ctx.fillStyle = '#F7DF9C';
+    }
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    if (subText) {
+        ctx.font = '800 20px Georgia, "Times New Roman", serif';
+        ctx.fillText(`✦ ${mainText} ✦`, W * 0.5, 34);
+        ctx.font = '700 13px "Segoe UI", sans-serif';
+        ctx.fillStyle = theme === 'gold_plate' ? '#2c2218' : '#C5A059';
+        ctx.fillText(subText, W * 0.5, 62);
+    } else {
+        ctx.font = '800 22px Georgia, "Times New Roman", serif';
+        ctx.fillText(`✦ ${mainText} ✦`, W * 0.5, H * 0.5 + 1);
+    }
+
+    return configureFastTexture(new THREE.CanvasTexture(c));
+}
+
+function makeSeelenfunkeArtCanvasTexture(motif = 'spark_mandala', subLabel = 'MANUFAKTUR GIFHORN') {
+    const W = 256, H = 192;
+    const c = document.createElement('canvas');
+    c.width = W;
+    c.height = H;
+    const ctx = c.getContext('2d');
+
+    const bg = ctx.createRadialGradient(W * 0.5, H * 0.44, 10, W * 0.5, H * 0.5, 150);
+    bg.addColorStop(0, '#261e29');
+    bg.addColorStop(0.65, '#17131c');
+    bg.addColorStop(1, '#0f0c13');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+
+    // Double 24K Gold Passepartout Frame
+    ctx.strokeStyle = '#C5A059';
+    ctx.lineWidth = 3.5;
+    ctx.strokeRect(10, 10, W - 20, H - 20);
+    ctx.strokeStyle = 'rgba(247, 222, 156, 0.45)';
+    ctx.lineWidth = 1.2;
+    ctx.strokeRect(16, 16, W - 32, H - 32);
+
+    const cx = W * 0.5;
+    const cy = 78;
+    ctx.save();
+    ctx.strokeStyle = '#E5C170';
+    ctx.fillStyle = '#F7DF9C';
+
+    if (motif === 'spark_mandala') {
+        for (let r = 0; r < 12; r++) {
+            const a = (r / 12) * Math.PI * 2;
+            ctx.lineWidth = (r % 3 === 0) ? 2.4 : 1.2;
+            ctx.beginPath();
+            ctx.moveTo(cx + Math.cos(a) * 12, cy + Math.sin(a) * 12);
+            ctx.lineTo(cx + Math.cos(a) * ((r % 2 === 0) ? 42 : 28), cy + Math.sin(a) * ((r % 2 === 0) ? 42 : 28));
+            ctx.stroke();
+        }
+        ctx.lineWidth = 2.0;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 30, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.font = '700 26px Georgia, serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('✦', cx, cy + 1);
+    } else if (motif === 'botanical_gold') {
+        ctx.lineWidth = 2.4;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy + 36);
+        ctx.quadraticCurveTo(cx - 8, cy, cx + 6, cy - 36);
+        ctx.stroke();
+        for (let l = -2; l <= 2; l++) {
+            const ly = cy + l * 13;
+            ctx.beginPath();
+            ctx.ellipse(cx - 14, ly, 12, 5, -0.45, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(cx + 15, ly - 5, 12, 5, 0.45, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    } else if (motif === 'moon_sparks') {
+        ctx.beginPath();
+        ctx.arc(cx - 4, cy, 32, 0.45, Math.PI * 2 - 0.45);
+        ctx.arc(cx + 10, cy - 6, 26, Math.PI * 2 - 0.55, 0.55, true);
+        ctx.closePath();
+        ctx.fill();
+        ctx.font = '700 18px Georgia, serif';
+        ctx.fillText('✦', cx + 22, cy - 12);
+        ctx.font = '700 13px Georgia, serif';
+        ctx.fillText('✦', cx + 34, cy + 8);
+    } else if (motif === 'golden_heart') {
+        ctx.lineWidth = 3.0;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy + 28);
+        ctx.bezierCurveTo(cx - 42, cy + 2, cx - 36, cy - 32, cx, cy - 12);
+        ctx.bezierCurveTo(cx + 36, cy - 32, cx + 42, cy + 2, cx, cy + 28);
+        ctx.stroke();
+        ctx.font = '700 22px Georgia, serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('✦', cx, cy + 2);
+    } else {
+        // crest_manufaktur
+        ctx.lineWidth = 2.4;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 34, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.font = '800 26px Georgia, serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('SF', cx, cy + 2);
+    }
+    ctx.restore();
+
+    // Crisp Golden Signature on Artwork
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#F7DF9C';
+    ctx.font = '800 17px Georgia, "Times New Roman", serif';
+    ctx.fillText('MEIN SEELENFUNKE', cx, 146);
+    ctx.fillStyle = '#C5A059';
+    ctx.font = '700 11px "Segoe UI", sans-serif';
+    ctx.fillText(subLabel, cx, 165);
+
+    return configureFastTexture(new THREE.CanvasTexture(c));
+}
+
 function makeShadowDiscTexture() {
     const c = document.createElement('canvas');
     c.width = 96;
@@ -752,11 +1052,19 @@ class FunkiraAtelierEngine {
         this._lastVisorDrawMs = 0;
         this._lastDrawnSig = '';
 
-        // Scenic Window Canvas shared across all 12 EG + OG windows
+        // Scenic Window Canvas shared across all 12 EG + OG windows + Outdoor Garden & Terrace Canvases
         this.windowCanvas = document.createElement('canvas');
         this.windowCanvas.width = 256;
         this.windowCanvas.height = 256;
         this.windowTexture = null;
+        this.gardenGroundCanvas = document.createElement('canvas');
+        this.gardenGroundCanvas.width = 512;
+        this.gardenGroundCanvas.height = 384;
+        this.gardenGroundTexture = null;
+        this.terraceDeckCanvas = document.createElement('canvas');
+        this.terraceDeckCanvas.width = 384;
+        this.terraceDeckCanvas.height = 256;
+        this.terraceDeckTexture = null;
         this.sunbeamMesh = null;
         this.sunbeamMeshes = [];
 
@@ -769,9 +1077,14 @@ class FunkiraAtelierEngine {
         this.rig = {};
         this.outfits = {};
         this.egGroup = null;
+        this.gardenGroup = null;
+        this.gardenSeasonGroups = {};
+        this.gardenOccasionGroups = {};
         this.stairsGroup = null;
         this.ogGroup = null;
         this.ogRoofClosedGroup = null;
+        this.egItemsGroup = null;
+        this.ogItemsGroup = null;
         this.egWeatherGroup = null;
         this.ogWeatherGroup = null;
         this.ogSouthWeatherGroup = null;
@@ -780,7 +1093,30 @@ class FunkiraAtelierEngine {
         this.roseMeshes = [];
         this.fallingPetals = [];
         this.weatherParticles = [];
+        this.outdoorWeatherParticles = [];
+        this.waterDropParticles = [];
+        this.grassParticles = [];
+        this.fireworkBursts = [];
         this.sparkParticles = [];
+        this.worldItems = {};
+        this.dropSpots = {};
+        this.carriedItemId = null;
+        this.itemJob = null;
+        this.savedItemPlacements = {};
+        this.lawnMowerGroup = null;
+        this.lawnMowerDeck = null;
+        this.lawnMowerWheels = [];
+        this._mowerWaypoints = [
+            { x:  1.05, z:  9.86 },
+            { x: -1.78, z:  9.86 },
+            { x: -1.78, z: 10.22 },
+            { x:  1.05, z: 10.22 }
+        ];
+        this._mowerLaneIdx = 0;
+        this._mowerParked = true;
+        this.indoorBgColor = new THREE.Color(0x121017);
+        this.outdoorSkyColor = new THREE.Color(0x47364d);
+        this._tmpSpoutWorld = new THREE.Vector3();
 
         // 2-Floor Locomotion & Staircase State (Default home: Obergeschoss Seelenfunken Atelier)
         this.pos = new THREE.Vector3(0.0, OG_Y, 4.48);
@@ -799,12 +1135,14 @@ class FunkiraAtelierEngine {
 
         // Logical Active Spatial Navigation & Full-Body Posture Action State
         this.customNavActive = false;
-        this.cameraFocusMode = 'auto'; // 'auto' | 'closeup_photo' | 'closeup_sign' | 'closeup_workbench' | 'closeup_laser'
+        this.cameraFocusMode = 'auto'; // 'auto' | 'closeup_photo' | 'closeup_sign' | 'closeup_workbench' | 'closeup_laser' | 'closeup_garden'
         this.customFacingYaw = null;
-        this.activeBodyAction = 'none'; // 'none' | 'duck' | 'jump' | 'spin' | 'turn_around' | 'bow' | 'stretch' | 'lean_closer' | 'dance'
+        this.activeBodyAction = 'none'; // 'none' | 'duck' | 'jump' | 'spin' | 'turn_around' | 'bow' | 'stretch' | 'lean_closer' | 'dance' | 'water_plants' | 'garden_work' | 'sweep_terrace' | 'mow_lawn'
         this.bodyActionStartMs = 0;
         this.bodyActionUntilMs = 0;
         this.pendingBodyAction = null;
+
+        this._initItemRegistryData();
     }
 
     init(canvasEl) {
@@ -827,7 +1165,7 @@ class FunkiraAtelierEngine {
         this.scene = new THREE.Scene();
         this.scene.background = new THREE.Color(0x121017);
 
-        this.camera = new THREE.PerspectiveCamera(42, 16 / 9, 0.15, 42);
+        this.camera = new THREE.PerspectiveCamera(42, 16 / 9, 0.15, 64);
         this.camera.position.set(0, OG_Y + 1.38, 2.26);
         this.camera.lookAt(0, OG_Y + 1.02, 5.45);
 
@@ -835,6 +1173,7 @@ class FunkiraAtelierEngine {
         this._initSharedMatcaps();
         this._buildTwoStoryHouse();
         this._buildFunkiraRig();
+        this._buildMovableSeelenfunkeItems();
         this._applyWorldStateVisuals();
         this._renderVisorFace(performance.now(), 0.016, true);
         this.resize();
@@ -953,6 +1292,15 @@ class FunkiraAtelierEngine {
         this.mats.broomWood    = new THREE.MeshMatcapMaterial({ matcap: makeStudioMatcapTexture('#875d34', '#bd8c5e', '#9e7044', 10, 0.12) });
         this.mats.velvetCream  = new THREE.MeshMatcapMaterial({ matcap: makeStudioMatcapTexture('#cbbba8', '#fffaf2', '#e8d7c3', 10, 0.18) });
         this.mats.marbleCream  = new THREE.MeshMatcapMaterial({ matcap: makeStudioMatcapTexture('#e6dfd5', '#ffffff', '#d8c39e', 22, 0.22) });
+        this.mats.terracotta   = new THREE.MeshMatcapMaterial({ matcap: makeStudioMatcapTexture('#b55c3c', '#f2a583', '#d97854', 12, 0.18) });
+        this.mats.soilRich     = new THREE.MeshMatcapMaterial({ matcap: makeStudioMatcapTexture('#3b281c', '#694a36', '#4f3728', 8, 0.10) });
+        this.mats.sunflowerYellow = new THREE.MeshMatcapMaterial({ matcap: makeStudioMatcapTexture('#e3aa1e', '#fff29c', '#ffd04d', 18, 0.28) });
+        this.mats.pumpkinOrange = new THREE.MeshMatcapMaterial({ matcap: makeStudioMatcapTexture('#d6631b', '#ffb870', '#f08532', 16, 0.24) });
+        this.mats.tulipPink    = new THREE.MeshMatcapMaterial({ matcap: makeStudioMatcapTexture('#df4f84', '#ffb8d2', '#f77aa8', 18, 0.26) });
+        this.mats.blossomPink  = new THREE.MeshMatcapMaterial({ matcap: makeStudioMatcapTexture('#eb8fb0', '#fff0f6', '#ffc4da', 14, 0.22) });
+        this.mats.autumnAmber  = new THREE.MeshMatcapMaterial({ matcap: makeStudioMatcapTexture('#c75a24', '#ffb66e', '#e38234', 14, 0.22) });
+        this.mats.stoneWarm    = new THREE.MeshMatcapMaterial({ matcap: makeStudioMatcapTexture('#969189', '#ded9d1', '#b5afa6', 12, 0.14) });
+        this.mats.waterBlue    = new THREE.MeshBasicMaterial({ color: 0x8ad8ff, transparent: true, opacity: 0.86 });
         this.mats.crystalGlass = new THREE.MeshBasicMaterial({ color: 0xeef7ff, transparent: true, opacity: 0.44, depthWrite: false });
         this.mats.crystalRim   = new THREE.MeshBasicMaterial({ color: 0xfffef7, transparent: true, opacity: 0.72, depthWrite: false });
         this.mats.showerGlass  = new THREE.MeshBasicMaterial({ color: 0xdff2ff, transparent: true, opacity: 0.26, depthWrite: false });
@@ -1010,6 +1358,9 @@ class FunkiraAtelierEngine {
             if (x > -0.06 && z < -0.10) return 'OG-Bad';
             return 'OG-Galerie';
         }
+        if (z > 6.98) {
+            return (z <= 9.58 && x >= -3.90 && x <= 2.50) ? 'Terrasse' : 'Garten';
+        }
         if (x < -0.07) {
             if (z < -2.61) return 'Schlafzimmer';
             if (z < 0.01) return 'Büro';
@@ -1029,12 +1380,22 @@ class FunkiraAtelierEngine {
             // Respect 1.25m Dachschrägen eaves left & right (usable standing width x = -3.00 .. +3.00)
             return { minX: -2.62, maxX: 2.62, minZ: -6.48, maxZ: 6.38 };
         }
-        return { minX: -3.72, maxX: 3.72, minZ: -6.48, maxZ: 6.48 };
+        // Floor 0 encompasses EG House (z = -6.48 .. +6.84) + Outdoor Terrasse & Garten (z = +7.04 .. +12.82)
+        return { minX: -5.22, maxX: 5.22, minZ: -6.48, maxZ: 12.82 };
     }
 
     _getFloorColliders(floorIdx) {
+        const sea = this.worldState.season || 'autumn';
+        const occ = this.worldState.occasion || 'none';
         if (floorIdx === 0) {
-            return [
+            const egBoxes = [
+                // --- EG Exterior House Envelope & Terrassentür Gap (x = -1.24 .. -0.20 at z = +6.94) ---
+                { minX: -5.60, maxX:  5.60, minZ: -7.10, maxZ: -6.72 }, // North house wall
+                { minX: -5.60, maxX: -3.96, minZ: -7.10, maxZ:  7.02 }, // West house wall & West garden fence wing
+                { minX:  3.96, maxX:  5.60, minZ: -7.10, maxZ:  7.02 }, // East house wall & East garden fence wing
+                { minX: -5.60, maxX: -1.24, minZ:  6.84, maxZ:  7.04 }, // South wall West of Terrassentür
+                { minX: -0.20, maxX:  5.60, minZ:  6.84, maxZ:  7.04 }, // South wall East of Terrassentür
+
                 // --- EG Interior Partition Walls (exact doorway gaps preserved!) ---
                 // Schlafzimmer South wall (z = -2.61) & Büro South wall (z = +0.01)
                 { minX: -4.16, maxX: -0.07, minZ: -2.69, maxZ: -2.53 },
@@ -1099,13 +1460,42 @@ class FunkiraAtelierEngine {
                 // Küche: L-Zeile (Ost + Süd) + Kühlschrank + Freistehende Kücheninsel
                 { minX:  3.28, maxX:  4.12, minZ:  2.92, maxZ:  6.88 },
                 { minX:  0.12, maxX:  4.12, minZ:  6.02, maxZ:  6.88 },
-                { minX:  0.34, maxX:  1.56, minZ:  3.48, maxZ:  5.42 }
+                { minX:  0.34, maxX:  1.56, minZ:  3.48, maxZ:  5.42 },
+
+                // --- Outdoor Terrasse & Garten Solid Colliders ---
+                // Terrasse Rattan Lounge-Sofa & Tisch
+                { minX: -3.62, maxX: -1.68, minZ:  7.42, maxZ:  8.95 },
+                // Holz-Hochbeet (Kräuter & Gemüse)
+                { minX:  2.62, maxX:  4.18, minZ:  7.82, maxZ:  9.38 },
+                // Blumenbeet im Garten
+                { minX: -3.58, maxX: -1.42, minZ: 10.62, maxZ: 11.78 },
+                // Großer Zier-Gartenbaum
+                { minX:  3.35, maxX:  4.35, minZ: 10.95, maxZ: 11.95 }
             ];
+
+            // Goldener SEELENFUNKE Rasenmäher (parked on stone pad when not actively mowing)
+            const isMowingNow = (
+                this.activeBodyAction === 'mow_lawn' ||
+                (this.mode === 'atelier_autonomous' && this.currentTask === 'mow_lawn')
+            );
+            if (!isMowingNow && this._mowerParked !== false) {
+                egBoxes.push({ minX: 2.84, maxX: 3.52, minZ: 9.64, maxZ: 10.26 });
+            }
+
+            if (sea === 'winter' || occ === 'advent' || occ === 'christmas' || occ === 'nikolaus') {
+                egBoxes.push({ minX: -4.18, maxX: -3.32, minZ: 9.32, maxZ: 10.18 }); // 3D Schneemann
+            }
+            if (occ === 'advent' || occ === 'christmas' || occ === 'nikolaus') {
+                egBoxes.push({ minX: 1.48, maxX: 2.42, minZ: 11.08, maxZ: 12.02 }); // Outdoor Weihnachtsbaum
+            }
+            if (occ === 'silvester' || occ === 'new_year') {
+                egBoxes.push({ minX: 0.85, maxX: 1.55, minZ: 7.38, maxZ: 8.08 }); // Silvester Sekt-Tisch
+            }
+            return egBoxes;
         }
 
         // --- OG (Floor 1, y = 3.10m) Walls, Geländer, Posts & Seelenfunken Atelier Furniture ---
         const lvl = this.worldState.shopLevel || 1;
-        const occ = this.worldState.occasion || 'none';
         const ogBoxes = [
             // OG-Bad Walls (x = -0.06 .. +3.00, z = -4.21 .. -0.10, West doorway gap z = -1.88 .. -0.86)
             { minX: -0.06, maxX:  3.05, minZ: -4.29, maxZ: -4.13 },
@@ -1144,7 +1534,7 @@ class FunkiraAtelierEngine {
             ogBoxes.push({ minX:  1.36, maxX:  2.52, minZ: 5.26, maxZ: 6.18 }); // xTool F2 Ultra UV + Exhaust
             ogBoxes.push({ minX:  0.68, maxX:  1.38, minZ: 5.65, maxZ: 6.28 }); // Boutique Vitrine
         }
-        if (occ === 'advent' || occ === 'christmas') {
+        if (occ === 'advent' || occ === 'christmas' || occ === 'nikolaus') {
             ogBoxes.push({ minX:  2.05, maxX:  2.78, minZ: 4.05, maxZ: 4.82 }); // Christmas Tree
         }
 
@@ -1192,10 +1582,23 @@ class FunkiraAtelierEngine {
                 { x: -0.68, z:  2.55 },
                 { x: -0.68, z:  4.25 },
                 { x: -0.78, z:  5.35 },
+                { x: -0.72, z:  6.25 },
                 // Küche doorway (z = +2.55, x = +2.05) & wrap-around island aisles
                 { x:  2.05, z:  3.05 },
                 { x:  2.35, z:  4.45 },
-                { x:  2.35, z:  5.55 }
+                { x:  2.35, z:  5.55 },
+                // Terrassentür (x = -0.72, z = +6.94) -> Terrasse & Garten Waypoints
+                { x: -0.72, z:  7.48 },
+                { x: -0.72, z:  8.32 },
+                { x:  0.45, z:  8.48 },
+                { x:  2.02, z:  8.60 },
+                { x: -0.72, z:  9.88 },
+                { x: -2.45, z:  9.98 },
+                { x: -2.55, z:  9.45 },
+                { x:  1.15, z: 10.35 },
+                { x: -0.35, z: 11.35 },
+                { x:  2.22, z:  9.95 },
+                { x:  2.75, z: 10.75 }
             ];
         }
 
@@ -1435,8 +1838,291 @@ class FunkiraAtelierEngine {
         }
     }
 
+    // ========================================================================
+    // PERSISTENT MOVABLE 3D SEELENFUNKE ITEMS & GOLDEN LAWN MOWER STATE ENGINE
+    // ========================================================================
+    _initItemRegistryData() {
+        this.dropSpots = {
+            workbench:      { label: 'Atelier-Werkbank',         floor: 1, y: OG_Y + 0.918, approachX: -1.45, approachZ:  4.68, faceYaw:  0.0,            rotY: Math.PI,      slots: [[-0.92, 5.42], [-1.68, 5.36], [-2.22, 5.38], [-1.30, 5.38]] },
+            atelier_center: { label: 'Seelenfunken Atelier',     floor: 1, y: OG_Y + 0.008, approachX:  0.22, approachZ:  4.48, faceYaw:  Math.PI * 0.5,  rotY: Math.PI,      slots: [[ 0.82, 4.48], [ 0.82, 4.86], [ 0.82, 4.12]] },
+            laser:          { label: 'Atelier-Vitrine',          floor: 1, y: OG_Y + 0.008, approachX:  1.04, approachZ:  4.68, faceYaw:  0.0,            rotY: Math.PI,      slots: [[ 1.04, 5.26], [ 0.76, 5.26]] },
+            og_studio:      { label: 'OG-Studio Schreibtisch',   floor: 1, y: OG_Y + 0.778, approachX: -1.45, approachZ: -5.00, faceYaw:  Math.PI,        rotY: 0.0,          slots: [[-1.48, -6.08], [-1.05, -6.08], [-1.92, -6.08]] },
+            og_gallery:     { label: 'OG-Galerie',               floor: 1, y: OG_Y + 0.008, approachX: -0.85, approachZ:  1.95, faceYaw: -Math.PI * 0.5,  rotY: 0.0,          slots: [[-1.55, 1.95], [-1.55, 1.55], [-1.55, 2.35]] },
+            og_bathroom:    { label: 'OG-Bad Waschtisch',        floor: 1, y: OG_Y + 0.712, approachX:  1.05, approachZ: -2.35, faceYaw: -Math.PI * 0.5,  rotY: Math.PI * 0.5, slots: [[ 0.32, -2.68], [ 0.32, -2.02]] },
+            kitchen:        { label: 'Kücheninsel',              floor: 0, y: 0.923,        approachX:  2.02, approachZ:  4.45, faceYaw: -Math.PI * 0.5,  rotY: 0.0,          slots: [[ 1.18, 4.02], [ 1.18, 4.88], [ 0.58, 4.02], [ 0.58, 4.88]] },
+            dining_room:    { label: 'Esstisch',                 floor: 0, y: 0.793,        approachX: -0.88, approachZ:  5.35, faceYaw: -Math.PI * 0.5,  rotY: 0.0,          slots: [[-1.72, 5.35], [-1.72, 5.05], [-1.72, 5.65], [-3.12, 5.35]] },
+            living_room:    { label: 'Wohnzimmer-Lowboard',      floor: 0, y: 0.442,        approachX: -1.85, approachZ:  0.92, faceYaw:  Math.PI,        rotY: 0.0,          slots: [[-1.62, 0.31], [-2.82, 0.31], [-2.22, 0.33]] },
+            office:         { label: 'Büro-Schreibtisch',        floor: 0, y: 0.766,        approachX: -1.08, approachZ: -1.30, faceYaw: -Math.PI * 0.5,  rotY: 0.0,          slots: [[-1.84, -1.02], [-1.84, -1.58], [-2.35, -1.02]] },
+            bedroom:        { label: 'Schlafzimmer-Betttruhe',   floor: 0, y: 0.582,        approachX: -1.45, approachZ: -4.65, faceYaw: -Math.PI * 0.5,  rotY: 0.0,          slots: [[-2.10, -4.52], [-2.10, -5.04], [-2.10, -4.78]] },
+            hallway:        { label: 'Diele-Garderobe',          floor: 0, y: 1.152,        approachX:  0.65, approachZ:  1.65, faceYaw:  0.0,            rotY: 0.0,          slots: [[ 0.42, 2.24], [ 0.88, 2.24], [ 0.65, 2.24]] },
+            gym:            { label: 'Trainingsraum',            floor: 0, y: 0.018,        approachX:  1.25, approachZ: -5.25, faceYaw:  Math.PI * 0.5,  rotY: 0.0,          slots: [[ 1.52, -4.92], [ 1.52, -5.48]] },
+            bathroom_eg:    { label: 'Bad-Waschtisch',           floor: 0, y: 0.682,        approachX:  1.68, approachZ: -3.15, faceYaw:  0.35,           rotY: Math.PI,      slots: [[ 1.88, -2.32], [ 2.48, -2.32]] },
+            terrace:        { label: 'Terrassentisch',           floor: 0, y: 0.378,        approachX: -1.24, approachZ:  8.52, faceYaw: -Math.PI * 0.5,  rotY: 0.0,          slots: [[-2.06, 8.52], [-2.56, 8.52], [-2.32, 8.34]] },
+            hochbeet:       { label: 'Hochbeet-Rand',            floor: 0, y: 0.793,        approachX:  2.02, approachZ:  8.60, faceYaw:  Math.PI * 0.5,  rotY: 0.0,          slots: [[ 2.70, 8.32], [ 2.70, 8.88], [ 2.70, 8.60]] },
+            flowerbed:      { label: 'Blumenbeet-Rand',          floor: 0, y: 0.162,        approachX: -2.45, approachZ:  9.98, faceYaw:  0.0,            rotY: 0.0,          slots: [[-2.05, 10.68], [-2.95, 10.68], [-2.50, 10.68]] },
+            garden:         { label: 'Garten-Trittstein',        floor: 0, y: 0.018,        approachX: -0.38, approachZ: 10.42, faceYaw:  0.0,            rotY: 0.0,          slots: [[-0.38, 11.05], [ 0.18, 11.05], [-0.92, 11.05]] }
+        };
+
+        this._defaultItemSpecs = [
+            { id: 'trophy',    label: 'Goldener Seelenfunke-Pokal',         defaultSpot: 'workbench'   },
+            { id: 'flowerpot', label: 'Goldener Seelenfunke-Blumentopf',    defaultSpot: 'dining_room' },
+            { id: 'vase',      label: 'Goldene Seelenfunke-Rosenvase',      defaultSpot: 'living_room' },
+            { id: 'piggybank', label: 'Goldene Seelenfunke-Spardose',       defaultSpot: 'office'      },
+            { id: 'mug',       label: 'Schwarz-Goldene Seelenfunke-Tasse',  defaultSpot: 'kitchen'     },
+            { id: 'lantern',   label: 'Goldene Seelenfunke-Gartenlaterne',  defaultSpot: 'terrace'     },
+            { id: 'giftbox',   label: 'Westpack-Geschenkbox Seelenfunke',   defaultSpot: 'bedroom'     },
+            { id: 'frame',     label: 'Goldener Seelenfunke-Bilderrahmen',  defaultSpot: 'og_studio'   }
+        ];
+
+        for (const spec of this._defaultItemSpecs) {
+            const sp = this.dropSpots[spec.defaultSpot];
+            const sl = sp.slots[0];
+            this.worldItems[spec.id] = {
+                id: spec.id,
+                label: spec.label,
+                defaultSpot: spec.defaultSpot,
+                spotKey: spec.defaultSpot,
+                floor: sp.floor,
+                x: sl[0],
+                y: sp.y,
+                z: sl[1],
+                rotY: sp.rotY,
+                approachX: sp.approachX,
+                approachZ: sp.approachZ,
+                faceYaw: sp.faceYaw,
+                group: null
+            };
+        }
+
+        if (typeof localStorage !== 'undefined') {
+            try {
+                const raw = localStorage.getItem('fw_funkira_world_items_v1');
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    if (parsed && typeof parsed === 'object') {
+                        this.applySavedItemPlacements(parsed, false);
+                    }
+                }
+            } catch (_) {}
+        }
+    }
+
+    _normalizeItemId(raw) {
+        const k = String(raw || '').trim().toLowerCase();
+        if (!k || k === 'none') return '';
+        const itemMap = {
+            trophy: 'trophy', pokal: 'trophy', 'trophäe': 'trophy', trophaee: 'trophy', wanderpokal: 'trophy', siegerpokal: 'trophy', kristallpokal: 'trophy', award: 'trophy',
+            flowerpot: 'flowerpot', blumentopf: 'flowerpot', blume: 'flowerpot', blumen: 'flowerpot', pflanze: 'flowerpot', topfpflanze: 'flowerpot', orchidee: 'flowerpot', flower: 'flowerpot', flowers: 'flowerpot', plant: 'flowerpot',
+            vase: 'vase', blumenvase: 'vase', rosenvase: 'vase', 'rosenstrauß': 'vase', rosenstrauss: 'vase', rosen: 'vase', bouquet: 'vase',
+            piggybank: 'piggybank', spardose: 'piggybank', sparschatz: 'piggybank', schatzkasse: 'piggybank', kasse: 'piggybank', 'körperkasse': 'piggybank', koerperkasse: 'piggybank', jar: 'piggybank',
+            mug: 'mug', tasse: 'mug', kaffeetasse: 'mug', becher: 'mug', cup: 'mug', coffee: 'mug', kaffee: 'mug',
+            lantern: 'lantern', laterne: 'lantern', gartenlaterne: 'lantern', windlicht: 'lantern', kerze: 'lantern', licht: 'lantern',
+            giftbox: 'giftbox', geschenkbox: 'giftbox', geschenk: 'giftbox', schmuckbox: 'giftbox', westpack: 'giftbox', box: 'giftbox', paket: 'giftbox',
+            frame: 'frame', bilderrahmen: 'frame', rahmen: 'frame', tischbild: 'frame', 'gemälde': 'frame', gemaelde: 'frame', art: 'frame'
+        };
+        return itemMap[k] || (this.worldItems[k] ? k : '');
+    }
+
+    _nearestDropSpotKey() {
+        const curFloor = this._currentFloorIndex();
+        let bestKey = curFloor === 1 ? 'workbench' : 'kitchen';
+        let bestDist = Infinity;
+        for (const [key, sp] of Object.entries(this.dropSpots)) {
+            if (sp.floor !== curFloor) continue;
+            const d = Math.hypot(sp.approachX - this.pos.x, sp.approachZ - this.pos.z);
+            if (d < bestDist) {
+                bestDist = d;
+                bestKey = key;
+            }
+        }
+        return bestKey;
+    }
+
+    _allocateDropSlot(spotKey, itemId) {
+        const spot = this.dropSpots[spotKey] || this.dropSpots.workbench;
+        for (let i = 0; i < spot.slots.length; i++) {
+            const [sx, sz] = spot.slots[i];
+            let occupied = false;
+            for (const other of Object.values(this.worldItems)) {
+                if (other.id === itemId || other.spotKey === 'carried') continue;
+                if (other.floor === spot.floor && Math.hypot(other.x - sx, other.z - sz) < 0.17) {
+                    occupied = true;
+                    break;
+                }
+            }
+            if (!occupied) return [sx, sz];
+        }
+        const base = spot.slots[0];
+        const idx = Object.keys(this.worldItems).indexOf(itemId);
+        return [base[0] + ((idx % 3) - 1) * 0.14, base[1]];
+    }
+
+    _placeItemImmediate(itemId, spotKey, exactXZ = null, persist = true) {
+        const itemObj = this.worldItems[itemId];
+        if (!itemObj) return false;
+        const validKey = this.dropSpots[spotKey] ? spotKey : itemObj.defaultSpot;
+        const spot = this.dropSpots[validKey];
+
+        let sx, sz;
+        if (Array.isArray(exactXZ) && exactXZ.length === 2 && Number.isFinite(exactXZ[0]) && Number.isFinite(exactXZ[1])) {
+            const ref = spot.slots[0];
+            if (Math.hypot(exactXZ[0] - ref[0], exactXZ[1] - ref[1]) <= 1.25) {
+                sx = exactXZ[0];
+                sz = exactXZ[1];
+            } else {
+                [sx, sz] = this._allocateDropSlot(validKey, itemId);
+            }
+        } else {
+            [sx, sz] = this._allocateDropSlot(validKey, itemId);
+        }
+
+        if (this.carriedItemId === itemId) {
+            this.carriedItemId = null;
+        }
+
+        itemObj.spotKey = validKey;
+        itemObj.floor = spot.floor;
+        itemObj.x = sx;
+        itemObj.y = spot.y;
+        itemObj.z = sz;
+        itemObj.rotY = spot.rotY;
+        itemObj.approachX = spot.approachX;
+        itemObj.approachZ = spot.approachZ;
+        itemObj.faceYaw = spot.faceYaw;
+
+        if (itemObj.group) {
+            const targetParent = (spot.floor === 1) ? this.ogItemsGroup : this.egItemsGroup;
+            if (targetParent && itemObj.group.parent !== targetParent) {
+                targetParent.add(itemObj.group);
+            }
+            itemObj.group.position.set(sx, spot.y, sz);
+            itemObj.group.rotation.set(0, spot.rotY, 0);
+            itemObj.group.visible = true;
+        }
+
+        this.savedItemPlacements[itemId] = {
+            spotKey: validKey,
+            x: +sx.toFixed(3),
+            y: +spot.y.toFixed(3),
+            z: +sz.toFixed(3),
+            floor: spot.floor
+        };
+
+        if (persist) {
+            this._persistWorldItems();
+        }
+        return true;
+    }
+
+    _attachItemToHands(itemId) {
+        const itemObj = this.worldItems[itemId];
+        if (!itemObj) return false;
+        if (this.carriedItemId && this.carriedItemId !== itemId) {
+            this._placeItemImmediate(this.carriedItemId, this._nearestDropSpotKey(), null, true);
+        }
+        this.carriedItemId = itemId;
+        itemObj.spotKey = 'carried';
+        if (itemObj.group && this.rig.carryAnchor) {
+            this.rig.carryAnchor.add(itemObj.group);
+            itemObj.group.position.set(0, 0, 0);
+            itemObj.group.rotation.set(0, 0, 0);
+            itemObj.group.visible = true;
+        }
+        return true;
+    }
+
+    _persistWorldItems() {
+        const snapshot = {};
+        for (const [id, itemObj] of Object.entries(this.worldItems)) {
+            if (itemObj.spotKey === 'carried') {
+                if (this.savedItemPlacements[id]) snapshot[id] = this.savedItemPlacements[id];
+                continue;
+            }
+            snapshot[id] = {
+                spotKey: itemObj.spotKey,
+                x: +itemObj.x.toFixed(3),
+                y: +itemObj.y.toFixed(3),
+                z: +itemObj.z.toFixed(3),
+                floor: itemObj.floor
+            };
+        }
+        this.savedItemPlacements = snapshot;
+        if (typeof localStorage !== 'undefined') {
+            try {
+                localStorage.setItem('fw_funkira_world_items_v1', JSON.stringify(snapshot));
+            } catch (_) {}
+        }
+        if (typeof window !== 'undefined' && typeof window.onFunkiraWorldItemsChanged === 'function') {
+            try {
+                window.onFunkiraWorldItemsChanged(snapshot);
+            } catch (_) {}
+        }
+    }
+
+    applySavedItemPlacements(mapObj, persistLocal = true) {
+        if (!mapObj || typeof mapObj !== 'object') return false;
+        let applied = 0;
+        for (const [id, entry] of Object.entries(mapObj)) {
+            if (!this.worldItems[id] || !entry || typeof entry !== 'object') continue;
+            const sk = String(entry.spotKey || '');
+            if (!this.dropSpots[sk]) continue;
+            const xz = (Number.isFinite(entry.x) && Number.isFinite(entry.z)) ? [Number(entry.x), Number(entry.z)] : null;
+            if (this._placeItemImmediate(id, sk, xz, false)) {
+                applied++;
+            }
+        }
+        if (persistLocal && applied > 0 && typeof localStorage !== 'undefined') {
+            try {
+                localStorage.setItem('fw_funkira_world_items_v1', JSON.stringify(this.savedItemPlacements));
+            } catch (_) {}
+        }
+        return applied > 0;
+    }
+
+    resetAllWorldItems(persist = true) {
+        this.itemJob = null;
+        this.carriedItemId = null;
+        for (const spec of this._defaultItemSpecs) {
+            const sp = this.dropSpots[spec.defaultSpot];
+            this._placeItemImmediate(spec.id, spec.defaultSpot, sp.slots[0], false);
+        }
+        if (persist) {
+            this._persistWorldItems();
+        }
+        return true;
+    }
+
+    getWorldItemsSummary() {
+        const out = {};
+        for (const [id, it] of Object.entries(this.worldItems)) {
+            out[id] = {
+                label: it.label,
+                spotKey: it.spotKey,
+                locationLabel: it.spotKey === 'carried' ? 'In Funkiras Händen' : (this.dropSpots[it.spotKey]?.label || it.spotKey),
+                floor: it.floor,
+                x: +it.x.toFixed(2),
+                z: +it.z.toFixed(2)
+            };
+        }
+        return out;
+    }
+
+    _parkLawnMowerHome() {
+        this._mowerParked = true;
+        if (this.lawnMowerGroup) {
+            this.lawnMowerGroup.position.set(3.18, 0, 9.95);
+            this.lawnMowerGroup.rotation.set(0, -Math.PI * 0.42, 0);
+        }
+        if (this.lawnMowerDeck) {
+            this.lawnMowerDeck.position.y = 0;
+        }
+    }
+
     setMode(mode) {
         const prev = this.mode;
+        if (this.activeBodyAction === 'mow_lawn' || this.currentTask === 'mow_lawn') {
+            this._parkLawnMowerHome();
+        }
         this.mode = mode === 'atelier_autonomous' ? 'atelier_autonomous' : 'front_active';
         this.customNavActive = false;
         this.cameraFocusMode = 'auto';
@@ -1444,6 +2130,7 @@ class FunkiraAtelierEngine {
         this.activeBodyAction = 'none';
         this.bodyActionUntilMs = 0;
         this.pendingBodyAction = null;
+        this.itemJob = null;
 
         if (this.mode === 'front_active') {
             const awayFromAtelier = (prev === 'atelier_autonomous' || this.pos.y < 2.8 || this.pos.z < 2.8 || Math.abs(this.pos.x) > 1.3);
@@ -1453,7 +2140,12 @@ class FunkiraAtelierEngine {
             this._routeTo(0.0, 4.48, 1);
             if (this.rig.broom) this.rig.broom.visible = false;
             if (this.rig.cloth) this.rig.cloth.visible = false;
+            if (this.rig.wateringCan) this.rig.wateringCan.visible = false;
+            if (this.rig.gardenTrowel) this.rig.gardenTrowel.visible = false;
         } else {
+            if (this.carriedItemId) {
+                this._placeItemImmediate(this.carriedItemId, this._nearestDropSpotKey(), null, true);
+            }
             this.isSprintingHome = false;
             this.moveSpeed = 1.48;
             this._pickNextAutonomousTask(performance.now(), true);
@@ -1461,30 +2153,32 @@ class FunkiraAtelierEngine {
     }
 
     // ========================================================================
-    // GENERAL LOGICAL SPATIAL MOVEMENT & FULL-BODY POSTURE COMMAND ENGINE
-    // Supports relative moves (step_aside, step_left, step_right, closer_to_camera, step_back),
-    // Atelier landmarks (colleagues_photo, brand_sign, workbench, laser, atelier_window, atelier_center),
-    // 3D Staircase (stairs_down, stairs_mid, stairs_up), all 2-story house rooms (kitchen, living_room,
-    // dining_room, office, bedroom, gym, bathroom_eg, utility_room, hallway, og_studio, og_bathroom, og_gallery),
-    // and full-body 3D animations (duck, jump, spin, turn_around, bow, stretch, lean_closer, dance, stand_up).
+    // GENERAL LOGICAL SPATIAL MOVEMENT, ITEM CARRY/PLACE & POSTURE ENGINE
+    // Supports relative moves, Atelier landmarks, 3D Staircase, all 2-story house rooms,
+    // Terrasse & Garten, Golden SEELENFUNKE Lawn Mower (lawn_mower / mow_lawn),
+    // and persistent 3D item pickup, carrying & placement (pick_up, move_item, place_down, reset_items).
     // ========================================================================
     executeMovement(opts = {}) {
-        const now = performance.now();
-        const rawTarget = String(opts.target || opts.destination || '').trim().toLowerCase();
-        const rawAction = String(opts.bodyAction || opts.body_action || opts.posture || '').trim().toLowerCase();
-        const rawSpeed  = String(opts.speed || 'walk').trim().toLowerCase();
-        const stepDist  = clamp(Number(opts.distance || opts.distanceMeters || 1.28) || 1.28, 0.45, 3.00);
-        const durSec    = clamp(Number(opts.durationSeconds || opts.duration_seconds || 0) || 0, 0, 30);
+        const rawTarget     = String(opts.target || opts.destination || '').trim().toLowerCase();
+        const rawAction     = String(opts.bodyAction || opts.body_action || opts.posture || '').trim().toLowerCase();
+        const rawItemAction = String(opts.itemAction || opts.item_action || '').trim().toLowerCase();
+        const rawItem       = String(opts.item || opts.object || opts.itemId || '').trim().toLowerCase();
+        const rawSpeed      = String(opts.speed || 'walk').trim().toLowerCase();
+        const stepDist      = clamp(Number(opts.distance || opts.distanceMeters || 1.28) || 1.28, 0.45, 3.00);
+        const durSec        = clamp(Number(opts.durationSeconds || opts.duration_seconds || 0) || 0, 0, 30);
 
         if (this.mode !== 'front_active') {
+            if (this.currentTask === 'mow_lawn') this._parkLawnMowerHome();
             this.mode = 'front_active';
             if (this.rig.broom) this.rig.broom.visible = false;
             if (this.rig.cloth) this.rig.cloth.visible = false;
+            if (this.rig.wateringCan) this.rig.wateringCan.visible = false;
+            if (this.rig.gardenTrowel) this.rig.gardenTrowel.visible = false;
         }
 
         // 1. Normalize target alias
         const targetMap = {
-            '': 'stay', 'none': 'stay', 'stay': 'stay', 'here': 'stay',
+            '': 'stay', 'none': 'stay', 'stay': 'stay', 'here': 'stay', 'hier': 'stay',
             'aside': 'step_aside', 'side': 'step_aside', 'step_aside': 'step_aside', 'zur_seite': 'step_aside',
             'left': 'step_left', 'step_left': 'step_left', 'links': 'step_left',
             'right': 'step_right', 'step_right': 'step_right', 'rechts': 'step_right',
@@ -1494,25 +2188,31 @@ class FunkiraAtelierEngine {
             'photo': 'colleagues_photo', 'picture': 'colleagues_photo', 'bild': 'colleagues_photo', 'colleagues': 'colleagues_photo', 'colleagues_photo': 'colleagues_photo',
             'sign': 'brand_sign', 'brand_sign': 'brand_sign', 'schild': 'brand_sign', 'leuchtschild': 'brand_sign',
             'workbench': 'workbench', 'table': 'workbench', 'trophies': 'workbench', 'werkbank': 'workbench', 'tisch': 'workbench',
-            'laser': 'laser', 'xtool': 'laser',
+            'laser': 'laser', 'xtool': 'laser', 'vitrine': 'laser',
             'window': 'atelier_window', 'atelier_window': 'atelier_window', 'fenster': 'atelier_window',
             'stairs_down': 'stairs_down', 'downstairs': 'stairs_down', 'treppe_runter': 'stairs_down',
             'stairs_mid': 'stairs_mid', 'stairs': 'stairs_mid', 'treppe': 'stairs_mid',
             'stairs_up': 'stairs_up', 'upstairs': 'stairs_up', 'treppe_hoch': 'stairs_up',
-            'kitchen': 'kitchen', 'kueche': 'kitchen', 'küche': 'kitchen',
-            'living_room': 'living_room', 'sofa': 'living_room', 'wohnzimmer': 'living_room',
+            'kitchen': 'kitchen', 'kueche': 'kitchen', 'küche': 'kitchen', 'kuecheninsel': 'kitchen', 'kücheninsel': 'kitchen', 'kuechentisch': 'kitchen', 'küchentisch': 'kitchen',
+            'living_room': 'living_room', 'sofa': 'living_room', 'wohnzimmer': 'living_room', 'lowboard': 'living_room',
             'dining_room': 'dining_room', 'dining_table': 'dining_room', 'esszimmer': 'dining_room', 'esstisch': 'dining_room',
-            'office': 'office', 'buero': 'office', 'büro': 'office',
-            'bedroom': 'bedroom', 'schlafzimmer': 'bedroom',
+            'office': 'office', 'buero': 'office', 'büro': 'office', 'schreibtisch': 'office',
+            'bedroom': 'bedroom', 'schlafzimmer': 'bedroom', 'bett': 'bedroom',
             'gym': 'gym', 'workout': 'gym', 'trainingsraum': 'gym',
             'bathroom': 'bathroom_eg', 'bathroom_eg': 'bathroom_eg', 'bad': 'bathroom_eg',
             'utility_room': 'utility_room', 'heating_room': 'utility_room', 'heizungsraum': 'utility_room',
-            'hallway': 'hallway', 'entrance': 'hallway', 'diele': 'hallway', 'flur': 'hallway',
+            'hallway': 'hallway', 'entrance': 'hallway', 'diele': 'hallway', 'flur': 'hallway', 'garderobe': 'hallway',
             'og_studio': 'og_studio', 'studio': 'og_studio',
             'og_bathroom': 'og_bathroom', 'bad_oben': 'og_bathroom',
-            'og_gallery': 'og_gallery', 'railing': 'og_gallery', 'gelaender': 'og_gallery', 'geländer': 'og_gallery'
+            'og_gallery': 'og_gallery', 'railing': 'og_gallery', 'gelaender': 'og_gallery', 'geländer': 'og_gallery',
+            'terrace': 'terrace', 'terrasse': 'terrace', 'veranda': 'terrace', 'patio': 'terrace', 'balkon': 'terrace', 'terrassentisch': 'terrace',
+            'garden': 'garden', 'garten': 'garden', 'outside': 'garden', 'outdoors': 'garden', 'draussen': 'garden', 'draußen': 'garden', 'raus': 'garden', 'rausgehen': 'garden', 'rasen': 'garden',
+            'hochbeet': 'hochbeet', 'raised_bed': 'hochbeet', 'herb_bed': 'hochbeet', 'kräuterbeet': 'hochbeet', 'kraeuterbeet': 'hochbeet', 'gemüsebeet': 'hochbeet', 'gemuesebeet': 'hochbeet',
+            'flowerbed': 'flowerbed', 'blumenbeet': 'flowerbed', 'beet': 'flowerbed', 'flowers': 'flowerbed', 'blumen': 'flowerbed',
+            'snowman': 'snowman', 'schneemann': 'snowman',
+            'lawn_mower': 'lawn_mower', 'mower': 'lawn_mower', 'rasenmaeher': 'lawn_mower', 'rasenmäher': 'lawn_mower', 'maeher': 'lawn_mower', 'mäher': 'lawn_mower'
         };
-        const target = targetMap[rawTarget] || rawTarget || 'stay';
+        let target = targetMap[rawTarget] || rawTarget || 'stay';
 
         // 2. Normalize body action alias
         const actionMap = {
@@ -1525,18 +2225,145 @@ class FunkiraAtelierEngine {
             'bow': 'bow', 'verbeugen': 'bow',
             'stretch': 'stretch', 'strecken': 'stretch',
             'lean_closer': 'lean_closer', 'lean': 'lean_closer', 'vorbeugen': 'lean_closer',
-            'dance': 'dance', 'tanzen': 'dance'
+            'dance': 'dance', 'tanzen': 'dance',
+            'water_plants': 'water_plants', 'water': 'water_plants', 'giessen': 'water_plants', 'gießen': 'water_plants', 'blumen_giessen': 'water_plants', 'pflanzen_giessen': 'water_plants',
+            'garden_work': 'garden_work', 'gardening': 'garden_work', 'gartenarbeit': 'garden_work', 'plant': 'garden_work', 'pflanzen': 'garden_work', 'weed': 'garden_work', 'unkraut': 'garden_work', 'dig': 'garden_work', 'buddeln': 'garden_work',
+            'sweep_terrace': 'sweep_terrace', 'sweep': 'sweep_terrace', 'fegen': 'sweep_terrace', 'laub_fegen': 'sweep_terrace', 'schnee_fegen': 'sweep_terrace', 'schnee_schippen': 'sweep_terrace',
+            'mow_lawn': 'mow_lawn', 'mow': 'mow_lawn', 'rasen_maehen': 'mow_lawn', 'rasen_mähen': 'mow_lawn', 'maehen': 'mow_lawn', 'mähen': 'mow_lawn'
         };
         const bodyAction = actionMap[rawAction] || 'none';
+
+        // 3. Normalize 3D Item Manipulation Action (pick_up | move_item | place_down | reset_items)
+        const itemActionMap = {
+            '': 'none', 'none': 'none',
+            'pick_up': 'pick_up', 'pickup': 'pick_up', 'take': 'pick_up', 'grab': 'pick_up', 'hold': 'pick_up', 'aufheben': 'pick_up', 'nehmen': 'pick_up', 'holen': 'pick_up',
+            'move_item': 'move_item', 'move': 'move_item', 'carry_to': 'move_item', 'bring': 'move_item', 'umstellen': 'move_item', 'tragen': 'move_item', 'bringen': 'move_item', 'hinstellen': 'move_item',
+            'place_down': 'place_down', 'put_down': 'place_down', 'drop': 'place_down', 'place': 'place_down', 'abstellen': 'place_down', 'ablegen': 'place_down', 'stellen': 'place_down',
+            'reset_items': 'reset_items', 'tidy_up': 'reset_items', 'aufräumen': 'reset_items', 'aufraeumen': 'reset_items', 'reset_world_items': 'reset_items'
+        };
+        let itemAction = itemActionMap[rawItemAction] || 'none';
+        let itemId = this._normalizeItemId(rawItem);
+
+        if (itemId && itemAction === 'none') {
+            itemAction = (target !== 'stay' && this.dropSpots[target]) ? 'move_item' : 'pick_up';
+        }
+        if (itemAction === 'pick_up' && target !== 'stay' && this.dropSpots[target]) {
+            itemAction = 'move_item';
+        }
+
+        if (itemAction === 'reset_items') {
+            if (this.activeBodyAction === 'mow_lawn') this._parkLawnMowerHome();
+            this.activeBodyAction = 'none';
+            this.bodyActionUntilMs = 0;
+            this.resetAllWorldItems(true);
+            this.setExpression(opts.emotion || 'happy', 'cheer', 5500);
+            return { ok: true, itemAction: 'reset_items', room: this.currentRoom };
+        }
+
+        if (itemAction === 'pick_up' || itemAction === 'move_item' || itemAction === 'place_down') {
+            if (this.activeBodyAction === 'mow_lawn') this._parkLawnMowerHome();
+            this.activeBodyAction = 'none';
+            this.bodyActionUntilMs = 0;
+            this.pendingBodyAction = null;
+            if (this.rig.wateringCan) this.rig.wateringCan.visible = false;
+            if (this.rig.gardenTrowel) this.rig.gardenTrowel.visible = false;
+            if (this.rig.broom) this.rig.broom.visible = false;
+
+            if (!itemId) {
+                itemId = this.carriedItemId || 'trophy';
+            }
+            const itemObj = this.worldItems[itemId];
+            if (!itemObj) {
+                return { ok: false, error: 'unknown_item', item: rawItem };
+            }
+
+            let destSpotKey = null;
+            if (itemAction === 'move_item' || itemAction === 'place_down') {
+                if (target !== 'stay' && this.dropSpots[target]) {
+                    destSpotKey = target;
+                } else if (target === 'stairs_up') {
+                    destSpotKey = 'workbench';
+                } else if (target === 'stairs_down') {
+                    destSpotKey = 'kitchen';
+                } else {
+                    destSpotKey = this._nearestDropSpotKey();
+                }
+            }
+
+            this.customNavActive = true;
+            this.cameraFocusMode = (destSpotKey === 'terrace' || destSpotKey === 'hochbeet' || destSpotKey === 'flowerbed' || destSpotKey === 'garden')
+                ? 'closeup_garden'
+                : 'auto';
+            this.customFacingYaw = null;
+            this.isSprintingHome = (rawSpeed === 'sprint');
+            this.moveSpeed = rawSpeed === 'sprint' ? 4.45 : (rawSpeed === 'fast' ? 3.10 : 2.15);
+
+            if (itemAction === 'place_down' || this.carriedItemId === itemId) {
+                if (!this.carriedItemId) {
+                    this._attachItemToHands(itemId);
+                }
+                const destSpot = this.dropSpots[destSpotKey] || this.dropSpots.workbench;
+                this.itemJob = {
+                    phase: 'walking_to_drop',
+                    itemId,
+                    destSpotKey,
+                    phaseTimer: 0
+                };
+                this._routeTo(destSpot.approachX, destSpot.approachZ, destSpot.floor);
+                this.setExpression(opts.emotion || 'happy', 'carry_hold', 12000);
+                return { ok: true, itemAction, item: itemId, destSpotKey, floor: destSpot.floor };
+            }
+
+            // Need to walk to the item's CURRENT persisted location first to pick it up!
+            this.itemJob = {
+                phase: 'walking_to_pickup',
+                itemId,
+                destSpotKey, // null for pick_up only; spotKey for move_item!
+                phaseTimer: 0
+            };
+            this._routeTo(itemObj.approachX, itemObj.approachZ, itemObj.floor);
+            this.setExpression(opts.emotion || 'happy', 'idle', 9000);
+            return { ok: true, itemAction, item: itemId, fromSpot: itemObj.spotKey, destSpotKey };
+        }
+
+        // Cancel any unfinished itemJob when an ordinary movement command arrives
+        this.itemJob = null;
+
+        // Smart outdoor auto-routing: if gardening/watering/sweeping/mowing is requested, route to the proper spot first!
+        const isOutdoorsNow = (this.pos.y < 0.5 && this.pos.z > 6.98);
+        if (bodyAction === 'mow_lawn' && target === 'stay') {
+            const nearMower = (this.pos.y < 0.5 && Math.hypot(this.pos.x - 2.15, this.pos.z - 9.95) < 1.15);
+            if (!nearMower) {
+                target = 'lawn_mower';
+            }
+        } else if (target === 'stay' && !isOutdoorsNow) {
+            if (bodyAction === 'water_plants') {
+                target = 'hochbeet';
+            } else if (bodyAction === 'garden_work') {
+                target = (this.worldState.season === 'winter') ? 'hochbeet' : 'flowerbed';
+            } else if (bodyAction === 'sweep_terrace') {
+                target = 'terrace';
+            }
+        }
 
         const applyBodyActionNow = (act) => {
             if (!act || act === 'none') return;
             if (act === 'stand_up') {
+                if (this.activeBodyAction === 'mow_lawn') this._parkLawnMowerHome();
                 this.activeBodyAction = 'none';
                 this.bodyActionUntilMs = 0;
                 this.pendingBodyAction = null;
+                if (this.rig.wateringCan) this.rig.wateringCan.visible = false;
+                if (this.rig.gardenTrowel) this.rig.gardenTrowel.visible = false;
+                if (this.rig.broom) this.rig.broom.visible = false;
                 this.resetToCalm();
                 return;
+            }
+            if (this.activeBodyAction === 'mow_lawn' && act !== 'mow_lawn') {
+                this._parkLawnMowerHome();
+            }
+            if (this.carriedItemId && (act === 'mow_lawn' || act === 'water_plants' || act === 'garden_work' || act === 'sweep_terrace')) {
+                this._placeItemImmediate(this.carriedItemId, this._nearestDropSpotKey(), null, true);
             }
             this.activeBodyAction = act;
             this.bodyActionStartMs = performance.now();
@@ -1570,6 +2397,30 @@ class FunkiraAtelierEngine {
                 const d = (durSec > 0 ? clamp(durSec, 3.0, 22) : 7.5) * 1000;
                 this.bodyActionUntilMs = this.bodyActionStartMs + d;
                 this.setExpression(opts.emotion || 'excited', 'dance', d);
+            } else if (act === 'water_plants') {
+                const d = (durSec > 0 ? clamp(durSec, 4.0, 28) : 11.5) * 1000;
+                this.bodyActionUntilMs = this.bodyActionStartMs + d;
+                this.setExpression(opts.emotion || 'sweet', 'water_plants', d);
+            } else if (act === 'garden_work') {
+                const d = (durSec > 0 ? clamp(durSec, 4.0, 28) : 12.0) * 1000;
+                this.bodyActionUntilMs = this.bodyActionStartMs + d;
+                this.setExpression(opts.emotion || 'happy', 'garden_work', d);
+            } else if (act === 'sweep_terrace') {
+                const d = (durSec > 0 ? clamp(durSec, 4.0, 28) : 11.0) * 1000;
+                this.bodyActionUntilMs = this.bodyActionStartMs + d;
+                this.setExpression(opts.emotion || 'happy', 'sweep', d);
+            } else if (act === 'mow_lawn') {
+                const d = (durSec > 0 ? clamp(durSec, 6.0, 30) : 15.0) * 1000;
+                this.bodyActionUntilMs = this.bodyActionStartMs + d;
+                this._mowerParked = false;
+                this._mowerLaneIdx = 0;
+                this.moveSpeed = 1.25;
+                this.cameraFocusMode = 'closeup_garden';
+                const wp0 = this._mowerWaypoints[0];
+                this.waypoints = [];
+                this.targetFloor = 0;
+                this.targetPos.set(wp0.x, 0.0, wp0.z);
+                this.setExpression(opts.emotion || 'proud', 'push_mower', d);
             }
         };
 
@@ -1578,12 +2429,21 @@ class FunkiraAtelierEngine {
             return { ok: true, target, bodyAction, room: this.currentRoom };
         }
 
-        // Moving to a new spot: stand up during walk, and trigger any requested posture right upon arrival!
-        if (this.activeBodyAction === 'duck' || this.activeBodyAction === 'bow' || this.activeBodyAction === 'lean_closer') {
+        // Moving to a new spot: stand up & stow hand tools during walk, then trigger requested action upon arrival!
+        if (this.activeBodyAction === 'mow_lawn') {
+            this._parkLawnMowerHome();
+        }
+        if (this.activeBodyAction === 'duck' || this.activeBodyAction === 'bow' || this.activeBodyAction === 'lean_closer' ||
+            this.activeBodyAction === 'water_plants' || this.activeBodyAction === 'garden_work' ||
+            this.activeBodyAction === 'sweep_terrace' || this.activeBodyAction === 'mow_lawn') {
             this.activeBodyAction = 'none';
             this.bodyActionUntilMs = 0;
         }
+        if (this.rig.wateringCan) this.rig.wateringCan.visible = false;
+        if (this.rig.gardenTrowel) this.rig.gardenTrowel.visible = false;
+        if (this.rig.broom) this.rig.broom.visible = false;
         this.pendingBodyAction = (bodyAction && bodyAction !== 'none' && bodyAction !== 'stand_up') ? bodyAction : null;
+        this.pendingBodyDurationSec = this.pendingBodyAction ? durSec : 0;
         this.isSprintingHome = (rawSpeed === 'sprint');
         this.moveSpeed = rawSpeed === 'sprint' ? 4.85 : (rawSpeed === 'fast' ? 3.25 : 2.15);
 
@@ -1685,7 +2545,7 @@ class FunkiraAtelierEngine {
             return { ok: true, target, bodyAction, room: 'Treppe' };
         }
 
-        // Named Landmarks & All Rooms across Floor 0 (EG) & Floor 1 (OG)
+        // Named Landmarks & All Rooms across Floor 0 (EG + Terrasse + Garten) & Floor 1 (OG)
         const landmarkSpecs = {
             atelier_center:   { x:  0.00, z:  4.48, floor: 1, focus: 'auto',              yaw: null, resetCustom: true },
             stairs_up:        { x:  0.00, z:  4.48, floor: 1, focus: 'auto',              yaw: null, resetCustom: true },
@@ -1706,7 +2566,13 @@ class FunkiraAtelierEngine {
             hallway:          { x:  3.16, z:  0.34, floor: 0, focus: 'auto',              yaw: null },
             og_studio:        { x: -1.45, z: -5.00, floor: 1, focus: 'auto',              yaw: null },
             og_bathroom:      { x:  1.32, z: -2.35, floor: 1, focus: 'auto',              yaw: null },
-            og_gallery:       { x: -0.65, z:  1.95, floor: 1, focus: 'auto',              yaw: null }
+            og_gallery:       { x: -0.65, z:  1.95, floor: 1, focus: 'auto',              yaw: null },
+            terrace:          { x: -0.72, z:  8.32, floor: 0, focus: 'closeup_garden',    yaw: null,            emo: 'happy',   gest: 'hands_on_hips', durMs: 8000 },
+            garden:           { x: -0.35, z: 10.65, floor: 0, focus: 'closeup_garden',    yaw: null,            emo: 'happy',   gest: 'wave',          durMs: 8500 },
+            hochbeet:         { x:  2.02, z:  8.60, floor: 0, focus: 'closeup_garden',    yaw: Math.PI * 0.5,   emo: 'sweet',   gest: 'hands_on_hips', durMs: 9000 },
+            flowerbed:        { x: -2.45, z:  9.98, floor: 0, focus: 'closeup_garden',    yaw: 0.0,             emo: 'happy',   gest: 'hands_on_hips', durMs: 9000 },
+            snowman:          { x: -2.62, z:  9.55, floor: 0, focus: 'closeup_garden',    yaw: -Math.PI * 0.42, emo: 'excited', gest: 'wave',          durMs: 8500 },
+            lawn_mower:       { x:  2.18, z:  9.95, floor: 0, focus: 'closeup_garden',    yaw: Math.PI * 0.5,   emo: 'proud',   gest: 'point_left',    durMs: 8500 }
         };
 
         const spec = landmarkSpecs[target] || landmarkSpecs.atelier_center;
@@ -1715,7 +2581,9 @@ class FunkiraAtelierEngine {
         this.customFacingYaw = spec.yaw;
         this._routeTo(spec.x, spec.z, spec.floor);
 
-        if (spec.emo || spec.gest) {
+        if (this.carriedItemId) {
+            this.setExpression(opts.emotion || 'happy', 'carry_hold', 8500);
+        } else if (spec.emo || spec.gest) {
             this.setExpression(opts.emotion || spec.emo || 'happy', opts.gesture || spec.gest || 'idle', spec.durMs || 7000);
         } else if (opts.emotion || opts.gesture) {
             this.setExpression(opts.emotion || 'happy', opts.gesture || 'idle', 5500);
@@ -1726,12 +2594,13 @@ class FunkiraAtelierEngine {
 
     runToCamera(spawnInHouseIfCentered = false) {
         if (spawnInHouseIfCentered && this.pos.y > 2.8 && this.pos.z > 3.2 && Math.abs(this.pos.x) < 1.0) {
-            // Spawn downstairs in Wohn-/Esszimmer or Küche so Alina sees Funkira bound up the 3D Treppe into her Atelier!
+            // Spawn downstairs in Wohn-/Esszimmer, Küche, or sunny Terrasse so Alina sees Funkira bound up the 3D Treppe!
             const spawnSpots = [
                 { x: -1.85, z: 1.95, floor: 0 },
-                { x:  2.35, z: 4.45, floor: 0 }
+                { x:  2.35, z: 4.45, floor: 0 },
+                { x: -0.72, z: 8.32, floor: 0 }
             ];
-            const sp = spawnSpots[Math.random() < 0.5 ? 0 : 1];
+            const sp = spawnSpots[Math.floor(Math.random() * spawnSpots.length)];
             this.pos.set(sp.x, 0.0, sp.z);
             this.targetFloor = 0;
             if (this.rig.root) this.rig.root.position.copy(this.pos);
@@ -1774,13 +2643,16 @@ class FunkiraAtelierEngine {
         if (this.mode !== 'front_active') return;
         const now = performance.now();
         const calmEmo = this.worldState.isLateNight ? 'sleepy' : 'neutral';
-        if (this.emotion && this.emotion !== calmEmo) {
+        if (this.emotion && this.emotion !== calmEmo && this.activeBodyAction === 'none' && !this.itemJob) {
             const targetEnd = now + Math.max(400, graceMs);
             this.emotionUntilMs = this.emotionUntilMs > 0 ? Math.min(this.emotionUntilMs, targetEnd) : targetEnd;
         }
         if (this.phoneCallActive) {
             this.gesture = 'talk_phone';
             this.gestureUntilMs = 0;
+            return;
+        }
+        if (this.activeBodyAction !== 'none' || this.carriedItemId || this.itemJob) {
             return;
         }
         if (this.gesture && this.gesture !== 'idle' && this.gesture !== 'wave' && this.gesture !== 'point_photo' && this.gesture !== 'point_colleagues') {
@@ -1795,6 +2667,9 @@ class FunkiraAtelierEngine {
         if (this.phoneCallActive) {
             this.gesture = 'talk_phone';
             this.gestureUntilMs = 0;
+        } else if (this.carriedItemId) {
+            this.gesture = 'carry_hold';
+            this.gestureUntilMs = 0;
         } else {
             this.gesture = 'idle';
             this.gestureUntilMs = 0;
@@ -1806,6 +2681,9 @@ class FunkiraAtelierEngine {
         this.phoneCallerLabel = active ? String(callerLabel || 'Anruf') : '';
 
         if (active) {
+            if (this.carriedItemId) {
+                this._placeItemImmediate(this.carriedItemId, this._nearestDropSpotKey(), null, true);
+            }
             if (this.phoneScreenMat) {
                 const prevTex = this.phoneScreenMat.map;
                 this.phoneScreenMat.map = makeSmartphoneScreenTexture(this.phoneCallerLabel);
@@ -1815,6 +2693,8 @@ class FunkiraAtelierEngine {
             if (this.rig.smartphone) this.rig.smartphone.visible = true;
             if (this.rig.broom) this.rig.broom.visible = false;
             if (this.rig.cloth) this.rig.cloth.visible = false;
+            if (this.rig.wateringCan) this.rig.wateringCan.visible = false;
+            if (this.rig.gardenTrowel) this.rig.gardenTrowel.visible = false;
             this.setMode('front_active');
             this.emotion = 'happy';
             this.emotionStartedMs = performance.now();
@@ -1906,7 +2786,7 @@ class FunkiraAtelierEngine {
         const whiteMat = this.mats.ceramicWhite;
         const glowWallTex = makeWallGlowTexture();
 
-        paintScenicWindowCanvas(this.windowCanvas, this.worldState.season, this.worldState.isLateNight);
+        paintScenicWindowCanvas(this.windowCanvas, this.worldState.season, this.worldState.isLateNight, this.worldState.occasion);
         this.windowTexture = configureFastTexture(new THREE.CanvasTexture(this.windowCanvas));
         const skyMat = new THREE.MeshBasicMaterial({ map: this.windowTexture });
 
@@ -1997,6 +2877,36 @@ class FunkiraAtelierEngine {
             grp.add(body, topGrill);
         };
 
+        // Shared High-DPI Schwarz-Gold MEIN SEELENFUNKE Plaque Materials (Zero duplicate Canvas allocations!)
+        this.plaqueMats = {
+            obsidianMain: new THREE.MeshBasicMaterial({ map: makeSeelenfunkePlaqueTexture('MEIN SEELENFUNKE', 'MANUFAKTUR GIFHORN', 'obsidian') }),
+            goldMain:     new THREE.MeshBasicMaterial({ map: makeSeelenfunkePlaqueTexture('MEIN SEELENFUNKE', 'HANDVEREDELT · 24K', 'gold') }),
+            team:         new THREE.MeshBasicMaterial({ map: makeSeelenfunkePlaqueTexture('MEIN SEELENFUNKE', 'DAS GRÜNDER-TEAM', 'obsidian') }),
+            trophy:       new THREE.MeshBasicMaterial({ map: makeSeelenfunkePlaqueTexture('MEIN SEELENFUNKE', 'EXZELLENZ-POKAL', 'obsidian') }),
+            flowers:      new THREE.MeshBasicMaterial({ map: makeSeelenfunkePlaqueTexture('MEIN SEELENFUNKE', 'BLÜTENZAUBER · 24K', 'obsidian') }),
+            garden:       new THREE.MeshBasicMaterial({ map: makeSeelenfunkePlaqueTexture('MEIN SEELENFUNKE', 'GOLDENER GARTEN', 'obsidian') }),
+            mowerObs:     new THREE.MeshBasicMaterial({ map: makeSeelenfunkePlaqueTexture('SEELENFUNKE', 'GOLD EDITION · 24K', 'obsidian') }),
+            mowerGold:    new THREE.MeshBasicMaterial({ map: makeSeelenfunkePlaqueTexture('SEELENFUNKE', 'MANUFAKTUR GARTEN', 'gold') })
+        };
+
+        // Helper: Framed Schwarz-Gold Gallery Wall Artwork signed "MEIN SEELENFUNKE"
+        const addGoldenSignedWallArt = (parentGrp, x, y, z, w, h, rotY, motif, subLabel) => {
+            const ag = new THREE.Group();
+            ag.position.set(x, y, z);
+            ag.rotation.y = rotY;
+            const outer = new THREE.Mesh(new RoundedBoxGeometry(w + 0.09, h + 0.09, 0.042, 2, 0.014), goldMat);
+            const matte = new THREE.Mesh(new RoundedBoxGeometry(w + 0.02, h + 0.02, 0.046, 1, 0.008), obsidianMat);
+            const canvasMesh = new THREE.Mesh(
+                new THREE.PlaneGeometry(w, h),
+                new THREE.MeshBasicMaterial({ map: makeSeelenfunkeArtCanvasTexture(motif, subLabel) })
+            );
+            canvasMesh.position.z = 0.026;
+            const namePlate = new THREE.Mesh(new THREE.PlaneGeometry(Math.min(w * 0.56, 0.44), 0.075), this.plaqueMats.obsidianMain);
+            namePlate.position.set(0, -h * 0.5 - 0.022, 0.028);
+            ag.add(outer, matte, canvasMesh, namePlate);
+            parentGrp.add(ag);
+        };
+
         // ====================================================================
         // 1. ERDGESCHOSS (y = 0.00m, 8.50m x 14.00m — Screenshot 1)
         // ====================================================================
@@ -2018,7 +2928,19 @@ class FunkiraAtelierEngine {
         addWallBox(eg, -4.18, -6.94, -4.18,  6.94, 0, egExtH, 0.14, extWallMat, goldMat); // West
         addWallBox(eg,  4.18, -6.94,  4.18,  0.22, 0, egExtH, 0.14, extWallMat, goldMat); // East upper
         addWallBox(eg,  4.18,  1.42,  4.18,  6.94, 0, egExtH, 0.14, extWallMat, goldMat); // East lower
-        addWallBox(eg, -4.24,  6.94,  4.24,  6.94, 0, 0.34,   0.14, extWallMat, goldMat); // South cutaway sill
+        addWallBox(eg, -4.24,  6.94, -1.24,  6.94, 0, 0.34,   0.14, extWallMat, goldMat); // South cutaway sill West of Terrassentür
+        addWallBox(eg, -0.20,  6.94,  4.24,  6.94, 0, 0.34,   0.14, extWallMat, goldMat); // South cutaway sill East of Terrassentür
+
+        // Offene Terrassentür (x = -1.24 .. -0.20, z = +6.94) vom Wohn-/Esszimmer auf die Terrasse
+        const patioThreshold = new THREE.Mesh(new RoundedBoxGeometry(1.06, 0.024, 0.22, 1, 0.006), goldMat);
+        patioThreshold.position.set(-0.72, 0.012, 6.94);
+        const patioDoorFrame = new THREE.Mesh(new RoundedBoxGeometry(0.06, 1.32, 0.92, 2, 0.015), goldMat);
+        patioDoorFrame.position.set(-1.30, 0.68, 7.35);
+        patioDoorFrame.rotation.y = 0.22;
+        const patioDoorGlass = new THREE.Mesh(new THREE.PlaneGeometry(0.78, 1.18), this.mats.showerGlass);
+        patioDoorGlass.position.set(-1.29, 0.68, 7.35);
+        patioDoorGlass.rotation.y = Math.PI * 0.5 + 0.22;
+        eg.add(patioThreshold, patioDoorFrame, patioDoorGlass);
 
         // Eingang (1.95m zone on East wall x = +4.18, z = +0.82)
         const frontDoor = new THREE.Mesh(new RoundedBoxGeometry(0.10, 2.22, 1.12, 2, 0.02), woodDarkMat);
@@ -2089,7 +3011,15 @@ class FunkiraAtelierEngine {
         wardrobe.position.set(-2.36, 0.975, -2.94);
         const wardTrim = new THREE.Mesh(new RoundedBoxGeometry(2.34, 0.04, 0.58, 1, 0.008), goldMat);
         wardTrim.position.set(-2.36, 1.96, -2.94);
-        eg.add(wardrobe, wardTrim);
+        // Luxury Schwarz-Gold Betttruhe / Footboard Bench (dropSpots.bedroom surface y = 0.582!)
+        const bedTrunk = new THREE.Mesh(new RoundedBoxGeometry(0.26, 0.54, 1.32, 2, 0.02), obsidianMat);
+        bedTrunk.position.set(-2.10, 0.27, -4.78);
+        const bedTrunkTop = new THREE.Mesh(new RoundedBoxGeometry(0.28, 0.044, 1.34, 2, 0.015), goldMat);
+        bedTrunkTop.position.set(-2.10, 0.56, -4.78);
+        const bedTrunkPlaque = new THREE.Mesh(new THREE.PlaneGeometry(0.32, 0.085), this.plaqueMats.obsidianMain);
+        bedTrunkPlaque.position.set(-1.966, 0.34, -4.78);
+        bedTrunkPlaque.rotation.y = Math.PI / 2;
+        eg.add(wardrobe, wardTrim, bedTrunk, bedTrunkTop, bedTrunkPlaque);
 
         // --- EG Room 2: Trainingsraum (9.86 m² mit Hantelbank & Langhantel) ---
         const gymMat = new THREE.Mesh(new RoundedBoxGeometry(2.25, 0.016, 1.32, 1, 0.005), obsidianMat);
@@ -2270,8 +3200,21 @@ class FunkiraAtelierEngine {
             eg.add(stSeat, stStem);
         }
 
+        // --- EG Signed 24K Gold "MEIN SEELENFUNKE" Gallery Wall Paintings across All Rooms ---
+        addGoldenSignedWallArt(eg, -4.08, 1.70, -4.78, 1.26, 0.84,  Math.PI / 2, 'moon_sparks',      'STERNENFUNKE · MANUFAKTUR'); // Schlafzimmer
+        addGoldenSignedWallArt(eg, -4.08, 1.64, -2.28, 0.78, 0.60,  Math.PI / 2, 'crest_manufaktur', 'ATELIER GIFHORN');           // Büro
+        addGoldenSignedWallArt(eg, -4.08, 1.70,  2.40, 1.54, 0.94,  Math.PI / 2, 'spark_mandala',    'MEIN SEELENFUNKE EDITION');  // Wohnzimmer
+        addGoldenSignedWallArt(eg, -4.08, 1.68,  5.35, 1.22, 0.82,  Math.PI / 2, 'botanical_gold',   'GOLDENE BLÜTE · 24K');       // Esszimmer
+        addGoldenSignedWallArt(eg,  2.52, 1.70, -6.84, 1.28, 0.84,  0.0,         'crest_manufaktur', 'FUNKIRA POWER · 24K');       // Trainingsraum
+        addGoldenSignedWallArt(eg,  4.08, 1.66,  4.73, 0.68, 0.76, -Math.PI / 2, 'golden_heart',     'HERZENSFUNKE');              // Küche
+
         this.scene.add(eg);
         freezeStaticTree(eg);
+
+        // Dynamic EG & Outdoor Movable Items Container (never frozen so Funkira can carry & place!)
+        this.egItemsGroup = new THREE.Group();
+        this.egItemsGroup.matrixAutoUpdate = true;
+        this.scene.add(this.egItemsGroup);
 
         // ====================================================================
         // 2. 3D TREPPE NACH OBEN (Always Visible: EG Diele <-> OG Galerie)
@@ -2588,8 +3531,16 @@ class FunkiraAtelierEngine {
         const lampGlowStrip = new THREE.Mesh(new THREE.PlaneGeometry(0.50, 0.04), this.mats.warmBulb);
         lampGlowStrip.rotation.x = Math.PI / 2;
         lampGlowStrip.position.set(0, 0.476, 0.13);
-        photoGroup.add(portraitPlane, lampHood, lampGlowStrip);
+        const photoPlaqueBacking = new THREE.Mesh(new RoundedBoxGeometry(0.56, 0.11, 0.025, 1, 0.008), goldMat);
+        photoPlaqueBacking.position.set(0, -0.45, 0.038);
+        const photoPlaqueFace = new THREE.Mesh(new THREE.PlaneGeometry(0.52, 0.092), this.plaqueMats.team);
+        photoPlaqueFace.position.set(0, -0.45, 0.052);
+        photoGroup.add(portraitPlane, lampHood, lampGlowStrip, photoPlaqueBacking, photoPlaqueFace);
         atelierClosed.add(photoGroup);
+
+        // OG Signed 24K Gold "MEIN SEELENFUNKE" Gallery Frames on West Knee-Wall
+        addGoldenSignedWallArt(og, -2.92, OG_Y + 0.84, -0.90, 0.96, 0.64, Math.PI / 2, 'golden_heart',   'GALERIE SEELENFUNKE');
+        addGoldenSignedWallArt(og, -2.92, OG_Y + 0.84, -5.15, 0.96, 0.64, Math.PI / 2, 'botanical_gold', 'STUDIO GIFHORN');
 
         // RIGHT NEXT TO GROUP PHOTO (Screen-Right = -X!): Illuminated Golden "Mein-Seelenfunke" Sign!
         const brandSignGroup = new THREE.Group();
@@ -2631,7 +3582,9 @@ class FunkiraAtelierEngine {
         pullL.position.set(-0.42, 0.74, 0.37);
         const pullR = new THREE.Mesh(new RoundedBoxGeometry(0.16, 0.022, 0.03, 1, 0.008), goldMat);
         pullR.position.set(0.42, 0.74, 0.37);
-        lvl1.add(benchTop, benchTrim, drawerApron, pullL, pullR);
+        const benchCrest = new THREE.Mesh(new THREE.PlaneGeometry(0.36, 0.088), this.plaqueMats.obsidianMain);
+        benchCrest.position.set(0, 0.74, 0.364);
+        lvl1.add(benchTop, benchTrim, drawerApron, pullL, pullR, benchCrest);
 
         const legGeo = new THREE.CylinderGeometry(0.040, 0.025, 0.84, 12);
         for (const [lx, lz] of [[-0.86, 0.32], [0.86, 0.32], [-0.86, -0.32], [0.86, -0.32]]) {
@@ -2640,22 +3593,28 @@ class FunkiraAtelierEngine {
             lvl1.add(leg);
         }
 
-        // 3D GLAS-TROPHÄEN (Optical K9 Seelen-Kristall Awards on the Workbench!)
+        // 3D GLAS-TROPHÄEN (Signed "MEIN SEELENFUNKE" Optical K9 Seelen-Kristall Awards!)
         const trophiesGroup = new THREE.Group();
         const t1Base = new THREE.Mesh(new RoundedBoxGeometry(0.20, 0.048, 0.20, 2, 0.012), obsidianMat);
         t1Base.position.set(0.0, 0.94, 0.18);
         const t1GoldCollar = new THREE.Mesh(new RoundedBoxGeometry(0.16, 0.024, 0.16, 1, 0.008), goldMat);
         t1GoldCollar.position.set(0.0, 0.972, 0.18);
+        const t1Plaque = new THREE.Mesh(new THREE.PlaneGeometry(0.168, 0.036), this.plaqueMats.trophy);
+        t1Plaque.position.set(0.0, 0.942, 0.282);
         const t1CoreStar = new THREE.Mesh(new THREE.OctahedronGeometry(0.042, 0), this.mats.warmBulb);
         t1CoreStar.position.set(0.0, 1.15, 0.18);
         const t1Obelisk = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.082, 0.34, 6), this.mats.crystalGlass);
         t1Obelisk.position.set(0.0, 1.15, 0.18);
         const t1Apex = new THREE.Mesh(new THREE.ConeGeometry(0.042, 0.08, 6), this.mats.crystalRim);
         t1Apex.position.set(0.0, 1.36, 0.18);
-        trophiesGroup.add(t1Base, t1GoldCollar, t1CoreStar, t1Obelisk, t1Apex);
+        trophiesGroup.add(t1Base, t1GoldCollar, t1Plaque, t1CoreStar, t1Obelisk, t1Apex);
 
         const t2Base = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.088, 0.048, 12), goldMat);
         t2Base.position.set(-0.32, 0.94, 0.15);
+        const t2Plinth = new THREE.Mesh(new RoundedBoxGeometry(0.138, 0.034, 0.024, 1, 0.005), obsidianMat);
+        t2Plinth.position.set(-0.32, 0.942, 0.232);
+        const t2Plaque = new THREE.Mesh(new THREE.PlaneGeometry(0.128, 0.030), this.plaqueMats.trophy);
+        t2Plaque.position.set(-0.32, 0.942, 0.246);
         const t2Core = new THREE.Mesh(new THREE.OctahedronGeometry(0.032, 0), goldMat);
         t2Core.position.set(-0.32, 1.10, 0.15);
         const t2Diamond = new THREE.Mesh(new THREE.OctahedronGeometry(0.105, 0), this.mats.crystalGlass);
@@ -2664,20 +3623,22 @@ class FunkiraAtelierEngine {
         const t2Sheen = new THREE.Mesh(new THREE.OctahedronGeometry(0.108, 0), this.mats.crystalRim);
         t2Sheen.scale.set(0.32, 1.36, 0.60);
         t2Sheen.position.set(-0.32, 1.10, 0.15);
-        trophiesGroup.add(t2Base, t2Core, t2Diamond, t2Sheen);
+        trophiesGroup.add(t2Base, t2Plinth, t2Plaque, t2Core, t2Diamond, t2Sheen);
 
         const t3Base = new THREE.Mesh(new RoundedBoxGeometry(0.18, 0.044, 0.12, 2, 0.01), obsidianMat);
         t3Base.position.set(0.32, 0.94, 0.15);
         const t3GoldTrim = new THREE.Mesh(new RoundedBoxGeometry(0.15, 0.020, 0.095, 1, 0.006), goldMat);
         t3GoldTrim.position.set(0.32, 0.968, 0.15);
+        const t3Plaque = new THREE.Mesh(new THREE.PlaneGeometry(0.152, 0.034), this.plaqueMats.trophy);
+        t3Plaque.position.set(0.32, 0.942, 0.212);
         const t3InnerCrest = new THREE.Mesh(new RoundedBoxGeometry(0.065, 0.12, 0.012, 1, 0.004), this.mats.warmBulb);
         t3InnerCrest.position.set(0.32, 1.09, 0.15);
         const t3Block = new THREE.Mesh(new RoundedBoxGeometry(0.138, 0.25, 0.062, 2, 0.016), this.mats.crystalGlass);
         t3Block.position.set(0.32, 1.10, 0.15);
-        trophiesGroup.add(t3Base, t3GoldTrim, t3InnerCrest, t3Block);
+        trophiesGroup.add(t3Base, t3GoldTrim, t3Plaque, t3InnerCrest, t3Block);
         lvl1.add(trophiesGroup);
 
-        // 14K Körper-Kasse Savings Jar & TikTok Rose Amphora Vase
+        // Signed 14K Körper-Kasse Savings Jar & Signed TikTok Rose Amphora Vase
         const jarPoints = [
             new THREE.Vector2(0.00, 0.00), new THREE.Vector2(0.090, 0.00),
             new THREE.Vector2(0.118, 0.07), new THREE.Vector2(0.112, 0.18),
@@ -2685,7 +3646,9 @@ class FunkiraAtelierEngine {
         ];
         const jarMesh = new THREE.Mesh(new THREE.LatheGeometry(jarPoints, 16), goldMat);
         jarMesh.position.set(-0.68, 0.915, -0.10);
-        lvl1.add(jarMesh);
+        const jarBadge = new THREE.Mesh(new THREE.PlaneGeometry(0.135, 0.045), this.plaqueMats.obsidianMain);
+        jarBadge.position.set(-0.68, 1.03, 0.022);
+        lvl1.add(jarMesh, jarBadge);
 
         this.vaseGroup = new THREE.Group();
         this.vaseGroup.position.set(0.68, 0.915, 0.12);
@@ -2694,13 +3657,15 @@ class FunkiraAtelierEngine {
             new THREE.Vector2(0.112, 0.10), new THREE.Vector2(0.068, 0.22), new THREE.Vector2(0.092, 0.29)
         ];
         const vaseBody = new THREE.Mesh(new THREE.LatheGeometry(vasePoints, 16), goldMat);
-        this.vaseGroup.add(vaseBody);
+        const vaseBadge = new THREE.Mesh(new THREE.PlaneGeometry(0.132, 0.044), this.plaqueMats.flowers);
+        vaseBadge.position.set(0, 0.11, 0.115);
+        this.vaseGroup.add(vaseBody, vaseBadge);
         lvl1.add(this.vaseGroup);
 
         og.add(lvl1);
         this.levelGroups[1] = lvl1;
 
-        // ---- LEVEL 2: Ornate Schwarz-Gold Medallion Rug, Westpack Boxes & Boutique Monstera ----
+        // ---- LEVEL 2: Ornate Schwarz-Gold Medallion Rug, Signed Westpack Boxes & Signed Boutique Monstera ----
         const lvl2 = new THREE.Group();
         const rug = new THREE.Mesh(
             new THREE.PlaneGeometry(3.05, 3.05),
@@ -2717,7 +3682,10 @@ class FunkiraAtelierEngine {
             box.position.set(-1.38, OG_Y + 0.97 + b * 0.102, 5.92);
             const ribbon = new THREE.Mesh(new RoundedBoxGeometry(bw + 0.012, 0.020, bd + 0.012, 1, 0.006), goldMat);
             ribbon.position.copy(box.position);
-            lvl2.add(box, ribbon);
+            const boxSeal = new THREE.Mesh(new THREE.PlaneGeometry(bw * 0.62, 0.044), this.plaqueMats.goldMain);
+            boxSeal.position.set(-1.38, OG_Y + 0.97 + b * 0.102, 5.92 - bd * 0.5 - 0.008);
+            boxSeal.rotation.y = Math.PI;
+            lvl2.add(box, ribbon, boxSeal);
         }
 
         const potPoints = [
@@ -2726,7 +3694,10 @@ class FunkiraAtelierEngine {
         ];
         const pot = new THREE.Mesh(new THREE.LatheGeometry(potPoints, 14), goldMat);
         pot.position.set(-2.48, OG_Y, 4.45);
-        lvl2.add(pot);
+        const potPlaque = new THREE.Mesh(new THREE.PlaneGeometry(0.19, 0.062), this.plaqueMats.flowers);
+        potPlaque.position.set(-2.31, OG_Y + 0.19, 4.35);
+        potPlaque.rotation.y = Math.PI * 0.72;
+        lvl2.add(pot, potPlaque);
         const leafGeo = new THREE.SphereGeometry(0.18, 10, 8);
         for (let a = 0; a < 6; a++) {
             const ang = a * 1.05;
@@ -2735,11 +3706,16 @@ class FunkiraAtelierEngine {
             lf.position.set(-2.48 + Math.cos(ang) * 0.17, OG_Y + 0.42 + (a % 3) * 0.08, 4.45 + Math.sin(ang) * 0.17);
             lf.rotation.set(Math.sin(ang) * 0.28, -ang, 0.34);
             lvl2.add(lf);
+            if (a % 2 === 0) {
+                const goldBloom = new THREE.Mesh(new THREE.OctahedronGeometry(0.042, 0), goldMat);
+                goldBloom.position.set(-2.48 + Math.cos(ang) * 0.12, OG_Y + 0.52 + (a % 3) * 0.05, 4.45 + Math.sin(ang) * 0.12);
+                lvl2.add(goldBloom);
+            }
         }
         og.add(lvl2);
         this.levelGroups[2] = lvl2;
 
-        // ---- LEVEL 3: xTool F2 Ultra UV + Conveyor + SafetyPro IF2 2.0 & Boutique Vitrine ----
+        // ---- LEVEL 3: xTool F2 Ultra UV + Conveyor + SafetyPro IF2 2.0 & Signed Boutique Vitrine ----
         // Placed at Screen-Left (x = +1.92, z = +5.72) facing -Z toward camera!
         const lvl3 = new THREE.Group();
         const laserGrp = new THREE.Group();
@@ -2750,6 +3726,8 @@ class FunkiraAtelierEngine {
         laserStand.position.y = 0.39;
         const standTrim = new THREE.Mesh(new RoundedBoxGeometry(0.96, 0.026, 0.76, 1, 0.008), goldMat);
         standTrim.position.y = 0.77;
+        const laserPlaque = new THREE.Mesh(new THREE.PlaneGeometry(0.46, 0.12), this.plaqueMats.obsidianMain);
+        laserPlaque.position.set(0, 0.48, 0.375);
         const laserBody = new THREE.Mesh(new RoundedBoxGeometry(0.56, 0.56, 0.50, 2, 0.035), this.mats.darkArmor);
         laserBody.position.set(0, 1.06, -0.02);
         const conveyorRail = new THREE.Mesh(new RoundedBoxGeometry(1.12, 0.045, 0.25, 2, 0.012), this.mats.silverSteel);
@@ -2761,13 +3739,16 @@ class FunkiraAtelierEngine {
         laserHood.position.set(0, 1.01, 0.03);
         const exhaustUnit = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.14, 0.45, 14), this.mats.darkArmor);
         exhaustUnit.position.set(0.58, 0.225, -0.08);
-        laserGrp.add(laserStand, standTrim, laserBody, conveyorRail, laserHood, exhaustUnit);
+        laserGrp.add(laserStand, standTrim, laserPlaque, laserBody, conveyorRail, laserHood, exhaustUnit);
         lvl3.add(laserGrp);
 
         const vitBase = new THREE.Mesh(new RoundedBoxGeometry(0.62, 0.86, 0.46, 2, 0.026), obsidianMat);
         vitBase.position.set(1.04, OG_Y + 0.43, 5.96);
         const vitCap = new THREE.Mesh(new RoundedBoxGeometry(0.65, 0.032, 0.49, 1, 0.01), goldMat);
         vitCap.position.set(1.04, OG_Y + 0.87, 5.96);
+        const vitPlaque = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 0.115), this.plaqueMats.trophy);
+        vitPlaque.position.set(1.04, OG_Y + 0.56, 5.726);
+        vitPlaque.rotation.y = Math.PI;
         const vitGlass = new THREE.Mesh(
             new RoundedBoxGeometry(0.58, 0.74, 0.42, 2, 0.02),
             new THREE.MeshBasicMaterial({ color: 0xfff5dc, transparent: true, opacity: 0.13, depthWrite: false })
@@ -2775,21 +3756,26 @@ class FunkiraAtelierEngine {
         vitGlass.position.set(1.04, OG_Y + 1.25, 5.96);
         const vitItem = new THREE.Mesh(new THREE.OctahedronGeometry(0.125, 0), goldMat);
         vitItem.position.set(1.04, OG_Y + 1.22, 5.96);
-        lvl3.add(vitBase, vitCap, vitGlass, vitItem);
+        lvl3.add(vitBase, vitCap, vitPlaque, vitGlass, vitItem);
         this.rig.vitrineGem = vitItem;
         og.add(lvl3);
         this.levelGroups[3] = lvl3;
 
-        // ---- LEVEL 4: Sculpted Goblet Trophy & Boutique Wall Sconces ----
+        // ---- LEVEL 4: Signed Sculpted Goblet Trophy ----
         const lvl4 = new THREE.Group();
+        const gobBase = new THREE.Mesh(new RoundedBoxGeometry(0.22, 0.048, 0.22, 2, 0.012), obsidianMat);
+        gobBase.position.set(1.04, OG_Y + 1.644, 5.96);
+        const gobPlaque = new THREE.Mesh(new THREE.PlaneGeometry(0.18, 0.038), this.plaqueMats.trophy);
+        gobPlaque.position.set(1.04, OG_Y + 1.646, 5.847);
+        gobPlaque.rotation.y = Math.PI;
         const trophyPoints = [
             new THREE.Vector2(0.00, 0.00), new THREE.Vector2(0.08, 0.00),
             new THREE.Vector2(0.03, 0.06), new THREE.Vector2(0.03, 0.12),
             new THREE.Vector2(0.11, 0.24), new THREE.Vector2(0.12, 0.28)
         ];
         const trophyCup = new THREE.Mesh(new THREE.LatheGeometry(trophyPoints, 14), goldMat);
-        trophyCup.position.set(1.04, OG_Y + 1.63, 5.96);
-        lvl4.add(trophyCup);
+        trophyCup.position.set(1.04, OG_Y + 1.668, 5.96);
+        lvl4.add(gobBase, gobPlaque, trophyCup);
         og.add(lvl4);
         this.levelGroups[4] = lvl4;
 
@@ -2832,14 +3818,870 @@ class FunkiraAtelierEngine {
         this.vaseGroup.matrixAutoUpdate = true;
         vitItem.matrixAutoUpdate = true;
 
+        // Dynamic OG Movable Items Container (child of og so cutaway hides OG items automatically!)
+        this.ogItemsGroup = new THREE.Group();
+        this.ogItemsGroup.matrixAutoUpdate = true;
+        og.add(this.ogItemsGroup);
+
+        // Build Outdoor Terrasse, Garten, Seasonal Vegetation & Holiday Worlds
+        this._buildTerraceAndGarden();
+
         // Craft Sparks Pool
         const spGeo = new THREE.BoxGeometry(0.026, 0.026, 0.026);
         const spMat = new THREE.MeshBasicMaterial({ color: 0xFFE08A });
-        for (let i = 0; i < 10; i++) {
+        for (let i = 0; i < 12; i++) {
             const sp = new THREE.Mesh(spGeo, spMat);
             sp.visible = false;
             this.scene.add(sp);
             this.sparkParticles.push({ mesh: sp, vx: 0, vy: 0, vz: 0, life: 0 });
+        }
+    }
+
+    _buildTerraceAndGarden() {
+        const goldMat = this.mats.gold24k;
+        const woodDarkMat = this.mats.woodDark;
+        const oakMat = this.mats.oakWarm;
+        const obsidianMat = this.mats.obsidian;
+        const leafMat = this.mats.leafGreen;
+        const snowMat = this.mats.snowWhite;
+        const stoneMat = this.mats.stoneWarm;
+        const soilMat = this.mats.soilRich;
+        const terraMat = this.mats.terracotta;
+
+        const garden = new THREE.Group();
+        this.gardenGroup = garden;
+
+        // 1. Dynamic Seasonal Garden Ground & WPC/Teak Terrace Deck
+        paintGardenGroundCanvas(this.gardenGroundCanvas, this.worldState.season, this.worldState.occasion);
+        this.gardenGroundTexture = configureFastTexture(new THREE.CanvasTexture(this.gardenGroundCanvas));
+        const earthSlab = new THREE.Mesh(new THREE.BoxGeometry(11.42, 0.14, 6.54), obsidianMat);
+        earthSlab.position.set(0, -0.088, 10.18);
+        const lawnMesh = new THREE.Mesh(
+            new THREE.PlaneGeometry(11.24, 6.42),
+            new THREE.MeshBasicMaterial({ map: this.gardenGroundTexture })
+        );
+        lawnMesh.rotation.x = -Math.PI / 2;
+        lawnMesh.position.set(0, -0.012, 10.18);
+        garden.add(earthSlab, lawnMesh);
+
+        paintTerraceDeckCanvas(this.terraceDeckCanvas, this.worldState.season);
+        this.terraceDeckTexture = configureFastTexture(new THREE.CanvasTexture(this.terraceDeckCanvas));
+        const deckBase = new THREE.Mesh(new RoundedBoxGeometry(6.34, 0.034, 2.58, 1, 0.008), woodDarkMat);
+        deckBase.position.set(-0.70, 0.002, 8.26);
+        const deckTop = new THREE.Mesh(
+            new THREE.PlaneGeometry(6.28, 2.52),
+            new THREE.MeshBasicMaterial({ map: this.terraceDeckTexture })
+        );
+        deckTop.rotation.x = -Math.PI / 2;
+        deckTop.position.set(-0.70, 0.021, 8.26);
+        garden.add(deckBase, deckTop);
+
+        // Natural Stepping-Stone Garden Path (Terrasse -> Gartenmitte, Blumenbeet & Hochbeet)
+        const stepStoneGeo = new THREE.CylinderGeometry(0.28, 0.30, 0.026, 10);
+        const stoneCoords = [
+            [-0.72, 9.82], [-0.58, 10.42], [-0.38, 11.05], [-0.18, 11.65],
+            [-1.38, 9.95], [-2.05, 10.05],
+            [ 1.78, 8.60], [ 2.28, 8.60]
+        ];
+        for (let i = 0; i < stoneCoords.length; i++) {
+            const st = new THREE.Mesh(stepStoneGeo, stoneMat);
+            st.scale.set(1.12, 1.0, 0.86);
+            st.rotation.y = (i * 0.65);
+            st.position.set(stoneCoords[i][0], 0.004, stoneCoords[i][1]);
+            garden.add(st);
+        }
+
+        // 2. Perimeter Fence, Evergreen Hedges & Warm Post Lanterns
+        const addFenceSpan = (x1, z1, x2, z2, h = 1.08) => {
+            const cx = (x1 + x2) * 0.5;
+            const cz = (z1 + z2) * 0.5;
+            const sx = Math.max(0.08, Math.abs(x2 - x1));
+            const sz = Math.max(0.08, Math.abs(z2 - z1));
+            const panel = new THREE.Mesh(new RoundedBoxGeometry(sx, h, sz, 1, 0.01), woodDarkMat);
+            panel.position.set(cx, h * 0.5, cz);
+            const cap = new THREE.Mesh(new RoundedBoxGeometry(sx + 0.02, 0.032, sz + 0.02, 1, 0.006), goldMat);
+            cap.position.set(cx, h + 0.016, cz);
+            garden.add(panel, cap);
+        };
+        addFenceSpan(-5.56, 6.96, -4.18, 6.96, 1.12); // North-West wing
+        addFenceSpan( 4.18, 6.96,  5.56, 6.96, 1.12); // North-East wing
+        addFenceSpan(-5.56, 6.96, -5.56, 13.34, 1.12); // West garden fence
+        addFenceSpan( 5.56, 6.96,  5.56, 13.34, 1.12); // East garden fence
+        addFenceSpan(-5.56, 13.34, 5.56, 13.34, 0.42); // Low South cutaway fence for unobstructed view
+
+        const hedgeWest = new THREE.Mesh(new RoundedBoxGeometry(0.42, 0.82, 5.90, 2, 0.14), leafMat);
+        hedgeWest.position.set(-5.24, 0.41, 10.15);
+        const hedgeEast = new THREE.Mesh(new RoundedBoxGeometry(0.42, 0.82, 5.90, 2, 0.14), leafMat);
+        hedgeEast.position.set(5.24, 0.41, 10.15);
+        garden.add(hedgeWest, hedgeEast);
+
+        const lanternPostGeo = new THREE.CylinderGeometry(0.035, 0.042, 0.92, 8);
+        const lanternBulbGeo = new THREE.SphereGeometry(0.075, 10, 8);
+        const lanternCoords = [
+            [-3.82, 9.48], [2.42, 9.48],
+            [-5.48, 7.05], [5.48, 7.05],
+            [-5.48, 13.26], [5.48, 13.26]
+        ];
+        for (const [lx, lz] of lanternCoords) {
+            const post = new THREE.Mesh(lanternPostGeo, obsidianMat);
+            post.position.set(lx, 0.46, lz);
+            const bulb = new THREE.Mesh(lanternBulbGeo, this.mats.warmBulb);
+            bulb.position.set(lx, 0.96, lz);
+            const hat = new THREE.Mesh(new THREE.ConeGeometry(0.10, 0.06, 8), goldMat);
+            hat.position.set(lx, 1.03, lz);
+            garden.add(post, bulb, hat);
+        }
+
+        // 3. Terrasse Rattan Lounge-Sofa, Coffee Table & Planter Pots
+        const loungeRug = new THREE.Mesh(
+            new THREE.PlaneGeometry(2.10, 1.65),
+            new THREE.MeshBasicMaterial({ map: makeCozyLivingRugTexture() })
+        );
+        loungeRug.rotation.x = -Math.PI / 2;
+        loungeRug.position.set(-2.62, 0.025, 8.22);
+        garden.add(loungeRug);
+
+        const sofaBaseA = new THREE.Mesh(new RoundedBoxGeometry(1.68, 0.34, 0.68, 2, 0.03), woodDarkMat);
+        sofaBaseA.position.set(-2.66, 0.19, 7.78);
+        const sofaCushA = new THREE.Mesh(new RoundedBoxGeometry(1.58, 0.11, 0.60, 2, 0.03), this.mats.velvetCream);
+        sofaCushA.position.set(-2.66, 0.40, 7.80);
+        const sofaBackA = new THREE.Mesh(new RoundedBoxGeometry(1.68, 0.42, 0.14, 2, 0.03), woodDarkMat);
+        sofaBackA.position.set(-2.66, 0.54, 7.50);
+        const sofaBaseB = new THREE.Mesh(new RoundedBoxGeometry(0.68, 0.34, 0.92, 2, 0.03), woodDarkMat);
+        sofaBaseB.position.set(-3.16, 0.19, 8.48);
+        const sofaCushB = new THREE.Mesh(new RoundedBoxGeometry(0.60, 0.11, 0.84, 2, 0.03), this.mats.velvetCream);
+        sofaCushB.position.set(-3.14, 0.40, 8.48);
+        const loungeTable = new THREE.Mesh(new RoundedBoxGeometry(0.82, 0.34, 0.52, 2, 0.025), oakMat);
+        loungeTable.position.set(-2.32, 0.19, 8.52);
+        const tableTrim = new THREE.Mesh(new RoundedBoxGeometry(0.84, 0.024, 0.54, 1, 0.008), goldMat);
+        tableTrim.position.set(-2.32, 0.365, 8.52);
+        garden.add(sofaBaseA, sofaCushA, sofaBackA, sofaBaseB, sofaCushB, loungeTable, tableTrim);
+
+        // Signed 24K Gold & Obsidian Patio Planters with Golden Blooms
+        const potGeo = new THREE.CylinderGeometry(0.20, 0.14, 0.34, 12);
+        const potRimGeo = new THREE.TorusGeometry(0.20, 0.016, 8, 16);
+        for (const [px, pz] of [[-1.56, 7.26], [0.26, 7.26]]) {
+            const pot = new THREE.Mesh(potGeo, obsidianMat);
+            pot.position.set(px, 0.19, pz);
+            const pRim = new THREE.Mesh(potRimGeo, goldMat);
+            pRim.rotation.x = Math.PI / 2;
+            pRim.position.set(px, 0.355, pz);
+            const pBadge = new THREE.Mesh(new THREE.PlaneGeometry(0.20, 0.064), this.plaqueMats.flowers);
+            pBadge.position.set(px, 0.21, pz + 0.188);
+            const bush = new THREE.Mesh(new THREE.SphereGeometry(0.21, 10, 8), leafMat);
+            bush.position.set(px, 0.42, pz);
+            const gFlower1 = new THREE.Mesh(new THREE.OctahedronGeometry(0.045, 0), goldMat);
+            gFlower1.position.set(px - 0.07, 0.58, pz + 0.06);
+            const gFlower2 = new THREE.Mesh(new THREE.DodecahedronGeometry(0.042, 0), this.mats.roseBloom);
+            gFlower2.position.set(px + 0.08, 0.56, pz + 0.05);
+            garden.add(pot, pRim, pBadge, bush, gFlower1, gFlower2);
+        }
+
+        // 4. Holz-Hochbeet (Signed "MEIN SEELENFUNKE · GOLDENER GARTEN" at x = +3.40, z = +8.60)
+        const hbGroup = new THREE.Group();
+        hbGroup.position.set(3.40, 0, 8.60);
+        const hbBody = new THREE.Mesh(new RoundedBoxGeometry(1.46, 0.76, 1.46, 2, 0.025), oakMat);
+        hbBody.position.y = 0.38;
+        const hbRim = new THREE.Mesh(new RoundedBoxGeometry(1.54, 0.045, 1.54, 1, 0.01), woodDarkMat);
+        hbRim.position.y = 0.77;
+        const hbGoldBand = new THREE.Mesh(new RoundedBoxGeometry(1.49, 0.026, 1.49, 1, 0.006), goldMat);
+        hbGoldBand.position.y = 0.62;
+        const hbPlaqueSouth = new THREE.Mesh(new THREE.PlaneGeometry(0.54, 0.15), this.plaqueMats.garden);
+        hbPlaqueSouth.position.set(0, 0.42, 0.736);
+        const hbPlaqueWest = new THREE.Mesh(new THREE.PlaneGeometry(0.54, 0.15), this.plaqueMats.garden);
+        hbPlaqueWest.position.set(-0.736, 0.42, 0);
+        hbPlaqueWest.rotation.y = -Math.PI / 2;
+        const hbSoil = new THREE.Mesh(new RoundedBoxGeometry(1.34, 0.08, 1.34, 1, 0.01), soilMat);
+        hbSoil.position.y = 0.73;
+        hbGroup.add(hbBody, hbRim, hbGoldBand, hbPlaqueSouth, hbPlaqueWest, hbSoil);
+        for (let r = -1; r <= 1; r++) {
+            for (let c = -1; c <= 1; c++) {
+                const herb = new THREE.Mesh(new THREE.DodecahedronGeometry(0.11, 0), leafMat);
+                herb.position.set(c * 0.36, 0.82, r * 0.36);
+                hbGroup.add(herb);
+            }
+        }
+        garden.add(hbGroup);
+
+        // 5. Garten-Blumenbeet (Signed with 24K Gold Steckschild at x = -2.50, z = +11.20)
+        const bbGroup = new THREE.Group();
+        bbGroup.position.set(-2.50, 0, 11.20);
+        const bbRim = new THREE.Mesh(new RoundedBoxGeometry(2.12, 0.16, 1.12, 2, 0.04), obsidianMat);
+        bbRim.position.y = 0.08;
+        const bbGoldTrim = new THREE.Mesh(new RoundedBoxGeometry(2.15, 0.026, 1.15, 1, 0.01), goldMat);
+        bbGoldTrim.position.y = 0.155;
+        const bbSoil = new THREE.Mesh(new RoundedBoxGeometry(1.94, 0.14, 0.94, 2, 0.03), soilMat);
+        bbSoil.position.y = 0.11;
+        const bbStakeRod = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.34, 8), goldMat);
+        bbStakeRod.position.set(0.68, 0.24, 0.28);
+        const bbStakeBack = new THREE.Mesh(new RoundedBoxGeometry(0.42, 0.13, 0.022, 1, 0.006), goldMat);
+        bbStakeBack.position.set(0.68, 0.40, 0.29);
+        bbStakeBack.rotation.x = -0.26;
+        const bbStakeFace = new THREE.Mesh(new THREE.PlaneGeometry(0.39, 0.112), this.plaqueMats.garden);
+        bbStakeFace.position.set(0.68, 0.402, 0.304);
+        bbStakeFace.rotation.x = -0.26;
+        bbGroup.add(bbRim, bbGoldTrim, bbSoil, bbStakeRod, bbStakeBack, bbStakeFace);
+        for (let i = 0; i < 7; i++) {
+            const leafClump = new THREE.Mesh(new THREE.SphereGeometry(0.13, 8, 6), leafMat);
+            leafClump.scale.set(1.2, 0.65, 1.1);
+            leafClump.position.set(-0.72 + i * 0.24, 0.20, (i % 2 === 0 ? -0.18 : 0.18));
+            bbGroup.add(leafClump);
+        }
+        garden.add(bbGroup);
+
+        // Schwarz-Goldener Stellplatz für Funkiras Goldenen SEELENFUNKE-Rasenmäher (x = +3.18, z = +9.95)
+        const mowerPadBase = new THREE.Mesh(new RoundedBoxGeometry(0.88, 0.022, 0.76, 2, 0.01), stoneMat);
+        mowerPadBase.position.set(3.18, 0.005, 9.95);
+        const mowerPadTrim = new THREE.Mesh(new RoundedBoxGeometry(0.91, 0.016, 0.79, 1, 0.006), goldMat);
+        mowerPadTrim.position.set(3.18, 0.009, 9.95);
+        garden.add(mowerPadBase, mowerPadTrim);
+
+        // 6. Zier-Gartenbaum (x = +3.85, z = +11.45)
+        const treeBase = new THREE.Group();
+        treeBase.position.set(3.85, 0, 11.45);
+        const treeRing = new THREE.Mesh(new THREE.TorusGeometry(0.44, 0.06, 8, 16), stoneMat);
+        treeRing.rotation.x = Math.PI / 2;
+        treeRing.position.y = 0.04;
+        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.21, 1.55, 10), woodDarkMat);
+        trunk.position.y = 0.77;
+        const branchL = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.09, 0.68, 8), woodDarkMat);
+        branchL.position.set(-0.20, 1.56, 0.05);
+        branchL.rotation.z = 0.58;
+        const branchR = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.09, 0.64, 8), woodDarkMat);
+        branchR.position.set(0.22, 1.58, -0.06);
+        branchR.rotation.z = -0.54;
+        treeBase.add(treeRing, trunk, branchL, branchR);
+        garden.add(treeBase);
+
+        const addTreeCanopy = (targetGrp, canopyMat) => {
+            const blobs = [
+                [0.0, 2.15, 0.0, 0.62],
+                [-0.42, 1.92, 0.18, 0.46],
+                [0.44, 1.94, -0.14, 0.46],
+                [0.12, 2.02, 0.38, 0.42],
+                [-0.16, 2.00, -0.36, 0.42]
+            ];
+            for (const [bx, by, bz, br] of blobs) {
+                const sp = new THREE.Mesh(new THREE.SphereGeometry(br, 10, 8), canopyMat);
+                sp.position.set(3.85 + bx, by, 11.45 + bz);
+                targetGrp.add(sp);
+            }
+        };
+
+        // ====================================================================
+        // 7. SEASONAL 3D LAYERS (SPRING, SUMMER, AUTUMN, WINTER)
+        // ====================================================================
+        const springGrp = new THREE.Group();
+        addTreeCanopy(springGrp, this.mats.blossomPink);
+        const flowerStemGeo = new THREE.CylinderGeometry(0.012, 0.012, 0.26, 6);
+        const tulipHeadGeo = new THREE.SphereGeometry(0.055, 8, 8);
+        for (let i = 0; i < 12; i++) {
+            const fx = -3.28 + (i % 6) * 0.31;
+            const fz = 11.00 + Math.floor(i / 6) * 0.38;
+            const st = new THREE.Mesh(flowerStemGeo, leafMat);
+            st.position.set(fx, 0.28, fz);
+            const hd = new THREE.Mesh(tulipHeadGeo, (i % 3 === 0) ? this.mats.sunflowerYellow : this.mats.tulipPink);
+            hd.scale.set(0.85, 1.25, 0.85);
+            hd.position.set(fx, 0.43, fz);
+            springGrp.add(st, hd);
+        }
+        for (let i = 0; i < 6; i++) {
+            const hd = new THREE.Mesh(tulipHeadGeo, (i % 2 === 0) ? this.mats.tulipPink : this.mats.sunflowerYellow);
+            hd.position.set(3.04 + (i % 3) * 0.36, 0.94, 8.38 + Math.floor(i / 3) * 0.44);
+            springGrp.add(hd);
+        }
+        garden.add(springGrp);
+        this.gardenSeasonGroups.spring = springGrp;
+
+        const summerGrp = new THREE.Group();
+        addTreeCanopy(summerGrp, leafMat);
+        // Opened 3D Sonnenschirm over Terrace Lounge!
+        const paraPole = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.036, 2.22, 10), woodDarkMat);
+        paraPole.position.set(-2.95, 1.12, 7.98);
+        const paraCanopy = new THREE.Mesh(new THREE.ConeGeometry(1.32, 0.38, 10), this.mats.velvetCream);
+        paraCanopy.position.set(-2.95, 2.18, 7.98);
+        const paraFinial = new THREE.Mesh(new THREE.SphereGeometry(0.055, 8, 8), goldMat);
+        paraFinial.position.set(-2.95, 2.40, 7.98);
+        summerGrp.add(paraPole, paraCanopy, paraFinial);
+
+        // Tall Sunflowers & Blooming Roses in Blumenbeet + Ripe Tomatoes in Hochbeet
+        const sunStemGeo = new THREE.CylinderGeometry(0.018, 0.022, 0.62, 6);
+        const sunDiscGeo = new THREE.CylinderGeometry(0.11, 0.11, 0.03, 10);
+        for (let i = 0; i < 5; i++) {
+            const sx = -3.22 + i * 0.36;
+            const sz = 11.34;
+            const sst = new THREE.Mesh(sunStemGeo, leafMat);
+            sst.position.set(sx, 0.46, sz);
+            const sHead = new THREE.Mesh(sunDiscGeo, this.mats.sunflowerYellow);
+            sHead.rotation.x = Math.PI * 0.38;
+            sHead.position.set(sx, 0.78, sz + 0.03);
+            const sCore = new THREE.Mesh(new THREE.SphereGeometry(0.052, 8, 6), soilMat);
+            sCore.position.set(sx, 0.79, sz + 0.05);
+            summerGrp.add(sst, sHead, sCore);
+        }
+        for (let i = 0; i < 6; i++) {
+            const rb = new THREE.Mesh(new THREE.DodecahedronGeometry(0.055, 0), this.mats.roseBloom);
+            rb.position.set(-3.15 + i * 0.28, 0.32, 10.96);
+            summerGrp.add(rb);
+            const tom = new THREE.Mesh(new THREE.SphereGeometry(0.042, 8, 6), this.mats.scarfRed);
+            tom.position.set(3.04 + (i % 3) * 0.36, 0.90, 8.32 + Math.floor(i / 3) * 0.48);
+            summerGrp.add(tom);
+        }
+        garden.add(summerGrp);
+        this.gardenSeasonGroups.summer = summerGrp;
+
+        const autumnGrp = new THREE.Group();
+        addTreeCanopy(autumnGrp, this.mats.autumnAmber);
+        // Harvest Pumpkins & Marigolds
+        const pumpCoords = [[2.42, 0.15, 9.22, 0.16], [2.62, 0.11, 9.42, 0.11], [-1.52, 0.16, 7.62, 0.14]];
+        for (const [px, py, pz, pr] of pumpCoords) {
+            const pk = new THREE.Mesh(new THREE.SphereGeometry(pr, 10, 8), this.mats.pumpkinOrange);
+            pk.scale.set(1.18, 0.82, 1.18);
+            pk.position.set(px, py, pz);
+            const pst = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.02, 0.07, 6), leafMat);
+            pst.position.set(px, py + pr * 0.85, pz);
+            autumnGrp.add(pk, pst);
+        }
+        for (let i = 0; i < 8; i++) {
+            const mg = new THREE.Mesh(new THREE.DodecahedronGeometry(0.052, 0), (i % 2 === 0) ? this.mats.pumpkinOrange : this.mats.sunflowerYellow);
+            mg.position.set(-3.24 + i * 0.22, 0.30, 11.18 + (i % 2 === 0 ? -0.14 : 0.14));
+            autumnGrp.add(mg);
+        }
+        garden.add(autumnGrp);
+        this.gardenSeasonGroups.autumn = autumnGrp;
+
+        const winterGrp = new THREE.Group();
+        addTreeCanopy(winterGrp, snowMat);
+        // Snow blankets on Hedges, Hochbeet & Blumenbeet
+        const snowHedgeW = new THREE.Mesh(new RoundedBoxGeometry(0.44, 0.12, 5.92, 2, 0.05), snowMat);
+        snowHedgeW.position.set(-5.24, 0.84, 10.15);
+        const snowHedgeE = new THREE.Mesh(new RoundedBoxGeometry(0.44, 0.12, 5.92, 2, 0.05), snowMat);
+        snowHedgeE.position.set(5.24, 0.84, 10.15);
+        const snowHb = new THREE.Mesh(new RoundedBoxGeometry(1.42, 0.07, 1.42, 2, 0.03), snowMat);
+        snowHb.position.set(3.40, 0.81, 8.60);
+        const snowBb = new THREE.Mesh(new RoundedBoxGeometry(1.98, 0.08, 0.98, 2, 0.03), snowMat);
+        snowBb.position.set(-2.50, 0.20, 11.20);
+        winterGrp.add(snowHedgeW, snowHedgeE, snowHb, snowBb);
+
+        // 3D Schneemann (x = -3.75, z = +9.75)
+        const sm = new THREE.Group();
+        sm.position.set(-3.75, 0, 9.75);
+        sm.rotation.y = 0.45;
+        const smBot = new THREE.Mesh(new THREE.SphereGeometry(0.36, 12, 10), snowMat);
+        smBot.scale.set(1.05, 0.92, 1.05);
+        smBot.position.y = 0.31;
+        const smMid = new THREE.Mesh(new THREE.SphereGeometry(0.26, 12, 10), snowMat);
+        smMid.position.y = 0.78;
+        const smHead = new THREE.Mesh(new THREE.SphereGeometry(0.185, 12, 10), snowMat);
+        smHead.position.y = 1.15;
+        const smScarf = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.042, 8, 16), this.mats.scarfRed);
+        smScarf.rotation.x = Math.PI / 2;
+        smScarf.position.y = 0.99;
+        const smNose = new THREE.Mesh(new THREE.ConeGeometry(0.032, 0.16, 8), this.mats.pumpkinOrange);
+        smNose.rotation.x = Math.PI / 2;
+        smNose.position.set(0, 1.15, 0.22);
+        const smHatBrim = new THREE.Mesh(new THREE.CylinderGeometry(0.21, 0.21, 0.03, 12), obsidianMat);
+        smHatBrim.position.y = 1.31;
+        const smHatTop = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.13, 0.22, 12), obsidianMat);
+        smHatTop.position.y = 1.43;
+        const smHatBand = new THREE.Mesh(new THREE.CylinderGeometry(0.143, 0.143, 0.035, 12), goldMat);
+        smHatBand.position.y = 1.34;
+        sm.add(smBot, smMid, smHead, smScarf, smNose, smHatBrim, smHatTop, smHatBand);
+        for (const ex of [-0.065, 0.065]) {
+            const eye = new THREE.Mesh(new THREE.SphereGeometry(0.022, 6, 6), obsidianMat);
+            eye.position.set(ex, 1.19, 0.168);
+            sm.add(eye);
+        }
+        winterGrp.add(sm);
+        garden.add(winterGrp);
+        this.gardenSeasonGroups.winter = winterGrp;
+
+        // ====================================================================
+        // 8. HOLIDAY & SPECIAL OCCASION 3D LAYERS IN THE GARDEN
+        // ====================================================================
+        // A) Advent / Nikolaus / Christmas: Outdoor Illuminated Fir Tree, Gifts & Fairy Lights
+        const xmasOut = new THREE.Group();
+        for (let tier = 0; tier < 3; tier++) {
+            const cone = new THREE.Mesh(new THREE.ConeGeometry(0.58 - tier * 0.12, 0.72, 14), leafMat);
+            cone.position.set(1.95, 0.52 + tier * 0.46, 11.55);
+            xmasOut.add(cone);
+        }
+        const outStar = new THREE.Mesh(new THREE.OctahedronGeometry(0.12, 0), goldMat);
+        outStar.position.set(1.95, 1.92, 11.55);
+        xmasOut.add(outStar);
+        for (let b = 0; b < 14; b++) {
+            const ang = (b / 14) * Math.PI * 4;
+            const rad = 0.44 - (b / 14) * 0.26;
+            const orn = new THREE.Mesh(
+                new THREE.SphereGeometry(0.042, 8, 6),
+                (b % 3 === 0) ? this.mats.warmBulb : ((b % 2 === 0) ? this.mats.scarfRed : goldMat)
+            );
+            orn.position.set(1.95 + Math.cos(ang) * rad, 0.48 + b * 0.09, 11.55 + Math.sin(ang) * rad);
+            xmasOut.add(orn);
+        }
+        // Wrapped Gift Boxes under outdoor tree + Warm Terrace Fairy Lights
+        const gift1 = new THREE.Mesh(new RoundedBoxGeometry(0.26, 0.22, 0.26, 1, 0.015), this.mats.scarfRed);
+        gift1.position.set(1.58, 0.11, 11.35);
+        const gift2 = new THREE.Mesh(new RoundedBoxGeometry(0.22, 0.18, 0.22, 1, 0.015), goldMat);
+        gift2.position.set(2.26, 0.09, 11.28);
+        xmasOut.add(gift1, gift2);
+        const fairyGeo = new THREE.SphereGeometry(0.036, 6, 6);
+        for (let f = 0; f < 16; f++) {
+            const fb = new THREE.Mesh(fairyGeo, this.mats.warmBulb);
+            fb.position.set(-3.70 + f * 0.40, 0.14 + Math.sin(f * 0.9) * 0.03, 9.50);
+            xmasOut.add(fb);
+        }
+        garden.add(xmasOut);
+        this.gardenOccasionGroups.christmas = xmasOut;
+
+        // B) Silvester & Neujahr: Festive Terrace Champagne Bistro Table + Live 3D Fireworks Pool!
+        const silvGrp = new THREE.Group();
+        const bistroPed = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.22, 0.76, 10), goldMat);
+        bistroPed.position.set(1.20, 0.38, 7.72);
+        const bistroTop = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.035, 16), this.mats.marbleCream);
+        bistroTop.position.set(1.20, 0.77, 7.72);
+        const bottleBody = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.045, 0.22, 10), leafMat);
+        bottleBody.position.set(1.14, 0.89, 7.68);
+        const bottleNeck = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.032, 0.10, 8), goldMat);
+        bottleNeck.position.set(1.14, 1.03, 7.68);
+        const fluteGeo = new THREE.CylinderGeometry(0.026, 0.014, 0.13, 8);
+        const flute1 = new THREE.Mesh(fluteGeo, goldMat);
+        flute1.position.set(1.28, 0.85, 7.66);
+        const flute2 = new THREE.Mesh(fluteGeo, goldMat);
+        flute2.position.set(1.25, 0.85, 7.80);
+        silvGrp.add(bistroPed, bistroTop, bottleBody, bottleNeck, flute1, flute2);
+        garden.add(silvGrp);
+        this.gardenOccasionGroups.silvester = silvGrp;
+
+        // Live 60-FPS 3D Silvester Fireworks Pool (4 rockets x 22 sparks = 88 tiny unlit cubes, zero GC!)
+        const fwSparkGeo = new THREE.BoxGeometry(0.068, 0.068, 0.068);
+        const fwRocketGeo = new THREE.ConeGeometry(0.045, 0.16, 6);
+        const fwPalette = [0xFFE07D, 0xFF7AA8, 0x7CE8FF, 0x82FFB4];
+        for (let r = 0; r < 4; r++) {
+            const mat = new THREE.MeshBasicMaterial({ color: fwPalette[r % fwPalette.length] });
+            const rocketMesh = new THREE.Mesh(fwRocketGeo, this.mats.warmBulb);
+            rocketMesh.visible = false;
+            this.scene.add(rocketMesh);
+            const sparks = [];
+            for (let s = 0; s < 22; s++) {
+                const smesh = new THREE.Mesh(fwSparkGeo, mat);
+                smesh.visible = false;
+                this.scene.add(smesh);
+                sparks.push({ mesh: smesh, vx: 0, vy: 0, vz: 0 });
+            }
+            this.fireworkBursts.push({
+                state: 'cooldown',
+                timer: r * 0.75,
+                x: 0, y: 0, z: 0,
+                vy: 0, burstY: 3.6,
+                rocketMesh,
+                sparks,
+                mat
+            });
+        }
+
+        // C) Easter: Colorful 3D Painted Ostereier in Garden & Easter Basket on Lounge Table
+        const easterGrp = new THREE.Group();
+        const eggGeo = new THREE.SphereGeometry(0.065, 8, 8);
+        const eggMats = [this.mats.tulipPink, this.mats.sunflowerYellow, this.mats.blossomPink, goldMat];
+        const eggSpots = [
+            [-1.15, 10.25], [0.45, 10.65], [1.35, 9.95], [-2.85, 10.45],
+            [-0.15, 11.85], [2.45, 10.35], [-3.75, 11.35], [0.95, 11.45]
+        ];
+        for (let i = 0; i < eggSpots.length; i++) {
+            const egg = new THREE.Mesh(eggGeo, eggMats[i % eggMats.length]);
+            egg.scale.set(0.86, 1.24, 0.86);
+            egg.position.set(eggSpots[i][0], 0.075, eggSpots[i][1]);
+            easterGrp.add(egg);
+        }
+        const basket = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.12, 0.11, 10), this.mats.broomStraw);
+        basket.position.set(-2.32, 0.43, 8.52);
+        easterGrp.add(basket);
+        garden.add(easterGrp);
+        this.gardenOccasionGroups.easter = easterGrp;
+
+        // D) Halloween: Carved Glowing 3D Jack-o'-Lanterns
+        const halloGrp = new THREE.Group();
+        const jackSpots = [[-1.52, 9.42], [0.18, 9.42], [-1.25, 10.55], [2.45, 9.52]];
+        for (const [jx, jz] of jackSpots) {
+            const jBody = new THREE.Mesh(new THREE.SphereGeometry(0.17, 10, 8), this.mats.pumpkinOrange);
+            jBody.scale.set(1.15, 0.88, 1.15);
+            jBody.position.set(jx, 0.15, jz);
+            const jGlow = new THREE.Mesh(new THREE.PlaneGeometry(0.14, 0.08), this.mats.warmBulb);
+            jGlow.position.set(jx, 0.16, jz + 0.185);
+            halloGrp.add(jBody, jGlow);
+        }
+        garden.add(halloGrp);
+        this.gardenOccasionGroups.halloween = halloGrp;
+
+        // E) Valentines / Mother's Day / Seelenfunke Anniversary: Blooming Rose Bouquets
+        const celebGrp = new THREE.Group();
+        for (const [rx, rz] of [[-2.32, 8.52], [-1.56, 7.26], [0.26, 7.26]]) {
+            const bouquet = new THREE.Mesh(new THREE.DodecahedronGeometry(0.12, 0), this.mats.roseBloom);
+            bouquet.position.set(rx, rx === -2.32 ? 0.45 : 0.56, rz);
+            celebGrp.add(bouquet);
+        }
+        garden.add(celebGrp);
+        this.gardenOccasionGroups.celebration = celebGrp;
+
+        this.scene.add(garden);
+        freezeStaticTree(garden);
+        garden.matrixAutoUpdate = true;
+
+        // 9. GOLDENER "SEELENFUNKE" 3D-RASENMÄHER (24K Gold & Matte Obsidian + Spinning Wheels + Grass Particles!)
+        // Local orientation: +Z = Front Mower Nose, -Z = Rear Grass Catcher & Twin Golden Push-Handlebars
+        const mower = new THREE.Group();
+        mower.matrixAutoUpdate = true;
+        this.lawnMowerGroup = mower;
+
+        const mowerDeck = new THREE.Group();
+        mowerDeck.matrixAutoUpdate = true;
+        this.lawnMowerDeck = mowerDeck;
+
+        const chassisGold = new THREE.Mesh(new RoundedBoxGeometry(0.46, 0.125, 0.62, 2, 0.032), goldMat);
+        chassisGold.position.set(0, 0.135, 0.05);
+        const frontBumper = new THREE.Mesh(new RoundedBoxGeometry(0.49, 0.048, 0.085, 2, 0.016), goldMat);
+        frontBumper.position.set(0, 0.095, 0.36);
+        const frontObsidianGrille = new THREE.Mesh(new RoundedBoxGeometry(0.36, 0.034, 0.03, 1, 0.008), obsidianMat);
+        frontObsidianGrille.position.set(0, 0.098, 0.395);
+
+        const motorTurbine = new THREE.Mesh(new THREE.CylinderGeometry(0.128, 0.162, 0.135, 16), obsidianMat);
+        motorTurbine.position.set(0, 0.255, 0.06);
+        const motorGoldCrown = new THREE.Mesh(new THREE.CylinderGeometry(0.115, 0.126, 0.032, 16), goldMat);
+        motorGoldCrown.position.set(0, 0.33, 0.06);
+        const motorSparkStar = new THREE.Mesh(new THREE.OctahedronGeometry(0.038, 0), goldMat);
+        motorSparkStar.position.set(0, 0.375, 0.06);
+
+        // Prominent "SEELENFUNKE" Hood, Side-Skirt & Rear Catcher Plaques!
+        const hoodPlaque = new THREE.Mesh(new THREE.PlaneGeometry(0.36, 0.125), this.plaqueMats.mowerObs);
+        hoodPlaque.position.set(0, 0.212, 0.255);
+        hoodPlaque.rotation.x = -0.96;
+        const sidePlaqueL = new THREE.Mesh(new THREE.PlaneGeometry(0.33, 0.082), this.plaqueMats.mowerObs);
+        sidePlaqueL.position.set(0.234, 0.142, 0.05);
+        sidePlaqueL.rotation.y = Math.PI / 2;
+        const sidePlaqueR = new THREE.Mesh(new THREE.PlaneGeometry(0.33, 0.082), this.plaqueMats.mowerObs);
+        sidePlaqueR.position.set(-0.234, 0.142, 0.05);
+        sidePlaqueR.rotation.y = -Math.PI / 2;
+
+        // Rear Grass-Catcher Box (Fangkorb)
+        const catcherBody = new THREE.Mesh(new RoundedBoxGeometry(0.38, 0.21, 0.27, 2, 0.025), obsidianMat);
+        catcherBody.position.set(0, 0.195, -0.22);
+        const catcherGoldLid = new THREE.Mesh(new RoundedBoxGeometry(0.39, 0.032, 0.28, 1, 0.01), goldMat);
+        catcherGoldLid.position.set(0, 0.308, -0.22);
+        const catcherRearPlaque = new THREE.Mesh(new THREE.PlaneGeometry(0.28, 0.088), this.plaqueMats.mowerGold);
+        catcherRearPlaque.position.set(0, 0.20, -0.358);
+        catcherRearPlaque.rotation.y = Math.PI;
+
+        // Twin Ergonomic 24K Gold Push-Handlebars (exact match for Funkira's 2-handed push_mower pose!)
+        const barLen = 0.58;
+        const barGeo = new THREE.CylinderGeometry(0.015, 0.017, barLen, 10);
+        for (const sx of [-1, 1]) {
+            const strut = new THREE.Mesh(barGeo, goldMat);
+            strut.position.set(sx * 0.195, 0.45, -0.21);
+            strut.rotation.x = 0.30;
+            mowerDeck.add(strut);
+        }
+        const gripCrossbar = new THREE.Mesh(new THREE.CylinderGeometry(0.017, 0.017, 0.44, 10), goldMat);
+        gripCrossbar.rotation.z = Math.PI / 2;
+        gripCrossbar.position.set(0, 0.72, -0.295);
+        const safetyBail = new THREE.Mesh(new THREE.CylinderGeometry(0.010, 0.010, 0.36, 8), obsidianMat);
+        safetyBail.rotation.z = Math.PI / 2;
+        safetyBail.position.set(0, 0.745, -0.285);
+        const handleBadge = new THREE.Mesh(new THREE.PlaneGeometry(0.22, 0.064), this.plaqueMats.mowerObs);
+        handleBadge.position.set(0, 0.56, -0.245);
+        handleBadge.rotation.x = -1.26;
+        handleBadge.rotation.y = Math.PI;
+
+        mowerDeck.add(
+            chassisGold, frontBumper, frontObsidianGrille,
+            motorTurbine, motorGoldCrown, motorSparkStar,
+            hoodPlaque, sidePlaqueL, sidePlaqueR,
+            catcherBody, catcherGoldLid, catcherRearPlaque,
+            gripCrossbar, safetyBail, handleBadge
+        );
+        mower.add(mowerDeck);
+
+        // 4 Spinning Wheels with 24K Gold Rims
+        this.lawnMowerWheels = [];
+        const wheelSpecs = [
+            [-0.245, 0.085,  0.23, 0.085],
+            [ 0.245, 0.085,  0.23, 0.085],
+            [-0.250, 0.105, -0.13, 0.105],
+            [ 0.250, 0.105, -0.13, 0.105]
+        ];
+        for (const [wx, wy, wz, wr] of wheelSpecs) {
+            const wPivot = new THREE.Group();
+            wPivot.matrixAutoUpdate = true;
+            wPivot.position.set(wx, wy, wz);
+            const tire = new THREE.Mesh(new THREE.CylinderGeometry(wr, wr, 0.052, 14), obsidianMat);
+            tire.rotation.z = Math.PI / 2;
+            const rim = new THREE.Mesh(new THREE.CylinderGeometry(wr * 0.62, wr * 0.62, 0.056, 8), goldMat);
+            rim.rotation.z = Math.PI / 2;
+            const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.060, wr * 1.15, 0.022), goldMat);
+            wPivot.add(tire, rim, spoke);
+            mower.add(wPivot);
+            this.lawnMowerWheels.push(wPivot);
+        }
+
+        this.scene.add(mower);
+        this._parkLawnMowerHome();
+
+        // Pooled Grass-Clipping Particles for Live Lawn Mowing
+        const grassGeo = new THREE.BoxGeometry(0.022, 0.048, 0.015);
+        const grassMatGreen = new THREE.MeshBasicMaterial({ color: 0x56B85E });
+        const grassMatGold  = new THREE.MeshBasicMaterial({ color: 0xE6C265 });
+        for (let i = 0; i < 14; i++) {
+            const gm = new THREE.Mesh(grassGeo, (i % 4 === 0) ? grassMatGold : grassMatGreen);
+            gm.visible = false;
+            this.scene.add(gm);
+            this.grassParticles.push({ mesh: gm, vx: 0, vy: 0, vz: 0, life: 0 });
+        }
+
+        // 10. Pooled 3D Outdoor Weather Particles (Snowflakes / Blossom Petals / Sun Motes / Autumn Leaves)
+        this.outdoorWeatherMat = new THREE.MeshBasicMaterial({ color: 0xE38B39, side: THREE.DoubleSide });
+        const owGeo = new THREE.PlaneGeometry(0.052, 0.052);
+        for (let i = 0; i < 34; i++) {
+            const m = new THREE.Mesh(owGeo, this.outdoorWeatherMat);
+            const px = (Math.random() - 0.5) * 9.6;
+            const py = 0.15 + Math.random() * 3.3;
+            const pz = 7.15 + Math.random() * 5.8;
+            m.position.set(px, py, pz);
+            m.rotation.set(Math.random() * 3, Math.random() * 3, 0);
+            this.scene.add(m);
+            this.outdoorWeatherParticles.push({
+                mesh: m,
+                baseX: px,
+                y: py,
+                baseZ: pz,
+                speedY: 0.24 + Math.random() * 0.26,
+                phase: Math.random() * 6.28
+            });
+        }
+    }
+
+    // ========================================================================
+    // BUILDER FOR 8 MOVABLE, PERSISTENT, SIGNED "MEIN SEELENFUNKE" 3D ITEMS
+    // ========================================================================
+    _buildMovableSeelenfunkeItems() {
+        const goldMat     = this.mats.gold24k;
+        const roseGoldMat = this.mats.roseGold;
+        const obsidianMat = this.mats.obsidian;
+        const leafMat     = this.mats.leafGreen;
+
+        const makeItemGroup = () => {
+            const g = new THREE.Group();
+            g.matrixAutoUpdate = true;
+            return g;
+        };
+
+        // 1. TROPHY: Goldener Seelenfunke-Wanderpokal
+        {
+            const g = makeItemGroup();
+            const base = new THREE.Mesh(new RoundedBoxGeometry(0.17, 0.045, 0.17, 2, 0.01), obsidianMat);
+            base.position.y = 0.0225;
+            const collar = new THREE.Mesh(new RoundedBoxGeometry(0.135, 0.022, 0.135, 1, 0.006), goldMat);
+            collar.position.y = 0.054;
+            const plaque = new THREE.Mesh(new THREE.PlaneGeometry(0.145, 0.036), this.plaqueMats.trophy);
+            plaque.position.set(0, 0.024, 0.088);
+            const cupPts = [
+                new THREE.Vector2(0.00, 0.00), new THREE.Vector2(0.055, 0.00),
+                new THREE.Vector2(0.024, 0.045), new THREE.Vector2(0.024, 0.095),
+                new THREE.Vector2(0.088, 0.195), new THREE.Vector2(0.096, 0.235)
+            ];
+            const cup = new THREE.Mesh(new THREE.LatheGeometry(cupPts, 14), goldMat);
+            cup.position.y = 0.065;
+            for (const sx of [-1, 1]) {
+                const handle = new THREE.Mesh(new THREE.TorusGeometry(0.048, 0.009, 6, 12, Math.PI * 1.15), goldMat);
+                handle.position.set(sx * 0.075, 0.22, 0);
+                handle.rotation.z = sx * (-Math.PI * 0.5);
+                g.add(handle);
+            }
+            const starFinial = new THREE.Mesh(new THREE.OctahedronGeometry(0.040, 0), this.mats.warmBulb);
+            starFinial.position.y = 0.34;
+            g.add(base, collar, plaque, cup, starFinial);
+            this.worldItems.trophy.group = g;
+        }
+
+        // 2. FLOWERPOT: Goldener Seelenfunke-Blumentopf mit Goldblüten
+        {
+            const g = makeItemGroup();
+            const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.105, 0.076, 0.155, 14), goldMat);
+            pot.position.y = 0.078;
+            const rim = new THREE.Mesh(new THREE.TorusGeometry(0.105, 0.011, 8, 16), obsidianMat);
+            rim.rotation.x = Math.PI / 2;
+            rim.position.y = 0.155;
+            const soil = new THREE.Mesh(new THREE.CylinderGeometry(0.098, 0.098, 0.02, 12), this.mats.soilRich);
+            soil.position.y = 0.148;
+            const plaque = new THREE.Mesh(new THREE.PlaneGeometry(0.135, 0.044), this.plaqueMats.flowers);
+            plaque.position.set(0, 0.085, 0.098);
+            g.add(pot, rim, soil, plaque);
+            for (let i = 0; i < 5; i++) {
+                const ang = (i / 5) * Math.PI * 2;
+                const lf = new THREE.Mesh(new THREE.SphereGeometry(0.055, 8, 6), leafMat);
+                lf.scale.set(1.25, 0.35, 0.8);
+                lf.position.set(Math.cos(ang) * 0.065, 0.18, Math.sin(ang) * 0.065);
+                lf.rotation.y = -ang;
+                g.add(lf);
+            }
+            const flowerSpecs = [[0, 0.29, 0, goldMat], [-0.045, 0.25, 0.03, this.mats.tulipPink], [0.045, 0.26, -0.02, this.mats.sunflowerYellow]];
+            for (const [fx, fy, fz, fmat] of flowerSpecs) {
+                const st = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.12, 6), leafMat);
+                st.position.set(fx * 0.6, fy - 0.06, fz * 0.6);
+                const bl = new THREE.Mesh(new THREE.DodecahedronGeometry(0.036, 0), fmat);
+                bl.position.set(fx, fy, fz);
+                g.add(st, bl);
+            }
+            this.worldItems.flowerpot.group = g;
+        }
+
+        // 3. VASE: Goldene Seelenfunke-Rosenvase
+        {
+            const g = makeItemGroup();
+            const vPts = [
+                new THREE.Vector2(0.00, 0.00), new THREE.Vector2(0.062, 0.00),
+                new THREE.Vector2(0.092, 0.08), new THREE.Vector2(0.052, 0.17), new THREE.Vector2(0.072, 0.22)
+            ];
+            const body = new THREE.Mesh(new THREE.LatheGeometry(vPts, 14), obsidianMat);
+            const goldBand = new THREE.Mesh(new THREE.TorusGeometry(0.088, 0.009, 8, 16), goldMat);
+            goldBand.rotation.x = Math.PI / 2;
+            goldBand.position.y = 0.095;
+            const plaque = new THREE.Mesh(new THREE.PlaneGeometry(0.125, 0.040), this.plaqueMats.goldMain);
+            plaque.position.set(0, 0.095, 0.096);
+            g.add(body, goldBand, plaque);
+            for (let r = 0; r < 5; r++) {
+                const ang = r * 1.256;
+                const rad = (r === 0) ? 0 : 0.036;
+                const st = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.14, 5), leafMat);
+                st.position.set(Math.cos(ang) * rad * 0.7, 0.24, Math.sin(ang) * rad * 0.7);
+                const bl = new THREE.Mesh(new THREE.DodecahedronGeometry(0.030, 0), (r === 0) ? goldMat : this.mats.roseBloom);
+                bl.position.set(Math.cos(ang) * rad, 0.29 + (r === 0 ? 0.025 : 0), Math.sin(ang) * rad);
+                g.add(st, bl);
+            }
+            this.worldItems.vase.group = g;
+        }
+
+        // 4. PIGGYBANK: Goldene Seelenfunke-Schatzkasse / Spardose
+        {
+            const g = makeItemGroup();
+            const body = new THREE.Mesh(new THREE.CylinderGeometry(0.092, 0.092, 0.175, 16), goldMat);
+            body.position.y = 0.092;
+            const base = new THREE.Mesh(new THREE.CylinderGeometry(0.098, 0.098, 0.022, 16), obsidianMat);
+            base.position.y = 0.011;
+            const lid = new THREE.Mesh(new THREE.CylinderGeometry(0.096, 0.096, 0.022, 16), roseGoldMat);
+            lid.position.y = 0.182;
+            const slot = new THREE.Mesh(new RoundedBoxGeometry(0.085, 0.012, 0.016, 1, 0.003), obsidianMat);
+            slot.position.y = 0.194;
+            const coin = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.028, 0.007, 12), goldMat);
+            coin.rotation.x = Math.PI / 2;
+            coin.position.set(0, 0.212, 0);
+            const plaque = new THREE.Mesh(new THREE.PlaneGeometry(0.138, 0.046), this.plaqueMats.obsidianMain);
+            plaque.position.set(0, 0.096, 0.096);
+            g.add(body, base, lid, slot, coin, plaque);
+            this.worldItems.piggybank.group = g;
+        }
+
+        // 5. MUG: Schwarz-Goldene Seelenfunke-Lieblingstasse
+        {
+            const g = makeItemGroup();
+            const saucer = new THREE.Mesh(new THREE.CylinderGeometry(0.095, 0.072, 0.016, 14), goldMat);
+            saucer.position.y = 0.008;
+            const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.054, 0.128, 14), obsidianMat);
+            cup.position.y = 0.076;
+            const cupRim = new THREE.Mesh(new THREE.TorusGeometry(0.062, 0.007, 8, 16), goldMat);
+            cupRim.rotation.x = Math.PI / 2;
+            cupRim.position.y = 0.14;
+            const coffeeTop = new THREE.Mesh(new THREE.CylinderGeometry(0.056, 0.056, 0.006, 12), this.mats.cognacLeather);
+            coffeeTop.position.y = 0.132;
+            const handle = new THREE.Mesh(new THREE.TorusGeometry(0.036, 0.008, 6, 12, Math.PI * 1.15), goldMat);
+            handle.position.set(0.064, 0.082, 0);
+            handle.rotation.z = -Math.PI * 0.5;
+            const plaque = new THREE.Mesh(new THREE.PlaneGeometry(0.098, 0.036), this.plaqueMats.goldMain);
+            plaque.position.set(0, 0.080, 0.063);
+            g.add(saucer, cup, cupRim, coffeeTop, handle, plaque);
+            this.worldItems.mug.group = g;
+        }
+
+        // 6. LANTERN: Goldene Seelenfunke-Gartenlaterne
+        {
+            const g = makeItemGroup();
+            const base = new THREE.Mesh(new RoundedBoxGeometry(0.16, 0.032, 0.16, 2, 0.008), obsidianMat);
+            base.position.y = 0.016;
+            const chamber = new THREE.Mesh(new RoundedBoxGeometry(0.115, 0.16, 0.115, 1, 0.01), this.mats.crystalGlass);
+            chamber.position.y = 0.112;
+            const candle = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.028, 0.085, 10), this.mats.warmBulb);
+            candle.position.y = 0.078;
+            for (const [px, pz] of [[-0.062, -0.062], [0.062, -0.062], [-0.062, 0.062], [0.062, 0.062]]) {
+                const post = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.165, 6), goldMat);
+                post.position.set(px, 0.114, pz);
+                g.add(post);
+            }
+            const roof = new THREE.Mesh(new THREE.ConeGeometry(0.125, 0.075, 4), goldMat);
+            roof.rotation.y = Math.PI / 4;
+            roof.position.y = 0.23;
+            const ring = new THREE.Mesh(new THREE.TorusGeometry(0.028, 0.006, 6, 12), goldMat);
+            ring.position.y = 0.285;
+            const plaque = new THREE.Mesh(new THREE.PlaneGeometry(0.132, 0.034), this.plaqueMats.obsidianMain);
+            plaque.position.set(0, 0.018, 0.083);
+            g.add(base, chamber, candle, roof, ring, plaque);
+            this.worldItems.lantern.group = g;
+        }
+
+        // 7. GIFTBOX: Schwarze Westpack-Geschenkbox Mein Seelenfunke
+        {
+            const g = makeItemGroup();
+            const box = new THREE.Mesh(new RoundedBoxGeometry(0.22, 0.115, 0.18, 2, 0.015), obsidianMat);
+            box.position.y = 0.058;
+            const lid = new THREE.Mesh(new RoundedBoxGeometry(0.23, 0.032, 0.19, 2, 0.01), obsidianMat);
+            lid.position.y = 0.106;
+            const ribX = new THREE.Mesh(new RoundedBoxGeometry(0.234, 0.122, 0.026, 1, 0.004), goldMat);
+            ribX.position.y = 0.062;
+            const ribZ = new THREE.Mesh(new RoundedBoxGeometry(0.026, 0.122, 0.194, 1, 0.004), goldMat);
+            ribZ.position.y = 0.062;
+            for (const sx of [-1, 1]) {
+                const loop = new THREE.Mesh(new THREE.TorusGeometry(0.028, 0.008, 6, 12), goldMat);
+                loop.position.set(sx * 0.026, 0.136, 0);
+                loop.rotation.z = sx * 0.45;
+                g.add(loop);
+            }
+            const seal = new THREE.Mesh(new THREE.PlaneGeometry(0.155, 0.046), this.plaqueMats.goldMain);
+            seal.position.set(0, 0.058, 0.098);
+            g.add(box, lid, ribX, ribZ, seal);
+            this.worldItems.giftbox.group = g;
+        }
+
+        // 8. FRAME: Goldener Seelenfunke-Tischbilderrahmen
+        {
+            const g = makeItemGroup();
+            const easelGrp = new THREE.Group();
+            easelGrp.position.set(0, 0.115, 0.01);
+            easelGrp.rotation.x = -0.16;
+            const outer = new THREE.Mesh(new RoundedBoxGeometry(0.23, 0.21, 0.024, 2, 0.01), goldMat);
+            const matte = new THREE.Mesh(new RoundedBoxGeometry(0.19, 0.17, 0.026, 1, 0.006), obsidianMat);
+            const art = new THREE.Mesh(
+                new THREE.PlaneGeometry(0.175, 0.155),
+                new THREE.MeshBasicMaterial({ map: makeSeelenfunkeArtCanvasTexture('spark_mandala', 'MEIN SEELENFUNKE') })
+            );
+            art.position.z = 0.015;
+            const plaque = new THREE.Mesh(new THREE.PlaneGeometry(0.15, 0.036), this.plaqueMats.obsidianMain);
+            plaque.position.set(0, -0.088, 0.016);
+            easelGrp.add(outer, matte, art, plaque);
+            const strut = new THREE.Mesh(new RoundedBoxGeometry(0.035, 0.16, 0.014, 1, 0.004), obsidianMat);
+            strut.position.set(0, 0.075, -0.042);
+            strut.rotation.x = 0.38;
+            g.add(easelGrp, strut);
+            this.worldItems.frame.group = g;
+        }
+
+        // Position every 3D item at its persisted location (or default home spot if never moved yet)
+        for (const spec of this._defaultItemSpecs) {
+            const saved = this.savedItemPlacements[spec.id];
+            if (saved && this.dropSpots[saved.spotKey]) {
+                const xz = (Number.isFinite(saved.x) && Number.isFinite(saved.z)) ? [saved.x, saved.z] : null;
+                this._placeItemImmediate(spec.id, saved.spotKey, xz, false);
+            } else {
+                const sp = this.dropSpots[spec.defaultSpot];
+                this._placeItemImmediate(spec.id, spec.defaultSpot, sp.slots[0], false);
+            }
         }
     }
 
@@ -2877,17 +4719,52 @@ class FunkiraAtelierEngine {
 
         const occ = this.worldState.occasion || 'none';
         const sea = this.worldState.season || 'autumn';
+        const isXmasSeason = (occ === 'advent' || occ === 'christmas' || occ === 'nikolaus');
+        const isSilvester = (occ === 'silvester' || occ === 'new_year');
+
         if (this.occasionGroups.christmas) {
-            this.occasionGroups.christmas.visible = (occ === 'advent' || occ === 'christmas');
+            this.occasionGroups.christmas.visible = isXmasSeason;
+        }
+
+        // Sync Outdoor 3D Garden Seasonal & Holiday Groups
+        if (this.gardenSeasonGroups.spring) this.gardenSeasonGroups.spring.visible = (sea === 'spring');
+        if (this.gardenSeasonGroups.summer) this.gardenSeasonGroups.summer.visible = (sea === 'summer');
+        if (this.gardenSeasonGroups.autumn) this.gardenSeasonGroups.autumn.visible = (sea === 'autumn');
+        if (this.gardenSeasonGroups.winter) this.gardenSeasonGroups.winter.visible = (sea === 'winter');
+
+        if (this.gardenOccasionGroups.christmas) this.gardenOccasionGroups.christmas.visible = isXmasSeason;
+        if (this.gardenOccasionGroups.silvester) this.gardenOccasionGroups.silvester.visible = isSilvester;
+        if (this.gardenOccasionGroups.easter) this.gardenOccasionGroups.easter.visible = (occ === 'easter');
+        if (this.gardenOccasionGroups.halloween) this.gardenOccasionGroups.halloween.visible = (occ === 'halloween');
+        if (this.gardenOccasionGroups.celebration) {
+            this.gardenOccasionGroups.celebration.visible = (
+                occ === 'valentines' || occ === 'mothers_day' || occ === 'anniversary' || occ === 'pentecost'
+            );
+        }
+
+        if (!isSilvester && this.fireworkBursts) {
+            for (const fb of this.fireworkBursts) {
+                fb.rocketMesh.visible = false;
+                for (const sp of fb.sparks) sp.mesh.visible = false;
+            }
         }
 
         if (this.windowTexture) {
-            paintScenicWindowCanvas(this.windowCanvas, sea, this.worldState.isLateNight);
+            paintScenicWindowCanvas(this.windowCanvas, sea, this.worldState.isLateNight, occ);
             this.windowTexture.needsUpdate = true;
         }
+        if (this.gardenGroundTexture) {
+            paintGardenGroundCanvas(this.gardenGroundCanvas, sea, occ);
+            this.gardenGroundTexture.needsUpdate = true;
+        }
+        if (this.terraceDeckTexture) {
+            paintTerraceDeckCanvas(this.terraceDeckCanvas, sea);
+            this.terraceDeckTexture.needsUpdate = true;
+        }
+
         if (this.sunbeamMeshes && this.sunbeamMeshes.length > 0) {
             for (let i = 0; i < this.sunbeamMeshes.length; i++) {
-                this.sunbeamMeshes[i].visible = !this.worldState.isLateNight;
+                this.sunbeamMeshes[i].visible = (!this.worldState.isLateNight && !isSilvester);
             }
         }
 
@@ -2895,21 +4772,39 @@ class FunkiraAtelierEngine {
         if (this.weatherMat) {
             this.weatherMat.color.setHex(partColors[sea] || 0xE38B39);
         }
+        if (this.outdoorWeatherMat) {
+            this.outdoorWeatherMat.color.setHex(partColors[sea] || 0xE38B39);
+        }
+
+        // Outdoor Sky Backdrop Tint when Funkira steps onto Terrasse / Garten
+        if (this.worldState.isLateNight || isSilvester) {
+            this.outdoorSkyColor.setHex(0x0d1224);
+        } else if (sea === 'winter') {
+            this.outdoorSkyColor.setHex(0x3a506b);
+        } else if (sea === 'spring') {
+            this.outdoorSkyColor.setHex(0x3a6488);
+        } else if (sea === 'summer') {
+            this.outdoorSkyColor.setHex(0x2f6899);
+        } else {
+            this.outdoorSkyColor.setHex(0x3d2e44);
+        }
 
         if (this.outfits.scarf) {
-            this.outfits.scarf.visible = (sea === 'winter' || sea === 'autumn' || occ === 'advent' || occ === 'christmas');
+            this.outfits.scarf.visible = (sea === 'winter' || sea === 'autumn' || isXmasSeason);
         }
         if (this.outfits.santaHat) {
-            this.outfits.santaHat.visible = (occ === 'advent' || occ === 'christmas');
+            this.outfits.santaHat.visible = isXmasSeason;
         }
         if (this.outfits.bunnyEars) {
             this.outfits.bunnyEars.visible = (occ === 'easter');
         }
         if (this.outfits.sunglasses) {
-            this.outfits.sunglasses.visible = (sea === 'summer' && occ === 'none' && !this.worldState.isLateNight);
+            this.outfits.sunglasses.visible = (sea === 'summer' && (occ === 'none' || occ === 'standard') && !this.worldState.isLateNight);
         }
         if (this.outfits.crown) {
-            this.outfits.crown.visible = (occ === 'anniversary' || occ === 'new_year' || occ === 'valentines' || occ === 'mothers_day');
+            this.outfits.crown.visible = (
+                occ === 'anniversary' || isSilvester || occ === 'valentines' || occ === 'mothers_day'
+            );
         }
     }
 
@@ -3000,6 +4895,12 @@ class FunkiraAtelierEngine {
         torsoPivot.position.y = 0.08;
         pelvis.add(torsoPivot);
         this.rig.torso = torsoPivot;
+
+        const carryAnchor = new THREE.Group();
+        carryAnchor.matrixAutoUpdate = true;
+        carryAnchor.position.set(0, 0.13, 0.33);
+        torsoPivot.add(carryAnchor);
+        this.rig.carryAnchor = carryAnchor;
 
         const torsoPoints = [
             new THREE.Vector2(0.00, 0.00),
@@ -3149,6 +5050,63 @@ class FunkiraAtelierEngine {
         cloth.visible = false;
         this.rig.armL.wristPivot.add(cloth);
         this.rig.cloth = cloth;
+
+        // Rose-Gold & 24K Gold Gießkanne (Watering Can) in Right Hand for 3D Gartenarbeit!
+        const wateringCan = new THREE.Group();
+        const wcBody = new THREE.Mesh(new THREE.CylinderGeometry(0.082, 0.098, 0.19, 14), roseGoldMat);
+        wcBody.position.set(0, -0.15, 0.08);
+        const wcRim = new THREE.Mesh(new THREE.TorusGeometry(0.082, 0.012, 8, 16), gold24kMat);
+        wcRim.rotation.x = Math.PI / 2;
+        wcRim.position.set(0, -0.055, 0.08);
+        const wcHandle = new THREE.Mesh(new THREE.TorusGeometry(0.088, 0.014, 8, 16, Math.PI * 1.28), gold24kMat);
+        wcHandle.rotation.y = Math.PI / 2;
+        wcHandle.position.set(0, -0.055, 0.04);
+        const wcSpout = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.024, 0.22, 10), gold24kMat);
+        wcSpout.position.set(0, -0.10, 0.22);
+        wcSpout.rotation.x = 0.88;
+        const wcRoseHead = new THREE.Mesh(new THREE.ConeGeometry(0.038, 0.042, 10), gold24kMat);
+        wcRoseHead.position.set(0, -0.03, 0.31);
+        wcRoseHead.rotation.x = 0.88 + Math.PI;
+        const spoutTip = new THREE.Object3D();
+        spoutTip.position.set(0, -0.02, 0.33);
+        wateringCan.add(wcBody, wcRim, wcHandle, wcSpout, wcRoseHead, spoutTip);
+        if (this.plaqueMats && this.plaqueMats.mowerObs) {
+            for (const side of [-1, 1]) {
+                const wcBadge = new THREE.Mesh(new THREE.PlaneGeometry(0.11, 0.042), this.plaqueMats.mowerObs);
+                wcBadge.position.set(side * 0.091, -0.15, 0.08);
+                wcBadge.rotation.y = side * Math.PI * 0.5;
+                wateringCan.add(wcBadge);
+            }
+        }
+        wateringCan.visible = false;
+        this.rig.armR.wristPivot.add(wateringCan);
+        this.rig.wateringCan = wateringCan;
+        this.rig.wateringSpoutTip = spoutTip;
+
+        const wdGeo = new THREE.BoxGeometry(0.022, 0.044, 0.022);
+        for (let i = 0; i < 16; i++) {
+            const wd = new THREE.Mesh(wdGeo, this.mats.waterBlue);
+            wd.visible = false;
+            this.scene.add(wd);
+            this.waterDropParticles.push({ mesh: wd, vx: 0, vy: 0, vz: 0, life: 0 });
+        }
+
+        // 24K Gold & Walnut Gartenschaufel / Pflanzkelle (Garden Trowel) in Right Hand!
+        const gardenTrowel = new THREE.Group();
+        const trHandle = new THREE.Mesh(new THREE.CylinderGeometry(0.017, 0.019, 0.14, 8), this.mats.broomWood);
+        trHandle.position.set(0, -0.06, 0.02);
+        trHandle.rotation.x = Math.PI * 0.38;
+        const trFerrule = new THREE.Mesh(new THREE.CylinderGeometry(0.020, 0.020, 0.025, 8), gold24kMat);
+        trFerrule.position.set(0, -0.09, 0.09);
+        trFerrule.rotation.x = Math.PI * 0.38;
+        const trBlade = new THREE.Mesh(new THREE.ConeGeometry(0.052, 0.16, 6), gold24kMat);
+        trBlade.scale.set(1.0, 1.0, 0.32);
+        trBlade.position.set(0, -0.14, 0.19);
+        trBlade.rotation.x = Math.PI * 0.42;
+        gardenTrowel.add(trHandle, trFerrule, trBlade);
+        gardenTrowel.visible = false;
+        this.rig.armR.wristPivot.add(gardenTrowel);
+        this.rig.gardenTrowel = gardenTrowel;
 
         // Luxury Seelenfunke Obsidian & 24K Gold Smartphone in Right Hand (for Whitelist Phone-Concierge!)
         const smartphone = new THREE.Group();
@@ -3484,28 +5442,75 @@ class FunkiraAtelierEngine {
     }
 
     // ========================================================================
-    // AUTONOMOUS 2-STORY HOUSE PAUSE WORKFLOW (EG + TREPPE + OG) & POSES
+    // AUTONOMOUS 2-STORY HOUSE + TERRASSE & GARTEN PAUSE WORKFLOW & POSES
     // ========================================================================
     _pickNextAutonomousTask(nowMs, immediate = false) {
+        if (this.currentTask === 'mow_lawn') {
+            this._parkLawnMowerHome();
+            this.moveSpeed = 1.48;
+        }
         const lvl = this.worldState.shopLevel || 1;
+        const sea = this.worldState.season || 'autumn';
+        const occ = this.worldState.occasion || 'none';
+        const isSilvester = (occ === 'silvester' || occ === 'new_year');
+        const isXmasSeason = (occ === 'advent' || occ === 'christmas' || occ === 'nikolaus');
+
         const tasks = [
-            { id: 'living_sofa',    floor: 0, x: -1.85, z:  1.95, yaw: -Math.PI * 0.5, emotion: 'sweet',   gesture: 'hands_on_cheeks', dur: 16500 },
-            { id: 'kitchen_island', floor: 0, x:  2.35, z:  4.45, yaw: -Math.PI * 0.5, emotion: 'happy',   gesture: 'polish',          dur: 15500 },
-            { id: 'office_desk',    floor: 0, x: -1.08, z: -1.30, yaw: -Math.PI * 0.5, emotion: 'curious', gesture: 'point_left',      dur: 14500 },
-            { id: 'gym_workout',    floor: 0, x:  1.25, z: -5.25, yaw:  Math.PI * 0.5, emotion: 'excited', gesture: 'cheer',           dur: 14500 },
-            { id: 'og_studio',      floor: 1, x: -1.45, z: -5.00, yaw:  Math.PI,       emotion: 'curious', gesture: 'hands_on_hips',   dur: 14500 },
-            { id: 'polish',         floor: 1, x: -1.65, z:  4.68, yaw:  0.0,           emotion: 'proud',   gesture: 'polish',          dur: 14000 }
+            { id: 'living_sofa',    floor: 0, x: -1.85, z:  1.95, yaw: -Math.PI * 0.5, emotion: 'sweet',   gesture: 'hands_on_cheeks', dur: 16000 },
+            { id: 'kitchen_island', floor: 0, x:  2.35, z:  4.45, yaw: -Math.PI * 0.5, emotion: 'happy',   gesture: 'polish',          dur: 15000 }
         ];
+
+        // Seasonal & Holiday Outdoor Terrace & Garden Tasks (incl. Golden SEELENFUNKE Lawn Mower)!
+        if (isSilvester) {
+            tasks.push(
+                { id: 'silvester_fireworks', floor: 0, x: -0.35, z: 8.35, yaw: 0.0, emotion: 'excited', gesture: 'cheer', dur: 18500 },
+                { id: 'silvester_toast',     floor: 0, x:  0.55, z: 7.85, yaw: Math.PI * 0.4, emotion: 'happy', gesture: 'wave', dur: 15500 }
+            );
+        } else if (!this.worldState.isLateNight) {
+            if (sea === 'spring' || sea === 'summer') {
+                tasks.push(
+                    { id: 'hochbeet_water', floor: 0, x:  2.02, z:  8.60, yaw:  Math.PI * 0.5, emotion: 'sweet', gesture: 'water_plants',    dur: 16500 },
+                    { id: 'mow_lawn',       floor: 0, x:  2.18, z:  9.95, yaw: -Math.PI * 0.5, emotion: 'proud', gesture: 'push_mower',      dur: 19500 },
+                    { id: 'flowerbed_tend', floor: 0, x: -2.45, z:  9.98, yaw:  0.0,           emotion: 'happy', gesture: 'garden_work',     dur: 16500 },
+                    { id: 'terrace_sun',    floor: 0, x: -0.72, z:  8.32, yaw:  0.0,           emotion: 'happy', gesture: 'hands_on_cheeks', dur: 15000 }
+                );
+            } else if (sea === 'autumn') {
+                tasks.push(
+                    { id: 'hochbeet_water', floor: 0, x:  2.02, z:  8.60, yaw:  Math.PI * 0.5, emotion: 'sweet', gesture: 'water_plants', dur: 16000 },
+                    { id: 'mow_lawn',       floor: 0, x:  2.18, z:  9.95, yaw: -Math.PI * 0.5, emotion: 'proud', gesture: 'push_mower',   dur: 18500 },
+                    { id: 'terrace_sweep',  floor: 0, x: -0.72, z:  8.32, yaw:  0.25,          emotion: 'happy', gesture: 'sweep',        dur: 15500 },
+                    { id: 'flowerbed_tend', floor: 0, x: -2.45, z:  9.98, yaw:  0.0,           emotion: 'happy', gesture: 'garden_work',  dur: 16000 }
+                );
+            } else if (sea === 'winter') {
+                tasks.push(
+                    { id: 'snowman_visit',  floor: 0, x: -2.62, z:  9.55, yaw: -Math.PI * 0.42, emotion: 'excited', gesture: 'wave', dur: 15500 },
+                    { id: 'terrace_sweep',  floor: 0, x: -0.72, z:  8.32, yaw: 0.20,            emotion: 'happy',   gesture: 'sweep', dur: 15000 }
+                );
+            }
+            if (occ === 'easter') {
+                tasks.push({ id: 'easter_garden', floor: 0, x: -0.35, z: 10.65, yaw: 0.0, emotion: 'excited', gesture: 'cheer', dur: 16000 });
+            } else if (isXmasSeason) {
+                tasks.push({ id: 'xmas_garden_tree', floor: 0, x: 0.85, z: 10.75, yaw: Math.PI * 0.32, emotion: 'sweet', gesture: 'hands_on_cheeks', dur: 16000 });
+            }
+        }
+
+        tasks.push(
+            { id: 'office_desk', floor: 0, x: -1.08, z: -1.30, yaw: -Math.PI * 0.5, emotion: 'curious', gesture: 'point_left',    dur: 14500 },
+            { id: 'gym_workout', floor: 0, x:  1.25, z: -5.25, yaw:  Math.PI * 0.5, emotion: 'excited', gesture: 'cheer',         dur: 14500 },
+            { id: 'og_studio',   floor: 1, x: -1.45, z: -5.00, yaw:  Math.PI,       emotion: 'curious', gesture: 'hands_on_hips', dur: 14500 },
+            { id: 'polish',      floor: 1, x: -1.65, z:  4.68, yaw:  0.0,           emotion: 'proud',   gesture: 'polish',        dur: 14000 }
+        );
+
         if (lvl >= 3) {
             tasks.push({ id: 'laser', floor: 1, x: 1.72, z: 4.68, yaw: 0.0, emotion: 'curious', gesture: 'point_left', dur: 13500 });
         }
-        if (this.worldState.isLateNight) {
+        if (this.worldState.isLateNight && !isSilvester) {
             tasks.push({ id: 'bedroom_rest', floor: 0, x: -1.45, z: -4.65, yaw: -Math.PI * 0.5, emotion: 'sleepy', gesture: 'idle', dur: 17500 });
         }
 
         if (immediate) {
-            // Head straight down the 3D Treppe into Wohn-/Esszimmer or Küche on Pause start!
-            this.taskIndex = Math.random() < 0.55 ? 0 : 1;
+            // On Pause start: head outside on Silvester / daytime pleasant weather, or into Wohnzimmer/Küche!
+            this.taskIndex = (!this.worldState.isLateNight || isSilvester) && tasks.length > 2 ? 2 : (Math.random() < 0.55 ? 0 : 1);
         } else {
             this.taskIndex = (this.taskIndex + 1) % tasks.length;
         }
@@ -3525,6 +5530,30 @@ class FunkiraAtelierEngine {
         };
 
         if (isWalking) {
+            if (activeGesture === 'push_mower' && !this.phoneCallActive) {
+                const vib = Math.sin(tSec * 28.0) * 0.012;
+                pose.rS = [-0.92 + vib, -0.10, -0.08];
+                pose.rE = [-0.36, 0, 0.08];
+                pose.rW = [0.10, 0, 0];
+                pose.rCurl = 0.88;
+                pose.lS = [-0.92 + vib, 0.10, 0.08];
+                pose.lE = [-0.36, 0, -0.08];
+                pose.lW = [0.10, 0, 0];
+                pose.lCurl = 0.88;
+                return pose;
+            }
+            if (this.carriedItemId && !this.phoneCallActive) {
+                const bob = Math.sin(walkCycle * 2.0) * 0.035;
+                pose.rS = [-0.82 + bob, -0.26, -0.14];
+                pose.rE = [-0.92, -0.18, 0.22];
+                pose.rW = [0.16, 0.18, 0];
+                pose.rCurl = 0.65;
+                pose.lS = [-0.82 + bob, 0.26, 0.14];
+                pose.lE = [-0.92, 0.18, -0.22];
+                pose.lW = [0.16, -0.18, 0];
+                pose.lCurl = 0.65;
+                return pose;
+            }
             const sw = Math.sin(walkCycle) * 0.58;
             if (this.phoneCallActive) {
                 pose.rS = [-2.12, 0.36, -0.84];
@@ -3729,6 +5758,69 @@ class FunkiraAtelierEngine {
                 break;
             }
 
+            case 'water_plants': {
+                const sway = Math.sin(tSec * 2.3) * 0.16;
+                const tilt = Math.sin(tSec * 3.1) * 0.06;
+                pose.rS = [-0.96, sway, -0.22];
+                pose.rE = [-0.62, 0, 0.12];
+                pose.rW = [0.44 + tilt, 0, 0];
+                pose.rCurl = 0.84;
+                pose.lS = [0.15, -0.25, 0.78];
+                pose.lE = [-1.25, 0.35, -0.72];
+                pose.lCurl = 0.65;
+                break;
+            }
+
+            case 'garden_work': {
+                const dig = Math.sin(tSec * 4.4);
+                pose.rS = [-1.06 + dig * 0.28, -0.14, -0.24];
+                pose.rE = [-0.78 - dig * 0.24, 0, 0.18];
+                pose.rW = [0.26 + dig * 0.22, 0, 0];
+                pose.rCurl = 0.86;
+                pose.lS = [-0.88 - dig * 0.16, 0.18, 0.28];
+                pose.lE = [-0.82, 0, -0.20];
+                pose.lCurl = 0.45;
+                break;
+            }
+
+            case 'carry_hold': {
+                const cr = Math.sin(tSec * 2.4) * 0.025;
+                pose.rS = [-0.82 + cr, -0.26, -0.14];
+                pose.rE = [-0.92, -0.18, 0.22];
+                pose.rW = [0.16, 0.18, 0];
+                pose.rCurl = 0.65;
+                pose.lS = [-0.82 + cr, 0.26, 0.14];
+                pose.lE = [-0.92, 0.18, -0.22];
+                pose.lW = [0.16, -0.18, 0];
+                pose.lCurl = 0.65;
+                break;
+            }
+
+            case 'carry_reach': {
+                pose.rS = [-1.18, -0.16, -0.10];
+                pose.rE = [-0.42, -0.10, 0.14];
+                pose.rW = [0.22, 0.10, 0];
+                pose.rCurl = 0.42;
+                pose.lS = [-1.18, 0.16, 0.10];
+                pose.lE = [-0.42, 0.10, -0.14];
+                pose.lW = [0.22, -0.10, 0];
+                pose.lCurl = 0.42;
+                break;
+            }
+
+            case 'push_mower': {
+                const vib = Math.sin(tSec * 26.0) * 0.010;
+                pose.rS = [-0.92 + vib, -0.10, -0.08];
+                pose.rE = [-0.36, 0, 0.08];
+                pose.rW = [0.10, 0, 0];
+                pose.rCurl = 0.88;
+                pose.lS = [-0.92 + vib, 0.10, 0.08];
+                pose.lE = [-0.36, 0, -0.08];
+                pose.lW = [0.10, 0, 0];
+                pose.lCurl = 0.88;
+                break;
+            }
+
             default: {
                 const br = Math.sin(tSec * 1.9) * 0.04;
                 const sp = this.isSpeaking ? Math.sin(tSec * 5.2) * 0.10 : 0;
@@ -3807,6 +5899,12 @@ class FunkiraAtelierEngine {
         }
 
         if (this.activeBodyAction !== 'none' && this.bodyActionUntilMs > 0 && nowMs >= this.bodyActionUntilMs) {
+            if (this.activeBodyAction === 'mow_lawn') {
+                this._parkLawnMowerHome();
+                this.moveSpeed = 2.15;
+                this.waypoints = [];
+                this.targetPos.copy(this.pos);
+            }
             this.activeBodyAction = 'none';
             this.bodyActionUntilMs = 0;
         }
@@ -3816,9 +5914,20 @@ class FunkiraAtelierEngine {
             (this.gesture === 'point_photo' || this.gesture === 'point_colleagues' || this.gesture === 'point_picture')
         );
         const arrivedInAtelier = (this.pos.y >= OG_Y - 0.08 && this.pos.z >= 2.85 && (!this.waypoints || this.waypoints.length === 0));
-        if (this.mode === 'front_active' && arrivedInAtelier && !this.customNavActive) {
+        if (this.mode === 'front_active' && arrivedInAtelier && !this.customNavActive && !this.itemJob) {
             this.targetFloor = 1;
             this.targetPos.set(isPointingPhoto ? -0.18 : 0.0, OG_Y, isPointingPhoto ? 5.58 : 4.48);
+        }
+
+        // Autonomous or Commanded Golden SEELENFUNKE Lawn-Mowing Waypoint Loop
+        const isMowMode = (this.activeBodyAction === 'mow_lawn') || (this.mode === 'atelier_autonomous' && this.currentTask === 'mow_lawn');
+        if (isMowMode && !this._mowerParked && (!this.waypoints || this.waypoints.length === 0)) {
+            if (Math.hypot(this.targetPos.x - this.pos.x, this.targetPos.z - this.pos.z) <= 0.085) {
+                this._mowerLaneIdx = (this._mowerLaneIdx + 1) % this._mowerWaypoints.length;
+                const nxtWp = this._mowerWaypoints[this._mowerLaneIdx];
+                this.targetFloor = 0;
+                this.targetPos.set(nxtWp.x, 0.0, nxtWp.z);
+            }
         }
 
         // Smooth 2-Floor & Staircase Waypoint Locomotion
@@ -3850,19 +5959,81 @@ class FunkiraAtelierEngine {
 
             if (this.rig.broom) this.rig.broom.visible = false;
             if (this.rig.cloth) this.rig.cloth.visible = false;
+            if (this.rig.wateringCan) this.rig.wateringCan.visible = false;
+            if (this.rig.gardenTrowel) this.rig.gardenTrowel.visible = false;
         } else {
             this._enforceCharacterCollision();
             if (this.isSprintingHome) {
                 this.isSprintingHome = false;
                 this.moveSpeed = 2.4;
             }
+            // Start autonomous lawn mowing as soon as Funkira reaches the parked Golden SEELENFUNKE Mower!
+            if (this.mode === 'atelier_autonomous' && this.currentTask === 'mow_lawn' && this._mowerParked && (!this.waypoints || this.waypoints.length === 0)) {
+                this._mowerParked = false;
+                this._mowerLaneIdx = 0;
+                this.moveSpeed = 1.22;
+                const wp0 = this._mowerWaypoints[0];
+                this.targetFloor = 0;
+                this.targetPos.set(wp0.x, 0.0, wp0.z);
+            }
             if (this.pendingBodyAction) {
                 const queuedAct = this.pendingBodyAction;
+                const queuedDur = this.pendingBodyDurationSec || 0;
                 this.pendingBodyAction = null;
-                this.executeMovement({ target: 'stay', bodyAction: queuedAct });
+                this.pendingBodyDurationSec = 0;
+                this.executeMovement({ target: 'stay', bodyAction: queuedAct, durationSeconds: queuedDur });
             }
 
-            // Compute natural camera-facing yaw anywhere in the 2-story house (Atelier = Math.PI, Dollhouse = ~0.0)
+            // 3D Item Pickup, Carry & Persistent Surface Placement State Machine!
+            if (this.itemJob && (!this.waypoints || this.waypoints.length === 0)) {
+                if (this.itemJob.phase === 'walking_to_pickup') {
+                    const it = this.worldItems[this.itemJob.itemId];
+                    if (!it) {
+                        this.itemJob = null;
+                    } else {
+                        this.itemJob.phase = 'reaching_pickup';
+                        this.itemJob.phaseTimer = 0.56;
+                        this.customFacingYaw = it.faceYaw;
+                        this.setExpression('curious', 'carry_reach', 1500);
+                    }
+                } else if (this.itemJob.phase === 'reaching_pickup') {
+                    const it = this.worldItems[this.itemJob.itemId];
+                    if (it) this.customFacingYaw = it.faceYaw;
+                    this.itemJob.phaseTimer -= dt;
+                    if (this.itemJob.phaseTimer <= 0) {
+                        this._attachItemToHands(this.itemJob.itemId);
+                        if (this.itemJob.destSpotKey && this.dropSpots[this.itemJob.destSpotKey]) {
+                            const ds = this.dropSpots[this.itemJob.destSpotKey];
+                            this.itemJob.phase = 'walking_to_drop';
+                            this.customFacingYaw = null;
+                            this._routeTo(ds.approachX, ds.approachZ, ds.floor);
+                            this.setExpression('happy', 'carry_hold', 14000);
+                        } else {
+                            this.itemJob = null;
+                            this.customFacingYaw = null;
+                            this.setExpression('proud', 'carry_hold', 12000);
+                        }
+                    }
+                } else if (this.itemJob.phase === 'walking_to_drop') {
+                    const ds = this.dropSpots[this.itemJob.destSpotKey] || this.dropSpots[this._nearestDropSpotKey()];
+                    this.itemJob.phase = 'reaching_place';
+                    this.itemJob.phaseTimer = 0.56;
+                    this.customFacingYaw = ds ? ds.faceYaw : this.facingYaw;
+                    this.setExpression('sweet', 'carry_reach', 1500);
+                } else if (this.itemJob.phase === 'reaching_place') {
+                    const ds = this.dropSpots[this.itemJob.destSpotKey] || this.dropSpots[this._nearestDropSpotKey()];
+                    if (ds) this.customFacingYaw = ds.faceYaw;
+                    this.itemJob.phaseTimer -= dt;
+                    if (this.itemJob.phaseTimer <= 0) {
+                        this._placeItemImmediate(this.itemJob.itemId, this.itemJob.destSpotKey, null, true);
+                        this.itemJob = null;
+                        this.customFacingYaw = null;
+                        this.setExpression('proud', 'hands_on_hips', 5500);
+                    }
+                }
+            }
+
+            // Compute natural camera-facing yaw anywhere in the 2-story house, Terrasse & Garten
             let desiredYaw;
             if (this.mode === 'front_active') {
                 if (typeof this.customFacingYaw === 'number') {
@@ -3892,8 +6063,11 @@ class FunkiraAtelierEngine {
 
             if (this.mode === 'atelier_autonomous') {
                 this.emotion = this.taskEmotion || 'happy';
-                if (this.rig.broom) this.rig.broom.visible = (this.currentTask === 'sweep');
+                const tGest = this.taskGesture || 'idle';
+                if (this.rig.broom) this.rig.broom.visible = (tGest === 'sweep' || this.currentTask === 'sweep');
                 if (this.rig.cloth) this.rig.cloth.visible = (this.currentTask === 'polish');
+                if (this.rig.wateringCan) this.rig.wateringCan.visible = (!this.phoneCallActive && tGest === 'water_plants');
+                if (this.rig.gardenTrowel) this.rig.gardenTrowel.visible = (!this.phoneCallActive && tGest === 'garden_work');
 
                 if (this.currentTask === 'polish' && Math.random() < 0.28) {
                     const freeSp = this.sparkParticles.find(s => s.life <= 0);
@@ -3907,12 +6081,17 @@ class FunkiraAtelierEngine {
                     }
                 }
             } else {
-                if (this.rig.broom) this.rig.broom.visible = false;
+                const showSweep = !this.phoneCallActive && (this.activeBodyAction === 'sweep_terrace' || this.gesture === 'sweep');
+                const showWater = !this.phoneCallActive && (this.activeBodyAction === 'water_plants' || this.gesture === 'water_plants');
+                const showTrowel = !this.phoneCallActive && (this.activeBodyAction === 'garden_work' || this.gesture === 'garden_work');
+                if (this.rig.broom) this.rig.broom.visible = showSweep;
                 if (this.rig.cloth) this.rig.cloth.visible = false;
+                if (this.rig.wateringCan) this.rig.wateringCan.visible = showWater;
+                if (this.rig.gardenTrowel) this.rig.gardenTrowel.visible = showTrowel;
             }
         }
 
-        // Full-Body 3D Posture Kinematics (Duck/Crouch, Parabolic Jump, 360 Spin, Bow, Stretch, Lean, Dance)
+        // Full-Body 3D Posture Kinematics (Duck/Crouch, Jump, Spin, Bow, Stretch, Lean, Dance, Gardening & Watering)
         let jumpAirY = 0.0;
         let spinYawAdd = 0.0;
         let torsoPitchTarget = 0.0;
@@ -3920,6 +6099,19 @@ class FunkiraAtelierEngine {
         let headPitchAdd = 0.0;
 
         this.currentRoom = this._roomNameAt(this.pos.x, this.pos.y, this.pos.z);
+        const isOutdoors = (this.pos.y < 0.5 && this.pos.z > 6.98);
+        const isActivelyMowing = isMowMode && !this._mowerParked;
+        const isReachingItemNow = !isWalking && Boolean(
+            this.itemJob && (this.itemJob.phase === 'reaching_pickup' || this.itemJob.phase === 'reaching_place')
+        );
+        const isGardeningNow = !isWalking && !this.phoneCallActive && (
+            this.activeBodyAction === 'garden_work' ||
+            (this.mode === 'atelier_autonomous' && this.taskGesture === 'garden_work')
+        );
+        const isWateringNow = !isWalking && !this.phoneCallActive && (
+            this.activeBodyAction === 'water_plants' ||
+            (this.mode === 'atelier_autonomous' && this.taskGesture === 'water_plants')
+        );
 
         const legBlend = 1 - Math.exp(-dt * 12.5);
         if (isWalking) {
@@ -3930,6 +6122,27 @@ class FunkiraAtelierEngine {
             this.rig.legL.kneePivot.rotation.x = lerp(this.rig.legL.kneePivot.rotation.x, Math.max(0, -sL) * 0.85, legBlend);
             this.rig.legR.kneePivot.rotation.x = lerp(this.rig.legR.kneePivot.rotation.x, Math.max(0, -sR) * 0.85, legBlend);
             this.rig.pelvis.position.y = lerp(this.rig.pelvis.position.y, 0.50 + Math.abs(Math.cos(this.walkPhase)) * 0.048, legBlend);
+            if (isActivelyMowing) {
+                torsoPitchTarget = 0.14;
+                headPitchAdd = 0.10;
+            }
+        } else if (isReachingItemNow) {
+            let surfRelY = 0.78;
+            if (this.itemJob.phase === 'reaching_pickup') {
+                const it = this.worldItems[this.itemJob.itemId];
+                if (it) surfRelY = it.y - this.pos.y;
+            } else {
+                const ds = this.dropSpots[this.itemJob.destSpotKey];
+                if (ds) surfRelY = ds.y - this.pos.y;
+            }
+            const lowReach = surfRelY < 0.58;
+            this.rig.pelvis.position.y = lerp(this.rig.pelvis.position.y, lowReach ? 0.365 : 0.475, legBlend);
+            this.rig.legL.hipPivot.rotation.x = lerp(this.rig.legL.hipPivot.rotation.x, lowReach ? -0.82 : -0.18, legBlend);
+            this.rig.legR.hipPivot.rotation.x = lerp(this.rig.legR.hipPivot.rotation.x, lowReach ? -0.82 : -0.18, legBlend);
+            this.rig.legL.kneePivot.rotation.x = lerp(this.rig.legL.kneePivot.rotation.x, lowReach ? 1.42 : 0.32, legBlend);
+            this.rig.legR.kneePivot.rotation.x = lerp(this.rig.legR.kneePivot.rotation.x, lowReach ? 1.42 : 0.32, legBlend);
+            torsoPitchTarget = lowReach ? 0.38 : 0.28;
+            headPitchAdd = 0.14;
         } else if (this.activeBodyAction === 'duck') {
             // Exact grounded 3D crouch: thigh 0.20m (-1.18 rad) + shin/boot 0.268m (+2.02 rad) -> boots stay planted at y = 0.00m!
             const breathe = Math.sin(tSec * 2.6) * 0.007;
@@ -3940,6 +6153,51 @@ class FunkiraAtelierEngine {
             this.rig.legR.kneePivot.rotation.x = lerp(this.rig.legR.kneePivot.rotation.x, 2.02, legBlend);
             torsoPitchTarget = 0.38;
             headPitchAdd = -0.34;
+        } else if (isGardeningNow) {
+            const atHochbeet = (this.pos.x > 1.55 && this.pos.z > 7.60 && this.pos.z < 9.55);
+            if (atHochbeet) {
+                this.rig.pelvis.position.y = lerp(this.rig.pelvis.position.y, 0.475, legBlend);
+                this.rig.legL.hipPivot.rotation.x = lerp(this.rig.legL.hipPivot.rotation.x, -0.18, legBlend);
+                this.rig.legR.hipPivot.rotation.x = lerp(this.rig.legR.hipPivot.rotation.x, -0.18, legBlend);
+                this.rig.legL.kneePivot.rotation.x = lerp(this.rig.legL.kneePivot.rotation.x, 0.32, legBlend);
+                this.rig.legR.kneePivot.rotation.x = lerp(this.rig.legR.kneePivot.rotation.x, 0.32, legBlend);
+                torsoPitchTarget = 0.28;
+                headPitchAdd = 0.16;
+            } else {
+                const bob = Math.sin(tSec * 4.4) * 0.012;
+                this.rig.pelvis.position.y = lerp(this.rig.pelvis.position.y, 0.325 + bob, legBlend);
+                this.rig.legL.hipPivot.rotation.x = lerp(this.rig.legL.hipPivot.rotation.x, -1.12, legBlend);
+                this.rig.legR.hipPivot.rotation.x = lerp(this.rig.legR.hipPivot.rotation.x, -1.12, legBlend);
+                this.rig.legL.kneePivot.rotation.x = lerp(this.rig.legL.kneePivot.rotation.x, 1.94, legBlend);
+                this.rig.legR.kneePivot.rotation.x = lerp(this.rig.legR.kneePivot.rotation.x, 1.94, legBlend);
+                torsoPitchTarget = 0.44;
+                headPitchAdd = 0.14;
+            }
+            if (Math.random() < 0.24) {
+                const freeSp = this.sparkParticles.find(s => s.life <= 0);
+                if (freeSp) {
+                    const fwdX = Math.sin(this.facingYaw) * 0.42;
+                    const fwdZ = Math.cos(this.facingYaw) * 0.42;
+                    freeSp.mesh.visible = true;
+                    freeSp.mesh.position.set(
+                        this.pos.x + fwdX + (Math.random() - 0.5) * 0.18,
+                        this.pos.y + (atHochbeet ? 0.82 : 0.22),
+                        this.pos.z + fwdZ + (Math.random() - 0.5) * 0.18
+                    );
+                    freeSp.vx = (Math.random() - 0.5) * 0.55;
+                    freeSp.vy = 0.35 + Math.random() * 0.45;
+                    freeSp.vz = (Math.random() - 0.5) * 0.55;
+                    freeSp.life = 0.38 + Math.random() * 0.22;
+                }
+            }
+        } else if (isWateringNow) {
+            this.rig.pelvis.position.y = lerp(this.rig.pelvis.position.y, 0.485, legBlend);
+            this.rig.legL.hipPivot.rotation.x = lerp(this.rig.legL.hipPivot.rotation.x, -0.10, legBlend);
+            this.rig.legR.hipPivot.rotation.x = lerp(this.rig.legR.hipPivot.rotation.x, -0.10, legBlend);
+            this.rig.legL.kneePivot.rotation.x = lerp(this.rig.legL.kneePivot.rotation.x, 0.18, legBlend);
+            this.rig.legR.kneePivot.rotation.x = lerp(this.rig.legR.kneePivot.rotation.x, 0.18, legBlend);
+            torsoPitchTarget = 0.18;
+            headPitchAdd = 0.14;
         } else if (this.activeBodyAction === 'jump') {
             const el = Math.max(0, (nowMs - this.bodyActionStartMs) * 0.001);
             if (el < 0.24) {
@@ -4059,20 +6317,64 @@ class FunkiraAtelierEngine {
         }
 
         let activeGest = (this.mode === 'atelier_autonomous' && !isWalking) ? (this.taskGesture || 'idle') : this.gesture;
-        if (!isWalking && !this.phoneCallActive) {
+        if (isActivelyMowing && !this.phoneCallActive) {
+            activeGest = 'push_mower';
+        } else if (isReachingItemNow && !this.phoneCallActive) {
+            activeGest = 'carry_reach';
+        } else if (this.carriedItemId && !this.phoneCallActive) {
+            activeGest = 'carry_hold';
+        } else if (!isWalking && !this.phoneCallActive) {
             if (this.activeBodyAction === 'duck') activeGest = 'duck';
             else if (this.activeBodyAction === 'bow') activeGest = 'bow';
             else if (this.activeBodyAction === 'stretch') activeGest = 'stretch';
             else if (this.activeBodyAction === 'spin') activeGest = 'spin_arms';
             else if (this.activeBodyAction === 'dance') activeGest = 'dance';
+            else if (this.activeBodyAction === 'water_plants') activeGest = 'water_plants';
+            else if (this.activeBodyAction === 'garden_work') activeGest = 'garden_work';
+            else if (this.activeBodyAction === 'sweep_terrace') activeGest = 'sweep';
+        }
+
+        // Live Golden SEELENFUNKE 3D Lawn Mower Motion, Spinning Wheels & Grass Clippings!
+        if (isActivelyMowing && this.lawnMowerGroup) {
+            const fwdX = Math.sin(this.facingYaw);
+            const fwdZ = Math.cos(this.facingYaw);
+            this.lawnMowerGroup.position.set(this.pos.x + fwdX * 0.68, 0.0, this.pos.z + fwdZ * 0.68);
+            this.lawnMowerGroup.rotation.set(0, this.facingYaw, 0);
+            if (this.lawnMowerDeck) {
+                this.lawnMowerDeck.position.y = Math.sin(tSec * 42.0) * 0.0045;
+            }
+            for (let w = 0; w < this.lawnMowerWheels.length; w++) {
+                this.lawnMowerWheels[w].rotation.x += dt * 7.8;
+            }
+            if (isWalking && Math.random() < 0.58) {
+                const freeGr = this.grassParticles.find(g => g.life <= 0);
+                if (freeGr) {
+                    freeGr.mesh.visible = true;
+                    freeGr.mesh.position.set(
+                        this.pos.x + fwdX * 0.52 + (Math.random() - 0.5) * 0.24,
+                        0.09,
+                        this.pos.z + fwdZ * 0.52 + (Math.random() - 0.5) * 0.24
+                    );
+                    freeGr.vx = -fwdX * (0.45 + Math.random() * 0.55) + (Math.random() - 0.5) * 0.75;
+                    freeGr.vy = 0.55 + Math.random() * 0.65;
+                    freeGr.vz = -fwdZ * (0.45 + Math.random() * 0.55) + (Math.random() - 0.5) * 0.75;
+                    freeGr.life = 0.42 + Math.random() * 0.22;
+                }
+            }
         }
         const armPose = this._solveArmTargets(activeGest, tSec, isWalking, this.walkPhase);
         const armBlend = 1 - Math.exp(-dt * 8.8);
         this._applyArmSmoothing(this.rig.armR, armPose.rS, armPose.rE, armPose.rW, armPose.rCurl, armPose.pointHand === 'R', armBlend);
         this._applyArmSmoothing(this.rig.armL, armPose.lS, armPose.lE, armPose.lW, armPose.lCurl, armPose.pointHand === 'L', armBlend);
 
+        // Smooth Indoor/Outdoor Sky Background Blend
+        const bgTarget = (isOutdoors || this.worldState.occasion === 'silvester' || this.worldState.occasion === 'new_year')
+            ? this.outdoorSkyColor
+            : this.indoorBgColor;
+        this.scene.background.lerp(bgTarget, 1 - Math.exp(-dt * 2.6));
+
         // ====================================================================
-        // SMART 2-FLOOR DOLLHOUSE CUTAWAY & LANDMARK CLOSE-UP CAMERA GLIDING
+        // SMART 2-FLOOR DOLLHOUSE, TERRACE/GARDEN & LANDMARK CAMERA GLIDING
         // ====================================================================
         const useDollhouseView = (this.mode === 'atelier_autonomous') || (this.pos.y < OG_Y - 0.15) || (this.pos.z < 2.35);
 
@@ -4115,15 +6417,23 @@ class FunkiraAtelierEngine {
                 lookY = OG_Y + (this.activeBodyAction === 'duck' ? 0.84 : 1.02);
                 lookZ = 5.45;
             }
+        } else if (isOutdoors && this.mode === 'front_active') {
+            // Scenic Outdoor Terrasse & Garten Framing (shows Funkira, Hochbeet/Blumenbeet & Sky/Fireworks!)
+            camTargetX = clamp(this.pos.x * 0.65, -3.10, 3.10);
+            camTargetY = 2.75;
+            camTargetZ = clamp(this.pos.z + 4.55, 12.10, 16.40);
+            lookX = clamp(this.pos.x * 0.85, -3.40, 3.40);
+            lookY = (isGardeningNow && this.pos.x <= 1.55) ? 0.86 : 1.16;
+            lookZ = clamp(this.pos.z - 1.10, 6.80, 10.60);
         } else {
-            // Sims-Style Architectural 3D Floorplan Camera (West = Left, East = Right, North = Top, South = Bottom!)
+            // Sims-Style Architectural 3D Floorplan + Garden Overview Camera
             const baseFloorY = this.pos.y;
-            camTargetX = clamp(this.pos.x * 0.58, -2.10, 2.10);
-            camTargetY = baseFloorY + 6.85;
-            camTargetZ = clamp(this.pos.z + 6.95, 2.20, 12.60);
-            lookX = clamp(this.pos.x * 0.78, -2.50, 2.50);
-            lookY = baseFloorY + 0.78;
-            lookZ = clamp(this.pos.z - 0.65, -5.80, 4.80);
+            camTargetX = clamp(this.pos.x * 0.58, -3.10, 3.10);
+            camTargetY = baseFloorY + (isOutdoors ? 4.85 : 6.85);
+            camTargetZ = clamp(this.pos.z + (isOutdoors ? 5.95 : 6.95), 2.20, 18.40);
+            lookX = clamp(this.pos.x * 0.78, -3.40, 3.40);
+            lookY = baseFloorY + (isOutdoors ? 0.98 : 0.78);
+            lookZ = clamp(this.pos.z - 0.65, -5.80, 11.40);
         }
 
         const camBlend = 1 - Math.exp(-dt * (this.isSprintingHome ? 3.8 : 2.5));
@@ -4151,7 +6461,7 @@ class FunkiraAtelierEngine {
             this.ogSouthWeatherGroup.visible = showClosedAtelierGable;
         }
 
-        // Ambient Animations (Vitrine Gem, Synchronized 12-Window Snow/Weather, Sparks & Rose Petals)
+        // Ambient Animations (Vitrine Gem, Window & Outdoor Weather, Watering Stream, Fireworks, Sparks & Petals)
         if (this.rig.vitrineGem && (this.worldState.shopLevel || 1) >= 3) {
             this.rig.vitrineGem.rotation.y = tSec * 0.85;
         }
@@ -4170,6 +6480,132 @@ class FunkiraAtelierEngine {
                 wp.y,
                 wp.cz + wp.tanZ * u
             );
+        }
+
+        // Outdoor 3D Garden Weather Particles (Snow / Blossoms / Sun Motes / Autumn Leaves)
+        const seaNow = this.worldState.season || 'autumn';
+        const owSpeedMul = seaNow === 'summer' ? 0.35 : 1.0;
+        for (let i = 0; i < this.outdoorWeatherParticles.length; i++) {
+            const ow = this.outdoorWeatherParticles[i];
+            ow.y -= ow.speedY * owSpeedMul * dt;
+            if (ow.y < 0.06) {
+                ow.baseX = (Math.random() - 0.5) * 9.6;
+                ow.baseZ = 7.15 + Math.random() * 5.8;
+                ow.y = 3.45;
+            }
+            const driftX = Math.sin(tSec * 1.3 + ow.phase) * 0.22;
+            const driftZ = Math.cos(tSec * 1.1 + ow.phase) * 0.14;
+            ow.mesh.position.set(ow.baseX + driftX, ow.y, ow.baseZ + driftZ);
+            ow.mesh.rotation.y += dt * 1.4;
+        }
+
+        // Gießkanne Water Droplets Stream
+        if (isWateringNow && this.rig.wateringCan && this.rig.wateringCan.visible && this.rig.wateringSpoutTip) {
+            this.rig.wateringSpoutTip.getWorldPosition(this._tmpSpoutWorld);
+            if (Math.random() < 0.72) {
+                const freeDrop = this.waterDropParticles.find(d => d.life <= 0);
+                if (freeDrop) {
+                    const fwdX = Math.sin(this.facingYaw);
+                    const fwdZ = Math.cos(this.facingYaw);
+                    freeDrop.mesh.visible = true;
+                    freeDrop.mesh.position.copy(this._tmpSpoutWorld);
+                    freeDrop.vx = fwdX * (0.75 + Math.random() * 0.35) + (Math.random() - 0.5) * 0.18;
+                    freeDrop.vy = -0.25 - Math.random() * 0.25;
+                    freeDrop.vz = fwdZ * (0.75 + Math.random() * 0.35) + (Math.random() - 0.5) * 0.18;
+                    freeDrop.life = 0.52;
+                }
+            }
+        }
+        for (let i = 0; i < this.waterDropParticles.length; i++) {
+            const wd = this.waterDropParticles[i];
+            if (wd.life > 0) {
+                wd.life -= dt;
+                wd.mesh.position.x += wd.vx * dt;
+                wd.mesh.position.y += wd.vy * dt;
+                wd.mesh.position.z += wd.vz * dt;
+                wd.vy -= 3.8 * dt;
+                if (wd.life <= 0 || wd.mesh.position.y <= 0.04) {
+                    wd.life = 0;
+                    wd.mesh.visible = false;
+                }
+            }
+        }
+
+        // Live 60-FPS 3D Silvester & New Year Fireworks above Garden & House!
+        if (this.worldState.occasion === 'silvester' || this.worldState.occasion === 'new_year') {
+            for (let r = 0; r < this.fireworkBursts.length; r++) {
+                const fb = this.fireworkBursts[r];
+                if (fb.state === 'cooldown') {
+                    fb.timer -= dt;
+                    if (fb.timer <= 0) {
+                        fb.state = 'launch';
+                        fb.x = (Math.random() - 0.5) * 7.8;
+                        fb.y = 0.35;
+                        fb.z = 6.2 + Math.random() * 4.6;
+                        fb.vy = 3.6 + Math.random() * 1.1;
+                        fb.burstY = 2.65 + Math.random() * 1.75;
+                        fb.rocketMesh.visible = true;
+                        fb.rocketMesh.position.set(fb.x, fb.y, fb.z);
+                    }
+                } else if (fb.state === 'launch') {
+                    fb.y += fb.vy * dt;
+                    fb.rocketMesh.position.set(fb.x, fb.y, fb.z);
+                    if (fb.y >= fb.burstY) {
+                        fb.rocketMesh.visible = false;
+                        fb.state = 'burst';
+                        fb.timer = 1.25;
+                        for (let s = 0; s < fb.sparks.length; s++) {
+                            const spk = fb.sparks[s];
+                            const phi = Math.acos(1 - (2 * (s + 0.5)) / fb.sparks.length);
+                            const theta = Math.PI * (1 + Math.sqrt(5)) * s + r;
+                            const spd = 1.45 + (s % 3) * 0.38;
+                            spk.vx = Math.sin(phi) * Math.cos(theta) * spd;
+                            spk.vy = Math.cos(phi) * spd + 0.35;
+                            spk.vz = Math.sin(phi) * Math.sin(theta) * spd;
+                            spk.mesh.visible = true;
+                            spk.mesh.scale.setScalar(1.0);
+                            spk.mesh.position.set(fb.x, fb.y, fb.z);
+                        }
+                    }
+                } else if (fb.state === 'burst') {
+                    fb.timer -= dt;
+                    const lifeScale = clamp(fb.timer / 1.25, 0.05, 1.0);
+                    for (let s = 0; s < fb.sparks.length; s++) {
+                        const spk = fb.sparks[s];
+                        spk.mesh.position.x += spk.vx * dt;
+                        spk.mesh.position.y += spk.vy * dt;
+                        spk.mesh.position.z += spk.vz * dt;
+                        spk.vy -= 1.55 * dt;
+                        spk.vx *= (1 - dt * 0.9);
+                        spk.vz *= (1 - dt * 0.9);
+                        spk.mesh.scale.setScalar(lifeScale);
+                    }
+                    if (fb.timer <= 0) {
+                        for (let s = 0; s < fb.sparks.length; s++) {
+                            fb.sparks[s].mesh.visible = false;
+                        }
+                        fb.state = 'cooldown';
+                        fb.timer = 0.25 + Math.random() * 1.15;
+                    }
+                }
+            }
+        }
+
+        for (let i = 0; i < this.grassParticles.length; i++) {
+            const gp = this.grassParticles[i];
+            if (gp.life > 0) {
+                gp.life -= dt;
+                gp.mesh.position.x += gp.vx * dt;
+                gp.mesh.position.y += gp.vy * dt;
+                gp.mesh.position.z += gp.vz * dt;
+                gp.mesh.rotation.x += dt * 7.5;
+                gp.mesh.rotation.z += dt * 6.2;
+                gp.vy -= 3.2 * dt;
+                if (gp.life <= 0 || gp.mesh.position.y <= 0.02) {
+                    gp.life = 0;
+                    gp.mesh.visible = false;
+                }
+            }
         }
         for (let i = 0; i < this.sparkParticles.length; i++) {
             const sp = this.sparkParticles[i];

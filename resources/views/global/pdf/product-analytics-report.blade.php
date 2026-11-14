@@ -186,7 +186,7 @@
                 <td>{{ $loss->created_at->format('d.m.Y H:i') }}</td>
                 <td><strong style="font-size: 9px; color: #111827;">{{ $loss->product->name ?? 'GELÖSCHTES PRODUKT' }}</strong></td>
                 <td class="text-center" style="font-weight: bold;">-{{ $loss->quantity }}</td>
-                <td style="font-style: italic;">{{ \Illuminate\Support\Str::limit($loss->reason, 80) }}</td>
+                <td style="font-style: italic;">{{ \Illuminate\Support\Str::limit((string) ($loss->reason ?? '-'), 80) }}</td>
                 <td class="text-right" style="font-weight: bold; color: #dc2626;">-{{ number_format($loss->cost_value / 100, 2, ',', '.') }} €</td>
             </tr>
         @empty

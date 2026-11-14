@@ -18,6 +18,16 @@ class TasksWidgetActionActivity : Activity() {
         super.onCreate(savedInstanceState)
         overridePendingTransition(0, 0)
 
+        val appContext = applicationContext
+        de.meinseelenfunke.app.di.ServiceLocator.ensureInitialized(appContext)
+        if (de.meinseelenfunke.app.util.SecurityIntentHelper.isDeviceLocked(this) ||
+            de.meinseelenfunke.app.di.ServiceLocator.getAuthToken().isNullOrBlank()
+        ) {
+            finish()
+            overridePendingTransition(0, 0)
+            return
+        }
+
         if (!de.meinseelenfunke.app.util.SecurityIntentHelper.isTrustedInternalIntent(this, intent)) {
             finish()
             overridePendingTransition(0, 0)
@@ -25,8 +35,6 @@ class TasksWidgetActionActivity : Activity() {
         }
 
         val resolvedAction = try { intent.getStringExtra(TasksWidgetProvider.EXTRA_CLICK_ACTION) } catch (_: Exception) { null } ?: intent.action
-        val appContext = applicationContext
-        de.meinseelenfunke.app.di.ServiceLocator.ensureInitialized(appContext)
 
         when (resolvedAction) {
             TasksWidgetProvider.ACTION_EDIT_TASK -> {

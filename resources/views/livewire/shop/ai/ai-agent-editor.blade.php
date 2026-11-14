@@ -150,7 +150,7 @@
                         <div class="flex items-center gap-4 min-w-0">
                             <!-- Avatar Thumbnail -->
                             <div class="w-14 h-14 rounded-2xl border-2 border-[var(--theme-color-40)] overflow-hidden shrink-0 bg-gray-100 dark:bg-gray-900 flex items-center justify-center shadow-sm">
-                                @if ($profile_picture)
+                                @if ($profile_picture && method_exists($profile_picture, 'isPreviewable') && $profile_picture->isPreviewable())
                                     <img src="{{ $profile_picture->temporaryUrl() }}" class="w-full h-full object-cover">
                                 @elseif ($existing_profile_picture)
                                     <img src="{{ \Illuminate\Support\Str::startsWith($existing_profile_picture, 'shop/') ? asset($existing_profile_picture) : Storage::url($existing_profile_picture) }}" class="w-full h-full object-cover">
@@ -210,7 +210,7 @@
                             <label class="block text-xs font-bold text-gray-700 dark:text-gray-400 uppercase tracking-widest mb-3">Profilbild</label>
                             <div class="relative group cursor-pointer w-32 h-32 rounded-2xl border-2 border-dashed {{ $profile_picture || $existing_profile_picture ? 'border-[var(--theme-color-50)]' : 'border-gray-300 dark:border-gray-700' }} hover:border-[var(--theme-color)] transition-colors bg-gray-50 dark:bg-gray-900/50 flex items-center justify-center overflow-hidden shadow-sm dark:shadow-[0_0_20px_rgba(0,0,0,0.5)]">
                                 
-                                @if ($profile_picture)
+                                @if ($profile_picture && method_exists($profile_picture, 'isPreviewable') && $profile_picture->isPreviewable())
                                     <img src="{{ $profile_picture->temporaryUrl() }}" class="w-full h-full object-cover">
                                 @elseif ($existing_profile_picture)
                                     <img src="{{ \Illuminate\Support\Str::startsWith($existing_profile_picture, 'shop/') ? asset($existing_profile_picture) : Storage::url($existing_profile_picture) }}" class="w-full h-full object-cover">

@@ -66,6 +66,13 @@ class FunkiraLiveViewModel : ViewModel() {
     private var webSocket: WebSocket? = null
     private val client = OkHttpClient.Builder()
         .protocols(listOf(okhttp3.Protocol.HTTP_1_1))
+        .connectTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
+        .pingInterval(15, java.util.concurrent.TimeUnit.SECONDS)
+        .dns(object : okhttp3.Dns {
+            override fun lookup(hostname: String): List<java.net.InetAddress> {
+                return okhttp3.Dns.SYSTEM.lookup(hostname).sortedBy { if (it is java.net.Inet4Address) 0 else 1 }
+            }
+        })
         .build()
     private val gson = Gson()
 
@@ -75,6 +82,12 @@ class FunkiraLiveViewModel : ViewModel() {
     private var audioTrack: AudioTrack? = null
     private var isRecordingActive = false
     @Volatile private var isAiSpeaking = false
+    @Volatile private var setupCompletedForCurrentSocket = false
+    private var fallbackDirectUrl: String? = null
+    private var fallbackOriginUrl: String = "https://mein-seelenfunke.de"
+    private var activeSysInstruction: String = ""
+    private var activeVoiceName: String = "Kore"
+    private var activeToolsJson: String? = null
 
     private var shouldEndCall = false
     private var lastInterruptTime = 0L
@@ -189,13 +202,20 @@ class FunkiraLiveViewModel : ViewModel() {
         chatSessionId = "android_live_${java.util.UUID.randomUUID()}"
 
         connectJob = viewModelScope.launch(Dispatchers.IO) {
-            aiRepository.getLiveCredentials(_selectedAgent.value?.id, chatSessionId)
+            val baseUrl = de.meinseelenfunke.app.di.ServiceLocator.getBaseUrl()
+            val parsedUri = try { java.net.URI(baseUrl) } catch (_: Exception) { null }
+            val host = parsedUri?.host ?: "stage.mein-seelenfunke.de"
+            val defaultOrigin = if (baseUrl.startsWith("https://", ignoreCase = true)) "https://$host" else "https://mein-seelenfunke.de"
+            val localGeminiKey = de.meinseelenfunke.app.di.ServiceLocator.getGeminiApiKey().trim()
+
+            aiRepository.getLiveCredentials(
+                agentId = _selectedAgent.value?.id,
+                chatSessionId = chatSessionId,
+                client = "android_native"
+            )
                 .onSuccess { creds ->
                     if (connectJob?.isActive != true) return@onSuccess
                     addLog("Authentifiziert. Verbindung wird aufgebaut...")
-                    val baseUrl = de.meinseelenfunke.app.di.ServiceLocator.getBaseUrl()
-                    val parsedUri = try { java.net.URI(baseUrl) } catch (e: java.lang.Exception) { null }
-                    val host = parsedUri?.host ?: "stage.mein-seelenfunke.de"
                     val useSecureWs = baseUrl.startsWith("https://", ignoreCase = true)
                     val defaultScheme = if (useSecureWs) "wss" else "ws"
                     val fallbackWsUrl = if (useSecureWs) "$defaultScheme://$host/gemini-live" else "$defaultScheme://$host:8089/gemini-live"
@@ -208,35 +228,105 @@ class FunkiraLiveViewModel : ViewModel() {
                     if (useSecureWs && rawWsUrl.startsWith("ws://", ignoreCase = true)) {
                         rawWsUrl = "wss://" + rawWsUrl.substring(5)
                     }
-                    val wsHost = try { java.net.URI(rawWsUrl).host?.lowercase() } catch (_: Exception) { null }
-                    if (wsHost == null || !wsHost.equals(host, ignoreCase = true)) {
+
+                    fallbackOriginUrl = creds.origin_url?.takeIf { it.isNotBlank() } ?: defaultOrigin
+                    fallbackDirectUrl = creds.direct_ws_url?.takeIf { it.isNotBlank() }
+                        ?: buildDirectGeminiWsUrl(localGeminiKey)
+                    activeSysInstruction = creds.system_instruction
+                    activeVoiceName = creds.voice_name
+                    activeToolsJson = creds.tools?.toString()
+
+                    if (!isTrustedLiveWebSocketHost(rawWsUrl, host)) {
+                        val directCandidate = fallbackDirectUrl
+                        if (!directCandidate.isNullOrBlank()) {
+                            fallbackDirectUrl = null
+                            de.meinseelenfunke.app.util.ErrorSentinelReporter.captureAutoHeal(
+                                context = ServiceLocator.context,
+                                component = "funkira_live_ws",
+                                title = "Unbekannter Bridge-Host durch Direkt-WebSocket geheilt",
+                                message = "Bridge-URL '$rawWsUrl' wich ab; Direktverbindung aktiviert.",
+                                healSummary = "Automatischer Wechsel auf direkte Gemini-Live-Verbindung durchgeführt.",
+                                extraContext = mapOf("base_host" to host)
+                            )
+                            establishWebSocket("", directCandidate, activeSysInstruction, activeVoiceName, activeToolsJson, isDirectGoogle = true)
+                            return@onSuccess
+                        }
                         _isConnecting.value = false
                         de.meinseelenfunke.app.util.NavigationBridge.isLiveCallActive = false
                         _error.value = "Ungültiger Live-Server-Host blockiert."
                         addLog("Sicherheitsabbruch: Abweichender Live-Host blockiert.")
+                        de.meinseelenfunke.app.util.ErrorSentinelReporter.captureError(
+                            context = ServiceLocator.context,
+                            tag = "funkira_live_ws",
+                            message = "Abweichender Live-Server-Host blockiert: $rawWsUrl",
+                            extraContext = mapOf("base_host" to host)
+                        )
                         return@onSuccess
                     }
-                    val wsUrl = rawWsUrl
-                    establishWebSocket(creds.token ?: "", wsUrl, creds.system_instruction, creds.voice_name, creds.tools?.toString())
+
+                    establishWebSocket(creds.token ?: "", rawWsUrl, activeSysInstruction, activeVoiceName, activeToolsJson, isDirectGoogle = false)
                 }
                 .onFailure { err ->
                     if (connectJob?.isActive != true) return@onFailure
+                    val directCandidate = buildDirectGeminiWsUrl(localGeminiKey)
+                    if (!directCandidate.isNullOrBlank()) {
+                        fallbackDirectUrl = null
+                        fallbackOriginUrl = defaultOrigin
+                        activeSysInstruction =
+                            "STRIKTE SPRACHREGEL (HÖCHSTE PRIORITÄT): Sprich und antworte ZU 100% AUSSCHLIESSLICH auf DEUTSCH! Du bist Funkira, Alinas KI-Assistentin von Mein-Seelenfunke. Antworte herzlich, natürlich und prägnant auf Deutsch."
+                        activeVoiceName = "Kore"
+                        activeToolsJson = null
+                        de.meinseelenfunke.app.util.ErrorSentinelReporter.captureAutoHeal(
+                            context = ServiceLocator.context,
+                            component = "funkira_live_credentials",
+                            title = "Portal-Verbindungsproblem per lokalem Gemini-Schlüssel überbrückt",
+                            message = err.message ?: "Live-Credentials nicht erreichbar",
+                            healSummary = "Funkira wurde auf dem Smartphone trotz Server-Fehler nahtlos über den verschlüsselten lokalen Schlüssel gestartet.",
+                            extraContext = mapOf("base_host" to host)
+                        )
+                        addLog("[Auto-Heilung]: Server kurzzeitig nicht erreichbar. Starte Direkt-Modus...")
+                        establishWebSocket("", directCandidate, activeSysInstruction, activeVoiceName, null, isDirectGoogle = true)
+                        return@onFailure
+                    }
+
                     _isConnecting.value = false
                     de.meinseelenfunke.app.util.NavigationBridge.isLiveCallActive = false
                     _error.value = "Authentifizierung fehlgeschlagen: ${err.localizedMessage}"
                     addLog("Fehler: ${_error.value}")
+                    de.meinseelenfunke.app.util.ErrorSentinelReporter.captureError(
+                        context = ServiceLocator.context,
+                        tag = "funkira_live_credentials",
+                        message = "Funkira Live-Start fehlgeschlagen: ${err.message}",
+                        throwable = err,
+                        extraContext = mapOf("base_host" to host)
+                    )
                 }
         }
     }
 
-    private fun establishWebSocket(token: String, wsUrl: String, systemInstruction: String, voiceName: String, toolsJson: String?) {
+    private fun establishWebSocket(
+        token: String,
+        wsUrl: String,
+        systemInstruction: String,
+        voiceName: String,
+        toolsJson: String?,
+        isDirectGoogle: Boolean = false
+    ) {
+        setupCompletedForCurrentSocket = false
         val encodedToken = android.net.Uri.encode(token)
-        val url = if (wsUrl.contains("?")) {
+        val url = if (isDirectGoogle || token.isBlank()) {
+            wsUrl
+        } else if (wsUrl.contains("?")) {
             "$wsUrl&token=$encodedToken"
         } else {
             "$wsUrl?token=$encodedToken"
         }
-        val request = Request.Builder().url(url).build()
+        val reqBuilder = Request.Builder().url(url)
+        if (isDirectGoogle) {
+            reqBuilder.header("Origin", fallbackOriginUrl)
+            reqBuilder.header("Referer", fallbackOriginUrl.trimEnd('/') + "/")
+        }
+        val request = reqBuilder.build()
 
         // Init AudioTrack for 24kHz speaker playback
         initAudioTrack()
@@ -246,7 +336,7 @@ class FunkiraLiveViewModel : ViewModel() {
                 if (ws != this@FunkiraLiveViewModel.webSocket) return
                 _isConnecting.value = false
                 _isConnected.value = true
-                val maskedUrl = if (encodedToken.isNotEmpty()) url.replace(encodedToken, "XXXX_TOKEN_XXXX") else url
+                val maskedUrl = de.meinseelenfunke.app.util.ErrorSentinelReporter.scrubSecrets(url)
                 addLog("[WS-Setup]: URL: $maskedUrl")
 
                 // Send Setup configuration payload
@@ -327,11 +417,37 @@ class FunkiraLiveViewModel : ViewModel() {
                 if (ws != this@FunkiraLiveViewModel.webSocket) return
                 val errorMsg = "Verbindungsfehler: ${t.localizedMessage}" +
                         (if (response != null) " (HTTP ${response.code})" else "")
+                if (!setupCompletedForCurrentSocket && !isDirectGoogle && tryFailoverToDirectGemini(errorMsg, t)) {
+                    return
+                }
+                de.meinseelenfunke.app.util.ErrorSentinelReporter.captureError(
+                    context = ServiceLocator.context,
+                    tag = "funkira_live_ws",
+                    message = errorMsg,
+                    throwable = t,
+                    extraContext = mapOf(
+                        "mode" to if (isDirectGoogle) "direct_google" else "portal_bridge",
+                        "http_status" to (response?.code?.toString() ?: "0")
+                    )
+                )
                 handleDisconnect(errorMsg)
             }
 
             override fun onClosing(ws: WebSocket, code: Int, reason: String) {
                 if (ws != this@FunkiraLiveViewModel.webSocket) return
+                if (!setupCompletedForCurrentSocket && code != 1000 && !isDirectGoogle &&
+                    tryFailoverToDirectGemini("Bridge geschlossen ($code: $reason)", null)
+                ) {
+                    return
+                }
+                if (code != 1000 && code != 1001) {
+                    de.meinseelenfunke.app.util.ErrorSentinelReporter.captureError(
+                        context = ServiceLocator.context,
+                        tag = "funkira_live_ws_close",
+                        message = "WebSocket geschlossen ($code): $reason",
+                        extraContext = mapOf("close_code" to code.toString(), "reason" to reason)
+                    )
+                }
                 handleDisconnect("Verbindung schließt: $reason ($code)")
             }
 
@@ -340,6 +456,33 @@ class FunkiraLiveViewModel : ViewModel() {
                 handleDisconnect("Verbindung beendet: $reason ($code)")
             }
         })
+    }
+
+    private fun tryFailoverToDirectGemini(triggerReason: String, throwable: Throwable?): Boolean {
+        val directUrl = fallbackDirectUrl?.takeIf { it.isNotBlank() } ?: return false
+        fallbackDirectUrl = null
+        try { webSocket?.cancel() } catch (_: Exception) { }
+        webSocket = null
+        addLog("[Auto-Heilung]: Bridge gestört ($triggerReason). Wechsle sofort auf Direkt-Verbindung...")
+        de.meinseelenfunke.app.util.ErrorSentinelReporter.captureAutoHeal(
+            context = ServiceLocator.context,
+            component = "funkira_live_ws",
+            title = "Bridge-Fehler automatisch per Direkt-WebSocket geheilt",
+            message = triggerReason + (throwable?.message?.let { " | $it" } ?: ""),
+            healSummary = "Automatischer Failover von der WebSocket-Bridge auf die direkte Gemini-Live-Verbindung erfolgreich ausgelöst.",
+            extraContext = mapOf("trigger" to triggerReason.take(140))
+        )
+        _isConnecting.value = true
+        _error.value = null
+        establishWebSocket(
+            token = "",
+            wsUrl = directUrl,
+            systemInstruction = activeSysInstruction,
+            voiceName = activeVoiceName,
+            toolsJson = activeToolsJson,
+            isDirectGoogle = true
+        )
+        return true
     }
 
     private fun handleServerMessage(jsonText: String) {
@@ -368,6 +511,7 @@ class FunkiraLiveViewModel : ViewModel() {
 
             // Check setupComplete response
             if (root.has("setupComplete")) {
+                setupCompletedForCurrentSocket = true
                 addLog("[System]: Setup vollständig abgeschlossen. Gespräch gestartet.")
                 startRecording()
                 return
@@ -996,18 +1140,24 @@ class FunkiraLiveViewModel : ViewModel() {
         val type = eventObj.get("type")?.asString ?: return
         if (type == "navigate" && eventObj.has("url")) {
             val url = eventObj.get("url").asString
-            var targetTab: Int? = null
+            var target: de.meinseelenfunke.app.util.NavigationBridge.NavTarget? = null
             var subTab = 0
             when {
-                url.contains("zentrum", ignoreCase = true) -> targetTab = 0
-                url.contains("order", ignoreCase = true) || url.contains("bestellung", ignoreCase = true) -> targetTab = 1
-                url.contains("finance", ignoreCase = true) || url.contains("finanz", ignoreCase = true) || url.contains("shop", ignoreCase = true) -> targetTab = 5
+                url.contains("zentrum", ignoreCase = true) -> {
+                    target = de.meinseelenfunke.app.util.NavigationBridge.NavTarget.ZENTRUM
+                }
+                url.contains("order", ignoreCase = true) || url.contains("bestellung", ignoreCase = true) -> {
+                    target = de.meinseelenfunke.app.util.NavigationBridge.NavTarget.ORDERS
+                }
+                url.contains("finance", ignoreCase = true) || url.contains("finanz", ignoreCase = true) || url.contains("buchhaltung", ignoreCase = true) || url.contains("shop", ignoreCase = true) -> {
+                    target = de.meinseelenfunke.app.util.NavigationBridge.NavTarget.FINANCES
+                }
                 url.contains("email", ignoreCase = true) || url.contains("mail", ignoreCase = true) -> {
-                    targetTab = 2
+                    target = de.meinseelenfunke.app.util.NavigationBridge.NavTarget.ORGANIZER
                     subTab = 4
                 }
                 url.contains("organizer", ignoreCase = true) || url.contains("kalender", ignoreCase = true) || url.contains("aufgabe", ignoreCase = true) || url.contains("routine", ignoreCase = true) || url.contains("einkauf", ignoreCase = true) -> {
-                    targetTab = 2
+                    target = de.meinseelenfunke.app.util.NavigationBridge.NavTarget.ORGANIZER
                     subTab = when {
                         url.contains("routine", ignoreCase = true) -> 2
                         url.contains("calendar", ignoreCase = true) || url.contains("kalender", ignoreCase = true) -> 1
@@ -1016,19 +1166,54 @@ class FunkiraLiveViewModel : ViewModel() {
                         else -> 0
                     }
                 }
-                url.contains("agent", ignoreCase = true) || url.contains("chat", ignoreCase = true) -> targetTab = 3
-                url.contains("setting", ignoreCase = true) || url.contains("einstellung", ignoreCase = true) -> targetTab = 4
+                url.contains("agent", ignoreCase = true) || url.contains("chat", ignoreCase = true) -> {
+                    target = de.meinseelenfunke.app.util.NavigationBridge.NavTarget.CHAT
+                }
+                url.contains("setting", ignoreCase = true) || url.contains("einstellung", ignoreCase = true) -> {
+                    target = de.meinseelenfunke.app.util.NavigationBridge.NavTarget.SETTINGS
+                }
             }
-            
-            if (targetTab != null) {
+
+            if (target != null) {
                 viewModelScope.launch(Dispatchers.Main) {
-                    addLog("[System]: Navigiere zu Tab $targetTab (Sub-Tab $subTab)...")
-                    de.meinseelenfunke.app.util.NavigationBridge.triggerNavigation(targetTab, subTab)
+                    addLog("[System]: Navigiere zu ${target.route} (Sub-Tab $subTab)...")
+                    de.meinseelenfunke.app.util.NavigationBridge.triggerNavigation(target, subTab)
                     delay(1500)
                     disconnectLiveChat()
                     _shouldCloseScreen.value = true
                 }
             }
+        }
+    }
+
+    companion object {
+        fun isTrustedLiveWebSocketHost(
+            wsUrl: String?,
+            baseHost: String,
+            isDebugBuild: Boolean = de.meinseelenfunke.app.BuildConfig.DEBUG
+        ): Boolean {
+            if (wsUrl.isNullOrBlank()) return false
+            val uri = try { java.net.URI(wsUrl.trim()) } catch (_: Exception) { return false }
+            val scheme = uri.scheme?.lowercase(java.util.Locale.ROOT) ?: return false
+            val wsHost = uri.host?.lowercase(java.util.Locale.ROOT) ?: return false
+            val cleanBase = baseHost.trim().lowercase(java.util.Locale.ROOT)
+
+            if (scheme != "wss") {
+                val allowDevWs = isDebugBuild && scheme == "ws" && ServiceLocator.isAllowedCleartextHost(wsHost)
+                if (!allowDevWs) return false
+            }
+
+            return wsHost == cleanBase ||
+                wsHost == "mein-seelenfunke.de" ||
+                wsHost.endsWith(".mein-seelenfunke.de") ||
+                wsHost == "generativelanguage.googleapis.com"
+        }
+
+        fun buildDirectGeminiWsUrl(apiKey: String?): String? {
+            val clean = apiKey?.trim().orEmpty()
+            if (clean.length < 16) return null
+            val encoded = java.net.URLEncoder.encode(clean, "UTF-8")
+            return "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=$encoded"
         }
     }
 }

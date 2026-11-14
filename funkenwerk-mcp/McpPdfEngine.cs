@@ -25,6 +25,7 @@ namespace FunkenwerkMcp
         public double YPt { get; set; }
         public double WidthPt { get; set; }
         public double HeightPt { get; set; }
+        public int WidgetRotation { get; set; }
         public bool IsReadOnly { get; set; }
         public bool IsMultiline { get; set; }
         public bool IsTinyBoxText { get; set; }
@@ -211,10 +212,14 @@ namespace FunkenwerkMcp
                     double rh = ry2 - ry1;
                     if (rw < 2 || rh < 2) continue;
 
+                    var mkDict = DerefDict(d.Elements["/MK"]);
+                    int widgetRotation = mkDict != null ? (((mkDict.Elements.GetInteger("/R") % 360) + 360) % 360) : 0;
+                    int netTextRot = (widgetRotation - rotate + 360) % 360;
+
                     double xPt = rotate switch { 90 => ry1, 180 => boxW - rx2, 270 => boxH - ry2, _ => rx1 };
                     double yPt = rotate switch { 90 => rx1, 180 => ry1, 270 => boxW - rx2, _ => boxH - ry2 };
-                    double wPt = (rotate == 90 || rotate == 270) ? rh : rw;
-                    double hPt = (rotate == 90 || rotate == 270) ? rw : rh;
+                    double wPt = (netTextRot == 90 || netTextRot == 270) ? rh : rw;
+                    double hPt = (netTextRot == 90 || netTextRot == 270) ? rw : rh;
 
                     double daFont = ParseDaFontSize(!string.IsNullOrEmpty(da) ? da : docDa);
                     if (daFont <= 0)
@@ -231,6 +236,7 @@ namespace FunkenwerkMcp
                         YPt = Math.Round(yPt, 2),
                         WidthPt = Math.Round(wPt, 2),
                         HeightPt = Math.Round(hPt, 2),
+                        WidgetRotation = widgetRotation,
                         IsReadOnly = isReadOnly,
                         IsMultiline = isMultiline,
                         MaxLength = maxLen,
@@ -415,17 +421,23 @@ namespace FunkenwerkMcp
                         var parent = DerefDict(widget.Elements["/Parent"]);
                         var valueHolder = (parent != null && !widget.Elements.ContainsKey("/T")) ? parent : widget;
                         var rect = widget.Elements.GetRectangle("/Rect");
-                        double w = Math.Max(2, Math.Abs(rect.X2 - rect.X1));
-                        double h = Math.Max(2, Math.Abs(rect.Y2 - rect.Y1));
+                        double rectW = Math.Max(2, Math.Abs(rect.X2 - rect.X1));
+                        double rectH = Math.Max(2, Math.Abs(rect.Y2 - rect.Y1));
+                        var mkDict = DerefDict(widget.Elements["/MK"]);
+                        int widgetRot = mkDict != null ? (((mkDict.Elements.GetInteger("/R") % 360) + 360) % 360) : field.WidgetRotation;
 
                         if (field.Kind == "Text" || field.Kind == "ComboBox")
                         {
                             string val = field.Value ?? "";
-                            valueHolder.Elements.SetString("/V", val);
+                            bool needsUnicodePdfStr = val.Any(ch => ch > 126);
+                            PdfString pdfVal = needsUnicodePdfStr
+                                ? new PdfString(val, PdfStringEncoding.Unicode)
+                                : new PdfString(val);
+                            valueHolder.Elements["/V"] = pdfVal;
                             if (valueHolder != widget && widget.Elements.ContainsKey("/V"))
-                                widget.Elements.SetString("/V", val);
+                                widget.Elements["/V"] = needsUnicodePdfStr ? new PdfString(val, PdfStringEncoding.Unicode) : new PdfString(val);
 
-                            var apStream = BuildTextAppearanceXObject(doc, val, w, h, field.FontSizePt, field.IsMultiline, field.Alignment);
+                            var apStream = BuildTextAppearanceXObject(doc, val, rectW, rectH, widgetRot, field.FontSizePt, field.IsMultiline, field.Alignment);
                             var apDict = new PdfDictionary(doc);
                             apDict.Elements["/N"] = apStream.Reference!;
                             widget.Elements["/AP"] = apDict;
@@ -445,8 +457,8 @@ namespace FunkenwerkMcp
                             if (!hasValidStateDict)
                             {
                                 var stateDict = new PdfDictionary(doc);
-                                var offObj = BuildCheckAppearanceXObject(doc, false, field.Kind == "RadioButton", w, h);
-                                var onObj = BuildCheckAppearanceXObject(doc, true, field.Kind == "RadioButton", w, h);
+                                var offObj = BuildCheckAppearanceXObject(doc, false, field.Kind == "RadioButton", rectW, rectH, widgetRot);
+                                var onObj = BuildCheckAppearanceXObject(doc, true, field.Kind == "RadioButton", rectW, rectH, widgetRot);
                                 string onKey = field.OnStateName.StartsWith("/") ? field.OnStateName : "/" + field.OnStateName;
                                 stateDict.Elements["/Off"] = offObj.Reference!;
                                 stateDict.Elements[onKey] = onObj.Reference!;
@@ -578,8 +590,40 @@ namespace FunkenwerkMcp
             return autoMap;
         }
 
+        private static void ApplyWidgetRotationBBoxAndMatrix(PdfDocument doc, PdfDictionary formXObj, double rectW, double rectH, int widgetRot, out double drawW, out double drawH)
+        {
+            int rot = ((widgetRot % 360) + 360) % 360;
+            if (rot == 90)
+            {
+                drawW = rectH;
+                drawH = rectW;
+                formXObj.Elements["/BBox"] = new PdfArray(doc, new PdfReal(0), new PdfReal(0), new PdfReal(drawW), new PdfReal(drawH));
+                formXObj.Elements["/Matrix"] = new PdfArray(doc, new PdfReal(0), new PdfReal(1), new PdfReal(-1), new PdfReal(0), new PdfReal(rectW), new PdfReal(0));
+            }
+            else if (rot == 180)
+            {
+                drawW = rectW;
+                drawH = rectH;
+                formXObj.Elements["/BBox"] = new PdfArray(doc, new PdfReal(0), new PdfReal(0), new PdfReal(drawW), new PdfReal(drawH));
+                formXObj.Elements["/Matrix"] = new PdfArray(doc, new PdfReal(-1), new PdfReal(0), new PdfReal(0), new PdfReal(-1), new PdfReal(rectW), new PdfReal(rectH));
+            }
+            else if (rot == 270)
+            {
+                drawW = rectH;
+                drawH = rectW;
+                formXObj.Elements["/BBox"] = new PdfArray(doc, new PdfReal(0), new PdfReal(0), new PdfReal(drawW), new PdfReal(drawH));
+                formXObj.Elements["/Matrix"] = new PdfArray(doc, new PdfReal(0), new PdfReal(-1), new PdfReal(1), new PdfReal(0), new PdfReal(0), new PdfReal(rectH));
+            }
+            else
+            {
+                drawW = rectW;
+                drawH = rectH;
+                formXObj.Elements["/BBox"] = new PdfArray(doc, new PdfReal(0), new PdfReal(0), new PdfReal(drawW), new PdfReal(drawH));
+            }
+        }
+
         private static PdfDictionary BuildTextAppearanceXObject(
-            PdfDocument doc, string text, double w, double h, double requestedFontSize, bool isMultiline, int alignment)
+            PdfDocument doc, string text, double rectW, double rectH, int widgetRot, double requestedFontSize, bool isMultiline, int alignment)
         {
             var fontDict = new PdfDictionary(doc);
             fontDict.Elements.SetName("/Type", "/Font");
@@ -595,13 +639,14 @@ namespace FunkenwerkMcp
             var formXObj = new PdfDictionary(doc);
             formXObj.Elements.SetName("/Type", "/XObject");
             formXObj.Elements.SetName("/Subtype", "/Form");
-            formXObj.Elements["/BBox"] = new PdfArray(doc, new PdfReal(0), new PdfReal(0), new PdfReal(w), new PdfReal(h));
+            ApplyWidgetRotationBBoxAndMatrix(doc, formXObj, rectW, rectH, widgetRot, out double w, out double h);
             formXObj.Elements["/Resources"] = resDict;
 
             using var ms = new MemoryStream();
             void WriteAscii(string s) { var b = Encoding.ASCII.GetBytes(s); ms.Write(b, 0, b.Length); }
 
-            if (string.IsNullOrEmpty(text))
+            string winAnsiSafeText = NormalizeUnicodeForWinAnsi(text);
+            if (string.IsNullOrEmpty(winAnsiSafeText))
             {
                 WriteAscii("/Tx BMC q Q EMC");
             }
@@ -616,7 +661,7 @@ namespace FunkenwerkMcp
 
                 if (!isMultiline)
                 {
-                    string single = text.Replace("\r", "").Replace("\n", " ");
+                    string single = winAnsiSafeText.Replace("\r", "").Replace("\n", " ");
                     double approxTextW = single.Length * fontSize * 0.52;
                     double tx = alignment switch
                     {
@@ -633,7 +678,7 @@ namespace FunkenwerkMcp
                 {
                     int maxChars = Math.Max(8, (int)Math.Floor((w - 4.0) / (fontSize * 0.50)));
                     var lines = new List<string>();
-                    foreach (string para in text.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n'))
+                    foreach (string para in winAnsiSafeText.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n'))
                     {
                         if (para.Length <= maxChars) { lines.Add(para); continue; }
                         var cur = new StringBuilder();
@@ -667,12 +712,12 @@ namespace FunkenwerkMcp
             return formXObj;
         }
 
-        private static PdfDictionary BuildCheckAppearanceXObject(PdfDocument doc, bool isChecked, bool isRadio, double w, double h)
+        private static PdfDictionary BuildCheckAppearanceXObject(PdfDocument doc, bool isChecked, bool isRadio, double rectW, double rectH, int widgetRot)
         {
             var formXObj = new PdfDictionary(doc);
             formXObj.Elements.SetName("/Type", "/XObject");
             formXObj.Elements.SetName("/Subtype", "/Form");
-            formXObj.Elements["/BBox"] = new PdfArray(doc, new PdfReal(0), new PdfReal(0), new PdfReal(w), new PdfReal(h));
+            ApplyWidgetRotationBBoxAndMatrix(doc, formXObj, rectW, rectH, widgetRot, out double w, out double h);
 
             string content;
             if (!isChecked)
@@ -699,14 +744,171 @@ namespace FunkenwerkMcp
             return formXObj;
         }
 
+        public static string NormalizeUnicodeForWinAnsi(string? input)
+        {
+            if (string.IsNullOrEmpty(input)) return "";
+            var sb = new StringBuilder(input.Length);
+            var strictWinAnsi = Encoding.GetEncoding(1252, EncoderFallback.ExceptionFallback, DecoderFallback.ReplacementFallback);
+
+            for (int i = 0; i < input.Length; i++)
+            {
+                if (char.IsSurrogatePair(input, i))
+                {
+                    i++; // Skip non-BMP emoji/symbol cleanly without emitting ugly '??'
+                    continue;
+                }
+
+                char c = input[i];
+                if (c <= 0x7F)
+                {
+                    sb.Append(c);
+                    continue;
+                }
+
+                // Check if natively representable in Windows-1252 (e.g. ä, ö, ü, ß, €, ·, •)
+                try
+                {
+                    strictWinAnsi.GetByteCount(new[] { c });
+                    sb.Append(c);
+                    continue;
+                }
+                catch (EncoderFallbackException)
+                {
+                }
+
+                // Common Unicode typographic/Latin transliterations
+                string mapped = c switch
+                {
+                    '\u00A0' or '\u202F' or '\u2009' => " ",
+                    '\u2212' or '\u2010' or '\u2011' or '\u2012' => "-",
+                    '\u2192' => "->",
+                    '\u2190' => "<-",
+                    '\u2713' or '\u2714' => "x",
+                    '\u2717' or '\u2718' => "-",
+                    'Ł' => "L",
+                    'ł' => "l",
+                    'Đ' => "D",
+                    'đ' => "d",
+                    'Ø' => "O",
+                    'ø' => "o",
+                    'ı' => "i",
+                    _ => ""
+                };
+                if (mapped.Length > 0)
+                {
+                    sb.Append(mapped);
+                    continue;
+                }
+
+                // Decompose accented Latin letters (e.g. Č -> C, ř -> r, ş -> s, ā -> a)
+                string decomposed = c.ToString().Normalize(NormalizationForm.FormD);
+                bool appendedBase = false;
+                foreach (char dc in decomposed)
+                {
+                    var cat = CharUnicodeInfo.GetUnicodeCategory(dc);
+                    if (cat == UnicodeCategory.NonSpacingMark) continue;
+                    if (dc <= 0x7F)
+                    {
+                        sb.Append(dc);
+                        appendedBase = true;
+                    }
+                }
+                if (!appendedBase && CharUnicodeInfo.GetUnicodeCategory(c) != UnicodeCategory.OtherSymbol)
+                {
+                    // Omit pure decorative Dingbats like ✨ cleanly; replace unknown letters with '?'
+                    if (char.IsLetterOrDigit(c)) sb.Append('?');
+                }
+            }
+
+            return sb.ToString();
+        }
+
         private static void WriteEscapedWinAnsi(Stream ms, string s)
         {
-            foreach (byte b in WinAnsi.GetBytes(s))
+            string normalized = NormalizeUnicodeForWinAnsi(s);
+            foreach (byte b in WinAnsi.GetBytes(normalized))
             {
                 if (b == (byte)'(' || b == (byte)')' || b == (byte)'\\')
                     ms.WriteByte((byte)'\\');
                 ms.WriteByte(b);
             }
+        }
+
+        /// <summary>
+        /// Generates a deterministic, valid AcroForm PDF in memory (including normal fields,
+        /// a rotated /MK /R 90 widget, and a CheckBox) for portable --self-test verification.
+        /// </summary>
+        public static byte[] CreateSyntheticAcroFormPdfBytes()
+        {
+            using var doc = new PdfDocument();
+            var page = doc.AddPage();
+            page.Width = XUnit.FromPoint(595);
+            page.Height = XUnit.FromPoint(842);
+
+            using (var gfx = XGraphics.FromPdfPage(page))
+            {
+                var font = new XFont("Arial", 12, XFontStyleEx.Bold);
+                gfx.DrawString("Mein-Seelenfunke Synthetic AcroForm Self-Test", font, XBrushes.Black, new XPoint(40, 40));
+            }
+
+            var fieldsArr = new PdfArray(doc);
+            var annotsArr = new PdfArray(doc);
+
+            PdfDictionary AddTextWidget(string name, double x1, double y1, double x2, double y2, int mkRot = 0)
+            {
+                var w = new PdfDictionary(doc);
+                w.Elements.SetName("/Type", "/Annot");
+                w.Elements.SetName("/Subtype", "/Widget");
+                w.Elements.SetName("/FT", "/Tx");
+                w.Elements.SetString("/T", name);
+                w.Elements.SetString("/V", "");
+                w.Elements.SetString("/DA", "/Helv 10 Tf 0 g");
+                w.Elements["/Rect"] = new PdfArray(doc, new PdfReal(x1), new PdfReal(y1), new PdfReal(x2), new PdfReal(y2));
+                if (mkRot != 0)
+                {
+                    var mk = new PdfDictionary(doc);
+                    mk.Elements.SetInteger("/R", mkRot);
+                    w.Elements["/MK"] = mk;
+                }
+                doc.Internals.AddObject(w);
+                fieldsArr.Elements.Add(w.Reference!);
+                annotsArr.Elements.Add(w.Reference!);
+                return w;
+            }
+
+            AddTextWidget("Firmenname", 50, 740, 300, 762);
+            AddTextWidget("Name des Inhabers", 50, 700, 300, 722);
+            AddTextWidget("Straße", 50, 660, 300, 682);
+            AddTextWidget("PLZ", 50, 620, 140, 642);
+            AddTextWidget("Ort", 150, 620, 300, 642);
+            AddTextWidget("E-Mail", 50, 580, 300, 602);
+            AddTextWidget("Bank-Name", 50, 540, 300, 562);
+            AddTextWidget("NotizRotiert90", 510, 450, 534, 670, mkRot: 90);
+
+            var chk = new PdfDictionary(doc);
+            chk.Elements.SetName("/Type", "/Annot");
+            chk.Elements.SetName("/Subtype", "/Widget");
+            chk.Elements.SetName("/FT", "/Btn");
+            chk.Elements.SetString("/T", "AGB_Akzeptiert");
+            chk.Elements.SetName("/V", "/Off");
+            chk.Elements.SetName("/AS", "/Off");
+            chk.Elements["/Rect"] = new PdfArray(doc, new PdfReal(50), new PdfReal(500), new PdfReal(66), new PdfReal(516));
+            doc.Internals.AddObject(chk);
+            fieldsArr.Elements.Add(chk.Reference!);
+            annotsArr.Elements.Add(chk.Reference!);
+
+            page.Elements["/Annots"] = annotsArr;
+
+            var acroForm = new PdfDictionary(doc);
+            acroForm.Elements["/Fields"] = fieldsArr;
+            acroForm.Elements.SetString("/DA", "/Helv 10 Tf 0 g");
+            acroForm.Elements.SetBoolean("/NeedAppearances", true);
+            doc.Internals.AddObject(acroForm);
+            doc.Internals.Catalog.Elements["/AcroForm"] = acroForm.Reference!;
+
+            using var outMs = new MemoryStream();
+            doc.Save(outMs, false);
+            return outMs.ToArray();
         }
     }
 }

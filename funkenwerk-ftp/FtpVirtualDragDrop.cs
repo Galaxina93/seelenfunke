@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.ComTypes;
 using System.Windows;
 using ComIDataObject = System.Runtime.InteropServices.ComTypes.IDataObject;
@@ -9,6 +10,114 @@ using WpfIDataObject = System.Windows.IDataObject;
 namespace FunkenwerkFtp
 {
     /// <summary>
+    /// Enforces cumulative byte (<= 160 MB) and file count (<= 2000) limits across recursive drag-and-drop staging.
+    /// </summary>
+    public sealed class DragStagingBudget
+    {
+        public const long MaxBytes = 160L * 1024 * 1024;
+        public const int MaxFiles = 2000;
+
+        private readonly long _byteLimit;
+        private readonly int _fileLimit;
+
+        public long TotalBytes { get; private set; }
+        public int TotalFiles { get; private set; }
+
+        public DragStagingBudget(long byteLimit = MaxBytes, int fileLimit = MaxFiles)
+        {
+            _byteLimit = byteLimit > 0 ? byteLimit : MaxBytes;
+            _fileLimit = fileLimit > 0 ? fileLimit : MaxFiles;
+        }
+
+        public void ReserveFile(long declaredBytes = 0)
+        {
+            if (declaredBytes < 0) declaredBytes = 0;
+            int nextFiles = checked(TotalFiles + 1);
+            if (nextFiles > _fileLimit)
+                throw new InvalidOperationException($"Drag-Limit überschritten (maximal {_fileLimit} Dateien pro Vorgang).");
+
+            long nextBytes = checked(TotalBytes + declaredBytes);
+            if (nextBytes > _byteLimit)
+                throw new InvalidOperationException("Drag-Limit überschritten (maximal 160 MB pro Vorgang).");
+
+            TotalFiles = nextFiles;
+            TotalBytes = nextBytes;
+        }
+
+        public void CommitActualDelta(long extraBytesBeyondDeclared)
+        {
+            if (extraBytesBeyondDeclared <= 0) return;
+            long nextBytes = checked(TotalBytes + extraBytesBeyondDeclared);
+            if (nextBytes > _byteLimit)
+                throw new InvalidOperationException("Drag-Limit überschritten (maximal 160 MB pro Vorgang).");
+            TotalBytes = nextBytes;
+        }
+    }
+
+    /// <summary>
+    /// Wraps a local staging FileStream and aborts mid-transfer if a remote server streams more bytes than permitted by DragStagingBudget.
+    /// </summary>
+    public sealed class BoundedStagingStream : Stream
+    {
+        private readonly Stream _inner;
+        private readonly DragStagingBudget _budget;
+        private readonly long _declaredBytes;
+        private long _writtenBytes;
+
+        public BoundedStagingStream(Stream inner, DragStagingBudget budget, long declaredBytes)
+        {
+            _inner = inner ?? throw new ArgumentNullException(nameof(inner));
+            _budget = budget ?? throw new ArgumentNullException(nameof(budget));
+            _declaredBytes = Math.Max(0, declaredBytes);
+        }
+
+        public override bool CanRead => false;
+        public override bool CanSeek => _inner.CanSeek;
+        public override bool CanWrite => true;
+        public override long Length => _inner.Length;
+        public override long Position
+        {
+            get => _inner.Position;
+            set => _inner.Position = value;
+        }
+
+        public override void Flush() => _inner.Flush();
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin origin) => _inner.Seek(offset, origin);
+        public override void SetLength(long value) => _inner.SetLength(value);
+
+        public override void Write(byte[] buffer, int offset, int count)
+        {
+            AccountWrite(count);
+            _inner.Write(buffer, offset, count);
+        }
+
+        public override void Write(ReadOnlySpan<byte> buffer)
+        {
+            AccountWrite(buffer.Length);
+            _inner.Write(buffer);
+        }
+
+        private void AccountWrite(int count)
+        {
+            if (count <= 0) return;
+            long prevOverrun = Math.Max(0, _writtenBytes - _declaredBytes);
+            _writtenBytes = checked(_writtenBytes + count);
+            long newOverrun = Math.Max(0, _writtenBytes - _declaredBytes);
+            long deltaOverrun = newOverrun - prevOverrun;
+            if (deltaOverrun > 0)
+                _budget.CommitActualDelta(deltaOverrun);
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+                _inner.Dispose();
+            base.Dispose(disposing);
+        }
+    }
+
+    /// <summary>
     /// Provides both internal zero-latency drag metadata (DRAG_FORMAT_REMOTE) for drops inside Funkenwerk FTP
     /// and on-demand CF_HDROP (DataFormats.FileDrop) staging when the user drags remote server files out
     /// onto the Windows Desktop, Windows Explorer, PhpStorm, Browser, or Funkenwerk OS.
@@ -16,6 +125,7 @@ namespace FunkenwerkFtp
     public sealed class DelayedRemoteFileDropDataObject : WpfIDataObject, ComIDataObject
     {
         private const short CF_HDROP = 15;
+        private const int DV_E_FORMATETC = unchecked((int)0x80040064);
 
         private readonly DataObject _inner = new();
         private readonly Func<string[]?> _stageRemoteFilesCallback;
@@ -95,8 +205,7 @@ namespace FunkenwerkFtp
                 EnsureStagedForExternalDrop();
                 if (_stagedFiles == null || _stagedFiles.Length == 0)
                 {
-                    // DV_E_FORMATETC (0x80040064) cancels external drop cleanly if unstageable
-                    throw new System.Runtime.InteropServices.COMException("Keine externen Drag-Dateien verfügbar.", unchecked((int)0x80040064));
+                    throw new COMException("Keine externen Drag-Dateien verfügbar.", DV_E_FORMATETC);
                 }
             }
             ((ComIDataObject)_inner).GetData(ref format, out medium);
@@ -107,6 +216,10 @@ namespace FunkenwerkFtp
             if (IsShellFileFormat(format.cfFormat))
             {
                 EnsureStagedForExternalDrop();
+                if (_stagedFiles == null || _stagedFiles.Length == 0)
+                {
+                    throw new COMException("Keine externen Drag-Dateien verfügbar.", DV_E_FORMATETC);
+                }
             }
             ((ComIDataObject)_inner).GetDataHere(ref format, ref medium);
         }
@@ -163,7 +276,11 @@ namespace FunkenwerkFtp
             get
             {
                 string dir = Path.Combine(FunkenwerkFtpSecurity.VaultDir, "DragStage");
-                Directory.CreateDirectory(dir);
+                if (!Directory.Exists(dir))
+                {
+                    Directory.CreateDirectory(dir);
+                    FunkenwerkFtpSecurity.LockDownDirectoryAcl(dir);
+                }
                 return dir;
             }
         }
@@ -171,8 +288,11 @@ namespace FunkenwerkFtp
         public static string CreateIsolatedBatchDir()
         {
             PruneOldBatches(TimeSpan.FromMinutes(30));
-            string batch = Path.Combine(RootStagingDir, DateTime.UtcNow.ToString("yyyyMMdd_HHmmss_") + Guid.NewGuid().ToString("N")[..8]);
+            string root = RootStagingDir;
+            FunkenwerkFtpSecurity.LockDownDirectoryAcl(root);
+            string batch = Path.Combine(root, DateTime.UtcNow.ToString("yyyyMMdd_HHmmss_") + Guid.NewGuid().ToString("N")[..8]);
             Directory.CreateDirectory(batch);
+            FunkenwerkFtpSecurity.LockDownDirectoryAcl(batch);
             return batch;
         }
 
@@ -187,7 +307,7 @@ namespace FunkenwerkFtp
                 {
                     try
                     {
-                        if (Directory.GetCreationTimeUtc(sub) < cutoff)
+                        if (maxAge <= TimeSpan.Zero || Directory.GetCreationTimeUtc(sub) <= cutoff)
                             Directory.Delete(sub, recursive: true);
                     }
                     catch { }
