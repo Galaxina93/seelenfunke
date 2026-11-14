@@ -397,15 +397,14 @@ case "$1" in
                 exit 1
             fi
 
-            # 2. Harte .env-Sperre gegen Live / Production
+            # 2. Harte .env-Sperre gegen Live-Domain (Stage nutzt APP_ENV=production für abgeschalteten Debug-Stacktrace, aber strikt APP_URL=https://stage.mein-seelenfunke.de)
             if [ ! -f "$STAGE_DIR/.env" ]; then
                 echo "❌ Fehler: Keine .env in '$STAGE_DIR' gefunden!"
                 exit 1
             fi
-            ENV_APP_ENV="$(grep -E '^APP_ENV=' "$STAGE_DIR/.env" | head -n 1 | cut -d'=' -f2- | tr -d ' "\r')"
             ENV_APP_URL="$(grep -E '^APP_URL=' "$STAGE_DIR/.env" | head -n 1 | cut -d'=' -f2- | tr -d ' "\r' | sed 's:/*$::')"
-            if [ "$ENV_APP_ENV" = "production" ] || [ "$ENV_APP_URL" != "https://stage.mein-seelenfunke.de" ]; then
-                echo "❌ LIVE-AIR-GAP SPERRE: .env meldet APP_ENV='$ENV_APP_ENV' / APP_URL='$ENV_APP_URL' (erwartet: Stage)!"
+            if [ "$ENV_APP_URL" != "https://stage.mein-seelenfunke.de" ]; then
+                echo "❌ LIVE-AIR-GAP SPERRE: .env meldet APP_URL='$ENV_APP_URL' (erwartet exakt 'https://stage.mein-seelenfunke.de')!"
                 exit 1
             fi
 
