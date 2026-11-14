@@ -255,12 +255,12 @@ trait ManagesAiChat
         }
 
         // Alter Fallback auf Linux/Shell Ebene falls Cache fehlt
-        if (function_exists('shell_exec') && !str_contains(ini_get('disable_functions'), 'shell_exec')) {
-            $output = shell_exec('pgrep -f "[a]rtisan queue" 2>/dev/null');
-            if (empty(trim($output))) {
-                $output = shell_exec('ps ax 2>/dev/null | grep "artisan" | grep -i "queue" | grep -v grep');
+        if (function_exists('shell_exec') && !str_contains((string) ini_get('disable_functions'), 'shell_exec')) {
+            $output = (string) shell_exec('pgrep -f "[a]rtisan queue" 2>/dev/null');
+            if (trim($output) === '') {
+                $output = (string) shell_exec('ps ax 2>/dev/null | grep "artisan" | grep -i "queue" | grep -v grep');
             }
-            return !empty(trim($output));
+            return trim($output) !== '';
         }
         return true; 
     }
@@ -283,12 +283,12 @@ trait ManagesAiChat
         $info[] = "Cache-Signal: " . ($cacheHit ? 'OK' : 'Fehlt');
         $info[] = "NFS-Signal: " . ($storageHit ? 'OK' : 'Fehlt');
         
-        if (function_exists('shell_exec') && !str_contains(ini_get('disable_functions'), 'shell_exec')) {
-            $out1 = shell_exec('pgrep -f "[a]rtisan queue" 2>/dev/null');
-            $info[] = "pgrep: " . (!empty(trim($out1)) ? 'Treffer' : 'Leer');
+        if (function_exists('shell_exec') && !str_contains((string) ini_get('disable_functions'), 'shell_exec')) {
+            $out1 = (string) shell_exec('pgrep -f "[a]rtisan queue" 2>/dev/null');
+            $info[] = "pgrep: " . (trim($out1) !== '' ? 'Treffer' : 'Leer');
             
-            $out2 = shell_exec('ps ax 2>/dev/null | grep "artisan" | grep -i "queue" | grep -v grep');
-            $info[] = "ps: " . (!empty(trim($out2)) ? 'Treffer' : 'Leer');
+            $out2 = (string) shell_exec('ps ax 2>/dev/null | grep "artisan" | grep -i "queue" | grep -v grep');
+            $info[] = "ps: " . (trim($out2) !== '' ? 'Treffer' : 'Leer');
         } else {
              $info[] = "Shell: Verboten";
         }
@@ -350,7 +350,7 @@ trait ManagesAiChat
             ->first();
 
         if ($recent) {
-            $existingText = trim($recent->content);
+            $existingText = trim((string) $recent->content);
 
             // Case 1: Exact duplicate -> skip
             if ($existingText === $trimmed) {
@@ -633,7 +633,7 @@ trait ManagesAiChat
 
     public function sendMessage()
     {
-        if (trim($this->input) === '' && empty($this->attachments) && empty($this->uploadedFiles)) {
+        if (trim((string) $this->input) === '' && empty($this->attachments) && empty($this->uploadedFiles)) {
             return;
         }
 
@@ -679,13 +679,13 @@ trait ManagesAiChat
 
     public function saveUserLiveMessage($text, $sessionId = null)
     {
-        if (empty(trim($text))) return;
+        if (trim((string) $text) === '') return;
         $this->appendLiveChatMemory('user', $text, null, $sessionId);
     }
 
     public function saveAssistantLiveMessage($text, $agentId = null, $sessionId = null)
     {
-        if (empty(trim($text))) return;
+        if (trim((string) $text) === '') return;
         $this->appendLiveChatMemory('assistant', $text, $agentId, $sessionId);
     }
 
@@ -934,7 +934,7 @@ trait ManagesAiChat
             if ($mem->role === 'tool') {
                 $apiHistory[] = [
                     'role' => 'assistant',
-                    'content' => "[SYSTEM-LOG: Du hast für diese User-Anfrage bereits ein Werkzeug eingesetzt. Das Resultat war: " . trim(strip_tags($mem->content)) . "]"
+                    'content' => "[SYSTEM-LOG: Du hast für diese User-Anfrage bereits ein Werkzeug eingesetzt. Das Resultat war: " . trim(strip_tags((string) $mem->content)) . "]"
                 ];
                 continue;
             }
@@ -1086,7 +1086,7 @@ trait ManagesAiChat
                     $this->stream('answer_' . $agentId, $event['chunk'], false);
                 }
             });
-            $replyText = $response['response'] ?? '';
+            $replyText = (string) ($response['response'] ?? '');
 
             if (trim($replyText) !== '') {
                 $ctx = [
@@ -1383,13 +1383,13 @@ trait ManagesAiChat
         if (!AiAuthHelper::isAdmin()) {
             return;
         }
-        if (empty(trim($addition))) return;
+        if (trim((string) $addition) === '') return;
         
         $task = \App\Models\Ai\AiWorkspaceTask::find($taskId);
         if ($task && in_array($task->status, ['completed', 'archived', 'failed', 'paused'])) {
             $agentId = $task->assigned_agent_id;
             
-            $newPrompt = $task->prompt . "\n\n--- Ergänzung / Retry ---\n" . trim($addition);
+            $newPrompt = $task->prompt . "\n\n--- Ergänzung / Retry ---\n" . trim((string) $addition);
             
             $task->update([
                 'prompt' => $newPrompt,
@@ -1475,7 +1475,7 @@ trait ManagesAiChat
         if (!AiAuthHelper::isAdmin()) {
             return;
         }
-        if (trim($this->input) === '' && empty($this->attachments) && empty($this->uploadedFiles)) return;
+        if (trim((string) $this->input) === '' && empty($this->attachments) && empty($this->uploadedFiles)) return;
 
         $meta = [
             'attachments' => $this->attachments,
@@ -1495,7 +1495,7 @@ trait ManagesAiChat
         $meta['session_id'] = $this->getAiSessionId();
 
         \App\Models\Ai\AiWorkspaceTask::create([
-            'prompt' => trim($this->input),
+            'prompt' => trim((string) $this->input),
             'status' => 'pending',
             'ui_metadata' => $meta
         ]);
