@@ -376,4 +376,45 @@ class SentinelSelfHealingAndInboxTest extends TestCase
         $importedLocal->refresh();
         $this->assertSame('resolved', $importedLocal->status);
     }
+
+    public function test_minipc_gemini_live_goaway_rollover_and_transient_pulse_blip_are_auto_healed(): void
+    {
+        SystemLog::openIssues()->update(['status' => 'success']);
+
+        $goAwayLog = SystemLog::create([
+            'type' => 'minipc_linux',
+            'action_id' => 'minipc_linux:gemini_live_ws_close:546a092da8fae527',
+            'title' => '[Werkstatt Mini-PC] Live-WebSocket unerwartet geschlossen (Code 1008)',
+            'message' => 'Connection aborted because the client failed to close the connection after receiving a GoAway signal once the session duration limit was reached.',
+            'status' => 'error',
+            'payload' => ['occurrences_count' => 1],
+            'started_at' => now(),
+            'finished_at' => now(),
+        ]);
+
+        $pulseBlipLog = SystemLog::create([
+            'type' => 'minipc_linux',
+            'action_id' => 'minipc_linux:portal_pulse:d6f170df4e85883d',
+            'title' => '[Werkstatt Mini-PC] Portal-Pulse nicht erreichbar (STAGE)',
+            'message' => 'GET https://stage.mein-seelenfunke.de/api/shop/monitor-pulse lieferte Status 0.',
+            'status' => 'warning',
+            'payload' => ['occurrences_count' => 1],
+            'started_at' => now(),
+            'finished_at' => now(),
+        ]);
+
+        $stats = app(SentinelTriageService::class)->runTriageCycle(probeBridges: false, allowAiEnrichment: false);
+
+        $this->assertSame(2, $stats['auto_healed_count']);
+        $this->assertSame(0, $stats['open_pool_count']);
+
+        $goAwayLog->refresh();
+        $pulseBlipLog->refresh();
+
+        $this->assertSame('success', $goAwayLog->status);
+        $this->assertSame('gemini_live_session_rollover', $goAwayLog->payload['triage']['playbook'] ?? null);
+
+        $this->assertSame('success', $pulseBlipLog->status);
+        $this->assertSame('client_portal_pulse_recovered', $pulseBlipLog->payload['triage']['playbook'] ?? null);
+    }
 }

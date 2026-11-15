@@ -520,6 +520,28 @@ class SentinelTriageService
             }
         }
 
+        // Playbook 5: Regulärer Google Gemini Live 15-Min-Session-Rollover (GoAway) & einmaliger Client-WLAN-Puls-Aussetzer
+        if (str_contains($actionId, 'gemini_live_ws_close')
+            && (str_contains($msgLower, 'goaway') || str_contains($msgLower, 'session duration'))
+            && $occurrences < 25) {
+            return [
+                'healed' => true,
+                'playbook' => 'gemini_live_session_rollover',
+                'summary' => 'Regulärer Session-Rollover (GoAway) der Google Gemini Live-API; Client baut die Verbindung automatisch neu auf.',
+            ];
+        }
+
+        if (str_contains($actionId, ':portal_pulse:')
+            && str_contains($msgLower, 'status 0')
+            && $occurrences < 5
+            && $this->verifyCoreConnectivityHealthy()) {
+            return [
+                'healed' => true,
+                'playbook' => 'client_portal_pulse_recovered',
+                'summary' => 'Kurzzeitiger lokaler Netzwerk-Aussetzer (Status 0) am Endgerät ist abgeklungen; Telemetrie-Verbindung zum Portal steht wieder.',
+            ];
+        }
+
         return ['healed' => false];
     }
 

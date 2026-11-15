@@ -489,8 +489,8 @@ case "$1" in
 
             echo "🧹 Bereinige & prüfe globales SystemLog auf Stage..."
             php artisan db:seed --class=SystemCronjobSeeder --force 2>/dev/null || true
-            php artisan system:logs-cleanup --audit --prune
             php artisan system:sentinel-triage --no-ai || true
+            php artisan system:logs-cleanup --audit --prune
 
             echo "✅ Prüfe Stage-Routen-Gesundheit..."
             php artisan system:check-routes --routes-only

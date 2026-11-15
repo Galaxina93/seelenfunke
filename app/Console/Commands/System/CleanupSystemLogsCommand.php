@@ -13,6 +13,7 @@ class CleanupSystemLogsCommand extends Command
     protected $signature = 'system:logs-cleanup
                             {--audit : Zeigt eine detaillierte Aufschlüsselung aller offenen Fehler, Warnungen und Log-Quellen}
                             {--prune : Führt die 7-Tage-Archivbereinigung, Zombie-Bereinigung und Duplikat-Zusammenführung aus}
+                            {--clear-solved : Löscht zusätzlich alle nicht-revisionspflichtigen gelösten Archiv-Einträge sofort}
                             {--archive-open : Verschiebt bestehende offene Alt-Meldungen nach erfolgtem Code-Fix als [GELÖST] ins 7-Tage-Archiv}
                             {--days=7 : Aufbewahrungsdauer in Tagen für gelöste Meldungen und Routine-Logs}
                             {--audit-days=30 : Aufbewahrungsdauer in Tagen für DSGVO- und Sicherheits-Auditnachweise}';
@@ -27,7 +28,8 @@ class CleanupSystemLogsCommand extends Command
         }
 
         $doAudit = (bool) $this->option('audit');
-        $doPrune = (bool) $this->option('prune') || !$doAudit;
+        $clearSolved = (bool) $this->option('clear-solved');
+        $doPrune = (bool) $this->option('prune') || $clearSolved || !$doAudit;
         $days = max(1, (int) $this->option('days'));
         $auditDays = max($days, (int) $this->option('audit-days'));
 
@@ -36,7 +38,7 @@ class CleanupSystemLogsCommand extends Command
         }
 
         if ($doPrune) {
-            $stats = self::executePrune($days, $auditDays, false);
+            $stats = self::executePrune($days, $auditDays, $clearSolved);
             $this->info(sprintf(
                 '🧹 Log-Selbstbereinigung abgeschlossen: %d Duplikate zusammengeführt | %d Transienten bereinigt | %d Zombies geschlossen | %d Archiv-Logs (>%dd) gelöscht | %d Altlasten (>%dd) gelöscht | %d Scheduler-Logs gelöscht.',
                 $stats['deduplicated_open'],
