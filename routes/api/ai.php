@@ -173,5 +173,47 @@ Route::prefix('ai')->group(function () {
                 'Cache-Control' => 'no-store, no-cache, must-revalidate, private',
             ]);
         })->middleware('throttle:10,1');
+
+        // Geheimer Fehler-Analyse-Keller (Funkira 3D-Hologramm, Datei-Zusammenhänge & Cross-Platform-Logs)
+        Route::get('/cellar-snapshot', function () {
+            $snapshot = app(\App\Services\System\SystemBrainDiagnosticsService::class)
+                ->buildCellarSnapshot();
+
+            return response()->json($snapshot, 200, [
+                'Cache-Control' => 'no-store, no-cache, must-revalidate, private',
+            ]);
+        });
+
+        // 1-Klick & Sprach-Übergabe eines Geheimnis-bereinigten Reparatur-Dossiers an Antigravity
+        Route::post('/cellar-handoff', function (\Illuminate\Http\Request $request) {
+            $result = app(\App\Services\System\SystemBrainDiagnosticsService::class)
+                ->prepareAntigravityHandoff($request->all());
+
+            return response()->json($result, 200, [
+                'Cache-Control' => 'no-store, no-cache, must-revalidate, private',
+            ]);
+        })->middleware('throttle:20,1');
+
+        Route::get('/cellar-handoff', function () {
+            $dossier = app(\App\Services\System\SystemBrainDiagnosticsService::class)
+                ->getActiveAntigravityHandoff();
+
+            return response()->json([
+                'status' => 'success',
+                'has_handoff' => $dossier !== null,
+                'dossier' => $dossier,
+            ], 200, [
+                'Cache-Control' => 'no-store, no-cache, must-revalidate, private',
+            ]);
+        });
+
+        Route::post('/cellar-auto-heal', function () {
+            $result = app(\App\Services\System\SystemBrainDiagnosticsService::class)
+                ->runAutonomousCellarHeal();
+
+            return response()->json($result, 200, [
+                'Cache-Control' => 'no-store, no-cache, must-revalidate, private',
+            ]);
+        })->middleware('throttle:20,1');
     });
 });

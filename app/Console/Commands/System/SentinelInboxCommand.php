@@ -36,9 +36,23 @@ class SentinelInboxCommand extends Command
                 resolvedBy: $resolvedBy
             );
 
+            $prunedCount = 0;
+            if ($resolveAll) {
+                $pruneStats = CleanupSystemLogsCommand::executePrune(7, 30, true);
+                $prunedCount = (int) ($pruneStats['archived_deleted'] ?? 0) + (int) ($pruneStats['transient_deleted'] ?? 0);
+
+                if (!app()->runningUnitTests()) {
+                    $laravelLog = storage_path('logs/laravel.log');
+                    if (is_file($laravelLog) && is_writable($laravelLog)) {
+                        @file_put_contents($laravelLog, '');
+                    }
+                }
+            }
+
             $this->line((string) json_encode([
                 'status' => 'success',
                 'resolved_count' => $count,
+                'pruned_archive_count' => $prunedCount,
                 'resolved_by' => $resolvedBy,
             ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
 

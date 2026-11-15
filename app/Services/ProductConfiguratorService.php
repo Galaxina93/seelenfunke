@@ -805,7 +805,7 @@ class ProductConfiguratorService
      */
     public function sanitizeSvgContent(string $svg): string
     {
-        return \App\Support\SafeHtmlAndSvgSanitizer::sanitizeSvg($svg);
+        return \App\Support\SafeHtmlAndSvgSanitizer::sanitizeSvg($svg, true);
     }
 
     protected function sanitizeCategoryFolder(string $category): string

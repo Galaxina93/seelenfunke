@@ -1516,6 +1516,11 @@ class ProductConfigurator extends Component
                                 continue;
                             }
                         }
+                        if ($val !== '' && empty($l['url'])) {
+                            $l['url'] = str_starts_with($val, 'vectors/')
+                                ? app(\App\Services\ProductConfiguratorService::class)->resolveVectorUrl($val)
+                                : asset('storage/' . ltrim($val, '/'));
+                        }
                         $cleaned[] = $l;
                     }
                     return $cleaned;
@@ -1803,7 +1808,7 @@ class ProductConfigurator extends Component
             return false;
         }
 
-        $sanitizedXml = \App\Support\SafeHtmlAndSvgSanitizer::sanitizeSvg($content);
+        $sanitizedXml = \App\Support\SafeHtmlAndSvgSanitizer::sanitizeSvg($content, true);
         if ($sanitizedXml === '' || !str_contains($sanitizedXml, '<svg')) {
             if (file_exists($filePath)) {
                 @unlink($filePath);

@@ -1061,6 +1061,370 @@ use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
 
         return app(\App\Services\CartFileCleanupService::class)->cleanupOrderFilesAfterDeletion($itemConfigurations);
     }
+
+    /**
+     * Aggregiert die Manufaktur-Checkliste (1. Besondere Wünsche, 2. Geschenkpapier + Modus, 3. Edle Schmuckbox, 4. Gravur)
+     * über alle Bestellpositionen hinweg und ermittelt den autonomen 3-Schritte-Fortschritt.
+     */
+    public function getManufacturingOverview(): array
+    {
+        if (!$this->relationLoaded('items')) {
+            $this->load('items.product');
+        }
+
+        $totalItems = $this->items->count();
+        $completedItems = 0;
+        $hasNotes = false;
+        $notesDone = true;
+        $notesTexts = [];
+
+        $hasGiftWrap = false;
+        $giftWrapModes = [];
+        $giftWrapDone = true;
+
+        $hasGiftBox = false;
+        $giftBoxCount = 0;
+        $giftBoxDone = true;
+
+        $openActionCount = 0;
+        $requiresFragileSticker = false;
+        $fragileItemNames = [];
+
+        foreach ($this->items as $item) {
+            if ($item->is_completed) {
+                $completedItems++;
+            }
+
+            $product = $item->product;
+            $prodConf = $product
+                ? (is_string($product->configurator_settings) ? (json_decode($product->configurator_settings, true) ?: []) : ($product->configurator_settings ?? []))
+                : [];
+            $haystack = mb_strtolower(implode(' ', [
+                (string) ($item->product_name ?? ''),
+                (string) ($product->name ?? ''),
+                (string) ($prodConf['material_type'] ?? ''),
+                (string) ($prodConf['xtool_material'] ?? ''),
+            ]));
+            foreach (['kristall', 'glas', 'glass', 'trophäe', 'trophaee', 'schiefer', 'keramik', 'porzellan', 'spiegel'] as $fragileKeyword) {
+                if (str_contains($haystack, $fragileKeyword)) {
+                    $requiresFragileSticker = true;
+                    $fragileItemNames[] = (string) ($item->product_name ?: ($product->name ?? 'Artikel'));
+                    break;
+                }
+            }
+
+            $checklist = $item->resolveManufacturingChecklist();
+            $openActionCount += (int) ($checklist['open_action_count'] ?? 0);
+
+            if (!empty($checklist['notes']['has_note'])) {
+                $hasNotes = true;
+                $notesTexts[] = $checklist['notes']['text'];
+                if (empty($checklist['notes']['checked'])) {
+                    $notesDone = false;
+                }
+            }
+
+            if (!empty($checklist['gift_wrap']['selected'])) {
+                $hasGiftWrap = true;
+                $giftWrapModes[] = $checklist['gift_wrap']['mode'];
+                if (empty($checklist['gift_wrap']['checked'])) {
+                    $giftWrapDone = false;
+                }
+            }
+
+            if (!empty($checklist['gift_box']['selected'])) {
+                $hasGiftBox = true;
+                $giftBoxCount += max(1, (int) $item->quantity);
+                if (empty($checklist['gift_box']['checked'])) {
+                    $giftBoxDone = false;
+                }
+            }
+        }
+
+        $orderNote = trim((string) ($this->notes ?? ''));
+        if ($orderNote !== '' && !in_array($orderNote, $notesTexts, true)) {
+            $hasNotes = true;
+            $notesTexts[] = $orderNote;
+        }
+
+        $uniqueWrapModes = array_values(array_unique($giftWrapModes));
+        $giftWrapSummaryLabel = 'Nein';
+        if ($hasGiftWrap) {
+            if (in_array('wrapped', $uniqueWrapModes, true) && in_array('loose', $uniqueWrapModes, true)) {
+                $giftWrapSummaryLabel = 'Ja (Gemischt: Verpacken & Dazu legen)';
+            } elseif (in_array('loose', $uniqueWrapModes, true)) {
+                $giftWrapSummaryLabel = 'Ja (Nur als Bogen dazu legen)';
+            } else {
+                $giftWrapSummaryLabel = 'Ja (Fertig als Geschenk verpacken)';
+            }
+        }
+
+        $giftBoxSummaryLabel = $hasGiftBox
+            ? ('Ja (' . $giftBoxCount . 'x Edle Schmuckbox)')
+            : 'Nein';
+
+        $notesSummaryLabel = $hasNotes
+            ? ('Ja: ' . implode(' | ', array_unique($notesTexts)))
+            : 'Keine besonderen Wünsche';
+
+        $allStepOneTasksCompleted = $totalItems > 0 && $completedItems >= $totalItems && $openActionCount === 0;
+
+        $firstItemConf = ($this->items->first() && is_array($this->items->first()->configuration))
+            ? $this->items->first()->configuration
+            : [];
+        $packingChecks = is_array($firstItemConf['order_packing_checks'] ?? null)
+            ? $firstItemConf['order_packing_checks']
+            : [];
+
+        $thankYouCardChecked = (bool) ($packingChecks['thank_you_card'] ?? in_array((string) $this->status, ['shipped', 'completed'], true));
+        $fragileStickerChecked = (bool) ($packingChecks['fragile_sticker'] ?? in_array((string) $this->status, ['shipped', 'completed'], true));
+
+        $autonomousStep = match ((string) $this->status) {
+            'pending' => 0, // Wartend -> Start-Screen ("Jetzt starten")
+            'processing' => $allStepOneTasksCompleted ? 2 : 1,
+            'shipped' => 3,
+            'completed' => 3,
+            default => 1,
+        };
+
+        return [
+            'autonomous_step' => $autonomousStep,
+            'total_items' => $totalItems,
+            'completed_items' => $completedItems,
+            'open_action_count' => $openActionCount,
+            'all_step_one_done' => $allStepOneTasksCompleted,
+            'has_notes' => $hasNotes,
+            'notes_done' => $notesDone,
+            'notes_summary' => $notesSummaryLabel,
+            'has_gift_wrap' => $hasGiftWrap,
+            'gift_wrap_modes' => $uniqueWrapModes,
+            'gift_wrap_done' => $giftWrapDone,
+            'gift_wrap_summary' => $giftWrapSummaryLabel,
+            'has_gift_box' => $hasGiftBox,
+            'gift_box_count' => $giftBoxCount,
+            'gift_box_done' => $giftBoxDone,
+            'gift_box_summary' => $giftBoxSummaryLabel,
+            'thank_you_card_checked' => $thankYouCardChecked,
+            'requires_fragile_sticker' => $requiresFragileSticker,
+            'fragile_items' => array_values(array_unique($fragileItemNames)),
+            'fragile_sticker_checked' => $fragileStickerChecked,
+        ];
+    }
+
+    /**
+     * Schaltet einen Packtisch-Prüfpunkt ('thank_you_card' = Dankeskarte beigelegt, 'fragile_sticker' = Warnaufkleber Zerbrechlich) um.
+     */
+    public function togglePackingCheck(string $checkKey, ?bool $forceState = null): void
+    {
+        if (!in_array($checkKey, ['thank_you_card', 'fragile_sticker'], true)) {
+            return;
+        }
+
+        if (!$this->relationLoaded('items')) {
+            $this->load('items');
+        }
+
+        $firstItem = $this->items->first();
+        if (!$firstItem) {
+            return;
+        }
+
+        $conf = is_array($firstItem->configuration) ? $firstItem->configuration : [];
+        $packingChecks = is_array($conf['order_packing_checks'] ?? null) ? $conf['order_packing_checks'] : [];
+        $current = (bool) ($packingChecks[$checkKey] ?? false);
+        $packingChecks[$checkKey] = $forceState !== null ? $forceState : !$current;
+        $conf['order_packing_checks'] = $packingChecks;
+
+        $firstItem->configuration = $conf;
+        $firstItem->save();
+    }
+
+    /**
+     * Erstellt den detaillierten Packtisch-Plan für Schritt 2 (Versand):
+     * Zeigt exakt auf, welche Kartons/Versandtaschen wie oft für welche Produkte der Bestellung
+     * benötigt werden und wie jedes Produkt verpackt werden muss (inkl. Schmuckbox & Geschenkpapier-Modus).
+     */
+    public function getPackingStationPlan(): array
+    {
+        if (!$this->relationLoaded('items')) {
+            $this->load('items.product');
+        }
+
+        $dhlDetails = !$this->isOnlyDigital()
+            ? $this->getDhlWeightDetails(1, 'box')
+            : null;
+
+        $suggestedType = (string) ($dhlDetails['suggested_packaging_type'] ?? 'box');
+        if ($suggestedType === 'envelope' && !$this->isOnlyDigital()) {
+            $dhlDetails = $this->getDhlWeightDetails(1, 'envelope');
+        }
+
+        $productIds = $this->items->pluck('product_id')->filter()->unique()->values()->all();
+        $productPackagings = !empty($productIds)
+            ? \App\Models\Product\ProductPackaging::with('packagingItem')
+                ->whereIn('product_id', $productIds)
+                ->get()
+                ->groupBy('product_id')
+            : collect();
+
+        $itemRows = [];
+        $cartonSummary = [];
+
+        foreach ($this->items as $item) {
+            $product = $item->product;
+            $qty = max(1, (int) $item->quantity);
+            $checklist = $item->resolveManufacturingChecklist();
+            $isDigital = !empty($item->configuration['is_digital']) || ($product && $product->type === 'digital');
+            $isService = $product && $product->type === 'service';
+
+            if ($isDigital || $isService) {
+                $itemRows[] = [
+                    'item_id' => $item->id,
+                    'product_name' => (string) ($item->product_name ?: ($product->name ?? 'Artikel')),
+                    'quantity' => $qty,
+                    'is_physical' => false,
+                    'box_label' => $isDigital ? 'Digitaler Versand (E-Mail / Kundenportal)' : 'Service-Position (Kein physischer Karton)',
+                    'box_dimensions' => '',
+                    'packing_instructions' => ['Kein physischer Versandkarton erforderlich'],
+                ];
+                continue;
+            }
+
+            $pkgRecords = $item->product_id ? ($productPackagings->get($item->product_id) ?? collect()) : collect();
+            $primaryPkgItem = $pkgRecords->first()?->packagingItem;
+            $slugAndName = mb_strtolower(((string) ($product->slug ?? '')) . ' ' . ((string) ($item->product_name ?? '')));
+
+            if ($primaryPkgItem) {
+                $boxLabel = (string) $primaryPkgItem->name;
+                $boxDims = (string) $primaryPkgItem->formatted_dimensions;
+                $boxKey = (string) ($primaryPkgItem->sku ?: $primaryPkgItem->name);
+            } elseif (str_contains($slugAndName, 'kristall') || str_contains($slugAndName, 'schiefer') || str_contains($slugAndName, 'trophäe')) {
+                $boxLabel = 'Versandkarton Kristall & Schiefer (inkl. Polster)';
+                $boxDims = '240 × 210 × 60 mm';
+                $boxKey = 'PKG-BOX-CRYSTAL';
+            } elseif (str_contains($slugAndName, 'weizenglas') || str_contains($slugAndName, 'glas')) {
+                $boxLabel = 'Versandkarton Weizenglas & Gravurglas';
+                $boxDims = '250 × 100 × 100 mm';
+                $boxKey = 'PKG-BOX-GLASS';
+            } else {
+                $boxLabel = 'Luftpolster-Versandtasche A/1 (Großbrief)';
+                $boxDims = '175 × 120 × 10 mm';
+                $boxKey = 'PKG-ENV-A1';
+            }
+
+            if (!isset($cartonSummary[$boxKey])) {
+                $cartonSummary[$boxKey] = [
+                    'key' => $boxKey,
+                    'label' => $boxLabel,
+                    'dimensions' => $boxDims,
+                    'count' => 0,
+                    'products' => [],
+                ];
+            }
+            $cartonSummary[$boxKey]['count'] += $qty;
+            $cartonSummary[$boxKey]['products'][] = $qty . '× ' . ($item->product_name ?: ($product->name ?? 'Artikel'));
+
+            $instructions = [];
+            if (!empty($checklist['gift_box']['selected'])) {
+                $instructions[] = '🎁 In schwarze Westpack Schmuckbox (86 × 86 × 17 mm) einlegen';
+                if (!isset($cartonSummary['30286060102'])) {
+                    $cartonSummary['30286060102'] = [
+                        'key' => '30286060102',
+                        'label' => 'Frankfurt ECO Schmuckschachtel (Westpack)',
+                        'dimensions' => '86 × 86 × 17 mm',
+                        'count' => 0,
+                        'products' => [],
+                    ];
+                }
+                $cartonSummary['30286060102']['count'] += $qty;
+                $cartonSummary['30286060102']['products'][] = $qty . '× ' . ($item->product_name ?: ($product->name ?? 'Artikel'));
+            } else {
+                $instructions[] = '📦 Standard-Schutzpolsterung (keine Zusatz-Schmuckbox gebucht)';
+            }
+
+            if (!empty($checklist['gift_wrap']['selected'])) {
+                if (($checklist['gift_wrap']['mode'] ?? 'wrapped') === 'loose') {
+                    $instructions[] = '🎀 Schwarz-Gold-Geschenkpapier NICHT zukleben -> als Bogen lose beilegen';
+                } else {
+                    $instructions[] = '🎀 Fertig in Schwarz-Gold-Geschenkpapier einschlagen';
+                }
+            }
+
+            $itemRows[] = [
+                'item_id' => $item->id,
+                'product_name' => (string) ($item->product_name ?: ($product->name ?? 'Artikel')),
+                'variant_name' => (string) ($item->configuration['variant_name'] ?? ''),
+                'quantity' => $qty,
+                'is_physical' => true,
+                'box_label' => $boxLabel,
+                'box_dimensions' => $boxDims,
+                'packing_instructions' => $instructions,
+            ];
+        }
+
+        return [
+            'outer_package_count' => (int) ($dhlDetails['recommended_package_count'] ?? 1),
+            'outer_box_hint' => (string) ($dhlDetails['recommended_box_hint'] ?? 'Standard-Versandkarton'),
+            'dhl_class' => (string) ($dhlDetails['dhl_class'] ?? 'Paket bis 2 kg'),
+            'total_weight_kg' => (float) ($dhlDetails['recommended_weight_per_package'] ?? 0.5),
+            'is_bulk_order' => (bool) ($dhlDetails['is_bulk_order'] ?? false),
+            'cartons' => array_values($cartonSummary),
+            'items' => $itemRows,
+        ];
+    }
+
+    /**
+     * Erzeugt und speichert autonom die aktuelle Werkstatt-Status-Zusammenfassung für Funkira,
+     * sodass das manuelle Feld "Werkstatt-Stand" komplett entfällt.
+     */
+    public function syncAutonomousWorkshopSummary(): string
+    {
+        $overview = $this->getManufacturingOverview();
+
+        if ($this->status === 'pending') {
+            $summary = 'Wartend auf Produktionsstart (Schritt 0)';
+        } elseif ($this->status === 'completed') {
+            $summary = 'Schritt 3 erledigt: Bestellung komplett abgeschlossen';
+        } elseif ($this->status === 'shipped') {
+            $tracking = $this->tracking_number ? (' (DHL: ' . $this->tracking_number . ')') : '';
+            $summary = 'Schritt 2 erledigt: Versendet' . $tracking . ' · Bereit für Schritt 3 (Abschluss)';
+        } elseif ($overview['all_step_one_done']) {
+            $extras = [];
+            if ($overview['has_gift_box']) {
+                $extras[] = 'Schmuckbox erledigt';
+            }
+            if ($overview['has_gift_wrap']) {
+                $extras[] = $overview['gift_wrap_summary'] . ' erledigt';
+            }
+            if ($overview['has_notes']) {
+                $extras[] = 'Manufaktur-Wunsch umgesetzt';
+            }
+            $extrasSuffix = !empty($extras) ? (' (' . implode(', ', $extras) . ')') : '';
+            $summary = 'Schritt 1 abgeschlossen: Alle ' . $overview['total_items'] . ' Positionen gefertigt' . $extrasSuffix . ' · Jetzt Schritt 2: DHL-Versand';
+        } else {
+            $openParts = [];
+            $openItems = max(0, $overview['total_items'] - $overview['completed_items']);
+            if ($openItems > 0) {
+                $openParts[] = $openItems . '/' . $overview['total_items'] . ' Gravur(en) offen';
+            }
+            if ($overview['has_notes'] && !$overview['notes_done']) {
+                $openParts[] = 'Kundenwunsch beachten';
+            }
+            if ($overview['has_gift_box'] && !$overview['gift_box_done']) {
+                $openParts[] = 'Edle Schmuckbox einlegen';
+            }
+            if ($overview['has_gift_wrap'] && !$overview['gift_wrap_done']) {
+                $openParts[] = $overview['gift_wrap_summary'];
+            }
+            $summary = 'Schritt 1 (In Bearbeitung): ' . (!empty($openParts) ? implode(' · ', $openParts) : 'Fertigung läuft');
+        }
+
+        $this->workshop_note = mb_substr($summary, 0, 250);
+        $this->workshop_note_updated_at = now();
+        $this->saveQuietly();
+
+        return $this->workshop_note;
+    }
 }
 
 

@@ -131,6 +131,7 @@
       </div>
 
       <div class="topbar-group">
+        <button class="pill-btn" id="btn-funkira-cellar" title="Geheime 3D-Kuppelhalle &amp; vollautomatische Fehlerheilung"><span id="funkira-cellar-btn-lbl">🧠 Kuppelhalle</span> <span class="cellar-err-badge hidden" id="funkira-cellar-badge">0</span></button>
         <button class="pill-btn" id="btn-funkira-phone" title="Intelligenter Whitelist-Anrufbeantworter (Handy-Bluetooth &amp; Test-Anruf)">📞 Telefon</button>
         <button class="pill-btn" id="btn-funkira-tiktok" title="Datenschutzkonformer TikTok-Live-Modus (Zero-PII Sandbox)">🎥 TikTok Live</button>
         <button class="pill-btn" id="btn-funkira-wake-sleep" title="Funkira gemütlich durch ihr Haus spazieren lassen oder zu dir ins Atelier rufen">🏡 Pause im Haus</button>
@@ -150,6 +151,55 @@
       <span>📞 Telefonat: <strong id="phone-call-caller">Papa</strong></span>
       <button class="pill-btn" id="btn-phone-hangup-live" style="padding:3px 10px;font-size:11.5px;">Auflegen</button>
     </div>
+
+    <!-- SECRET 3D ERROR-ANALYSIS CELLAR & PROJECT-BRAIN HUD DRAWER (Clean-Design Schwarz-Gold) -->
+    <aside class="funkira-cellar-panel hidden" id="funkira-cellar-panel">
+      <div class="cellar-panel-head">
+        <strong class="cellar-panel-title" title="Visualisiert das Seelenfunke Projekt-Gehirn in der 3D-Kuppelhalle, Cross-Plattform-Fehlerlogs, Datei-Zusammenhänge und bereitet Fix-Dossiers für Antigravity vor">🧠 Projekt-Gehirn · Kuppelhalle !</strong>
+        <div class="cellar-head-actions">
+          <button class="pill-btn cellar-mini-btn" id="btn-cellar-check" title="Cross-Plattform-Logs &amp; Systemstatus frisch prüfen">↻ Prüfen</button>
+          <button class="pill-btn cellar-mini-btn" id="btn-cellar-upstairs" title="Mit Funkira zurück nach oben ins Atelier">↑ Atelier</button>
+          <button class="win-ctrl-btn close" id="btn-cellar-close" title="Ansicht ausblenden">✕</button>
+        </div>
+      </div>
+
+      <div class="cellar-kpi-row">
+        <div class="cellar-kpi-pill"><span>Dateien</span><strong id="cellar-kpi-files">891</strong></div>
+        <div class="cellar-kpi-pill"><span>Kanten</span><strong id="cellar-kpi-edges">3856</strong></div>
+        <div class="cellar-kpi-pill"><span>Befunde</span><strong id="cellar-kpi-issues">0</strong></div>
+      </div>
+
+      <div class="cellar-tabs-row">
+        <button class="pill-btn cellar-tab-btn active" id="btn-cellar-tab-issues">Offene Befunde</button>
+        <button class="pill-btn cellar-tab-btn" id="btn-cellar-tab-clusters">10 Abteilungen</button>
+      </div>
+
+      <div class="cellar-items-list" id="cellar-items-list"></div>
+
+      <div class="cellar-detail-card" id="cellar-detail-card">
+        <div class="cellar-detail-meta" id="cellar-detail-meta">PROJEKT-GEHIRN</div>
+        <div class="cellar-detail-title" id="cellar-detail-title">System bereit</div>
+        <div class="cellar-detail-file" id="cellar-detail-file">-</div>
+        <div class="cellar-detail-cause" id="cellar-detail-cause">Keine offenen Fehler erkannt.</div>
+
+        <div class="cellar-rel-group" id="cellar-rel-wrap">
+          <div class="cellar-rel-row">
+            <span class="cellar-rel-lbl">← Aufrufer</span>
+            <div class="cellar-chip-wrap" id="cellar-incoming-chips"></div>
+          </div>
+          <div class="cellar-rel-row">
+            <span class="cellar-rel-lbl">→ Referenzen</span>
+            <div class="cellar-chip-wrap" id="cellar-outgoing-chips"></div>
+          </div>
+        </div>
+
+        <div class="cellar-handoff-bar" id="cellar-handoff-bar">
+          <input type="text" class="fw-input cellar-note-input" id="cellar-handoff-note" placeholder="Notiz für Antigravity (optional)" />
+          <button class="pill-btn gold-primary cellar-handoff-btn" id="btn-cellar-handoff" title="Schreibt ein bereinigtes Reparatur-Dossier (ohne Passwörter/Tokens) direkt für Antigravity">🛠 Für Antigravity bereitstellen</button>
+          <div class="badge-muted hidden" id="cellar-handoff-status"></div>
+        </div>
+      </div>
+    </aside>
 
     <div class="funkira-center-stage">
       <div class="funkira-avatar-wrap hidden">
@@ -290,7 +340,7 @@
     </div>
   </div>
 
-  <script type="module" src="/funkira3d.js?v=20261114v15"></script>
-  <script src="/app.js?v=20261114v15"></script>
+  <script type="module" src="/funkira3d.js?v=20261115v23"></script>
+  <script src="/app.js?v=20261115v23"></script>
 </body>
 </html>

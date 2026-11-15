@@ -86,6 +86,21 @@ class OrderOverview extends Component
     public ?string $lastPrintedOrderId = null;
     public ?string $lastPrintedShipmentId = null;
 
+    // 3-SCHRITTE AUTONOMER BESTELL-WORKFLOW STATE
+    public int $activeOrderStep = 1;
+    public bool $showOptionalOrderDetails = false;
+
+    // XTOOL F2 ULTRA UV LIVE-LASER-COCKPIT STATE
+    public string $laserCockpitSide = 'front';
+    public float $laserCenterXMm = 100.0;
+    public float $laserCenterYMm = 100.0;
+    public float $laserAngleDeg = 0.0;
+    public int $laserConfidence = 0;
+    public bool $laserAutoAligned = false;
+    public int $laserWorkflowStep = 1;
+    public int $laserCameraRefreshToken = 0;
+    public ?string $laserLastActionStatus = null;
+
     private function notifyOrderFeedback(string $type, string $title, string $message): void
     {
         $this->dispatch('order-feedback', type: $type, title: $title, message: $message);
@@ -278,6 +293,7 @@ class OrderOverview extends Component
     public function openDetail($id)
     {
         $this->selectedOrderId = $id;
+        $this->showOptionalOrderDetails = false;
 
         // Order laden (Eager Loading für Performance)
         $this->selectedOrder = OrderOrder::with(['items.product.supplier', 'invoices', 'shipments'])->find($id);
@@ -290,6 +306,9 @@ class OrderOverview extends Component
             $this->workshopNote = (string) ($this->selectedOrder->workshop_note ?? '');
             $this->workshopFollowupMode = $this->selectedOrder->workshop_checkin_paused ? 'pause' : '2h';
             $this->cancellationReason = $this->selectedOrder->cancellation_reason ?? '';
+
+            $overview = $this->selectedOrder->getManufacturingOverview();
+            $this->activeOrderStep = $overview['autonomous_step'] > 0 ? (int) $overview['autonomous_step'] : 1;
 
             if ($this->selectedOrder->items->isNotEmpty()) {
                 // Bevorzuge im Preview automatisch den aktuell fokussierten Serien-Artikel (oder die erste noch offene Position)
@@ -304,6 +323,7 @@ class OrderOverview extends Component
                     $preferredItem = $this->selectedOrder->items->first(fn ($i) => !$i->is_completed);
                 }
                 $this->selectedOrderItemId = ($preferredItem ?: $this->selectedOrder->items->first())->id;
+                $this->initializeLaserCockpitForPreviewItem(false);
             }
         }
     }
@@ -313,7 +333,241 @@ class OrderOverview extends Component
         $this->selectedOrderId = null;
         $this->selectedOrderItemId = null;
         $this->selectedOrder = null;
-        $this->reset(['status', 'payment_status', 'notes', 'workshopNote', 'workshopFollowupMode', 'cancellationReason']);
+        $this->activeOrderStep = 1;
+        $this->showOptionalOrderDetails = false;
+        $this->reset(['status', 'payment_status', 'notes', 'workshopNote', 'workshopFollowupMode', 'cancellationReason', 'laserLastActionStatus']);
+    }
+
+    public function toggleOptionalOrderDetails(): void
+    {
+        $this->showOptionalOrderDetails = !$this->showOptionalOrderDetails;
+    }
+
+    /**
+     * Startet eine wartende Bestellung (Klick auf "Jetzt starten" in der Wartend-Kachel):
+     * Setzt den Status autonom auf "processing" ("In Bearbeitung") und öffnet Schritt 1.
+     */
+    public function startOrderProcessing(): void
+    {
+        if (!$this->selectedOrder) {
+            return;
+        }
+
+        if ($this->selectedOrder->status === 'pending') {
+            $this->selectedOrder->update(['status' => 'processing']);
+            $this->status = 'processing';
+        }
+
+        $this->activeOrderStep = 1;
+        $this->laserWorkflowStep = 1;
+        $this->workshopNote = $this->selectedOrder->syncAutonomousWorkshopSummary();
+        $this->selectedOrder->refresh();
+        $this->selectedOrder->load(['items.product.supplier', 'invoices', 'shipments']);
+        $this->invalidateSmartQueueCache();
+
+        $this->notifyOrderFeedback(
+            'success',
+            'Schritt 1 gestartet: In Bearbeitung',
+            "Bestellung #{$this->selectedOrder->order_number} ist jetzt in Bearbeitung (Schritt 1)."
+        );
+    }
+
+    /**
+     * Wechselt den sichtbaren Tab innerhalb der 3-Schritte-Detailansicht (1 = In Bearbeitung, 2 = Versendet, 3 = Abgeschlossen).
+     */
+    public function setOrderStep(int $step): void
+    {
+        $this->activeOrderStep = max(1, min(3, $step));
+    }
+
+    /**
+     * Schaltet einen Punkt der Manufaktur-Checkliste (1. Kundenwunsch, 2. Geschenkpapier, 3. Edle Schmuckbox, 4. Gravur)
+     * um und setzt bei vollständiger Abarbeitung autonom Schritt 2 aktiv.
+     */
+    public function toggleItemChecklistTask(string $itemId, string $taskKey): void
+    {
+        $item = OrderOrderItem::with('product')->find($itemId);
+        if (!$item || !$this->selectedOrder || (string) $item->order_id !== (string) $this->selectedOrder->id) {
+            return;
+        }
+
+        $item->toggleChecklistTask($taskKey);
+
+        if ($item->is_completed && !empty($item->product_id) && ($item->product?->type ?? 'physical') !== 'digital') {
+            $this->rememberActiveBatchProduct((string) $item->product_id);
+        }
+
+        if ($this->selectedOrder->status === 'pending') {
+            $this->selectedOrder->update(['status' => 'processing']);
+            $this->status = 'processing';
+        }
+
+        $this->selectedOrder->refresh();
+        $this->selectedOrder->load(['items.product.supplier', 'invoices', 'shipments']);
+        $this->workshopNote = $this->selectedOrder->syncAutonomousWorkshopSummary();
+        $overview = $this->selectedOrder->getManufacturingOverview();
+        $this->invalidateSmartQueueCache();
+
+        if ($overview['all_step_one_done'] && $this->selectedOrder->status === 'processing') {
+            $this->activeOrderStep = 2;
+            $this->notifyOrderFeedback(
+                'success',
+                'Schritt 1 komplett erledigt',
+                'Alle Gravuren & Konfigurator-Aufgaben (Wünsche, Geschenkpapier, Schmuckbox) sind erledigt! Weiter mit Schritt 2 (Versand).'
+            );
+        } elseif ($item->is_completed) {
+            // Falls die aktuelle Position fertig ist, aber noch weitere Artikel in einer Großbestellung offen sind,
+            // schalten wir automatisch zum nächsten offenen Artikel weiter!
+            $nextOpenItem = $this->selectedOrder->items->first(fn ($i) => !$i->is_completed);
+            if ($nextOpenItem && (string) $nextOpenItem->id !== (string) $this->selectedOrderItemId) {
+                $this->selectedOrderItemId = $nextOpenItem->id;
+                $this->initializeLaserCockpitForPreviewItem(false);
+                $this->notifyOrderFeedback(
+                    'success',
+                    'Position fertig · Nächster Artikel geladen',
+                    "Weiter mit: {$nextOpenItem->quantity}x {$nextOpenItem->product_name}"
+                );
+            }
+        }
+    }
+
+    /**
+     * Markiert die aktuell im Laser-Cockpit geöffnete Position als vollständig gefertigt
+     * und schaltet automatisch zum nächsten offenen Artikel der Bestellung (oder in Schritt 2: Verpackung & Versand).
+     */
+    public function completeCurrentItemAndAdvance(?string $itemId = null): void
+    {
+        if (!$this->selectedOrder) {
+            return;
+        }
+
+        $targetId = $itemId ?: ($this->selectedOrderItemId ?: ($this->selectedOrder->items->first()?->id));
+        $item = $targetId ? OrderOrderItem::with('product')->find($targetId) : null;
+
+        if ($item && (string) $item->order_id === (string) $this->selectedOrder->id) {
+            $item->markAllChecklistTasks(true);
+            if (!empty($item->product_id) && ($item->product?->type ?? 'physical') !== 'digital') {
+                $this->rememberActiveBatchProduct((string) $item->product_id);
+            }
+        }
+
+        if ($this->selectedOrder->status === 'pending') {
+            $this->selectedOrder->update(['status' => 'processing']);
+            $this->status = 'processing';
+        }
+
+        $this->selectedOrder->refresh();
+        $this->selectedOrder->load(['items.product.supplier', 'invoices', 'shipments']);
+        $this->workshopNote = $this->selectedOrder->syncAutonomousWorkshopSummary();
+        $this->invalidateSmartQueueCache();
+
+        $nextOpenItem = $this->selectedOrder->items->first(fn ($i) => !$i->is_completed);
+        if ($nextOpenItem) {
+            $this->selectedOrderItemId = $nextOpenItem->id;
+            $this->activeOrderStep = 1;
+            $this->initializeLaserCockpitForPreviewItem(false);
+            $this->notifyOrderFeedback(
+                'success',
+                'Artikel erledigt · Nächste Position aktiv',
+                "Weiter mit: {$nextOpenItem->quantity}x {$nextOpenItem->product_name}"
+            );
+            return;
+        }
+
+        $this->activeOrderStep = 2;
+        $this->notifyOrderFeedback(
+            'success',
+            'Alle Artikel fertig gelasert · Jetzt Verpackung & Versand',
+            'Weiter mit Schritt 2: Kartons packen, Dankeskarte & Warnaufkleber prüfen und DHL-Label drucken.'
+        );
+    }
+
+    /**
+     * Schaltet einen Packtisch-Prüfpunkt ('thank_you_card' = Dankeskarte beigelegt, 'fragile_sticker' = Warnaufkleber Zerbrechlich) um.
+     */
+    public function toggleOrderPackingCheck(string $checkKey): void
+    {
+        if (!$this->selectedOrder) {
+            return;
+        }
+
+        $this->selectedOrder->togglePackingCheck($checkKey);
+        $this->selectedOrder->refresh();
+        $this->selectedOrder->load(['items.product.supplier', 'invoices', 'shipments']);
+        $this->workshopNote = $this->selectedOrder->syncAutonomousWorkshopSummary();
+    }
+
+    /**
+     * Schließt Schritt 1 (Fertigung & Konfigurator-Extras) komplett ab und wechselt autonom zu Schritt 2 (Versand).
+     */
+    public function completeStepOneAndProceedToShipping(): void
+    {
+        if (!$this->selectedOrder) {
+            return;
+        }
+
+        foreach ($this->selectedOrder->items as $item) {
+            $item->markAllChecklistTasks(true);
+            if (!empty($item->product_id) && ($item->product?->type ?? 'physical') !== 'digital') {
+                $this->rememberActiveBatchProduct((string) $item->product_id);
+            }
+        }
+
+        if ($this->selectedOrder->status === 'pending') {
+            $this->selectedOrder->update(['status' => 'processing']);
+            $this->status = 'processing';
+        }
+
+        $this->selectedOrder->refresh();
+        $this->selectedOrder->load(['items.product.supplier', 'invoices', 'shipments']);
+        $this->workshopNote = $this->selectedOrder->syncAutonomousWorkshopSummary();
+        $this->activeOrderStep = 2;
+        $this->invalidateSmartQueueCache();
+
+        $this->notifyOrderFeedback(
+            'success',
+            'Schritt 1 abgeschlossen · Jetzt Schritt 2 (Versand)',
+            'Alle Artikel und Konfigurator-Extras sind abgehakt. Jetzt DHL-Label erstellen und Paket versenden.'
+        );
+    }
+
+    /**
+     * Markiert die Bestellung in Schritt 2 als versendet und wechselt autonom zu Schritt 3 (Abgeschlossen).
+     */
+    public function completeStepTwoShipped(bool $sendMail = true): void
+    {
+        if (!$this->selectedOrder) {
+            return;
+        }
+
+        $this->confirmingShipmentId = $this->selectedOrder->id;
+        $this->confirmShipment($sendMail);
+        $this->activeOrderStep = 3;
+    }
+
+    /**
+     * Schließt die Bestellung in Schritt 3 endgültig ab (Status: completed).
+     */
+    public function completeStepThreeOrder(): void
+    {
+        if (!$this->selectedOrder) {
+            return;
+        }
+
+        $this->selectedOrder->update(['status' => 'completed']);
+        $this->selectedOrder->shipments()->where('status', '!=', 'delivered')->update(['status' => 'delivered']);
+        $this->status = 'completed';
+        $this->selectedOrder->refresh();
+        $this->selectedOrder->load(['items.product.supplier', 'invoices', 'shipments']);
+        $this->workshopNote = $this->selectedOrder->syncAutonomousWorkshopSummary();
+        $this->activeOrderStep = 3;
+        $this->invalidateSmartQueueCache();
+
+        $this->notifyOrderFeedback(
+            'success',
+            'Schritt 3 erledigt: Bestellung abgeschlossen',
+            "Bestellung #{$this->selectedOrder->order_number} wurde vollständig abgeschlossen."
+        );
     }
 
     public function getSelectedOrderDiscrepancyProperty(): array
@@ -390,6 +644,8 @@ class OrderOverview extends Component
     public function selectItemForPreview($itemId)
     {
         $this->selectedOrderItemId = $itemId;
+        $this->laserCockpitSide = 'front';
+        $this->initializeLaserCockpitForPreviewItem(false);
     }
 
     // --- ACTIONS: SPEICHERN ---
@@ -543,10 +799,13 @@ class OrderOverview extends Component
         $item = OrderOrderItem::with('product')->find($itemId);
         if ($item && $this->selectedOrder && $item->order_id == $this->selectedOrder->id) {
             $newStatus = !$item->is_completed;
-            $item->update([
-                'is_completed' => $newStatus,
-                'completed_quantity' => $newStatus ? $item->quantity : 0
-            ]);
+            $item->markAllChecklistTasks($newStatus);
+
+            if ($this->selectedOrder->status === 'pending' && $newStatus) {
+                $this->selectedOrder->update(['status' => 'processing']);
+                $this->status = 'processing';
+            }
+
             if ($newStatus && !empty($item->product_id) && ($item->product?->type ?? 'physical') !== 'digital') {
                 $this->rememberActiveBatchProduct((string) $item->product_id);
             } else {
@@ -554,6 +813,12 @@ class OrderOverview extends Component
             }
             $this->selectedOrder->refresh();
             $this->selectedOrder->load(['items.product.supplier', 'invoices', 'shipments']);
+            $this->workshopNote = $this->selectedOrder->syncAutonomousWorkshopSummary();
+
+            $overview = $this->selectedOrder->getManufacturingOverview();
+            if ($newStatus && $overview['all_step_one_done'] && $this->selectedOrder->status === 'processing') {
+                $this->activeOrderStep = 2;
+            }
         }
     }
 
@@ -580,6 +845,13 @@ class OrderOverview extends Component
                     'completed_quantity' => $newQty,
                     'is_completed' => ($newQty >= $item->quantity)
                 ]);
+                if ($newQty >= $item->quantity) {
+                    $item->toggleChecklistTask('engraving', true);
+                }
+                if ($this->selectedOrder->status === 'pending') {
+                    $this->selectedOrder->update(['status' => 'processing']);
+                    $this->status = 'processing';
+                }
                 if (!empty($item->product_id) && ($item->product?->type ?? 'physical') !== 'digital') {
                     $this->rememberActiveBatchProduct((string) $item->product_id);
                 } else {
@@ -587,6 +859,12 @@ class OrderOverview extends Component
                 }
                 $this->selectedOrder->refresh();
                 $this->selectedOrder->load(['items.product.supplier', 'invoices', 'shipments']);
+                $this->workshopNote = $this->selectedOrder->syncAutonomousWorkshopSummary();
+
+                $overview = $this->selectedOrder->getManufacturingOverview();
+                if ($overview['all_step_one_done'] && $this->selectedOrder->status === 'processing') {
+                    $this->activeOrderStep = 2;
+                }
             }
         }
     }
@@ -595,10 +873,11 @@ class OrderOverview extends Component
     {
         $item = OrderOrderItem::with('product')->find($itemId);
         if ($item && $this->selectedOrder && $item->order_id == $this->selectedOrder->id) {
-            $item->update([
-                'completed_quantity' => $item->quantity,
-                'is_completed' => true
-            ]);
+            $item->markAllChecklistTasks(true);
+            if ($this->selectedOrder->status === 'pending') {
+                $this->selectedOrder->update(['status' => 'processing']);
+                $this->status = 'processing';
+            }
             if (!empty($item->product_id) && ($item->product?->type ?? 'physical') !== 'digital') {
                 $this->rememberActiveBatchProduct((string) $item->product_id);
             } else {
@@ -606,6 +885,12 @@ class OrderOverview extends Component
             }
             $this->selectedOrder->refresh();
             $this->selectedOrder->load(['items.product.supplier', 'invoices', 'shipments']);
+            $this->workshopNote = $this->selectedOrder->syncAutonomousWorkshopSummary();
+
+            $overview = $this->selectedOrder->getManufacturingOverview();
+            if ($overview['all_step_one_done'] && $this->selectedOrder->status === 'processing') {
+                $this->activeOrderStep = 2;
+            }
         }
     }
 
@@ -619,9 +904,11 @@ class OrderOverview extends Component
                     'completed_quantity' => $newQty,
                     'is_completed' => false // sobald eins fehlt, ist nicht mehr full-completed
                 ]);
+                $item->toggleChecklistTask('engraving', false);
                 $this->invalidateSmartQueueCache();
                 $this->selectedOrder->refresh();
                 $this->selectedOrder->load(['items.product.supplier', 'invoices', 'shipments']);
+                $this->workshopNote = $this->selectedOrder->syncAutonomousWorkshopSummary();
             }
         }
     }
@@ -635,6 +922,7 @@ class OrderOverview extends Component
             try {
                 DB::transaction(function () use ($order, $sendMail) {
                     $order->update(['status' => 'shipped']);
+                    $order->syncAutonomousWorkshopSummary();
 
                     if ($sendMail) {
                         Mail::to($order->email)->send(new NewOrderShippedToCustomer($order->toFormattedArray()));
@@ -645,7 +933,9 @@ class OrderOverview extends Component
 
                     if ($this->selectedOrder && $this->selectedOrder->id == $order->id) {
                         $this->status = 'shipped';
+                        $this->activeOrderStep = 3;
                         $this->selectedOrder->refresh();
+                        $this->workshopNote = (string) ($this->selectedOrder->workshop_note ?? '');
                     }
                     $this->invalidateSmartQueueCache();
                 });
@@ -997,11 +1287,14 @@ class OrderOverview extends Component
             // Automatisch den Order-Status auf "versendet" setzen, 
             // damit das Live-Tracking (check-delivery-status) einhaken kann.
             $order->update(['status' => 'shipped']);
+            $order->syncAutonomousWorkshopSummary();
             $this->invalidateSmartQueueCache();
 
             if ($this->selectedOrder && $this->selectedOrder->id == $this->dhlModalOrderId) {
                 $this->status = 'shipped';
+                $this->activeOrderStep = 3;
                 $this->selectedOrder->refresh();
+                $this->workshopNote = (string) ($this->selectedOrder->workshop_note ?? '');
             }
             // Direkt automatisch an Funkenwerk übergeben
             try {
@@ -1278,6 +1571,258 @@ class OrderOverview extends Component
     public function downloadLaserPngFile($itemId, $side, \App\Services\Export\FileDownloadService $exportService)
     {
         return $exportService->downloadLaserPng($itemId, $side);
+    }
+
+    public function downloadLaserXcsFile($itemId, $side = 'front', ?\App\Services\Export\FileDownloadService $exportService = null)
+    {
+        $exportService = $exportService ?: app(\App\Services\Export\FileDownloadService::class);
+        return $exportService->downloadLaserXcs(
+            $itemId,
+            $side,
+            $this->laserCenterXMm,
+            $this->laserCenterYMm,
+            $this->laserAngleDeg
+        );
+    }
+
+    public function downloadLaserXfFile($itemId, $side = 'front', ?\App\Services\Export\FileDownloadService $exportService = null)
+    {
+        $exportService = $exportService ?: app(\App\Services\Export\FileDownloadService::class);
+        return $exportService->downloadLaserXf(
+            $itemId,
+            $side,
+            $this->laserCenterXMm,
+            $this->laserCenterYMm,
+            $this->laserAngleDeg
+        );
+    }
+
+    // --- XTOOL F2 ULTRA UV LIVE-LASER-COCKPIT ACTIONS ---
+
+    protected function initializeLaserCockpitForPreviewItem(bool $forceCameraSync = false): void
+    {
+        $this->laserWorkflowStep = 1;
+        $this->laserLastActionStatus = null;
+
+        $item = $this->previewItem;
+        if (!$item) {
+            return;
+        }
+
+        try {
+            $cockpit = app(\App\Services\Laser\XtoolLaserCockpitService::class);
+            $detected = $cockpit->detectBlankPositionOnBed(
+                $item->product,
+                $item->configuration ?? [],
+                $this->laserCockpitSide,
+                $forceCameraSync
+            );
+            $this->laserCenterXMm = (float) $detected['center_x_mm'];
+            $this->laserCenterYMm = (float) $detected['center_y_mm'];
+            $this->laserAngleDeg = (float) $detected['angle_deg'];
+            $this->laserConfidence = (int) $detected['confidence'];
+            $this->laserAutoAligned = (bool) $detected['detected'];
+        } catch (\Throwable) {
+            $this->laserCenterXMm = 100.0;
+            $this->laserCenterYMm = 100.0;
+            $this->laserAngleDeg = 0.0;
+            $this->laserConfidence = 50;
+            $this->laserAutoAligned = false;
+        }
+    }
+
+    public function switchLaserCockpitSide(string $side): void
+    {
+        $this->laserCockpitSide = $side === 'back' ? 'back' : 'front';
+        $this->laserWorkflowStep = 1;
+        $this->laserLastActionStatus = null;
+    }
+
+    public function refreshLaserCameraAndAlign(?string $side = null): void
+    {
+        if ($side !== null) {
+            $this->laserCockpitSide = $side === 'back' ? 'back' : 'front';
+        }
+
+        $item = $this->previewItem;
+        if (!$item) {
+            return;
+        }
+
+        try {
+            $this->laserCameraRefreshToken++;
+            $cockpit = app(\App\Services\Laser\XtoolLaserCockpitService::class);
+            $detected = $cockpit->detectBlankPositionOnBed(
+                $item->product,
+                $item->configuration ?? [],
+                $this->laserCockpitSide,
+                true
+            );
+
+            $this->laserCenterXMm = (float) $detected['center_x_mm'];
+            $this->laserCenterYMm = (float) $detected['center_y_mm'];
+            $this->laserAngleDeg = (float) $detected['angle_deg'];
+            $this->laserConfidence = (int) $detected['confidence'];
+            $this->laserAutoAligned = true;
+            $this->laserWorkflowStep = 2;
+
+            $xFmt = number_format($this->laserCenterXMm, 1, ',', '.');
+            $yFmt = number_format($this->laserCenterYMm, 1, ',', '.');
+            $aFmt = number_format($this->laserAngleDeg, 1, ',', '.');
+            $isOnline = !empty($detected['laser_online']);
+            $camTime = (string) ($detected['camera_updated_at'] ?? now()->format('d.m.Y H:i:s'));
+
+            $this->laserLastActionStatus = "Schritt 1 erledigt: X {$xFmt} mm · Y {$yFmt} mm · {$aFmt}° ({$this->laserConfidence} % · {$camTime})";
+            $this->notifyOrderFeedback(
+                'success',
+                $isOnline
+                    ? 'Schritt 1 erledigt: Live-Kamerabild & KI-Ausrichtung aktiv'
+                    : 'Schritt 1 erledigt: Kamerabild neu ausgewertet & KI-Ausrichtung aktiv',
+                ($isOnline ? "Live-Frame vom Laser ({$camTime})" : "Studio-Kameraframe ({$camTime}, Laser im Standby)") . " neu ausgewertet: X = {$xFmt} mm, Y = {$yFmt} mm, {$aFmt}°. Jetzt Schritt 2 (Rahmen-Vorschau) klicken."
+            );
+        } catch (\Throwable $e) {
+            $this->notifyOrderFeedback('error', 'Kamera-Abgleich fehlgeschlagen', $e->getMessage());
+        }
+    }
+
+    public function updateLaserCoordinates($xMm, $yMm, $angleDeg = null): void
+    {
+        if (is_numeric($xMm)) {
+            $this->laserCenterXMm = round(max(5.0, min(195.0, (float) $xMm)), 1);
+        }
+        if (is_numeric($yMm)) {
+            $this->laserCenterYMm = round(max(5.0, min(195.0, (float) $yMm)), 1);
+        }
+        if ($angleDeg !== null && is_numeric($angleDeg)) {
+            $this->laserAngleDeg = round(max(-45.0, min(45.0, (float) $angleDeg)), 1);
+        }
+    }
+
+    public function nudgeLaserPosition(float $dxMm = 0.0, float $dyMm = 0.0, float $dAngleDeg = 0.0): void
+    {
+        $this->laserCenterXMm = round(max(5.0, min(195.0, $this->laserCenterXMm + $dxMm)), 1);
+        $this->laserCenterYMm = round(max(5.0, min(195.0, $this->laserCenterYMm + $dyMm)), 1);
+        $this->laserAngleDeg = round(max(-45.0, min(45.0, $this->laserAngleDeg + $dAngleDeg)), 1);
+    }
+
+    public function triggerLaserFraming(?string $itemId = null, ?string $side = null)
+    {
+        $targetItemId = $itemId ?: ($this->previewItem->id ?? null);
+        $targetSide = $side ?: $this->laserCockpitSide;
+        if (!$targetItemId) {
+            return;
+        }
+
+        try {
+            $cockpit = app(\App\Services\Laser\XtoolLaserCockpitService::class);
+            $job = $cockpit->enqueueOrSendLaserJob(
+                $targetItemId,
+                $targetSide,
+                'framing',
+                $this->laserCenterXMm,
+                $this->laserCenterYMm,
+                $this->laserAngleDeg
+            );
+
+            $xFmt = number_format((float) $job['center_x_mm'], 1, ',', '.');
+            $yFmt = number_format((float) $job['center_y_mm'], 1, ',', '.');
+            $this->laserWorkflowStep = 3;
+            $this->laserLastActionStatus = "Schritt 2 erledigt: Rahmen-Vorschau aktiv ({$xFmt} / {$yFmt} mm)";
+
+            $this->notifyOrderFeedback(
+                'success',
+                'Schritt 2 erledigt: Rahmen-Vorschau läuft am Laser',
+                "Blauer Laser-Rahmen auf X = {$xFmt} mm, Y = {$yFmt} mm gesetzt. Wenn alles passt, Schritt 3 (An Laser senden) klicken."
+            );
+        } catch (\Throwable $e) {
+            $this->notifyOrderFeedback('error', 'Rahmen-Vorschau fehlgeschlagen', $e->getMessage());
+        }
+    }
+
+    public function sendJobDirectlyToLaser(?string $itemId = null, ?string $side = null)
+    {
+        $targetItemId = $itemId ?: ($this->previewItem->id ?? null);
+        $targetSide = $side ?: $this->laserCockpitSide;
+        if (!$targetItemId) {
+            return;
+        }
+
+        try {
+            $cockpit = app(\App\Services\Laser\XtoolLaserCockpitService::class);
+            $job = $cockpit->enqueueOrSendLaserJob(
+                $targetItemId,
+                $targetSide,
+                'engrave',
+                $this->laserCenterXMm,
+                $this->laserCenterYMm,
+                $this->laserAngleDeg
+            );
+
+            $xFmt = number_format((float) $job['center_x_mm'], 1, ',', '.');
+            $yFmt = number_format((float) $job['center_y_mm'], 1, ',', '.');
+            $this->laserWorkflowStep = 4;
+            $this->laserLastActionStatus = "Schritt 3 erledigt: Auftrag bereit am Laser ({$job['xcs_filename']})";
+
+            $this->notifyOrderFeedback(
+                'success',
+                'Schritt 3 erledigt: Auftrag an xTool F2 Ultra UV gesendet',
+                "Auftrag #{$job['order_number']} (X = {$xFmt} mm, Y = {$yFmt} mm) übertragen. Jetzt nur noch den Start-Knopf am Gerät drücken."
+            );
+        } catch (\Throwable $e) {
+            $this->notifyOrderFeedback('error', 'Laser-Übergabe fehlgeschlagen', $e->getMessage());
+        }
+    }
+
+    public function getLaserCockpitDataProperty(): ?array
+    {
+        $item = $this->previewItem;
+        if (!$item || !$item->product || !$item->product->isPhysical()) {
+            return null;
+        }
+
+        $conf = $item->configuration ?? [];
+        $isCustomFields = (($conf['personalization_mode'] ?? null) === 'custom_fields') || !empty($conf['custom_fields_data']);
+        $frontTexts = array_filter($conf['texts'] ?? [], fn ($t) => is_array($t) && trim((string) ($t['text'] ?? '')) !== '');
+        $backTexts = array_filter($conf['texts_back'] ?? [], fn ($t) => is_array($t) && trim((string) ($t['text'] ?? '')) !== '');
+        $hasFront = !empty($frontTexts) || !empty($conf['logos']) || !empty($conf['logo_storage_path']) || $isCustomFields || !empty($conf['text']) || $item->product->isPersonalizable();
+        $hasBack = !$isCustomFields && (!empty($backTexts) || !empty($conf['logos_back']));
+
+        $effectiveSide = ($this->laserCockpitSide === 'back' && $hasBack) ? 'back' : 'front';
+
+        try {
+            $cockpit = app(\App\Services\Laser\XtoolLaserCockpitService::class);
+            $camInfo = $cockpit->syncCameraFromHostOrLaser(null, false);
+            $payload = app(\App\Services\Export\FileDownloadService::class)->buildLaserDesignPayload($item, $effectiveSide, true);
+            $laserGuide = $item->product->getLaserInstructionSummary();
+
+            return [
+                'camera_url'        => $camInfo['camera_url'] . '&r=' . $this->laserCameraRefreshToken,
+                'camera_updated_at' => $camInfo['updated_at'],
+                'camera_source'     => $camInfo['source'],
+                'refresh_token'     => $this->laserCameraRefreshToken,
+                'laser_online'      => $camInfo['laser_online'],
+                'laser_ip'          => $camInfo['laser_ip'],
+                'device_sn'         => \App\Services\Laser\XtoolLaserCockpitService::DEVICE_SN_CODE,
+                'side'              => $effectiveSide,
+                'has_front'         => $hasFront,
+                'has_back'          => $hasBack,
+                'width_mm'          => (float) $payload['widthMm'],
+                'height_mm'         => (float) $payload['heightMm'],
+                'center_x_mm'       => $this->laserCenterXMm,
+                'center_y_mm'       => $this->laserCenterYMm,
+                'angle_deg'         => $this->laserAngleDeg,
+                'confidence'        => $this->laserConfidence ?: 92,
+                'auto_aligned'      => $this->laserAutoAligned,
+                'workflow_step'     => $this->laserWorkflowStep,
+                'equipment_title'   => $laserGuide['equipment_title'] ?? 'Standard-Aufbau',
+                'focus_formatted'   => $laserGuide['focus_formatted'] ?? '33,1 mm',
+                'ghost_d_path'      => $payload['ghostContourDPath'],
+                'preview_data_url'  => $payload['previewDataUrl'],
+                'last_status'       => $this->laserLastActionStatus,
+            ];
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     // --- RENDER ---

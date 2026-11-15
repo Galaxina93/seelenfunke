@@ -26,8 +26,22 @@ trait AiMasterFuncs
                 'callable' => [self::class, 'executeGetCoreKpis']
             ],
             [
+                'name' => 'master_get_next_best_actions',
+                'description' => 'Dein zentraler Co-CEO- & Manufaktur-Kompass (NUR AUF NACHFRAGE aufrufen, wenn Alina fragt "Was müssen wir als Nächstes tun?", "Wie geht es weiter?", "Was steht an?" oder "Hast du einen Tipp?"). Vernetzt in einer Abfrage alle 24 Dashboard-Status-Checks, die 5-Stufen-Laser-Fertigungs-Queue (Rüstgruppen, 60-Sek.-Rohling-Vorlauf, DHL-Versand), Alinas Aufgaben (hoch->mittel->niedrig), Tagesroutine, Kalender-Zeitfenster und 14-Tage-Saison-Weitblick inklusive konkreter Einwände und Effizienz-Tipps.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'active_batch_product_id' => [
+                            'type' => 'string',
+                            'description' => 'Optional: Aktuell eingespannter Produkt-Fokus am xTool F2 Ultra UV (UUID), falls bekannt.'
+                        ]
+                    ],
+                ],
+                'callable' => [self::class, 'executeGetNextBestActions']
+            ],
+            [
                 'name' => 'master_get_operational_health',
-                'description' => 'Scant sofort alle Abteilungen (Support, Buchhaltung, Bestellungen) auf offene Todos (z.B. offene Tickets, unversendete Bestellungen, unassoziierte Bank-Transaktionen).',
+                'description' => 'Scant sofort alle Abteilungen (Support, Buchhaltung, Bestellungen) auf offene Todos (z.B. offene Tickets, unversendete Bestellungen, unassoziierte Bank-Transaktionen). Für die Frage "Was müssen wir als Nächstes tun?" nutze stattdessen bevorzugt `master_get_next_best_actions`!',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => new \stdClass(),
@@ -94,6 +108,23 @@ trait AiMasterFuncs
             ];
         } catch (\Exception $e) {
             return ['status' => 'error', 'message' => 'Fehler beim Laden der KPIs: ' . $e->getMessage()];
+        }
+    }
+
+    public static function executeGetNextBestActions(array $args)
+    {
+        if (\App\Services\AI\AiAuthHelper::check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            return ['status' => 'error', 'message' => 'Zugriff verweigert: Master-Werkzeuge erfordern Administrator-Berechtigungen.'];
+        }
+
+        try {
+            $activeProductId = isset($args['active_batch_product_id'])
+                ? trim((string) $args['active_batch_product_id'])
+                : null;
+
+            return app(\App\Services\AI\MasterNextBestActionService::class)->evaluate($activeProductId ?: null);
+        } catch (\Exception $e) {
+            return ['status' => 'error', 'message' => 'Fehler beim Berechnen der nächsten Schritte: ' . $e->getMessage()];
         }
     }
 

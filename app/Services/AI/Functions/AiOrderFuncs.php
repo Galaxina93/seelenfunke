@@ -557,11 +557,14 @@ trait AiOrderFuncs
             return $denied;
         }
         try {
-            $limit = $args['limit'] ?? 3;
+            $limit = max(1, min(20, (int) ($args['limit'] ?? 3)));
+            $todayDate = now()->format('Y-m-d');
             $tasks = ManagementTask::with('list')
                 ->where('is_completed', false)
                 ->where('is_archived', false)
-                ->orderBy('priority', 'desc')
+                ->whereNull('parent_id')
+                ->orderByRaw("CASE COALESCE(priority, 'niedrig') WHEN 'hoch' THEN 1 WHEN 'mittel' THEN 2 WHEN 'niedrig' THEN 3 ELSE 4 END")
+                ->orderByRaw('CASE WHEN relevant_from IS NOT NULL AND relevant_from <= ? THEN 0 WHEN relevant_from IS NULL THEN 1 ELSE 2 END', [$todayDate])
                 ->orderBy('created_at', 'asc')
                 ->take($limit)
                 ->get();

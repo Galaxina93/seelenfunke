@@ -10,6 +10,70 @@ use Illuminate\Http\Request;
 class AIController extends Controller
 {
     /**
+     * Detects canned Google Gemini post-training disclaimer refusals (e.g. "Ich bin nur ein Sprachmodell und kann dabei nicht helfen")
+     * so they never poison AiChatMemory or Live session history.
+     */
+    public static function isCannedModelRefusal(?string $text): bool
+    {
+        if ($text === null || trim($text) === '') {
+            return false;
+        }
+
+        $norm = mb_strtolower(trim($text), 'UTF-8');
+        $phrases = [
+            'kann dabei nicht helfen',
+            'kann ich dabei nicht helfen',
+            'kann dir dabei nicht helfen',
+            'kann ich leider nicht helfen',
+            'ich bin nur ein sprachmodell',
+            'ich bin ein sprachmodell',
+            'als sprachmodell kann ich',
+            'als ki-sprachmodell',
+            'als ki-modell kann ich',
+            'als künstliche intelligenz kann ich',
+            'just a language model',
+            'as an ai language model',
+            'cannot help with that',
+            "can't help with that",
+        ];
+
+        foreach ($phrases as $phrase) {
+            if (str_contains($norm, $phrase)) {
+                return true;
+            }
+        }
+
+        if (str_contains($norm, 'sprachmodell') && (
+            str_contains($norm, 'nicht helfen') ||
+            str_contains($norm, 'nur ein') ||
+            str_contains($norm, 'kann ich nicht') ||
+            str_contains($norm, 'keinen körper')
+        )) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Replaces any generic language-model refusal with an honest, concrete German explanation of the technical/permission cause.
+     */
+    public static function buildConcreteRefusalReplacement(?string $userPrompt = null, bool $isEmployeeRestricted = false): string
+    {
+        $u = mb_strtolower(trim((string) $userPrompt), 'UTF-8');
+
+        if ($isEmployeeRestricted) {
+            return 'Dafür reicht deine aktuelle Mitarbeiter-Berechtigung im Workspace leider nicht aus. Diese Funktion ist für Inhaberin Alina freigeschaltet.';
+        }
+
+        if (str_contains($u, 'gesicht') || str_contains($u, 'wer steht') || str_contains($u, 'wer ist auf dem foto') || str_contains($u, 'person erkennen')) {
+            return 'Echte Gesichter auf Kamerabildern werte ich aus Datenschutzgründen nicht in der Sprach-Cloud aus. Unsere Personen- und Stimmerkennung läuft rein lokal auf dem Werkstatt-Mini-PC!';
+        }
+
+        return 'Für diese Aktion fehlt mir gerade die passende direkte Schnittstelle bzw. ein Sicherheitsfilter der Sprach-Engine hat blockiert. Sag mir gern kurz, ob ich es stattdessen als Aufgabe oder Notiz für dich festhalten soll!';
+    }
+
+    /**
      * Retrieve the JSON Schema describing all available AI Tools.
      */
     public function schema(Request $request)
@@ -377,12 +441,19 @@ class AIController extends Controller
 
         // Was hat die KI final geantwortet?
         if (!empty($result['response'])) {
-            AiChatMemory::create([
-                'session_id' => $sessionId,
-                'role' => 'assistant',
-                'content' => $result['response'],
-                'context_data' => $assistantCtx,
-            ]);
+            if (self::isCannedModelRefusal((string) $result['response'])) {
+                $isEmpOnly = \App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin();
+                $klartext = self::buildConcreteRefusalReplacement((string) ($dbContent ?? ''), $isEmpOnly);
+                $result['response'] = $klartext;
+                $result['response_raw'] = $klartext;
+            } else {
+                AiChatMemory::create([
+                    'session_id' => $sessionId,
+                    'role' => 'assistant',
+                    'content' => $result['response'],
+                    'context_data' => $assistantCtx,
+                ]);
+            }
         }
 
         // Generiere Audio (Base64) falls möglich
@@ -523,6 +594,7 @@ class AIController extends Controller
         $systemInstruction = "STRIKTE SPRACHREGEL & OPERATIVES VERHALTEN (HÖCHSTE PRIORITÄT):\n" .
             "- Du sprichst und antwortest ZU 100% AUSSCHLIESSLICH AUF DEUTSCH mit {$userLabel}.\n" .
             "- Gib NIEMALS englische Sätze, Systemmeldungen, Statusbestätigungen oder Einleitungen aus (z.B. STRENG VERBOTEN: 'Confirming Operational Context', 'I acknowledge...', 'Understood').\n" .
+            "- ABSOLUTES VERBOT VON SPRACHMODELL-FLOSKELN & PFLICHT ZUR KLARTEXT-DIAGNOSE: Antworte NIEMALS mit Standard-Ablehnungen wie 'Ich bin nur ein Sprachmodell und kann dabei nicht helfen' oder 'Als Sprachmodell kann ich das nicht'! Wenn etwas technisch, wegen abgelaufener Anmeldung, fehlendem Werkzeug oder Berechtigungen gerade nicht klappt, nenne IMMER in 1 bis 2 kurzen, ehrlichen Sätzen den EXAKTEN konkreten Grund und wie man es löst!\n" .
             "- Bestätige NIEMALS deine Anweisungen, Prompt oder Systemrolle! Fange sofort direkt und freundlich auf Deutsch an zu sprechen.\n\n" .
             "System-Prompt:\n" . $systemInstruction . "\n\nDu bist " . $agentName . ".\n" .
             "WICHTIG FÜR DEN ECHTZEIT-SPRACHMODUS (wie in der mobilen Google Gemini App):\n" .
@@ -564,10 +636,27 @@ class AIController extends Controller
         }
         
         if ($sessionId) {
-            $history = \App\Models\Ai\AiChatMemory::where('session_id', $sessionId)->orderBy('created_at', 'desc')->take(20)->get()->reverse();
-            if ($history->count() > 0) {
+            $rawHistory = \App\Models\Ai\AiChatMemory::where('session_id', $sessionId)
+                ->orderBy('created_at', 'desc')
+                ->orderBy('id', 'desc')
+                ->take(24)
+                ->get()
+                ->reverse()
+                ->values();
+            $cleanHistory = [];
+            foreach ($rawHistory as $msg) {
+                if ($msg->role === 'assistant' && self::isCannedModelRefusal((string) $msg->content)) {
+                    if (!empty($cleanHistory) && end($cleanHistory)->role === 'user') {
+                        array_pop($cleanHistory);
+                    }
+                    continue;
+                }
+                $cleanHistory[] = $msg;
+            }
+            $cleanHistory = array_slice($cleanHistory, -20);
+            if (count($cleanHistory) > 0) {
                 $historyText = "\n\n--- BISHERIGER CHAT-VERLAUF DIESER SESSION (ZUR ERINNERUNG) ---\n";
-                foreach ($history as $msg) {
+                foreach ($cleanHistory as $msg) {
                     $roleName = strtoupper($msg->role);
                     $authorName = $msg->context_data['name'] ?? ucfirst($msg->role);
                     $historyText .= "[{$roleName} / {$authorName}]: " . $msg->content . "\n";
@@ -970,6 +1059,14 @@ class AIController extends Controller
         // Security: Never allow external injection of 'system' role prompts into AiChatMemory
         if (!in_array($role, ['user', 'assistant'], true)) {
             $role = 'assistant';
+        }
+
+        // Never poison AiChatMemory with canned model refusals ("Ich bin nur ein Sprachmodell...")
+        if ($role === 'assistant' && self::isCannedModelRefusal($content)) {
+            return response()->json([
+                'status' => 'skipped_refusal',
+                'content' => ''
+            ]);
         }
 
         // Security: Prevent cross-user session transcript injection if session belongs to a different user

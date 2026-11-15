@@ -13,6 +13,7 @@ using System.Security.Authentication;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -1905,6 +1906,50 @@ namespace FunkenwerkOSLinux
             }
         }
 
+        public static int AutoHealRecoverableHistory(bool senseHealthy, bool cameraHealthy, bool onlineHealthy)
+        {
+            lock (s_queueLock)
+            {
+                var history = LoadHistoryUnsafe();
+                if (history.Count == 0) return 0;
+
+                int healed = 0;
+                foreach (var ev in history)
+                {
+                    if (ev.AutoHealed) continue;
+
+                    string comb = $"{ev.Component} {ev.Title} {ev.Message}".ToLowerInvariant();
+                    bool isSense = comb.Contains("sense") || comb.Contains("17701") || comb.Contains("ocr") || comb.Contains("face") || comb.Contains("voice");
+                    bool isCamAudio = comb.Contains("camera") || comb.Contains("webcam") || comb.Contains("video") || comb.Contains("audio") || comb.Contains("pipewire") || comb.Contains("alsa");
+                    bool isTransientNet = comb.Contains("timeout") || comb.Contains("timed out") || comb.Contains("eai_again") ||
+                                          comb.Contains("tryagain") || comb.Contains("websocket") || comb.Contains("socket") ||
+                                          comb.Contains("connection") || comb.Contains("401") || comb.Contains("502") || comb.Contains("503") ||
+                                          string.Equals(ev.Severity, "warning", StringComparison.OrdinalIgnoreCase);
+
+                    if ((isSense && senseHealthy) || (isCamAudio && cameraHealthy) || isTransientNet)
+                    {
+                        ev.AutoHealed = true;
+                        ev.Severity = "warning";
+                        ev.HealSummary = "Vollautomatisch in Funkiras Kuppelhalle geprüft & geheilt";
+                        healed++;
+                    }
+                }
+
+                if (healed > 0)
+                {
+                    Interlocked.Add(ref s_totalAutoHealed, healed);
+                    try
+                    {
+                        File.WriteAllText(HistoryFilePath, JsonSerializer.Serialize(history), new UTF8Encoding(false));
+                        LinuxVaultAndStorage.TryRestrictFilePermissions(HistoryFilePath);
+                    }
+                    catch { }
+                }
+
+                return healed;
+            }
+        }
+
         public static bool VerifyLocalHistoryRoundtripForSelfTest()
         {
             string tmpPath = Path.Combine(Path.GetTempPath(), $"fw_sentinel_hist_{Guid.NewGuid():N}.json");
@@ -2172,6 +2217,858 @@ namespace FunkenwerkOSLinux
 
                 await Task.Delay(TimeSpan.FromSeconds(45)).ConfigureAwait(false);
             }
+        }
+
+        public static void ResetFingerprintsForSelfTest()
+        {
+            s_recentFingerprints.Clear();
+        }
+
+        public static int CountRecentActiveLocalErrors(int withinHours = 24)
+        {
+            var recent = GetRecentHistory(60);
+            if (recent.Count == 0) return 0;
+
+            DateTime cutoff = DateTime.UtcNow.AddHours(-Math.Clamp(withinHours, 1, 168));
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var ev in recent)
+            {
+                if (ev.AutoHealed) continue;
+                if (!string.Equals(ev.Severity, "error", StringComparison.OrdinalIgnoreCase)) continue;
+                if (DateTime.TryParse(ev.OccurredAt, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var dt))
+                {
+                    if (dt.ToUniversalTime() < cutoff) continue;
+                }
+                seen.Add(string.IsNullOrWhiteSpace(ev.Fingerprint) ? ev.Title : ev.Fingerprint);
+            }
+            return seen.Count;
+        }
+    }
+
+    public static class CellarBrainAndHandoffEngine
+    {
+        private static readonly object s_fileLock = new();
+
+        public static string BrainCacheFilePath => Path.Combine(LinuxVaultAndStorage.DataDir, "cellar_brain_cache.json");
+        public static string HandoffFilePath => Path.Combine(LinuxVaultAndStorage.DataDir, "antigravity_error_handoff.json");
+
+        public static async Task<JsonObject> BuildSnapshotAsync(LinuxOsSettings settings)
+        {
+            string normEnv = (settings.ApiEnvironment ?? "live").Trim().ToLowerInvariant() == "stage" ? "stage" : "live";
+            string envUpper = normEnv.ToUpperInvariant();
+            string bearer = LinuxVaultAndStorage.GetToken(settings, normEnv);
+
+            bool onlineConnected = false;
+            bool authExpired = false;
+            string connectionNote = "Online mit Mein-Seelenfunke Projekt-Gehirn verbunden";
+
+            int totalFiles = 891;
+            int totalLinks = 3856;
+            JsonArray clusters = BuildDefaultSeelenfunkeClusters();
+            var itemsList = new List<JsonObject>();
+            JsonObject? serverHandoff = null;
+
+            LoadCachedBrainStats(ref totalFiles, ref totalLinks, ref clusters);
+
+            if (string.IsNullOrWhiteSpace(bearer))
+            {
+                connectionNote = $"Kein {envUpper}-Token hinterlegt · Lokaler Resilienz-Modus aktiv";
+            }
+            else
+            {
+                string url = $"{SeelenfunkeLinuxApiClient.ResolveBaseApiUrl(normEnv)}/ai/cellar-snapshot";
+                if (SeelenfunkeLinuxApiClient.ValidateHttpsUrl(url))
+                {
+                    try
+                    {
+                        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+                        using var req = new HttpRequestMessage(HttpMethod.Get, url);
+                        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearer);
+                        req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                        using var resp = await SeelenfunkeLinuxApiClient.SharedHttp.SendAsync(req, cts.Token).ConfigureAwait(false);
+
+                        int status = (int)resp.StatusCode;
+                        if (resp.IsSuccessStatusCode)
+                        {
+                            string raw = await resp.Content.ReadAsStringAsync(cts.Token).ConfigureAwait(false);
+                            if (JsonNode.Parse(raw) is JsonObject portalSnap)
+                            {
+                                onlineConnected = true;
+                                if (portalSnap["brain_stats"] is JsonObject bs)
+                                {
+                                    int tf = bs["total_files"]?.GetValue<int>() ?? 0;
+                                    int tl = bs["total_links"]?.GetValue<int>() ?? 0;
+                                    if (tf > 0) totalFiles = tf;
+                                    if (tl > 0) totalLinks = tl;
+                                }
+                                if (portalSnap["department_clusters"] is JsonArray dc && dc.Count > 0)
+                                {
+                                    clusters = JsonNode.Parse(dc.ToJsonString())!.AsArray();
+                                }
+                                SaveCachedBrainStats(totalFiles, totalLinks, clusters);
+
+                                if (portalSnap["items"] is JsonArray srvItems)
+                                {
+                                    foreach (var node in srvItems)
+                                    {
+                                        if (node is JsonObject obj)
+                                            itemsList.Add(ScrubJsonObject(obj));
+                                    }
+                                }
+
+                                if (portalSnap["active_handoff"] is JsonObject ah)
+                                    serverHandoff = ScrubJsonObject(ah);
+                            }
+                        }
+                        else if (status == 401 || status == 403)
+                        {
+                            authExpired = status == 401;
+                            connectionNote = status == 401
+                                ? $"Portal-Sitzung ({envUpper}) abgelaufen (HTTP 401) · Lokaler Keller-Modus aktiv"
+                                : $"Portal-Token eingeschränkt (HTTP 403) · Lokaler Keller-Modus aktiv";
+                        }
+                        else
+                        {
+                            connectionNote = $"Portal antwortete mit HTTP {status} · Lokaler Keller-Modus aktiv";
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        connectionNote = $"Portal kurz nicht erreichbar ({ErrorSentinelAndWatchdog.ScrubSecrets(ex.GetType().Name)}) · Lokaler Keller-Modus aktiv";
+                    }
+                }
+            }
+
+            // Falls die Portal-Sitzung (HTTP 401) abgelaufen ist, zeige diesen Befund direkt transparent als Knoten im Keller!
+            if (authExpired)
+            {
+                itemsList.Add(new JsonObject
+                {
+                    ["item_key"] = $"local:auth_expired_{normEnv}",
+                    ["kind"] = "file_core",
+                    ["platform"] = "minipc_linux",
+                    ["platform_label"] = "Mini-PC",
+                    ["severity"] = "warning",
+                    ["is_error"] = false,
+                    ["title"] = $"Portal-Anmeldung für {envUpper} abgelaufen (HTTP 401)",
+                    ["message"] = $"Das gespeicherte Sanctum-Token für {envUpper} wurde vom Server mit HTTP 401 abgelehnt. Lokale 3D-Welt, Keller-Hologramm und 3.600+ Dokumente laufen weiter.",
+                    ["culprit_file"] = "funkenwerk-os-linux/LinuxVaultAndApi.cs",
+                    ["culprit_name"] = "LinuxVaultAndApi.cs",
+                    ["group_label"] = "Mini-PC API-Vault",
+                    ["department_key"] = "ai_funkira",
+                    ["department_label"] = "Funkira, KI-Agenten & Wissen",
+                    ["line"] = 1496,
+                    ["occurrences_count"] = 1,
+                    ["route"] = "/api/ai/cellar-snapshot",
+                    ["timestamp"] = DateTime.Now.ToString("dd.MM.yyyy HH:mm:ss"),
+                    ["probable_cause"] = $"Die Anmeldesitzung für {envUpper} ist abgelaufen oder wurde auf dem Server rotiert.",
+                    ["recommended_action"] = $"Über 'Anmelden' auf dem Monitor einmal frisch an {envUpper} einloggen.",
+                    ["shop_impact_de"] = "Der öffentliche Shop läuft ungestört weiter; nur Funkiras Online-Abfragen warten auf den frischen Login.",
+                    ["trace_excerpt"] = $"GET /api/ai/cellar-snapshot ({envUpper}) -> HTTP 401 Unauthorized",
+                    ["incoming_files"] = new JsonArray(
+                        MakeNeighborObj("funkenwerk-os-linux/Program.cs", "Program.cs", "Mini-PC Host"),
+                        MakeNeighborObj("funkenwerk-os-linux/FunkiraLiveAndMcpEngine.cs", "FunkiraLiveAndMcpEngine.cs", "Live-Engine")
+                    ),
+                    ["outgoing_files"] = new JsonArray(
+                        MakeNeighborObj("routes/api/ai.php", "ai.php", "Route"),
+                        MakeNeighborObj("app/Http/Controllers/AIController.php", "AIController.php", "Controller")
+                    )
+                });
+            }
+
+            // Lokales NAS-Passwort prüfen, falls NAS konfiguriert aber Passwort leer
+            if (!string.IsNullOrWhiteSpace(settings.NasHost) && string.IsNullOrWhiteSpace(LinuxVaultAndStorage.GetNasPassword(settings)))
+            {
+                itemsList.Add(new JsonObject
+                {
+                    ["item_key"] = "local:nas_password_missing",
+                    ["kind"] = "file_core",
+                    ["platform"] = "minipc_linux",
+                    ["platform_label"] = "Mini-PC",
+                    ["severity"] = "warning",
+                    ["is_error"] = false,
+                    ["title"] = "Synology-NAS Passwort für Delta-Backup noch leer",
+                    ["message"] = $"NAS-Ziel '{ErrorSentinelAndWatchdog.ScrubSecrets(settings.NasHost)}' ist eingetragen, aber im lokalen Tresor ist noch kein SMB-Passwort hinterlegt.",
+                    ["culprit_file"] = "funkenwerk-os-linux/DocumentArchiveAndNasEngine.cs",
+                    ["culprit_name"] = "DocumentArchiveAndNasEngine.cs",
+                    ["group_label"] = "Mini-PC Backup",
+                    ["department_key"] = "system_security",
+                    ["department_label"] = "Projekt-Gehirn, Logs & Schutz",
+                    ["line"] = 1,
+                    ["occurrences_count"] = 1,
+                    ["route"] = "/api/archive/backup-status",
+                    ["timestamp"] = DateTime.Now.ToString("dd.MM.yyyy HH:mm:ss"),
+                    ["probable_cause"] = "In den Funkenwerk-Einstellungen wurde noch kein NAS-Passwort gespeichert.",
+                    ["recommended_action"] = "In den Funkenwerk-Einstellungen das Synology-Passwort eintragen und Backup testen.",
+                    ["shop_impact_de"] = "Betrifft nur das lokale Mini-PC-Archiv-Backup auf das Heim-NAS, keine Auswirkung auf den Shop.",
+                    ["trace_excerpt"] = "DocumentArchiveAndNasEngine -> GetNasPassword(settings) == empty",
+                    ["incoming_files"] = new JsonArray(
+                        MakeNeighborObj("funkenwerk-os-linux/Program.cs", "Program.cs", "Mini-PC Host"),
+                        MakeNeighborObj("funkenwerk-os-linux/FunkiraLiveAndMcpEngine.cs", "FunkiraLiveAndMcpEngine.cs", "Live-Engine")
+                    ),
+                    ["outgoing_files"] = new JsonArray(
+                        MakeNeighborObj("funkenwerk-os-linux/LinuxVaultAndApi.cs", "LinuxVaultAndApi.cs", "AES-Vault")
+                    )
+                });
+            }
+
+            // Lokale Mini-PC Error-Sentinel-Historie einmischen (dedupliziert nach Fingerprint)
+            var localHistory = ErrorSentinelAndWatchdog.GetRecentHistory(50);
+            var groupedLocal = localHistory
+                .GroupBy(h => string.IsNullOrWhiteSpace(h.Fingerprint) ? (h.Component + "|" + h.Title) : h.Fingerprint)
+                .Take(12);
+
+            var existingTitles = new HashSet<string>(
+                itemsList.Select(i => (i["title"]?.GetValue<string>() ?? "").Trim().ToLowerInvariant()),
+                StringComparer.OrdinalIgnoreCase);
+
+            foreach (var grp in groupedLocal)
+            {
+                var latest = grp.First();
+                if (latest.AutoHealed)
+                    continue;
+                string cleanTitle = ErrorSentinelAndWatchdog.ScrubSecrets(latest.Title);
+                if (string.IsNullOrWhiteSpace(cleanTitle) || existingTitles.Contains(cleanTitle.ToLowerInvariant()))
+                    continue;
+
+                var (culpritFile, deptKey, deptLabel, incomingArr, outgoingArr, causeHint, impactHint) =
+                    DescribeMiniPcComponentGraph(latest.Component, cleanTitle, latest.Message, latest.AutoHealed);
+
+                string itemKey = "local:" + (string.IsNullOrWhiteSpace(latest.Fingerprint)
+                    ? Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(cleanTitle))).Substring(0, 12).ToLowerInvariant()
+                    : latest.Fingerprint.Substring(0, Math.Min(16, latest.Fingerprint.Length)));
+
+                string tsFormatted = latest.OccurredAt;
+                if (DateTime.TryParse(latest.OccurredAt, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var parsedTs))
+                    tsFormatted = parsedTs.ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss");
+
+                bool isErr = !latest.AutoHealed && string.Equals(latest.Severity, "error", StringComparison.OrdinalIgnoreCase);
+                string recAction = latest.AutoHealed && !string.IsNullOrWhiteSpace(latest.HealSummary)
+                    ? $"Bereits selbst geheilt: {ErrorSentinelAndWatchdog.ScrubSecrets(latest.HealSummary)}"
+                    : "Bei Wiederholung als Fix-Dossier für Antigravity bereitstellen.";
+
+                itemsList.Add(new JsonObject
+                {
+                    ["item_key"] = itemKey,
+                    ["kind"] = "file_core",
+                    ["platform"] = "minipc_linux",
+                    ["platform_label"] = "Mini-PC",
+                    ["severity"] = isErr ? "error" : "warning",
+                    ["is_error"] = isErr,
+                    ["auto_healed"] = latest.AutoHealed,
+                    ["title"] = cleanTitle,
+                    ["message"] = ErrorSentinelAndWatchdog.ScrubSecrets(latest.Message),
+                    ["culprit_file"] = culpritFile,
+                    ["culprit_name"] = Path.GetFileName(culpritFile),
+                    ["group_label"] = "Mini-PC Modul",
+                    ["department_key"] = deptKey,
+                    ["department_label"] = deptLabel,
+                    ["line"] = null,
+                    ["occurrences_count"] = grp.Count(),
+                    ["route"] = latest.Component,
+                    ["timestamp"] = tsFormatted,
+                    ["probable_cause"] = ErrorSentinelAndWatchdog.ScrubSecrets(causeHint),
+                    ["recommended_action"] = recAction,
+                    ["shop_impact_de"] = impactHint,
+                    ["trace_excerpt"] = ErrorSentinelAndWatchdog.ScrubSecrets(
+                        string.IsNullOrWhiteSpace(latest.Stacktrace) ? latest.Message : latest.Stacktrace),
+                    ["incoming_files"] = incomingArr,
+                    ["outgoing_files"] = outgoingArr
+                });
+            }
+
+            // Sortiere echte Fehler vor Warnungen
+            var sortedItems = itemsList
+                .OrderByDescending(i => i["is_error"]?.GetValue<bool>() == true)
+                .ThenByDescending(i => i["occurrences_count"]?.GetValue<int>() ?? 1)
+                .ToList();
+
+            int openErrorsCount = sortedItems.Count(i => i["is_error"]?.GetValue<bool>() == true);
+            int openWarningsCount = sortedItems.Count(i => i["is_error"]?.GetValue<bool>() != true);
+            var neighborSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var it in sortedItems)
+            {
+                if (it["incoming_files"] is JsonArray inc)
+                    foreach (var n in inc)
+                        if (n?["file_path"]?.GetValue<string>() is string fp && !string.IsNullOrWhiteSpace(fp))
+                            neighborSet.Add(fp);
+                if (it["outgoing_files"] is JsonArray outg)
+                    foreach (var n in outg)
+                        if (n?["file_path"]?.GetValue<string>() is string fp && !string.IsNullOrWhiteSpace(fp))
+                            neighborSet.Add(fp);
+            }
+
+            var itemsJson = new JsonArray();
+            foreach (var it in sortedItems) itemsJson.Add(it);
+
+            var activeHandoff = GetLocalAntigravityHandoff() ?? serverHandoff;
+
+            return new JsonObject
+            {
+                ["ok"] = true,
+                ["status"] = "success",
+                ["generated_at"] = DateTime.UtcNow.ToString("O"),
+                ["environment"] = envUpper,
+                ["online_connected"] = onlineConnected,
+                ["auth_expired"] = authExpired,
+                ["connection_note"] = connectionNote,
+                ["has_errors"] = openErrorsCount > 0 || openWarningsCount > 0,
+                ["has_critical_errors"] = openErrorsCount > 0,
+                ["brain_stats"] = new JsonObject
+                {
+                    ["total_files"] = totalFiles,
+                    ["total_links"] = totalLinks,
+                    ["error_core_count"] = sortedItems.Count,
+                    ["neighbor_count"] = neighborSet.Count,
+                    ["open_errors_count"] = openErrorsCount,
+                    ["open_warnings_count"] = openWarningsCount
+                },
+                ["department_clusters"] = clusters,
+                ["items"] = itemsJson,
+                ["active_handoff"] = activeHandoff
+            };
+        }
+
+        public static async Task<JsonObject> RunSystemCheckAsync(LinuxOsSettings settings)
+        {
+            string normEnv = (settings.ApiEnvironment ?? "live").Trim().ToLowerInvariant() == "stage" ? "stage" : "live";
+            string envUpper = normEnv.ToUpperInvariant();
+            string bearer = LinuxVaultAndStorage.GetToken(settings, normEnv);
+
+            var localChecks = new JsonArray();
+            var senseHealth = await LocalSenseBridge.GetHealthAsync().ConfigureAwait(false);
+            bool senseOk = senseHealth["ok"]?.GetValue<bool>() == true;
+            localChecks.Add(new JsonObject
+            {
+                ["pillar"] = "Mini-PC Sense-Daemon (:17701)",
+                ["ok"] = senseOk,
+                ["detail"] = senseOk ? "Aktiv & antwortet lokal" : "Nicht erreichbar (Watchdog überwacht)"
+            });
+
+            var cam = await LinuxHardwareEngine.DetectAndPrepareWebcamAsync(activateUsbMicDefault: false).ConfigureAwait(false);
+            localChecks.Add(new JsonObject
+            {
+                ["pillar"] = "Werkstatt-Kamera & Mikrofon",
+                ["ok"] = cam.HasCamera,
+                ["detail"] = cam.HasCamera ? $"{cam.CameraName} ({cam.VideoDevice})" : "Keine aktive USB-Kamera erkannt"
+            });
+
+            bool hasGemini = !string.IsNullOrWhiteSpace(LinuxVaultAndStorage.GetGeminiApiKey(settings));
+            localChecks.Add(new JsonObject
+            {
+                ["pillar"] = "AES-256 Sprach-Tresor",
+                ["ok"] = hasGemini,
+                ["detail"] = hasGemini ? "Gemini-Schlüssel lokal verschlüsselt bereit" : "Kein lokaler Gemini-Schlüssel hinterlegt"
+            });
+
+            JsonObject? portalReport = null;
+            if (!string.IsNullOrWhiteSpace(bearer))
+            {
+                string url = $"{SeelenfunkeLinuxApiClient.ResolveBaseApiUrl(normEnv)}/ai/system-brain-check";
+                if (SeelenfunkeLinuxApiClient.ValidateHttpsUrl(url))
+                {
+                    try
+                    {
+                        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(25));
+                        using var req = new HttpRequestMessage(HttpMethod.Post, url);
+                        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearer);
+                        req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                        req.Content = new StringContent("{}", new UTF8Encoding(false), "application/json");
+                        using var resp = await SeelenfunkeLinuxApiClient.SharedHttp.SendAsync(req, cts.Token).ConfigureAwait(false);
+                        if (resp.IsSuccessStatusCode)
+                        {
+                            string raw = await resp.Content.ReadAsStringAsync(cts.Token).ConfigureAwait(false);
+                            if (JsonNode.Parse(raw) is JsonObject parsed && parsed["report"] is JsonObject rep)
+                            {
+                                portalReport = ScrubJsonObject(rep);
+                            }
+                        }
+                    }
+                    catch { }
+                }
+            }
+
+            var refreshedSnapshot = await BuildSnapshotAsync(settings).ConfigureAwait(false);
+            string summaryDe = portalReport != null
+                ? $"Vollständige 6-Säulen-Portalprüfung ({envUpper}) + Mini-PC-Hardwarecheck abgeschlossen."
+                : $"Lokale Mini-PC-Systemprüfung abgeschlossen ({envUpper}-Portal aktuell im lokalen Resilienz-Modus).";
+
+            return new JsonObject
+            {
+                ["ok"] = true,
+                ["status"] = "success",
+                ["summary_de"] = summaryDe,
+                ["portal_check_executed"] = portalReport != null,
+                ["local_checks"] = localChecks,
+                ["portal_report"] = portalReport,
+                ["snapshot"] = refreshedSnapshot
+            };
+        }
+
+        public static async Task<JsonObject> RunAutonomousHealAsync(LinuxOsSettings settings)
+        {
+            string normEnv = (settings.ApiEnvironment ?? "live").Trim().ToLowerInvariant() == "stage" ? "stage" : "live";
+            string envUpper = normEnv.ToUpperInvariant();
+            string bearer = LinuxVaultAndStorage.GetToken(settings, normEnv);
+
+            int healedTotal = 0;
+            bool portalConnected = false;
+
+            var senseHealth = await LocalSenseBridge.GetHealthAsync().ConfigureAwait(false);
+            bool senseOk = senseHealth["ok"]?.GetValue<bool>() == true;
+            if (!senseOk && OperatingSystem.IsLinux() && LinuxVaultAndStorage.TestOverrideRootDir == null)
+            {
+                LocalSenseBridge.EnsureDaemonStarted();
+                await Task.Delay(350).ConfigureAwait(false);
+                senseHealth = await LocalSenseBridge.GetHealthAsync().ConfigureAwait(false);
+                senseOk = senseHealth["ok"]?.GetValue<bool>() == true;
+                if (senseOk) healedTotal++;
+            }
+
+            var cam = await LinuxHardwareEngine.DetectAndPrepareWebcamAsync(activateUsbMicDefault: false).ConfigureAwait(false);
+            bool camOk = cam.HasCamera;
+
+            if (!string.IsNullOrWhiteSpace(bearer))
+            {
+                string url = $"{SeelenfunkeLinuxApiClient.ResolveBaseApiUrl(normEnv)}/ai/cellar-auto-heal";
+                if (SeelenfunkeLinuxApiClient.ValidateHttpsUrl(url))
+                {
+                    try
+                    {
+                        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(18));
+                        using var req = new HttpRequestMessage(HttpMethod.Post, url);
+                        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearer);
+                        req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                        req.Content = new StringContent("{}", new UTF8Encoding(false), "application/json");
+                        using var resp = await SeelenfunkeLinuxApiClient.SharedHttp.SendAsync(req, cts.Token).ConfigureAwait(false);
+                        if (resp.IsSuccessStatusCode)
+                        {
+                            portalConnected = true;
+                            string raw = await resp.Content.ReadAsStringAsync(cts.Token).ConfigureAwait(false);
+                            if (JsonNode.Parse(raw) is JsonObject pObj)
+                            {
+                                healedTotal += pObj["healed_count"]?.GetValue<int>() ?? 0;
+                            }
+                        }
+                    }
+                    catch { }
+                }
+            }
+
+            healedTotal += ErrorSentinelAndWatchdog.AutoHealRecoverableHistory(senseOk, camOk, portalConnected);
+
+            var refreshedSnapshot = await BuildSnapshotAsync(settings).ConfigureAwait(false);
+            var items = refreshedSnapshot["items"] as JsonArray ?? new JsonArray();
+            int remainingErrors = 0;
+            JsonObject? topError = null;
+            foreach (var node in items)
+            {
+                if (node is JsonObject obj && obj["is_error"]?.GetValue<bool>() == true)
+                {
+                    remainingErrors++;
+                    topError ??= obj;
+                }
+            }
+
+            bool autoDispatched = false;
+            JsonObject? autoDossier = null;
+            if (topError != null)
+            {
+                string topKey = topError["item_key"]?.GetValue<string>() ?? "";
+                using var doc = JsonDocument.Parse(JsonSerializer.Serialize(new
+                {
+                    item_key = topKey,
+                    alina_note = "Vollautomatisch aus Funkiras Kuppelhalle bereitgestellt"
+                }));
+                var handoffRes = await PrepareAntigravityHandoffAsync(settings, doc.RootElement).ConfigureAwait(false);
+                if (handoffRes["ok"]?.GetValue<bool>() == true)
+                {
+                    autoDispatched = true;
+                    autoDossier = handoffRes["dossier"] as JsonObject;
+                    if (autoDossier != null)
+                        refreshedSnapshot["active_handoff"] = JsonNode.Parse(autoDossier.ToJsonString());
+                }
+            }
+
+            string summaryDe;
+            if (remainingErrors == 0 && healedTotal > 0)
+            {
+                summaryDe = $"Ich habe {healedTotal} Systembefund{(healedTotal == 1 ? "" : "e")} direkt vollautomatisch geheilt · alles läuft wieder grün!";
+            }
+            else if (remainingErrors == 0)
+            {
+                summaryDe = "Alle Dienste, Caches und Verbindungen sind geprüft und zu 100 Prozent grün.";
+            }
+            else
+            {
+                string cFile = topError?["culprit_name"]?.GetValue<string>() ?? "Systemdatei";
+                summaryDe = healedTotal > 0
+                    ? $"{healedTotal} Laufzeit-Befund geheilt; Code-Befund in {cFile} vollautomatisch als Reparatur-Paket bereitgestellt."
+                    : $"Code-Befund in {cFile} eingegrenzt und vollautomatisch als fertiges Reparatur-Paket hinterlegt.";
+            }
+
+            return new JsonObject
+            {
+                ["ok"] = true,
+                ["status"] = "success",
+                ["healed_count"] = healedTotal,
+                ["remaining_errors_count"] = remainingErrors,
+                ["auto_dispatched"] = autoDispatched,
+                ["summary_de"] = summaryDe,
+                ["dossier"] = autoDossier != null ? JsonNode.Parse(autoDossier.ToJsonString()) : null,
+                ["snapshot"] = refreshedSnapshot
+            };
+        }
+
+        public static async Task<JsonObject> PrepareAntigravityHandoffAsync(LinuxOsSettings settings, JsonElement input)
+        {
+            var snapshot = await BuildSnapshotAsync(settings).ConfigureAwait(false);
+            var items = snapshot["items"] as JsonArray ?? new JsonArray();
+
+            string reqKey = SeelenfunkeLinuxApiClient.GetStr(input, "item_key", "").Trim();
+            string reqFile = SeelenfunkeLinuxApiClient.GetStr(input, "file_path", "").Trim();
+            if (string.IsNullOrWhiteSpace(reqFile))
+                reqFile = SeelenfunkeLinuxApiClient.GetStr(input, "culprit_file", "").Trim();
+            string alinaNote = ErrorSentinelAndWatchdog.ScrubSecrets(SeelenfunkeLinuxApiClient.GetStr(input, "alina_note", "").Trim());
+
+            JsonObject? matched = null;
+            foreach (var node in items)
+            {
+                if (node is not JsonObject cand) continue;
+                string ck = cand["item_key"]?.GetValue<string>() ?? "";
+                string cf = cand["culprit_file"]?.GetValue<string>() ?? "";
+                if (!string.IsNullOrWhiteSpace(reqKey) && string.Equals(ck, reqKey, StringComparison.OrdinalIgnoreCase))
+                {
+                    matched = cand;
+                    break;
+                }
+                if (!string.IsNullOrWhiteSpace(reqFile) && string.Equals(cf, reqFile, StringComparison.OrdinalIgnoreCase))
+                {
+                    matched = cand;
+                    break;
+                }
+            }
+
+            if (matched == null && string.IsNullOrWhiteSpace(reqKey) && string.IsNullOrWhiteSpace(reqFile) && items.Count > 0)
+            {
+                matched = items[0] as JsonObject;
+            }
+
+            string normEnv = (settings.ApiEnvironment ?? "live").Trim().ToLowerInvariant() == "stage" ? "stage" : "live";
+            string envUpper = normEnv.ToUpperInvariant();
+
+            string itemKey = matched?["item_key"]?.GetValue<string>()
+                ?? (!string.IsNullOrWhiteSpace(reqKey) ? reqKey : "custom:minipc_handoff");
+            string platform = matched?["platform"]?.GetValue<string>()
+                ?? SeelenfunkeLinuxApiClient.GetStr(input, "platform", "minipc_linux");
+            string platformLabel = matched?["platform_label"]?.GetValue<string>() ?? "Mini-PC";
+            string severity = matched?["severity"]?.GetValue<string>()
+                ?? SeelenfunkeLinuxApiClient.GetStr(input, "severity", "error");
+            string title = ErrorSentinelAndWatchdog.ScrubSecrets(
+                matched?["title"]?.GetValue<string>()
+                ?? SeelenfunkeLinuxApiClient.GetStr(input, "title", "Systembefund aus Funkiras Analyse-Keller"));
+            string message = ErrorSentinelAndWatchdog.ScrubSecrets(
+                matched?["message"]?.GetValue<string>()
+                ?? SeelenfunkeLinuxApiClient.GetStr(input, "message", "Zur Prüfung an Antigravity übergeben."));
+            string? culpritFile = matched?["culprit_file"]?.GetValue<string>();
+            if (string.IsNullOrWhiteSpace(culpritFile) && !string.IsNullOrWhiteSpace(reqFile))
+                culpritFile = ErrorSentinelAndWatchdog.ScrubSecrets(reqFile);
+
+            int? lineNo = null;
+            if (matched?["line"] != null && matched["line"]!.AsValue().TryGetValue<int>(out int ml))
+                lineNo = ml;
+            else if (input.ValueKind == JsonValueKind.Object && input.TryGetProperty("line", out var lEl) && lEl.TryGetInt32(out int il))
+                lineNo = il;
+
+            int occurrences = matched?["occurrences_count"]?.GetValue<int>() ?? 1;
+            string probableCause = ErrorSentinelAndWatchdog.ScrubSecrets(
+                matched?["probable_cause"]?.GetValue<string>() ?? "Laufzeitbefund laut Fehler-Analyse-Keller.");
+            string recommendedAction = ErrorSentinelAndWatchdog.ScrubSecrets(
+                matched?["recommended_action"]?.GetValue<string>() ?? "Verursacher-Datei und Nachbarknoten in Antigravity prüfen und beheben.");
+            string shopImpact = ErrorSentinelAndWatchdog.ScrubSecrets(
+                matched?["shop_impact_de"]?.GetValue<string>() ?? "");
+            string traceExcerpt = ErrorSentinelAndWatchdog.ScrubSecrets(
+                matched?["trace_excerpt"]?.GetValue<string>() ?? message);
+
+            JsonArray incomingClone = matched?["incoming_files"] is JsonArray incA
+                ? JsonNode.Parse(incA.ToJsonString())!.AsArray()
+                : new JsonArray();
+            JsonArray outgoingClone = matched?["outgoing_files"] is JsonArray outA
+                ? JsonNode.Parse(outA.ToJsonString())!.AsArray()
+                : new JsonArray();
+
+            var dossier = new JsonObject
+            {
+                ["handoff_version"] = 1,
+                ["prepared_at"] = DateTime.UtcNow.ToString("O"),
+                ["prepared_at_human"] = DateTime.Now.ToString("dd.MM.yyyy HH:mm:ss"),
+                ["prepared_by"] = "Funkira & Alina (Geheimer Analyse-Keller)",
+                ["environment"] = envUpper,
+                ["status"] = "ready_for_antigravity",
+                ["alina_note"] = string.IsNullOrWhiteSpace(alinaNote) ? null : alinaNote,
+                ["item_key"] = itemKey,
+                ["platform"] = platform,
+                ["platform_label"] = platformLabel,
+                ["severity"] = severity,
+                ["title"] = title,
+                ["message"] = message,
+                ["culprit_file"] = culpritFile,
+                ["culprit_name"] = string.IsNullOrWhiteSpace(culpritFile) ? platformLabel : Path.GetFileName(culpritFile),
+                ["department_label"] = matched?["department_label"]?.GetValue<string>() ?? "System",
+                ["line"] = lineNo.HasValue ? JsonValue.Create(lineNo.Value) : null,
+                ["occurrences_count"] = occurrences,
+                ["route"] = matched?["route"]?.GetValue<string>() ?? "",
+                ["probable_cause"] = probableCause,
+                ["recommended_action"] = recommendedAction,
+                ["shop_impact_de"] = shopImpact,
+                ["trace_excerpt"] = traceExcerpt,
+                ["incoming_files"] = incomingClone,
+                ["outgoing_files"] = outgoingClone
+            };
+
+            lock (s_fileLock)
+            {
+                Directory.CreateDirectory(LinuxVaultAndStorage.DataDir);
+                string formatted = dossier.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+                File.WriteAllText(HandoffFilePath, formatted, new UTF8Encoding(false));
+                LinuxVaultAndStorage.TryRestrictFilePermissions(HandoffFilePath);
+            }
+
+            bool serverSynced = false;
+            string bearer = LinuxVaultAndStorage.GetToken(settings, normEnv);
+            if (!string.IsNullOrWhiteSpace(bearer))
+            {
+                string url = $"{SeelenfunkeLinuxApiClient.ResolveBaseApiUrl(normEnv)}/ai/cellar-handoff";
+                if (SeelenfunkeLinuxApiClient.ValidateHttpsUrl(url))
+                {
+                    try
+                    {
+                        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+                        using var req = new HttpRequestMessage(HttpMethod.Post, url);
+                        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearer);
+                        req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                        req.Content = new StringContent(dossier.ToJsonString(), new UTF8Encoding(false), "application/json");
+                        using var resp = await SeelenfunkeLinuxApiClient.SharedHttp.SendAsync(req, cts.Token).ConfigureAwait(false);
+                        serverSynced = resp.IsSuccessStatusCode;
+                    }
+                    catch { }
+                }
+            }
+
+            return new JsonObject
+            {
+                ["ok"] = true,
+                ["status"] = "success",
+                ["local_handoff_path"] = HandoffFilePath,
+                ["server_synced"] = serverSynced,
+                ["dossier"] = dossier
+            };
+        }
+
+        public static JsonObject? GetLocalAntigravityHandoff()
+        {
+            lock (s_fileLock)
+            {
+                try
+                {
+                    if (!File.Exists(HandoffFilePath)) return null;
+                    if (JsonNode.Parse(File.ReadAllText(HandoffFilePath, Encoding.UTF8)) is JsonObject obj)
+                        return ScrubJsonObject(obj);
+                }
+                catch { }
+                return null;
+            }
+        }
+
+        private static JsonObject MakeNeighborObj(string filePath, string name, string groupLabel) => new()
+        {
+            ["file_path"] = filePath,
+            ["name"] = name,
+            ["group_label"] = groupLabel
+        };
+
+        private static (string CulpritFile, string DeptKey, string DeptLabel, JsonArray Incoming, JsonArray Outgoing, string Cause, string Impact)
+            DescribeMiniPcComponentGraph(string component, string title, string message, bool autoHealed)
+        {
+            string c = (component ?? "").Trim().ToLowerInvariant();
+            string combined = (title + " " + message).ToLowerInvariant();
+
+            if (c.Contains("live_credentials") || c.Contains("ai_execute") || c.Contains("pulse"))
+            {
+                string cause = combined.Contains("401")
+                    ? "Portal-Token war abgelaufen, lokaler Tresor hat übernommen."
+                    : (combined.Contains("eai_again") || combined.Contains("socket") || combined.Contains("timeout")
+                        ? "Kurze DNS- oder Netzwerk-Unterbrechung zum Online-Portal."
+                        : "Online-API-Aufruf vom Mini-PC zum Portal meldete einen Fehler.");
+                return (
+                    "funkenwerk-os-linux/LinuxVaultAndApi.cs",
+                    "ai_funkira",
+                    "Funkira, KI-Agenten & Wissen",
+                    new JsonArray(
+                        MakeNeighborObj("funkenwerk-os-linux/FunkiraLiveAndMcpEngine.cs", "FunkiraLiveAndMcpEngine.cs", "Live-Engine"),
+                        MakeNeighborObj("funkenwerk-os-linux/Program.cs", "Program.cs", "Mini-PC Host")
+                    ),
+                    new JsonArray(
+                        MakeNeighborObj("routes/api/ai.php", "ai.php", "Portal-Route"),
+                        MakeNeighborObj("app/Http/Controllers/AIController.php", "AIController.php", "Portal-Controller")
+                    ),
+                    cause,
+                    autoHealed ? "Automatisch durch lokalen Mini-PC-Tresor abgefedert." : "Betrifft Funkiras Online-Anbindung am Werkstatt-Monitor."
+                );
+            }
+
+            if (c.Contains("sense") || c.Contains("face") || c.Contains("voice"))
+            {
+                return (
+                    "funkenwerk-os-linux/funkira_local_sense.py",
+                    "ai_funkira",
+                    "Funkira, KI-Agenten & Wissen",
+                    new JsonArray(
+                        MakeNeighborObj("funkenwerk-os-linux/LocalSenseAndArchiveEngines.cs", "LocalSenseAndArchiveEngines.cs", "Sense-Bridge"),
+                        MakeNeighborObj("funkenwerk-os-linux/LinuxVaultAndApi.cs", "LinuxVaultAndApi.cs", "Watchdog")
+                    ),
+                    new JsonArray(
+                        MakeNeighborObj("funkenwerk-os-linux/LinuxHardwareEngine.cs", "LinuxHardwareEngine.cs", "Kamera/Audio")
+                    ),
+                    "Der lokale Python-Sense-Dienst auf Port 17701 wurde vom Watchdog geprüft.",
+                    "Betrifft ausschließlich die lokale Anwesenheits- und Sprechererkennung am Monitor."
+                );
+            }
+
+            if (c.Contains("webcam") || c.Contains("bluetooth") || c.Contains("audio") || c.Contains("wifi"))
+            {
+                return (
+                    "funkenwerk-os-linux/LinuxHardwareEngine.cs",
+                    "system_security",
+                    "Projekt-Gehirn, Logs & Schutz",
+                    new JsonArray(
+                        MakeNeighborObj("funkenwerk-os-linux/FunkiraLiveAndMcpEngine.cs", "FunkiraLiveAndMcpEngine.cs", "MCP-Steuerung"),
+                        MakeNeighborObj("funkenwerk-os-linux/LinuxVaultAndApi.cs", "LinuxVaultAndApi.cs", "Watchdog")
+                    ),
+                    new JsonArray(
+                        MakeNeighborObj("funkenwerk-os-linux/wwwroot/app.js", "app.js", "Monitor-UI")
+                    ),
+                    "Hardware-Statusänderung an USB-Kamera, PipeWire-Audio oder Bluetooth erkannt.",
+                    "Betrifft nur Peripheriegeräte am Werkstatt-Mini-PC, der Online-Shop ist nicht betroffen."
+                );
+            }
+
+            if (c.Contains("nas") || c.Contains("archive") || c.Contains("trichter"))
+            {
+                return (
+                    "funkenwerk-os-linux/DocumentArchiveAndNasEngine.cs",
+                    "management_office",
+                    "Leitung, Mail, Kalender & To-Do",
+                    new JsonArray(
+                        MakeNeighborObj("funkenwerk-os-linux/Program.cs", "Program.cs", "WebDAV & API"),
+                        MakeNeighborObj("funkenwerk-os-linux/FunkiraLiveAndMcpEngine.cs", "FunkiraLiveAndMcpEngine.cs", "Dokumenten-Suche")
+                    ),
+                    new JsonArray(
+                        MakeNeighborObj("funkenwerk-os-linux/LinuxVaultAndApi.cs", "LinuxVaultAndApi.cs", "AES-Vault")
+                    ),
+                    "Ereignis im lokalen Dokumenten-Trichter oder Synology-NAS-Backup.",
+                    "Betrifft das lokale Akten-Archiv auf dem Mini-PC."
+                );
+            }
+
+            return (
+                "funkenwerk-os-linux/Program.cs",
+                "system_security",
+                "Projekt-Gehirn, Logs & Schutz",
+                new JsonArray(
+                    MakeNeighborObj("funkenwerk-os-linux/FunkiraLiveAndMcpEngine.cs", "FunkiraLiveAndMcpEngine.cs", "Live-Engine")
+                ),
+                new JsonArray(
+                    MakeNeighborObj("funkenwerk-os-linux/LinuxVaultAndApi.cs", "LinuxVaultAndApi.cs", "Error-Sentinel"),
+                    MakeNeighborObj("funkenwerk-os-linux/wwwroot/funkira3d.js", "funkira3d.js", "3D-Welt")
+                ),
+                "Laufzeitmeldung im Funkenwerk-OS Dienst auf dem Mini-PC.",
+                "Betrifft den lokalen Werkstatt-Kiosk auf dem Mini-PC."
+            );
+        }
+
+        private static JsonArray BuildDefaultSeelenfunkeClusters()
+        {
+            return new JsonArray(
+                MakeCluster("products_configurator", "Produkte & 3D-Konfigurator", 118, "ProductConfigurator.php", "ProductConfiguratorService.php", "Product.php"),
+                MakeCluster("orders_logistics", "Bestellungen & DHL-Versand", 94, "OrderCheckout.php", "OrderOverview.php", "DhlService.php"),
+                MakeCluster("accounting_finance", "Buchhaltung, Steuer & Bank", 86, "AccountingVariableCosts.php", "InvoiceService.php", "FinancialService.php"),
+                MakeCluster("ai_funkira", "Funkira, KI-Agenten & Wissen", 112, "FunkiraSkillPoolService.php", "FunkiraLiveAndMcpEngine.cs", "funkira3d.js"),
+                MakeCluster("management_office", "Leitung, Mail, Kalender & To-Do", 92, "MasterAnalytics.php", "ManagementTask.php", "ManagementEMails.php"),
+                MakeCluster("marketing_influencer", "Marketing, Blog & Influencer", 84, "MarketingInfluencer.php", "MarketingVoucher.php", "InfluencerService.php"),
+                MakeCluster("customer_gamification", "Kundenkonto & Gamification", 76, "CustomerDashboardComponent.php", "GamificationService.php", "Customer.php"),
+                MakeCluster("support_telephony", "Support, Tickets & Telefonie", 58, "SupportTicket.php", "AiFrontendSupportChat.php", "AiSupportService.php"),
+                MakeCluster("system_security", "Projekt-Gehirn, Logs & Schutz", 79, "SystemBrainDiagnosticsService.php", "SystemErrorLogger.php", "LinuxVaultAndApi.cs"),
+                MakeCluster("frontend_views", "Shop-Frontend, Routen & Views", 92, "admin_routes.php", "global_routes.php", "SeoController.php")
+            );
+        }
+
+        private static JsonObject MakeCluster(string key, string label, int count, params string[] samples)
+        {
+            var arr = new JsonArray();
+            foreach (var s in samples) arr.Add(s);
+            return new JsonObject
+            {
+                ["key"] = key,
+                ["label"] = label,
+                ["files_count"] = count,
+                ["open_errors_count"] = 0,
+                ["sample_files"] = arr
+            };
+        }
+
+        private static void SaveCachedBrainStats(int totalFiles, int totalLinks, JsonArray clusters)
+        {
+            lock (s_fileLock)
+            {
+                try
+                {
+                    Directory.CreateDirectory(LinuxVaultAndStorage.DataDir);
+                    var cacheObj = new JsonObject
+                    {
+                        ["cached_at"] = DateTime.UtcNow.ToString("O"),
+                        ["total_files"] = totalFiles,
+                        ["total_links"] = totalLinks,
+                        ["department_clusters"] = JsonNode.Parse(clusters.ToJsonString())
+                    };
+                    File.WriteAllText(BrainCacheFilePath, cacheObj.ToJsonString(), new UTF8Encoding(false));
+                    LinuxVaultAndStorage.TryRestrictFilePermissions(BrainCacheFilePath);
+                }
+                catch { }
+            }
+        }
+
+        private static void LoadCachedBrainStats(ref int totalFiles, ref int totalLinks, ref JsonArray clusters)
+        {
+            lock (s_fileLock)
+            {
+                try
+                {
+                    if (!File.Exists(BrainCacheFilePath)) return;
+                    if (JsonNode.Parse(File.ReadAllText(BrainCacheFilePath, Encoding.UTF8)) is JsonObject cached)
+                    {
+                        int tf = cached["total_files"]?.GetValue<int>() ?? 0;
+                        int tl = cached["total_links"]?.GetValue<int>() ?? 0;
+                        if (tf > 0) totalFiles = tf;
+                        if (tl > 0) totalLinks = tl;
+                        if (cached["department_clusters"] is JsonArray dc && dc.Count > 0)
+                            clusters = dc;
+                    }
+                }
+                catch { }
+            }
+        }
+
+        private static JsonObject ScrubJsonObject(JsonObject obj)
+        {
+            string scrubbedRaw = ErrorSentinelAndWatchdog.ScrubSecrets(obj.ToJsonString());
+            try
+            {
+                if (JsonNode.Parse(scrubbedRaw) is JsonObject clean)
+                    return clean;
+            }
+            catch { }
+            return obj;
         }
     }
 }

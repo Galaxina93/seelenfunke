@@ -359,6 +359,7 @@ class FunkiraLiveViewModel : ViewModel() {
                             add("parts", JsonArray().apply {
                                 add(JsonObject().apply {
                                     val walkRule = "WETTER & SPAZIERGANG-REGEL: Wenn es um das Wetter oder einen Spaziergang geht, sage nur kurz auf Basis des Wetters, ob ein Spaziergang machbar ist und wie man sich für die Temperatur anziehen sollte. Schlage NIEMALS Orte, Seen, Parks oder Routen für einen Spaziergang vor, außer Alina fragt ausdrücklich danach."
+                                    val brevityRule = "SPRACHSTIL & TOKEN-SPAR-DISZIPLIN: Bleibe genauso herzlich, freundlich, sympathisch und cool wie immer, aber sprich KURZ, ZACKIG und KNACKIG auf den Punkt (1 bis maximal 3 kurze Sätze ohne Füllwörter oder lange Einleitungen). Antworte NIEMALS mit Floskeln wie 'Ich bin nur ein Sprachmodell und kann dabei nicht helfen', sondern nenne bei Einschränkungen oder Fehlern immer ehrlich den exakten konkreten Grund (z. B. Login abgelaufen, Server nicht erreichbar, Berechtigung oder Werkzeug fehlt) samt Lösung! Strategische 'Was tun wir als Nächstes?'-Tipps (master_get_next_best_actions) gibst du ausschließlich auf Nachfrage von Alina."
                                     var strictPrompt = if (!systemInstruction.contains("STRIKTE SPRACHREGEL")) {
                                         "STRIKTE SPRACHREGEL (HÖCHSTE PRIORITÄT): Sprich und antworte ZU 100% AUSSCHLIESSLICH auf DEUTSCH! Gib NIEMALS englische Statusmeldungen, Bestätigungen oder Floskeln wie 'Confirming Operational Context' oder 'I acknowledge...' aus. Antworte sofort direkt und natürlich auf Deutsch.\n\n" + systemInstruction
                                     } else {
@@ -366,6 +367,9 @@ class FunkiraLiveViewModel : ViewModel() {
                                     }
                                     if (!strictPrompt.contains("SPAZIERGANG-REGEL")) {
                                         strictPrompt = "$strictPrompt\n\n$walkRule"
+                                    }
+                                    if (!strictPrompt.contains("TOKEN-SPAR-DISZIPLIN")) {
+                                        strictPrompt = "$strictPrompt\n\n$brevityRule"
                                     }
                                     addProperty("text", strictPrompt)
                                 })

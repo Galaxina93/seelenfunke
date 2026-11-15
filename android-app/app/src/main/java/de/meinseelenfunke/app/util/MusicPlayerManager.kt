@@ -1,13 +1,19 @@
 package de.meinseelenfunke.app.util
 
+import android.Manifest
+import android.content.ContentUris
 import android.content.Context
+import android.content.pm.PackageManager
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.media.MediaPlayer
+import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
+import android.provider.MediaStore
 import android.util.Log
+import androidx.core.content.ContextCompat
 import de.meinseelenfunke.app.di.ServiceLocator
 import de.meinseelenfunke.app.services.MusicPlaybackService
 import de.meinseelenfunke.app.widget.MusicWidgetProvider
@@ -32,6 +38,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.io.FileInputStream
+import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
 
@@ -50,7 +58,8 @@ data class MusicTrackDto(
     val durationSeconds: Int,
     val fileSize: Long,
     val isFavorite: Boolean,
-    val position: Int
+    val position: Int,
+    val externalId: String = ""
 ) {
     val formattedDuration: String
         get() {
@@ -106,6 +115,37 @@ object MusicPlayerManager {
 
     @Volatile
     private var localDiskScannedOnce: Boolean = false
+
+    @Volatile
+    private var mediaStoreScannedOnce: Boolean = false
+
+    private val mediaStoreUriByKey = ConcurrentHashMap<String, Uri>()
+    private val trackExternalIdById = ConcurrentHashMap<String, String>()
+
+    fun requiredMediaAudioPermission(): String {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            Manifest.permission.READ_MEDIA_AUDIO
+        } else {
+            Manifest.permission.READ_EXTERNAL_STORAGE
+        }
+    }
+
+    fun hasReadMediaAudioPermission(context: Context): Boolean {
+        return try {
+            ContextCompat.checkSelfPermission(
+                context.applicationContext,
+                requiredMediaAudioPermission()
+            ) == PackageManager.PERMISSION_GRANTED
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    fun rescanLocalDeviceMusic(context: Context) {
+        localDiskScannedOnce = false
+        mediaStoreScannedOnce = false
+        fetchPlaylists(context.applicationContext)
+    }
 
     @Volatile
     private var isTransitioningTrack: Boolean = false
@@ -237,16 +277,22 @@ object MusicPlayerManager {
 
                 for (j in 0 until trArr.length()) {
                     val trObj = trArr.getJSONObject(j)
+                    val trId = trObj.optString("id")
+                    val extId = trObj.optString("external_id", "").trim()
+                    if (trId.isNotBlank() && extId.isNotBlank()) {
+                        trackExternalIdById[trId] = extId
+                    }
                     tracks.add(
                         MusicTrackDto(
-                            id = trObj.optString("id"),
+                            id = trId,
                             playlistId = plId,
                             title = trObj.optString("title", "Unbekannter Titel"),
                             artist = trObj.optString("artist", "Unbekannter Künstler"),
                             durationSeconds = trObj.optInt("duration_seconds", 0),
                             fileSize = trObj.optLong("file_size", 0L),
                             isFavorite = trObj.optBoolean("is_favorite", false) || trObj.optInt("is_favorite", 0) == 1,
-                            position = trObj.optInt("position", j + 1)
+                            position = trObj.optInt("position", j + 1),
+                            externalId = extId
                         )
                     )
                 }
@@ -279,6 +325,9 @@ object MusicPlayerManager {
                 trObj.put("file_size", tr.fileSize)
                 trObj.put("is_favorite", tr.isFavorite)
                 trObj.put("position", tr.position)
+                if (tr.externalId.isNotBlank()) {
+                    trObj.put("external_id", tr.externalId)
+                }
                 trArr.put(trObj)
             }
             plObj.put("tracks", trArr)
@@ -289,7 +338,7 @@ object MusicPlayerManager {
     }
 
     private fun savePlaylistsToLocalCache(context: Context, playlists: List<MusicPlaylistDto>) {
-        val persistable = playlists.filter { it.id != "local_offline_cache" }
+        val persistable = playlists.filter { it.id != "local_offline_cache" && it.id != "device_media_music" }
         if (persistable.sumOf { it.tracks.size } == 0) return
         try {
             val file = getCatalogCacheFile(context)
@@ -299,9 +348,142 @@ object MusicPlayerManager {
         }
     }
 
+    private fun loadBundledAssetCatalog(context: Context): List<MusicPlaylistDto> {
+        return try {
+            val json = context.assets.open("funkenwerk_music_catalog.json").bufferedReader(Charsets.UTF_8).use { it.readText() }
+            parsePlaylistsJson(json)
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
     /**
-     * Ultra-fast (~2ms) synchronous catalog bootstrap for cold-start Widget / Notification / Tab opens.
-     * Reads playlists_cache.json + orphan_meta_cache.json without blocking on MediaMetadataRetriever or HTTP.
+     * Scans Android MediaStore.Audio.Media (Music/Funkenwerk and Music/) when READ_MEDIA_AUDIO is granted.
+     * Indexes all Funkenwerk track stems in mediaStoreUriByKey for zero-copy playback, and returns
+     * standalone songs from the device's general Music/ directory for the "Auf diesem Handy" playlist.
+     */
+    private fun scanDeviceMediaStoreAudio(context: Context): List<MusicTrackDto> {
+        val appCtx = context.applicationContext
+        if (!hasReadMediaAudioPermission(appCtx)) {
+            return emptyList()
+        }
+
+        val standaloneTracks = mutableListOf<MusicTrackDto>()
+        val pathColumn = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            MediaStore.Audio.Media.RELATIVE_PATH
+        } else {
+            @Suppress("DEPRECATION")
+            MediaStore.Audio.Media.DATA
+        }
+
+        val projection = arrayOf(
+            MediaStore.Audio.Media._ID,
+            MediaStore.Audio.Media.DISPLAY_NAME,
+            MediaStore.Audio.Media.TITLE,
+            MediaStore.Audio.Media.ARTIST,
+            MediaStore.Audio.Media.DURATION,
+            MediaStore.Audio.Media.SIZE,
+            pathColumn
+        )
+
+        val sortOrder = "${MediaStore.Audio.Media.TITLE} COLLATE NOCASE ASC"
+        val excludedPathTokens = listOf("whatsapp", "telegram", "ringtones", "notifications", "alarms", "recordings", "voice")
+
+        try {
+            appCtx.contentResolver.query(
+                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                projection,
+                null,
+                null,
+                sortOrder
+            )?.use { cursor ->
+                val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
+                val nameCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DISPLAY_NAME)
+                val titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
+                val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
+                val durCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
+                val sizeCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.SIZE)
+                val relCol = cursor.getColumnIndexOrThrow(pathColumn)
+
+                var pos = 1
+                while (cursor.moveToNext()) {
+                    val mediaId = cursor.getLong(idCol)
+                    val sizeBytes = cursor.getLong(sizeCol)
+                    if (sizeBytes <= 15_000L) continue
+
+                    val displayName = cursor.getString(nameCol)?.trim().orEmpty()
+                    if (displayName.isEmpty()) continue
+                    val relPath = cursor.getString(relCol)?.replace('\\', '/').orEmpty()
+                    val relLower = relPath.lowercase(Locale.ROOT)
+                    if (excludedPathTokens.any { relLower.contains(it) }) continue
+
+                    val contentUri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, mediaId)
+                    val stem = displayName.substringBeforeLast('.').trim()
+                    val syntheticId = "ms_$mediaId"
+                    mediaStoreUriByKey[syntheticId] = contentUri
+
+                    val isFunkenwerkDir = relLower.contains("music/funkenwerk")
+                    if (isFunkenwerkDir) {
+                        if (stem.isNotEmpty()) {
+                            mediaStoreUriByKey[stem] = contentUri
+                            mediaStoreUriByKey[stem.lowercase(Locale.ROOT)] = contentUri
+                        }
+                        continue
+                    }
+
+                    val durMs = cursor.getLong(durCol)
+                    val durSec = if (durMs > 0L) (durMs / 1000L).toInt() else 0
+                    if (durSec in 1..24 && sizeBytes < 250_000L) continue
+
+                    if (stem.isNotEmpty()) {
+                        mediaStoreUriByKey.putIfAbsent(stem, contentUri)
+                        mediaStoreUriByKey.putIfAbsent(stem.lowercase(Locale.ROOT), contentUri)
+                    }
+
+                    val rawTitle = cursor.getString(titleCol)?.trim().orEmpty()
+                    val rawArtist = cursor.getString(artistCol)?.trim().orEmpty()
+                    val hasRealArtist = rawArtist.isNotBlank() && !rawArtist.equals("<unknown>", ignoreCase = true)
+
+                    var cleanTitle = rawTitle.ifBlank { stem }.ifBlank { "Lokaler Titel #$pos" }
+                    var cleanArtist = if (hasRealArtist) rawArtist else ""
+
+                    if (!hasRealArtist && cleanTitle.contains(" - ")) {
+                        val parts = cleanTitle.split(" - ", limit = 2)
+                        if (parts.size == 2 && parts[0].isNotBlank() && parts[1].isNotBlank()) {
+                            cleanArtist = parts[0].trim()
+                            cleanTitle = parts[1].trim()
+                        }
+                    }
+                    if (cleanArtist.isBlank()) {
+                        cleanArtist = "Auf diesem Handy"
+                    }
+
+                    standaloneTracks.add(
+                        MusicTrackDto(
+                            id = syntheticId,
+                            playlistId = "device_media_music",
+                            title = cleanTitle,
+                            artist = cleanArtist,
+                            durationSeconds = durSec,
+                            fileSize = sizeBytes,
+                            isFavorite = false,
+                            position = pos++,
+                            externalId = stem
+                        )
+                    )
+                }
+            }
+            mediaStoreScannedOnce = true
+        } catch (e: Exception) {
+            Log.w(TAG, "MediaStore audio scan failed: ${e.message}")
+        }
+
+        return standaloneTracks
+    }
+
+    /**
+     * Ultra-fast synchronous catalog bootstrap for cold-start Widget / Notification / Tab opens.
+     * Reads playlists_cache.json + MediaStore index without blocking on MediaMetadataRetriever or HTTP.
      */
     @Synchronized
     fun ensureCatalogLoadedFast(context: Context) {
@@ -309,6 +491,12 @@ object MusicPlayerManager {
         appContext = appCtx
         ServiceLocator.ensureInitialized(appCtx)
         if (_allTracks.value.isNotEmpty()) return
+
+        val deviceStandalone = if (!mediaStoreScannedOnce && hasReadMediaAudioPermission(appCtx)) {
+            scanDeviceMediaStoreAudio(appCtx)
+        } else {
+            emptyList()
+        }
 
         val catalogFile = getCatalogCacheFile(appCtx)
         val cachedPlaylists = if (catalogFile.exists() && catalogFile.length() > 10L) {
@@ -321,7 +509,16 @@ object MusicPlayerManager {
             mutableListOf()
         }
 
-        val knownTrackIds = cachedPlaylists.flatMap { it.tracks }.map { it.id }.toSet()
+        if (cachedPlaylists.isEmpty()) {
+            val bundled = loadBundledAssetCatalog(appCtx)
+                .mapNotNull { pl ->
+                    val available = pl.tracks.filter { isTrackCached(appCtx, it.id) }
+                    if (available.isNotEmpty()) pl.copy(tracks = available) else null
+                }
+            cachedPlaylists.addAll(bundled)
+        }
+
+        val knownTrackIds = cachedPlaylists.flatMap { it.tracks }.flatMap { listOf(it.id, it.externalId) }.filter { it.isNotBlank() }.toSet()
         val orphanMetaMap = loadOrphanMetaMap(appCtx)
         val orphanFiles = getCacheDir(appCtx)
             .listFiles { _, name -> name.endsWith(".m4a") }
@@ -355,12 +552,25 @@ object MusicPlayerManager {
             )
         }
 
+        if (deviceStandalone.isNotEmpty()) {
+            cachedPlaylists.add(
+                MusicPlaylistDto(
+                    id = "device_media_music",
+                    name = "Auf diesem Handy",
+                    description = "Lokale Musikdateien aus dem Gerätespeicher",
+                    tracks = deviceStandalone
+                )
+            )
+        }
+
         if (cachedPlaylists.isNotEmpty()) {
             applyPlaylistsToState(appCtx, cachedPlaylists)
         }
     }
 
     private fun loadPlaylistsFromLocalCache(context: Context): List<MusicPlaylistDto> {
+        val deviceStandalone = scanDeviceMediaStoreAudio(context)
+
         val catalogFile = getCatalogCacheFile(context)
         val cachedPlaylists = if (catalogFile.exists() && catalogFile.length() > 10L) {
             try {
@@ -372,9 +582,32 @@ object MusicPlayerManager {
             mutableListOf()
         }
 
+        val bundledCatalog = loadBundledAssetCatalog(context)
+        if (bundledCatalog.isNotEmpty()) {
+            val existingIds = cachedPlaylists.map { it.id }.toSet()
+            val existingNames = cachedPlaylists.map { it.name.lowercase(Locale.ROOT) }.toSet()
+            for (bPl in bundledCatalog) {
+                val localAvailableTracks = bPl.tracks.filter { isTrackCached(context, it.id) }
+                if (localAvailableTracks.isEmpty()) continue
+                val matchIdx = cachedPlaylists.indexOfFirst {
+                    it.id == bPl.id || it.name.equals(bPl.name, ignoreCase = true)
+                }
+                if (matchIdx >= 0) {
+                    val curPl = cachedPlaylists[matchIdx]
+                    val curTrackIds = curPl.tracks.map { it.id }.toSet()
+                    val missing = localAvailableTracks.filter { it.id !in curTrackIds }
+                    if (missing.isNotEmpty()) {
+                        cachedPlaylists[matchIdx] = curPl.copy(tracks = curPl.tracks + missing)
+                    }
+                } else if (bPl.id !in existingIds && bPl.name.lowercase(Locale.ROOT) !in existingNames) {
+                    cachedPlaylists.add(bPl.copy(tracks = localAvailableTracks))
+                }
+            }
+        }
+
         // Ensure any local .m4a files on disk that aren't in playlists_cache.json are still visible,
         // persisting extracted metadata in orphan_meta_cache.json so MediaMetadataRetriever only runs once per new file.
-        val knownTrackIds = cachedPlaylists.flatMap { it.tracks }.map { it.id }.toSet()
+        val knownTrackIds = cachedPlaylists.flatMap { it.tracks }.flatMap { listOf(it.id, it.externalId) }.filter { it.isNotBlank() }.toSet()
         val orphanMetaMap = loadOrphanMetaMap(context)
         var orphanMapDirty = false
 
@@ -440,6 +673,22 @@ object MusicPlayerManager {
             )
         }
 
+        if (deviceStandalone.isNotEmpty()) {
+            cachedPlaylists.removeAll { it.id == "device_media_music" }
+            cachedPlaylists.add(
+                MusicPlaylistDto(
+                    id = "device_media_music",
+                    name = "Auf diesem Handy",
+                    description = "Lokale Musikdateien aus dem Gerätespeicher",
+                    tracks = deviceStandalone
+                )
+            )
+        }
+
+        if (cachedPlaylists.any { it.id != "local_offline_cache" && it.id != "device_media_music" }) {
+            savePlaylistsToLocalCache(context, cachedPlaylists)
+        }
+
         localDiskScannedOnce = true
         return cachedPlaylists
     }
@@ -469,6 +718,12 @@ object MusicPlayerManager {
                 val stillOrphan = lPl.tracks.filter { it.id !in mergedTrackIds }
                 if (stillOrphan.isNotEmpty()) {
                     merged.add(lPl.copy(tracks = stillOrphan))
+                }
+                continue
+            }
+            if (lPl.id == "device_media_music") {
+                if (lPl.tracks.isNotEmpty()) {
+                    merged.add(lPl)
                 }
                 continue
             }
@@ -588,13 +843,45 @@ object MusicPlayerManager {
         return rawId.replace(Regex("[^A-Za-z0-9_-]"), "_").take(80).ifBlank { "track" }
     }
 
+    private fun resolveLocalCacheFile(context: Context, trackId: String, externalId: String = ""): File? {
+        val cacheDir = getCacheDir(context)
+        val primary = File(cacheDir, "${safeTrackFileId(trackId)}.m4a")
+        if (isValidAudioFile(primary)) return primary
+        val ext = externalId.ifBlank { trackExternalIdById[trackId].orEmpty() }
+        if (ext.isNotBlank()) {
+            val secondary = File(cacheDir, "${safeTrackFileId(ext)}.m4a")
+            if (isValidAudioFile(secondary)) return secondary
+        }
+        return null
+    }
+
+    private fun resolveMediaStoreTrackUri(context: Context, trackId: String, externalId: String = ""): Uri? {
+        if (!mediaStoreScannedOnce && hasReadMediaAudioPermission(context)) {
+            scanDeviceMediaStoreAudio(context)
+        }
+        mediaStoreUriByKey[trackId]?.let { return it }
+        mediaStoreUriByKey[trackId.lowercase(Locale.ROOT)]?.let { return it }
+        val ext = externalId.ifBlank { trackExternalIdById[trackId].orEmpty() }
+        if (ext.isNotBlank()) {
+            mediaStoreUriByKey[ext]?.let { return it }
+            mediaStoreUriByKey[ext.lowercase(Locale.ROOT)]?.let { return it }
+        }
+        return null
+    }
+
     fun isTrackCached(context: Context, trackId: String): Boolean {
-        val f = File(getCacheDir(context), "${safeTrackFileId(trackId)}.m4a")
-        return isValidAudioFile(f)
+        if (trackId.isBlank()) return false
+        if (resolveLocalCacheFile(context, trackId) != null) return true
+        return resolveMediaStoreTrackUri(context, trackId) != null
     }
 
     fun getCachedCount(context: Context): Int {
-        return getCacheDir(context).listFiles { _, name -> name.endsWith(".m4a") }?.count { it.length() > 10240L } ?: 0
+        val tracks = _allTracks.value
+        if (tracks.isNotEmpty()) {
+            return tracks.count { isTrackCached(context, it.id) }
+        }
+        val diskCount = getCacheDir(context).listFiles { _, name -> name.endsWith(".m4a") }?.count { it.length() > 10240L } ?: 0
+        return diskCount + mediaStoreUriByKey.values.distinct().size
     }
 
     /**
@@ -610,6 +897,21 @@ object MusicPlayerManager {
             applyPlaylistsToState(appCtx, localPlaylists)
         }
         return _allTracks.value
+    }
+
+    fun resolveAlarmTrackUri(context: Context, trackId: String?): Uri? {
+        if (trackId.isNullOrBlank() || trackId == "standard") return null
+        val appCtx = context.applicationContext
+        if (!mediaStoreScannedOnce && hasReadMediaAudioPermission(appCtx)) {
+            scanDeviceMediaStoreAudio(appCtx)
+        }
+        if (trackId == "random_music") {
+            val allUris = mediaStoreUriByKey.values.distinct()
+            return if (allUris.isNotEmpty()) allUris.random() else null
+        }
+        resolveMediaStoreTrackUri(appCtx, trackId)?.let { return it }
+        val allUris = mediaStoreUriByKey.values.distinct()
+        return allUris.firstOrNull()
     }
 
     /**
@@ -630,9 +932,9 @@ object MusicPlayerManager {
             return if (validFiles.isNotEmpty()) validFiles.random() else null
         }
 
-        val exactFile = File(cacheDir, "${safeTrackFileId(trackId)}.m4a")
-        if (isValidAudioFile(exactFile)) {
-            return exactFile
+        resolveLocalCacheFile(appCtx, trackId)?.let { return it }
+        if (resolveMediaStoreTrackUri(appCtx, trackId) != null) {
+            return null
         }
 
         // If the selected track isn't cached yet, trigger background caching and fall back to any cached song if available
@@ -1036,11 +1338,18 @@ object MusicPlayerManager {
         playJob = scope.launch {
             Log.d(TAG, "playTrack starting [${track.title}] txId=$txId retry=$retryDepth")
 
-            val localFile = ensureTrackCached(appCtx, track)
+            val localMediaUri = withContext(Dispatchers.IO) {
+                resolveMediaStoreTrackUri(appCtx, track.id, track.externalId)
+            }
+            val localFile = if (localMediaUri == null) {
+                ensureTrackCached(appCtx, track)
+            } else {
+                null
+            }
             if (transitionSeq.get() != txId) return@launch
 
-            if (localFile == null) {
-                Log.w(TAG, "localFile is null for [${track.title}], retryDepth=$retryDepth")
+            if (localMediaUri == null && localFile == null) {
+                Log.w(TAG, "No playable source for [${track.title}], retryDepth=$retryDepth")
                 isTransitioningTrack = false
                 // Try next cached or available track in queue instead of stopping!
                 if (currentQueue.size > 1 && retryDepth < 8) {
@@ -1083,21 +1392,52 @@ object MusicPlayerManager {
                             .build()
                         player.setAudioAttributes(audioAttrs)
 
-                        try {
-                            FileInputStream(localFile).use { fis ->
-                                player.setDataSource(fis.fd, 0L, localFile.length())
+                        if (localMediaUri != null) {
+                            try {
+                                val pfd = appCtx.contentResolver.openFileDescriptor(localMediaUri, "r")
+                                if (pfd != null) {
+                                    pfd.use {
+                                        val len = it.statSize
+                                        if (len > 0L) {
+                                            player.setDataSource(it.fileDescriptor, 0L, len)
+                                        } else {
+                                            player.setDataSource(it.fileDescriptor)
+                                        }
+                                        player.isLooping = false
+                                        player.prepare()
+                                    }
+                                } else {
+                                    player.setDataSource(appCtx, localMediaUri)
+                                    player.isLooping = false
+                                    player.prepare()
+                                }
+                            } catch (uriFdErr: Exception) {
+                                Log.w(TAG, "PFD setDataSource failed for [${track.title}], retrying with Uri: ${uriFdErr.message}")
+                                try { player.release() } catch (_: Exception) { }
+                                player = MediaPlayer().also { mediaPlayer = it }
+                                try { player.setWakeMode(appCtx, PowerManager.PARTIAL_WAKE_LOCK) } catch (_: Exception) { }
+                                player.setAudioAttributes(audioAttrs)
+                                player.setDataSource(appCtx, localMediaUri)
                                 player.isLooping = false
                                 player.prepare()
                             }
-                        } catch (fdErr: Exception) {
-                            Log.w(TAG, "FD setDataSource failed for [${track.title}], retrying with file path: ${fdErr.message}")
-                            try { player.release() } catch (_: Exception) { }
-                            player = MediaPlayer().also { mediaPlayer = it }
-                            try { player.setWakeMode(appCtx, PowerManager.PARTIAL_WAKE_LOCK) } catch (_: Exception) { }
-                            player.setAudioAttributes(audioAttrs)
-                            player.setDataSource(localFile.absolutePath)
-                            player.isLooping = false
-                            player.prepare()
+                        } else if (localFile != null) {
+                            try {
+                                FileInputStream(localFile).use { fis ->
+                                    player.setDataSource(fis.fd, 0L, localFile.length())
+                                    player.isLooping = false
+                                    player.prepare()
+                                }
+                            } catch (fdErr: Exception) {
+                                Log.w(TAG, "FD setDataSource failed for [${track.title}], retrying with file path: ${fdErr.message}")
+                                try { player.release() } catch (_: Exception) { }
+                                player = MediaPlayer().also { mediaPlayer = it }
+                                try { player.setWakeMode(appCtx, PowerManager.PARTIAL_WAKE_LOCK) } catch (_: Exception) { }
+                                player.setAudioAttributes(audioAttrs)
+                                player.setDataSource(localFile.absolutePath)
+                                player.isLooping = false
+                                player.prepare()
+                            }
                         }
                         player
                     }
@@ -1134,7 +1474,11 @@ object MusicPlayerManager {
                 _durationSec.value = realDurSec
                 _isPlaying.value = true
                 isTransitioningTrack = false
-                _statusText.value = "⚡ Lokal gecacht · 256 kbps AAC"
+                _statusText.value = if (localMediaUri != null) {
+                    "⚡ Lokal auf dem Handy · Sofort-Wiedergabe"
+                } else {
+                    "⚡ Lokal gecacht · 256 kbps AAC"
+                }
 
                 Log.d(TAG, "Playback started for [${track.title}], duration=${realDurSec}s")
 
@@ -1149,7 +1493,9 @@ object MusicPlayerManager {
                     preCacheJob = scope.launch(Dispatchers.IO) {
                         for (offset in 1..minOf(3, currentQueue.size - 1)) {
                             val nextTr = currentQueue[(idx + offset) % currentQueue.size]
-                            ensureTrackCached(appCtx, nextTr)
+                            if (!isTrackCached(appCtx, nextTr.id)) {
+                                ensureTrackCached(appCtx, nextTr)
+                            }
                         }
                     }
                 }
@@ -1157,7 +1503,7 @@ object MusicPlayerManager {
                 Log.e(TAG, "MediaPlayer error on track ${track.title}", e)
                 isTransitioningTrack = false
                 // Only remove localFile if it is genuinely corrupted (not a valid audio container)
-                if (!isValidAudioFile(localFile)) {
+                if (localFile != null && !isValidAudioFile(localFile)) {
                     try { localFile.delete() } catch (_: Exception) { }
                 }
                 try {
@@ -1640,6 +1986,8 @@ object MusicPlayerManager {
         _statusText.value = "Bereit für Sofort-Stream"
         currentQueue = emptyList()
         localDiskScannedOnce = false
+        mediaStoreScannedOnce = false
+        mediaStoreUriByKey.clear()
         try { getCatalogCacheFile(appCtx).delete() } catch (_: Exception) {}
         try { getOrphanMetaCacheFile(appCtx).delete() } catch (_: Exception) {}
         try {

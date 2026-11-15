@@ -1917,6 +1917,11 @@ object FunkenwerkAlarmManager {
         if (!customTrackId.isNullOrBlank() && customTrackId != "standard") {
             try {
                 val trackFile = MusicPlayerManager.resolveAlarmTrackFile(appCtx, customTrackId)
+                val trackUri = if (trackFile == null) {
+                    MusicPlayerManager.resolveAlarmTrackUri(appCtx, customTrackId)
+                } else {
+                    null
+                }
                 if (trackFile != null && trackFile.exists() && trackFile.length() > 10240L) {
                     val musicAlarmAttrs = AudioAttributes.Builder()
                         .setUsage(AudioAttributes.USAGE_ALARM)
@@ -1925,6 +1930,20 @@ object FunkenwerkAlarmManager {
                     val mp = MediaPlayer()
                     mp.setAudioAttributes(musicAlarmAttrs)
                     mp.setDataSource(trackFile.absolutePath)
+                    mp.isLooping = true
+                    mp.setVolume(1.0f, 1.0f)
+                    mp.prepare()
+                    mp.start()
+                    activeAlarmPlayer = mp
+                    started = true
+                } else if (trackUri != null) {
+                    val musicAlarmAttrs = AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_ALARM)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                        .build()
+                    val mp = MediaPlayer()
+                    mp.setAudioAttributes(musicAlarmAttrs)
+                    mp.setDataSource(appCtx, trackUri)
                     mp.isLooping = true
                     mp.setVolume(1.0f, 1.0f)
                     mp.prepare()

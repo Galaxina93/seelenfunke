@@ -410,8 +410,15 @@ In [`_edit_step_2.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-
   5. **Ebenen, Rückseite & 3D-Kontrolle:** Auswahl über die `Ebenen`-Leiste, `Vorderseite / Rückseite`-Wechsel bei beidseitigen Produkten und interaktive 3D-Rundum-Vorschau.
   6. **Extras, Prüfhaken & Warenkorb:** Optionale `Besondere Wünsche an die Manufaktur`, `Verpackung & Extras` (`Geschenkpapier Schwarz-Gold-Look · Fertig verpackt`), Bestätigungs-Checkbox, `Funken`-Treue-Bonus und Abschluss via `In den Warenkorb` (`✓ Hinzugefügt!`).
 
+---
 
+## 14. Vollständiger Sicherungs-Screenshot bei eigenen Foto-Uploads & Vorlagen-Wechsel (15. November 2026)
 
-
+### 14.1 Ursachenanalyse & Behebung
+1. **Schwarze Rechtecke bei eigenen Kundenfotos (`brightness(0)`) auf Kristall-/Glas-Vorlagen:**
+   - **Ursache:** Für einfarbige SVG-Symbole/Vektoren wurde `ctx.filter = 'brightness(0)'` bzw. `brightness(0) invert(1)` verwendet, um diese als Gravur-Silhouette einzufärben. Ein hochgeladenes rechteckiges Kundenfoto (`custom_upload`) besitzt jedoch keine transparenten Freisteller, sondern besteht zu 100 % aus deckenden Pixeln (`alpha = 255`) und wurde durch `brightness(0)` zu einem komplett schwarzen Kasten, der auch darunterliegende Symbole verdeckte.
+   - **Lösung ([`scripts_frontend_1.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/product/product-configurator/partials/scripts_frontend_1.blade.php), [`scripts_frontend_2.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/product/product-configurator/partials/scripts_frontend_2.blade.php), [`preview.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/product/product-configurator/partials/preview.blade.php)):** Eigene Foto-Uploads (`isCustomUpload`) werden automatisch erkannt (`item.type === 'custom'`, `/storage/uploads/`, `/livewire-tmp/`, `data:image/(jpeg|png|webp)`) und niemals mit `brightness(0)` geschwärzt, sondern als echte hochauflösende Fotogravur gerendert; Vektor-Symbole bleiben über `zIndex` (`12` vs. `10`) sichtbar darüber.
+2. **Garantierte Neuberechnung des Sicherungs-Screenshots bei Vorlagen-Anpassung:**
+   - **Lösung ([`scripts_frontend_1.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/product/product-configurator/partials/scripts_frontend_1.blade.php), [`ProductConfigurator.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Product/ProductConfigurator/ProductConfigurator.php)):** Beim Klick auf „In den Warenkorb“ / „Übernehmen“ erzeugt `submitConfig()` über `renderTemplatePreviewDataUri('front')` deterministisch einen frischen 2D-Komposit-Screenshot inklusive aller hochgeladenen Fotos, Symbole und Texte, sodass niemals das statische Vorlagen-Vorschaubild der Ursprungsvorlage erhalten bleibt.
 
 

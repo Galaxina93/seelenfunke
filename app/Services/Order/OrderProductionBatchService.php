@@ -441,6 +441,7 @@ class OrderProductionBatchService
             'recommended_item' => $recommendedItem,
             'primary_product_id' => $primaryProductId,
             'primary_setup_group' => $primarySetupGroup,
+            'manufacturing_overview' => $order->getManufacturingOverview(),
         ];
     }
 
@@ -456,6 +457,21 @@ class OrderProductionBatchService
         $ordNo = e('#' . $order->order_number);
         $cust = e($order->customer_name);
         $packWord = $a['can_fit_envelope'] ? 'Luftpolstertasche' : 'Versandkarton';
+        $mfg = $a['manufacturing_overview'] ?? $order->getManufacturingOverview();
+
+        $extraHints = [];
+        if (!empty($mfg['has_notes']) && empty($mfg['notes_done'])) {
+            $extraHints[] = 'Kundenwunsch beachten';
+        }
+        if (!empty($mfg['has_gift_box']) && empty($mfg['gift_box_done'])) {
+            $extraHints[] = 'Edle Schmuckbox: Ja';
+        }
+        if (!empty($mfg['has_gift_wrap']) && empty($mfg['gift_wrap_done'])) {
+            $extraHints[] = 'Geschenkpapier: ' . (in_array('loose', $mfg['gift_wrap_modes'] ?? [], true) ? 'Nur dazu legen' : 'Fertig verpacken');
+        }
+        $extraSuffixHtml = !empty($extraHints)
+            ? (' · <span class="text-amber-600 dark:text-amber-400 font-bold">Extras: ' . e(implode(' · ', $extraHints)) . '</span>')
+            : '';
 
         $mood = ($a['is_express'] || $a['is_overdue'] || $a['stage'] === 'critical_stock') ? 'alarm' : 'work';
         $badgeLabel = null;
@@ -580,7 +596,7 @@ class OrderProductionBatchService
                 'mood' => $mood,
                 'action_html' => $actionHtml,
                 'action_plain' => strip_tags($actionHtml),
-                'tip_html' => $tipHtml,
+                'tip_html' => $tipHtml . $extraSuffixHtml,
                 'badge_label' => $badgeLabel,
             ];
         }
@@ -591,7 +607,7 @@ class OrderProductionBatchService
             $pName = e($item['product_name']);
             $qty = (int) $item['remaining_qty'];
             $actionHtml = "Kein Laser nötig: Nimm <strong class=\"text-gray-900 dark:text-white font-bold\">{$qty}× „{$pName}“</strong> für <strong class=\"text-gray-900 dark:text-white font-bold\">{$ordNo}</strong> ({$cust}) aus dem Lagerregal, verpacke in {$packWord} und klicke auf <strong class=\"text-gray-900 dark:text-white font-bold\">„DHL Label“</strong>.";
-            $tipHtml = '<span class="text-emerald-600 dark:text-emerald-400 font-bold">Schnell-Versand (Lagerware):</span> Keine Gravur erforderlich, direkt am Packtisch abwickeln.';
+            $tipHtml = '<span class="text-emerald-600 dark:text-emerald-400 font-bold">Schnell-Versand (Lagerware):</span> Keine Gravur erforderlich, direkt am Packtisch abwickeln.' . $extraSuffixHtml;
 
             return [
                 'mood' => $mood,

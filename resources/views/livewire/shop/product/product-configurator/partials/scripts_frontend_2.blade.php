@@ -576,6 +576,139 @@
             }
         }
 
+        resolveLogoUrl(logo) {
+            if (!logo || typeof logo !== 'object') return '';
+            let rawUrl = typeof logo.url === 'string' ? logo.url.trim() : '';
+            const rawVal = typeof logo.value === 'string' ? logo.value.trim() : '';
+            if (!rawUrl && rawVal) {
+                if (rawVal.startsWith('vectors/')) {
+                    rawUrl = '/storage/produkte/configurator/' + rawVal.replace(/^\/+/, '');
+                } else {
+                    rawUrl = '/storage/' + rawVal.replace(/^\/+/, '');
+                }
+            }
+            if (!rawUrl) return '';
+            if (rawUrl.startsWith('data:') || rawUrl.startsWith('blob:')) return rawUrl;
+            try {
+                const parsed = new URL(rawUrl, window.location.origin);
+                if (parsed.pathname.startsWith('/storage/') || parsed.pathname.startsWith('/shop/')) {
+                    return window.location.origin + parsed.pathname + parsed.search;
+                }
+                return parsed.href;
+            } catch (e) {
+                return rawUrl;
+            }
+        }
+
+        async ensureLogosLoaded(logosFront, logosBack) {
+            const safeFront = Array.isArray(logosFront) ? logosFront : (logosFront && typeof logosFront === 'object' ? Object.values(logosFront) : []);
+            const safeBack = Array.isArray(logosBack) ? logosBack : (logosBack && typeof logosBack === 'object' ? Object.values(logosBack) : []);
+            const allLogos = [...safeFront, ...safeBack];
+            if (allLogos.length === 0) return;
+
+            const ensureImgDims = (targetImg) => {
+                if (!targetImg) return;
+                const nw = targetImg.naturalWidth || targetImg.width || 512;
+                const nh = targetImg.naturalHeight || targetImg.height || 512;
+                if (!targetImg.width || !targetImg.height || (nw <= 64 && nh <= 64)) {
+                    const aspect = (nw > 0 && nh > 0) ? (nw / nh) : 1;
+                    targetImg.width = aspect >= 1 ? 512 : Math.round(512 * aspect);
+                    targetImg.height = aspect >= 1 ? Math.round(512 / aspect) : 512;
+                }
+            };
+
+            const waitDecode = (targetImg) => {
+                if (!targetImg) return Promise.resolve(null);
+                ensureImgDims(targetImg);
+                if (typeof targetImg.decode === 'function') {
+                    return targetImg.decode().catch(() => {}).then(() => {
+                        ensureImgDims(targetImg);
+                        return targetImg;
+                    });
+                }
+                return Promise.resolve(targetImg);
+            };
+
+            const loadPromises = allLogos.map((logo) => {
+                const resolvedUrl = this.resolveLogoUrl(logo);
+                if (!resolvedUrl) return Promise.resolve(null);
+
+                let img = this._logoImageCache ? this._logoImageCache.get(resolvedUrl) : null;
+                if (img && img.complete && (img.naturalWidth > 0 || img.width > 0)) {
+                    return waitDecode(img);
+                }
+
+                return new Promise((resolve) => {
+                    let settled = false;
+                    const finish = (res) => {
+                        if (settled) return;
+                        settled = true;
+                        resolve(res);
+                    };
+                    const timer = setTimeout(() => finish(img || null), 2500);
+
+                    if (!img) {
+                        img = new Image();
+                        if (!resolvedUrl.startsWith(window.location.origin) && !resolvedUrl.startsWith('/') && !resolvedUrl.startsWith('data:') && !resolvedUrl.startsWith('blob:')) {
+                            img.crossOrigin = 'anonymous';
+                        }
+                        if (this._logoImageCache) {
+                            if (this._logoImageCache.size > 60) {
+                                const firstKey = this._logoImageCache.keys().next().value;
+                                this._logoImageCache.delete(firstKey);
+                            }
+                            this._logoImageCache.set(resolvedUrl, img);
+                        }
+                        img.onload = () => {
+                            clearTimeout(timer);
+                            if (this._disposed) {
+                                finish(null);
+                                return;
+                            }
+                            waitDecode(img).then(() => {
+                                if (this._latestRenderArgs && (!this.configurator || !this.configurator.showDrawingBoard)) {
+                                    this.renderBothCanvases(...this._latestRenderArgs);
+                                }
+                                finish(img);
+                            });
+                        };
+                        img.onerror = () => {
+                            clearTimeout(timer);
+                            if (this._logoImageCache) this._logoImageCache.delete(resolvedUrl);
+                            finish(null);
+                        };
+                        img.src = resolvedUrl;
+                    } else {
+                        const prevLoad = img.onload;
+                        const prevErr = img.onerror;
+                        img.onload = (ev) => {
+                            clearTimeout(timer);
+                            if (typeof prevLoad === 'function') prevLoad(ev);
+                            waitDecode(img).then(() => finish(img));
+                        };
+                        img.onerror = (ev) => {
+                            clearTimeout(timer);
+                            if (typeof prevErr === 'function') prevErr(ev);
+                            finish(null);
+                        };
+                        if (img.complete && (img.naturalWidth > 0 || img.width > 0)) {
+                            clearTimeout(timer);
+                            waitDecode(img).then(() => finish(img));
+                        }
+                    }
+                });
+            });
+
+            await Promise.all(loadPromises);
+        }
+
+        async renderBothCanvasesAsync(textsFront, logosFront, textsBack, logosBack, fontMap) {
+            if (!this.isReady) return;
+            this._latestRenderArgs = [textsFront, logosFront, textsBack, logosBack, fontMap];
+            await this.ensureLogosLoaded(logosFront, logosBack);
+            this.renderBothCanvases(textsFront, logosFront, textsBack, logosBack, fontMap);
+        }
+
         renderBothCanvases(textsFront, logosFront, textsBack, logosBack, fontMap) {
             if(!this.isReady) return;
             this._latestRenderArgs = [textsFront, logosFront, textsBack, logosBack, fontMap];
@@ -640,14 +773,16 @@
                 };
 
                 const drawSingleLogo = (img, logo) => {
-                    if (!img || !img.width || !img.height) return;
+                    const imgW = img ? (img.naturalWidth || img.width || 512) : 0;
+                    const imgH = img ? (img.naturalHeight || img.height || 512) : 0;
+                    if (!img || imgW <= 0 || imgH <= 0) return;
                     ctx.save();
                     applyClipping(ctx);
                     ctx.translate(toPx(logo.x ?? 50), toPx(logo.y ?? 50));
                     ctx.rotate((logo.rotation || 0) * Math.PI / 180);
 
                     const scale = ((logo.size || 100) / 500) * cw;
-                    const aspect = img.width / img.height;
+                    const aspect = imgW / imgH;
                     const drawW = scale;
                     const drawH = scale / aspect;
 
@@ -677,31 +812,41 @@
 
                 if(safeLogos.length > 0) {
                     safeLogos.forEach((logo, idx) => {
-                        if (!logo || !logo.url) return;
+                        const resolvedUrl = this.resolveLogoUrl(logo);
+                        if (!resolvedUrl) return;
                         const z = (typeof logo.zIndex === 'number' && !isNaN(logo.zIndex)) ? logo.zIndex : (10 + idx);
-                        const cached = this._logoImageCache ? this._logoImageCache.get(logo.url) : null;
-                        if (cached && cached.complete && cached.naturalWidth > 0) {
+                        const cached = this._logoImageCache ? this._logoImageCache.get(resolvedUrl) : null;
+                        if (cached && cached.complete && (cached.naturalWidth > 0 || cached.width > 0)) {
                             drawQueue.push({ z, draw: () => drawSingleLogo(cached, logo) });
                         } else if (!cached) {
                             const img = new Image();
-                            img.crossOrigin = 'anonymous';
+                            if (!resolvedUrl.startsWith(window.location.origin) && !resolvedUrl.startsWith('/') && !resolvedUrl.startsWith('data:') && !resolvedUrl.startsWith('blob:')) {
+                                img.crossOrigin = 'anonymous';
+                            }
                             if (this._logoImageCache) {
                                 if (this._logoImageCache.size > 60) {
                                     const firstKey = this._logoImageCache.keys().next().value;
                                     this._logoImageCache.delete(firstKey);
                                 }
-                                this._logoImageCache.set(logo.url, img);
+                                this._logoImageCache.set(resolvedUrl, img);
                             }
                             img.onload = () => {
                                 if (this._disposed) return;
+                                const nw = img.naturalWidth || img.width || 512;
+                                const nh = img.naturalHeight || img.height || 512;
+                                if (!img.width || !img.height || (nw <= 64 && nh <= 64)) {
+                                    const aspect = (nw > 0 && nh > 0) ? (nw / nh) : 1;
+                                    img.width = aspect >= 1 ? 512 : Math.round(512 * aspect);
+                                    img.height = aspect >= 1 ? Math.round(512 / aspect) : 512;
+                                }
                                 // Nach erstem Laden einmal komplett mit den aktuellsten Argumenten neu zeichnen
                                 const latestArgs = this._latestRenderArgs || [textsFront, logosFront, textsBack, logosBack, fontMap];
                                 this.renderBothCanvases(...latestArgs);
                             };
                             img.onerror = () => {
-                                if (this._logoImageCache) this._logoImageCache.delete(logo.url);
+                                if (this._logoImageCache) this._logoImageCache.delete(resolvedUrl);
                             };
-                            img.src = logo.url;
+                            img.src = resolvedUrl;
                         }
                     });
                 }

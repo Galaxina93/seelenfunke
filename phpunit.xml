@@ -22,6 +22,7 @@
     <env name="QUEUE_CONNECTION" value="sync" force="true"/>
     <env name="SESSION_DRIVER" value="array" force="true"/>
     <env name="TELESCOPE_ENABLED" value="false" force="true"/>
+    <env name="VIEW_COMPILED_PATH" value="/tmp/sf_test_views" force="true"/>
   </php>
   <source>
     <include>

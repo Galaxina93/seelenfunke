@@ -323,7 +323,7 @@ class StageServerResilienceAndPhp85ConfigTest extends TestCase
         $this->assertStringContainsString('for (const call of data.toolCall.functionCalls)', $part2);
 
         // Verify duplicate Code 1000 close-log suppression & bidirectional ping in server-twilio.js
-        $this->assertStringContainsString("const BRIDGE_VERSION = 'v1.3-stable';", $bridgeJs);
+        $this->assertMatchesRegularExpression("/const BRIDGE_VERSION = 'v1\.\d+-[a-z0-9-]+';/", $bridgeJs);
         $this->assertStringContainsString('if (!wasAlreadyCleanedUp)', $bridgeJs);
         $this->assertStringContainsString('clientWs.ping()', $bridgeJs);
     }

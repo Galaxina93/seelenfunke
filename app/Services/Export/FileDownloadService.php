@@ -508,24 +508,19 @@ class FileDownloadService
             }
         }
 
-        $widthMm = $widthMm ?: floatval($product->width ?? 100);
-        $heightMm = $heightMm ?: floatval($product->height ?? 100);
-
-        // Zylindrische (Runde) Flächen ausrollen: Breite (Durchmesser) zu Umfang umrechnen
-        if ($overlayType === 'cylinder') {
-            $widthMm = $widthMm * pi();
-        } elseif ($overlayType === 'plane' && in_array($productConfig['area_shape'] ?? '', ['custom', 'circle'], true)) {
-            // Auf der 1:1 quadratischen 2D/3D-Arbeitsfläche (aspect-square) sind X-% und Y-% isotrop
-            // (1 % Breite == 1 % Höhe). Bei kreisrunden Trophäen (z. B. Der Seelenkristall 180x200 mm inkl. Fuß)
-            // bestimmt die Kreisscheiben-Breite (min) das 1:1-Maß; bei Freiform-Polygonen (custom) die Hauptspannweite (max).
-            $stageSpanMm = (($productConfig['area_shape'] ?? '') === 'circle')
-                ? min($widthMm, $heightMm)
-                : max($widthMm, $heightMm);
-            $widthMm = $stageSpanMm;
-            $heightMm = $stageSpanMm;
-        }
+        $calibration = $this->resolvePhysicalBlankCalibration($product, $productConfig, $config, true);
+        $widthMm = $calibration['widthMm'];
+        $heightMm = $calibration['heightMm'];
 
         $workingAreaPolygonPct = $this->buildWorkingAreaPolygonPercent($productConfig);
+        if (!empty($calibration['plateBoxPct'])) {
+            [$workingAreaPolygonPct, $logos, $texts] = $this->mapShopConfigOntoPhysicalBlank(
+                $calibration['plateBoxPct'],
+                $workingAreaPolygonPct,
+                $logos,
+                $texts
+            );
+        }
         $clipPointsSvg = implode(' ', array_map(function (array $pt) use ($widthMm, $heightMm) {
             $px = number_format(($pt['x'] / 100.0) * $widthMm, 4, '.', '');
             $py = number_format(($pt['y'] / 100.0) * $heightMm, 4, '.', '');
@@ -1006,19 +1001,19 @@ class FileDownloadService
                 }
             }
         }
-        $widthMm = $widthMm ?: floatval($product->width ?? 100);
-        $heightMm = $heightMm ?: floatval($product->height ?? 100);
-        if ($overlayType === 'cylinder') {
-            $widthMm = $widthMm * pi();
-        } elseif ($overlayType === 'plane' && in_array($productConfig['area_shape'] ?? '', ['custom', 'circle'], true)) {
-            $stageSpanMm = (($productConfig['area_shape'] ?? '') === 'circle')
-                ? min($widthMm, $heightMm)
-                : max($widthMm, $heightMm);
-            $widthMm = $stageSpanMm;
-            $heightMm = $stageSpanMm;
-        }
+        $calibration = $this->resolvePhysicalBlankCalibration($product, $productConfig, $config, true);
+        $widthMm = $calibration['widthMm'];
+        $heightMm = $calibration['heightMm'];
 
         $workingAreaPolygonPct = $this->buildWorkingAreaPolygonPercent($productConfig);
+        if (!empty($calibration['plateBoxPct'])) {
+            [$workingAreaPolygonPct, $logos, $texts] = $this->mapShopConfigOntoPhysicalBlank(
+                $calibration['plateBoxPct'],
+                $workingAreaPolygonPct,
+                $logos,
+                $texts
+            );
+        }
         $pngOut = null;
 
         foreach ($logos as $logoItem) {
@@ -1110,6 +1105,1224 @@ class FileDownloadService
             'Content-Type' => 'image/png',
             'X-Content-Type-Options' => 'nosniff',
         ]);
+    }
+
+    /**
+     * Lädt ein fix-und-fertig konfiguriertes xTool Studio v1.10.15 Projekt (.xcs / xcs-workspace-v2)
+     * inkl. Produkt-Laserparametern, Fokus-Abstand, Gravur-Motiv und cyanfarbener 1:1 Geister-Kontur herunter.
+     */
+    public function downloadLaserXcs(
+        $itemId,
+        $side = 'front',
+        ?float $centerXMm = null,
+        ?float $centerYMm = null,
+        float $angleDeg = 0.0
+    ) {
+        $this->authorizeLaserExportAccess($itemId);
+
+        $cockpit = app(\App\Services\Laser\XtoolLaserCockpitService::class);
+        $xcsData = $cockpit->generateXcsProjectBytes($itemId, (string) $side, $centerXMm, $centerYMm, $angleDeg);
+
+        return response()->streamDownload(function () use ($xcsData) {
+            echo $xcsData['bytes'];
+        }, $xcsData['filename'], [
+            'Content-Type' => 'application/octet-stream',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    }
+
+    /**
+     * Lädt das direkte xTool F2 Ultra UV Druckpaket (.xf POSIX TAR-Archiv) herunter.
+     */
+    public function downloadLaserXf(
+        $itemId,
+        $side = 'front',
+        ?float $centerXMm = null,
+        ?float $centerYMm = null,
+        float $angleDeg = 0.0
+    ) {
+        $this->authorizeLaserExportAccess($itemId);
+
+        $cockpit = app(\App\Services\Laser\XtoolLaserCockpitService::class);
+        $xfData = $cockpit->generateXfPackageBytes($itemId, (string) $side, $centerXMm, $centerYMm, $angleDeg);
+
+        return response()->streamDownload(function () use ($xfData) {
+            echo $xfData['bytes'];
+        }, $xfData['filename'], [
+            'Content-Type' => 'application/x-tar',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    }
+
+    protected function resolveAndAuthorizeLaserItem($itemId, bool $skipAuthCheck = false)
+    {
+        if ($itemId instanceof OrderOrderItem || $itemId instanceof \App\Models\Order\OrderQuoteRequestItem) {
+            $item = $itemId;
+        } else {
+            $item = OrderOrderItem::with(['product', 'order'])->find($itemId)
+                ?? \App\Models\Order\OrderQuoteRequestItem::with(['product', 'quoteRequest'])->findOrFail($itemId);
+        }
+
+        if (!$skipAuthCheck) {
+            $this->authorizeLaserExportAccess($item);
+        }
+
+        return $item;
+    }
+
+    protected function authorizeLaserExportAccess($itemOrId): void
+    {
+        $item = ($itemOrId instanceof OrderOrderItem || $itemOrId instanceof \App\Models\Order\OrderQuoteRequestItem)
+            ? $itemOrId
+            : (OrderOrderItem::with('order')->find($itemOrId)
+                ?? \App\Models\Order\OrderQuoteRequestItem::with('quoteRequest')->findOrFail($itemOrId));
+
+        $isAdminOrEmployee = \Illuminate\Support\Facades\Auth::guard('admin')->check()
+            || \App\Services\AI\AiAuthHelper::isAdmin()
+            || \App\Services\AI\AiAuthHelper::isEmployee();
+        $isCustomerOwner = false;
+        if (\Illuminate\Support\Facades\Auth::guard('customer')->check()) {
+            $customer = \Illuminate\Support\Facades\Auth::guard('customer')->user();
+            if ($item instanceof OrderOrderItem && $item->order && (string) $item->order->customer_id === (string) $customer->id) {
+                $isCustomerOwner = true;
+            } elseif ($item instanceof \App\Models\Order\OrderQuoteRequestItem && $item->quoteRequest && strtolower((string) $item->quoteRequest->email) === strtolower((string) $customer->email)) {
+                $isCustomerOwner = true;
+            }
+        }
+
+        if (!$isAdminOrEmployee && !$isCustomerOwner && !request()->hasValidSignature()) {
+            abort(403, 'Zugriff verweigert.');
+        }
+    }
+
+    /**
+     * Bereitet die kompletten Geometrie-, Kontur- und Bitmap-Daten einer Bestellposition
+     * für das Live-Laser-Cockpit sowie den .xcs / .xf Export auf.
+     *
+     * @return array{
+     *   item: mixed,
+     *   product: ?\App\Models\Product\Product,
+     *   side: string,
+     *   widthMm: float,
+     *   heightMm: float,
+     *   workingAreaPolygonPct: array<int, array{x: float, y: float}>,
+     *   ghostContourDPath: string,
+     *   stageEngravePngBytes: string,
+     *   stagePixelWidth: int,
+     *   stagePixelHeight: int,
+     *   previewDataUrl: string
+     * }
+     */
+    public function buildLaserDesignPayload($itemId, string $side = 'front', bool $skipAuthCheck = false): array
+    {
+        $item = $this->resolveAndAuthorizeLaserItem($itemId, $skipAuthCheck);
+        $product = $item->product;
+        $config = $item->configuration ?? [];
+
+        $logos = $side === 'back'
+            ? ($config['logos_back'] ?? $config['back']['logos'] ?? [])
+            : ($config['logos'] ?? $config['front']['logos'] ?? []);
+        $texts = $side === 'back'
+            ? ($config['texts_back'] ?? $config['back']['texts'] ?? [])
+            : ($config['texts'] ?? $config['front']['texts'] ?? []);
+
+        if (empty($logos) && $side === 'front' && !empty($config['logo_storage_path'])) {
+            $logos = [[
+                'url'      => '/storage/' . ltrim((string) $config['logo_storage_path'], '/'),
+                'x'        => 50,
+                'y'        => 50,
+                'size'     => 100,
+                'rotation' => 0,
+            ]];
+        }
+
+        $productConfig = $product
+            ? (is_string($product->configurator_settings) ? (json_decode($product->configurator_settings, true) ?: []) : ($product->configurator_settings ?? []))
+            : [];
+
+        // Aufbereitung für Schnell-Personalisierung / Neuling-Modus (custom_fields_data)
+        $hasNonEmptyTexts = collect($texts)->contains(fn ($t) => is_array($t) && trim((string) ($t['text'] ?? '')) !== '');
+        $isCustomFieldsConfig = (($config['personalization_mode'] ?? null) === 'custom_fields') || !empty($config['custom_fields_data']);
+        if ($side !== 'back' && !empty($config['custom_fields_data']) && is_array($config['custom_fields_data']) && (!$hasNonEmptyTexts || ($isCustomFieldsConfig && empty($logos)))) {
+            if (($productConfig['area_shape'] ?? 'rect') === 'custom' && !empty($productConfig['custom_points']) && is_array($productConfig['custom_points'])) {
+                $xs = array_map(fn ($p) => (float) ($p['x'] ?? 50), $productConfig['custom_points']);
+                $ys = array_map(fn ($p) => (float) ($p['y'] ?? 50), $productConfig['custom_points']);
+                $areaLeft = min($xs);
+                $areaTop = min($ys);
+                $areaWidth = max(8.0, max($xs) - $areaLeft);
+                $areaHeight = max(8.0, max($ys) - $areaTop);
+            } else {
+                $areaLeft = isset($productConfig['area_left']) ? (float) $productConfig['area_left'] : 10.0;
+                $areaTop = isset($productConfig['area_top']) ? (float) $productConfig['area_top'] : 10.0;
+                $areaWidth = isset($productConfig['area_width']) ? (float) $productConfig['area_width'] : 80.0;
+                $areaHeight = isset($productConfig['area_height']) ? (float) $productConfig['area_height'] : 80.0;
+            }
+            $centerX = round($areaLeft + ($areaWidth / 2.0), 2);
+            $centerY = round($areaTop + ($areaHeight / 2.0), 2);
+
+            $defaultSymbolX = $centerX;
+            $defaultSymbolY = round($areaTop + ($areaHeight * 0.36), 2);
+            $defaultSymbolSize = round(max(32.0, min(110.0, min($areaWidth, $areaHeight) * 1.15)), 1);
+            $defaultTextX = $centerX;
+            $defaultTextY = round($areaTop + ($areaHeight * 0.64), 2);
+            $defaultTextSize = 0.85;
+
+            $pkgKey = (string) ($productConfig['template_package'] ?? ($product->slug ?? ''));
+            if ($pkgKey === 'seelen-anhaenger') {
+                $centerX = 50.0; $centerY = 72.0; $defaultSymbolX = 50.0; $defaultSymbolY = 65.5; $defaultSymbolSize = 38.0; $defaultTextX = 50.0; $defaultTextY = 76.0; $defaultTextSize = 0.72;
+            } elseif ($pkgKey === 'seelen-pfote-hundemarke') {
+                $centerX = 41.0; $centerY = 50.0; $defaultSymbolX = 41.0; $defaultSymbolY = 44.5; $defaultSymbolSize = 34.0; $defaultTextX = 41.0; $defaultTextY = 54.5; $defaultTextSize = 0.70;
+            } elseif ($pkgKey === 'seelen-talisman') {
+                $centerX = 50.0; $centerY = 66.0; $defaultSymbolX = 50.0; $defaultSymbolY = 56.0; $defaultSymbolSize = 46.0; $defaultTextX = 50.0; $defaultTextY = 73.0; $defaultTextSize = 0.74;
+            } elseif (in_array($pkgKey, ['goldenes-seelen-herz', 'echtgold-seelen-herz'], true)) {
+                $centerX = 50.0; $centerY = 57.0; $defaultSymbolX = 50.0; $defaultSymbolY = 49.0; $defaultSymbolSize = 42.0; $defaultTextX = 50.0; $defaultTextY = 61.5; $defaultTextSize = 0.82;
+            } elseif (in_array($pkgKey, ['id-armband-silber-herz', 'id-armband-gold-herz'], true)) {
+                $centerX = 57.0; $centerY = 50.0; $defaultSymbolX = 57.0; $defaultSymbolY = 46.5; $defaultSymbolSize = 22.0; $defaultTextX = 57.0; $defaultTextY = 53.0; $defaultTextSize = 0.56;
+            } elseif ($pkgKey === 'seelen-kristall') {
+                $centerX = 50.0; $centerY = 45.6; $defaultSymbolX = 50.0; $defaultSymbolY = 32.0; $defaultSymbolSize = 80.0; $defaultTextX = 50.0; $defaultTextY = 55.5; $defaultTextSize = 1.20;
+            } elseif ($pkgKey === 'weizenglas-personalisiert') {
+                $centerX = 50.0; $centerY = 47.0; $defaultSymbolX = 50.0; $defaultSymbolY = 35.0; $defaultSymbolSize = 72.0; $defaultTextX = 50.0; $defaultTextY = 55.0; $defaultTextSize = 1.05;
+            }
+
+            $symbolX = isset($productConfig['beginner_symbol_x']) && $productConfig['beginner_symbol_x'] !== '' && is_numeric($productConfig['beginner_symbol_x']) ? round((float) $productConfig['beginner_symbol_x'], 2) : $defaultSymbolX;
+            $symbolY = isset($productConfig['beginner_symbol_y']) && $productConfig['beginner_symbol_y'] !== '' && is_numeric($productConfig['beginner_symbol_y']) ? round((float) $productConfig['beginner_symbol_y'], 2) : $defaultSymbolY;
+            $symbolSize = isset($productConfig['beginner_symbol_size']) && $productConfig['beginner_symbol_size'] !== '' && is_numeric($productConfig['beginner_symbol_size']) ? round((float) $productConfig['beginner_symbol_size'], 1) : $defaultSymbolSize;
+            $textX = isset($productConfig['beginner_text_x']) && $productConfig['beginner_text_x'] !== '' && is_numeric($productConfig['beginner_text_x']) ? round((float) $productConfig['beginner_text_x'], 2) : $defaultTextX;
+            $textY = isset($productConfig['beginner_text_y']) && $productConfig['beginner_text_y'] !== '' && is_numeric($productConfig['beginner_text_y']) ? round((float) $productConfig['beginner_text_y'], 2) : $defaultTextY;
+            $textSize = isset($productConfig['beginner_text_size']) && $productConfig['beginner_text_size'] !== '' && is_numeric($productConfig['beginner_text_size']) ? round((float) $productConfig['beginner_text_size'], 2) : $defaultTextSize;
+
+            $symbolVectorMap = [
+                'herz' => '/storage/produkte/configurator/vectors/Liebe/herz.svg',
+                'pfote' => '/storage/produkte/configurator/vectors/Tiere/pfotenabdruck.svg',
+                'unendlichkeit' => '/storage/produkte/configurator/vectors/Liebe/unendlichkeit.svg',
+                'stern' => '/storage/produkte/configurator/vectors/Symbole/stern.svg',
+                'schutzengel' => '/storage/produkte/configurator/vectors/Symbole/schutzengel.svg',
+                'engel' => '/storage/produkte/configurator/vectors/Symbole/schutzengel.svg',
+                'lebensbaum' => '/storage/produkte/configurator/vectors/Natur/lebensbaum.svg',
+                'baum' => '/storage/produkte/configurator/vectors/Natur/lebensbaum.svg',
+                'kleeblatt' => '/storage/produkte/configurator/vectors/Symbole/kleeblatt.svg',
+                'klee' => '/storage/produkte/configurator/vectors/Symbole/kleeblatt.svg',
+                'krone' => '/storage/produkte/configurator/vectors/Symbole/krone.svg',
+                'anker' => '/storage/produkte/configurator/vectors/Symbole/anker.svg',
+            ];
+
+            $chosenFont = 'Arial';
+            $customLines = [];
+            $matchedSymbolUrl = null;
+
+            foreach ($config['custom_fields_data'] as $cfd) {
+                if (!is_array($cfd)) continue;
+                $cfdVal = trim(str_replace(["\r\n", "\r"], "\n", (string) ($cfd['value'] ?? '')));
+                if ($cfdVal === '') continue;
+                $cfdValLower = mb_strtolower($cfdVal);
+                if (($cfd['type'] ?? 'text') === 'font') {
+                    $chosenFont = $cfdVal;
+                } elseif (!in_array($cfdValLower, ['kein symbol', 'keine', 'nein', '-'], true)) {
+                    $foundVector = null;
+                    foreach ($symbolVectorMap as $symKey => $symUrl) {
+                        if (str_starts_with($cfdValLower, $symKey) || str_contains($cfdValLower, $symKey)) {
+                            $foundVector = $symUrl;
+                            break;
+                        }
+                    }
+                    if ($foundVector !== null && $matchedSymbolUrl === null) {
+                        $matchedSymbolUrl = $foundVector;
+                    } else {
+                        $customLines[] = $cfdVal;
+                    }
+                }
+            }
+
+            if ($matchedSymbolUrl !== null && empty($logos)) {
+                $logos = [[
+                    'url'      => $matchedSymbolUrl,
+                    'x'        => $symbolX,
+                    'y'        => $symbolY,
+                    'size'     => $symbolSize,
+                    'rotation' => 0,
+                ]];
+            }
+
+            if (!empty($customLines)) {
+                $maxCharsPerLine = max(12, min(28, (int) round($areaWidth * 0.56)));
+                $wrappedLines = [];
+                foreach (explode("\n", implode("\n", $customLines)) as $rawLine) {
+                    $trimmedLine = trim($rawLine);
+                    if ($trimmedLine === '') continue;
+                    if (mb_strlen($trimmedLine) > $maxCharsPerLine && str_contains($trimmedLine, ' ')) {
+                        foreach (explode("\n", wordwrap($trimmedLine, $maxCharsPerLine, "\n", true)) as $subLine) {
+                            $subLine = trim($subLine);
+                            if ($subLine !== '') $wrappedLines[] = $subLine;
+                        }
+                    } else {
+                        $wrappedLines[] = $trimmedLine;
+                    }
+                }
+                $finalBeginnerText = implode("\n", array_slice($wrappedLines, 0, 5));
+                $lineCount = substr_count($finalBeginnerText, "\n") + 1;
+                $effectiveTextSize = $lineCount === 2 ? round($textSize * 0.90, 2) : ($lineCount === 3 ? round($textSize * 0.80, 2) : ($lineCount >= 4 ? round($textSize * 0.72, 2) : $textSize));
+
+                $texts = [[
+                    'text'     => $finalBeginnerText,
+                    'font'     => $chosenFont,
+                    'align'    => 'center',
+                    'x'        => $textX,
+                    'y'        => $matchedSymbolUrl !== null ? $textY : $centerY,
+                    'size'     => $effectiveTextSize,
+                    'rotation' => 0,
+                ]];
+            }
+        } elseif (empty($texts) && !empty($config['text']) && trim((string) $config['text']) !== '') {
+            $texts = [[
+                'text'     => trim((string) $config['text']),
+                'font'     => (string) ($config['font'] ?? 'Montserrat'),
+                'align'    => 'center',
+                'x'        => 50,
+                'y'        => 50,
+                'size'     => 1.0,
+                'rotation' => 0,
+            ]];
+        }
+
+        $overlayType = $config['overlay_type'] ?? ($productConfig['overlay_type'] ?? 'plane');
+        $widthMm = null;
+        $heightMm = null;
+
+        if (!empty($config['variant_name'])) {
+            if (preg_match('/(\d+(?:[.,]\d+)?)\s*[xX×]\s*(\d+(?:[.,]\d+)?)(?!\s*[xX×\d])\s*(mm|cm)\b/iu', (string) $config['variant_name'], $matches)) {
+                $unitFactor = strtolower($matches[3]) === 'cm' ? 10.0 : 1.0;
+                $widthMm = (float) str_replace(',', '.', $matches[1]) * $unitFactor;
+                $heightMm = (float) str_replace(',', '.', $matches[2]) * $unitFactor;
+            } elseif (preg_match('/(\d{2,4})\s*[xX×]\s*(\d{2,4})(?!\s*[xX×\d])/u', (string) $config['variant_name'], $matches)) {
+                $widthMm = (float) $matches[1];
+                $heightMm = (float) $matches[2];
+            }
+        }
+
+        if (empty($widthMm) || empty($heightMm)) {
+            if ($overlayType === 'plane') {
+                if (!empty($productConfig['xtool_plane_width'])) $widthMm = (float) $productConfig['xtool_plane_width'];
+                if (!empty($productConfig['xtool_plane_height'])) $heightMm = (float) $productConfig['xtool_plane_height'];
+            } elseif ($overlayType === 'cylinder') {
+                if (!empty($productConfig['xtool_d_top'])) $widthMm = (float) $productConfig['xtool_d_top'];
+                if (!empty($productConfig['xtool_height'])) $heightMm = (float) $productConfig['xtool_height'];
+            }
+        }
+
+        $calibration = $this->resolvePhysicalBlankCalibration($product, $productConfig, $config, $overlayType === 'cylinder');
+        $widthMm = (float) $calibration['widthMm'];
+        $heightMm = (float) $calibration['heightMm'];
+
+        $workingAreaPolygonPct = $this->buildWorkingAreaPolygonPercent($productConfig);
+        if (!empty($calibration['plateBoxPct'])) {
+            [$workingAreaPolygonPct, $logos, $texts] = $this->mapShopConfigOntoPhysicalBlank(
+                $calibration['plateBoxPct'],
+                $workingAreaPolygonPct,
+                $logos,
+                $texts
+            );
+        }
+
+        // Exakt EINE 1:1 Außenkontur des physischen Rohlings in Millimetern (kein doppelter Rahmen!)
+        $ghostContourDPath = $this->buildSingleOuterBlankContourDPath(
+            (string) ($calibration['contourShape'] ?? 'auto'),
+            $widthMm,
+            $heightMm,
+            $workingAreaPolygonPct,
+            $productConfig
+        );
+
+        $rendered = $this->renderFullStageLaserPng($widthMm, $heightMm, $workingAreaPolygonPct, $logos, $texts, $item);
+
+        return [
+            'item'                  => $item,
+            'product'               => $product,
+            'side'                  => $side,
+            'widthMm'               => round($widthMm, 3),
+            'heightMm'              => round($heightMm, 3),
+            'workingAreaPolygonPct' => $workingAreaPolygonPct,
+            'ghostContourDPath'     => $ghostContourDPath,
+            'stageEngravePngBytes'  => $rendered['pngBytes'],
+            'stagePixelWidth'       => $rendered['pixelWidth'],
+            'stagePixelHeight'      => $rendered['pixelHeight'],
+            'previewDataUrl'        => 'data:image/png;base64,' . base64_encode($rendered['pngBytes']),
+        ];
+    }
+
+    /**
+     * Ermittelt die millimetergenaue 1:1 Rohlings-Kalibrierung (physische Außenmaße in mm,
+     * Sub-Box des Rohlings im 2D-Shop-Overlay in % sowie den exakten Außenkontur-Typ).
+     *
+     * @return array{widthMm: float, heightMm: float, plateBoxPct: ?array{left: float, top: float, width: float, height: float}, contourShape: string}
+     */
+    public function resolvePhysicalBlankCalibration(
+        $product = null,
+        array $productConfig = [],
+        array $itemConfig = [],
+        bool $unrollCylinder = false
+    ): array {
+        $overlayType = (string) ($productConfig['overlay_type'] ?? 'plane');
+        $slug = strtolower(trim((string) ($product->slug ?? '')));
+        $templatePkg = strtolower(trim((string) ($productConfig['template_package'] ?? '')));
+
+        $catalogProfiles = [
+            'seelen-kristall' => [
+                'widthMm'      => 180.0,
+                'heightMm'     => 180.0,
+                'plateBoxPct'  => ['left' => 10.88, 'top' => 6.48, 'width' => 78.24, 'height' => 78.24],
+                'contourShape' => 'circle',
+            ],
+            'seelen-anhaenger' => [
+                'widthMm'      => 45.0,
+                'heightMm'     => 40.0,
+                'plateBoxPct'  => ['left' => 25.875, 'top' => 52.25, 'width' => 48.25, 'height' => 44.25],
+                'contourShape' => 'heart_anhaenger',
+            ],
+            'seelen-talisman' => [
+                'widthMm'      => 28.0,
+                'heightMm'     => 50.0,
+                'plateBoxPct'  => ['left' => 33.875, 'top' => 40.25, 'width' => 32.25, 'height' => 54.75],
+                'contourShape' => 'dogtag_talisman',
+            ],
+            'seelen-pfote-hundemarke' => [
+                'widthMm'      => 40.0,
+                'heightMm'     => 22.0,
+                'plateBoxPct'  => ['left' => 10.0, 'top' => 29.75, 'width' => 80.0, 'height' => 40.5],
+                'contourShape' => 'bone_pfote',
+            ],
+            'goldenes-seelen-herz' => [
+                'widthMm'      => 25.0,
+                'heightMm'     => 22.0,
+                'plateBoxPct'  => ['left' => 17.5, 'top' => 35.125, 'width' => 65.0, 'height' => 59.125],
+                'contourShape' => 'heart_goldenes',
+            ],
+            'id-armband-silber-herz' => [
+                'widthMm'      => 24.0,
+                'heightMm'     => 5.5,
+                'plateBoxPct'  => ['left' => 17.0, 'top' => 42.5, 'width' => 66.0, 'height' => 15.0],
+                'contourShape' => 'rounded_bar',
+            ],
+            'id-armband-gold-herz' => [
+                'widthMm'      => 24.0,
+                'heightMm'     => 5.5,
+                'plateBoxPct'  => ['left' => 17.0, 'top' => 42.5, 'width' => 66.0, 'height' => 15.0],
+                'contourShape' => 'rounded_bar',
+            ],
+            'geschenkgutschein' => [
+                'widthMm'      => 86.0,
+                'heightMm'     => 54.0,
+                'plateBoxPct'  => null,
+                'contourShape' => 'rounded_card',
+            ],
+        ];
+
+        $matchedProfile = null;
+        if ($templatePkg !== '' && isset($catalogProfiles[$templatePkg])) {
+            $matchedProfile = $catalogProfiles[$templatePkg];
+        } elseif ($slug !== '' && isset($catalogProfiles[$slug])) {
+            $matchedProfile = $catalogProfiles[$slug];
+        } elseif (str_starts_with($slug, 'der-seelen-kristall') || str_starts_with($slug, 'seelen-kristall')) {
+            $matchedProfile = $catalogProfiles['seelen-kristall'];
+        } elseif (!empty($itemConfig['is_gift_voucher'])) {
+            $matchedProfile = $catalogProfiles['geschenkgutschein'];
+        }
+
+        $widthMm = null;
+        $heightMm = null;
+
+        if (!empty($itemConfig['variant_name'])) {
+            if (preg_match('/(\d+(?:[.,]\d+)?)\s*[xX×]\s*(\d+(?:[.,]\d+)?)(?!\s*[xX×\d])\s*(mm|cm)\b/iu', (string) $itemConfig['variant_name'], $matches)) {
+                $unitFactor = strtolower($matches[3]) === 'cm' ? 10.0 : 1.0;
+                $widthMm = (float) str_replace(',', '.', $matches[1]) * $unitFactor;
+                $heightMm = (float) str_replace(',', '.', $matches[2]) * $unitFactor;
+            } elseif (preg_match('/(\d{2,4})\s*[xX×]\s*(\d{2,4})(?!\s*[xX×\d])/u', (string) $itemConfig['variant_name'], $matches)) {
+                $widthMm = (float) $matches[1];
+                $heightMm = (float) $matches[2];
+            }
+        }
+
+        if (empty($widthMm) || empty($heightMm)) {
+            if ($overlayType === 'plane') {
+                if (!empty($productConfig['xtool_plane_width'])) {
+                    $widthMm = (float) $productConfig['xtool_plane_width'];
+                }
+                if (!empty($productConfig['xtool_plane_height'])) {
+                    $heightMm = (float) $productConfig['xtool_plane_height'];
+                }
+            } elseif ($overlayType === 'cylinder') {
+                if (!empty($productConfig['xtool_d_top'])) {
+                    $widthMm = (float) $productConfig['xtool_d_top'];
+                }
+                if (!empty($productConfig['xtool_height'])) {
+                    $heightMm = (float) $productConfig['xtool_height'];
+                }
+            }
+        }
+
+        if ((empty($widthMm) || empty($heightMm)) && $matchedProfile !== null) {
+            $widthMm = $widthMm ?: (float) $matchedProfile['widthMm'];
+            $heightMm = $heightMm ?: (float) $matchedProfile['heightMm'];
+        }
+
+        if (!empty($itemConfig['is_gift_voucher']) || $slug === 'geschenkgutschein') {
+            $widthMm = 86.0;
+            $heightMm = 54.0;
+        }
+
+        $widthMm = $widthMm ?: (float) ($product->width ?? 100.0);
+        $heightMm = $heightMm ?: (float) ($product->height ?? 100.0);
+
+        $plateBoxPct = null;
+        if (!empty($productConfig['xtool_plate_box_pct']) && is_array($productConfig['xtool_plate_box_pct'])) {
+            $pb = $productConfig['xtool_plate_box_pct'];
+            if (!empty($pb['width']) && !empty($pb['height'])) {
+                $plateBoxPct = [
+                    'left'   => (float) ($pb['left'] ?? 0.0),
+                    'top'    => (float) ($pb['top'] ?? 0.0),
+                    'width'  => (float) $pb['width'],
+                    'height' => (float) $pb['height'],
+                ];
+            }
+        } elseif ($matchedProfile !== null && !empty($matchedProfile['plateBoxPct'])) {
+            $plateBoxPct = $matchedProfile['plateBoxPct'];
+        }
+
+        if ($overlayType === 'cylinder') {
+            if ($unrollCylinder) {
+                $widthMm = $widthMm * M_PI;
+            }
+            $plateBoxPct = null;
+        } elseif ($overlayType === 'plane' && $plateBoxPct === null && in_array($productConfig['area_shape'] ?? '', ['custom', 'circle'], true)) {
+            $stageSpanMm = (($productConfig['area_shape'] ?? '') === 'circle')
+                ? min($widthMm, $heightMm)
+                : max($widthMm, $heightMm);
+            $widthMm = $stageSpanMm;
+            $heightMm = $stageSpanMm;
+        }
+
+        $contourShape = (string) ($productConfig['xtool_contour_shape'] ?? ($matchedProfile['contourShape'] ?? 'auto'));
+        if ($contourShape === 'auto') {
+            $areaShape = (string) ($productConfig['area_shape'] ?? 'rect');
+            if ($areaShape === 'circle') {
+                $contourShape = 'circle';
+            } elseif ($areaShape === 'custom') {
+                $contourShape = 'custom_polygon';
+            } else {
+                $contourShape = 'rect';
+            }
+        }
+
+        return [
+            'widthMm'      => (float) $widthMm,
+            'heightMm'     => (float) $heightMm,
+            'plateBoxPct'  => $plateBoxPct,
+            'contourShape' => $contourShape,
+        ];
+    }
+
+    /**
+     * Transformiert Koordinaten & Größen von der quadratischen 2D-Shop-Stage (0..100 %)
+     * maßstabsgetreu auf den physischen Rohling (0..100 % entspricht 0..widthMm x 0..heightMm).
+     *
+     * @param array{left: float, top: float, width: float, height: float} $plateBoxPct
+     * @return array{0: array, 1: array, 2: array}
+     */
+    public function mapShopConfigOntoPhysicalBlank(
+        array $plateBoxPct,
+        array $workingAreaPolygonPct,
+        array $logos,
+        array $texts
+    ): array {
+        $boxLeft = (float) ($plateBoxPct['left'] ?? 0.0);
+        $boxTop = (float) ($plateBoxPct['top'] ?? 0.0);
+        $boxWidth = max(1.0, (float) ($plateBoxPct['width'] ?? 100.0));
+        $boxHeight = max(1.0, (float) ($plateBoxPct['height'] ?? 100.0));
+        $scaleFromShopWidth = 100.0 / $boxWidth;
+
+        $mappedPolygon = array_map(static function (array $pt) use ($boxLeft, $boxTop, $boxWidth, $boxHeight): array {
+            return [
+                'x' => max(0.0, min(100.0, ((((float) ($pt['x'] ?? 50.0)) - $boxLeft) / $boxWidth) * 100.0)),
+                'y' => max(0.0, min(100.0, ((((float) ($pt['y'] ?? 50.0)) - $boxTop) / $boxHeight) * 100.0)),
+            ];
+        }, $workingAreaPolygonPct);
+
+        $mappedLogos = [];
+        foreach ($logos as $logo) {
+            if (!is_array($logo)) {
+                continue;
+            }
+            $mappedLogo = $logo;
+            $mappedLogo['x'] = ((((float) ($logo['x'] ?? 50.0)) - $boxLeft) / $boxWidth) * 100.0;
+            $mappedLogo['y'] = ((((float) ($logo['y'] ?? 50.0)) - $boxTop) / $boxHeight) * 100.0;
+            $mappedLogo['size'] = ((float) ($logo['size'] ?? 100.0)) * $scaleFromShopWidth;
+            $mappedLogos[] = $mappedLogo;
+        }
+
+        $mappedTexts = [];
+        foreach ($texts as $textItem) {
+            if (!is_array($textItem)) {
+                continue;
+            }
+            $mappedText = $textItem;
+            $mappedText['x'] = ((((float) ($textItem['x'] ?? 50.0)) - $boxLeft) / $boxWidth) * 100.0;
+            $mappedText['y'] = ((((float) ($textItem['y'] ?? 50.0)) - $boxTop) / $boxHeight) * 100.0;
+            $mappedText['size'] = ((float) ($textItem['size'] ?? 1.0)) * $scaleFromShopWidth;
+            $mappedTexts[] = $mappedText;
+        }
+
+        return [$mappedPolygon, $mappedLogos, $mappedTexts];
+    }
+
+    /**
+     * Erzeugt EXAKT EINEN geschlossenen 1:1 SVG-Pfad (0..widthMm x 0..heightMm) für die physische Außenkante des Rohlings.
+     */
+    public function buildSingleOuterBlankContourDPath(
+        string $contourShape,
+        float $widthMm,
+        float $heightMm,
+        array $workingAreaPolygonPct = [],
+        array $productConfig = []
+    ): string {
+        $ptsMm = [];
+
+        $normalizePixelPointsToMm = static function (array $rawPts) use ($widthMm, $heightMm): array {
+            if (empty($rawPts)) {
+                return [];
+            }
+            $xs = array_column($rawPts, 0);
+            $ys = array_column($rawPts, 1);
+            $minX = min($xs);
+            $maxX = max($xs);
+            $minY = min($ys);
+            $maxY = max($ys);
+            $spanX = max(0.001, $maxX - $minX);
+            $spanY = max(0.001, $maxY - $minY);
+
+            return array_map(static fn (array $p): array => [
+                (($p[0] - $minX) / $spanX) * $widthMm,
+                (($p[1] - $minY) / $spanY) * $heightMm,
+            ], $rawPts);
+        };
+
+        $sampleCubic = static function (array &$target, array $p0, array $p1, array $p2, array $p3, int $steps): void {
+            for ($i = 1; $i <= $steps; $i++) {
+                $t = $i / $steps;
+                $mt = 1.0 - $t;
+                $target[] = [
+                    $mt * $mt * $mt * $p0[0] + 3.0 * $mt * $mt * $t * $p1[0] + 3.0 * $mt * $t * $t * $p2[0] + $t * $t * $t * $p3[0],
+                    $mt * $mt * $mt * $p0[1] + 3.0 * $mt * $mt * $t * $p1[1] + 3.0 * $mt * $t * $t * $p2[1] + $t * $t * $t * $p3[1],
+                ];
+            }
+        };
+
+        if ($contourShape === 'circle') {
+            $cx = $widthMm * 0.5;
+            $cy = $heightMm * 0.5;
+            $rx = $widthMm * 0.5;
+            $ry = $heightMm * 0.5;
+            $steps = 72;
+            for ($i = 0; $i < $steps; $i++) {
+                $theta = ($i / $steps) * 2.0 * M_PI;
+                $ptsMm[] = [$cx + $rx * cos($theta), $cy + $ry * sin($theta)];
+            }
+        } elseif ($contourShape === 'heart_anhaenger') {
+            $innerPct = [
+                [50.0, 59.45], [51.13, 58.73], [52.23, 58.01], [53.34, 57.29], [54.54, 56.57], [55.82, 55.84],
+                [57.26, 55.12], [58.83, 54.52], [60.42, 54.19], [62.68, 54.48], [64.54, 55.02], [66.13, 55.74],
+                [67.49, 56.57], [68.67, 57.6], [69.63, 58.73], [70.38, 59.97], [70.95, 61.31], [71.41, 62.75],
+                [71.7, 64.3], [71.86, 65.85], [71.86, 67.39], [71.66, 68.94], [71.35, 70.59], [70.87, 72.34],
+                [70.21, 74.1], [69.35, 75.95], [68.31, 77.81], [67.12, 79.67], [65.72, 81.52], [64.07, 83.38],
+                [62.27, 85.23], [60.21, 87.09], [57.94, 88.95], [55.57, 90.7], [53.47, 92.25], [51.55, 93.55],
+                [50.0, 94.52], [48.45, 93.55], [46.53, 92.25], [44.43, 90.7], [42.06, 88.95], [39.79, 87.09],
+                [37.73, 85.23], [35.93, 83.38], [34.28, 81.52], [32.88, 79.67], [31.68, 77.81], [30.65, 75.95],
+                [29.79, 74.1], [29.13, 72.34], [28.65, 70.59], [28.34, 68.94], [28.14, 67.39], [28.14, 65.85],
+                [28.3, 64.3], [28.59, 62.75], [29.04, 61.31], [29.62, 59.97], [30.37, 58.73], [31.33, 57.6],
+                [32.51, 56.57], [33.87, 55.74], [35.46, 55.02], [37.32, 54.48], [39.58, 54.19], [41.17, 54.52],
+                [42.74, 55.12], [44.18, 55.84], [45.46, 56.57], [46.66, 57.29], [47.77, 58.01], [48.87, 58.73],
+            ];
+            $innerPx = array_map(static fn (array $p): array => [$p[0] * 8.0, $p[1] * 8.0], $innerPct);
+            $n = count($innerPx);
+            $rawPts = [];
+            for ($i = 0; $i < $n; $i++) {
+                $prev = $innerPx[($i - 1 + $n) % $n];
+                $curr = $innerPx[$i];
+                $next = $innerPx[($i + 1) % $n];
+                $dx = $next[0] - $prev[0];
+                $dy = $next[1] - $prev[1];
+                $len = hypot($dx, $dy) ?: 1.0;
+                $ox = $curr[0] + ($dy / $len) * 16.0;
+                $oy = $curr[1] + (-$dx / $len) * 15.8;
+                if ($i === 0) {
+                    $ox = 400.0;
+                    $oy = 445.0;
+                } elseif ($i === 36) {
+                    $ox = 400.0;
+                    $oy = 772.0;
+                }
+                $rawPts[] = [max(207.0, min(593.0, $ox)), max(418.0, min(772.0, $oy))];
+            }
+            $ptsMm = $normalizePixelPointsToMm($rawPts);
+        } elseif ($contourShape === 'heart_goldenes') {
+            $rawPts = [[400.0, 311.0]];
+            $sampleCubic($rawPts, [400.0, 311.0], [420.0, 290.0], [456.0, 281.0], [496.0, 281.0], 14);
+            $sampleCubic($rawPts, [496.0, 281.0], [594.0, 281.0], [660.0, 338.0], [660.0, 436.0], 20);
+            $sampleCubic($rawPts, [660.0, 436.0], [660.0, 512.0], [611.0, 583.0], [553.0, 645.0], 18);
+            $sampleCubic($rawPts, [553.0, 645.0], [510.0, 687.0], [485.0, 706.0], [464.0, 720.0], 12);
+            $sampleCubic($rawPts, [464.0, 720.0], [442.0, 734.5], [420.0, 754.0], [400.0, 754.0], 12);
+            $sampleCubic($rawPts, [400.0, 754.0], [380.0, 754.0], [358.0, 734.5], [336.0, 720.0], 12);
+            $sampleCubic($rawPts, [336.0, 720.0], [315.0, 706.0], [290.0, 687.0], [247.0, 645.0], 12);
+            $sampleCubic($rawPts, [247.0, 645.0], [189.0, 583.0], [140.0, 512.0], [140.0, 436.0], 18);
+            $sampleCubic($rawPts, [140.0, 436.0], [140.0, 338.0], [206.0, 281.0], [304.0, 281.0], 20);
+            $sampleCubic($rawPts, [304.0, 281.0], [344.0, 281.0], [380.0, 290.0], [400.0, 311.0], 14);
+            array_pop($rawPts);
+            $ptsMm = $normalizePixelPointsToMm($rawPts);
+        } elseif ($contourShape === 'dogtag_talisman') {
+            $rawPts = [];
+            $rArc = 176.0;
+            $cyTop = 498.0;
+            $aTopStart = atan2(378.0 - $cyTop, 271.0 - 400.0);
+            $aTopEnd = atan2(378.0 - $cyTop, 529.0 - 400.0);
+            for ($i = 0; $i <= 24; $i++) {
+                $a = $aTopStart + ($aTopEnd - $aTopStart) * ($i / 24);
+                $rawPts[] = [400.0 + $rArc * cos($a), $cyTop + $rArc * sin($a)];
+            }
+            $cyBot = 584.0;
+            $aBotStart = atan2(704.0 - $cyBot, 529.0 - 400.0);
+            $aBotEnd = atan2(704.0 - $cyBot, 271.0 - 400.0);
+            for ($i = 0; $i <= 24; $i++) {
+                $a = $aBotStart + ($aBotEnd - $aBotStart) * ($i / 24);
+                $rawPts[] = [400.0 + $rArc * cos($a), $cyBot + $rArc * sin($a)];
+            }
+            $ptsMm = $normalizePixelPointsToMm($rawPts);
+        } elseif ($contourShape === 'bone_pfote') {
+            $rawPts = [[342.0, 282.0]];
+            $sampleCubic($rawPts, [342.0, 282.0], [358.0, 282.0], [364.0, 238.0], [400.0, 238.0], 10);
+            $sampleCubic($rawPts, [400.0, 238.0], [436.0, 238.0], [442.0, 282.0], [458.0, 282.0], 10);
+            $rawPts[] = [516.0, 282.0];
+            $sampleCubic($rawPts, [516.0, 282.0], [552.0, 282.0], [574.0, 238.0], [618.0, 238.0], 12);
+            $sampleCubic($rawPts, [618.0, 238.0], [676.0, 238.0], [720.0, 274.0], [720.0, 326.0], 12);
+            $sampleCubic($rawPts, [720.0, 326.0], [720.0, 366.0], [704.5, 384.0], [704.5, 400.0], 10);
+            $sampleCubic($rawPts, [704.5, 400.0], [704.5, 416.0], [720.0, 434.0], [720.0, 474.0], 10);
+            $sampleCubic($rawPts, [720.0, 474.0], [720.0, 526.0], [676.0, 562.0], [618.0, 562.0], 12);
+            $sampleCubic($rawPts, [618.0, 562.0], [574.0, 562.0], [552.0, 518.0], [516.0, 518.0], 12);
+            $rawPts[] = [284.0, 518.0];
+            $sampleCubic($rawPts, [284.0, 518.0], [248.0, 518.0], [226.0, 562.0], [182.0, 562.0], 12);
+            $sampleCubic($rawPts, [182.0, 562.0], [124.0, 562.0], [80.0, 526.0], [80.0, 474.0], 12);
+            $sampleCubic($rawPts, [80.0, 474.0], [80.0, 434.0], [95.5, 416.0], [95.5, 400.0], 10);
+            $sampleCubic($rawPts, [95.5, 400.0], [95.5, 384.0], [80.0, 366.0], [80.0, 326.0], 10);
+            $sampleCubic($rawPts, [80.0, 326.0], [80.0, 274.0], [124.0, 238.0], [182.0, 238.0], 12);
+            $sampleCubic($rawPts, [182.0, 238.0], [226.0, 238.0], [248.0, 282.0], [284.0, 282.0], 12);
+            $ptsMm = $normalizePixelPointsToMm($rawPts);
+        } elseif ($contourShape === 'rounded_bar' || $contourShape === 'rounded_card') {
+            $r = $contourShape === 'rounded_bar'
+                ? min(1.0, min($widthMm, $heightMm) * 0.22)
+                : min(3.18, min($widthMm, $heightMm) * 0.12);
+            $corners = [
+                [$widthMm - $r, $r, -M_PI * 0.5, 0.0],
+                [$widthMm - $r, $heightMm - $r, 0.0, M_PI * 0.5],
+                [$r, $heightMm - $r, M_PI * 0.5, M_PI],
+                [$r, $r, M_PI, M_PI * 1.5],
+            ];
+            foreach ($corners as [$cx, $cy, $a0, $a1]) {
+                for ($i = 0; $i <= 8; $i++) {
+                    $a = $a0 + ($a1 - $a0) * ($i / 8);
+                    $ptsMm[] = [$cx + $r * cos($a), $cy + $r * sin($a)];
+                }
+            }
+        } elseif ($contourShape === 'custom_polygon' && !empty($workingAreaPolygonPct)) {
+            foreach ($workingAreaPolygonPct as $pt) {
+                $ptsMm[] = [
+                    (((float) ($pt['x'] ?? 0.0)) / 100.0) * $widthMm,
+                    (((float) ($pt['y'] ?? 0.0)) / 100.0) * $heightMm,
+                ];
+            }
+        }
+
+        if (count($ptsMm) < 3) {
+            return sprintf('M 0.000 0.000 L %.3f 0.000 L %.3f %.3f L 0.000 %.3f Z', $widthMm, $widthMm, $heightMm, $heightMm);
+        }
+
+        $dParts = [];
+        foreach ($ptsMm as $idx => [$mx, $my]) {
+            $px = number_format($mx, 3, '.', '');
+            $py = number_format($my, 3, '.', '');
+            $dParts[] = ($idx === 0 ? 'M ' : 'L ') . "{$px} {$py}";
+        }
+
+        return implode(' ', $dParts) . ' Z';
+    }
+
+    /**
+     * Rendert die komplette Gravur-Bühne (Fotos + Vektor-Symbole + TTF-Schriften)
+     * maßstabsgetreu auf ein transparentes Stage-PNG (widthMm x heightMm).
+     *
+     * @return array{pngBytes: string, pixelWidth: int, pixelHeight: int}
+     */
+    protected function renderFullStageLaserPng(
+        float $widthMm,
+        float $heightMm,
+        array $workingAreaPolygonPct,
+        array $logos,
+        array $texts,
+        $item = null
+    ): array {
+        $minDimMm = max(1.0, min($widthMm, $heightMm));
+        $maxDimMm = max(1.0, max($widthMm, $heightMm));
+        $pxPerMm = min(32.0, max(10.0, max(800.0 / $maxDimMm, 132.0 / $minDimMm)));
+        $stageW = max(32, (int) round($widthMm * $pxPerMm));
+        $stageH = max(32, (int) round($heightMm * $pxPerMm));
+
+        $canvas = imagecreatetruecolor($stageW, $stageH);
+        imagealphablending($canvas, false);
+        imagesavealpha($canvas, true);
+        $trans = imagecolorallocatealpha($canvas, 255, 255, 255, 127);
+        imagefill($canvas, 0, 0, $trans);
+
+        $maskImg = imagecreatetruecolor($stageW, $stageH);
+        $maskBlack = imagecolorallocate($maskImg, 0, 0, 0);
+        $maskWhite = imagecolorallocate($maskImg, 255, 255, 255);
+        imagefill($maskImg, 0, 0, $maskBlack);
+
+        $flatMaskPoly = [];
+        foreach ($workingAreaPolygonPct as $pt) {
+            $flatMaskPoly[] = (int) round(($pt['x'] / 100.0) * ($stageW - 1));
+            $flatMaskPoly[] = (int) round(($pt['y'] / 100.0) * ($stageH - 1));
+        }
+        if (count($flatMaskPoly) >= 6) {
+            imagefilledpolygon($maskImg, $flatMaskPoly, $maskWhite);
+        } else {
+            imagefill($maskImg, 0, 0, $maskWhite);
+        }
+
+        $textsBakedIntoPhoto = false;
+        $lastRasterIdx = null;
+        foreach ($logos as $idx => $lCand) {
+            $u = (string) ($lCand['url'] ?? $lCand['value'] ?? $lCand['src'] ?? '');
+            if ($u !== '' && !str_ends_with(strtolower((string) parse_url($u, PHP_URL_PATH)), '.svg') && !str_starts_with($u, 'data:image/svg')) {
+                $lastRasterIdx = $idx;
+            }
+        }
+
+        foreach ($logos as $logoIdx => $logo) {
+            $url = (string) ($logo['url'] ?? $logo['value'] ?? $logo['src'] ?? '');
+            if ($url === '') continue;
+
+            [$rawBytes, $ext] = $this->loadSafeLogoBytesAndExt($url, $item);
+            if ($rawBytes === null) continue;
+
+            if ($ext === 'svg') {
+                $this->drawSvgLogoOntoStageCanvas($canvas, $rawBytes, $logo, $widthMm, $heightMm, $stageW, $stageH);
+            } else {
+                $textsForRaster = ($logoIdx === $lastRasterIdx) ? $texts : [];
+                $clipped = $this->clipAndNormalizeRasterLogoForLaser(
+                    $rawBytes,
+                    $ext,
+                    $logo,
+                    $widthMm,
+                    $heightMm,
+                    $workingAreaPolygonPct,
+                    $textsForRaster
+                );
+                if ($clipped !== null) {
+                    if (!empty($textsForRaster)) {
+                        $textsBakedIntoPhoto = true;
+                    }
+                    $partImg = @imagecreatefromstring($clipped['pngData']);
+                    if ($partImg) {
+                        $dstX = (int) round(($clipped['xMm'] / $widthMm) * $stageW);
+                        $dstY = (int) round(($clipped['yMm'] / $heightMm) * $stageH);
+                        $dstW = max(1, (int) round(($clipped['widthMm'] / $widthMm) * $stageW));
+                        $dstH = max(1, (int) round(($clipped['heightMm'] / $heightMm) * $stageH));
+                        imagealphablending($canvas, true);
+                        imagecopyresampled($canvas, $partImg, $dstX, $dstY, 0, 0, $dstW, $dstH, imagesx($partImg), imagesy($partImg));
+                        imagealphablending($canvas, false);
+                        imagedestroy($partImg);
+                    }
+                }
+            }
+        }
+
+        // Falls Texte noch nicht in ein Foto eingebrannt wurden: direkt als gestochen scharfe schwarze TTF-Schrift zeichnen
+        if (!empty($texts) && !$textsBakedIntoPhoto && function_exists('imagettftext')) {
+            imagealphablending($canvas, true);
+            $blackOpaque = imagecolorallocatealpha($canvas, 0, 0, 0, 0);
+
+            foreach ($texts as $textItem) {
+                $rawText = trim((string) ($textItem['text'] ?? ''));
+                if ($rawText === '' || $rawText === 'Text eingeben...') continue;
+
+                $ttfPath = $this->resolveTtfFontPath((string) ($textItem['font'] ?? 'Montserrat'));
+                if (!$ttfPath || !is_file($ttfPath)) continue;
+
+                $txPx = (((float) ($textItem['x'] ?? 50)) / 100.0) * $stageW;
+                $tyPx = (((float) ($textItem['y'] ?? 50)) / 100.0) * $stageH;
+                $rawSize = (float) ($textItem['size'] ?? 1.0);
+                $fontSizeMm = ($rawSize / 25.0) * $widthMm;
+                $fontSizePx = ($fontSizeMm / $widthMm) * $stageW;
+                $ptSize = max(5.0, $fontSizePx * 0.75);
+
+                $tRotDeg = (float) ($textItem['rotation'] ?? 0);
+                $gdAngle = -$tRotDeg;
+                $rad = deg2rad($tRotDeg);
+                $cosA = cos($rad);
+                $sinA = sin($rad);
+                $align = (string) ($textItem['align'] ?? 'center');
+                $curve = max(-100.0, min(100.0, (float) ($textItem['curve'] ?? 0)));
+
+                if (abs($curve) >= 0.5) {
+                    $curvedChars = $this->computeCurvedTextArcChars($rawText, $fontSizePx, $curve, $ttfPath);
+                    foreach ($curvedChars as $c) {
+                        $ch = (string) $c['char'];
+                        if (trim($ch) === '') continue;
+                        $chBbox = @imagettfbbox($ptSize, 0.0, $ttfPath, $ch);
+                        if (!$chBbox) continue;
+                        $localBaseX = -(($chBbox[0] + $chBbox[2]) / 2.0);
+                        $localBaseY = $fontSizePx * 0.33;
+                        $cosC = cos((float) $c['rad']);
+                        $sinC = sin((float) $c['rad']);
+                        $dx = (float) $c['x'] + ($localBaseX * $cosC) - ($localBaseY * $sinC);
+                        $dy = (float) $c['y'] + ($localBaseX * $sinC) + ($localBaseY * $cosC);
+                        $drawX = (int) round($txPx + ($dx * $cosA) - ($dy * $sinA));
+                        $drawY = (int) round($tyPx + ($dx * $sinA) + ($dy * $cosA));
+                        $charGdAngle = -($tRotDeg + (float) $c['deg']);
+                        @imagettftext($canvas, $ptSize, $charGdAngle, $drawX, $drawY, $blackOpaque, $ttfPath, $ch);
+                    }
+                } else {
+                    $lines = preg_split('/\r\n|\r|\n/', $rawText) ?: [];
+                    $numLines = count($lines);
+                    $lineHeightPx = $fontSizePx * 1.15;
+                    $totalBlockH = ($numLines - 1) * $lineHeightPx;
+
+                    foreach ($lines as $lineIdx => $lineText) {
+                        $lineText = trim($lineText);
+                        if ($lineText === '') continue;
+                        $bbox = @imagettfbbox($ptSize, 0.0, $ttfPath, $lineText);
+                        if (!$bbox) continue;
+
+                        $lineCenterY = $tyPx - ($totalBlockH / 2.0) + ($lineIdx * $lineHeightPx);
+                        $unrotY = $lineCenterY + ($fontSizePx * 0.33);
+                        if ($align === 'left') {
+                            $unrotX = $txPx - $bbox[0];
+                        } elseif ($align === 'right') {
+                            $unrotX = $txPx - $bbox[2];
+                        } else {
+                            $unrotX = $txPx - (($bbox[0] + $bbox[2]) / 2.0);
+                        }
+                        $dx = $unrotX - $txPx;
+                        $dy = $unrotY - $tyPx;
+                        $drawX = (int) round($txPx + ($dx * $cosA) - ($dy * $sinA));
+                        $drawY = (int) round($tyPx + ($dx * $sinA) + ($dy * $cosA));
+                        @imagettftext($canvas, $ptSize, $gdAngle, $drawX, $drawY, $blackOpaque, $ttfPath, $lineText);
+                    }
+                }
+            }
+            imagealphablending($canvas, false);
+        }
+
+        // Hart an der Arbeitsbereich-Maske (workingAreaPolygonPct) clippen
+        for ($y = 0; $y < $stageH; $y++) {
+            for ($x = 0; $x < $stageW; $x++) {
+                if ((imagecolorat($maskImg, $x, $y) & 0xFF) === 0) {
+                    imagesetpixel($canvas, $x, $y, $trans);
+                }
+            }
+        }
+        imagedestroy($maskImg);
+
+        ob_start();
+        imagepng($canvas, null, 6);
+        $pngBytes = (string) ob_get_clean();
+        imagedestroy($canvas);
+
+        return [
+            'pngBytes'    => $pngBytes,
+            'pixelWidth'  => $stageW,
+            'pixelHeight' => $stageH,
+        ];
+    }
+
+    /**
+     * Lädt eine Logo-/Symbol-Datei sicher unter Beachtung der erlaubten Medien-Wurzeln.
+     *
+     * @return array{0: ?string, 1: ?string}
+     */
+    protected function loadSafeLogoBytesAndExt(string $url, $item = null): array
+    {
+        if (str_starts_with($url, 'data:image')) {
+            if (preg_match('/^data:image\/([a-zA-Z0-9\+\-]+);base64,(.*)$/s', $url, $matches)) {
+                $ext = strtolower($matches[1]);
+                if ($ext === 'svg+xml') $ext = 'svg';
+                if (in_array($ext, ['svg', 'png', 'jpg', 'jpeg', 'webp'], true)) {
+                    $decoded = base64_decode($matches[2]);
+                    return [$decoded !== false ? $decoded : null, $ext];
+                }
+            }
+            return [null, null];
+        }
+
+        $urlPath = rawurldecode((string) (parse_url($url, PHP_URL_PATH) ?? $url));
+        if (str_contains($urlPath, '..') || str_contains($urlPath, "\0") || str_contains($urlPath, '\\')) {
+            return [null, null];
+        }
+
+        if (str_contains($urlPath, '/storage/')) {
+            $relativePath = substr($urlPath, strpos($urlPath, '/storage/') + 9);
+            $localPath = storage_path('app/public/' . ltrim($relativePath, '/'));
+        } elseif (str_contains($urlPath, '/images/')) {
+            $relativePath = substr($urlPath, strpos($urlPath, '/images/') + 8);
+            $localPath = public_path('shopverwaltung/images/' . ltrim($relativePath, '/'));
+        } elseif (str_contains($urlPath, '/shop/')) {
+            $relativePath = substr($urlPath, strpos($urlPath, '/shop/') + 6);
+            $localPath = public_path('shop/' . ltrim($relativePath, '/'));
+        } else {
+            $localPath = public_path(ltrim($urlPath, '/'));
+        }
+
+        if (!$localPath || !file_exists($localPath)) {
+            $baseName = basename($urlPath);
+            $storageVectorPath = storage_path('app/public/produkte/configurator/vectors/' . $baseName);
+            $vectorPath = public_path('shop/product/configurator/vectors/' . $baseName);
+            if (file_exists($storageVectorPath)) {
+                $localPath = $storageVectorPath;
+            } elseif (file_exists($vectorPath)) {
+                $localPath = $vectorPath;
+            } else {
+                foreach ([storage_path('app/public/produkte/configurator/vectors'), public_path('shop/product/configurator/vectors')] as $vDir) {
+                    if (File::isDirectory($vDir)) {
+                        foreach (File::allFiles($vDir) as $vFile) {
+                            if ($vFile->getFilename() === $baseName) {
+                                $localPath = $vFile->getPathname();
+                                break 2;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if ($localPath && file_exists($localPath) && is_file($localPath)) {
+            $realLocalPath = realpath($localPath);
+            $allowedRoots = array_filter([
+                realpath(storage_path('app/public')),
+                realpath(public_path('shop')),
+                realpath(public_path('shopverwaltung/images')),
+            ]);
+            if ($realLocalPath) {
+                foreach ($allowedRoots as $root) {
+                    if (str_starts_with($realLocalPath, $root . DIRECTORY_SEPARATOR)) {
+                        $ext = strtolower(pathinfo($realLocalPath, PATHINFO_EXTENSION));
+                        if (in_array($ext, ['svg', 'png', 'jpg', 'jpeg', 'webp'], true)) {
+                            return [(string) file_get_contents($realLocalPath), $ext];
+                        }
+                    }
+                }
+            }
+        }
+
+        return [null, null];
+    }
+
+    /**
+     * Zeichnet ein SVG-Vektorsymbol (z. B. herz.svg, pfotenabdruck.svg, stern.svg) maßstabsgetreu in das GD-Canvas.
+     */
+    protected function drawSvgLogoOntoStageCanvas($canvas, string $svgRaw, array $logo, float $widthMm, float $heightMm, int $stageW, int $stageH): void
+    {
+        $cleanSvg = \App\Support\SafeHtmlAndSvgSanitizer::sanitizeSvg($svgRaw);
+        if ($cleanSvg === '') {
+            return;
+        }
+
+        $vX = 0.0; $vY = 0.0; $viewW = 24.0; $viewH = 24.0;
+        if (preg_match('/<svg[^>]*viewBox="([^"]+)"/i', $cleanSvg, $m)) {
+            $parts = preg_split('/[\s,]+/', trim($m[1])) ?: [];
+            if (count($parts) >= 4) {
+                $vX = (float) $parts[0];
+                $vY = (float) $parts[1];
+                $viewW = max(1.0, (float) $parts[2]);
+                $viewH = max(1.0, (float) $parts[3]);
+            }
+        }
+
+        $cxPx = (((float) ($logo['x'] ?? 50)) / 100.0) * $stageW;
+        $cyPx = (((float) ($logo['y'] ?? 50)) / 100.0) * $stageH;
+        $logoWidthPx = (((float) ($logo['size'] ?? 100)) / 500.0) * $stageW;
+        $scale = $logoWidthPx / max(1.0, $viewW);
+        $rotRad = deg2rad((float) ($logo['rotation'] ?? 0));
+        $cosR = cos($rotRad);
+        $sinR = sin($rotRad);
+        $vbCenterX = $vX + ($viewW / 2.0);
+        $vbCenterY = $vY + ($viewH / 2.0);
+
+        imagealphablending($canvas, true);
+        $black = imagecolorallocatealpha($canvas, 0, 0, 0, 0);
+
+        if (preg_match_all('/\bd="([^"]+)"/i', $cleanSvg, $pathMatches)) {
+            foreach ($pathMatches[1] as $dStr) {
+                $subPolys = $this->sampleSvgPathToPolygons($dStr);
+                foreach ($subPolys as $polyPts) {
+                    if (count($polyPts) < 3) continue;
+                    $flat = [];
+                    foreach ($polyPts as [$px, $py]) {
+                        $lx = ($px - $vbCenterX) * $scale;
+                        $ly = ($py - $vbCenterY) * $scale;
+                        $rx = $cxPx + ($lx * $cosR) - ($ly * $sinR);
+                        $ry = $cyPx + ($lx * $sinR) + ($ly * $cosR);
+                        $flat[] = (int) round($rx);
+                        $flat[] = (int) round($ry);
+                    }
+                    if (count($flat) >= 6) {
+                        @imagefilledpolygon($canvas, $flat, $black);
+                    }
+                }
+            }
+        }
+        imagealphablending($canvas, false);
+    }
+
+    /**
+     * Konvertiert einen SVG-Pfad-String (M, L, H, V, C, S, Q, Z in absolut/relativ) in geschlossene Punkt-Polygone.
+     *
+     * @return array<int, array<int, array{0: float, 1: float}>>
+     */
+    protected function sampleSvgPathToPolygons(string $dPath): array
+    {
+        preg_match_all('/([MmLlHhVvCcSsQqZz])|(-?\d*\.?\d+(?:e[-+]?\d+)?)/i', $dPath, $tokens);
+        if (empty($tokens[0])) {
+            return [];
+        }
+
+        $polys = [];
+        $currentPoly = [];
+        $cx = 0.0; $cy = 0.0;
+        $startX = 0.0; $startY = 0.0;
+        $prevCtrlX = 0.0; $prevCtrlY = 0.0;
+        $cmd = '';
+        $items = $tokens[0];
+        $n = count($items);
+        $i = 0;
+
+        while ($i < $n) {
+            $tok = $items[$i];
+            if (ctype_alpha($tok)) {
+                $cmd = $tok;
+                $i++;
+                if ($cmd === 'Z' || $cmd === 'z') {
+                    if (count($currentPoly) >= 3) {
+                        $polys[] = $currentPoly;
+                    }
+                    $currentPoly = [];
+                    $cx = $startX;
+                    $cy = $startY;
+                    continue;
+                }
+            }
+
+            $isRel = ctype_lower($cmd);
+            $upper = strtoupper($cmd);
+
+            if ($upper === 'M') {
+                if ($i + 1 >= $n) break;
+                if (count($currentPoly) >= 3) {
+                    $polys[] = $currentPoly;
+                }
+                $x = (float) $items[$i++];
+                $y = (float) $items[$i++];
+                $cx = $isRel ? ($cx + $x) : $x;
+                $cy = $isRel ? ($cy + $y) : $y;
+                $startX = $cx;
+                $startY = $cy;
+                $currentPoly = [[$cx, $cy]];
+                $prevCtrlX = $cx;
+                $prevCtrlY = $cy;
+                $cmd = $isRel ? 'l' : 'L';
+            } elseif ($upper === 'L') {
+                if ($i + 1 >= $n) break;
+                $x = (float) $items[$i++];
+                $y = (float) $items[$i++];
+                $cx = $isRel ? ($cx + $x) : $x;
+                $cy = $isRel ? ($cy + $y) : $y;
+                $currentPoly[] = [$cx, $cy];
+                $prevCtrlX = $cx;
+                $prevCtrlY = $cy;
+            } elseif ($upper === 'H') {
+                if ($i >= $n) break;
+                $x = (float) $items[$i++];
+                $cx = $isRel ? ($cx + $x) : $x;
+                $currentPoly[] = [$cx, $cy];
+                $prevCtrlX = $cx;
+                $prevCtrlY = $cy;
+            } elseif ($upper === 'V') {
+                if ($i >= $n) break;
+                $y = (float) $items[$i++];
+                $cy = $isRel ? ($cy + $y) : $y;
+                $currentPoly[] = [$cx, $cy];
+                $prevCtrlX = $cx;
+                $prevCtrlY = $cy;
+            } elseif ($upper === 'C') {
+                if ($i + 5 >= $n) break;
+                $x1 = (float) $items[$i++] + ($isRel ? $cx : 0.0);
+                $y1 = (float) $items[$i++] + ($isRel ? $cy : 0.0);
+                $x2 = (float) $items[$i++] + ($isRel ? $cx : 0.0);
+                $y2 = (float) $items[$i++] + ($isRel ? $cy : 0.0);
+                $x = (float) $items[$i++] + ($isRel ? $cx : 0.0);
+                $y = (float) $items[$i++] + ($isRel ? $cy : 0.0);
+                for ($s = 1; $s <= 10; $s++) {
+                    $t = $s / 10.0;
+                    $mt = 1.0 - $t;
+                    $bx = ($mt * $mt * $mt * $cx) + (3.0 * $mt * $mt * $t * $x1) + (3.0 * $mt * $t * $t * $x2) + ($t * $t * $t * $x);
+                    $by = ($mt * $mt * $mt * $cy) + (3.0 * $mt * $mt * $t * $y1) + (3.0 * $mt * $t * $t * $y2) + ($t * $t * $t * $y);
+                    $currentPoly[] = [$bx, $by];
+                }
+                $prevCtrlX = $x2;
+                $prevCtrlY = $y2;
+                $cx = $x;
+                $cy = $y;
+            } elseif ($upper === 'S') {
+                if ($i + 3 >= $n) break;
+                $x1 = 2.0 * $cx - $prevCtrlX;
+                $y1 = 2.0 * $cy - $prevCtrlY;
+                $x2 = (float) $items[$i++] + ($isRel ? $cx : 0.0);
+                $y2 = (float) $items[$i++] + ($isRel ? $cy : 0.0);
+                $x = (float) $items[$i++] + ($isRel ? $cx : 0.0);
+                $y = (float) $items[$i++] + ($isRel ? $cy : 0.0);
+                for ($s = 1; $s <= 10; $s++) {
+                    $t = $s / 10.0;
+                    $mt = 1.0 - $t;
+                    $bx = ($mt * $mt * $mt * $cx) + (3.0 * $mt * $mt * $t * $x1) + (3.0 * $mt * $t * $t * $x2) + ($t * $t * $t * $x);
+                    $by = ($mt * $mt * $mt * $cy) + (3.0 * $mt * $mt * $t * $y1) + (3.0 * $mt * $t * $t * $y2) + ($t * $t * $t * $y);
+                    $currentPoly[] = [$bx, $by];
+                }
+                $prevCtrlX = $x2;
+                $prevCtrlY = $y2;
+                $cx = $x;
+                $cy = $y;
+            } elseif ($upper === 'Q') {
+                if ($i + 3 >= $n) break;
+                $x1 = (float) $items[$i++] + ($isRel ? $cx : 0.0);
+                $y1 = (float) $items[$i++] + ($isRel ? $cy : 0.0);
+                $x = (float) $items[$i++] + ($isRel ? $cx : 0.0);
+                $y = (float) $items[$i++] + ($isRel ? $cy : 0.0);
+                for ($s = 1; $s <= 8; $s++) {
+                    $t = $s / 8.0;
+                    $mt = 1.0 - $t;
+                    $bx = ($mt * $mt * $cx) + (2.0 * $mt * $t * $x1) + ($t * $t * $x);
+                    $by = ($mt * $mt * $cy) + (2.0 * $mt * $t * $y1) + ($t * $t * $y);
+                    $currentPoly[] = [$bx, $by];
+                }
+                $prevCtrlX = $x1;
+                $prevCtrlY = $y1;
+                $cx = $x;
+                $cy = $y;
+            } else {
+                $i++;
+            }
+        }
+
+        if (count($currentPoly) >= 3) {
+            $polys[] = $currentPoly;
+        }
+
+        return $polys;
     }
 
     /**

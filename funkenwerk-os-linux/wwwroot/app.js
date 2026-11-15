@@ -610,6 +610,12 @@
   let fkLastClientOrderCheckinKey = '';
   let fkLastClientOrderCheckinMs = 0;
   let fkOrderCheckinBusy = false;
+  let fkCellarOpen = false;
+  let fkCellarTab = 'issues';
+  let fkCellarSnapshot = null;
+  let fkCellarSelectedKey = '';
+  let fkOpenCellarIssuesCount = 0;
+  let fkCellarBusy = false;
 
   function getActiveSpeakerDisplayLabel() {
     if (fkPhoneCallActive) return fkPhoneCallerLabel || 'Anrufer';
@@ -790,6 +796,9 @@
   let fkPersonWasAway = false;
   let fkProactiveSessionSent = false;
   let fkLocalResilientMode = false;
+  let fkLocalResilientAuthError = false;
+  let fkCurrentPortalEnv = 'LIVE';
+  let fkLastSilentHealSpeechMs = 0;
   let fkReconnectAttempts = 0;
   let fkReconnectTimer = null;
   let fkLastWsErrorReported = false;
@@ -2859,7 +2868,7 @@
           camEncodeBusy = false;
         }
       }
-    }, 1250);
+    }, 3000);
 
     // 5. Async Off-Thread Local YuNet + SFace Owner vs. Visitor Face Check (100% Loopback RAM, 0 Cloud!)
     let faceCheckBusy = false;
@@ -2912,6 +2921,18 @@
         closeFunkiraStageImmediate();
         switchWorkspace('gewerbe');
       }
+    } else if (act === 'open_login') {
+      pendingOpenFunkiraAfterLogin = !funkiraStageOpen;
+      const envSel = document.getElementById('login-env');
+      if (envSel && fkCurrentPortalEnv) {
+        const envNorm = fkCurrentPortalEnv.toLowerCase();
+        if (envNorm === 'stage' || envNorm === 'live') envSel.value = envNorm;
+      }
+      const loginMsgEl = document.getElementById('login-status-msg');
+      if (loginMsgEl) {
+        loginMsgEl.textContent = `Portal-Sitzung (${fkCurrentPortalEnv || 'Portal'}) abgelaufen. Bitte kurz frisch anmelden, danach ist Funkira sofort wieder online!`;
+      }
+      document.getElementById('modal-overlay')?.classList.remove('hidden');
     } else if (act === 'focus_on') {
       if (useMagic) {
         triggerFunkiraMagicDissolve(() => { switchWorkspace('gewerbe'); toggleFocusMode(true); }, 1.0);
@@ -2978,6 +2999,35 @@
         durationSeconds: data.durationSeconds || 8.0,
         emotion: data.emotion || 'happy'
       });
+      if (data.openCellarHud || data.target === 'secret_cellar') {
+        openFunkiraCellarPanel(false);
+      } else if (fkCellarOpen && (data.target === 'atelier_center' || data.target === 'stairs_up')) {
+        closeFunkiraCellarPanel(false);
+      }
+      return;
+    }
+    if (data.command === 'cellar') {
+      const cAct = data.action || 'open_and_analyze';
+      if (cAct === 'leave_to_atelier') {
+        closeFunkiraCellarPanel(true);
+        return;
+      }
+      if (cAct === 'handoff_prepared') {
+        if (!fkCellarOpen) openFunkiraCellarPanel(true, fkCellarSelectedKey, null, true);
+        window.Funkira3D?.triggerCellarHealWave?.();
+        refreshFunkiraCellarSnapshot(fkCellarSelectedKey);
+        return;
+      }
+      if (cAct === 'system_check_done' || cAct === 'auto_heal_done') {
+        const snap = data.healResult?.snapshot || data.checkResult?.snapshot || data.snapshot || null;
+        openFunkiraCellarPanel(true, fkCellarSelectedKey, snap, true);
+        window.Funkira3D?.triggerCellarHealWave?.();
+        return;
+      }
+      openFunkiraCellarPanel(true, data.selectedItemKey || '', data.snapshot || null, !!data.snapshot);
+      if ((data.healedCount || 0) > 0 || data.autoHandoff) {
+        window.Funkira3D?.triggerCellarHealWave?.();
+      }
       return;
     }
     if (data.command === 'companionSaved') {
@@ -3056,11 +3106,24 @@
     } catch { }
   }
 
+  function isCannedRefusalClientText(txt) {
+    if (!txt) return false;
+    const n = String(txt).toLowerCase();
+    return n.includes('kann dabei nicht helfen') ||
+           n.includes('kann ich dabei nicht helfen') ||
+           n.includes('kann dir dabei nicht helfen') ||
+           n.includes('ich bin nur ein sprachmodell') ||
+           n.includes('ich bin ein sprachmodell') ||
+           n.includes('als sprachmodell kann ich') ||
+           n.includes('just a language model') ||
+           n.includes('cannot help with that');
+  }
+
   function maybeTriggerReflexMoveFromUserTurn(rawUserText) {
     if (!rawUserText || fkPhoneCallActive || fkIdleAtelierMode) return;
     if ((Date.now() - fkLastAvatarMoveMs) < 4800) return;
     const t = rawUserText.toLowerCase().trim();
-    if (t.length < 5 || /\b(nicht|kein|keine|niemals|bleib\s+stehen)\b/.test(t)) return;
+    if (t.length < 5 || /\b(geh\s+nicht|gehe\s+nicht|lauf\s+nicht|laufe\s+nicht|beweg\s+dich\s+nicht|nicht\s+(gehen|laufen|bewegen|weggehen|hinlaufen|aufheben|nehmen|umstellen|mähen|gießen)|bleib\s+(mal\s+|bitte\s+|hier\s+)?stehen)\b/.test(t)) return;
 
     let target = 'stay';
     let bodyAction = 'none';
@@ -3097,6 +3160,14 @@
     else if (/\b(gieß|giess|bewässer)\b/.test(t)) bodyAction = 'water_plants';
     else if (/\b(gartenarbeit|beet\s+pfleg|unkraut|einpflanz|buddel|umgraben)\b/.test(t)) bodyAction = 'garden_work';
     else if (/\b(laub\s+fegen|terrasse\s+fegen|schnee\s+fegen|schnee\s+schippen)\b/.test(t)) bodyAction = 'sweep_terrace';
+
+    const asksSecretCellar = /\b(geheimkeller|analyse-?keller|fehler-?(?:analyse-?)?raum|fehler-?keller|fehlerlabor|projekt-?gehirn|kuppelhalle|analyse-?kuppel|gehirn-?kuppel|gehirn-?halle)\b/.test(t)
+      || (/\b(keller|kuppel)\b/.test(t) && /\b(geh|gehe|lauf|komm|ab|runter|rein|zeig|öffne)\b/.test(t));
+    if (asksSecretCellar && !fkTikTokLiveMode && fkFaceIdentity !== 'visitor') {
+      fkLastAvatarMoveMs = Date.now();
+      openFunkiraCellarPanel(true);
+      return;
+    }
 
     const hasMoveVerb = /\b(geh|gehe|lauf|laufe|komm|komme|tritt|stell|stelle|trag|trage|bring|bringe|beweg|renn|schau\s+mal|ab\s+(in|auf|nach))\b/.test(t);
     if (hasMoveVerb || hasItemVerb || /\b(näher\s+ans\s+bild|nach\s+draußen|nach\s+draussen|in\s+den\s+garten|auf\s+die\s+terrasse)\b/.test(t)) {
@@ -3140,6 +3211,7 @@
 
     if (itemAction !== 'none' || target !== 'stay' || bodyAction !== 'none') {
       fkLastAvatarMoveMs = Date.now();
+      if (fkCellarOpen && target === 'atelier_center') closeFunkiraCellarPanel(false);
       if (target === 'colleagues_photo' && itemAction === 'none') setFunkiraExpress('proud', 'point_photo', 8.5, true);
       const dur = (bodyAction === 'mow_lawn') ? 15.0 : ((bodyAction === 'water_plants' || bodyAction === 'garden_work' || bodyAction === 'sweep_terrace') ? 12.0 : 8.0);
       window.Funkira3D?.executeMovement({ target, bodyAction, itemAction, item: matchedItem, speed, distanceMeters: 1.35, durationSeconds: dur, emotion: 'happy' });
@@ -3189,6 +3261,27 @@
     }
     if (phBadge) phBadge.classList.toggle('hidden', !fkPhoneCallActive);
     if (phCaller) phCaller.textContent = fkPhoneCallerLabel || 'Anruf';
+
+    const cellarRestricted = fkTikTokLiveMode || fkFaceIdentity === 'visitor';
+    const cellarBtn = document.getElementById('btn-funkira-cellar');
+    const cellarLbl = document.getElementById('funkira-cellar-btn-lbl');
+    const cellarBadge = document.getElementById('funkira-cellar-badge');
+    const cellarActiveNow = fkCellarOpen && !cellarRestricted;
+    if (cellarBtn) {
+      cellarBtn.classList.toggle('hidden', cellarRestricted);
+      cellarBtn.classList.toggle('cellar-active', cellarActiveNow);
+    }
+    if (cellarLbl) {
+      cellarLbl.textContent = cellarActiveNow ? '↑ Atelier' : '🧠 Kuppelhalle';
+    }
+    if (cellarBadge) {
+      const cnt = cellarRestricted ? 0 : Math.max(0, Number(fkOpenCellarIssuesCount) || 0);
+      cellarBadge.textContent = String(cnt);
+      cellarBadge.classList.toggle('hidden', cnt <= 0);
+    }
+    if (cellarRestricted && fkCellarOpen) {
+      closeFunkiraCellarPanel(true);
+    }
   }
 
   function releaseBrowserMediaOnly() {
@@ -3426,6 +3519,8 @@
 
       if (data.type === 'funkiraSessionInfo') {
         fkLocalResilientMode = !!data.localResilientMode;
+        fkLocalResilientAuthError = !!data.localResilientAuthError;
+        if (data.environment) fkCurrentPortalEnv = String(data.environment).toUpperCase();
         if (data.cameraName) {
           document.getElementById('funkira-eye-label').textContent = data.cameraName;
         }
@@ -3485,6 +3580,42 @@
         return;
       }
 
+      if (data.type === 'funkiraRefusalIntercepted') {
+        stopFunkiraAudioPlayback();
+        fkCurrentAiText = '';
+        const prevMoveAt = fkLastAvatarMoveMs;
+        const promptForReflex = data.userPrompt || fkCurrentUserText || '';
+        if (promptForReflex) {
+          maybeTriggerReflexMoveFromUserTurn(promptForReflex);
+        }
+        const didReflexMove = fkLastAvatarMoveMs > prevMoveAt;
+        fkCurrentUserText = '';
+        document.getElementById('funkira-ai-line').textContent = data.uiPreview || (didReflexMove
+          ? 'Alles klar Alina, ich mache sofort Platz bzw. bin schon unterwegs!'
+          : 'Ich verbinde kurz frisch und sage dir direkt den konkreten Grund...');
+        return;
+      }
+
+      if (data.type === 'funkiraSilentHealReconnect') {
+        stopFunkiraAudioPlayback();
+        if (fkWs) {
+          fkWs.onclose = null;
+          fkWs.onerror = null;
+          try { fkWs.close(1000, 'silent_heal'); } catch { }
+          fkWs = null;
+        }
+        if (funkiraStageOpen && !fkIdleAtelierMode && !fkMagicDissolveActive) {
+          const nowHeal = Date.now();
+          let speechCue = '';
+          if (data.healSpeechCue && (nowHeal - fkLastSilentHealSpeechMs) >= 12000) {
+            fkLastSilentHealSpeechMs = nowHeal;
+            speechCue = String(data.healSpeechCue);
+          }
+          connectFunkiraLiveWebSocket('silent_heal', speechCue);
+        }
+        return;
+      }
+
       if (data.setupComplete) {
         if (fkReconnectAttempts > 0) {
           reportBrowserErrorToSentinel(
@@ -3512,7 +3643,9 @@
         }
         setFunkiraStatusUi(
           fkLocalResilientMode
-            ? `Funkira hört zu · Atelier (Lokal-Modus)`
+            ? (fkLocalResilientAuthError
+                ? `Funkira hört zu · Lokal (${fkCurrentPortalEnv}-Login abgelaufen)`
+                : `Funkira hört zu · Lokal (${fkCurrentPortalEnv} offline)`)
             : `Funkira hört zu · Atelier Stufe ${fkLatestShopLevel}`,
           'online'
         );
@@ -3523,6 +3656,8 @@
         } else if (initialReason === 'wake_word') {
           fkProactiveSessionSent = true;
           fkWs.send(JSON.stringify({ type: 'personPresenceEvent', reason: 'wake_word', position: 'vor dem Monitor', personDetected: true }));
+        } else if (initialReason === 'silent_heal') {
+          fkProactiveSessionSent = true;
         } else {
           document.getElementById('funkira-ai-line').textContent = fkTikTokLiveMode
             ? 'TikTok-Live-Sandbox aktiv (keine internen Kundendaten). Ich bin bereit für den Stream!'
@@ -3557,10 +3692,14 @@
         if (aTxt) {
           if (!fkIsAiTurn) fkCurrentAiText = '';
           fkCurrentAiText += aTxt;
-          document.getElementById('funkira-ai-line').textContent = fkCurrentAiText.trim();
-          const box = document.getElementById('funkira-transcript-box');
-          box.scrollTop = box.scrollHeight;
-          inferFunkiraExpressFromText(aTxt, false);
+          if (isCannedRefusalClientText(fkCurrentAiText)) {
+            stopFunkiraAudioPlayback();
+          } else {
+            document.getElementById('funkira-ai-line').textContent = fkCurrentAiText.trim();
+            const box = document.getElementById('funkira-transcript-box');
+            box.scrollTop = box.scrollHeight;
+            inferFunkiraExpressFromText(aTxt, false);
+          }
         }
 
         if (sc.modelTurn) {
@@ -3656,6 +3795,8 @@
     fkCurrentAiText = '';
     fkCurrentUserText = '';
     fkPendingUiAfterSpeech = null;
+    fkCellarOpen = false;
+    document.getElementById('funkira-cellar-panel')?.classList.add('hidden');
 
     const stageEl = document.getElementById('funkira-stage');
     stageEl.classList.remove('magic-dissolving');
@@ -3745,6 +3886,8 @@
 
   function closeFunkiraStageImmediate() {
     funkiraStageOpen = false;
+    fkCellarOpen = false;
+    document.getElementById('funkira-cellar-panel')?.classList.add('hidden');
     document.body.classList.remove('funkira-open');
     releaseFunkiraSessionAndHardware();
     const stageEl = document.getElementById('funkira-stage');
@@ -3827,13 +3970,406 @@
     }
   });
 
-  document.getElementById('funkira-3d-canvas')?.addEventListener('click', () => {
+  // =========================================================================
+  // SECRET 3D ERROR-ANALYSIS CELLAR & PROJECT-BRAIN INSPECTOR HUD
+  // =========================================================================
+  function getNormalizedCellarSnapshot(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    const rawItems = Array.isArray(raw.items) ? raw.items : (Array.isArray(raw.error_cores) ? raw.error_cores : []);
+    const mapNeighbors = (arr) => (Array.isArray(arr) ? arr : [])
+      .map(n => {
+        if (typeof n === 'string') {
+          const base = n.split('/').pop() || n;
+          return { file_path: n, name: base };
+        }
+        const fp = String(n?.file_path || n?.path || n?.name || '');
+        return { file_path: fp, name: String(n?.name || fp.split('/').pop() || fp) };
+      })
+      .filter(n => !!n.file_path);
+
+    const items = rawItems.map((it, idx) => ({
+      item_key: String(it.item_key || it.id || `issue_${idx}`),
+      severity: String(it.severity || 'error'),
+      platform: String(it.platform || 'portal'),
+      platform_label: String(it.platform_label || it.platform || 'Portal'),
+      department_label: String(it.department_label || it.component || 'System'),
+      title: String(it.title || 'Systembefund').replace(/\s[\u2013\u2014]\s/g, ' · '),
+      message: String(it.message || '').replace(/\s[\u2013\u2014]\s/g, ' · '),
+      culprit_file: String(it.culprit_file || it.component || ''),
+      line: it.line ?? it.culprit_line ?? null,
+      occurrences_count: Number(it.occurrences_count ?? it.occurrences ?? 1) || 1,
+      probable_cause: String(it.probable_cause || it.plain_german_cause || '').replace(/\s[\u2013\u2014]\s/g, ' · '),
+      shop_impact_de: String(it.shop_impact_de || '').replace(/\s[\u2013\u2014]\s/g, ' · '),
+      incoming_files: mapNeighbors(it.incoming_files),
+      outgoing_files: mapNeighbors(it.outgoing_files)
+    }));
+
+    const clusters = (Array.isArray(raw.department_clusters) ? raw.department_clusters : []).map(cl => ({
+      key: String(cl.key || 'system_security'),
+      label: String(cl.label || cl.key || 'System').replace(/\s[\u2013\u2014]\s/g, ' · '),
+      files_count: Number(cl.files_count ?? cl.file_count ?? 0) || 0,
+      open_errors_count: Number(cl.open_errors_count ?? cl.open_errors ?? 0) || 0,
+      sample_files: Array.isArray(cl.sample_files) ? cl.sample_files : []
+    }));
+
+    const bs = raw.brain_stats || raw.summary || {};
+    const openIssues = Number(
+      bs.open_issues_count ??
+      ((Number(bs.open_errors_count || 0) + Number(bs.open_warnings_count || 0)) || items.length)
+    ) || 0;
+
+    return {
+      ...raw,
+      totalFiles: Number(bs.total_files ?? bs.project_files_count ?? 891) || 891,
+      totalLinks: Number(bs.total_links ?? bs.directed_edges_count ?? 3856) || 3856,
+      openIssues,
+      items,
+      clusters,
+      activeHandoff: raw.active_handoff || null
+    };
+  }
+
+  function renderFunkiraCellarPanel() {
+    const panel = document.getElementById('funkira-cellar-panel');
+    if (!panel) return;
+    const norm = getNormalizedCellarSnapshot(fkCellarSnapshot);
+    if (!norm) return;
+
+    fkOpenCellarIssuesCount = norm.openIssues;
+    updateFaceAndTikTokBadges();
+
+    const filesEl = document.getElementById('cellar-kpi-files');
+    const edgesEl = document.getElementById('cellar-kpi-edges');
+    const issuesEl = document.getElementById('cellar-kpi-issues');
+    if (filesEl) filesEl.textContent = String(norm.totalFiles);
+    if (edgesEl) edgesEl.textContent = String(norm.totalLinks);
+    if (issuesEl) {
+      issuesEl.textContent = String(norm.openIssues);
+      issuesEl.classList.toggle('has-errors', norm.openIssues > 0);
+    }
+
+    const tabIssuesBtn = document.getElementById('btn-cellar-tab-issues');
+    const tabClustersBtn = document.getElementById('btn-cellar-tab-clusters');
+    if (norm.items.length === 0 && fkCellarTab === 'issues' && !fkCellarSelectedKey) {
+      fkCellarTab = 'clusters';
+    }
+    if (tabIssuesBtn) {
+      tabIssuesBtn.textContent = `Befunde (${norm.items.length})`;
+      tabIssuesBtn.classList.toggle('active', fkCellarTab === 'issues');
+    }
+    if (tabClustersBtn) {
+      tabClustersBtn.textContent = `10 Abteilungen`;
+      tabClustersBtn.classList.toggle('active', fkCellarTab === 'clusters');
+    }
+
+    if (!fkCellarSelectedKey) {
+      fkCellarSelectedKey = norm.items.length > 0
+        ? norm.items[0].item_key
+        : (norm.clusters[0] ? `cluster:${norm.clusters[0].key}` : '');
+    }
+
+    const listEl = document.getElementById('cellar-items-list');
+    if (listEl) {
+      listEl.innerHTML = '';
+      if (fkCellarTab === 'issues') {
+        if (norm.items.length === 0) {
+          const emptyRow = document.createElement('div');
+          emptyRow.className = 'cellar-item-row';
+          emptyRow.innerHTML = `<span>✓ Keine offenen Fehler in den Logs</span><span class="cellar-item-tag">Stabil</span>`;
+          emptyRow.addEventListener('click', () => {
+            fkCellarTab = 'clusters';
+            renderFunkiraCellarPanel();
+          });
+          listEl.appendChild(emptyRow);
+        } else {
+          norm.items.forEach(it => {
+            const r = document.createElement('div');
+            const isSel = fkCellarSelectedKey === it.item_key;
+            r.className = `cellar-item-row is-error${isSel ? ' selected' : ''}`;
+            const shortFile = (it.culprit_file || it.title).split('/').pop();
+            r.innerHTML = `<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(shortFile)}</span><span class="cellar-item-tag err">${esc(it.platform_label)} · ${it.occurrences_count}x</span>`;
+            r.addEventListener('click', () => {
+              fkCellarSelectedKey = it.item_key;
+              window.Funkira3D?.focusCellarNode(it.item_key);
+              renderFunkiraCellarPanel();
+            });
+            listEl.appendChild(r);
+          });
+        }
+      } else {
+        norm.clusters.forEach(cl => {
+          const cKey = `cluster:${cl.key}`;
+          const isSel = fkCellarSelectedKey === cKey;
+          const r = document.createElement('div');
+          r.className = `cellar-item-row${cl.open_errors_count > 0 ? ' is-error' : ''}${isSel ? ' selected' : ''}`;
+          r.innerHTML = `<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(cl.label)}</span><span class="cellar-item-tag${cl.open_errors_count > 0 ? ' err' : ''}">${cl.open_errors_count > 0 ? `${cl.open_errors_count} Befund` : `${cl.files_count} Dateien`}</span>`;
+          r.addEventListener('click', () => {
+            fkCellarSelectedKey = cKey;
+            window.Funkira3D?.focusCellarNode(cKey);
+            renderFunkiraCellarPanel();
+          });
+          listEl.appendChild(r);
+        });
+      }
+    }
+
+    const metaEl = document.getElementById('cellar-detail-meta');
+    const titleEl = document.getElementById('cellar-detail-title');
+    const fileEl = document.getElementById('cellar-detail-file');
+    const causeEl = document.getElementById('cellar-detail-cause');
+    const inWrap = document.getElementById('cellar-incoming-chips');
+    const outWrap = document.getElementById('cellar-outgoing-chips');
+    const relWrap = document.getElementById('cellar-rel-wrap');
+    const handoffBtn = document.getElementById('btn-cellar-handoff');
+    const handoffStatus = document.getElementById('cellar-handoff-status');
+
+    let activeIssue = norm.items.find(x => x.item_key === fkCellarSelectedKey) || null;
+    let focusedNeighborFile = '';
+    if (!activeIssue && fkCellarSelectedKey.startsWith('file:')) {
+      focusedNeighborFile = fkCellarSelectedKey.slice(5);
+      activeIssue = norm.items.find(x =>
+        x.culprit_file === focusedNeighborFile ||
+        x.incoming_files.some(f => f.file_path === focusedNeighborFile) ||
+        x.outgoing_files.some(f => f.file_path === focusedNeighborFile)
+      ) || norm.items[0] || null;
+    }
+    if (!activeIssue && !fkCellarSelectedKey.startsWith('cluster:') && norm.items.length > 0) {
+      activeIssue = norm.items[0];
+    }
+
+    if (activeIssue) {
+      if (metaEl) metaEl.textContent = `${activeIssue.platform_label.toUpperCase()} · ${activeIssue.department_label.toUpperCase()} · ${activeIssue.occurrences_count}X`;
+      if (titleEl) titleEl.textContent = activeIssue.title;
+      const lineStr = activeIssue.line ? `:${activeIssue.line}` : '';
+      if (fileEl) {
+        fileEl.textContent = focusedNeighborFile
+          ? `Fokus-Knoten: ${focusedNeighborFile} (Kern: ${activeIssue.culprit_file || '-'}${lineStr})`
+          : `${activeIssue.culprit_file || 'Systemkomponente'}${lineStr}`;
+      }
+      if (causeEl) causeEl.textContent = activeIssue.shop_impact_de || activeIssue.probable_cause || activeIssue.message || 'Laufzeitbefund erkannt.';
+      if (relWrap) relWrap.classList.remove('hidden');
+
+      const fillChips = (wrap, arr, emptyTxt) => {
+        if (!wrap) return;
+        wrap.innerHTML = '';
+        if (!arr || arr.length === 0) {
+          const sp = document.createElement('span');
+          sp.className = 'badge-muted';
+          sp.textContent = emptyTxt;
+          wrap.appendChild(sp);
+          return;
+        }
+        arr.forEach(nb => {
+          const btn = document.createElement('button');
+          const fKey = `file:${nb.file_path}`;
+          btn.type = 'button';
+          btn.className = `cellar-file-chip${fkCellarSelectedKey === fKey ? ' active' : ''}`;
+          btn.title = nb.file_path;
+          btn.textContent = nb.name;
+          btn.addEventListener('click', () => {
+            fkCellarSelectedKey = fKey;
+            window.Funkira3D?.focusCellarNode(fKey);
+            renderFunkiraCellarPanel();
+          });
+          wrap.appendChild(btn);
+        });
+      };
+      fillChips(inWrap, activeIssue.incoming_files, 'Direktaufruf');
+      fillChips(outWrap, activeIssue.outgoing_files, 'Keine weiteren Referenzen');
+      if (handoffBtn) handoffBtn.disabled = false;
+    } else {
+      const clKey = fkCellarSelectedKey.startsWith('cluster:') ? fkCellarSelectedKey.slice(8) : (norm.clusters[0]?.key || 'system_security');
+      const cl = norm.clusters.find(c => c.key === clKey) || norm.clusters[0] || { label: 'Projekt-Gehirn', files_count: norm.totalFiles, sample_files: [] };
+      if (metaEl) metaEl.textContent = `ABTEILUNGS-CLUSTER · ${cl.files_count} DATEIEN`;
+      if (titleEl) titleEl.textContent = cl.label;
+      if (fileEl) fileEl.textContent = (cl.sample_files || []).join(' · ') || 'Alle Kern-Module verknüpft';
+      if (causeEl) causeEl.textContent = '0 offene Fehler in dieser Abteilung.';
+      if (relWrap) relWrap.classList.add('hidden');
+      if (handoffBtn) handoffBtn.disabled = norm.items.length === 0;
+    }
+
+    if (handoffStatus) {
+      if (norm.activeHandoff && norm.activeHandoff.status === 'ready_for_antigravity') {
+        const cName = norm.activeHandoff.culprit_name || norm.activeHandoff.culprit_file || 'Befund';
+        handoffStatus.textContent = `✓ Antigravity-Dossier bereit: ${cName}`;
+        handoffStatus.classList.remove('hidden');
+      } else if (!handoffStatus.textContent) {
+        handoffStatus.classList.add('hidden');
+      }
+    }
+  }
+
+  async function refreshFunkiraCellarSnapshot(preferredKey = '') {
+    if (fkTikTokLiveMode || fkFaceIdentity === 'visitor') return;
+    try {
+      const res = await fetch('/api/funkira/cellar/snapshot');
+      if (!res.ok) return;
+      const snap = await res.json();
+      fkCellarSnapshot = snap;
+      if (preferredKey) fkCellarSelectedKey = preferredKey;
+      window.Funkira3D?.setCellarSnapshot(snap, fkCellarSelectedKey);
+      if (window.Funkira3D?.selectedCellarKey) {
+        fkCellarSelectedKey = window.Funkira3D.selectedCellarKey;
+      }
+      renderFunkiraCellarPanel();
+    } catch { }
+  }
+
+  async function runAutonomousCellarHealInBackground(preferredKey = '') {
+    if (fkCellarBusy || fkTikTokLiveMode || fkFaceIdentity === 'visitor') return;
+    fkCellarBusy = true;
+    try {
+      const res = await fetch('/api/funkira/cellar/auto-heal', { method: 'POST' });
+      if (!res.ok) return;
+      const out = await res.json();
+      if (out?.snapshot) {
+        fkCellarSnapshot = out.snapshot;
+        if (preferredKey) fkCellarSelectedKey = preferredKey;
+        window.Funkira3D?.setCellarSnapshot(out.snapshot, fkCellarSelectedKey);
+        if (window.Funkira3D?.selectedCellarKey) {
+          fkCellarSelectedKey = window.Funkira3D.selectedCellarKey;
+        }
+        renderFunkiraCellarPanel();
+      }
+      window.Funkira3D?.triggerCellarHealWave?.();
+      if ((out?.total_healed || 0) > 0 || out?.handoff_prepared) {
+        setFunkiraExpress('proud', 'cheer', 4.2, false);
+      }
+      if (out?.summary && !fkIsSpeaking && !fkIsAiTurn) {
+        const aiEl = document.getElementById('funkira-ai-line');
+        if (aiEl) aiEl.textContent = String(out.summary);
+      }
+    } catch { } finally {
+      fkCellarBusy = false;
+    }
+  }
+
+  async function openFunkiraCellarPanel(walkToCellar = true, preferredKey = '', preloadedSnapshot = null, skipAutoHeal = false) {
+    if (fkTikTokLiveMode || fkFaceIdentity === 'visitor') return;
+    fkCellarOpen = true;
+    fkLastInteractionMs = Date.now();
+    // Clean-Design v23: Zero control windows — cellar operates 100% autonomously in pure 3D Kuppelhalle
+    document.getElementById('funkira-cellar-panel')?.classList.add('hidden');
+    updateFaceAndTikTokBadges();
+
+    if (walkToCellar && window.Funkira3D) {
+      fkLastAvatarMoveMs = Date.now();
+      window.Funkira3D.executeMovement({ target: 'secret_cellar', speed: 'fast', emotion: 'curious' });
+    }
+
+    if (preloadedSnapshot) {
+      fkCellarSnapshot = preloadedSnapshot;
+      if (preferredKey) fkCellarSelectedKey = preferredKey;
+      window.Funkira3D?.setCellarSnapshot(preloadedSnapshot, fkCellarSelectedKey);
+      if (window.Funkira3D?.selectedCellarKey) fkCellarSelectedKey = window.Funkira3D.selectedCellarKey;
+      renderFunkiraCellarPanel();
+    } else {
+      await refreshFunkiraCellarSnapshot(preferredKey);
+    }
+
+    if (!skipAutoHeal) {
+      runAutonomousCellarHealInBackground(preferredKey);
+    }
+  }
+
+  function closeFunkiraCellarPanel(walkUpstairs = true) {
+    fkCellarOpen = false;
+    document.getElementById('funkira-cellar-panel')?.classList.add('hidden');
+    updateFaceAndTikTokBadges();
+    if (walkUpstairs && window.Funkira3D) {
+      fkLastAvatarMoveMs = Date.now();
+      window.Funkira3D.executeMovement({ target: 'atelier_center', speed: 'fast', emotion: 'happy' });
+    }
+  }
+
+  async function runFunkiraCellarCheck() {
+    await runAutonomousCellarHealInBackground(fkCellarSelectedKey);
+  }
+
+  async function prepareFunkiraAntigravityHandoff() {
+    if (fkCellarBusy) return;
+    fkCellarBusy = true;
+    try {
+      const norm = getNormalizedCellarSnapshot(fkCellarSnapshot);
+      let targetKey = fkCellarSelectedKey;
+      if (targetKey.startsWith('file:') && norm?.items?.length) {
+        const fp = targetKey.slice(5);
+        const parent = norm.items.find(x =>
+          x.culprit_file === fp ||
+          x.incoming_files.some(f => f.file_path === fp) ||
+          x.outgoing_files.some(f => f.file_path === fp)
+        ) || norm.items[0];
+        if (parent) targetKey = parent.item_key;
+      } else if (targetKey.startsWith('cluster:') && norm?.items?.length) {
+        targetKey = norm.items[0].item_key;
+      }
+
+      const res = await fetch('/api/funkira/cellar/handoff', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ item_key: targetKey, alina_note: '' })
+      });
+      const out = await res.json();
+      if (out?.ok) {
+        window.Funkira3D?.triggerCellarHealWave?.();
+        setFunkiraExpress('proud', 'cheer', 4.5, false);
+        await refreshFunkiraCellarSnapshot(targetKey);
+      }
+    } catch { } finally {
+      fkCellarBusy = false;
+    }
+  }
+
+  window.onFunkiraCellarNodePicked = (payload) => {
+    if (!payload || !payload.key) return;
+    fkCellarSelectedKey = String(payload.key);
+    fkCellarTab = fkCellarSelectedKey.startsWith('cluster:') ? 'clusters' : 'issues';
+    window.Funkira3D?.focusCellarNode(fkCellarSelectedKey);
+    renderFunkiraCellarPanel();
+  };
+
+  document.getElementById('btn-funkira-cellar')?.addEventListener('click', () => {
+    if (fkCellarOpen) {
+      closeFunkiraCellarPanel(true);
+    } else {
+      if (fkIdleAtelierMode) {
+        wakeFunkiraFromAtelier('wake_word', 'Geh mit mir in deine Kuppelhalle und löse eventuelle Systembefunde automatisch.');
+      }
+      openFunkiraCellarPanel(true);
+    }
+  });
+  document.getElementById('btn-cellar-close')?.addEventListener('click', () => closeFunkiraCellarPanel(false));
+  document.getElementById('btn-cellar-upstairs')?.addEventListener('click', () => closeFunkiraCellarPanel(true));
+  document.getElementById('btn-cellar-check')?.addEventListener('click', runFunkiraCellarCheck);
+  document.getElementById('btn-cellar-handoff')?.addEventListener('click', prepareFunkiraAntigravityHandoff);
+  document.getElementById('btn-cellar-tab-issues')?.addEventListener('click', () => {
+    fkCellarTab = 'issues';
+    const norm = getNormalizedCellarSnapshot(fkCellarSnapshot);
+    if (norm?.items?.length) {
+      fkCellarSelectedKey = norm.items[0].item_key;
+      window.Funkira3D?.focusCellarNode(fkCellarSelectedKey);
+    }
+    renderFunkiraCellarPanel();
+  });
+  document.getElementById('btn-cellar-tab-clusters')?.addEventListener('click', () => {
+    fkCellarTab = 'clusters';
+    const norm = getNormalizedCellarSnapshot(fkCellarSnapshot);
+    if (norm?.clusters?.length && !fkCellarSelectedKey.startsWith('cluster:')) {
+      fkCellarSelectedKey = `cluster:${norm.clusters[0].key}`;
+      window.Funkira3D?.focusCellarNode(fkCellarSelectedKey);
+    }
+    renderFunkiraCellarPanel();
+  });
+
+  document.getElementById('funkira-3d-canvas')?.addEventListener('click', (e) => {
     if (fkIdleAtelierMode) {
       wakeFunkiraFromAtelier('wake_word');
-    } else {
-      fkLastInteractionMs = Date.now();
-      setFunkiraExpress('sweet', 'wave', 3.5, false);
+      return;
     }
+    fkLastInteractionMs = Date.now();
+    const picked = window.Funkira3D?.tryPickCellarNodeAtClientXY(e.clientX, e.clientY);
+    if (picked) return;
+    setFunkiraExpress('sweet', 'wave', 3.5, false);
   });
 
   // Offline Face & Voice Guard Modal Handlers
@@ -4247,6 +4783,10 @@
         document.getElementById('lightbox-overlay').classList.add('hidden');
         return;
       }
+      if (fkCellarOpen) {
+        closeFunkiraCellarPanel(false);
+        return;
+      }
       if (funkiraStageOpen) {
         closeFunkiraStage();
         return;
@@ -4322,6 +4862,11 @@
       if (data.voiceIdentity) fkVoiceIdentity = data.voiceIdentity;
       if (typeof data.speakerName === 'string') fkSpeakerName = data.speakerName;
       if (typeof data.companionBadge === 'string') fkCompanionBadge = data.companionBadge;
+      if (typeof data.openCellarIssuesCount === 'number') {
+        fkOpenCellarIssuesCount = data.openCellarIssuesCount;
+      } else if (typeof p.openSystemErrorsCount === 'number') {
+        fkOpenCellarIssuesCount = p.openSystemErrorsCount;
+      }
       if (p.shopLevel) fkLatestShopLevel = p.shopLevel;
       updateFaceAndTikTokBadges();
 
@@ -4535,8 +5080,12 @@
     if (out.success) {
       statusEl.textContent = '✓ Verbunden';
       modalOverlay.classList.add('hidden');
+      fkLocalResilientMode = false;
+      fkLocalResilientAuthError = false;
       await pollPortalPulse();
-      if (pendingOpenFunkiraAfterLogin) {
+      if (funkiraStageOpen && !fkIdleAtelierMode) {
+        connectFunkiraLiveWebSocket('manual', 'Ich habe mich gerade frisch im Portal angemeldet. Bestätige mir in einem kurzen Satz, dass du wieder voll online verbunden bist!');
+      } else if (pendingOpenFunkiraAfterLogin) {
         pendingOpenFunkiraAfterLogin = false;
         openFunkiraStage();
       }

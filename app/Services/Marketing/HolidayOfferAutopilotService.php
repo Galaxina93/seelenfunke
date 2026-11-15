@@ -19,6 +19,11 @@ class HolidayOfferAutopilotService
      */
     public function isEnabled(): bool
     {
+        $legacyVal = shop_setting('holiday_offer_autopilot_enabled', null);
+        if ($legacyVal !== null && !filter_var($legacyVal, FILTER_VALIDATE_BOOLEAN)) {
+            return false;
+        }
+
         $val = shop_setting('marketing_autopilot_offers_enabled', 'true');
         return filter_var($val, FILTER_VALIDATE_BOOLEAN);
     }
@@ -31,6 +36,10 @@ class HolidayOfferAutopilotService
         SystemSetting::updateOrCreate(
             ['key' => 'marketing_autopilot_offers_enabled'],
             ['value' => $enabled ? 'true' : 'false']
+        );
+        SystemSetting::updateOrCreate(
+            ['key' => 'holiday_offer_autopilot_enabled'],
+            ['value' => $enabled ? '1' : '0']
         );
         Cache::forget('global_shop_settings');
 

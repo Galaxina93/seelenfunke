@@ -1,0 +1,301 @@
+@php
+    $cockpitData = ($previewItem && $previewItem->product && $previewItem->product->isPhysical() && empty($isDigitalItem) && empty($isService) && method_exists($this, 'getLaserCockpitDataProperty'))
+        ? $this->laserCockpitData
+        : null;
+@endphp
+
+@if($cockpitData)
+    @php
+        $fmtDim = static function (float $v): string {
+            return abs($v - round($v)) < 0.05
+                ? number_format($v, 0, ',', '.')
+                : number_format($v, 1, ',', '.');
+        };
+    @endphp
+    <div x-data="{
+            dragging: false,
+            dragMode: 'move',
+            startClientX: 0,
+            startClientY: 0,
+            startXMm: 0,
+            startYMm: 0,
+            startAngleDeg: 0,
+            xMm: $wire.entangle('laserCenterXMm'),
+            yMm: $wire.entangle('laserCenterYMm'),
+            angleDeg: $wire.entangle('laserAngleDeg'),
+            wMm: {{ (float) $cockpitData['width_mm'] }},
+            hMm: {{ (float) $cockpitData['height_mm'] }},
+            startDrag(e, mode = 'move') {
+                if (e.button !== undefined && e.button !== 0) return;
+                this.dragging = true;
+                this.dragMode = mode;
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                this.startClientX = clientX;
+                this.startClientY = clientY;
+                this.startXMm = Number(this.xMm) || 100;
+                this.startYMm = Number(this.yMm) || 100;
+                this.startAngleDeg = Number(this.angleDeg) || 0;
+            },
+            moveDrag(e) {
+                if (!this.dragging) return;
+                const rect = this.$refs.bedStage.getBoundingClientRect();
+                if (!rect.width || !rect.height) return;
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+                if (this.dragMode === 'rotate') {
+                    const centerX = rect.left + ((Number(this.xMm) || 100) / 200) * rect.width;
+                    const centerY = rect.top + ((Number(this.yMm) || 100) / 200) * rect.height;
+                    const a0 = Math.atan2(this.startClientY - centerY, this.startClientX - centerX) * (180 / Math.PI);
+                    const a1 = Math.atan2(clientY - centerY, clientX - centerX) * (180 / Math.PI);
+                    let deltaAngle = a1 - a0;
+                    while (deltaAngle > 180) deltaAngle -= 360;
+                    while (deltaAngle < -180) deltaAngle += 360;
+                    const nextAngle = Math.max(-45, Math.min(45, this.startAngleDeg + deltaAngle));
+                    this.angleDeg = Math.round(nextAngle * 10) / 10;
+                    return;
+                }
+
+                const dxMm = ((clientX - this.startClientX) / rect.width) * 200;
+                const dyMm = ((clientY - this.startClientY) / rect.height) * 200;
+                const nextX = Math.max(5, Math.min(195, this.startXMm + dxMm));
+                const nextY = Math.max(5, Math.min(195, this.startYMm + dyMm));
+                this.xMm = Math.round(nextX * 10) / 10;
+                this.yMm = Math.round(nextY * 10) / 10;
+            },
+            stopDrag() {
+                if (!this.dragging) return;
+                this.dragging = false;
+                $wire.updateLaserCoordinates(Number(this.xMm) || 100, Number(this.yMm) || 100, Number(this.angleDeg) || 0);
+            }
+         }"
+         wire:key="laser-cockpit-{{ $previewItem->id }}-{{ $cockpitData['side'] }}"
+         class="bg-white dark:bg-gray-900/90 rounded-[1.5rem] sm:rounded-[2rem] shadow-sm dark:shadow-xl border border-gray-200 dark:border-gray-800 shrink-0 relative">
+
+        <div class="bg-gray-50 dark:bg-gray-950 px-5 sm:px-6 py-3.5 rounded-t-[1.5rem] sm:rounded-t-[2rem] border-b border-gray-200 dark:border-gray-800 flex flex-wrap items-center justify-between gap-2 relative z-30">
+            <div class="flex flex-wrap items-center gap-2">
+                <h3 class="text-[9px] sm:text-[10px] font-black text-gray-900 dark:text-white uppercase tracking-widest">
+                    xTool F2 Ultra UV · Live-Laser-Cockpit
+                </h3>
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wider {{ $cockpitData['laser_online'] ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700' }}">
+                    <span class="w-1.5 h-1.5 rounded-full {{ $cockpitData['laser_online'] ? 'bg-emerald-500' : 'bg-amber-500' }}"></span>
+                    <span>{{ $cockpitData['laser_ip'] }}</span>
+                </span>
+                <span class="px-2 py-0.5 rounded-lg bg-cyan-500/10 text-cyan-700 dark:text-cyan-400 border border-cyan-500/30 text-[9px] font-black uppercase tracking-wider">
+                    KI {{ $cockpitData['confidence'] }} %
+                </span>
+                <div class="relative group/cockpitinfo inline-flex items-center">
+                    <span class="w-4 h-4 rounded-full bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:text-[var(--theme-color)] hover:border-[var(--theme-color)] flex items-center justify-center text-[9px] font-black cursor-help transition-colors">!</span>
+                    <div class="pointer-events-none opacity-0 group-hover/cockpitinfo:opacity-100 group-hover/cockpitinfo:pointer-events-auto transition-opacity duration-150 absolute top-full left-1/2 -translate-x-1/2 sm:left-0 sm:translate-x-0 mt-2 z-[90] w-72 sm:w-80 p-4 rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-2xl text-[11px] leading-relaxed text-gray-700 dark:text-gray-300 space-y-2">
+                        <div class="font-black uppercase tracking-wider text-gray-900 dark:text-white border-b border-gray-100 dark:border-gray-800 pb-1.5">
+                            xTool F2 Ultra UV ({{ $cockpitData['device_sn'] }})
+                        </div>
+                        <p>200 × 200 mm entzerrtes Live-Kamerabild (10 px = 1,0 mm). Die einzelne cyanfarbene 1:1 Außenkontur entspricht millimetergenau der realen Rohlingskante (Modus: Ignorieren, wird nicht mitgelasert).</p>
+                        <p><strong>Drag &amp; Drop:</strong> Ziehe das Motiv einfach mit gedrückter Maustaste an die gewünschte Stelle oder drehe es oben am ↻-Punkt.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-1.5">
+                @if($cockpitData['has_back'])
+                    <button type="button"
+                            wire:click="switchLaserCockpitSide('front')"
+                            class="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider border transition-all cursor-pointer {{ $cockpitData['side'] === 'front' ? 'bg-[var(--theme-color)] text-gray-950 border-[var(--theme-color)]' : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700' }}">
+                        Vorderseite
+                    </button>
+                    <button type="button"
+                            wire:click="switchLaserCockpitSide('back')"
+                            class="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider border transition-all cursor-pointer {{ $cockpitData['side'] === 'back' ? 'bg-[var(--theme-color)] text-gray-950 border-[var(--theme-color)]' : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700' }}">
+                        Rückseite
+                    </button>
+                @endif
+                <button type="button"
+                        wire:click.prevent="downloadLaserXcsFile('{{ $previewItem->id }}', '{{ $cockpitData['side'] }}')"
+                        title="Manuelles xTool Studio Backup-Projekt (.xcs) herunterladen"
+                        class="px-2.5 py-1 rounded-lg bg-white dark:bg-gray-900 hover:border-[var(--theme-color)] text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer">
+                    .xcs Backup
+                </button>
+                <span class="text-[9px] font-mono font-bold text-gray-500 dark:text-gray-400">
+                    {{ $cockpitData['camera_updated_at'] }}
+                </span>
+            </div>
+        </div>
+
+        <div class="p-4 sm:p-6 space-y-4">
+            {{-- 200x200 mm Live-Kamera-Arbeitsfläche (Smooth Drag & Drop + Rotation) --}}
+            <div x-ref="bedStage"
+                 @mousedown="startDrag($event, 'move')"
+                 @mousemove.window="moveDrag($event)"
+                 @mouseup.window="stopDrag()"
+                 @touchstart.passive="startDrag($event, 'move')"
+                 @touchmove.passive="moveDrag($event)"
+                 @touchend.window="stopDrag()"
+                 :class="dragging ? 'cursor-grabbing ring-2 ring-cyan-400/60' : 'cursor-grab'"
+                 class="relative w-full max-w-[460px] mx-auto aspect-square rounded-2xl overflow-hidden border border-gray-300 dark:border-gray-700 bg-gray-950 select-none shadow-inner transition-shadow">
+
+                <img src="{{ $cockpitData['camera_url'] }}"
+                     wire:key="laser-cam-img-{{ $previewItem->id }}-{{ $cockpitData['refresh_token'] ?? 0 }}"
+                     alt="xTool F2 Ultra UV Kamera 200x200 mm"
+                     class="w-full h-full object-cover pointer-events-none"
+                     draggable="false">
+
+                {{-- Dezentrales 20 mm Lineal-Raster (200x200 mm) --}}
+                <div class="absolute inset-0 pointer-events-none opacity-25"
+                     style="background-image: linear-gradient(to right, rgba(255,255,255,0.22) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.22) 1px, transparent 1px); background-size: 10% 10%;"></div>
+
+                {{-- HUD Koordinaten-Badge oben links --}}
+                <div class="absolute top-2.5 left-2.5 right-2.5 z-20 pointer-events-none flex flex-wrap items-center justify-between gap-1.5">
+                    <div class="flex flex-wrap items-center gap-1.5">
+                        <span class="px-2.5 py-1 rounded-lg bg-gray-950/85 border border-gray-700 text-white font-mono text-[10px] font-black">
+                            X: <span x-text="(Number(xMm) || 0).toFixed(1)"></span> mm · Y: <span x-text="(Number(yMm) || 0).toFixed(1)"></span> mm · <span x-text="(Number(angleDeg) || 0).toFixed(1)"></span>°
+                        </span>
+                        <span class="px-2 py-1 rounded-lg bg-cyan-950/85 border border-cyan-500/40 text-cyan-300 font-mono text-[10px] font-bold">
+                            {{ $fmtDim((float) $cockpitData['width_mm']) }} × {{ $fmtDim((float) $cockpitData['height_mm']) }} mm
+                        </span>
+                    </div>
+                    <span class="px-2 py-1 rounded-lg bg-gray-950/80 border border-gray-700/80 text-gray-200 text-[9px] font-bold uppercase tracking-wider">
+                        ✥ Mit Maus ziehen
+                    </span>
+                </div>
+
+                @if(!empty($cockpitData['last_status']))
+                    <div class="absolute bottom-2.5 left-2.5 right-2.5 z-20 pointer-events-none flex justify-center">
+                        <span class="px-3 py-1 rounded-lg bg-emerald-950/90 border border-emerald-500/40 text-emerald-300 font-mono text-[10px] font-bold truncate">
+                            ✓ {{ $cockpitData['last_status'] }}
+                        </span>
+                    </div>
+                @endif
+
+                {{-- 1:1 Rohling Geister-Kontur (#00bcd4) + Kunden-Gravurmotiv + Drehgriff --}}
+                <div class="absolute z-10 pointer-events-none"
+                     :style="`left: ${(xMm / 200) * 100}%; top: ${(yMm / 200) * 100}%; width: ${(wMm / 200) * 100}%; height: ${(hMm / 200) * 100}%; transform: translate(-50%, -50%) rotate(${angleDeg}deg);`">
+                    <svg viewBox="0 0 {{ $cockpitData['width_mm'] }} {{ $cockpitData['height_mm'] }}"
+                         class="w-full h-full overflow-visible">
+                        <path d="{{ $cockpitData['ghost_d_path'] }}"
+                              fill="rgba(0, 188, 212, 0.10)"
+                              stroke="#00bcd4"
+                              stroke-width="0.95"
+                              stroke-dasharray="2.2,1.4" />
+                    </svg>
+                    <img src="{{ $cockpitData['preview_data_url'] }}"
+                         alt="Gravur-Overlay"
+                         class="absolute inset-0 w-full h-full object-contain drop-shadow-[0_0_2px_rgba(255,255,255,0.95)]"
+                         draggable="false">
+
+                    {{-- Dreh-Griff (oben mittig an der Kontur) --}}
+                    <button type="button"
+                            @mousedown.stop.prevent="startDrag($event, 'rotate')"
+                            @touchstart.stop.passive="startDrag($event, 'rotate')"
+                            title="Gedrückt halten zum Drehen"
+                            class="pointer-events-auto absolute -top-3 left-1/2 -translate-x-1/2 w-5 h-5 rounded-full bg-cyan-400 hover:bg-cyan-300 text-gray-950 border border-gray-950 shadow-md flex items-center justify-center text-[10px] font-black cursor-grab active:cursor-grabbing">
+                        &#8635;
+                    </button>
+
+                    {{-- Mittelpunkt-Fadenkreuz --}}
+                    <div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-cyan-400 border border-gray-950 shadow-sm"></div>
+                </div>
+            </div>
+
+            {{-- Koordinaten & Feinjustierung --}}
+            <div class="grid grid-cols-1 sm:grid-cols-4 gap-2 items-center bg-gray-50 dark:bg-gray-950 p-2.5 rounded-xl border border-gray-200 dark:border-gray-800">
+                <div class="flex items-center justify-between gap-2 bg-white dark:bg-gray-900 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-800">
+                    <span class="text-[9px] font-black uppercase tracking-wider text-gray-400">X (mm)</span>
+                    <input type="number"
+                           step="0.1"
+                           min="5"
+                           max="195"
+                           x-model.number="xMm"
+                           @change="$wire.updateLaserCoordinates(Number(xMm) || 100, Number(yMm) || 100, Number(angleDeg) || 0)"
+                           class="w-16 text-right font-mono text-xs font-black bg-transparent text-gray-900 dark:text-white focus:outline-none">
+                </div>
+                <div class="flex items-center justify-between gap-2 bg-white dark:bg-gray-900 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-800">
+                    <span class="text-[9px] font-black uppercase tracking-wider text-gray-400">Y (mm)</span>
+                    <input type="number"
+                           step="0.1"
+                           min="5"
+                           max="195"
+                           x-model.number="yMm"
+                           @change="$wire.updateLaserCoordinates(Number(xMm) || 100, Number(yMm) || 100, Number(angleDeg) || 0)"
+                           class="w-16 text-right font-mono text-xs font-black bg-transparent text-gray-900 dark:text-white focus:outline-none">
+                </div>
+                <div class="flex items-center justify-between gap-2 bg-white dark:bg-gray-900 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-800">
+                    <span class="text-[9px] font-black uppercase tracking-wider text-gray-400">Winkel</span>
+                    <input type="number"
+                           step="0.1"
+                           min="-45"
+                           max="45"
+                           x-model.number="angleDeg"
+                           @change="$wire.updateLaserCoordinates(Number(xMm) || 100, Number(yMm) || 100, Number(angleDeg) || 0)"
+                           class="w-16 text-right font-mono text-xs font-black bg-transparent text-gray-900 dark:text-white focus:outline-none">
+                </div>
+                <div class="flex items-center justify-center gap-1">
+                    <button type="button" wire:click="nudgeLaserPosition(-0.5, 0, 0)" title="0,5 mm nach links" class="px-2 py-1.5 rounded-lg bg-white dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-200 dark:border-gray-800 text-xs font-black text-gray-700 dark:text-gray-200 cursor-pointer">&larr;</button>
+                    <button type="button" wire:click="nudgeLaserPosition(0, -0.5, 0)" title="0,5 mm nach oben" class="px-2 py-1.5 rounded-lg bg-white dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-200 dark:border-gray-800 text-xs font-black text-gray-700 dark:text-gray-200 cursor-pointer">&uarr;</button>
+                    <button type="button" wire:click="nudgeLaserPosition(0, 0.5, 0)" title="0,5 mm nach unten" class="px-2 py-1.5 rounded-lg bg-white dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-200 dark:border-gray-800 text-xs font-black text-gray-700 dark:text-gray-200 cursor-pointer">&darr;</button>
+                    <button type="button" wire:click="nudgeLaserPosition(0.5, 0, 0)" title="0,5 mm nach rechts" class="px-2 py-1.5 rounded-lg bg-white dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-200 dark:border-gray-800 text-xs font-black text-gray-700 dark:text-gray-200 cursor-pointer">&rarr;</button>
+                    <button type="button" wire:click="nudgeLaserPosition(0, 0, -0.5)" title="-0,5° drehen" class="px-2 py-1.5 rounded-lg bg-white dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-200 dark:border-gray-800 text-xs font-black text-gray-700 dark:text-gray-200 cursor-pointer">&#8634;</button>
+                    <button type="button" wire:click="nudgeLaserPosition(0, 0, 0.5)" title="+0,5° drehen" class="px-2 py-1.5 rounded-lg bg-white dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-200 dark:border-gray-800 text-xs font-black text-gray-700 dark:text-gray-200 cursor-pointer">&#8635;</button>
+                </div>
+            </div>
+
+            {{-- Geführter 1-2-3 Ablauf mit dynamischem 1-Satz-Leitfaden --}}
+            @php
+                $wfStep = (int) ($cockpitData['workflow_step'] ?? 1);
+            @endphp
+            <div class="rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-50/90 dark:bg-gray-950 p-3.5 space-y-3">
+                <div class="flex items-center gap-2.5 px-3 py-2 rounded-xl border {{ $wfStep >= 4 ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-300' : 'bg-[var(--theme-color-10)] border-[var(--theme-color-30)] text-gray-900 dark:text-white' }}">
+                    <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 {{ $wfStep >= 4 ? 'bg-emerald-500 text-white' : 'bg-[var(--theme-color)] text-gray-950' }}">
+                        {{ $wfStep >= 4 ? '✓' : $wfStep }}
+                    </span>
+                    <p class="text-xs font-bold leading-snug">
+                        @if($wfStep === 1)
+                            Rohling einlegen ({{ $cockpitData['equipment_title'] }} · Fokus {{ $cockpitData['focus_formatted'] }}) und auf <strong>1. Kamera &amp; KI-Ausrichten</strong> klicken.
+                        @elseif($wfStep === 2)
+                            Sitz der blauen Kontur im Bild prüfen (bei Bedarf mit der Maus ziehen) und auf <strong>2. Rahmen-Vorschau</strong> klicken.
+                        @elseif($wfStep === 3)
+                            Sitzt der blaue Rahmen auf dem Rohling? Schutzhaube schließen und auf <strong>3. An Laser senden</strong> klicken.
+                        @else
+                            Fertig übertragen: Jetzt den physischen Start-Knopf rechts am xTool drücken und danach unten auf „Artikel erledigt“ klicken.
+                        @endif
+                    </p>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    {{-- SCHRITT 1 --}}
+                    <button type="button"
+                            wire:click="refreshLaserCameraAndAlign"
+                            wire:loading.attr="disabled"
+                            class="flex items-center justify-center gap-2 px-3.5 py-3 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer {{ $wfStep === 1 ? 'bg-cyan-500 text-gray-950 border-cyan-400 ring-2 ring-cyan-500/40 shadow-sm' : 'bg-white dark:bg-gray-900 hover:border-cyan-500/50 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-800' }}">
+                        <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 {{ $wfStep > 1 ? 'bg-emerald-500 text-white' : ($wfStep === 1 ? 'bg-gray-950 text-cyan-400' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300') }}">
+                            {{ $wfStep > 1 ? '✓' : '1' }}
+                        </span>
+                        <span>Kamera &amp; KI-Ausrichten</span>
+                    </button>
+
+                    {{-- SCHRITT 2 --}}
+                    <button type="button"
+                            wire:click="triggerLaserFraming('{{ $previewItem->id }}', '{{ $cockpitData['side'] }}')"
+                            wire:loading.attr="disabled"
+                            class="flex items-center justify-center gap-2 px-3.5 py-3 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer {{ $wfStep === 2 ? 'bg-blue-500 text-white border-blue-400 ring-2 ring-blue-500/40 shadow-sm' : 'bg-white dark:bg-gray-900 hover:border-blue-500/50 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-800' }}">
+                        <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 {{ $wfStep > 2 ? 'bg-emerald-500 text-white' : ($wfStep === 2 ? 'bg-white text-blue-600' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300') }}">
+                            {{ $wfStep > 2 ? '✓' : '2' }}
+                        </span>
+                        <span>Rahmen-Vorschau</span>
+                    </button>
+
+                    {{-- SCHRITT 3 --}}
+                    <button type="button"
+                            wire:click="sendJobDirectlyToLaser('{{ $previewItem->id }}', '{{ $cockpitData['side'] }}')"
+                            wire:loading.attr="disabled"
+                            class="flex items-center justify-center gap-2 px-3.5 py-3 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer {{ $wfStep === 3 ? 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-400 ring-2 ring-emerald-500/40 shadow-sm' : ($wfStep >= 4 ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/40' : 'bg-white dark:bg-gray-900 hover:border-emerald-500/50 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-800') }}">
+                        <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 {{ $wfStep > 3 ? 'bg-emerald-500 text-white' : ($wfStep === 3 ? 'bg-white text-emerald-700' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300') }}">
+                            {{ $wfStep > 3 ? '✓' : '3' }}
+                        </span>
+                        <span>An Laser senden</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+@endif

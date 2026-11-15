@@ -340,7 +340,8 @@ static void ConfigureKioskApp(
                 reqPath.Equals("/api/files", StringComparison.OrdinalIgnoreCase) ||
                 reqPath.StartsWith("/api/notes", StringComparison.OrdinalIgnoreCase) ||
                 reqPath.StartsWith("/api/tresor/", StringComparison.OrdinalIgnoreCase) ||
-                reqPath.Equals("/api/tresor", StringComparison.OrdinalIgnoreCase))
+                reqPath.Equals("/api/tresor", StringComparison.OrdinalIgnoreCase) ||
+                reqPath.StartsWith("/api/funkira/cellar", StringComparison.OrdinalIgnoreCase))
             {
                 var curSettings = LinuxVaultAndStorage.LoadSettings();
                 if (IsPrivacyRestrictedActive(curSettings))
@@ -406,14 +407,20 @@ static void ConfigureKioskApp(
         var s = LinuxVaultAndStorage.LoadSettings();
         var pulse = pulseOverride?.Invoke() ?? await SeelenfunkeLinuxApiClient.FetchPulseAsync(s).ConfigureAwait(false);
 
-        if (IsPrivacyRestrictedActive(s))
+        bool privacyRestricted = IsPrivacyRestrictedActive(s);
+        if (privacyRestricted)
         {
             pulse.TopCustomersGdpr = new List<string>();
             pulse.ActiveRoutineBanner = "";
             pulse.ActiveRoutineTitle = "";
             pulse.ActiveRoutineStep = "";
             pulse.PriorityOrderCheckin = null;
+            pulse.OpenSystemErrorsCount = 0;
         }
+
+        int openCellarIssuesCount = privacyRestricted
+            ? 0
+            : (Math.Max(0, pulse.OpenSystemErrorsCount) + ErrorSentinelAndWatchdog.CountRecentActiveLocalErrors());
 
         bool hasVideo = File.Exists(Path.Combine(webRoot, "atelier_seamless_loop.mp4"));
         var tmr = FunkiraLiveAndMcpEngine.CurrentTimer;
@@ -430,6 +437,7 @@ static void ConfigureKioskApp(
         return Results.Json(new
         {
             pulse,
+            openCellarIssuesCount,
             focusMode = s.FocusMode,
             wallpaperMode = s.WallpaperMode ?? "AtelierVideo",
             hasAtelierVideo = hasVideo,
@@ -658,6 +666,55 @@ static void ConfigureKioskApp(
             tikTokHandle = s.TikTokHandle ?? "",
             tikTokRosesCount = LocalSenseBridge.TikTokRosesCount
         });
+    });
+
+    app.MapGet("/api/funkira/cellar/snapshot", async () =>
+    {
+        var s = LinuxVaultAndStorage.LoadSettings();
+        var snap = await CellarBrainAndHandoffEngine.BuildSnapshotAsync(s).ConfigureAwait(false);
+        return Results.Content(snap.ToJsonString(), "application/json; charset=utf-8");
+    });
+
+    app.MapPost("/api/funkira/cellar/check", async () =>
+    {
+        var s = LinuxVaultAndStorage.LoadSettings();
+        var res = await CellarBrainAndHandoffEngine.RunSystemCheckAsync(s).ConfigureAwait(false);
+        return Results.Content(res.ToJsonString(), "application/json; charset=utf-8");
+    });
+
+    app.MapPost("/api/funkira/cellar/auto-heal", async () =>
+    {
+        var s = LinuxVaultAndStorage.LoadSettings();
+        var res = await CellarBrainAndHandoffEngine.RunAutonomousHealAsync(s).ConfigureAwait(false);
+        return Results.Content(res.ToJsonString(), "application/json; charset=utf-8");
+    });
+
+    app.MapGet("/api/funkira/cellar/handoff", () =>
+    {
+        var dossier = CellarBrainAndHandoffEngine.GetLocalAntigravityHandoff();
+        var resp = new JsonObject
+        {
+            ["ok"] = true,
+            ["has_handoff"] = dossier != null,
+            ["local_handoff_path"] = CellarBrainAndHandoffEngine.HandoffFilePath,
+            ["dossier"] = dossier
+        };
+        return Results.Content(resp.ToJsonString(), "application/json; charset=utf-8");
+    });
+
+    app.MapPost("/api/funkira/cellar/handoff", async (HttpContext ctx) =>
+    {
+        string rawBody = "";
+        using (var reader = new StreamReader(ctx.Request.Body, Encoding.UTF8))
+        {
+            rawBody = await reader.ReadToEndAsync().ConfigureAwait(false);
+        }
+        if (string.IsNullOrWhiteSpace(rawBody)) rawBody = "{}";
+
+        using var doc = JsonDocument.Parse(rawBody);
+        var s = LinuxVaultAndStorage.LoadSettings();
+        var res = await CellarBrainAndHandoffEngine.PrepareAntigravityHandoffAsync(s, doc.RootElement).ConfigureAwait(false);
+        return Results.Content(res.ToJsonString(), "application/json; charset=utf-8");
     });
 
     app.MapPost("/api/funkira/stage-control", async (HttpContext ctx) =>
@@ -1579,7 +1636,7 @@ static void ConfigureKioskApp(
 async Task<int> RunLinuxSelfTestsAsync()
 {
     int passed = 0;
-    const int total = 34;
+    const int total = 38;
 
     string tempRoot = Path.Combine(Path.GetTempPath(), $"fw_os_selftest_{Guid.NewGuid():N}");
     Directory.CreateDirectory(tempRoot);
@@ -1721,7 +1778,7 @@ async Task<int> RunLinuxSelfTestsAsync()
                    File.Exists(Path.Combine(fk, "funkira_torso.png"));
         });
 
-        AssertCheck(9, "Funkira MCP-Skillset (12 minipc_* Tools inkl. minipc_avatar_move, minipc_companion_memory & Error-Sentinel)", () =>
+        AssertCheck(9, "Funkira MCP-Skillset (13 minipc_* Tools inkl. minipc_avatar_move, minipc_error_cellar, minipc_companion_memory & Error-Sentinel)", () =>
         {
             var merged = FunkiraLiveAndMcpEngine.BuildMergedToolsNode("[]", "");
             var decls = merged[0]?["functionDeclarations"]?.AsArray();
@@ -1735,10 +1792,11 @@ async Task<int> RunLinuxSelfTestsAsync()
 
             var lateEval = FunkiraLiveAndMcpEngine.EvaluateWorkshopRoutine(new DateTime(2026, 11, 12, 23, 15, 0), new PulseSnapshotDto { OpenOrdersCount = 1, ExpressOrdersCount = 0 });
 
-            return decls != null && decls.Count == 12 &&
+            return decls != null && decls.Count == 13 &&
                    lateEval.IsLateNightWarning && !lateEval.IsWorkshopSensible &&
                    sysPrompt.Contains("minipc_avatar_express") &&
                    sysPrompt.Contains("minipc_avatar_move") &&
+                   sysPrompt.Contains("minipc_error_cellar") &&
                    sysPrompt.Contains("minipc_document_search") &&
                    sysPrompt.Contains("minipc_companion_memory") &&
                    sysPrompt.Contains("system_get_error_sentinel") &&
@@ -2672,6 +2730,337 @@ async Task<int> RunLinuxSelfTestsAsync()
 
                 return parseOk && gateOk && toolSandboxOk && promptOk && endpointOk;
             }).ConfigureAwait(false);
+
+            await AssertCheckAsync(35, "Co-CEO Kompass (master_get_next_best_actions strikt auf Nachfrage) & Taktisch-Knackiger Sprachstil", async () =>
+            {
+                await Task.CompletedTask.ConfigureAwait(false);
+
+                bool sandboxOk =
+                    FunkiraLiveAndMcpEngine.IsToolAllowedInPrivacyMode("master_get_next_best_actions", tikTokLiveMode: false, "owner") &&
+                    !FunkiraLiveAndMcpEngine.IsToolAllowedInPrivacyMode("master_get_next_best_actions", tikTokLiveMode: true, "owner") &&
+                    !FunkiraLiveAndMcpEngine.IsToolAllowedInPrivacyMode("master_get_next_best_actions", tikTokLiveMode: false, "visitor");
+
+                LocalSenseBridge.SetIdentityForSelfTest("alina");
+                string ownerPrompt = FunkiraLiveAndMcpEngine.BuildMiniPcSystemInstruction(
+                    "Basis",
+                    new PulseSnapshotDto { IsConnected = true, Environment = "LIVE", OpenOrdersCount = 1 },
+                    new SystemStatsDto { IpAddress = "192.168.188.151" },
+                    new AudioStateDto { ActiveDeviceName = "Teufel", Volume = 50 },
+                    new WebcamDeviceStatusDto { HasCamera = true, CameraName = "Logitech C920", VideoDevice = "/dev/video0" },
+                    new LinuxOsSettings { TikTokLiveMode = false });
+                LocalSenseBridge.SetIdentityForSelfTest("unenrolled");
+
+                bool promptChecks =
+                    ownerPrompt.Contains("master_get_next_best_actions", StringComparison.Ordinal) &&
+                    ownerPrompt.Contains("STRIKT NUR AUF NACHFRAGE", StringComparison.Ordinal) &&
+                    ownerPrompt.Contains("HERZLICH-COOL & TAKTISCH-KNACKIG", StringComparison.Ordinal) &&
+                    ownerPrompt.Contains("1 bis maximal 3 kurzen, knackigen Sätzen", StringComparison.Ordinal) &&
+                    ownerPrompt.Contains("3D-Manufaktur-Atelier", StringComparison.Ordinal);
+
+                return sandboxOk && promptChecks;
+            }).ConfigureAwait(false);
+
+            await AssertCheckAsync(36, "HD Boutique 3D-Engine (Native 1.00 Scale, 4x Anisotropie, 1536x2304 Böden, 768x480 Retina-Visier & Couture-Rig)", async () =>
+            {
+                await Task.CompletedTask.ConfigureAwait(false);
+                string js3d = File.ReadAllText(Path.Combine(resolvedWebRoot, "funkira3d.js"), Encoding.UTF8);
+                string htmlIdx = File.ReadAllText(Path.Combine(resolvedWebRoot, "index.html"), Encoding.UTF8);
+
+                bool hdEngineOk =
+                    js3d.Contains("configureHdTexture", StringComparison.Ordinal) &&
+                    js3d.Contains("MAX_GPU_ANISOTROPY", StringComparison.Ordinal) &&
+                    js3d.Contains("this.visorCanvas.width = 768", StringComparison.Ordinal) &&
+                    js3d.Contains("ic.width = 192", StringComparison.Ordinal) &&
+                    js3d.Contains("makeDeskMonitorScreenTexture", StringComparison.Ordinal) &&
+                    js3d.Contains("chandelierGrp", StringComparison.Ordinal) &&
+                    js3d.Contains("pauldron", StringComparison.Ordinal) &&
+                    js3d.Contains("goldInnerBezel", StringComparison.Ordinal) &&
+                    js3d.Contains("visorPlane.position.set(0, 0.26, headD * 0.5 + 0.047)", StringComparison.Ordinal) &&
+                    js3d.Contains("s.lineTo( 0.00, 4.10)", StringComparison.Ordinal) &&
+                    js3d.Contains("sirenCrystalBell", StringComparison.Ordinal) &&
+                    js3d.Contains("this.renderScale < 1.00", StringComparison.Ordinal) &&
+                    htmlIdx.Contains("/funkira3d.js?v=20261115v23", StringComparison.Ordinal);
+
+                return hdEngineOk;
+            }).ConfigureAwait(false);
+
+            await AssertCheckAsync(37, "Anti-Refusal-Guard & Gesprochene Klartext-Diagnose ('Sprachmodell'-Sperre, open_login, Verlaufs-Schutz & Live-Self-Heal)", async () =>
+            {
+                await Task.CompletedTask.ConfigureAwait(false);
+
+                // 1. Canned refusal detection accuracy (German + English variants vs. normal replies)
+                bool detectOk =
+                    FunkiraLiveAndMcpEngine.IsCannedModelRefusal("Ich bin nur ein Sprachmodell und kann dabei nicht helfen.") &&
+                    FunkiraLiveAndMcpEngine.IsCannedModelRefusal("Als Sprachmodell kann ich dir dabei leider nicht helfen") &&
+                    FunkiraLiveAndMcpEngine.IsCannedModelRefusal("I'm just a language model and cannot help with that.") &&
+                    !FunkiraLiveAndMcpEngine.IsCannedModelRefusal("Alles klar Alina, ich gehe sofort einen Schritt nach rechts, damit du das ganze Gründer-Team siehst!") &&
+                    !FunkiraLiveAndMcpEngine.IsCannedModelRefusal("Meine Portal-Anmeldung für STAGE ist gerade abgelaufen, soll ich das Anmeldefenster öffnen?");
+
+                // 2. Concrete Klartext refusal diagnosis across operational categories + open_login MCP tool
+                var diagAuth = FunkiraLiveAndMcpEngine.DiagnoseRefusalForSpokenRecovery(
+                    "Schick bitte eine Benachrichtigung ans Handy",
+                    localResilientMode: true,
+                    localResilientAuthError: true,
+                    serverErrorReason: "Sitzung abgelaufen",
+                    environment: "STAGE",
+                    hasCamera: true,
+                    tikTokLiveMode: false,
+                    privacyIdentity: "owner",
+                    localFaceIdentity: "alina",
+                    companionBadge: "");
+
+                var diagCam = FunkiraLiveAndMcpEngine.DiagnoseRefusalForSpokenRecovery(
+                    "Erkennst du welche Person da vor der Kamera steht?",
+                    localResilientMode: false,
+                    localResilientAuthError: false,
+                    serverErrorReason: "",
+                    environment: "LIVE",
+                    hasCamera: true,
+                    tikTokLiveMode: false,
+                    privacyIdentity: "owner",
+                    localFaceIdentity: "alina",
+                    companionBadge: "");
+
+                var diag3d = FunkiraLiveAndMcpEngine.DiagnoseRefusalForSpokenRecovery(
+                    "Geh mal nach rechts, weil man jemanden unten auf dem Bild nicht sieht",
+                    localResilientMode: true,
+                    localResilientAuthError: true,
+                    serverErrorReason: "Sitzung abgelaufen",
+                    environment: "STAGE",
+                    hasCamera: true,
+                    tikTokLiveMode: false,
+                    privacyIdentity: "owner",
+                    localFaceIdentity: "alina",
+                    companionBadge: "");
+
+                using var openLoginUnconfirmedDoc = JsonDocument.Parse("{\"action\":\"open_login\"}");
+                var (openLoginAskRes, openLoginAskEvt) = await FunkiraLiveAndMcpEngine.ExecuteLocalMiniPcToolAsync(
+                    "minipc_ui_control",
+                    openLoginUnconfirmedDoc.RootElement).ConfigureAwait(false);
+
+                using var openLoginDoc = JsonDocument.Parse("{\"action\":\"open_login\",\"confirmed_by_alina\":true}");
+                var (openLoginRes, openLoginEvt) = await FunkiraLiveAndMcpEngine.ExecuteLocalMiniPcToolAsync(
+                    "minipc_ui_control",
+                    openLoginDoc.RootElement).ConfigureAwait(false);
+
+                bool diagAndLoginOk =
+                    diagAuth.Category == "portal_auth_expired" &&
+                    diagAuth.SpokenRecoveryCue.Contains("STAGE-Portal", StringComparison.Ordinal) &&
+                    diagCam.Category == "camera_privacy_boundary" &&
+                    diagCam.SpokenRecoveryCue.Contains("Alina lokal verifiziert", StringComparison.Ordinal) &&
+                    diag3d.Category == "3d_spatial_or_photo" &&
+                    openLoginAskRes["status"]?.GetValue<string>() == "confirmation_required" &&
+                    openLoginAskEvt == null &&
+                    openLoginRes["status"]?.GetValue<string>() == "success" &&
+                    openLoginEvt?["action"]?.GetValue<string>() == "open_login";
+
+                // 3. Cross-session s_recentTurns refusal poisoning immunity
+                FunkiraLiveAndMcpEngine.ClearTurnsForSelfTest();
+                LocalSenseBridge.SetIdentityForSelfTest("alina");
+                FunkiraLiveAndMcpEngine.RecordTurnForSelfTest("ALINA", "Geh mal in die Küche");
+                FunkiraLiveAndMcpEngine.RecordTurnForSelfTest("FUNKIRA", "Schon unterwegs in die Küche, Alina!");
+                FunkiraLiveAndMcpEngine.RecordTurnForSelfTest("ALINA", "Geh mal nach rechts, weil man jemanden unten auf dem Bild nicht sieht");
+                FunkiraLiveAndMcpEngine.RecordTurnForSelfTest("FUNKIRA", "Ich bin nur ein Sprachmodell und kann dabei nicht helfen.");
+
+                string promptOnline = FunkiraLiveAndMcpEngine.BuildMiniPcSystemInstruction(
+                    "Basis",
+                    new PulseSnapshotDto { IsConnected = true, Environment = "LIVE", OpenOrdersCount = 1 },
+                    new SystemStatsDto { IpAddress = "192.168.188.151" },
+                    new AudioStateDto { ActiveDeviceName = "Teufel", Volume = 50 },
+                    new WebcamDeviceStatusDto { HasCamera = true, CameraName = "Logitech C920", VideoDevice = "/dev/video0" },
+                    new LinuxOsSettings { TikTokLiveMode = false },
+                    localResilientMode: false);
+
+                string promptLocal = FunkiraLiveAndMcpEngine.BuildMiniPcSystemInstruction(
+                    "Basis",
+                    new PulseSnapshotDto { IsConnected = false, Environment = "STAGE", OpenOrdersCount = 0 },
+                    new SystemStatsDto { IpAddress = "192.168.188.151" },
+                    new AudioStateDto { ActiveDeviceName = "Teufel", Volume = 50 },
+                    new WebcamDeviceStatusDto { HasCamera = true, CameraName = "Logitech C920", VideoDevice = "/dev/video0" },
+                    new LinuxOsSettings { TikTokLiveMode = false, NasHost = "192.168.188.20" },
+                    localResilientMode: true,
+                    localResilientAuthError: true,
+                    serverErrorReason: "HTTP 401");
+
+                FunkiraLiveAndMcpEngine.ClearTurnsForSelfTest();
+                LocalSenseBridge.SetIdentityForSelfTest("unenrolled");
+
+                int histIdx = promptOnline.IndexOf("--- LETZTE GESPRÄCHSSÄTZE AM WERKSTATT-MONITOR ---", StringComparison.Ordinal);
+                string histPart = histIdx >= 0 ? promptOnline.Substring(histIdx) : "";
+
+                bool historyCleanOk =
+                    histPart.Contains("Schon unterwegs in die Küche", StringComparison.Ordinal) &&
+                    !histPart.Contains("Sprachmodell", StringComparison.Ordinal) &&
+                    !histPart.Contains("kann dabei nicht helfen", StringComparison.Ordinal);
+
+                // 4. Prompt trigger-word cleanup & local resilient Klartext awareness
+                bool promptHygieneOk =
+                    !promptOnline.Contains("BIOMETRISCHE GESICHTS-", StringComparison.Ordinal) &&
+                    !promptOnline.Contains("512-Float Stimmprofil", StringComparison.Ordinal) &&
+                    !promptOnline.Contains("Kommando-Stil", StringComparison.Ordinal) &&
+                    promptOnline.Contains("PFLICHT ZUR KLARTEXT-DIAGNOSE", StringComparison.Ordinal) &&
+                    promptOnline.Contains("VIRTUELLE 3D-BILD- & RAUM-ZUORDNUNG", StringComparison.Ordinal) &&
+                    promptLocal.Contains("PORTAL-ANMELDUNG ABGELAUFEN", StringComparison.Ordinal) &&
+                    promptLocal.Contains("open_login", StringComparison.Ordinal) &&
+                    promptLocal.Contains("NAS-Passwort", StringComparison.Ordinal);
+
+                // 5. Frontend JS & HTML v20 checks
+                string jsApp = File.ReadAllText(Path.Combine(resolvedWebRoot, "app.js"), Encoding.UTF8);
+                string htmlIdx = File.ReadAllText(Path.Combine(resolvedWebRoot, "index.html"), Encoding.UTF8);
+                bool jsOk =
+                    jsApp.Contains("funkiraRefusalIntercepted", StringComparison.Ordinal) &&
+                    jsApp.Contains("funkiraSilentHealReconnect", StringComparison.Ordinal) &&
+                    jsApp.Contains("healSpeechCue", StringComparison.Ordinal) &&
+                    jsApp.Contains("act === 'open_login'", StringComparison.Ordinal) &&
+                    jsApp.Contains("isCannedRefusalClientText", StringComparison.Ordinal) &&
+                    !jsApp.Contains("safetySettings", StringComparison.Ordinal) &&
+                    htmlIdx.Contains("/app.js?v=20261115v23", StringComparison.Ordinal);
+
+                return detectOk && diagAndLoginOk && historyCleanOk && promptHygieneOk && jsOk;
+            }).ConfigureAwait(false);
+
+            await AssertCheckAsync(38, "Geheimer 3D-Fehler-Analyse-Keller, Projekt-Gehirn Datei-Zusammenhänge, Offline-Resilienz, Privacy-Sperre & Antigravity Fix-Dossier", async () =>
+            {
+                // 1. Unauthenticated access to cellar snapshot MUST return 401
+                using var unauthSnap = await rawHttp.GetAsync("/api/funkira/cellar/snapshot").ConfigureAwait(false);
+                if (unauthSnap.StatusCode != HttpStatusCode.Unauthorized)
+                    return false;
+
+                // 2. Seed a local sentinel error containing a simulated Gemini key to verify offline mapping + secret scrubbing
+                ErrorSentinelAndWatchdog.ResetFingerprintsForSelfTest();
+                ErrorSentinelAndWatchdog.RecordEvent(
+                    component: "live_credentials",
+                    title: "SelfTest Portal-Auth Befund",
+                    message: "HTTP 401 Testfehler mit AIzaSyCellarLeakTest123456789012345 im Trace",
+                    autoHealed: false,
+                    severity: "error");
+
+                // 3. Verify TikTok-Live & Visitor privacy blocks (LNX-SEC-04 + MCP tool + /api/pulse redaction)
+                var st = LinuxVaultAndStorage.LoadSettings();
+                st.TikTokLiveMode = true;
+                LinuxVaultAndStorage.SaveSettings(st);
+
+                using var ttSnapResp = await authedHttp.GetAsync("/api/funkira/cellar/snapshot").ConfigureAwait(false);
+                using var emptyPost = new StringContent("{}", Encoding.UTF8, "application/json");
+                using var ttHandoffResp = await authedHttp.PostAsync("/api/funkira/cellar/handoff", emptyPost).ConfigureAwait(false);
+                using var ttPulseResp = await authedHttp.GetAsync("/api/pulse").ConfigureAwait(false);
+                var ttPulseJson = JsonNode.Parse(await ttPulseResp.Content.ReadAsStringAsync().ConfigureAwait(false)) as JsonObject;
+                using var moveCellarDoc = JsonDocument.Parse("{\"target\":\"secret_cellar\"}");
+                var (ttMoveRes, ttMoveEvt) = await FunkiraLiveAndMcpEngine.ExecuteLocalMiniPcToolAsync("minipc_avatar_move", moveCellarDoc.RootElement).ConfigureAwait(false);
+
+                st.TikTokLiveMode = false;
+                LinuxVaultAndStorage.SaveSettings(st);
+                LocalSenseBridge.SetIdentityForSelfTest("visitor");
+                using var visSnapResp = await authedHttp.GetAsync("/api/funkira/cellar/snapshot").ConfigureAwait(false);
+                var (visMoveRes, _) = await FunkiraLiveAndMcpEngine.ExecuteLocalMiniPcToolAsync("minipc_avatar_move", moveCellarDoc.RootElement).ConfigureAwait(false);
+
+                bool privacyBlockedOk =
+                    ttSnapResp.StatusCode == HttpStatusCode.Forbidden &&
+                    ttHandoffResp.StatusCode == HttpStatusCode.Forbidden &&
+                    (ttPulseJson?["openCellarIssuesCount"]?.GetValue<int>() ?? -1) == 0 &&
+                    ttMoveRes["status"]?.GetValue<string>() == "blocked" &&
+                    ttMoveEvt == null &&
+                    visSnapResp.StatusCode == HttpStatusCode.Forbidden &&
+                    visMoveRes["status"]?.GetValue<string>() == "blocked" &&
+                    !FunkiraLiveAndMcpEngine.IsToolAllowedInPrivacyMode("minipc_error_cellar", true, "owner") &&
+                    !FunkiraLiveAndMcpEngine.IsToolAllowedInPrivacyMode("minipc_error_cellar", false, "visitor") &&
+                    FunkiraLiveAndMcpEngine.IsToolAllowedInPrivacyMode("minipc_error_cellar", false, "owner");
+
+                // 4. Owner mode: fetch cellar snapshot, verify 10 department clusters, incoming/outgoing file neighbors & zero leaked secret
+                LocalSenseBridge.SetIdentityForSelfTest("alina");
+                using var snapResp = await authedHttp.GetAsync("/api/funkira/cellar/snapshot").ConfigureAwait(false);
+                if (!snapResp.IsSuccessStatusCode)
+                    return false;
+                string snapRaw = await snapResp.Content.ReadAsStringAsync().ConfigureAwait(false);
+                var snapJson = JsonNode.Parse(snapRaw) as JsonObject;
+                var itemsArr = snapJson?["items"] as JsonArray;
+                var clustersArr = snapJson?["department_clusters"] as JsonArray;
+                var sentinelItem = itemsArr?.FirstOrDefault(n =>
+                    (n?["title"]?.GetValue<string>() ?? "").Contains("SelfTest Portal-Auth Befund", StringComparison.Ordinal)) as JsonObject;
+
+                bool snapshotOk =
+                    !snapRaw.Contains("AIzaSyCellarLeakTest123456789012345", StringComparison.Ordinal) &&
+                    clustersArr != null && clustersArr.Count == 10 &&
+                    sentinelItem != null &&
+                    (sentinelItem["incoming_files"] as JsonArray)?.Count > 0 &&
+                    (sentinelItem["outgoing_files"] as JsonArray)?.Count > 0;
+
+                // 5. Prepare Antigravity Fix-Dossier via HTTP & MCP tool, verify 0600 file on disk & secret scrubbing
+                string targetItemKey = sentinelItem?["item_key"]?.GetValue<string>() ?? "";
+                using var handoffBody = new StringContent(
+                    JsonSerializer.Serialize(new { item_key = targetItemKey, alina_note = "Bitte Token-Hinweis mit AIzaSyCellarLeakTest123456789012345 prüfen" }),
+                    Encoding.UTF8,
+                    "application/json");
+                using var handoffResp = await authedHttp.PostAsync("/api/funkira/cellar/handoff", handoffBody).ConfigureAwait(false);
+                if (!handoffResp.IsSuccessStatusCode)
+                    return false;
+
+                string handoffDiskRaw = File.Exists(CellarBrainAndHandoffEngine.HandoffFilePath)
+                    ? File.ReadAllText(CellarBrainAndHandoffEngine.HandoffFilePath, Encoding.UTF8)
+                    : "";
+                var handoffDiskJson = string.IsNullOrWhiteSpace(handoffDiskRaw) ? null : JsonNode.Parse(handoffDiskRaw) as JsonObject;
+
+                using var mcpAnalyzeDoc = JsonDocument.Parse("{\"action\":\"open_and_analyze\"}");
+                var (mcpAnalyzeRes, mcpAnalyzeEvt) = await FunkiraLiveAndMcpEngine.ExecuteLocalMiniPcToolAsync("minipc_error_cellar", mcpAnalyzeDoc.RootElement).ConfigureAwait(false);
+
+                using var autoHealPost = new StringContent("{}", Encoding.UTF8, "application/json");
+                using var autoHealResp = await authedHttp.PostAsync("/api/funkira/cellar/auto-heal", autoHealPost).ConfigureAwait(false);
+                var autoHealJson = autoHealResp.IsSuccessStatusCode
+                    ? JsonNode.Parse(await autoHealResp.Content.ReadAsStringAsync().ConfigureAwait(false)) as JsonObject
+                    : null;
+
+                using var mcpHandoffDoc = JsonDocument.Parse("{\"action\":\"prepare_antigravity_handoff\",\"alina_note\":\"Für Antigravity bereitgestellt\"}");
+                var (mcpHandoffRes, mcpHandoffEvt) = await FunkiraLiveAndMcpEngine.ExecuteLocalMiniPcToolAsync("minipc_error_cellar", mcpHandoffDoc.RootElement).ConfigureAwait(false);
+
+                var (ownerMoveRes, ownerMoveEvt) = await FunkiraLiveAndMcpEngine.ExecuteLocalMiniPcToolAsync("minipc_avatar_move", moveCellarDoc.RootElement).ConfigureAwait(false);
+                LocalSenseBridge.SetIdentityForSelfTest("unenrolled");
+
+                bool handoffAndMcpOk =
+                    !string.IsNullOrWhiteSpace(handoffDiskRaw) &&
+                    !handoffDiskRaw.Contains("AIzaSyCellarLeakTest123456789012345", StringComparison.Ordinal) &&
+                    handoffDiskJson?["status"]?.GetValue<string>() == "ready_for_antigravity" &&
+                    (handoffDiskJson?["incoming_files"] as JsonArray)?.Count > 0 &&
+                    (handoffDiskJson?["outgoing_files"] as JsonArray)?.Count > 0 &&
+                    mcpAnalyzeRes["status"]?.GetValue<string>() == "success" &&
+                    (mcpAnalyzeRes["healed_count"]?.GetValue<int>() ?? 0) >= 1 &&
+                    mcpAnalyzeEvt?["command"]?.GetValue<string>() == "cellar" &&
+                    autoHealResp.IsSuccessStatusCode &&
+                    autoHealJson?["ok"]?.GetValue<bool>() == true &&
+                    mcpHandoffRes["status"]?.GetValue<string>() == "success" &&
+                    mcpHandoffEvt?["action"]?.GetValue<string>() == "handoff_prepared" &&
+                    ownerMoveRes["status"]?.GetValue<string>() == "success" &&
+                    ownerMoveEvt?["openCellarHud"]?.GetValue<bool>() == true;
+
+                // 6. Frontend 3D Kuppelhalle + Photorealistic Assets + Hydraulic Vault Lift + Upstairs Culling checks
+                string js3d = File.ReadAllText(Path.Combine(resolvedWebRoot, "funkira3d.js"), Encoding.UTF8);
+                string jsApp = File.ReadAllText(Path.Combine(resolvedWebRoot, "app.js"), Encoding.UTF8);
+                string cssRaw = File.ReadAllText(Path.Combine(resolvedWebRoot, "styles.css"), Encoding.UTF8);
+                string htmlIdx = File.ReadAllText(Path.Combine(resolvedWebRoot, "index.html"), Encoding.UTF8);
+                bool assetsExistOk =
+                    File.Exists(Path.Combine(resolvedWebRoot, "assets", "cellar_dome_panorama.jpg")) &&
+                    File.Exists(Path.Combine(resolvedWebRoot, "assets", "cellar_island_marble.jpg")) &&
+                    File.Exists(Path.Combine(resolvedWebRoot, "assets", "cellar_bridge_deck.jpg"));
+                bool uiMarkersOk =
+                    assetsExistOk &&
+                    js3d.Contains("const UG_Y = -3.20;", StringComparison.Ordinal) &&
+                    js3d.Contains("_buildSecretCellar", StringComparison.Ordinal) &&
+                    js3d.Contains("upstairsFxGroup", StringComparison.Ordinal) &&
+                    js3d.Contains("cellarLiftPlatform", StringComparison.Ordinal) &&
+                    js3d.Contains("addEgFloorPatch", StringComparison.Ordinal) &&
+                    js3d.Contains("cellarDomeMesh", StringComparison.Ordinal) &&
+                    js3d.Contains("cellarBridgeGroup", StringComparison.Ordinal) &&
+                    js3d.Contains("cellarBrainShellMesh", StringComparison.Ordinal) &&
+                    js3d.Contains("triggerCellarHealWave", StringComparison.Ordinal) &&
+                    js3d.Contains("tryPickCellarNodeAtClientXY", StringComparison.Ordinal) &&
+                    jsApp.Contains("openFunkiraCellarPanel", StringComparison.Ordinal) &&
+                    jsApp.Contains("runAutonomousCellarHealInBackground", StringComparison.Ordinal) &&
+                    !jsApp.Contains("funkira-cellar-panel')?.classList.remove('hidden')", StringComparison.Ordinal) &&
+                    cssRaw.Contains("display: none !important;", StringComparison.Ordinal) &&
+                    htmlIdx.Contains("id=\"funkira-cellar-btn-lbl\"", StringComparison.Ordinal) &&
+                    htmlIdx.Contains("id=\"btn-funkira-cellar\"", StringComparison.Ordinal);
+
+                return privacyBlockedOk && snapshotOk && handoffAndMcpOk && uiMarkersOk;
+            }).ConfigureAwait(false);
         }
         finally
         {
@@ -2681,6 +3070,7 @@ async Task<int> RunLinuxSelfTestsAsync()
     finally
     {
         DocumentArchiveAndNasEngine.ResetForSelfTest();
+        ErrorSentinelAndWatchdog.ResetFingerprintsForSelfTest();
         LocalSenseBridge.SetIdentityForSelfTest("unenrolled");
         FunkiraLiveAndMcpEngine.ClearTurnsForSelfTest();
         LinuxVaultAndStorage.TestOverrideRootDir = null;

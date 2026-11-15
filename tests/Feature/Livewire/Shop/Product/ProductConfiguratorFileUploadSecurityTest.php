@@ -445,4 +445,61 @@ class ProductConfiguratorFileUploadSecurityTest extends TestCase
         Storage::disk('public')->assertExists($updatedFiles[0]);
         Storage::disk('public')->assertMissing($oldPath);
     }
+
+    #[Test]
+    public function snapshot_pipeline_and_cart_service_preserve_and_resolve_vector_and_uploaded_logo_urls()
+    {
+        // 1. SVG without width/height receives 512x512 intrinsic dimensions
+        $viewBoxOnlySvg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M8 1L15 15H1Z"/></svg>';
+        $file = UploadedFile::fake()->createWithContent('tree.svg', $viewBoxOnlySvg);
+
+        $component = Livewire::test(ProductConfigurator::class, [
+            'product' => $this->product,
+        ]);
+        $component->set('new_files', [$file]);
+        $component->assertHasNoErrors();
+        $uploaded = $component->get('uploaded_files');
+        $this->assertCount(1, $uploaded);
+        $savedSvg = Storage::disk('public')->get($uploaded[0]);
+        $this->assertStringContainsString('width="512"', $savedSvg);
+        $this->assertStringContainsString('height="512"', $savedSvg);
+
+        // 2. CartService::sanitizeConfiguration preserves 127.0.0.1 logo URLs and resolves missing URLs from value
+        $cartService = app(\App\Services\CartService::class);
+        $sanitized = $cartService->sanitizeConfiguration($this->product, [
+            'logos' => [
+                [
+                    'id' => 'vec-1',
+                    'type' => 'vector',
+                    'value' => 'vectors/Feiertage/weihnachtsbaum.svg',
+                    'url' => 'http://127.0.0.1/storage/produkte/configurator/vectors/Feiertage/weihnachtsbaum.svg',
+                    'x' => 50,
+                    'y' => 18,
+                    'size' => 40,
+                    'rotation' => 0,
+                ],
+                [
+                    'id' => 'up-1',
+                    'type' => 'saved',
+                    'value' => 'bestellungen/cart-uploads/test_portrait.png',
+                    'x' => 50,
+                    'y' => 37,
+                    'size' => 130,
+                    'rotation' => 0,
+                ],
+            ],
+        ]);
+
+        $this->assertCount(2, $sanitized['logos']);
+        $this->assertArrayHasKey('url', $sanitized['logos'][0]);
+        $this->assertStringContainsString('/storage/produkte/configurator/vectors/Feiertage/weihnachtsbaum.svg', $sanitized['logos'][0]['url']);
+        $this->assertArrayHasKey('url', $sanitized['logos'][1]);
+        $this->assertStringContainsString('/storage/bestellungen/cart-uploads/test_portrait.png', $sanitized['logos'][1]['url']);
+
+        // 3. Ensure submitConfig awaits renderBothCanvasesAsync before captureCompositeSnapshot
+        $s1 = file_get_contents(resource_path('views/livewire/shop/product/product-configurator/partials/scripts_frontend_1.blade.php'));
+        $s2 = file_get_contents(resource_path('views/livewire/shop/product/product-configurator/partials/scripts_frontend_2.blade.php'));
+        $this->assertStringContainsString('await engine.renderBothCanvasesAsync(', $s1);
+        $this->assertStringContainsString('async ensureLogosLoaded(', $s2);
+    }
 }

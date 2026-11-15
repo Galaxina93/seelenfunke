@@ -394,6 +394,64 @@ Route::group(['middleware' => [function ($request, $next) {
     $registerPrinterQueueRoutes('printer');
     $registerPrinterQueueRoutes('funki/printer');
 
+    // --- XTOOL F2 ULTRA UV LIVE-LASER-COCKPIT & FUNKENWERK BRIDGE API ---
+    $registerLaserCockpitRoutes = static function (string $prefix): void {
+        Route::prefix($prefix)->middleware('throttle:120,1')->group(function () {
+            Route::get('/jobs', function (Request $request, \App\Services\Laser\XtoolLaserCockpitService $laserService) {
+                $includeFiles = $request->boolean('include_files', false);
+                return response()->json([
+                    'success' => true,
+                    'data'    => $laserService->getQueueState($includeFiles),
+                ])->withHeaders([
+                    'Cache-Control'          => 'no-store, no-cache, must-revalidate, private',
+                    'X-Content-Type-Options' => 'nosniff',
+                ]);
+            });
+
+            Route::post('/jobs/{jobId}/ack', function (Request $request, string $jobId, \App\Services\Laser\XtoolLaserCockpitService $laserService) {
+                $data = $request->validate([
+                    'status'        => 'required|string|in:completed,failed,processing',
+                    'error_message' => 'nullable|string|max:500',
+                ]);
+
+                $job = $laserService->acknowledgeJob(
+                    $jobId,
+                    $data['status'],
+                    $data['error_message'] ?? null
+                );
+
+                return response()->json([
+                    'success' => $job !== null,
+                    'job'     => $job,
+                ], $job !== null ? 200 : 404)->withHeaders(['Cache-Control' => 'no-store, private']);
+            })->whereUuid('jobId');
+
+            Route::post('/camera-sync', function (Request $request, \App\Services\Laser\XtoolLaserCockpitService $laserService) {
+                $data = $request->validate([
+                    'image_base64' => 'nullable|string',
+                ]);
+
+                if (!empty($data['image_base64'])) {
+                    $decoded = base64_decode((string) $data['image_base64'], true);
+                    if ($decoded === false || strlen($decoded) < 1024) {
+                        return response()->json(['success' => false, 'message' => 'Ungültige Base64-Bilddaten.'], 422);
+                    }
+                    $camInfo = $laserService->updateCameraImageFromBytes($decoded);
+                } else {
+                    $camInfo = $laserService->syncCameraFromHostOrLaser(null, true);
+                }
+
+                return response()->json([
+                    'success' => true,
+                    'camera'  => $camInfo,
+                ])->withHeaders(['Cache-Control' => 'no-store, private']);
+            });
+        });
+    };
+
+    $registerLaserCockpitRoutes('laser');
+    $registerLaserCockpitRoutes('funki/laser');
+
     Route::middleware('throttle:120,1')->group(function () {
         Route::post('/shop/orders/{id}/print-label', function (string $id, \App\Services\System\FunkenwerkPrintService $printService) {
             try {

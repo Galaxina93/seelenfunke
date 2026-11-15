@@ -63,6 +63,9 @@ namespace Tests {
 
         protected function setUp(): void
         {
+            if (!is_dir('/tmp/sf_test_views')) {
+                @mkdir('/tmp/sf_test_views', 0777, true);
+            }
             parent::setUp();
             \Illuminate\Support\Facades\Cache::forget('global_shop_settings');
         }

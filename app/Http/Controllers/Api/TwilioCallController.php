@@ -278,7 +278,7 @@ class TwilioCallController extends Controller
             'twilio_sid' => 'nullable|string|max:64',
             'contact_name' => 'nullable|string|max:160',
             'objective' => 'nullable|string|max:2500',
-            'transcript' => 'nullable|array|max:120',
+            'transcript' => 'nullable|array|max:100',
             'transcript.*' => 'string|max:2000',
             'duration_seconds' => 'nullable|integer|min:0|max:86400',
         ]);

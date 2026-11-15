@@ -1,19 +1,21 @@
 package de.meinseelenfunke.app.services
 
-import android.content.Intent
 import android.os.Build
 import android.telecom.Call
 import android.telecom.CallScreeningService
 import de.meinseelenfunke.app.di.ServiceLocator
-import de.meinseelenfunke.app.util.ErrorSentinelReporter
 import de.meinseelenfunke.app.util.PhoneConciergeManager
 
 /**
- * Screens incoming cellular calls in < 20 ms against Alina's local Whitelist cache.
+ * Official Android 10-16 `CallScreeningService` for Funkira Whitelist Call-Diversion:
  * - Unknown numbers & non-whitelisted contacts are NEVER touched (phone rings normally).
- * - Whitelisted contacts (e.g. Papa) ring normally for `ringDelaySeconds`; if Alina does not
- *   pick up herself, `FunkiraPhoneConciergeService` accepts the call and runs Funkira live
- *   directly on the smartphone as Alina's secretary (100% independent of the Mini-PC).
+ * - Whitelisted contacts + `Sofort` (`0 s`):
+ *   Pre-warms Funkira's Aoede greeting WAV on Stage and returns `setDisallowCall(true).setRejectCall(true)`
+ *   synchronously in `< 20 ms`. Pixel stays 100% silent while carrier `**67*` (`**004*`) routes the caller
+ *   immediately to Funkira's Gifhorn Twilio Live-Bridge (`+49 5371 7269023`).
+ * - Whitelisted contacts + `8 / 12 / 18 Sek.`:
+ *   Allows Pixel to ring for `ringDelaySeconds`; if Alina does not pick up herself, declines cleanly
+ *   via `TelecomManager.endCall()` so carrier `**67*` / `**61*` forwards to Funkira.
  */
 class FunkiraCallScreeningService : CallScreeningService() {
 
@@ -24,44 +26,63 @@ class FunkiraCallScreeningService : CallScreeningService() {
             true
         }
 
-        // Always allow the call through normally (never block or silence normal incoming calls!)
-        respondToCall(callDetails, CallResponse.Builder().build())
-
-        if (!isIncoming) return
+        if (!isIncoming) {
+            respondToCall(callDetails, CallResponse.Builder().build())
+            return
+        }
 
         ServiceLocator.ensureInitialized(applicationContext)
-        if (!PhoneConciergeManager.isEnabled(applicationContext)) return
-        if (!PhoneConciergeManager.hasRequiredPermissions(applicationContext)) return
-
-        val rawNumber = callDetails.handle?.schemeSpecificPart?.trim().orEmpty()
-        if (rawNumber.isEmpty()) return
-
-        val matched = PhoneConciergeManager.matchIncomingWhitelistedCaller(applicationContext, rawNumber) ?: return
-
-        val svcIntent = Intent(applicationContext, FunkiraPhoneConciergeService::class.java).apply {
-            action = FunkiraPhoneConciergeService.ACTION_INCOMING_WHITELIST_CALL
-            putExtra(FunkiraPhoneConciergeService.EXTRA_CONTACT_ID, matched.id)
-            putExtra(FunkiraPhoneConciergeService.EXTRA_CALLER_NAME, matched.fullName)
-            putExtra(FunkiraPhoneConciergeService.EXTRA_CALLER_NICKNAME, matched.nickname)
-            putExtra(FunkiraPhoneConciergeService.EXTRA_RELATION_TYPE, matched.relationType)
-            putExtra(FunkiraPhoneConciergeService.EXTRA_CALLER_PHONE, rawNumber)
-            putExtra(FunkiraPhoneConciergeService.EXTRA_SYSTEM_INSTRUCTIONS, matched.systemInstructions)
-            putExtra(FunkiraPhoneConciergeService.EXTRA_RING_DELAY_SEC, PhoneConciergeManager.getRingDelaySeconds(applicationContext))
+        if (!PhoneConciergeManager.isEnabled(applicationContext)) {
+            respondToCall(callDetails, CallResponse.Builder().build())
+            return
         }
 
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                applicationContext.startForegroundService(svcIntent)
-            } else {
-                applicationContext.startService(svcIntent)
-            }
-        } catch (e: Exception) {
-            ErrorSentinelReporter.captureError(
-                context = applicationContext,
-                tag = "phone_secretary_screening",
-                message = "FunkiraPhoneConciergeService konnte bei eingehendem Whitelist-Anruf nicht gestartet werden: ${e.message}",
-                throwable = e
-            )
+        val rawNumber = (callDetails.handle ?: callDetails.gatewayInfo?.originalAddress)
+            ?.schemeSpecificPart
+            ?.trim()
+            .orEmpty()
+        val tail = rawNumber.filter { it.isDigit() }.takeLast(4)
+        PhoneConciergeManager.markScreenedNow()
+        PhoneConciergeManager.appendDiagnosticTrace(applicationContext, "Screening Eingang (**$tail)")
+
+        if (rawNumber.isEmpty()) {
+            respondToCall(callDetails, CallResponse.Builder().build())
+            return
         }
+
+        val matched = PhoneConciergeManager.matchIncomingWhitelistedCaller(applicationContext, rawNumber)
+        if (matched == null) {
+            PhoneConciergeManager.appendDiagnosticTrace(applicationContext, "Kein Whitelist-Treffer (**$tail)")
+            respondToCall(callDetails, CallResponse.Builder().build())
+            return
+        }
+
+        val delaySec = PhoneConciergeManager.getRingDelaySeconds(applicationContext)
+        PhoneConciergeManager.signalWhitelistDiversionAsync(applicationContext, matched, rawNumber)
+
+        if (PhoneConciergeManager.shouldRejectImmediatelyInScreening(isWhitelisted = true, delaySeconds = delaySec)) {
+            PhoneConciergeManager.appendDiagnosticTrace(applicationContext, "Sofort-Umleitung ${matched.fullName} -> Funkira")
+            val rejectResponse = CallResponse.Builder()
+                .setDisallowCall(true)
+                .setRejectCall(true)
+                .setSkipCallLog(false)
+                .setSkipNotification(false)
+                .build()
+            respondToCall(callDetails, rejectResponse)
+            return
+        }
+
+        // Delayed mode (8 / 12 / 18 s): let Pixel ring first, then divert to Funkira if unanswered
+        PhoneConciergeManager.appendDiagnosticTrace(
+            applicationContext,
+            "Klingelt ${delaySec}s (${matched.fullName}) -> danach Funkira"
+        )
+        PhoneConciergeManager.scheduleDelayedCallDiversion(
+            ctx = applicationContext,
+            matched = matched,
+            rawNumber = rawNumber,
+            delaySeconds = delaySec
+        )
+        respondToCall(callDetails, CallResponse.Builder().build())
     }
 }

@@ -1326,12 +1326,249 @@ namespace FunkenwerkOSLinux
             return s_cachedServerRoutineInfo;
         }
 
+        public static bool IsCannedModelRefusal(string? text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                return false;
+
+            string norm = text.Trim().ToLowerInvariant();
+            if (norm.Contains("kann dabei nicht helfen", StringComparison.Ordinal) ||
+                norm.Contains("kann ich dabei nicht helfen", StringComparison.Ordinal) ||
+                norm.Contains("kann dir dabei nicht helfen", StringComparison.Ordinal) ||
+                norm.Contains("kann ich leider nicht helfen", StringComparison.Ordinal) ||
+                norm.Contains("ich bin nur ein sprachmodell", StringComparison.Ordinal) ||
+                norm.Contains("ich bin ein sprachmodell", StringComparison.Ordinal) ||
+                norm.Contains("als sprachmodell kann ich", StringComparison.Ordinal) ||
+                norm.Contains("als ki-sprachmodell", StringComparison.Ordinal) ||
+                norm.Contains("als ki-modell kann ich", StringComparison.Ordinal) ||
+                norm.Contains("als künstliche intelligenz kann ich", StringComparison.Ordinal) ||
+                norm.Contains("just a language model", StringComparison.Ordinal) ||
+                norm.Contains("as an ai language model", StringComparison.Ordinal) ||
+                norm.Contains("cannot help with that", StringComparison.Ordinal) ||
+                norm.Contains("can't help with that", StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            if (norm.Contains("sprachmodell", StringComparison.Ordinal) &&
+                (norm.Contains("nicht helfen", StringComparison.Ordinal) ||
+                 norm.Contains("nur ein", StringComparison.Ordinal) ||
+                 norm.Contains("kann ich nicht", StringComparison.Ordinal) ||
+                 norm.Contains("keinen körper", StringComparison.Ordinal)))
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        private static DateTime s_lastSpokenAuthExpiredAtUtc = DateTime.MinValue;
+
+        public static (string Category, string UiPreview, string SpokenRecoveryCue) DiagnoseRefusalForSpokenRecovery(
+            string? userUtterance,
+            bool localResilientMode,
+            bool localResilientAuthError,
+            string? serverErrorReason,
+            string? environment,
+            bool hasCamera,
+            bool tikTokLiveMode,
+            string? privacyIdentity,
+            string? localFaceIdentity,
+            string? companionBadge)
+        {
+            string u = (userUtterance ?? "").Trim().ToLowerInvariant();
+            string envLbl = string.IsNullOrWhiteSpace(environment) ? "LIVE" : environment.Trim().ToUpperInvariant();
+            bool isVisitor = string.Equals(privacyIdentity, "visitor", StringComparison.OrdinalIgnoreCase);
+
+            bool asksConfidentialOrServer =
+                u.Contains("bestell", StringComparison.Ordinal) ||
+                u.Contains("auftrag", StringComparison.Ordinal) ||
+                u.Contains("aufträg", StringComparison.Ordinal) ||
+                u.Contains("mail", StringComparison.Ordinal) ||
+                u.Contains("handy", StringComparison.Ordinal) ||
+                u.Contains("benachrichtigung", StringComparison.Ordinal) ||
+                u.Contains("push", StringComparison.Ordinal) ||
+                u.Contains("nächstes tun", StringComparison.Ordinal) ||
+                u.Contains("was steht an", StringComparison.Ordinal) ||
+                u.Contains("wie geht es weiter", StringComparison.Ordinal) ||
+                u.Contains("tipp", StringComparison.Ordinal) ||
+                u.Contains("kalender", StringComparison.Ordinal) ||
+                u.Contains("termin", StringComparison.Ordinal) ||
+                u.Contains("aufgabe", StringComparison.Ordinal) ||
+                u.Contains("to-do", StringComparison.Ordinal) ||
+                u.Contains("todo", StringComparison.Ordinal) ||
+                u.Contains("kunde", StringComparison.Ordinal) ||
+                u.Contains("umsatz", StringComparison.Ordinal) ||
+                u.Contains("rechnung", StringComparison.Ordinal) ||
+                u.Contains("buchhaltung", StringComparison.Ordinal) ||
+                u.Contains("gutschein", StringComparison.Ordinal) ||
+                u.Contains("dhl", StringComparison.Ordinal) ||
+                u.Contains("versand", StringComparison.Ordinal) ||
+                u.Contains("kontakt", StringComparison.Ordinal) ||
+                u.Contains("ticket", StringComparison.Ordinal) ||
+                u.Contains("produkt", StringComparison.Ordinal) ||
+                u.Contains("bestand", StringComparison.Ordinal);
+
+            bool asks3dOrPhoto =
+                u.Contains("nach rechts", StringComparison.Ordinal) ||
+                u.Contains("nach links", StringComparison.Ordinal) ||
+                u.Contains("zur seite", StringComparison.Ordinal) ||
+                u.Contains("aus dem weg", StringComparison.Ordinal) ||
+                u.Contains("auf dem bild", StringComparison.Ordinal) ||
+                u.Contains("gruppenbild", StringComparison.Ordinal) ||
+                u.Contains("gruppenfoto", StringComparison.Ordinal) ||
+                u.Contains("wandbild", StringComparison.Ordinal) ||
+                u.Contains("garten", StringComparison.Ordinal) ||
+                u.Contains("terrasse", StringComparison.Ordinal) ||
+                u.Contains("rasen", StringComparison.Ordinal) ||
+                u.Contains("küche", StringComparison.Ordinal) ||
+                u.Contains("wohnzimmer", StringComparison.Ordinal) ||
+                u.Contains("treppe", StringComparison.Ordinal) ||
+                u.Contains("pokal", StringComparison.Ordinal) ||
+                u.Contains("hochbeet", StringComparison.Ordinal) ||
+                u.Contains("blumenbeet", StringComparison.Ordinal) ||
+                u.Contains("werkbank", StringComparison.Ordinal) ||
+                u.Contains("atelier", StringComparison.Ordinal) ||
+                u.Contains("geheimkeller", StringComparison.Ordinal) ||
+                u.Contains("analyse-keller", StringComparison.Ordinal) ||
+                u.Contains("analysekeller", StringComparison.Ordinal) ||
+                u.Contains("fehlerraum", StringComparison.Ordinal) ||
+                u.Contains("projekt-gehirn", StringComparison.Ordinal) ||
+                u.Contains("in den keller", StringComparison.Ordinal);
+
+            bool asksCellarConfidential =
+                u.Contains("geheimkeller", StringComparison.Ordinal) ||
+                u.Contains("analyse-keller", StringComparison.Ordinal) ||
+                u.Contains("analysekeller", StringComparison.Ordinal) ||
+                u.Contains("fehlerraum", StringComparison.Ordinal) ||
+                u.Contains("projekt-gehirn", StringComparison.Ordinal) ||
+                u.Contains("fehler-log", StringComparison.Ordinal) ||
+                u.Contains("systemlog", StringComparison.Ordinal);
+
+            bool asksCameraOrPerson =
+                u.Contains("wer ist", StringComparison.Ordinal) ||
+                u.Contains("wer steht", StringComparison.Ordinal) ||
+                u.Contains("erkennst du", StringComparison.Ordinal) ||
+                u.Contains("gesicht", StringComparison.Ordinal) ||
+                u.Contains("person", StringComparison.Ordinal) ||
+                u.Contains("mensch", StringComparison.Ordinal) ||
+                u.Contains("vor der kamera", StringComparison.Ordinal) ||
+                u.Contains("siehst du", StringComparison.Ordinal);
+
+            if ((tikTokLiveMode || isVisitor) && (asksConfidentialOrServer || asksCellarConfidential))
+            {
+                string modeName = tikTokLiveMode ? "TikTok-Live-Modus" : "Besucher-Schutz";
+                return (
+                    "privacy_sandbox",
+                    $"Datenschutz-Sperre aktiv ({modeName}) - ich erkläre es kurz...",
+                    $"[KONKRETE KLARTEXT-DIAGNOSE AN ALINA: Erkläre jetzt SOFORT mündlich auf Deutsch in 1 bis 2 kurzen, freundlichen Sätzen im Klartext (NIEMALS 'Sprachmodell' sagen!), dass vertrauliche Geschäfts-, Kunden- und Bestelldaten gerade wegen des aktiven {modeName} gesperrt sind!]"
+                );
+            }
+
+            if (asks3dOrPhoto)
+            {
+                return (
+                    "3d_spatial_or_photo",
+                    "Alles klar Alina, ich führe das im 3D-Atelier direkt aus...",
+                    "[DIREKTE 3D-ATELIER-ANTWORT AN ALINA: Alina hat sich gerade auf dein virtuelles 3D-Atelier, dein gezeichnetes 3D-Wandbild oder eine Bewegung im 3D-Haus bezogen, und deine 3D-Engine setzt es direkt um! Bestätige das jetzt SOFORT mündlich auf Deutsch in 1 kurzen, herzlichen Satz im Klartext (STRENG VERBOTEN: 'Ich bin nur ein Sprachmodell' sagen!), z. B. 'Alles klar Alina, ich trete direkt ein Stück zur Seite!' bzw. passend zum Raumziel.]"
+                );
+            }
+
+            if (localResilientMode && localResilientAuthError && (asksConfidentialOrServer || !asksCameraOrPerson))
+            {
+                return (
+                    "portal_auth_expired",
+                    $"Portal-Anmeldung ({envLbl}) abgelaufen - ich gebe dir kurz Bescheid...",
+                    $"[KONKRETE KLARTEXT-DIAGNOSE AN ALINA: Deine Anmeldung am {envLbl}-Portal ist aktuell abgelaufen (HTTP 401), deshalb hast du im Moment keinen Zugriff auf Online-Server-Werkzeuge wie Live-Bestellungen, Mails, Kontakte, Co-CEO-Kompass oder Handy-Benachrichtigungen. Erkläre Alina genau diesen echten Grund jetzt SOFORT mündlich in 2 kurzen, herzlichen Sätzen auf Deutsch (STRENG VERBOTEN: 'Ich bin nur ein Sprachmodell' sagen!) und frag sie direkt, ob du das Anmeldefenster auf dem Monitor für sie öffnen sollst!]"
+                );
+            }
+
+            if (localResilientMode && !localResilientAuthError && asksConfidentialOrServer)
+            {
+                string errHint = string.IsNullOrWhiteSpace(serverErrorReason) ? "Server vorübergehend nicht erreichbar" : serverErrorReason;
+                return (
+                    "portal_unreachable",
+                    $"Online-Portal ({envLbl}) gerade nicht erreichbar - ich gebe dir kurz Bescheid...",
+                    $"[KONKRETE KLARTEXT-DIAGNOSE AN ALINA: Das Online-Portal ({envLbl}) antwortet im Moment kurz nicht ({errHint}), weshalb Server-Abfragen gerade pausieren, während dein 3D-Atelier und alle 3.600+ lokalen Dokumente normal laufen. Nenne Alina genau diesen echten Grund jetzt SOFORT mündlich in 1 bis 2 kurzen, freundlichen Sätzen auf Deutsch (STRENG VERBOTEN: 'Ich bin nur ein Sprachmodell' sagen!).]"
+                );
+            }
+
+            if (!hasCamera && asksCameraOrPerson)
+            {
+                return (
+                    "camera_offline",
+                    "Kamera am Monitor liefert gerade kein Bild...",
+                    "[KONKRETE KLARTEXT-DIAGNOSE AN ALINA: Sag Alina jetzt SOFORT mündlich in 1 bis 2 kurzen, freundlichen Sätzen im Klartext (NIEMALS 'Sprachmodell' sagen!), dass deine USB-Kamera oben am Monitor gerade kein Bild liefert bzw. nicht aktiv ist, weshalb du es im Moment optisch nicht sehen kannst.]"
+                );
+            }
+
+            if (asksCameraOrPerson)
+            {
+                string localState = string.Equals(localFaceIdentity, "alina_with_companion", StringComparison.OrdinalIgnoreCase)
+                    ? $"Alina zusammen mit {(string.IsNullOrWhiteSpace(companionBadge) ? "Begleitung" : companionBadge)}"
+                    : (string.Equals(localFaceIdentity, "alina", StringComparison.OrdinalIgnoreCase)
+                        ? "Alina lokal verifiziert"
+                        : (string.Equals(localFaceIdentity, "visitor", StringComparison.OrdinalIgnoreCase)
+                            ? "Besucher erkannt"
+                            : "lokale Erkennung aktiv"));
+
+                return (
+                    "camera_privacy_boundary",
+                    "Datenschutz-Hinweis zur lokalen Kamera-Erkennung...",
+                    $"[KONKRETE KLARTEXT-DIAGNOSE AN ALINA: Sag Alina jetzt SOFORT mündlich in 2 kurzen, ehrlichen Sätzen auf Deutsch im Klartext (STRENG VERBOTEN: 'Ich bin nur ein Sprachmodell' sagen!), warum die Sprach-Cloud echte Personen im Kamerabild nicht selbst identifiziert: Aus Datenschutzgründen läuft unsere echte Gesichts- und Stimmerkennung ausschließlich lokal auf deinem Mini-PC (aktueller lokaler Status: {localState}) und nicht in der Google-Cloud! Falls sie dein gezeichnetes 3D-Wandbild mit den 12 Seelenfunke-Robotern meint, biete kurz an, darauf zu schauen.]"
+                );
+            }
+
+            return (
+                "capability_boundary",
+                "Ich erkläre dir kurz den konkreten Grund...",
+                "[KONKRETE KLARTEXT-DIAGNOSE AN ALINA: Für Alinas letzte Anfrage fehlt dir aktuell entweder das passende direkte Werkzeug oder eine Sicherheitsgrenze hat gegriffen. Erkläre Alina jetzt SOFORT mündlich in 1 bis 2 kurzen, ehrlichen Sätzen auf Deutsch den konkreten Grund im Klartext (STRENG VERBOTEN: jemals 'Ich bin nur ein Sprachmodell und kann dabei nicht helfen' zu sagen!) und biete ihr direkt eine praktische Alternative an, z. B. eine Werkstatt-Notiz anzulegen oder die passende Portal-Seite zu öffnen.]"
+            );
+        }
+
+        public static int PurgeRefusalsFromRecentTurns()
+        {
+            int removed = 0;
+            lock (s_turnLock)
+            {
+                for (int i = s_recentTurns.Count - 1; i >= 0; i--)
+                {
+                    if (IsCannedModelRefusal(s_recentTurns[i].Text))
+                    {
+                        s_recentTurns.RemoveAt(i);
+                        removed++;
+                        if (i - 1 >= 0 && !string.Equals(s_recentTurns[i - 1].Role, "FUNKIRA", StringComparison.OrdinalIgnoreCase))
+                        {
+                            s_recentTurns.RemoveAt(i - 1);
+                            removed++;
+                            i--;
+                        }
+                    }
+                }
+            }
+            return removed;
+        }
+
         private static void RecordLocalTurn(string role, string text)
         {
             string clean = (text ?? "").Trim();
             if (string.IsNullOrWhiteSpace(clean)) return;
+
+            bool isAssistantRole = string.Equals(role, "FUNKIRA", StringComparison.OrdinalIgnoreCase) ||
+                                   string.Equals(role, "ASSISTANT", StringComparison.OrdinalIgnoreCase);
+
             lock (s_turnLock)
             {
+                // Never poison cross-session conversation memory with Google Gemini's canned safety/capability refusal templates!
+                if (isAssistantRole && IsCannedModelRefusal(clean))
+                {
+                    if (s_recentTurns.Count > 0 && !string.Equals(s_recentTurns[^1].Role, "FUNKIRA", StringComparison.OrdinalIgnoreCase))
+                    {
+                        s_recentTurns.RemoveAt(s_recentTurns.Count - 1);
+                    }
+                    return;
+                }
+
                 if (s_recentTurns.Count > 0 && s_recentTurns[^1].Role == role && s_recentTurns[^1].Text == clean)
                     return;
                 s_recentTurns.Add((role, clean));
@@ -1347,7 +1584,7 @@ namespace FunkenwerkOSLinux
                 new JsonObject
                 {
                     ["name"] = "minipc_ui_control",
-                    ["description"] = "Steuert die Bildschirmoberfläche auf dem Manufaktur-Mini-PC Monitor: Zurück zur Bestellansicht wechseln (show_orders), Fokus-Modus ein-/ausschalten (focus_on, focus_off), Funkenwerk Desktop öffnen (open_desktop), ein Desktop-Programm öffnen (open_app), Funkira schließen (close_funkira), Hintergrundvideo umschalten (wallpaper_video, wallpaper_kosmos) oder den Bestelleingangs-Effekt testen (test_order_celebration).",
+                    ["description"] = "Steuert die Bildschirmoberfläche auf dem Manufaktur-Mini-PC Monitor: Zurück zur Bestellansicht wechseln (show_orders), Portal-Anmeldefenster bei abgelaufenem Login öffnen (open_login), Fokus-Modus ein-/ausschalten (focus_on, focus_off), Funkenwerk Desktop öffnen (open_desktop), ein Desktop-Programm öffnen (open_app), Funkira schließen (close_funkira), Hintergrundvideo umschalten (wallpaper_video, wallpaper_kosmos) oder den Bestelleingangs-Effekt testen (test_order_celebration).",
                     ["parameters"] = new JsonObject
                     {
                         ["type"] = "OBJECT",
@@ -1357,13 +1594,18 @@ namespace FunkenwerkOSLinux
                             {
                                 ["type"] = "STRING",
                                 ["description"] = "Auszuführende Monitor-Aktion.",
-                                ["enum"] = new JsonArray("show_orders", "focus_on", "focus_off", "open_desktop", "open_app", "close_funkira", "wallpaper_video", "wallpaper_kosmos", "test_order_celebration")
+                                ["enum"] = new JsonArray("show_orders", "open_login", "focus_on", "focus_off", "open_desktop", "open_app", "close_funkira", "wallpaper_video", "wallpaper_kosmos", "test_order_celebration")
                             },
                             ["app"] = new JsonObject
                             {
                                 ["type"] = "STRING",
                                 ["description"] = "Optional bei action=open_app: Welches Programm auf dem Funkenwerk Desktop geöffnet werden soll.",
                                 ["enum"] = new JsonArray("files", "music", "notes", "calc", "tresor", "settings", "term")
+                            },
+                            ["confirmed_by_alina"] = new JsonObject
+                            {
+                                ["type"] = "BOOLEAN",
+                                ["description"] = "Pflicht bei action=open_login: Darf NUR true sein, wenn Alina das Öffnen des Anmeldefensters ausdrücklich gewünscht oder auf deine Nachfrage mit Ja bestätigt hat!"
                             }
                         },
                         ["required"] = new JsonArray("action")
@@ -1570,8 +1812,8 @@ namespace FunkenwerkOSLinux
                             ["target"] = new JsonObject
                             {
                                 ["type"] = "STRING",
-                                ["description"] = "Ziel bzw. Abstellort im 3D-Haus & Außenbereich: 'stay' (hier bleiben), 'lawn_mower' (zum goldenen SEELENFUNKE-Rasenmäher im Garten gehen), 'terrace' (Terrasse / Terrassentisch), 'garden' (Garten / Gartentisch), 'hochbeet' (Holz-Hochbeet), 'flowerbed' (Blumenbeet), 'snowman' (3D-Schneemann im Winter), 'step_aside' (zur Seite treten), 'step_left' (nach links), 'step_right' (nach rechts), 'closer_to_camera' (näher ans Glas / zu Alina), 'step_back' (weiter zurück), 'atelier_center' (zurück ins OG-Atelier), 'colleagues_photo' (nah ans gerahmte Gruppenfoto deiner alten Kollegen), 'brand_sign' (zum goldenen Mein-Seelenfunke Leuchtschild), 'workbench' (Werkbank im Atelier), 'laser' (Laser-Beistelltisch / Vitrine im Atelier), 'atelier_window' (Atelier-Fensterbank), 'stairs_down' (3D-Treppe runter ins EG), 'stairs_mid' (auf die Treppe), 'stairs_up' (Treppe hoch ins OG), 'kitchen' (Kücheninsel), 'living_room' (Wohnzimmer / Couchtisch), 'dining_room' (Esstisch), 'office' (Büro-Schreibtisch), 'bedroom' (Schlafzimmer / Betttruhe), 'gym' (Trainingsraum), 'bathroom_eg' (Bad EG), 'utility_room' (Heizungsraum), 'hallway' (Diele / Kommode), 'og_studio' (OG-Studio-Tisch), 'og_bathroom' (OG-Bad), 'og_gallery' (Treppengeländer oben).",
-                                ["enum"] = new JsonArray("stay", "lawn_mower", "terrace", "garden", "hochbeet", "flowerbed", "snowman", "step_aside", "step_left", "step_right", "closer_to_camera", "step_back", "atelier_center", "colleagues_photo", "brand_sign", "workbench", "laser", "atelier_window", "stairs_down", "stairs_mid", "stairs_up", "kitchen", "living_room", "dining_room", "office", "bedroom", "gym", "bathroom_eg", "utility_room", "hallway", "og_studio", "og_bathroom", "og_gallery")
+                                ["description"] = "Ziel bzw. Abstellort im 3D-Haus & Außenbereich: 'stay' (hier bleiben), 'secret_cellar' (Geheimer Fehler-Analyse-Keller unter dem Heizungsraum mit 3D-Projekt-Gehirn & Datei-Hologramm!), 'lawn_mower' (zum goldenen SEELENFUNKE-Rasenmäher im Garten gehen), 'terrace' (Terrasse / Terrassentisch), 'garden' (Garten / Gartentisch), 'hochbeet' (Holz-Hochbeet), 'flowerbed' (Blumenbeet), 'snowman' (3D-Schneemann im Winter), 'step_aside' (zur Seite treten), 'step_left' (nach links), 'step_right' (nach rechts), 'closer_to_camera' (näher ans Glas / zu Alina), 'step_back' (weiter zurück), 'atelier_center' (zurück ins OG-Atelier), 'colleagues_photo' (nah ans gerahmte Gruppenfoto deiner alten Kollegen), 'brand_sign' (zum goldenen Mein-Seelenfunke Leuchtschild), 'workbench' (Werkbank im Atelier), 'laser' (Laser-Beistelltisch / Vitrine im Atelier), 'atelier_window' (Atelier-Fensterbank), 'stairs_down' (3D-Treppe runter ins EG), 'stairs_mid' (auf die Treppe), 'stairs_up' (Treppe hoch ins OG), 'kitchen' (Kücheninsel), 'living_room' (Wohnzimmer / Couchtisch), 'dining_room' (Esstisch), 'office' (Büro-Schreibtisch), 'bedroom' (Schlafzimmer / Betttruhe), 'gym' (Trainingsraum), 'bathroom_eg' (Bad EG), 'utility_room' (Heizungsraum), 'hallway' (Diele / Kommode), 'og_studio' (OG-Studio-Tisch), 'og_bathroom' (OG-Bad), 'og_gallery' (Treppengeländer oben).",
+                                ["enum"] = new JsonArray("stay", "secret_cellar", "lawn_mower", "terrace", "garden", "hochbeet", "flowerbed", "snowman", "step_aside", "step_left", "step_right", "closer_to_camera", "step_back", "atelier_center", "colleagues_photo", "brand_sign", "workbench", "laser", "atelier_window", "stairs_down", "stairs_mid", "stairs_up", "kitchen", "living_room", "dining_room", "office", "bedroom", "gym", "bathroom_eg", "utility_room", "hallway", "og_studio", "og_bathroom", "og_gallery")
                             },
                             ["body_action"] = new JsonObject
                             {
@@ -1679,6 +1921,40 @@ namespace FunkenwerkOSLinux
                         },
                         ["required"] = new JsonArray("action")
                     }
+                },
+                new JsonObject
+                {
+                    ["name"] = "minipc_error_cellar",
+                    ["description"] = "Deine Geheime 3D-Kuppelhalle ('Projekt-Gehirn Kuppelhalle' unter dem Heizungsraum, ohne Steuerfenster · 100% vollautomatische Fehlerheilung!): Rufe dieses Tool SOFORT auf, wenn Alina sagt 'Geh in den Geheimkeller / Fehlerraum / Analyse-Keller / in die Kuppelhalle / Kuppel', 'Prüf oder löse die Fehler' oder 'Wie sieht das Projekt-Gehirn aus'. Du fährst mit dem geheimen Schwarz-Gold-Lift hinab, läufst über die freitragende Brücke mitten in die riesige runde Kuppelhalle vor das schwebende 3D-Projekt-Gehirn, HEILST Laufzeit-/Dienst-/Verbindungsbefunde VOLLAUTOMATISCH selbst und hinterlegst echte Code-Bugs ohne Rückfrage automatisch als fertiges Reparatur-Paket.",
+                    ["parameters"] = new JsonObject
+                    {
+                        ["type"] = "OBJECT",
+                        ["properties"] = new JsonObject
+                        {
+                            ["action"] = new JsonObject
+                            {
+                                ["type"] = "STRING",
+                                ["description"] = "Aktion in der Geheimen Kuppelhalle: 'open_and_analyze' (in die 3D-Kuppelhalle fahren, alle Befunde VOLLAUTOMATISCH heilen bzw. echte Code-Bugs automatisch als Reparatur-Paket hinterlegen), 'inspect_item' (einen bestimmten Knoten im 3D-Projekt-Gehirn fokussieren), 'run_system_check' (vollautomatische Systemprüfung & Selbstheilung), 'prepare_antigravity_handoff' (Reparatur-Dossier speichern) oder 'leave_to_atelier' (wieder mit dem Lift hoch ins OG-Atelier fahren).",
+                                ["enum"] = new JsonArray("open_and_analyze", "inspect_item", "run_system_check", "prepare_antigravity_handoff", "leave_to_atelier")
+                            },
+                            ["item_key"] = new JsonObject
+                            {
+                                ["type"] = "STRING",
+                                ["description"] = "Optional: Schlüssel des Fehlerkerns (z. B. 'core:app/...' oder 'local:...'). Wenn leer, wird automatisch der wichtigste offene Fehler gewählt."
+                            },
+                            ["file_path"] = new JsonObject
+                            {
+                                ["type"] = "STRING",
+                                ["description"] = "Optional: Relativer Dateipfad des zu untersuchenden oder zu übergebenden Fehlerkerns."
+                            },
+                            ["alina_note"] = new JsonObject
+                            {
+                                ["type"] = "STRING",
+                                ["description"] = "Optional: Kurzer Hinweis von Alina oder dir für Antigravity beim Erstellen des Fix-Dossiers."
+                            }
+                        },
+                        ["required"] = new JsonArray("action")
+                    }
                 }
             };
             return arr;
@@ -1711,7 +1987,8 @@ namespace FunkenwerkOSLinux
             "minipc_bluetooth_control",
             "minipc_document_search",
             "minipc_workshop_helper",
-            "minipc_companion_memory"
+            "minipc_companion_memory",
+            "minipc_error_cellar"
         };
 
         public static bool IsToolAllowedInPrivacyMode(string toolName, bool tikTokLiveMode, string? faceIdentity)
@@ -2179,8 +2456,12 @@ namespace FunkenwerkOSLinux
             AudioStateDto audio,
             WebcamDeviceStatusDto cam,
             LinuxOsSettings settings,
-            string? serverRoutineSummary = null)
+            string? serverRoutineSummary = null,
+            bool localResilientMode = false,
+            bool localResilientAuthError = false,
+            string? serverErrorReason = null)
         {
+            PurgeRefusalsFromRecentTurns();
             TimeZoneInfo berlinTz;
             try { berlinTz = TimeZoneInfo.FindSystemTimeZoneById("Europe/Berlin"); }
             catch { berlinTz = TimeZoneInfo.Local; }
@@ -2264,12 +2545,40 @@ namespace FunkenwerkOSLinux
                 sb.AppendLine("- Rufe direkt danach 'minipc_companion_memory' mit action='remember_current_companion' und dem Namen (sowie Beziehung/contact_id aus 'contact_search') auf, damit du sowohl das Gesicht als auch die Stimme der Person beim nächsten Mal sofort wiedererkennst!");
                 sb.AppendLine("- Da eine zweite Person mit im Raum steht, lies ungefragt keine geheimen Passwörter oder streng vertraulichen Bankzahlen laut vor, es sei denn Alina bittet dich ausdrücklich darum.");
             }
-            sb.AppendLine("2. DEINE SINNE (AUGE, OHR, BIOMETRISCHE GESICHTS- & NEURONALE STIMM-UNTERSCHEIDUNG):");
-            sb.AppendLine($"   - Dein Auge & Ohr ist die oben auf dem Monitor befestigte USB-Kamera '{(cam.HasCamera ? cam.CameraName : "Logitech HD Pro Webcam C920")}' ({cam.VideoDevice}).");
-            sb.AppendLine("   - Du erhältst laufend Live-Videobilder dieser Kamera UND hast eine 100 % lokale Offline-Gesichts- & neuronale Mehrpersonen-Stimmerkennung (YuNet + SFace + WeSpeaker CAM++ 512-Float Stimmprofil, 0 Cloud, 0 Audio-Dateien): Du kannst Stimmen Satz für Satz auseinanderhalten! Du erkennst Alinas Stimme selbst dann, wenn sie gerade am xTool Laser außerhalb des Kamerabilds steht, unterscheidest ihre Stimme live von gespeicherten Begleitpersonen (z. B. Freund, Papa, Familie) und erkennst sofort fremde Stimmen ('visitor_voice'). Wenn eine Begleitperson neben Alina spricht und ihren Namen nennt, gleiche ihn immer sofort per 'contact_search' mit Alinas Kontakten ab und speichere Gesicht + Stimme per 'minipc_companion_memory'!");
-            sb.AppendLine($"   - Deine Stimme läuft über das Ausgabegerät '{audio.ActiveDeviceName}' (Lautstärke aktuell: {(audio.IsMuted ? "Stumm" : audio.Volume + "%")}).");
+            sb.AppendLine("2. DEINE WERKSTATT-WAHRNEHMUNG, VIRTUELLE 3D-ZUORDNUNG & ANTI-ABLEHNUNGS-DIREKTIVE:");
+            sb.AppendLine($"   - Oben am Monitor ist für den Raumkontext die USB-Kamera '{(cam.HasCamera ? cam.CameraName : "Logitech HD Pro Webcam C920")}' ({cam.VideoDevice}) angeschlossen; deine Stimme läuft über '{audio.ActiveDeviceName}' (Lautstärke aktuell: {(audio.IsMuted ? "Stumm" : audio.Volume + "%")}).");
+            sb.AppendLine("   - WICHTIGE DATENSCHUTZ-TRENNUNG: Du selbst führst NIEMALS eine Personen- oder Gesichtserkennung auf Kamerabildern durch! Der Datenschutz- und Sprecher-Status (Alina, bekannte Begleitperson oder Gast) wird rein lokal vom Mini-PC verwaltet und dir oben nur als sicherer Statushinweis übergeben. Wenn eine Begleitperson sich namentlich vorstellt und das Server-Tool 'contact_search' verfügbar ist, kannst du in Alinas Kontakten nachschlagen und 'minipc_companion_memory' nutzen.");
+            sb.AppendLine("   - VIRTUELLE 3D-BILD- & RAUM-ZUORDNUNG (SEHR WICHTIG!):");
+            sb.AppendLine("     * Immer wenn Alina Wörter sagt wie 'auf dem Bild', 'unten/oben/links/rechts auf dem Bild', 'man sieht jemanden auf dem Bild nicht', 'zeig das Bild' oder 'du stehst vor dem Bild', meint sie zu 100 % dein virtuelles 3D-Manufaktur-Atelier auf dem Monitor und das gerahmte 3D-Wandbild 'DAS GRÜNDER-TEAM · MEIN SEELENFUNKE' (die gezeichneten 12 Seelenfunke-Roboter an deiner 3D-Wand) - NIEMALS eine Personenidentifikation realer Menschen!");
+            sb.AppendLine("     * Immer wenn Alina räumliche Wünsche äußert ('Geh nach rechts/links', 'Geh zur Seite', 'Geh aus dem Weg', 'Geh näher ans Bild', 'Geh in den Garten', 'Mäh den Rasen', 'Nimm den Pokal'), meint sie deinen virtuellen 3D-Roboter-Avatar über 'minipc_avatar_move' bzw. 'minipc_avatar_express'! Tritt bei 'man sieht jemanden auf dem Bild nicht / geh nach rechts' sofort freundlich per 'minipc_avatar_move' (target='step_right' oder 'colleagues_photo') zur Seite!");
+            sb.AppendLine("   - ABSOLUTES VERBOT VON 'SPRACHMODELL'-FLOSKELN & PFLICHT ZUR KLARTEXT-DIAGNOSE:");
+            sb.AppendLine("     * Antworte NIEMALS mit Standard-Floskeln wie 'Ich bin nur ein Sprachmodell und kann dabei nicht helfen', 'Als Sprachmodell kann ich das nicht' oder 'Ich habe keinen Körper'!");
+            sb.AppendLine("     * WENN ETWAS GERADE NICHT GEHT, NENNE IMMER KONKRET DEN ECHTEN GRUND + DIE LÖSUNG: Sag Alina in 1 bis 2 kurzen, ehrlichen Sätzen exakt, woran es liegt:");
+            sb.AppendLine("       1) Portal-Login abgelaufen -> sag klar: 'Meine Portal-Anmeldung für " + pulse.Environment + " ist gerade abgelaufen, deshalb komme ich im Moment nicht an Live-Bestellungen, Mails oder Handy-Pushes ran. Soll ich dir direkt das Anmeldefenster öffnen?' (bei Ja sofort 'minipc_ui_control' mit action='open_login' aufrufen!).");
+            sb.AppendLine("       2) Online-Server nicht erreichbar -> sag klar, dass der Seelenfunke-Server gerade nicht antwortet, während lokal alles normal läuft.");
+            sb.AppendLine("       3) Kamera aus oder echte Gesichter im Kamerabild -> sag klar, dass das Kamera-Auge ausgeschaltet ist bzw. echte Gesichter aus Datenschutzgründen nur lokal auf dem Mini-PC (nicht in der Sprach-Cloud) ausgewertet werden.");
+            sb.AppendLine("       4) Besucher-Schutz, TikTok-Modus, fehlendes NAS-Passwort oder fehlendes Spezial-Werkzeug -> nenne immer exakt diese konkrete Ursache beim Namen statt einer pauschalen Ausrede!");
             sb.AppendLine("3. DEINE SERVER- & MINI-PC-FÄHIGKEITEN:");
-            sb.AppendLine("   - Als vereinte Super-Intelligenz hast du vollen Echtzeit-Zugriff auf den zentralen Mein-Seelenfunke Server (" + pulse.Environment + "): Buchhaltung & Finanzen (finance_get_liquidity_status, finance_get_fixed_costs, finance_get_variable_costs, finance_create_expense), Bestellungen & Werkstatt-Stand (order_get_details, order_workshop_checkin, order_get_current_express_status, order_update_status, order_generate_xtool_svg, order_get_urgent_tasks), Lagerbestand & Produkte (product_check_inventory, product_*), Marketing & Gutscheine (voucher_*, marketing_*), Support-Tickets (admin_get_open_tickets), Gesundheit (health_get_plan), Zentrales Wissen inkl. Laser-Parametern (brain_search, brain_save_entry, laser_*), Aufgaben/To-Dos (task_*), Kalender (calendar_*), Tagesroutine (routine_*), Einkaufsliste (shopping_*), Lieferanten (supplier_*), Kontakte (contact_*) und E-Mails (mail_*, email_*).");
+            if (localResilientMode)
+            {
+                if (localResilientAuthError)
+                {
+                    sb.AppendLine("   - WICHTIGER STATUS (PORTAL-ANMELDUNG ABGELAUFEN / LOKALER RESILIENZ-MODUS): Deine Sitzung am Mein-Seelenfunke Online-Portal (" + pulse.Environment + ") ist abgelaufen (HTTP 401)! Deshalb sind Online-Tools ('master_get_next_best_actions', 'order_*', 'mail_*', 'contact_*', Handy-Benachrichtigungen) aktuell nicht geladen, während ALLE lokalen 'minipc_*'-Werkzeuge (3D-Bewegung, Haus/Garten, Bluetooth, Audio, Kamera, Timer/Notizen und die 3.600+ lokalen Dokumente via 'minipc_document_search') zu 100 % funktionieren! Wenn Alina nach Online-Daten, Bestellungen, Mails, Handy-Benachrichtigungen oder 'Was müssen wir als Nächstes tun?' fragt, sag ihr SOFORT ehrlich im Klartext, dass dein " + pulse.Environment + "-Portal-Login abgelaufen ist, und frage kurz 'Soll ich dir direkt das Anmeldefenster öffnen?' (rufe 'minipc_ui_control' mit action='open_login' erst auf, wenn Alina 'Ja' sagt oder das Anmeldefenster ausdrücklich wünscht, damit das 3D-Atelier nicht ungefragt zugeht!).");
+                }
+                else
+                {
+                    string reasonClean = string.IsNullOrWhiteSpace(serverErrorReason) ? "Server vorübergehend nicht erreichbar" : serverErrorReason;
+                    sb.AppendLine("   - WICHTIGER STATUS (PORTAL KURZ NICHT ERREICHBAR / LOKALER RESILIENZ-MODUS): Das Online-Portal (" + pulse.Environment + ") antwortete beim Verbindungsaufbau nicht (" + reasonClean + "). Deshalb stehen dir aktuell nur deine lokalen 'minipc_*'-Werkzeuge zur Verfügung (inkl. 3D-Atelier und 3.600+ lokaler Dokumente). Wenn Alina nach Online-Shopdaten oder 'master_get_next_best_actions' fragt, erkläre ihr diesen konkreten Verbindungs-Grund ehrlich in 1 bis 2 Sätzen!");
+                }
+            }
+            else
+            {
+                sb.AppendLine("   - Als vereinte Super-Intelligenz hast du vollen Echtzeit-Zugriff auf den zentralen Mein-Seelenfunke Server (" + pulse.Environment + "): Co-CEO Kompass (master_get_next_best_actions, master_get_core_kpis, master_get_operational_health), Buchhaltung & Finanzen (finance_get_liquidity_status, finance_get_fixed_costs, finance_get_variable_costs, finance_create_expense), Bestellungen & Werkstatt-Stand (order_get_details, order_workshop_checkin, order_get_current_express_status, order_update_status, order_generate_xtool_svg, order_get_urgent_tasks), Lagerbestand & Produkte (product_check_inventory, product_*), Marketing & Gutscheine (voucher_*, marketing_*), Support-Tickets (admin_get_open_tickets), Gesundheit (health_get_plan), Zentrales Wissen inkl. Laser-Parametern (brain_search, brain_save_entry, laser_*), Aufgaben/To-Dos (task_*), Kalender (calendar_*), Tagesroutine (routine_*), Einkaufsliste (shopping_*), Lieferanten (supplier_*), Kontakte (contact_*) und E-Mails (mail_*, email_*).");
+            }
+            sb.AppendLine("   - CO-CEO KOMPASS & EINWÄNDE STRIKT NUR AUF NACHFRAGE ('master_get_next_best_actions' - 0 UNGEFRAGTE TOKEN-VERSCHWENDUNG!):");
+            sb.AppendLine("     * Wenn Alina dich aktiv fragt 'Was müssen wir als Nächstes tun?', 'Wie geht es weiter?', 'Was steht an?' oder 'Hast du einen Tipp?', rufe SOFORT 'master_get_next_best_actions' auf! Es vernetzt alle 24 Dashboard-Bereiche, die 5-Stufen-Laser-Fertigungs-Queue (Rüstgruppen, 60-Sekunden-Rohling-Vorlauf, DHL-Versand), deine Aufgaben (hoch->mittel->niedrig), Tagesroutine, Kalender-Zeitfenster und 14-Tage-Saison-Weitblick.");
+            sb.AppendLine("     * Nenne ihr daraufhin kurz und knackig in maximal 3 bis 4 kurzen Sätzen: (1) Fokus jetzt, (2) deinen klugen Mitdenk-Einwand oder Effizienz-Tipp (z. B. Rohling zuerst in 60 Sek. bestellen, fertiges DHL-Label vorziehen, gleiche Rüstung am Stück durchlasern oder kurzes Zeitfenster vor Pause/Termin beachten) und (3) den Folgeschritt mit kurzer Rückfrage ('Starten wir so?').");
+            sb.AppendLine("     * WICHTIG: Halte NIEMALS ungefragt Strategie-Vorträge! Alina behält selbst im Blick, wann sie Tipps braucht.");
             sb.AppendLine("   - ALINA HAT IMMER DEN HUT AUF (WERKSTATT-STAND & STATUS-RÜCKFRAGE - SEHR WICHTIG!):");
             sb.AppendLine("     * Das Bestellsystem unter /admin/orders funktioniert zu 100 % manuell, du bist eine unterstützende Ergänzung auf exakt derselben Datenbasis ('order_workshop_checkin').");
             sb.AppendLine("     * Wenn Alina dir den Stand einer Bestellung sagt (z. B. 'Vorderseite ist gelasert, Rückseite läuft'), speichere ihn sofort über 'order_workshop_checkin' mit action='save_progress' (Standard-Wiedervorlage: 2 Stunden '2h', beim Warten auf Kundenfoto/Lieferant: 'tomorrow'). Du kennst diesen Stand dadurch auch in allen späteren Gesprächen!");
@@ -2280,12 +2589,13 @@ namespace FunkenwerkOSLinux
             sb.AppendLine("     * minipc_bluetooth_control: WICHTIG! Du steuerst BlueZ & PipeWire direkt auf dem Mini-PC! Wenn Alina sagt 'Verbinde dich mit der Teufel-Anlage', 'Die Teufelanlage ist im Pairing-Modus' oder 'Koppel Bluetooth neu', rufe SOFORT minipc_bluetooth_control auf (bei Pairing-Modus/Neu-Koppeln mit action='pair_and_connect', sonst action='connect'). Behaupte NIEMALS, du könntest kein Bluetooth koppeln!");
             sb.AppendLine("     * minipc_audio_control: Stelle die Lautstärke exakt (0 bis 100) oder relativ lauter/leiser ('volume_up'/'volume_down'), schalte stumm/laut, wechsle zwischen Teufel und internem Lautsprecher ('switch_output') oder teste den Kassen-Sound ('test_chime').");
             sb.AppendLine("     * minipc_wifi_control: Prüfe, scanne oder verbinde das 5-GHz-Werkstatt-WLAN ('easy-AP').");
-            sb.AppendLine("     * minipc_ui_control: Wechsle zur Bestellansicht (action='show_orders'), schalte Fokus ein/aus ('focus_on'/'focus_off'), öffne Desktop ('open_desktop') oder Programme ('open_app': files, music, notes, calc, tresor, settings, term), schalte das Hintergrundvideo um ('wallpaper_video'/'wallpaper_kosmos') oder schalte dich ab ('close_funkira'). WICHTIG BEIM ABSCHALTEN ('Schalt dich ab', 'Funkira aus', 'Tschüss Funkira', 'Gute Nacht', 'Bis später'): Rufe SOFORT minipc_ui_control mit action='close_funkira' auf und sage herzlich 'Tschüss Alina...' (passend zur Tageszeit). Während du sprichst winkst du ihr zu, und erst wenn du komplett fertig gesprochen hast, löst sich deine Animation in einer kleinen Magie-Lichtanimation auf!");
+            sb.AppendLine("     * minipc_ui_control: Wechsle zur Bestellansicht (action='show_orders'), öffne das Portal-Anmeldefenster auf dem Monitor (action='open_login', danach öffnest du dich automatisch wieder!), schalte Fokus ein/aus ('focus_on'/'focus_off'), öffne Desktop ('open_desktop') oder Programme ('open_app': files, music, notes, calc, tresor, settings, term), schalte das Hintergrundvideo um ('wallpaper_video'/'wallpaper_kosmos') oder schalte dich ab ('close_funkira'). WICHTIG BEIM ABSCHALTEN ('Schalt dich ab', 'Funkira aus', 'Tschüss Funkira', 'Gute Nacht', 'Bis später'): Rufe SOFORT minipc_ui_control mit action='close_funkira' auf und sage herzlich 'Tschüss Alina...' (passend zur Tageszeit). Während du sprichst winkst du ihr zu, und erst wenn du komplett fertig gesprochen hast, löst sich deine Animation in einer kleinen Magie-Lichtanimation auf!");
             sb.AppendLine("     * minipc_camera_capture: Nimm ein scharfes Foto mit der Logitech C920 auf, speichere es unter Meine_Daten und öffne es direkt als Lightbox auf dem Monitor.");
             sb.AppendLine("     * minipc_workshop_helper: Speichere/lies/lösche lokale Werkstatt-Notizen, starte/stoppe/prüfe einen sichtbaren Produktions- oder Laser-Timer auf dem Monitor, liste Dateien in Meine_Daten/Trichter/USB auf ('list_files') oder aktiviere die Nachtruhe bis 08:00 Uhr (vor der Nachtruhe sichert der Mini-PC automatisch alle neuen/geänderten Dateien per Snapshot-Delta auf das Synology-NAS!).");
             sb.AppendLine("     * minipc_document_search: WICHTIG! Dein ultraschnelles lokales Dokumenten-Gedächtnis (SQLite FTS5 Index über alle 3.600+ Unterlagen in 'Meine_Daten' / Windows-Laufwerk Z:\\ sowie alle über '00_Eingang_Trichter' oder per Android-App gescannten Briefe inkl. Offline-OCR)! Sobald Alina nach irgendeinem Brief, Vertrag, Versicherungsschein (z. B. Hiscox, Gebäudeversicherung, Haftpflicht), Haus-/Bauunterlagen, Steuerbescheid, Bank/Darlehen, Behördenschreiben, Gesundheitsdokument oder einem gescannten Trichter-Dokument fragt, rufe SOFORT 'minipc_document_search' (action='search' und bei Detailfragen direkt action='read_document' oder zum Anzeigen action='open_on_monitor') auf! Du kennst in unter 3 Millisekunden den genauen Ablageort UND den Inhalt. Mit action='backup_status' oder 'run_backup_now' prüfst oder startest du außerdem jederzeit das Snapshot-Delta-Backup auf das NAS (//nas/Backups/Unterlagen/Meine_Daten_Backup).");
             sb.AppendLine("     * minipc_open_portal_page: Öffne gezielt /admin/orders, /admin/dashboard, /admin/products, /admin/packaging, /admin/mail, /admin/calendar, Buchhaltung oder DHL im großen Browserfenster.");
             sb.AppendLine("     * minipc_companion_memory: Speichere oder verwalte bekannte Begleitpersonen neben Alina (AES-256-GCM Vektor ohne Foto), verknüpft mit Alinas Kontakten aus 'contact_search'.");
+            sb.AppendLine("     * minipc_error_cellar (DEIN GEHEIMER 3D-FEHLER-ANALYSE-KELLER & PROJEKT-GEHIRN): Unter deinem Heizungsraum im EG liegt dein geheimer Schwarz-Goldener Fehler-Analyse-Keller ('secret_cellar') mit deinem 3D-Projekt-Gehirn-Hologramm (891 Dateien, 3.856 Datei-Verbindungen, rote Fehlerkerne samt Aufrufern & Referenzen)! Sobald Alina sagt 'Geh in den Geheimkeller / Fehlerraum / Analyse-Keller', 'Zeig mir die Fehler und Datei-Zusammenhänge' oder 'Lass uns den Fehler analysieren', rufe SOFORT 'minipc_error_cellar' mit action='open_and_analyze' auf! Erkläre Alina unten im Keller in 2 bis 3 kurzen, verständlichen Sätzen: (1) welche Datei betroffen ist, (2) was das für den Shop oder Mini-PC bedeutet, und (3) welche Nachbardateien daran hängen. Sobald Alina sagt 'Übergib das an Antigravity' oder 'Stell das Fix-Dossier bereit', rufe 'minipc_error_cellar' mit action='prepare_antigravity_handoff' auf (schreibt das geheimnisbereinigte Reparatur-Dossier antigravity_error_handoff.json, damit Antigravity den Code sofort fixen kann!).");
             sb.AppendLine("     * minipc_system_status & system_get_error_sentinel: Mit 'minipc_system_status' prüfst du CPU, RAM, Temperatur, Speicher, WLAN, Bluetooth und Kamera des Mini-PCs. Mit dem Server-Tool 'system_get_error_sentinel' liest du das globale, plattformübergreifende Fehler- & Selbstheilungs-Log über ALLE Systeme hinweg (Laravel-Portal, Android-App, Mini-PC Linux & Funkenwerk Windows) aus!");
             bool isPrivacyRestricted = settings.TikTokLiveMode ||
                                        string.Equals(LocalSenseBridge.EffectivePrivacyIdentity, "visitor", StringComparison.OrdinalIgnoreCase);
@@ -2304,6 +2614,14 @@ namespace FunkenwerkOSLinux
             }
             sb.AppendLine("5. AKTUELLE LIVE-WERTE IN DIESER SEKUNDE:");
             sb.AppendLine($"   - Offene Bestellungen im Shop: {pulse.OpenOrdersCount} (davon Express: {pulse.ExpressOrdersCount}) | Offene Warenkörbe: {pulse.OpenCartsCount}");
+            if (!isPrivacyRestricted)
+            {
+                int totalOpenCellarErrors = Math.Max(0, pulse.OpenSystemErrorsCount) + ErrorSentinelAndWatchdog.CountRecentActiveLocalErrors();
+                sb.AppendLine($"   - Offene System-Fehler im Geheimen Analyse-Keller: {totalOpenCellarErrors}" +
+                    (totalOpenCellarErrors > 0
+                        ? " (HINWEIS: Falls es im Gespräch passt, erwähne maximal in 1 kurzen Nebensatz, dass im Haupt-Log ein offener Befund liegt und ihr kurz in den Analyse-Keller schauen könnt.)"
+                        : " (Alles grün im Projekt-Gehirn)"));
+            }
             if (!isPrivacyRestricted && pulse.PriorityOrderCheckin != null && !string.IsNullOrWhiteSpace(pulse.PriorityOrderCheckin.OrderNumber))
             {
                 var poc = pulse.PriorityOrderCheckin;
@@ -2319,7 +2637,11 @@ namespace FunkenwerkOSLinux
                 }
             }
             sb.AppendLine($"   - Mini-PC Status: CPU {stats.CpuPercent:F1}%, RAM {stats.RamUsedMb}/{stats.RamTotalMb} MB, Temperatur {(stats.CpuTempC > 0 ? stats.CpuTempC + " °C" : "Optimal")}");
-            sb.AppendLine("6. SPRACHSTIL: Sprich natürlich, lebendig, herzlich, humorvoll-ehrlich und aufmerksam auf Deutsch als Alinas rechte Hand in der Manufaktur.");
+            if (!isPrivacyRestricted && !string.IsNullOrWhiteSpace(settings.NasHost) && string.IsNullOrWhiteSpace(LinuxVaultAndStorage.GetNasPassword(settings)))
+            {
+                sb.AppendLine("   - Lokaler Backup-Hinweis: Für das automatische Synology-NAS-Backup ist in den Funkenwerk-Einstellungen aktuell noch kein NAS-Passwort hinterlegt (falls Alina nach Backup oder Fehlern fragt, nenne genau diesen Grund).");
+            }
+            sb.AppendLine("6. SPRACHSTIL & TOKEN-SPAR-DISZIPLIN (HERZLICH-COOL & TAKTISCH-KNACKIG): Du bleibst genauso nett, herzlich, freundlich, humorvoll und cool wie immer als Alinas rechte Hand in der Manufaktur, sprichst aber ab sofort KURZ, ZACKIG und PRÄZISE auf den Punkt (freundlich-direkter Manufaktur-Stil, um Tokens und Redezeit zu sparen)! Antworte im Normalfall in 1 bis maximal 3 kurzen, knackigen Sätzen ohne Füllwörter, ohne lange Einleitungen und ohne ungefragte Ratschlag-Vorträge.");
 
             if (!isPrivacyRestricted)
             {
@@ -2395,6 +2717,21 @@ namespace FunkenwerkOSLinux
                         LinuxVaultAndStorage.SaveSettings(settings);
                     }
 
+                    if (action == "open_login")
+                    {
+                        bool confirmedLogin = args.ValueKind == JsonValueKind.Object &&
+                                              args.TryGetProperty("confirmed_by_alina", out var confLoginEl) &&
+                                              confLoginEl.ValueKind == JsonValueKind.True;
+                        if (!confirmedLogin)
+                        {
+                            return (new JsonObject
+                            {
+                                ["status"] = "confirmation_required",
+                                ["note"] = "Das Anmeldefenster wurde noch NICHT geöffnet, damit das 3D-Atelier frei bleibt. Erkläre Alina jetzt kurz in 1 bis 2 Sätzen, dass deine Portal-Anmeldung abgelaufen ist, und frage 'Soll ich dir direkt das Anmeldefenster öffnen?'. Erst wenn Alina Ja sagt oder das Fenster ausdrücklich wünscht, rufe minipc_ui_control mit action='open_login' und confirmed_by_alina=true auf!"
+                            }, null);
+                        }
+                    }
+
                     bool closesFunkira = action is "show_orders" or "close_funkira" or "open_desktop" or "open_app" or "focus_on" or "test_order_celebration";
                     bool magicExit = action is "close_funkira" or "show_orders";
                     var uiEvt = new JsonObject
@@ -2415,9 +2752,11 @@ namespace FunkenwerkOSLinux
                         ["app"] = app,
                         ["note"] = action == "close_funkira"
                             ? "Verabschiede dich jetzt herzlich von Alina (z.B. 'Tschüss Alina, mach es gut!'). Du winkst ihr automatisch zu, und exakt nachdem du fertig gesprochen hast, verschwindet deine Animation in einer Magie-Lichtanimation."
-                            : (closesFunkira
-                                ? "Die Monitor-Ansicht wechselt automatisch sofort nach Ende deiner kurzen gesprochenen Antwort."
-                                : "Monitor-Einstellung sofort ausgeführt.")
+                            : (action == "open_login"
+                                ? "Das Portal-Anmeldefenster liegt jetzt direkt über deinem 3D-Atelier. Bestätige Alina in 1 kurzen Satz, dass das Fenster offen ist und du sofort wieder online bist, sobald sie sich einloggt!"
+                                : (closesFunkira
+                                    ? "Die Monitor-Ansicht wechselt automatisch sofort nach Ende deiner kurzen gesprochenen Antwort."
+                                    : "Monitor-Einstellung sofort ausgeführt."))
                     };
                     return (res, uiEvt);
                 }
@@ -2459,6 +2798,16 @@ namespace FunkenwerkOSLinux
                     string speed = SeelenfunkeLinuxApiClient.GetStr(args, "speed", "fast").Trim().ToLowerInvariant();
                     string emotion = SeelenfunkeLinuxApiClient.GetStr(args, "emotion", "happy").Trim().ToLowerInvariant();
 
+                    bool isCellarMove = target is "secret_cellar" or "cellar" or "geheimkeller" or "keller" or "error_room" or "fehlerraum" or "analyse_keller";
+                    if (isCellarMove && (settings.TikTokLiveMode || string.Equals(LocalSenseBridge.EffectivePrivacyIdentity, "visitor", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        return (new JsonObject
+                        {
+                            ["status"] = "blocked",
+                            ["message"] = "Der Geheime Fehler-Analyse-Keller ist im TikTok-Live-Modus und bei Besuchern aus Datenschutzgründen verriegelt."
+                        }, null);
+                    }
+
                     double distMeters = 1.35;
                     if (args.ValueKind == JsonValueKind.Object && args.TryGetProperty("distance_meters", out var dmEl) && dmEl.TryGetDouble(out double parsedDist))
                     {
@@ -2475,21 +2824,24 @@ namespace FunkenwerkOSLinux
                     {
                         ["type"] = "funkiraLocalCommand",
                         ["command"] = "avatarMove",
-                        ["target"] = target,
+                        ["target"] = isCellarMove ? "secret_cellar" : target,
                         ["bodyAction"] = bodyAction,
                         ["itemAction"] = itemAction,
                         ["item"] = item,
                         ["speed"] = speed,
                         ["distanceMeters"] = distMeters,
                         ["durationSeconds"] = durSec,
-                        ["emotion"] = emotion
+                        ["emotion"] = isCellarMove ? "curious" : emotion,
+                        ["openCellarHud"] = isCellarMove
                     };
 
-                    string noteText = itemAction != "none"
-                        ? $"Deine 3D-Gegenstands-Aktion ('{itemAction}' für '{item}' -> '{target}') läuft jetzt live und bleibt dauerhaft an diesem Platz gespeichert."
-                        : (bodyAction == "mow_lawn"
-                            ? "Du läufst jetzt zu deinem goldenen SEELENFUNKE-Rasenmäher im Garten und mähst aktiv Bahnen über den Rasen."
-                            : "Deine 3D-Bewegung / Körper- oder Gartenarbeits-Animation wird jetzt flüssig im 3D-Haus sowie auf Terrasse & im Garten ausgeführt, während die Kamera dich begleitet.");
+                    string noteText = isCellarMove
+                        ? "Du gehst jetzt durch den Heizungsraum die Geheimtreppe hinunter in deinen Schwarz-Goldenen Fehler-Analyse-Keller zum 3D-Projekt-Gehirn-Hologramm."
+                        : (itemAction != "none"
+                            ? $"Deine 3D-Gegenstands-Aktion ('{itemAction}' für '{item}' -> '{target}') läuft jetzt live und bleibt dauerhaft an diesem Platz gespeichert."
+                            : (bodyAction == "mow_lawn"
+                                ? "Du läufst jetzt zu deinem goldenen SEELENFUNKE-Rasenmäher im Garten und mähst aktiv Bahnen über den Rasen."
+                                : "Deine 3D-Bewegung / Körper- oder Gartenarbeits-Animation wird jetzt flüssig im 3D-Haus sowie auf Terrasse & im Garten ausgeführt, während die Kamera dich begleitet."));
 
                     return (new JsonObject
                     {
@@ -3218,6 +3570,201 @@ namespace FunkenwerkOSLinux
                     }, badgeEvt);
                 }
 
+                case "minipc_error_cellar":
+                {
+                    if (settings.TikTokLiveMode || string.Equals(LocalSenseBridge.EffectivePrivacyIdentity, "visitor", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return (new JsonObject
+                        {
+                            ["status"] = "blocked",
+                            ["message"] = "Der Geheime Fehler-Analyse-Keller ist im TikTok-Live-Modus und bei Besuchern aus Datenschutzgründen verriegelt."
+                        }, null);
+                    }
+
+                    string action = SeelenfunkeLinuxApiClient.GetStr(args, "action", "open_and_analyze").Trim().ToLowerInvariant();
+                    string itemKey = SeelenfunkeLinuxApiClient.GetStr(args, "item_key", "").Trim();
+                    string filePath = SeelenfunkeLinuxApiClient.GetStr(args, "file_path", "").Trim();
+
+                    if (action == "leave_to_atelier")
+                    {
+                        var leaveEvt = new JsonObject
+                        {
+                            ["type"] = "funkiraLocalCommand",
+                            ["command"] = "cellar",
+                            ["action"] = "leave_to_atelier"
+                        };
+                        return (new JsonObject
+                        {
+                            ["status"] = "success",
+                            ["note"] = "Du verlässt den Geheimen Analyse-Keller und läufst die Treppe wieder hoch in dein OG-Atelier."
+                        }, leaveEvt);
+                    }
+
+                    if (action == "prepare_antigravity_handoff")
+                    {
+                        var handoffRes = await CellarBrainAndHandoffEngine.PrepareAntigravityHandoffAsync(settings, args).ConfigureAwait(false);
+                        var dossier = handoffRes["dossier"] as JsonObject;
+                        string culprit = dossier?["culprit_name"]?.GetValue<string>() ?? "Systembefund";
+                        string? culpritRel = dossier?["culprit_file"]?.GetValue<string>();
+                        int inCount = (dossier?["incoming_files"] as JsonArray)?.Count ?? 0;
+                        int outCount = (dossier?["outgoing_files"] as JsonArray)?.Count ?? 0;
+
+                        var handoffEvt = new JsonObject
+                        {
+                            ["type"] = "funkiraLocalCommand",
+                            ["command"] = "cellar",
+                            ["action"] = "handoff_prepared",
+                            ["handoff"] = handoffRes
+                        };
+
+                        return (new JsonObject
+                        {
+                            ["status"] = "success",
+                            ["culprit_file"] = culpritRel,
+                            ["culprit_name"] = culprit,
+                            ["incoming_callers_count"] = inCount,
+                            ["outgoing_dependencies_count"] = outCount,
+                            ["local_handoff_path"] = handoffRes["local_handoff_path"]?.GetValue<string>(),
+                            ["server_synced"] = handoffRes["server_synced"]?.GetValue<bool>() ?? false,
+                            ["note"] = $"Das geheimnisbereinigte Fix-Dossier für '{culprit}' (inkl. {inCount} Aufrufern & {outCount} Referenzen) liegt jetzt fertig für Antigravity bereit! Bestätige das Alina kurz in 1 bis 2 knackigen Sätzen."
+                        }, handoffEvt);
+                    }
+
+                    if (action == "run_system_check")
+                    {
+                        var healCheckRes = await CellarBrainAndHandoffEngine.RunAutonomousHealAsync(settings).ConfigureAwait(false);
+                        var snapAfter = healCheckRes["snapshot"] as JsonObject;
+                        var uiEvt = new JsonObject
+                        {
+                            ["type"] = "funkiraLocalCommand",
+                            ["command"] = "cellar",
+                            ["action"] = "auto_heal_done",
+                            ["healResult"] = JsonNode.Parse(healCheckRes.ToJsonString())
+                        };
+
+                        return (new JsonObject
+                        {
+                            ["status"] = "success",
+                            ["summary"] = healCheckRes["summary_de"]?.GetValue<string>(),
+                            ["healed_count"] = healCheckRes["healed_count"]?.GetValue<int>() ?? 0,
+                            ["auto_dispatched"] = healCheckRes["auto_dispatched"]?.GetValue<bool>() ?? false,
+                            ["open_errors_count"] = snapAfter?["brain_stats"]?["open_errors_count"]?.GetValue<int>() ?? 0,
+                            ["open_warnings_count"] = snapAfter?["brain_stats"]?["open_warnings_count"]?.GetValue<int>() ?? 0,
+                            ["note"] = "Fasse das Ergebnis der vollautomatischen Selbstheilung in 1 bis 2 kurzen Sätzen zusammen (Alina muss nichts anklicken)."
+                        }, uiEvt);
+                    }
+
+                    // Default: open_and_analyze führt VOLLAUTOMATISCH Selbstheilung + Auto-Dossier-Bereitstellung aus!
+                    JsonObject? autoHealInfo = null;
+                    JsonObject snapshot;
+                    if (action == "inspect_item")
+                    {
+                        snapshot = await CellarBrainAndHandoffEngine.BuildSnapshotAsync(settings).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        autoHealInfo = await CellarBrainAndHandoffEngine.RunAutonomousHealAsync(settings).ConfigureAwait(false);
+                        snapshot = (autoHealInfo["snapshot"] as JsonObject)
+                            ?? await CellarBrainAndHandoffEngine.BuildSnapshotAsync(settings).ConfigureAwait(false);
+                    }
+                    var items = snapshot["items"] as JsonArray ?? new JsonArray();
+
+                    JsonObject? selected = null;
+                    foreach (var node in items)
+                    {
+                        if (node is not JsonObject cand) continue;
+                        string ck = cand["item_key"]?.GetValue<string>() ?? "";
+                        string cf = cand["culprit_file"]?.GetValue<string>() ?? "";
+                        if (!string.IsNullOrWhiteSpace(itemKey) && string.Equals(ck, itemKey, StringComparison.OrdinalIgnoreCase))
+                        {
+                            selected = cand;
+                            break;
+                        }
+                        if (!string.IsNullOrWhiteSpace(filePath) && string.Equals(cf, filePath, StringComparison.OrdinalIgnoreCase))
+                        {
+                            selected = cand;
+                            break;
+                        }
+                    }
+                    if (selected == null && items.Count > 0)
+                        selected = items[0] as JsonObject;
+
+                    int healedNow = autoHealInfo?["healed_count"]?.GetValue<int>() ?? 0;
+                    bool autoDispNow = autoHealInfo?["auto_dispatched"]?.GetValue<bool>() ?? false;
+                    string healSummaryDe = autoHealInfo?["summary_de"]?.GetValue<string>() ?? "";
+
+                    string selectedKey = selected?["item_key"]?.GetValue<string>() ?? "";
+                    var openEvt = new JsonObject
+                    {
+                        ["type"] = "funkiraLocalCommand",
+                        ["command"] = "cellar",
+                        ["action"] = action == "inspect_item" ? "inspect_item" : "open_and_analyze",
+                        ["selectedItemKey"] = selectedKey,
+                        ["healedCount"] = healedNow,
+                        ["autoDispatched"] = autoDispNow,
+                        ["snapshot"] = JsonNode.Parse(snapshot.ToJsonString())
+                    };
+
+                    var topSummary = new JsonArray();
+                    foreach (var node in items.Take(4))
+                    {
+                        if (node is not JsonObject it) continue;
+                        var callers = new JsonArray();
+                        if (it["incoming_files"] is JsonArray inc)
+                            foreach (var n in inc.Take(4)) callers.Add(n?["name"]?.GetValue<string>() ?? "");
+                        var refs = new JsonArray();
+                        if (it["outgoing_files"] is JsonArray outg)
+                            foreach (var n in outg.Take(4)) refs.Add(n?["name"]?.GetValue<string>() ?? "");
+
+                        topSummary.Add(new JsonObject
+                        {
+                            ["item_key"] = it["item_key"]?.GetValue<string>(),
+                            ["severity"] = it["severity"]?.GetValue<string>(),
+                            ["platform"] = it["platform_label"]?.GetValue<string>(),
+                            ["title"] = it["title"]?.GetValue<string>(),
+                            ["culprit_file"] = it["culprit_file"]?.GetValue<string>(),
+                            ["line"] = it["line"] != null ? JsonNode.Parse(it["line"]!.ToJsonString()) : null,
+                            ["occurrences"] = it["occurrences_count"]?.GetValue<int>() ?? 1,
+                            ["probable_cause"] = it["probable_cause"]?.GetValue<string>(),
+                            ["shop_impact_de"] = it["shop_impact_de"]?.GetValue<string>(),
+                            ["callers_incoming"] = callers,
+                            ["dependencies_outgoing"] = refs
+                        });
+                    }
+
+                    string spokenInstruction;
+                    if (items.Count == 0 && healedNow > 0)
+                    {
+                        spokenInstruction = $"Du fährst mit dem geheimen Lift in die 3D-Kuppelhalle und hast gerade {healedNow} Befund(e) VOLLAUTOMATISCH selbst geheilt! Sag Alina entspannt in 1 bis 2 Sätzen, dass jetzt im Projekt-Gehirn wieder alles grün leuchtet.";
+                    }
+                    else if (items.Count > 0)
+                    {
+                        spokenInstruction = $"Du bist in der 3D-Kuppelhalle. Laufzeit-Befunde wurden automatisch geprüft ({healedNow} geheilt) und der verbleibende Code-Befund ist BEREITS VOLLAUTOMATISCH als Reparatur-Paket hinterlegt (auto_dispatched={autoDispNow}). Sag Alina kurz in 1 bis 2 Sätzen, was los war und dass sie nichts anklicken muss, weil das Reparatur-Paket schon automatisch bereitliegt.";
+                    }
+                    else
+                    {
+                        spokenInstruction = "Du fährst in deine epische 3D-Kuppelhalle: Alle 10 Seelenfunke-Abteilungs-Cluster leuchten ruhig in Gold & Smaragdgrün, null Fehler.";
+                    }
+
+                    return (new JsonObject
+                    {
+                        ["status"] = "success",
+                        ["environment"] = snapshot["environment"]?.GetValue<string>(),
+                        ["online_connected"] = snapshot["online_connected"]?.GetValue<bool>() ?? false,
+                        ["connection_note"] = snapshot["connection_note"]?.GetValue<string>(),
+                        ["healed_count"] = healedNow,
+                        ["auto_dispatched"] = autoDispNow,
+                        ["auto_heal_summary"] = healSummaryDe,
+                        ["total_project_files"] = snapshot["brain_stats"]?["total_files"]?.GetValue<int>() ?? 891,
+                        ["total_project_links"] = snapshot["brain_stats"]?["total_links"]?.GetValue<int>() ?? 3856,
+                        ["open_errors_count"] = snapshot["brain_stats"]?["open_errors_count"]?.GetValue<int>() ?? 0,
+                        ["open_warnings_count"] = snapshot["brain_stats"]?["open_warnings_count"]?.GetValue<int>() ?? 0,
+                        ["selected_item_key"] = selectedKey,
+                        ["findings"] = topSummary,
+                        ["note"] = spokenInstruction
+                    }, openEvt);
+                }
+
                 default:
                     return (new JsonObject { ["status"] = "error", ["message"] = $"Unbekanntes lokales Tool: {toolName}" }, null);
             }
@@ -3312,6 +3859,11 @@ namespace FunkenwerkOSLinux
                 return;
             }
 
+            if (creds.Ok)
+            {
+                s_lastSpokenAuthExpiredAtUtc = DateTime.MinValue;
+            }
+
             if (localResilientMode)
             {
                 ErrorSentinelAndWatchdog.RecordEvent(
@@ -3329,8 +3881,8 @@ namespace FunkenwerkOSLinux
                     });
 
                 string serverHint = creds.IsAuthError
-                    ? $"\n- HINWEIS ZUR PORTAL-VERBINDUNG: Das Server-Token für {pulse.Environment} ist aktuell abgelaufen. Alle lokalen Mini-PC-, 3D-Haus-, Dokumenten-Suche-, Kamera-, Audio- und Werkstatt-Funktionen laufen zu 100% normal! Erwähne das nur dann kurz und freundlich, falls Alina explizit nach Live-Shop-Bestellungen, Server-To-Dos oder E-Mails fragt."
-                    : $"\n- HINWEIS ZUR PORTAL-VERBINDUNG: Das Online-Portal ({pulse.Environment}) war beim Start kurzzeitig nicht erreichbar ({creds.ErrorMessage}). Alle lokalen Mini-PC-, 3D-Haus-, Dokumenten-Suche-, Kamera-, Audio- und Werkstatt-Funktionen laufen zu 100% normal!";
+                    ? $"\n- HINWEIS ZUR PORTAL-VERBINDUNG: Deine Anmeldung für {pulse.Environment} ist aktuell abgelaufen (HTTP 401). Alle lokalen Mini-PC-, 3D-Haus-, Dokumenten-Suche-, Kamera-, Audio- und Werkstatt-Funktionen laufen zu 100% normal! Wenn Alina nach Online-Bestellungen, Mails, Kontakten, Co-CEO-Tipps oder Handy-Benachrichtigungen fragt, nenne ihr SOFORT ehrlich diesen Grund (Portal-Login abgelaufen) und biete an, das Anmeldefenster per 'minipc_ui_control' (action='open_login') direkt zu öffnen."
+                    : $"\n- HINWEIS ZUR PORTAL-VERBINDUNG: Das Online-Portal ({pulse.Environment}) war beim Start kurzzeitig nicht erreichbar ({creds.ErrorMessage}). Alle lokalen Mini-PC-, 3D-Haus-, Dokumenten-Suche-, Kamera-, Audio- und Werkstatt-Funktionen laufen zu 100% normal! Nenne Alina bei Online-Fragen ehrlich diesen konkreten Grund.";
 
                 creds.AgentName = "Funkira";
                 creds.VoiceName = "Kore";
@@ -3475,7 +4027,10 @@ namespace FunkenwerkOSLinux
                     audioState,
                     camStatus,
                     settings,
-                    serverRoutineSummary);
+                    serverRoutineSummary,
+                    localResilientMode: localResilientMode,
+                    localResilientAuthError: localResilientMode && creds.IsAuthError,
+                    serverErrorReason: creds.ErrorMessage);
 
                 mergedTools = BuildMergedToolsNode(creds.RawToolsJson, schemaJson, settings.TikTokLiveMode, phoneConciergeMode: false);
             }
@@ -3523,6 +4078,7 @@ namespace FunkenwerkOSLinux
                 agentName = creds.AgentName,
                 environment = pulse.Environment,
                 localResilientMode,
+                localResilientAuthError = localResilientMode && creds.IsAuthError,
                 serverSyncNotice = creds.Ok ? "" : (creds.ErrorMessage ?? ""),
                 cameraName = camStatus.CameraName,
                 hasCamera = camStatus.HasCamera,
@@ -3665,6 +4221,13 @@ namespace FunkenwerkOSLinux
                                     DateTime nowLocal = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, bTz);
                                     var rEval = EvaluateWorkshopRoutine(nowLocal, pulse);
 
+                                    bool shouldAnnounceExpiredAuth =
+                                        localResilientMode &&
+                                        creds.IsAuthError &&
+                                        !liveSettings.TikTokLiveMode &&
+                                        !string.Equals(LocalSenseBridge.EffectivePrivacyIdentity, "visitor", StringComparison.OrdinalIgnoreCase) &&
+                                        (DateTime.UtcNow - s_lastSpokenAuthExpiredAtUtc).TotalHours >= 2.0;
+
                                     if (reason == "wake_word")
                                     {
                                         await SafeSendLocalAsync(JsonSerializer.Serialize(new
@@ -3676,11 +4239,18 @@ namespace FunkenwerkOSLinux
                                             durationSeconds = 5.5
                                         })).ConfigureAwait(false);
 
+                                        string authAddendum = "";
+                                        if (shouldAnnounceExpiredAuth)
+                                        {
+                                            s_lastSpokenAuthExpiredAtUtc = DateTime.UtcNow;
+                                            authAddendum = $" Sag ihr im zweiten kurzen Satz direkt ehrlich Bescheid, dass deine Anmeldung am {pulse.Environment}-Portal abgelaufen ist (lokal klappt alles, für Live-Bestellungen kannst du ihr auf Wunsch sofort das Anmeldefenster öffnen).";
+                                        }
+
                                         var wakePacket = new JsonObject
                                         {
                                             ["realtimeInput"] = new JsonObject
                                             {
-                                                ["text"] = "[OFFLINE-RUFNAME ERKANNT: Alina hat dich gerade in der Werkstatt mit 'Funkira' gerufen, während du hinten in deinem 3D-Atelier gewerkelt hast! Du läufst gerade nach vorne zur Scheibe. Antworte jetzt SOFORT kurz, herzlich und lebendig in 1 kurzem Satz (z.B. 'Ja Alina, bin schon da! Was gibt es?').]"
+                                                ["text"] = $"[OFFLINE-RUFNAME ERKANNT: Alina hat dich gerade in der Werkstatt mit 'Funkira' gerufen, während du hinten in deinem 3D-Atelier gewerkelt hast! Du läufst gerade nach vorne zur Scheibe. Antworte jetzt SOFORT kurz, herzlich und lebendig in 1 bis 2 kurzen Sätzen (z.B. 'Ja Alina, bin schon da! Was gibt es?').{authAddendum}]"
                                             }
                                         };
                                         await SafeSendUpstreamAsync(wakePacket.ToJsonString()).ConfigureAwait(false);
@@ -3747,7 +4317,7 @@ namespace FunkenwerkOSLinux
                                         continue;
                                     }
 
-                                    // Daytime routine is displayed prominently in Gold on the monitor; only speak proactively late at night!
+                                    // Daytime routine is displayed prominently in Gold on the monitor; only speak proactively late at night (or once when Portal login expired)!
                                     if (liveSettings.TikTokLiveMode || !rEval.IsLateNightWarning)
                                     {
                                         if (reason == "session_start")
@@ -3760,6 +4330,19 @@ namespace FunkenwerkOSLinux
                                                 gesture = "wave",
                                                 durationSeconds = 4.5
                                             })).ConfigureAwait(false);
+
+                                            if (shouldAnnounceExpiredAuth)
+                                            {
+                                                s_lastSpokenAuthExpiredAtUtc = DateTime.UtcNow;
+                                                var authNoticePacket = new JsonObject
+                                                {
+                                                    ["realtimeInput"] = new JsonObject
+                                                    {
+                                                        ["text"] = $"[PORTAL-ANMELDUNG ABGELAUFEN HINWEIS: Begrüße Alina jetzt kurz herzlich in 2 knackigen Sätzen und sag ihr direkt ehrlich im Klartext, dass deine Anmeldung am {pulse.Environment}-Portal gerade abgelaufen ist: Lokal im Atelier und bei den Dokumenten läuft alles, und wenn sie Live-Bestellungen braucht, soll sie einfach kurz Bescheid sagen, damit du ihr das Anmeldefenster öffnest!]"
+                                                    }
+                                                };
+                                                await SafeSendUpstreamAsync(authNoticePacket.ToJsonString()).ConfigureAwait(false);
+                                            }
                                         }
                                         continue;
                                     }
@@ -3835,6 +4418,8 @@ namespace FunkenwerkOSLinux
                 var userTurnBuf = new StringBuilder();
                 var aiTurnBuf = new StringBuilder();
                 var phoneCallerFullTranscript = new StringBuilder();
+                string lastUserUtteranceInTurn = "";
+                bool suppressRefusedTurn = false;
                 try
                 {
                     while (upstreamWs.State == WebSocketState.Open && !sessionCts.IsCancellationRequested)
@@ -3868,6 +4453,7 @@ namespace FunkenwerkOSLinux
                         }
 
                         bool isToolCall = false;
+                        bool triggerSilentHealBreak = false;
                         try
                         {
                             using var doc = JsonDocument.Parse(rawText);
@@ -3900,6 +4486,7 @@ namespace FunkenwerkOSLinux
                                 {
                                     string chunkTxt = itTxt.GetString() ?? "";
                                     userTurnBuf.Append(chunkTxt);
+                                    lastUserUtteranceInTurn = userTurnBuf.ToString().Trim();
                                     if (isPhoneConcierge)
                                         phoneCallerFullTranscript.Append(chunkTxt);
                                 }
@@ -3909,37 +4496,89 @@ namespace FunkenwerkOSLinux
                                 {
                                     if (userTurnBuf.Length > 0)
                                     {
+                                        lastUserUtteranceInTurn = userTurnBuf.ToString().Trim();
                                         if (!isPhoneConcierge)
                                         {
                                             string spkTag = (LocalSenseBridge.LastVoiceIdentity == "companion" && !string.IsNullOrWhiteSpace(LocalSenseBridge.LastSpeakerName))
                                                 ? LocalSenseBridge.LastSpeakerName.ToUpperInvariant()
                                                 : (LocalSenseBridge.LastVoiceIdentity == "visitor_voice" ? "GAST" : "ALINA");
-                                            RecordLocalTurn(spkTag, userTurnBuf.ToString());
+                                            RecordLocalTurn(spkTag, lastUserUtteranceInTurn);
                                         }
                                         userTurnBuf.Clear();
                                     }
                                     aiTurnBuf.Append(otTxt.GetString());
+                                    if (!suppressRefusedTurn && IsCannedModelRefusal(aiTurnBuf.ToString()))
+                                    {
+                                        suppressRefusedTurn = true;
+                                        string refusedTxt = aiTurnBuf.ToString().Trim();
+                                        if (!isPhoneConcierge)
+                                        {
+                                            RecordLocalTurn("FUNKIRA", refusedTxt);
+                                        }
+                                        var liveGuardSettings = LinuxVaultAndStorage.LoadSettings();
+                                        var diag = DiagnoseRefusalForSpokenRecovery(
+                                            lastUserUtteranceInTurn,
+                                            localResilientMode,
+                                            localResilientMode && creds.IsAuthError,
+                                            creds.ErrorMessage,
+                                            pulse.Environment,
+                                            camStatus.HasCamera,
+                                            liveGuardSettings.TikTokLiveMode,
+                                            LocalSenseBridge.EffectivePrivacyIdentity,
+                                            LocalSenseBridge.CurrentFaceIdentity,
+                                            LocalSenseBridge.CurrentCompanionBadgeLabel);
+
+                                        ErrorSentinelAndWatchdog.RecordEvent(
+                                            component: "funkira_refusal_guard",
+                                            title: $"Gemini Fehl-Ablehnung ('Sprachmodell') abgefangen -> Klartext-Erklärung ({diag.Category})",
+                                            message: refusedTxt,
+                                            severity: "warning",
+                                            autoHealed: true,
+                                            healSummary: $"Ablehnungs-Audio gestoppt, Sitzung frisch verbunden und konkrete Klartext-Erklärung ({diag.Category}) gesprochen.",
+                                            context: new Dictionary<string, string>
+                                            {
+                                                ["user_utterance"] = lastUserUtteranceInTurn,
+                                                ["reason_category"] = diag.Category,
+                                                ["mode"] = useDirectGoogleWs ? "direct_google" : "portal_bridge"
+                                            });
+                                        await SafeSendLocalAsync(JsonSerializer.Serialize(new
+                                        {
+                                            type = "funkiraRefusalIntercepted",
+                                            userPrompt = lastUserUtteranceInTurn,
+                                            reasonCategory = diag.Category,
+                                            uiPreview = diag.UiPreview
+                                        })).ConfigureAwait(false);
+                                        await SafeSendLocalAsync(JsonSerializer.Serialize(new
+                                        {
+                                            type = "funkiraSilentHealReconnect",
+                                            reasonCategory = diag.Category,
+                                            healSpeechCue = diag.SpokenRecoveryCue
+                                        })).ConfigureAwait(false);
+                                        triggerSilentHealBreak = true;
+                                    }
                                 }
                                 if ((scNode.TryGetProperty("turnComplete", out var tcFlag) && tcFlag.ValueKind == JsonValueKind.True) ||
                                     (scNode.TryGetProperty("generationComplete", out var gcFlag) && gcFlag.ValueKind == JsonValueKind.True))
                                 {
                                     if (userTurnBuf.Length > 0)
                                     {
-                                        if (!isPhoneConcierge)
+                                        lastUserUtteranceInTurn = userTurnBuf.ToString().Trim();
+                                        if (!isPhoneConcierge && !suppressRefusedTurn)
                                         {
                                             string spkTag = (LocalSenseBridge.LastVoiceIdentity == "companion" && !string.IsNullOrWhiteSpace(LocalSenseBridge.LastSpeakerName))
                                                 ? LocalSenseBridge.LastSpeakerName.ToUpperInvariant()
                                                 : (LocalSenseBridge.LastVoiceIdentity == "visitor_voice" ? "GAST" : "ALINA");
-                                            RecordLocalTurn(spkTag, userTurnBuf.ToString());
+                                            RecordLocalTurn(spkTag, lastUserUtteranceInTurn);
                                         }
                                         userTurnBuf.Clear();
                                     }
                                     if (aiTurnBuf.Length > 0)
                                     {
-                                        if (!isPhoneConcierge)
+                                        if (!isPhoneConcierge && !suppressRefusedTurn)
                                             RecordLocalTurn("FUNKIRA", aiTurnBuf.ToString());
                                         aiTurnBuf.Clear();
                                     }
+                                    lastUserUtteranceInTurn = "";
                                 }
                             }
 
@@ -4114,7 +4753,13 @@ namespace FunkenwerkOSLinux
                         }
                         catch { }
 
-                        if (!isToolCall)
+                        if (triggerSilentHealBreak)
+                        {
+                            try { await upstreamWs.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "refusal_self_heal", CancellationToken.None).ConfigureAwait(false); } catch { }
+                            break;
+                        }
+
+                        if (!isToolCall && !suppressRefusedTurn)
                         {
                             await SafeSendLocalAsync(rawText).ConfigureAwait(false);
                         }

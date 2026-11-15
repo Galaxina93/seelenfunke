@@ -647,6 +647,19 @@ class AccountingSeeder extends Seeder
 
         $specialIssues = [
             [
+                'title'          => 'Inwa 10W PC- & Monitor-Lautsprecher mit Klemme (USB A/C, Plug-and-Play, HD Stereo Sound, Schwarz)',
+                'location'       => 'Amazon (Huide Europe)',
+                'amount'         => -22.99,
+                'date'           => '2026-11-15',
+                'category'       => 'Arbeitsmaterial',
+                'tax_rate'       => 19,
+                'invoice_number' => '028-0571020-7321138',
+                'note'           => "Bestellnummer: 028-0571020-7321138 | Bestellt am: 15.11.2026 (Belegausdruck 15.11.2026, 20:18 Uhr) | Zahlungsart: Volksbank eG Braunschweig Wolfsburg ••• 000\nPosition:\n- 1x Inwa 10W PC Lautsprecher, USB A/C Monitor Speaker mit Klemme, Plug-and-Play | HD Stereo Sound, Bass Musikbox Klemme kompatibel PC Monitor, MAC, Laptop, Handy, Desktop, Meetings, Studium, Videos (Schwarz, Verkauf durch: Huide Europe)\nZwischensumme / Gesamt vor USt. (Netto): 19,32 € | Verpackung & Versand: 0,00 € | Geschätzte USt. (19 %): 3,67 € | Gesamtsumme (Brutto): 22,99 €\nHinweis: Aktuell Amazon-Bestellübersicht; offizielle Amazon-Umsatzsteuerrechnung bei Bedarf ergänzen.\nBestellübersicht-Link: https://www.amazon.de/gp/css/summary/print.html?orderID=028-0571020-7321138&ref=ppx_yo2ov_dt_b_invoice",
+                'file_paths'     => [
+                    'buchhaltung/receipts/2026/11/2026-11-15_Amazon-Huide-Europe_Inwa-10W-PC-Monitor-Lautsprecher-USB-Klemme-Schwarz-Order-028-0571020-7321138.pdf'
+                ]
+            ],
+            [
                 'title'          => 'Babacom Laptop-Ständer (höhenverstellbar, faltbar, Aluminiumlegierung, 10-16 Zoll, Silber)',
                 'location'       => 'Amazon (Babacom TECH DE Store)',
                 'amount'         => -20.39,

@@ -267,4 +267,240 @@ use HasFactory, HasUuids;
         $this->configuration = $conf;
         $this->save();
     }
+
+    /**
+     * Ermittelt die strukturierte Manufaktur- & Konfigurator-Checkliste für diese Bestellposition:
+     * 1. Besondere Wünsche an die Manufaktur (notes)
+     * 2. Geschenkpapier: Ja/Nein + Modus (Fertig verpacken vs. Nur als Bogen dazu legen)
+     * 3. Edle Schmuckbox: Ja/Nein
+     * 4. Laser-Gravur / Fertigung
+     */
+    public function resolveManufacturingChecklist(): array
+    {
+        $conf = is_array($this->configuration) ? $this->configuration : [];
+        $checklistState = is_array($conf['manufacturing_checklist'] ?? null) ? $conf['manufacturing_checklist'] : [];
+
+        // 1. Besondere Wünsche an die Manufaktur
+        $itemNote = trim((string) ($conf['notes'] ?? ''));
+        $orderNote = ($this->relationLoaded('order') && $this->order)
+            ? trim((string) ($this->order->notes ?? ''))
+            : '';
+
+        if ($itemNote !== '' && $orderNote !== '' && strcasecmp($itemNote, $orderNote) !== 0) {
+            $combinedNote = $itemNote . ' (Bestellnotiz: ' . $orderNote . ')';
+        } else {
+            $combinedNote = $itemNote !== '' ? $itemNote : $orderNote;
+        }
+        $hasNote = $combinedNote !== '';
+        $notesChecked = $hasNote
+            ? (bool) ($checklistState['notes'] ?? $this->is_completed)
+            : true;
+
+        // 2. Geschenkpapier (Ja/Nein + Wie: Verpacken oder nur dazu legen)
+        $selectedAddons = is_array($conf['selected_addons'] ?? null) ? $conf['selected_addons'] : [];
+        $addonsSummary = is_array($conf['addons_summary'] ?? null) ? $conf['addons_summary'] : [];
+
+        $giftWrapSelected = in_array('gift_wrap_black_gold', $selectedAddons, true);
+        $matchedGiftWrapAddon = null;
+        foreach ($addonsSummary as $addon) {
+            if (is_array($addon) && Product::isGiftWrapAddon($addon)) {
+                $giftWrapSelected = true;
+                $matchedGiftWrapAddon = $addon;
+                break;
+            }
+        }
+
+        $giftWrapMode = 'none';
+        $giftWrapShortLabel = 'Nein (Kein Geschenkpapier)';
+        $giftWrapBadgeLabel = 'Geschenkpapier: Nein';
+        $giftWrapInstruction = 'Kein Geschenkpapier ausgewählt.';
+
+        if ($giftWrapSelected) {
+            $rawWrapMode = strtolower(trim((string) ($conf['gift_wrap_mode'] ?? ($matchedGiftWrapAddon['wrap_mode'] ?? ''))));
+            $addonNameLower = mb_strtolower((string) ($matchedGiftWrapAddon['name'] ?? ''));
+
+            if ($rawWrapMode === 'loose' || str_contains($addonNameLower, 'mitliefern') || str_contains($addonNameLower, 'dazu legen') || str_contains($addonNameLower, 'bogen')) {
+                $giftWrapMode = 'loose';
+                $giftWrapShortLabel = 'Ja (Nur als Bogen dazu legen)';
+                $giftWrapBadgeLabel = 'Geschenkpapier: Nur dazu legen';
+                $giftWrapInstruction = 'Schwarz-Gold Geschenkpapier NICHT verpacken, sondern sauber als Bogen zum Selbstverpacken beilegen.';
+            } else {
+                $giftWrapMode = 'wrapped';
+                $giftWrapShortLabel = 'Ja (Fertig als Geschenk verpacken)';
+                $giftWrapBadgeLabel = 'Geschenkpapier: Fertig verpacken';
+                $giftWrapInstruction = 'Artikel direkt in das Seelenfunke Schwarz-Gold Geschenkpapier fertig einpacken.';
+            }
+        }
+
+        $giftWrapChecked = $giftWrapSelected
+            ? (bool) ($checklistState['gift_wrap'] ?? $this->is_completed)
+            : true;
+
+        // 3. Edle Schmuckbox (Ja oder Nein)
+        $giftBoxSelected = in_array('gift_box_westpack', $selectedAddons, true);
+        $matchedGiftBoxAddon = null;
+        foreach ($addonsSummary as $addon) {
+            if (!is_array($addon)) {
+                continue;
+            }
+            $addonId = strtolower(trim((string) ($addon['id'] ?? '')));
+            $addonName = mb_strtolower(trim((string) ($addon['name'] ?? '')));
+            if (
+                $addonId === 'gift_box_westpack'
+                || str_contains($addonName, 'schmuckbox')
+                || str_contains($addonName, 'geschenkbox')
+                || str_contains($addonName, 'schmuckschachtel')
+                || str_contains($addonName, 'westpack')
+                || str_contains($addonName, 'edle box')
+            ) {
+                $giftBoxSelected = true;
+                $matchedGiftBoxAddon = $addon;
+                break;
+            }
+        }
+
+        $giftBoxShortLabel = $giftBoxSelected
+            ? 'Ja (Edle Schmuckbox Schwarz-Gold)'
+            : 'Nein (Ohne Schmuckbox)';
+        $giftBoxBadgeLabel = $giftBoxSelected
+            ? 'Edle Schmuckbox: Ja'
+            : 'Edle Schmuckbox: Nein';
+        $giftBoxInstruction = $giftBoxSelected
+            ? 'Artikel in die schwarze Westpack-Schmuckbox mit Goldprägung und Schaumstoffeinlage legen.'
+            : 'Keine Schmuckbox ausgewählt (Standard-Versandpolsterung).';
+
+        $giftBoxChecked = $giftBoxSelected
+            ? (bool) ($checklistState['gift_box'] ?? $this->is_completed)
+            : true;
+
+        // 4. Laser-Gravur / Fertigung
+        $engravingChecked = (bool) ($checklistState['engraving'] ?? $this->is_completed);
+
+        $openActionCount = 0;
+        if (!$engravingChecked) {
+            $openActionCount++;
+        }
+        if ($hasNote && !$notesChecked) {
+            $openActionCount++;
+        }
+        if ($giftWrapSelected && !$giftWrapChecked) {
+            $openActionCount++;
+        }
+        if ($giftBoxSelected && !$giftBoxChecked) {
+            $openActionCount++;
+        }
+
+        return [
+            'notes' => [
+                'has_note' => $hasNote,
+                'text' => $combinedNote,
+                'item_note' => $itemNote,
+                'order_note' => $orderNote,
+                'short_label' => $hasNote ? 'Ja (Kundenwunsch liegt vor)' : 'Nein (Keine besonderen Wünsche)',
+                'badge_label' => $hasNote ? 'Manufaktur-Wunsch beachten' : 'Kein Sonderwunsch',
+                'instruction' => $hasNote
+                    ? 'Kundenwunsch an die Manufaktur: "' . $combinedNote . '"'
+                    : 'Keine besonderen Wünsche an die Manufaktur angegeben.',
+                'checked' => $notesChecked,
+                'required' => $hasNote,
+            ],
+            'gift_wrap' => [
+                'selected' => $giftWrapSelected,
+                'mode' => $giftWrapMode, // 'wrapped' | 'loose' | 'none'
+                'short_label' => $giftWrapShortLabel,
+                'badge_label' => $giftWrapBadgeLabel,
+                'instruction' => $giftWrapInstruction,
+                'addon_name' => $matchedGiftWrapAddon['name'] ?? null,
+                'checked' => $giftWrapChecked,
+                'required' => $giftWrapSelected,
+            ],
+            'gift_box' => [
+                'selected' => $giftBoxSelected,
+                'short_label' => $giftBoxShortLabel,
+                'badge_label' => $giftBoxBadgeLabel,
+                'instruction' => $giftBoxInstruction,
+                'addon_name' => $matchedGiftBoxAddon['name'] ?? null,
+                'checked' => $giftBoxChecked,
+                'required' => $giftBoxSelected,
+            ],
+            'engraving' => [
+                'checked' => $engravingChecked,
+                'quantity' => max(1, (int) $this->quantity),
+                'completed_quantity' => (int) ($this->completed_quantity ?? ($this->is_completed ? $this->quantity : 0)),
+                'required' => true,
+            ],
+            'all_checked' => $openActionCount === 0 && (bool) $this->is_completed,
+            'open_action_count' => $openActionCount,
+        ];
+    }
+
+    /**
+     * Schaltet einen einzelnen Checklisten-Punkt ('notes', 'gift_wrap', 'gift_box', 'engraving')
+     * für diese Bestellposition um und synchronisiert is_completed automatisch.
+     */
+    public function toggleChecklistTask(string $taskKey, ?bool $forceState = null): array
+    {
+        $allowedKeys = ['notes', 'gift_wrap', 'gift_box', 'engraving'];
+        if (!in_array($taskKey, $allowedKeys, true)) {
+            return $this->resolveManufacturingChecklist();
+        }
+
+        $conf = is_array($this->configuration) ? $this->configuration : [];
+        $currentChecklist = $this->resolveManufacturingChecklist();
+        $checklistState = is_array($conf['manufacturing_checklist'] ?? null) ? $conf['manufacturing_checklist'] : [];
+
+        // Initialisiere alle aktuellen Stände
+        foreach ($allowedKeys as $key) {
+            if (!array_key_exists($key, $checklistState)) {
+                $checklistState[$key] = (bool) ($currentChecklist[$key]['checked'] ?? false);
+            }
+        }
+
+        $newState = $forceState !== null ? $forceState : !((bool) ($checklistState[$taskKey] ?? false));
+        $checklistState[$taskKey] = $newState;
+        $conf['manufacturing_checklist'] = $checklistState;
+        $this->configuration = $conf;
+
+        // Re-evaluieren, ob jetzt alle relevanten Pflichtpunkte für diese Position erledigt sind
+        $updated = $this->resolveManufacturingChecklist();
+        $allRequiredDone = $updated['engraving']['checked']
+            && (!$updated['notes']['required'] || $updated['notes']['checked'])
+            && (!$updated['gift_wrap']['required'] || $updated['gift_wrap']['checked'])
+            && (!$updated['gift_box']['required'] || $updated['gift_box']['checked']);
+
+        if ($taskKey === 'engraving' && $newState) {
+            $this->completed_quantity = max(1, (int) $this->quantity);
+        } elseif ($taskKey === 'engraving' && !$newState) {
+            $this->completed_quantity = 0;
+        }
+
+        if ($allRequiredDone) {
+            $this->is_completed = true;
+            $this->completed_quantity = max(1, (int) $this->quantity);
+        } else {
+            $this->is_completed = false;
+        }
+
+        $this->save();
+
+        return $this->resolveManufacturingChecklist();
+    }
+
+    /**
+     * Markiert alle Pflichtpunkte der Manufaktur-Checkliste dieser Position geschlossen als erledigt oder offen.
+     */
+    public function markAllChecklistTasks(bool $completed = true): void
+    {
+        $conf = is_array($this->configuration) ? $this->configuration : [];
+        $conf['manufacturing_checklist'] = [
+            'engraving' => $completed,
+            'notes' => $completed,
+            'gift_wrap' => $completed,
+            'gift_box' => $completed,
+        ];
+        $this->configuration = $conf;
+        $this->is_completed = $completed;
+        $this->completed_quantity = $completed ? max(1, (int) $this->quantity) : 0;
+        $this->save();
+    }
 }

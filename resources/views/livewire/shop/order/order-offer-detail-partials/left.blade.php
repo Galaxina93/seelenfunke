@@ -1,4 +1,5 @@
-<div class="w-full lg:w-1/2 h-auto lg:h-full lg:overflow-y-auto bg-gray-50/50 dark:bg-gray-950/30 custom-scrollbar z-10 lg:border-r border-gray-200 dark:border-gray-800">
+@php $isEmbeddedOptionalPanel = !empty($isEmbeddedOptionalPanel); @endphp
+<div class="{{ $isEmbeddedOptionalPanel ? 'w-full lg:w-1/2 h-auto bg-gray-50/50 dark:bg-gray-950/30 z-10 border-b lg:border-b-0 lg:border-r border-gray-200 dark:border-gray-800 rounded-t-[2rem] lg:rounded-tr-none lg:rounded-l-[2rem]' : 'w-full lg:w-1/2 h-auto lg:h-full lg:overflow-y-auto bg-gray-50/50 dark:bg-gray-950/30 custom-scrollbar z-10 lg:border-r border-gray-200 dark:border-gray-800' }}">
     <div class="p-6 md:p-8 space-y-8">
 
         {{-- 1. EXPRESS INFO --}}
@@ -71,92 +72,200 @@
             @endif
         </div>
 
-        {{-- 2b. INTERNER WERKSTATT-STAND & WIEDERVORLAGE (100% Manuell + Optional KI-synchron) --}}
+        {{-- 2b. AUTONOME 3-SCHRITTE-ABARBEITUNG & KONFIGURATOR-CHECKLISTE (Ersetzt manuelles Feld "Werkstatt-Stand") --}}
         @if($isOrder)
             @php
-                $wsDiscrepancy = $this->selectedOrderDiscrepancy ?? ['has_discrepancy' => false];
-                $hasWsState = !empty($model->workshop_note) || !empty($model->workshop_next_check_at) || !empty($model->workshop_checkin_paused);
+                $stepOverview = $model->getManufacturingOverview();
+                $activeStep = (int) ($this->activeOrderStep ?? 1);
+                $previewChecklist = $previewItem ? $previewItem->resolveManufacturingChecklist() : null;
+                $packDetails = !$model->isOnlyDigital() ? $model->getDhlWeightDetails(1, 'box') : null;
             @endphp
-            <div class="bg-white dark:bg-gray-900/50 backdrop-blur-md p-5 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-inner space-y-3.5">
-                <div class="flex flex-wrap items-center justify-between gap-2">
-                    <div class="flex items-center gap-2">
-                        <h3 class="text-[10px] font-black uppercase text-gray-700 dark:text-gray-300 tracking-widest flex items-center gap-1.5">
-                            <svg class="w-3.5 h-3.5 text-[var(--theme-color)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
-                            <span>Werkstatt-Stand</span>
-                        </h3>
-                        <div class="relative group/wsinfo inline-flex items-center">
-                            <span class="w-4 h-4 rounded-full bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:text-[var(--theme-color)] hover:border-[var(--theme-color)] flex items-center justify-center text-[9px] font-black cursor-help transition-colors">!</span>
-                            <div class="absolute bottom-full left-0 mb-2 hidden group-hover/wsinfo:block z-50 w-64 p-3 rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-2xl text-[11px] font-medium text-gray-700 dark:text-gray-300 leading-relaxed pointer-events-none">
-                                Interne Fertigungsnotiz &amp; Wiedervorlage. Funktioniert 100 % manuell und synchron mit Funkira (niemals für Kunden sichtbar).
-                            </div>
+            <div class="bg-white dark:bg-gray-900/80 backdrop-blur-md p-5 sm:p-6 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-inner space-y-4">
+                {{-- Kopfzeile: Aktueller Schritt + 1-Satz-Anweisung --}}
+                <div class="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-gray-200 dark:border-gray-800">
+                    <div class="flex items-center gap-2.5">
+                        <span class="w-7 h-7 rounded-xl bg-[var(--theme-color)] text-gray-950 flex items-center justify-center text-xs font-black shadow-sm">
+                            {{ $activeStep }}
+                        </span>
+                        <div>
+                            <h3 class="text-xs font-black uppercase text-gray-900 dark:text-white tracking-widest">
+                                @if($activeStep === 1)
+                                    Schritt 1 · In Bearbeitung (Fertigung &amp; Manufaktur-Vorgaben)
+                                @elseif($activeStep === 2)
+                                    Schritt 2 · Versendet (Packtisch &amp; DHL-Label)
+                                @else
+                                    Schritt 3 · Abgeschlossen
+                                @endif
+                            </h3>
+                            <p class="text-[11px] font-medium text-gray-600 dark:text-gray-300 mt-0.5">
+                                @if($activeStep === 1)
+                                    Lasere den Artikel rechts im 1-2-3 Cockpit und hake unten die 3 Konfigurator-Vorgaben ab.
+                                @elseif($activeStep === 2)
+                                    Lege Artikel und Extras laut Checkliste ins Paket und klicke auf „1. DHL Label erstellen“.
+                                @else
+                                    Versand ist erfolgt. Schließe die Bestellung jetzt ab oder springe direkt zum nächsten Auftrag.
+                                @endif
+                            </p>
                         </div>
                     </div>
 
-                    <div class="flex flex-wrap items-center gap-1.5">
-                        @if($model->workshop_note_updated_at)
-                            <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700">
-                                Stand {{ $model->workshop_note_updated_at->copy()->timezone('Europe/Berlin')->format('d.m. H:i') }}
-                            </span>
-                        @endif
-                        @if($model->workshop_checkin_paused)
-                            <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 border border-gray-300 dark:border-gray-700">
-                                Check-in pausiert
-                            </span>
-                        @elseif($model->workshop_next_check_at)
-                            <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-30)]">
-                                Check-in {{ $model->workshop_next_check_at->copy()->timezone('Europe/Berlin')->format('d.m. H:i') }}
-                            </span>
-                        @endif
-                        @if($hasWsState)
-                            <button type="button"
-                                    wire:click="clearWorkshopCheckin"
-                                    title="Werkstatt-Stand leeren"
-                                    class="p-1 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors cursor-pointer">
-                                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
-                            </button>
-                        @endif
-                    </div>
+                    <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-30)]">
+                        Funkira-Sync aktiv
+                    </span>
                 </div>
 
-                <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
-                    <input type="text"
-                           wire:model="workshopNote"
-                           wire:keydown.enter="saveWorkshopCheckin"
-                           maxlength="1000"
-                           placeholder="Aktueller Stand (z. B. Vorderseite gelasert, Rückseite läuft...)"
-                           class="flex-1 bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-800 rounded-xl px-3.5 py-2.5 text-xs text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-[var(--theme-color-40)] focus:border-[var(--theme-color)] outline-none transition-all shadow-sm dark:shadow-inner">
+                {{-- DIE 3 VERBINDLICHEN KONFIGURATOR-PUNKTE (Für aktuelle Position / Bestellung) --}}
+                @if($previewItem && $previewChecklist)
+                    <div class="space-y-2.5">
+                        <div class="text-[10px] font-black uppercase tracking-widest text-gray-400 dark:text-gray-500 flex items-center justify-between">
+                            <span>Manufaktur-Vorgaben aus dem Produktkonfigurator ({{ $previewItem->product_name }})</span>
+                            <span>{{ $stepOverview['completed_items'] }} / {{ $stepOverview['total_items'] }} Positionen fertig</span>
+                        </div>
 
-                    <div class="flex items-center gap-2 shrink-0">
-                        <select wire:model="workshopFollowupMode"
-                                aria-label="Wiedervorlage"
-                                class="bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-800 rounded-xl px-3 py-2.5 text-xs font-bold text-gray-800 dark:text-gray-200 focus:ring-2 focus:ring-[var(--theme-color-40)] focus:border-[var(--theme-color)] outline-none cursor-pointer shadow-sm dark:shadow-inner">
-                            <option value="2h">Check-in: 2 Std.</option>
-                            <option value="1h">Check-in: 1 Std.</option>
-                            <option value="tomorrow">Morgen 09:30</option>
-                            <option value="pause">Pausiert</option>
-                        </select>
+                        {{-- Punkt 1: Besondere Wünsche an die Manufaktur --}}
+                        <div wire:click="toggleItemChecklistTask('{{ $previewItem->id }}', 'notes')"
+                             class="flex items-start justify-between gap-3 p-3.5 rounded-2xl border transition-all cursor-pointer {{ $previewChecklist['notes']['has_note']
+                                ? ($previewChecklist['notes']['checked']
+                                    ? 'bg-emerald-500/10 border-emerald-500/40 text-gray-900 dark:text-white'
+                                    : 'bg-amber-500/10 border-amber-500/50 text-gray-900 dark:text-white shadow-sm')
+                                : 'bg-gray-50 dark:bg-gray-950/70 border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400' }}">
+                            <div class="flex items-start gap-3 min-w-0">
+                                <div class="w-5 h-5 rounded-lg border-2 flex items-center justify-center shrink-0 mt-0.5 {{ $previewChecklist['notes']['checked']
+                                    ? 'bg-emerald-500 border-emerald-500 text-white'
+                                    : 'border-amber-500 text-transparent' }}">
+                                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                </div>
+                                <div class="min-w-0">
+                                    <div class="text-[10px] font-black uppercase tracking-wider {{ $previewChecklist['notes']['has_note'] && !$previewChecklist['notes']['checked'] ? 'text-amber-700 dark:text-amber-300' : 'text-gray-700 dark:text-gray-300' }}">
+                                        1. Besondere Wünsche an die Manufaktur: {{ $previewChecklist['notes']['has_note'] ? 'JA' : 'NEIN' }}
+                                    </div>
+                                    <div class="text-xs font-bold mt-0.5 break-words {{ $previewChecklist['notes']['has_note'] ? 'text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400' }}">
+                                        {{ $previewChecklist['notes']['has_note'] ? ('„' . $previewChecklist['notes']['text'] . '“') : 'Keine besonderen Wünsche angegeben' }}
+                                    </div>
+                                </div>
+                            </div>
+                            <span class="shrink-0 px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider {{ $previewChecklist['notes']['checked'] ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300' : 'bg-amber-500 text-gray-950' }}">
+                                {{ $previewChecklist['notes']['has_note'] ? ($previewChecklist['notes']['checked'] ? 'Erledigt ✓' : 'Jetzt beachten') : 'OK ✓' }}
+                            </span>
+                        </div>
 
-                        <button type="button"
-                                wire:click="saveWorkshopCheckin"
-                                class="px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider bg-[var(--theme-color)] text-gray-950 hover:opacity-90 transition-all shadow-sm cursor-pointer shrink-0">
-                            Speichern
-                        </button>
-                    </div>
-                </div>
+                        {{-- Punkt 2: Geschenkpapier (Ja/Nein + Wie: Verpacken oder nur dazu legen) --}}
+                        <div wire:click="toggleItemChecklistTask('{{ $previewItem->id }}', 'gift_wrap')"
+                             class="flex items-start justify-between gap-3 p-3.5 rounded-2xl border transition-all cursor-pointer {{ $previewChecklist['gift_wrap']['selected']
+                                ? ($previewChecklist['gift_wrap']['checked']
+                                    ? 'bg-emerald-500/10 border-emerald-500/40 text-gray-900 dark:text-white'
+                                    : 'bg-[var(--theme-color-10)] border-[var(--theme-color-50)] text-gray-900 dark:text-white shadow-sm')
+                                : 'bg-gray-50 dark:bg-gray-950/70 border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400' }}">
+                            <div class="flex items-start gap-3 min-w-0">
+                                <div class="w-5 h-5 rounded-lg border-2 flex items-center justify-center shrink-0 mt-0.5 {{ $previewChecklist['gift_wrap']['checked']
+                                    ? 'bg-emerald-500 border-emerald-500 text-white'
+                                    : 'border-[var(--theme-color)] text-transparent' }}">
+                                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                </div>
+                                <div class="min-w-0">
+                                    <div class="text-[10px] font-black uppercase tracking-wider text-gray-700 dark:text-gray-300">
+                                        2. Geschenkpapier ausgewählt: {{ $previewChecklist['gift_wrap']['short_label'] }}
+                                    </div>
+                                    <div class="text-xs font-bold mt-0.5 {{ $previewChecklist['gift_wrap']['selected'] ? 'text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400' }}">
+                                        {{ $previewChecklist['gift_wrap']['instruction'] }}
+                                    </div>
+                                </div>
+                            </div>
+                            <span class="shrink-0 px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider {{ $previewChecklist['gift_wrap']['checked'] ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300' : 'bg-[var(--theme-color)] text-gray-950' }}">
+                                {{ $previewChecklist['gift_wrap']['selected'] ? ($previewChecklist['gift_wrap']['checked'] ? 'Erledigt ✓' : ($previewChecklist['gift_wrap']['mode'] === 'loose' ? 'Dazu legen' : 'Verpacken')) : 'Nein ✓' }}
+                            </span>
+                        </div>
 
-                @if(!empty($wsDiscrepancy['has_discrepancy']) && !empty($wsDiscrepancy['suggested_status']))
-                    <div class="flex flex-wrap items-center justify-between gap-2.5 pt-2.5 border-t border-gray-200/80 dark:border-gray-800/80">
-                        <span class="text-[11px] font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
-                            <span class="w-2 h-2 rounded-full bg-[var(--theme-color)] shrink-0"></span>
-                            <span>{{ $wsDiscrepancy['ui_hint'] }}</span>
-                        </span>
-                        <button type="button"
-                                wire:click="updateStatus('{{ $model->id }}', '{{ $wsDiscrepancy['suggested_status'] }}')"
-                                class="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-[var(--theme-color-15)] text-[var(--theme-color)] border border-[var(--theme-color-30)] hover:bg-[var(--theme-color)] hover:text-gray-950 transition-colors cursor-pointer shrink-0">
-                            Auf „{{ $wsDiscrepancy['suggested_status_label'] }}“ setzen
-                        </button>
+                        {{-- Punkt 3: Edle Schmuckbox (Ja oder Nein) --}}
+                        <div wire:click="toggleItemChecklistTask('{{ $previewItem->id }}', 'gift_box')"
+                             class="flex items-start justify-between gap-3 p-3.5 rounded-2xl border transition-all cursor-pointer {{ $previewChecklist['gift_box']['selected']
+                                ? ($previewChecklist['gift_box']['checked']
+                                    ? 'bg-emerald-500/10 border-emerald-500/40 text-gray-900 dark:text-white'
+                                    : 'bg-[var(--theme-color-10)] border-[var(--theme-color-50)] text-gray-900 dark:text-white shadow-sm')
+                                : 'bg-gray-50 dark:bg-gray-950/70 border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400' }}">
+                            <div class="flex items-start gap-3 min-w-0">
+                                <div class="w-5 h-5 rounded-lg border-2 flex items-center justify-center shrink-0 mt-0.5 {{ $previewChecklist['gift_box']['checked']
+                                    ? 'bg-emerald-500 border-emerald-500 text-white'
+                                    : 'border-[var(--theme-color)] text-transparent' }}">
+                                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                </div>
+                                <div class="min-w-0">
+                                    <div class="text-[10px] font-black uppercase tracking-wider text-gray-700 dark:text-gray-300">
+                                        3. Edle Schmuckbox: {{ $previewChecklist['gift_box']['short_label'] }}
+                                    </div>
+                                    <div class="text-xs font-bold mt-0.5 {{ $previewChecklist['gift_box']['selected'] ? 'text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400' }}">
+                                        {{ $previewChecklist['gift_box']['instruction'] }}
+                                    </div>
+                                </div>
+                            </div>
+                            <span class="shrink-0 px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider {{ $previewChecklist['gift_box']['checked'] ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300' : 'bg-[var(--theme-color)] text-gray-950' }}">
+                                {{ $previewChecklist['gift_box']['selected'] ? ($previewChecklist['gift_box']['checked'] ? 'Erledigt ✓' : 'In Box legen') : 'Nein ✓' }}
+                            </span>
+                        </div>
                     </div>
                 @endif
+
+                {{-- SCHRITT-SPEZIFISCHE HAUPTAKTION (Kinderleicht weiter zum nächsten Schritt) --}}
+                <div class="pt-3 border-t border-gray-200 dark:border-gray-800">
+                    @if($activeStep === 1)
+                        <button type="button"
+                                wire:click="completeStepOneAndProceedToShipping"
+                                class="w-full flex items-center justify-center gap-2.5 px-5 py-3.5 rounded-2xl bg-[var(--theme-color)] hover:brightness-95 text-gray-950 text-xs font-black uppercase tracking-widest shadow-md transition-all cursor-pointer">
+                            <span>Schritt 1 abschließen &amp; weiter zu Schritt 2 (Versand)</span>
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+                        </button>
+                    @elseif($activeStep === 2)
+                        <div class="space-y-3">
+                            @if($packDetails && !empty($packDetails['recommended_box_hint']))
+                                <div class="px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-[11px] font-semibold text-gray-700 dark:text-gray-300 flex items-center justify-between gap-2">
+                                    <span>📦 Packtisch-Empfehlung: <strong class="text-gray-900 dark:text-white">{{ $packDetails['recommended_box_hint'] }}</strong></span>
+                                    <span class="font-mono font-bold text-[var(--theme-color)] shrink-0">{{ number_format($packDetails['recommended_weight_per_package'] ?? 0.5, 2, ',', '.') }} kg</span>
+                                </div>
+                            @endif
+
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                @if(!$model->isOnlyDigital())
+                                    <button type="button"
+                                            wire:click="openDhlModal('{{ $model->id }}')"
+                                            class="flex items-center justify-center gap-2 px-4 py-3.5 rounded-2xl bg-[var(--theme-color)] hover:brightness-95 text-gray-950 text-xs font-black uppercase tracking-wider shadow-md transition-all cursor-pointer">
+                                        <span class="w-5 h-5 rounded-full bg-gray-950 text-[var(--theme-color)] flex items-center justify-center text-[10px] font-black">1</span>
+                                        <span>DHL Label &amp; MUNBYN Druck</span>
+                                    </button>
+                                @endif
+                                <button type="button"
+                                        wire:click="completeStepTwoShipped(true)"
+                                        class="flex items-center justify-center gap-2 px-4 py-3.5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-gray-950 text-xs font-black uppercase tracking-wider shadow-md transition-all cursor-pointer">
+                                    <span class="w-5 h-5 rounded-full bg-gray-950 text-emerald-400 flex items-center justify-center text-[10px] font-black">2</span>
+                                    <span>Als „Versendet“ abschließen</span>
+                                </button>
+                            </div>
+                        </div>
+                    @else
+                        <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+                            @if($model->status !== 'completed')
+                                <button type="button"
+                                        wire:click="completeStepThreeOrder"
+                                        class="flex-1 flex items-center justify-center gap-2 px-5 py-3.5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-gray-950 text-xs font-black uppercase tracking-widest shadow-md transition-all cursor-pointer">
+                                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                    <span>Bestellung endgültig abschließen (Status: Abgeschlossen)</span>
+                                </button>
+                            @else
+                                <div class="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-700 dark:text-emerald-300 text-xs font-black uppercase tracking-widest">
+                                    <span>✓ Bestellung vollständig abgeschlossen</span>
+                                </div>
+                            @endif
+
+                            @if(!empty($this->nextQueueOrder))
+                                <button type="button"
+                                        wire:click="openDetail('{{ $this->nextQueueOrder['id'] }}')"
+                                        class="flex items-center justify-center gap-2 px-5 py-3.5 rounded-2xl bg-[var(--theme-color)] hover:brightness-95 text-gray-950 text-xs font-black uppercase tracking-wider shadow-md transition-all cursor-pointer shrink-0">
+                                    <span>Nächster Auftrag (#{{ $this->nextQueueOrder['order_number'] }})</span>
+                                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+                                </button>
+                            @endif
+                        </div>
+                    @endif
+                </div>
             </div>
         @endif
 
@@ -334,6 +443,36 @@
                                                 Dateien
                                             </span>
                                         @endif
+                                    </div>
+                                @endif
+
+                                {{-- Kompakte 3-Punkte Konfigurator-Übersicht je Position --}}
+                                @if($isOrder)
+                                    @php $itemChecklist = $item->resolveManufacturingChecklist(); @endphp
+                                    <div class="mt-2.5 flex flex-wrap gap-1.5" onclick="event.stopPropagation()">
+                                        <button type="button"
+                                                wire:click="toggleItemChecklistTask('{{ $item->id }}', 'notes')"
+                                                class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider border transition-colors cursor-pointer {{ $itemChecklist['notes']['has_note']
+                                                    ? ($itemChecklist['notes']['checked'] ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30' : 'bg-amber-500/20 text-amber-800 dark:text-amber-300 border-amber-500/40')
+                                                    : 'bg-gray-100 dark:bg-gray-800/80 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700' }}">
+                                            <span>1. Wunsch: {{ $itemChecklist['notes']['has_note'] ? ($itemChecklist['notes']['checked'] ? 'Ja ✓' : 'Ja (!)') : 'Nein' }}</span>
+                                        </button>
+
+                                        <button type="button"
+                                                wire:click="toggleItemChecklistTask('{{ $item->id }}', 'gift_wrap')"
+                                                class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider border transition-colors cursor-pointer {{ $itemChecklist['gift_wrap']['selected']
+                                                    ? ($itemChecklist['gift_wrap']['checked'] ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30' : 'bg-[var(--theme-color-15)] text-[var(--theme-color)] border-[var(--theme-color-40)]')
+                                                    : 'bg-gray-100 dark:bg-gray-800/80 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700' }}">
+                                            <span>2. {{ $itemChecklist['gift_wrap']['badge_label'] }}{{ $itemChecklist['gift_wrap']['selected'] && $itemChecklist['gift_wrap']['checked'] ? ' ✓' : '' }}</span>
+                                        </button>
+
+                                        <button type="button"
+                                                wire:click="toggleItemChecklistTask('{{ $item->id }}', 'gift_box')"
+                                                class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider border transition-colors cursor-pointer {{ $itemChecklist['gift_box']['selected']
+                                                    ? ($itemChecklist['gift_box']['checked'] ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30' : 'bg-[var(--theme-color-15)] text-[var(--theme-color)] border-[var(--theme-color-40)]')
+                                                    : 'bg-gray-100 dark:bg-gray-800/80 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700' }}">
+                                            <span>3. {{ $itemChecklist['gift_box']['badge_label'] }}{{ $itemChecklist['gift_box']['selected'] && $itemChecklist['gift_box']['checked'] ? ' ✓' : '' }}</span>
+                                        </button>
                                     </div>
                                 @endif
 
@@ -776,7 +915,13 @@
                 <div class="bg-gray-50 dark:bg-gray-950 px-6 py-5 border-t border-gray-200 dark:border-gray-800">
                     <div class="flex flex-col gap-3">
                         @if($hasFront)
-                            <div class="grid grid-cols-1 {{ $hasFrontLogo ? 'sm:grid-cols-2' : '' }} gap-2.5">
+                            <div class="grid grid-cols-1 {{ $hasFrontLogo ? 'sm:grid-cols-3' : 'sm:grid-cols-2' }} gap-2.5">
+                                <button wire:click.prevent="downloadLaserXcsFile('{{ $previewItem->id }}', 'front')" class="w-full flex items-center justify-center gap-2 px-4 py-3.5 bg-[var(--theme-color)] text-gray-950 text-xs font-black uppercase tracking-widest rounded-xl border border-[var(--theme-color)] shadow-sm hover:opacity-90 transition-all duration-300 focus:outline-none cursor-pointer">
+                                    <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                                    </svg>
+                                    <span>xTool Projekt (.xcs)</span>
+                                </button>
                                 <button wire:click.prevent="downloadLaserFile('{{ $previewItem->id }}', 'front')" class="w-full flex items-center justify-center gap-2.5 px-4 py-3.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-xs font-black uppercase tracking-widest rounded-xl border border-gray-300 dark:border-gray-700 shadow-sm dark:shadow-inner hover:bg-[var(--theme-color)] hover:text-gray-900 hover:border-[var(--theme-color)] transition-all duration-300 group focus:outline-none cursor-pointer">
                                     <svg class="w-4 h-4 text-[var(--theme-color)] group-hover:text-gray-900 transition-colors shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
@@ -795,7 +940,13 @@
                         @endif
 
                         @if($hasBack)
-                            <div class="grid grid-cols-1 {{ $hasBackLogo ? 'sm:grid-cols-2' : '' }} gap-2.5">
+                            <div class="grid grid-cols-1 {{ $hasBackLogo ? 'sm:grid-cols-3' : 'sm:grid-cols-2' }} gap-2.5">
+                                <button wire:click.prevent="downloadLaserXcsFile('{{ $previewItem->id }}', 'back')" class="w-full flex items-center justify-center gap-2 px-4 py-3.5 bg-[var(--theme-color)] text-gray-950 text-xs font-black uppercase tracking-widest rounded-xl border border-[var(--theme-color)] shadow-sm hover:opacity-90 transition-all duration-300 focus:outline-none cursor-pointer">
+                                    <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                                    </svg>
+                                    <span>xTool Projekt (.xcs Rückseite)</span>
+                                </button>
                                 <button wire:click.prevent="downloadLaserFile('{{ $previewItem->id }}', 'back')" class="w-full flex items-center justify-center gap-2.5 px-4 py-3.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-xs font-black uppercase tracking-widest rounded-xl border border-gray-300 dark:border-gray-700 shadow-sm dark:shadow-inner hover:bg-[var(--theme-color)] hover:text-gray-900 hover:border-[var(--theme-color)] transition-all duration-300 group focus:outline-none cursor-pointer">
                                     <svg class="w-4 h-4 text-[var(--theme-color)] group-hover:text-gray-900 transition-colors shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>

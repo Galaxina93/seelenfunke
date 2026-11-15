@@ -960,7 +960,9 @@ function handleTwilioConnection(ws) {
             twilio_sid: callSid || streamSid,
             contact_name: callContext.contact_name,
             objective: callContext.objective,
-            transcript: callTranscript,
+            transcript: Array.isArray(callTranscript)
+                ? callTranscript.slice(-100).map(line => String(line).slice(0, 1950))
+                : [],
             duration_seconds: duration,
             planned_call_id: callContext.planned_call_id
         });

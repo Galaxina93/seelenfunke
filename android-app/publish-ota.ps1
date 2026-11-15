@@ -2,7 +2,8 @@ param(
     [string]$RemoteUrl = "",
     [string]$AdminToken = "",
     [string]$ReleaseNotes = "",
-    [switch]$SkipBuild
+    [switch]$SkipBuild,
+    [switch]$SkipStage
 )
 
 $ErrorActionPreference = "Stop"
@@ -114,6 +115,30 @@ if ($LASTEXITCODE -ne 0) {
     throw "Lokale Tresor-Aktivierung fehlgeschlagen: $manifestJson"
 }
 Write-Host "      Lokal veröffentlicht: $manifestJson" -ForegroundColor Green
+
+if (-not $SkipStage) {
+    $mcpCandidates = @(
+        "C:\Users\konta\AppData\Local\FunkenwerkOS\McpBuild\FunkenwerkMcp.exe",
+        "C:\Users\konta\Desktop\Funkenwerk Collection\Funkenwerk MCP\FunkenwerkMcp.exe"
+    )
+    $mcpExe = $mcpCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+    if (-not $mcpExe) {
+        throw "FunkenwerkMcp.exe wurde nicht gefunden (benötigt für Ed25519-Key-Only Stage-APK-Publish)."
+    }
+
+    Write-Host "[5/5] Veröffentliche signiertes Release per Ed25519-Key-Only auf Stage (stage.mein-seelenfunke.de)..." -ForegroundColor Cyan
+    $stageArgs = @(
+        "--stage-publish-apk",
+        "--apk", $apkPath,
+        "--version-code", "$versionCode",
+        "--version-name", $versionName,
+        "--notes", $ReleaseNotes
+    )
+    & $mcpExe @stageArgs
+    if ($LASTEXITCODE -ne 0) {
+        throw "Stage-APK-Publish fehlgeschlagen (Exit-Code $LASTEXITCODE)."
+    }
+}
 
 if ($RemoteUrl -and $AdminToken) {
     $cleanBase = $RemoteUrl.TrimEnd('/')

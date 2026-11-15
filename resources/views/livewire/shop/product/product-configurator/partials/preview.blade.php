@@ -498,7 +498,7 @@
                                 <div class="relative w-full h-auto">
                                     {{-- Abgedunkelte Hintergrund-Vorschau des abgeschnittenen Bereichs während des Zuschneidens --}}
                                     <template x-if="isCropping && selectedType==='logo' && selectedIndex===index">
-                                        <img :src="currentLogos[index].url"
+                                        <img :src="resolveLogoUrl(currentLogos[index])"
                                              data-snapshot-ignore="true"
                                              decoding="sync"
                                              class="w-full h-auto pointer-events-none rounded-lg select-none"
@@ -508,7 +508,7 @@
                                     </template>
 
                                     {{-- Hauptbild (im Zuschnitt-Modus live per clip-path beschnitten) --}}
-                                    <img :src="currentLogos[index].url"
+                                    <img :src="resolveLogoUrl(currentLogos[index])"
                                          decoding="sync"
                                          :class="(isCropping && selectedType==='logo' && selectedIndex===index) ? 'absolute inset-0 w-full h-full object-contain pointer-events-none rounded-lg' : 'w-full h-auto pointer-events-none rounded-lg'"
                                          :style="(isDarkSurface

@@ -102,7 +102,7 @@ class SafeHtmlAndSvgSanitizer
      * Bereinigt SVG-Markup per striktem DOMDocument-Allowlisting ohne Entity-Expansion (kein LIBXML_NOENT).
      * Gibt bei invalidem XML oder fehlendem <svg>-Root einen leeren String zurück.
      */
-    public static function sanitizeSvg(?string $svg): string
+    public static function sanitizeSvg(?string $svg, bool $ensureIntrinsicDimensions = false): string
     {
         $svg = trim((string) $svg);
         if ($svg === '') {
@@ -153,6 +153,38 @@ class SafeHtmlAndSvgSanitizer
         }
 
         self::cleanSvgElement($dom->documentElement);
+
+        if ($ensureIntrinsicDimensions) {
+            $rootEl = $dom->documentElement;
+            $rawW = trim((string) $rootEl->getAttribute('width'));
+            $rawH = trim((string) $rootEl->getAttribute('height'));
+            $hasValidPxDims = $rawW !== '' && $rawH !== ''
+                && !str_ends_with($rawW, '%') && !str_ends_with($rawH, '%')
+                && (float) $rawW >= 64 && (float) $rawH >= 64;
+
+            if (!$hasValidPxDims) {
+                $vb = trim((string) ($rootEl->getAttribute('viewBox') ?: $rootEl->getAttribute('viewbox')));
+                $vbW = 512.0;
+                $vbH = 512.0;
+                if ($vb !== '') {
+                    $parts = preg_split('/[\s,]+/', $vb) ?: [];
+                    if (count($parts) >= 4 && (float) $parts[2] > 0 && (float) $parts[3] > 0) {
+                        $vbW = (float) $parts[2];
+                        $vbH = (float) $parts[3];
+                    }
+                } elseif ((float) $rawW > 0 && (float) $rawH > 0) {
+                    $vbW = (float) $rawW;
+                    $vbH = (float) $rawH;
+                    $rootEl->setAttribute('viewBox', '0 0 ' . $rawW . ' ' . $rawH);
+                }
+
+                $aspect = $vbW / $vbH;
+                $targetW = $aspect >= 1.0 ? 512 : max(1, (int) round(512 * $aspect));
+                $targetH = $aspect >= 1.0 ? max(1, (int) round(512 / $aspect)) : 512;
+                $rootEl->setAttribute('width', (string) $targetW);
+                $rootEl->setAttribute('height', (string) $targetH);
+            }
+        }
 
         $cleanXml = $dom->saveXML($dom->documentElement);
         return is_string($cleanXml) ? trim($cleanXml) : '';

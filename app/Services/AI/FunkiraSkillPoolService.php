@@ -36,6 +36,7 @@ class FunkiraSkillPoolService
             self::EQUIP_TOOL_NAME,
             'system_get_current_time',
             'system_get_error_sentinel',
+            'system_prepare_antigravity_handoff',
             'system_open_nav_item',
             'system_open_zentrum',
             'system_close_zentrum',
@@ -258,6 +259,7 @@ class FunkiraSkillPoolService
                 'security', 'sicherheit', 'websocket', 'neural', 'organigramm', 'abteilung', 'agenten',
                 'nachrichten', 'news', 'youtube', 'weltkarte', 'karte', 'urlaub', 'feiertag', 'wetter',
                 'clipboard', 'zwischenablage', 'osint', 'persona', 'systemi', 'agenti', 'globi',
+                'geheimkeller', 'keller', 'fehlerraum', 'analyse-keller', 'projekt-gehirn', 'antigravity',
             ],
         ];
 

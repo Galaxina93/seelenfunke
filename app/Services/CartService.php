@@ -710,9 +710,18 @@ class CartService
             }
         }
 
+        $vectorService = app(\App\Services\ProductConfiguratorService::class);
+        $allowedHosts = array_filter(array_unique([
+            parse_url((string) config('app.url'), PHP_URL_HOST),
+            request()?->getHost(),
+            '127.0.0.1',
+            'localhost',
+            'seelenfunke.test',
+        ]));
+
         foreach (['logos', 'logos_back'] as $logoKey) {
             if (isset($configuration[$logoKey]) && is_array($configuration[$logoKey])) {
-                $configuration[$logoKey] = array_values(array_filter(array_map(function ($logo) {
+                $configuration[$logoKey] = array_values(array_filter(array_map(function ($logo) use ($vectorService, $allowedHosts) {
                     if (!is_array($logo) || !isset($logo['value']) || !is_string($logo['value'])) {
                         return null;
                     }
@@ -731,13 +740,19 @@ class CartService
                     if (isset($logo['url']) && is_string($logo['url'])) {
                         $u = trim($logo['url']);
                         if (
-                            str_contains($u, '..')
+                            $u === ''
+                            || str_contains($u, '..')
                             || str_contains($u, "\0")
                             || str_contains($u, '\\')
-                            || (preg_match('#^https?://#i', $u) && (parse_url($u, PHP_URL_HOST) !== parse_url((string) config('app.url'), PHP_URL_HOST)))
+                            || (preg_match('#^https?://#i', $u) && !in_array(parse_url($u, PHP_URL_HOST), $allowedHosts, true))
                         ) {
                             unset($logo['url']);
                         }
+                    }
+                    if (empty($logo['url'])) {
+                        $logo['url'] = str_starts_with($v, 'vectors/')
+                            ? $vectorService->resolveVectorUrl($v)
+                            : asset('storage/' . ltrim($v, '/'));
                     }
                     return $logo;
                 }, $configuration[$logoKey])));

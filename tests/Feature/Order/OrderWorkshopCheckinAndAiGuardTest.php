@@ -119,7 +119,9 @@ class OrderWorkshopCheckinAndAiGuardTest extends TestCase
 
         $component = Livewire::test(OrderOverview::class)
             ->call('openDetail', $order->id)
-            ->assertSee('Werkstatt-Stand')
+            ->assertSee('Wartend')
+            ->assertSee('Jetzt starten')
+            ->assertDontSee('Werkstatt-Stand')
             ->set('workshopNote', 'Vorderseite gelasert, Rückseite läuft gerade')
             ->set('workshopFollowupMode', '2h')
             ->call('saveWorkshopCheckin');
@@ -130,11 +132,8 @@ class OrderWorkshopCheckinAndAiGuardTest extends TestCase
         $this->assertNotNull($fresh->workshop_next_check_at);
         $this->assertFalse($fresh->workshop_checkin_paused);
 
-        // Status MUST remain untouched ('pending') until Alina manually decides to change it!
+        // Status MUST remain untouched ('pending') until Alina clicks "Jetzt starten"
         $this->assertSame('pending', $fresh->status);
-
-        // Manual UI also surfaces the helpful status discrepancy suggestion without forcing it
-        $component->assertSee('Auf „In Bearbeitung“ setzen');
 
         // Pause check-in manually
         $component->set('workshopFollowupMode', 'pause')

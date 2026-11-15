@@ -229,4 +229,81 @@ class FunkiraConnectionResilienceTest extends TestCase
         $papa->refresh();
         $this->assertStringContainsString('Paket abgeholt', (string) $papa->ai_learned_facts);
     }
+
+    public function test_refusal_guard_strips_canned_language_model_refusals_from_live_credentials_and_transcript_save(): void
+    {
+        config([
+            'services.gemini.key' => 'AIzaSyTestRefusalGuardKey123456789',
+            'services.ai.proxy_secret' => 'refusal_guard_proxy_secret_123',
+        ]);
+
+        $this->assertTrue(\App\Http\Controllers\AIController::isCannedModelRefusal('Ich bin nur ein Sprachmodell und kann dabei nicht helfen.'));
+        $this->assertTrue(\App\Http\Controllers\AIController::isCannedModelRefusal('Als Sprachmodell kann ich dir dabei leider nicht helfen'));
+        $this->assertFalse(\App\Http\Controllers\AIController::isCannedModelRefusal('Alles klar Alina, ich gehe sofort einen Schritt nach rechts!'));
+        $this->assertStringContainsString(
+            'lokal auf dem Werkstatt-Mini-PC',
+            \App\Http\Controllers\AIController::buildConcreteRefusalReplacement('Wer steht da mit Gesicht vor der Kamera?', false)
+        );
+        $this->assertStringContainsString(
+            'Mitarbeiter-Berechtigung',
+            \App\Http\Controllers\AIController::buildConcreteRefusalReplacement('Zeig mir alle Umsätze', true)
+        );
+
+        $admin = Admin::factory()->create();
+        $adminToken = $admin->createToken('AdminRefusalGuard', ['*'])->plainTextToken;
+
+        $session = \App\Models\Ai\AiChatSession::create([
+            'user_id' => $admin->id,
+            'title' => 'Werkstatt Test',
+            'is_archived' => false,
+        ]);
+
+        \App\Models\Ai\AiChatMemory::create([
+            'session_id' => $session->id,
+            'role' => 'user',
+            'content' => 'Wie viele Bestellungen sind offen?',
+            'context_data' => ['name' => 'Alina'],
+        ]);
+        \App\Models\Ai\AiChatMemory::create([
+            'session_id' => $session->id,
+            'role' => 'assistant',
+            'content' => 'Aktuell ist eine Bestellung offen, Alina!',
+            'context_data' => ['name' => 'Funkira'],
+        ]);
+        \App\Models\Ai\AiChatMemory::create([
+            'session_id' => $session->id,
+            'role' => 'user',
+            'content' => 'Geh mal nach rechts wegen dem Bild',
+            'context_data' => ['name' => 'Alina'],
+        ]);
+        \App\Models\Ai\AiChatMemory::create([
+            'session_id' => $session->id,
+            'role' => 'assistant',
+            'content' => 'Ich bin nur ein Sprachmodell und kann dabei nicht helfen.',
+            'context_data' => ['name' => 'Funkira'],
+        ]);
+
+        $credsResp = $this->withHeader('Authorization', 'Bearer ' . $adminToken)
+            ->getJson('/api/ai/live-credentials?chat_session_id=' . urlencode((string) $session->id));
+
+        $credsResp->assertOk();
+        $sysInstruction = (string) $credsResp->json('system_instruction');
+        $histPos = strpos($sysInstruction, '--- BISHERIGER CHAT-VERLAUF DIESER SESSION');
+        $this->assertNotFalse($histPos);
+        $histSection = substr($sysInstruction, (int) $histPos);
+        $this->assertStringContainsString('Aktuell ist eine Bestellung offen, Alina!', $histSection);
+        $this->assertStringNotContainsString('Ich bin nur ein Sprachmodell und kann dabei nicht helfen.', $histSection);
+        $this->assertStringNotContainsString('Geh mal nach rechts wegen dem Bild', $histSection);
+
+        $skipResp = $this->withHeader('X-AI-Proxy-Secret', 'refusal_guard_proxy_secret_123')
+            ->postJson('/api/ai/save-live-transcript', [
+                'session_id' => (string) $session->id,
+                'role' => 'assistant',
+                'content' => 'Ich bin nur ein Sprachmodell und kann dabei nicht helfen.',
+                'agent_name' => 'Funkira',
+            ]);
+
+        $skipResp->assertOk()
+            ->assertJsonPath('status', 'skipped_refusal');
+    }
 }

@@ -360,4 +360,21 @@ class OrderQuoteRequests extends Component
         }
         return $exportService->downloadLaserSvg($itemId, $side);
     }
+
+    public function downloadLaserPngFile($itemId, $side, \App\Services\Export\FileDownloadService $exportService)
+    {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403);
+        }
+        return $exportService->downloadLaserPng($itemId, $side);
+    }
+
+    public function downloadLaserXcsFile($itemId, $side = 'front', ?\App\Services\Export\FileDownloadService $exportService = null)
+    {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403);
+        }
+        $exportService = $exportService ?: app(\App\Services\Export\FileDownloadService::class);
+        return $exportService->downloadLaserXcs($itemId, $side);
+    }
 }

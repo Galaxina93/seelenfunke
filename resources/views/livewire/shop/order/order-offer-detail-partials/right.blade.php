@@ -1,5 +1,6 @@
-<div class="w-full lg:w-1/2 flex-1 lg:flex-none flex flex-col bg-white dark:bg-gray-950 border-l-0 lg:border-l border-gray-200 dark:border-gray-800 min-h-[600px] lg:min-h-0">
-    <div class="flex-1 p-4 sm:p-6 md:p-8 h-full overflow-y-auto custom-scrollbar flex flex-col gap-6">
+@php $isEmbeddedOptionalPanel = !empty($isEmbeddedOptionalPanel); @endphp
+<div class="{{ $isEmbeddedOptionalPanel ? 'w-full lg:w-1/2 flex flex-col bg-white dark:bg-gray-950 border-l-0 lg:border-l border-gray-200 dark:border-gray-800 rounded-b-[2rem] lg:rounded-bl-none lg:rounded-r-[2rem]' : 'w-full lg:w-1/2 flex-1 lg:flex-none flex flex-col bg-white dark:bg-gray-950 border-l-0 lg:border-l border-gray-200 dark:border-gray-800 min-h-[600px] lg:min-h-0' }}">
+    <div class="{{ $isEmbeddedOptionalPanel ? 'p-4 sm:p-6 md:p-8 flex flex-col gap-6' : 'flex-1 p-4 sm:p-6 md:p-8 h-full overflow-y-auto custom-scrollbar flex flex-col gap-6' }}">
         @if($previewItem)
             <div class="bg-gray-50/80 dark:bg-gray-900/80 backdrop-blur-md rounded-[1.5rem] sm:rounded-[2.5rem] shadow-sm dark:shadow-2xl border border-gray-200 dark:border-gray-800 flex flex-col overflow-hidden shrink-0">
                 <div class="bg-white dark:bg-gray-950 border-b border-gray-200 dark:border-gray-800 px-5 sm:px-8 py-4 sm:py-5 shrink-0 flex justify-between items-center shadow-none dark:shadow-inner">
@@ -38,14 +39,22 @@
                 </div>
 
                 @if($isItemCustomFields)
-                    <div class="bg-gray-50 dark:bg-gray-950 px-5 sm:px-8 py-4 border-t border-gray-200 dark:border-gray-800 shrink-0">
+                    <div class="bg-gray-50 dark:bg-gray-950 px-5 sm:px-8 py-4 border-t border-gray-200 dark:border-gray-800 shrink-0 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <button wire:click.prevent="downloadLaserXcsFile('{{ $previewItem->id }}', 'front')"
+                                type="button"
+                                class="w-full flex items-center justify-center gap-2 px-4 py-3.5 bg-[var(--theme-color)] text-gray-950 text-xs font-black uppercase tracking-widest rounded-xl border border-[var(--theme-color)] shadow-sm hover:opacity-90 transition-all duration-300 focus:outline-none cursor-pointer">
+                            <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                            </svg>
+                            <span>xTool Projekt (.xcs)</span>
+                        </button>
                         <button wire:click.prevent="downloadLaserFile('{{ $previewItem->id }}', 'front')"
                                 type="button"
-                                class="w-full flex items-center justify-center gap-2.5 px-4 py-3.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-xs font-black uppercase tracking-widest rounded-xl border border-gray-300 dark:border-gray-700 shadow-sm dark:shadow-inner hover:bg-[var(--theme-color)] hover:text-gray-900 hover:border-[var(--theme-color)] transition-all duration-300 group focus:outline-none cursor-pointer">
+                                class="w-full flex items-center justify-center gap-2 px-4 py-3.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-xs font-black uppercase tracking-widest rounded-xl border border-gray-300 dark:border-gray-700 shadow-sm dark:shadow-inner hover:bg-[var(--theme-color)] hover:text-gray-900 hover:border-[var(--theme-color)] transition-all duration-300 group focus:outline-none cursor-pointer">
                             <svg class="w-4 h-4 text-[var(--theme-color)] group-hover:text-gray-900 transition-colors shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
                             </svg>
-                            <span>xTool Laser-SVG (Vorderseite) herunterladen</span>
+                            <span>xTool Laser-SVG</span>
                         </button>
                     </div>
                 @endif
@@ -62,6 +71,11 @@
                     </div>
                 @endif
             </div>
+
+            {{-- XTOOL F2 ULTRA UV · LIVE-LASER-COCKPIT & KI-KAMERA-AUSRICHTUNG (200x200 MM) --}}
+            @if(empty($suppressCockpitInRight))
+                @include('livewire.shop.order.order-offer-detail-partials.laser-cockpit-card')
+            @endif
 
             {{-- XTOOL STUDIO WERKSTATTHANDBUCH & LASER-PARAMETER (DIREKT AUS SCHRITT 4.2 DES PRODUKTS) --}}
             @if($previewItem->product && $previewItem->product->isPhysical() && $previewItem->product->isPersonalizable() && !$isDigitalItem && !$isService)

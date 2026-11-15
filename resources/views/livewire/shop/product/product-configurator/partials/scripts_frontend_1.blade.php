@@ -129,6 +129,30 @@
                 return [];
             },
 
+            resolveLogoUrl(logo) {
+                if (!logo || typeof logo !== 'object') return '';
+                let rawUrl = typeof logo.url === 'string' ? logo.url.trim() : '';
+                const rawVal = typeof logo.value === 'string' ? logo.value.trim() : '';
+                if (!rawUrl && rawVal) {
+                    if (rawVal.startsWith('vectors/')) {
+                        rawUrl = '/storage/produkte/configurator/' + rawVal.replace(/^\/+/, '');
+                    } else {
+                        rawUrl = '/storage/' + rawVal.replace(/^\/+/, '');
+                    }
+                }
+                if (!rawUrl) return '';
+                if (rawUrl.startsWith('data:') || rawUrl.startsWith('blob:')) return rawUrl;
+                try {
+                    const parsed = new URL(rawUrl, window.location.origin);
+                    if (parsed.pathname.startsWith('/storage/') || parsed.pathname.startsWith('/shop/')) {
+                        return window.location.origin + parsed.pathname + parsed.search;
+                    }
+                    return parsed.href;
+                } catch (e) {
+                    return rawUrl;
+                }
+            },
+
             get currentTexts() {
                 const list = this.activeSide === 'front' ? this.texts : this.texts_back;
                 return Array.isArray(list) ? list : this.normalizeArray(list);
@@ -1463,7 +1487,7 @@
                     // Snapshot-Erstellung für den 2D/3D Studio-Konfigurator sowie den Neulings-Modus auf Studio-Produkten ausführen
                     if (this.config.isPersonalizable !== false && (this.config.personalizationMode !== 'custom_fields' || this.config.isBeginnerMode)) {
                         try {
-                            const timeoutPromise = new Promise(resolve => setTimeout(resolve, 3500));
+                            const timeoutPromise = new Promise(resolve => setTimeout(resolve, 5000));
 
                             const capturePromise = (async () => {
                             let engine = this.$refs.container3d ? this.$refs.container3d._engine : null;
@@ -1499,15 +1523,25 @@
                                 }
 
                                 if (this.modelLoaded && engine.renderer && engine.scene && engine.camera) {
-                                    // TEXTUREN ERZWINGEN ZU RENDERN (Synchron für sofortigen GPU-Upload beim nächsten Render-Aufruf)
+                                    // TEXTUREN ERZWINGEN ZU RENDERN (Inkl. asynchronem Preload aller Logos & Symbole für den Snapshot)
                                     try {
-                                        engine.renderBothCanvases(
-                                            this.normalizeArray(this.texts),
-                                            this.normalizeArray(this.logos),
-                                            this.normalizeArray(this.texts_back),
-                                            this.normalizeArray(this.logos_back),
-                                            Alpine.raw(this.fontMap)
-                                        );
+                                        if (typeof engine.renderBothCanvasesAsync === 'function') {
+                                            await engine.renderBothCanvasesAsync(
+                                                this.normalizeArray(this.texts),
+                                                this.normalizeArray(this.logos),
+                                                this.normalizeArray(this.texts_back),
+                                                this.normalizeArray(this.logos_back),
+                                                Alpine.raw(this.fontMap)
+                                            );
+                                        } else {
+                                            engine.renderBothCanvases(
+                                                this.normalizeArray(this.texts),
+                                                this.normalizeArray(this.logos),
+                                                this.normalizeArray(this.texts_back),
+                                                this.normalizeArray(this.logos_back),
+                                                Alpine.raw(this.fontMap)
+                                            );
+                                        }
                                     } catch (e) { console.error("Force Render failed:", e); }
 
                                     const backTextsList = this.normalizeArray(this.texts_back);
@@ -1626,6 +1660,20 @@
                                                     div.style.overflow = 'visible';
                                                     if (ta.parentNode) ta.parentNode.replaceChild(div, ta);
                                                 });
+                                                const liveImgs = Array.from(containerToCapture.querySelectorAll('.logo-crop-wrapper img'));
+                                                const clonedImgs = Array.from(clonedDoc.querySelectorAll('.logo-crop-wrapper img'));
+                                                clonedImgs.forEach((cImg, i) => {
+                                                    const lImg = liveImgs[i];
+                                                    if (lImg) {
+                                                        const rect = lImg.getBoundingClientRect();
+                                                        if (rect.width > 0 && rect.height > 0) {
+                                                            cImg.setAttribute('width', String(Math.round(rect.width)));
+                                                            cImg.setAttribute('height', String(Math.round(rect.height)));
+                                                            cImg.style.width = Math.round(rect.width) + 'px';
+                                                            cImg.style.height = Math.round(rect.height) + 'px';
+                                                        }
+                                                    }
+                                                });
                                             }
                                         };
 
@@ -1709,6 +1757,13 @@
             updateTexture(forceImmediate = false) {
                 let engine = this.$refs.container3d ? this.$refs.container3d._engine : null;
                 if (!engine || !engine.isReady || !engine.textureFront) return;
+
+                if (typeof engine.ensureLogosLoaded === 'function') {
+                    engine.ensureLogosLoaded(
+                        this.normalizeArray(this.logos),
+                        this.normalizeArray(this.logos_back)
+                    );
+                }
 
                 // Im 2D-Modus (showDrawingBoard = true) ist die 3D-Bühne ausgeblendet (visibility: hidden).
                 // Das aufwendige 2048x2048 3D-Canvas-Rendering erst beim Wechsel auf 3D oder beim Speichern ausführen,

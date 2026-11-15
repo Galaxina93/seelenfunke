@@ -27,6 +27,7 @@ const EMOTION_PRESETS = {
     excited:  { lidTop: 0.0,  lidBot: 0.14, browTilt: -0.18, browY: -5.0, mouthCurve: 0.86,  mouthOpen: 0.54, pupilScale: 1.18, blush: 0.86, tear: 0, headRoll: -0.06, headPitch: -0.05 }
 };
 
+const UG_Y = -3.20;
 const OG_Y = 3.10;
 const HOUSE_W = 8.50;
 const HOUSE_L = 14.00;
@@ -39,6 +40,8 @@ function hexToRgb(hex) {
     return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
 
+let MAX_GPU_ANISOTROPY = 4;
+
 function configureFastTexture(tex) {
     tex.generateMipmaps = false;
     tex.minFilter = THREE.LinearFilter;
@@ -47,9 +50,19 @@ function configureFastTexture(tex) {
     return tex;
 }
 
-// Procedural 128x128 Dual-Light Studio MatCap Generator (Zero per-pixel light math on GPU!)
+// High-Definition Pre-Baked Texture Helper (Trilinear Mipmaps + 4x Anisotropy = Razor-Sharp Angles at 0 CPU Cost!)
+function configureHdTexture(tex, anisotropy = 4) {
+    tex.generateMipmaps = true;
+    tex.minFilter = THREE.LinearMipmapLinearFilter;
+    tex.magFilter = THREE.LinearFilter;
+    tex.anisotropy = Math.min(MAX_GPU_ANISOTROPY, anisotropy);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+}
+
+// Procedural 384x384 Multi-Zone Luxury Studio MatCap Generator (Zero per-pixel light math on GPU!)
 function makeStudioMatcapTexture(baseHex, specHex, rimHex, specPower = 26, rimStrength = 0.38) {
-    const size = 128;
+    const size = 384;
     const c = document.createElement('canvas');
     c.width = size;
     c.height = size;
@@ -61,9 +74,11 @@ function makeStudioMatcapTexture(baseHex, specHex, rimHex, specPower = 26, rimSt
     const spec = hexToRgb(specHex);
     const rim = hexToRgb(rimHex);
 
-    const lx1 = -0.34, ly1 = 0.60, lz1 = 0.72;
-    const hx1 = -0.18, hy1 = 0.34, hz1 = 0.923;
-    const lx2 = 0.48,  ly2 = 0.35, lz2 = 0.80;
+    // Key studio softbox + secondary champagne fill + subtle warm floor bounce
+    const lx1 = -0.34, ly1 = 0.62, lz1 = 0.706;
+    const hx1 = -0.19, hy1 = 0.38, hz1 = 0.905;
+    const lx2 = 0.50,  ly2 = 0.34, lz2 = 0.796;
+    const hx2 = 0.31,  hy2 = 0.22, hz2 = 0.925;
 
     const half = size * 0.5;
     for (let y = 0; y < size; y++) {
@@ -76,10 +91,16 @@ function makeStudioMatcapTexture(baseHex, specHex, rimHex, specPower = 26, rimSt
                 const nz = Math.sqrt(Math.max(0, 1.0 - r2));
                 const ndl1 = Math.max(0, nx * lx1 + ny * ly1 + nz * lz1);
                 const ndl2 = Math.max(0, nx * lx2 + ny * ly2 + nz * lz2);
-                const hemi = 0.36 + 0.28 * (ny * 0.5 + 0.5) + 0.46 * ndl1 + 0.20 * ndl2;
-                const ndh = Math.max(0, nx * hx1 + ny * hy1 + nz * hz1);
-                const sp = Math.pow(ndh, specPower) * 0.88;
-                const fresnel = Math.pow(1.0 - nz, 2.5) * rimStrength;
+                const skyBounce = 0.34 + 0.30 * (ny * 0.5 + 0.5);
+                const horizonBand = Math.exp(-Math.pow((ny + 0.14) * 5.2, 2)) * (specPower >= 20 ? 0.11 : 0.03);
+                const hemi = skyBounce + 0.47 * ndl1 + 0.21 * ndl2 + horizonBand;
+
+                const ndh1 = Math.max(0, nx * hx1 + ny * hy1 + nz * hz1);
+                const ndh2 = Math.max(0, nx * hx2 + ny * hy2 + nz * hz2);
+                const spBroad = Math.pow(ndh1, Math.max(6, specPower * 0.45)) * 0.26;
+                const spCrisp = Math.pow(ndh1, specPower * 1.35) * 0.78 + Math.pow(ndh2, specPower * 0.9) * 0.18;
+                const sp = spBroad + spCrisp;
+                const fresnel = Math.pow(1.0 - nz, 2.65) * rimStrength;
 
                 r = base[0] * hemi + spec[0] * sp + rim[0] * fresnel;
                 g = base[1] * hemi + spec[1] * sp + rim[1] * fresnel;
@@ -87,10 +108,10 @@ function makeStudioMatcapTexture(baseHex, specHex, rimHex, specPower = 26, rimSt
             } else {
                 const len = Math.sqrt(r2);
                 const uy = ny / len;
-                const hemi = 0.36 + 0.24 * (uy * 0.5 + 0.5);
-                r = base[0] * hemi + rim[0] * rimStrength * 0.9;
-                g = base[1] * hemi + rim[1] * rimStrength * 0.9;
-                b = base[2] * hemi + rim[2] * rimStrength * 0.9;
+                const hemi = 0.35 + 0.25 * (uy * 0.5 + 0.5);
+                r = base[0] * hemi + rim[0] * rimStrength * 0.92;
+                g = base[1] * hemi + rim[1] * rimStrength * 0.92;
+                b = base[2] * hemi + rim[2] * rimStrength * 0.92;
             }
             const p = (y * size + x) * 4;
             d[p]     = clamp(Math.round(r), 0, 255);
@@ -100,7 +121,7 @@ function makeStudioMatcapTexture(baseHex, specHex, rimHex, specPower = 26, rimSt
         }
     }
     ctx.putImageData(img, 0, 0);
-    return configureFastTexture(new THREE.CanvasTexture(c));
+    return configureHdTexture(new THREE.CanvasTexture(c), 2);
 }
 
 function createRoundedRectShape(w, h, r) {
@@ -120,93 +141,147 @@ function createRoundedRectShape(w, h, r) {
     return s;
 }
 
-// Pentagonal Gable Wall Shape matching Obergeschoss Dachschrägen (width 8.50m, eaves +0.28m, Kniestock ±3.00m @ +1.32m, peak 0m @ +3.36m)
+// Pentagonal Gable Wall Shape matching raised Obergeschoss Dachschrägen (width 8.50m, eaves +1.30m, Kniestock ±3.00m @ +2.12m, peak 0m @ +4.10m)
 function createGableWallShape() {
     const s = new THREE.Shape();
     s.moveTo(-4.24, 0.0);
     s.lineTo( 4.24, 0.0);
-    s.lineTo( 4.24, 0.28);
-    s.lineTo( 3.00, 1.32);
-    s.lineTo( 0.00, 3.36);
-    s.lineTo(-3.00, 1.32);
-    s.lineTo(-4.24, 0.28);
+    s.lineTo( 4.24, 1.30);
+    s.lineTo( 3.00, 2.12);
+    s.lineTo( 0.00, 4.10);
+    s.lineTo(-3.00, 2.12);
+    s.lineTo(-4.24, 1.30);
     s.closePath();
     return s;
 }
 
+// Shared helper to paint fine organic wood-grain fibers & plank micro-bevels onto HD floor canvases
+function paintWoodPlankDetail(ctx, px, py, pw, ph, grainRgbDark, grainRgbLight, seed) {
+    ctx.strokeStyle = grainRgbDark;
+    ctx.lineWidth = 1.0;
+    const lines = 4;
+    for (let g = 0; g < lines; g++) {
+        const gy = py + ph * (0.18 + g * 0.21) + ((seed + g * 7) % 3) - 1;
+        const wave = (((seed * 5 + g * 11) % 7) - 3) * 0.8;
+        ctx.beginPath();
+        ctx.moveTo(px + 3, gy);
+        ctx.bezierCurveTo(px + pw * 0.35, gy + wave, px + pw * 0.68, gy - wave, px + pw - 3, gy);
+        ctx.stroke();
+    }
+    if (seed % 7 === 0 && pw > 60) {
+        const kx = px + pw * (0.28 + ((seed % 5) * 0.11));
+        const ky = py + ph * 0.52;
+        ctx.strokeStyle = grainRgbDark;
+        ctx.beginPath();
+        ctx.ellipse(kx, ky, 5.5, 2.4, 0.08, 0, Math.PI * 2);
+        ctx.stroke();
+    }
+    ctx.fillStyle = grainRgbLight;
+    ctx.fillRect(px + 2, py + 1.4, Math.max(0, pw - 4), 1.4);
+}
+
 // ============================================================================
-// ARCHITECTURAL FLOOR TEXTURES (1:1 VINYLBODEN + BAD-FLIESEN + EAVES + AO)
+// ARCHITECTURAL HD FLOOR TEXTURES (1536x2304: 9x PIXEL CLARITY + WOOD GRAIN + AO)
 // ============================================================================
 function makeEgFloorTexture() {
-    const W = 512, H = 768;
+    const W = 1536, H = 2304;
     const c = document.createElement('canvas');
     c.width = W;
     c.height = H;
     const ctx = c.getContext('2d');
 
-    // Base warm honey-oak Vinylboden ("Alle Räume außer großes Badezimmer")
-    ctx.fillStyle = '#c8af8e';
+    // Deep oak joint bed
+    ctx.fillStyle = '#826b4f';
     ctx.fillRect(0, 0, W, H);
 
-    const plankRows = 48;
+    const plankRows = 64;
     const rowH = H / plankRows;
+    const plankW = 216;
     for (let r = 0; r < plankRows; r++) {
         const y = r * rowH;
-        const off = (r % 3) * 42;
-        for (let col = -1; col < 9; col++) {
-            const x = col * 72 + off;
-            const v = ((r * 13 + col * 19) % 14) - 7;
-            ctx.fillStyle = `rgb(${196 + v}, ${170 + Math.round(v * 0.8)}, ${138 + Math.round(v * 0.6)})`;
-            ctx.fillRect(x + 0.7, y + 0.7, 70.6, rowH - 1.2);
-            ctx.fillStyle = 'rgba(255, 245, 228, 0.10)';
-            ctx.fillRect(x + 4, y + rowH * 0.35, 62, 1.0);
+        const off = (r % 3) * 76 + ((r % 5) * 19);
+        for (let col = -2; col < 9; col++) {
+            const x = col * plankW + off;
+            const seed = Math.abs(r * 17 + col * 23);
+            const v = (seed % 16) - 8;
+            ctx.fillStyle = `rgb(${198 + v}, ${172 + Math.round(v * 0.82)}, ${139 + Math.round(v * 0.62)})`;
+            ctx.fillRect(x + 1.6, y + 1.6, plankW - 3.2, rowH - 3.0);
+            paintWoodPlankDetail(
+                ctx,
+                x + 1.6,
+                y + 1.6,
+                plankW - 3.2,
+                rowH - 3.0,
+                'rgba(112, 84, 52, 0.19)',
+                'rgba(255, 247, 232, 0.16)',
+                seed
+            );
         }
     }
 
     const xToPx = (wx) => ((wx + 4.25) / 8.50) * W;
     const zToPy = (wz) => ((wz + 7.00) / 14.00) * H;
 
-    // Großes Badezimmer (x = +1.19 .. +4.16, z = -4.48 .. -2.05) -> Light Grey Fliesen!
+    // Großes Badezimmer (x = +1.19 .. +4.16, z = -4.48 .. -2.05) -> HD Carrara-Porcelain Fliesen!
     const bx0 = xToPx(1.19), bx1 = xToPx(4.20);
     const bz0 = zToPy(-4.48), bz1 = zToPy(-2.05);
-    ctx.fillStyle = '#cfd3d8';
+    ctx.fillStyle = '#d7dce2';
     ctx.fillRect(bx0, bz0, bx1 - bx0, bz1 - bz0);
-    ctx.strokeStyle = 'rgba(130, 138, 148, 0.52)';
-    ctx.lineWidth = 1.2;
-    for (let tx = bx0; tx <= bx1; tx += 18) {
-        ctx.beginPath(); ctx.moveTo(tx, bz0); ctx.lineTo(tx, bz1); ctx.stroke();
+    const tileStep = 54;
+    for (let ty = bz0; ty < bz1; ty += tileStep) {
+        for (let tx = bx0; tx < bx1; tx += tileStep) {
+            const tw = Math.min(tileStep - 2.4, bx1 - tx);
+            const th = Math.min(tileStep - 2.4, bz1 - ty);
+            if (tw <= 2 || th <= 2) continue;
+            ctx.fillStyle = (((Math.round(tx + ty)) % 3 === 0) ? '#dde2e7' : '#d3d8df');
+            ctx.fillRect(tx + 1.2, ty + 1.2, tw, th);
+            ctx.strokeStyle = 'rgba(162, 170, 182, 0.28)';
+            ctx.lineWidth = 1.2;
+            ctx.beginPath();
+            ctx.moveTo(tx + 5, ty + th * 0.28);
+            ctx.quadraticCurveTo(tx + tw * 0.52, ty + th * 0.58, tx + tw - 4, ty + th * 0.76);
+            ctx.stroke();
+        }
     }
-    for (let ty = bz0; ty <= bz1; ty += 18) {
-        ctx.beginPath(); ctx.moveTo(bx0, ty); ctx.lineTo(bx1, ty); ctx.stroke();
-    }
+    ctx.strokeStyle = '#C5A059';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(bx0, bz0, bx1 - bx0, bz1 - bz0);
 
-    // Soft Ambient Occlusion shadows under EG furniture
-    const paintAO = (wx, wz, rx, rz, alpha = 0.30) => {
+    // Subtle Perimeter Wall Contact Shadow
+    ctx.strokeStyle = 'rgba(34, 24, 16, 0.24)';
+    ctx.lineWidth = 18;
+    ctx.strokeRect(9, 9, W - 18, H - 18);
+
+    // Soft Multi-Layer Ambient Occlusion shadows under EG furniture
+    const paintAO = (wx, wz, rx, rz, alpha = 0.32) => {
         const cx = xToPx(wx), cy = zToPy(wz);
         const prx = (rx / 8.50) * W;
         const pry = (rz / 14.00) * H;
         ctx.save();
         ctx.translate(cx, cy);
         ctx.scale(1, pry / Math.max(1, prx));
-        const g = ctx.createRadialGradient(0, 0, prx * 0.2, 0, 0, prx);
-        g.addColorStop(0, `rgba(28, 20, 14, ${alpha})`);
-        g.addColorStop(1, 'rgba(28, 20, 14, 0)');
+        const g = ctx.createRadialGradient(0, 0, prx * 0.18, 0, 0, prx);
+        g.addColorStop(0, `rgba(24, 17, 11, ${alpha})`);
+        g.addColorStop(0.55, `rgba(24, 17, 11, ${alpha * 0.45})`);
+        g.addColorStop(1, 'rgba(24, 17, 11, 0)');
         ctx.fillStyle = g;
         ctx.beginPath(); ctx.arc(0, 0, prx, 0, Math.PI * 2); ctx.fill();
         ctx.restore();
     };
-    paintAO(-3.00, -4.75, 1.25, 1.15, 0.34); // Schlafzimmer Bett
-    paintAO( 2.48, -5.72, 1.15, 0.65, 0.28); // Hantelbank
-    paintAO(-2.25, -1.30, 1.05, 1.05, 0.28); // Büro Schreibtische
-    paintAO(-2.55,  2.55, 1.55, 1.45, 0.32); // Wohnzimmer Ecksofa
-    paintAO(-2.42,  5.35, 1.35, 0.85, 0.30); // Esstisch
-    paintAO( 0.82,  4.45, 0.72, 1.20, 0.30); // Kücheninsel
+    paintAO(-3.00, -4.75, 1.28, 1.18, 0.36); // Schlafzimmer Bett
+    paintAO(-2.36, -2.94, 1.24, 0.42, 0.28); // Kleiderschrank
+    paintAO( 2.48, -5.72, 1.18, 0.68, 0.30); // Hantelbank
+    paintAO(-2.25, -1.30, 1.08, 1.08, 0.30); // Büro Schreibtische
+    paintAO(-2.55,  2.55, 1.58, 1.48, 0.34); // Wohnzimmer Ecksofa
+    paintAO(-2.42,  5.35, 1.38, 0.88, 0.32); // Esstisch
+    paintAO( 0.86,  4.45, 0.76, 1.24, 0.34); // Kücheninsel
+    paintAO( 3.70,  4.92, 0.52, 2.02, 0.28); // Küchenzeile
 
-    return configureFastTexture(new THREE.CanvasTexture(c));
+    return configureHdTexture(new THREE.CanvasTexture(c), 4);
 }
 
 function makeOgFloorTexture() {
-    const W = 512, H = 768;
+    const W = 1536, H = 2304;
     const c = document.createElement('canvas');
     c.width = W;
     c.height = H;
@@ -216,116 +291,193 @@ function makeOgFloorTexture() {
     const zToPy = (wz) => ((wz + 7.00) / 14.00) * H;
 
     // Center 6.00m warm Vinylboden (North Studio & Gallery)
-    ctx.fillStyle = '#d3bc9d';
+    ctx.fillStyle = '#8b7457';
     ctx.fillRect(0, 0, W, H);
-    const plankRows = 48;
+    const plankRows = 64;
     const rowH = H / plankRows;
+    const plankW = 216;
     for (let r = 0; r < plankRows; r++) {
         const y = r * rowH;
-        const off = (r % 3) * 40;
-        for (let col = -1; col < 9; col++) {
-            const x = col * 72 + off;
-            const v = ((r * 11 + col * 17) % 12) - 6;
-            ctx.fillStyle = `rgb(${205 + v}, ${180 + Math.round(v * 0.75)}, ${148 + Math.round(v * 0.55)})`;
-            ctx.fillRect(x + 0.7, y + 0.7, 70.6, rowH - 1.2);
+        const off = (r % 3) * 74 + ((r % 4) * 23);
+        for (let col = -2; col < 9; col++) {
+            const x = col * plankW + off;
+            const seed = Math.abs(r * 13 + col * 19);
+            const v = (seed % 14) - 7;
+            ctx.fillStyle = `rgb(${206 + v}, ${181 + Math.round(v * 0.78)}, ${149 + Math.round(v * 0.58)})`;
+            ctx.fillRect(x + 1.5, y + 1.5, plankW - 3.0, rowH - 2.8);
+            paintWoodPlankDetail(
+                ctx,
+                x + 1.5,
+                y + 1.5,
+                plankW - 3.0,
+                rowH - 2.8,
+                'rgba(122, 95, 62, 0.16)',
+                'rgba(255, 248, 236, 0.15)',
+                seed
+            );
         }
     }
 
-    // South Seelenfunken Atelier Zone (z = +2.28 .. +7.00, x = -3.00 .. +3.00): Luxury Dark Walnut Boutique Parquet!
+    // South Seelenfunken Atelier Zone (z = +2.28 .. +7.00, x = -3.00 .. +3.00): HD Luxury Smoked Walnut Boutique Parquet!
     const ax0 = xToPx(-3.00), ax1 = xToPx(3.00);
     const az0 = zToPy(2.28),  az1 = H;
-    ctx.fillStyle = '#2a1c13';
+    ctx.fillStyle = '#180f0a';
     ctx.fillRect(ax0, az0, ax1 - ax0, az1 - az0);
+    const walPlankW = 168;
     for (let r = Math.floor(az0 / rowH); r < plankRows; r++) {
         const y = r * rowH;
-        const off = (r % 3) * 34;
-        for (let col = 0; col < 8; col++) {
-            const x = ax0 + col * 58 + off;
-            if (x > ax1) continue;
-            const v = ((r * 13 + col * 17) % 14) - 7;
-            ctx.fillStyle = `rgb(${58 + v}, ${39 + Math.round(v * 0.65)}, ${26 + Math.round(v * 0.45)})`;
-            ctx.fillRect(x, y + 0.6, Math.min(56.8, ax1 - x), rowH - 1.2);
+        const off = (r % 3) * 62 + ((r % 2) * 28);
+        for (let col = -1; col < 9; col++) {
+            const x = ax0 + col * walPlankW + off;
+            if (x >= ax1) continue;
+            const drawX = Math.max(ax0, x + 1.5);
+            const drawW = Math.min(ax1, x + walPlankW - 1.5) - drawX;
+            if (drawW <= 3) continue;
+            const seed = Math.abs(r * 19 + col * 29);
+            const v = (seed % 16) - 8;
+            ctx.fillStyle = `rgb(${60 + v}, ${41 + Math.round(v * 0.68)}, ${27 + Math.round(v * 0.48)})`;
+            ctx.fillRect(drawX, y + 1.4, drawW, rowH - 2.8);
+            paintWoodPlankDetail(
+                ctx,
+                drawX,
+                y + 1.4,
+                drawW,
+                rowH - 2.8,
+                'rgba(20, 12, 7, 0.42)',
+                'rgba(197, 160, 89, 0.09)',
+                seed
+            );
         }
     }
-    // Gold transition threshold strip between OG Gallery & Seelenfunken Atelier
-    ctx.fillStyle = '#C5A059';
-    ctx.fillRect(ax0, az0 - 2, ax1 - ax0, 4);
 
-    // OG-Bad (x = -0.06 .. +3.00, z = -4.21 .. -0.10) -> Light Grey Fliesen!
+    // Brushed 24K Gold transition threshold strip between OG Gallery & Seelenfunken Atelier
+    const thGrad = ctx.createLinearGradient(ax0, az0 - 6, ax1, az0 + 6);
+    thGrad.addColorStop(0, '#9c7834');
+    thGrad.addColorStop(0.5, '#f5dc98');
+    thGrad.addColorStop(1, '#9c7834');
+    ctx.fillStyle = thGrad;
+    ctx.fillRect(ax0, az0 - 5, ax1 - ax0, 10);
+
+    // Soft Ambient Occlusion under Atelier Workbench, Laser, Vitrine & Knee-Walls
+    const paintOgAO = (wx, wz, rx, rz, alpha = 0.40) => {
+        const cx = xToPx(wx), cy = zToPy(wz);
+        const prx = (rx / 8.50) * W;
+        const pry = (rz / 14.00) * H;
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.scale(1, pry / Math.max(1, prx));
+        const g = ctx.createRadialGradient(0, 0, prx * 0.2, 0, 0, prx);
+        g.addColorStop(0, `rgba(8, 5, 4, ${alpha})`);
+        g.addColorStop(1, 'rgba(8, 5, 4, 0)');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(0, 0, prx, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+    };
+    paintOgAO(-1.68, 5.72, 1.15, 0.62, 0.46); // Atelier Werkbank
+    paintOgAO( 1.96, 5.72, 0.72, 0.58, 0.46); // xTool Laser
+    paintOgAO( 1.04, 5.96, 0.48, 0.42, 0.42); // Boutique Vitrine
+    paintOgAO(-2.48, 4.45, 0.36, 0.36, 0.38); // Monstera Goldtopf
+
+    // OG-Bad (x = -0.06 .. +3.00, z = -4.21 .. -0.10) -> HD Marble-Porcelain Fliesen!
     const bx0 = xToPx(-0.06), bx1 = xToPx(3.00);
     const bz0 = zToPy(-4.21), bz1 = zToPy(-0.10);
-    ctx.fillStyle = '#d2d6db';
+    ctx.fillStyle = '#d6dbe1';
     ctx.fillRect(bx0, bz0, bx1 - bx0, bz1 - bz0);
-    ctx.strokeStyle = 'rgba(130, 138, 148, 0.50)';
-    ctx.lineWidth = 1.2;
-    for (let tx = bx0; tx <= bx1; tx += 18) {
-        ctx.beginPath(); ctx.moveTo(tx, bz0); ctx.lineTo(tx, bz1); ctx.stroke();
-    }
-    for (let ty = bz0; ty <= bz1; ty += 18) {
-        ctx.beginPath(); ctx.moveTo(bx0, ty); ctx.lineTo(bx1, ty); ctx.stroke();
+    const tileStep = 54;
+    for (let ty = bz0; ty < bz1; ty += tileStep) {
+        for (let tx = bx0; tx < bx1; tx += tileStep) {
+            const tw = Math.min(tileStep - 2.4, bx1 - tx);
+            const th = Math.min(tileStep - 2.4, bz1 - ty);
+            if (tw <= 2 || th <= 2) continue;
+            ctx.fillStyle = (((Math.round(tx + ty)) % 2 === 0) ? '#dce1e6' : '#d2d7de');
+            ctx.fillRect(tx + 1.2, ty + 1.2, tw, th);
+        }
     }
 
-    // 1.25m Left & Right Dachschrägen Eaves Strips (matching Screenshot 2 shaded 1.25m strips!)
+    // 1.25m Left & Right Dachschrägen Eaves Strips
     const eaveLeftW = xToPx(-3.00);
     const eaveRightX = xToPx(3.00);
     ctx.fillStyle = '#9e886d';
     ctx.fillRect(0, 0, eaveLeftW, H);
     ctx.fillRect(eaveRightX, 0, W - eaveRightX, H);
-    ctx.strokeStyle = 'rgba(65, 48, 32, 0.25)';
-    for (let y = 0; y < H; y += 10) {
+    ctx.strokeStyle = 'rgba(65, 48, 32, 0.26)';
+    ctx.lineWidth = 2;
+    for (let y = 0; y < H; y += 28) {
         ctx.beginPath();
-        ctx.moveTo(0, y); ctx.lineTo(eaveLeftW, y + 6);
-        ctx.moveTo(eaveRightX, y); ctx.lineTo(W, y + 6);
+        ctx.moveTo(0, y); ctx.lineTo(eaveLeftW, y + 16);
+        ctx.moveTo(eaveRightX, y); ctx.lineTo(W, y + 16);
         ctx.stroke();
     }
 
-    return configureFastTexture(new THREE.CanvasTexture(c));
+    return configureHdTexture(new THREE.CanvasTexture(c), 4);
 }
 
-// Obsidian & 24K Gold Paneled Boutique Atelier Gable Wall Texture
+// HD 1024x1024 Obsidian & 24K Gold Paneled Boutique Atelier Gable Wall Texture
 function makeBakedWallTexture() {
-    const S = 512;
+    const S = 1024;
     const c = document.createElement('canvas');
     c.width = S;
     c.height = S;
     const ctx = c.getContext('2d');
 
     const vg = ctx.createLinearGradient(0, 0, 0, S);
-    vg.addColorStop(0, '#121018');
-    vg.addColorStop(0.68, '#1c1824');
-    vg.addColorStop(0.70, '#2b1e15');
-    vg.addColorStop(1, '#1e140e');
+    vg.addColorStop(0, '#110f17');
+    vg.addColorStop(0.725, '#1d1925');
+    vg.addColorStop(0.750, '#2b1e15');
+    vg.addColorStop(1, '#1c130d');
     ctx.fillStyle = vg;
     ctx.fillRect(0, 0, S, S);
 
-    ctx.strokeStyle = 'rgba(197, 160, 89, 0.28)';
-    ctx.lineWidth = 2;
+    // Subtle warm ceiling crown ambient glow & fine velvet wall weave
+    const crownGlow = ctx.createRadialGradient(S * 0.5, S * 0.34, 40, S * 0.5, S * 0.38, S * 0.58);
+    crownGlow.addColorStop(0, 'rgba(255, 222, 148, 0.08)');
+    crownGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = crownGlow;
+    ctx.fillRect(0, 0, S, S);
+
     const panelCount = 5;
     const pw = S / panelCount;
     for (let i = 0; i < panelCount; i++) {
-        ctx.strokeRect(i * pw + 12, 26, pw - 24, S * 0.60);
-        ctx.fillStyle = 'rgba(66, 44, 28, 0.42)';
-        ctx.fillRect(i * pw + 10, S * 0.73, pw - 20, S * 0.22);
-        ctx.strokeStyle = 'rgba(197, 160, 89, 0.34)';
-        ctx.strokeRect(i * pw + 12, S * 0.74, pw - 24, S * 0.20);
-        ctx.strokeStyle = 'rgba(197, 160, 89, 0.28)';
+        const px = i * pw;
+        // Upper obsidian boiserie double-frame with corner accents
+        ctx.strokeStyle = 'rgba(218, 180, 104, 0.36)';
+        ctx.lineWidth = 3.2;
+        ctx.strokeRect(px + 22, 46, pw - 44, S * 0.645);
+        ctx.strokeStyle = 'rgba(247, 222, 156, 0.18)';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(px + 30, 54, pw - 60, S * 0.645 - 16);
+
+        // Lower smoked walnut wainscoting with vertical wood grain
+        ctx.fillStyle = 'rgba(64, 42, 26, 0.52)';
+        ctx.fillRect(px + 18, S * 0.775, pw - 36, S * 0.185);
+        ctx.strokeStyle = 'rgba(28, 17, 10, 0.36)';
+        ctx.lineWidth = 1.2;
+        for (let gx = px + 26; gx < px + pw - 24; gx += 12) {
+            ctx.beginPath();
+            ctx.moveTo(gx, S * 0.78);
+            ctx.lineTo(gx, S * 0.955);
+            ctx.stroke();
+        }
+        ctx.strokeStyle = 'rgba(218, 180, 104, 0.42)';
+        ctx.lineWidth = 3.0;
+        ctx.strokeRect(px + 22, S * 0.785, pw - 44, S * 0.165);
     }
 
-    const dado = ctx.createLinearGradient(0, S * 0.69, 0, S * 0.715);
-    dado.addColorStop(0, '#8f6d32');
-    dado.addColorStop(0.5, '#ebd08e');
-    dado.addColorStop(1, '#6e5222');
+    const dado = ctx.createLinearGradient(0, S * 0.738, 0, S * 0.762);
+    dado.addColorStop(0, '#7d5e28');
+    dado.addColorStop(0.5, '#f7df9c');
+    dado.addColorStop(1, '#684c1d');
     ctx.fillStyle = dado;
-    ctx.fillRect(0, S * 0.695, S, 7);
+    ctx.fillRect(0, S * 0.742, S, 14);
 
-    const tex = configureFastTexture(new THREE.CanvasTexture(c));
+    const tex = configureHdTexture(new THREE.CanvasTexture(c), 4);
     tex.wrapS = THREE.RepeatWrapping;
     tex.wrapT = THREE.ClampToEdgeWrapping;
     return tex;
 }
 
 function makeBakedRugTexture() {
-    const S = 512;
+    const S = 1024;
     const c = document.createElement('canvas');
     c.width = S;
     c.height = S;
@@ -333,129 +485,190 @@ function makeBakedRugTexture() {
     ctx.clearRect(0, 0, S, S);
 
     const cx = S * 0.5, cy = S * 0.5;
-    const sh = ctx.createRadialGradient(cx, cy, S * 0.42, cx, cy, S * 0.495);
-    sh.addColorStop(0, 'rgba(0,0,0,0.5)');
+    const sh = ctx.createRadialGradient(cx, cy, S * 0.42, cx, cy, S * 0.496);
+    sh.addColorStop(0, 'rgba(0,0,0,0.56)');
     sh.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = sh;
-    ctx.beginPath(); ctx.arc(cx, cy, S * 0.495, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx, cy, S * 0.496, 0, Math.PI * 2); ctx.fill();
 
-    const rg = ctx.createRadialGradient(cx, cy, 16, cx, cy, S * 0.465);
-    rg.addColorStop(0, '#241e2c');
-    rg.addColorStop(0.68, '#18141f');
-    rg.addColorStop(0.86, '#14111a');
-    rg.addColorStop(0.89, '#9f7c3a');
-    rg.addColorStop(0.93, '#f2d48f');
-    rg.addColorStop(0.96, '#b58e46');
-    rg.addColorStop(0.99, '#6e5322');
+    // Outer 24K Gold Fringe Ticks
+    ctx.strokeStyle = 'rgba(232, 198, 122, 0.58)';
+    ctx.lineWidth = 2.0;
+    for (let f = 0; f < 144; f++) {
+        const a = (f / 144) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.moveTo(cx + Math.cos(a) * (S * 0.460), cy + Math.sin(a) * (S * 0.460));
+        ctx.lineTo(cx + Math.cos(a) * (S * 0.474), cy + Math.sin(a) * (S * 0.474));
+        ctx.stroke();
+    }
+
+    const rg = ctx.createRadialGradient(cx, cy, 24, cx, cy, S * 0.464);
+    rg.addColorStop(0, '#272030');
+    rg.addColorStop(0.66, '#18141f');
+    rg.addColorStop(0.85, '#131019');
+    rg.addColorStop(0.885, '#9f7c3a');
+    rg.addColorStop(0.925, '#f7dd98');
+    rg.addColorStop(0.958, '#b58e46');
+    rg.addColorStop(0.990, '#6e5322');
     rg.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = rg;
-    ctx.beginPath(); ctx.arc(cx, cy, S * 0.465, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx, cy, S * 0.464, 0, Math.PI * 2); ctx.fill();
 
-    ctx.strokeStyle = 'rgba(235, 202, 130, 0.42)';
-    ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.arc(cx, cy, S * 0.37, 0, Math.PI * 2); ctx.stroke();
+    // Ornamental Concentric Filigree Rings
+    ctx.strokeStyle = 'rgba(242, 212, 143, 0.52)';
+    ctx.lineWidth = 4.0;
+    ctx.beginPath(); ctx.arc(cx, cy, S * 0.378, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = 'rgba(197, 160, 89, 0.32)';
+    ctx.lineWidth = 2.0;
+    ctx.beginPath(); ctx.arc(cx, cy, S * 0.352, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx, cy, S * 0.215, 0, Math.PI * 2); ctx.stroke();
 
-    ctx.strokeStyle = 'rgba(197, 160, 89, 0.28)';
-    ctx.lineWidth = 2;
+    // Scalloped Petal Medallion Ring
+    ctx.strokeStyle = 'rgba(235, 202, 130, 0.34)';
+    ctx.lineWidth = 2.4;
+    for (let p = 0; p < 24; p++) {
+        const a = (p / 24) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.arc(cx + Math.cos(a) * (S * 0.29), cy + Math.sin(a) * (S * 0.29), S * 0.036, a - 1.1, a + 1.1);
+        ctx.stroke();
+    }
+
+    // Central 16-Point Seelenfunke Star Compass
+    ctx.strokeStyle = 'rgba(247, 222, 156, 0.48)';
+    ctx.fillStyle = 'rgba(197, 160, 89, 0.14)';
+    ctx.lineWidth = 3.2;
     ctx.beginPath();
     for (let i = 0; i < 16; i++) {
         const a = (i / 16) * Math.PI * 2;
-        const rad = (i % 2 === 0) ? S * 0.16 : S * 0.065;
+        const rad = (i % 2 === 0) ? S * 0.168 : S * 0.068;
         const px = cx + Math.cos(a) * rad;
         const py = cy + Math.sin(a) * rad;
         if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
     }
     ctx.closePath();
+    ctx.fill();
     ctx.stroke();
 
-    return configureFastTexture(new THREE.CanvasTexture(c));
+    return configureHdTexture(new THREE.CanvasTexture(c), 4);
 }
 
 function paintScenicWindowCanvas(canvas, season, isLateNight, occasion = 'none') {
     const W = canvas.width, H = canvas.height;
+    const S = W / 256;
     const ctx = canvas.getContext('2d');
     const g = ctx.createLinearGradient(0, 0, 0, H);
     const isFireworkOccasion = (occasion === 'silvester' || occasion === 'new_year');
     const nightSky = isLateNight || isFireworkOccasion;
 
     if (nightSky) {
-        g.addColorStop(0, '#090d1d');
-        g.addColorStop(0.6, '#151f3c');
-        g.addColorStop(1, '#232946');
+        g.addColorStop(0, '#070b18');
+        g.addColorStop(0.55, '#131d3a');
+        g.addColorStop(1, '#242b4a');
     } else if (season === 'winter') {
-        g.addColorStop(0, '#2a4060');
-        g.addColorStop(0.65, '#6d8cb0');
-        g.addColorStop(1, '#dce8f5');
+        g.addColorStop(0, '#263c5c');
+        g.addColorStop(0.62, '#6b8bb0');
+        g.addColorStop(1, '#e2edf8');
     } else if (season === 'spring') {
-        g.addColorStop(0, '#2d5a88');
-        g.addColorStop(0.65, '#7cb2d6');
-        g.addColorStop(1, '#f7d9c4');
+        g.addColorStop(0, '#295684');
+        g.addColorStop(0.62, '#7ab1d6');
+        g.addColorStop(1, '#f9dec9');
     } else if (season === 'summer') {
-        g.addColorStop(0, '#1f5c94');
-        g.addColorStop(0.68, '#65b6e6');
-        g.addColorStop(1, '#fdf0c2');
+        g.addColorStop(0, '#1b5790');
+        g.addColorStop(0.66, '#62b5e6');
+        g.addColorStop(1, '#fef2c6');
     } else {
-        g.addColorStop(0, '#2c223e');
-        g.addColorStop(0.48, '#7a4557');
-        g.addColorStop(0.82, '#d98a4e');
-        g.addColorStop(1, '#ffdca2');
+        g.addColorStop(0, '#2a203c');
+        g.addColorStop(0.46, '#7b4457');
+        g.addColorStop(0.80, '#dc8c4e');
+        g.addColorStop(1, '#ffe0a8');
     }
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, H);
 
     if (nightSky) {
-        ctx.fillStyle = 'rgba(255, 245, 210, 0.85)';
-        for (let i = 0; i < 28; i++) {
-            const sx = ((i * 73) % (W - 20)) + 10;
-            const sy = ((i * 41) % (H * 0.65)) + 12;
-            ctx.fillRect(sx, sy, (i % 3 === 0) ? 2.5 : 1.5, (i % 3 === 0) ? 2.5 : 1.5);
+        for (let i = 0; i < 44; i++) {
+            const sx = ((i * 137) % Math.max(1, W - 28)) + 14;
+            const sy = ((i * 83) % Math.max(1, Math.floor(H * 0.68))) + 14;
+            const sr = ((i % 4 === 0) ? 2.1 : 1.2) * S;
+            ctx.fillStyle = (i % 5 === 0) ? 'rgba(255, 232, 175, 0.95)' : 'rgba(242, 247, 255, 0.84)';
+            ctx.beginPath();
+            ctx.arc(sx, sy, sr, 0, Math.PI * 2);
+            ctx.fill();
         }
-        ctx.fillStyle = occasion === 'halloween' ? '#ff9d3b' : '#ffe9ad';
-        ctx.beginPath(); ctx.arc(W * 0.68, H * 0.28, 22, 0, Math.PI * 2); ctx.fill();
+        const moonHalo = ctx.createRadialGradient(W * 0.68, H * 0.28, 6 * S, W * 0.68, H * 0.28, 48 * S);
+        moonHalo.addColorStop(0, 'rgba(255, 236, 182, 0.34)');
+        moonHalo.addColorStop(1, 'rgba(255, 236, 182, 0)');
+        ctx.fillStyle = moonHalo;
+        ctx.fillRect(0, 0, W, H);
+
+        ctx.fillStyle = occasion === 'halloween' ? '#ff9d3b' : '#ffecba';
+        ctx.beginPath(); ctx.arc(W * 0.68, H * 0.28, 22 * S, 0, Math.PI * 2); ctx.fill();
         if (occasion !== 'halloween') {
-            ctx.fillStyle = '#111933';
-            ctx.beginPath(); ctx.arc(W * 0.68 + 8, H * 0.28 - 4, 19, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#101833';
+            ctx.beginPath(); ctx.arc(W * 0.68 + 8 * S, H * 0.28 - 4 * S, 19 * S, 0, Math.PI * 2); ctx.fill();
         }
         if (isFireworkOccasion) {
             const bursts = [
-                { cx: W * 0.28, cy: H * 0.34, r: 34, col: '#ffd978' },
-                { cx: W * 0.72, cy: H * 0.44, r: 28, col: '#ff7aa8' },
-                { cx: W * 0.48, cy: H * 0.22, r: 24, col: '#7ce8ff' }
+                { cx: W * 0.28, cy: H * 0.34, r: 34 * S, col: '#ffd978' },
+                { cx: W * 0.72, cy: H * 0.44, r: 28 * S, col: '#ff7aa8' },
+                { cx: W * 0.48, cy: H * 0.22, r: 24 * S, col: '#7ce8ff' }
             ];
             for (const b of bursts) {
                 ctx.strokeStyle = b.col;
-                ctx.lineWidth = 2.0;
-                for (let k = 0; k < 14; k++) {
-                    const a = (k / 14) * Math.PI * 2;
+                ctx.lineWidth = 2.0 * S;
+                for (let k = 0; k < 16; k++) {
+                    const a = (k / 16) * Math.PI * 2;
                     ctx.beginPath();
-                    ctx.moveTo(b.cx + Math.cos(a) * 4, b.cy + Math.sin(a) * 4);
+                    ctx.moveTo(b.cx + Math.cos(a) * 4 * S, b.cy + Math.sin(a) * 4 * S);
                     ctx.lineTo(b.cx + Math.cos(a) * b.r, b.cy + Math.sin(a) * b.r);
                     ctx.stroke();
                 }
             }
         }
     } else {
-        const sunR = season === 'summer' ? 115 : 95;
-        const sg = ctx.createRadialGradient(W * 0.62, H * 0.56, 8, W * 0.62, H * 0.56, sunR);
-        sg.addColorStop(0, season === 'summer' ? 'rgba(255, 249, 214, 0.95)' : 'rgba(255, 244, 204, 0.85)');
+        const sunR = (season === 'summer' ? 118 : 98) * S;
+        const sg = ctx.createRadialGradient(W * 0.62, H * 0.56, 8 * S, W * 0.62, H * 0.56, sunR);
+        sg.addColorStop(0, season === 'summer' ? 'rgba(255, 250, 220, 0.96)' : 'rgba(255, 245, 208, 0.88)');
+        sg.addColorStop(0.45, 'rgba(255, 230, 172, 0.38)');
         sg.addColorStop(1, 'rgba(255, 220, 150, 0)');
         ctx.fillStyle = sg;
         ctx.fillRect(0, 0, W, H);
+
+        // Soft sunlit cirrus clouds
+        ctx.fillStyle = 'rgba(255, 250, 240, 0.16)';
+        for (let cl = 0; cl < 4; cl++) {
+            ctx.beginPath();
+            ctx.ellipse(W * (0.20 + cl * 0.22), H * (0.24 + (cl % 2) * 0.11), 46 * S, 9 * S, -0.05, 0, Math.PI * 2);
+            ctx.fill();
+        }
     }
 
     if (occasion === 'advent' || occasion === 'christmas' || occasion === 'nikolaus') {
-        ctx.fillStyle = '#fff0b8';
+        ctx.fillStyle = '#fff2be';
         ctx.beginPath();
-        ctx.arc(W * 0.26, H * 0.24, 5.5, 0, Math.PI * 2);
+        ctx.arc(W * 0.26, H * 0.24, 5.5 * S, 0, Math.PI * 2);
         ctx.fill();
     }
 
-    ctx.fillStyle = nightSky ? '#090c18' : (season === 'winter' ? '#dbe6f2' : '#231924');
+    // Distant softly hazed treeline + foreground Gifhorn forest silhouette
+    ctx.fillStyle = nightSky ? 'rgba(18, 24, 46, 0.72)' : (season === 'winter' ? 'rgba(196, 212, 230, 0.75)' : 'rgba(64, 46, 62, 0.45)');
     ctx.beginPath();
     ctx.moveTo(0, H);
-    ctx.lineTo(0, H * 0.83);
-    for (let x = 0; x <= W; x += 24) {
-        const th = H * 0.83 - Math.abs(Math.sin(x * 0.055)) * 18 - ((x % 48 === 0) ? 10 : 0);
+    ctx.lineTo(0, H * 0.79);
+    for (let x = 0; x <= W; x += 16 * S) {
+        const th = H * 0.79 - Math.abs(Math.sin(x * 0.032 / S)) * 14 * S;
+        ctx.lineTo(x, th);
+    }
+    ctx.lineTo(W, H);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = nightSky ? '#080b16' : (season === 'winter' ? '#dae6f2' : '#221823');
+    ctx.beginPath();
+    ctx.moveTo(0, H);
+    ctx.lineTo(0, H * 0.84);
+    for (let x = 0; x <= W; x += 14 * S) {
+        const th = H * 0.84 - Math.abs(Math.sin(x * 0.055 / S)) * 18 * S - ((Math.round(x / (14 * S)) % 2 === 0) ? 9 * S : 0);
         ctx.lineTo(x, th);
     }
     ctx.lineTo(W, H);
@@ -470,27 +683,35 @@ function paintGardenGroundCanvas(canvas, season, occasion = 'none') {
     if (season === 'winter') {
         const g = ctx.createLinearGradient(0, 0, 0, H);
         g.addColorStop(0, '#e8eef5');
-        g.addColorStop(0.5, '#f2f6fb');
-        g.addColorStop(1, '#dde6f0');
+        g.addColorStop(0.5, '#f4f8fc');
+        g.addColorStop(1, '#dce5f0');
         ctx.fillStyle = g;
         ctx.fillRect(0, 0, W, H);
 
         // Soft snowdrifts & subtle blue-silver winter contours
-        for (let i = 0; i < 36; i++) {
-            const sx = ((i * 97) % W);
-            const sy = ((i * 61) % H);
-            const rg = ctx.createRadialGradient(sx, sy, 4, sx, sy, 44 + (i % 3) * 18);
-            rg.addColorStop(0, 'rgba(255, 255, 255, 0.75)');
-            rg.addColorStop(1, 'rgba(205, 220, 238, 0)');
+        for (let i = 0; i < 52; i++) {
+            const sx = ((i * 173) % W);
+            const sy = ((i * 109) % H);
+            const rad = (W * 0.08) + (i % 4) * (W * 0.032);
+            const rg = ctx.createRadialGradient(sx, sy, 6, sx, sy, rad);
+            rg.addColorStop(0, 'rgba(255, 255, 255, 0.80)');
+            rg.addColorStop(1, 'rgba(198, 214, 234, 0)');
             ctx.fillStyle = rg;
-            ctx.beginPath(); ctx.arc(sx, sy, 62, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(sx, sy, rad, 0, Math.PI * 2); ctx.fill();
+        }
+        // Sparkling ice crystal micro-glints
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
+        for (let s = 0; s < 220; s++) {
+            const gx = ((s * 97 + 31) % (W - 24)) + 12;
+            const gy = ((s * 67 + 19) % (H - 24)) + 12;
+            ctx.fillRect(gx, gy, (s % 3 === 0) ? 2.6 : 1.6, (s % 3 === 0) ? 2.6 : 1.6);
         }
     } else {
         const basePalette = season === 'summer'
-            ? ['#3b7d3c', '#478f44', '#336e35']
+            ? ['#397a3a', '#468f43', '#316b33']
             : (season === 'spring'
-                ? ['#3f8646', '#4e9c52', '#37763d']
-                : ['#4d6e38', '#637a3a', '#425e31']);
+                ? ['#3d8544', '#4d9c51', '#35743b']
+                : ['#4b6c36', '#617939', '#405c30']);
         const g = ctx.createLinearGradient(0, 0, W, H);
         g.addColorStop(0, basePalette[0]);
         g.addColorStop(0.52, basePalette[1]);
@@ -498,134 +719,215 @@ function paintGardenGroundCanvas(canvas, season, occasion = 'none') {
         ctx.fillStyle = g;
         ctx.fillRect(0, 0, W, H);
 
-        // Subtle mowed lawn stripes for manicured Seelenfunke garden look
-        const stripes = 14;
+        // Manicured Seelenfunke mower stripes
+        const stripes = 16;
         const stripeW = W / stripes;
         for (let s = 0; s < stripes; s++) {
-            if (s % 2 === 0) {
-                ctx.fillStyle = 'rgba(255, 255, 235, 0.045)';
-                ctx.fillRect(s * stripeW, 0, stripeW, H);
-            }
+            ctx.fillStyle = (s % 2 === 0) ? 'rgba(255, 255, 232, 0.052)' : 'rgba(18, 34, 14, 0.045)';
+            ctx.fillRect(s * stripeW, 0, stripeW, H);
         }
 
-        // Seasonal lawn accents: spring daisies, summer clover/buttercups, autumn fallen leaves
-        for (let i = 0; i < 110; i++) {
-            const px = ((i * 79 + 17) % (W - 16)) + 8;
-            const py = ((i * 53 + 29) % (H - 16)) + 8;
+        // Fine procedural grass-blade micro-texture (baked once on season change = 0 runtime cost!)
+        ctx.lineWidth = 1.3;
+        for (let b = 0; b < 1100; b++) {
+            const bx = ((b * 131 + 23) % (W - 12)) + 6;
+            const by = ((b * 89 + 41) % (H - 12)) + 6;
+            const tilt = (((b * 17) % 11) - 5) * 0.65;
+            ctx.strokeStyle = (b % 3 === 0) ? 'rgba(148, 206, 118, 0.24)' : 'rgba(22, 48, 19, 0.22)';
+            ctx.beginPath();
+            ctx.moveTo(bx, by);
+            ctx.lineTo(bx + tilt, by - 6.5);
+            ctx.stroke();
+        }
+
+        // Crisp seasonal lawn accents: multi-petal daisies, buttercups, or veined autumn leaves
+        for (let i = 0; i < 180; i++) {
+            const px = ((i * 149 + 29) % (W - 32)) + 16;
+            const py = ((i * 97 + 43) % (H - 32)) + 16;
             if (season === 'spring' || (season === 'summer' && i % 2 === 0)) {
-                ctx.fillStyle = (i % 5 === 0) ? '#ffe47a' : '#fff9f2';
-                ctx.beginPath(); ctx.arc(px, py, (i % 4 === 0) ? 2.6 : 1.9, 0, Math.PI * 2); ctx.fill();
+                const isGold = (i % 5 === 0);
+                ctx.fillStyle = isGold ? '#ffdf6b' : '#fffaf4';
+                for (let p = 0; p < 5; p++) {
+                    const a = (p / 5) * Math.PI * 2;
+                    ctx.beginPath();
+                    ctx.arc(px + Math.cos(a) * 3.0, py + Math.sin(a) * 3.0, 2.0, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.fillStyle = isGold ? '#d98a1e' : '#f5c242';
+                ctx.beginPath(); ctx.arc(px, py, 1.9, 0, Math.PI * 2); ctx.fill();
             } else if (season === 'autumn') {
-                const leafCols = ['#d97828', '#c94a29', '#e3a636', '#9e3b24'];
+                const leafCols = ['#dc7a28', '#cb4b29', '#e5a836', '#9e3b24', '#c58f2b'];
                 ctx.fillStyle = leafCols[i % leafCols.length];
                 ctx.beginPath();
-                ctx.ellipse(px, py, 3.6, 2.1, (i * 0.7) % 3.14, 0, Math.PI * 2);
+                ctx.ellipse(px, py, 6.2, 3.5, (i * 0.7) % 3.14, 0, Math.PI * 2);
                 ctx.fill();
             }
         }
     }
 
+    // Soft Ambient Occlusion under garden tree, flowerbed & Hochbeet
+    const paintGardenAO = (nx, ny, rx, ry, alpha = 0.28) => {
+        const cx = nx * W, cy = ny * H;
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.scale(1, ry / Math.max(1, rx));
+        const g = ctx.createRadialGradient(0, 0, rx * 0.2, 0, 0, rx);
+        g.addColorStop(0, `rgba(18, 26, 14, ${alpha})`);
+        g.addColorStop(1, 'rgba(18, 26, 14, 0)');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(0, 0, rx, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+    };
+    paintGardenAO(0.84, 0.70, W * 0.085, H * 0.11, 0.30); // Gartenbaum
+    paintGardenAO(0.28, 0.66, W * 0.110, H * 0.095, 0.28); // Blumenbeet
+    paintGardenAO(0.80, 0.25, W * 0.082, H * 0.120, 0.28); // Hochbeet
+
     // Perimeter soil border shadow along fence
-    ctx.strokeStyle = season === 'winter' ? 'rgba(175, 192, 212, 0.55)' : 'rgba(34, 46, 24, 0.42)';
-    ctx.lineWidth = 14;
-    ctx.strokeRect(7, 7, W - 14, H - 14);
+    ctx.strokeStyle = season === 'winter' ? 'rgba(168, 186, 208, 0.58)' : 'rgba(28, 40, 19, 0.46)';
+    ctx.lineWidth = Math.round(W * 0.024);
+    const pad = Math.round(W * 0.012);
+    ctx.strokeRect(pad, pad, W - pad * 2, H - pad * 2);
 }
 
 function paintTerraceDeckCanvas(canvas, season) {
     const W = canvas.width, H = canvas.height;
     const ctx = canvas.getContext('2d');
 
-    ctx.fillStyle = season === 'winter' ? '#7a6858' : (season === 'summer' ? '#9c6e46' : '#8a603d');
+    ctx.fillStyle = season === 'winter' ? '#6e5c4d' : (season === 'summer' ? '#8f623c' : '#7d5535');
     ctx.fillRect(0, 0, W, H);
 
-    const planks = 22;
+    const planks = 24;
     const ph = H / planks;
     for (let r = 0; r < planks; r++) {
         const y = r * ph;
-        const v = ((r * 17) % 14) - 7;
-        const baseR = (season === 'winter' ? 132 : 158) + v;
-        const baseG = (season === 'winter' ? 114 : 112) + Math.round(v * 0.8);
-        const baseB = (season === 'winter' ? 98 : 72) + Math.round(v * 0.6);
+        const v = ((r * 17) % 16) - 8;
+        const baseR = (season === 'winter' ? 134 : 162) + v;
+        const baseG = (season === 'winter' ? 116 : 114) + Math.round(v * 0.8);
+        const baseB = (season === 'winter' ? 99 : 74) + Math.round(v * 0.6);
         ctx.fillStyle = `rgb(${baseR}, ${baseG}, ${baseB})`;
-        ctx.fillRect(2, y + 1.5, W - 4, ph - 2.8);
+        ctx.fillRect(6, y + 2.8, W - 12, ph - 5.2);
 
-        ctx.fillStyle = 'rgba(28, 18, 11, 0.52)';
-        ctx.fillRect(0, y, W, 1.5);
-
-        if (season === 'winter') {
-            ctx.fillStyle = 'rgba(238, 245, 255, 0.34)';
-            ctx.fillRect(4, y + 1.5, W - 8, 2.2);
-        } else if (season === 'summer') {
-            ctx.fillStyle = 'rgba(255, 236, 196, 0.12)';
-            ctx.fillRect(4, y + 2.0, W - 8, 2.0);
+        // Fine teak wood-grain streaks + plank butt-joint + brass deck screws
+        paintWoodPlankDetail(
+            ctx,
+            6,
+            y + 2.8,
+            W - 12,
+            ph - 5.2,
+            'rgba(48, 28, 14, 0.24)',
+            season === 'winter' ? 'rgba(240, 246, 255, 0.28)' : 'rgba(255, 238, 204, 0.14)',
+            r * 19 + 5
+        );
+        const jointX = ((r * 263 + 140) % (W - 220)) + 110;
+        ctx.fillStyle = 'rgba(26, 16, 9, 0.52)';
+        ctx.fillRect(jointX, y + 2.8, 2.2, ph - 5.2);
+        ctx.fillStyle = 'rgba(214, 178, 102, 0.65)';
+        for (const sx of [jointX - 8, jointX + 9, 18, W - 20]) {
+            ctx.beginPath(); ctx.arc(sx, y + ph * 0.34, 1.8, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(sx, y + ph * 0.68, 1.8, 0, Math.PI * 2); ctx.fill();
         }
+
+        // Deep recessed shadow gap between terrace planks
+        ctx.fillStyle = 'rgba(22, 14, 8, 0.64)';
+        ctx.fillRect(0, y, W, 2.8);
     }
 
     if (season === 'winter') {
-        // Frosted snow corners on terrace deck
-        const sg = ctx.createRadialGradient(W * 0.12, H * 0.86, 8, W * 0.12, H * 0.86, W * 0.36);
-        sg.addColorStop(0, 'rgba(244, 248, 255, 0.82)');
+        const sg = ctx.createRadialGradient(W * 0.12, H * 0.86, 14, W * 0.12, H * 0.86, W * 0.38);
+        sg.addColorStop(0, 'rgba(244, 248, 255, 0.84)');
         sg.addColorStop(1, 'rgba(244, 248, 255, 0)');
         ctx.fillStyle = sg;
         ctx.fillRect(0, 0, W, H);
     }
 
     ctx.strokeStyle = '#C5A059';
-    ctx.lineWidth = 5;
-    ctx.strokeRect(3, 3, W - 6, H - 6);
+    ctx.lineWidth = 10;
+    ctx.strokeRect(5, 5, W - 10, H - 10);
+    ctx.strokeStyle = 'rgba(255, 238, 186, 0.55)';
+    ctx.lineWidth = 2.5;
+    ctx.strokeRect(11, 11, W - 22, H - 22);
 }
 
 function makeSunbeamTexture() {
     const c = document.createElement('canvas');
-    c.width = 128;
-    c.height = 256;
+    c.width = 256;
+    c.height = 512;
     const ctx = c.getContext('2d');
-    const g = ctx.createLinearGradient(0, 0, 128, 256);
-    g.addColorStop(0, 'rgba(255, 226, 158, 0.18)');
-    g.addColorStop(0.55, 'rgba(255, 214, 135, 0.06)');
+    const g = ctx.createLinearGradient(0, 0, 256, 512);
+    g.addColorStop(0, 'rgba(255, 228, 164, 0.20)');
+    g.addColorStop(0.55, 'rgba(255, 214, 135, 0.07)');
     g.addColorStop(1, 'rgba(255, 214, 135, 0)');
     ctx.fillStyle = g;
-    ctx.fillRect(0, 0, 128, 256);
-    return configureFastTexture(new THREE.CanvasTexture(c));
+    ctx.fillRect(0, 0, 256, 512);
+    return configureHdTexture(new THREE.CanvasTexture(c), 2);
 }
 
 function makeWallGlowTexture() {
     const c = document.createElement('canvas');
-    c.width = 128;
-    c.height = 128;
+    c.width = 256;
+    c.height = 256;
     const ctx = c.getContext('2d');
-    const g = ctx.createRadialGradient(64, 64, 4, 64, 64, 62);
-    g.addColorStop(0, 'rgba(255, 224, 150, 0.46)');
-    g.addColorStop(0.5, 'rgba(218, 172, 90, 0.14)');
+    const g = ctx.createRadialGradient(128, 128, 8, 128, 128, 124);
+    g.addColorStop(0, 'rgba(255, 226, 154, 0.48)');
+    g.addColorStop(0.5, 'rgba(218, 172, 90, 0.15)');
     g.addColorStop(1, 'rgba(0, 0, 0, 0)');
     ctx.fillStyle = g;
-    ctx.fillRect(0, 0, 128, 128);
-    return configureFastTexture(new THREE.CanvasTexture(c));
+    ctx.fillRect(0, 0, 256, 256);
+    return configureHdTexture(new THREE.CanvasTexture(c), 2);
 }
 
 function makeChestEmblemTexture() {
     const c = document.createElement('canvas');
-    c.width = 384;
-    c.height = 192;
+    c.width = 768;
+    c.height = 384;
     const ctx = c.getContext('2d');
-    ctx.clearRect(0, 0, 384, 192);
+    ctx.clearRect(0, 0, 768, 384);
+    ctx.save();
+    ctx.scale(2, 2);
+
+    // Subtle 24K Gold Chest Filigree Line & Seelenfunke Star Crest
+    ctx.strokeStyle = 'rgba(245, 214, 150, 0.55)';
+    ctx.lineWidth = 2.0;
+    ctx.beginPath();
+    ctx.moveTo(74, 34); ctx.lineTo(170, 34);
+    ctx.moveTo(214, 34); ctx.lineTo(310, 34);
+    ctx.stroke();
+
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#ffd5e2';
+    ctx.fillStyle = '#FCE29C';
+    ctx.font = '700 20px Georgia, serif';
+    ctx.fillText('✦', 192, 34);
+
+    const txtGrad = ctx.createLinearGradient(0, 52, 0, 102);
+    txtGrad.addColorStop(0, '#fff4f8');
+    txtGrad.addColorStop(0.55, '#ffd2e1');
+    txtGrad.addColorStop(1, '#e88ca6');
+    ctx.fillStyle = txtGrad;
     ctx.font = '900 50px "Orbitron", "Segoe UI", sans-serif';
-    ctx.fillText('FUNKIRA', 192, 76);
-    ctx.fillStyle = '#f29ab4';
-    ctx.font = '700 26px Georgia, serif';
+    ctx.fillText('FUNKIRA', 192, 78);
+
+    ctx.fillStyle = '#f5b87a';
+    ctx.font = '700 25px Georgia, serif';
     ctx.fillText('Mein-Seelenfunke', 192, 126);
-    return configureFastTexture(new THREE.CanvasTexture(c));
+
+    ctx.strokeStyle = 'rgba(232, 150, 176, 0.50)';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(108, 152); ctx.lineTo(192, 162); ctx.lineTo(276, 152);
+    ctx.stroke();
+    ctx.restore();
+    return configureHdTexture(new THREE.CanvasTexture(c), 4);
 }
 
 function makeBossBadgeTexture() {
     const c = document.createElement('canvas');
-    c.width = 192;
-    c.height = 192;
+    c.width = 384;
+    c.height = 384;
     const ctx = c.getContext('2d');
-    ctx.clearRect(0, 0, 192, 192);
+    ctx.clearRect(0, 0, 384, 384);
+    ctx.save();
+    ctx.scale(2, 2);
     ctx.beginPath();
     ctx.moveTo(27, 21);
     ctx.lineTo(165, 21);
@@ -633,75 +935,95 @@ function makeBossBadgeTexture() {
     ctx.quadraticCurveTo(154, 154, 96, 177);
     ctx.quadraticCurveTo(38, 154, 33, 114);
     ctx.closePath();
-    ctx.fillStyle = '#171419';
+    const shGrad = ctx.createLinearGradient(0, 20, 0, 178);
+    shGrad.addColorStop(0, '#231d29');
+    shGrad.addColorStop(1, '#120f16');
+    ctx.fillStyle = shGrad;
     ctx.fill();
     ctx.lineWidth = 7.5;
     ctx.strokeStyle = '#e7a1b4';
     ctx.stroke();
+    ctx.lineWidth = 2.0;
+    ctx.strokeStyle = 'rgba(247, 220, 152, 0.68)';
+    ctx.stroke();
 
     ctx.textAlign = 'center';
-    ctx.fillStyle = '#fff5f8';
+    ctx.fillStyle = '#FCE29C';
     ctx.font = '700 26px sans-serif';
-    ctx.fillText('★', 96, 57);
+    ctx.fillText('★', 96, 56);
+    ctx.fillStyle = '#fff5f8';
     ctx.font = '900 34px "Orbitron", sans-serif';
     ctx.fillText('BOSS', 96, 98);
 
     ctx.strokeStyle = '#e7a1b4';
-    ctx.lineWidth = 6;
+    ctx.lineWidth = 5.5;
     ctx.beginPath();
     ctx.moveTo(58, 122);
     ctx.lineTo(96, 143);
     ctx.lineTo(134, 122);
     ctx.stroke();
+    ctx.restore();
 
-    return configureFastTexture(new THREE.CanvasTexture(c));
+    return configureHdTexture(new THREE.CanvasTexture(c), 4);
 }
 
 function makeWallCrestTexture(textTop, textSub) {
     const c = document.createElement('canvas');
-    c.width = 512;
-    c.height = 128;
+    c.width = 1024;
+    c.height = 256;
     const ctx = c.getContext('2d');
-    ctx.fillStyle = '#141118';
+    ctx.save();
+    ctx.scale(2, 2);
+    const bg = ctx.createLinearGradient(0, 0, 512, 128);
+    bg.addColorStop(0, '#120f17');
+    bg.addColorStop(0.5, '#1c1724');
+    bg.addColorStop(1, '#120f17');
+    ctx.fillStyle = bg;
     ctx.fillRect(0, 0, 512, 128);
     ctx.strokeStyle = '#C5A059';
     ctx.lineWidth = 4;
     ctx.strokeRect(6, 6, 500, 116);
+    ctx.strokeStyle = 'rgba(247, 222, 156, 0.45)';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(12, 12, 488, 104);
     ctx.textAlign = 'center';
-    ctx.fillStyle = '#F2D28B';
+    ctx.fillStyle = '#F7DF9C';
     ctx.font = '800 27px Georgia, serif';
-    ctx.fillText(textTop, 256, 55);
-    ctx.fillStyle = '#C5A059';
+    ctx.fillText(textTop, 256, 54);
+    ctx.fillStyle = '#D8B365';
     ctx.font = '700 14px "Segoe UI", sans-serif';
-    ctx.fillText(textSub, 256, 87);
-    return configureFastTexture(new THREE.CanvasTexture(c));
+    ctx.fillText(textSub, 256, 88);
+    ctx.restore();
+    return configureHdTexture(new THREE.CanvasTexture(c), 4);
 }
 
 function makeIlluminatedBrandSignTexture() {
     const W = 512, H = 224;
     const c = document.createElement('canvas');
-    c.width = W;
-    c.height = H;
+    c.width = W * 2;
+    c.height = H * 2;
     const ctx = c.getContext('2d');
+    ctx.save();
+    ctx.scale(2, 2);
 
     const bg = ctx.createLinearGradient(0, 0, W, H);
-    bg.addColorStop(0, '#121015');
-    bg.addColorStop(0.5, '#1b171f');
-    bg.addColorStop(1, '#110f14');
+    bg.addColorStop(0, '#110f15');
+    bg.addColorStop(0.5, '#1d1822');
+    bg.addColorStop(1, '#100e14');
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, W, H);
 
     const innerGlow = ctx.createRadialGradient(W * 0.5, H * 0.50, 14, W * 0.5, H * 0.50, W * 0.48);
-    innerGlow.addColorStop(0, 'rgba(255, 222, 145, 0.24)');
-    innerGlow.addColorStop(0.6, 'rgba(197, 160, 89, 0.08)');
+    innerGlow.addColorStop(0, 'rgba(255, 224, 148, 0.28)');
+    innerGlow.addColorStop(0.6, 'rgba(197, 160, 89, 0.09)');
     innerGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
     ctx.fillStyle = innerGlow;
     ctx.fillRect(0, 0, W, H);
 
-    ctx.strokeStyle = '#F5DC9B';
+    ctx.strokeStyle = '#F7E1A4';
     ctx.lineWidth = 5;
     ctx.strokeRect(8, 8, W - 16, H - 16);
-    ctx.strokeStyle = 'rgba(197, 160, 89, 0.55)';
+    ctx.strokeStyle = 'rgba(218, 180, 104, 0.62)';
     ctx.lineWidth = 2;
     ctx.strokeRect(18, 18, W - 36, H - 36);
 
@@ -709,10 +1031,10 @@ function makeIlluminatedBrandSignTexture() {
     ctx.translate(W * 0.5, 48);
     ctx.shadowColor = 'rgba(255, 218, 130, 0.95)';
     ctx.shadowBlur = 16;
-    ctx.fillStyle = '#FFF5D6';
+    ctx.fillStyle = '#FFF7DE';
     ctx.beginPath();
     for (let i = 0; i < 8; i++) {
-        const rad = (i % 2 === 0) ? 18 : 5.5;
+        const rad = (i % 2 === 0) ? 18.5 : 5.5;
         const ang = (i * Math.PI) / 4;
         const px = Math.cos(ang) * rad;
         const py = Math.sin(ang) * rad;
@@ -727,53 +1049,111 @@ function makeIlluminatedBrandSignTexture() {
     ctx.textBaseline = 'middle';
     ctx.shadowColor = 'rgba(255, 212, 118, 0.95)';
     ctx.shadowBlur = 20;
-    ctx.fillStyle = '#FFF6DC';
+    ctx.fillStyle = '#FFF8E3';
     ctx.font = '800 47px Georgia, "Times New Roman", serif';
     ctx.fillText('Mein-Seelenfunke', W * 0.5, 118);
-    ctx.shadowBlur = 8;
+    ctx.shadowBlur = 6;
     ctx.fillStyle = '#FCE29C';
     ctx.fillText('Mein-Seelenfunke', W * 0.5, 118);
     ctx.restore();
 
-    ctx.strokeStyle = 'rgba(242, 210, 139, 0.65)';
+    ctx.strokeStyle = 'rgba(242, 210, 139, 0.72)';
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(118, 154);
-    ctx.lineTo(W - 118, 154);
+    ctx.moveTo(112, 154);
+    ctx.lineTo(W - 112, 154);
     ctx.stroke();
 
     ctx.textAlign = 'center';
-    ctx.fillStyle = '#DFBC74';
+    ctx.fillStyle = '#E5C37A';
     ctx.font = '700 16px "Segoe UI", sans-serif';
     ctx.fillText('MANUFAKTUR GIFHORN · UNIKATE', W * 0.5, 180);
+    ctx.restore();
 
-    return configureFastTexture(new THREE.CanvasTexture(c));
+    return configureHdTexture(new THREE.CanvasTexture(c), 4);
 }
 
 function makeCozyLivingRugTexture() {
-    const S = 256;
+    const S = 768;
     const c = document.createElement('canvas');
     c.width = S;
     c.height = S;
     const ctx = c.getContext('2d');
-    ctx.fillStyle = '#ded3c3';
+    ctx.fillStyle = '#e0d5c5';
     ctx.fillRect(0, 0, S, S);
     for (let y = 0; y < S; y += 6) {
-        ctx.fillStyle = (y % 12 === 0) ? 'rgba(255,250,242,0.32)' : 'rgba(165,142,112,0.16)';
+        ctx.fillStyle = (y % 12 === 0) ? 'rgba(255,250,242,0.38)' : 'rgba(155,132,102,0.16)';
         ctx.fillRect(0, y, S, 3);
     }
+    for (let x = 0; x < S; x += 8) {
+        ctx.fillStyle = (x % 16 === 0) ? 'rgba(255,252,246,0.16)' : 'rgba(140,118,90,0.08)';
+        ctx.fillRect(x, 0, 2, S);
+    }
     ctx.strokeStyle = '#C5A059';
-    ctx.lineWidth = 6;
-    ctx.strokeRect(12, 12, S - 24, S - 24);
-    return configureFastTexture(new THREE.CanvasTexture(c));
+    ctx.lineWidth = 14;
+    ctx.strokeRect(28, 28, S - 56, S - 56);
+    ctx.strokeStyle = 'rgba(197, 160, 89, 0.45)';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(48, 48, S - 96, S - 96);
+    return configureHdTexture(new THREE.CanvasTexture(c), 4);
+}
+
+function makeDeskMonitorScreenTexture(titleText = 'MEIN SEELENFUNKE') {
+    const W = 512, H = 288;
+    const c = document.createElement('canvas');
+    c.width = W;
+    c.height = H;
+    const ctx = c.getContext('2d');
+    const bg = ctx.createLinearGradient(0, 0, W, H);
+    bg.addColorStop(0, '#100e16');
+    bg.addColorStop(1, '#1b1724');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+
+    // Sidebar + Golden KPI cards
+    ctx.fillStyle = '#15121d';
+    ctx.fillRect(0, 0, 96, H);
+    ctx.strokeStyle = 'rgba(197, 160, 89, 0.42)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(3, 3, W - 6, H - 6);
+
+    ctx.fillStyle = '#FCE29C';
+    ctx.font = '800 18px Georgia, serif';
+    ctx.fillText(`✦ ${titleText}`, 116, 36);
+
+    for (let k = 0; k < 3; k++) {
+        const kx = 116 + k * 124;
+        ctx.fillStyle = 'rgba(197, 160, 89, 0.12)';
+        ctx.fillRect(kx, 56, 112, 64);
+        ctx.strokeStyle = 'rgba(197, 160, 89, 0.48)';
+        ctx.strokeRect(kx, 56, 112, 64);
+        ctx.fillStyle = '#F7DF9C';
+        ctx.fillRect(kx + 12, 74, 58, 8);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+        ctx.fillRect(kx + 12, 92, 82, 6);
+    }
+
+    // Golden Revenue Sparkline Chart
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
+    ctx.fillRect(116, 138, 372, 124);
+    ctx.strokeStyle = '#E5C170';
+    ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    const pts = [[132, 232], [186, 208], [242, 216], [298, 178], [356, 186], [412, 158], [468, 148]];
+    pts.forEach(([px, py], idx) => { if (idx === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py); });
+    ctx.stroke();
+
+    return configureHdTexture(new THREE.CanvasTexture(c), 4);
 }
 
 function makeSmartphoneScreenTexture(callerName = 'Papa') {
     const W = 128, H = 256;
     const c = document.createElement('canvas');
-    c.width = W;
-    c.height = H;
+    c.width = W * 2;
+    c.height = H * 2;
     const ctx = c.getContext('2d');
+    ctx.save();
+    ctx.scale(2, 2);
 
     const bg = ctx.createLinearGradient(0, 0, 0, H);
     bg.addColorStop(0, '#14111b');
@@ -782,12 +1162,12 @@ function makeSmartphoneScreenTexture(callerName = 'Papa') {
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, W, H);
 
-    ctx.strokeStyle = 'rgba(197, 160, 89, 0.55)';
+    ctx.strokeStyle = 'rgba(197, 160, 89, 0.58)';
     ctx.lineWidth = 3;
     ctx.strokeRect(5, 5, W - 10, H - 10);
 
     // Golden Seelenfunke Avatar Circle
-    ctx.fillStyle = 'rgba(197, 160, 89, 0.18)';
+    ctx.fillStyle = 'rgba(197, 160, 89, 0.20)';
     ctx.beginPath();
     ctx.arc(W * 0.5, 68, 26, 0, Math.PI * 2);
     ctx.fill();
@@ -818,44 +1198,47 @@ function makeSmartphoneScreenTexture(callerName = 'Papa') {
     ctx.fillStyle = '#ffffff';
     ctx.font = '700 14px sans-serif';
     ctx.fillText('✆', W * 0.5, 207);
+    ctx.restore();
 
-    return configureFastTexture(new THREE.CanvasTexture(c));
+    return configureHdTexture(new THREE.CanvasTexture(c), 4);
 }
 
 function makeSeelenfunkePlaqueTexture(mainText = 'MEIN SEELENFUNKE', subText = '', theme = 'obsidian_gold') {
     const W = 256, H = 88;
     const c = document.createElement('canvas');
-    c.width = W;
-    c.height = H;
+    c.width = W * 2;
+    c.height = H * 2;
     const ctx = c.getContext('2d');
+    ctx.save();
+    ctx.scale(2, 2);
 
     if (theme === 'gold_plate') {
         const g = ctx.createLinearGradient(0, 0, W, H);
-        g.addColorStop(0, '#ebd08e');
+        g.addColorStop(0, '#f0d796');
         g.addColorStop(0.5, '#c89f4d');
-        g.addColorStop(1, '#f5df9f');
+        g.addColorStop(1, '#f7e3a6');
         ctx.fillStyle = g;
         ctx.fillRect(0, 0, W, H);
         ctx.strokeStyle = '#18131d';
-        ctx.lineWidth = 4;
+        ctx.lineWidth = 3.8;
         ctx.strokeRect(4, 4, W - 8, H - 8);
-        ctx.lineWidth = 1.5;
+        ctx.lineWidth = 1.4;
         ctx.strokeRect(10, 10, W - 20, H - 20);
         ctx.fillStyle = '#16121b';
     } else {
         const g = ctx.createLinearGradient(0, 0, 0, H);
-        g.addColorStop(0, '#1c1722');
-        g.addColorStop(0.5, '#120f17');
-        g.addColorStop(1, '#1a1520');
+        g.addColorStop(0, '#1e1825');
+        g.addColorStop(0.5, '#110e16');
+        g.addColorStop(1, '#1b1622');
         ctx.fillStyle = g;
         ctx.fillRect(0, 0, W, H);
         ctx.strokeStyle = '#C5A059';
-        ctx.lineWidth = 4;
+        ctx.lineWidth = 3.8;
         ctx.strokeRect(4, 4, W - 8, H - 8);
-        ctx.strokeStyle = 'rgba(247, 216, 139, 0.55)';
-        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = 'rgba(247, 218, 144, 0.62)';
+        ctx.lineWidth = 1.4;
         ctx.strokeRect(10, 10, W - 20, H - 20);
-        ctx.fillStyle = '#F7DF9C';
+        ctx.fillStyle = '#F9E3A4';
     }
 
     ctx.textAlign = 'center';
@@ -864,56 +1247,59 @@ function makeSeelenfunkePlaqueTexture(mainText = 'MEIN SEELENFUNKE', subText = '
         ctx.font = '800 20px Georgia, "Times New Roman", serif';
         ctx.fillText(`✦ ${mainText} ✦`, W * 0.5, 34);
         ctx.font = '700 13px "Segoe UI", sans-serif';
-        ctx.fillStyle = theme === 'gold_plate' ? '#2c2218' : '#C5A059';
+        ctx.fillStyle = theme === 'gold_plate' ? '#2c2218' : '#D5B062';
         ctx.fillText(subText, W * 0.5, 62);
     } else {
         ctx.font = '800 22px Georgia, "Times New Roman", serif';
         ctx.fillText(`✦ ${mainText} ✦`, W * 0.5, H * 0.5 + 1);
     }
+    ctx.restore();
 
-    return configureFastTexture(new THREE.CanvasTexture(c));
+    return configureHdTexture(new THREE.CanvasTexture(c), 4);
 }
 
 function makeSeelenfunkeArtCanvasTexture(motif = 'spark_mandala', subLabel = 'MANUFAKTUR GIFHORN') {
     const W = 256, H = 192;
     const c = document.createElement('canvas');
-    c.width = W;
-    c.height = H;
+    c.width = W * 2;
+    c.height = H * 2;
     const ctx = c.getContext('2d');
+    ctx.save();
+    ctx.scale(2, 2);
 
     const bg = ctx.createRadialGradient(W * 0.5, H * 0.44, 10, W * 0.5, H * 0.5, 150);
-    bg.addColorStop(0, '#261e29');
+    bg.addColorStop(0, '#29202d');
     bg.addColorStop(0.65, '#17131c');
-    bg.addColorStop(1, '#0f0c13');
+    bg.addColorStop(1, '#0e0b12');
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, W, H);
 
-    // Double 24K Gold Passepartout Frame
+    // Double 24K Gold Passepartout Frame + Corner Rosettes
     ctx.strokeStyle = '#C5A059';
     ctx.lineWidth = 3.5;
     ctx.strokeRect(10, 10, W - 20, H - 20);
-    ctx.strokeStyle = 'rgba(247, 222, 156, 0.45)';
-    ctx.lineWidth = 1.2;
+    ctx.strokeStyle = 'rgba(247, 222, 156, 0.52)';
+    ctx.lineWidth = 1.3;
     ctx.strokeRect(16, 16, W - 32, H - 32);
 
     const cx = W * 0.5;
     const cy = 78;
     ctx.save();
-    ctx.strokeStyle = '#E5C170';
-    ctx.fillStyle = '#F7DF9C';
+    ctx.strokeStyle = '#EACA7B';
+    ctx.fillStyle = '#F9E3A4';
 
     if (motif === 'spark_mandala') {
-        for (let r = 0; r < 12; r++) {
-            const a = (r / 12) * Math.PI * 2;
-            ctx.lineWidth = (r % 3 === 0) ? 2.4 : 1.2;
+        for (let r = 0; r < 16; r++) {
+            const a = (r / 16) * Math.PI * 2;
+            ctx.lineWidth = (r % 4 === 0) ? 2.4 : 1.2;
             ctx.beginPath();
-            ctx.moveTo(cx + Math.cos(a) * 12, cy + Math.sin(a) * 12);
-            ctx.lineTo(cx + Math.cos(a) * ((r % 2 === 0) ? 42 : 28), cy + Math.sin(a) * ((r % 2 === 0) ? 42 : 28));
+            ctx.moveTo(cx + Math.cos(a) * 11, cy + Math.sin(a) * 11);
+            ctx.lineTo(cx + Math.cos(a) * ((r % 2 === 0) ? 43 : 27), cy + Math.sin(a) * ((r % 2 === 0) ? 43 : 27));
             ctx.stroke();
         }
         ctx.lineWidth = 2.0;
         ctx.beginPath();
-        ctx.arc(cx, cy, 30, 0, Math.PI * 2);
+        ctx.arc(cx, cy, 31, 0, Math.PI * 2);
         ctx.stroke();
         ctx.font = '700 26px Georgia, serif';
         ctx.textAlign = 'center';
@@ -956,7 +1342,6 @@ function makeSeelenfunkeArtCanvasTexture(motif = 'spark_mandala', subLabel = 'MA
         ctx.textBaseline = 'middle';
         ctx.fillText('✦', cx, cy + 2);
     } else {
-        // crest_manufaktur
         ctx.lineWidth = 2.4;
         ctx.beginPath();
         ctx.arc(cx, cy, 34, 0, Math.PI * 2);
@@ -968,30 +1353,30 @@ function makeSeelenfunkeArtCanvasTexture(motif = 'spark_mandala', subLabel = 'MA
     }
     ctx.restore();
 
-    // Crisp Golden Signature on Artwork
     ctx.textAlign = 'center';
-    ctx.fillStyle = '#F7DF9C';
+    ctx.fillStyle = '#F9E3A4';
     ctx.font = '800 17px Georgia, "Times New Roman", serif';
     ctx.fillText('MEIN SEELENFUNKE', cx, 146);
-    ctx.fillStyle = '#C5A059';
+    ctx.fillStyle = '#D5B062';
     ctx.font = '700 11px "Segoe UI", sans-serif';
     ctx.fillText(subLabel, cx, 165);
+    ctx.restore();
 
-    return configureFastTexture(new THREE.CanvasTexture(c));
+    return configureHdTexture(new THREE.CanvasTexture(c), 4);
 }
 
 function makeShadowDiscTexture() {
     const c = document.createElement('canvas');
-    c.width = 96;
-    c.height = 96;
+    c.width = 256;
+    c.height = 256;
     const ctx = c.getContext('2d');
-    const g = ctx.createRadialGradient(48, 48, 5, 48, 48, 46);
-    g.addColorStop(0, 'rgba(0,0,0,0.62)');
-    g.addColorStop(0.65, 'rgba(0,0,0,0.24)');
+    const g = ctx.createRadialGradient(128, 128, 14, 128, 128, 122);
+    g.addColorStop(0, 'rgba(0,0,0,0.66)');
+    g.addColorStop(0.58, 'rgba(0,0,0,0.26)');
     g.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = g;
-    ctx.fillRect(0, 0, 96, 96);
-    return configureFastTexture(new THREE.CanvasTexture(c));
+    ctx.fillRect(0, 0, 256, 256);
+    return configureHdTexture(new THREE.CanvasTexture(c), 2);
 }
 
 function freezeStaticTree(rootObj) {
@@ -1010,8 +1395,8 @@ class FunkiraAtelierEngine {
         this.running = false;
         this.lastMs = 0;
 
-        // Dynamic QHD Render Scale Governor (Targets Locked 60 FPS on Intel UHD 605)
-        this.renderScale = 0.60;
+        // Dynamic Native HD Render Scale Governor (Targets 60 FPS on Intel UHD 605 up to 1.00 native!)
+        this.renderScale = 0.92;
         this.fps = 60;
         this._fpsFrames = 0;
         this._fpsWindowStartMs = 0;
@@ -1040,10 +1425,10 @@ class FunkiraAtelierEngine {
             isLateNight: false
         };
 
-        // Pre-baked Zero-GC Visor Canvas (384 x 240)
+        // Pre-baked Zero-GC 2x Retina Visor Canvas (768 x 480)
         this.visorCanvas = document.createElement('canvas');
-        this.visorCanvas.width = 384;
-        this.visorCanvas.height = 240;
+        this.visorCanvas.width = 768;
+        this.visorCanvas.height = 480;
         this.visorCtx = this.visorCanvas.getContext('2d', { alpha: false });
         this.visorTexture = null;
         this.visorBgCanvas = null;
@@ -1052,18 +1437,18 @@ class FunkiraAtelierEngine {
         this._lastVisorDrawMs = 0;
         this._lastDrawnSig = '';
 
-        // Scenic Window Canvas shared across all 12 EG + OG windows + Outdoor Garden & Terrace Canvases
+        // HD Scenic Window Canvas shared across all 12 EG + OG windows + HD Outdoor Garden & Terrace Canvases
         this.windowCanvas = document.createElement('canvas');
-        this.windowCanvas.width = 256;
-        this.windowCanvas.height = 256;
+        this.windowCanvas.width = 512;
+        this.windowCanvas.height = 512;
         this.windowTexture = null;
         this.gardenGroundCanvas = document.createElement('canvas');
-        this.gardenGroundCanvas.width = 512;
-        this.gardenGroundCanvas.height = 384;
+        this.gardenGroundCanvas.width = 1280;
+        this.gardenGroundCanvas.height = 960;
         this.gardenGroundTexture = null;
         this.terraceDeckCanvas = document.createElement('canvas');
-        this.terraceDeckCanvas.width = 384;
-        this.terraceDeckCanvas.height = 256;
+        this.terraceDeckCanvas.width = 1024;
+        this.terraceDeckCanvas.height = 768;
         this.terraceDeckTexture = null;
         this.sunbeamMesh = null;
         this.sunbeamMeshes = [];
@@ -1115,8 +1500,31 @@ class FunkiraAtelierEngine {
         this._mowerLaneIdx = 0;
         this._mowerParked = true;
         this.indoorBgColor = new THREE.Color(0x121017);
+        this.cellarBgColor = new THREE.Color(0x0b0a10);
         this.outdoorSkyColor = new THREE.Color(0x47364d);
         this._tmpSpoutWorld = new THREE.Vector3();
+
+        // Secret 3D Kuppelhalle, Hydraulic Lift & Project-Brain State (0% GPU cost when upstairs!)
+        this.upstairsFxGroup = null;
+        this.cellarGroup = null;
+        this.cellarShaftGroup = null;
+        this.cellarLiftPlatform = null;
+        this.cellarHoloGroup = null;
+        this.cellarHatchLedMat = null;
+        this.cellarBrainInnerMesh = null;
+        this.cellarBrainOrbitC = null;
+        this.cellarHealWaveMesh = null;
+        this.cellarHealWaveMat = null;
+        this.cellarHealAnimTimer = 0;
+        this.cellarNodeSlots = [];
+        this.cellarBeamSlots = [];
+        this.cellarPickMeshes = [];
+        this.cellarSnapshot = null;
+        this.selectedCellarKey = '';
+        this._raycaster = new THREE.Raycaster();
+        this._pointerNdc = new THREE.Vector2();
+        this._beamUpVec = new THREE.Vector3(0, 1, 0);
+        this._beamDirVec = new THREE.Vector3();
 
         // 2-Floor Locomotion & Staircase State (Default home: Obergeschoss Seelenfunken Atelier)
         this.pos = new THREE.Vector3(0.0, OG_Y, 4.48);
@@ -1161,6 +1569,7 @@ class FunkiraAtelierEngine {
         this.renderer.outputColorSpace = THREE.SRGBColorSpace;
         this.renderer.toneMapping = THREE.NoToneMapping;
         this.renderer.shadowMap.enabled = false;
+        MAX_GPU_ANISOTROPY = Math.min(4, Math.max(1, this.renderer.capabilities.getMaxAnisotropy() || 1));
 
         this.scene = new THREE.Scene();
         this.scene.background = new THREE.Color(0x121017);
@@ -1172,6 +1581,7 @@ class FunkiraAtelierEngine {
         this._bakeVisorSprites();
         this._initSharedMatcaps();
         this._buildTwoStoryHouse();
+        this._buildSecretCellar();
         this._buildFunkiraRig();
         this._buildMovableSeelenfunkeItems();
         this._applyWorldStateVisuals();
@@ -1184,90 +1594,180 @@ class FunkiraAtelierEngine {
 
     _bakeVisorSprites() {
         const bg = document.createElement('canvas');
-        bg.width = 384;
-        bg.height = 240;
+        bg.width = 768;
+        bg.height = 480;
         const bctx = bg.getContext('2d', { alpha: false });
-        bctx.fillStyle = '#151218';
+        bctx.save();
+        bctx.scale(2, 2);
+
+        const bgGrad = bctx.createRadialGradient(192, 118, 20, 192, 120, 235);
+        bgGrad.addColorStop(0, '#1a1520');
+        bgGrad.addColorStop(0.68, '#130f17');
+        bgGrad.addColorStop(1, '#0b080e');
+        bctx.fillStyle = bgGrad;
         bctx.fillRect(0, 0, 384, 240);
+
+        // Subtle optical micro-grid lines (baked once -> 0% runtime cost)
+        bctx.fillStyle = 'rgba(255, 210, 228, 0.014)';
+        for (let y = 18; y < 232; y += 4) {
+            bctx.fillRect(8, y, 368, 1);
+        }
 
         const topGrad = bctx.createLinearGradient(0, 0, 384, 0);
         topGrad.addColorStop(0, '#c46f84');
-        topGrad.addColorStop(0.5, '#f5b2c4');
+        topGrad.addColorStop(0.35, '#f6b4c6');
+        topGrad.addColorStop(0.5, '#ffe4ec');
+        topGrad.addColorStop(0.65, '#f5b2c4');
         topGrad.addColorStop(1, '#b86277');
         bctx.fillStyle = topGrad;
-        bctx.fillRect(8, 9, 368, 8);
+        bctx.fillRect(8, 8.5, 368, 7.5);
+
+        // Delicate 24K Gold couture hairline under top lightbar
+        bctx.fillStyle = 'rgba(218, 178, 102, 0.52)';
+        bctx.fillRect(14, 17.5, 356, 1.2);
 
         bctx.beginPath();
         bctx.moveTo(0, 18);
-        bctx.lineTo(188, 18);
-        bctx.lineTo(118, 240);
+        bctx.lineTo(192, 18);
+        bctx.lineTo(116, 240);
         bctx.lineTo(0, 240);
         bctx.closePath();
-        const sheen = bctx.createLinearGradient(0, 18, 160, 240);
-        sheen.addColorStop(0, 'rgba(255, 228, 238, 0.10)');
-        sheen.addColorStop(1, 'rgba(255, 228, 238, 0.015)');
+        const sheen = bctx.createLinearGradient(0, 18, 165, 240);
+        sheen.addColorStop(0, 'rgba(255, 232, 242, 0.11)');
+        sheen.addColorStop(0.55, 'rgba(255, 224, 236, 0.045)');
+        sheen.addColorStop(1, 'rgba(255, 224, 236, 0.01)');
         bctx.fillStyle = sheen;
         bctx.fill();
 
-        bctx.strokeStyle = '#0b090d';
-        bctx.lineWidth = 10;
+        bctx.strokeStyle = '#09070b';
+        bctx.lineWidth = 9.5;
         bctx.strokeRect(3, 3, 378, 234);
+        bctx.strokeStyle = 'rgba(197, 160, 89, 0.28)';
+        bctx.lineWidth = 1.2;
+        bctx.strokeRect(8.5, 8.5, 367, 223);
+        bctx.restore();
         this.visorBgCanvas = bg;
 
+        // 2x Retina 192x192 Crystal-Fiber Iris Sprite
         const ic = document.createElement('canvas');
-        ic.width = 96;
-        ic.height = 96;
+        ic.width = 192;
+        ic.height = 192;
         const ictx = ic.getContext('2d');
-        const ig = ictx.createRadialGradient(48, 58, 6, 48, 48, 42);
-        ig.addColorStop(0, '#ff8fb1');
-        ig.addColorStop(0.35, '#c93863');
-        ig.addColorStop(0.72, '#69142c');
-        ig.addColorStop(1, '#260711');
+        ictx.save();
+        ictx.scale(2, 2);
+
+        // Deep outer limbal ring
+        ictx.fillStyle = '#1d050c';
+        ictx.beginPath();
+        ictx.ellipse(48, 48, 40.2, 42.2, 0, 0, Math.PI * 2);
+        ictx.fill();
+
+        const ig = ictx.createRadialGradient(48, 59, 5, 48, 48, 42);
+        ig.addColorStop(0, '#ff9ebc');
+        ig.addColorStop(0.28, '#df4b78');
+        ig.addColorStop(0.62, '#8c1d3e');
+        ig.addColorStop(0.88, '#3d0919');
+        ig.addColorStop(1, '#1e040c');
         ictx.fillStyle = ig;
         ictx.beginPath();
-        ictx.ellipse(48, 48, 39, 41, 0, 0, Math.PI * 2);
+        ictx.ellipse(48, 48, 38.6, 40.6, 0, 0, Math.PI * 2);
         ictx.fill();
 
-        ictx.fillStyle = '#1f050d';
+        // 28 radial crystal-rose & champagne-gold iris fibers
+        for (let f = 0; f < 28; f++) {
+            const ang = (f / 28) * Math.PI * 2;
+            const rIn = 19.5 + (f % 2) * 2.0;
+            const rOut = 36.2 - (f % 3) * 1.8;
+            ictx.strokeStyle = (f % 4 === 0)
+                ? 'rgba(255, 222, 168, 0.30)'
+                : 'rgba(255, 162, 192, 0.26)';
+            ictx.lineWidth = (f % 2 === 0) ? 1.35 : 0.85;
+            ictx.beginPath();
+            ictx.moveTo(48 + Math.cos(ang) * rIn, 47 + Math.sin(ang) * rIn);
+            ictx.lineTo(48 + Math.cos(ang) * rOut, 48 + Math.sin(ang) * rOut);
+            ictx.stroke();
+        }
+
+        // Upper-lid soft ambient shadow across top of iris
+        const topShad = ictx.createLinearGradient(0, 7, 0, 42);
+        topShad.addColorStop(0, 'rgba(18, 3, 9, 0.62)');
+        topShad.addColorStop(1, 'rgba(18, 3, 9, 0)');
+        ictx.fillStyle = topShad;
         ictx.beginPath();
-        ictx.ellipse(48, 46, 20, 22, 0, 0, Math.PI * 2);
+        ictx.ellipse(48, 48, 38.6, 40.6, 0, 0, Math.PI * 2);
         ictx.fill();
 
-        ictx.strokeStyle = 'rgba(255, 168, 195, 0.68)';
-        ictx.lineWidth = 3.5;
+        // Deep velvet pupil + thin rose-gold pupil collar
+        ictx.strokeStyle = 'rgba(255, 196, 212, 0.44)';
+        ictx.lineWidth = 1.4;
+        ictx.fillStyle = '#18030a';
         ictx.beginPath();
-        ictx.arc(48, 51, 26, 0.22 * Math.PI, 0.78 * Math.PI);
+        ictx.ellipse(48, 46, 19.6, 21.6, 0, 0, Math.PI * 2);
+        ictx.fill();
         ictx.stroke();
 
+        // Lower golden-rose caustic crescent
+        const caustGrad = ictx.createLinearGradient(22, 68, 74, 68);
+        caustGrad.addColorStop(0, 'rgba(255, 168, 195, 0.45)');
+        caustGrad.addColorStop(0.5, 'rgba(255, 226, 190, 0.88)');
+        caustGrad.addColorStop(1, 'rgba(255, 168, 195, 0.45)');
+        ictx.strokeStyle = caustGrad;
+        ictx.lineWidth = 3.4;
+        ictx.lineCap = 'round';
+        ictx.beginPath();
+        ictx.arc(48, 50.5, 26.2, 0.20 * Math.PI, 0.80 * Math.PI);
+        ictx.stroke();
+
+        // Primary crystal studio catchlight + secondary starlight gem highlight
         ictx.fillStyle = '#ffffff';
         ictx.beginPath();
-        ictx.ellipse(36, 34, 10.4, 12.0, -0.22, 0, Math.PI * 2);
+        ictx.ellipse(35.5, 33.5, 10.6, 12.2, -0.22, 0, Math.PI * 2);
         ictx.fill();
 
-        ictx.fillStyle = 'rgba(255, 240, 246, 0.92)';
+        ictx.fillStyle = 'rgba(255, 244, 248, 0.96)';
         ictx.beginPath();
-        ictx.arc(61, 59, 4.8, 0, Math.PI * 2);
+        ictx.arc(61.5, 59.5, 4.9, 0, Math.PI * 2);
         ictx.fill();
+
+        // Tiny 4-point Seelenfunke starlight glint on upper-right iris rim
+        ictx.fillStyle = 'rgba(255, 246, 218, 0.92)';
+        ictx.beginPath();
+        for (let k = 0; k < 8; k++) {
+            const ka = (k / 8) * Math.PI * 2;
+            const kr = (k % 2 === 0) ? 4.2 : 1.3;
+            const kx = 63.0 + Math.cos(ka) * kr;
+            const ky = 32.0 + Math.sin(ka) * kr;
+            if (k === 0) ictx.moveTo(kx, ky); else ictx.lineTo(kx, ky);
+        }
+        ictx.closePath();
+        ictx.fill();
+        ictx.restore();
         this.irisSpriteCanvas = ic;
 
+        // 2x Retina 128x80 Blush Sprite
         const bc = document.createElement('canvas');
-        bc.width = 64;
-        bc.height = 40;
+        bc.width = 128;
+        bc.height = 80;
         const blctx = bc.getContext('2d');
-        const bgGrad = blctx.createRadialGradient(32, 20, 3, 32, 20, 26);
-        bgGrad.addColorStop(0, 'rgba(235, 84, 122, 0.44)');
-        bgGrad.addColorStop(1, 'rgba(235, 84, 122, 0)');
-        blctx.fillStyle = bgGrad;
+        blctx.save();
+        blctx.scale(2, 2);
+        const blushGrad = blctx.createRadialGradient(32, 20, 2, 32, 20, 27);
+        blushGrad.addColorStop(0, 'rgba(242, 92, 130, 0.48)');
+        blushGrad.addColorStop(0.6, 'rgba(235, 84, 122, 0.20)');
+        blushGrad.addColorStop(1, 'rgba(235, 84, 122, 0)');
+        blctx.fillStyle = blushGrad;
         blctx.fillRect(0, 0, 64, 40);
 
-        blctx.strokeStyle = 'rgba(235, 95, 130, 0.85)';
-        blctx.lineWidth = 2.4;
+        blctx.strokeStyle = 'rgba(245, 110, 144, 0.88)';
+        blctx.lineWidth = 2.1;
+        blctx.lineCap = 'round';
         for (let s = -2; s <= 2; s++) {
             blctx.beginPath();
-            blctx.moveTo(32 + s * 7 - 3, 25);
-            blctx.lineTo(32 + s * 7 + 3, 15);
+            blctx.moveTo(32 + s * 6.8 - 2.8, 24.5);
+            blctx.lineTo(32 + s * 6.8 + 2.8, 15.5);
             blctx.stroke();
         }
+        blctx.restore();
         this.blushSpriteCanvas = bc;
     }
 
@@ -1318,7 +1818,8 @@ class FunkiraAtelierEngine {
         const cssW = Math.max(320, Math.floor(rect.width || window.innerWidth));
         const cssH = Math.max(240, Math.floor(rect.height || window.innerHeight));
 
-        const baseScale = cssW > 1920 ? this.renderScale : Math.min(1.0, this.renderScale * 1.25);
+        const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+        const baseScale = cssW > 1920 ? Math.min(1.0, this.renderScale) : Math.min(dpr, this.renderScale * 1.09);
         this.renderer.setPixelRatio(baseScale);
         this.renderer.setSize(cssW, cssH, false);
         this.camera.aspect = cssW / cssH;
@@ -1346,11 +1847,22 @@ class FunkiraAtelierEngine {
         return this.targetFloor === 'stairs' || (this.pos.y > 0.08 && this.pos.y < (OG_Y - 0.08));
     }
 
+    _isOnCellarStairs() {
+        return this.targetFloor === 'cellar_stairs' || (this.pos.y < -0.08 && this.pos.y > (UG_Y + 0.08));
+    }
+
     _currentFloorIndex() {
+        if (this.pos.y <= (UG_Y * 0.5)) return -1;
         return this.pos.y >= (OG_Y * 0.5) ? 1 : 0;
     }
 
     _roomNameAt(x, y, z) {
+        if (y < -0.12 && y > UG_Y + 0.12) return 'Kuppel-Lift';
+        if (y <= UG_Y * 0.5) {
+            if (z < 2.08) return 'Kuppel-Vorhalle';
+            if (z < 7.36) return 'Kuppel-Brücke';
+            return 'Projekt-Gehirn Kuppelhalle';
+        }
         if (y > 0.12 && y < OG_Y - 0.12) return 'Treppe';
         if (y >= OG_Y * 0.5) {
             if (z >= 2.25) return 'Seelenfunken Atelier';
@@ -1376,6 +1888,9 @@ class FunkiraAtelierEngine {
     }
 
     _getFloorBounds(floorIdx) {
+        if (floorIdx === -1) {
+            return { minX: -1.95, maxX: 3.25, minZ: -1.00, maxZ: 11.15 };
+        }
         if (floorIdx === 1) {
             // Respect 1.25m Dachschrägen eaves left & right (usable standing width x = -3.00 .. +3.00)
             return { minX: -2.62, maxX: 2.62, minZ: -6.48, maxZ: 6.38 };
@@ -1385,6 +1900,26 @@ class FunkiraAtelierEngine {
     }
 
     _getFloorColliders(floorIdx) {
+        if (floorIdx === -1) {
+            return [
+                // Arrival Balcony West & North Chasm Guards (Lift shaft sits at x = 2.86, z = -0.73)
+                { minX: -2.60, maxX: -0.72, minZ: -1.25, maxZ:  2.08 },
+                { minX: -0.75, maxX:  2.39, minZ: -1.25, maxZ:  0.18 },
+                { minX:  3.33, maxX:  3.80, minZ: -1.25, maxZ:  2.08 },
+                // Abyss & Railing Guard Left of Suspended Walkway Bridge (z = 2.08 .. 7.36)
+                { minX: -2.60, maxX: -0.58, minZ:  2.08, maxZ:  7.36 },
+                // Abyss & Railing Guard Right of Suspended Walkway Bridge (z = 2.08 .. 7.36)
+                { minX:  0.58, maxX:  3.80, minZ:  2.08, maxZ:  7.36 },
+                // Central 24K-Gold & Nero-Marquina Neural Projector Console on Circular Kuppel Island (z = 9.40)
+                { minX: -0.68, maxX:  0.68, minZ:  8.72, maxZ: 10.08 },
+                // Circular Island Curved Perimeter Guards (keeps Funkira safely inside R = 2.35m platform)
+                { minX: -2.60, maxX: -1.52, minZ:  7.36, maxZ:  8.00 },
+                { minX:  1.52, maxX:  3.80, minZ:  7.36, maxZ:  8.00 },
+                { minX:  2.05, maxX:  3.80, minZ:  8.00, maxZ: 10.45 },
+                { minX: -2.60, maxX: -1.48, minZ: 10.45, maxZ: 11.40 },
+                { minX:  1.48, maxX:  3.80, minZ: 10.45, maxZ: 11.40 }
+            ];
+        }
         const sea = this.worldState.season || 'autumn';
         const occ = this.worldState.occasion || 'none';
         if (floorIdx === 0) {
@@ -1542,6 +2077,19 @@ class FunkiraAtelierEngine {
     }
 
     _getFloorNavNodes(floorIdx) {
+        if (floorIdx === -1) {
+            return [
+                { x:  2.86, z: -0.73 },
+                { x:  2.86, z:  0.92 },
+                { x:  0.00, z:  1.35 },
+                { x:  0.00, z:  4.75 },
+                { x:  0.00, z:  7.62 },
+                { x: -1.18, z:  8.48 },
+                { x:  1.18, z:  8.48 },
+                { x: -1.20, z:  9.85 },
+                { x:  1.20, z:  9.85 }
+            ];
+        }
         if (floorIdx === 0) {
             return [
                 // Schlafzimmer & doorway (x = -0.07, z = -3.37)
@@ -1563,10 +2111,11 @@ class FunkiraAtelierEngine {
                 // Flur <-> Diele doorway (z = -0.06, x = +0.54)
                 { x:  0.54, z: -0.48 },
                 { x:  0.54, z:  0.34 },
-                // Heizungsraum & doorway (z = -0.06, x = +1.87)
+                // Heizungsraum, Hydraulic Vault Lift & doorway (z = -0.06, x = +1.87)
                 { x:  1.56, z:  0.34 },
                 { x:  1.87, z:  0.34 },
-                { x:  1.87, z: -0.68 },
+                { x:  1.87, z: -0.73 },
+                { x:  2.86, z: -0.73 },
                 // Diele East & Staircase bottom entry (STAIR_BOT = 3.16, 1.06)
                 { x:  3.16, z:  0.34 },
                 { x:  3.16, z:  1.06 },
@@ -1707,6 +2256,12 @@ class FunkiraAtelierEngine {
     }
 
     _enforceCharacterCollision() {
+        if (this._isOnCellarStairs()) {
+            this.pos.x = clamp(this.pos.x, 2.66, 3.06);
+            this.pos.z = clamp(this.pos.z, -0.92, -0.54);
+            this.pos.y = clamp(this.pos.y, UG_Y, 0.0);
+            return;
+        }
         if (this._isOnStairs()) {
             this.pos.x = clamp(this.pos.x, 0.20, 3.20);
             this.pos.z = clamp(this.pos.z, 0.86, 1.26);
@@ -1718,14 +2273,14 @@ class FunkiraAtelierEngine {
         const safe = this._pushOutOfColliders(this.pos.x, this.pos.z, fIdx, 0.24);
         this.pos.x = safe.x;
         this.pos.z = safe.z;
-        this.pos.y = fIdx === 1 ? OG_Y : 0.0;
+        this.pos.y = fIdx === 1 ? OG_Y : (fIdx === -1 ? UG_Y : 0.0);
     }
 
     _solveSingleFloorPath(sx, sz, gx, gz, floorIdx) {
         const boxes = this._getFloorColliders(floorIdx);
         const start = this._pushOutOfColliders(sx, sz, floorIdx, 0.25, boxes);
         const goal = this._pushOutOfColliders(gx, gz, floorIdx, 0.25, boxes);
-        const fy = floorIdx === 1 ? OG_Y : 0.0;
+        const fy = floorIdx === 1 ? OG_Y : (floorIdx === -1 ? UG_Y : 0.0);
 
         if (!this._segmentHitsAnyCollider(start.x, start.z, goal.x, goal.z, boxes, 0.24)) {
             return [{ x: goal.x, y: fy, z: goal.z, floor: floorIdx }];
@@ -1781,13 +2336,40 @@ class FunkiraAtelierEngine {
     }
 
     _routeTo(destX, destZ, destFloor = 1) {
-        const goalFloor = destFloor === 0 ? 0 : 1;
-        const STAIR_BOT = { x: 3.16, z: 1.06 };
-        const STAIR_TOP = { x: 0.22, z: 1.06 };
+        const goalFloor = destFloor === -1 ? -1 : (destFloor === 0 ? 0 : 1);
+        const STAIR_BOT  = { x: 3.16, z:  1.06 };
+        const STAIR_TOP  = { x: 0.22, z:  1.06 };
+        const CELLAR_LIFT = { x: 2.86, z: -0.73 };
+        const CELLAR_EXIT = { x: 2.86, z:  0.92 };
+        const EG_LIFT_APPROACH = { x: 1.87, z: -0.73 };
 
         let allPts = [];
 
-        if (this._isOnStairs()) {
+        if (this._isOnCellarStairs()) {
+            if (goalFloor === -1) {
+                allPts.push(
+                    { x: CELLAR_LIFT.x, y: UG_Y, z: CELLAR_LIFT.z, floor: 'cellar_stairs' },
+                    { x: CELLAR_EXIT.x, y: UG_Y, z: CELLAR_EXIT.z, floor: -1 },
+                    ...this._solveSingleFloorPath(CELLAR_EXIT.x, CELLAR_EXIT.z, destX, destZ, -1)
+                );
+            } else if (goalFloor === 0) {
+                allPts.push(
+                    { x: CELLAR_LIFT.x, y: 0.0, z: CELLAR_LIFT.z, floor: 'cellar_stairs' },
+                    { x: EG_LIFT_APPROACH.x, y: 0.0, z: EG_LIFT_APPROACH.z, floor: 0 },
+                    ...this._solveSingleFloorPath(EG_LIFT_APPROACH.x, EG_LIFT_APPROACH.z, destX, destZ, 0)
+                );
+            } else {
+                allPts.push(
+                    { x: CELLAR_LIFT.x, y: 0.0, z: CELLAR_LIFT.z, floor: 'cellar_stairs' },
+                    { x: EG_LIFT_APPROACH.x, y: 0.0, z: EG_LIFT_APPROACH.z, floor: 0 },
+                    ...this._solveSingleFloorPath(EG_LIFT_APPROACH.x, EG_LIFT_APPROACH.z, STAIR_BOT.x, STAIR_BOT.z, 0),
+                    { x: 2.78, y: 0.0,  z: 1.06, floor: 'stairs' },
+                    { x: 0.76, y: OG_Y, z: 1.06, floor: 'stairs' },
+                    { x: STAIR_TOP.x, y: OG_Y, z: STAIR_TOP.z, floor: 1 },
+                    ...this._solveSingleFloorPath(STAIR_TOP.x, STAIR_TOP.z, destX, destZ, 1)
+                );
+            }
+        } else if (this._isOnStairs()) {
             // Finish stairs directly toward goalFloor landing, then route on goalFloor
             if (goalFloor === 1) {
                 allPts.push(
@@ -1795,11 +2377,20 @@ class FunkiraAtelierEngine {
                     { x: STAIR_TOP.x, y: OG_Y, z: STAIR_TOP.z, floor: 1 },
                     ...this._solveSingleFloorPath(STAIR_TOP.x, STAIR_TOP.z, destX, destZ, 1)
                 );
-            } else {
+            } else if (goalFloor === 0) {
                 allPts.push(
                     { x: 2.78, y: 0.0, z: 1.06, floor: 'stairs' },
                     { x: STAIR_BOT.x, y: 0.0, z: STAIR_BOT.z, floor: 0 },
                     ...this._solveSingleFloorPath(STAIR_BOT.x, STAIR_BOT.z, destX, destZ, 0)
+                );
+            } else {
+                allPts.push(
+                    { x: 2.78, y: 0.0, z: 1.06, floor: 'stairs' },
+                    { x: STAIR_BOT.x, y: 0.0, z: STAIR_BOT.z, floor: 0 },
+                    ...this._solveSingleFloorPath(STAIR_BOT.x, STAIR_BOT.z, CELLAR_LIFT.x, CELLAR_LIFT.z, 0),
+                    { x: CELLAR_LIFT.x, y: UG_Y, z: CELLAR_LIFT.z, floor: 'cellar_stairs' },
+                    { x: CELLAR_EXIT.x, y: UG_Y, z: CELLAR_EXIT.z, floor: -1 },
+                    ...this._solveSingleFloorPath(CELLAR_EXIT.x, CELLAR_EXIT.z, destX, destZ, -1)
                 );
             }
         } else {
@@ -1807,7 +2398,7 @@ class FunkiraAtelierEngine {
             const safeNow = this._pushOutOfColliders(this.pos.x, this.pos.z, curFloor, 0.24);
             this.pos.x = safeNow.x;
             this.pos.z = safeNow.z;
-            this.pos.y = curFloor === 1 ? OG_Y : 0.0;
+            this.pos.y = curFloor === 1 ? OG_Y : (curFloor === -1 ? UG_Y : 0.0);
 
             if (curFloor === goalFloor) {
                 allPts = this._solveSingleFloorPath(this.pos.x, this.pos.z, destX, destZ, goalFloor);
@@ -1819,13 +2410,51 @@ class FunkiraAtelierEngine {
                     { x: STAIR_TOP.x, y: OG_Y, z: STAIR_TOP.z, floor: 1 },
                     ...this._solveSingleFloorPath(STAIR_TOP.x, STAIR_TOP.z, destX, destZ, 1)
                 ];
-            } else {
+            } else if (curFloor === 1 && goalFloor === 0) {
                 allPts = [
                     ...this._solveSingleFloorPath(this.pos.x, this.pos.z, STAIR_TOP.x, STAIR_TOP.z, 1),
                     { x: 0.76, y: OG_Y, z: 1.06, floor: 'stairs' },
                     { x: 2.78, y: 0.0,  z: 1.06, floor: 'stairs' },
                     { x: STAIR_BOT.x, y: 0.0, z: STAIR_BOT.z, floor: 0 },
                     ...this._solveSingleFloorPath(STAIR_BOT.x, STAIR_BOT.z, destX, destZ, 0)
+                ];
+            } else if (curFloor === 0 && goalFloor === -1) {
+                allPts = [
+                    ...this._solveSingleFloorPath(this.pos.x, this.pos.z, CELLAR_LIFT.x, CELLAR_LIFT.z, 0),
+                    { x: CELLAR_LIFT.x, y: UG_Y, z: CELLAR_LIFT.z, floor: 'cellar_stairs' },
+                    { x: CELLAR_EXIT.x, y: UG_Y, z: CELLAR_EXIT.z, floor: -1 },
+                    ...this._solveSingleFloorPath(CELLAR_EXIT.x, CELLAR_EXIT.z, destX, destZ, -1)
+                ];
+            } else if (curFloor === 1 && goalFloor === -1) {
+                allPts = [
+                    ...this._solveSingleFloorPath(this.pos.x, this.pos.z, STAIR_TOP.x, STAIR_TOP.z, 1),
+                    { x: 0.76, y: OG_Y, z: 1.06, floor: 'stairs' },
+                    { x: 2.78, y: 0.0,  z: 1.06, floor: 'stairs' },
+                    { x: STAIR_BOT.x, y: 0.0, z: STAIR_BOT.z, floor: 0 },
+                    ...this._solveSingleFloorPath(STAIR_BOT.x, STAIR_BOT.z, CELLAR_LIFT.x, CELLAR_LIFT.z, 0),
+                    { x: CELLAR_LIFT.x, y: UG_Y, z: CELLAR_LIFT.z, floor: 'cellar_stairs' },
+                    { x: CELLAR_EXIT.x, y: UG_Y, z: CELLAR_EXIT.z, floor: -1 },
+                    ...this._solveSingleFloorPath(CELLAR_EXIT.x, CELLAR_EXIT.z, destX, destZ, -1)
+                ];
+            } else if (curFloor === -1 && goalFloor === 0) {
+                allPts = [
+                    ...this._solveSingleFloorPath(this.pos.x, this.pos.z, CELLAR_EXIT.x, CELLAR_EXIT.z, -1),
+                    { x: CELLAR_LIFT.x, y: UG_Y, z: CELLAR_LIFT.z, floor: -1 },
+                    { x: CELLAR_LIFT.x, y: 0.0,  z: CELLAR_LIFT.z, floor: 'cellar_stairs' },
+                    { x: EG_LIFT_APPROACH.x, y: 0.0, z: EG_LIFT_APPROACH.z, floor: 0 },
+                    ...this._solveSingleFloorPath(EG_LIFT_APPROACH.x, EG_LIFT_APPROACH.z, destX, destZ, 0)
+                ];
+            } else {
+                allPts = [
+                    ...this._solveSingleFloorPath(this.pos.x, this.pos.z, CELLAR_EXIT.x, CELLAR_EXIT.z, -1),
+                    { x: CELLAR_LIFT.x, y: UG_Y, z: CELLAR_LIFT.z, floor: -1 },
+                    { x: CELLAR_LIFT.x, y: 0.0,  z: CELLAR_LIFT.z, floor: 'cellar_stairs' },
+                    { x: EG_LIFT_APPROACH.x, y: 0.0, z: EG_LIFT_APPROACH.z, floor: 0 },
+                    ...this._solveSingleFloorPath(EG_LIFT_APPROACH.x, EG_LIFT_APPROACH.z, STAIR_BOT.x, STAIR_BOT.z, 0),
+                    { x: 2.78, y: 0.0,  z: 1.06, floor: 'stairs' },
+                    { x: 0.76, y: OG_Y, z: 1.06, floor: 'stairs' },
+                    { x: STAIR_TOP.x, y: OG_Y, z: STAIR_TOP.z, floor: 1 },
+                    ...this._solveSingleFloorPath(STAIR_TOP.x, STAIR_TOP.z, destX, destZ, 1)
                 ];
             }
         }
@@ -2210,7 +2839,8 @@ class FunkiraAtelierEngine {
             'hochbeet': 'hochbeet', 'raised_bed': 'hochbeet', 'herb_bed': 'hochbeet', 'kräuterbeet': 'hochbeet', 'kraeuterbeet': 'hochbeet', 'gemüsebeet': 'hochbeet', 'gemuesebeet': 'hochbeet',
             'flowerbed': 'flowerbed', 'blumenbeet': 'flowerbed', 'beet': 'flowerbed', 'flowers': 'flowerbed', 'blumen': 'flowerbed',
             'snowman': 'snowman', 'schneemann': 'snowman',
-            'lawn_mower': 'lawn_mower', 'mower': 'lawn_mower', 'rasenmaeher': 'lawn_mower', 'rasenmäher': 'lawn_mower', 'maeher': 'lawn_mower', 'mäher': 'lawn_mower'
+            'lawn_mower': 'lawn_mower', 'mower': 'lawn_mower', 'rasenmaeher': 'lawn_mower', 'rasenmäher': 'lawn_mower', 'maeher': 'lawn_mower', 'mäher': 'lawn_mower',
+            'secret_cellar': 'secret_cellar', 'cellar': 'secret_cellar', 'geheimkeller': 'secret_cellar', 'keller': 'secret_cellar', 'error_room': 'secret_cellar', 'fehlerraum': 'secret_cellar', 'analyse_keller': 'secret_cellar', 'analysekeller': 'secret_cellar', 'projekt_gehirn': 'secret_cellar', 'fehlerlabor': 'secret_cellar'
         };
         let target = targetMap[rawTarget] || rawTarget || 'stay';
 
@@ -2468,7 +3098,11 @@ class FunkiraAtelierEngine {
             let gz = this.pos.z;
             let gFloor = curFloor;
 
-            if (this._isOnStairs()) {
+            if (this._isOnCellarStairs()) {
+                gFloor = this.pos.y <= UG_Y * 0.5 ? -1 : 0;
+                gx = gFloor === -1 ? 2.15 : 1.96;
+                gz = gFloor === -1 ? 2.00 : -0.68;
+            } else if (this._isOnStairs()) {
                 // Step safely off stairs to nearest landing first
                 gFloor = this.pos.y >= OG_Y * 0.5 ? 1 : 0;
                 gx = gFloor === 1 ? -0.45 : 3.16;
@@ -2520,8 +3154,24 @@ class FunkiraAtelierEngine {
             this.customFacingYaw = null;
             const STAIR_BOT = { x: 3.16, z: 1.06 };
             const STAIR_TOP = { x: 0.22, z: 1.06 };
+            const CELLAR_LIFT = { x: 2.86, z: -0.73 };
+            const CELLAR_EXIT = { x: 2.86, z:  0.92 };
+            const EG_LIFT_APPROACH = { x: 1.87, z: -0.73 };
             let pts = [];
-            if (this._isOnStairs()) {
+            if (this._isOnCellarStairs() || curFloor === -1) {
+                const startOnCellar = !this._isOnCellarStairs();
+                pts = [
+                    ...(startOnCellar ? [
+                        ...this._solveSingleFloorPath(this.pos.x, this.pos.z, CELLAR_EXIT.x, CELLAR_EXIT.z, -1),
+                        { x: CELLAR_LIFT.x, y: UG_Y, z: CELLAR_LIFT.z, floor: -1 }
+                    ] : []),
+                    { x: CELLAR_LIFT.x, y: 0.0, z: CELLAR_LIFT.z, floor: 'cellar_stairs' },
+                    { x: EG_LIFT_APPROACH.x, y: 0.0, z: EG_LIFT_APPROACH.z, floor: 0 },
+                    ...this._solveSingleFloorPath(EG_LIFT_APPROACH.x, EG_LIFT_APPROACH.z, STAIR_BOT.x, STAIR_BOT.z, 0),
+                    { x: 2.78, y: 0.0, z: 1.06, floor: 'stairs' },
+                    { x: 1.77, y: OG_Y * 0.5, z: 1.06, floor: 'stairs' }
+                ];
+            } else if (this._isOnStairs()) {
                 pts = [{ x: 1.77, y: OG_Y * 0.5, z: 1.06, floor: 'stairs' }];
             } else if (curFloor === 1) {
                 pts = [
@@ -2562,7 +3212,7 @@ class FunkiraAtelierEngine {
             bedroom:          { x: -1.45, z: -4.65, floor: 0, focus: 'auto',              yaw: null },
             gym:              { x:  1.25, z: -5.25, floor: 0, focus: 'auto',              yaw: null },
             bathroom_eg:      { x:  1.68, z: -3.15, floor: 0, focus: 'auto',              yaw: null },
-            utility_room:     { x:  1.87, z: -0.68, floor: 0, focus: 'auto',              yaw: null },
+            utility_room:     { x:  1.87, z: -0.73, floor: 0, focus: 'auto',              yaw: null },
             hallway:          { x:  3.16, z:  0.34, floor: 0, focus: 'auto',              yaw: null },
             og_studio:        { x: -1.45, z: -5.00, floor: 1, focus: 'auto',              yaw: null },
             og_bathroom:      { x:  1.32, z: -2.35, floor: 1, focus: 'auto',              yaw: null },
@@ -2572,7 +3222,8 @@ class FunkiraAtelierEngine {
             hochbeet:         { x:  2.02, z:  8.60, floor: 0, focus: 'closeup_garden',    yaw: Math.PI * 0.5,   emo: 'sweet',   gest: 'hands_on_hips', durMs: 9000 },
             flowerbed:        { x: -2.45, z:  9.98, floor: 0, focus: 'closeup_garden',    yaw: 0.0,             emo: 'happy',   gest: 'hands_on_hips', durMs: 9000 },
             snowman:          { x: -2.62, z:  9.55, floor: 0, focus: 'closeup_garden',    yaw: -Math.PI * 0.42, emo: 'excited', gest: 'wave',          durMs: 8500 },
-            lawn_mower:       { x:  2.18, z:  9.95, floor: 0, focus: 'closeup_garden',    yaw: Math.PI * 0.5,   emo: 'proud',   gest: 'point_left',    durMs: 8500 }
+            lawn_mower:       { x:  2.18, z:  9.95, floor: 0, focus: 'closeup_garden',    yaw: Math.PI * 0.5,   emo: 'proud',   gest: 'point_left',    durMs: 8500 },
+            secret_cellar:    { x: -1.18, z:  8.48, floor: -1, focus: 'closeup_cellar',   yaw: null,            emo: 'curious', gest: 'point_left',    durMs: 9500 }
         };
 
         const spec = landmarkSpecs[target] || landmarkSpecs.atelier_center;
@@ -2760,7 +3411,7 @@ class FunkiraAtelierEngine {
                 this.pos.z + (Math.random() - 0.5) * 1.1
             );
             m.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
-            this.scene.add(m);
+            (this.upstairsFxGroup || this.scene).add(m);
             this.fallingPetals.push({
                 mesh: m,
                 minY: this.pos.y + 0.03,
@@ -2776,6 +3427,10 @@ class FunkiraAtelierEngine {
     // 2-STORY HOUSE BUILDER: ERDGESCHOSS + 3D TREPPE + OBERGESCHOSS (DACHSCHRÄGEN)
     // ========================================================================
     _buildTwoStoryHouse() {
+        this.upstairsFxGroup = new THREE.Group();
+        this.upstairsFxGroup.matrixAutoUpdate = true;
+        this.scene.add(this.upstairsFxGroup);
+
         const goldMat = this.mats.gold24k;
         const woodDarkMat = this.mats.woodDark;
         const oakMat = this.mats.oakWarm;
@@ -2787,8 +3442,29 @@ class FunkiraAtelierEngine {
         const glowWallTex = makeWallGlowTexture();
 
         paintScenicWindowCanvas(this.windowCanvas, this.worldState.season, this.worldState.isLateNight, this.worldState.occasion);
-        this.windowTexture = configureFastTexture(new THREE.CanvasTexture(this.windowCanvas));
+        this.windowTexture = configureHdTexture(new THREE.CanvasTexture(this.windowCanvas), 4);
         const skyMat = new THREE.MeshBasicMaterial({ map: this.windowTexture });
+        const deskScreenMat = new THREE.MeshBasicMaterial({ map: makeDeskMonitorScreenTexture() });
+
+        const addDeskMonitor = (parentGrp, x, surfY, z, rotY) => {
+            const mg = new THREE.Group();
+            mg.position.set(x, surfY, z);
+            mg.rotation.y = rotY;
+            const base = new THREE.Mesh(new RoundedBoxGeometry(0.24, 0.014, 0.14, 1, 0.004), goldMat);
+            base.position.set(0, 0.007, 0);
+            const neck = new THREE.Mesh(new RoundedBoxGeometry(0.036, 0.15, 0.026, 1, 0.005), goldMat);
+            neck.position.set(0, 0.08, -0.025);
+            const bezel = new THREE.Mesh(new RoundedBoxGeometry(0.62, 0.34, 0.022, 2, 0.01), obsidianMat);
+            bezel.position.set(0, 0.24, 0);
+            const goldTrim = new THREE.Mesh(new RoundedBoxGeometry(0.628, 0.014, 0.024, 1, 0.004), goldMat);
+            goldTrim.position.set(0, 0.068, 0.001);
+            const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.588, 0.308), deskScreenMat);
+            screen.position.set(0, 0.242, 0.012);
+            const kbd = new THREE.Mesh(new RoundedBoxGeometry(0.32, 0.010, 0.11, 1, 0.003), obsidianMat);
+            kbd.position.set(0, 0.006, 0.16);
+            mg.add(base, neck, bezel, goldTrim, screen, kbd);
+            parentGrp.add(mg);
+        };
 
         this.weatherMat = new THREE.MeshBasicMaterial({ color: 0xE6A145, side: THREE.DoubleSide });
         const wpGeo = new THREE.PlaneGeometry(0.038, 0.038);
@@ -2913,14 +3589,34 @@ class FunkiraAtelierEngine {
         const eg = new THREE.Group();
         this.egGroup = eg;
 
-        const egSlab = new THREE.Mesh(new THREE.BoxGeometry(8.62, 0.16, 14.12), obsidianMat);
-        egSlab.position.set(0, -0.085, 0);
-        const egFloor = new THREE.Mesh(
-            new THREE.PlaneGeometry(HOUSE_W, HOUSE_L),
-            new THREE.MeshBasicMaterial({ map: makeEgFloorTexture() })
-        );
-        egFloor.rotation.x = -Math.PI / 2;
-        eg.add(egSlab, egFloor);
+        // Split EG Floor & Slab around the Hydraulic Vault Lift Shaft Opening (x = 2.39 .. 3.33, z = -1.20 .. -0.26)
+        // so Funkira & the Nero-Marquina Lift Platform glide vertically with 0% floor/ceiling clipping!
+        const egFloorTex = makeEgFloorTexture();
+        const egFloorMat = new THREE.MeshBasicMaterial({ map: egFloorTex });
+        const addEgFloorPatch = (x0, z0, x1, z1) => {
+            const pw = x1 - x0;
+            const pd = z1 - z0;
+            const geo = new THREE.PlaneGeometry(pw, pd);
+            const uv = geo.attributes.uv;
+            const u0 = (x0 + 4.25) / HOUSE_W;
+            const u1 = (x1 + 4.25) / HOUSE_W;
+            const vTop = 1.0 - (z0 + 7.00) / HOUSE_L;
+            const vBot = 1.0 - (z1 + 7.00) / HOUSE_L;
+            uv.setXY(0, u0, vTop);
+            uv.setXY(1, u1, vTop);
+            uv.setXY(2, u0, vBot);
+            uv.setXY(3, u1, vBot);
+            const m = new THREE.Mesh(geo, egFloorMat);
+            m.rotation.x = -Math.PI / 2;
+            m.position.set((x0 + x1) * 0.5, 0.0, (z0 + z1) * 0.5);
+            const under = new THREE.Mesh(new THREE.BoxGeometry(pw, 0.16, pd), obsidianMat);
+            under.position.set((x0 + x1) * 0.5, -0.085, (z0 + z1) * 0.5);
+            eg.add(m, under);
+        };
+        addEgFloorPatch(-4.25, -7.00,  4.25, -1.20); // North half above Hydraulic Vault Lift
+        addEgFloorPatch(-4.25, -1.20,  2.39, -0.26); // West section beside Hydraulic Vault Lift
+        addEgFloorPatch( 3.33, -1.20,  4.25, -0.26); // East section beside Hydraulic Vault Lift
+        addEgFloorPatch(-4.25, -0.26,  4.25,  7.00); // South half below Hydraulic Vault Lift
 
         // EG Exterior Walls (North, West, East full 2.75m height; South low 0.36m cutaway plinth)
         const egExtH = 2.75;
@@ -2995,17 +3691,30 @@ class FunkiraAtelierEngine {
         mattress.position.set(-3.00, 0.42, -4.78);
         const duvet = new THREE.Mesh(new RoundedBoxGeometry(1.38, 0.23, 1.76, 3, 0.05), this.mats.velvetCream);
         duvet.position.set(-2.70, 0.44, -4.78);
-        eg.add(bedFrame, bedHead, mattress, duvet);
+        const bedRunner = new THREE.Mesh(new RoundedBoxGeometry(0.36, 0.242, 1.78, 2, 0.03), obsidianMat);
+        bedRunner.position.set(-2.32, 0.442, -4.78);
+        const bedRunnerPiping = new THREE.Mesh(new RoundedBoxGeometry(0.38, 0.244, 1.785, 2, 0.03), goldMat);
+        bedRunnerPiping.position.set(-2.32, 0.440, -4.78);
+        eg.add(bedFrame, bedHead, mattress, duvet, bedRunnerPiping, bedRunner);
         for (const pz of [-5.22, -4.34]) {
             const pillow = new THREE.Mesh(new RoundedBoxGeometry(0.38, 0.14, 0.62, 2, 0.04), goldMat);
             pillow.position.set(-3.68, 0.56, pz);
             pillow.rotation.z = -0.18;
-            eg.add(pillow);
+            const accentPillow = new THREE.Mesh(new RoundedBoxGeometry(0.24, 0.12, 0.40, 2, 0.04), obsidianMat);
+            accentPillow.position.set(-3.46, 0.57, pz);
+            accentPillow.rotation.z = -0.24;
+            eg.add(pillow, accentPillow);
         }
         for (const nz of [-5.96, -3.60]) {
             const ns = new THREE.Mesh(new RoundedBoxGeometry(0.42, 0.46, 0.42, 2, 0.02), oakMat);
             ns.position.set(-3.84, 0.23, nz);
-            eg.add(ns);
+            const nsLampBase = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.07, 0.14, 10), goldMat);
+            nsLampBase.position.set(-3.84, 0.53, nz);
+            const nsLampShade = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.11, 0.15, 12), this.mats.velvetCream);
+            nsLampShade.position.set(-3.84, 0.67, nz);
+            const nsLampBulb = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), this.mats.warmBulb);
+            nsLampBulb.position.set(-3.84, 0.62, nz);
+            eg.add(ns, nsLampBase, nsLampShade, nsLampBulb);
         }
         const wardrobe = new THREE.Mesh(new RoundedBoxGeometry(2.32, 1.95, 0.56, 2, 0.025), oakMat);
         wardrobe.position.set(-2.36, 0.975, -2.94);
@@ -3063,7 +3772,7 @@ class FunkiraAtelierEngine {
         egWcBowl.position.set(3.48, 0.21, -2.36);
         eg.add(showerTray, showerPane, egTubOuter, egTubInner, egVanity, egBasin, egWcBowl);
 
-        // --- EG Room 4: Büro (10.25 m² — Doppel-Schreibtische, 2 Stühle, Rollcontainer, Regal) ---
+        // --- EG Room 4: Büro (10.25 m² — Doppel-Schreibtische, Ultrawide-Monitore, 2 Stühle, Rollcontainer, Regal) ---
         for (const dx of [-2.74, -2.06]) {
             const dTop = new THREE.Mesh(new RoundedBoxGeometry(0.66, 0.05, 1.56, 2, 0.015), whiteMat);
             dTop.position.set(dx, 0.74, -1.30);
@@ -3073,6 +3782,8 @@ class FunkiraAtelierEngine {
             legB.position.set(dx, 0.36, -0.58);
             eg.add(dTop, legA, legB);
         }
+        addDeskMonitor(eg, -2.56, 0.765, -1.30, -Math.PI / 2);
+        addDeskMonitor(eg, -2.24, 0.765, -1.30,  Math.PI / 2);
         for (const [cx, rotY] of [[-3.32, Math.PI / 2], [-1.48, -Math.PI / 2]]) {
             const seat = new THREE.Mesh(new RoundedBoxGeometry(0.46, 0.08, 0.46, 2, 0.02), cognacMat);
             seat.position.set(cx, 0.48, -1.30);
@@ -3102,7 +3813,18 @@ class FunkiraAtelierEngine {
         netRack.position.set(3.82, 1.32, -0.92);
         const netLed = new THREE.Mesh(new RoundedBoxGeometry(0.46, 0.03, 0.54, 1, 0.005), this.mats.scarfRed);
         netLed.position.set(3.82, 1.63, -0.92);
-        eg.add(boiler, netRack, netLed);
+
+        // Open 24K-Gold Shaft Rim Bezel around the 0.94m x 0.94m Hydraulic Vault Lift (x = 2.86, z = -0.73)
+        const rimBarH = new THREE.BoxGeometry(1.02, 0.022, 0.042);
+        const rimBarV = new THREE.BoxGeometry(0.042, 0.022, 0.94);
+        const rimN = new THREE.Mesh(rimBarH, goldMat); rimN.position.set(2.86, 0.011, -1.22);
+        const rimS = new THREE.Mesh(rimBarH, goldMat); rimS.position.set(2.86, 0.011, -0.24);
+        const rimW = new THREE.Mesh(rimBarV, goldMat); rimW.position.set(2.37, 0.011, -0.73);
+        const rimE = new THREE.Mesh(rimBarV, goldMat); rimE.position.set(3.35, 0.011, -0.73);
+        this.cellarHatchLedMat = new THREE.MeshBasicMaterial({ color: 0x10B981 });
+        const hatchLed = new THREE.Mesh(new THREE.BoxGeometry(0.74, 0.026, 0.036), this.cellarHatchLedMat);
+        hatchLed.position.set(2.86, 0.014, -0.205);
+        eg.add(boiler, netRack, netLed, rimN, rimS, rimW, rimE, hatchLed);
 
         // --- EG Room 6: Diele (13.96 m²) & Gäste-WC (1.19 m) ---
         const garderobe = new THREE.Mesh(new RoundedBoxGeometry(1.18, 1.15, 0.42, 2, 0.02), oakMat);
@@ -3133,9 +3855,28 @@ class FunkiraAtelierEngine {
         sofaSouthBack.position.set(-2.72, 0.42, 3.80);
         const mediaLowboard = new THREE.Mesh(new RoundedBoxGeometry(1.68, 0.44, 0.36, 2, 0.02), woodDarkMat);
         mediaLowboard.position.set(-2.22, 0.22, 0.24);
+        const tvFrame = new THREE.Mesh(new RoundedBoxGeometry(1.45, 0.85, 0.032, 1, 0.01), goldMat);
+        tvFrame.position.set(-2.22, 1.02, 0.132);
         const tvScreen = new THREE.Mesh(new RoundedBoxGeometry(1.42, 0.82, 0.04, 1, 0.01), obsidianMat);
         tvScreen.position.set(-2.22, 1.02, 0.14);
-        eg.add(sofaWestSeat, sofaWestBack, sofaSouthSeat, sofaSouthBack, mediaLowboard, tvScreen);
+        const tvUi = new THREE.Mesh(new THREE.PlaneGeometry(1.36, 0.76), deskScreenMat);
+        tvUi.position.set(-2.22, 1.02, 0.163);
+        eg.add(sofaWestSeat, sofaWestBack, sofaSouthSeat, sofaSouthBack, mediaLowboard, tvFrame, tvScreen, tvUi);
+
+        // Plump Boutique Throw Cushions on Cognac L-Ecksofa (Zero walk-collider overlap!)
+        const cushionGeo = new RoundedBoxGeometry(0.32, 0.30, 0.12, 2, 0.05);
+        for (const [px, py, pz, ry, rz, cMat] of [
+            [-3.70, 0.54, 1.48,  Math.PI * 0.48, -0.20, this.mats.velvetCream],
+            [-3.68, 0.54, 2.38,  Math.PI * 0.52, -0.18, goldMat],
+            [-3.64, 0.54, 3.36,  Math.PI * 0.26, -0.16, this.mats.velvetCream],
+            [-2.62, 0.54, 3.58,  Math.PI + 0.08,  0.18, goldMat],
+            [-1.78, 0.54, 3.56,  Math.PI - 0.12,  0.18, this.mats.velvetCream]
+        ]) {
+            const cush = new THREE.Mesh(cushionGeo, cMat);
+            cush.position.set(px, py, pz);
+            cush.rotation.set(0.16, ry, rz);
+            eg.add(cush);
+        }
 
         // Large Esstisch + 6 Stühle (Screenshot 1 bottom-left)
         const dineTop = new THREE.Mesh(new RoundedBoxGeometry(2.08, 0.065, 0.96, 2, 0.02), whiteMat);
@@ -3183,6 +3924,13 @@ class FunkiraAtelierEngine {
         const espTop = new THREE.Mesh(new RoundedBoxGeometry(0.38, 0.03, 0.42, 1, 0.008), goldMat);
         espTop.position.set(3.68, 1.31, 3.45);
         eg.add(kEastBase, kEastTop, kSouthBase, kSouthTop, kFridge, kFridgeHandle, kSink, kFaucet, espBody, espTop);
+        for (const ez of [3.82, 3.96]) {
+            const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.022, 0.052, 10), obsidianMat);
+            cup.position.set(3.56, 0.955, ez);
+            const saucer = new THREE.Mesh(new THREE.CylinderGeometry(0.046, 0.038, 0.010, 10), goldMat);
+            saucer.position.set(3.56, 0.932, ez);
+            eg.add(cup, saucer);
+        }
 
         // Freestanding Vertical (North-South) Kücheninsel + Stools (Screenshot 1)
         const islBase = new THREE.Mesh(new RoundedBoxGeometry(0.88, 0.86, 1.86, 2, 0.03), woodDarkMat);
@@ -3192,6 +3940,15 @@ class FunkiraAtelierEngine {
         const islBowl = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.09, 0.08, 16), goldMat);
         islBowl.position.set(0.86, 0.96, 4.45);
         eg.add(islBase, islTop, islBowl);
+        for (const [fx, fy, fz, fMat] of [
+            [0.82, 1.015, 4.42, this.mats.scarfRed],
+            [0.91, 1.015, 4.44, this.mats.sunflowerYellow],
+            [0.85, 1.020, 4.50, this.mats.leafGreen]
+        ]) {
+            const fruit = new THREE.Mesh(new THREE.SphereGeometry(0.042, 8, 8), fMat);
+            fruit.position.set(fx, fy, fz);
+            eg.add(fruit);
+        }
         for (const [sx, sz] of [[0.86, 3.28], [0.86, 5.62], [1.54, 4.45]]) {
             const stSeat = new THREE.Mesh(new RoundedBoxGeometry(0.38, 0.06, 0.38, 2, 0.02), cognacMat);
             stSeat.position.set(sx, 0.62, sz);
@@ -3278,34 +4035,35 @@ class FunkiraAtelierEngine {
         addOgFloorPatch( 2.88,  0.58,  4.25,  1.54); // East eaves beside stairwell
         addOgFloorPatch(-4.25,  1.54,  4.25,  7.00); // South half (Geländer + Seelenfunken Atelier!)
 
-        // --- DACHSCHRÄGEN ARCHITECTURE ("Denk an die Dachschrägen" — 1.25m left & right, 6.00m center) ---
-        // Left & Right Kniestock (Knee-Walls at x = -3.00 and x = +3.00, height = 1.32m)
-        const knieH = 1.32;
-        addWallBox(og, -3.00, -6.92, -3.00,  6.90, OG_Y, knieH, 0.10, obsidianMat, goldMat);
-        addWallBox(og,  3.00, -6.92,  3.00,  6.90, OG_Y, knieH, 0.10, obsidianMat, goldMat);
+        // --- DACHSCHRÄGEN ARCHITECTURE (Raised Kniestock 2.12m + Peak 4.10m for generous Atelier Window Clearance!) ---
+        // Left & Right Kniestock (Knee-Walls at x = -3.00 and x = +3.00, height = 2.08m + gold cap flush under 2.12m slope)
+        const knieWallH = 2.08;
+        const knieH = 1.68;
+        addWallBox(og, -3.00, -6.92, -3.00,  6.90, OG_Y, knieWallH, 0.10, obsidianMat, goldMat);
+        addWallBox(og,  3.00, -6.92,  3.00,  6.90, OG_Y, knieWallH, 0.10, obsidianMat, goldMat);
 
-        // Sloped Eaves Roof Aprons (x = ±4.25 @ OG_Y+0.28 -> x = ±3.00 @ OG_Y+1.32) + Exposed Walnut Dachsparren (/ \)
-        const roofAngle = Math.atan2(3.36 - 1.32, 3.00); // ~34.2° true pitched roof slope!
-        const eaveLen = Math.hypot(1.25, 1.04);
+        // Sloped Eaves Roof Aprons (x = ±4.25 @ OG_Y+1.295 -> x = ±3.00 @ OG_Y+2.12) + Exposed Walnut Dachsparren (/ \)
+        const roofAngle = Math.atan2(4.10 - 2.12, 3.00); // ~33.4° pitched roof slope with full window headroom!
+        const eaveLen = Math.hypot(1.25, 0.825);
         for (const sx of [-1, 1]) {
             const eaveApron = new THREE.Mesh(new RoundedBoxGeometry(eaveLen, 0.08, 13.88, 1, 0.01), woodDarkMat);
-            eaveApron.position.set(sx * 3.625, OG_Y + 0.80, 0);
+            eaveApron.position.set(sx * 3.625, OG_Y + 1.708, 0);
             eaveApron.rotation.z = -sx * roofAngle;
             og.add(eaveApron);
         }
 
         // Exposed Walnut & Gold Dachsparren Rafters (/ \) + Central Firstbalken Ridge Beam
-        const rafterLen = Math.hypot(3.02, 2.04);
+        const rafterLen = Math.hypot(3.02, 1.993);
         const ridgeBeam = new THREE.Mesh(new RoundedBoxGeometry(0.16, 0.18, 13.88, 2, 0.02), woodDarkMat);
-        ridgeBeam.position.set(0, OG_Y + 3.34, 0);
+        ridgeBeam.position.set(0, OG_Y + 4.08, 0);
         const ridgeGold = new THREE.Mesh(new RoundedBoxGeometry(0.17, 0.03, 13.88, 1, 0.005), goldMat);
-        ridgeGold.position.set(0, OG_Y + 3.24, 0);
+        ridgeGold.position.set(0, OG_Y + 3.98, 0);
         og.add(ridgeBeam, ridgeGold);
 
         for (const rz of [-6.80, -4.21, -2.05, -0.10, 2.28, 4.55, 6.88]) {
             for (const sx of [-1, 1]) {
                 const rafter = new THREE.Mesh(new RoundedBoxGeometry(rafterLen, 0.11, 0.11, 1, 0.015), woodDarkMat);
-                rafter.position.set(sx * 1.50, OG_Y + 2.34, rz);
+                rafter.position.set(sx * 1.50, OG_Y + 3.09, rz);
                 rafter.rotation.z = -sx * roofAngle;
                 og.add(rafter);
             }
@@ -3313,8 +4071,8 @@ class FunkiraAtelierEngine {
 
         // North Structural Wooden Center Posts (kept behind Atelier camera so Atelier & Group Photo sightlines stay 100% unobstructed!)
         for (const pz of [-6.78, -0.08]) {
-            const post = new THREE.Mesh(new RoundedBoxGeometry(0.15, 3.30, 0.15, 1, 0.015), woodDarkMat);
-            post.position.set(-0.08, OG_Y + 1.65, pz);
+            const post = new THREE.Mesh(new RoundedBoxGeometry(0.15, 4.02, 0.15, 1, 0.015), woodDarkMat);
+            post.position.set(-0.08, OG_Y + 2.01, pz);
             og.add(post);
         }
 
@@ -3344,6 +4102,7 @@ class FunkiraAtelierEngine {
             const chStem = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.46, 8), obsidianMat);
             chStem.position.set(dx, OG_Y + 0.23, -5.68);
             og.add(ndTop, ndLegL, ndLegR, chSeat, chBack, chStem);
+            addDeskMonitor(og, dx + (dx < 0 ? 0.36 : 0.0), OG_Y + 0.778, -6.54, 0.0);
         }
         const schrankSys = new THREE.Mesh(new RoundedBoxGeometry(0.52, 1.28, 2.48, 2, 0.02), woodDarkMat);
         schrankSys.position.set(2.70, OG_Y + 0.64, -5.52);
@@ -3370,7 +4129,7 @@ class FunkiraAtelierEngine {
 
         // Sloped Dachfenster (Velux Skylight in East Dachschräge above OG-Bad WC!)
         const veluxGroup = new THREE.Group();
-        veluxGroup.position.set(3.48, OG_Y + 0.96, -2.35);
+        veluxGroup.position.set(3.48, OG_Y + 1.82, -2.35);
         veluxGroup.rotation.z = -roofAngle;
         const veluxFrame = new THREE.Mesh(new RoundedBoxGeometry(1.08, 0.07, 1.02, 2, 0.015), goldMat);
         const veluxPane = new THREE.Mesh(new THREE.PlaneGeometry(0.94, 0.88), skyMat);
@@ -3386,20 +4145,20 @@ class FunkiraAtelierEngine {
             const uBase = (Math.random() - 0.5) * 0.72;
             const yRel = (Math.random() - 0.5) * 0.44;
             const slopeDx = 1.0 / Math.tan(roofAngle);
-            wp.position.set(3.48 - yRel * slopeDx, OG_Y + 1.03 + yRel, -2.35 + uBase);
+            wp.position.set(3.48 - yRel * slopeDx, OG_Y + 1.89 + yRel, -2.35 + uBase);
             this.ogWeatherGroup.add(wp);
             this.weatherParticles.push({
                 mesh: wp,
                 cx: 3.48,
-                cy: OG_Y + 1.03,
+                cy: OG_Y + 1.89,
                 cz: -2.35,
                 tanX: 0,
                 tanZ: 1,
                 halfW: 0.38,
-                minY: OG_Y + 0.78,
-                maxY: OG_Y + 1.28,
+                minY: OG_Y + 1.64,
+                maxY: OG_Y + 2.14,
                 uBase,
-                y: OG_Y + 1.03 + yRel,
+                y: OG_Y + 1.89 + yRel,
                 slopeDxPerY: -slopeDx,
                 speedY: 0.16 + Math.random() * 0.14,
                 phase: Math.random() * 6.28
@@ -3440,7 +4199,7 @@ class FunkiraAtelierEngine {
         });
         for (const sx of [-1, 1]) {
             const ceilSlope = new THREE.Mesh(new RoundedBoxGeometry(rafterLen, 0.06, 5.10, 1, 0.01), slopeCeilingMat);
-            ceilSlope.position.set(sx * 1.50, OG_Y + 2.38, 4.38);
+            ceilSlope.position.set(sx * 1.50, OG_Y + 3.13, 4.38);
             ceilSlope.rotation.z = -sx * roofAngle;
             atelierClosed.add(ceilSlope);
         }
@@ -3468,9 +4227,9 @@ class FunkiraAtelierEngine {
         southBaseboard.position.set(0, OG_Y + 0.05, 6.80);
         atelierClosed.add(southGableWall, southBaseboard);
 
-        // 2 South Atelier Gable Windows (Screenshot 2 bottom edge: left & right of center!)
-        addFramedWindow(atelierClosed, this.ogSouthWeatherGroup,  2.12, OG_Y + 1.18, 6.79, 1.10, 1.16, Math.PI);
-        addFramedWindow(atelierClosed, this.ogSouthWeatherGroup, -2.12, OG_Y + 1.18, 6.79, 1.10, 1.16, Math.PI);
+        // 2 South Atelier Gable Windows (generous +35cm roof clearance at both outer upper corners!)
+        addFramedWindow(atelierClosed, this.ogSouthWeatherGroup,  2.24, OG_Y + 1.18, 6.79, 1.06, 1.14, Math.PI);
+        addFramedWindow(atelierClosed, this.ogSouthWeatherGroup, -2.24, OG_Y + 1.18, 6.79, 1.06, 1.14, Math.PI);
 
         // Volumetric Golden Sunbeams from South Atelier Windows
         const sunbeamMat = new THREE.MeshBasicMaterial({
@@ -3482,7 +4241,7 @@ class FunkiraAtelierEngine {
         });
         const sunbeamGeo = new THREE.PlaneGeometry(1.45, 2.65);
         this.sunbeamMeshes = [];
-        for (const [sbX, sbRotZ] of [[1.78, -0.34], [-1.78, 0.34]]) {
+        for (const [sbX, sbRotZ] of [[1.88, -0.34], [-1.88, 0.34]]) {
             const sb = new THREE.Mesh(sunbeamGeo, sunbeamMat);
             sb.position.set(sbX, OG_Y + 1.18, 6.18);
             sb.rotation.y = Math.PI;
@@ -3519,7 +4278,7 @@ class FunkiraAtelierEngine {
 
         const loader = new THREE.TextureLoader();
         loader.load('./assets/colleagues_group_photo.jpg?v=20261113v3', (loadedTex) => {
-            configureFastTexture(loadedTex);
+            configureHdTexture(loadedTex, 4);
             portraitMat.map = loadedTex;
             portraitMat.needsUpdate = true;
         });
@@ -3538,26 +4297,67 @@ class FunkiraAtelierEngine {
         photoGroup.add(portraitPlane, lampHood, lampGlowStrip, photoPlaqueBacking, photoPlaqueFace);
         atelierClosed.add(photoGroup);
 
+        // High-Mounted 24K Gold Double-Ring Halo Chandelier under Ridge Beam (100% above Photo & Crest sightlines!)
+        const chandelierGrp = new THREE.Group();
+        chandelierGrp.position.set(0, OG_Y + 3.16, 5.15);
+        const chanCanopy = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.14, 0.045, 16), goldMat);
+        chanCanopy.position.y = 0.78;
+        const chanOuterGold = new THREE.Mesh(new THREE.TorusGeometry(0.54, 0.020, 12, 36), goldMat);
+        chanOuterGold.rotation.x = Math.PI / 2;
+        const chanOuterGlow = new THREE.Mesh(new THREE.TorusGeometry(0.515, 0.012, 8, 36), this.mats.warmBulb);
+        chanOuterGlow.rotation.x = Math.PI / 2;
+        chanOuterGlow.position.y = -0.012;
+        const chanInnerGold = new THREE.Mesh(new THREE.TorusGeometry(0.30, 0.016, 10, 28), goldMat);
+        chanInnerGold.rotation.x = Math.PI / 2;
+        chanInnerGold.position.set(0, -0.11, 0);
+        chanInnerGold.rotation.z = 0.10;
+        const chanInnerGlow = new THREE.Mesh(new THREE.TorusGeometry(0.28, 0.010, 8, 28), this.mats.warmBulb);
+        chanInnerGlow.rotation.x = Math.PI / 2;
+        chanInnerGlow.position.set(0, -0.12, 0);
+        chanInnerGlow.rotation.z = 0.10;
+        const chanCoreGem = new THREE.Mesh(new THREE.OctahedronGeometry(0.055, 0), this.mats.crystalRim);
+        chanCoreGem.position.set(0, -0.12, 0);
+        chandelierGrp.add(chanCanopy, chanOuterGold, chanOuterGlow, chanInnerGold, chanInnerGlow, chanCoreGem);
+        for (let w = 0; w < 3; w++) {
+            const wa = (w / 3) * Math.PI * 2;
+            const wire = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.80, 6), goldMat);
+            wire.position.set(Math.cos(wa) * 0.32, 0.39, Math.sin(wa) * 0.32);
+            chandelierGrp.add(wire);
+        }
+        atelierClosed.add(chandelierGrp);
+
+        // Warm 24K Gold Kniestock Sconce Uplights on Left & Right Atelier Knee-Walls
+        for (const [sx, sz, sRotY] of [[-2.93, 4.95, Math.PI / 2], [2.93, 4.95, -Math.PI / 2]]) {
+            const sconcePlate = new THREE.Mesh(new RoundedBoxGeometry(0.12, 0.24, 0.025, 1, 0.006), obsidianMat);
+            sconcePlate.position.set(sx, OG_Y + 1.18, sz);
+            sconcePlate.rotation.y = sRotY;
+            const sconceBar = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.20, 10), goldMat);
+            sconceBar.position.set(sx + (sx < 0 ? 0.026 : -0.026), OG_Y + 1.18, sz);
+            const sconceBulb = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.16, 10), this.mats.warmBulb);
+            sconceBulb.position.set(sx + (sx < 0 ? 0.042 : -0.042), OG_Y + 1.18, sz);
+            atelierClosed.add(sconcePlate, sconceBar, sconceBulb);
+        }
+
         // OG Signed 24K Gold "MEIN SEELENFUNKE" Gallery Frames on West Knee-Wall
         addGoldenSignedWallArt(og, -2.92, OG_Y + 0.84, -0.90, 0.96, 0.64, Math.PI / 2, 'golden_heart',   'GALERIE SEELENFUNKE');
         addGoldenSignedWallArt(og, -2.92, OG_Y + 0.84, -5.15, 0.96, 0.64, Math.PI / 2, 'botanical_gold', 'STUDIO GIFHORN');
 
-        // RIGHT NEXT TO GROUP PHOTO (Screen-Right = -X!): Illuminated Golden "Mein-Seelenfunke" Sign!
+        // RIGHT NEXT TO GROUP PHOTO (Screen-Right = -X!): Illuminated Golden "Mein-Seelenfunke" Sign (clean gap to Right Window!)
         const brandSignGroup = new THREE.Group();
-        brandSignGroup.position.set(-0.98, OG_Y + 1.74, 6.77);
+        brandSignGroup.position.set(-0.91, OG_Y + 1.74, 6.77);
         brandSignGroup.rotation.y = Math.PI;
 
         const signWallHalo = new THREE.Mesh(
-            new THREE.PlaneGeometry(2.10, 1.22),
+            new THREE.PlaneGeometry(1.94, 1.16),
             new THREE.MeshBasicMaterial({ map: glowWallTex, transparent: true, depthWrite: false })
         );
         signWallHalo.position.set(0, 0, -0.02);
-        const signBacklitRim = new THREE.Mesh(new RoundedBoxGeometry(1.48, 0.66, 0.024, 2, 0.018), this.mats.warmBulb);
+        const signBacklitRim = new THREE.Mesh(new RoundedBoxGeometry(1.34, 0.62, 0.024, 2, 0.018), this.mats.warmBulb);
         signBacklitRim.position.z = 0.004;
-        const signGoldCasing = new THREE.Mesh(new RoundedBoxGeometry(1.43, 0.61, 0.045, 2, 0.02), goldMat);
+        const signGoldCasing = new THREE.Mesh(new RoundedBoxGeometry(1.29, 0.57, 0.045, 2, 0.02), goldMat);
         signGoldCasing.position.z = 0.020;
         const signFacePlane = new THREE.Mesh(
-            new THREE.PlaneGeometry(1.36, 0.54),
+            new THREE.PlaneGeometry(1.22, 0.50),
             new THREE.MeshBasicMaterial({ map: makeIlluminatedBrandSignTexture() })
         );
         signFacePlane.position.z = 0.045;
@@ -3662,6 +4462,23 @@ class FunkiraAtelierEngine {
         this.vaseGroup.add(vaseBody, vaseBadge);
         lvl1.add(this.vaseGroup);
 
+        // Artisan Manufaktur Jeweler Pad, Engraved Ring Blank, Golden Caliper & Loupe on Workbench
+        const jPadFrame = new THREE.Mesh(new RoundedBoxGeometry(0.36, 0.018, 0.24, 1, 0.005), goldMat);
+        jPadFrame.position.set(0.06, 0.924, -0.18);
+        const jPadVelvet = new THREE.Mesh(new RoundedBoxGeometry(0.33, 0.022, 0.21, 1, 0.005), obsidianMat);
+        jPadVelvet.position.set(0.06, 0.927, -0.18);
+        const jRingBlank = new THREE.Mesh(new THREE.TorusGeometry(0.032, 0.006, 10, 22), goldMat);
+        jRingBlank.rotation.x = Math.PI * 0.36;
+        jRingBlank.position.set(0.00, 0.952, -0.18);
+        const jLoupeBody = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.028, 0.028, 14), goldMat);
+        jLoupeBody.position.set(0.14, 0.952, -0.16);
+        const jLoupeLens = new THREE.Mesh(new THREE.CylinderGeometry(0.021, 0.021, 0.030, 14), this.mats.crystalRim);
+        jLoupeLens.position.set(0.14, 0.953, -0.16);
+        const jCaliperBar = new THREE.Mesh(new RoundedBoxGeometry(0.19, 0.008, 0.022, 1, 0.002), goldMat);
+        jCaliperBar.position.set(-0.28, 0.922, -0.20);
+        jCaliperBar.rotation.y = 0.24;
+        lvl1.add(jPadFrame, jPadVelvet, jRingBlank, jLoupeBody, jLoupeLens, jCaliperBar);
+
         og.add(lvl1);
         this.levelGroups[1] = lvl1;
 
@@ -3737,9 +4554,24 @@ class FunkiraAtelierEngine {
             new THREE.MeshBasicMaterial({ color: 0x16a367, transparent: true, opacity: 0.64 })
         );
         laserHood.position.set(0, 1.01, 0.03);
-        const exhaustUnit = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.14, 0.45, 14), this.mats.darkArmor);
+        const laserTopCrown = new THREE.Mesh(new RoundedBoxGeometry(0.57, 0.022, 0.51, 1, 0.008), goldMat);
+        laserTopCrown.position.set(0, 1.345, -0.02);
+        const laserDial = new THREE.Mesh(new THREE.CylinderGeometry(0.034, 0.038, 0.022, 16), goldMat);
+        laserDial.rotation.x = Math.PI / 2;
+        laserDial.position.set(0.18, 0.845, 0.24);
+        const laserStatusRing = new THREE.Mesh(new THREE.TorusGeometry(0.036, 0.004, 8, 18), this.mats.warmBulb);
+        laserStatusRing.position.set(0.18, 0.845, 0.242);
+        const ra3Rotary = new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.038, 0.16, 12), this.mats.silverSteel);
+        ra3Rotary.rotation.z = Math.PI / 2;
+        ra3Rotary.position.set(-0.04, 0.855, 0.04);
+        const exhaustUnit = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.14, 0.45, 16), this.mats.darkArmor);
         exhaustUnit.position.set(0.58, 0.225, -0.08);
-        laserGrp.add(laserStand, standTrim, laserPlaque, laserBody, conveyorRail, laserHood, exhaustUnit);
+        const exhaustCap = new THREE.Mesh(new THREE.CylinderGeometry(0.134, 0.134, 0.028, 16), goldMat);
+        exhaustCap.position.set(0.58, 0.455, -0.08);
+        laserGrp.add(
+            laserStand, standTrim, laserPlaque, laserBody, conveyorRail,
+            laserHood, laserTopCrown, laserDial, laserStatusRing, ra3Rotary, exhaustUnit, exhaustCap
+        );
         lvl3.add(laserGrp);
 
         const vitBase = new THREE.Mesh(new RoundedBoxGeometry(0.62, 0.86, 0.46, 2, 0.026), obsidianMat);
@@ -3832,7 +4664,7 @@ class FunkiraAtelierEngine {
         for (let i = 0; i < 12; i++) {
             const sp = new THREE.Mesh(spGeo, spMat);
             sp.visible = false;
-            this.scene.add(sp);
+            (this.upstairsFxGroup || this.scene).add(sp);
             this.sparkParticles.push({ mesh: sp, vx: 0, vy: 0, vz: 0, life: 0 });
         }
     }
@@ -3851,9 +4683,9 @@ class FunkiraAtelierEngine {
         const garden = new THREE.Group();
         this.gardenGroup = garden;
 
-        // 1. Dynamic Seasonal Garden Ground & WPC/Teak Terrace Deck
+        // 1. Dynamic HD Seasonal Garden Ground & WPC/Teak Terrace Deck
         paintGardenGroundCanvas(this.gardenGroundCanvas, this.worldState.season, this.worldState.occasion);
-        this.gardenGroundTexture = configureFastTexture(new THREE.CanvasTexture(this.gardenGroundCanvas));
+        this.gardenGroundTexture = configureHdTexture(new THREE.CanvasTexture(this.gardenGroundCanvas), 4);
         const earthSlab = new THREE.Mesh(new THREE.BoxGeometry(11.42, 0.14, 6.54), obsidianMat);
         earthSlab.position.set(0, -0.088, 10.18);
         const lawnMesh = new THREE.Mesh(
@@ -3865,7 +4697,7 @@ class FunkiraAtelierEngine {
         garden.add(earthSlab, lawnMesh);
 
         paintTerraceDeckCanvas(this.terraceDeckCanvas, this.worldState.season);
-        this.terraceDeckTexture = configureFastTexture(new THREE.CanvasTexture(this.terraceDeckCanvas));
+        this.terraceDeckTexture = configureHdTexture(new THREE.CanvasTexture(this.terraceDeckCanvas), 4);
         const deckBase = new THREE.Mesh(new RoundedBoxGeometry(6.34, 0.034, 2.58, 1, 0.008), woodDarkMat);
         deckBase.position.set(-0.70, 0.002, 8.26);
         const deckTop = new THREE.Mesh(
@@ -3915,8 +4747,10 @@ class FunkiraAtelierEngine {
         hedgeEast.position.set(5.24, 0.41, 10.15);
         garden.add(hedgeWest, hedgeEast);
 
-        const lanternPostGeo = new THREE.CylinderGeometry(0.035, 0.042, 0.92, 8);
-        const lanternBulbGeo = new THREE.SphereGeometry(0.075, 10, 8);
+        const lanternPostGeo = new THREE.CylinderGeometry(0.035, 0.044, 0.92, 12);
+        const lanternCollarGeo = new THREE.CylinderGeometry(0.068, 0.046, 0.028, 12);
+        const lanternGlassGeo = new THREE.CylinderGeometry(0.078, 0.068, 0.14, 12);
+        const lanternBulbGeo = new THREE.SphereGeometry(0.048, 12, 10);
         const lanternCoords = [
             [-3.82, 9.48], [2.42, 9.48],
             [-5.48, 7.05], [5.48, 7.05],
@@ -3925,11 +4759,15 @@ class FunkiraAtelierEngine {
         for (const [lx, lz] of lanternCoords) {
             const post = new THREE.Mesh(lanternPostGeo, obsidianMat);
             post.position.set(lx, 0.46, lz);
+            const collar = new THREE.Mesh(lanternCollarGeo, goldMat);
+            collar.position.set(lx, 0.91, lz);
+            const glass = new THREE.Mesh(lanternGlassGeo, this.mats.crystalGlass);
+            glass.position.set(lx, 0.985, lz);
             const bulb = new THREE.Mesh(lanternBulbGeo, this.mats.warmBulb);
-            bulb.position.set(lx, 0.96, lz);
-            const hat = new THREE.Mesh(new THREE.ConeGeometry(0.10, 0.06, 8), goldMat);
-            hat.position.set(lx, 1.03, lz);
-            garden.add(post, bulb, hat);
+            bulb.position.set(lx, 0.975, lz);
+            const hat = new THREE.Mesh(new THREE.ConeGeometry(0.105, 0.065, 12), goldMat);
+            hat.position.set(lx, 1.075, lz);
+            garden.add(post, collar, glass, bulb, hat);
         }
 
         // 3. Terrasse Rattan Lounge-Sofa, Coffee Table & Planter Pots
@@ -3956,6 +4794,26 @@ class FunkiraAtelierEngine {
         const tableTrim = new THREE.Mesh(new RoundedBoxGeometry(0.84, 0.024, 0.54, 1, 0.008), goldMat);
         tableTrim.position.set(-2.32, 0.365, 8.52);
         garden.add(sofaBaseA, sofaCushA, sofaBackA, sofaBaseB, sofaCushB, loungeTable, tableTrim);
+
+        // Outdoor Boutique Accent Cushions & Schwarz-Gold Tea Duo on Lounge Table (clear of dropSpots.terrace!)
+        const outPillowGeo = new RoundedBoxGeometry(0.26, 0.24, 0.10, 2, 0.04);
+        for (const [ox, oz, ory, oMat] of [
+            [-3.22, 7.64,  0.22, goldMat],
+            [-2.58, 7.62, -0.06, obsidianMat],
+            [-1.98, 7.65, -0.20, goldMat]
+        ]) {
+            const op = new THREE.Mesh(outPillowGeo, oMat);
+            op.position.set(ox, 0.55, oz);
+            op.rotation.set(-0.18, ory, 0);
+            garden.add(op);
+        }
+        const teaTray = new THREE.Mesh(new RoundedBoxGeometry(0.24, 0.014, 0.15, 1, 0.004), goldMat);
+        teaTray.position.set(-2.32, 0.382, 8.68);
+        const teaCupL = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.020, 0.048, 10), obsidianMat);
+        teaCupL.position.set(-2.38, 0.412, 8.68);
+        const teaCupR = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.020, 0.048, 10), obsidianMat);
+        teaCupR.position.set(-2.26, 0.412, 8.68);
+        garden.add(teaTray, teaCupL, teaCupR);
 
         // Signed 24K Gold & Obsidian Patio Planters with Golden Blooms
         const potGeo = new THREE.CylinderGeometry(0.20, 0.14, 0.34, 12);
@@ -4055,14 +4913,17 @@ class FunkiraAtelierEngine {
 
         const addTreeCanopy = (targetGrp, canopyMat) => {
             const blobs = [
-                [0.0, 2.15, 0.0, 0.62],
-                [-0.42, 1.92, 0.18, 0.46],
-                [0.44, 1.94, -0.14, 0.46],
-                [0.12, 2.02, 0.38, 0.42],
-                [-0.16, 2.00, -0.36, 0.42]
+                [ 0.00, 2.22,  0.00, 0.64],
+                [-0.44, 1.94,  0.18, 0.48],
+                [ 0.46, 1.96, -0.15, 0.48],
+                [ 0.14, 2.04,  0.40, 0.44],
+                [-0.18, 2.02, -0.38, 0.44],
+                [-0.32, 2.28, -0.18, 0.38],
+                [ 0.30, 2.26,  0.22, 0.38],
+                [ 0.00, 2.52,  0.04, 0.36]
             ];
             for (const [bx, by, bz, br] of blobs) {
-                const sp = new THREE.Mesh(new THREE.SphereGeometry(br, 10, 8), canopyMat);
+                const sp = new THREE.Mesh(new THREE.SphereGeometry(br, 16, 12), canopyMat);
                 sp.position.set(3.85 + bx, by, 11.45 + bz);
                 targetGrp.add(sp);
             }
@@ -4073,17 +4934,24 @@ class FunkiraAtelierEngine {
         // ====================================================================
         const springGrp = new THREE.Group();
         addTreeCanopy(springGrp, this.mats.blossomPink);
-        const flowerStemGeo = new THREE.CylinderGeometry(0.012, 0.012, 0.26, 6);
-        const tulipHeadGeo = new THREE.SphereGeometry(0.055, 8, 8);
+        const flowerStemGeo = new THREE.CylinderGeometry(0.012, 0.014, 0.26, 8);
+        const tulipHeadGeo = new THREE.SphereGeometry(0.052, 12, 10);
+        const petalCrownGeo = new THREE.TorusGeometry(0.038, 0.016, 8, 12);
         for (let i = 0; i < 12; i++) {
             const fx = -3.28 + (i % 6) * 0.31;
             const fz = 11.00 + Math.floor(i / 6) * 0.38;
+            const pMat = (i % 3 === 0) ? this.mats.sunflowerYellow : this.mats.tulipPink;
             const st = new THREE.Mesh(flowerStemGeo, leafMat);
             st.position.set(fx, 0.28, fz);
-            const hd = new THREE.Mesh(tulipHeadGeo, (i % 3 === 0) ? this.mats.sunflowerYellow : this.mats.tulipPink);
+            const hd = new THREE.Mesh(tulipHeadGeo, pMat);
             hd.scale.set(0.85, 1.25, 0.85);
             hd.position.set(fx, 0.43, fz);
-            springGrp.add(st, hd);
+            const corolla = new THREE.Mesh(petalCrownGeo, pMat);
+            corolla.rotation.x = Math.PI / 2;
+            corolla.position.set(fx, 0.41, fz);
+            const coreGem = new THREE.Mesh(new THREE.SphereGeometry(0.018, 8, 6), goldMat);
+            coreGem.position.set(fx, 0.48, fz);
+            springGrp.add(st, hd, corolla, coreGem);
         }
         for (let i = 0; i < 6; i++) {
             const hd = new THREE.Mesh(tulipHeadGeo, (i % 2 === 0) ? this.mats.tulipPink : this.mats.sunflowerYellow);
@@ -4261,12 +5129,12 @@ class FunkiraAtelierEngine {
             const mat = new THREE.MeshBasicMaterial({ color: fwPalette[r % fwPalette.length] });
             const rocketMesh = new THREE.Mesh(fwRocketGeo, this.mats.warmBulb);
             rocketMesh.visible = false;
-            this.scene.add(rocketMesh);
+            (this.upstairsFxGroup || this.scene).add(rocketMesh);
             const sparks = [];
             for (let s = 0; s < 22; s++) {
                 const smesh = new THREE.Mesh(fwSparkGeo, mat);
                 smesh.visible = false;
-                this.scene.add(smesh);
+                (this.upstairsFxGroup || this.scene).add(smesh);
                 sparks.push({ mesh: smesh, vx: 0, vy: 0, vz: 0 });
             }
             this.fireworkBursts.push({
@@ -4423,7 +5291,7 @@ class FunkiraAtelierEngine {
             this.lawnMowerWheels.push(wPivot);
         }
 
-        this.scene.add(mower);
+        (this.upstairsFxGroup || this.scene).add(mower);
         this._parkLawnMowerHome();
 
         // Pooled Grass-Clipping Particles for Live Lawn Mowing
@@ -4433,7 +5301,7 @@ class FunkiraAtelierEngine {
         for (let i = 0; i < 14; i++) {
             const gm = new THREE.Mesh(grassGeo, (i % 4 === 0) ? grassMatGold : grassMatGreen);
             gm.visible = false;
-            this.scene.add(gm);
+            (this.upstairsFxGroup || this.scene).add(gm);
             this.grassParticles.push({ mesh: gm, vx: 0, vy: 0, vz: 0, life: 0 });
         }
 
@@ -4447,7 +5315,7 @@ class FunkiraAtelierEngine {
             const pz = 7.15 + Math.random() * 5.8;
             m.position.set(px, py, pz);
             m.rotation.set(Math.random() * 3, Math.random() * 3, 0);
-            this.scene.add(m);
+            (this.upstairsFxGroup || this.scene).add(m);
             this.outdoorWeatherParticles.push({
                 mesh: m,
                 baseX: px,
@@ -4457,6 +5325,778 @@ class FunkiraAtelierEngine {
                 phase: Math.random() * 6.28
             });
         }
+    }
+
+    // ========================================================================
+    // SECRET 3D KUPPELHALLE, HYDRAULIC VAULT LIFT & AUTONOMOUS PROJECT-BRAIN (UG_Y = -3.20m)
+    // Photorealistic Schwarz-Gold Subterranean Dome Hall with:
+    // - Real Geometric EG Shaft Cutout + Vertical Hydraulic Lift (0% ceiling/floor clipping!)
+    // - High-Resolution Photorealistic Architectural Assets (cellar_dome_panorama / marble / bridge)
+    // - Zero GPU overhead when upstairs (cellarGroup.visible = false) & 100% Upstairs Culling downstairs
+    // - Zero Control Windows: 100% Autonomous Self-Healing & Antigravity Handoff Wave
+    // ========================================================================
+    _buildSecretCellar() {
+        const goldMat = this.mats.gold24k;
+        const obsidianMat = this.mats.obsidian;
+        const woodDarkMat = this.mats.woodDark;
+        const glassMat = this.mats.crystalGlass;
+
+        const texLoader = new THREE.TextureLoader();
+        const domeShellMat = new THREE.MeshBasicMaterial({ color: 0x131119, side: THREE.BackSide });
+        const islandMarbleMat = new THREE.MeshBasicMaterial({ color: 0x15131c });
+        const bridgeDeckMat = new THREE.MeshBasicMaterial({ color: 0x16141e });
+
+        texLoader.load('./assets/cellar_dome_panorama.jpg?v=20261115v23', (tex) => {
+            tex.colorSpace = THREE.SRGBColorSpace;
+            tex.wrapS = THREE.RepeatWrapping;
+            tex.wrapT = THREE.ClampToEdgeWrapping;
+            configureHdTexture(tex, 4);
+            domeShellMat.color.setHex(0xFFFFFF);
+            domeShellMat.map = tex;
+            domeShellMat.needsUpdate = true;
+        });
+        texLoader.load('./assets/cellar_island_marble.jpg?v=20261115v23', (tex) => {
+            tex.colorSpace = THREE.SRGBColorSpace;
+            configureHdTexture(tex, 4);
+            islandMarbleMat.color.setHex(0xFFFFFF);
+            islandMarbleMat.map = tex;
+            islandMarbleMat.needsUpdate = true;
+        });
+        texLoader.load('./assets/cellar_bridge_deck.jpg?v=20261115v23', (tex) => {
+            tex.colorSpace = THREE.SRGBColorSpace;
+            tex.wrapS = THREE.ClampToEdgeWrapping;
+            tex.wrapT = THREE.MirroredRepeatWrapping;
+            tex.repeat.set(1, 3);
+            configureHdTexture(tex, 4);
+            bridgeDeckMat.color.setHex(0xFFFFFF);
+            bridgeDeckMat.map = tex;
+            bridgeDeckMat.needsUpdate = true;
+        });
+
+        // A1. Flush Nero-Marquina & 24K-Gold Hydraulic Vault Lift Platform at (x = 2.86, z = -0.73)
+        // Sits completely flush inside the real geometric EG floor cutout when upstairs, and glides vertically with Funkira!
+        const liftPlat = new THREE.Group();
+        liftPlat.position.set(2.86, 0.0, -0.73);
+        liftPlat.matrixAutoUpdate = true;
+        const liftTop = new THREE.Mesh(new THREE.PlaneGeometry(0.91, 0.91), islandMarbleMat);
+        liftTop.rotation.x = -Math.PI / 2;
+        liftTop.position.y = 0.002;
+        const liftSlab = new THREE.Mesh(new RoundedBoxGeometry(0.92, 0.14, 0.92, 2, 0.015), obsidianMat);
+        liftSlab.position.y = -0.072;
+        const liftGoldRim = new THREE.Mesh(new THREE.BoxGeometry(0.932, 0.028, 0.932), goldMat);
+        liftGoldRim.position.y = -0.014;
+        const liftPiston = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.14, 0.44, 16), goldMat);
+        liftPiston.position.y = -0.35;
+        liftPlat.add(liftTop, liftSlab, liftGoldRim, liftPiston);
+        this.cellarLiftPlatform = liftPlat;
+        this.scene.add(liftPlat);
+
+        const cellar = new THREE.Group();
+        cellar.visible = false;
+        cellar.matrixAutoUpdate = true;
+        this.cellarGroup = cellar;
+
+        // A2. Illuminated Obsidian & 24K-Gold Vertical Lift Shaft (x = 2.86, z = -0.73, y = 0.00 -> UG_Y)
+        const shaftGrp = new THREE.Group();
+        const shaftH = Math.abs(UG_Y);
+        const shaftWallW = new THREE.Mesh(new THREE.BoxGeometry(0.06, shaftH, 1.02), obsidianMat);
+        shaftWallW.position.set(2.36, UG_Y * 0.5, -0.73);
+        const shaftWallE = new THREE.Mesh(new THREE.BoxGeometry(0.06, shaftH, 1.02), obsidianMat);
+        shaftWallE.position.set(3.36, UG_Y * 0.5, -0.73);
+        const shaftWallN = new THREE.Mesh(new THREE.BoxGeometry(1.06, shaftH, 0.06), obsidianMat);
+        shaftWallN.position.set(2.86, UG_Y * 0.5, -1.23);
+        // South lintel above subterranean doorway (leaves y = UG_Y .. UG_Y + 2.30 wide open to walk out!)
+        const lintelH = Math.max(0.40, shaftH - 2.30);
+        const shaftLintelS = new THREE.Mesh(new THREE.BoxGeometry(1.06, lintelH, 0.06), obsidianMat);
+        shaftLintelS.position.set(2.86, -lintelH * 0.5, -0.23);
+        const shaftDoorHeaderGold = new THREE.Mesh(new THREE.BoxGeometry(1.04, 0.038, 0.075), goldMat);
+        shaftDoorHeaderGold.position.set(2.86, UG_Y + 2.30, -0.23);
+        shaftGrp.add(shaftWallW, shaftWallE, shaftWallN, shaftLintelS, shaftDoorHeaderGold);
+
+        const ringStripMat = new THREE.MeshBasicMaterial({ color: 0xE5C158 });
+        for (let r = 0; r < 6; r++) {
+            const ry = -0.42 - r * 0.48;
+            const stripW = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.022, 0.90), ringStripMat);
+            stripW.position.set(2.395, ry, -0.73);
+            const stripE = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.022, 0.90), ringStripMat);
+            stripE.position.set(3.325, ry, -0.73);
+            const stripN = new THREE.Mesh(new THREE.BoxGeometry(0.90, 0.022, 0.018), ringStripMat);
+            stripN.position.set(2.86, ry, -1.195);
+            shaftGrp.add(stripW, stripE, stripN);
+        }
+        freezeStaticTree(shaftGrp);
+        this.cellarShaftGroup = shaftGrp;
+        cellar.add(shaftGrp);
+
+        // B. Monumental 25.2-Meter Photorealistic Spherical Kuppelhalle + Cantilevered Bridge (visible once deepInCellar)
+        const domeHall = new THREE.Group();
+        domeHall.visible = false;
+        domeHall.matrixAutoUpdate = true;
+        this.cellarDomeShellGroup = domeHall;
+        cellar.add(domeHall);
+
+        const domeStatic = new THREE.Group();
+        const DOME_R = 12.60;
+        const DOME_Y = UG_Y + 1.35;
+        const DOME_Z = 9.40;
+
+        // 1. Photorealistic 2048x1024 Architectural Luxury Dome Panorama (aligned so u = 0.5 faces camera dead-center!)
+        const domeMesh = new THREE.Mesh(new THREE.SphereGeometry(DOME_R, 64, 44), domeShellMat);
+        domeMesh.position.set(0, DOME_Y, DOME_Z);
+        domeMesh.rotation.y = -Math.PI * 0.5;
+        this.cellarDomeMesh = domeMesh;
+        domeStatic.add(domeMesh);
+
+        // 2. Sculpted 24K-Gold & Obsidian Great-Circle Meridian Ribs, Latitude Rings, Zenith Oculus & Abyss Core
+        const eqRing = new THREE.Mesh(new THREE.TorusGeometry(DOME_R - 0.12, 0.085, 10, 72), goldMat);
+        eqRing.rotation.x = Math.PI / 2;
+        eqRing.position.set(0, DOME_Y, DOME_Z);
+        domeStatic.add(eqRing);
+
+        for (const latOffY of [4.85, -4.65]) {
+            const latR = Math.sqrt(Math.max(1, (DOME_R - 0.12) * (DOME_R - 0.12) - latOffY * latOffY));
+            const latRing = new THREE.Mesh(new THREE.TorusGeometry(latR, 0.056, 8, 64), goldMat);
+            latRing.rotation.x = Math.PI / 2;
+            latRing.position.set(0, DOME_Y + latOffY, DOME_Z);
+            domeStatic.add(latRing);
+        }
+
+        const meridianGeo = new THREE.TorusGeometry(DOME_R - 0.14, 0.050, 8, 64);
+        for (let m = 0; m < 8; m++) {
+            const mer = new THREE.Mesh(meridianGeo, (m % 2 === 0) ? goldMat : obsidianMat);
+            mer.position.set(0, DOME_Y, DOME_Z);
+            mer.rotation.y = (m / 8) * Math.PI;
+            domeStatic.add(mer);
+        }
+
+        // Zenith Oculus Crown at top of Sphere
+        const oculusOuter = new THREE.Mesh(new THREE.TorusGeometry(2.15, 0.11, 10, 44), goldMat);
+        oculusOuter.rotation.x = Math.PI / 2;
+        oculusOuter.position.set(0, DOME_Y + DOME_R - 0.22, DOME_Z);
+        const oculusDisc = new THREE.Mesh(
+            new THREE.CircleGeometry(2.06, 36),
+            new THREE.MeshBasicMaterial({ color: 0x261f18 })
+        );
+        oculusDisc.rotation.x = Math.PI / 2;
+        oculusDisc.position.set(0, DOME_Y + DOME_R - 0.26, DOME_Z);
+        domeStatic.add(oculusOuter, oculusDisc);
+
+        // Deep Subterranean Abyss Foundation Rings (7.35m beneath the suspended bridge!)
+        const abyssOuter = new THREE.Mesh(new THREE.TorusGeometry(3.85, 0.14, 10, 48), goldMat);
+        abyssOuter.rotation.x = Math.PI / 2;
+        abyssOuter.position.set(0, UG_Y - 7.35, DOME_Z);
+        const abyssInner = new THREE.Mesh(new THREE.TorusGeometry(1.95, 0.085, 8, 40), goldMat);
+        abyssInner.rotation.x = Math.PI / 2;
+        abyssInner.position.set(0, UG_Y - 7.48, DOME_Z);
+        const abyssCoreDisc = new THREE.Mesh(
+            new THREE.CylinderGeometry(1.88, 2.20, 0.42, 32),
+            obsidianMat
+        );
+        abyssCoreDisc.position.set(0, UG_Y - 7.68, DOME_Z);
+        domeStatic.add(abyssOuter, abyssInner, abyssCoreDisc);
+
+        // 3. Arrival Balcony + Monumental Round Vault Portal + 5.35m Photorealistic Cantilevered Bridge
+        const bridgeGrp = new THREE.Group();
+        this.cellarBridgeGroup = bridgeGrp;
+
+        // Arrival Balcony connecting Lift Landing (x = 2.86, z = -0.73 .. 0.92) to Bridge Axis (x = 0.00, z = 1.35 .. 2.08)
+        const liftLandingSlab = new THREE.Mesh(new RoundedBoxGeometry(1.18, 0.22, 2.26, 2, 0.02), obsidianMat);
+        liftLandingSlab.position.set(2.86, UG_Y - 0.11, -0.18);
+        const liftLandingTrim = new THREE.Mesh(new THREE.BoxGeometry(1.20, 0.028, 2.28), goldMat);
+        liftLandingTrim.position.set(2.86, UG_Y - 0.014, -0.18);
+
+        const vestDeck = new THREE.Mesh(new RoundedBoxGeometry(4.36, 0.22, 1.56, 2, 0.02), obsidianMat);
+        vestDeck.position.set(1.28, UG_Y - 0.11, 1.32);
+        const vestTop = new THREE.Mesh(new THREE.PlaneGeometry(4.28, 1.48), bridgeDeckMat);
+        vestTop.rotation.x = -Math.PI / 2;
+        vestTop.position.set(1.28, UG_Y + 0.003, 1.32);
+        const vestTrim = new THREE.Mesh(new THREE.BoxGeometry(4.40, 0.030, 1.58), goldMat);
+        vestTrim.position.set(1.28, UG_Y - 0.014, 1.32);
+        bridgeGrp.add(liftLandingSlab, liftLandingTrim, vestDeck, vestTop, vestTrim);
+
+        // Monumental Circular Vault Portal Ring framing the Bridge Entrance (z = 2.15)
+        const portalOuter = new THREE.Mesh(new THREE.TorusGeometry(1.92, 0.155, 12, 52), obsidianMat);
+        portalOuter.position.set(0, UG_Y + 1.56, 2.15);
+        const portalGold = new THREE.Mesh(new THREE.TorusGeometry(1.75, 0.052, 10, 52), goldMat);
+        portalGold.position.set(0, UG_Y + 1.56, 2.15);
+        const portalHalo = new THREE.Mesh(new THREE.TorusGeometry(1.68, 0.018, 8, 52), ringStripMat);
+        portalHalo.position.set(0, UG_Y + 1.56, 2.15);
+        const portalCrest = new THREE.Mesh(new THREE.PlaneGeometry(1.04, 0.27), this.plaqueMats.obsidianMain);
+        portalCrest.position.set(0, UG_Y + 3.32, 1.98);
+        portalCrest.rotation.y = Math.PI;
+        bridgeGrp.add(portalOuter, portalGold, portalHalo, portalCrest);
+
+        // Photorealistic 5.35m Suspended Bridge Deck (z = 2.08 -> 7.43)
+        const bridgeDeckTop = new THREE.Mesh(
+            new THREE.PlaneGeometry(1.58, 5.35),
+            bridgeDeckMat
+        );
+        bridgeDeckTop.rotation.x = -Math.PI / 2;
+        bridgeDeckTop.position.set(0, UG_Y + 0.004, 4.755);
+
+        const bridgeSlab = new THREE.Mesh(new RoundedBoxGeometry(1.64, 0.18, 5.36, 2, 0.02), obsidianMat);
+        bridgeSlab.position.set(0, UG_Y - 0.092, 4.755);
+        const bridgeSpine = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.36, 5.30), woodDarkMat);
+        bridgeSpine.position.set(0, UG_Y - 0.33, 4.755);
+        bridgeGrp.add(bridgeDeckTop, bridgeSlab, bridgeSpine);
+
+        // Recessed Warm-Gold Runway Edge Light Strips + Under-Bridge Structural Ribs + Glass-Gold Balustrades
+        const postGeo = new THREE.CylinderGeometry(0.020, 0.022, 0.94, 8);
+        const strutGeo = new THREE.BoxGeometry(1.56, 0.065, 0.095);
+        for (let s = 0; s < 8; s++) {
+            const rz = lerp(2.45, 7.08, s / 7);
+            const uRib = new THREE.Mesh(strutGeo, goldMat);
+            uRib.position.set(0, UG_Y - 0.21, rz);
+            bridgeGrp.add(uRib);
+            for (const sx of [-0.76, 0.76]) {
+                const post = new THREE.Mesh(postGeo, goldMat);
+                post.position.set(sx, UG_Y + 0.47, rz);
+                bridgeGrp.add(post);
+            }
+        }
+        for (const sx of [-0.76, 0.76]) {
+            const edgeGlow = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.016, 5.18), ringStripMat);
+            edgeGlow.position.set(sx * 0.92, UG_Y + 0.010, 4.755);
+            const topRail = new THREE.Mesh(new RoundedBoxGeometry(0.044, 0.038, 5.06, 1, 0.01), goldMat);
+            topRail.position.set(sx, UG_Y + 0.94, 4.755);
+            const midRail = new THREE.Mesh(new THREE.BoxGeometry(0.024, 0.022, 5.02), goldMat);
+            midRail.position.set(sx, UG_Y + 0.49, 4.755);
+            const glassPane = new THREE.Mesh(new THREE.BoxGeometry(0.016, 0.82, 4.92), glassMat);
+            glassPane.position.set(sx, UG_Y + 0.47, 4.755);
+            bridgeGrp.add(edgeGlow, topRail, midRail, glassPane);
+        }
+        domeStatic.add(bridgeGrp);
+
+        // 4. Photorealistic Nero-Marquina & 24K-Gold Central Command Island (x = 0.00, y = UG_Y, z = 9.40, Radius = 2.35m)
+        const islandTop = new THREE.Mesh(
+            new THREE.CircleGeometry(2.34, 56),
+            islandMarbleMat
+        );
+        islandTop.rotation.x = -Math.PI / 2;
+        islandTop.position.set(0, UG_Y + 0.005, DOME_Z);
+
+        const islandDrum = new THREE.Mesh(new THREE.CylinderGeometry(2.36, 2.08, 0.32, 48), obsidianMat);
+        islandDrum.position.set(0, UG_Y - 0.16, DOME_Z);
+        const islandGoldRim = new THREE.Mesh(new THREE.TorusGeometry(2.35, 0.035, 10, 56), goldMat);
+        islandGoldRim.rotation.x = Math.PI / 2;
+        islandGoldRim.position.set(0, UG_Y - 0.01, DOME_Z);
+        const islandUnderCone = new THREE.Mesh(new THREE.CylinderGeometry(1.64, 0.48, 2.85, 28), woodDarkMat);
+        islandUnderCone.position.set(0, UG_Y - 1.72, DOME_Z);
+        const islandUnderGold = new THREE.Mesh(new THREE.TorusGeometry(1.04, 0.045, 8, 36), goldMat);
+        islandUnderGold.rotation.x = Math.PI / 2;
+        islandUnderGold.position.set(0, UG_Y - 1.88, DOME_Z);
+        domeStatic.add(islandTop, islandDrum, islandGoldRim, islandUnderCone, islandUnderGold);
+
+        // Curved Perimeter Guard Rail around Circular Island (leaving North Bridge Entry wide open!)
+        const islandArcSpan = Math.PI * 1.76;
+        const islandRail = new THREE.Mesh(new THREE.TorusGeometry(2.26, 0.028, 8, 52, islandArcSpan), goldMat);
+        islandRail.rotation.x = Math.PI / 2;
+        islandRail.rotation.z = -Math.PI * 0.38;
+        islandRail.position.set(0, UG_Y + 0.92, DOME_Z);
+        domeStatic.add(islandRail);
+        for (let p = 0; p <= 10; p++) {
+            const ang = -Math.PI * 0.38 + (p / 10) * islandArcSpan;
+            const px = Math.cos(ang) * 2.26;
+            const pz = DOME_Z + Math.sin(ang) * 2.26;
+            if (pz < DOME_Z - 1.92 && Math.abs(px) < 0.84) continue;
+            const rPost = new THREE.Mesh(postGeo, goldMat);
+            rPost.position.set(px, UG_Y + 0.46, pz);
+            domeStatic.add(rPost);
+        }
+
+        // 5. Central 24K-Gold & Obsidian Neural Projector Pedestal
+        const holoBase = new THREE.Mesh(new THREE.CylinderGeometry(0.68, 0.78, 0.14, 28), obsidianMat);
+        holoBase.position.set(0, UG_Y + 0.07, DOME_Z);
+        const holoCol = new THREE.Mesh(new THREE.CylinderGeometry(0.48, 0.60, 0.48, 28), woodDarkMat);
+        holoCol.position.set(0, UG_Y + 0.38, DOME_Z);
+        const holoRim = new THREE.Mesh(new THREE.CylinderGeometry(0.72, 0.64, 0.09, 32), goldMat);
+        holoRim.position.set(0, UG_Y + 0.66, DOME_Z);
+        const holoLens = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.60, 0.60, 0.025, 32),
+            new THREE.MeshBasicMaterial({ color: 0x16202e })
+        );
+        holoLens.position.set(0, UG_Y + 0.71, DOME_Z);
+        const holoEmitterRing = new THREE.Mesh(
+            new THREE.TorusGeometry(0.48, 0.018, 8, 36),
+            ringStripMat
+        );
+        holoEmitterRing.rotation.x = Math.PI / 2;
+        holoEmitterRing.position.set(0, UG_Y + 0.73, DOME_Z);
+        domeStatic.add(holoBase, holoCol, holoRim, holoLens, holoEmitterRing);
+
+        freezeStaticTree(domeStatic);
+        domeHall.add(domeStatic);
+
+        // 6. Colossal 3.8-Meter 3D Spherical "Projekt-Gehirn" Constellation + Autonomous Golden Healing Wave!
+        const holoGrp = new THREE.Group();
+        holoGrp.position.set(0, UG_Y + 2.56, DOME_Z);
+        holoGrp.matrixAutoUpdate = true;
+        this.cellarHoloGroup = holoGrp;
+        domeHall.add(holoGrp);
+
+        this.cellarBrainWireMat = new THREE.MeshBasicMaterial({
+            color: 0xC5A059,
+            wireframe: true,
+            transparent: true,
+            opacity: 0.18
+        });
+        this.cellarBrainShellMesh = new THREE.Mesh(new THREE.IcosahedronGeometry(1.46, 2), this.cellarBrainWireMat);
+        this.cellarBrainShellMesh.matrixAutoUpdate = true;
+        this.cellarBrainInnerMesh = new THREE.Mesh(
+            new THREE.IcosahedronGeometry(0.72, 1),
+            new THREE.MeshBasicMaterial({ color: 0xE5C158, wireframe: true, transparent: true, opacity: 0.22 })
+        );
+        this.cellarBrainInnerMesh.matrixAutoUpdate = true;
+        holoGrp.add(this.cellarBrainShellMesh, this.cellarBrainInnerMesh);
+
+        const orbitMat = new THREE.MeshBasicMaterial({ color: 0xD9B15F, transparent: true, opacity: 0.46 });
+        this.cellarBrainOrbitA = new THREE.Mesh(new THREE.TorusGeometry(1.88, 0.013, 8, 60), orbitMat);
+        this.cellarBrainOrbitA.rotation.x = 0.48;
+        this.cellarBrainOrbitA.matrixAutoUpdate = true;
+        this.cellarBrainOrbitB = new THREE.Mesh(new THREE.TorusGeometry(1.66, 0.011, 8, 56), orbitMat);
+        this.cellarBrainOrbitB.rotation.x = -0.58;
+        this.cellarBrainOrbitB.rotation.y = 0.42;
+        this.cellarBrainOrbitB.matrixAutoUpdate = true;
+        this.cellarBrainOrbitC = new THREE.Mesh(new THREE.TorusGeometry(2.06, 0.009, 8, 64), orbitMat);
+        this.cellarBrainOrbitC.rotation.x = Math.PI * 0.5;
+        this.cellarBrainOrbitC.matrixAutoUpdate = true;
+        holoGrp.add(this.cellarBrainOrbitA, this.cellarBrainOrbitB, this.cellarBrainOrbitC);
+
+        // Expanding Emerald-Gold Autonomous Healing Shockwave Ring (0% idle cost, triggers on auto-heal!)
+        this.cellarHealWaveMat = new THREE.MeshBasicMaterial({
+            color: 0x10B981,
+            transparent: true,
+            opacity: 0.0,
+            depthWrite: false
+        });
+        this.cellarHealWaveMesh = new THREE.Mesh(new THREE.TorusGeometry(0.85, 0.026, 10, 56), this.cellarHealWaveMat);
+        this.cellarHealWaveMesh.rotation.x = Math.PI * 0.5;
+        this.cellarHealWaveMesh.visible = false;
+        this.cellarHealWaveMesh.matrixAutoUpdate = true;
+        holoGrp.add(this.cellarHealWaveMesh);
+
+        const coreGeo = new THREE.OctahedronGeometry(0.145, 1);
+        const ringGeo = new THREE.TorusGeometry(0.21, 0.015, 6, 24);
+        const labelGeo = new THREE.PlaneGeometry(0.94, 0.27);
+        const beamGeo = new THREE.CylinderGeometry(0.013, 0.013, 1.0, 6);
+
+        for (let b = 0; b < 16; b++) {
+            const bMat = new THREE.MeshBasicMaterial({ color: 0xC5A059, transparent: true, opacity: 0.76 });
+            const bMesh = new THREE.Mesh(beamGeo, bMat);
+            bMesh.visible = false;
+            holoGrp.add(bMesh);
+            this.cellarBeamSlots.push({ mesh: bMesh, mat: bMat });
+        }
+
+        for (let n = 0; n < 14; n++) {
+            const nGrp = new THREE.Group();
+            nGrp.visible = false;
+            nGrp.matrixAutoUpdate = true;
+
+            const cMat = new THREE.MeshBasicMaterial({ color: 0xC5A059 });
+            const cMesh = new THREE.Mesh(coreGeo, cMat);
+            cMesh.userData.cellarSlotIndex = n;
+
+            const rMat = new THREE.MeshBasicMaterial({ color: 0xFFE59E });
+            const rMesh = new THREE.Mesh(ringGeo, rMat);
+            rMesh.visible = false;
+
+            const lCanvas = document.createElement('canvas');
+            lCanvas.width = 320;
+            lCanvas.height = 92;
+            const lTex = configureFastTexture(new THREE.CanvasTexture(lCanvas));
+            const lMat = new THREE.MeshBasicMaterial({ map: lTex, transparent: true, depthWrite: false });
+            const lMesh = new THREE.Mesh(labelGeo, lMat);
+            lMesh.position.set(0, 0.27, 0);
+            lMesh.userData.cellarSlotIndex = n;
+
+            nGrp.add(cMesh, rMesh, lMesh);
+            holoGrp.add(nGrp);
+
+            this.cellarPickMeshes.push(cMesh, lMesh);
+            this.cellarNodeSlots.push({
+                group: nGrp,
+                coreMesh: cMesh,
+                coreMat: cMat,
+                ringMesh: rMesh,
+                ringMat: rMat,
+                labelCanvas: lCanvas,
+                labelTex: lTex,
+                labelMesh: lMesh,
+                basePos: new THREE.Vector3(),
+                baseScale: 1.0,
+                pulseKind: 'calm',
+                payload: null
+            });
+        }
+
+        this.scene.add(cellar);
+
+        // Build default calm constellation immediately so the dome hall looks rich even before first fetch completes
+        this.setCellarSnapshot({
+            status: 'healthy',
+            summary: { open_issues_count: 0, project_files_count: 891, directed_edges_count: 3856 },
+            error_cores: [],
+            department_clusters: [
+                { key: 'product', label: 'Manufaktur & Produkte', file_count: 142, open_errors: 0 },
+                { key: 'order', label: 'Bestellungen & Checkout', file_count: 98, open_errors: 0 },
+                { key: 'ai', label: 'KI-Agenten & Funkira', file_count: 134, open_errors: 0 },
+                { key: 'accounting', label: 'Buchhaltung & Steuern', file_count: 92, open_errors: 0 },
+                { key: 'management', label: 'Leitung & Funkenwerk', file_count: 108, open_errors: 0 },
+                { key: 'marketing', label: 'Marketing & Influencer', file_count: 94, open_errors: 0 },
+                { key: 'system', label: 'System & Projekt-Gehirn', file_count: 88, open_errors: 0 },
+                { key: 'customer', label: 'Kunden & Gamification', file_count: 68, open_errors: 0 },
+                { key: 'support', label: 'Support & Telefonie', file_count: 42, open_errors: 0 },
+                { key: 'minipc', label: 'Mini-PC & Desktop', file_count: 25, open_errors: 0 }
+            ]
+        });
+    }
+
+    triggerCellarHealWave() {
+        this.cellarHealAnimTimer = 2.4;
+        if (this.cellarHealWaveMesh && this.cellarHealWaveMat) {
+            this.cellarHealWaveMesh.visible = true;
+            this.cellarHealWaveMesh.scale.setScalar(0.35);
+            this.cellarHealWaveMat.opacity = 0.92;
+        }
+        if (this.pos.y <= -1.2) {
+            this.setExpression('proud', 'cheer', 5200);
+        }
+    }
+
+    _paintCellarNodeLabel(slot, title, subText, accentHex, isSelected) {
+        const c = slot.labelCanvas;
+        const ctx = c.getContext('2d');
+        ctx.clearRect(0, 0, c.width, c.height);
+
+        ctx.fillStyle = isSelected ? 'rgba(26, 22, 34, 0.96)' : 'rgba(14, 12, 20, 0.92)';
+        ctx.strokeStyle = isSelected ? '#FFE59E' : accentHex;
+        ctx.lineWidth = isSelected ? 3.5 : 2.2;
+        ctx.beginPath();
+        ctx.roundRect(4, 4, c.width - 8, c.height - 8, 14);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#F9FAFB';
+        ctx.font = '700 24px system-ui, -apple-system, sans-serif';
+        ctx.textAlign = 'center';
+        const cleanTitle = String(title || '').replace(/\s[\u2013\u2014]\s/g, ' · ').slice(0, 24);
+        ctx.fillText(cleanTitle, c.width * 0.5, 40);
+
+        ctx.fillStyle = isSelected ? '#FDE68A' : accentHex;
+        ctx.font = '600 18px system-ui, -apple-system, sans-serif';
+        const cleanSub = String(subText || '').replace(/\s[\u2013\u2014]\s/g, ' · ').slice(0, 30);
+        ctx.fillText(cleanSub, c.width * 0.5, 69);
+
+        slot.labelTex.needsUpdate = true;
+    }
+
+    _orientCellarBeam(beamSlot, pA, pB, hexColor, opacity = 0.72) {
+        this._beamDirVec.subVectors(pB, pA);
+        const len = this._beamDirVec.length();
+        if (len < 0.02) {
+            beamSlot.mesh.visible = false;
+            return;
+        }
+        beamSlot.mesh.visible = true;
+        beamSlot.mesh.position.copy(pA).addScaledVector(this._beamDirVec, 0.5);
+        beamSlot.mesh.scale.set(1, len, 1);
+        this._beamDirVec.normalize();
+        beamSlot.mesh.quaternion.setFromUnitVectors(this._beamUpVec, this._beamDirVec);
+        beamSlot.mat.color.setHex(hexColor);
+        beamSlot.mat.opacity = opacity;
+    }
+
+    setCellarSnapshot(snapshot, selectedKey = '') {
+        if (!snapshot || typeof snapshot !== 'object') return;
+
+        const rawItems = Array.isArray(snapshot.items)
+            ? snapshot.items
+            : (Array.isArray(snapshot.error_cores) ? snapshot.error_cores : []);
+        const normPathList = (arr) => (Array.isArray(arr) ? arr : [])
+            .map(entry => typeof entry === 'string' ? entry : String(entry?.file_path || entry?.path || entry?.name || ''))
+            .filter(Boolean);
+
+        const normCores = rawItems.map((it, idx) => ({
+            id: String(it.item_key || it.id || `issue_${idx}`),
+            severity: String(it.severity || 'error'),
+            platform: String(it.platform_label || it.platform || 'Portal'),
+            department_label: String(it.department_label || it.component || 'System'),
+            title: String(it.title || 'Systembefund'),
+            message: String(it.message || ''),
+            culprit_file: String(it.culprit_file || it.component || ''),
+            culprit_line: it.line ?? it.culprit_line ?? null,
+            occurrences: Number(it.occurrences_count ?? it.occurrences ?? 1) || 1,
+            plain_german_cause: String(it.shop_impact_de || it.probable_cause || it.plain_german_cause || it.message || ''),
+            incoming_files: normPathList(it.incoming_files),
+            outgoing_files: normPathList(it.outgoing_files)
+        }));
+
+        const rawClusters = Array.isArray(snapshot.department_clusters) ? snapshot.department_clusters : [];
+        const normClusters = rawClusters.map(cl => ({
+            key: String(cl.key || 'system'),
+            label: String(cl.label || cl.key || 'System'),
+            file_count: Number(cl.files_count ?? cl.file_count ?? 0) || 0,
+            open_errors: Number(cl.open_errors_count ?? cl.open_errors ?? 0) || 0,
+            sample_files: Array.isArray(cl.sample_files) ? cl.sample_files : []
+        }));
+
+        const bs = snapshot.brain_stats || snapshot.summary || {};
+        const openCount = Number(
+            bs.open_issues_count ??
+            ((Number(bs.open_errors_count || 0) + Number(bs.open_warnings_count || 0)) || normCores.length)
+        ) || 0;
+
+        this.cellarSnapshot = {
+            ...snapshot,
+            summary: {
+                open_issues_count: openCount,
+                project_files_count: Number(bs.total_files ?? bs.project_files_count ?? 891) || 891,
+                directed_edges_count: Number(bs.total_links ?? bs.directed_edges_count ?? 3856) || 3856
+            },
+            error_cores: normCores,
+            department_clusters: normClusters
+        };
+
+        if (this.cellarHatchLedMat) {
+            this.cellarHatchLedMat.color.setHex(openCount > 0 ? 0xE11D48 : 0x10B981);
+        }
+
+        if (selectedKey) {
+            this.selectedCellarKey = selectedKey;
+        } else if (!this.selectedCellarKey) {
+            this.selectedCellarKey = normCores.length > 0 ? String(normCores[0].id || '') : (normClusters[0] ? `cluster:${normClusters[0].key}` : 'cluster:system_security');
+        } else {
+            const stillExists = normCores.some(c => String(c.id) === this.selectedCellarKey)
+                || this.selectedCellarKey.startsWith('cluster:')
+                || this.selectedCellarKey.startsWith('file:');
+            if (!stillExists) {
+                this.selectedCellarKey = normCores.length > 0 ? String(normCores[0].id || '') : (normClusters[0] ? `cluster:${normClusters[0].key}` : 'cluster:system_security');
+            }
+        }
+
+        this._rebuildCellarHologramLayout();
+        this._redrawCellarWallBoard();
+    }
+
+    focusCellarNode(itemKey) {
+        if (!itemKey) return;
+        this.selectedCellarKey = String(itemKey);
+        this._rebuildCellarHologramLayout();
+        this._redrawCellarWallBoard();
+        if (this.pos.y <= -1.0) {
+            this.setExpression('curious', 'point_left', 4200);
+        }
+    }
+
+    _rebuildCellarHologramLayout() {
+        if (!this.cellarHoloGroup || !this.cellarSnapshot) return;
+        for (const s of this.cellarNodeSlots) { s.group.visible = false; s.payload = null; s.ringMesh.visible = false; }
+        for (const b of this.cellarBeamSlots) { b.mesh.visible = false; }
+
+        const cores = Array.isArray(this.cellarSnapshot.error_cores) ? this.cellarSnapshot.error_cores : [];
+        const clusters = Array.isArray(this.cellarSnapshot.department_clusters) ? this.cellarSnapshot.department_clusters : [];
+
+        // Check if an error core is selected (or a neighbor file while an error core exists)
+        let activeCore = cores.find(c => String(c.id) === this.selectedCellarKey) || null;
+        if (!activeCore && this.selectedCellarKey.startsWith('file:') && cores.length > 0) {
+            const fPath = this.selectedCellarKey.slice(5);
+            activeCore = cores.find(c =>
+                c.culprit_file === fPath ||
+                (Array.isArray(c.incoming_files) && c.incoming_files.includes(fPath)) ||
+                (Array.isArray(c.outgoing_files) && c.outgoing_files.includes(fPath))
+            ) || cores[0];
+        }
+        if (!activeCore && !this.selectedCellarKey.startsWith('cluster:') && cores.length > 0) {
+            activeCore = cores[0];
+            this.selectedCellarKey = String(activeCore.id || '');
+        }
+
+        let slotIdx = 0;
+        let beamIdx = 0;
+        const baseShort = (p) => {
+            const s = String(p || '').replace(/\\/g, '/');
+            const idx = s.lastIndexOf('/');
+            return idx >= 0 ? s.slice(idx + 1) : s;
+        };
+
+        if (activeCore) {
+            // MODE A: Monumental 3D Spherical Kuppel Layout -> Central Error Core + <- Callers (Left Arc) + -> Dependencies (Right Arc) + Satellites
+            const isCrit = String(activeCore.severity || 'error') !== 'warning';
+            const coreHex = isCrit ? 0xE11D48 : 0xD97706;
+            const coreAccent = isCrit ? '#FDA4AF' : '#FCD34D';
+            if (this.cellarBrainWireMat) {
+                this.cellarBrainWireMat.color.setHex(isCrit ? 0xE11D48 : 0xD97706);
+                this.cellarBrainWireMat.opacity = 0.18;
+            }
+            const culpritBase = baseShort(activeCore.culprit_file || activeCore.component || 'System');
+            const lineSuffix = activeCore.culprit_line ? `:${activeCore.culprit_line}` : '';
+
+            const centerSlot = this.cellarNodeSlots[slotIdx++];
+            centerSlot.basePos.set(0, 0.04, 0);
+            centerSlot.group.position.copy(centerSlot.basePos);
+            centerSlot.baseScale = 1.52;
+            centerSlot.coreMesh.scale.setScalar(1.52);
+            centerSlot.coreMat.color.setHex(coreHex);
+            centerSlot.pulseKind = 'error';
+            centerSlot.ringMesh.visible = (this.selectedCellarKey === String(activeCore.id));
+            centerSlot.group.visible = true;
+            centerSlot.payload = { kind: 'error', key: String(activeCore.id), core: activeCore };
+            this._paintCellarNodeLabel(
+                centerSlot,
+                `${culpritBase}${lineSuffix}`,
+                `${activeCore.platform || 'portal'} · ${activeCore.occurrences || 1}x`,
+                coreAccent,
+                this.selectedCellarKey === String(activeCore.id)
+            );
+
+            const incoming = (Array.isArray(activeCore.incoming_files) ? activeCore.incoming_files : []).slice(0, 4);
+            for (let i = 0; i < incoming.length && slotIdx < this.cellarNodeSlots.length; i++) {
+                const fPath = String(incoming[i]);
+                const fKey = `file:${fPath}`;
+                const sel = (this.selectedCellarKey === fKey);
+                const yOff = (incoming.length === 1) ? 0.14 : lerp(0.68, -0.52, i / (incoming.length - 1));
+                const xOff = -1.42 - Math.sin((i + 1) * 0.85) * 0.18;
+                const zOff = (i % 2 === 0) ? -0.32 : 0.28;
+                const sl = this.cellarNodeSlots[slotIdx++];
+                sl.basePos.set(xOff, yOff, zOff);
+                sl.group.position.copy(sl.basePos);
+                sl.baseScale = sel ? 1.18 : 0.96;
+                sl.coreMesh.scale.setScalar(sl.baseScale);
+                sl.coreMat.color.setHex(0xE5C158);
+                sl.pulseKind = 'calm';
+                sl.ringMesh.visible = sel;
+                sl.group.visible = true;
+                sl.payload = { kind: 'file', key: fKey, filePath: fPath, direction: 'incoming', parentErrorId: String(activeCore.id) };
+                this._paintCellarNodeLabel(sl, baseShort(fPath), '← Aufrufer', '#E5C158', sel);
+                if (beamIdx < this.cellarBeamSlots.length) {
+                    this._orientCellarBeam(this.cellarBeamSlots[beamIdx++], sl.basePos, centerSlot.basePos, 0xE5C158, sel ? 0.96 : 0.72);
+                }
+            }
+
+            const outgoing = (Array.isArray(activeCore.outgoing_files) ? activeCore.outgoing_files : []).slice(0, 4);
+            for (let i = 0; i < outgoing.length && slotIdx < this.cellarNodeSlots.length; i++) {
+                const fPath = String(outgoing[i]);
+                const fKey = `file:${fPath}`;
+                const sel = (this.selectedCellarKey === fKey);
+                const yOff = (outgoing.length === 1) ? 0.14 : lerp(0.68, -0.52, i / (outgoing.length - 1));
+                const xOff = 1.42 + Math.sin((i + 1) * 0.85) * 0.18;
+                const zOff = (i % 2 === 0) ? 0.28 : -0.32;
+                const sl = this.cellarNodeSlots[slotIdx++];
+                sl.basePos.set(xOff, yOff, zOff);
+                sl.group.position.copy(sl.basePos);
+                sl.baseScale = sel ? 1.18 : 0.96;
+                sl.coreMesh.scale.setScalar(sl.baseScale);
+                sl.coreMat.color.setHex(0x38BDF8);
+                sl.pulseKind = 'calm';
+                sl.ringMesh.visible = sel;
+                sl.group.visible = true;
+                sl.payload = { kind: 'file', key: fKey, filePath: fPath, direction: 'outgoing', parentErrorId: String(activeCore.id) };
+                this._paintCellarNodeLabel(sl, baseShort(fPath), '→ Referenz', '#7DD3FC', sel);
+                if (beamIdx < this.cellarBeamSlots.length) {
+                    this._orientCellarBeam(this.cellarBeamSlots[beamIdx++], centerSlot.basePos, sl.basePos, 0x38BDF8, sel ? 0.96 : 0.72);
+                }
+            }
+
+            // Satellite nodes in upper dome crown for additional open errors so Alina can click directly between them in 3D
+            const otherCores = cores.filter(c => String(c.id) !== String(activeCore.id)).slice(0, 4);
+            for (let i = 0; i < otherCores.length && slotIdx < this.cellarNodeSlots.length; i++) {
+                const oc = otherCores[i];
+                const sl = this.cellarNodeSlots[slotIdx++];
+                const ang = lerp(-1.05, 1.05, otherCores.length === 1 ? 0.5 : (i / (otherCores.length - 1)));
+                sl.basePos.set(Math.sin(ang) * 1.18, 1.02, -0.42 - Math.cos(ang) * 0.22);
+                sl.group.position.copy(sl.basePos);
+                sl.baseScale = 0.98;
+                sl.coreMesh.scale.setScalar(0.98);
+                sl.coreMat.color.setHex(String(oc.severity) === 'warning' ? 0xD97706 : 0xE11D48);
+                sl.pulseKind = 'error';
+                sl.group.visible = true;
+                sl.payload = { kind: 'error', key: String(oc.id), core: oc };
+                this._paintCellarNodeLabel(sl, baseShort(oc.culprit_file || oc.component || 'Befund'), `${oc.platform || 'portal'} · Wechsel`, '#FDA4AF', false);
+            }
+            return;
+        }
+
+        // MODE B: Calm 360° Spherical 10-Department Seelenfunke Project-Brain Constellation inside the Kuppel
+        if (this.cellarBrainWireMat) {
+            this.cellarBrainWireMat.color.setHex(cores.length > 0 ? 0xE11D48 : 0xC5A059);
+            this.cellarBrainWireMat.opacity = 0.16;
+        }
+        const hubSlot = this.cellarNodeSlots[slotIdx++];
+        const filesTotal = Number(this.cellarSnapshot.summary?.project_files_count || 891);
+        const edgesTotal = Number(this.cellarSnapshot.summary?.directed_edges_count || 3856);
+        hubSlot.basePos.set(0, 0.06, 0);
+        hubSlot.group.position.copy(hubSlot.basePos);
+        hubSlot.baseScale = 1.42;
+        hubSlot.coreMesh.scale.setScalar(1.42);
+        hubSlot.coreMat.color.setHex(cores.length > 0 ? 0xE11D48 : 0x10B981);
+        hubSlot.pulseKind = cores.length > 0 ? 'error' : 'calm';
+        hubSlot.group.visible = true;
+        hubSlot.payload = { kind: 'hub', key: cores.length > 0 ? String(cores[0].id) : 'cluster:system' };
+        this._paintCellarNodeLabel(hubSlot, 'Projekt-Gehirn', `${filesTotal} Dateien · ${edgesTotal} Kanten`, '#6EE7B7', false);
+
+        const list = clusters.slice(0, 10);
+        for (let i = 0; i < list.length && slotIdx < this.cellarNodeSlots.length; i++) {
+            const cl = list[i];
+            const cKey = `cluster:${cl.key}`;
+            const sel = (this.selectedCellarKey === cKey);
+            const ang = (i / Math.max(1, list.length)) * Math.PI * 2;
+            const tier = (i % 3) - 1; // -1, 0, +1 spherical elevation bands
+            const rx = Math.cos(ang) * 1.56;
+            const rz = Math.sin(ang) * 0.78;
+            const ry = tier * 0.56 + ((i % 2 === 0) ? 0.10 : -0.08);
+            const hasErr = Number(cl.open_errors || 0) > 0;
+
+            const sl = this.cellarNodeSlots[slotIdx++];
+            sl.basePos.set(rx, ry, rz);
+            sl.group.position.copy(sl.basePos);
+            sl.baseScale = sel ? 1.18 : 0.94;
+            sl.coreMesh.scale.setScalar(sl.baseScale);
+            sl.coreMat.color.setHex(hasErr ? 0xE11D48 : 0xC5A059);
+            sl.pulseKind = hasErr ? 'error' : 'calm';
+            sl.ringMesh.visible = sel;
+            sl.group.visible = true;
+            sl.payload = { kind: 'cluster', key: cKey, cluster: cl };
+            this._paintCellarNodeLabel(
+                sl,
+                cl.label || cl.key,
+                hasErr ? `${cl.open_errors} Befund · ${cl.file_count || 0} Dateien` : `${cl.file_count || 0} Dateien`,
+                hasErr ? '#FDA4AF' : '#E5C158',
+                sel
+            );
+            if (beamIdx < this.cellarBeamSlots.length) {
+                this._orientCellarBeam(this.cellarBeamSlots[beamIdx++], hubSlot.basePos, sl.basePos, hasErr ? 0xE11D48 : 0xC5A059, sel ? 0.92 : 0.56);
+            }
+        }
+    }
+
+    _redrawCellarWallBoard() {
+        // Pure Full-Screen Cinema Kuppelhalle: zero clutter wall-boards or control windows!
+    }
+
+    tryPickCellarNodeAtClientXY(clientX, clientY) {
+        if (!this.canvas || !this.camera || !this.cellarGroup || !this.cellarGroup.visible) return null;
+        if (this.pos.y > -0.85) return null;
+        const rect = this.canvas.getBoundingClientRect();
+        if (!rect.width || !rect.height) return null;
+        this._pointerNdc.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+        this._pointerNdc.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+        this._raycaster.setFromCamera(this._pointerNdc, this.camera);
+
+        const visibleTargets = this.cellarPickMeshes.filter(m => m.parent && m.parent.visible);
+        if (visibleTargets.length === 0) return null;
+        const hits = this._raycaster.intersectObjects(visibleTargets, false);
+        if (!hits || hits.length === 0) return null;
+
+        const slotIdx = hits[0].object?.userData?.cellarSlotIndex;
+        const slot = (typeof slotIdx === 'number') ? this.cellarNodeSlots[slotIdx] : null;
+        if (!slot || !slot.payload) return null;
+
+        this.focusCellarNode(slot.payload.key);
+        if (typeof window.onFunkiraCellarNodePicked === 'function') {
+            window.onFunkiraCellarNodePicked(slot.payload);
+        }
+        return slot.payload;
     }
 
     // ========================================================================
@@ -4844,20 +6484,29 @@ class FunkiraAtelierEngine {
             new THREE.Vector2(0.225, 0.08),
             new THREE.Vector2(0.00, 0.08)
         ];
-        const hipMesh = new THREE.Mesh(new THREE.LatheGeometry(hipPoints, 18), darkArmorMat);
+        const hipMesh = new THREE.Mesh(new THREE.LatheGeometry(hipPoints, 28), darkArmorMat);
         hipMesh.scale.set(1.04, 1.0, 0.86);
         pelvis.add(hipMesh);
 
-        const waistRing = new THREE.Mesh(new THREE.TorusGeometry(0.232, 0.025, 10, 24), roseGoldMat);
+        const waistRing = new THREE.Mesh(new THREE.TorusGeometry(0.232, 0.025, 14, 32), roseGoldMat);
         waistRing.rotation.x = Math.PI / 2;
         waistRing.position.y = 0.072;
-        pelvis.add(waistRing);
+        const beltBuckleBack = new THREE.Mesh(new RoundedBoxGeometry(0.088, 0.052, 0.024, 2, 0.010), this.mats.obsidian);
+        beltBuckleBack.position.set(0, 0.072, 0.206);
+        const beltBuckleRim = new THREE.Mesh(new RoundedBoxGeometry(0.096, 0.058, 0.018, 2, 0.010), gold24kMat);
+        beltBuckleRim.position.set(0, 0.072, 0.203);
+        const beltStarGem = new THREE.Mesh(new THREE.OctahedronGeometry(0.020, 0), gold24kMat);
+        beltStarGem.scale.set(1.0, 1.25, 0.45);
+        beltStarGem.position.set(0, 0.072, 0.218);
+        pelvis.add(waistRing, beltBuckleRim, beltBuckleBack, beltStarGem);
 
-        const thighGeo = new THREE.CylinderGeometry(0.068, 0.058, 0.20, 14);
-        const kneeGeo  = new THREE.SphereGeometry(0.058, 10, 8);
-        const shinGeo  = new THREE.CylinderGeometry(0.062, 0.076, 0.19, 14);
-        const cuffGeo  = new THREE.TorusGeometry(0.078, 0.017, 8, 18);
-        const bootUpperGeo = new RoundedBoxGeometry(0.165, 0.115, 0.235, 2, 0.048);
+        const thighGeo = new THREE.CylinderGeometry(0.068, 0.058, 0.20, 22);
+        const kneeGeo  = new THREE.SphereGeometry(0.058, 16, 12);
+        const kneeRingGeo = new THREE.TorusGeometry(0.048, 0.007, 8, 20);
+        const shinGeo  = new THREE.CylinderGeometry(0.062, 0.076, 0.19, 22);
+        const cuffGeo  = new THREE.TorusGeometry(0.078, 0.017, 12, 28);
+        const bootUpperGeo = new RoundedBoxGeometry(0.165, 0.115, 0.235, 3, 0.048);
+        const bootWeltGeo  = new RoundedBoxGeometry(0.170, 0.013, 0.242, 2, 0.014);
         const bootSoleGeo  = new RoundedBoxGeometry(0.172, 0.034, 0.245, 2, 0.014);
 
         const buildLeg = (sideSign) => {
@@ -4869,7 +6518,9 @@ class FunkiraAtelierEngine {
             thigh.position.y = -0.10;
             const kneeJoint = new THREE.Mesh(kneeGeo, roseGoldMat);
             kneeJoint.position.y = -0.20;
-            hipPivot.add(thigh, kneeJoint);
+            const kneeGoldRing = new THREE.Mesh(kneeRingGeo, gold24kMat);
+            kneeGoldRing.position.set(0, -0.20, 0.022);
+            hipPivot.add(thigh, kneeJoint, kneeGoldRing);
 
             const kneePivot = new THREE.Group();
             kneePivot.position.y = -0.20;
@@ -4880,11 +6531,15 @@ class FunkiraAtelierEngine {
             const bootCuff = new THREE.Mesh(cuffGeo, roseGoldMat);
             bootCuff.rotation.x = Math.PI / 2;
             bootCuff.position.y = -0.168;
+            const bootBuckle = new THREE.Mesh(new RoundedBoxGeometry(0.066, 0.020, 0.016, 1, 0.005), gold24kMat);
+            bootBuckle.position.set(0, -0.170, 0.096);
             const bootUpper = new THREE.Mesh(bootUpperGeo, roseGoldMat);
             bootUpper.position.set(0, -0.215, 0.032);
+            const bootWelt = new THREE.Mesh(bootWeltGeo, gold24kMat);
+            bootWelt.position.set(0, -0.252, 0.032);
             const bootSole = new THREE.Mesh(bootSoleGeo, jointDarkMat);
             bootSole.position.set(0, -0.268, 0.032);
-            kneePivot.add(shin, bootCuff, bootUpper, bootSole);
+            kneePivot.add(shin, bootCuff, bootBuckle, bootUpper, bootWelt, bootSole);
 
             return { hipPivot, kneePivot };
         };
@@ -4911,46 +6566,71 @@ class FunkiraAtelierEngine {
             new THREE.Vector2(0.185, 0.43),
             new THREE.Vector2(0.00, 0.43)
         ];
-        const chestMesh = new THREE.Mesh(new THREE.LatheGeometry(torsoPoints, 22), darkArmorMat);
+        const chestMesh = new THREE.Mesh(new THREE.LatheGeometry(torsoPoints, 32), darkArmorMat);
         chestMesh.scale.set(1.08, 1.0, 0.84);
         torsoPivot.add(chestMesh);
 
-        const emblemGeo = new THREE.CylinderGeometry(0.268, 0.242, 0.26, 20, 1, true, -0.78, 1.56);
+        const emblemGeo = new THREE.CylinderGeometry(0.268, 0.242, 0.26, 32, 1, true, -0.78, 1.56);
         const emblemMesh = new THREE.Mesh(
             emblemGeo,
             new THREE.MeshBasicMaterial({ map: makeChestEmblemTexture(), transparent: true, depthWrite: false })
         );
-        emblemMesh.scale.set(1.09, 1.0, 0.86);
+        emblemMesh.scale.set(1.115, 1.0, 0.885);
         emblemMesh.position.y = 0.22;
         torsoPivot.add(emblemMesh);
 
-        const collarRing = new THREE.Mesh(new THREE.TorusGeometry(0.186, 0.036, 10, 24), roseGoldMat);
+        // Rear Seelenfunke Power-Core Medallion (visible when Funkira turns around!)
+        const backCoreRing = new THREE.Mesh(new THREE.TorusGeometry(0.068, 0.011, 10, 24), gold24kMat);
+        backCoreRing.position.set(0, 0.25, -0.218);
+        const backCorePlate = new THREE.Mesh(new THREE.CylinderGeometry(0.058, 0.058, 0.014, 20), this.mats.obsidian);
+        backCorePlate.rotation.x = Math.PI / 2;
+        backCorePlate.position.set(0, 0.25, -0.216);
+        const backCoreStar = new THREE.Mesh(new THREE.OctahedronGeometry(0.026, 0), this.mats.warmBulb);
+        backCoreStar.scale.set(1.0, 1.25, 0.35);
+        backCoreStar.position.set(0, 0.25, -0.224);
+        torsoPivot.add(backCoreRing, backCorePlate, backCoreStar);
+
+        const collarRing = new THREE.Mesh(new THREE.TorusGeometry(0.186, 0.036, 14, 32), roseGoldMat);
         collarRing.rotation.x = Math.PI / 2;
         collarRing.position.y = 0.432;
-        const neckCyl = new THREE.Mesh(new THREE.CylinderGeometry(0.10, 0.12, 0.11, 14), jointDarkMat);
+        const collarGoldTrim = new THREE.Mesh(new THREE.TorusGeometry(0.194, 0.009, 10, 32), gold24kMat);
+        collarGoldTrim.rotation.x = Math.PI / 2;
+        collarGoldTrim.position.y = 0.408;
+        const collarBrooch = new THREE.Mesh(new THREE.OctahedronGeometry(0.024, 0), gold24kMat);
+        collarBrooch.scale.set(1.0, 1.3, 0.45);
+        collarBrooch.position.set(0, 0.422, 0.206);
+        const neckCyl = new THREE.Mesh(new THREE.CylinderGeometry(0.10, 0.12, 0.11, 20), jointDarkMat);
         neckCyl.position.y = 0.47;
-        torsoPivot.add(collarRing, neckCyl);
+        torsoPivot.add(collarRing, collarGoldTrim, collarBrooch, neckCyl);
 
         const scarfGroup = new THREE.Group();
-        const scarfRing = new THREE.Mesh(new THREE.TorusGeometry(0.205, 0.052, 10, 22), this.mats.scarfRed);
+        const scarfRing = new THREE.Mesh(new THREE.TorusGeometry(0.205, 0.052, 14, 30), this.mats.scarfRed);
         scarfRing.rotation.x = Math.PI / 2;
         scarfRing.position.y = 0.43;
         const scarfTail = new THREE.Mesh(new RoundedBoxGeometry(0.095, 0.26, 0.038, 2, 0.014), this.mats.scarfRed);
         scarfTail.position.set(0.11, 0.30, 0.215);
         scarfTail.rotation.z = 0.14;
-        scarfGroup.add(scarfRing, scarfTail);
+        const scarfGoldTip = new THREE.Mesh(new RoundedBoxGeometry(0.098, 0.022, 0.040, 1, 0.006), gold24kMat);
+        scarfGoldTip.position.set(0.093, 0.175, 0.216);
+        scarfGoldTip.rotation.z = 0.14;
+        scarfGroup.add(scarfRing, scarfTail, scarfGoldTip);
         torsoPivot.add(scarfGroup);
         this.outfits.scarf = scarfGroup;
 
-        const shCuffGeo    = new THREE.TorusGeometry(0.092, 0.023, 8, 18);
-        const shBallGeo    = new THREE.SphereGeometry(0.074, 12, 10);
-        const upperArmGeo  = new THREE.CylinderGeometry(0.068, 0.060, 0.21, 14);
-        const upTrimGeo    = new THREE.TorusGeometry(0.064, 0.011, 6, 16);
-        const elBallGeo    = new THREE.SphereGeometry(0.058, 10, 8);
-        const forearmGeo   = new THREE.CylinderGeometry(0.062, 0.075, 0.21, 14);
-        const wrCuffGeo    = new THREE.TorusGeometry(0.073, 0.016, 8, 16);
-        const palmGeo      = new THREE.SphereGeometry(0.075, 12, 10);
-        const fingerCapGeo = new THREE.CapsuleGeometry(0.0145, 0.028, 4, 8);
+        const shCuffGeo    = new THREE.TorusGeometry(0.092, 0.023, 12, 26);
+        const shGoldRimGeo = new THREE.TorusGeometry(0.098, 0.008, 10, 26);
+        const shPauldronGeo = new THREE.SphereGeometry(0.096, 18, 12, 0, Math.PI * 2, 0, Math.PI * 0.48);
+        const shBallGeo    = new THREE.SphereGeometry(0.074, 16, 14);
+        const upperArmGeo  = new THREE.CylinderGeometry(0.068, 0.060, 0.21, 22);
+        const upTrimGeo    = new THREE.TorusGeometry(0.064, 0.011, 10, 24);
+        const elBallGeo    = new THREE.SphereGeometry(0.058, 14, 12);
+        const forearmGeo   = new THREE.CylinderGeometry(0.062, 0.075, 0.21, 22);
+        const wrCuffGeo    = new THREE.TorusGeometry(0.073, 0.016, 12, 24);
+        const wrGoldGeo    = new THREE.TorusGeometry(0.077, 0.006, 8, 24);
+        const palmGeo      = new THREE.SphereGeometry(0.075, 16, 14);
+        const fingerProxGeo = new THREE.CapsuleGeometry(0.0145, 0.016, 6, 10);
+        const fingerDistGeo = new THREE.CapsuleGeometry(0.0125, 0.014, 6, 10);
+        const knuckleRingGeo = new THREE.TorusGeometry(0.0148, 0.0032, 6, 14);
 
         const buildArm = (sideSign, hasBossShield) => {
             const cuffHolder = new THREE.Group();
@@ -4959,7 +6639,14 @@ class FunkiraAtelierEngine {
 
             const shoulderCuff = new THREE.Mesh(shCuffGeo, roseGoldMat);
             shoulderCuff.rotation.y = sideSign * (Math.PI / 2 - 0.22);
-            cuffHolder.add(shoulderCuff);
+            const shoulderGoldRim = new THREE.Mesh(shGoldRimGeo, gold24kMat);
+            shoulderGoldRim.rotation.y = sideSign * (Math.PI / 2 - 0.22);
+            shoulderGoldRim.position.x = sideSign * 0.012;
+            const pauldron = new THREE.Mesh(shPauldronGeo, roseGoldMat);
+            pauldron.scale.set(1.05, 0.68, 0.96);
+            pauldron.position.set(sideSign * 0.018, 0.022, 0);
+            pauldron.rotation.z = -sideSign * 0.42;
+            cuffHolder.add(shoulderCuff, shoulderGoldRim, pauldron);
 
             const shoulderPivot = new THREE.Group();
             shoulderPivot.position.set(sideSign * 0.015, -0.005, 0);
@@ -4968,7 +6655,7 @@ class FunkiraAtelierEngine {
             const shoulderBall = new THREE.Mesh(shBallGeo, jointDarkMat);
             const upperArm = new THREE.Mesh(upperArmGeo, darkArmorMat);
             upperArm.position.y = -0.11;
-            const upperTrim = new THREE.Mesh(upTrimGeo, roseGoldMat);
+            const upperTrim = new THREE.Mesh(upTrimGeo, gold24kMat);
             upperTrim.rotation.x = Math.PI / 2;
             upperTrim.position.y = -0.12;
             shoulderPivot.add(shoulderBall, upperArm, upperTrim);
@@ -4995,7 +6682,10 @@ class FunkiraAtelierEngine {
             const wristCuff = new THREE.Mesh(wrCuffGeo, roseGoldMat);
             wristCuff.rotation.x = Math.PI / 2;
             wristCuff.position.y = -0.205;
-            elbowPivot.add(wristCuff);
+            const wristGold = new THREE.Mesh(wrGoldGeo, gold24kMat);
+            wristGold.rotation.x = Math.PI / 2;
+            wristGold.position.y = -0.192;
+            elbowPivot.add(wristCuff, wristGold);
 
             const wristPivot = new THREE.Group();
             wristPivot.position.y = -0.235;
@@ -5004,18 +6694,29 @@ class FunkiraAtelierEngine {
             const palm = new THREE.Mesh(palmGeo, roseGoldMat);
             palm.scale.set(1.02, 0.92, 0.74);
             palm.position.y = -0.032;
-            wristPivot.add(palm);
+            const palmEmblem = new THREE.Mesh(new THREE.OctahedronGeometry(0.015, 0), gold24kMat);
+            palmEmblem.scale.set(1.0, 1.2, 0.35);
+            palmEmblem.position.set(0, -0.030, -0.054);
+            wristPivot.add(palm, palmEmblem);
 
             const fingers = [];
             const fingerOffsets = [-0.046, -0.016, 0.015, 0.045];
             const fingerScales = [0.88, 1.0, 0.98, 0.82];
             for (let f = 0; f < 4; f++) {
                 const fp = new THREE.Group();
-                fp.position.set(fingerOffsets[f], -0.082, 0.008);
-                const seg = new THREE.Mesh(fingerCapGeo, roseGoldMat);
-                seg.scale.y = fingerScales[f];
-                seg.position.y = -0.022 * fingerScales[f];
-                fp.add(seg);
+                fp.position.set(fingerOffsets[f], -0.080, 0.008);
+                const sc = fingerScales[f];
+                const prox = new THREE.Mesh(fingerProxGeo, roseGoldMat);
+                prox.scale.y = sc;
+                prox.position.y = -0.012 * sc;
+                const kRing = new THREE.Mesh(knuckleRingGeo, gold24kMat);
+                kRing.rotation.x = Math.PI / 2;
+                kRing.position.y = -0.023 * sc;
+                const dist = new THREE.Mesh(fingerDistGeo, roseGoldMat);
+                dist.scale.y = sc;
+                dist.position.set(0, -0.034 * sc, 0.002);
+                dist.rotation.x = -0.10;
+                fp.add(prox, kRing, dist);
                 wristPivot.add(fp);
                 fingers.push(fp);
             }
@@ -5023,9 +6724,14 @@ class FunkiraAtelierEngine {
             const thumbPivot = new THREE.Group();
             thumbPivot.position.set(-sideSign * 0.062, -0.038, 0.022);
             thumbPivot.rotation.z = -sideSign * 0.62;
-            const thumbSeg = new THREE.Mesh(fingerCapGeo, roseGoldMat);
-            thumbSeg.position.y = -0.020;
-            thumbPivot.add(thumbSeg);
+            const thumbProx = new THREE.Mesh(fingerProxGeo, roseGoldMat);
+            thumbProx.position.y = -0.012;
+            const thumbRing = new THREE.Mesh(knuckleRingGeo, gold24kMat);
+            thumbRing.rotation.x = Math.PI / 2;
+            thumbRing.position.y = -0.022;
+            const thumbDist = new THREE.Mesh(fingerDistGeo, roseGoldMat);
+            thumbDist.position.y = -0.032;
+            thumbPivot.add(thumbProx, thumbRing, thumbDist);
             wristPivot.add(thumbPivot);
 
             return { shoulderPivot, elbowPivot, wristPivot, fingers, thumbPivot };
@@ -5087,7 +6793,7 @@ class FunkiraAtelierEngine {
         for (let i = 0; i < 16; i++) {
             const wd = new THREE.Mesh(wdGeo, this.mats.waterBlue);
             wd.visible = false;
-            this.scene.add(wd);
+            (this.upstairsFxGroup || this.scene).add(wd);
             this.waterDropParticles.push({ mesh: wd, vx: 0, vy: 0, vz: 0, life: 0 });
         }
 
@@ -5154,39 +6860,52 @@ class FunkiraAtelierEngine {
         const outerShape = createRoundedRectShape(headW, headH, 0.11);
         const headGeo = new THREE.ExtrudeGeometry(outerShape, {
             depth: headD,
-            curveSegments: 6,
+            curveSegments: 12,
             bevelEnabled: true,
             bevelThickness: 0.038,
             bevelSize: 0.032,
-            bevelSegments: 3
+            bevelSegments: 5
         });
         headGeo.center();
         const headShell = new THREE.Mesh(headGeo, roseGoldMat);
         headShell.position.y = 0.26;
         headPivot.add(headShell);
 
-        const bezelFrame = new THREE.Mesh(new RoundedBoxGeometry(0.715, 0.47, 0.016, 2, 0.045), darkArmorMat);
-        bezelFrame.position.set(0, 0.26, headD * 0.5 + 0.031);
-        headPivot.add(bezelFrame);
+        const bezelFrame = new THREE.Mesh(new RoundedBoxGeometry(0.718, 0.472, 0.016, 3, 0.046), darkArmorMat);
+        bezelFrame.position.set(0, 0.26, headD * 0.5 + 0.032);
+        const goldInnerBezel = new THREE.Mesh(new RoundedBoxGeometry(0.698, 0.452, 0.012, 3, 0.042), gold24kMat);
+        goldInnerBezel.position.set(0, 0.26, headD * 0.5 + 0.037);
+        headPivot.add(bezelFrame, goldInnerBezel);
 
         this.visorTexture = configureFastTexture(new THREE.CanvasTexture(this.visorCanvas));
         const visorPlane = new THREE.Mesh(
             new THREE.PlaneGeometry(0.688, 0.442),
             new THREE.MeshBasicMaterial({ map: this.visorTexture })
         );
-        visorPlane.position.set(0, 0.26, headD * 0.5 + 0.040);
+        visorPlane.position.set(0, 0.26, headD * 0.5 + 0.047);
         headPivot.add(visorPlane);
 
-        const sirenBase = new THREE.Mesh(new THREE.CylinderGeometry(0.115, 0.138, 0.046, 16), roseGoldMat);
+        const sirenBase = new THREE.Mesh(new THREE.CylinderGeometry(0.116, 0.140, 0.046, 24), roseGoldMat);
         sirenBase.position.set(0, 0.578, 0);
+        const sirenGoldCollar = new THREE.Mesh(new THREE.TorusGeometry(0.118, 0.010, 10, 24), gold24kMat);
+        sirenGoldCollar.rotation.x = Math.PI / 2;
+        sirenGoldCollar.position.set(0, 0.600, 0);
         this.sirenMat = new THREE.MeshBasicMaterial({ color: 0xe8829b });
-        const sirenDome = new THREE.Mesh(new THREE.CylinderGeometry(0.088, 0.106, 0.115, 16), this.sirenMat);
+        const sirenDome = new THREE.Mesh(new THREE.CylinderGeometry(0.084, 0.102, 0.112, 24), this.sirenMat);
         sirenDome.position.set(0, 0.648, 0);
-        headPivot.add(sirenBase, sirenDome);
+        const sirenCrystalBell = new THREE.Mesh(new THREE.CylinderGeometry(0.098, 0.116, 0.120, 24), this.mats.crystalGlass);
+        sirenCrystalBell.position.set(0, 0.650, 0);
+        const sirenCap = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.094, 0.020, 24), gold24kMat);
+        sirenCap.position.set(0, 0.714, 0);
+        const sirenStar = new THREE.Mesh(new THREE.OctahedronGeometry(0.018, 0), gold24kMat);
+        sirenStar.position.set(0, 0.734, 0);
+        headPivot.add(sirenBase, sirenGoldCollar, sirenDome, sirenCrystalBell, sirenCap, sirenStar);
         this.rig.sirenDome = sirenDome;
 
-        const earGeo = new THREE.CylinderGeometry(0.112, 0.102, 0.068, 16);
-        const earRingGeo = new THREE.TorusGeometry(0.095, 0.012, 8, 18);
+        const earGeo = new THREE.CylinderGeometry(0.114, 0.102, 0.068, 24);
+        const earRingGeo = new THREE.TorusGeometry(0.096, 0.012, 10, 24);
+        const earGoldRingGeo = new THREE.TorusGeometry(0.068, 0.008, 10, 24);
+        const earCapGeo = new THREE.CylinderGeometry(0.046, 0.046, 0.012, 20);
         for (const sx of [-1, 1]) {
             const earPod = new THREE.Mesh(earGeo, roseGoldMat);
             earPod.rotation.z = sx * Math.PI / 2;
@@ -5194,7 +6913,13 @@ class FunkiraAtelierEngine {
             const earRing = new THREE.Mesh(earRingGeo, darkArmorMat);
             earRing.rotation.y = Math.PI / 2;
             earRing.position.set(sx * (headW * 0.5 + 0.084), 0.25, 0);
-            headPivot.add(earPod, earRing);
+            const earGoldRing = new THREE.Mesh(earGoldRingGeo, gold24kMat);
+            earGoldRing.rotation.y = Math.PI / 2;
+            earGoldRing.position.set(sx * (headW * 0.5 + 0.088), 0.25, 0);
+            const earCap = new THREE.Mesh(earCapGeo, roseGoldMat);
+            earCap.rotation.z = sx * Math.PI / 2;
+            earCap.position.set(sx * (headW * 0.5 + 0.087), 0.25, 0);
+            headPivot.add(earPod, earRing, earGoldRing, earCap);
         }
 
         const santaHat = new THREE.Group();
@@ -5226,13 +6951,13 @@ class FunkiraAtelierEngine {
         const sunglasses = new THREE.Group();
         for (const sx of [-1, 1]) {
             const lens = new THREE.Mesh(new RoundedBoxGeometry(0.24, 0.11, 0.015, 1, 0.02), this.mats.jointDark);
-            lens.position.set(sx * 0.16, 0.44, headD * 0.5 + 0.055);
+            lens.position.set(sx * 0.16, 0.44, headD * 0.5 + 0.060);
             const rim = new THREE.Mesh(new RoundedBoxGeometry(0.255, 0.125, 0.010, 1, 0.02), gold24kMat);
-            rim.position.set(sx * 0.16, 0.44, headD * 0.5 + 0.051);
+            rim.position.set(sx * 0.16, 0.44, headD * 0.5 + 0.056);
             sunglasses.add(rim, lens);
         }
         const bridge = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.02, 0.015), gold24kMat);
-        bridge.position.set(0, 0.45, headD * 0.5 + 0.055);
+        bridge.position.set(0, 0.45, headD * 0.5 + 0.060);
         sunglasses.add(bridge);
         headPivot.add(sunglasses);
         this.outfits.sunglasses = sunglasses;
@@ -5293,6 +7018,8 @@ class FunkiraAtelierEngine {
 
         const ctx = this.visorCtx;
         ctx.drawImage(this.visorBgCanvas, 0, 0);
+        ctx.save();
+        ctx.scale(2, 2);
 
         const eyeY = 118 + gy * 0.72;
         const eyeCenters = [111 + gx * 0.85, 273 + gx * 0.85];
@@ -5377,7 +7104,7 @@ class FunkiraAtelierEngine {
             const blushAlpha = clamp(this.faceCur.blush || 0.35, 0, 1);
             if (blushAlpha > 0.08) {
                 ctx.globalAlpha = blushAlpha;
-                ctx.drawImage(this.blushSpriteCanvas, ex + side * 10 - 32, eyeY + 52 - 20);
+                ctx.drawImage(this.blushSpriteCanvas, ex + side * 10 - 32, eyeY + 52 - 20, 64, 40);
                 ctx.globalAlpha = 1.0;
             }
 
@@ -5435,6 +7162,8 @@ class FunkiraAtelierEngine {
             const zy = 48 - ((nowMs * 0.019) % 18);
             ctx.fillText('zZ', 330, zy);
         }
+
+        ctx.restore();
 
         if (this.visorTexture) {
             this.visorTexture.needsUpdate = true;
@@ -5868,11 +7597,11 @@ class FunkiraAtelierEngine {
             this.fps = Math.round((this._fpsFrames * 1000) / winElapsed);
             this._fpsFrames = 0;
             this._fpsWindowStartMs = nowMs;
-            if (this.fps < 50 && this.renderScale > 0.46) {
-                this.renderScale = Math.max(0.46, +(this.renderScale - 0.07).toFixed(2));
+            if (this.fps < 52 && this.renderScale > 0.56) {
+                this.renderScale = Math.max(0.56, +(this.renderScale - 0.06).toFixed(2));
                 this.resize();
-            } else if (this.fps >= 59 && this.renderScale < 0.66) {
-                this.renderScale = Math.min(0.66, +(this.renderScale + 0.03).toFixed(2));
+            } else if (this.fps >= 58 && this.renderScale < 1.00) {
+                this.renderScale = Math.min(1.00, +(this.renderScale + 0.04).toFixed(2));
                 this.resize();
             }
         }
@@ -5930,38 +7659,77 @@ class FunkiraAtelierEngine {
             }
         }
 
-        // Smooth 2-Floor & Staircase Waypoint Locomotion
-        let dx = this.targetPos.x - this.pos.x;
-        let dz = this.targetPos.z - this.pos.z;
-        let dist = Math.hypot(dx, dz);
-        if (dist <= 0.065 && this.waypoints && this.waypoints.length > 0) {
-            const nxt = this.waypoints.shift();
-            this.targetPos.set(nxt.x, nxt.y, nxt.z);
-            this.targetFloor = nxt.floor;
-            dx = this.targetPos.x - this.pos.x;
-            dz = this.targetPos.z - this.pos.z;
-            dist = Math.hypot(dx, dz);
+        // Smooth 2-Floor, Staircase & Vertical Hydraulic Vault Lift Locomotion
+        let isRidingLift = false;
+        let isWalking = false;
+
+        if (this.targetFloor === 'cellar_stairs') {
+            this.pos.x = lerp(this.pos.x, 2.86, 1 - Math.exp(-dt * 14));
+            this.pos.z = lerp(this.pos.z, -0.73, 1 - Math.exp(-dt * 14));
+            const dy = this.targetPos.y - this.pos.y;
+            const yDist = Math.abs(dy);
+            if (yDist <= 0.035) {
+                this.pos.y = this.targetPos.y;
+                if (this.waypoints && this.waypoints.length > 0) {
+                    const nxt = this.waypoints.shift();
+                    this.targetPos.set(nxt.x, nxt.y, nxt.z);
+                    this.targetFloor = nxt.floor;
+                }
+            } else {
+                isRidingLift = true;
+                const liftSpeed = 1.92;
+                this.pos.y = clamp(this.pos.y + Math.sign(dy) * Math.min(yDist, liftSpeed * dt), UG_Y, 0.0);
+                let diff = 0.0 - this.facingYaw;
+                while (diff > Math.PI) diff -= Math.PI * 2;
+                while (diff < -Math.PI) diff += Math.PI * 2;
+                this.facingYaw += diff * (1 - Math.exp(-dt * 9.5));
+                if (this.rig.broom) this.rig.broom.visible = false;
+                if (this.rig.cloth) this.rig.cloth.visible = false;
+                if (this.rig.wateringCan) this.rig.wateringCan.visible = false;
+                if (this.rig.gardenTrowel) this.rig.gardenTrowel.visible = false;
+            }
         }
-        const isWalking = dist > 0.045;
 
-        if (isWalking) {
-            const step = Math.min(dist, this.moveSpeed * dt);
-            this.pos.x += (dx / dist) * step;
-            this.pos.z += (dz / dist) * step;
-            this._enforceCharacterCollision();
-            this.walkPhase += dt * (this.moveSpeed > 3.2 ? 18.2 : (this.moveSpeed > 2.2 ? 13.5 : 8.8));
+        if (!isRidingLift && this.targetFloor !== 'cellar_stairs') {
+            let dx = this.targetPos.x - this.pos.x;
+            let dz = this.targetPos.z - this.pos.z;
+            let dist = Math.hypot(dx, dz);
+            if (dist <= 0.065 && this.waypoints && this.waypoints.length > 0) {
+                const nxt = this.waypoints.shift();
+                this.targetPos.set(nxt.x, nxt.y, nxt.z);
+                this.targetFloor = nxt.floor;
+                if (this.targetFloor !== 'cellar_stairs') {
+                    dx = this.targetPos.x - this.pos.x;
+                    dz = this.targetPos.z - this.pos.z;
+                    dist = Math.hypot(dx, dz);
+                } else {
+                    dist = 0;
+                    isRidingLift = true;
+                }
+            }
+            isWalking = !isRidingLift && dist > 0.045;
 
-            const moveYaw = Math.atan2(dx, dz);
-            let diff = moveYaw - this.facingYaw;
-            while (diff > Math.PI) diff -= Math.PI * 2;
-            while (diff < -Math.PI) diff += Math.PI * 2;
-            this.facingYaw += diff * (1 - Math.exp(-dt * 11));
+            if (isWalking) {
+                const step = Math.min(dist, this.moveSpeed * dt);
+                this.pos.x += (dx / dist) * step;
+                this.pos.z += (dz / dist) * step;
+                this._enforceCharacterCollision();
+                this.walkPhase += dt * (this.moveSpeed > 3.2 ? 18.2 : (this.moveSpeed > 2.2 ? 13.5 : 8.8));
 
-            if (this.rig.broom) this.rig.broom.visible = false;
-            if (this.rig.cloth) this.rig.cloth.visible = false;
-            if (this.rig.wateringCan) this.rig.wateringCan.visible = false;
-            if (this.rig.gardenTrowel) this.rig.gardenTrowel.visible = false;
-        } else {
+                const moveYaw = Math.atan2(dx, dz);
+                let diff = moveYaw - this.facingYaw;
+                while (diff > Math.PI) diff -= Math.PI * 2;
+                while (diff < -Math.PI) diff += Math.PI * 2;
+                this.facingYaw += diff * (1 - Math.exp(-dt * 11));
+
+                if (this.rig.broom) this.rig.broom.visible = false;
+                if (this.rig.cloth) this.rig.cloth.visible = false;
+                if (this.rig.wateringCan) this.rig.wateringCan.visible = false;
+                if (this.rig.gardenTrowel) this.rig.gardenTrowel.visible = false;
+            }
+        }
+
+        if (!isWalking && !isRidingLift) {
             this._enforceCharacterCollision();
             if (this.isSprintingHome) {
                 this.isSprintingHome = false;
@@ -6367,19 +8135,70 @@ class FunkiraAtelierEngine {
         this._applyArmSmoothing(this.rig.armR, armPose.rS, armPose.rE, armPose.rW, armPose.rCurl, armPose.pointHand === 'R', armBlend);
         this._applyArmSmoothing(this.rig.armL, armPose.lS, armPose.lE, armPose.lW, armPose.lCurl, armPose.pointHand === 'L', armBlend);
 
-        // Smooth Indoor/Outdoor Sky Background Blend
-        const bgTarget = (isOutdoors || this.worldState.occasion === 'silvester' || this.worldState.occasion === 'new_year')
-            ? this.outdoorSkyColor
-            : this.indoorBgColor;
+        // Smooth Indoor/Outdoor/Cellar Sky Background Blend & Hysteresis Hydraulic Lift Cut
+        const showCellar = (this.pos.y < -0.02) || (this.targetFloor === 'cellar_stairs') || (this.targetFloor === -1);
+        const deepThreshold = this._wasDeepInCellar ? -1.56 : -1.76;
+        const deepInCellar = (this.pos.y <= deepThreshold);
+        if (this.cellarLiftPlatform) {
+            this.cellarLiftPlatform.position.y = (isRidingLift || (this.pos.y < -0.02 && this.pos.y > UG_Y + 0.02))
+                ? this.pos.y
+                : (deepInCellar ? UG_Y : 0.0);
+        }
+        if (deepInCellar !== Boolean(this._wasDeepInCellar)) {
+            this._wasDeepInCellar = deepInCellar;
+            if (deepInCellar) {
+                // Clean Cinema Cut into Subterranean Arrival Balcony looking through the Round 24K-Gold Vault Portal across the 5.35m Bridge!
+                this.camera.position.set(1.18, UG_Y + 2.28, -1.72);
+                this.cameraLook.set(0.08, UG_Y + 1.92, 9.40);
+                this.camera.lookAt(this.cameraLook);
+            } else {
+                // Clean Cinema Cut back to Heizungsraum Hydraulic Vault Lift when ascending above ceiling slab
+                this.camera.position.set(2.26, 2.92, 2.65);
+                this.cameraLook.set(2.86, this.pos.y + 0.85, -0.73);
+                this.camera.lookAt(this.cameraLook);
+            }
+        }
+        const bgTarget = deepInCellar
+            ? this.cellarBgColor
+            : ((isOutdoors || this.worldState.occasion === 'silvester' || this.worldState.occasion === 'new_year')
+                ? this.outdoorSkyColor
+                : this.indoorBgColor);
         this.scene.background.lerp(bgTarget, 1 - Math.exp(-dt * 2.6));
 
         // ====================================================================
-        // SMART 2-FLOOR DOLLHOUSE, TERRACE/GARDEN & LANDMARK CAMERA GLIDING
+        // SMART 2-FLOOR DOLLHOUSE, KUPPELHALLE BRIDGE, TERRACE/GARDEN & LANDMARK CAMERA GLIDING
         // ====================================================================
         const useDollhouseView = (this.mode === 'atelier_autonomous') || (this.pos.y < OG_Y - 0.15) || (this.pos.z < 2.35);
 
         let camTargetX, camTargetY, camTargetZ, lookX, lookY, lookZ;
-        if (!useDollhouseView) {
+        if (deepInCellar) {
+            if (this.pos.z < 7.15) {
+                // Cinematic Bridge Walk Tracking: Camera glides from Arrival Balcony through the Round Vault Portal down the 5.35m bridge!
+                const bridgeT = clamp((this.pos.z - 0.92) / (7.15 - 0.92), 0, 1);
+                camTargetX = lerp(1.05, 0.00, bridgeT);
+                camTargetY = lerp(UG_Y + 2.28, UG_Y + 2.38, bridgeT);
+                camTargetZ = clamp(this.pos.z - 3.05, -1.72, 2.82);
+                lookX = lerp(0.12, 0.00, bridgeT);
+                lookY = UG_Y + 1.95;
+                lookZ = 9.40;
+            } else {
+                // Pure Full-Screen Symmetrical Kuppelhalle Panorama: Zero control windows, dead-center 25.2m Dome + 3.8m 3D Project-Brain + Nero-Marquina Island!
+                camTargetX = 0.00;
+                camTargetY = UG_Y + 2.38;
+                camTargetZ = 2.82;
+                lookX = 0.00;
+                lookY = UG_Y + 1.96;
+                lookZ = 9.40;
+            }
+        } else if (this.pos.y < -0.02 && !deepInCellar) {
+            // Descending / Ascending Hydraulic Vault Lift in Heizungsraum (0% ceiling clipping!)
+            camTargetX = 2.26;
+            camTargetY = 2.92;
+            camTargetZ = 2.65;
+            lookX = 2.86;
+            lookY = this.pos.y + 0.85;
+            lookZ = -0.73;
+        } else if (!useDollhouseView) {
             if (this.cameraFocusMode === 'closeup_photo' || isPointingPhoto) {
                 // Crisp, unobstructed close-up framing of the 12-Colleagues Portrait + Funkira beside it!
                 camTargetX = 0.26;
@@ -6445,8 +8264,23 @@ class FunkiraAtelierEngine {
         this.cameraLook.z = lerp(this.cameraLook.z, lookZ, camBlend);
         this.camera.lookAt(this.cameraLook);
 
-        // Dynamic Floor & Roof Cutaway Visibility
-        const showOg = !(useDollhouseView && this.pos.y < 1.95);
+        // Strict Floor, Roof & Secret Cellar Visibility Culling (0% Cellar GPU Load Upstairs; 0% Upstairs Load in Cellar!)
+        if (this.cellarGroup && this.cellarGroup.visible !== showCellar) {
+            this.cellarGroup.visible = showCellar;
+        }
+        if (this.cellarDomeShellGroup && this.cellarDomeShellGroup.visible !== deepInCellar) {
+            this.cellarDomeShellGroup.visible = deepInCellar;
+        }
+        const showUpstairsHouse = !deepInCellar;
+        if (this.egGroup && this.egGroup.visible !== showUpstairsHouse) this.egGroup.visible = showUpstairsHouse;
+        if (this.egItemsGroup && this.egItemsGroup.visible !== showUpstairsHouse) this.egItemsGroup.visible = showUpstairsHouse;
+        if (this.egWeatherGroup && this.egWeatherGroup.visible !== showUpstairsHouse) this.egWeatherGroup.visible = showUpstairsHouse;
+        if (this.stairsGroup && this.stairsGroup.visible !== showUpstairsHouse) this.stairsGroup.visible = showUpstairsHouse;
+        if (this.gardenGroup && this.gardenGroup.visible !== showUpstairsHouse) this.gardenGroup.visible = showUpstairsHouse;
+        if (this.upstairsFxGroup && this.upstairsFxGroup.visible !== showUpstairsHouse) this.upstairsFxGroup.visible = showUpstairsHouse;
+        if (this.lawnMowerGroup && this.lawnMowerGroup.visible !== showUpstairsHouse) this.lawnMowerGroup.visible = showUpstairsHouse;
+
+        const showOg = showUpstairsHouse && !(useDollhouseView && this.pos.y < 1.95);
         const showClosedAtelierGable = showOg && !useDollhouseView && (this.camera.position.z < 6.75);
         if (this.ogGroup && this.ogGroup.visible !== showOg) {
             this.ogGroup.visible = showOg;
@@ -6459,6 +8293,52 @@ class FunkiraAtelierEngine {
         }
         if (this.ogSouthWeatherGroup) {
             this.ogSouthWeatherGroup.visible = showClosedAtelierGable;
+        }
+
+        // 60-FPS Zero-GC Spherical Project-Brain Pulse, Gyroscope Orbits, Healing Wave & Camera-Facing Labels (Runs ONLY when deepInCellar === true!)
+        if (deepInCellar && this.cellarHoloGroup) {
+            this.cellarHoloGroup.position.y = UG_Y + 2.56 + Math.sin(tSec * 1.65) * 0.035;
+            if (this.cellarBrainShellMesh) {
+                this.cellarBrainShellMesh.rotation.y = tSec * 0.085;
+                this.cellarBrainShellMesh.rotation.x = Math.sin(tSec * 0.32) * 0.06;
+            }
+            if (this.cellarBrainInnerMesh) {
+                this.cellarBrainInnerMesh.rotation.y = -tSec * 0.19;
+                this.cellarBrainInnerMesh.rotation.z = tSec * 0.11;
+            }
+            if (this.cellarBrainOrbitA) {
+                this.cellarBrainOrbitA.rotation.z = tSec * 0.18;
+            }
+            if (this.cellarBrainOrbitB) {
+                this.cellarBrainOrbitB.rotation.z = -tSec * 0.23;
+            }
+            if (this.cellarBrainOrbitC) {
+                this.cellarBrainOrbitC.rotation.z = tSec * 0.14;
+                this.cellarBrainOrbitC.rotation.y = Math.sin(tSec * 0.45) * 0.18;
+            }
+            if (this.cellarHealAnimTimer > 0 && this.cellarHealWaveMesh && this.cellarHealWaveMat) {
+                this.cellarHealAnimTimer = Math.max(0, this.cellarHealAnimTimer - dt);
+                const prog = 1.0 - (this.cellarHealAnimTimer / 2.4);
+                this.cellarHealWaveMesh.visible = this.cellarHealAnimTimer > 0.02;
+                this.cellarHealWaveMesh.scale.setScalar(0.35 + prog * 2.55);
+                this.cellarHealWaveMat.opacity = Math.max(0, (1.0 - prog) * 0.88);
+            }
+            for (let i = 0; i < this.cellarNodeSlots.length; i++) {
+                const sl = this.cellarNodeSlots[i];
+                if (!sl.group.visible) continue;
+                sl.coreMesh.rotation.y = tSec * 1.25 + i * 0.4;
+                if (sl.pulseKind === 'error') {
+                    const pulse = sl.baseScale * (1.0 + Math.sin(tSec * 4.8 + i) * 0.095);
+                    sl.coreMesh.scale.setScalar(pulse);
+                } else {
+                    const calmBreath = sl.baseScale * (1.0 + Math.sin(tSec * 1.9 + i * 0.7) * 0.032);
+                    sl.coreMesh.scale.setScalar(calmBreath);
+                }
+                if (sl.ringMesh.visible) {
+                    sl.ringMesh.quaternion.copy(this.camera.quaternion);
+                }
+                sl.labelMesh.quaternion.copy(this.camera.quaternion);
+            }
         }
 
         // Ambient Animations (Vitrine Gem, Window & Outdoor Weather, Watering Stream, Fireworks, Sparks & Petals)
@@ -6626,7 +8506,7 @@ class FunkiraAtelierEngine {
             p.mesh.rotation.x += p.spin * dt;
             p.mesh.rotation.y += p.spin * 0.7 * dt;
             if (p.life <= 0 || p.mesh.position.y < (p.minY ?? 0.03)) {
-                this.scene.remove(p.mesh);
+                (p.mesh.parent || this.scene).remove(p.mesh);
                 this.fallingPetals.splice(i, 1);
             }
         }

@@ -20,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -324,6 +325,7 @@ fun PriorityTaskCard(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun OrderCard(
     order: OrderSummary,
@@ -346,70 +348,39 @@ fun OrderCard(
         Column(
             modifier = Modifier.padding(16.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            Text(
+                text = "Bestellung #${order.order_number}",
+                fontWeight = FontWeight.Bold,
+                fontSize = 16.sp,
+                color = Gold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Bestellung #${order.order_number}",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp,
-                        color = Gold
-                    )
-                    if (order.is_express == true) {
-                        val infiniteTransition = rememberInfiniteTransition(label = "expressPulse")
-                        val alpha by infiniteTransition.animateFloat(
-                            initialValue = 0.3f,
-                            targetValue = 1f,
-                            animationSpec = infiniteRepeatable(
-                                animation = keyframes { durationMillis = 800 },
-                                repeatMode = RepeatMode.Reverse
-                            ),
-                            label = "expressAlpha"
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Surface(
-                            color = Color(0x22EF4444),
-                            shape = RoundedCornerShape(4.dp),
-                            modifier = Modifier.border(0.5.dp, Color(0xFFEF4444), RoundedCornerShape(4.dp))
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(6.dp)
-                                        .background(Color(0xFFEF4444).copy(alpha = alpha), CircleShape)
-                                )
-                                Text(
-                                    text = "EXPRESS",
-                                    color = Color(0xFFEF4444),
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 8.sp
-                                )
-                            }
-                        }
-                    }
-                }
                 StatusBadge(status = order.status, statusColorHex = order.status_color)
+                if (order.is_express == true) {
+                    ExpressIndicator(label = "Express", pulse = isActive)
+                }
             }
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(10.dp))
             Text(
                 text = order.customer_name,
                 color = AppTheme.colors.textPrimary,
                 fontSize = 14.sp,
-                fontWeight = FontWeight.Medium
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
             Text(
                 text = order.email,
                 color = AppTheme.colors.textMuted,
-                fontSize = 12.sp
+                fontSize = 12.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
             Spacer(modifier = Modifier.height(12.dp))
             Divider(color = AppTheme.colors.cardBorder)
@@ -419,30 +390,43 @@ fun OrderCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(end = 8.dp)
+                ) {
                     Text(
                         text = "Datum: " + formatDateString(order.created_at),
                         color = AppTheme.colors.textMuted,
-                        fontSize = 11.sp
+                        fontSize = 11.sp,
+                        maxLines = 1,
+                        softWrap = false
                     )
+                    val formattedMethod = order.payment_method.replaceFirstChar {
+                        if (it.isLowerCase()) it.titlecase(Locale.GERMANY) else it.toString()
+                    }
                     Text(
-                        text = "${order.item_count} Artikel • ${order.payment_method}",
+                        text = "${order.item_count} Artikel • $formattedMethod",
                         color = AppTheme.colors.textMuted,
-                        fontSize = 11.sp
+                        fontSize = 11.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
                 Text(
                     text = formatPrice(order.total_price),
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp,
-                    color = Gold
+                    color = Gold,
+                    maxLines = 1,
+                    softWrap = false
                 )
             }
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun OrderDetailDialog(
     order: OrderDetail,
@@ -480,7 +464,9 @@ fun OrderDetailDialog(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(20.dp)
+                    .statusBarsPadding()
+                    .navigationBarsPadding()
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
             ) {
                 // Header Bar
                 Row(
@@ -542,14 +528,38 @@ fun OrderDetailDialog(
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Column {
+                                    Column(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .padding(end = 12.dp)
+                                    ) {
                                         Text("KUNDE", color = AppTheme.colors.textMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
-                                        Text(order.customer_name, color = AppTheme.colors.textPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                                        Text(order.email, color = AppTheme.colors.textMuted, fontSize = 12.sp)
+                                        Text(
+                                            text = order.customer_name,
+                                            color = AppTheme.colors.textPrimary,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 16.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text = order.email,
+                                            color = AppTheme.colors.textMuted,
+                                            fontSize = 12.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
                                     }
                                     Column(horizontalAlignment = Alignment.End) {
                                         Text("BESTELLWERT", color = AppTheme.colors.textMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
-                                        Text(formatPrice(order.total_price), color = Gold, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                                        Text(
+                                            text = formatPrice(order.total_price),
+                                            color = Gold,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 20.sp,
+                                            maxLines = 1,
+                                            softWrap = false
+                                        )
                                     }
                                 }
                                 
@@ -557,35 +567,33 @@ fun OrderDetailDialog(
                                 Divider(color = AppTheme.colors.cardBorder)
                                 Spacer(modifier = Modifier.height(16.dp))
                                 
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column {
-                                        Text("ZAHLUNG", color = AppTheme.colors.textMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            modifier = Modifier.padding(top = 4.dp)
-                                        ) {
-                                            StatusBadge(status = order.payment_status, statusColorHex = order.payment_status_color)
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Text(order.payment_method.uppercase(), color = AppTheme.colors.textPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Column(modifier = Modifier.fillMaxWidth()) {
+                                    Text("ZAHLUNG & HINWEISE", color = AppTheme.colors.textMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                                    FlowRow(
+                                        modifier = Modifier.padding(top = 6.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        StatusBadge(status = order.payment_status, statusColorHex = order.payment_status_color)
+                                        val formattedPayMethod = order.payment_method.replaceFirstChar {
+                                            if (it.isLowerCase()) it.titlecase(Locale.GERMANY) else it.toString()
                                         }
-                                    }
-                                    if (order.is_express == true) {
                                         Surface(
-                                            color = Color(0x22EF4444),
-                                            shape = RoundedCornerShape(8.dp),
-                                            modifier = Modifier.border(1.dp, Color(0x66EF4444), RoundedCornerShape(8.dp))
+                                            color = AppTheme.colors.glassSurface,
+                                            shape = CircleShape
                                         ) {
                                             Text(
-                                                text = "🚀 EXPRESSVERSAND",
-                                                color = Color(0xFFEF4444),
-                                                fontWeight = FontWeight.Bold,
+                                                text = formattedPayMethod,
+                                                color = AppTheme.colors.textSecondary,
                                                 fontSize = 11.sp,
-                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                                fontWeight = FontWeight.SemiBold,
+                                                maxLines = 1,
+                                                softWrap = false,
+                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                                             )
+                                        }
+                                        if (order.is_express == true) {
+                                            ExpressIndicator(label = "Expressversand", pulse = false)
                                         }
                                     }
                                 }
@@ -792,48 +800,97 @@ fun OrderDetailDialog(
                         }
                     }
 
-                    // Addresses (Rechnung / Lieferung side-by-side)
+                    // Addresses (Stacked cleanly on mobile, side-by-side on wide screens)
                     item {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Card(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .border(1.dp, AppTheme.colors.cardBorder, RoundedCornerShape(16.dp)),
-                                colors = CardDefaults.cardColors(containerColor = AppTheme.colors.cardBackground),
-                                shape = RoundedCornerShape(16.dp)
-                            ) {
-                                Column(modifier = Modifier.padding(16.dp)) {
-                                    Text("Rechnungsadresse", color = AppTheme.colors.textMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Text(
-                                        text = formatAddress(order.billing_address),
-                                        color = AppTheme.colors.textPrimary,
-                                        fontSize = 13.sp,
-                                        lineHeight = 18.sp,
-                                        fontWeight = FontWeight.Medium
-                                    )
+                        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                            val isCompact = maxWidth < 500.dp
+                            if (isCompact) {
+                                Column(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Card(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .border(1.dp, AppTheme.colors.cardBorder, RoundedCornerShape(16.dp)),
+                                        colors = CardDefaults.cardColors(containerColor = AppTheme.colors.cardBackground),
+                                        shape = RoundedCornerShape(16.dp)
+                                    ) {
+                                        Column(modifier = Modifier.padding(16.dp)) {
+                                            Text("Rechnungsadresse", color = AppTheme.colors.textMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                                            Spacer(modifier = Modifier.height(6.dp))
+                                            Text(
+                                                text = formatAddress(order.billing_address),
+                                                color = AppTheme.colors.textPrimary,
+                                                fontSize = 13.sp,
+                                                lineHeight = 18.sp,
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                        }
+                                    }
+                                    Card(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .border(1.dp, AppTheme.colors.cardBorder, RoundedCornerShape(16.dp)),
+                                        colors = CardDefaults.cardColors(containerColor = AppTheme.colors.cardBackground),
+                                        shape = RoundedCornerShape(16.dp)
+                                    ) {
+                                        Column(modifier = Modifier.padding(16.dp)) {
+                                            Text("Lieferadresse", color = AppTheme.colors.textMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                                            Spacer(modifier = Modifier.height(6.dp))
+                                            Text(
+                                                text = formatAddress(order.shipping_address),
+                                                color = AppTheme.colors.textPrimary,
+                                                fontSize = 13.sp,
+                                                lineHeight = 18.sp,
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                        }
+                                    }
                                 }
-                            }
-                            Card(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .border(1.dp, AppTheme.colors.cardBorder, RoundedCornerShape(16.dp)),
-                                colors = CardDefaults.cardColors(containerColor = AppTheme.colors.cardBackground),
-                                shape = RoundedCornerShape(16.dp)
-                            ) {
-                                Column(modifier = Modifier.padding(16.dp)) {
-                                    Text("Lieferadresse", color = AppTheme.colors.textMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Text(
-                                        text = formatAddress(order.shipping_address),
-                                        color = AppTheme.colors.textPrimary,
-                                        fontSize = 13.sp,
-                                        lineHeight = 18.sp,
-                                        fontWeight = FontWeight.Medium
-                                    )
+                            } else {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Card(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .border(1.dp, AppTheme.colors.cardBorder, RoundedCornerShape(16.dp)),
+                                        colors = CardDefaults.cardColors(containerColor = AppTheme.colors.cardBackground),
+                                        shape = RoundedCornerShape(16.dp)
+                                    ) {
+                                        Column(modifier = Modifier.padding(16.dp)) {
+                                            Text("Rechnungsadresse", color = AppTheme.colors.textMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Text(
+                                                text = formatAddress(order.billing_address),
+                                                color = AppTheme.colors.textPrimary,
+                                                fontSize = 13.sp,
+                                                lineHeight = 18.sp,
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                        }
+                                    }
+                                    Card(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .border(1.dp, AppTheme.colors.cardBorder, RoundedCornerShape(16.dp)),
+                                        colors = CardDefaults.cardColors(containerColor = AppTheme.colors.cardBackground),
+                                        shape = RoundedCornerShape(16.dp)
+                                    ) {
+                                        Column(modifier = Modifier.padding(16.dp)) {
+                                            Text("Lieferadresse", color = AppTheme.colors.textMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Text(
+                                                text = formatAddress(order.shipping_address),
+                                                color = AppTheme.colors.textPrimary,
+                                                fontSize = 13.sp,
+                                                lineHeight = 18.sp,
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -1209,19 +1266,56 @@ fun OrderDetailDialog(
 }
 
 @Composable
-fun StatusBadge(status: String, statusColorHex: String?) {
-    val backgroundColor = statusColorHex?.let {
-        try {
-            Color(android.graphics.Color.parseColor(it)).copy(alpha = 0.15f)
-        } catch (e: Exception) {
-            Color(0x33C5A059)
-        }
-    } ?: Color(0x33C5A059)
+fun ExpressIndicator(label: String = "Express", pulse: Boolean = true) {
+    val dotAlpha = if (pulse) {
+        val infiniteTransition = rememberInfiniteTransition(label = "expressPulse")
+        val anim by infiniteTransition.animateFloat(
+            initialValue = 0.35f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = keyframes { durationMillis = 900 },
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "expressAlpha"
+        )
+        anim
+    } else {
+        1f
+    }
 
-    val textColor = statusColorHex?.let {
+    val accentRed = Color(0xFFDC2626)
+    Surface(
+        color = accentRed.copy(alpha = 0.12f),
+        shape = CircleShape
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(6.dp)
+                    .background(accentRed.copy(alpha = dotAlpha), CircleShape)
+            )
+            Text(
+                text = label,
+                color = accentRed,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                softWrap = false
+            )
+        }
+    }
+}
+
+@Composable
+fun StatusBadge(status: String, statusColorHex: String?) {
+    val baseColor = statusColorHex?.let {
         try {
             Color(android.graphics.Color.parseColor(it))
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             Gold
         }
     } ?: Gold
@@ -1235,21 +1329,32 @@ fun StatusBadge(status: String, statusColorHex: String?) {
         "refunded" -> "Erstattet"
         "paid" -> "Bezahlt"
         "unpaid" -> "Unbezahlt"
-        else -> status.capitalize(Locale.ROOT)
+        else -> status.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.GERMANY) else it.toString() }
     }
 
     Surface(
-        color = backgroundColor,
-        shape = RoundedCornerShape(6.dp),
-        modifier = Modifier.border(1.dp, textColor.copy(alpha = 0.3f), RoundedCornerShape(6.dp))
+        color = baseColor.copy(alpha = 0.12f),
+        shape = CircleShape
     ) {
-        Text(
-            text = label.uppercase(Locale.ROOT),
-            color = textColor,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(6.dp)
+                    .background(baseColor, CircleShape)
+            )
+            Text(
+                text = label,
+                color = baseColor,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                softWrap = false
+            )
+        }
     }
 }
 

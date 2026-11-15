@@ -149,5 +149,52 @@ class FunkiraErrorCellarAndHandoffTest extends TestCase
         Sanctum::actingAs($admin, ['shop:monitor']);
         $this->getJson('/api/ai/cellar-snapshot')->assertStatus(403);
         $this->postJson('/api/ai/cellar-handoff', [])->assertStatus(403);
+        $this->postJson('/api/ai/cellar-auto-heal', [])->assertStatus(403);
+    }
+
+    public function test_cellar_auto_heal_resolves_recoverable_errors_and_dispatches_code_bug_dossier(): void
+    {
+        $admin = Admin::factory()->create();
+        Sanctum::actingAs($admin, ['ai:funkira']);
+
+        $recoverableLog = SystemLog::create([
+            'type' => 'system',
+            'action_id' => 'gemini:timeout',
+            'title' => 'Gemini Live Connection Timed Out',
+            'message' => 'cURL error 28: Connection timed out after 10000 milliseconds',
+            'status' => 'error',
+            'payload' => [
+                'file' => 'app/Services/AI/GeminiAgent.php',
+                'line' => 210,
+                'occurrences_count' => 1,
+            ],
+            'started_at' => now()->subMinutes(10),
+            'finished_at' => now()->subMinutes(10),
+        ]);
+
+        SystemLog::create([
+            'type' => 'system',
+            'action_id' => 'checkout:exception',
+            'title' => 'Unbehandelte Checkout-Exception',
+            'message' => 'DivisionByZeroError in app/Livewire/Shop/Order/OrderCheckout/OrderCheckout.php:188',
+            'status' => 'error',
+            'payload' => [
+                'file' => 'app/Livewire/Shop/Order/OrderCheckout/OrderCheckout.php',
+                'line' => 188,
+                'occurrences_count' => 2,
+            ],
+            'started_at' => now()->subMinutes(3),
+            'finished_at' => now()->subMinutes(3),
+        ]);
+
+        $resp = $this->postJson('/api/ai/cellar-auto-heal', []);
+        $resp->assertOk()
+            ->assertJsonPath('status', 'success')
+            ->assertJsonPath('auto_dispatched', true)
+            ->assertJsonPath('dossier.culprit_file', 'app/Livewire/Shop/Order/OrderCheckout/OrderCheckout.php');
+
+        $this->assertGreaterThanOrEqual(1, (int) $resp->json('healed_count'));
+        $this->assertSame('success', $recoverableLog->fresh()->status);
+        $this->assertTrue(File::exists($this->handoffPath));
     }
 }

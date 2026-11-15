@@ -1,6 +1,8 @@
 package de.meinseelenfunke.app.ui.screens
 
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -57,8 +59,25 @@ fun MusicTabContent() {
     var searchQuery by remember { mutableStateOf("") }
     var importOrPlaylistInput by remember { mutableStateOf("") }
     var isImporting by remember { mutableStateOf(false) }
+    var hasAudioPermission by remember {
+        mutableStateOf(MusicPlayerManager.hasReadMediaAudioPermission(context))
+    }
+
+    val audioPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        hasAudioPermission = granted
+        if (granted) {
+            MusicPlayerManager.rescanLocalDeviceMusic(context)
+        }
+    }
 
     LaunchedEffect(Unit) {
+        val permGranted = MusicPlayerManager.hasReadMediaAudioPermission(context)
+        hasAudioPermission = permGranted
+        if (!permGranted) {
+            audioPermissionLauncher.launch(MusicPlayerManager.requiredMediaAudioPermission())
+        }
         MusicPlayerManager.ensureCatalogLoadedFast(context)
         MusicPlayerManager.fetchPlaylists(context)
     }
@@ -421,6 +440,21 @@ fun MusicTabContent() {
                         overflow = TextOverflow.Ellipsis
                     )
                 }
+            }
+        }
+
+        if (!hasAudioPermission) {
+            Button(
+                onClick = {
+                    audioPermissionLauncher.launch(MusicPlayerManager.requiredMediaAudioPermission())
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = Color(0xFF0F1117)),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp)
+            ) {
+                Text("Lokale Musik freigeben", fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
             }
         }
 

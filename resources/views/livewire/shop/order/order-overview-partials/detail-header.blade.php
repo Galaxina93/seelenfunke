@@ -1,156 +1,166 @@
-<div class="bg-white/80 dark:bg-gray-900/50 backdrop-blur-xl border-b border-gray-200 dark:border-gray-800 px-6 py-5 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-5 shrink-0 z-20">
+<div class="bg-white/90 dark:bg-gray-900/80 backdrop-blur-xl border-b border-gray-200 dark:border-gray-800 px-5 sm:px-8 py-4 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 shrink-0 z-30">
 
-    <div class="flex items-center gap-4 xl:gap-6">
-        <button wire:click="closeDetail" class="group flex items-center gap-3 text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors">
-            <div class="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 flex items-center justify-center group-hover:bg-[var(--theme-color)] group-hover:border-[var(--theme-color)] group-hover:text-gray-900 transition-all duration-300 shadow-sm dark:shadow-inner">
-                <svg class="w-5 h-5 transition-transform group-hover:-translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+    {{-- LINKS: Zurück-Button + Auftragsnummer + Zahlstatus-Pill --}}
+    <div class="flex items-center gap-3.5 sm:gap-5">
+        <button wire:click="closeDetail" class="group flex items-center gap-2.5 text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors cursor-pointer">
+            <div class="w-9 h-9 rounded-full bg-gray-100 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 flex items-center justify-center group-hover:bg-[var(--theme-color)] group-hover:border-[var(--theme-color)] group-hover:text-gray-900 transition-all duration-300 shadow-sm">
+                <svg class="w-4 h-4 transition-transform group-hover:-translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
             </div>
-            <span class="text-[10px] font-black uppercase tracking-widest hidden xl:inline transition-colors">Übersicht</span>
+            <span class="text-[10px] font-black uppercase tracking-widest hidden sm:inline">Übersicht</span>
         </button>
 
-        <div class="h-8 w-px bg-gray-200 dark:bg-gray-800"></div>
+        <div class="h-7 w-px bg-gray-200 dark:bg-gray-800"></div>
 
         <div>
-            <div class="flex flex-wrap items-center gap-3">
-                <h1 class="text-xl xl:text-2xl font-serif font-bold text-gray-900 dark:text-white tracking-tight">
+            <div class="flex flex-wrap items-center gap-2.5">
+                <h1 class="text-lg sm:text-xl font-serif font-bold text-gray-900 dark:text-white tracking-tight">
                     #{{ $this->selectedOrder->order_number }}
                 </h1>
+
                 @if($this->selectedOrder->is_express)
-                    <x-shop.express-info iconClass="w-3.5 h-3.5" class="text-gray-800 dark:text-gray-100 border border-primary/40 text-[9px] font-black px-2.5 py-1 rounded-md uppercase tracking-widest shadow-2xs" />
+                    <x-shop.express-info iconClass="w-3.5 h-3.5" class="text-gray-800 dark:text-gray-100 border border-primary/40 text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-widest shadow-2xs" />
                 @endif
 
-                @php
-                    $nextInQueue = $this->nextQueueOrder;
-                @endphp
-                @if($nextInQueue)
-                    <button type="button"
-                            wire:click="openDetail('{{ $nextInQueue['id'] }}')"
-                            title="Direkt weiter zu #{{ $nextInQueue['order_number'] }}{{ !empty($nextInQueue['product_name']) ? ' (' . $nextInQueue['product_name'] . ')' : '' }}"
-                            class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider border transition-all cursor-pointer {{ !empty($nextInQueue['is_same_product'])
-                                ? 'bg-[var(--theme-color-15)] text-[var(--theme-color)] border-[var(--theme-color-40)] hover:bg-[var(--theme-color)] hover:text-gray-900'
-                                : 'bg-gray-100 dark:bg-gray-950 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-800 hover:border-[var(--theme-color-40)] hover:text-gray-900 dark:hover:text-white' }}">
-                        <span>{{ !empty($nextInQueue['is_same_product']) ? 'Nächster gleicher Artikel' : 'Nächster Auftrag' }}</span>
-                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
-                    </button>
-                @endif
+                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border {{ $this->selectedOrder->payment_status === 'paid'
+                    ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30'
+                    : ($this->selectedOrder->payment_status === 'refunded'
+                        ? 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-300 dark:border-gray-700'
+                        : 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30') }}">
+                    <span>{{ $this->selectedOrder->payment_status === 'paid' ? '✓ Bezahlt' : ($this->selectedOrder->payment_status === 'refunded' ? 'Erstattet' : 'Zahlung offen') }}</span>
+                </span>
             </div>
-            <p class="text-[10px] font-medium text-gray-500 mt-1 uppercase tracking-widest">
-                Eingegangen am <span class="text-gray-700 dark:text-gray-400 font-bold">{{ $this->selectedOrder->created_at->format('d.m.Y') }}</span> um <span class="text-gray-700 dark:text-gray-400 font-bold">{{ $this->selectedOrder->created_at->format('H:i') }}</span> Uhr
+            <p class="text-[10px] font-medium text-gray-500 dark:text-gray-400 mt-0.5">
+                {{ $this->selectedOrder->customer_name }} · {{ $this->selectedOrder->created_at->format('d.m.Y H:i') }} Uhr · {{ $this->selectedOrder->items->count() }} {{ $this->selectedOrder->items->count() === 1 ? 'Artikel' : 'Artikel' }}
             </p>
         </div>
     </div>
 
-    {{-- Status Actions --}}
-    <div class="w-full xl:justify-end flex flex-col xl:flex-row items-stretch xl:items-center gap-3 xl:w-auto mt-4 xl:mt-0">
-
-        {{-- Payment Status --}}
-        <div class="flex flex-col xl:items-center gap-2 w-full xl:w-auto">
-            <div class="relative w-full xl:w-auto">
-                <select wire:model="payment_status" wire:change="saveStatus"
-                        class="appearance-none w-full xl:w-48 bg-gray-50 dark:bg-gray-950 hover:bg-gray-100 dark:hover:bg-gray-900 border border-gray-300 dark:border-gray-800 text-gray-900 dark:text-white text-xs font-bold rounded-xl py-2.5 pl-4 pr-10 shadow-sm dark:shadow-inner focus:ring-2 focus:ring-[var(--theme-color-50)] focus:border-[var(--theme-color)] cursor-pointer transition-all outline-none tracking-wide">
-                    <option value="unpaid" class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white" @selected($this->selectedOrder->payment_status == 'unpaid')>❌ Offen</option>
-                    <option value="paid" class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white" @selected($this->selectedOrder->payment_status == 'paid')>✅ Bezahlt</option>
-                    <option value="refunded" class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white" @selected($this->selectedOrder->payment_status == 'refunded')>💳 Erstattet</option>
-                </select>
-                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-500">
-                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
-                </div>
-            </div>
-        </div>
-
-        {{-- Order Status --}}
-        <div class="flex flex-col xl:items-center gap-2 w-full xl:w-auto">
-            <div class="relative w-full xl:w-auto">
-                <select wire:change="updateStatus('{{ $this->selectedOrder->id }}', $event.target.value)"
-                        class="appearance-none w-full xl:w-56 bg-gray-50 dark:bg-gray-950 hover:bg-gray-100 dark:hover:bg-gray-900 border border-gray-300 dark:border-gray-800 text-gray-900 dark:text-white text-xs font-bold rounded-xl py-2.5 pl-4 pr-10 shadow-sm dark:shadow-inner focus:ring-2 focus:ring-[var(--theme-color-50)] focus:border-[var(--theme-color)] cursor-pointer transition-all outline-none tracking-wide">
-                    <option value="pending" class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white" @selected($this->selectedOrder->status == 'pending')>🟠 Wartend</option>
-                    <option value="processing" class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white" @selected($this->selectedOrder->status == 'processing')>🔵 In Bearbeitung</option>
-                    <option value="shipped" class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white" @selected($this->selectedOrder->status == 'shipped')>🟣 Versendet</option>
-                    <option value="completed" class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white" @selected($this->selectedOrder->status == 'completed')>🟢 Abgeschlossen</option>
-                    <option value="cancelled" class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white" @selected($this->selectedOrder->status == 'cancelled')>🔴 Storniert</option>
-                </select>
-                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-500">
-                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
-                </div>
-            </div>
-        </div>
-
-        {{-- DHL Integration --}}
-        <div class="flex flex-col xl:items-center gap-2 border-t xl:border-t-0 xl:border-l border-gray-200 dark:border-gray-800 pt-3 mt-1 xl:pt-0 xl:mt-0 xl:pl-4 xl:ml-2 w-full xl:w-auto">
-            @if(!$this->selectedOrder->isOnlyDigital())
-                @if($this->selectedOrder->shipments->isNotEmpty())
-                    <div class="flex flex-col gap-2 max-h-32 overflow-y-auto custom-scrollbar pr-2">
-                        @foreach($this->selectedOrder->shipments as $shipment)
-                            @php
-                                $hasLabelPdf = !empty($shipment->shipping_label_path);
-                                $shipmentJustPrinted = ($this->lastPrintedShipmentId ?? null) === (string) $shipment->id;
-                            @endphp
-                            <div class="flex items-center gap-2 bg-gray-100 dark:bg-gray-900/50 p-1.5 rounded-lg border border-gray-200 dark:border-gray-800 justify-between w-full xl:w-48">
-                                <div class="flex flex-col min-w-0">
-                                    <span class="text-[9px] text-gray-500 font-bold tracking-widest uppercase">Paket {{ $loop->iteration }}</span>
-                                    <a href="https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode={{ $shipment->tracking_number }}" target="_blank" class="text-[10px] font-semibold text-[var(--theme-color)] hover:underline truncate">
-                                        {{ $shipment->tracking_number }}
-                                    </a>
-                                </div>
-                                <div class="flex items-center gap-1 shrink-0">
-                                    <button type="button"
-                                            wire:click="printDhlLabelViaFunkenwerk('{{ $shipment->id }}')"
-                                            title="{{ $hasLabelPdf ? 'DHL-Label (' . $shipment->tracking_number . ') direkt via Funkenwerk auf MUNBYN Labeldrucker drucken' : 'Kein PDF-Label hinterlegt – bitte Label neu generieren' }}"
-                                            class="relative w-8 h-8 rounded-lg border flex items-center justify-center transition-all shadow-sm {{ $hasLabelPdf
-                                                ? ($shipmentJustPrinted
-                                                    ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500 hover:text-white cursor-pointer'
-                                                    : 'bg-[var(--theme-color-10)] border-[var(--theme-color-30)] text-[var(--theme-color)] hover:bg-[var(--theme-color)] hover:text-gray-900 cursor-pointer')
-                                                : 'bg-gray-100/70 dark:bg-gray-900/40 border-gray-200 dark:border-gray-800 text-gray-300 dark:text-gray-600 opacity-50 cursor-not-allowed' }}">
-                                        <span wire:loading.remove wire:target="printDhlLabelViaFunkenwerk('{{ $shipment->id }}')">
-                                            @if($shipmentJustPrinted && $hasLabelPdf)
-                                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
-                                            @else
-                                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
-                                            @endif
-                                        </span>
-                                        <span wire:loading wire:target="printDhlLabelViaFunkenwerk('{{ $shipment->id }}')" class="animate-spin w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full"></span>
-                                    </button>
-                                    @if($shipment->shipping_label_path)
-                                        <button wire:click="downloadDhlLabel('{{ $shipment->id }}')" class="w-8 h-8 rounded-lg bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 flex items-center justify-center text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-[var(--theme-color-10)] hover:border-[var(--theme-color)] transition-all shadow-sm dark:shadow-inner" title="Label als PDF herunterladen">
-                                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                                        </button>
-                                    @endif
-                                </div>
-                            </div>
-                        @endforeach
-                        <button wire:click="openDhlModal('{{ $this->selectedOrder->id }}')" class="flex items-center justify-center gap-2 w-full mt-1 px-2 py-1.5 border border-dashed border-gray-300 dark:border-gray-700 rounded-lg text-[10px] uppercase tracking-widest font-bold text-gray-500 hover:border-yellow-500 hover:text-yellow-600 dark:hover:border-yellow-400 dark:hover:text-yellow-400 transition-colors">
-                            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-                            Weitere Labels
-                        </button>
-                    </div>
-                @else
-                    <div class="flex items-center gap-2">
-                        @if(!in_array($this->selectedOrder->status, ['cancelled', 'refunded']))
-                            <button wire:click="openDhlModal('{{ $this->selectedOrder->id }}')" class="group flex items-center gap-2 px-4 py-2 bg-[var(--theme-color)] text-gray-900 rounded-xl font-bold text-xs hover:bg-opacity-80 transition-all shadow-sm dark:shadow-[0_0_15px_rgba(var(--theme-color-rgb,197,160,89),0.2)]">
-                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                                <span>DHL Label</span>
-                            </button>
-                        @endif
-                        <div class="relative group/detailprint">
-                            <button type="button"
-                                    wire:click="printOrderLabelViaFunkenwerk('{{ $this->selectedOrder->id }}')"
-                                    title="Kein Druck möglich: Bitte zuerst ein DHL-Label generieren"
-                                    class="flex items-center gap-2 px-3.5 py-2 bg-gray-100/70 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-800 text-gray-400 dark:text-gray-600 opacity-50 cursor-not-allowed rounded-xl font-bold text-xs transition-all">
-                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
-                                <span>Kein Label</span>
-                            </button>
-                            <div class="pointer-events-none opacity-0 group-hover/detailprint:opacity-100 transition-opacity duration-200 absolute bottom-full right-0 mb-2 z-50 whitespace-nowrap px-2.5 py-1.5 rounded-lg text-[10px] font-bold shadow-lg bg-gray-900 text-amber-300 border border-amber-500/40">
-                                Erst „DHL Label“ erstellen, um zu drucken
-                            </div>
-                        </div>
-                    </div>
-                @endif
-            @else
-                <span class="text-[9px] text-blue-600 dark:text-blue-400 font-bold uppercase tracking-widest bg-blue-50 dark:bg-blue-950/20 px-3 py-2 rounded-xl border border-blue-200 dark:border-blue-900/40 flex items-center gap-1.5">
-                    💻 Digitales Produkt (Kein Versand)
+    {{-- MITTE: ZENTRIERTE SCHRITT-PIPELINE --}}
+    @php
+        $headerMfgOverview = $this->selectedOrder->getManufacturingOverview();
+        $isPendingStart = $this->selectedOrder->status === 'pending';
+        $activeTabStep = (int) ($this->activeOrderStep ?? 1);
+        $step1Done = (bool) ($headerMfgOverview['all_step_one_done'] ?? false) || in_array($this->selectedOrder->status, ['shipped', 'completed'], true);
+        $step2Done = in_array($this->selectedOrder->status, ['shipped', 'completed'], true);
+        $step3Done = $this->selectedOrder->status === 'completed';
+    @endphp
+    @if(!$isPendingStart && !in_array($this->selectedOrder->status, ['cancelled', 'refunded'], true))
+        <div class="flex items-center gap-1.5 bg-gray-100/90 dark:bg-gray-950/90 p-1.5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-inner w-full lg:w-auto overflow-x-auto justify-center">
+            {{-- Tab 1: In Bearbeitung --}}
+            <button type="button"
+                    wire:click="setOrderStep(1)"
+                    class="flex items-center gap-2 px-3.5 py-2 rounded-xl text-[10px] sm:text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer shrink-0 {{ $activeTabStep === 1
+                        ? 'bg-[var(--theme-color)] text-gray-950 shadow-sm'
+                        : ($step1Done
+                            ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20'
+                            : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white') }}">
+                <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black {{ $activeTabStep === 1 ? 'bg-gray-950 text-[var(--theme-color)]' : ($step1Done ? 'bg-emerald-500 text-white' : 'bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300') }}">
+                    {{ $step1Done ? '✓' : '1' }}
                 </span>
+                <span>Schritt 1 · In Bearbeitung ({{ $headerMfgOverview['completed_items'] }}/{{ $headerMfgOverview['total_items'] }})</span>
+            </button>
+
+            <svg class="w-3.5 h-3.5 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+
+            {{-- Tab 2: Versand --}}
+            <button type="button"
+                    wire:click="setOrderStep(2)"
+                    class="flex items-center gap-2 px-3.5 py-2 rounded-xl text-[10px] sm:text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer shrink-0 {{ $activeTabStep === 2
+                        ? 'bg-[var(--theme-color)] text-gray-950 shadow-sm'
+                        : ($step2Done
+                            ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20'
+                            : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white') }}">
+                <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black {{ $activeTabStep === 2 ? 'bg-gray-950 text-[var(--theme-color)]' : ($step2Done ? 'bg-emerald-500 text-white' : 'bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300') }}">
+                    {{ $step2Done ? '✓' : '2' }}
+                </span>
+                <span>Schritt 2 · Versand</span>
+            </button>
+
+            <svg class="w-3.5 h-3.5 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+
+            {{-- Tab 3: Abgeschlossen --}}
+            <button type="button"
+                    wire:click="setOrderStep(3)"
+                    class="flex items-center gap-2 px-3.5 py-2 rounded-xl text-[10px] sm:text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer shrink-0 {{ $activeTabStep === 3
+                        ? 'bg-[var(--theme-color)] text-gray-950 shadow-sm'
+                        : ($step3Done
+                            ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20'
+                            : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white') }}">
+                <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black {{ $activeTabStep === 3 ? 'bg-gray-950 text-[var(--theme-color)]' : ($step3Done ? 'bg-emerald-500 text-white' : 'bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300') }}">
+                    {{ $step3Done ? '✓' : '3' }}
+                </span>
+                <span>Schritt 3 · Abgeschlossen</span>
+            </button>
+        </div>
+    @endif
+
+    {{-- RECHTS: Nächster Auftrag & kompaktes Optionen-Menü (Manuelle Status-Overrides bei Bedarf) --}}
+    <div x-data="{ showHeaderMenu: false }" class="flex items-center gap-2.5 self-end lg:self-center relative">
+        @php
+            $nextInQueue = $this->nextQueueOrder;
+        @endphp
+        @if($nextInQueue)
+            <button type="button"
+                    wire:click="openDetail('{{ $nextInQueue['id'] }}')"
+                    title="Direkt weiter zu #{{ $nextInQueue['order_number'] }}{{ !empty($nextInQueue['product_name']) ? ' (' . $nextInQueue['product_name'] . ')' : '' }}"
+                    class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider border transition-all cursor-pointer {{ !empty($nextInQueue['is_same_product'])
+                        ? 'bg-[var(--theme-color-15)] text-[var(--theme-color)] border-[var(--theme-color-40)] hover:bg-[var(--theme-color)] hover:text-gray-900'
+                        : 'bg-gray-100 dark:bg-gray-950 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-800 hover:border-[var(--theme-color-40)] hover:text-gray-900 dark:hover:text-white' }}">
+                <span>{{ !empty($nextInQueue['is_same_product']) ? 'Nächster gleicher Artikel' : 'Nächster Auftrag' }}</span>
+                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+            </button>
+        @endif
+
+        <button type="button"
+                @click="showHeaderMenu = !showHeaderMenu"
+                class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gray-100 dark:bg-gray-950 hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-800 text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
+            <span>Status / Optionen</span>
+        </button>
+
+        {{-- Dropdown für manuelle Status-Korrektur & Direkt-Label --}}
+        <div x-cloak
+             x-show="showHeaderMenu"
+             @click.outside="showHeaderMenu = false"
+             x-transition
+             class="absolute right-0 top-full mt-2 w-72 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-2xl p-4 space-y-3 z-50">
+            <div class="text-[9px] font-black uppercase tracking-widest text-gray-400 border-b border-gray-100 dark:border-gray-800 pb-1.5">
+                Manuelle Verwaltung (#{{ $this->selectedOrder->order_number }})
+            </div>
+
+            <div>
+                <label class="block text-[9px] font-black uppercase tracking-wider text-gray-500 mb-1">Zahlungsstatus</label>
+                <select wire:model="payment_status" wire:change="saveStatus"
+                        class="w-full bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-800 text-gray-900 dark:text-white text-xs font-bold rounded-xl py-2 px-3 cursor-pointer outline-none">
+                    <option value="unpaid" @selected($this->selectedOrder->payment_status == 'unpaid')>❌ Offen</option>
+                    <option value="paid" @selected($this->selectedOrder->payment_status == 'paid')>✅ Bezahlt</option>
+                    <option value="refunded" @selected($this->selectedOrder->payment_status == 'refunded')>💳 Erstattet</option>
+                </select>
+            </div>
+
+            <div>
+                <label class="block text-[9px] font-black uppercase tracking-wider text-gray-500 mb-1">Bestellstatus (wird autonom gesetzt)</label>
+                <select wire:change="updateStatus('{{ $this->selectedOrder->id }}', $event.target.value)"
+                        class="w-full bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-800 text-gray-900 dark:text-white text-xs font-bold rounded-xl py-2 px-3 cursor-pointer outline-none">
+                    <option value="pending" @selected($this->selectedOrder->status == 'pending')>🟠 Wartend</option>
+                    <option value="processing" @selected($this->selectedOrder->status == 'processing')>🔵 In Bearbeitung</option>
+                    <option value="shipped" @selected($this->selectedOrder->status == 'shipped')>🟣 Versendet</option>
+                    <option value="completed" @selected($this->selectedOrder->status == 'completed')>🟢 Abgeschlossen</option>
+                    <option value="cancelled" @selected($this->selectedOrder->status == 'cancelled')>🔴 Storniert</option>
+                </select>
+            </div>
+
+            @if(!$this->selectedOrder->isOnlyDigital())
+                <div class="pt-2 border-t border-gray-100 dark:border-gray-800 space-y-2">
+                    <button type="button"
+                            wire:click="openDhlModal('{{ $this->selectedOrder->id }}')"
+                            @click="showHeaderMenu = false"
+                            class="w-full flex items-center justify-center gap-2 px-3 py-2 bg-[var(--theme-color)] text-gray-950 rounded-xl font-black text-[10px] uppercase tracking-wider cursor-pointer">
+                        <span>DHL Label-Assistent öffnen</span>
+                    </button>
+                </div>
             @endif
         </div>
-
     </div>
+
 </div>
