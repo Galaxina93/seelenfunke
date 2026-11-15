@@ -359,6 +359,32 @@ case "$1" in
         php artisan config:clear
         php artisan cache:clear
 
+        TWILIO_BRIDGE_DIR="$(dirname "$SCRIPT_DIR")/twilio-bridge"
+        if [ -d "$TWILIO_BRIDGE_DIR" ] && [ -f "$SCRIPT_DIR/server-twilio.js" ]; then
+            echo "🔄 Synchronisiere server-twilio.js & Bridge-Secret mit twilio-bridge..."
+            cp -f "$SCRIPT_DIR/server-twilio.js" "$TWILIO_BRIDGE_DIR/server-twilio.js"
+            if [ -f "$SCRIPT_DIR/.env" ] && [ -f "$TWILIO_BRIDGE_DIR/.env" ]; then
+                STAGE_BRIDGE_SECRET="$(grep -E '^GEMINI_BRIDGE_SECRET=' "$SCRIPT_DIR/.env" | tail -n 1 | cut -d'=' -f2- | tr -d ' "\r' || true)"
+                if [ -z "$STAGE_BRIDGE_SECRET" ]; then
+                    STAGE_BRIDGE_SECRET="$(php -r 'echo bin2hex(random_bytes(32));')"
+                    printf '\nGEMINI_BRIDGE_SECRET=%s\n' "$STAGE_BRIDGE_SECRET" >> "$SCRIPT_DIR/.env"
+                    php "$SCRIPT_DIR/artisan" config:clear >/dev/null 2>&1 || true
+                fi
+                if grep -qE '^GEMINI_BRIDGE_SECRET=' "$TWILIO_BRIDGE_DIR/.env"; then
+                    sed -i "s|^GEMINI_BRIDGE_SECRET=.*|GEMINI_BRIDGE_SECRET=${STAGE_BRIDGE_SECRET}|" "$TWILIO_BRIDGE_DIR/.env"
+                else
+                    printf '\nGEMINI_BRIDGE_SECRET=%s\n' "$STAGE_BRIDGE_SECRET" >> "$TWILIO_BRIDGE_DIR/.env"
+                fi
+                if [ -f "$DEST_DIR/.env" ]; then
+                    if grep -qE '^GEMINI_BRIDGE_SECRET=' "$DEST_DIR/.env"; then
+                        sed -i "s|^GEMINI_BRIDGE_SECRET=.*|GEMINI_BRIDGE_SECRET=${STAGE_BRIDGE_SECRET}|" "$DEST_DIR/.env"
+                    else
+                        printf '\nGEMINI_BRIDGE_SECRET=%s\n' "$STAGE_BRIDGE_SECRET" >> "$DEST_DIR/.env"
+                    fi
+                fi
+            fi
+        fi
+
         echo "✅ Sync erfolgreich abgeschlossen!"
         echo "💡 Da Mittwald Code-Änderungen in PHP-Workern nicht automatisch lädt, musst du ihn manuell neu starten."
         echo "👉 Logge dich per SSH in den Worker ein (SSH-Zugang für 'WORKER - Websocket Stage') und führe aus:"

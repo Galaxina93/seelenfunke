@@ -136,12 +136,26 @@ class CleanupSystemLogsCommand extends Command
             $stats['transient_deleted'] += SystemLog::whereIn('id', $vendorDeprecationIds)->delete();
         }
 
-        // 1c. Auf Stage-Umgebungen unkonfigurierte IMAP-Testpostfach-Meldungen ins Archiv überführen
+        // 1c. Auf Stage-Umgebungen unkonfigurierte IMAP-Testpostfach-Meldungen sowie bereinigte FCM-UNREGISTERED-Tokens ins Archiv überführen
+        SystemLog::query()
+            ->whereIn('status', ['error', 'warning'])
+            ->where('type', 'system')
+            ->where('message', 'like', '%FCM send failed:%UNREGISTERED%')
+            ->get()
+            ->each(function (SystemLog $log) {
+                $t = (string) $log->title;
+                $log->title = str_starts_with($t, '[GELÖST]') ? $t : mb_substr('[GELÖST] ' . $t, 0, 250);
+                $log->status = 'success';
+                $log->finished_at = $log->finished_at ?? now();
+                $log->saveQuietly();
+            });
+
         if (str_contains(strtolower((string) config('app.url')), 'stage.')) {
             SystemLog::query()
                 ->whereIn('status', ['error', 'warning'])
                 ->where(function ($q) {
                     $q->where('action_id', 'scheduler:cronjob_failed:crm:fetch-mails')
+                        ->orWhere('action_id', 'security:ws_log_unauthorized')
                         ->orWhere(function ($sq) {
                             $sq->where('message', 'like', '%AUTHENTICATIONFAILED%')
                                 ->where('type', 'system');

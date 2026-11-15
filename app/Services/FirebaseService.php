@@ -105,7 +105,19 @@ class FirebaseService
                 Log::info("FCM notification sent successfully to token: " . substr($deviceToken, 0, 10) . "...");
                 return true;
             } else {
-                Log::error("FCM send failed: " . $response->body());
+                $respBody = $response->body();
+                if (
+                    $response->status() === 404
+                    || stripos($respBody, 'UNREGISTERED') !== false
+                    || stripos($respBody, 'NotRegistered') !== false
+                ) {
+                    // Veraltetes Token einer deinstallierten/neu installierten App-Instanz automatisch entfernen
+                    \App\Models\System\SystemUserDevice::where('fcm_token', $deviceToken)->delete();
+                    Log::info("FCM removed unregistered device token: " . substr($deviceToken, 0, 10) . "...");
+                    return false;
+                }
+
+                Log::error("FCM send failed: " . $respBody);
                 return false;
             }
         } catch (\Exception $e) {
