@@ -1,51 +1,60 @@
-@if($selectedOrder && $activeHeaderModal)
+@if($selectedOrder)
     @php
         $bModal = is_array($selectedOrder->billing_address) ? $selectedOrder->billing_address : [];
         $modalFullName = trim(($bModal['first_name'] ?? '') . ' ' . ($bModal['last_name'] ?? ''));
         $modalCityZip = trim(($bModal['postal_code'] ?? '') . ' ' . ($bModal['city'] ?? ''));
+        $billingDisplayName = $modalFullName !== '' ? $modalFullName : ($selectedOrder->customer_name ?? 'Gast');
+        $rawBillingCompany = trim((string) ($bModal['company'] ?? ''));
+        $cleanBillingCompany = \App\Models\Order\OrderOrder::isRedundantCompanyName($rawBillingCompany, $billingDisplayName)
+            ? ''
+            : $rawBillingCompany;
+
         $modalBilling = [
-            'name' => $modalFullName !== '' ? $modalFullName : ($selectedOrder->customer_name ?? 'Gast'),
-            'company' => $bModal['company'] ?? null,
-            'address' => $bModal['address'] ?? '',
+            'name' => $billingDisplayName,
+            'company' => $cleanBillingCompany,
+            'address' => trim(($bModal['address'] ?? '') . (!empty($bModal['address_addition']) ? ' ' . $bModal['address_addition'] : '')),
             'city_zip' => $modalCityZip,
             'country' => $bModal['country'] ?? 'DE',
             'email' => $selectedOrder->email ?? ($bModal['email'] ?? ''),
         ];
+
         $modalShipping = is_array($selectedOrder->shipping_address) ? $selectedOrder->shipping_address : null;
-        $isShippingDifferent = $modalShipping && serialize($selectedOrder->billing_address) !== serialize($selectedOrder->shipping_address);
+        $shippingDisplayName = $modalShipping
+            ? (trim(($modalShipping['first_name'] ?? '') . ' ' . ($modalShipping['last_name'] ?? '')) ?: $modalBilling['name'])
+            : $modalBilling['name'];
+        $rawShippingCompany = $modalShipping ? trim((string) ($modalShipping['company'] ?? '')) : $cleanBillingCompany;
+        $cleanShippingCompany = \App\Models\Order\OrderOrder::isRedundantCompanyName($rawShippingCompany, $shippingDisplayName)
+            ? ''
+            : $rawShippingCompany;
+
+        $isShippingDifferent = $selectedOrder->hasDifferentShippingAddress();
         $modalPreviewItem = $this->previewItem ?: $selectedOrder->items->first();
     @endphp
 
-    <div class="fixed inset-0 z-[110] flex items-start sm:items-center justify-center bg-black/50 dark:bg-black/65 backdrop-blur-sm p-4 pt-[8vh] sm:pt-4 overflow-y-auto"
-         @keydown.escape.window="$wire.closeHeaderModal()">
-        <div @click.outside="$wire.closeHeaderModal()"
-             class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl shadow-2xl w-full {{ $activeHeaderModal === 'files' ? 'max-w-2xl' : 'max-w-lg' }} p-6 sm:p-7 relative my-auto space-y-5">
+    <div x-cloak
+         x-show="headerModal !== null"
+         style="display: none;"
+         class="fixed inset-0 z-[110] flex items-start sm:items-center justify-center bg-black/50 dark:bg-black/65 backdrop-blur-sm p-4 pt-[8vh] sm:pt-4 overflow-y-auto"
+         @keydown.escape.window="closeHeaderModalClient()">
+        <div @click.outside="closeHeaderModalClient()"
+             :class="headerModal === 'files' ? 'max-w-2xl' : 'max-w-lg'"
+             class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl shadow-2xl w-full p-6 sm:p-7 relative my-auto space-y-5">
 
             {{-- Modal Header --}}
             <div class="flex items-center justify-between gap-3 pb-4 border-b border-gray-200 dark:border-gray-800">
                 <div class="flex items-center gap-3 min-w-0">
                     <div class="w-10 h-10 rounded-xl bg-[var(--theme-color-10)] border border-[var(--theme-color-30)] text-[var(--theme-color)] flex items-center justify-center shrink-0">
-                        @if($activeHeaderModal === 'files')
-                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>
-                        @elseif($activeHeaderModal === 'costs')
-                            <span class="text-base font-black">&euro;</span>
-                        @elseif($activeHeaderModal === 'customer')
-                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
-                        @elseif($activeHeaderModal === 'shipping')
-                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                        @endif
+                        <svg x-show="headerModal === 'files'" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>
+                        <span x-show="headerModal === 'costs'" class="text-base font-black">&euro;</span>
+                        <svg x-show="headerModal === 'customer'" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                        <svg x-show="headerModal === 'shipping'" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                     </div>
                     <div class="min-w-0">
                         <h3 class="text-base sm:text-lg font-serif font-bold text-gray-900 dark:text-white truncate">
-                            @if($activeHeaderModal === 'files')
-                                Dateien &amp; Downloads
-                            @elseif($activeHeaderModal === 'costs')
-                                Kostenübersicht
-                            @elseif($activeHeaderModal === 'customer')
-                                Kunden Infos
-                            @elseif($activeHeaderModal === 'shipping')
-                                Lieferadresse
-                            @endif
+                            <span x-show="headerModal === 'files'">Dateien &amp; Downloads</span>
+                            <span x-show="headerModal === 'costs'">Kostenübersicht</span>
+                            <span x-show="headerModal === 'customer'">Kunden Infos</span>
+                            <span x-show="headerModal === 'shipping'">Lieferadresse</span>
                         </h3>
                         <p class="text-[10px] font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400">
                             Auftrag #{{ $selectedOrder->order_number }}
@@ -54,14 +63,14 @@
                 </div>
 
                 <button type="button"
-                        wire:click="closeHeaderModal"
+                        @click="closeHeaderModalClient()"
                         class="p-2 rounded-xl text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer">
                     <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
                 </button>
             </div>
 
             {{-- 1. DATEIEN & DOWNLOADS MODAL --}}
-            @if($activeHeaderModal === 'files')
+            <div x-show="headerModal === 'files'" class="space-y-4">
                 @if($selectedOrder->items->count() > 1)
                     <div class="flex items-center gap-2 overflow-x-auto custom-scrollbar pb-1">
                         @foreach($selectedOrder->items as $mItem)
@@ -273,18 +282,68 @@
                         @endif
                     </div>
                 @endif
+            </div>
 
             {{-- 2. KOSTENÜBERSICHT MODAL --}}
-            @elseif($activeHeaderModal === 'costs')
-                <div>
-                    <x-shop.cost-summary :model="$selectedOrder" design="adaptive" />
-                </div>
+            <div x-show="headerModal === 'costs'">
+                <x-shop.cost-summary :model="$selectedOrder" design="adaptive" />
+            </div>
 
             {{-- 3. KUNDEN INFOS MODAL --}}
-            @elseif($activeHeaderModal === 'customer')
-                <div class="space-y-4">
-                    <div class="p-4 rounded-2xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 space-y-1 text-sm text-gray-700 dark:text-gray-300">
-                        <div class="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1.5">Rechnungsadresse</div>
+            <div x-show="headerModal === 'customer'" class="space-y-4">
+                <div class="p-4 rounded-2xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 space-y-1 text-sm text-gray-700 dark:text-gray-300">
+                    <div class="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1.5">Rechnungsadresse</div>
+                    <div class="font-bold text-gray-900 dark:text-white text-base">{{ $modalBilling['name'] }}</div>
+                    @if(!empty($modalBilling['company']))
+                        <div class="text-xs font-bold text-[var(--theme-color)]">{{ $modalBilling['company'] }}</div>
+                    @endif
+                    <div>{{ $modalBilling['address'] }}</div>
+                    <div>{{ $modalBilling['city_zip'] }}</div>
+                    <div class="text-[10px] font-black uppercase tracking-wider text-gray-500 pt-0.5">{{ $modalBilling['country'] }}</div>
+                </div>
+
+                @if(!empty($modalBilling['email']))
+                    <div class="p-3.5 rounded-2xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 flex items-center justify-between gap-3">
+                        <div class="min-w-0">
+                            <div class="text-[10px] font-black uppercase tracking-widest text-gray-400">E-Mail</div>
+                            <a href="mailto:{{ $modalBilling['email'] }}" class="text-xs font-bold text-[var(--theme-color)] hover:underline truncate block">
+                                {{ $modalBilling['email'] }}
+                            </a>
+                        </div>
+                        <button type="button"
+                                x-data="{ copiedMail: false }"
+                                @click="if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(@js($modalBilling['email'])); } else { const ta = document.createElement('textarea'); ta.value = @js($modalBilling['email']); document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); } copiedMail = true; setTimeout(() => copiedMail = false, 1800)"
+                                class="px-2.5 py-1.5 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-[10px] font-black uppercase tracking-wider text-gray-700 dark:text-gray-300 hover:border-[var(--theme-color)] cursor-pointer shrink-0">
+                            <span x-show="!copiedMail">Kopieren</span>
+                            <span x-show="copiedMail" x-cloak class="text-[var(--theme-color)]">✓ Kopiert</span>
+                        </button>
+                    </div>
+                @endif
+            </div>
+
+            {{-- 4. LIEFERADRESSE MODAL --}}
+            <div x-show="headerModal === 'shipping'" class="space-y-4">
+                <div class="flex items-center justify-between">
+                    <span class="text-[10px] font-black uppercase tracking-widest text-gray-400">Empfänger</span>
+                    <span class="px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider border {{ $isShippingDifferent
+                        ? 'bg-[var(--theme-color-15)] text-[var(--theme-color)] border-[var(--theme-color-40)]'
+                        : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700' }}">
+                        {{ $isShippingDifferent ? 'Abweichend von Rechnung' : 'Identisch mit Rechnung' }}
+                    </span>
+                </div>
+
+                <div class="p-4 rounded-2xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 space-y-1 text-sm text-gray-700 dark:text-gray-300">
+                    @if($modalShipping)
+                        <div class="font-bold text-gray-900 dark:text-white text-base">
+                            {{ $shippingDisplayName }}
+                        </div>
+                        @if(!empty($cleanShippingCompany))
+                            <div class="text-xs font-bold text-[var(--theme-color)]">{{ $cleanShippingCompany }}</div>
+                        @endif
+                        <div>{{ trim(($modalShipping['address'] ?? '') . (!empty($modalShipping['address_addition']) ? ' ' . $modalShipping['address_addition'] : '')) }}</div>
+                        <div>{{ trim(($modalShipping['postal_code'] ?? '') . ' ' . ($modalShipping['city'] ?? '')) }}</div>
+                        <div class="text-[10px] font-black uppercase tracking-wider text-gray-500 pt-0.5">{{ $modalShipping['country'] ?? 'DE' }}</div>
+                    @else
                         <div class="font-bold text-gray-900 dark:text-white text-base">{{ $modalBilling['name'] }}</div>
                         @if(!empty($modalBilling['company']))
                             <div class="text-xs font-bold text-[var(--theme-color)]">{{ $modalBilling['company'] }}</div>
@@ -292,73 +351,9 @@
                         <div>{{ $modalBilling['address'] }}</div>
                         <div>{{ $modalBilling['city_zip'] }}</div>
                         <div class="text-[10px] font-black uppercase tracking-wider text-gray-500 pt-0.5">{{ $modalBilling['country'] }}</div>
-                    </div>
-
-                    @if(!empty($modalBilling['email']))
-                        <div class="p-3.5 rounded-2xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 flex items-center justify-between gap-3">
-                            <div class="min-w-0">
-                                <div class="text-[10px] font-black uppercase tracking-widest text-gray-400">E-Mail</div>
-                                <a href="mailto:{{ $modalBilling['email'] }}" class="text-xs font-bold text-[var(--theme-color)] hover:underline truncate block">
-                                    {{ $modalBilling['email'] }}
-                                </a>
-                            </div>
-                            <button type="button"
-                                    x-data="{ copiedMail: false }"
-                                    @click="if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(@js($modalBilling['email'])); } else { const ta = document.createElement('textarea'); ta.value = @js($modalBilling['email']); document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); } copiedMail = true; setTimeout(() => copiedMail = false, 1800)"
-                                    class="px-2.5 py-1.5 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-[10px] font-black uppercase tracking-wider text-gray-700 dark:text-gray-300 hover:border-[var(--theme-color)] cursor-pointer shrink-0">
-                                <span x-show="!copiedMail">Kopieren</span>
-                                <span x-show="copiedMail" x-cloak class="text-[var(--theme-color)]">✓ Kopiert</span>
-                            </button>
-                        </div>
-                    @endif
-
-                    @if($selectedOrder->canBePermanentlyDeleted() && (auth('admin')->check() || \App\Services\AI\AiAuthHelper::isAdmin()))
-                        <div class="pt-3 border-t border-gray-200 dark:border-gray-800 flex justify-end">
-                            <button type="button"
-                                    wire:click="delete('{{ $selectedOrder->id }}')"
-                                    wire:confirm="Unbezahlte Bestellung #{{ $selectedOrder->order_number }} wirklich unwiderruflich aus der Datenbank löschen?"
-                                    class="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/40 hover:bg-red-600 hover:text-white transition-all cursor-pointer">
-                                Bestellung unwiderruflich löschen
-                            </button>
-                        </div>
                     @endif
                 </div>
-
-            {{-- 4. LIEFERADRESSE MODAL --}}
-            @elseif($activeHeaderModal === 'shipping')
-                <div class="space-y-4">
-                    <div class="flex items-center justify-between">
-                        <span class="text-[10px] font-black uppercase tracking-widest text-gray-400">Empfänger</span>
-                        <span class="px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider border {{ $isShippingDifferent
-                            ? 'bg-[var(--theme-color-15)] text-[var(--theme-color)] border-[var(--theme-color-40)]'
-                            : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700' }}">
-                            {{ $isShippingDifferent ? 'Abweichend von Rechnung' : 'Identisch mit Rechnung' }}
-                        </span>
-                    </div>
-
-                    <div class="p-4 rounded-2xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 space-y-1 text-sm text-gray-700 dark:text-gray-300">
-                        @if($modalShipping)
-                            <div class="font-bold text-gray-900 dark:text-white text-base">
-                                {{ trim(($modalShipping['first_name'] ?? '') . ' ' . ($modalShipping['last_name'] ?? '')) ?: $modalBilling['name'] }}
-                            </div>
-                            @if(!empty($modalShipping['company']))
-                                <div class="text-xs font-bold text-[var(--theme-color)]">{{ $modalShipping['company'] }}</div>
-                            @endif
-                            <div>{{ $modalShipping['address'] ?? '' }}</div>
-                            <div>{{ trim(($modalShipping['postal_code'] ?? '') . ' ' . ($modalShipping['city'] ?? '')) }}</div>
-                            <div class="text-[10px] font-black uppercase tracking-wider text-gray-500 pt-0.5">{{ $modalShipping['country'] ?? 'DE' }}</div>
-                        @else
-                            <div class="font-bold text-gray-900 dark:text-white text-base">{{ $modalBilling['name'] }}</div>
-                            @if(!empty($modalBilling['company']))
-                                <div class="text-xs font-bold text-[var(--theme-color)]">{{ $modalBilling['company'] }}</div>
-                            @endif
-                            <div>{{ $modalBilling['address'] }}</div>
-                            <div>{{ $modalBilling['city_zip'] }}</div>
-                            <div class="text-[10px] font-black uppercase tracking-wider text-gray-500 pt-0.5">{{ $modalBilling['country'] }}</div>
-                        @endif
-                    </div>
-                </div>
-            @endif
+            </div>
         </div>
     </div>
 @endif

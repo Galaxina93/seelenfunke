@@ -5,6 +5,32 @@
         feedbackTitle: '',
         feedbackMessage: '',
         feedbackTimer: null,
+        headerModal: @js($activeHeaderModal),
+        stepOneTab: @js($stepOneTab ?: 'cockpit'),
+        showLaserDetails: @js((bool) $this->showLaserDetails),
+        openHeaderModalClient(name) {
+            this.headerModal = (this.headerModal === name ? null : name);
+        },
+        closeHeaderModalClient() {
+            this.headerModal = null;
+        },
+        switchStepOneTab(tab) {
+            this.stepOneTab = tab;
+            if (tab === 'preview') {
+                this.$nextTick(() => window.dispatchEvent(new Event('resize')));
+            }
+        },
+        syncOrderUi(detail) {
+            const payload = Array.isArray(detail) ? (detail[0] || {}) : (detail || {});
+            if (payload.headerModal !== undefined) this.headerModal = payload.headerModal;
+            if (payload.stepOneTab !== undefined) {
+                this.stepOneTab = payload.stepOneTab;
+                if (payload.stepOneTab === 'preview') {
+                    this.$nextTick(() => window.dispatchEvent(new Event('resize')));
+                }
+            }
+            if (payload.showLaserDetails !== undefined) this.showLaserDetails = Boolean(payload.showLaserDetails);
+        },
         triggerFeedback(detail) {
             const payload = Array.isArray(detail) ? (detail[0] || {}) : (detail || {});
             this.feedbackType = payload.type || 'info';
@@ -16,6 +42,7 @@
         }
      }"
      @order-feedback.window="triggerFeedback($event.detail)"
+     @order-ui-sync.window="syncOrderUi($event.detail)"
      class="min-h-screen bg-transparent p-4 md:p-8 font-sans antialiased text-gray-900 dark:text-gray-300 relative">
 
     {{-- GLOBALER LIVE-TOAST FÜR DRUCK- & BESTELL-FEEDBACK --}}

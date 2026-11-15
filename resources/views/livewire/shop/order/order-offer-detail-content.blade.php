@@ -230,11 +230,12 @@
                                     </div>
                                 @endif
 
-                                @if($hasPhysicalCockpit && $activeStepOneTab === 'cockpit')
+                                @if($hasPhysicalCockpit)
                                     <button type="button"
-                                            wire:click="toggleLaserDetails"
+                                            x-show="stepOneTab === 'cockpit'"
+                                            @click="showLaserDetails = !showLaserDetails"
                                             class="bg-transparent border-0 p-0 text-xs font-bold text-gray-500 dark:text-gray-400 hover:text-[var(--theme-color)] transition-colors cursor-pointer">
-                                        {{ !empty($this->showLaserDetails) ? 'Details ausblenden' : 'Details anzeigen' }}
+                                        <span x-text="showLaserDetails ? 'Details ausblenden' : 'Details anzeigen'">Details anzeigen</span>
                                     </button>
                                 @endif
                             </div>
@@ -267,32 +268,39 @@
                         @if($hasPhysicalCockpit)
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5 bg-gray-100 dark:bg-gray-950 p-1.5 rounded-2xl border border-gray-200 dark:border-gray-800">
                                 <button type="button"
-                                        wire:click="setStepOneTab('cockpit')"
-                                        class="px-3.5 py-2.5 rounded-xl text-[10px] sm:text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer {{ $activeStepOneTab === 'cockpit'
+                                        @click="switchStepOneTab('cockpit')"
+                                        :class="stepOneTab === 'cockpit'
                                             ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm border border-gray-200/80 dark:border-gray-800'
-                                            : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white' }}">
+                                            : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white border border-transparent'"
+                                        class="px-3.5 py-2.5 rounded-xl text-[10px] sm:text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer">
                                     xTool F2 Ultra UV · Live-Laser-Cockpit
                                 </button>
                                 <button type="button"
-                                        wire:click="setStepOneTab('preview')"
-                                        class="px-3.5 py-2.5 rounded-xl text-[10px] sm:text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer {{ $activeStepOneTab === 'preview'
+                                        @click="switchStepOneTab('preview')"
+                                        :class="stepOneTab === 'preview'
                                             ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm border border-gray-200/80 dark:border-gray-800'
-                                            : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white' }}">
+                                            : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white border border-transparent'"
+                                        class="px-3.5 py-2.5 rounded-xl text-[10px] sm:text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer">
                                     Live-Konfigurations-Vorschau
                                 </button>
                             </div>
                         @endif
                     </div>
 
-                    {{-- TAB 1: LIVE-LASER-COCKPIT | TAB 2: LIVE-KONFIGURATIONS-VORSCHAU --}}
-                    @if($activeStepOneTab === 'cockpit' && $hasPhysicalCockpit)
-                        @include('livewire.shop.order.order-offer-detail-partials.laser-cockpit-card')
-                    @elseif($previewItem)
+                    {{-- TAB 1: LIVE-LASER-COCKPIT | TAB 2: LIVE-KONFIGURATIONS-VORSCHAU (0 ms Client-Side Switch) --}}
+                    @if($hasPhysicalCockpit)
+                        <div x-show="stepOneTab === 'cockpit'">
+                            @include('livewire.shop.order.order-offer-detail-partials.laser-cockpit-card')
+                        </div>
+                    @endif
+
+                    @if($previewItem)
                         @php
                             $isItemCustomFields = (($previewItem->configuration['personalization_mode'] ?? null) === 'custom_fields')
                                 || !empty($previewItem->configuration['custom_fields_data']);
                         @endphp
-                        <div class="rounded-[1.5rem] sm:rounded-[2rem] border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 overflow-hidden {{ $isItemCustomFields ? 'min-h-0' : 'min-h-[500px]' }} flex flex-col">
+                        <div @if($hasPhysicalCockpit) x-cloak x-show="stepOneTab === 'preview'" style="display: none;" @endif
+                             class="rounded-[1.5rem] sm:rounded-[2rem] border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 overflow-hidden {{ $isItemCustomFields ? 'min-h-0' : 'min-h-[500px]' }} flex flex-col">
                             @if($previewItem->product)
                                 <livewire:shop.product.product-configurator.product-configurator
                                     :product="$previewItem->product->id"

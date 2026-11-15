@@ -58,9 +58,20 @@ class ConfiguratorService
             ];
         }
 
-        $cacheKey = $diskPath . ':' . @filemtime($diskPath);
+        $aLeft = isset($configSettings['area_left']) ? (float) $configSettings['area_left'] : 30.0;
+        $aTop = isset($configSettings['area_top']) ? (float) $configSettings['area_top'] : ($pkgKey === 'seelen-anhaenger' ? 54.2 : 30.0);
+        $aWidth = isset($configSettings['area_width']) ? (float) $configSettings['area_width'] : 40.0;
+        $aHeight = isset($configSettings['area_height']) ? (float) $configSettings['area_height'] : 40.0;
+
+        $cacheKey = $diskPath . ':' . @filemtime($diskPath) . ':' . $aLeft . ':' . $aTop . ':' . $aWidth . ':' . $aHeight;
         if (isset(self::$overlayAnalysisCache[$cacheKey])) {
             return self::$overlayAnalysisCache[$cacheKey];
+        }
+
+        $persistentKey = 'sf_overlay_analysis_' . sha1($cacheKey);
+        $cachedResult = \Illuminate\Support\Facades\Cache::get($persistentKey);
+        if (is_array($cachedResult) && isset($cachedResult['is_dark_surface'], $cachedResult['has_transparent_overlay'], $cachedResult['surface_luminance'])) {
+            return self::$overlayAnalysisCache[$cacheKey] = $cachedResult;
         }
 
         $ext = strtolower(pathinfo($diskPath, PATHINFO_EXTENSION));
@@ -104,11 +115,6 @@ class ConfiguratorService
         $stepX = max(1, (int) floor($w / 25));
         $stepY = max(1, (int) floor($h / 25));
 
-        $aLeft = isset($configSettings['area_left']) ? (float) $configSettings['area_left'] : 30.0;
-        $aTop = isset($configSettings['area_top']) ? (float) $configSettings['area_top'] : ($pkgKey === 'seelen-anhaenger' ? 54.2 : 30.0);
-        $aWidth = isset($configSettings['area_width']) ? (float) $configSettings['area_width'] : 40.0;
-        $aHeight = isset($configSettings['area_height']) ? (float) $configSettings['area_height'] : 40.0;
-
         $xStart = max(0, min($w - 1, (int) floor($w * (($aLeft + $aWidth * 0.25) / 100.0))));
         $xEnd = max($xStart, min($w - 1, (int) floor($w * (($aLeft + $aWidth * 0.75) / 100.0))));
         $yStart = max(0, min($h - 1, (int) floor($h * (($aTop + $aHeight * 0.25) / 100.0))));
@@ -131,11 +137,15 @@ class ConfiguratorService
         $avgLuminance = $sampleCount > 0 ? round($lumSum / $sampleCount, 1) : ($hasTransparency ? 25.0 : 140.0);
         $isDarkSurface = $avgLuminance < 65.0;
 
-        return self::$overlayAnalysisCache[$cacheKey] = [
+        $analysis = [
             'is_dark_surface'         => $isDarkSurface,
             'has_transparent_overlay' => $hasTransparency,
             'surface_luminance'       => $avgLuminance,
         ];
+
+        \Illuminate\Support\Facades\Cache::put($persistentKey, $analysis, 86400);
+
+        return self::$overlayAnalysisCache[$cacheKey] = $analysis;
     }
 
     /**

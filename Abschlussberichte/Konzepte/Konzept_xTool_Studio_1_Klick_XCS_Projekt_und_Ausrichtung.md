@@ -183,5 +183,13 @@ Für **alle Standard- und Flachbett-Aufträge** (Anhänger, Herzen, Hundemarken,
      * `goldenes-seelen-herz`: **`25,0 × 22,0 mm`** Edelstahl-Goldherz (`left 17,5 %`, `top 35,125 %`, `65,0 × 59,125 %`)
      * `id-armband-silber-herz` & `id-armband-gold-herz`: **`24,0 × 5,5 mm`** ID-Gravurplatte (`left 17,0 %`, `top 42,5 %`, `66,0 × 15,0 %`)
      * `geschenkgutschein` (Alu-Karte): **`86,0 × 54,0 mm`** ISO-Karte
-   * HUD-Anzeige und Eingabefelder (`X`, `Y`, `Winkel` in `0,1 mm`-Schritten) sind über `$wire.entangle(...)` verzögerungs- und abweichungsfrei synchronisiert.
-   * Zusatzinformationen (`Dateien & Downloads`, `Kostenübersicht`, `Kunden Infos`, `Lieferadresse`) sind jederzeit über die 4 kompakten Icon-Modals rechts oben im Bestell-Header abrufbar.
+   * HUD-Anzeige und Eingabefelder (`X`, `Y`, `Winkel` in `0,1 mm`-Schritten) arbeiten über reaktive Client-Zahlen + `@laser-cockpit-sync.window` komplett verzögerungsfrei (`60 FPS` Drag & Drop, sofortiges Nachrücken bei `Kamera & KI-Ausrichten`).
+   * **0 ms Instant-UI im Bestell-Cockpit (`OrderOverview`)**:
+     * Kompakte Kopfzeile ohne „Übersicht"-Text und ohne das Wort „Schritt" in den 3 Fortschritts-Pills (`1 In Bearbeitung`, `2 Versand`, `3 Abgeschlossen`).
+     * Direkt eingeblendete Status- & Zahlstatus-Auswahl sowie beschriftete 1-Wort-Icon-Kacheln (`Dateien`, `Kosten`, `Kunde`, `Adresse`, `DHL`, `Löschen`, `Weiter`), die Modals und Tab-Wechsel (`xTool F2 Ultra UV · Live-Laser-Cockpit` <-> `Live-Konfigurations-Vorschau` sowie `Details anzeigen`) in **0 ms rein clientseitig (Alpine.js)** ohne Server-Roundtrip schalten.
+     * Semantischer Adressvergleich (`OrderOrder::hasDifferentShippingAddress()`) und Unterdrückung redundanter Firmennamen (`company == Kundenname` in `Kunden Infos`, `Lieferadresse` und Rechnungs-PDFs).
+   * **Nativer V2 TLS-WebSocket Direkt-Upload (`wss://192.168.188.150:28900`)**:
+     * Echtes `GS009-CLASS-4` UV-Galvo `motion.gcode` (`G198`, `M9064 B3`, `G22`, `G0Q{freq}`, `M523P40`, bidirektionale `zMode` Scanlines, `G104`/`G105` Multi-Pass, `M6 P1`) im `.xf`-TAR-Paket (`preview.jpg`, `border.gcode`, `motion.gcode`, `description.json`).
+     * Direkte Übertragung via `/v1/filetransfer/upload` + `0xBABE` Binary-Window-Transfer (`proto=33`, `cmd=1/129`, `channel: 62`) + `/v1/processing/upload/config` (`autoStart: 0`, `fileType: 'xf'`), sodass der xTool F2 Ultra UV real in **`WORK_PREPARED`** wechselt und erst beim physischen Knopfdruck am Gerät startet (grünes Erfolgs-Feedback nur bei echter Geräte-Bestätigung `sent_direct === true`).
+   * **Belichtungsrobuste Live-Kamerabild-Kantenerkennung (`detectBlankPositionOnBed`)**:
+     * `+/- 1`-Spalten-tolerante Lamellen-Differenzkarte (`$slatProfile`) mit 3-Zellen-Kantenfilterung erkennt transparente Glas-/Kristallrohlinge auch auf automatisch belichteten Live-Aufnahmen millimetergenau (`Der Seelen Kristall`: `X = 104,3 mm, Y = 97,8 mm`, `161,5 mm` Spannweite).

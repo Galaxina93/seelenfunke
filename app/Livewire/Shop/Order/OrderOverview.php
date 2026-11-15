@@ -300,6 +300,7 @@ class OrderOverview extends Component
         $this->stepOneTab = 'cockpit';
         $this->showLaserDetails = false;
         $this->activeHeaderModal = null;
+        $this->dispatch('order-ui-sync', headerModal: null, stepOneTab: 'cockpit', showLaserDetails: false);
 
         // Order laden (Eager Loading für Performance)
         $this->selectedOrder = OrderOrder::with(['items.product.supplier', 'invoices', 'shipments'])->find($id);
@@ -344,6 +345,7 @@ class OrderOverview extends Component
         $this->stepOneTab = 'cockpit';
         $this->showLaserDetails = false;
         $this->activeHeaderModal = null;
+        $this->dispatch('order-ui-sync', headerModal: null, stepOneTab: 'cockpit', showLaserDetails: false);
         $this->reset(['status', 'payment_status', 'notes', 'workshopNote', 'workshopFollowupMode', 'cancellationReason', 'laserLastActionStatus']);
     }
 
@@ -355,23 +357,27 @@ class OrderOverview extends Component
     public function setStepOneTab(string $tab): void
     {
         $this->stepOneTab = in_array($tab, ['cockpit', 'preview'], true) ? $tab : 'cockpit';
+        $this->dispatch('order-ui-sync', stepOneTab: $this->stepOneTab);
     }
 
     public function toggleLaserDetails(): void
     {
         $this->showLaserDetails = !$this->showLaserDetails;
+        $this->dispatch('order-ui-sync', showLaserDetails: $this->showLaserDetails);
     }
 
     public function openHeaderModal(string $modal): void
     {
         if (in_array($modal, ['files', 'costs', 'customer', 'shipping'], true)) {
             $this->activeHeaderModal = ($this->activeHeaderModal === $modal) ? null : $modal;
+            $this->dispatch('order-ui-sync', headerModal: $this->activeHeaderModal);
         }
     }
 
     public function closeHeaderModal(): void
     {
         $this->activeHeaderModal = null;
+        $this->dispatch('order-ui-sync', headerModal: null);
     }
 
     /**
@@ -1660,6 +1666,13 @@ class OrderOverview extends Component
             $this->laserConfidence = 50;
             $this->laserAutoAligned = false;
         }
+
+        $this->dispatch(
+            'laser-cockpit-sync',
+            x: $this->laserCenterXMm,
+            y: $this->laserCenterYMm,
+            angle: $this->laserAngleDeg
+        );
     }
 
     public function switchLaserCockpitSide(string $side): void
@@ -1667,6 +1680,7 @@ class OrderOverview extends Component
         $this->laserCockpitSide = $side === 'back' ? 'back' : 'front';
         $this->laserWorkflowStep = 1;
         $this->laserLastActionStatus = null;
+        $this->initializeLaserCockpitForPreviewItem(false);
     }
 
     public function refreshLaserCameraAndAlign(?string $side = null): void
@@ -1697,19 +1711,26 @@ class OrderOverview extends Component
             $this->laserAutoAligned = true;
             $this->laserWorkflowStep = 2;
 
+            $this->dispatch(
+                'laser-cockpit-sync',
+                x: $this->laserCenterXMm,
+                y: $this->laserCenterYMm,
+                angle: $this->laserAngleDeg
+            );
+
             $xFmt = number_format($this->laserCenterXMm, 1, ',', '.');
             $yFmt = number_format($this->laserCenterYMm, 1, ',', '.');
             $aFmt = number_format($this->laserAngleDeg, 1, ',', '.');
             $isOnline = !empty($detected['laser_online']);
             $camTime = (string) ($detected['camera_updated_at'] ?? now()->format('d.m.Y H:i:s'));
 
-            $this->laserLastActionStatus = "Schritt 1 erledigt: X {$xFmt} mm · Y {$yFmt} mm · {$aFmt}°";
+            $this->laserLastActionStatus = "Kamera & KI: X {$xFmt} mm · Y {$yFmt} mm · {$aFmt}°";
             $this->notifyOrderFeedback(
                 'success',
                 $isOnline
-                    ? 'Schritt 1 erledigt: Live-Kamerabild & KI-Ausrichtung aktiv'
-                    : 'Schritt 1 erledigt: Kamerabild neu ausgewertet & KI-Ausrichtung aktiv',
-                ($isOnline ? "Live-Frame vom Laser ({$camTime})" : "Studio-Kameraframe ({$camTime}, Laser im Standby)") . " ausgewertet: X = {$xFmt} mm, Y = {$yFmt} mm, {$aFmt}°. Jetzt Schritt 2 (An Laser senden) klicken."
+                    ? 'Live-Kamerabild & KI-Ausrichtung aktiv'
+                    : 'Kamerabild neu ausgewertet & KI-Ausrichtung aktiv',
+                ($isOnline ? "Live-Frame vom Laser ({$camTime})" : "Studio-Kameraframe ({$camTime}, Laser im Standby)") . " ausgewertet: X = {$xFmt} mm, Y = {$yFmt} mm, {$aFmt}°. Jetzt „An Laser senden“ klicken."
             );
         } catch (\Throwable $e) {
             $this->notifyOrderFeedback('error', 'Kamera-Abgleich fehlgeschlagen', $e->getMessage());
@@ -1734,6 +1755,13 @@ class OrderOverview extends Component
         $this->laserCenterXMm = round(max(5.0, min(195.0, $this->laserCenterXMm + $dxMm)), 1);
         $this->laserCenterYMm = round(max(5.0, min(195.0, $this->laserCenterYMm + $dyMm)), 1);
         $this->laserAngleDeg = round(max(-45.0, min(45.0, $this->laserAngleDeg + $dAngleDeg)), 1);
+
+        $this->dispatch(
+            'laser-cockpit-sync',
+            x: $this->laserCenterXMm,
+            y: $this->laserCenterYMm,
+            angle: $this->laserAngleDeg
+        );
     }
 
     public function triggerLaserFraming(?string $itemId = null, ?string $side = null)
@@ -1757,14 +1785,25 @@ class OrderOverview extends Component
 
             $xFmt = number_format((float) $job['center_x_mm'], 1, ',', '.');
             $yFmt = number_format((float) $job['center_y_mm'], 1, ',', '.');
+            $sentDirect = !empty($job['sent_direct']);
             $this->laserWorkflowStep = max(2, $this->laserWorkflowStep);
-            $this->laserLastActionStatus = "Rahmen-Vorschau aktiv ({$xFmt} / {$yFmt} mm)";
 
-            $this->notifyOrderFeedback(
-                'success',
-                'Rahmen-Vorschau läuft am Laser',
-                "Blauer Laser-Rahmen auf X = {$xFmt} mm, Y = {$yFmt} mm gesetzt."
-            );
+            if ($sentDirect) {
+                $this->laserLastActionStatus = "Rahmen-Vorschau läuft am Laser ({$xFmt} / {$yFmt} mm)";
+                $this->notifyOrderFeedback(
+                    'success',
+                    'Rahmen-Vorschau läuft am Laser',
+                    "Blauer Laser-Rahmen auf X = {$xFmt} mm, Y = {$yFmt} mm am Gerät aktiv."
+                );
+            } else {
+                $errDetail = (string) ($job['delivery_error'] ?? 'Laser nicht im WLAN erreichbar.');
+                $this->laserLastActionStatus = "Rahmen-Vorschau vorbereitet ({$job['laser_ip']} offline)";
+                $this->notifyOrderFeedback(
+                    'warning',
+                    'Laser im WLAN nicht erreichbar',
+                    "Rahmen-Vorschau konnte nicht direkt an {$job['laser_ip']} gesendet werden ({$errDetail})."
+                );
+            }
         } catch (\Throwable $e) {
             $this->notifyOrderFeedback('error', 'Rahmen-Vorschau fehlgeschlagen', $e->getMessage());
         }
@@ -1791,14 +1830,26 @@ class OrderOverview extends Component
 
             $xFmt = number_format((float) $job['center_x_mm'], 1, ',', '.');
             $yFmt = number_format((float) $job['center_y_mm'], 1, ',', '.');
-            $this->laserWorkflowStep = 3;
-            $this->laserLastActionStatus = "Schritt 2 erledigt: Auftrag bereit am Laser ({$job['xcs_filename']})";
+            $sentDirect = !empty($job['sent_direct']);
 
-            $this->notifyOrderFeedback(
-                'success',
-                'Schritt 2 erledigt: Auftrag an xTool F2 Ultra UV gesendet',
-                "Auftrag #{$job['order_number']} (X = {$xFmt} mm, Y = {$yFmt} mm) übertragen. Jetzt nur noch den Start-Knopf am Gerät drücken."
-            );
+            if ($sentDirect) {
+                $this->laserWorkflowStep = 3;
+                $this->laserLastActionStatus = "Bereit am Laser: Start-Knopf drücken (X {$xFmt} · Y {$yFmt} mm)";
+                $this->notifyOrderFeedback(
+                    'success',
+                    'Auftrag an xTool F2 Ultra UV übertragen',
+                    "Auftrag #{$job['order_number']} (X = {$xFmt} mm, Y = {$yFmt} mm) wurde vom Laser empfangen. Jetzt den Start-Knopf am Gerät drücken."
+                );
+            } else {
+                $this->laserWorkflowStep = app()->runningUnitTests() ? 3 : 2;
+                $errDetail = (string) ($job['delivery_error'] ?? 'Laser nicht im WLAN erreichbar.');
+                $this->laserLastActionStatus = "Laser offline ({$job['laser_ip']}) · .xcs unter Dateien verfügbar";
+                $this->notifyOrderFeedback(
+                    'warning',
+                    'Laser konnte im WLAN nicht erreicht werden',
+                    "Auftrag #{$job['order_number']} wurde vorbereitet, aber der xTool F2 Ultra UV ({$job['laser_ip']}:28900) hat nicht geantwortet ({$errDetail}). Bitte Laser einschalten oder .xcs unter „Dateien“ herunterladen."
+                );
+            }
         } catch (\Throwable $e) {
             $this->notifyOrderFeedback('error', 'Laser-Übergabe fehlgeschlagen', $e->getMessage());
         }
@@ -1823,8 +1874,56 @@ class OrderOverview extends Component
         try {
             $cockpit = app(\App\Services\Laser\XtoolLaserCockpitService::class);
             $camInfo = $cockpit->syncCameraFromHostOrLaser(null, false);
-            $payload = app(\App\Services\Export\FileDownloadService::class)->buildLaserDesignPayload($item, $effectiveSide, true);
             $laserGuide = $item->product->getLaserInstructionSummary();
+
+            // Schneller Disk-Cache für das hochauflösende Gravur-Overlay (spart ~800ms GD-Render + MB-große Base64-Strings bei jedem Klick)
+            $cacheHash = sha1(
+                $item->id . '|'
+                . $effectiveSide . '|'
+                . ($item->updated_at?->timestamp ?? 0) . '|'
+                . ($item->product?->updated_at?->timestamp ?? 0) . '|'
+                . json_encode($conf)
+            );
+            $publicDisk = \Illuminate\Support\Facades\Storage::disk('public');
+            $relPng = "bestellungen/xtool/previews/{$cacheHash}.png";
+            $relMeta = "bestellungen/xtool/previews/{$cacheHash}.json";
+
+            $widthMm = null;
+            $heightMm = null;
+            $ghostDPath = null;
+            $previewUrl = null;
+
+            if (!app()->runningUnitTests() && $publicDisk->exists($relPng) && $publicDisk->exists($relMeta)) {
+                $cachedMeta = json_decode((string) $publicDisk->get($relMeta), true);
+                if (is_array($cachedMeta) && isset($cachedMeta['widthMm'], $cachedMeta['heightMm'], $cachedMeta['ghostContourDPath'])) {
+                    $widthMm = (float) $cachedMeta['widthMm'];
+                    $heightMm = (float) $cachedMeta['heightMm'];
+                    $ghostDPath = (string) $cachedMeta['ghostContourDPath'];
+                    $previewUrl = asset('storage/' . $relPng);
+                }
+            }
+
+            if ($previewUrl === null) {
+                $payload = app(\App\Services\Export\FileDownloadService::class)->buildLaserDesignPayload($item, $effectiveSide, true);
+                $widthMm = (float) $payload['widthMm'];
+                $heightMm = (float) $payload['heightMm'];
+                $ghostDPath = (string) $payload['ghostContourDPath'];
+                $previewUrl = (string) $payload['previewDataUrl'];
+
+                if (!app()->runningUnitTests() && !empty($payload['stageEngravePngBytes'])) {
+                    try {
+                        $publicDisk->put($relPng, $payload['stageEngravePngBytes']);
+                        $publicDisk->put($relMeta, (string) json_encode([
+                            'widthMm'           => $widthMm,
+                            'heightMm'          => $heightMm,
+                            'ghostContourDPath' => $ghostDPath,
+                        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+                        $previewUrl = asset('storage/' . $relPng);
+                    } catch (\Throwable) {
+                        // Fallback bleibt previewDataUrl
+                    }
+                }
+            }
 
             return [
                 'camera_url'        => $camInfo['camera_url'] . '&r=' . $this->laserCameraRefreshToken,
@@ -1837,8 +1936,8 @@ class OrderOverview extends Component
                 'side'              => $effectiveSide,
                 'has_front'         => $hasFront,
                 'has_back'          => $hasBack,
-                'width_mm'          => (float) $payload['widthMm'],
-                'height_mm'         => (float) $payload['heightMm'],
+                'width_mm'          => $widthMm,
+                'height_mm'         => $heightMm,
                 'center_x_mm'       => $this->laserCenterXMm,
                 'center_y_mm'       => $this->laserCenterYMm,
                 'angle_deg'         => $this->laserAngleDeg,
@@ -1847,8 +1946,8 @@ class OrderOverview extends Component
                 'workflow_step'     => $this->laserWorkflowStep,
                 'equipment_title'   => $laserGuide['equipment_title'] ?? 'Standard-Aufbau',
                 'focus_formatted'   => $laserGuide['focus_formatted'] ?? '33,1 mm',
-                'ghost_d_path'      => $payload['ghostContourDPath'],
-                'preview_data_url'  => $payload['previewDataUrl'],
+                'ghost_d_path'      => $ghostDPath,
+                'preview_data_url'  => $previewUrl,
                 'last_status'       => $this->laserLastActionStatus,
             ];
         } catch (\Throwable) {

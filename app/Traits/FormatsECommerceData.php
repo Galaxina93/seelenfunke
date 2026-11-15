@@ -367,10 +367,17 @@ trait FormatsECommerceData
 
         // Logik für Order / Invoice (billing_address Array oder verknüpfter Kunde)
         if (!empty($billing['first_name']) || !empty($billing['last_name']) || $customer) {
+            $vorname = $billing['first_name'] ?? ($customer->first_name ?? ($this->first_name ?? ''));
+            $nachname = $billing['last_name'] ?? ($customer->last_name ?? ($this->last_name ?? ''));
+            $rawFirma = $billing['company'] ?? ($customer->company ?? ($this->company ?? ''));
+            $firma = \App\Models\Order\OrderOrder::isRedundantCompanyName((string) $rawFirma, trim($vorname . ' ' . $nachname))
+                ? ''
+                : $rawFirma;
+
             return [
-                'vorname'   => $billing['first_name'] ?? ($customer->first_name ?? ($this->first_name ?? '')),
-                'nachname'  => $billing['last_name'] ?? ($customer->last_name ?? ($this->last_name ?? '')),
-                'firma'     => $billing['company'] ?? ($customer->company ?? ($this->company ?? '')),
+                'vorname'   => $vorname,
+                'nachname'  => $nachname,
+                'firma'     => $firma,
                 'email'     => $this->email ?? ($this->order->email ?? ($customer->email ?? ($billing['email'] ?? ''))),
                 'telefon'   => $billing['phone'] ?? ($this->phone ?? ''),
                 'anmerkung' => $this->notes ?? ($this->admin_notes ?? ''),
@@ -379,10 +386,17 @@ trait FormatsECommerceData
         }
 
         // Logik für QuoteRequest (Direkte Attribute)
+        $qVorname = $this->first_name ?? '';
+        $qNachname = $this->last_name ?? '';
+        $qRawFirma = $this->company ?? '';
+        $qFirma = \App\Models\Order\OrderOrder::isRedundantCompanyName((string) $qRawFirma, trim($qVorname . ' ' . $qNachname))
+            ? ''
+            : $qRawFirma;
+
         return [
-            'vorname'   => $this->first_name ?? '',
-            'nachname'  => $this->last_name ?? '',
-            'firma'     => $this->company ?? '',
+            'vorname'   => $qVorname,
+            'nachname'  => $qNachname,
+            'firma'     => $qFirma,
             'email'     => $this->email ?? '',
             'telefon'   => $this->phone ?? '',
             'anmerkung' => $this->admin_notes ?? '',

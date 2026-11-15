@@ -234,6 +234,79 @@ use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
         return $this->belongsTo(Customer::class, 'customer_id')->withTrashed();
     }
 
+    /**
+     * Prüft, ob ein Firmenname redundant mit dem Vor- und Nachnamen identisch ist
+     * (z. B. wenn Privatkunden oder Browser-Autofill ihren eigenen Namen ins Feld „Firma" eintragen).
+     */
+    public static function isRedundantCompanyName(?string $company, ?string $fullName): bool
+    {
+        $cleanCompany = preg_replace('/\s+/u', ' ', trim((string) $company));
+        if ($cleanCompany === '') {
+            return true;
+        }
+
+        $cleanName = preg_replace('/\s+/u', ' ', trim((string) $fullName));
+        if ($cleanName === '') {
+            return false;
+        }
+
+        return mb_strtolower($cleanCompany) === mb_strtolower($cleanName);
+    }
+
+    /**
+     * Prüft sachlich anhand der zustellrelevanten Adressfelder (statt rohem Array-serialize()),
+     * ob die Lieferadresse tatsächlich von der Rechnungsadresse abweicht.
+     */
+    public function hasDifferentShippingAddress(): bool
+    {
+        $shipping = is_array($this->shipping_address) ? $this->shipping_address : [];
+        if (empty($shipping)) {
+            return false;
+        }
+
+        $hasAnyShippingCore = trim((string) ($shipping['address'] ?? '')) !== ''
+            || trim((string) ($shipping['postal_code'] ?? '')) !== ''
+            || trim((string) ($shipping['city'] ?? '')) !== '';
+        if (!$hasAnyShippingCore) {
+            return false;
+        }
+
+        $billing = is_array($this->billing_address) ? $this->billing_address : [];
+
+        $normalizeCountry = static function (?string $country): string {
+            $c = mb_strtolower(trim((string) $country));
+            return match ($c) {
+                '', 'de', 'deu', 'deutschland', 'germany' => 'de',
+                'at', 'aut', 'österreich', 'oesterreich', 'austria' => 'at',
+                'ch', 'che', 'schweiz', 'switzerland' => 'ch',
+                default => $c,
+            };
+        };
+
+        $normalize = static function (array $addr, string $fallbackName = '') use ($normalizeCountry): array {
+            $rawName = preg_replace('/\s+/u', ' ', trim(((string) ($addr['first_name'] ?? '')) . ' ' . ((string) ($addr['last_name'] ?? ''))));
+            $effectiveName = $rawName !== '' ? $rawName : $fallbackName;
+            $rawCompany = (string) ($addr['company'] ?? '');
+            $company = self::isRedundantCompanyName($rawCompany, $effectiveName)
+                ? ''
+                : mb_strtolower((string) preg_replace('/\s+/u', ' ', trim($rawCompany)));
+
+            return [
+                'name'        => mb_strtolower($effectiveName),
+                'company'     => $company,
+                'address'     => mb_strtolower((string) preg_replace('/\s+/u', ' ', trim(((string) ($addr['address'] ?? '')) . ' ' . ((string) ($addr['address_addition'] ?? ''))))),
+                'postal_code' => mb_strtolower((string) preg_replace('/\s+/u', '', trim((string) ($addr['postal_code'] ?? '')))),
+                'city'        => mb_strtolower((string) preg_replace('/\s+/u', ' ', trim((string) ($addr['city'] ?? '')))),
+                'country'     => $normalizeCountry($addr['country'] ?? 'DE'),
+            ];
+        };
+
+        $normBilling = $normalize($billing);
+        $normShipping = $normalize($shipping, $normBilling['name']);
+
+        return $normBilling !== $normShipping;
+    }
+
     public function sampleInfluencer()
     {
         return $this->hasOne(\App\Models\Marketing\MarketingInfluencer::class, 'sample_order_id')->withTrashed();

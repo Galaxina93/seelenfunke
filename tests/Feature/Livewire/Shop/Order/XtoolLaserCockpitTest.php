@@ -234,10 +234,15 @@ class XtoolLaserCockpitTest extends TestCase
         $this->assertStringContainsString('# GS009-4 HEAD', $xf['border_gcode']);
         $this->assertStringContainsString('G0X80.000Y80.000F1440000', $xf['border_gcode']);
         $this->assertStringContainsString('G1X120.000Y80.000S133F1440000', $xf['border_gcode']);
+        $this->assertStringContainsString('# GS009-4 BITMAP HEAD', $xf['motion_gcode']);
+        $this->assertStringContainsString('M9064 B3', $xf['motion_gcode']);
+        $this->assertStringContainsString('G22', $xf['motion_gcode']);
+        $this->assertStringContainsString('M523P40', $xf['motion_gcode']);
+        $this->assertStringContainsString('M6 P1', $xf['motion_gcode']);
         $this->assertStringContainsString('ustar', $xf['bytes']);
         $this->assertStringContainsString('preview.jpg', $xf['bytes']);
         $this->assertStringContainsString('border.gcode', $xf['bytes']);
-        $this->assertStringContainsString('motion.bgcode', $xf['bytes']);
+        $this->assertStringContainsString('motion.gcode', $xf['bytes']);
         $this->assertStringContainsString('description.json', $xf['bytes']);
         $this->assertEquals('MXFK007003260530H0194A6', $xf['description']['deviceInfo']['snCode']);
     }
@@ -257,27 +262,34 @@ class XtoolLaserCockpitTest extends TestCase
             ->assertSet('selectedOrderItemId', $item->id)
             ->assertSet('laserWorkflowStep', 1)
             ->assertSet('showLaserDetails', false)
+            ->assertSee('In Bearbeitung (0/1)')
+            ->assertSee('Dateien')
+            ->assertSee('Kosten')
+            ->assertSee('Kunde')
+            ->assertSee('Adresse')
             ->assertSee('xTool F2 Ultra UV · Live-Laser-Cockpit')
             ->assertSee('Live-Konfigurations-Vorschau')
             ->assertSee('Details anzeigen')
             ->assertSee('Kamera & KI-Ausrichten')
             ->assertSee('An Laser senden')
             ->assertSee('Weiter zur Verpackung')
+            ->assertDontSee('Status / Optionen')
+            ->assertDontSee('Schritt 1 · In Bearbeitung (0/1)')
+            ->assertDontSee('Schritt 2 · Versand')
+            ->assertDontSee('Schritt 3 · Abgeschlossen')
             ->assertDontSee('Artikel 1 von 1')
-            ->assertDontSee('Rahmen-Vorschau')
-            ->assertDontSee('.xcs Backup')
             ->assertDontSee('Optional einblendbar')
-            ->assertDontSee('xTool Anleitung');
+            ->assertDontSee('xTool Anleitung')
+            ->assertSee('x-show="showLaserDetails"', false);
 
         $component->call('toggleLaserDetails')
             ->assertSet('showLaserDetails', true)
-            ->assertSee('Details ausblenden')
-            ->assertSee('Rahmen-Vorschau')
-            ->assertSee('.xcs Backup');
+            ->assertDispatched('order-ui-sync');
 
         $component->call('refreshLaserCameraAndAlign')
             ->assertSet('laserWorkflowStep', 2)
             ->assertSet('laserCameraRefreshToken', 1)
+            ->assertDispatched('laser-cockpit-sync')
             ->assertDispatched('order-feedback');
 
         $cockpitDataAfterRefresh = $component->instance()->laserCockpitData;
@@ -660,7 +672,80 @@ class XtoolLaserCockpitTest extends TestCase
             ->assertSet('laserCenterYMm', 99.0)
             ->assertSet('laserAngleDeg', 0.0)
             ->assertSee('step="0.1"', false)
-            ->assertSee("\$wire.entangle('laserCenterXMm')", false)
+            ->assertSee('x-model.number="xMm"', false)
+            ->assertSee('@laser-cockpit-sync.window', false)
             ->assertSee('161,5 × 161,5 mm');
+    }
+
+    #[Test]
+    public function shipping_address_comparison_and_redundant_company_name_suppression_work_accurately(): void
+    {
+        $admin = $this->createAdmin();
+        $product = $this->createPersonalizableLaserProduct();
+        [$order] = $this->createSampleOrderWithItem($product);
+
+        // Gleiche Adresse, aber billing_address enthält zusätzliche Metadaten + redundantes company == Kundenname + 'Deutschland' vs 'DE'
+        $order->update([
+            'billing_address' => [
+                'first_name'  => 'Alina',
+                'last_name'   => 'Steinhauer',
+                'company'     => 'Alina Steinhauer',
+                'email'       => 'alina.stone@t-online.de',
+                'phone'       => '+49 1590 1966864',
+                'address'     => 'Carl-Goerdeler-Ring 26',
+                'postal_code' => '38518',
+                'city'        => 'Gifhorn',
+                'country'     => 'Deutschland',
+            ],
+            'shipping_address' => [
+                'country'     => 'DE',
+                'city'        => 'Gifhorn',
+                'postal_code' => '38518',
+                'address'     => 'Carl-Goerdeler-Ring 26',
+                'first_name'  => 'Alina',
+                'last_name'   => 'Steinhauer',
+                'company'     => '',
+            ],
+        ]);
+
+        $this->assertTrue(OrderOrder::isRedundantCompanyName('Alina Steinhauer', 'Alina Steinhauer'));
+        $this->assertFalse(OrderOrder::isRedundantCompanyName('Mein-Seelenfunke', 'Alina Steinhauer'));
+        $this->assertFalse($order->fresh()->hasDifferentShippingAddress());
+
+        // PDF / E-Mail Kontaktdaten unterdrücken redundanten Firmennamen ebenfalls
+        $invoiceHelper = new class {
+            use \App\Traits\FormatsECommerceData;
+
+            public function extract($model): array
+            {
+                return $this->getMailContactData($model);
+            }
+        };
+        $contactData = $invoiceHelper->extract($order->fresh());
+        $this->assertSame('', $contactData['firma']);
+
+        Livewire::actingAs($admin, 'admin')
+            ->test(OrderOverview::class)
+            ->call('openDetail', $order->id)
+            ->assertSee('Identisch mit Rechnung')
+            ->assertDontSee('Abweichend von Rechnung');
+
+        // Echte abweichende Lieferadresse wird sauber als abweichend erkannt
+        $order->update([
+            'shipping_address' => [
+                'first_name'  => 'Max',
+                'last_name'   => 'Mustermann',
+                'address'     => 'Hauptstraße 99',
+                'postal_code' => '10115',
+                'city'        => 'Berlin',
+                'country'     => 'DE',
+            ],
+        ]);
+        $this->assertTrue($order->fresh()->hasDifferentShippingAddress());
+
+        Livewire::actingAs($admin, 'admin')
+            ->test(OrderOverview::class)
+            ->call('openDetail', $order->id)
+            ->assertSee('Abweichend von Rechnung');
     }
 }
