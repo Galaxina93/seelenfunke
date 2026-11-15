@@ -511,6 +511,10 @@
                                 if (w > 0 && (!this._lastObservedWidth || Math.abs(this._lastObservedWidth - w) >= 1)) {
                                     this._lastObservedWidth = w;
                                     this.updateScaleFactor(w);
+                                    let engine = this.$refs.container3d ? this.$refs.container3d._engine : null;
+                                    if (engine && typeof engine.resize === 'function') {
+                                        engine.resize();
+                                    }
                                 }
                             }
                         });
@@ -1836,7 +1840,7 @@
 
             updateScaleFactor(width = null, forceRefit = false) {
                 if(!width && this.$refs.container) {
-                    width = this.$refs.container.getBoundingClientRect().width;
+                    width = this.$refs.container.clientWidth || this.$refs.container.getBoundingClientRect().width;
                 }
                 if(!width || width <= 0) {
                     if (forceRefit) {

@@ -61,37 +61,37 @@ Funki gibt direkt unter der Begrüßung für **jede** denkbare Konstellation in 
 
 ---
 
-## 5. Integriertes xTool-Handbuch & 1:1 Laser-Werte in der Bestellabwicklung (`right.blade.php`)
+## 5. Hinterlegte xTool-Laserwerte am Produkt (`Product::getLaserInstructionSummary()`)
 
-Direkt im Fertigungsbereich jeder Bestellposition unter `/admin/orders` ([`right.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/order/order-offer-detail-partials/right.blade.php)) wird automatisch die Karte **`xTool Anleitung & Laser-Werte`** des jeweiligen Produkts (`Product::getLaserInstructionSummary()`) ausgespielt:
-
-* **Vollständig gepflegtes Produkt:** Zeigt Equipment-Badge (`Flachbett`, `360° RA3`, `Laufband`, `3D-Innengravur`), **1-Klick-Buttons zum Öffnen und Herunterladen (`PDF ziehen`) der PDF-Aufbauanleitungen** (`/storage/produkte/laser-anleitungen/...` inkl. Schnellzugriff `PDF-Anleitungen (3)`), optionalen Einlege-Hinweis (`xtool_setup_note`), das kompakte 1:1 Parameter-Raster (`Material`, `Fokus mm`, `Punktdauer µs`, `Leistung %`, `DPI`, `Durchgänge`, `kHz`, `Bitmap-Modus`, `Gravurmodus`, Vektor-Zusatz) sowie einen **`Werte kopieren`**-Button.
-* **Fehlende Laser-Werte am Produkt:** Zeigt eine rote Warnbox **`✕ Laser-Werte am Produkt unvollständig`** mit 1-Klick-Deep-Link (`/admin/products?editProduct=<id>&step=4&subStep=2`) direkt in Schritt `4.2` des Produkt-Editors.
+Alle xTool-Parameter (`Material`, `Fokus mm`, `Punktdauer µs`, `Leistung %`, `DPI`, `Durchgänge`, `kHz`, `Bitmap-Modus`, `Gravurmodus`) sind zentral in Schritt `4.2` am Produkt hinterlegt und fließen automatisch in die `.xf`-/`.xcs`-Laserübergabe ein. Um die tägliche Bestellabwicklung in `/admin/orders` maximal aufgeräumt zu halten, werden die Parameter-Tabellen nicht mehr redundant unter dem Laser-Cockpit eingeblendet (in der Angebotsansicht `right.blade.php` bleiben sie für Sonderkalkulationen erhalten).
 
 ---
 
-## 6. Zentrierte 3-Schritte-Bestellabwicklung, Live-Laser-Cockpit & Packtisch-Prüfung (`Zero-Thinking`)
+## 6. Clean-Design 3-Schritte-Bestellabwicklung, 2-Tab Cockpit/Vorschau & Header-Modals
 
-Die Bestelldetail-Ansicht in `/admin/orders` ([`order-offer-detail-content.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/order/order-offer-detail-content.blade.php), [`detail-header.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/order/order-overview-partials/detail-header.blade.php), [`laser-cockpit-card.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/order/order-offer-detail-partials/laser-cockpit-card.blade.php)) führt statt eines überladenen 2-Spalten-Layouts **mittig zentriert (`max-w-3xl`) Schritt für Schritt** durch den Auftrag. Alle Detailansichten (Produktkonfigurator, Laser-Steckbrief, Dateien & Downloads, Lieferadresse & Kostenübersicht) sind darunter optional per 1-Klick einblendbar:
+Die Bestelldetail-Ansicht in `/admin/orders` ([`order-offer-detail-content.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/order/order-offer-detail-content.blade.php), [`detail-header.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/order/order-overview-partials/detail-header.blade.php), [`header-modals.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/order/order-overview-partials/header-modals.blade.php), [`laser-cockpit-card.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/order/order-offer-detail-partials/laser-cockpit-card.blade.php)) folgt strikt dem Seelenfunke Clean-Design ohne aufklappbare Doppel-Panels am unteren Rand:
 
-1. **Vereinfachter Bestell-Header (`detail-header.blade.php`):**
-   * Links: Zurück-Button, `#Auftragsnummer`, Express-Badge und kompakter Zahlstatus-Badge (`✓ Bezahlt` / `Zahlung offen`).
+1. **Bestell-Header mit 4 Schnellzugriff-Modals (`detail-header.blade.php` & `header-modals.blade.php`):**
+   * Links: Zurück-Button, `#Auftragsnummer`, Express-Badge und Zahlstatus-Badge (`✓ Bezahlt` / `Zahlung offen`).
    * Mitte: Die zentrierte 3-Schritte-Pipeline (`Schritt 1 · In Bearbeitung (X/N)`, `Schritt 2 · Versand`, `Schritt 3 · Abgeschlossen`).
-   * Rechts: Direkt-Button `Nächster gleicher Artikel` / `Nächster Auftrag` sowie ein kompaktes `Status / Optionen`-Menü für manuelle Status-Overrides.
+   * Rechts neben `Status / Optionen` liegen 4 kompakte Schnellzugriff-Buttons als Modals:
+     1. **Ordner-Icon + `Dateien`** (`openHeaderModal('files')`): Kunden-Uploads, Konfigurations-Sicherungen, Foto-Mangel-Meldung sowie `.xcs`-, `Laser-SVG`- und `Kontur-PNG`-Downloads.
+     2. **`€`-Icon** (`openHeaderModal('costs')`): Vollständige Kostenübersicht (`<x-shop.cost-summary>`).
+     3. **User-Icon** (`openHeaderModal('customer')`): Kunden- & Rechnungsdaten, E-Mail-Schnellkopie sowie GoBD-konforme Löschfunktion für unbezahlte Testbestellungen.
+     4. **GPS-Icon** (`openHeaderModal('shipping')`): Lieferadresse inklusive Hinweis bei abweichender Lieferanschrift.
 2. **Start-Kachel „Wartend“ (`status = pending`):**
-   * Beim Öffnen einer wartenden Bestellung erscheint mittig zentriert die Kachel **`Wartend`** mit Vorschau der 3 Konfigurator-Vorgaben und dem Button **`Jetzt starten`** (`wire:click="startOrderProcessing"` -> setzt Status autonom auf `processing` und öffnet Schritt 1).
-3. **Schritt 1 · In Bearbeitung (Zentriertes `xTool F2 Ultra UV · Live-Laser-Cockpit` je Artikel, wiederholend für alle Positionen):**
-   * Zeigt mittig zentriert das **`xTool F2 Ultra UV · Live-Laser-Cockpit`** für den ersten offenen Artikel der Bestellung, inklusive horizontaler Artikel-Umschaltleiste (`Artikel X von N`) und Stückzahl-Zähler (`- / +`) für Großbestellungen.
-   * **Präzise KI-Rohling-Erkennung & konzentrische Kontur:** [`XtoolLaserCockpitService::detectBlankPositionOnBed()`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/Laser/XtoolLaserCockpitService.php) blendet die helle Aluminium-Frontschürze am unteren Bildrand (`Y >= 165 mm`) automatisch aus, analysiert die verdeckten Lamellen-Spalten über eine gesättigte `[0..1]`-Maske (immun gegen punktuelle LED-Spiegelungen im Glas) und zentriert runde Kristall-Trophäen (`Der Seelen Kristall`) über [`FileDownloadService::buildLaserDesignPayload()`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/Export/FileDownloadService.php) exakt konzentrisch mit innerem Gravurkreis und äußerem Kristallrand.
-   * **Echtes Maus-Drag-&-Drop & Drehgriff (`↻`):** Das Gravurmotiv lässt sich im Kamerabild per relativer Mausbewegung (`cursor-grab`) ruckelfrei ohne Springen verschieben sowie direkt am oberen `↻`-Griff drehen (`angleDeg`), ohne dass Livewire das DOM beim Loslassen neu lädt. Das `!`-Info-Popover im Cockpit-Header (`z-[90]`) ragt frei über den Container hinaus und wird nicht abgeschnitten.
-   * Darunter stehen die 3 abhakbaren Konfigurator-Vorgaben (`1. Besondere Wünsche: JA/NEIN`, `2. Geschenkpapier: Verpacken / Nur als Bogen dazu legen / Nein`, `3. Edle Schmuckbox: Ja / Nein`).
-   * Ein Klick auf **`Artikel erledigt & weiter zum nächsten Artikel`** (`completeCurrentItemAndAdvance`) lädt automatisch den nächsten offenen Artikel der Bestellung ins Cockpit; sobald alle Artikel erledigt sind, wechselt die Ansicht autonom in **Schritt 2**.
-4. **Schritt 2 · Verpackung & Versand (Karton-Stückliste, Dankeskarte, Warnaufkleber & DHL-Label):**
-   * [`OrderOrder::getPackingStationPlan()`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Models/Order/OrderOrder.php) zeigt exakt auf, **welche Kartons/Versandtaschen wie oft für welche Produkte** der Bestellung benötigt werden und wie jedes Produkt verpackt werden muss (inkl. Westpack-Schmuckbox und Geschenkpapier-Modus).
-   * Zwei interaktive Pflicht-Prüfungen vor dem Verschließen (`wire:click="toggleOrderPackingCheck"`):
-     1. **`Dankeskarte beigelegt?`** (`thank_you_card`)
-     2. **`Prüfung Warnaufkleber (Zerbrechlich / Vorsicht Glas)`** (`fragile_sticker`, mit automatischem Pflicht-Hinweis bei Kristall, Glas, Trophäe, Schiefer, Keramik, Porzellan).
-   * Über **`1. DHL Label erstellen & drucken`** (`openDhlModal` / `printDhlLabelViaFunkenwerk`) und **`2. Fertig verpackt & versendet -> Schritt 3`** (`completeStepTwoShipped`) wechselt die Bestellung autonom auf `shipped` und in **Schritt 3**.
+   * Zeigt `Konfigurator-Vorgaben` nur dann an, wenn tatsächlich ein Kundenwunsch, Geschenkpapier oder eine Schmuckbox gebucht wurde. Klick auf **`Jetzt starten`** (`startOrderProcessing`) setzt den Status autonom auf `processing` und öffnet Schritt 1.
+3. **Schritt 1 · In Bearbeitung (2-Tab Ansicht + `Details anzeigen` + 2-Klick-Lasersteuerung):**
+   * Das Badge `Artikel X von N` erscheint nur bei Bestellungen mit mehr als einer Position (`$totalOrderItems > 1`).
+   * **2-Tab Umschalter:**
+     * **Tab 1:** `xTool F2 Ultra UV · Live-Laser-Cockpit`
+     * **Tab 2:** `Live-Konfigurations-Vorschau` (eingebettete 2D/3D `ProductConfigurator`-Vorschau mit identischer `line-height: 1.15` und exakt kalibrierter 3D-Gravurskalierung).
+   * **Clean Cockpit & `Details anzeigen`:** Technische Statusleisten (`IP`, `KI %`, `!`-Tooltip, `.xcs Backup`, Zeitstempel, `Rahmen-Vorschau`) sowie die manuelle `X / Y / Winkel`-Feinjustierung sind standardmäßig ausgeblendet und lassen sich rechts oben in der Kachel über den schlichten Text-Button **`Details anzeigen`** (`toggleLaserDetails`) zuschalten.
+   * **2-Schritte-Laserleiste:** Nur noch **`1. Kamera & KI-Ausrichten`** (`refreshLaserCameraAndAlign`) und **`2. An Laser senden`** (`sendJobDirectlyToLaser`). Beim `Seelen Kristall` ist die Scheibenkontur exakt auf den realen K9-Scheibendurchmesser **`Ø 161,5 mm`** (Gesamthöhe inkl. Sockel `180 mm`) und un-erodierte Kanten-Luminanz (`X = 104,5 mm`, `Y = 96,5 mm`) kalibriert.
+   * **Konfigurator-Vorgaben & Weiter-Button:** Unter dem Cockpit erscheinen ausschließlich tatsächlich zutreffende Vorgaben (`Kundenwunsch`, `Geschenkpapier`, `Edle Schmuckbox`); „Nein“- oder „OK“-Zeilen entfallen komplett. Der Weiter-Button heißt schlicht **`Weiter zur Verpackung`**.
+4. **Schritt 2 · Verpackung & Versand (Mattes Schwarz-Gold ohne bunte Boxen):**
+   * `1. Benötigte Kartons & Verpackungs-Zuordnung`: Kompakte, sofort erfassbare Karton-Stückliste mit Maßangabe und Artikel-Zuordnung (ohne irrelevante „Standard-Schutzpolsterung“-Hinweise).
+   * `2. Pflicht-Prüfung vor dem Verschließen des Pakets`: Neutrale Karten mit dezentem Gold-Haken (`#C5A059`) für `Dankeskarte beigelegt`, `Warnaufkleber „Zerbrechlich“ außen aufgeklebt` (nur bei Glas/Kristall/Schiefer/Keramik) sowie `Schwarze Westpack Schmuckbox` und `Schwarz-Gold-Geschenkpapier` (jeweils nur dann sichtbar, wenn tatsächlich gebucht).
 5. **Schritt 3 · Bestellung abgeschlossen:**
-   * Zentrierte Abschluss-Kachel mit Zusammenfassung (`1. Laser-Fertigung ✓`, `2. Verpackung & Versand ✓`), Button **`Bestellung endgültig abschließen`** (`completeStepThreeOrder` -> `status = completed`) und Direkt-Sprung zum nächsten Auftrag.
+   * Natürliche Singular-/Plural-Formulierung (`✓ 1 Artikel erledigt` bei Einzelpositionen, `✓ Alle N Artikel erledigt` ab 2 Positionen), Abschluss-Button und Direkt-Sprung zum nächsten Auftrag.
    * **Feature-Tests:** [`XtoolLaserCockpitTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Livewire/Shop/Order/XtoolLaserCockpitTest.php) (`7/7` grün) & [`OrderWorkshopCheckinAndAiGuardTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Order/OrderWorkshopCheckinAndAiGuardTest.php) (`4/4` grün).

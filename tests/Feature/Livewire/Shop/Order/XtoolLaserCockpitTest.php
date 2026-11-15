@@ -256,10 +256,23 @@ class XtoolLaserCockpitTest extends TestCase
             ->assertSet('selectedOrderId', $order->id)
             ->assertSet('selectedOrderItemId', $item->id)
             ->assertSet('laserWorkflowStep', 1)
+            ->assertSet('showLaserDetails', false)
             ->assertSee('xTool F2 Ultra UV · Live-Laser-Cockpit')
+            ->assertSee('Live-Konfigurations-Vorschau')
+            ->assertSee('Details anzeigen')
             ->assertSee('Kamera & KI-Ausrichten')
-            ->assertSee('Rahmen-Vorschau')
             ->assertSee('An Laser senden')
+            ->assertSee('Weiter zur Verpackung')
+            ->assertDontSee('Artikel 1 von 1')
+            ->assertDontSee('Rahmen-Vorschau')
+            ->assertDontSee('.xcs Backup')
+            ->assertDontSee('Optional einblendbar')
+            ->assertDontSee('xTool Anleitung');
+
+        $component->call('toggleLaserDetails')
+            ->assertSet('showLaserDetails', true)
+            ->assertSee('Details ausblenden')
+            ->assertSee('Rahmen-Vorschau')
             ->assertSee('.xcs Backup');
 
         $component->call('refreshLaserCameraAndAlign')
@@ -282,11 +295,11 @@ class XtoolLaserCockpitTest extends TestCase
             ->assertSet('laserAngleDeg', -3.0);
 
         $component->call('triggerLaserFraming', $item->id, 'front')
-            ->assertSet('laserWorkflowStep', 3)
+            ->assertSet('laserWorkflowStep', 2)
             ->assertDispatched('order-feedback');
 
         $component->call('sendJobDirectlyToLaser', $item->id, 'front')
-            ->assertSet('laserWorkflowStep', 4)
+            ->assertSet('laserWorkflowStep', 3)
             ->assertDispatched('order-feedback');
 
         $queueState = app(XtoolLaserCockpitService::class)->getQueueState(false);
@@ -303,6 +316,13 @@ class XtoolLaserCockpitTest extends TestCase
         $admin = $this->createAdmin();
         $product = $this->createPersonalizableLaserProduct();
         [$order, $item] = $this->createSampleOrderWithItem($product);
+
+        // 0. Ohne Extras/Kundenwunsch werden in Schritt 1 KEINE leeren "Nein / OK"-Konfigurator-Vorgaben eingeblendet
+        Livewire::actingAs($admin, 'admin')
+            ->test(OrderOverview::class)
+            ->call('openDetail', $order->id)
+            ->assertDontSee('Konfigurator-Vorgaben')
+            ->assertDontSee('Standard-Schutzpolsterung');
 
         // Bestellung startet im Status "pending" (Wartend) mit allen 3 Konfigurator-Optionen
         $order->update(['status' => 'pending']);
@@ -348,10 +368,10 @@ class XtoolLaserCockpitTest extends TestCase
             ->assertSet('status', 'processing')
             ->assertSet('activeOrderStep', 1)
             ->assertSee('Schritt 1 · In Bearbeitung')
-            ->assertSee('1. Besondere Wünsche an die Manufaktur: JA')
+            ->assertSee('Kundenwunsch')
             ->assertSee('Bitte das Herz minimal höher platzieren')
-            ->assertSee('2. Geschenkpapier ausgewählt: Ja (Nur als Bogen dazu legen)')
-            ->assertSee('3. Edle Schmuckbox: Ja (Edle Schmuckbox Schwarz-Gold)');
+            ->assertSee('Geschenkpapier')
+            ->assertSee('Edle Schmuckbox');
 
         $this->assertSame('processing', $order->fresh()->status);
         $this->assertStringContainsString('Schritt 1 (In Bearbeitung)', (string) $order->fresh()->workshop_note);
@@ -361,7 +381,10 @@ class XtoolLaserCockpitTest extends TestCase
             ->call('toggleItemChecklistTask', $item->id, 'gift_wrap')
             ->call('toggleItemChecklistTask', $item->id, 'gift_box')
             ->call('toggleItemChecklistTask', $item->id, 'engraving')
-            ->assertSet('activeOrderStep', 2);
+            ->assertSet('activeOrderStep', 2)
+            ->assertSee('1× Schwarze Westpack Schmuckbox eingelegt')
+            ->assertSee('Schwarz-Gold-Geschenkpapier lose als Bogen beigelegt')
+            ->assertDontSee('Standard-Schutzpolsterung');
 
         $this->assertTrue($item->fresh()->is_completed);
         $this->assertStringContainsString('Schritt 1 abgeschlossen', (string) $order->fresh()->workshop_note);
@@ -369,7 +392,9 @@ class XtoolLaserCockpitTest extends TestCase
         // 4. Schritt 2 abschließen (Versendet) -> Status autonom auf "shipped", wechselt zu Schritt 3
         $component->call('completeStepTwoShipped', false)
             ->assertSet('status', 'shipped')
-            ->assertSet('activeOrderStep', 3);
+            ->assertSet('activeOrderStep', 3)
+            ->assertSee('✓ 1 Artikel erledigt')
+            ->assertDontSee('Alle 1 Artikel');
 
         $this->assertSame('shipped', $order->fresh()->status);
 
@@ -434,8 +459,8 @@ class XtoolLaserCockpitTest extends TestCase
                 'area_top'              => 11.6,
                 'area_width'            => 68.0,
                 'area_height'           => 68.0,
-                'xtool_plane_width'     => 180,
-                'xtool_plane_height'    => 180,
+                'xtool_plane_width'     => 161.5,
+                'xtool_plane_height'    => 161.5,
                 'xtool_material'        => 'K9 Kristallglas',
                 'xtool_focus_mm'        => 20.0,
             ],
@@ -472,9 +497,10 @@ class XtoolLaserCockpitTest extends TestCase
         $component->call('completeCurrentItemAndAdvance', $item2->id)
             ->assertSet('activeOrderStep', 2)
             ->assertSee('Schritt 2 · Verpackung & Versand')
-            ->assertSee('Dankeskarte beigelegt?')
-            ->assertSee('Prüfung Warnaufkleber (Zerbrechlich / Vorsicht Glas)')
-            ->assertSee('Der Seelen Kristall');
+            ->assertSee('Dankeskarte beigelegt')
+            ->assertSee('Warnaufkleber „Zerbrechlich“ außen aufgeklebt')
+            ->assertSee('Der Seelen Kristall')
+            ->assertDontSee('Standard-Schutzpolsterung');
 
         // Packtisch-Prüfpunkte abhaken
         $component->call('toggleOrderPackingCheck', 'thank_you_card')
@@ -488,45 +514,55 @@ class XtoolLaserCockpitTest extends TestCase
         $packingPlan = $order->fresh()->getPackingStationPlan();
         $this->assertCount(2, $packingPlan['items']);
         $this->assertNotEmpty($packingPlan['cartons']);
+
+        $component->call('completeStepTwoShipped', false)
+            ->assertSet('activeOrderStep', 3)
+            ->assertSee('✓ Alle 2 Artikel erledigt');
     }
 
     #[Test]
-    public function optional_einblendbar_dropdown_toggles_cleanly_in_pending_and_processing_views(): void
+    public function step_one_two_tab_switcher_and_four_header_modals_open_cleanly(): void
     {
         $admin = $this->createAdmin();
         $product = $this->createPersonalizableLaserProduct();
         [$order] = $this->createSampleOrderWithItem($product);
 
-        // 1. Im Status "pending" (Wartend) ein- und ausblenden
-        $order->update(['status' => 'pending']);
-
         $component = Livewire::actingAs($admin, 'admin')
             ->test(OrderOverview::class)
             ->call('openDetail', $order->id)
-            ->assertSet('showOptionalOrderDetails', false)
-            ->assertDontSee('Live-Konfigurations-Vorschau')
-            ->call('toggleOptionalOrderDetails')
-            ->assertSet('showOptionalOrderDetails', true)
-            ->assertSee('Live-Konfigurations-Vorschau')
-            ->assertSee('Kunde / Rechnung')
-            ->call('toggleOptionalOrderDetails')
-            ->assertSet('showOptionalOrderDetails', false)
-            ->assertDontSee('Live-Konfigurations-Vorschau');
+            ->assertSet('stepOneTab', 'cockpit')
+            ->assertSet('activeHeaderModal', null)
+            ->assertDontSee('Optional einblendbar')
+            ->assertDontSee('Laser-Steckbrief')
+            ->call('setStepOneTab', 'preview')
+            ->assertSet('stepOneTab', 'preview')
+            ->call('setStepOneTab', 'cockpit')
+            ->assertSet('stepOneTab', 'cockpit');
 
-        // 2. Im Status "processing" (Schritt 1 · Live-Laser-Cockpit) ein- und ausblenden
-        $component->call('startOrderProcessing')
-            ->assertSet('status', 'processing')
-            ->assertSet('showOptionalOrderDetails', false)
-            ->assertSee('Optional einblendbar:')
-            ->call('toggleOptionalOrderDetails')
-            ->assertSet('showOptionalOrderDetails', true)
-            ->assertSee('Ausblenden')
-            ->assertSee('Live-Konfigurations-Vorschau')
-            ->assertSee('Kunde / Rechnung')
-            ->call('toggleOptionalOrderDetails')
-            ->assertSet('showOptionalOrderDetails', false)
-            ->assertSee('Einblenden')
-            ->assertDontSee('Live-Konfigurations-Vorschau');
+        // 1. Dateien-Modal
+        $component->call('openHeaderModal', 'files')
+            ->assertSet('activeHeaderModal', 'files')
+            ->assertSee('Dateien & Downloads')
+            ->assertSee('xTool Projekt (.xcs)');
+
+        // 2. Kostenübersicht-Modal (€)
+        $component->call('openHeaderModal', 'costs')
+            ->assertSet('activeHeaderModal', 'costs')
+            ->assertSee('Kostenübersicht');
+
+        // 3. Kunden Infos-Modal
+        $component->call('openHeaderModal', 'customer')
+            ->assertSet('activeHeaderModal', 'customer')
+            ->assertSee('Kunden Infos')
+            ->assertSee('Rechnungsadresse');
+
+        // 4. Lieferadresse-Modal (GPS)
+        $component->call('openHeaderModal', 'shipping')
+            ->assertSet('activeHeaderModal', 'shipping')
+            ->assertSee('Lieferadresse')
+            ->assertSee('Identisch mit Rechnung')
+            ->call('closeHeaderModal')
+            ->assertSet('activeHeaderModal', null);
     }
 
     #[Test]
@@ -538,7 +574,7 @@ class XtoolLaserCockpitTest extends TestCase
         $cockpitService = app(XtoolLaserCockpitService::class);
 
         $expectedDimensions = [
-            'seelen-kristall'         => [180.0, 180.0],
+            'seelen-kristall'         => [161.5, 161.5],
             'seelen-anhaenger'        => [45.0, 40.0],
             'seelen-talisman'         => [28.0, 50.0],
             'seelen-pfote-hundemarke' => [40.0, 22.0],
@@ -618,12 +654,13 @@ class XtoolLaserCockpitTest extends TestCase
             ->test(OrderOverview::class)
             ->call('openDetail', $order->id)
             ->call('selectItemForPreview', $kristallItem->id)
+            ->call('toggleLaserDetails')
             ->call('updateLaserCoordinates', 103.8, 99.0, 0.0)
             ->assertSet('laserCenterXMm', 103.8)
             ->assertSet('laserCenterYMm', 99.0)
             ->assertSet('laserAngleDeg', 0.0)
             ->assertSee('step="0.1"', false)
             ->assertSee("\$wire.entangle('laserCenterXMm')", false)
-            ->assertSee('180 × 180 mm');
+            ->assertSee('161,5 × 161,5 mm');
     }
 }

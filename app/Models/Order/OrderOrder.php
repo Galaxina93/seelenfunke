@@ -1178,6 +1178,8 @@ use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
 
         $thankYouCardChecked = (bool) ($packingChecks['thank_you_card'] ?? in_array((string) $this->status, ['shipped', 'completed'], true));
         $fragileStickerChecked = (bool) ($packingChecks['fragile_sticker'] ?? in_array((string) $this->status, ['shipped', 'completed'], true));
+        $giftBoxPackingChecked = (bool) ($packingChecks['gift_box'] ?? in_array((string) $this->status, ['shipped', 'completed'], true));
+        $giftWrapPackingChecked = (bool) ($packingChecks['gift_wrap'] ?? in_array((string) $this->status, ['shipped', 'completed'], true));
 
         $autonomousStep = match ((string) $this->status) {
             'pending' => 0, // Wartend -> Start-Screen ("Jetzt starten")
@@ -1208,15 +1210,17 @@ use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
             'requires_fragile_sticker' => $requiresFragileSticker,
             'fragile_items' => array_values(array_unique($fragileItemNames)),
             'fragile_sticker_checked' => $fragileStickerChecked,
+            'gift_box_packing_checked' => $giftBoxPackingChecked,
+            'gift_wrap_packing_checked' => $giftWrapPackingChecked,
         ];
     }
 
     /**
-     * Schaltet einen Packtisch-Prüfpunkt ('thank_you_card' = Dankeskarte beigelegt, 'fragile_sticker' = Warnaufkleber Zerbrechlich) um.
+     * Schaltet einen Packtisch-Prüfpunkt ('thank_you_card', 'fragile_sticker', 'gift_box', 'gift_wrap') um.
      */
     public function togglePackingCheck(string $checkKey, ?bool $forceState = null): void
     {
-        if (!in_array($checkKey, ['thank_you_card', 'fragile_sticker'], true)) {
+        if (!in_array($checkKey, ['thank_you_card', 'fragile_sticker', 'gift_box', 'gift_wrap'], true)) {
             return;
         }
 
@@ -1299,15 +1303,15 @@ use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
                 $boxDims = (string) $primaryPkgItem->formatted_dimensions;
                 $boxKey = (string) ($primaryPkgItem->sku ?: $primaryPkgItem->name);
             } elseif (str_contains($slugAndName, 'kristall') || str_contains($slugAndName, 'schiefer') || str_contains($slugAndName, 'trophäe')) {
-                $boxLabel = 'Versandkarton Kristall & Schiefer (inkl. Polster)';
+                $boxLabel = 'Versandkarton Kristall & Schiefer';
                 $boxDims = '240 × 210 × 60 mm';
                 $boxKey = 'PKG-BOX-CRYSTAL';
             } elseif (str_contains($slugAndName, 'weizenglas') || str_contains($slugAndName, 'glas')) {
-                $boxLabel = 'Versandkarton Weizenglas & Gravurglas';
+                $boxLabel = 'Versandkarton Gravurglas';
                 $boxDims = '250 × 100 × 100 mm';
                 $boxKey = 'PKG-BOX-GLASS';
             } else {
-                $boxLabel = 'Luftpolster-Versandtasche A/1 (Großbrief)';
+                $boxLabel = 'Luftpolstertasche A/1';
                 $boxDims = '175 × 120 × 10 mm';
                 $boxKey = 'PKG-ENV-A1';
             }
@@ -1326,27 +1330,14 @@ use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
 
             $instructions = [];
             if (!empty($checklist['gift_box']['selected'])) {
-                $instructions[] = '🎁 In schwarze Westpack Schmuckbox (86 × 86 × 17 mm) einlegen';
-                if (!isset($cartonSummary['30286060102'])) {
-                    $cartonSummary['30286060102'] = [
-                        'key' => '30286060102',
-                        'label' => 'Frankfurt ECO Schmuckschachtel (Westpack)',
-                        'dimensions' => '86 × 86 × 17 mm',
-                        'count' => 0,
-                        'products' => [],
-                    ];
-                }
-                $cartonSummary['30286060102']['count'] += $qty;
-                $cartonSummary['30286060102']['products'][] = $qty . '× ' . ($item->product_name ?: ($product->name ?? 'Artikel'));
-            } else {
-                $instructions[] = '📦 Standard-Schutzpolsterung (keine Zusatz-Schmuckbox gebucht)';
+                $instructions[] = 'Schmuckbox Westpack (86 × 86 × 17 mm)';
             }
 
             if (!empty($checklist['gift_wrap']['selected'])) {
                 if (($checklist['gift_wrap']['mode'] ?? 'wrapped') === 'loose') {
-                    $instructions[] = '🎀 Schwarz-Gold-Geschenkpapier NICHT zukleben -> als Bogen lose beilegen';
+                    $instructions[] = 'Geschenkpapier lose als Bogen beilegen';
                 } else {
-                    $instructions[] = '🎀 Fertig in Schwarz-Gold-Geschenkpapier einschlagen';
+                    $instructions[] = 'Fertig in Geschenkpapier einpacken';
                 }
             }
 

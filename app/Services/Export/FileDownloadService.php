@@ -1467,8 +1467,8 @@ class FileDownloadService
 
         $catalogProfiles = [
             'seelen-kristall' => [
-                'widthMm'      => 180.0,
-                'heightMm'     => 180.0,
+                'widthMm'      => 161.5,
+                'heightMm'     => 161.5,
                 'plateBoxPct'  => ['left' => 10.88, 'top' => 6.48, 'width' => 78.24, 'height' => 78.24],
                 'contourShape' => 'circle',
             ],
@@ -1562,6 +1562,19 @@ class FileDownloadService
         if ((empty($widthMm) || empty($heightMm)) && $matchedProfile !== null) {
             $widthMm = $widthMm ?: (float) $matchedProfile['widthMm'];
             $heightMm = $heightMm ?: (float) $matchedProfile['heightMm'];
+        }
+
+        // Kalibrierte Scheibengeometrie für "Der Seelen Kristall":
+        // Gesamthöhe inkl. Standfuß ist 180 mm, der runde K9-Kristallkorpus selbst hat exakt Ø 161,5 mm.
+        if (
+            $matchedProfile !== null
+            && ($matchedProfile['contourShape'] ?? null) === 'circle'
+            && abs((float) ($matchedProfile['widthMm'] ?? 0) - 161.5) < 0.05
+            && abs((float) $widthMm - 180.0) < 0.5
+            && abs((float) $heightMm - 180.0) < 0.5
+        ) {
+            $widthMm = 161.5;
+            $heightMm = 161.5;
         }
 
         if (!empty($itemConfig['is_gift_voucher']) || $slug === 'geschenkgutschein') {

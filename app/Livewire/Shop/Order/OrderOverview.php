@@ -89,6 +89,9 @@ class OrderOverview extends Component
     // 3-SCHRITTE AUTONOMER BESTELL-WORKFLOW STATE
     public int $activeOrderStep = 1;
     public bool $showOptionalOrderDetails = false;
+    public string $stepOneTab = 'cockpit';
+    public bool $showLaserDetails = false;
+    public ?string $activeHeaderModal = null;
 
     // XTOOL F2 ULTRA UV LIVE-LASER-COCKPIT STATE
     public string $laserCockpitSide = 'front';
@@ -294,6 +297,9 @@ class OrderOverview extends Component
     {
         $this->selectedOrderId = $id;
         $this->showOptionalOrderDetails = false;
+        $this->stepOneTab = 'cockpit';
+        $this->showLaserDetails = false;
+        $this->activeHeaderModal = null;
 
         // Order laden (Eager Loading für Performance)
         $this->selectedOrder = OrderOrder::with(['items.product.supplier', 'invoices', 'shipments'])->find($id);
@@ -335,12 +341,37 @@ class OrderOverview extends Component
         $this->selectedOrder = null;
         $this->activeOrderStep = 1;
         $this->showOptionalOrderDetails = false;
+        $this->stepOneTab = 'cockpit';
+        $this->showLaserDetails = false;
+        $this->activeHeaderModal = null;
         $this->reset(['status', 'payment_status', 'notes', 'workshopNote', 'workshopFollowupMode', 'cancellationReason', 'laserLastActionStatus']);
     }
 
     public function toggleOptionalOrderDetails(): void
     {
         $this->showOptionalOrderDetails = !$this->showOptionalOrderDetails;
+    }
+
+    public function setStepOneTab(string $tab): void
+    {
+        $this->stepOneTab = in_array($tab, ['cockpit', 'preview'], true) ? $tab : 'cockpit';
+    }
+
+    public function toggleLaserDetails(): void
+    {
+        $this->showLaserDetails = !$this->showLaserDetails;
+    }
+
+    public function openHeaderModal(string $modal): void
+    {
+        if (in_array($modal, ['files', 'costs', 'customer', 'shipping'], true)) {
+            $this->activeHeaderModal = ($this->activeHeaderModal === $modal) ? null : $modal;
+        }
+    }
+
+    public function closeHeaderModal(): void
+    {
+        $this->activeHeaderModal = null;
     }
 
     /**
@@ -1672,13 +1703,13 @@ class OrderOverview extends Component
             $isOnline = !empty($detected['laser_online']);
             $camTime = (string) ($detected['camera_updated_at'] ?? now()->format('d.m.Y H:i:s'));
 
-            $this->laserLastActionStatus = "Schritt 1 erledigt: X {$xFmt} mm · Y {$yFmt} mm · {$aFmt}° ({$this->laserConfidence} % · {$camTime})";
+            $this->laserLastActionStatus = "Schritt 1 erledigt: X {$xFmt} mm · Y {$yFmt} mm · {$aFmt}°";
             $this->notifyOrderFeedback(
                 'success',
                 $isOnline
                     ? 'Schritt 1 erledigt: Live-Kamerabild & KI-Ausrichtung aktiv'
                     : 'Schritt 1 erledigt: Kamerabild neu ausgewertet & KI-Ausrichtung aktiv',
-                ($isOnline ? "Live-Frame vom Laser ({$camTime})" : "Studio-Kameraframe ({$camTime}, Laser im Standby)") . " neu ausgewertet: X = {$xFmt} mm, Y = {$yFmt} mm, {$aFmt}°. Jetzt Schritt 2 (Rahmen-Vorschau) klicken."
+                ($isOnline ? "Live-Frame vom Laser ({$camTime})" : "Studio-Kameraframe ({$camTime}, Laser im Standby)") . " ausgewertet: X = {$xFmt} mm, Y = {$yFmt} mm, {$aFmt}°. Jetzt Schritt 2 (An Laser senden) klicken."
             );
         } catch (\Throwable $e) {
             $this->notifyOrderFeedback('error', 'Kamera-Abgleich fehlgeschlagen', $e->getMessage());
@@ -1726,13 +1757,13 @@ class OrderOverview extends Component
 
             $xFmt = number_format((float) $job['center_x_mm'], 1, ',', '.');
             $yFmt = number_format((float) $job['center_y_mm'], 1, ',', '.');
-            $this->laserWorkflowStep = 3;
-            $this->laserLastActionStatus = "Schritt 2 erledigt: Rahmen-Vorschau aktiv ({$xFmt} / {$yFmt} mm)";
+            $this->laserWorkflowStep = max(2, $this->laserWorkflowStep);
+            $this->laserLastActionStatus = "Rahmen-Vorschau aktiv ({$xFmt} / {$yFmt} mm)";
 
             $this->notifyOrderFeedback(
                 'success',
-                'Schritt 2 erledigt: Rahmen-Vorschau läuft am Laser',
-                "Blauer Laser-Rahmen auf X = {$xFmt} mm, Y = {$yFmt} mm gesetzt. Wenn alles passt, Schritt 3 (An Laser senden) klicken."
+                'Rahmen-Vorschau läuft am Laser',
+                "Blauer Laser-Rahmen auf X = {$xFmt} mm, Y = {$yFmt} mm gesetzt."
             );
         } catch (\Throwable $e) {
             $this->notifyOrderFeedback('error', 'Rahmen-Vorschau fehlgeschlagen', $e->getMessage());
@@ -1760,12 +1791,12 @@ class OrderOverview extends Component
 
             $xFmt = number_format((float) $job['center_x_mm'], 1, ',', '.');
             $yFmt = number_format((float) $job['center_y_mm'], 1, ',', '.');
-            $this->laserWorkflowStep = 4;
-            $this->laserLastActionStatus = "Schritt 3 erledigt: Auftrag bereit am Laser ({$job['xcs_filename']})";
+            $this->laserWorkflowStep = 3;
+            $this->laserLastActionStatus = "Schritt 2 erledigt: Auftrag bereit am Laser ({$job['xcs_filename']})";
 
             $this->notifyOrderFeedback(
                 'success',
-                'Schritt 3 erledigt: Auftrag an xTool F2 Ultra UV gesendet',
+                'Schritt 2 erledigt: Auftrag an xTool F2 Ultra UV gesendet',
                 "Auftrag #{$job['order_number']} (X = {$xFmt} mm, Y = {$yFmt} mm) übertragen. Jetzt nur noch den Start-Knopf am Gerät drücken."
             );
         } catch (\Throwable $e) {

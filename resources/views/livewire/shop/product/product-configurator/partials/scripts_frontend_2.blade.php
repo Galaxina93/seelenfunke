@@ -320,8 +320,13 @@
                 this.modelContainer.remove(this.texturePlaneBack);
             }
 
+            const prevContainerScale = this.modelContainer.scale.clone();
+            this.modelContainer.scale.set(1, 1, 1);
+            this.modelContainer.updateMatrixWorld(true);
             const box = new window.THREE.Box3().setFromObject(this.model);
             const size = box.getSize(new window.THREE.Vector3());
+            this.modelContainer.scale.copy(prevContainerScale);
+            this.modelContainer.updateMatrixWorld(true);
 
             let geo;
             let baseZ = 0;

@@ -1081,8 +1081,8 @@ class ProductCreateTest extends TestCase
 
         // 5. Save exact 'Der Seelen Kristall' values via Step 4.2 -> Product reaches 100 % readiness!
         $listComp
-            ->set('configSettings.xtool_plane_width', 180.0)
-            ->set('configSettings.xtool_plane_height', 180.0)
+            ->set('configSettings.xtool_plane_width', 161.5)
+            ->set('configSettings.xtool_plane_height', 161.5)
             ->set('configSettings.xtool_equipment_key', 'flatbed_standard')
             ->set('configSettings.xtool_setup_note', 'Standfuß frei über Vorderkante schweben lassen.')
             ->set('configSettings.xtool_process_mode', 'Prozess auf flacher Oberfläche')
@@ -1101,14 +1101,21 @@ class ProductCreateTest extends TestCase
             ->call('save');
 
         $completedKristall = $kristall->fresh();
+        $laserSummary = $completedKristall->getLaserInstructionSummary();
         $this->assertSame(33.1, (float) $completedKristall->configurator_settings['xtool_focus_mm']);
-        $this->assertTrue($completedKristall->getLaserInstructionSummary()['is_complete']);
+        $this->assertTrue($laserSummary['is_complete']);
+        $this->assertSame('K9 Kristalltrophäe', $laserSummary['material']);
+        $this->assertSame('33,1 mm', $laserSummary['focus_formatted']);
+        $this->assertSame(500, $laserSummary['dot_duration_us']);
+        $this->assertSame(600, $laserSummary['dpi']);
+        $this->assertSame('Jarvis', $laserSummary['bitmap_mode']);
+        $this->assertSame('Zweidirektional', $laserSummary['engrave_mode']);
         $finalReport = $completedKristall->getReadinessReport();
         $this->assertTrue($finalReport['is_ready']);
         $this->assertSame(100, $finalReport['score']);
         $this->assertEmpty($finalReport['missing']);
 
-        // 6. OrderOverview (/admin/orders) directly renders the xTool Studio parameter handbook for the order item
+        // 6. OrderOverview (/admin/orders) renders the clean 2-step Live-Laser-Cockpit without cluttering laser parameter tables
         $order = \App\Models\Order\OrderOrder::create([
             'order_number' => 'ORD-LASER-GUIDE-01',
             'status' => 'processing',
@@ -1136,12 +1143,8 @@ class ProductCreateTest extends TestCase
 
         Livewire::test(\App\Livewire\Shop\Order\OrderOverview::class)
             ->call('openDetail', $order->id)
-            ->assertSee('xTool Anleitung')
-            ->assertSee('K9 Kristalltrophäe')
-            ->assertSee('33,1 mm')
-            ->assertSee('500 µs')
-            ->assertSee('600')
-            ->assertSee('Jarvis')
-            ->assertSee('Zweidirektional');
+            ->assertSee('xTool F2 Ultra UV · Live-Laser-Cockpit')
+            ->assertSee('Weiter zur Verpackung')
+            ->assertDontSee('xTool Anleitung');
     }
 }

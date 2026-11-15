@@ -472,6 +472,9 @@
     {{-- VERSAND-MODAL --}}
     @include("livewire.shop.order.order-overview-partials.shipping-modal")
 
+    {{-- HEADER-SCHNELLZUGRIFF MODALS (Dateien, Kostenübersicht, Kunden Infos, Lieferadresse) --}}
+    @include("livewire.shop.order.order-overview-partials.header-modals")
+
     {{-- FOTO-BEANSTANDUNG / NACHBESSERUNGS-MODAL --}}
     @include("livewire.shop.order.order-overview-partials.photo-issue-modal")
 

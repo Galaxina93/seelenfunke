@@ -155,29 +155,28 @@ Sobald `tmp.xf` erstellt ist, wird das Paket direkt über die WebSocket-/Filetra
 3. Der Laser wechselt sofort in den Status `P_WORK` / `WORK_PREPARED` (bereit zum Start per Knopfdruck am Gerät).
 4. Nach Abschluss des Laservorgangs liefert die Kamera automatisch das fertige Nachweisfoto (`processComplete.jpg`), das direkt in der Bestellung archiviert werden kann.
 
-### 5.3 Wie der 1-2-3 „Zero-Thinking“-Workflow direkt in `/admin/orders` aussieht
-Für **alle Standard- und Flachbett-Aufträge** (Anhänger, Herzen, Hundemarken, Schieferplatten, flache K9-Kristalle) spart das eingebettete **1-2-3 Live-Laser-Cockpit** in [`right.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/order/order-offer-detail-partials/right.blade.php) den Umweg über `xTool Studio` komplett ein:
+### 5.3 Wie der schlanke 2-Schritte „Zero-Thinking“-Workflow direkt in `/admin/orders` aussieht
+Für **alle Standard- und Flachbett-Aufträge** (Anhänger, Herzen, Hundemarken, Schieferplatten, flache K9-Kristalle) spart das eingebettete **2-Schritte Live-Laser-Cockpit** in [`laser-cockpit-card.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/order/order-offer-detail-partials/laser-cockpit-card.blade.php) den Umweg über `xTool Studio` sowie den unnötigen Zwischenschritt einer Rahmen-Projektion komplett ein:
 
-1. **Geführter 1-Satz-Leitfaden & 3 nummerierte Schritte (`1`, `2`, `3`):**
-   * Statt unübersichtlicher Einzel-Buttons führt ein klarer 1-Satz-Banner durch den Ablauf und hebt den aktuell empfohlenen Schritt (`recommended_step` = `1`, `2` oder `3`) optisch hervor.
+1. **2-Tab Ansicht in Schritt 1 & `Details anzeigen`-Umschalter:**
+   * Schritt 1 bietet zwei klare Tabs: **`xTool F2 Ultra UV · Live-Laser-Cockpit`** und **`Live-Konfigurations-Vorschau`**.
+   * Technische Diagnose-Elemente (`IP`, `KI %`, `!`-Info, `.xcs Backup`, optionale `Rahmen-Vorschau`, Zeitstempel sowie die manuelle `X / Y / Winkel`-Koordinatenleiste) sind standardmäßig ausgeblendet und werden nur bei Klick auf **`Details anzeigen`** (`toggleLaserDetails`) eingeblendet.
 2. **Button `1. Kamera & KI-Ausrichten` (`refreshLaserCameraAndAlign` / `captureAndCalibrateLiveCameraFromLaserV2`):**
    * **Direkter Live-Kamera-Schnappschuss vom Laser ohne `xTool Studio` (`wss://192.168.188.150:28900`):**
      1. Verbindet sich aus dem Backend (`XtoolLaserCockpitService`) direkt per TLS-WebSocket mit dem `xTool F2 Ultra UV` auf Port `28900` (`/websocket?id=<uuid>&function=instruction` sowie `function=file_stream`) mittels xTools nativem Binär-Framing (`0xBABE`-Header + `CRC-16/ARC`).
      2. Authentifiziert die Session über `GET /v1/user/parity` mit dem gekoppelten Gerätetoken (`TOKEN_AUTHORIZED`), schaltet kurzzeitig IR-LED (`/v1/peripheral/param?type=ir_led`) und Laserpunkt (`/v1/laser-head/parameter`) aus (verhindert Überstrahlen auf Kristall/Metall) und löst über `POST /v1/camera` + `GET /v1/camera/snap?name=main` ein frisches `4000x3000 px` Live-Foto direkt auf dem Laser aus.
      3. Lädt das Foto in ca. `0,34 s` über den Binärkanal `file_stream` (`PUT /v1/filetransfer/download` -> `FILE_REQUEST` -> `FILE_DATA`) herunter und schaltet IR-LED sowie Positionierlaser sofort wieder ein.
-     4. Entzerrt das `4000x3000 px` Rohbild anhand des 21x21 Werkskalibrierungs-Gitters (`data0` aus `global_calib.json` des Lasers `MXFK007003260530H0194A6`) in `~185 ms` auf das exakt maßstabsgetreue `2000x2000 px` (`200x200 mm`, `10 px = 1 mm`) Arbeitsflächenbild (`storage/app/public/xtool/background.jpg`).
+     4. Entzerrt das `4000x3000 px` Rohbild anhand des 21x21 Werkskalibrierungs-Gitters (`data0` aus `global_calib.json` des Lasers `MXFK007003260530H0194A6`) in `~185 ms` auf das exakt maßstabsgetreue `2000x2000 px` (`200x200 mm`, `10 px = 1 mm`) Arbeitsflächenbild (`storage/app/public/bestellungen/xtool/background.jpg`).
      5. Falls der Laser ausgeschaltet bzw. im Standby ist, greift automatisch der Fallback auf das zuletzt gecachte Kamerabild (`host_appdata/capture.jpg` bzw. `background.jpg`).
    * Erhöht das Livewire-Refresh-Token (`$laserCameraRefreshToken`) zur sofortigen Cache-freien Bildaktualisierung im Browser (`?v=<mtime>&r=<token>`) und richtet das Kunden-Design (inkl. türkisfarbener Kontroll-Kontur) automatisch auf Position (`X`, `Y`) und Drehwinkel (`°`) des Rohlings aus.
-3. **Button `2. Rahmen am Laser prüfen` (`triggerLaserFraming`):**
-   * Schaltet den blauen Positions-Laser (`border.gcode`) direkt auf dem Rohling ein, um den Sitz kurz visuell zu prüfen.
-4. **Button `3. Jetzt an Laser senden` (`sendDirectlyToXtoolLaser`):**
-   * Erzeugt das fertige `tmp.xf`-Paket mit allen hinterlegten Produkt-Laserwerten und überträgt es direkt an den `xTool F2 Ultra UV`. Alina drückt nur noch den physischen Start-Knopf am Laser.
-5. **Dezenter Fallback-Link `.xcs Backup`:**
-   * Als kompakter Button im Header für Spezialfälle (z. B. echte 3D-Punktwolken-Innengravuren `INNER_LASER` oder manuelle Material-Testreihen).
-6. **Millimetergenaue 1:1 Rohlings-Kalibrierung & Einzel-Außenkontur (`resolvePhysicalBlankCalibration`):**
+3. **Button `2. An Laser senden` (`sendJobDirectlyToLaser`):**
+   * Erzeugt das fertige `tmp.xf`-Paket mit allen am Produkt hinterlegten Laserwerten und überträgt es direkt an den `xTool F2 Ultra UV`. Alina drückt nur noch den physischen Start-Knopf am Laser.
+4. **Optionale `Rahmen-Vorschau` & `.xcs Backup` hinter `Details anzeigen`:**
+   * Für seltene Sonderfälle (z. B. manuelle Rahmenkontrolle via `border.gcode` oder `.xcs`-Export für `INNER_LASER`) stehen beide Funktionen dezent unter `Details anzeigen` sowie im Header-Modal **`Dateien`** bereit.
+5. **Millimetergenaue 1:1 Rohlings-Kalibrierung & Einzel-Außenkontur (`resolvePhysicalBlankCalibration`):**
    * Im Live-Laser-Cockpit, im `.xcs`-Projekt sowie im `.xf`-Druckpaket wird stets **exakt eine einzige geschlossene 1:1 Außenkontur** (`#00bcd4`, Modus: Ignorieren) in den realen Millimeter-Außenmaßen des physischen Rohlings gerendert (keine doppelten/konzentrischen Rahmen).
    * Über `xtool_plate_box_pct` (`mapShopConfigOntoPhysicalBlank`) wird die Sub-Fläche des Rohlings aus dem quadratischen `800×800` bzw. `918×918` Shop-Konfigurator-Overlay (ohne Kette, Schlüsselring oder Standfuß) verlustfrei auf den realen Rohling projiziert:
-     * `seelen-kristall`: **Ø `180,0 × 180,0 mm`** Kreisscheibe (`xtool_plate_box_pct`: `left 10,88 %`, `top 6,48 %`, `78,24 × 78,24 %`)
+     * `seelen-kristall`: **Ø `161,5 × 161,5 mm`** K9-Kreisscheibe (Gesamthöhe inkl. Standfuß `180 mm`; `xtool_plate_box_pct`: `left 10,88 %`, `top 6,48 %`, `78,24 × 78,24 %`)
      * `seelen-anhaenger`: **`45,0 × 40,0 mm`** Alu-Herz (`left 25,875 %`, `top 52,25 %`, `48,25 × 44,25 %`)
      * `seelen-talisman`: **`28,0 × 50,0 mm`** Dog-Tag-Plakette (`left 33,875 %`, `top 40,25 %`, `32,25 × 54,75 %`)
      * `seelen-pfote-hundemarke`: **`40,0 × 22,0 mm`** Knochen-Hundemarke (`left 10,0 %`, `top 29,75 %`, `80,0 × 40,5 %`)
@@ -185,4 +184,4 @@ Für **alle Standard- und Flachbett-Aufträge** (Anhänger, Herzen, Hundemarken,
      * `id-armband-silber-herz` & `id-armband-gold-herz`: **`24,0 × 5,5 mm`** ID-Gravurplatte (`left 17,0 %`, `top 42,5 %`, `66,0 × 15,0 %`)
      * `geschenkgutschein` (Alu-Karte): **`86,0 × 54,0 mm`** ISO-Karte
    * HUD-Anzeige und Eingabefelder (`X`, `Y`, `Winkel` in `0,1 mm`-Schritten) sind über `$wire.entangle(...)` verzögerungs- und abweichungsfrei synchronisiert.
-   * Unterhalb der zentrierten 3-Schritte-Ansicht lässt sich über `Optional einblendbar` (`toggleOptionalOrderDetails`) jederzeit das vollständige 2-Spalten-Detailpanel (Produktkonfigurator, Laser-Steckbrief, Dateien & Downloads, Lieferadresse & Kostenübersicht) auf- und zuklappen.
+   * Zusatzinformationen (`Dateien & Downloads`, `Kostenübersicht`, `Kunden Infos`, `Lieferadresse`) sind jederzeit über die 4 kompakten Icon-Modals rechts oben im Bestell-Header abrufbar.

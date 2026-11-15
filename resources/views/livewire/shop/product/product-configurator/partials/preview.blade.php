@@ -647,10 +647,10 @@
                                          class="bg-transparent font-bold block whitespace-pre m-0 border-0 outline-none shadow-none select-none pointer-events-none"
                                          :class="alignMap[currentTexts[index]?.align || 'center']"
                                          :style="`
-                                             padding: 4px 10px;
+                                             padding: 2px 6px;
                                              font-size: ${(20 * (currentTexts[index]?.size || 1)) * scaleFactor}px;
                                              font-family: ${fontMap[currentTexts[index]?.font] || 'Arial'};
-                                             line-height: 1.28;
+                                             line-height: 1.15;
                                              color: ${isDarkSurface ? 'rgba(248, 250, 252, 0.98)' : 'rgba(17, 24, 39, 0.96)'};
                                              -webkit-text-fill-color: ${isDarkSurface ? '#f8fafc' : '#111827'};
                                              text-shadow: ${isDarkSurface
@@ -736,10 +736,10 @@
                                               :style="`
                                                     width: ${ensureTextDims(currentTexts[index]).width};
                                                     height: ${ensureTextDims(currentTexts[index]).height};
-                                                    padding: 4px 10px;
+                                                    padding: 2px 6px;
                                                     font-size: ${getEffectiveTextareaFontSizePx(currentTexts[index])}px;
                                                     font-family: ${fontMap[currentTexts[index]?.font] || 'Arial'};
-                                                    line-height: 1.28;
+                                                    line-height: 1.15;
                                                     color: ${isTextCurved(currentTexts[index], index) ? 'transparent' : (isDarkSurface ? 'rgba(248, 250, 252, 0.98)' : 'rgba(17, 24, 39, 0.96)')};
                                                     -webkit-text-fill-color: ${isTextCurved(currentTexts[index], index) ? 'transparent' : (isDarkSurface ? '#f8fafc' : '#111827')};
                                                     caret-color: ${(isTextCurved(currentTexts[index], index) || (focusedTextId === currentTexts[index]?.id && (!currentTexts[index]?.text || currentTexts[index]?.text.length === 0))) ? 'transparent' : '#C5A059'};

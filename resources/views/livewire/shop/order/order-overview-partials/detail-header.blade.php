@@ -94,11 +94,70 @@
         </div>
     @endif
 
-    {{-- RECHTS: Nächster Auftrag & kompaktes Optionen-Menü (Manuelle Status-Overrides bei Bedarf) --}}
-    <div x-data="{ showHeaderMenu: false }" class="flex items-center gap-2.5 self-end lg:self-center relative">
+    {{-- RECHTS: Schnellzugriff-Modals (Dateien, €, Kunden Infos, Lieferadresse), Nächster Auftrag & Status / Optionen --}}
+    <div x-data="{ showHeaderMenu: false }" class="flex flex-wrap items-center gap-2 self-end lg:self-center relative">
         @php
             $nextInQueue = $this->nextQueueOrder;
+            $hasDiffShipping = !empty($this->selectedOrder->shipping_address)
+                && serialize($this->selectedOrder->billing_address) !== serialize($this->selectedOrder->shipping_address);
         @endphp
+
+        {{-- 1. Ordner-Icon + "Dateien" --}}
+        <button type="button"
+                wire:click="openHeaderModal('files')"
+                title="Dateien & Downloads"
+                class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer {{ $this->activeHeaderModal === 'files'
+                    ? 'bg-[var(--theme-color)] text-gray-950 border-[var(--theme-color)] shadow-sm'
+                    : 'bg-gray-100 dark:bg-gray-950 hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-800' }}">
+            <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
+            </svg>
+            <span>Dateien</span>
+        </button>
+
+        {{-- 2. "€" Icon (Kostenübersicht) --}}
+        <button type="button"
+                wire:click="openHeaderModal('costs')"
+                title="Kostenübersicht"
+                aria-label="Kostenübersicht"
+                class="w-9 h-9 rounded-xl border flex items-center justify-center text-xs font-black transition-all cursor-pointer {{ $this->activeHeaderModal === 'costs'
+                    ? 'bg-[var(--theme-color)] text-gray-950 border-[var(--theme-color)] shadow-sm'
+                    : 'bg-gray-100 dark:bg-gray-950 hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-800' }}">
+            <span>&euro;</span>
+        </button>
+
+        {{-- 3. Kunden Infos Icon --}}
+        <button type="button"
+                wire:click="openHeaderModal('customer')"
+                title="Kunden Infos"
+                aria-label="Kunden Infos"
+                class="w-9 h-9 rounded-xl border flex items-center justify-center transition-all cursor-pointer {{ $this->activeHeaderModal === 'customer'
+                    ? 'bg-[var(--theme-color)] text-gray-950 border-[var(--theme-color)] shadow-sm'
+                    : 'bg-gray-100 dark:bg-gray-950 hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-800' }}">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+            </svg>
+        </button>
+
+        {{-- 4. GPS Icon (Lieferadresse) --}}
+        <button type="button"
+                wire:click="openHeaderModal('shipping')"
+                title="Lieferadresse{{ $hasDiffShipping ? ' (Abweichend)' : '' }}"
+                aria-label="Lieferadresse"
+                class="relative w-9 h-9 rounded-xl border flex items-center justify-center transition-all cursor-pointer {{ $this->activeHeaderModal === 'shipping'
+                    ? 'bg-[var(--theme-color)] text-gray-950 border-[var(--theme-color)] shadow-sm'
+                    : ($hasDiffShipping
+                        ? 'bg-white dark:bg-gray-950 text-[var(--theme-color)] border-[var(--theme-color-50)] hover:border-[var(--theme-color)]'
+                        : 'bg-gray-100 dark:bg-gray-950 hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-800') }}">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+            </svg>
+            @if($hasDiffShipping)
+                <span class="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-[var(--theme-color)]"></span>
+            @endif
+        </button>
+
         @if($nextInQueue)
             <button type="button"
                     wire:click="openDetail('{{ $nextInQueue['id'] }}')"
@@ -157,6 +216,19 @@
                             @click="showHeaderMenu = false"
                             class="w-full flex items-center justify-center gap-2 px-3 py-2 bg-[var(--theme-color)] text-gray-950 rounded-xl font-black text-[10px] uppercase tracking-wider cursor-pointer">
                         <span>DHL Label-Assistent öffnen</span>
+                    </button>
+                </div>
+            @endif
+
+            @if($this->selectedOrder->canBePermanentlyDeleted())
+                <div class="pt-2 border-t border-gray-100 dark:border-gray-800">
+                    <button type="button"
+                            wire:click="delete('{{ $this->selectedOrder->id }}')"
+                            wire:confirm="Unbezahlte Bestellung #{{ $this->selectedOrder->order_number }} unwiderruflich löschen?"
+                            @click="showHeaderMenu = false"
+                            class="w-full flex items-center justify-center gap-2 px-3 py-2 bg-red-50 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-900/40 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800/50 rounded-xl font-black text-[10px] uppercase tracking-wider transition-colors cursor-pointer">
+                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                        <span>Bestellung unwiderruflich löschen</span>
                     </button>
                 </div>
             @endif

@@ -912,21 +912,29 @@ class XtoolLaserCockpitService
             }
         }
 
-        // 5. Exakten geometrischen Mittelpunkt über die Außenkanten im zentralen Horizontal-/Vertikalband bestimmen
-        // (Dadurch ziehen einseitige Lichtreflexe oder bestehende Gravuren im Glas den Mittelpunkt niemals zur Seite!)
-        $rx1 = max(14, (int) round($bestCxCell - ($winW * 0.60)));
-        $rx2 = min($gridW - 15, (int) round($bestCxCell + ($winW * 0.60)));
-        $ry1 = max(16, (int) round($bestCyCell - ($winH * 0.60)));
-        $ry2 = min($maxBedY, (int) round($bestCyCell + ($winH * 0.60)));
+        // 5. Exakten geometrischen Mittelpunkt über die realen Außenkanten im zentralen Horizontal-/Vertikalband bestimmen
+        // Wichtig: Ohne die +/- 6,5 mm Lamellen-Erosion aus Schritt 3 messen, damit dunkle Lamellenspalte links neben dem Glas
+        // die linke Rohlingskante nicht nach innen verschieben (1:1 Kanten-Deckung auf 0,1 mm genau).
+        $rx1 = max(20, (int) round($bestCxCell - ($winW * 0.62)));
+        $rx2 = min($gridW - 22, (int) round($bestCxCell + ($winW * 0.62)));
+        $ry1 = max(16, (int) round($bestCyCell - ($winH * 0.62)));
+        $ry2 = min($maxBedY, (int) round($bestCyCell + ($winH * 0.62)));
 
-        $bandHalfH = max(14, (int) round(($ry2 - $ry1) * 0.24));
+        $rimPresenceAt = static function (int $x, int $y) use (&$lum, &$cellMap): float {
+            if ((float) $lum[$y][$x] > 105.0) {
+                return 1.0;
+            }
+            return (float) $cellMap[$y][$x];
+        };
+
+        $bandHalfH = max(12, (int) round(($ry2 - $ry1) * 0.18));
         $bandY1 = max($ry1, (int) round($bestCyCell - $bandHalfH));
         $bandY2 = min($ry2, (int) round($bestCyCell + $bandHalfH));
 
         $colBand = array_fill($rx1, max(1, $rx2 - $rx1 + 1), 0.0);
         for ($y = $bandY1; $y <= $bandY2; $y++) {
             for ($x = $rx1; $x <= $rx2; $x++) {
-                $colBand[$x] += $cellMap[$y][$x];
+                $colBand[$x] += $rimPresenceAt($x, $y);
             }
         }
 
@@ -935,13 +943,13 @@ class XtoolLaserCockpitService
         $bx2 = $rx2;
         if ($peakCol > 2.0) {
             for ($x = $rx1; $x <= $rx2; $x++) {
-                if ($colBand[$x] >= $peakCol * 0.35) {
+                if ($colBand[$x] >= $peakCol * 0.32) {
                     $bx1 = $x;
                     break;
                 }
             }
             for ($x = $rx2; $x >= $rx1; $x--) {
-                if ($colBand[$x] >= $peakCol * 0.35) {
+                if ($colBand[$x] >= $peakCol * 0.32) {
                     $bx2 = $x;
                     break;
                 }
@@ -950,7 +958,7 @@ class XtoolLaserCockpitService
 
         $finalCxCell = ($peakCol > 2.0) ? (($bx1 + $bx2) * 0.5) : (float) $bestCxCell;
 
-        $bandHalfW = max(14, (int) round(($bx2 - $bx1) * 0.24));
+        $bandHalfW = max(6, (int) round(($bx2 - $bx1) * 0.08));
         $bandX1 = max($rx1, (int) round($finalCxCell - $bandHalfW));
         $bandX2 = min($rx2, (int) round($finalCxCell + $bandHalfW));
 
@@ -966,13 +974,13 @@ class XtoolLaserCockpitService
         $by2 = $ry2;
         if ($peakRow > 2.0) {
             for ($y = $ry1; $y <= $ry2; $y++) {
-                if ($rowBand[$y] >= $peakRow * 0.35) {
+                if ($rowBand[$y] >= $peakRow * 0.32) {
                     $by1 = $y;
                     break;
                 }
             }
             for ($y = $ry2; $y >= $ry1; $y--) {
-                if ($rowBand[$y] >= $peakRow * 0.35) {
+                if ($rowBand[$y] >= $peakRow * 0.32) {
                     $by2 = $y;
                     break;
                 }
@@ -981,9 +989,9 @@ class XtoolLaserCockpitService
 
         $spanXCells = $bx2 - $bx1;
         if ($peakRow > 2.0) {
-            // Bei großen kreisrunden Trophäen (wie "Der Seelen Kristall"), deren Standfuß unten über die Kante ragt,
-            // ergibt sich die exakte vertikale Kreismitte aus Oberkante ($by1) + horizontalem Radius ($spanXCells / 2)
-            if (abs($blankWidthMm - $blankHeightMm) < 5.0 && $by2 >= $maxBedY - 6 && $spanXCells > 160) {
+            // Bei großen kreisrunden Trophäen (wie "Der Seelen Kristall"), deren untere Kreiskante in den unteren
+            // Kamerarand ($maxBedY) ragt, ergibt sich die exakte vertikale Kreismitte aus Oberkante ($by1) + Radius ($spanXCells / 2)
+            if (abs($blankWidthMm - $blankHeightMm) < 5.0 && ($by1 + $spanXCells) >= ($maxBedY - 8) && $spanXCells > 160) {
                 $finalCyCell = $by1 + ($spanXCells * 0.5);
             } else {
                 $finalCyCell = ($by1 + $by2) * 0.5;

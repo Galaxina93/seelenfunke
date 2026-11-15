@@ -163,6 +163,11 @@ class ProductTemplateSeeder extends Seeder
                 },
                 'back_texts' => [],
             ],
+            'seelen-kristall' => [
+                'logo_x' => 50, 'logo_y' => 21, 'logo_size' => 40,
+                'text_x' => 50, 'text_y' => 62, 'text_size' => 1.15,
+                'back_texts' => [],
+            ],
             default => [
                 'logo_x' => 50, 'logo_y' => 34, 'logo_size' => 76,
                 'text_x' => 50, 'text_y' => 56, 'text_size' => 1.10,
