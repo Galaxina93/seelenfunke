@@ -87,6 +87,8 @@ import de.meinseelenfunke.app.ui.theme.AppTheme
 import de.meinseelenfunke.app.ui.theme.Copper
 import de.meinseelenfunke.app.ui.theme.Emerald500
 import de.meinseelenfunke.app.ui.theme.Gold
+import de.meinseelenfunke.app.ui.components.PhoneSecretaryCallDetailDialog
+import de.meinseelenfunke.app.ui.components.PhoneSecretarySummaryCard
 import de.meinseelenfunke.app.ui.theme.Rose500
 import de.meinseelenfunke.app.ui.theme.SpaceBlack
 import de.meinseelenfunke.app.ui.theme.SpaceBlue
@@ -365,6 +367,26 @@ fun DashboardContent(
             }
         }
     )
+
+    // 1b. TELEFON-SEKRETÄRIN (Live-Gesprächszusammenfassungen mit Rahmenbedingungen & Für dich zu tun)
+    val recentSecretaryCalls by viewModel.recentSecretaryCalls.collectAsState()
+    var selectedSecretaryCall by remember { mutableStateOf<de.meinseelenfunke.app.data.api.PhoneSecretaryCallSummaryDto?>(null) }
+
+    if (isAdmin && recentSecretaryCalls.isNotEmpty()) {
+        PhoneSecretarySummaryCard(
+            calls = recentSecretaryCalls,
+            onSelectCall = { selectedSecretaryCall = it },
+            onOpenTasks = { onNavigateToOrganizer(0) }
+        )
+    }
+
+    selectedSecretaryCall?.let { detailCall ->
+        PhoneSecretaryCallDetailDialog(
+            call = detailCall,
+            onDismiss = { selectedSecretaryCall = null },
+            onOpenTasks = { onNavigateToOrganizer(0) }
+        )
+    }
 
     // 2. VERFÜGBARES GUTHABEN IM MONAT (Finanzen)
     FinanceDashboardCard(kpis = kpis, onClick = onNavigateToFinances)

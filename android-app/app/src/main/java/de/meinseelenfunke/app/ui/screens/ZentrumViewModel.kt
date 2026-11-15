@@ -8,8 +8,10 @@ import de.meinseelenfunke.app.data.api.FinanceKpis
 import de.meinseelenfunke.app.data.api.ManagementDayRoutine
 import de.meinseelenfunke.app.data.api.ManagementTask
 import de.meinseelenfunke.app.data.api.OrderSummary
+import de.meinseelenfunke.app.data.api.PhoneSecretaryCallSummaryDto
 import de.meinseelenfunke.app.data.api.UltimateCommandResponse
 import de.meinseelenfunke.app.di.ServiceLocator
+import de.meinseelenfunke.app.util.PhoneConciergeManager
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -57,6 +59,11 @@ class ZentrumViewModel : ViewModel() {
     private val _totalOrdersCount = MutableStateFlow(0)
     val totalOrdersCount: StateFlow<Int> = _totalOrdersCount.asStateFlow()
 
+    private val _recentSecretaryCalls = MutableStateFlow(
+        PhoneConciergeManager.loadCachedRecentCalls(ServiceLocator.context)
+    )
+    val recentSecretaryCalls: StateFlow<List<PhoneSecretaryCallSummaryDto>> = _recentSecretaryCalls.asStateFlow()
+
     private val _isUploading = MutableStateFlow(false)
     val isUploading: StateFlow<Boolean> = _isUploading.asStateFlow()
 
@@ -98,6 +105,9 @@ class ZentrumViewModel : ViewModel() {
                     val ordersDeferred = if (isAdmin) {
                         async { orderRepository.getOrders(status = null, search = null, page = 1) }
                     } else null
+                    val secretaryDeferred = if (isAdmin) {
+                        async { PhoneConciergeManager.fetchRecentCalls(ServiceLocator.context) }
+                    } else null
 
                     commandDeferred.await().onSuccess { _ultimateCommand.value = it }
                     kpisDeferred.await().onSuccess { _kpis.value = it }
@@ -113,6 +123,9 @@ class ZentrumViewModel : ViewModel() {
                     ordersDeferred?.await()?.onSuccess { response ->
                         _orders.value = response.data
                         _totalOrdersCount.value = response.total
+                    }
+                    secretaryDeferred?.await()?.let { recent ->
+                        _recentSecretaryCalls.value = recent
                     }
                 }
 

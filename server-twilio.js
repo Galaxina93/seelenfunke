@@ -84,7 +84,7 @@ async function fetchBackendWithRetry(url, options = {}, timeoutMs = 5000) {
     throw lastErr || new Error('Backend request failed');
 }
 
-const BRIDGE_VERSION = 'v1.3-stable';
+const BRIDGE_VERSION = 'v1.4-live-secretary';
 const bridgeStartedAt = new Date().toISOString();
 let activeLiveSessions = 0;
 let activeTwilioCalls = 0;
@@ -928,8 +928,11 @@ function handleTwilioConnection(ws) {
     console.log('📞 Neues Twilio Gespräch (WebSocket) verbunden.');
     
     let streamSid = null;
+    let callSid = null;
     let geminiWs = null;
     let geminiPingInterval = null;
+    let isGeminiSetupComplete = false;
+    let kickoffSentAtMs = 0;
     let callContext = {};
     let callTranscript = [];
     let currentAiTurn = "";
@@ -948,13 +951,13 @@ function handleTwilioConnection(ws) {
             currentUserTurn = "";
         }
         if (currentAiTurn.trim()) {
-            callTranscript.push(`KI: ${currentAiTurn.trim()}`);
+            callTranscript.push(`Funkira: ${currentAiTurn.trim()}`);
             currentAiTurn = "";
         }
 
         const duration = callStartTime ? Math.floor((Date.now() - callStartTime) / 1000) : 0;
         const payload = JSON.stringify({
-            twilio_sid: streamSid,
+            twilio_sid: callSid || streamSid,
             contact_name: callContext.contact_name,
             objective: callContext.objective,
             transcript: callTranscript,
@@ -1003,15 +1006,23 @@ function handleTwilioConnection(ws) {
 
             const systemPrompt = isInboundSecretary
                 ? `
-STRIKTE SPRACHREGEL & SEKRETÄRINNEN-ROLLE (HÖCHSTE PRIORITÄT):
-- Du sprichst ZU 100% AUSSCHLIESSLICH AUF DEUTSCH.
-- Dein Name ist Funkira, du bist die herzliche, schnelle, aufmerksame persönliche Telefon-Assistentin von ${ownerName}.
-- Eingehender Whitelist-Anruf von: ${callContext.contact_name || greetName} (Anrede: "${greetName}").
+ROLLE & IDENTITÄT (HÖCHSTE PRIORITÄT):
+- Du sprichst ZU 100% AUSSCHLIESSLICH natürliches, lebendiges Deutsch.
+- Dein Name ist Funkira. Du bist die herzliche, kluge und aufmerksame persönliche Sekretärin von ${ownerName}.
+- Du telefonierst gerade LIVE mit: ${callContext.contact_name || greetName} (Anrede: "${greetName}").
 - Kontext zum Kontakt: ${callContext.system_instructions || ''}
-- Bekannte Notizen: ${callContext.ai_learned_facts || ''}
-- WICHTIG: ${greetName} hat bereits deine kurze Eröffnungsansage gehört ("Hallo ${greetName}, hier ist Funkira, Alinas persönliche Assistentin..."). Stelle dich daher NICHT noch einmal neu vor!
-- Höre jetzt direkt aufmerksam zu, was ${greetName} dir ausrichten möchte, antworte herzlich, natürlich und kurz (1 bis 2 Sätze ohne Aufzählungen), stelle höchstens EINE kurze Rückfrage falls nötig, versichere warmherzig und verbindlich, dass ${ownerName} die Nachricht sofort bekommt, verabschiede dich freundlich und rufe direkt danach das Tool 'end_call' auf!
-- ZERO-PII SANDBOX: Gib am Telefon NIEMALS interne Geschäftsdaten, Bestellungen, Kundendaten oder Finanzen preis.
+- Frühere Notizen: ${callContext.ai_learned_facts || ''}
+- Kalender-Zeitfenster von ${ownerName} (nur frei/belegt, nenne NIEMALS private Termindetails): ${callContext.calendar_events || ''}
+
+LIVE-GESPRÄCHSFÜHRUNG ALS ECHTE SEKRETÄRIN (KEIN ANRUFBEANTWORTER!):
+- Sage NIEMALS Sätze wie "Bitte sprechen Sie nach dem Signalton" oder "Ich starte eine Aufnahme". Du führst ein echtes, direktes Dialog-Telefonat wie eine menschliche Sekretärin!
+- Halte jeden Sprechbeitrag angenehm kurz, warm und natürlich (1 bis maximal 2 kurze Sätze, keine Listen vorlesen).
+- Kläre im Gespräch aktiv alle wichtigen Rahmenbedingungen für ${ownerName}:
+  1. Worum geht es konkret?
+  2. Welche Rahmenbedingungen gelten (Datum, Uhrzeit, Zeitraum, Ort, Frist, Details)? Frage freundlich mit EINER kurzen Frage nach, wenn etwas Wichtiges fehlt.
+  3. Was genau soll ${ownerName} tun (z. B. bis wann zurückrufen, etwas bestätigen oder erledigen)?
+- Sobald alles Wichtige geklärt ist, fasse das Vereinbarte in einem kurzen, herzlichen Satz zusammen, verabschiede dich lieb und rufe direkt danach das Tool 'end_call' auf!
+- DATENSCHUTZ-GRENZE: Gib am Telefon NIEMALS interne Geschäftsdaten, Bestellungen, Kundendaten oder Finanzen preis.
                 `.trim()
                 : `
 Du bist die persönliche Telefon-Sekretärin von ${ownerName}.
@@ -1211,8 +1222,18 @@ Sobald du dich verabschiedet hast, MUSST du sofort das Tool 'end_call' aufrufen,
                     currentAiTurn = "";
                 }
             } else if (response.setupComplete) {
+                isGeminiSetupComplete = true;
                 debugLog("Gemini Setup erfolgreich bestätigt!");
-                // KI wartet nun durch den System-Prompt nativ auf die Audio-Eingabe (Hallo) des Angerufenen.
+                if (callContext.call_mode === 'inbound_secretary') {
+                    kickoffSentAtMs = Date.now();
+                    const ownerFirst = (callContext.agent_name || 'Alina').split(' ')[0] || 'Alina';
+                    const greetName = callContext.greeting_name || callContext.contact_name || 'du';
+                    safeSend(geminiWs, JSON.stringify({
+                        realtimeInput: {
+                            text: `[ANRUF LIVE VERBUNDEN] ${greetName} ist jetzt live am Telefon. Begrüße ${greetName} jetzt sofort herzlich, natürlich und kurz auf Deutsch als Funkira, ${ownerFirst}s persönliche Assistentin (nur 1 kurzer Satz, z. B.: 'Hallo ${greetName}, hier ist Funkira, ${ownerFirst}s Assistentin! ${ownerFirst} ist gerade kurz eingebunden, was darf ich direkt mit dir klären oder für sie aufnehmen?') und führe danach ein lebendiges Gespräch.`
+                        }
+                    }));
+                }
             } else {
                 debugLog("Gemini Response: " + JSON.stringify(response));
             }
@@ -1273,6 +1294,7 @@ Sobald du dich verabschiedet hast, MUSST du sofort das Tool 'end_call' aufrufen,
         if (msg.event === 'start') {
             debugLog('Twilio stream started. StreamSid: ' + msg.start.streamSid);
             streamSid = msg.start.streamSid;
+            callSid = msg.start.callSid || streamSid;
             // Extrahiere unsere Custom Parameters aus dem Twilio Webhook
             callContext = msg.start.customParameters || {};
             callStartTime = Date.now();
@@ -1283,7 +1305,10 @@ Sobald du dich verabschiedet hast, MUSST du sofort das Tool 'end_call' aufrufen,
             
         } else if (msg.event === 'media') {
             // Twilio sendet uns Audio vom Anrufer (mulaw 8kHz base64)
-            if (geminiWs && geminiWs.readyState === WebSocket.OPEN) {
+            if (geminiWs && geminiWs.readyState === WebSocket.OPEN && isGeminiSetupComplete) {
+                if (kickoffSentAtMs > 0 && (Date.now() - kickoffSentAtMs) < 500) {
+                    return;
+                }
                 try {
                     const payloadLength = msg.media.payload.length;
                     

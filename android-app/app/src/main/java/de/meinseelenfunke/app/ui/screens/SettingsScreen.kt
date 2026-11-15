@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Logout
+import androidx.compose.material.icons.filled.PhoneForwarded
 import androidx.compose.material.icons.filled.PhoneInTalk
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Visibility
@@ -80,8 +81,11 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
+import de.meinseelenfunke.app.data.api.PhoneSecretaryCallSummaryDto
 import de.meinseelenfunke.app.di.ServiceLocator
 import de.meinseelenfunke.app.di.ThemeMode
+import de.meinseelenfunke.app.ui.components.PhoneSecretaryCallDetailDialog
+import de.meinseelenfunke.app.ui.components.PhoneSecretaryCallRow
 import de.meinseelenfunke.app.ui.theme.AppTheme
 import de.meinseelenfunke.app.ui.theme.Emerald500
 import de.meinseelenfunke.app.ui.theme.Gold
@@ -108,6 +112,8 @@ fun SettingsScreen(
     val phoneConciergeEnabled by viewModel.phoneConciergeEnabled.collectAsState()
     val phoneRingDelaySec by viewModel.phoneRingDelaySec.collectAsState()
     val whitelistContacts by viewModel.whitelistContacts.collectAsState()
+    val recentSecretaryCalls by viewModel.recentSecretaryCalls.collectAsState()
+    var selectedSecretaryCall by remember { mutableStateOf<PhoneSecretaryCallSummaryDto?>(null) }
     var showPhoneInfoDialog by remember { mutableStateOf(false) }
     var showOtaInfoDialog by remember { mutableStateOf(false) }
     var permCheckTick by remember { mutableIntStateOf(0) }
@@ -128,6 +134,7 @@ fun SettingsScreen(
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 permCheckTick++
+                viewModel.refreshPhoneConcierge()
                 AppUpdateManager.resumePendingInstallIfPermitted(context)
             }
         }
@@ -158,7 +165,28 @@ fun SettingsScreen(
         }
     }
 
+    val ensurePhoneAssistantAccess = {
+        if (!PhoneConciergeManager.hasRequiredPermissions(context)) {
+            permissionLauncher.launch(PhoneConciergeManager.buildRuntimePermissionRequestArray())
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && !PhoneConciergeManager.hasCallScreeningRole(context)) {
+            val rm = context.getSystemService(RoleManager::class.java)
+            if (rm != null && rm.isRoleAvailable(RoleManager.ROLE_CALL_SCREENING)) {
+                roleLauncher.launch(rm.createRequestRoleIntent(RoleManager.ROLE_CALL_SCREENING))
+            }
+        }
+    }
+
+    selectedSecretaryCall?.let { detailCall ->
+        PhoneSecretaryCallDetailDialog(
+            call = detailCall,
+            onDismiss = { selectedSecretaryCall = null }
+        )
+    }
+
     if (showPhoneInfoDialog) {
+        val diagLines = remember(showPhoneInfoDialog, permCheckTick) {
+            PhoneConciergeManager.getDiagnosticTraceLines(context)
+        }
         AlertDialog(
             onDismissRequest = { showPhoneInfoDialog = false },
             containerColor = AppTheme.colors.cardBackground,
@@ -170,11 +198,46 @@ fun SettingsScreen(
                 )
             },
             text = {
-                Text(
-                    text = "Funkira nimmt Anrufe freigegebener Kontakte nach der gewählten Klingelzeit automatisch an, spricht direkt auf deinem Smartphone (oder in der Werkstatt über den Mini-PC) herzlich als deine persönliche Sekretärin, nimmt das Anliegen auf, versichert freundlich die Weitergabe an dich und speichert alles sofort als Aufgabe auf deinem Dashboard. Unbekannte Nummern werden niemals angenommen.",
-                    fontSize = 13.sp,
-                    color = AppTheme.colors.textPrimary
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "Funkira übernimmt Anrufe deiner freigegebenen Kontakte sofort lautlos (oder nach deiner gewählten Klingelzeit) über deine persönliche Gifhorner Assistenz-Leitung, führt live ein echtes Gespräch wie deine persönliche Sekretärin, klärt aktiv alle Rahmenbedingungen und zeigt dir direkt in der App sowie unter Aufgaben, was besprochen wurde und was für dich zu tun ist. Unbekannte Nummern klingeln normal durch.",
+                        fontSize = 13.sp,
+                        color = AppTheme.colors.textPrimary
+                    )
+                    Text(
+                        text = "Einmalige Einrichtung: Tippe auf 'Rufumleitung verbinden' und drücke im geöffneten Telefonfeld einmal den grünen Hörer.",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Gold
+                    )
+                    TextButton(
+                        onClick = {
+                            showPhoneInfoDialog = false
+                            PhoneConciergeManager.openCarrierForwardingDialer(context, activate = false)
+                        }
+                    ) {
+                        Text(
+                            text = "Rufumleitung aufheben (##004#)",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Rose500
+                        )
+                    }
+                    if (diagLines.isNotEmpty()) {
+                        HorizontalDivider(color = AppTheme.colors.cardBorder)
+                        Text(
+                            text = "Letztes Anruf-Protokoll",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Gold
+                        )
+                        Text(
+                            text = diagLines.takeLast(6).joinToString("\n"),
+                            fontSize = 11.sp,
+                            color = AppTheme.colors.textMuted
+                        )
+                    }
+                }
             },
             confirmButton = {
                 TextButton(onClick = { showPhoneInfoDialog = false }) {
@@ -738,7 +801,10 @@ fun SettingsScreen(
                         }
                         Switch(
                             checked = phoneConciergeEnabled,
-                            onCheckedChange = { viewModel.setPhoneConciergeEnabled(it) },
+                            onCheckedChange = {
+                                viewModel.setPhoneConciergeEnabled(it)
+                                if (it) ensurePhoneAssistantAccess()
+                            },
                             colors = SwitchDefaults.colors(
                                 checkedThumbColor = Gold,
                                 checkedTrackColor = Gold.copy(alpha = 0.45f)
@@ -770,7 +836,10 @@ fun SettingsScreen(
                                         if (selected) Gold else AppTheme.colors.cardBorder,
                                         RoundedCornerShape(10.dp)
                                     )
-                                    .clickable { viewModel.setPhoneRingDelaySec(sec) }
+                                    .clickable {
+                                        viewModel.setPhoneRingDelaySec(sec)
+                                        if (phoneConciergeEnabled) ensurePhoneAssistantAccess()
+                                    }
                                     .padding(vertical = 9.dp),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -787,26 +856,15 @@ fun SettingsScreen(
                     // Permission & Call Screening Role Setup
                     if (!hasPhonePerms || !hasScreeningRole) {
                         Button(
-                            onClick = {
-                                val reqPerms = mutableListOf(
-                                    Manifest.permission.READ_PHONE_STATE,
-                                    Manifest.permission.ANSWER_PHONE_CALLS,
-                                    Manifest.permission.READ_CALL_LOG,
-                                    Manifest.permission.RECORD_AUDIO
-                                )
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                                    reqPerms.add(Manifest.permission.BLUETOOTH_CONNECT)
-                                }
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                    reqPerms.add(Manifest.permission.POST_NOTIFICATIONS)
-                                }
-                                permissionLauncher.launch(reqPerms.toTypedArray())
-                            },
+                            onClick = { ensurePhoneAssistantAccess() },
                             colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = SpaceBlack),
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(12.dp)
                         ) {
-                            Text("Telefon-Freigabe aktivieren", fontWeight = FontWeight.Bold)
+                            Text(
+                                text = if (!hasPhonePerms) "Telefon-Freigabe aktivieren" else "Als Anruffilter bestätigen",
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     } else {
                         Row(
@@ -825,6 +883,45 @@ fun SettingsScreen(
                                 fontWeight = FontWeight.SemiBold,
                                 color = Emerald500
                             )
+                        }
+                    }
+
+                    OutlinedButton(
+                        onClick = { PhoneConciergeManager.openCarrierForwardingDialer(context, activate = true) },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        border = BorderStroke(1.dp, Gold.copy(alpha = 0.6f))
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PhoneForwarded,
+                            contentDescription = null,
+                            tint = Gold,
+                            modifier = Modifier.size(17.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Rufumleitung verbinden",
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 13.sp,
+                            color = Gold
+                        )
+                    }
+
+                    if (recentSecretaryCalls.isNotEmpty()) {
+                        HorizontalDivider(color = AppTheme.colors.cardBorder)
+                        Text(
+                            text = "Letzte Gespräche",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = AppTheme.colors.textSecondary
+                        )
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            recentSecretaryCalls.take(5).forEach { callItem ->
+                                PhoneSecretaryCallRow(
+                                    call = callItem,
+                                    onClick = { selectedSecretaryCall = callItem }
+                                )
+                            }
                         }
                     }
 
@@ -857,7 +954,10 @@ fun SettingsScreen(
                                     )
                                     Switch(
                                         checked = contact.whitelisted,
-                                        onCheckedChange = { viewModel.toggleContactWhitelist(contact.id, it) },
+                                        onCheckedChange = {
+                                            viewModel.toggleContactWhitelist(contact.id, it)
+                                            if (it && phoneConciergeEnabled) ensurePhoneAssistantAccess()
+                                        },
                                         colors = SwitchDefaults.colors(
                                             checkedThumbColor = Gold,
                                             checkedTrackColor = Gold.copy(alpha = 0.45f)

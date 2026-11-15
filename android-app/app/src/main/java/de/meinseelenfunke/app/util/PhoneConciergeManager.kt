@@ -1,10 +1,19 @@
 package de.meinseelenfunke.app.util
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.role.RoleManager
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.AudioManager
+import android.net.Uri
 import android.os.Build
+import android.os.PowerManager
+import android.os.SystemClock
+import android.telecom.TelecomManager
+import android.telephony.TelephonyManager
+import android.widget.Toast
 import androidx.core.content.ContextCompat
 import com.google.gson.Gson
 import com.google.gson.JsonObject
@@ -12,8 +21,18 @@ import com.google.gson.reflect.TypeToken
 import de.meinseelenfunke.app.data.api.ManagementContactDto
 import de.meinseelenfunke.app.data.api.PhoneConciergeCompleteBody
 import de.meinseelenfunke.app.data.api.PhoneConciergeConfigUpdateBody
+import de.meinseelenfunke.app.data.api.PhoneConciergeSignalBody
+import de.meinseelenfunke.app.data.api.PhoneSecretaryCallSummaryDto
 import de.meinseelenfunke.app.data.api.PhoneWhitelistToggleBody
 import de.meinseelenfunke.app.di.ServiceLocator
+import de.meinseelenfunke.app.services.FunkiraPhoneConciergeService
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import java.time.Instant
 
 data class PendingPhoneSecretaryNote(
@@ -42,14 +61,25 @@ data class CachedWhitelistContact(
 
 object PhoneConciergeManager {
 
+    const val DEFAULT_GATEWAY_PHONE = "+4953717269023"
+    const val DEFAULT_CARRIER_NO_ANSWER_SEC = 20
+
     private const val PREFS_NAME = "funkira_phone_concierge_prefs"
     private const val KEY_ENABLED = "concierge_enabled"
     private const val KEY_RING_DELAY = "concierge_ring_delay_sec"
+    private const val KEY_GATEWAY_PHONE = "concierge_gateway_phone_v1"
     private const val KEY_CACHED_CONTACTS_JSON = "concierge_cached_contacts_json"
     private const val KEY_LOCAL_WHITELIST_IDS = "concierge_local_whitelist_ids"
+    private const val KEY_DIRTY_CONFIG = "concierge_dirty_config_v1"
+    private const val KEY_DIRTY_WHITELIST_MAP_JSON = "concierge_dirty_whitelist_map_v1"
+    private const val KEY_DIAG_TRACE_JSON = "concierge_diag_trace_v1"
     private const val KEY_SEEDED_DEFAULTS = "concierge_seeded_papa_v1"
     private const val KEY_PENDING_NOTES_ENC = "concierge_pending_secretary_notes_enc_v1"
+    private const val KEY_RECENT_CALLS_ENC = "concierge_recent_calls_enc_v1"
     private val pendingLock = Any()
+    private val bgScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    @Volatile private var delayedDivertJob: Job? = null
+    @Volatile private var lastScreenedAtRealtimeMs: Long = 0L
 
     private val gson = Gson()
 
@@ -70,9 +100,189 @@ object PhoneConciergeManager {
         prefs(ctx).edit().putInt(KEY_RING_DELAY, seconds.coerceIn(0, 30)).apply()
     }
 
+    fun getGatewayPhone(ctx: Context): String =
+        sanitizeGatewayPhoneForMmi(prefs(ctx).getString(KEY_GATEWAY_PHONE, DEFAULT_GATEWAY_PHONE))
+
+    fun setGatewayPhoneLocal(ctx: Context, gatewayPhone: String) {
+        prefs(ctx).edit().putString(KEY_GATEWAY_PHONE, sanitizeGatewayPhoneForMmi(gatewayPhone)).apply()
+    }
+
+    internal fun sanitizeGatewayPhoneForMmi(raw: String?): String {
+        val cleaned = raw.orEmpty().trim().filterIndexed { idx, ch -> ch.isDigit() || (idx == 0 && ch == '+') }
+        return if (cleaned.count { it.isDigit() } >= 7) cleaned else DEFAULT_GATEWAY_PHONE
+    }
+
+    internal fun buildCarrierForwardingActivateMmi(
+        gatewayPhone: String? = DEFAULT_GATEWAY_PHONE,
+        noAnswerSec: Int = DEFAULT_CARRIER_NO_ANSWER_SEC
+    ): String {
+        val dest = sanitizeGatewayPhoneForMmi(gatewayPhone)
+        val stepSec = (((noAnswerSec.coerceIn(5, 30) + 2) / 5) * 5).coerceIn(5, 30)
+        return "**004*$dest**$stepSec#"
+    }
+
+    internal fun buildCarrierForwardingDisableMmi(): String = "##004#"
+
+    internal fun shouldRejectImmediatelyInScreening(isWhitelisted: Boolean, delaySeconds: Int): Boolean =
+        isWhitelisted && delaySeconds <= 0
+
+    fun markScreenedNow() {
+        lastScreenedAtRealtimeMs = SystemClock.elapsedRealtime()
+    }
+
+    fun wasScreenedRecently(windowMs: Long = 5_000L): Boolean {
+        val prev = lastScreenedAtRealtimeMs
+        if (prev <= 0L) return false
+        return (SystemClock.elapsedRealtime() - prev) in 0..windowMs
+    }
+
+    fun openCarrierForwardingDialer(ctx: Context, activate: Boolean) {
+        val mmi = if (activate) {
+            buildCarrierForwardingActivateMmi(getGatewayPhone(ctx))
+        } else {
+            buildCarrierForwardingDisableMmi()
+        }
+        appendDiagnosticTrace(ctx, "Wählfeld geöffnet ($mmi)")
+        try {
+            // Uri.fromParts encodes trailing '#' as '%23' so Pixel Phone preserves the full GSM MMI string
+            val dialUri = Uri.fromParts("tel", mmi, null)
+            val intent = Intent(Intent.ACTION_DIAL, dialUri).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            ctx.startActivity(intent)
+            val toastText = if (activate) {
+                "Im Telefonfeld einmal den grünen Hörer tippen."
+            } else {
+                "Grünen Hörer tippen zum Aufheben der Rufumleitung."
+            }
+            Toast.makeText(ctx, toastText, Toast.LENGTH_LONG).show()
+        } catch (_: Exception) {
+            Toast.makeText(ctx, "Code: $mmi", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    fun signalWhitelistDiversionAsync(ctx: Context, matched: CachedWhitelistContact, rawNumber: String) {
+        val app = ctx.applicationContext
+        bgScope.launch(Dispatchers.IO) {
+            try {
+                ServiceLocator.ensureInitialized(app)
+                if (ServiceLocator.getAuthToken().isNullOrBlank()) return@launch
+                val cleanId = matched.id.takeUnless { it == "default-papa" || it.isBlank() }
+                ServiceLocator.getOrganizerApi().signalPhoneConciergeCall(
+                    PhoneConciergeSignalBody(
+                        state = "ringing",
+                        is_simulation = false,
+                        contact_id = cleanId,
+                        caller_name = matched.fullName,
+                        caller_nickname = matched.nickname,
+                        relation_type = matched.relationType,
+                        caller_phone = rawNumber,
+                        system_instructions = matched.systemInstructions,
+                        audio_mode = "twilio_divert"
+                    )
+                )
+            } catch (_: Exception) { }
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    @Suppress("DEPRECATION")
+    fun scheduleDelayedCallDiversion(
+        ctx: Context,
+        matched: CachedWhitelistContact,
+        rawNumber: String,
+        delaySeconds: Int
+    ) {
+        val app = ctx.applicationContext
+        delayedDivertJob?.cancel()
+        delayedDivertJob = bgScope.launch {
+            val pm = app.getSystemService(PowerManager::class.java)
+            val wl = try {
+                pm?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "funkenwerk:call_divert_timer")?.apply {
+                    setReferenceCounted(false)
+                    acquire(((delaySeconds.coerceIn(0, 25) + 5) * 1_000L))
+                }
+            } catch (_: Exception) { null }
+
+            try {
+                val targetMs = delaySeconds.coerceIn(0, 30) * 1_000L
+                var elapsedMs = 0L
+                val telecom = app.getSystemService(TelecomManager::class.java)
+                val audio = app.getSystemService(AudioManager::class.java)
+                val telephony = app.getSystemService(TelephonyManager::class.java)
+
+                while (isActive && elapsedMs < targetMs) {
+                    delay(500L)
+                    elapsedMs += 500L
+                    val hasPhoneState = ContextCompat.checkSelfPermission(
+                        app,
+                        Manifest.permission.READ_PHONE_STATE
+                    ) == PackageManager.PERMISSION_GRANTED
+                    val inCall = if (hasPhoneState) {
+                        try { telecom?.isInCall == true } catch (_: Exception) { true }
+                    } else {
+                        true
+                    }
+                    val legacyState = if (hasPhoneState) {
+                        try { telephony?.callState ?: TelephonyManager.CALL_STATE_RINGING } catch (_: Exception) { TelephonyManager.CALL_STATE_RINGING }
+                    } else {
+                        TelephonyManager.CALL_STATE_RINGING
+                    }
+                    val unified = FunkiraPhoneConciergeService.resolveUnifiedCallState(
+                        telecomInCall = inCall,
+                        audioMode = audio?.mode ?: AudioManager.MODE_NORMAL,
+                        legacyTelephonyState = legacyState,
+                        subscriptionStates = emptyList(),
+                        secretaryAudioOverrideActive = false
+                    )
+                    if (unified == TelephonyManager.CALL_STATE_OFFHOOK) {
+                        appendDiagnosticTrace(app, "Selbst angenommen (${matched.fullName})")
+                        return@launch
+                    }
+                    if (elapsedMs >= 1_500L && unified == TelephonyManager.CALL_STATE_IDLE) {
+                        appendDiagnosticTrace(app, "Anrufer aufgelegt (${matched.fullName})")
+                        return@launch
+                    }
+                }
+
+                if (!isActive) return@launch
+                if (ContextCompat.checkSelfPermission(app, Manifest.permission.ANSWER_PHONE_CALLS) == PackageManager.PERMISSION_GRANTED) {
+                    val ended = try {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                            telecom?.endCall() == true
+                        } else {
+                            false
+                        }
+                    } catch (_: Exception) {
+                        false
+                    }
+                    appendDiagnosticTrace(
+                        app,
+                        if (ended) "Nach ${delaySeconds}s an Funkira übergeben" else "Netz-Weiterleitung greift (${matched.fullName})"
+                    )
+                } else {
+                    appendDiagnosticTrace(app, "Warte auf Netz-Weiterleitung (${matched.fullName})")
+                }
+            } finally {
+                try {
+                    if (wl?.isHeld == true) wl.release()
+                } catch (_: Exception) { }
+            }
+        }
+    }
+
     fun normalizePhoneDigits(raw: String?): String {
         if (raw.isNullOrBlank()) return ""
-        val firstClause = raw.split(';', ',').firstOrNull()?.trim().orEmpty()
+        val decoded = raw.trim()
+            .replace("%2B", "+", ignoreCase = true)
+            .removePrefix("tel:")
+            .removePrefix("TEL:")
+            .removePrefix("sips:")
+            .removePrefix("SIPS:")
+            .removePrefix("sip:")
+            .removePrefix("SIP:")
+            .substringBefore('@') // Strip VoWiFi / IMS SIP host (e.g. @ims.mnc001.mcc262.3gppnetwork.org)
+        val firstClause = decoded.split(';', ',').firstOrNull()?.trim().orEmpty()
         val slashParts = firstClause.split('/')
         val primary = if (slashParts.size >= 2 &&
             slashParts[0].count { it.isDigit() } >= 7 &&
@@ -93,22 +303,79 @@ object PhoneConciergeManager {
         }
     }
 
+    fun appendDiagnosticTrace(ctx: Context, step: String) {
+        try {
+            val ts = java.time.LocalTime.now().withNano(0).toString()
+            val entry = "$ts $step".take(160)
+            synchronized(pendingLock) {
+                val cur = getDiagnosticTraceLines(ctx).toMutableList()
+                cur.add(entry)
+                while (cur.size > 10) {
+                    cur.removeAt(0)
+                }
+                prefs(ctx).edit().putString(KEY_DIAG_TRACE_JSON, gson.toJson(cur)).apply()
+            }
+        } catch (_: Exception) { }
+    }
+
+    fun getDiagnosticTraceLines(ctx: Context): List<String> {
+        val raw = prefs(ctx).getString(KEY_DIAG_TRACE_JSON, null) ?: return emptyList()
+        return try {
+            val t = object : TypeToken<List<String>>() {}.type
+            gson.fromJson<List<String>>(raw, t) ?: emptyList()
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
     fun extractMatchSuffix(raw: String?): String {
         val norm = normalizePhoneDigits(raw)
         if (norm.isEmpty()) return ""
         return if (norm.length > 8) norm.takeLast(8) else norm
     }
 
+    /**
+     * Core runtime permissions strictly required for Whitelist Call Screening (including saved Google Contacts)
+     * and delayed diversion (`TelecomManager.endCall()`).
+     */
     fun hasRequiredPermissions(ctx: Context): Boolean {
         val app = ctx.applicationContext
-        val baseOk = ContextCompat.checkSelfPermission(app, Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED &&
+        return ContextCompat.checkSelfPermission(app, Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED &&
             ContextCompat.checkSelfPermission(app, Manifest.permission.ANSWER_PHONE_CALLS) == PackageManager.PERMISSION_GRANTED &&
-            ContextCompat.checkSelfPermission(app, Manifest.permission.READ_CALL_LOG) == PackageManager.PERMISSION_GRANTED &&
-            ContextCompat.checkSelfPermission(app, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
-        val btOk = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            ContextCompat.checkSelfPermission(app, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
-        } else true
-        return baseOk && btOk
+            ContextCompat.checkSelfPermission(app, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED
+    }
+
+    fun hasAnswerExecutionPermissions(ctx: Context): Boolean {
+        val app = ctx.applicationContext
+        return ContextCompat.checkSelfPermission(app, Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED &&
+            ContextCompat.checkSelfPermission(app, Manifest.permission.ANSWER_PHONE_CALLS) == PackageManager.PERMISSION_GRANTED
+    }
+
+    fun missingCorePermissionLabels(ctx: Context): List<String> {
+        val app = ctx.applicationContext
+        val missing = mutableListOf<String>()
+        if (ContextCompat.checkSelfPermission(app, Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) {
+            missing.add("Telefonstatus")
+        }
+        if (ContextCompat.checkSelfPermission(app, Manifest.permission.ANSWER_PHONE_CALLS) != PackageManager.PERMISSION_GRANTED) {
+            missing.add("Anrufe verwalten")
+        }
+        if (ContextCompat.checkSelfPermission(app, Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) {
+            missing.add("Kontakte")
+        }
+        return missing
+    }
+
+    fun buildRuntimePermissionRequestArray(sdkInt: Int = Build.VERSION.SDK_INT): Array<String> {
+        val perms = mutableListOf(
+            Manifest.permission.READ_PHONE_STATE,
+            Manifest.permission.ANSWER_PHONE_CALLS,
+            Manifest.permission.READ_CONTACTS
+        )
+        if (sdkInt >= Build.VERSION_CODES.TIRAMISU) {
+            perms.add(Manifest.permission.POST_NOTIFICATIONS)
+        }
+        return perms.toTypedArray()
     }
 
     fun normalizeUrgency(raw: String?): String {
@@ -154,19 +421,86 @@ object PhoneConciergeManager {
         prefs(ctx).edit().putString(KEY_CACHED_CONTACTS_JSON, gson.toJson(contacts)).apply()
     }
 
-    fun matchIncomingWhitelistedCaller(ctx: Context, incomingNumber: String?): CachedWhitelistContact? {
-        if (!isEnabled(ctx)) return null
+    fun loadCachedRecentCalls(ctx: Context): List<PhoneSecretaryCallSummaryDto> {
+        val enc = prefs(ctx).getString(KEY_RECENT_CALLS_ENC, null)
+        if (enc.isNullOrBlank()) return emptyList()
+        val json = ServiceLocator.decryptPayloadFromPrefs(enc) ?: return emptyList()
+        return try {
+            val t = object : TypeToken<List<PhoneSecretaryCallSummaryDto>>() {}.type
+            gson.fromJson<List<PhoneSecretaryCallSummaryDto>>(json, t) ?: emptyList()
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    private fun saveCachedRecentCalls(ctx: Context, calls: List<PhoneSecretaryCallSummaryDto>) {
+        if (calls.isEmpty()) {
+            prefs(ctx).edit().remove(KEY_RECENT_CALLS_ENC).apply()
+            return
+        }
+        val enc = ServiceLocator.encryptPayloadForPrefs(gson.toJson(calls))
+        prefs(ctx).edit().putString(KEY_RECENT_CALLS_ENC, enc).apply()
+    }
+
+    suspend fun fetchRecentCalls(ctx: Context): List<PhoneSecretaryCallSummaryDto> {
+        ServiceLocator.ensureInitialized(ctx)
+        if (ServiceLocator.getAuthToken().isNullOrBlank()) {
+            return loadCachedRecentCalls(ctx)
+        }
+        return try {
+            val cfgRes = ServiceLocator.getOrganizerApi().getPhoneConciergeConfig()
+            val cfg = cfgRes.data
+            if (cfgRes.success && cfg != null) {
+                val recent = cfg.recent_calls.orEmpty()
+                saveCachedRecentCalls(ctx, recent)
+                recent
+            } else {
+                loadCachedRecentCalls(ctx)
+            }
+        } catch (_: Exception) {
+            loadCachedRecentCalls(ctx)
+        }
+    }
+
+    private fun loadDirtyWhitelistMap(ctx: Context): MutableMap<String, Boolean> {
+        val raw = prefs(ctx).getString(KEY_DIRTY_WHITELIST_MAP_JSON, null)
+        if (raw.isNullOrBlank()) return mutableMapOf()
+        return try {
+            val t = object : TypeToken<MutableMap<String, Boolean>>() {}.type
+            gson.fromJson<MutableMap<String, Boolean>>(raw, t) ?: mutableMapOf()
+        } catch (_: Exception) {
+            mutableMapOf()
+        }
+    }
+
+    private fun saveDirtyWhitelistMap(ctx: Context, map: Map<String, Boolean>) {
+        if (map.isEmpty()) {
+            prefs(ctx).edit().remove(KEY_DIRTY_WHITELIST_MAP_JSON).apply()
+        } else {
+            prefs(ctx).edit().putString(KEY_DIRTY_WHITELIST_MAP_JSON, gson.toJson(map)).apply()
+        }
+    }
+
+    internal fun matchWhitelistedContactInList(
+        contacts: List<CachedWhitelistContact>,
+        incomingNumber: String?
+    ): CachedWhitelistContact? {
         val norm = normalizePhoneDigits(incomingNumber)
         val suffix = extractMatchSuffix(incomingNumber)
         if (norm.isEmpty() && suffix.isEmpty()) return null
 
-        return loadCachedContacts(ctx).firstOrNull { c ->
+        return contacts.firstOrNull { c ->
             if (!c.whitelisted) return@firstOrNull false
             val cNorm = c.normalizedPhone.ifEmpty { normalizePhoneDigits(c.phone) }
             val cSuffix = c.matchSuffix.ifEmpty { extractMatchSuffix(c.phone) }
             (cNorm.isNotEmpty() && cNorm == norm) ||
-                (cSuffix.length >= 8 && suffix.length >= 8 && cSuffix == suffix)
+                (cSuffix.length >= 7 && suffix.length >= 7 && cSuffix == suffix)
         }
+    }
+
+    fun matchIncomingWhitelistedCaller(ctx: Context, incomingNumber: String?): CachedWhitelistContact? {
+        if (!isEnabled(ctx)) return null
+        return matchWhitelistedContactInList(loadCachedContacts(ctx), incomingNumber)
     }
 
     suspend fun syncFromBackend(ctx: Context): List<CachedWhitelistContact> {
@@ -181,14 +515,52 @@ object PhoneConciergeManager {
         val p = prefs(ctx)
         val localIds = p.getStringSet(KEY_LOCAL_WHITELIST_IDS, emptySet())?.toMutableSet() ?: mutableSetOf()
 
-        // 1. Try syncing global Phone-Concierge config from Portal (graceful if Stage isn't deployed yet)
+        // 0. Flush any unsynced local config or whitelist overrides first so local "Sofort" / switches never get overwritten
+        if (p.getBoolean(KEY_DIRTY_CONFIG, false)) {
+            try {
+                val pushRes = api.updatePhoneConciergeConfig(
+                    PhoneConciergeConfigUpdateBody(
+                        enabled = isEnabled(ctx),
+                        ring_delay_seconds = getRingDelaySeconds(ctx)
+                    )
+                )
+                if (pushRes.success) {
+                    p.edit().putBoolean(KEY_DIRTY_CONFIG, false).apply()
+                }
+            } catch (_: Exception) { }
+        }
+
+        val dirtyMap = loadDirtyWhitelistMap(ctx)
+        if (dirtyMap.isNotEmpty()) {
+            val syncedDirtyIds = mutableListOf<String>()
+            for ((cid, flag) in dirtyMap) {
+                try {
+                    val wRes = api.updateContactCallWhitelist(cid, PhoneWhitelistToggleBody(funkira_call_whitelist = flag))
+                    if (wRes.success) {
+                        syncedDirtyIds.add(cid)
+                    }
+                } catch (_: Exception) { }
+            }
+            if (syncedDirtyIds.isNotEmpty()) {
+                syncedDirtyIds.forEach { dirtyMap.remove(it) }
+                saveDirtyWhitelistMap(ctx, dirtyMap)
+            }
+        }
+
+        // 1. Sync global Phone-Concierge config from Portal
         var whitelistedIdsFromConfig: Set<String>? = null
         try {
             val cfgRes = api.getPhoneConciergeConfig()
             val cfg = cfgRes.data
             if (cfgRes.success && cfg != null) {
-                setEnabledLocal(ctx, cfg.enabled)
-                setRingDelayLocal(ctx, cfg.ring_delay_seconds)
+                if (!p.getBoolean(KEY_DIRTY_CONFIG, false)) {
+                    setEnabledLocal(ctx, cfg.enabled)
+                    setRingDelayLocal(ctx, cfg.ring_delay_seconds)
+                }
+                if (!cfg.gateway_phone.isNullOrBlank()) {
+                    setGatewayPhoneLocal(ctx, cfg.gateway_phone)
+                }
+                saveCachedRecentCalls(ctx, cfg.recent_calls.orEmpty())
                 whitelistedIdsFromConfig = cfg.whitelist_contacts.orEmpty().map { it.id }.toSet()
             }
         } catch (_: Exception) { }
@@ -208,9 +580,11 @@ object PhoneConciergeManager {
                         full.contains("Jan Steinhauer", ignoreCase = true) ||
                         normalizePhoneDigits(dto.phone) == "4917657793016"
                     )
+                    val dirtyOverride = dirtyMap[dto.id]
                     val isWhitelisted = when {
-                        whitelistedIdsFromConfig != null -> whitelistedIdsFromConfig.contains(dto.id)
+                        dirtyOverride != null -> dirtyOverride
                         dto.funkira_call_whitelist == true -> true
+                        whitelistedIdsFromConfig != null -> whitelistedIdsFromConfig.contains(dto.id)
                         localIds.contains(dto.id) -> true
                         isPapaDefault -> {
                             localIds.add(dto.id)
@@ -218,7 +592,7 @@ object PhoneConciergeManager {
                         }
                         else -> false
                     }
-                    if (isWhitelisted) localIds.add(dto.id)
+                    if (isWhitelisted) localIds.add(dto.id) else localIds.remove(dto.id)
                     CachedWhitelistContact(
                         id = dto.id,
                         fullName = full,
@@ -246,15 +620,19 @@ object PhoneConciergeManager {
     suspend fun updateGlobalConfig(ctx: Context, enabled: Boolean? = null, ringDelaySeconds: Int? = null) {
         enabled?.let { setEnabledLocal(ctx, it) }
         ringDelaySeconds?.let { setRingDelayLocal(ctx, it) }
+        prefs(ctx).edit().putBoolean(KEY_DIRTY_CONFIG, true).apply()
         ServiceLocator.ensureInitialized(ctx)
         if (ServiceLocator.getAuthToken().isNullOrBlank()) return
         try {
-            ServiceLocator.getOrganizerApi().updatePhoneConciergeConfig(
+            val res = ServiceLocator.getOrganizerApi().updatePhoneConciergeConfig(
                 PhoneConciergeConfigUpdateBody(
                     enabled = enabled,
                     ring_delay_seconds = ringDelaySeconds
                 )
             )
+            if (res.success) {
+                prefs(ctx).edit().putBoolean(KEY_DIRTY_CONFIG, false).apply()
+            }
         } catch (_: Exception) { }
     }
 
@@ -264,6 +642,10 @@ object PhoneConciergeManager {
         if (whitelisted) localIds.add(contactId) else localIds.remove(contactId)
         p.edit().putStringSet(KEY_LOCAL_WHITELIST_IDS, localIds).apply()
 
+        val dirtyMap = loadDirtyWhitelistMap(ctx)
+        dirtyMap[contactId] = whitelisted
+        saveDirtyWhitelistMap(ctx, dirtyMap)
+
         val updated = loadCachedContacts(ctx).map {
             if (it.id == contactId) it.copy(whitelisted = whitelisted) else it
         }
@@ -272,10 +654,15 @@ object PhoneConciergeManager {
         ServiceLocator.ensureInitialized(ctx)
         if (!ServiceLocator.getAuthToken().isNullOrBlank()) {
             try {
-                ServiceLocator.getOrganizerApi().updateContactCallWhitelist(
+                val res = ServiceLocator.getOrganizerApi().updateContactCallWhitelist(
                     id = contactId,
                     body = PhoneWhitelistToggleBody(funkira_call_whitelist = whitelisted)
                 )
+                if (res.success) {
+                    val afterMap = loadDirtyWhitelistMap(ctx)
+                    afterMap.remove(contactId)
+                    saveDirtyWhitelistMap(ctx, afterMap)
+                }
             } catch (_: Exception) { }
         }
         return updated

@@ -2,10 +2,13 @@
 
 namespace App\Services\System;
 
+use App\Models\Management\ManagementCalendarEvent;
 use App\Models\Management\ManagementContact;
 use App\Models\Management\ManagementTask;
 use App\Models\Management\ManagementTaskList;
+use App\Models\SupportTelephonyCall;
 use App\Models\System\SystemSetting;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 
@@ -140,7 +143,130 @@ class FunkiraPhoneConciergeService
             'gateway_phone' => (string) config('services.twilio.phone_number', '+4953717269023'),
             'whitelist_count' => count($whitelist),
             'whitelist_contacts' => $whitelist,
+            'recent_calls' => self::getRecentSecretaryCalls(10),
         ];
+    }
+
+    /**
+     * Erzeugt eine streng anonymisierte Übersicht belegter Kalender-Zeitfenster der nächsten 7 Tage,
+     * damit Funkira am Telefon Terminvorschläge abgleichen kann, ohne private Termintitel preiszugeben.
+     */
+    public static function buildSafeCalendarSlotsForSecretary(): string
+    {
+        try {
+            if (!\Illuminate\Support\Facades\Schema::hasTable('management_calendar_events')) {
+                return 'Keine geblockten Termine eingetragen.';
+            }
+
+            $now = now();
+            $end = now()->addDays(7)->endOfDay();
+            $events = ManagementCalendarEvent::query()
+                ->where('start_date', '<=', $end)
+                ->where(function ($q) use ($now) {
+                    $q->where('end_date', '>=', $now)
+                        ->orWhere(function ($q2) use ($now) {
+                            $q2->whereNull('end_date')->where('start_date', '>=', $now->copy()->startOfDay());
+                        });
+                })
+                ->orderBy('start_date', 'asc')
+                ->limit(15)
+                ->get();
+
+            if ($events->isEmpty()) {
+                return 'In den nächsten 7 Tagen sind keine festen Sperrzeiten eingetragen.';
+            }
+
+            $slots = [];
+            foreach ($events as $ev) {
+                $s = Carbon::parse($ev->start_date);
+                if ($ev->is_all_day) {
+                    $slots[] = $s->format('d.m.') . ' ganztägig belegt';
+                } else {
+                    $e = $ev->end_date ? Carbon::parse($ev->end_date) : $s->copy()->addHour();
+                    $slots[] = $s->format('d.m. H:i') . '-' . $e->format('H:i') . ' belegt';
+                }
+            }
+
+            return implode('; ', $slots);
+        } catch (\Throwable $e) {
+            return 'Keine Kalenderdaten verfügbar.';
+        }
+    }
+
+    /**
+     * Liefert die letzten abgeschlossenen Gespräche der Telefon-Sekretärin inkl. Besprochenem, Rahmenbedingungen und Aufgabe.
+     */
+    public static function getRecentSecretaryCalls(int $limit = 10): array
+    {
+        try {
+            if (!\Illuminate\Support\Facades\Schema::hasTable('support_telephony_calls')) {
+                return [];
+            }
+
+            $rows = SupportTelephonyCall::query()
+                ->where('status', 'completed')
+                ->where('objective', 'like', 'Funkira Telefon-Sekretärin:%')
+                ->orderByDesc('id')
+                ->limit(max(1, min(25, $limit)))
+                ->get();
+
+            $todayStr = now()->format('Y-m-d');
+            $yesterdayStr = now()->subDay()->format('Y-m-d');
+
+            return $rows->map(function (SupportTelephonyCall $call) use ($todayStr, $yesterdayStr) {
+                $meta = is_string($call->next_steps)
+                    ? (json_decode($call->next_steps, true) ?: [])
+                    : (is_array($call->next_steps) ? $call->next_steps : []);
+
+                $transcriptArr = is_string($call->transcript)
+                    ? (json_decode($call->transcript, true) ?: [])
+                    : (is_array($call->transcript) ? $call->transcript : []);
+
+                $rahmen = [];
+                foreach (($meta['rahmenbedingungen'] ?? []) as $item) {
+                    $clean = trim((string) $item);
+                    if ($clean !== '') {
+                        $rahmen[] = $clean;
+                    }
+                }
+
+                $summary = trim((string) ($call->summary ?? ''));
+                $actionRequired = trim((string) ($meta['action_required'] ?? ''));
+                if ($actionRequired === '' && !empty($meta['steps'][0])) {
+                    $actionRequired = trim((string) $meta['steps'][0]);
+                }
+                if ($actionRequired === '') {
+                    $actionRequired = ($meta['callback_requested'] ?? true)
+                        ? 'Bei Gelegenheit zurückrufen.'
+                        : 'Zur Kenntnis nehmen.';
+                }
+
+                $dt = $call->created_at ? Carbon::parse($call->created_at)->timezone(config('app.timezone', 'Europe/Berlin')) : now();
+                $dayStr = $dt->format('Y-m-d');
+                if ($dayStr === $todayStr) {
+                    $createdLabel = 'Heute, ' . $dt->format('H:i');
+                } elseif ($dayStr === $yesterdayStr) {
+                    $createdLabel = 'Gestern, ' . $dt->format('H:i');
+                } else {
+                    $createdLabel = $dt->format('d.m.Y, H:i');
+                }
+
+                return [
+                    'id' => (string) $call->id,
+                    'caller_name' => (string) ($call->contact_name ?: 'Kontakt'),
+                    'created_at_label' => $createdLabel,
+                    'duration_seconds' => (int) ($call->duration_seconds ?? 0),
+                    'summary' => $summary !== '' ? $summary : 'Telefonat mit Funkira geführt.',
+                    'rahmenbedingungen' => array_values($rahmen),
+                    'action_required' => $actionRequired,
+                    'urgency' => (string) ($meta['urgency'] ?? 'mittel'),
+                    'callback_requested' => (bool) ($meta['callback_requested'] ?? true),
+                    'transcript' => array_values(array_map('strval', array_slice($transcriptArr, 0, 60))),
+                ];
+            })->values()->all();
+        } catch (\Throwable $e) {
+            return [];
+        }
     }
 
     /**
@@ -368,7 +494,6 @@ class FunkiraPhoneConciergeService
                 'spoken_name' => $spokenName,
                 'signaled_at' => now()->timestamp,
             ], now()->addSeconds(55));
-            self::preWarmGreetingAudio($spokenName);
         }
 
         return $session;
@@ -408,6 +533,15 @@ class FunkiraPhoneConciergeService
         $callerName = trim((string) ($data['caller_name'] ?? ($active['caller_name'] ?? 'Kontakt')));
         $greetingName = trim((string) ($data['greeting_name'] ?? ($active['greeting_name'] ?? $callerName)));
         $summary = trim((string) ($data['summary'] ?? ''));
+        $actionRequired = trim((string) ($data['action_required'] ?? ''));
+        $rawRahmen = is_array($data['rahmenbedingungen'] ?? null) ? $data['rahmenbedingungen'] : [];
+        $rahmenbedingungen = [];
+        foreach ($rawRahmen as $rb) {
+            $cleanRb = trim((string) $rb);
+            if ($cleanRb !== '') {
+                $rahmenbedingungen[] = $cleanRb;
+            }
+        }
         $urgency = strtolower(trim((string) ($data['urgency'] ?? 'mittel')));
         if (!in_array($urgency, ['hoch', 'mittel', 'niedrig'], true)) {
             $urgency = 'mittel';
@@ -417,6 +551,32 @@ class FunkiraPhoneConciergeService
         if ($summary === '') {
             $summary = 'Hat angerufen und bittet bei Gelegenheit um kurzen Rückruf.';
         }
+        if ($actionRequired === '') {
+            $actionRequired = $callbackRequested
+                ? "{$greetingName} zurückrufen."
+                : 'Zur Kenntnis nehmen.';
+        }
+
+        $buildStructuredAiPlan = function (string $label, string $srcLabel, string $ts) use ($summary, $rahmenbedingungen, $actionRequired, $urgency, $callbackRequested): string {
+            $lines = [
+                "Besprochen:",
+                $summary,
+            ];
+            if (!empty($rahmenbedingungen)) {
+                $lines[] = '';
+                $lines[] = 'Rahmenbedingungen:';
+                foreach ($rahmenbedingungen as $item) {
+                    $lines[] = '✓ ' . $item;
+                }
+            }
+            $lines[] = '';
+            $lines[] = 'Für dich zu tun:';
+            $lines[] = $actionRequired;
+            $lines[] = '';
+            $lines[] = "Aufgenommen von Funkira ({$srcLabel}) am {$ts} Uhr · Anrufer: {$label} · Dringlichkeit: " . ucfirst($urgency) . ' · Rückruf: ' . ($callbackRequested ? 'Ja' : 'Nein');
+
+            return implode("\n", $lines);
+        };
 
         $isFallbackStub = (bool) ($data['is_fallback_stub'] ?? false);
         $dedupKey = 'funkira_concierge_completed_' . md5($callId);
@@ -430,17 +590,16 @@ class FunkiraPhoneConciergeService
                         ? "{$greetingName} ({$callerName})"
                         : $callerName;
                     $prefixUpd = $isSimulation ? '📞 [Test-Anruf] ' : '📞 Anruf von ';
-                    $existingTask->title = Str::limit($prefixUpd . $displayLabelUpd . ': ' . $summary, 240, '...');
+                    $headlineUpd = $actionRequired !== '' && $actionRequired !== 'Zur Kenntnis nehmen.'
+                        ? "{$summary} ({$actionRequired})"
+                        : $summary;
+                    $existingTask->title = Str::limit($prefixUpd . $displayLabelUpd . ': ' . $headlineUpd, 240, '...');
                     $existingTask->priority = ($urgency === 'hoch' || $callbackRequested) ? 'hoch' : $urgency;
-                    $existingTask->ai_plan = implode("\n", [
-                        "Aufgenommen von Funkira (Telefon-Assistent) am " . now()->format('d.m.Y H:i') . " Uhr.",
-                        "Anrufer: {$displayLabelUpd}",
-                        "Dringlichkeit: " . ucfirst($urgency),
-                        "Rückruf gewünscht: " . ($callbackRequested ? 'Ja' : 'Nein'),
-                        "Anliegen: {$summary}",
-                    ]);
+                    $existingTask->ai_plan = $buildStructuredAiPlan($displayLabelUpd, 'Telefon-Sekretärin', now()->format('d.m.Y H:i'));
                     $existingTask->save();
                     $existingCompleted['summary'] = $summary;
+                    $existingCompleted['rahmenbedingungen'] = $rahmenbedingungen;
+                    $existingCompleted['action_required'] = $actionRequired;
                     $existingCompleted['is_fallback_stub'] = false;
                     Cache::put($dedupKey, $existingCompleted, now()->addMinutes(30));
                 }
@@ -477,7 +636,10 @@ class FunkiraPhoneConciergeService
             : $callerName;
 
         $prefix = $isSimulation ? '📞 [Test-Anruf] ' : '📞 Anruf von ';
-        $taskTitle = Str::limit($prefix . $displayLabel . ': ' . $summary, 240, '...');
+        $headline = $actionRequired !== '' && $actionRequired !== 'Zur Kenntnis nehmen.' && !str_contains($summary, $actionRequired)
+            ? "{$summary} ({$actionRequired})"
+            : $summary;
+        $taskTitle = Str::limit($prefix . $displayLabel . ': ' . $headline, 240, '...');
         $priority = ($urgency === 'hoch' || $callbackRequested) ? 'hoch' : $urgency;
 
         $timestamp = now()->format('d.m.Y H:i');
@@ -486,13 +648,6 @@ class FunkiraPhoneConciergeService
             'twilio_secretary' => 'Telefon-Sekretärin',
             default => 'Telefon-Assistent',
         };
-        $aiPlanLines = [
-            "Aufgenommen von Funkira ({$sourceLabel}) am {$timestamp} Uhr.",
-            "Anrufer: {$displayLabel}",
-            "Dringlichkeit: " . ucfirst($urgency),
-            "Rückruf gewünscht: " . ($callbackRequested ? 'Ja' : 'Nein'),
-            "Anliegen: {$summary}",
-        ];
 
         $task = ManagementTask::create([
             'task_list_id' => $defaultList->id,
@@ -501,15 +656,28 @@ class FunkiraPhoneConciergeService
             'is_archived' => false,
             'position' => 0,
             'priority' => $priority,
-            'ai_plan' => implode("\n", $aiPlanLines),
+            'ai_plan' => $buildStructuredAiPlan($displayLabel, $sourceLabel, $timestamp),
         ]);
+
+        if (!$isFallbackStub && $actionRequired !== '' && $actionRequired !== 'Zur Kenntnis nehmen.') {
+            ManagementTask::create([
+                'task_list_id' => $defaultList->id,
+                'parent_id' => $task->id,
+                'title' => Str::limit($actionRequired, 220, '...'),
+                'is_completed' => false,
+                'is_archived' => false,
+                'position' => 0,
+                'priority' => $priority,
+            ]);
+        }
 
         // 3. Optionaler Eintrag im Kontakt-Gedächtnis (nur bei echten Anrufen, kein Test-Spam)
         if (!$isSimulation && !empty($contactId) && Str::isUuid((string) $contactId)) {
             $contact = ManagementContact::find($contactId);
             if ($contact) {
                 $existingFacts = trim((string) ($contact->ai_learned_facts ?? ''));
-                $entry = "[{$timestamp} Anrufnotiz] {$summary}";
+                $rahmenInline = !empty($rahmenbedingungen) ? (' | Rahmenbedingungen: ' . implode(', ', $rahmenbedingungen)) : '';
+                $entry = "[{$timestamp} Anrufnotiz] {$summary}{$rahmenInline} | Zu tun: {$actionRequired}";
                 $contact->ai_learned_facts = trim($existingFacts . "\n" . $entry);
                 $contact->save();
             }
@@ -521,6 +689,8 @@ class FunkiraPhoneConciergeService
             'is_fallback_stub' => $isFallbackStub,
             'caller_name' => $displayLabel,
             'summary' => $summary,
+            'rahmenbedingungen' => $rahmenbedingungen,
+            'action_required' => $actionRequired,
             'urgency' => $urgency,
             'callback_requested' => $callbackRequested,
             'task_id' => $task->id,
@@ -532,9 +702,12 @@ class FunkiraPhoneConciergeService
 
         if (!$isSimulation) {
             try {
+                $pushBody = $actionRequired !== '' && $actionRequired !== 'Zur Kenntnis nehmen.'
+                    ? "{$summary} · Zu tun: {$actionRequired}"
+                    : $summary;
                 resolve(\App\Services\FirebaseService::class)->sendToAdmins(
                     "📞 Funkira · {$displayLabel}",
-                    $summary,
+                    Str::limit($pushBody, 220, '...'),
                     [
                         'type' => 'phone_secretary',
                         'task_id' => (string) $task->id,

@@ -150,11 +150,26 @@ data class PhoneWhitelistToggleBody(
     val funkira_call_whitelist: Boolean
 )
 
+data class PhoneSecretaryCallSummaryDto(
+    val id: String = "",
+    val caller_name: String = "",
+    val created_at_label: String = "",
+    val duration_seconds: Int = 0,
+    val summary: String = "",
+    val rahmenbedingungen: List<String>? = emptyList(),
+    val action_required: String = "",
+    val urgency: String = "mittel",
+    val callback_requested: Boolean = true,
+    val transcript: List<String>? = emptyList()
+)
+
 data class PhoneConciergeConfigPayload(
     val enabled: Boolean = true,
     val ring_delay_seconds: Int = 12,
+    val gateway_phone: String? = "+4953717269023",
     val whitelist_count: Int = 0,
-    val whitelist_contacts: List<ManagementContactDto>? = emptyList()
+    val whitelist_contacts: List<ManagementContactDto>? = emptyList(),
+    val recent_calls: List<PhoneSecretaryCallSummaryDto>? = emptyList()
 )
 
 data class PhoneConciergeConfigResponse(

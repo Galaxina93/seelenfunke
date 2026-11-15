@@ -136,42 +136,25 @@ class TwilioCallController extends Controller
             Cache::put(self::CACHE_SID_TO_CALL_PREFIX . $callSid, $callRecord->id, now()->addMinutes(25));
         }
 
-        // 4. Sofortige herzliche Begrüßung in Funkiras echter Gemini-Stimme (Aoede WAV aus Cache oder Live-Synthese)
-        $greetingText = FunkiraPhoneConciergeService::buildOpeningGreetingText($greetingName);
-        $wavBase64 = FunkiraPhoneConciergeService::preWarmGreetingAudio($greetingName);
-        if (is_string($wavBase64) && $wavBase64 !== '') {
-            $greetingToken = bin2hex(random_bytes(20));
-            Cache::put(self::CACHE_GREETING_WAV_PREFIX . $greetingToken, $wavBase64, now()->addMinutes(5));
-            $response->play(url("/api/twilio/greeting/{$greetingToken}.wav"));
-        } else {
-            $response->say($greetingText, [
-                'language' => 'de-DE',
-                'voice' => 'Polly.Vicki-Neural',
-            ]);
-        }
-
-        // 5. Nahtlose Übergabe in den bidirektionalen Gemini-Live-Audiostream
+        // 4. Sofortige Übergabe (0,0s Verzögerung, KEIN statischer Standardtext vorweg!) in den bidirektionalen
+        //    Gemini-3.1-Flash-Live-Audiostream: Funkira begrüßt den Anrufer live und klärt aktiv alle Rahmenbedingungen.
         $ownerName = function_exists('shop_setting')
             ? shop_setting('owner_proprietor', 'Alina Steinhauer')
             : 'Alina Steinhauer';
 
-        $secretaryObjective = "WICHTIGER MODUS-OVERRIDE (EINGEHENDES GESPRÄCH FÜR FUNKIRA, ÜBERSCHREIBT ALLE OUTBOUND-REGELN): "
-            . "Dein Name ist Funkira (NICHT Mira!), du bist die herzliche, aufmerksame persönliche Assistentin von {$ownerName}. "
-            . "{$greetingName} ({$fullName}) hat gerade bei Alina angerufen, und du hast {$greetingName} bereits mit deiner Eröffnungsansage herzlich per 'Du' begrüßt und gefragt, was du Alina ausrichten darfst! "
-            . "Stelle dich daher JETZT NICHT noch einmal neu vor und sage NIEMALS 'Guten Tag, hier ist Mira' oder 'Ich rufe an'! "
-            . "Höre stattdessen direkt aufmerksam zu, was {$greetingName} dir jetzt erzählt, antworte warmherzig, natürlich und per 'Du' als Funkira in 1 bis 2 kurzen Sätzen, "
-            . "stelle höchstens EINE kurze Rückfrage falls etwas Wichtiges unklar ist, versichere {$greetingName} herzlich und verbindlich, dass Alina die Nachricht sofort bekommt, "
-            . "verabschiede dich lieb und rufe direkt danach das Tool 'end_call' auf.";
+        $calendarSlots = FunkiraPhoneConciergeService::buildSafeCalendarSlotsForSecretary();
+
+        $secretaryObjective = "LIVE TELEFON-SEKRETÄRIN FUNKIRA: Führe sofort ein herzliches, lebendiges Gespräch mit {$greetingName} ({$fullName}), "
+            . "kläre aktiv das Anliegen, alle wichtigen Rahmenbedingungen (Datum, Uhrzeit, Ort, Fristen, Details) sowie was {$ownerName} konkret tun soll.";
 
         $combinedInstructions = trim(
             ($relation !== '' ? "Beziehung zu Alina: {$relation}. " : '')
             . ($nick !== '' ? "Spitzname bei Alina: {$nick}. " : '')
             . $contactInstructions
-            . " ZERO-PII-REGEL: Gib niemals interne Geschäftsdaten, Kunden, Bestellungen oder Finanzen preis."
+            . ' ZERO-PII-REGEL: Gib niemals interne Geschäftsdaten, Kunden, Bestellungen oder Finanzen preis.'
         );
 
-        $trustedHost = parse_url((string) config('app.url'), PHP_URL_HOST) ?: 'stage.mein-seelenfunke.de';
-        $wssUrl = config('services.twilio.wss_url') ?: ('wss://' . $trustedHost . ':8081/twilio-stream');
+        $wssUrl = config('services.twilio.wss_url') ?: 'wss://ws.mein-seelenfunke.de/twilio-stream';
 
         $connect = $response->connect();
         $stream = $connect->stream([
@@ -181,9 +164,11 @@ class TwilioCallController extends Controller
         $stream->parameter(['name' => 'agent_name', 'value' => $ownerName]);
         $stream->parameter(['name' => 'contact_name', 'value' => "{$greetingName} ({$fullName})"]);
         $stream->parameter(['name' => 'greeting_name', 'value' => $greetingName]);
+        $stream->parameter(['name' => 'relation_type', 'value' => $relation]);
         $stream->parameter(['name' => 'objective', 'value' => $secretaryObjective]);
         $stream->parameter(['name' => 'system_instructions', 'value' => $combinedInstructions]);
         $stream->parameter(['name' => 'ai_learned_facts', 'value' => $learnedFacts]);
+        $stream->parameter(['name' => 'calendar_events', 'value' => $calendarSlots]);
         $stream->parameter(['name' => 'planned_call_id', 'value' => "{$callRecord->id}:{$callNonce}"]);
 
         return response($response->asXML(), 200)->header('Content-Type', 'text/xml');
@@ -239,16 +224,26 @@ class TwilioCallController extends Controller
             return response()->json(['status' => 'expired']);
         }
 
-        // Nur wenn das Gespräch extrem kurz war (<= 6s, d. h. Auflegen während der Ansage vor WebSocket-Ende)
-        // sofortigen Fallback anlegen; längere Gespräche sendet server-twilio.js direkt per /api/twilio/call-log
-        // (und completeCall aktualisiert einen Fallback bei Bedarf nahtlos mit dem echten Transkript!).
-        if ($durationSec <= 6) {
+        // Nur wenn das Gespräch extrem kurz war (<= 4s, d. h. sofortiges Auflegen vor Gesprächsbeginn)
+        // kurzen Fallback anlegen; echte Gespräche sendet die Live-Bridge direkt per /api/twilio/call-log
+        // (und completeCall aktualisiert einen Fallback bei Bedarf nahtlos mit dem echten Gesprächsprotokoll!).
+        if ($durationSec <= 4) {
             $callRecord = SupportTelephonyCall::find($callRecordId);
             if ($callRecord && $callRecord->status === 'ongoing') {
-                $stubSummary = 'Hat kurz angerufen (während der Begrüßung aufgelegt) und bittet ggf. um Rückruf.';
+                $who = $meta['greeting_name'] ?? ($meta['caller_name'] ?? 'Kontakt');
+                $stubSummary = "{$who} hat kurz angerufen und noch vor Gesprächsbeginn wieder aufgelegt.";
+                $stubAction = "{$who} bei Gelegenheit kurz zurückrufen.";
                 $callRecord->status = 'completed';
                 $callRecord->duration_seconds = $durationSec;
                 $callRecord->summary = $stubSummary;
+                $callRecord->next_steps = json_encode([
+                    'mode' => 'inbound_secretary',
+                    'rahmenbedingungen' => [],
+                    'action_required' => $stubAction,
+                    'urgency' => 'mittel',
+                    'callback_requested' => true,
+                    'steps' => [$stubAction],
+                ], JSON_UNESCAPED_UNICODE);
                 $callRecord->save();
 
                 FunkiraPhoneConciergeService::completeCall([
@@ -261,6 +256,8 @@ class TwilioCallController extends Controller
                     'caller_phone' => $meta['caller_phone'] ?? '',
                     'handled_by' => 'twilio_secretary',
                     'summary' => $stubSummary,
+                    'rahmenbedingungen' => [],
+                    'action_required' => $stubAction,
                     'urgency' => 'mittel',
                     'callback_requested' => true,
                 ]);
@@ -356,49 +353,85 @@ class TwilioCallController extends Controller
 
         $extractedUrgency = 'mittel';
         $extractedCallback = true;
+        $extractedRahmenbedingungen = [];
+        $extractedActionRequired = '';
 
-        // Bewerte den Call mit Gemini
+        // Bewerte das Live-Gespräch strukturiert mit Gemini (Besprochenes, Rahmenbedingungen, Was Alina tun soll)
         if (!empty($transcriptLines)) {
             $apiKey = config('services.gemini.key');
-            if ($apiKey && !app()->environment('testing')) {
+            if ($apiKey && (!app()->environment('testing') || config('services.gemini.allow_in_tests', false))) {
                 try {
                     $transcriptText = mb_substr(implode("\n", $transcriptLines), 0, 15000);
                     if ($verifiedInboundMeta !== null) {
                         $callerLabel = $verifiedInboundMeta['caller_name'] ?? 'Kontakt';
-                        $prompt = "Du bist Funkira, die persönliche Assistentin von Alina Steinhauer. Folgendes ist das Protokoll eines eingehenden Telefonats von {$callerLabel}:\n\n"
+                        $prompt = "Du bist Funkira, die persönliche Sekretärin von Alina Steinhauer. Folgendes ist das vollständige Live-Gesprächsprotokoll mit {$callerLabel}:\n\n"
                             . $transcriptText
-                            . "\n\nFasse das konkrete Anliegen des Anrufers kurz, herzlich-präzise und klar auf Deutsch für Alinas To-Do-Liste zusammen (1 bis 2 Sätze, ohne KI-Gedankenstriche). "
-                            . "Antworte ausschließlich mit einem JSON-Objekt ohne Markdown-Backticks im Format: "
-                            . '{"summary": "Klare Zusammenfassung des Anliegens", "urgency": "hoch|mittel|niedrig", "callback_requested": true, "next_steps": ["Aufgabe"], "goals": []}';
+                            . "\n\nErstelle für Alina eine glasklare Sekretärinnen-Zusammenfassung auf Deutsch (niemals KI-Gedankenstriche verwenden!). "
+                            . "Extrahiere präzise:\n"
+                            . "1. 'summary': Was wurde besprochen? (1 bis 2 prägnante Sätze)\n"
+                            . "2. 'rahmenbedingungen': Array aller wichtigen geklärten Eckdaten (Datum, Uhrzeit, Zeitraum, Ort, Fristen, Wünsche oder Fakten als kurze Stichpunkte)\n"
+                            . "3. 'action_required': Was genau soll Alina tun? (Konkrete Handlungsanweisung, z. B. 'Philip heute ab 18:00 Uhr zurückrufen und wegen Samstag Bescheid geben' oder 'Keine Aktion nötig, reine Information')\n"
+                            . "4. 'urgency': 'hoch', 'mittel' oder 'niedrig'\n"
+                            . "5. 'callback_requested': true oder false\n\n"
+                            . "Antworte ausschließlich mit einem reinen JSON-Objekt ohne Markdown-Backticks im Format:\n"
+                            . '{"summary": "...", "rahmenbedingungen": ["..."], "action_required": "...", "urgency": "hoch|mittel|niedrig", "callback_requested": true}';
                     } else {
-                        $prompt = "Du bist eine Analyse-KI. Folgendes ist das vollständige Protokoll eines Telefonats.\nZiel des Anrufs war: " . ($data['objective'] ?? 'Unbekannt') . "\n\nTranscript:\n" . $transcriptText . "\n\nBitte bewerte, ob das Ziel erreicht wurde. Antworte ausschließlich mit einem JSON Objekt in folgendem exaktem Format (Kein Markdown, keine Backticks): {\"summary\": \"Kurzes klares Fazit\", \"next_steps\": [\"Task 1\"], \"goals\": [{\"task\": \"Erstes Ziel aus dem Objective\", \"achieved\": true}, {\"task\": \"Zweites Ziel\", \"achieved\": false}]}";
+                        $prompt = "Du bist eine Analyse-KI. Folgendes ist das vollständige Protokoll eines Telefonats.\nZiel des Anrufs war: " . ($data['objective'] ?? 'Unbekannt') . "\n\nTranscript:\n" . $transcriptText . "\n\nBitte bewerte, ob das Ziel erreicht wurde. Antworte ausschließlich mit einem JSON Objekt in folgendem exaktem Format (Kein Markdown, keine Backticks): {\"summary\": \"Kurzes klares Fazit\", \"rahmenbedingungen\": [], \"action_required\": \"Nächster Schritt\", \"next_steps\": [\"Task 1\"], \"goals\": [{\"task\": \"Erstes Ziel aus dem Objective\", \"achieved\": true}]}";
                     }
 
-                    $response = Http::timeout(10)->withHeaders([
-                        'Content-Type' => 'application/json',
-                        'x-goog-api-key' => $apiKey,
-                    ])->post('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', [
-                        'contents' => [
-                            ['parts' => [['text' => $prompt]]],
-                        ],
-                    ]);
+                    $candidateModels = ['gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-flash-latest'];
+                    $response = null;
+                    foreach ($candidateModels as $modelName) {
+                        $tryRes = Http::timeout(12)->withHeaders([
+                            'Content-Type' => 'application/json',
+                            'x-goog-api-key' => $apiKey,
+                        ])->post("https://generativelanguage.googleapis.com/v1beta/models/{$modelName}:generateContent", [
+                            'contents' => [
+                                ['parts' => [['text' => $prompt]]],
+                            ],
+                        ]);
+                        if ($tryRes->successful()) {
+                            $response = $tryRes;
+                            break;
+                        }
+                    }
 
-                    if ($response->successful()) {
+                    if ($response && $response->successful()) {
                         $geminiData = $response->json();
                         $text = $geminiData['candidates'][0]['content']['parts'][0]['text'] ?? '{}';
-                        $text = preg_replace('/```json|```/', '', $text);
+                        $text = preg_replace('/```json|```/', '', (string) $text);
                         $result = json_decode(trim((string) $text), true);
 
                         if (is_array($result)) {
-                            $callRecord->summary = $result['summary'] ?? null;
+                            $cleanSummary = str_replace(' – ', ', ', trim((string) ($result['summary'] ?? '')));
+                            if ($cleanSummary !== '') {
+                                $callRecord->summary = $cleanSummary;
+                            }
                             if (!empty($result['urgency']) && in_array(strtolower((string) $result['urgency']), ['hoch', 'mittel', 'niedrig'], true)) {
                                 $extractedUrgency = strtolower((string) $result['urgency']);
                             }
                             if (array_key_exists('callback_requested', $result)) {
                                 $extractedCallback = (bool) $result['callback_requested'];
                             }
+                            if (!empty($result['rahmenbedingungen']) && is_array($result['rahmenbedingungen'])) {
+                                foreach ($result['rahmenbedingungen'] as $rb) {
+                                    $cleanRb = str_replace(' – ', ': ', trim((string) $rb));
+                                    if ($cleanRb !== '') {
+                                        $extractedRahmenbedingungen[] = $cleanRb;
+                                    }
+                                }
+                            }
+                            if (!empty($result['action_required'])) {
+                                $extractedActionRequired = str_replace(' – ', ', ', trim((string) $result['action_required']));
+                            }
+                            $stepsList = $result['next_steps'] ?? ($extractedActionRequired !== '' ? [$extractedActionRequired] : []);
                             $combinedJson = [
-                                'steps' => $result['next_steps'] ?? [],
+                                'mode' => $verifiedInboundMeta !== null ? 'inbound_secretary' : 'outbound',
+                                'rahmenbedingungen' => $extractedRahmenbedingungen,
+                                'action_required' => $extractedActionRequired,
+                                'urgency' => $extractedUrgency,
+                                'callback_requested' => $extractedCallback,
+                                'steps' => $stepsList,
                                 'goals' => $result['goals'] ?? [],
                             ];
                             $callRecord->next_steps = json_encode($combinedJson, JSON_UNESCAPED_UNICODE);
@@ -413,6 +446,7 @@ class TwilioCallController extends Controller
 
         // Deterministischer Fallback, falls kein LLM-Summary erzeugt wurde (z. B. kurzes Gespräch oder Timeout)
         if ($verifiedInboundMeta !== null && empty($callRecord->summary)) {
+            $who = $verifiedInboundMeta['greeting_name'] ?? ($verifiedInboundMeta['caller_name'] ?? 'Kontakt');
             $callerTurns = [];
             foreach ($transcriptLines as $line) {
                 if (str_starts_with($line, 'Anrufer:')) {
@@ -425,10 +459,24 @@ class TwilioCallController extends Controller
             $joinedCaller = trim(implode(' ', $callerTurns));
             if (mb_strlen($joinedCaller) >= 4) {
                 $callRecord->summary = Str::limit($joinedCaller, 600, '...');
+                if ($extractedActionRequired === '') {
+                    $extractedActionRequired = "{$who} zurückrufen bzw. Anliegen bearbeiten.";
+                }
             } else {
-                $who = $verifiedInboundMeta['greeting_name'] ?? ($verifiedInboundMeta['caller_name'] ?? 'Kontakt');
-                $callRecord->summary = "{$who} hat angerufen (kurzes Gespräch ohne nähere Nachricht) und bittet bei Gelegenheit um Rückruf.";
+                $callRecord->summary = "{$who} hat angerufen (kurzes Gespräch ohne nähere Details).";
+                if ($extractedActionRequired === '') {
+                    $extractedActionRequired = "{$who} bei Gelegenheit zurückrufen.";
+                }
             }
+            $callRecord->next_steps = json_encode([
+                'mode' => 'inbound_secretary',
+                'rahmenbedingungen' => $extractedRahmenbedingungen,
+                'action_required' => $extractedActionRequired,
+                'urgency' => $extractedUrgency,
+                'callback_requested' => $extractedCallback,
+                'steps' => [$extractedActionRequired],
+                'goals' => [],
+            ], JSON_UNESCAPED_UNICODE);
         }
 
         $callRecord->save();
@@ -445,6 +493,8 @@ class TwilioCallController extends Controller
                 'caller_phone' => $verifiedInboundMeta['caller_phone'] ?? '',
                 'handled_by' => 'twilio_secretary',
                 'summary' => (string) $callRecord->summary,
+                'rahmenbedingungen' => $extractedRahmenbedingungen,
+                'action_required' => $extractedActionRequired,
                 'urgency' => $extractedUrgency,
                 'callback_requested' => $extractedCallback,
             ]);

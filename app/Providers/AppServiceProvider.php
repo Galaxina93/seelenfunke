@@ -20,7 +20,95 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // Verhindert "touch(): Utime failed: Operation not permitted" und tempnam()-Rechtekonflikte in BladeCompiler::compile(),
+        // falls kompilierte Views durch CLI/Cron/Tests unter einer anderen UID (root/1000 statt www-data) angelegt wurden.
+        $this->app->singleton('blade.compiler', function ($app) {
+            $compiledDir = (string) $app['config']['view.compiled'];
+            if ($compiledDir !== '' && ! is_dir($compiledDir)) {
+                @mkdir($compiledDir, 0777, true);
+                @chmod($compiledDir, 0777);
+            }
+            if ($compiledDir === '' || ! is_writable($compiledDir)) {
+                $uidSuffix = function_exists('posix_geteuid') ? (string) posix_geteuid() : 'default';
+                $compiledDir = rtrim(sys_get_temp_dir(), '/\\') . '/sf_views_' . $uidSuffix;
+                if (! is_dir($compiledDir)) {
+                    @mkdir($compiledDir, 0777, true);
+                    @chmod($compiledDir, 0777);
+                }
+                $app['config']->set('view.compiled', $compiledDir);
+            }
+
+            return tap(new class(
+                $app['files'],
+                $compiledDir,
+                $app['config']->get('view.relative_hash', false) ? $app->basePath() : '',
+                $app['config']->get('view.cache', true),
+                $app['config']->get('view.compiled_extension', 'php'),
+                $app['config']->get('view.check_cache_timestamps', true),
+            ) extends \Illuminate\View\Compilers\BladeCompiler {
+                protected function writeCompiledFileAtomically(string $compiledPath, string $contents): void
+                {
+                    $dir = dirname($compiledPath);
+                    if (! is_dir($dir)) {
+                        @mkdir($dir, 0777, true);
+                        @chmod($dir, 0777);
+                    }
+                    if (@file_put_contents($compiledPath, $contents, LOCK_EX) === false) {
+                        @unlink($compiledPath);
+                        @file_put_contents($compiledPath, $contents);
+                    }
+                    @chmod($compiledPath, 0666);
+                }
+
+                public function compile($path = null)
+                {
+                    if ($path) {
+                        $this->setPath($path);
+                    }
+
+                    if (! is_null($this->cachePath)) {
+                        $contents = $this->compileString($this->files->get($this->getPath()));
+
+                        if (! empty($this->getPath())) {
+                            $contents = $this->appendFilePath($contents);
+                        }
+
+                        $compiledPath = $this->getCompiledPath($this->getPath());
+
+                        if (! $this->files->exists($compiledPath)) {
+                            $this->writeCompiledFileAtomically($compiledPath, $contents);
+
+                            return;
+                        }
+
+                        $compiledHash = $this->files->hash($compiledPath, 'xxh128');
+
+                        if ($compiledHash !== hash('xxh128', $contents)) {
+                            $this->writeCompiledFileAtomically($compiledPath, $contents);
+
+                            return;
+                        }
+
+                        $lastModified = $this->files->lastModified($this->getPath());
+
+                        if ($lastModified >= $this->files->lastModified($compiledPath)) {
+                            if (! @touch($compiledPath, $lastModified + 1)) {
+                                $this->writeCompiledFileAtomically($compiledPath, $contents);
+                            }
+                        }
+                    }
+                }
+            }, function ($blade) {
+                $blade->component('dynamic-component', \Illuminate\View\DynamicComponent::class);
+            });
+        });
+
+        if (class_exists(\Laravel\Reverb\Servers\Reverb\Console\Commands\StartServer::class)) {
+            $this->app->bind(
+                \Laravel\Reverb\Servers\Reverb\Console\Commands\StartServer::class,
+                \App\Console\Commands\ReverbWithTwilioServerCommand::class
+            );
+        }
     }
 
     /**

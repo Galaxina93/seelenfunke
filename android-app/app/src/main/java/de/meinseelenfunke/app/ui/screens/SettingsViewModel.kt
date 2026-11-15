@@ -2,6 +2,7 @@ package de.meinseelenfunke.app.ui.screens
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import de.meinseelenfunke.app.data.api.PhoneSecretaryCallSummaryDto
 import de.meinseelenfunke.app.di.ServiceLocator
 import de.meinseelenfunke.app.util.CachedWhitelistContact
 import de.meinseelenfunke.app.util.PhoneConciergeManager
@@ -28,6 +29,9 @@ class SettingsViewModel : ViewModel() {
     private val _whitelistContacts = MutableStateFlow(PhoneConciergeManager.loadCachedContacts(ServiceLocator.context))
     val whitelistContacts: StateFlow<List<CachedWhitelistContact>> = _whitelistContacts.asStateFlow()
 
+    private val _recentSecretaryCalls = MutableStateFlow(PhoneConciergeManager.loadCachedRecentCalls(ServiceLocator.context))
+    val recentSecretaryCalls: StateFlow<List<PhoneSecretaryCallSummaryDto>> = _recentSecretaryCalls.asStateFlow()
+
     init {
         refreshPhoneConcierge()
     }
@@ -37,6 +41,7 @@ class SettingsViewModel : ViewModel() {
             val ctx = ServiceLocator.context
             val synced = PhoneConciergeManager.syncFromBackend(ctx)
             _whitelistContacts.value = synced
+            _recentSecretaryCalls.value = PhoneConciergeManager.loadCachedRecentCalls(ctx)
             _phoneConciergeEnabled.value = PhoneConciergeManager.isEnabled(ctx)
             _phoneRingDelaySec.value = PhoneConciergeManager.getRingDelaySeconds(ctx)
         }
