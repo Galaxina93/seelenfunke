@@ -379,20 +379,28 @@ class TwilioCallController extends Controller
                         $prompt = "Du bist eine Analyse-KI. Folgendes ist das vollständige Protokoll eines Telefonats.\nZiel des Anrufs war: " . ($data['objective'] ?? 'Unbekannt') . "\n\nTranscript:\n" . $transcriptText . "\n\nBitte bewerte, ob das Ziel erreicht wurde. Antworte ausschließlich mit einem JSON Objekt in folgendem exaktem Format (Kein Markdown, keine Backticks): {\"summary\": \"Kurzes klares Fazit\", \"rahmenbedingungen\": [], \"action_required\": \"Nächster Schritt\", \"next_steps\": [\"Task 1\"], \"goals\": [{\"task\": \"Erstes Ziel aus dem Objective\", \"achieved\": true}]}";
                     }
 
-                    $candidateModels = ['gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-flash-latest'];
+                    $candidateModels = ['gemini-2.5-flash', 'gemini-flash-latest', 'gemini-3.5-flash'];
                     $response = null;
                     foreach ($candidateModels as $modelName) {
-                        $tryRes = Http::timeout(12)->withHeaders([
-                            'Content-Type' => 'application/json',
-                            'x-goog-api-key' => $apiKey,
-                        ])->post("https://generativelanguage.googleapis.com/v1beta/models/{$modelName}:generateContent", [
-                            'contents' => [
-                                ['parts' => [['text' => $prompt]]],
-                            ],
-                        ]);
-                        if ($tryRes->successful()) {
-                            $response = $tryRes;
-                            break;
+                        try {
+                            $tryRes = Http::withOptions([
+                                'force_ip_resolve' => 'v4',
+                                'connect_timeout' => 5,
+                            ])->timeout(15)->withHeaders([
+                                'Content-Type' => 'application/json',
+                                'x-goog-api-key' => $apiKey,
+                            ])->post("https://generativelanguage.googleapis.com/v1beta/models/{$modelName}:generateContent", [
+                                'contents' => [
+                                    ['parts' => [['text' => $prompt]]],
+                                ],
+                            ]);
+                            if ($tryRes->successful()) {
+                                $response = $tryRes;
+                                break;
+                            }
+                        } catch (\Throwable $candidateErr) {
+                            // Nächstes Fallback-Modell versuchen (deterministischer Fallback greift zusätzlich weiter unten)
+                            continue;
                         }
                     }
 

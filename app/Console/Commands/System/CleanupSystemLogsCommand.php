@@ -140,7 +140,10 @@ class CleanupSystemLogsCommand extends Command
         SystemLog::query()
             ->whereIn('status', ['error', 'warning'])
             ->where('type', 'system')
-            ->where('message', 'like', '%FCM send failed:%UNREGISTERED%')
+            ->where(function ($q) {
+                $q->where('message', 'like', '%FCM send failed:%UNREGISTERED%')
+                    ->orWhere('message', 'like', '%Fehler bei der Call-Auswertung: cURL error 28%models/gemini-3.%');
+            })
             ->get()
             ->each(function (SystemLog $log) {
                 $t = (string) $log->title;
