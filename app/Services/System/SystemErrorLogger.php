@@ -140,11 +140,16 @@ class SystemErrorLogger
             ];
         }
 
-        if (str_contains($classLower, 'authenticationexception') || str_contains($classLower, 'authorizationexception') || str_contains($msgLower, 'unauthenticated')) {
+        if (str_contains($classLower, 'authenticationexception')
+            || str_contains($classLower, 'authorizationexception')
+            || str_contains($msgLower, 'unauthenticated')
+            || str_contains($msgLower, 'sitzung abgelaufen')
+            || str_contains($msgLower, 'status 401')
+            || str_contains($msgLower, 'http 401')) {
             return [
                 'category' => 'auth_or_permission',
-                'probable_cause' => 'Nicht authentifizierter Zugriff oder fehlende Berechtigung / abgelaufene Session.',
-                'recommended_action' => 'Normal bei abgelaufenen Nutzer-Sessions; bei API-Requests Token-Übergabe prüfen.',
+                'probable_cause' => 'Nicht authentifizierter Zugriff oder abgelaufene Portal-Anmeldesitzung (HTTP 401).',
+                'recommended_action' => 'Normal bei abgelaufenen Nutzer- oder Endgeräte-Sessions; einmalig neu anmelden bzw. Token-Übergabe prüfen.',
             ];
         }
 

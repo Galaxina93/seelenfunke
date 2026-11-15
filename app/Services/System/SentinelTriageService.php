@@ -773,7 +773,7 @@ class SentinelTriageService
             'items' => $items,
         ]);
 
-        $fileMode = app()->environment('local', 'testing') ? 0664 : 0600;
+        $fileMode = app()->environment('local', 'testing') ? 0666 : 0600;
 
         $inboxPath = storage_path(self::INBOX_FILE);
         File::ensureDirectoryExists(dirname($inboxPath));

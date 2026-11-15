@@ -69,7 +69,7 @@ Sofern keine andere Codebase genannt wird, beziehen sich alle Anfragen auf **Mei
 
 <!-- AI_MAP_START -->
 # Seelenfunke System-Architektur & AI Map (`ai_map.md`)
-> Generiert via `php artisan ai:generate-map` (2026-11-15 13:23)
+> Generiert via `php artisan ai:generate-map` (2026-11-15 20:36)
 
 ## 1. Ökosystem-Pfade & Umgebungen
 - **Hauptportal (`Mein-Seelenfunke`)**: Win-UNC `\wsl.localhost\Ubuntu\home\ubuntuxina\meine-projekte\seelenfunke` | WSL `/home/ubuntuxina/meine-projekte/seelenfunke` (Docker PHP: `mein_php_server`) | Lokal `http://127.0.0.1` (`http://seelenfunke.test`) | Stage `https://stage.mein-seelenfunke.de` | Live `https://mein-seelenfunke.de`
@@ -180,6 +180,6 @@ Sofern keine andere Codebase genannt wird, beziehen sich alle Anfragen auf **Mei
 - **Order**: `OrderProductionBatchService`
 - **Root**: `AccountingEInvoiceParserService, AccountingXmlInvoiceService, AnalyticsService, BankApiService, CartFileCleanupService, CartService, ConfiguratorService, DhlService, ElsterEricService, FinancialService, FirebaseService, GoogleReviewsService, HerzensprojektService, InvoiceService, PriceCalcService, ProductConfiguratorService, ProductTrackingService, ReferralService, ShippingCalculatorService, StealthCrawlerService, WishlistService`
 - **Storage**: `GlbOptimizerService`
-- **System**: `AndroidReleaseService, AudioMulawCodec, FunkenwerkPrintService, FunkiraPhoneConciergeService, MiniPcTrichterRelayService, SystemBlueprintService, SystemBrainDiagnosticsService, SystemErrorLogger, SystemSecurityService, TwilioGeminiLiveBridgeService, TwilioReverbServerFactory`
+- **System**: `AndroidReleaseService, AudioMulawCodec, FunkenwerkPrintService, FunkiraPhoneConciergeService, MiniPcTrichterRelayService, SentinelTriageService, SystemBlueprintService, SystemBrainDiagnosticsService, SystemErrorLogger, SystemSecurityService, TwilioGeminiLiveBridgeService, TwilioReverbServerFactory`
 - **Tax**: `TaxSettingService`
 <!-- AI_MAP_END -->

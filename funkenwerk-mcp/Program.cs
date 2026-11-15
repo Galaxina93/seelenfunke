@@ -492,7 +492,16 @@ namespace FunkenwerkMcp
                 string localInboxPath = Path.Combine(localPrivateDir, "antigravity_inbox.json");
 
                 string prettyJson = JsonSerializer.Serialize(doc.RootElement, JsonPretty);
-                await File.WriteAllTextAsync(localInboxPath, prettyJson, Utf8NoBom);
+                try
+                {
+                    await File.WriteAllTextAsync(localInboxPath, prettyJson, Utf8NoBom);
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    if (File.Exists(localInboxPath))
+                        File.Delete(localInboxPath);
+                    await File.WriteAllTextAsync(localInboxPath, prettyJson, Utf8NoBom);
+                }
                 Console.WriteLine($"   ✓ Stage-Pool empfangen: {openPoolCount} offene Antigravity-Dossiers | {autoHealed7d} Auto-Heilungen (7 Tage).");
 
                 Console.WriteLine("📥 [2/2] Synchronisiere Stage-Auffang-Pool in lokale Datenbank (127.0.0.1)...");
