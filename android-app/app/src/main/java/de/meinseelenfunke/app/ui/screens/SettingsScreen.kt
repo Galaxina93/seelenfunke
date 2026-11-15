@@ -81,11 +81,8 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
-import de.meinseelenfunke.app.data.api.PhoneSecretaryCallSummaryDto
 import de.meinseelenfunke.app.di.ServiceLocator
 import de.meinseelenfunke.app.di.ThemeMode
-import de.meinseelenfunke.app.ui.components.PhoneSecretaryCallDetailDialog
-import de.meinseelenfunke.app.ui.components.PhoneSecretaryCallRow
 import de.meinseelenfunke.app.ui.theme.AppTheme
 import de.meinseelenfunke.app.ui.theme.Emerald500
 import de.meinseelenfunke.app.ui.theme.Gold
@@ -112,8 +109,6 @@ fun SettingsScreen(
     val phoneConciergeEnabled by viewModel.phoneConciergeEnabled.collectAsState()
     val phoneRingDelaySec by viewModel.phoneRingDelaySec.collectAsState()
     val whitelistContacts by viewModel.whitelistContacts.collectAsState()
-    val recentSecretaryCalls by viewModel.recentSecretaryCalls.collectAsState()
-    var selectedSecretaryCall by remember { mutableStateOf<PhoneSecretaryCallSummaryDto?>(null) }
     var showPhoneInfoDialog by remember { mutableStateOf(false) }
     var showOtaInfoDialog by remember { mutableStateOf(false) }
     var permCheckTick by remember { mutableIntStateOf(0) }
@@ -176,13 +171,6 @@ fun SettingsScreen(
         }
     }
 
-    selectedSecretaryCall?.let { detailCall ->
-        PhoneSecretaryCallDetailDialog(
-            call = detailCall,
-            onDismiss = { selectedSecretaryCall = null }
-        )
-    }
-
     if (showPhoneInfoDialog) {
         val diagLines = remember(showPhoneInfoDialog, permCheckTick) {
             PhoneConciergeManager.getDiagnosticTraceLines(context)
@@ -200,7 +188,7 @@ fun SettingsScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
-                        text = "Funkira übernimmt Anrufe deiner freigegebenen Kontakte sofort lautlos (oder nach deiner gewählten Klingelzeit) über deine persönliche Gifhorner Assistenz-Leitung, führt live ein echtes Gespräch wie deine persönliche Sekretärin, klärt aktiv alle Rahmenbedingungen und zeigt dir direkt in der App sowie unter Aufgaben, was besprochen wurde und was für dich zu tun ist. Unbekannte Nummern klingeln normal durch.",
+                        text = "Funkira übernimmt Anrufe deiner freigegebenen Kontakte sofort lautlos (oder nach deiner gewählten Klingelzeit) über deine persönliche Gifhorner Assistenz-Leitung, führt live ein echtes Gespräch wie deine persönliche Sekretärin, klärt aktiv alle Rahmenbedingungen und legt den Eintrag im Organizer unter dem Telefon-Tab sowie unter Aufgaben ab. Unbekannte Nummern klingeln normal durch.",
                         fontSize = 13.sp,
                         color = AppTheme.colors.textPrimary
                     )
@@ -905,24 +893,6 @@ fun SettingsScreen(
                             fontSize = 13.sp,
                             color = Gold
                         )
-                    }
-
-                    if (recentSecretaryCalls.isNotEmpty()) {
-                        HorizontalDivider(color = AppTheme.colors.cardBorder)
-                        Text(
-                            text = "Letzte Gespräche",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = AppTheme.colors.textSecondary
-                        )
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            recentSecretaryCalls.take(5).forEach { callItem ->
-                                PhoneSecretaryCallRow(
-                                    call = callItem,
-                                    onClick = { selectedSecretaryCall = callItem }
-                                )
-                            }
-                        }
                     }
 
                     if (whitelistContacts.isNotEmpty()) {

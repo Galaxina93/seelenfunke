@@ -229,4 +229,171 @@ class FunkiraResilienceAndSecretaryTest {
             )
         )
     }
+
+    @Test
+    fun savedContactScreeningAndSofortTiming_matchesPhilipGoikAndBuildsCarrierDivertMmi() {
+        // 1. Saved Google Contacts require READ_CONTACTS in runtime permission request so Android Telecom invokes CallScreeningService
+        val requestedPerms34 = PhoneConciergeManager.buildRuntimePermissionRequestArray(sdkInt = 34).toSet()
+        assertTrue(requestedPerms34.contains(android.Manifest.permission.READ_CONTACTS))
+        assertTrue(requestedPerms34.contains(android.Manifest.permission.READ_PHONE_STATE))
+        assertTrue(requestedPerms34.contains(android.Manifest.permission.ANSWER_PHONE_CALLS))
+        assertTrue(requestedPerms34.contains(android.Manifest.permission.POST_NOTIFICATIONS))
+
+        // 2. Carrier GSM conditional call-diversion MMI codes (**004* covers 67 Busy + 61 No Answer + 62 Unreachable)
+        assertEquals(
+            "**004*+4953717269023**20#",
+            PhoneConciergeManager.buildCarrierForwardingActivateMmi("+49 5371 7269023", 20)
+        )
+        assertEquals("##004#", PhoneConciergeManager.buildCarrierForwardingDisableMmi())
+        assertTrue(PhoneConciergeManager.shouldRejectImmediatelyInScreening(isWhitelisted = true, delaySeconds = 0))
+        assertFalse(PhoneConciergeManager.shouldRejectImmediatelyInScreening(isWhitelisted = true, delaySeconds = 8))
+        assertFalse(PhoneConciergeManager.shouldRejectImmediatelyInScreening(isWhitelisted = false, delaySeconds = 0))
+
+        // Legacy ring wait helper still valid
+        assertEquals(
+            FunkiraPhoneConciergeService.SOFORT_RINGING_SETTLE_MS,
+            FunkiraPhoneConciergeService.computeEffectiveRingWaitMs(0)
+        )
+        assertEquals(8_000L, FunkiraPhoneConciergeService.computeEffectiveRingWaitMs(8))
+        assertEquals(12_000L, FunkiraPhoneConciergeService.computeEffectiveRingWaitMs(12))
+
+        // 3. Exact Whitelist caller matching for Philip Goik (+49 176 52784439) across all German 5G/VoLTE incoming formats
+        val philip = de.meinseelenfunke.app.util.CachedWhitelistContact(
+            id = "contact-philip",
+            fullName = "Philip Goik",
+            nickname = "Philip",
+            relationType = "Privat",
+            phone = "+49 176 52784439",
+            normalizedPhone = PhoneConciergeManager.normalizePhoneDigits("+49 176 52784439"),
+            matchSuffix = PhoneConciergeManager.extractMatchSuffix("+49 176 52784439"),
+            systemInstructions = "",
+            whitelisted = true
+        )
+        val contacts = listOf(philip)
+
+        assertEquals("Philip Goik", PhoneConciergeManager.matchWhitelistedContactInList(contacts, "+4917652784439")?.fullName)
+        assertEquals("Philip Goik", PhoneConciergeManager.matchWhitelistedContactInList(contacts, "0176 52784439")?.fullName)
+        assertEquals("Philip Goik", PhoneConciergeManager.matchWhitelistedContactInList(contacts, "+4917652784439;verstat=TN-Validation-Passed")?.fullName)
+        // VoWiFi / IMS SIP URIs ("Eingehender WLAN-Anruf" on Pixel Android 16)
+        assertEquals(
+            "4917652784439",
+            PhoneConciergeManager.normalizePhoneDigits("sip:+4917652784439@ims.mnc001.mcc262.3gppnetwork.org;user=phone")
+        )
+        assertEquals(
+            "Philip Goik",
+            PhoneConciergeManager.matchWhitelistedContactInList(
+                contacts,
+                "sip:+4917652784439@ims.mnc001.mcc262.3gppnetwork.org;user=phone"
+            )?.fullName
+        )
+        assertEquals(
+            "Philip Goik",
+            PhoneConciergeManager.matchWhitelistedContactInList(
+                contacts,
+                "%2B4917652784439@ims.vodafone.de"
+            )?.fullName
+        )
+        assertEquals(null, PhoneConciergeManager.matchWhitelistedContactInList(contacts, "+4917699998888"))
+    }
+
+    @Test
+    fun unifiedCallState_detectsWifiCallingAndEsimWhenLegacyTelephonyReportsIdle() {
+        // 1. Incoming WLAN-Anruf (VoWiFi) on eSIM + Silent Mode (MODE_NORMAL):
+        //    legacy telephony.callState == 0 (IDLE), telecom.isInCall == true -> must resolve to RINGING (1)!
+        assertEquals(
+            android.telephony.TelephonyManager.CALL_STATE_RINGING,
+            FunkiraPhoneConciergeService.resolveUnifiedCallState(
+                telecomInCall = true,
+                audioMode = android.media.AudioManager.MODE_NORMAL,
+                legacyTelephonyState = android.telephony.TelephonyManager.CALL_STATE_IDLE,
+                subscriptionStates = emptyList(),
+                secretaryAudioOverrideActive = false
+            )
+        )
+
+        // 2. Call accepted via acceptRingingCall() on VoWiFi -> AudioManager switches to MODE_IN_CALL (2),
+        //    even if legacy telephony.callState stays 0 -> must resolve to OFFHOOK (2)!
+        assertEquals(
+            android.telephony.TelephonyManager.CALL_STATE_OFFHOOK,
+            FunkiraPhoneConciergeService.resolveUnifiedCallState(
+                telecomInCall = true,
+                audioMode = android.media.AudioManager.MODE_IN_CALL,
+                legacyTelephonyState = android.telephony.TelephonyManager.CALL_STATE_IDLE,
+                subscriptionStates = emptyList(),
+                secretaryAudioOverrideActive = false
+            )
+        )
+
+        // 3. During StandalonePhoneSecretaryEngine (MODE_IN_COMMUNICATION override active),
+        //    while telecomInCall == true -> stays OFFHOOK (2)!
+        assertEquals(
+            android.telephony.TelephonyManager.CALL_STATE_OFFHOOK,
+            FunkiraPhoneConciergeService.resolveUnifiedCallState(
+                telecomInCall = true,
+                audioMode = android.media.AudioManager.MODE_IN_COMMUNICATION,
+                legacyTelephonyState = android.telephony.TelephonyManager.CALL_STATE_IDLE,
+                subscriptionStates = emptyList(),
+                secretaryAudioOverrideActive = true
+            )
+        )
+
+        // 4. Caller hangs up during secretary session -> telecomInCall flips false -> resolves immediately to IDLE (0)!
+        assertEquals(
+            android.telephony.TelephonyManager.CALL_STATE_IDLE,
+            FunkiraPhoneConciergeService.resolveUnifiedCallState(
+                telecomInCall = false,
+                audioMode = android.media.AudioManager.MODE_IN_COMMUNICATION,
+                legacyTelephonyState = android.telephony.TelephonyManager.CALL_STATE_IDLE,
+                subscriptionStates = emptyList(),
+                secretaryAudioOverrideActive = true
+            )
+        )
+    }
+
+    @Test
+    fun unseenPhoneSecretaryBadgeAndOrganizerPhoneTabRouting_tracksUnseenCallsDeterministically() {
+        val sampleCalls = listOf(
+            de.meinseelenfunke.app.data.api.PhoneSecretaryCallSummaryDto(
+                id = "call-101",
+                caller_name = "Philip Goik",
+                summary = "Fragt wegen Abendessen am Samstag um 19 Uhr.",
+                rahmenbedingungen = listOf("Samstag, 19:00 Uhr", "Italiener in Gifhorn"),
+                action_required = "Kurz bestätigen, ob Samstag 19 Uhr passt"
+            ),
+            de.meinseelenfunke.app.data.api.PhoneSecretaryCallSummaryDto(
+                id = "call-102",
+                caller_name = "Papa",
+                summary = "Wollte wissen, wann das Paket ankommt.",
+                rahmenbedingungen = listOf("Sendungsnummer per WhatsApp"),
+                action_required = "Sendungsnummer schicken"
+            ),
+            // Duplicate ID + blank ID should not inflate unseen badge count
+            de.meinseelenfunke.app.data.api.PhoneSecretaryCallSummaryDto(
+                id = "call-102",
+                caller_name = "Papa"
+            ),
+            de.meinseelenfunke.app.data.api.PhoneSecretaryCallSummaryDto(
+                id = "",
+                caller_name = "Unbekannt"
+            )
+        )
+
+        assertEquals(2, PhoneConciergeManager.countUnseenCallsInSet(sampleCalls, emptySet()))
+        assertEquals(1, PhoneConciergeManager.countUnseenCallsInSet(sampleCalls, setOf("call-101")))
+        assertEquals(0, PhoneConciergeManager.countUnseenCallsInSet(sampleCalls, setOf("call-101", "call-102")))
+
+        // Deep-link route aliases resolve deterministically to NavTarget.ORGANIZER
+        assertEquals(
+            de.meinseelenfunke.app.util.NavigationBridge.NavTarget.ORGANIZER,
+            de.meinseelenfunke.app.util.NavigationBridge.parseTarget("telefon")
+        )
+        assertEquals(
+            de.meinseelenfunke.app.util.NavigationBridge.NavTarget.ORGANIZER,
+            de.meinseelenfunke.app.util.NavigationBridge.parseTarget("anrufbeantworter")
+        )
+        assertEquals(
+            de.meinseelenfunke.app.util.NavigationBridge.NavTarget.ORGANIZER,
+            de.meinseelenfunke.app.util.NavigationBridge.parseTarget("phone_secretary")
+        )
+    }
 }

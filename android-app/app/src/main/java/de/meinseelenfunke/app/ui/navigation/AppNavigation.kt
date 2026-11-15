@@ -74,9 +74,15 @@ import de.meinseelenfunke.app.ui.theme.Rose500
 import de.meinseelenfunke.app.ui.theme.SpaceBlack
 import de.meinseelenfunke.app.ui.theme.GlassWhite10
 import de.meinseelenfunke.app.ui.theme.Slate400
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import de.meinseelenfunke.app.util.AppUpdateManager
 import de.meinseelenfunke.app.util.OtaUpdateState
+import de.meinseelenfunke.app.util.PhoneConciergeManager
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -116,6 +122,22 @@ fun AppNavigation(
 
     val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
     var backgroundedAtElapsedMs by rememberSaveable { androidx.compose.runtime.mutableLongStateOf(0L) }
+    var hasPromptedPhoneSetupThisSession by rememberSaveable { mutableStateOf(false) }
+
+    val navRoleLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { }
+
+    val navPhonePermLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q && !PhoneConciergeManager.hasCallScreeningRole(context)) {
+            val rm = context.getSystemService(android.app.role.RoleManager::class.java)
+            if (rm != null && rm.isRoleAvailable(android.app.role.RoleManager.ROLE_CALL_SCREENING)) {
+                navRoleLauncher.launch(rm.createRequestRoleIntent(android.app.role.RoleManager.ROLE_CALL_SCREENING))
+            }
+        }
+    }
 
     // Auto-relock after 3 minutes in background & auto-check for OTA updates on app start/resume
     androidx.compose.runtime.DisposableEffect(lifecycleOwner, isLoggedIn) {
@@ -171,6 +193,38 @@ fun AppNavigation(
             activity?.window?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
             if (isLoggedIn && isBiometricUnlocked) {
                 AppUpdateManager.onAppStartCheck(context)
+                launch {
+                    withContext(Dispatchers.IO) {
+                        PhoneConciergeManager.syncFromBackend(context)
+                    }
+                    delay(1_600L)
+                    val otaNow = AppUpdateManager.state.value
+                    val otaBusy = otaNow is OtaUpdateState.Available ||
+                        otaNow is OtaUpdateState.Downloading ||
+                        otaNow is OtaUpdateState.AwaitingInstallPermission ||
+                        otaNow is OtaUpdateState.InstallerLaunched
+                    if (
+                        !hasPromptedPhoneSetupThisSession &&
+                        !otaBusy &&
+                        !de.meinseelenfunke.app.util.FunkenwerkAlarmManager.isAlarmRingingFlow.value &&
+                        !de.meinseelenfunke.app.util.NavigationBridge.isLiveCallActive &&
+                        PhoneConciergeManager.isEnabled(context)
+                    ) {
+                        if (!PhoneConciergeManager.hasRequiredPermissions(context)) {
+                            hasPromptedPhoneSetupThisSession = true
+                            navPhonePermLauncher.launch(PhoneConciergeManager.buildRuntimePermissionRequestArray())
+                        } else if (
+                            android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q &&
+                            !PhoneConciergeManager.hasCallScreeningRole(context)
+                        ) {
+                            val rm = context.getSystemService(android.app.role.RoleManager::class.java)
+                            if (rm != null && rm.isRoleAvailable(android.app.role.RoleManager.ROLE_CALL_SCREENING)) {
+                                hasPromptedPhoneSetupThisSession = true
+                                navRoleLauncher.launch(rm.createRequestRoleIntent(android.app.role.RoleManager.ROLE_CALL_SCREENING))
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -576,7 +630,7 @@ fun MainTabbedScreen(
                             }
                         },
                         onNavigateToOrganizer = { subTab ->
-                            organizerInitialTab = subTab.coerceIn(0, 6)
+                            organizerInitialTab = subTab.coerceIn(0, 7)
                             organizerNavTrigger++
                             coroutineScope.launch {
                                 val organizerIndex = bottomNavItems.indexOf(Screen.Organizer)

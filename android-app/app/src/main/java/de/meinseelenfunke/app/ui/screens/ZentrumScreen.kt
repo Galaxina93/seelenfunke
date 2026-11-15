@@ -87,8 +87,7 @@ import de.meinseelenfunke.app.ui.theme.AppTheme
 import de.meinseelenfunke.app.ui.theme.Copper
 import de.meinseelenfunke.app.ui.theme.Emerald500
 import de.meinseelenfunke.app.ui.theme.Gold
-import de.meinseelenfunke.app.ui.components.PhoneSecretaryCallDetailDialog
-import de.meinseelenfunke.app.ui.components.PhoneSecretarySummaryCard
+import de.meinseelenfunke.app.ui.components.NewPhoneEntryHintBanner
 import de.meinseelenfunke.app.ui.theme.Rose500
 import de.meinseelenfunke.app.ui.theme.SpaceBlack
 import de.meinseelenfunke.app.ui.theme.SpaceBlue
@@ -361,6 +360,7 @@ fun DashboardContent(
                 actionRoute.contains("tasks", ignoreCase = true) -> onNavigateToOrganizer(0)
                 actionRoute.contains("calender", ignoreCase = true) || actionRoute.contains("calendar", ignoreCase = true) -> onNavigateToOrganizer(1)
                 actionRoute.contains("routine", ignoreCase = true) -> onNavigateToOrganizer(2)
+                actionRoute.contains("telephony", ignoreCase = true) || actionRoute.contains("phone", ignoreCase = true) -> onNavigateToOrganizer(7)
                 actionRoute.contains("financial", ignoreCase = true) || actionRoute.contains("invoice", ignoreCase = true) -> onNavigateToFinances()
                 actionRoute.contains("user", ignoreCase = true) || actionRoute.contains("setting", ignoreCase = true) -> onNavigateToSettings()
                 else -> onNavigateToOrganizer(0)
@@ -368,23 +368,12 @@ fun DashboardContent(
         }
     )
 
-    // 1b. TELEFON-SEKRETÄRIN (Live-Gesprächszusammenfassungen mit Rahmenbedingungen & Für dich zu tun)
-    val recentSecretaryCalls by viewModel.recentSecretaryCalls.collectAsState()
-    var selectedSecretaryCall by remember { mutableStateOf<de.meinseelenfunke.app.data.api.PhoneSecretaryCallSummaryDto?>(null) }
-
-    if (isAdmin && recentSecretaryCalls.isNotEmpty()) {
-        PhoneSecretarySummaryCard(
-            calls = recentSecretaryCalls,
-            onSelectCall = { selectedSecretaryCall = it },
-            onOpenTasks = { onNavigateToOrganizer(0) }
-        )
-    }
-
-    selectedSecretaryCall?.let { detailCall ->
-        PhoneSecretaryCallDetailDialog(
-            call = detailCall,
-            onDismiss = { selectedSecretaryCall = null },
-            onOpenTasks = { onNavigateToOrganizer(0) }
+    // 1b. ANRUFBEANTWORTER-HINWEIS (Kurzer 1-Zeilen-Hinweis bei neuem Eintrag -> öffnet Organizer Telefon-Tab)
+    val unseenPhoneEntries by de.meinseelenfunke.app.util.PhoneConciergeManager.unseenCallCountFlow.collectAsState()
+    if (isAdmin && unseenPhoneEntries > 0) {
+        NewPhoneEntryHintBanner(
+            unseenCount = unseenPhoneEntries,
+            onClick = { onNavigateToOrganizer(7) }
         )
     }
 

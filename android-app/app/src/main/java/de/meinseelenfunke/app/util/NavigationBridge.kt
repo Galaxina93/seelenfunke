@@ -76,7 +76,7 @@ object NavigationBridge {
             "zentrum", "dashboard", "home" -> NavTarget.ZENTRUM
             "finances", "finance", "finanzen", "buchhaltung" -> NavTarget.FINANCES
             "orders", "order", "bestellungen", "bestellung" -> NavTarget.ORDERS
-            "organizer", "tasks", "aufgaben", "calendar", "kalender", "routine", "shopping", "einkauf", "email", "mail", "music", "musik" -> NavTarget.ORGANIZER
+            "organizer", "tasks", "aufgaben", "calendar", "kalender", "routine", "shopping", "einkauf", "email", "mail", "music", "musik", "alarm", "wecker", "telefon", "anrufbeantworter", "phone_secretary" -> NavTarget.ORGANIZER
             "chat", "agents", "agenten", "ai" -> NavTarget.CHAT
             "settings", "einstellungen" -> NavTarget.SETTINGS
             else -> raw.trim().toIntOrNull()?.let { resolveTarget(it) }

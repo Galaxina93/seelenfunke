@@ -710,6 +710,8 @@ class FunkiraPhoneConciergeService
                     Str::limit($pushBody, 220, '...'),
                     [
                         'type' => 'phone_secretary',
+                        'navigate_to' => 'organizer',
+                        'open_subtab' => '7',
                         'task_id' => (string) $task->id,
                         'call_id' => $callId,
                     ]

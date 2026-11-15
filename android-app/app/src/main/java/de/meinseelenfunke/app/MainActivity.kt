@@ -118,6 +118,12 @@ class MainActivity : FragmentActivity() {
             }
             if (navigateTo.equals("email", ignoreCase = true) || navigateTo.equals("mail", ignoreCase = true)) {
                 NavigationBridge.triggerNavigation(NavigationBridge.NavTarget.ORGANIZER, subTab = 4)
+            } else if (
+                navigateTo.equals("telefon", ignoreCase = true) ||
+                navigateTo.equals("anrufbeantworter", ignoreCase = true) ||
+                navigateTo.equals("phone_secretary", ignoreCase = true)
+            ) {
+                NavigationBridge.triggerNavigation(NavigationBridge.NavTarget.ORGANIZER, subTab = 7)
             } else {
                 val parsedTarget = NavigationBridge.parseTarget(navigateTo) ?: NavigationBridge.NavTarget.ZENTRUM
                 val subTab = intent.getIntExtra("open_subtab", 0)

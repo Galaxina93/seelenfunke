@@ -8,7 +8,9 @@ import de.meinseelenfunke.app.data.api.ManagementDayRoutineStep
 import de.meinseelenfunke.app.data.api.ManagementTask
 import de.meinseelenfunke.app.data.api.ManagementTaskList
 import de.meinseelenfunke.app.data.api.ManagementShoppingItem
+import de.meinseelenfunke.app.data.api.PhoneSecretaryCallSummaryDto
 import de.meinseelenfunke.app.di.ServiceLocator
+import de.meinseelenfunke.app.util.PhoneConciergeManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -44,11 +46,22 @@ class OrganizerViewModel : ViewModel() {
     private val _calendarEvents = MutableStateFlow<List<CalendarEvent>>(emptyList())
     val calendarEvents: StateFlow<List<CalendarEvent>> = _calendarEvents.asStateFlow()
 
+    private val _recentSecretaryCalls = MutableStateFlow(
+        PhoneConciergeManager.loadCachedRecentCalls(ServiceLocator.context)
+    )
+    val recentSecretaryCalls: StateFlow<List<PhoneSecretaryCallSummaryDto>> = _recentSecretaryCalls.asStateFlow()
+
     private val _isProcessingFile = MutableStateFlow(false)
     val isProcessingFile: StateFlow<Boolean> = _isProcessingFile.asStateFlow()
 
     init {
         loadAllOrganizerData()
+    }
+
+    fun refreshSecretaryCalls() {
+        viewModelScope.launch {
+            _recentSecretaryCalls.value = PhoneConciergeManager.fetchRecentCalls(ServiceLocator.context)
+        }
     }
 
     fun loadAllOrganizerData(showLoading: Boolean = true) {
@@ -58,6 +71,7 @@ class OrganizerViewModel : ViewModel() {
             }
             try {
                 var errorMsg: String? = null
+                val isAdmin = ServiceLocator.userTypeState.value == "admin" || ServiceLocator.getUserType() == "admin"
 
                 kotlinx.coroutines.coroutineScope {
                     val listsDef = async { repository.getTaskLists() }
@@ -65,6 +79,9 @@ class OrganizerViewModel : ViewModel() {
                     val routinesDef = async { repository.getRoutines() }
                     val shoppingDef = async { repository.getShoppingItems() }
                     val calDef = async { repository.getCalendarEvents() }
+                    val secretaryDef = if (isAdmin) {
+                        async { PhoneConciergeManager.fetchRecentCalls(ServiceLocator.context) }
+                    } else null
 
                     listsDef.await()
                         .onSuccess { _taskLists.value = it }
@@ -103,6 +120,10 @@ class OrganizerViewModel : ViewModel() {
                             android.util.Log.e("OrganizerViewModel", "Calendar events load failed", it)
                             if (errorMsg == null) errorMsg = "Kalender konnte nicht geladen werden: " + it.localizedMessage
                         }
+
+                    secretaryDef?.await()?.let { recent ->
+                        _recentSecretaryCalls.value = recent
+                    }
                 }
 
                 if (errorMsg != null && _taskLists.value.isEmpty() && _tasks.value.isEmpty()) {

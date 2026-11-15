@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.ClickableText
@@ -44,6 +45,7 @@ import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.PhoneInTalk
 import androidx.compose.material.icons.filled.PlaylistAddCheck
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.ShoppingCart
@@ -147,11 +149,13 @@ import de.meinseelenfunke.app.data.api.ManagementDayRoutine
 import de.meinseelenfunke.app.data.api.ManagementShoppingItem
 import de.meinseelenfunke.app.data.api.ManagementTask
 import de.meinseelenfunke.app.data.api.ManagementTaskList
+import de.meinseelenfunke.app.ui.components.PhoneSecretaryTabContent
 import de.meinseelenfunke.app.ui.theme.AppTheme
 import de.meinseelenfunke.app.ui.theme.Gold
 import de.meinseelenfunke.app.ui.theme.Copper
 import de.meinseelenfunke.app.ui.theme.SpaceBlue
 import de.meinseelenfunke.app.ui.theme.SpaceBlack
+import de.meinseelenfunke.app.util.PhoneConciergeManager
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -175,13 +179,15 @@ fun OrganizerScreen(
     val routines by viewModel.routines.collectAsState()
     val shoppingItems by viewModel.shoppingItems.collectAsState()
     val calendarEvents by viewModel.calendarEvents.collectAsState()
+    val recentSecretaryCalls by viewModel.recentSecretaryCalls.collectAsState()
+    val unseenPhoneEntries by PhoneConciergeManager.unseenCallCountFlow.collectAsState()
     val isProcessingFile by viewModel.isProcessingFile.collectAsState()
 
     val scope = rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
     val pagerState = rememberPagerState(
-        initialPage = initialTab.coerceIn(0, 6),
-        pageCount = { 7 }
+        initialPage = initialTab.coerceIn(0, 7),
+        pageCount = { 8 }
     )
     var isFirstLoad by remember { mutableStateOf(true) }
 
@@ -192,11 +198,21 @@ fun OrganizerScreen(
     }
 
     LaunchedEffect(initialTab, navTrigger) {
-        val target = initialTab.coerceIn(0, 6)
+        val target = initialTab.coerceIn(0, 7)
         if (pagerState.currentPage != target) {
             pagerState.scrollToPage(target)
         }
         onTabScrollCompleted()
+    }
+
+    val callIdsSignature = remember(recentSecretaryCalls) {
+        recentSecretaryCalls.joinToString(",") { it.id }
+    }
+
+    LaunchedEffect(pagerState.currentPage, isPageVisible, callIdsSignature) {
+        if (isPageVisible && pagerState.currentPage == 7 && recentSecretaryCalls.isNotEmpty()) {
+            PhoneConciergeManager.markAllCallsSeen(context, recentSecretaryCalls)
+        }
     }
 
     LaunchedEffect(isPageVisible) {
@@ -205,7 +221,7 @@ fun OrganizerScreen(
             kotlinx.coroutines.delay(5000L)
         }
     }
-    val tabTitles = listOf("Aufgaben", "Kalender", "Routine", "Einkauf", "E-Mail", "Musik", "Wecker")
+    val tabTitles = listOf("Aufgaben", "Kalender", "Routine", "Einkauf", "E-Mail", "Musik", "Wecker", "Telefon")
     val tabIcons = listOf(
         Icons.Default.CheckCircle,
         Icons.Default.CalendarToday,
@@ -213,7 +229,8 @@ fun OrganizerScreen(
         Icons.Default.ShoppingCart,
         Icons.Default.Email,
         Icons.Default.MusicNote,
-        Icons.Default.Alarm
+        Icons.Default.Alarm,
+        Icons.Default.PhoneInTalk
     )
 
     Box(
@@ -283,7 +300,7 @@ fun OrganizerScreen(
                 )
             }
 
-            // Compact Icon Tab bar (7 Tabs: Aufgaben, Kalender, Routine, Einkauf, E-Mail, Musik, Wecker)
+            // Compact Icon Tab bar (8 Tabs: Aufgaben, Kalender, Routine, Einkauf, E-Mail, Musik, Wecker, Telefon)
             TabRow(
                 selectedTabIndex = pagerState.currentPage,
                 containerColor = Color.Transparent,
@@ -313,12 +330,24 @@ fun OrganizerScreen(
                         selectedContentColor = Gold,
                         unselectedContentColor = AppTheme.colors.textMuted,
                         icon = {
-                            Icon(
-                                imageVector = tabIcons[index],
-                                contentDescription = title,
-                                modifier = Modifier.size(20.dp),
-                                tint = if (isSelected) Gold else AppTheme.colors.textMuted
-                            )
+                            Box {
+                                Icon(
+                                    imageVector = tabIcons[index],
+                                    contentDescription = title,
+                                    modifier = Modifier.size(20.dp),
+                                    tint = if (isSelected) Gold else AppTheme.colors.textMuted
+                                )
+                                if (index == 7 && unseenPhoneEntries > 0 && !isSelected) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(6.dp)
+                                            .align(Alignment.TopEnd)
+                                            .offset(x = 2.dp, y = (-2).dp)
+                                            .clip(CircleShape)
+                                            .background(Gold)
+                                    )
+                                }
+                            }
                         }
                     )
                 }
@@ -436,6 +465,15 @@ fun OrganizerScreen(
                             5 -> MusicTabContent()
                             6 -> AlarmTabContent(
                                 viewModel = viewModel
+                            )
+                            7 -> PhoneSecretaryTabContent(
+                                calls = recentSecretaryCalls,
+                                onRefresh = { viewModel.refreshSecretaryCalls() },
+                                onOpenTasks = {
+                                    scope.launch {
+                                        pagerState.animateScrollToPage(0)
+                                    }
+                                }
                             )
                         }
                     }

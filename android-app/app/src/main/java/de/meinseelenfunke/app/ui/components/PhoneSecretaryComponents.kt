@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -16,16 +17,18 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.PhoneInTalk
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -44,71 +47,173 @@ import de.meinseelenfunke.app.data.api.PhoneSecretaryCallSummaryDto
 import de.meinseelenfunke.app.ui.theme.AppTheme
 import de.meinseelenfunke.app.ui.theme.Gold
 
+/**
+ * Kurzer, knackiger 1-Zeilen-Hinweis auf der Startseite (Zentrum),
+ * ausschließlich sichtbar, wenn mindestens ein ungesehener Anrufbeantworter-Eintrag vorliegt.
+ */
 @Composable
-fun PhoneSecretarySummaryCard(
-    calls: List<PhoneSecretaryCallSummaryDto>,
-    onSelectCall: (PhoneSecretaryCallSummaryDto) -> Unit,
-    onOpenTasks: (() -> Unit)? = null
+fun NewPhoneEntryHintBanner(
+    unseenCount: Int,
+    onClick: () -> Unit
 ) {
-    if (calls.isEmpty()) return
+    if (unseenCount <= 0) return
+
+    val label = if (unseenCount == 1) {
+        "Neuer Anrufbeantworter-Eintrag"
+    } else {
+        "$unseenCount neue Anrufbeantworter-Einträge"
+    }
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, Gold.copy(alpha = 0.55f), RoundedCornerShape(16.dp)),
+            .border(1.dp, Gold.copy(alpha = 0.65f), RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(14.dp))
+            .clickable { onClick() },
         colors = CardDefaults.cardColors(containerColor = AppTheme.colors.cardBackground),
-        shape = RoundedCornerShape(16.dp)
+        shape = RoundedCornerShape(14.dp)
     ) {
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+                .padding(horizontal = 14.dp, vertical = 11.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.PhoneInTalk,
-                        contentDescription = null,
-                        tint = Gold,
-                        modifier = Modifier.size(19.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Telefon-Sekretärin",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = AppTheme.colors.textPrimary
-                    )
-                }
-                if (onOpenTasks != null) {
-                    Text(
-                        text = "Aufgaben",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Gold,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable { onOpenTasks() }
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                    )
-                }
+                Box(
+                    modifier = Modifier
+                        .size(7.dp)
+                        .clip(CircleShape)
+                        .background(Gold)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Icon(
+                    imageVector = Icons.Default.PhoneInTalk,
+                    contentDescription = null,
+                    tint = Gold,
+                    modifier = Modifier.size(17.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = label,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = AppTheme.colors.textPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
+            Icon(
+                imageVector = Icons.Default.ChevronRight,
+                contentDescription = null,
+                tint = Gold,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+    }
+}
 
-            calls.take(3).forEachIndexed { index, call ->
-                if (index > 0) {
-                    HorizontalDivider(color = AppTheme.colors.cardBorder)
-                }
-                PhoneSecretaryCallRow(
-                    call = call,
-                    onClick = { onSelectCall(call) }
+/**
+ * Eigener Organizer-Tab (Telefon-Icon) für alle von Funkira aufgenommenen Gespräche,
+ * Rahmenbedingungen und Aufgaben.
+ */
+@Composable
+fun PhoneSecretaryTabContent(
+    calls: List<PhoneSecretaryCallSummaryDto>,
+    onRefresh: () -> Unit,
+    onOpenTasks: () -> Unit
+) {
+    var selectedCall by remember { mutableStateOf<PhoneSecretaryCallSummaryDto?>(null) }
+
+    selectedCall?.let { detail ->
+        PhoneSecretaryCallDetailDialog(
+            call = detail,
+            onDismiss = { selectedCall = null },
+            onOpenTasks = onOpenTasks
+        )
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.PhoneInTalk,
+                    contentDescription = null,
+                    tint = Gold,
+                    modifier = Modifier.size(19.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Anrufbeantworter",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = AppTheme.colors.textPrimary
+                )
+            }
+            IconButton(
+                onClick = onRefresh,
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Refresh,
+                    contentDescription = "Aktualisieren",
+                    tint = Gold,
+                    modifier = Modifier.size(18.dp)
                 )
             }
         }
+
+        if (calls.isEmpty()) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = AppTheme.colors.cardBackground),
+                border = BorderStroke(1.dp, AppTheme.colors.cardBorder),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 36.dp, horizontal = 16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PhoneInTalk,
+                        contentDescription = null,
+                        tint = AppTheme.colors.textMuted,
+                        modifier = Modifier.size(28.dp)
+                    )
+                    Text(
+                        text = "Keine Einträge",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = AppTheme.colors.textMuted
+                    )
+                }
+            }
+        } else {
+            calls.forEach { call ->
+                PhoneSecretaryCallRow(
+                    call = call,
+                    onClick = { selectedCall = call }
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(80.dp))
     }
 }
 
@@ -120,17 +225,17 @@ fun PhoneSecretaryCallRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(AppTheme.colors.glassSurface)
-            .border(1.dp, AppTheme.colors.cardBorder, RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(12.dp))
+            .background(AppTheme.colors.cardBackground)
+            .border(1.dp, AppTheme.colors.cardBorder, RoundedCornerShape(12.dp))
             .clickable { onClick() }
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Column(
             modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(3.dp)
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -175,7 +280,7 @@ fun PhoneSecretaryCallRow(
                 )
             }
         }
-        Spacer(modifier = Modifier.width(6.dp))
+        Spacer(modifier = Modifier.width(8.dp))
         Icon(
             imageVector = Icons.Default.ChevronRight,
             contentDescription = null,

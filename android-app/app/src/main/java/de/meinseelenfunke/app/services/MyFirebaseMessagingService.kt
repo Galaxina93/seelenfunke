@@ -58,6 +58,13 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
 
         // Check if message contains data payload
         if (remoteMessage.data.isNotEmpty()) {
+            if (remoteMessage.data["type"] == "phone_secretary") {
+                CoroutineScope(Dispatchers.IO).launch {
+                    try {
+                        de.meinseelenfunke.app.util.PhoneConciergeManager.fetchRecentCalls(context)
+                    } catch (_: Exception) { }
+                }
+            }
             val title = remoteMessage.data["title"] ?: "Neue Meldung"
             val body = remoteMessage.data["body"] ?: ""
             sendNotification(title, body, remoteMessage.data)
@@ -70,10 +77,14 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
 
     private fun sendNotification(title: String, messageBody: String, data: Map<String, String>) {
         val isNewOrder = data.containsKey("order_id")
+        val isPhoneSecretary = data["type"] == "phone_secretary"
         val intent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
             if (!data["navigate_to"].isNullOrBlank()) {
                 putExtra("navigate_to", data["navigate_to"])
+            } else if (isPhoneSecretary) {
+                putExtra("navigate_to", "organizer")
+                putExtra("open_subtab", 7)
             } else if (isNewOrder && !data.containsKey("open_tab")) {
                 putExtra("navigate_to", "orders")
             }
@@ -84,7 +95,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
                 putExtra("open_tab", (data["open_tab"]?.toIntOrNull() ?: 0).coerceIn(0, 5))
             }
             if (data.containsKey("open_subtab")) {
-                putExtra("open_subtab", (data["open_subtab"]?.toIntOrNull() ?: 0).coerceIn(0, 6))
+                putExtra("open_subtab", (data["open_subtab"]?.toIntOrNull() ?: 0).coerceIn(0, 7))
             }
             de.meinseelenfunke.app.util.SecurityIntentHelper.signIntent(this@MyFirebaseMessagingService, this)
         }

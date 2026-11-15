@@ -81,6 +81,7 @@ class ZentrumViewModel : ViewModel() {
     }
 
     init {
+        PhoneConciergeManager.refreshUnseenCount(ServiceLocator.context)
         loadDashboardData()
     }
 

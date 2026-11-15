@@ -31,6 +31,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.time.Instant
@@ -76,7 +79,10 @@ object PhoneConciergeManager {
     private const val KEY_SEEDED_DEFAULTS = "concierge_seeded_papa_v1"
     private const val KEY_PENDING_NOTES_ENC = "concierge_pending_secretary_notes_enc_v1"
     private const val KEY_RECENT_CALLS_ENC = "concierge_recent_calls_enc_v1"
+    private const val KEY_SEEN_CALL_IDS = "concierge_seen_call_ids_v1"
     private val pendingLock = Any()
+    private val _unseenCallCount = MutableStateFlow(0)
+    val unseenCallCountFlow: StateFlow<Int> = _unseenCallCount.asStateFlow()
     private val bgScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     @Volatile private var delayedDivertJob: Job? = null
     @Volatile private var lastScreenedAtRealtimeMs: Long = 0L
@@ -421,25 +427,72 @@ object PhoneConciergeManager {
         prefs(ctx).edit().putString(KEY_CACHED_CONTACTS_JSON, gson.toJson(contacts)).apply()
     }
 
+    private fun loadSeenCallIds(ctx: Context): Set<String> =
+        prefs(ctx).getStringSet(KEY_SEEN_CALL_IDS, emptySet())?.toSet().orEmpty()
+
+    internal fun countUnseenCallsInSet(
+        calls: List<PhoneSecretaryCallSummaryDto>,
+        seenIds: Set<String>
+    ): Int {
+        val validIds = calls.mapNotNull { it.id.takeIf(String::isNotBlank) }.distinct()
+        if (validIds.isEmpty()) return 0
+        return validIds.count { it !in seenIds }
+    }
+
+    fun countUnseenCalls(ctx: Context, calls: List<PhoneSecretaryCallSummaryDto>): Int =
+        countUnseenCallsInSet(calls, loadSeenCallIds(ctx))
+
+    fun refreshUnseenCount(ctx: Context): Int {
+        val count = countUnseenCalls(ctx, loadCachedRecentCalls(ctx))
+        _unseenCallCount.value = count
+        return count
+    }
+
+    fun markAllCallsSeen(
+        ctx: Context,
+        calls: List<PhoneSecretaryCallSummaryDto> = loadCachedRecentCalls(ctx)
+    ) {
+        val idsToMark = calls.mapNotNull { it.id.takeIf(String::isNotBlank) }
+        if (idsToMark.isNotEmpty()) {
+            val merged = LinkedHashSet<String>()
+            merged.addAll(idsToMark)
+            merged.addAll(loadSeenCallIds(ctx))
+            val trimmed = HashSet(merged.take(60))
+            prefs(ctx).edit().putStringSet(KEY_SEEN_CALL_IDS, trimmed).apply()
+        }
+        _unseenCallCount.value = 0
+    }
+
     fun loadCachedRecentCalls(ctx: Context): List<PhoneSecretaryCallSummaryDto> {
         val enc = prefs(ctx).getString(KEY_RECENT_CALLS_ENC, null)
-        if (enc.isNullOrBlank()) return emptyList()
-        val json = ServiceLocator.decryptPayloadFromPrefs(enc) ?: return emptyList()
-        return try {
+        if (enc.isNullOrBlank()) {
+            _unseenCallCount.value = 0
+            return emptyList()
+        }
+        val json = ServiceLocator.decryptPayloadFromPrefs(enc)
+        if (json == null) {
+            _unseenCallCount.value = 0
+            return emptyList()
+        }
+        val list = try {
             val t = object : TypeToken<List<PhoneSecretaryCallSummaryDto>>() {}.type
             gson.fromJson<List<PhoneSecretaryCallSummaryDto>>(json, t) ?: emptyList()
         } catch (_: Exception) {
             emptyList()
         }
+        _unseenCallCount.value = countUnseenCalls(ctx, list)
+        return list
     }
 
     private fun saveCachedRecentCalls(ctx: Context, calls: List<PhoneSecretaryCallSummaryDto>) {
         if (calls.isEmpty()) {
             prefs(ctx).edit().remove(KEY_RECENT_CALLS_ENC).apply()
+            _unseenCallCount.value = 0
             return
         }
         val enc = ServiceLocator.encryptPayloadForPrefs(gson.toJson(calls))
         prefs(ctx).edit().putString(KEY_RECENT_CALLS_ENC, enc).apply()
+        _unseenCallCount.value = countUnseenCalls(ctx, calls)
     }
 
     suspend fun fetchRecentCalls(ctx: Context): List<PhoneSecretaryCallSummaryDto> {
