@@ -1,171 +1,186 @@
-# Architektur- & Abschlussbericht: Twilio AI Telefony Bridge auf Mittwald mStudio
+# Master-Architektur & Abschlussbericht: Twilio KI-Telefonie, Gemini Live & Mittwald mStudio
 
-## 1. Zusammenfassung der Ausgangslage
-Beim Versuch, eine dedizierte Node.js-App (`seelenfunke-nodejs`) für den Twilio WebSocket-Stream (`wss://api-live-bridge.mein-seelenfunke.de`) auf Mittwald zu betreiben, kam es persistent zu Verbindungsabbrüchen. 
-Twilio meldete wiederholt: **"Stream - WebSocket - Handshake Error"** (erwartet HTTP 101, erhielt 503). 
-Manuelle Aufrufe der Domain lieferten stets ein `503 Service Unavailable`.
+**Stand:** 15.11.2026  
+**Systeme:** Twilio (`+49 5371 7269023`), Google Gemini Live API (`models/gemini-3.1-flash-live-preview` / `Aoede`), Mittwald mStudio (`Projekt p-g27wim`), Funkenwerk Android (`v1.7.1`) & Funkenwerk Desktop Collection (`SSH`, `FTP`, `MCP`)  
+**Status:** Produktiv auf Stage verifiziert (`0` offene Fehler, vollautomatischer 4-Stufen-Rollout inkl. Container-Neustart auf `a-iurgq8` & `a-yeq7el`)
 
-## 2. Chronologie der Fehlersuche & Erkenntnisse
+---
 
-### A. Das IPv6 / Port-Binding Problem
-Ursprünglich versuchte das Skript `server-twilio.js`, ohne explizite IP-Angabe zu lauschen. Node.js wählt dabei standardmäßig IPv6 (`::`). Der Mittwald Nginx-Loadbalancer (der IPv4 spricht) konnte den Node-Prozess dadurch nicht finden. 
-**Erkenntnis:** Das Skript muss zwingend auf `0.0.0.0` lauschen.
+## 1. Gesamtarchitektur: Zusammenspiel von Twilio, Android, Mittwald & Gemini Live
 
-### B. Die SSH-Container vs. App-Container Isolation
-Bei der Fehleranalyse über die SSH-Konsole stellten wir fest, dass Befehle wie `killall node` ins Leere liefen und `ps aux` keine Node-Prozesse (außer dem PM2 Manager) auflistete.
-**Erkenntnis:** Mittwald nutzt eine strikte Container-Isolierung. Die SSH-Sitzung läuft in einem völlig anderen Pod/Container als die eigentliche Live-App im Hintergrund. Lokale Tests (z.B. `PORT=8080 node server-twilio.js`) spiegeln nicht zwingend die Hintergrund-Realität wider, da im SSH-Container z.B. Port 9000 durch PHP-FPM blockiert wird, im leeren Node-Container jedoch nicht.
+Dieses Kapitel dokumentiert den verbindlichen Gesamtaufbau aller beteiligten Systeme, Container, Domains, WebSockets und Sicherheitsmechanismen.
 
-### C. Das Symlink-Jail (Die wahre Ursache für den 503-Fehler)
-Um Code-Duplizierung zu vermeiden, hatten wir die Dateien (`server-twilio.js`, `.env`, `package.json`, `node_modules`) aus dem Hauptprojekt (`seelenfunke-stage`) per Symlink in das Installationsverzeichnis der Node-App (`/html/twilio-bridge`) verknüpft.
-**Der fatale Fehler:** Mittwald sperrt jede App in einen "Käfig" (Chroot-Umgebung). Der Käfig der Node.js App begann exakt bei `/html/twilio-bridge`. Alle Symlinks, die auf `../seelenfunke-stage` verwiesen, zeigten somit aus dem Käfig heraus. 
-**Ergebnis:** Innerhalb des App-Containers waren alle Symlinks *tot* (Broken Links). Als Mittwald die App starten wollte, gab es sofort einen unsichtbaren `MODULE_NOT_FOUND` Crash, da die Datei `server-twilio.js` schlichtweg nich## 3. Die finale Lösung & Architektur
+### 1.1 End-to-End Daten- & Audiofluss
 
-Anstatt das Installationsverzeichnis von Laravel und Node.js zu mischen (was zu Konflikten führen kann), nutzen wir einen dedizierten App-Ordner (`/html/twilio-bridge`), in den wir die aktualisierten Dateien bei jedem Deployment hart hineinkopieren.
+```mermaid
+flowchart TD
+    Caller["Anrufer (Festnetz / Mobilfunk)"] -->|"Direktanruf oder Rufumleitung (**004*)"| Pixel["Alinas Smartphone (Funkenwerk Android v1.7.1 + CallScreeningService)"]
+    Caller -->|"Direktanruf auf +49 5371 7269023"| Twilio["Twilio Cloud (+49 5371 7269023 / PNf6a25b6a41ab6c0c82e2b64839a84307)"]
+    Pixel -->|"Bedingte Weiterleitung + 55s Pixel-Signal"| Twilio
 
-### Die saubere Architektur & Deployment-Workflow:
+    Twilio -->|"POST /api/twilio/inbound (X-Twilio-Signature)"| WebApp["Mittwald Web-App a-lc6tkm (stage.mein-seelenfunke.de)"]
 
-> [!IMPORTANT]
-> **DIREKTER CONTAINER-NEUSTART PER CLI (`mittnitectl` auf `a-yeq7el`)**
-> Da Mittwald jede App in einem eigenen Container betreibt, schlagen Neustart-Befehle in allgemeinen SSH-Sitzungen (`a-bycqrf` / `a-lc6tkm`) fehl. Über den direkten App-Container-SSH-Zugang **`kontakt@mein-seelenfunke.de@a-yeq7el@ssh.altgemeinde.project.host`** (Profil `Mittwald Node.js App` in Funkenwerk SSH / Funkenwerk MCP) existiert `/var/run/mittnite.sock`, sodass die Node.js-App ohne Löschen/Neuanlegen und ohne mStudio-Klick direkt neu gestartet wird:
-> ```bash
-> mittnitectl job restart
-> mittnitectl job status
-> ```
-> `./funki stage-deploy` (bzw. `FunkenwerkMcp.exe --stage-restart-workers`) kopiert `server-twilio.js` sowie `GEMINI_BRIDGE_SECRET` automatisch nach `/home/p-g27wim/html/twilio-bridge` und führt `mittnitectl job restart` sowohl auf `a-iurgq8` (`Mittwald Websocket`) als auch auf `a-yeq7el` (`Mittwald Node.js App`) vollautomatisch aus.
+    WebApp -->|"Unbekannt / Nicht auf Whitelist"| Reject["TwiML Reject reason=busy (0,00 EUR / 0 Tokens)"]
+    WebApp -->|"Whitelist-Kontakt (ab Sekunde 0.0 per Connect Stream + 256-Bit Nonce)"| WsProxy["Apache .htaccess Proxy (ws.mein-seelenfunke.de)"]
 
-1. **App-Konfiguration (`seelenfunke-nodejs`, Shortcode `a-yeq7el`):** Installationsverzeichnis `/html/twilio-bridge`, Domain `api-live-bridge.mein-seelenfunke.de`, Startbefehl `node server-twilio.js`.
-2. **Manuelle Erstbefüllung (nur bei neu angelegtem Ordner nötig):**
-   ```bash
-   cd /home/p-g27wim/html/twilio-bridge
-   cp ../seelenfunke-stage/server-twilio.js .
-   cp ../seelenfunke-stage/.env .
-   cp ../seelenfunke-stage/package.json .
-   cp -r ../seelenfunke-stage/node_modules .
-   ```
-3. **Neustart im Node.js-Container (`a-yeq7el`):** `mittnitectl job restart` (automatisiert in `./funki stage-deploy`).
+    WsProxy -->|"ws://a-iurgq8:6001/twilio-stream"| ReverbWorker["Mittwald PHP-Worker a-iurgq8 (worker-stage-3: Reverb + PHP-Twilio-Bridge v2.0)"]
 
-## 4. Fazit Architektur
-Der hartnäckige `503 Service Unavailable` Fehler war kein Netzwerkfehler, sondern ein `MODULE_NOT_FOUND` Crash beim Booten, verursacht durch tote Symlinks innerhalb der isolierten Mittwald Container-Umgebung. Durch das harte Kopieren der Dateien (`cp` statt `ln -s`) und die strikte Trennung der Ordner ist die Infrastruktur nun hochgradig robust.
+    LiveClients["Web-Portal Live-AI Widget & Android Live-Chat"] -->|"wss://api-live-bridge.mein-seelenfunke.de/gemini-live"| NodeApp["Mittwald Node.js App a-yeq7el (twilio-bridge: server-twilio.js v1.4)"]
+    Twilio -.->|"Optionaler Node-Fallback (/twilio-stream)"| NodeApp
 
-## 5. Das Google Gemini Multimodal Live API Chaos
-Nachdem die Server- und Netzwerkarchitektur stand, stießen wir auf massive, undokumentierte Änderungen seitens Google bezüglich der Gemini Live API (Stand: April 2026).
+    ReverbWorker <-->|"WSS v1alpha (16/24 kHz PCM <-> 8 kHz mu-Law)"| GeminiLive["Google Gemini Live API (models/gemini-3.1-flash-live-preview, Stimme Aoede)"]
+    NodeApp <-->|"WSS v1alpha (Bidi-Audio & Tool-Calls)"| GeminiLive
 
-### A. Veraltete Modelle & Endpunkte (Fehler 1008)
-Twilio verband sich erfolgreich mit unserem Node-Server, doch die WebSocket-Verbindung zu Google brach sofort mit dem Fehler **"Code 1008: is not supported for bidiGenerateContent"** ab.
-**Erkenntnis:** Das anfänglich genutzte experimentelle Modell `models/gemini-2.0-flash-exp` wurde von Google komplett aus der Live API entfernt. Auch das Standardmodell `models/gemini-2.0-flash` auf dem `v1beta`-Endpunkt unterstützt kein bidirektionales Audio-Streaming (BidiGenerateContent). 
-**Die Lösung:** Google hat die Audio-API stillschweigend auf ein neues Preview-Modell verlagert. Die korrekte Kombination für das Live-Streaming lautet nun zwingend:
-- **Endpunkt:** `v1alpha`
-- **Modell:** `models/gemini-3.1-flash-live-preview`
+    ReverbWorker -->|"POST /api/twilio/call-log (nach Twilio mark: end_of_call)"| CallLog["TwilioCallController::callLog (IPv4 gemini-2.5-flash Auswertung)"]
+    NodeApp -->|"POST /api/twilio/call-log / verify-token / websocket-log"| WebApp
 
-### B. Veraltete Audio-Payload Syntax (Fehler 1007)
-Nachdem das richtige Modell gefunden war, gab Google den Fehler **"Code 1007: realtime_input.media_chunks is deprecated. Use audio, video, or text instead."** aus.
-**Erkenntnis:** Google hat die Syntax für die Übermittlung von Echtzeit-Audio geändert. Das Konstrukt mit einem Array (`mediaChunks: [{ mimeType: ..., data: ... }]`) wird vom 3.1-Modell strikt abgelehnt.
-**Die Lösung:** Das Audio-Paket muss direkt als Objekt übergeben werden:
+    CallLog -->|"Speichert & benachrichtigt"| Outputs["DB support_telephony_calls + /admin/dashboard Aufgabe + FCM Push & Android-Karten"]
+```
+
+---
+
+### 1.2 Vollständige Mittwald mStudio Container-, Domain- & SSH-Matrix (`Projekt p-g27wim`)
+
+Auf Mittwald mStudio läuft **jede App und jeder Worker in einem eigenen, strikt isolierten Container** mit eigenem Dateisystem-Käfig (`Chroot`). Alle SSH-/SFTP-Verbindungen laufen über den Host **`ssh.altgemeinde.project.host`** (Port `22`, ausschließlich per `Ed25519`-Key `~/.ssh/id_ed25519` + SHA-256 Host-Key-Pinning), landen aber **je nach Benutzername in einem anderen Container**:
+
+| mStudio App / Bereich | Shortcode | Exakter SSH-Benutzername | Funkenwerk-Profil (`SSH` / `FTP` / `MCP`) | Server-Pfad (`Chroot`-Wurzel) | Öffentliche Domain / Internes Ziel | Laufender Prozess & Aufgabe | `/var/run/mittnite.sock` vorhanden? |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Web-App Stage** (`seelenfunke-stage`) | **`a-lc6tkm`** | `kontakt@mein-seelenfunke.de@a-lc6tkm` | `Mittwald` | `/home/p-g27wim/html/seelenfunke-stage` | `https://stage.mein-seelenfunke.de` + `.htaccess`-Proxy für `ws.mein-seelenfunke.de` | Apache + PHP-FPM + minütlicher System-Cronjob `/usr/bin/php /html/seelenfunke-stage/artisan schedule:run` (`* * * * *`) | Nein (Web-Container) |
+| **PHP-Worker Websocket** (`WORKER - Websocket Stage`) | **`a-iurgq8`** | `kontakt@mein-seelenfunke.de@a-iurgq8` | `Mittwald Websocket` | `/home/p-g27wim/html/worker-stage-3` | Intern: `http://a-iurgq8:6001` / `ws://a-iurgq8:6001`<br>Öffentlich via `.htaccess`: `wss://ws.mein-seelenfunke.de` | `mittnite` überwacht `php artisan reverb:start --host=0.0.0.0 --port=6001` (Reverb Pusher-Events **+ native Twilio-Sekretärin `v2.0`**) | **JA** (`mittnitectl job restart`) |
+| **Node.js App** (`seelenfunke-nodejs`) | **`a-yeq7el`** | `kontakt@mein-seelenfunke.de@a-yeq7el` | `Mittwald Node.js App` | `/home/p-g27wim/html/twilio-bridge` | Öffentlich direkt verknüpft:<br>`https://api-live-bridge.mein-seelenfunke.de` | `mittnite` überwacht `node server-twilio.js` (`v1.4-live-secretary` für `/gemini-live`, `/twilio-stream` & `GET /health`) | **JA** (`mittnitectl job restart`) |
+| **Allgemeiner Projekt-SSH / SFTP-Pod** | `a-bycqrf` / `sftp-nvhbhb` | `ssh-cqa7h4@a-bycqrf` | *(Wird in Funkenwerk automatisch auf `a-yeq7el` umgeleitet, sobald `Node.js` / `twilio-bridge` gewählt wird)* | `/home/p-g27wim` | Keine Web-/Worker-Prozesssteuerung | Nur allgemeiner Dateizugriff; besitzt **keinen** Zugriff auf den `mittnite`-Prozess von `a-iurgq8` oder `a-yeq7el` | Nein |
+| **Live-Produktivsystem** (Air-Gapped) | Separater `production`-Branch | Technisch gesperrt für Stage-Tools | In `McpSecurityGuard.cs` & `./funki` gesperrt | `/home/p-g27wim/html/seelenfunke-live` | `https://mein-seelenfunke.de` | Vierfache Air-Gap-Sperre schützt Live vor jedem Stage-Autopilot-Zugriff | Gesperrt |
+
+---
+
+### 1.3 Die 3 goldenen Infrastruktur-Gesetze auf Mittwald mStudio
+
+1. **Gesetz 1: Chroot-Käfig verbietet Symlinks nach außen (`cp` / `rsync` statt `ln -s`)**
+   * Innerhalb des Containers `a-iurgq8` beginnt die Welt bei `/html/worker-stage-3`; innerhalb von `a-yeq7el` beginnt sie bei `/html/twilio-bridge`.
+   * Ein Symlink wie `ln -s ../seelenfunke-stage/server-twilio.js` zeigt aus dem Container-Käfig heraus, ist zur Laufzeit tot (`Broken Link`) und führt sofort zu `MODULE_NOT_FOUND` bzw. `503 Service Unavailable`.
+   * **Regel:** Alle benötigten Dateien werden durch `./funki sync-worker` physisch in die Zielordner `/home/p-g27wim/html/worker-stage-3` und `/home/p-g27wim/html/twilio-bridge` kopiert.
+2. **Gesetz 2: Prozess-Neustart (`mittnitectl`) funktioniert nur im jeweiligen Ziel-Container**
+   * Mittwalds Prozess-Supervisor heißt `mittnite` und lauscht auf dem lokalen Unix-Socket `/var/run/mittnite.sock` **innerhalb** des jeweiligen App-/Worker-Containers (`a-iurgq8` bzw. `a-yeq7el`).
+   * Führt man `mittnitectl job restart` oder `killall node` im Web-Container (`a-lc6tkm`) oder im allgemeinen SSH-Pod (`a-bycqrf`) aus, schlägt dies fehl (`dial unix /var/run/mittnite.sock: no such file or directory`), und im RAM des App-Containers läuft alter Code weiter.
+   * **Regel:** Für den Reverb-Worker immer als `kontakt@mein-seelenfunke.de@a-iurgq8` einloggen, für die Node.js-Bridge immer als `kontakt@mein-seelenfunke.de@a-yeq7el` einloggen und dort `mittnitectl job restart` ausführen (ein Löschen und Neuanlegen der App im mStudio ist **nicht** mehr nötig!).
+3. **Gesetz 3: Unterschiedliches Domain-Routing für PHP-Worker vs. Node.js-App**
+   * **PHP-Worker (`a-iurgq8`):** Nimmt auf Mittwald keinen direkten öffentlichen Domain-Traffic an (`503` bei Direktzuweisung im Panel), ist aber container-intern über seinen Shortcode `a-iurgq8:6001` erreichbar. Deshalb zeigt `ws.mein-seelenfunke.de` auf die Web-App `seelenfunke-stage` (`a-lc6tkm`), deren [`public/.htaccess`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/public/.htaccess) WebSocket- und HTTP-Anfragen transparent an `ws://a-iurgq8:6001/$1` bzw. `http://a-iurgq8:6001/$1` weiterleitet.
+   * **Node.js-App (`a-yeq7el`):** Ist ein vollwertiger Web-App-Typ in mStudio. Die Subdomain `api-live-bridge.mein-seelenfunke.de` ist direkt mit `seelenfunke-nodejs` verknüpft; `server-twilio.js` lauscht zwingend auf `0.0.0.0` (IPv4) und dem von Mittwald gesetzten `process.env.PORT`.
+
+---
+
+### 1.4 Aufgabenteilung der beiden WebSocket-Bridges & Health-Checks
+
+| Merkmal | 1. Native Reverb- & Telefonie-Bridge (`a-iurgq8`) | 2. Dedizierte Node.js Live-AI-Bridge (`a-yeq7el`) |
+| :--- | :--- | :--- |
+| **Aktive Version** | `v2.0-reverb-live-secretary` | `v1.4-live-secretary` |
+| **Quellcode im Repo** | [`ReverbWithTwilioServerCommand.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Console/Commands/ReverbWithTwilioServerCommand.php), [`TwilioGeminiLiveBridgeService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/System/TwilioGeminiLiveBridgeService.php), [`AudioMulawCodec.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/System/AudioMulawCodec.php) | [`server-twilio.js`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/server-twilio.js) |
+| **Primäre Aufgabe** | Pusher/Echo Echtzeit-Events (`/app/*`) **+ primärer Twilio-Telefonie-Stream (`/twilio-stream`)** | Bidirektionaler Audio-/Tool-Proxy für das Web-Widget „Live-AI“ & die Funkenwerk Android App (`/gemini-live`) + sekundärer `/twilio-stream`-Endpunkt |
+| **Öffentliche WSS-URL** | `wss://ws.mein-seelenfunke.de/twilio-stream` | `wss://api-live-bridge.mein-seelenfunke.de/gemini-live` (bzw. `/twilio-stream`) |
+| **Öffentlicher Health-Check** | `https://ws.mein-seelenfunke.de/twilio-health` | `https://api-live-bridge.mein-seelenfunke.de/health` |
+| **Gemini API-Key Reload** | Live zur Laufzeit über `filemtime('.env')` ohne Prozess-Downtime | Automatisch beim `mittnitectl job restart` aus `/html/twilio-bridge/.env` |
+
+---
+
+### 1.5 Sicherheits-, Whitelist- & Authentifizierungs-Kette
+
+1. **Twilio Webhook-Signatur & `0,00 EUR` Whitelist-Türsteher:**
+   * Eingehende Anrufe auf **`+49 5371 7269023`** treffen auf `POST https://stage.mein-seelenfunke.de/api/twilio/inbound` ([`TwilioCallController::inbound`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Http/Controllers/Api/TwilioCallController.php)).
+   * Nach Prüfung von `X-Twilio-Signature` (`TWILIO_AUTH_TOKEN`) gleicht [`FunkiraPhoneConciergeService`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/System/FunkiraPhoneConciergeService.php) die Rufnummer (inkl. `ForwardedFrom` und 55-Sekunden-Weiterleitungs-Signal von Alinas Pixel) gegen `management_contacts` (`funkira_call_whitelist = true`) ab.
+   * **Nicht freigegeben:** Sofort `<Reject reason="busy"/>` vor Gesprächsannahme (`0,00 EUR` Twilio-Kosten, `0` Gemini-Tokens).
+   * **Freigegeben:** Sofort `<Connect><Stream url="wss://ws.mein-seelenfunke.de/twilio-stream">` ab Sekunde `0.0` (ohne vorgeschaltetes `<Say>`/`<Play>`), gesichert durch ein einmaliges 256-Bit-Call-Nonce-Token im Cache (`ttl: 2h`).
+2. **Container-übergreifende Authentifizierung (`GEMINI_BRIDGE_SECRET` + `HMAC-SHA256`):**
+   * Damit `worker-stage-3` (`a-iurgq8`) und `twilio-bridge` (`a-yeq7el`) niemals mit `403`/`4003` an internen Endpunkten (`/api/ai/verify-token`, `/api/log/websocket`, `/api/twilio/call-log`) scheitern, synchronisiert `./funki sync-worker` automatisch `GEMINI_BRIDGE_SECRET` in alle drei `.env`-Dateien (`seelenfunke-stage`, `worker-stage-3`, `twilio-bridge`).
+   * Zusätzlich besitzen [`SystemSecurityService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/System/SystemSecurityService.php) und [`server-twilio.js`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/server-twilio.js) einen kryptografischen Fallback via `HMAC-SHA256(APP_KEY, 'seelenfunke-internal-bridge-v1')`.
+3. **Post-Call-Auswertung, Dashboard-Aufgabe & Android-Push:**
+   * Nach sauberem Gesprächsende (`end_call` -> Gemini `turnComplete` -> Twilio `mark: end_of_call`) sendet die Bridge das Transkript an `POST /api/twilio/call-log`.
+   * [`TwilioCallController::callLog`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Http/Controllers/Api/TwilioCallController.php) ruft mit IPv4-Zwang (`force_ip_resolve => 'v4'`, `connect_timeout => 5`, `timeout(15)`) und Einzel-`try/catch`-Kaskade (`gemini-2.5-flash` -> `gemini-flash-latest` -> deterministischer Transkript-Fallback) die strukturierte Zusammenfassung ab (`summary` / *Besprochen*, `rahmenbedingungen` / *Eckdaten*, `action_required` / *Für dich zu tun*).
+   * Das Ergebnis landet in `support_telephony_calls`, erzeugt auf `/admin/dashboard` eine Hauptaufgabe samt abhakbarer Unteraufgabe, sendet eine FCM-Push-Nachricht (inkl. automatischer Bereinigung abgemeldeter `UNREGISTERED`-Gerätetoken) und erscheint sofort in der Funkenwerk Android App.
+
+---
+
+### 1.6 Vollautomatischer Deployment- & Wartungs-Workflow (`./funki stage-deploy`)
+
+Ein einziger Aufruf von `./funki stage-deploy` (bzw. MCP-Tool `stage_deploy`) erledigt alle vier Container-Schritte vollautomatisch:
+
+1. **`[1/4]` Shop-Asset-Delta-Sync:** Überträgt ausschließlich geänderte öffentliche Shop-/3D-Medien per SFTP-SHA-256-Delta (`82,45 MB` Positivliste; Musik, Buchhaltung und Privatdaten bleiben zu 100 % lokal).
+2. **`[2/4]` Stage-Web-App & Datei-Sync (`a-lc6tkm`):** Führt `git pull --ff-only origin main`, `php artisan migrate --force`, Cache-Warmup, `system:brain:generate`, **`./funki sync-worker`** (kopiert PHP-Code nach `worker-stage-3`, `server-twilio.js` nach `twilio-bridge` und gleicht `GEMINI_BRIDGE_SECRET` ab), `system:logs-cleanup --audit --prune` sowie den 6-Säulen-Systemcheck (`./funki check` über alle 93 Routen) aus.
+3. **`[3/4]` WebSocket-Worker Neustart (`a-iurgq8`):** Verbindet sich per Ed25519-Key direkt mit `kontakt@mein-seelenfunke.de@a-iurgq8` und führt `mittnitectl job restart && mittnitectl job status` aus.
+4. **`[4/4]` Node.js-Bridge Neustart (`a-yeq7el`):** Verbindet sich per Ed25519-Key direkt mit `kontakt@mein-seelenfunke.de@a-yeq7el` und führt `mittnitectl job restart && mittnitectl job status` aus.
+
+**Schnellbefehle für den Alltag:**
+* **Beide Hintergrund-Container (`a-iurgq8` + `a-yeq7el`) ohne komplettes Deploy sofort neu starten:**
+  ```powershell
+  "C:\Users\konta\Desktop\Funkenwerk Collection\Funkenwerk MCP\FunkenwerkMcp.exe" --stage-restart-workers
+  ```
+* **Manuelle Konsole öffnen:** In **Funkenwerk SSH** (oder über den `SSH`-Button in **Funkenwerk FTP**) das Profil **`Mittwald Websocket`** (`a-iurgq8`) oder **`Mittwald Node.js App`** (`a-yeq7el`) auswählen und `mittnitectl job restart` bzw. `mittnitectl job status` eingeben.
+
+---
+
+## 2. Chronologie der technischen Erkenntnisse & behobenen Fallstricke
+
+Die folgenden Abschnitte dokumentieren die historischen Fehlerursachen aus dem Aufbau der Infrastruktur, damit diese Fallstricke bei künftigen Erweiterungen nie wieder auftreten.
+
+### A. Das IPv6 / Port-Binding Problem (`0.0.0.0`)
+Ursprünglich versuchte `server-twilio.js`, ohne explizite IP-Angabe zu lauschen. Node.js wählt dabei standardmäßig IPv6 (`::`). Der Mittwald Ingress-Loadbalancer spricht intern IPv4 und lieferte dadurch `503 Service Unavailable`.  
+**Lösung:** `server-twilio.js` lauscht zwingend auf `0.0.0.0`.
+
+### B. SSH-Container vs. App-Container Isolation (`mittnite`)
+Bei früheren Tests im allgemeinen Projekt-SSH-Pod (`a-bycqrf`) oder im Web-Container (`a-lc6tkm`) liefen Befehle wie `killall node` ins Leere, weil Mittwald jede App in einem eigenen Pod kapselt.  
+**Dauerhafte Lösung (seit Hinterlegung von `a-yeq7el`):** Direkter SSH-Login in den jeweiligen App-Container (`kontakt@mein-seelenfunke.de@a-yeq7el` für Node.js bzw. `kontakt@mein-seelenfunke.de@a-iurgq8` für Reverb) und sauberer Neustart über `mittnitectl job restart`.
+
+### C. Das Symlink-Jail (Ursache früherer `503` / `MODULE_NOT_FOUND` Crashes)
+Frühere Symlinks aus `/html/twilio-bridge` auf `../seelenfunke-stage` zeigten aus dem Chroot-Käfig der Node-App heraus und waren innerhalb des Containers tot, sodass Node beim Booten unsichtbar mit `MODULE_NOT_FOUND` abstürzte.  
+**Dauerhafte Lösung:** Physisches Kopieren (`cp` in `./funki sync-worker`) in ein eigenständiges Verzeichnis `/home/p-g27wim/html/twilio-bridge` (Erstbefüllung inkl. `package.json`, `node_modules` und `.env`; laufende Updates über `./funki stage-deploy`).
+
+---
+
+## 3. Google Gemini Multimodal Live API Spezifika (`v1alpha`)
+
+### A. Veraltete Modelle & Endpunkte (`Code 1008`)
+`models/gemini-2.0-flash-exp` sowie `models/gemini-2.0-flash` auf `v1beta` unterstützen kein `BidiGenerateContent` mehr (`Code 1008: is not supported for bidiGenerateContent`).  
+**Verbindliche Kombination:**
+* **Endpunkt:** `v1alpha`
+* **Modell:** `models/gemini-3.1-flash-live-preview` (Stimme `Aoede`)
+* `server-twilio.js` schreibt ältere Client-Modellnamen automatisch auf `models/gemini-3.1-flash-live-preview` um.
+
+### B. Aktuelle Audio-Payload-Syntax (`Code 1007`)
+Das frühere Array `realtimeInput.mediaChunks` ist abgekündigt (`Code 1007: realtime_input.media_chunks is deprecated`). Audio wird direkt als `audio`-Objekt übergeben:
 ```json
-realtimeInput: {
-    audio: {
-        mimeType: "audio/pcm;rate=8000",
-        data: pcmBase64
+{
+    "realtimeInput": {
+        "audio": {
+            "mimeType": "audio/pcm;rate=16000",
+            "data": "<base64>"
+        }
     }
 }
 ```
 
-## 6. Das Phantom-Caching (Warum Updates scheiterten)
-Ein massives Hindernis bei der Fehlersuche war, dass Änderungen am Code (z.B. der Wechsel von `mediaChunks` zu `audio`) über Tage hinweg scheinbar vom Server ignoriert wurden. Die API warf weiterhin den "deprecated" Fehler.
-
-**Die Ursache:**
-Der Versuch, den Node-Prozess über die SSH-Konsole mittels `kill -9` neu zu starten, schlug stillschweigend fehl. Die SSH-Umgebung hat keinen Zugriff auf den Container der Node-App. Das bedeutet: Obwohl Dateien per `git pull` oder `cp` auf der Festplatte aktualisiert wurden, lief der alte Node.js-Prozess ununterbrochen im Arbeitsspeicher weiter.
-
-**Die finale Lösung:**
-Siehe Workflow in **Punkt 3**. Ein normaler Neustart oder SSH-Befehl reicht nicht aus. Die App **MUSS im Mittwald-Dashboard komplett gelöscht und neu angelegt werden**, um einen sauberen Container-Boot mit den neuen Dateien (`cp`) zu erzwingen.
-
-## 7. Der Audio-Codec Bug (Rauschen statt Stimme)
-Nachdem die Verbindung zu Gemini endlich stand, antwortete die KI zwar korrekt auf Sprach-Prompts, am Telefon (Twilio) kam jedoch nur ein extrem lautes Kratzen/Rauschen an.
-
-**Die Ursache:**
-Google sendet die Audio-Antwort als rohe Bytes (16-bit PCM mit 24kHz). Unsere Konvertierungs-Bibliothek (`wavefile`) benötigt für 16-bit PCM zwingend ein `Int16Array`. Wir haben stattdessen direkt den Node.js `Buffer` (welcher ein Array aus 8-bit Bytes ist) an die `fromScratch()` Methode übergeben. Dadurch hat die Bibliothek **jedes einzelne Byte** fälschlicherweise als eigenes 16-bit Sample interpretiert (und mit Nullen aufgefüllt). Das Audio wurde dadurch künstlich auf die doppelte Länge gestreckt und die Kurve zerrissen (Quantisierungsrauschen).
-
-**Die finale Lösung:**
-Der Node.js Buffer muss vor der Übergabe explizit in ein `Int16Array` gegossen werden:
+### C. Sauberes 16-Bit PCM Buffer-Casting (Vermeidung von Rauschen)
+Gemini liefert `24 kHz` 16-Bit Little-Endian PCM. In Node.js muss ein `Buffer` vor der Übergabe an `WaveFile.fromScratch()` zwingend als `Int16Array` interpretiert werden (und in PHP übernimmt [`AudioMulawCodec.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/System/AudioMulawCodec.php) die verlustarme Konvertierung inklusive `3-Tap`-Tiefpassfilter auf `8 kHz G.711 mu-Law`):
 ```javascript
 const pcmBuffer = Buffer.from(part.inlineData.data, 'base64');
 const int16Data = new Int16Array(pcmBuffer.buffer, pcmBuffer.byteOffset, pcmBuffer.length / 2);
-let wav = new WaveFile();
+const wav = new WaveFile();
 wav.fromScratch(1, 24000, '16', int16Data);
 ```
 
-## 8. Das Problem der "Stille" (API-Tücken und Initialer Prompt)
+### D. Natürlicher Gesprächsfluss & Unterbrechungsschutz
+* **Outbound-Anrufe (KI ruft extern an):** Der System-Prompt weist die KI an, still abzuwarten, bis der Angerufene sich meldet (z. B. „Schmidt?“), damit es keine Übersprech-Kollision beim Abheben gibt.
+* **Inbound-Sekretärin (Whitelist-Kontakt ruft Alina an):** Unmittelbar nach `setupComplete` begrüßt Funkira den bekannten Anrufer herzlich beim Vornamen, hört aktiv zu, klärt **Anliegen**, **Rahmenbedingungen** (inklusive anonymisierter frei/belegt-Orientierung aus Alinas Kalender ohne Preisgabe privater Termintitel) sowie **konkrete To-Dos für Alina**.
 
-Nach der Behebung des statischen Rauschens waren beide Seiten der Leitung komplett stumm. Gemini antwortete nicht und schien den Anrufer nicht zu hören.
-
-### A. 8kHz Audio & Resampling
-Zunächst wurde vermutet, dass die Stille daran lag, dass Gemini 3.1 Flash Live nativ 16kHz erwartet und das 8kHz Audio von Twilio ablehnt. Ein Blick in die offizielle Dokumentation zeigt jedoch: *"Die Live API führt bei Bedarf jedoch eine Resampling durch, sodass jede Abtastrate gesendet werden kann."*
-**Erkenntnis:** Ein teures manuelles Upsampling auf 16kHz im Node.js Server ist unnötig! Es reicht völlig aus, das 8kHz PCM Audio zu senden und den `mimeType` korrekt auf `"audio/pcm;rate=8000"` zu deklarieren. Gemini übernimmt das Resampling intern.
-
-### B. Natürlicher Gesprächsfluss (Warten auf das erste "Hallo")
-Zunächst wurde versucht, die KI zu zwingen, sofort beim Verbindungsaufbau loszusprechen (via `clientContent` oder `realtimeInput`). Dies führte jedoch zu Kollisionen: Wenn der Angerufene "Hallo" sagte, während die KI gerade ihren erzwungenen ersten Satz begann, interpretierte die KI dies als Unterbrechung (`interrupted: true`) und stoppte abrupt.
-
-**Die Lösung (Flüssige, menschliche Dynamik):**
-Wir verzichten komplett auf erzwungene Start-Prompts! Das Gemini-Modell arbeitet ohnehin bidirektional. 
-1. Der `systemPrompt` instruiert die KI nun: *"Warte absolut still ab, bis der Angerufene sich meldet."*
-2. Sobald der Angerufene abhebt und sich meldet (z.B. "Schmidt?"), greift Geminis Voice Activity Detection (VAD).
-3. Die KI reagiert nativ auf diese Begrüßung und stellt sich vor: *"Hallo, hier spricht der KI-Agent von..."*.
-
-Dieses "Warten auf den Angerufenen" entspricht der exakten Dynamik eines echten Telefonats und eliminiert jegliches Verschlucken oder fehlerhafte Unterbrechungen beim Gesprächsstart. Gleichzeitig wurde die KI angewiesen, bei echten Unterbrechungen kurz innezuhalten, aber danach konsequent zum ursprünglichen Ziel/Plan zurückzukehren.
-
-## 9. Fazit & Aktueller Status
-Der hartnäckige `503 Service Unavailable` Fehler war ein Infrastruktur-Problem (Symlinks & Container-Isolation auf Mittwald), welches durch den strikten "Löschen & Kopieren" Workflow gelöst wurde. Die Verbindungsabbrüche (Code 1008 & 1007) wurden durch radikale API-Änderungen seitens Google verursacht. Das letzte Hindernis – das statische Rauschen – war ein Type-Casting Fehler im Audio-Buffer.
-
-Durch die exakte Konfiguration (`v1alpha` + `gemini-3.1-flash-live-preview`), das korrekte Casting des Audio-Buffers in ein `Int16Array`, die Nutzung von `realtimeInput` für den initiierenden Text-Prompt und die konsequente Container-Neuerstellung bei Code-Updates ist die Node.js Bridge nun zu 100% stabil. Sie nimmt Audio-Chunks von Twilio entgegen, kommuniziert fehlerfrei mit Gemini Live und überträgt glasklare Antworten nahtlos an den Anrufer. Mission erfüllt!
-
-## 10. Das Problem des abgeschnittenen Call-Endes (toolCall "end_call")
-Als die KI in der Lage war, Anrufe proaktiv zu beenden (durch Nutzung des `end_call` Tools), trat ein neues Problem auf: Die KI verabschiedete sich (z.B. "Das klingt ja wunderbar..."), aber der Anruf wurde **mitten im Satz abgebrochen**.
-
-**Die Ursache:**
-Die Gemini Live API arbeitet asynchron und streamt Audio-Chunks (Base64) an unseren Server, während sie gleichzeitig Metadaten wie `toolCall` sendet. Sobald die KI beschließt aufzulegen, wird der `toolCall` oft **gesendet, bevor die letzten Audio-Chunks vollständig übermittelt wurden**. Wenn wir den Twilio-WebSocket sofort beim Eintreffen des `toolCall` schließen, verwirft Twilio den gesamten Audio-Puffer und der Anrufer hört das Ende des Satzes nicht mehr.
-
-**Die finale Lösung (Graceful Hangup mit Twilio Mark-Event):**
-1. Wenn der `toolCall` `end_call` eintrifft, merken wir uns lediglich die Absicht (`shouldEndCall = true;`), schließen die Verbindung aber **nicht** sofort. Zudem bestätigen wir Gemini den Tool-Aufruf, damit die API nicht blockiert.
-2. Wir warten, bis Gemini das Flag `{"serverContent":{"turnComplete":true}}` sendet. Das signalisiert, dass Gemini alle Audio-Chunks für diesen Satz an uns übergeben hat.
-3. Sobald wir `turnComplete` erhalten und `shouldEndCall` aktiv ist, senden wir ein spezielles **Mark-Event** an Twilio (`{"event": "mark", "mark": {"name": "end_of_call"}}`).
-4. Twilio reiht dieses Mark-Event hinter den bereits empfangenen Audio-Puffer ein. Erst wenn Twilio die Audio-Wiedergabe bis genau zu diesem Punkt **abgeschlossen** hat, sendet Twilio uns das Mark-Event zurück.
-5. Wenn wir von Twilio das Event `msg.event === 'mark'` erhalten, wissen wir absolut sicher, dass der Anrufer den letzten Ton gehört hat, und rufen `ws.close()` auf. Das Gespräch wird sauber und ohne Abschneiden beendet.
-
-## 11. Enterprise UI & Datenintegrität (Anruf-Historie)
-Nachdem die technische Stabilität der Telefongespräche erreicht war, lag der Fokus auf der Optimierung der Datenbank-Logik und der Darstellung im Dashboard (Livewire UI).
-
-### A. Vermeidung doppelter Datenbankeinträge
-Zuvor wurde bei der Erstellung des *Anruf-Plans* (durch die AI) ein Datenbankeintrag im Status `planned` angelegt. Wenn der Anruf dann durch Twilio beendet und das Protokoll an das Backend gesendet wurde, konnte das Backend diesen Plan nicht zuordnen und erstellte einen **neuen Datensatz** für das Ergebnis.
-**Lösung:**
-1. Die `planned_call_id` wird nun von der Laravel-Planungslogik über den Twilio-Stream (als `<Parameter>`) direkt in die Node.js-Bridge eingespeist.
-2. Der Node.js-Server sendet diese `planned_call_id` am Ende des Anrufs im Payload an den `/api/twilio/call-log` Endpunkt zurück.
-3. Der `TwilioCallController` sucht anhand dieser ID den bestehenden `planned` Datensatz und aktualisiert diesen, statt einen neuen anzulegen.
-
-### B. Strukturierte Auswertung & Enterprise UI
-Statt eines einfachen Text-Fazits wird die Auswertungs-KI nun per Prompt gezwungen, das ursprüngliche Ziel (Objective) in eine strukturiertes Checklisten-Array (JSON) herunterzubrechen:
-`{"summary": "...", "next_steps": ["..."], "goals": [{"task": "Alter abfragen", "achieved": true}]}`
-Um aufwändige und riskante Datenbank-Migrationen auf dem Live-System zu vermeiden, werden diese `goals` und die `next_steps` elegant zusammen im bereits vorhandenen JSON-Feld `next_steps` gespeichert.
-
-**Dashboard UI Updates:**
-- **Gesprächsprotokoll:** Das Transkript wird nicht mehr als einfache Liste gerendert, sondern als modernes **Chat-Bubble-Interface** (ähnlich iMessage/WhatsApp), bei dem die KI und der Anrufer farblich und räumlich (links/rechts) getrennt sind.
-- **Zielerreichung (Checkliste):** Die strukturierten Ziele werden mit visuellen Badges dargestellt (grünes Tailwind-Checkmark für erreichte Ziele, rotes Kreuz für verfehlte Ziele).
-- Dadurch wirkt die Auswertung deutlich professioneller ("Enterprise Niveau") und erlaubt eine sofortige visuelle Erfassung der Call-Ergebnisse.
+### E. Abbruchfreies Gesprächsende (`end_call` + Twilio `mark: end_of_call`)
+Da Gemini den `toolCall` `end_call` asynchron sendet, noch während die letzten Audio-Pakete des Abschiedssatzes gestreamt werden, darf der WebSocket **niemals** sofort bei `end_call` geschlossen werden:
+1. Bei `end_call` setzt die Bridge `shouldEndCall = true` und bestätigt Gemini die Tool-Antwort.
+2. Erst wenn Gemini `{"serverContent":{"turnComplete":true}}` sendet, schickt die Bridge ein Mark-Event `{"event":"mark","mark":{"name":"end_of_call"}}` an Twilio.
+3. Twilio spielt den gesamten gepufferten Abschiedssatz vollständig ab und sendet erst danach das `mark`-Event `end_of_call` zurück.
+4. Genau bei diesem Rück-Event schließt die Bridge den Stream sauber (`ws.close()`) und übermittelt das vollständige Protokoll an `POST /api/twilio/call-log`.
 
 ---
 
-## 12. Native Laravel-Reverb Live-Sekretärinnen-Bridge (`v2.0-reverb-live-secretary`) & 0,0s Echtzeit-Dialog
+## 4. Datenintegrität & Enterprise-UI im Backend (`/admin/support-telephony` & `/admin/dashboard`)
 
-### A. Ursache der beiden Praxis-Probleme im Live-Test (`15.11.2026`)
-1. **Isolierter Node-Pod & erschöpfter Alt-Key:** Der alte Node.js-Container (`/html/twilio-bridge` unter `api-live-bridge.mein-seelenfunke.de`) konnte auf Mittwald mStudio nicht per SSH neu gestartet werden und las weiterhin einen veralteten `GEMINI_API_KEY` mit leerem Prepayment-Guthaben (`Code 1011: Your prepayment credits are depleted`).
-2. **Kein Vorab-Standardtext vor dem Live-Stream:** Ein vorgeschaltetes `<Play>` oder `<Say>` vor `<Connect><Stream>` spielte zunächst einen einseitigen Standardtext ab, während der Anrufer noch nicht interaktiv unterbrechen oder sofort antworten konnte.
-
-### B. Dauerhafte Architektur-Lösung auf `wss://ws.mein-seelenfunke.de/twilio-stream`
-* **100 % integrierter ReactPHP-Stream im Reverb-Worker ([`TwilioGeminiLiveBridgeService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/System/TwilioGeminiLiveBridgeService.php), [`AudioMulawCodec.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/System/AudioMulawCodec.php), [`TwilioReverbServerFactory.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/System/TwilioReverbServerFactory.php), [`ReverbWithTwilioServerCommand.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Console/Commands/ReverbWithTwilioServerCommand.php)):**
-  * Die bidirektionale Twilio-zu-Gemini-Audio-Bridge läuft nativ im offiziellen WebSocket-Worker (`php artisan reverb:start` unter `wss://ws.mein-seelenfunke.de/twilio-stream` plus `GET https://ws.mein-seelenfunke.de/twilio-health`) und wird bei jedem Stage-Deploy automatisch aktualisiert und per `mittnitectl job restart` ohne manuelles Löschen/Neuanlegen von Mittwald-Apps neu gestartet.
-  * `resolveLiveGeminiApiKey()` prüft `filemtime(base_path('.env'))` im laufenden Betrieb, sodass Schlüssel-Updates sofort ohne Downtime aktiv werden.
-  * [`AudioMulawCodec.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/System/AudioMulawCodec.php) konvertiert eingehendes `8 kHz G.711 mu-Law` per linearer Paketgrenzen-Interpolation knackfrei auf `16 kHz PCM` und ausgehendes `24 kHz Aoede-PCM` per `3-Tap`-Tiefpassfilter (`[0.25, 0.5, 0.25]`) auf `8 kHz G.711 mu-Law`.
-* **Echtes Live-Sekretärinnen-Gespräch ab Sekunde `0.0` ([`TwilioCallController.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Http/Controllers/Api/TwilioCallController.php), [`FunkiraPhoneConciergeService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/System/FunkiraPhoneConciergeService.php)):**
-  * `inbound()` verzichtet komplett auf `<Play>` und `<Say>` und verbindet freigegebene Whitelist-Kontakte sofort live mit `models/gemini-3.1-flash-live-preview` (Stimme `Aoede`).
-  * Unmittelbar nach `setupComplete` begrüßt Funkira den Anrufer live beim Rufnamen, hört aktiv zu, klärt im natürlichen Dialog **worum es geht**, **alle Rahmenbedingungen** (Datum, Uhrzeit, Zeitraum, Ort, Fristen, Details; inklusive anonymisierter frei/belegt-Orientierung aus Alinas Kalender ohne Preisgabe privater Termintitel) sowie **was Alina konkret tun soll**, bestätigt alles herzlich und beendet das Telefonat sauber über `end_call` + Twilio `mark` (`end_of_call`).
-* **Strukturierte Sekretärinnen-Zusammenfassung in App & Dashboard:**
-  * `callLog()` extrahiert per `gemini-3.8-flash` strukturiert `summary` (*Besprochen*), `rahmenbedingungen` (*geklärte Eckdaten*) und `action_required` (*Für dich zu tun*), erzeugt auf `/admin/dashboard` eine strukturierte Hauptaufgabe inklusive direkt abhakbarer Unteraufgabe (`parent_id`) und liefert die letzten Gespräche über `recent_calls` direkt in die Funkenwerk Android App (`ZentrumScreen` & `SettingsScreen`).
+* **Keine doppelten Datensätze bei geplanten Outbound-Calls:** Die `planned_call_id` wird als TwiML-`<Parameter>` an die Bridge übergeben und beim Abschluss an `/api/twilio/call-log` zurückgemeldet, sodass der bestehende `planned`-Eintrag in `support_telephony_calls` präzise aktualisiert wird.
+* **Chat-Bubble-Transkript & Ziel-Checkliste:** Im Backend wird das Gesprächsprotokoll als übersichtliches Chat-Interface (Anrufer vs. KI) samt visueller Zielerreichungs-Checkliste (`goals` & `next_steps`) dargestellt.
+* **Zentrale Kommandozentrale (`/admin/dashboard`) & Android-Sync:** Jeder angenommene Sekretärinnen-Anruf erscheint sofort mit strukturierten Kacheln (*Besprochen*, *Rahmenbedingungen*, *Für dich zu tun*) auf dem Dashboard sowie in der Funkenwerk Android App (`ZentrumScreen` & `SettingsScreen`).

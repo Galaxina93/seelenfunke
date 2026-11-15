@@ -150,6 +150,15 @@ case "$1" in
         # Rechte und Caches aktualisieren
         run_rights
 
+        # 24/7 Stage-Auffang-Pool beim Start nahtlos synchronisieren (nicht-blockierend)
+        MCP_WIN_EXE="/mnt/c/Users/konta/Desktop/Funkenwerk Collection/Funkenwerk MCP/FunkenwerkMcp.exe"
+        if [ -f "$MCP_WIN_EXE" ]; then
+            echo "🛡️ Synchronisiere 24/7 Funkira-Auffang-Pool von Stage..."
+            "$MCP_WIN_EXE" --sentinel-sync || true
+        elif [ -f "storage/app/private/antigravity_inbox.json" ]; then
+            $PREFIX_DEFAULT php artisan system:sentinel-inbox --import-file=storage/app/private/antigravity_inbox.json &>/dev/null || true
+        fi
+
         echo -e "\n\033[1;32m🎉 Funki ist einsatzbereit!\033[0m"
         echo -e "👉 Shop & Web:    \033[1;34mhttp://127.0.0.1/\033[0m"
         echo -e "👉 phpMyAdmin:    \033[1;34mhttp://127.0.0.1:8080/\033[0m\n"
@@ -481,6 +490,7 @@ case "$1" in
             echo "🧹 Bereinige & prüfe globales SystemLog auf Stage..."
             php artisan db:seed --class=SystemCronjobSeeder --force 2>/dev/null || true
             php artisan system:logs-cleanup --audit --prune
+            php artisan system:sentinel-triage --no-ai || true
 
             echo "✅ Prüfe Stage-Routen-Gesundheit..."
             php artisan system:check-routes --routes-only
@@ -516,6 +526,20 @@ case "$1" in
     check)
         shift
         $PREFIX_DEFAULT php artisan system:check-routes "$@"
+        exit $?
+        ;;
+    sentinel)
+        shift
+        MCP_WIN_EXE="/mnt/c/Users/konta/Desktop/Funkenwerk Collection/Funkenwerk MCP/FunkenwerkMcp.exe"
+        if [ "$1" = "sync" ] || [ -z "$1" ]; then
+            if [ -f "$MCP_WIN_EXE" ]; then
+                "$MCP_WIN_EXE" --sentinel-sync
+            fi
+            $PREFIX_DEFAULT php artisan system:sentinel-triage
+            $PREFIX_DEFAULT php artisan system:sentinel-inbox
+        else
+            $PREFIX_DEFAULT php artisan system:sentinel-triage "$@"
+        fi
         exit $?
         ;;
     test)

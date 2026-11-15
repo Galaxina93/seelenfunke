@@ -1024,6 +1024,46 @@ trait AiSystemFuncs
                     ]
                 ],
                 'callable' => [self::class, 'executeGetTaskStatus']
+            ],
+            [
+                'name' => 'system_prepare_antigravity_handoff',
+                'description' => 'Bereitet im Geheimen Fehler-Analyse-Keller ein geheimnisbereinigtes Reparatur-Dossier (antigravity_error_handoff.json) für Antigravity vor, inklusive Verursacher-Datei, Zeile, Stack-Auszug sowie allen eingehenden Aufrufern und ausgehenden Datei-Abhängigkeiten.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'item_key' => [
+                            'type' => 'string',
+                            'description' => 'Optional: Der exakte Schlüssel des Fehlers aus dem Analyse-Keller (z. B. "core:app/Services/..."). Wenn leer, wird der oberste offene Fehler übergeben.'
+                        ],
+                        'file_path' => [
+                            'type' => 'string',
+                            'description' => 'Optional: Relativer Projektpfad der betroffenen Datei (z. B. "app/Livewire/Shop/Order/OrderCheckout/OrderCheckout.php").'
+                        ],
+                        'log_id' => [
+                            'type' => 'integer',
+                            'description' => 'Optional: Konkrete SystemLog-ID des Fehlers.'
+                        ],
+                        'alina_note' => [
+                            'type' => 'string',
+                            'description' => 'Optional: Kurzer Hinweis von Alina oder Funkira für Antigravity.'
+                        ]
+                    ]
+                ],
+                'callable' => [self::class, 'executePrepareAntigravityHandoff']
+            ],
+            [
+                'name' => 'system_run_sentinel_triage',
+                'description' => 'Führt den 24/7 Funkira-Selbstheilungs-Wächter aus: heilt verifizierbare Infrastruktur-Störungen automatisch ([AUTO-GEHEILT]) und liefert alle offenen Reparatur-Dossiers aus dem Antigravity-Auffang-Pool zurück.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'probe_bridges' => [
+                            'type' => 'boolean',
+                            'description' => 'Optional: Prüft zusätzlich aktiv die Echtzeit-Brücken (ws.mein-seelenfunke.de & api-live-bridge.mein-seelenfunke.de).'
+                        ]
+                    ]
+                ],
+                'callable' => [self::class, 'executeRunSentinelTriage']
             ]
         ];
 
@@ -4554,39 +4594,111 @@ trait AiSystemFuncs
         $items = [];
         $openErrors = 0;
         $autoHealedCount = 0;
+        $queuedForAntigravityCount = 0;
 
         foreach ($rows as $row) {
             $payload = is_array($row->payload) ? $row->payload : [];
             $isAutoHealed = !empty($payload['auto_healed']);
+            $triageState = $payload['triage']['state'] ?? null;
             if ($row->status === 'error') {
                 $openErrors++;
             }
             if ($isAutoHealed) {
                 $autoHealedCount++;
             }
+            if ($triageState === 'queued_for_antigravity') {
+                $queuedForAntigravityCount++;
+            }
+
+            $dossier = is_array($payload['antigravity_dossier'] ?? null) ? $payload['antigravity_dossier'] : null;
 
             $items[] = [
                 'id' => $row->id,
                 'platform' => $row->resolvePlatformKey(),
                 'status' => $row->status,
+                'triage_state' => $triageState,
                 'auto_healed' => $isAutoHealed,
                 'auto_heal_action' => $payload['auto_heal_action'] ?? null,
                 'occurrences' => (int) ($payload['occurrences_count'] ?? 1),
                 'title' => $row->title,
                 'message' => \Illuminate\Support\Str::limit((string) $row->message, 400),
-                'probable_cause' => $payload['diagnosis']['probable_cause'] ?? null,
-                'recommended_action' => $payload['diagnosis']['recommended_action'] ?? null,
+                'culprit_file' => $dossier['culprit_file'] ?? ($payload['file'] ?? null),
+                'line' => $dossier['line'] ?? ($payload['line'] ?? null),
+                'probable_cause' => $dossier['probable_cause'] ?? ($payload['diagnosis']['probable_cause'] ?? null),
+                'recommended_action' => $dossier['recommended_action'] ?? ($payload['diagnosis']['recommended_action'] ?? null),
                 'last_seen_at' => $row->finished_at ? $row->finished_at->format('d.m.Y H:i:s') : null,
             ];
         }
+
+        $autoHealedLast7d = \App\Models\System\SystemLog::autoHealedEntries()
+            ->where('finished_at', '>=', now()->subDays(7))
+            ->count();
 
         return [
             'status' => 'success',
             'window_hours' => $hours,
             'open_errors_count' => $openErrors,
+            'queued_for_antigravity_count' => $queuedForAntigravityCount,
             'auto_healed_count' => $autoHealedCount,
+            'auto_healed_last_7d_count' => $autoHealedLast7d,
+            'inbox_path' => 'storage/app/private/antigravity_inbox.json',
             'total_entries' => count($items),
             'items' => $items,
         ];
+    }
+
+    public static function executeRunSentinelTriage(array $args)
+    {
+        if ($denied = self::assertSystemStaffAccess()) {
+            return $denied;
+        }
+
+        try {
+            $sentinel = app(\App\Services\System\SentinelTriageService::class);
+            $probe = !empty($args['probe_bridges']);
+            $stats = $sentinel->runTriageCycle(probeBridges: $probe, allowAiEnrichment: true);
+            $snapshot = $sentinel->exportInboxSnapshot(runFastTriageFirst: false);
+
+            return [
+                'status' => 'success',
+                'stats' => $stats,
+                'open_pool_count' => $snapshot['open_pool_count'] ?? 0,
+                'items' => array_slice($snapshot['items'] ?? [], 0, 15),
+            ];
+        } catch (\Throwable $e) {
+            return [
+                'status' => 'error',
+                'message' => 'Sentinel-Triage fehlgeschlagen: ' . $e->getMessage(),
+            ];
+        }
+    }
+
+    public static function executePrepareAntigravityHandoff(array $args)
+    {
+        if ($denied = self::assertSystemStaffAccess()) {
+            return $denied;
+        }
+
+        try {
+            $service = app(\App\Services\System\SystemBrainDiagnosticsService::class);
+            $result = $service->prepareAntigravityHandoff($args);
+            $dossier = $result['dossier'] ?? [];
+
+            return [
+                'status' => 'success',
+                'message' => 'Reparatur-Dossier für Antigravity wurde geheimnisbereinigt bereitgestellt.',
+                'handoff_path' => $result['handoff_path'] ?? 'storage/app/private/antigravity_error_handoff.json',
+                'culprit_file' => $dossier['culprit_file'] ?? null,
+                'line' => $dossier['line'] ?? null,
+                'incoming_count' => count($dossier['incoming_files'] ?? []),
+                'outgoing_count' => count($dossier['outgoing_files'] ?? []),
+                'dossier' => $dossier,
+            ];
+        } catch (\Throwable $e) {
+            return [
+                'status' => 'error',
+                'message' => 'Handoff-Dossier konnte nicht erstellt werden: ' . $e->getMessage(),
+            ];
+        }
     }
 }

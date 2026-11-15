@@ -131,6 +131,9 @@ try {
                     if ($commandBase === 'system:logs-cleanup') {
                         $logsCleanupRegistered = true;
                     }
+                    if ($commandBase === 'system:sentinel-triage') {
+                        $sentinelTriageRegistered = true;
+                    }
                     $event->withoutOverlapping();
                     if (!isset($_GET['sync_schedule']) && getenv('SYNC_SCHEDULE') !== '1') {
                         $event->runInBackground();
@@ -249,6 +252,14 @@ try {
         && (!Schema::hasTable('system_cronjobs') || !SystemCronjob::where('command', 'system:logs-cleanup')->exists())) {
         Schedule::command('system:logs-cleanup', ['--prune'])
             ->dailyAt('04:15')
+            ->withoutOverlapping();
+    }
+
+    // Ausfallsicherer Fallback für den 5-Minuten Funkira-Selbstheilungs-Wächter & Antigravity-Pool
+    if ((!isset($sentinelTriageRegistered) || !$sentinelTriageRegistered)
+        && (!Schema::hasTable('system_cronjobs') || !SystemCronjob::where('command', 'system:sentinel-triage')->exists())) {
+        Schedule::command('system:sentinel-triage', ['--probe-bridges'])
+            ->everyFiveMinutes()
             ->withoutOverlapping();
     }
 } catch (\Throwable $e) {

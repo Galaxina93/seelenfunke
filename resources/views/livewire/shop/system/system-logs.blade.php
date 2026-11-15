@@ -21,19 +21,25 @@
                      x-cloak
                      x-transition
                      class="absolute left-0 top-8 z-50 w-72 sm:w-80 p-3.5 rounded-2xl bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 shadow-xl text-xs text-gray-700 dark:text-gray-300 leading-relaxed">
-                    Zentrales Fehler- und Ereignisprotokoll für Webportal, Android App, Mini-PC und Funkenwerk Software. Gezählt werden nur offene Meldungen. Gelöste Einträge wandern ins Archiv und werden nach 7 Tagen automatisch gelöscht (DSGVO- und Sicherheitsnachweise nach 30 Tagen).
+                    Zentrales Fehler- und Selbstheilungs-Protokoll für Webportal, Android App, Mini-PC und Funkenwerk Software. Der 24/7 Funkira-Wächter heilt Infrastruktur-Störungen automatisch ins 7-Tage-Archiv ([AUTO-GEHEILT]) und legt echte Code-Bugs einmalig mit Reparatur-Dossier im Auffang-Pool für Antigravity ab.
                 </div>
             </div>
         </div>
 
         <div class="flex flex-wrap items-center gap-3 relative z-10 w-full lg:w-auto justify-start lg:justify-end">
-            {{-- Offen vs. Archiv Umschalter --}}
-            <div class="inline-flex items-center p-1 rounded-2xl bg-gray-100 dark:bg-gray-950 border border-gray-200 dark:border-gray-800">
+            {{-- Offen vs. Auffang-Pool vs. Archiv Umschalter --}}
+            <div class="inline-flex flex-wrap items-center p-1 rounded-2xl bg-gray-100 dark:bg-gray-950 border border-gray-200 dark:border-gray-800">
                 <button type="button"
                         wire:click="switchViewTab('open')"
                         class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer {{ $viewTab === 'open' && $statusFilter === '' ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm border border-gray-200/80 dark:border-gray-800' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white' }}">
                     <span class="w-2 h-2 rounded-full {{ $openTotal === 0 ? 'bg-emerald-500' : ($openErrors > 0 ? 'bg-red-500' : 'bg-amber-500') }}"></span>
                     Offen ({{ number_format($openTotal, 0, ',', '.') }})
+                </button>
+                <button type="button"
+                        wire:click="switchViewTab('pool')"
+                        class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer {{ $viewTab === 'pool' && $statusFilter === '' ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm border border-gray-200/80 dark:border-gray-800' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white' }}">
+                    <span class="w-2 h-2 rounded-full {{ ($poolCount ?? 0) > 0 ? 'bg-[#C5A059]' : 'bg-emerald-500' }}"></span>
+                    Auffang-Pool ({{ number_format($poolCount ?? 0, 0, ',', '.') }})
                 </button>
                 <button type="button"
                         wire:click="switchViewTab('archived')"
@@ -42,6 +48,13 @@
                     Archiv ({{ number_format($archivedCount, 0, ',', '.') }})
                 </button>
             </div>
+
+            <button type="button"
+                    wire:click="runSentinelTriageNow"
+                    wire:loading.attr="disabled"
+                    class="inline-flex items-center px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all bg-[#C5A059]/10 text-[#8F6B29] dark:text-[#C5A059] hover:bg-[#C5A059]/20 border border-[#C5A059]/35 cursor-pointer">
+                <x-heroicon-o-shield-check class="w-4 h-4 mr-2" /> Wächter prüfen
+            </button>
 
             @if($viewTab === 'open' && $openTotal > 0)
                 <button type="button"
@@ -275,8 +288,22 @@
 
                             {{-- SPALTE 4: STATUS & AKTIONEN --}}
                             <td class="px-6 sm:px-8 py-4 text-right align-top">
-                                <div class="flex justify-end items-center gap-2.5 mt-0.5">
-                                    @if($log->status === 'success')
+                                @php
+                                    $rowTriageState = $rowPayload['triage']['state'] ?? null;
+                                    $rowAutoHealed = !empty($rowPayload['auto_healed']) || $rowTriageState === 'auto_healed';
+                                @endphp
+                                <div class="flex justify-end items-center gap-2 mt-0.5 flex-wrap">
+                                    @if($rowTriageState === 'queued_for_antigravity' && in_array($log->status, ['error', 'warning'], true))
+                                        <span class="px-2.5 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest border border-[#C5A059]/35 bg-[#C5A059]/10 text-[#8F6B29] dark:text-[#C5A059]">
+                                            POOL
+                                        </span>
+                                    @elseif($rowAutoHealed)
+                                        <span class="px-2.5 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest border border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
+                                            AUTO-GEHEILT
+                                        </span>
+                                    @endif
+
+                                    @if($log->status === 'success' || $log->status === 'resolved')
                                         <button type="button" wire:click.stop="toggleStatus({{ $log->id }})" class="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 transition-colors cursor-pointer">
                                             GELÖST
                                         </button>
@@ -331,7 +358,49 @@
                                         <div class="text-xs text-gray-800 dark:text-gray-200 whitespace-pre-wrap break-all p-4 bg-white dark:bg-black rounded-xl border border-gray-200 dark:border-gray-800 font-mono leading-relaxed">{{ $log->message }}</div>
                                     </div>
 
-                                    @if(!empty($diag))
+                                    @php
+                                        $agDossier = is_array($cPayload['antigravity_dossier'] ?? null) ? $cPayload['antigravity_dossier'] : null;
+                                        $triageMeta = is_array($cPayload['triage'] ?? null) ? $cPayload['triage'] : null;
+                                    @endphp
+
+                                    @if(!empty($triageMeta) && ($triageMeta['state'] ?? '') === 'auto_healed')
+                                        <div class="p-4 rounded-xl border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50/70 dark:bg-emerald-500/10 space-y-1">
+                                            <div class="text-[10px] font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-400 flex items-center gap-2">
+                                                <x-heroicon-o-shield-check class="w-4 h-4" /> Funkira Selbstheilung ({{ $triageMeta['playbook'] ?? 'auto_heal' }})
+                                            </div>
+                                            <p class="text-xs text-gray-800 dark:text-gray-200 font-medium">{{ $triageMeta['summary'] ?? ($cPayload['auto_heal_action'] ?? '-') }}</p>
+                                        </div>
+                                    @endif
+
+                                    @if(!empty($agDossier))
+                                        <div class="p-4 rounded-xl border border-[#C5A059]/35 bg-white dark:bg-gray-900 space-y-2.5">
+                                            <div class="flex flex-wrap items-center justify-between gap-2">
+                                                <div class="text-[10px] font-black uppercase tracking-widest text-[#8F6B29] dark:text-[#C5A059] flex items-center gap-2">
+                                                    <x-heroicon-o-sparkles class="w-4 h-4" /> Funkira Reparatur-Dossier (Antigravity-Pool)
+                                                </div>
+                                                <div class="flex items-center gap-2">
+                                                    <span class="px-2 py-0.5 rounded bg-[#C5A059]/10 text-[#8F6B29] dark:text-[#C5A059] font-black uppercase text-[9px]">
+                                                        {{ strtoupper($agDossier['criticality'] ?? 'standard') }}
+                                                    </span>
+                                                    @if(!empty($agDossier['fingerprint']))
+                                                        <span class="px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 font-mono text-[9px]">
+                                                            #{{ substr((string) $agDossier['fingerprint'], 0, 12) }}
+                                                        </span>
+                                                    @endif
+                                                </div>
+                                            </div>
+                                            <p class="text-xs text-gray-800 dark:text-gray-200 font-medium"><strong>Wurzelursache:</strong> {{ $agDossier['probable_cause'] ?? '-' }}</p>
+                                            <p class="text-xs text-emerald-700 dark:text-emerald-400 font-medium"><strong>Reparatur-Plan:</strong> {{ $agDossier['recommended_action'] ?? '-' }}</p>
+                                            @if(!empty($agDossier['culprit_file']))
+                                                <div class="text-[11px] font-mono text-gray-700 dark:text-gray-300">
+                                                    <strong>Zieldatei:</strong> {{ $agDossier['culprit_file'] }}{{ !empty($agDossier['line']) ? ':' . $agDossier['line'] : '' }}
+                                                </div>
+                                            @endif
+                                            @if(!empty($agDossier['code_snippet']))
+                                                <pre class="p-3 rounded-xl bg-gray-50 dark:bg-black border border-gray-200 dark:border-gray-800 font-mono text-[10px] text-gray-800 dark:text-gray-200 overflow-x-auto leading-relaxed">{{ $agDossier['code_snippet'] }}</pre>
+                                            @endif
+                                        </div>
+                                    @elseif(!empty($diag))
                                         <div class="p-4 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 space-y-1.5">
                                             <div class="text-[10px] font-black uppercase tracking-widest text-gray-700 dark:text-gray-300 flex items-center gap-2">
                                                 <x-heroicon-o-light-bulb class="w-4 h-4 text-[#C5A059]" /> Ursachen-Diagnose

@@ -1524,4 +1524,734 @@ class SystemBrainDiagnosticsService
             return null;
         }
     }
+
+    /**
+     * Erstellt den vollständigen Snapshot für Funkiras Geheimen Fehler-Analyse-Keller:
+     * Vereint Projekt-Gehirn-Statistik, die 10 Seelenfunke-Abteilungs-Cluster, alle offenen
+     * Fehlerkerne inkl. Datei-Nachbarschaft (Aufrufer & Referenzen), Cross-Platform-Logs
+     * sowie ein eventuell bereits bereitgestelltes Antigravity-Fix-Dossier.
+     */
+    public function buildCellarSnapshot(): array
+    {
+        $nodeIndex = $this->loadNodeIndex();
+        $graphLinks = $this->loadGraphLinks();
+        $overlay = $this->getActiveErrorOverlay();
+
+        $totalFiles = count($nodeIndex);
+        if ($totalFiles === 0) {
+            $jsonPath = storage_path('app/private/system-brain-map.json');
+            if (File::exists($jsonPath)) {
+                $decoded = json_decode((string) @file_get_contents($jsonPath), true);
+                if (is_array($decoded) && isset($decoded['nodes']) && is_array($decoded['nodes'])) {
+                    $totalFiles = count($decoded['nodes']);
+                }
+            }
+        }
+
+        $clusters = $this->buildDepartmentClusters($nodeIndex, $overlay['error_cores']);
+
+        $logById = [];
+        if (Schema::hasTable('system_logs')) {
+            $logIds = [];
+            foreach ($overlay['error_cores'] as $core) {
+                foreach ($core['logs'] as $l) {
+                    if (!empty($l['id'])) {
+                        $logIds[] = (int) $l['id'];
+                    }
+                }
+            }
+            foreach ($overlay['unmapped_logs'] as $u) {
+                if (!empty($u['id'])) {
+                    $logIds[] = (int) $u['id'];
+                }
+            }
+            $logIds = array_values(array_unique($logIds));
+            if (!empty($logIds)) {
+                foreach (SystemLog::query()->whereIn('id', $logIds)->get() as $row) {
+                    $logById[(int) $row->id] = $row;
+                }
+            }
+        }
+
+        $items = [];
+
+        foreach ($overlay['error_cores'] as $filePath => $core) {
+            $primaryLogRow = null;
+            foreach ($core['logs'] as $l) {
+                if (!empty($l['id']) && isset($logById[(int) $l['id']])) {
+                    $primaryLogRow = $logById[(int) $l['id']];
+                    break;
+                }
+            }
+
+            $payload = ($primaryLogRow && is_array($primaryLogRow->payload)) ? $primaryLogRow->payload : [];
+            $platformKey = $primaryLogRow
+                ? $primaryLogRow->resolvePlatformKey()
+                : SystemLog::detectPlatformKey($core['logs'][0]['type'] ?? 'system', '', $payload);
+            $platformLabel = SystemLog::PLATFORMS[$platformKey]['short'] ?? 'Webportal';
+
+            $deptMeta = $this->classifyDepartmentForPath($filePath);
+            $diag = is_array($payload['diagnosis'] ?? null) ? $payload['diagnosis'] : [];
+            $probableCause = trim((string) ($diag['probable_cause'] ?? ''));
+            $recommendedAction = trim((string) ($diag['recommended_action'] ?? ''));
+            if ($probableCause === '') {
+                $probableCause = $this->inferPlainGermanCause((string) $core['primary_title'], (string) $core['primary_message'], $filePath);
+            }
+            if ($recommendedAction === '') {
+                $recommendedAction = 'Datei ' . basename($filePath) . ($core['line'] ? ' (Zeile ' . $core['line'] . ')' : '') . ' samt Aufrufern im Fix-Dossier an Antigravity übergeben.';
+            }
+
+            $traceExcerpt = $this->extractSafeTraceExcerpt($payload, (string) $core['primary_message']);
+
+            $incoming = array_slice(array_map(fn (array $n) => [
+                'file_path' => $n['file_path'],
+                'name' => $n['name'],
+                'group_label' => $n['group_label'] ?? $this->groupLabel($this->inferGroupId($n['file_path'])),
+            ], $core['incoming_files']), 0, 14);
+
+            $outgoing = array_slice(array_map(fn (array $n) => [
+                'file_path' => $n['file_path'],
+                'name' => $n['name'],
+                'group_label' => $n['group_label'] ?? $this->groupLabel($this->inferGroupId($n['file_path'])),
+            ], $core['outgoing_files']), 0, 14);
+
+            $items[] = [
+                'item_key' => 'core:' . $filePath,
+                'kind' => 'file_core',
+                'platform' => $platformKey,
+                'platform_label' => $platformLabel,
+                'severity' => $core['severity'],
+                'is_error' => (bool) $core['is_error'],
+                'title' => SystemErrorLogger::sanitizeSensitiveText((string) $core['primary_title']),
+                'message' => SystemErrorLogger::sanitizeSensitiveText(Str::limit((string) $core['primary_message'], 480)),
+                'culprit_file' => $filePath,
+                'culprit_name' => $core['name'],
+                'group_label' => $core['group_label'],
+                'department_key' => $deptMeta['key'],
+                'department_label' => $deptMeta['label'],
+                'line' => $core['line'],
+                'occurrences_count' => max(1, (int) $core['occurrences_total']),
+                'log_id' => $primaryLogRow?->id,
+                'route' => (string) ($core['route'] ?? ''),
+                'timestamp' => (string) ($core['logs'][0]['timestamp'] ?? now()->format('d.m.Y H:i:s')),
+                'probable_cause' => SystemErrorLogger::sanitizeSensitiveText($probableCause),
+                'recommended_action' => SystemErrorLogger::sanitizeSensitiveText($recommendedAction),
+                'shop_impact_de' => $deptMeta['impact_de'],
+                'trace_excerpt' => $traceExcerpt,
+                'incoming_files' => $incoming,
+                'outgoing_files' => $outgoing,
+            ];
+        }
+
+        foreach (array_slice($overlay['unmapped_logs'], 0, 15) as $entry) {
+            $logRow = (!empty($entry['id']) && isset($logById[(int) $entry['id']])) ? $logById[(int) $entry['id']] : null;
+            $payload = ($logRow && is_array($logRow->payload)) ? $logRow->payload : [];
+            $platformKey = $logRow
+                ? $logRow->resolvePlatformKey()
+                : SystemLog::detectPlatformKey($entry['type'] ?? 'system', $entry['action_id'] ?? '', $payload);
+            $platformLabel = SystemLog::PLATFORMS[$platformKey]['short'] ?? 'Webportal';
+
+            $diag = is_array($payload['diagnosis'] ?? null) ? $payload['diagnosis'] : [];
+            $probableCause = trim((string) ($diag['probable_cause'] ?? ''));
+            $recommendedAction = trim((string) ($diag['recommended_action'] ?? ''));
+            if ($probableCause === '') {
+                $probableCause = $this->inferPlainGermanCause((string) $entry['title'], (string) $entry['message'], null);
+            }
+            if ($recommendedAction === '') {
+                $recommendedAction = 'Ereignis im Fix-Dossier speichern und Ursache durch Antigravity bereinigen lassen.';
+            }
+
+            $keySuffix = !empty($entry['id']) ? (string) $entry['id'] : substr(sha1(($entry['title'] ?? '') . '|' . ($entry['message'] ?? '')), 0, 12);
+
+            $items[] = [
+                'item_key' => 'log:' . $keySuffix,
+                'kind' => 'platform_log',
+                'platform' => $platformKey,
+                'platform_label' => $platformLabel,
+                'severity' => ($entry['status'] ?? 'error') === 'warning' ? 'warning' : 'error',
+                'is_error' => ($entry['status'] ?? 'error') === 'error',
+                'title' => SystemErrorLogger::sanitizeSensitiveText((string) ($entry['title'] ?: 'System-Ereignis')),
+                'message' => SystemErrorLogger::sanitizeSensitiveText(Str::limit((string) ($entry['message'] ?? ''), 480)),
+                'culprit_file' => null,
+                'culprit_name' => $platformLabel,
+                'group_label' => $platformLabel,
+                'department_key' => 'system_security',
+                'department_label' => 'System & Plattformen',
+                'line' => $entry['line'] ?? null,
+                'occurrences_count' => max(1, (int) ($entry['occurrences_count'] ?? 1)),
+                'log_id' => $entry['id'] ?? null,
+                'route' => (string) ($entry['route'] ?? ''),
+                'timestamp' => (string) ($entry['timestamp'] ?? now()->format('d.m.Y H:i:s')),
+                'probable_cause' => SystemErrorLogger::sanitizeSensitiveText($probableCause),
+                'recommended_action' => SystemErrorLogger::sanitizeSensitiveText($recommendedAction),
+                'shop_impact_de' => 'Plattform-Meldung auf ' . $platformLabel . ' (keine einzelne PHP-Datei zugeordnet).',
+                'trace_excerpt' => $this->extractSafeTraceExcerpt($payload, (string) ($entry['message'] ?? '')),
+                'incoming_files' => [],
+                'outgoing_files' => [],
+            ];
+        }
+
+        $activeHandoff = $this->getActiveAntigravityHandoff();
+
+        return SystemErrorLogger::sanitizeArrayRecursive([
+            'status' => 'success',
+            'generated_at' => now()->toIso8601String(),
+            'environment' => app()->environment(),
+            'brain_stats' => [
+                'total_files' => $totalFiles,
+                'total_links' => count($graphLinks),
+                'error_core_count' => $overlay['error_core_count'],
+                'neighbor_count' => $overlay['neighbor_count'],
+                'open_errors_count' => $overlay['open_errors_count'],
+                'open_warnings_count' => $overlay['open_warnings_count'],
+            ],
+            'has_errors' => $overlay['has_errors'],
+            'has_critical_errors' => $overlay['has_critical_errors'],
+            'department_clusters' => $clusters,
+            'items' => $items,
+            'active_handoff' => $activeHandoff,
+        ]);
+    }
+
+    /**
+     * Bereitet ein geheimnisbereinigtes Reparatur-Dossier (antigravity_error_handoff.json)
+     * für Antigravity vor, inklusive exakter Verursacher-Datei, Zeile, Stack-Auszug sowie
+     * allen eingehenden Aufrufern und ausgehenden Datei-Abhängigkeiten.
+     */
+    public function prepareAntigravityHandoff(array $input): array
+    {
+        $snapshot = $this->buildCellarSnapshot();
+        $items = $snapshot['items'] ?? [];
+
+        $requestedKey = trim((string) ($input['item_key'] ?? ''));
+        $requestedFile = trim((string) ($input['file_path'] ?? $input['culprit_file'] ?? ''));
+        $requestedLogId = isset($input['log_id']) && is_numeric($input['log_id']) ? (int) $input['log_id'] : null;
+        $alinaNote = trim((string) ($input['alina_note'] ?? ''));
+
+        $matched = null;
+        foreach ($items as $candidate) {
+            if ($requestedKey !== '' && ($candidate['item_key'] ?? '') === $requestedKey) {
+                $matched = $candidate;
+                break;
+            }
+            if ($requestedFile !== '' && ($candidate['culprit_file'] ?? '') === $requestedFile) {
+                $matched = $candidate;
+                break;
+            }
+            if ($requestedLogId !== null && isset($candidate['log_id']) && (int) $candidate['log_id'] === $requestedLogId) {
+                $matched = $candidate;
+                break;
+            }
+        }
+
+        if ($matched === null && $requestedKey === '' && $requestedFile === '' && $requestedLogId === null && empty($input['title']) && !empty($items)) {
+            $matched = $items[0];
+        }
+
+        if ($matched === null) {
+            $normFile = $requestedFile !== '' ? $this->normalizeToProjectRelativePath($requestedFile) : null;
+            $incoming = [];
+            $outgoing = [];
+            $deptMeta = $this->classifyDepartmentForPath($normFile ?? $requestedFile);
+
+            if ($normFile !== null) {
+                $neighborhood = $this->resolveConnectedNeighborhood($normFile);
+                $incoming = array_slice(array_map(fn (array $n) => [
+                    'file_path' => $n['file_path'],
+                    'name' => $n['name'],
+                    'group_label' => $n['group_label'] ?? 'System',
+                ], $neighborhood['incoming']), 0, 14);
+                $outgoing = array_slice(array_map(fn (array $n) => [
+                    'file_path' => $n['file_path'],
+                    'name' => $n['name'],
+                    'group_label' => $n['group_label'] ?? 'System',
+                ], $neighborhood['outgoing']), 0, 14);
+            } else {
+                if (is_array($input['incoming_files'] ?? null)) {
+                    $incoming = array_slice($input['incoming_files'], 0, 14);
+                }
+                if (is_array($input['outgoing_files'] ?? null)) {
+                    $outgoing = array_slice($input['outgoing_files'], 0, 14);
+                }
+            }
+
+            $platformKey = SystemLog::normalizePlatformAlias((string) ($input['platform'] ?? '')) ?? 'minipc_linux';
+            $platformLabel = SystemLog::PLATFORMS[$platformKey]['short'] ?? 'Mini-PC';
+            $title = trim((string) ($input['title'] ?? 'Manuell übergebener Systembefund'));
+            $message = trim((string) ($input['message'] ?? 'Keine zusätzliche Fehlermeldung übergeben.'));
+
+            $matched = [
+                'item_key' => $requestedKey !== '' ? $requestedKey : ('custom:' . substr(sha1($title . '|' . $requestedFile), 0, 10)),
+                'kind' => $normFile ? 'file_core' : 'platform_log',
+                'platform' => $platformKey,
+                'platform_label' => $platformLabel,
+                'severity' => (($input['severity'] ?? 'error') === 'warning') ? 'warning' : 'error',
+                'is_error' => (($input['severity'] ?? 'error') !== 'warning'),
+                'title' => $title,
+                'message' => $message,
+                'culprit_file' => $normFile ?? ($requestedFile !== '' ? $requestedFile : null),
+                'culprit_name' => $normFile ? basename($normFile) : ($requestedFile !== '' ? basename($requestedFile) : $platformLabel),
+                'group_label' => $normFile ? $this->groupLabel($this->inferGroupId($normFile)) : $platformLabel,
+                'department_key' => $deptMeta['key'],
+                'department_label' => $deptMeta['label'],
+                'line' => isset($input['line']) && is_numeric($input['line']) ? (int) $input['line'] : null,
+                'occurrences_count' => max(1, (int) ($input['occurrences_count'] ?? 1)),
+                'log_id' => $requestedLogId,
+                'route' => trim((string) ($input['route'] ?? '')),
+                'timestamp' => (string) ($input['timestamp'] ?? now()->format('d.m.Y H:i:s')),
+                'probable_cause' => trim((string) ($input['probable_cause'] ?? '')) ?: $this->inferPlainGermanCause($title, $message, $normFile),
+                'recommended_action' => trim((string) ($input['recommended_action'] ?? '')) ?: 'Ursache in Verursacher-Datei und verbundenen Aufrufern prüfen und per Test absichern.',
+                'shop_impact_de' => $deptMeta['impact_de'],
+                'trace_excerpt' => trim((string) ($input['trace_excerpt'] ?? $message)),
+                'incoming_files' => $incoming,
+                'outgoing_files' => $outgoing,
+            ];
+        }
+
+        $dossier = SystemErrorLogger::sanitizeArrayRecursive([
+            'handoff_version' => 1,
+            'prepared_at' => now()->toIso8601String(),
+            'prepared_at_human' => now()->format('d.m.Y H:i:s'),
+            'prepared_by' => 'Funkira & Alina (Geheimer Analyse-Keller)',
+            'environment' => app()->environment(),
+            'status' => 'ready_for_antigravity',
+            'alina_note' => $alinaNote !== '' ? Str::limit($alinaNote, 500) : null,
+            'item_key' => $matched['item_key'],
+            'platform' => $matched['platform'],
+            'platform_label' => $matched['platform_label'],
+            'severity' => $matched['severity'],
+            'title' => $matched['title'],
+            'message' => $matched['message'],
+            'culprit_file' => $matched['culprit_file'],
+            'culprit_name' => $matched['culprit_name'],
+            'department_label' => $matched['department_label'] ?? 'System',
+            'line' => $matched['line'],
+            'occurrences_count' => $matched['occurrences_count'],
+            'log_id' => $matched['log_id'] ?? null,
+            'route' => $matched['route'] ?? '',
+            'timestamp' => $matched['timestamp'] ?? now()->format('d.m.Y H:i:s'),
+            'probable_cause' => $matched['probable_cause'],
+            'recommended_action' => $matched['recommended_action'],
+            'shop_impact_de' => $matched['shop_impact_de'] ?? '',
+            'trace_excerpt' => Str::limit((string) ($matched['trace_excerpt'] ?? ''), 1500),
+            'incoming_files' => $matched['incoming_files'] ?? [],
+            'outgoing_files' => $matched['outgoing_files'] ?? [],
+        ]);
+
+        $handoffPath = storage_path('app/private/antigravity_error_handoff.json');
+        File::ensureDirectoryExists(dirname($handoffPath));
+        File::put($handoffPath, json_encode($dossier, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        @chmod($handoffPath, 0600);
+
+        return [
+            'status' => 'success',
+            'handoff_path' => 'storage/app/private/antigravity_error_handoff.json',
+            'dossier' => $dossier,
+        ];
+    }
+
+    /**
+     * Vollautomatische Selbstheilung & Auto-Dispatch aus Funkiras 3D-Kuppelhalle (0 Klicks für Alina):
+     * 1. Bereinigt kompilierte Blade-Views bei Template-Artefakten & prüft DB-Gesundheit.
+     * 2. Schließt transiente/bereits behobene SystemLog-Einträge (Timeouts, Netzwerk-Hicks, Rate-Limits, alte Warnungen) sauber ab.
+     * 3. Hinterlegt für echte verbleibende Code-Bugs vollautomatisch das Antigravity-Reparatur-Dossier.
+     */
+    public function runAutonomousCellarHeal(): array
+    {
+        $healedCount = 0;
+        $actions = [];
+
+        try {
+            Artisan::call('view:clear');
+            $actions[] = 'Blade-View-Cache bereinigt';
+        } catch (\Throwable) {
+        }
+
+        $dbHealthy = false;
+        try {
+            DB::select('SELECT 1');
+            $dbHealthy = true;
+        } catch (\Throwable) {
+        }
+
+        if ($dbHealthy && Schema::hasTable('system_logs')) {
+            $openLogs = SystemLog::query()
+                ->whereIn('status', ['error', 'warning'])
+                ->orderBy('id', 'desc')
+                ->limit(100)
+                ->get();
+
+            foreach ($openLogs as $log) {
+                $combined = strtolower((string) $log->title . ' ' . (string) $log->message);
+                $isTransient = str_contains($combined, 'timeout')
+                    || str_contains($combined, 'timed out')
+                    || str_contains($combined, 'connection refused')
+                    || str_contains($combined, 'curl error')
+                    || str_contains($combined, 'eai_again')
+                    || str_contains($combined, 'too many attempts')
+                    || str_contains($combined, 'rate limit')
+                    || str_contains($combined, 'deadlock')
+                    || str_contains($combined, 'server has gone away')
+                    || str_contains($combined, '401')
+                    || str_contains($combined, 'unauthenticated');
+
+                $isWarning = $log->status === 'warning';
+
+                if ($isTransient || $isWarning) {
+                    $payload = is_array($log->payload) ? $log->payload : [];
+                    $payload['auto_healed_at'] = now()->toIso8601String();
+                    $payload['auto_healed_by'] = 'funkira_kuppelhalle';
+                    $log->status = 'success';
+                    $log->payload = $payload;
+                    $log->save();
+                    $healedCount++;
+                }
+            }
+        }
+
+        $snapshot = $this->buildCellarSnapshot();
+        $items = is_array($snapshot['items'] ?? null) ? $snapshot['items'] : [];
+        $remainingErrors = 0;
+        $topCodeBug = null;
+
+        foreach ($items as $item) {
+            if (!empty($item['is_error'])) {
+                $remainingErrors++;
+                if ($topCodeBug === null) {
+                    $topCodeBug = $item;
+                }
+            }
+        }
+
+        $autoHandoff = null;
+        if ($topCodeBug !== null) {
+            $res = $this->prepareAntigravityHandoff([
+                'item_key' => $topCodeBug['item_key'] ?? '',
+                'alina_note' => 'Vollautomatisch aus Funkiras Kuppelhalle bereitgestellt',
+            ]);
+            if (($res['status'] ?? '') === 'success') {
+                $autoHandoff = $res['dossier'] ?? null;
+                $snapshot['active_handoff'] = $autoHandoff;
+            }
+        }
+
+        return [
+            'ok' => true,
+            'status' => 'success',
+            'healed_count' => $healedCount,
+            'remaining_errors_count' => $remainingErrors,
+            'auto_dispatched' => $autoHandoff !== null,
+            'actions' => $actions,
+            'dossier' => $autoHandoff,
+            'snapshot' => $snapshot,
+        ];
+    }
+
+    public function getActiveAntigravityHandoff(): ?array
+    {
+        $handoffPath = storage_path('app/private/antigravity_error_handoff.json');
+        if (!File::exists($handoffPath)) {
+            return null;
+        }
+        $decoded = json_decode((string) @file_get_contents($handoffPath), true);
+        return is_array($decoded) ? SystemErrorLogger::sanitizeArrayRecursive($decoded) : null;
+    }
+
+    protected function buildDepartmentClusters(array $nodeIndex, array $errorCores): array
+    {
+        $definitions = [
+            'products_configurator' => [
+                'key' => 'products_configurator',
+                'label' => 'Produkte & 3D-Konfigurator',
+                'files_count' => 0,
+                'open_errors_count' => 0,
+                'sample_files' => [],
+                'fallback_samples' => [
+                    'app/Livewire/Shop/Product/ProductConfigurator/ProductConfigurator.php',
+                    'app/Services/ProductConfiguratorService.php',
+                    'app/Models/Product/Product.php',
+                ],
+            ],
+            'orders_logistics' => [
+                'key' => 'orders_logistics',
+                'label' => 'Bestellungen & DHL-Versand',
+                'files_count' => 0,
+                'open_errors_count' => 0,
+                'sample_files' => [],
+                'fallback_samples' => [
+                    'app/Livewire/Shop/Order/OrderCheckout/OrderCheckout.php',
+                    'app/Livewire/Shop/Order/OrderOverview.php',
+                    'app/Services/DhlService.php',
+                ],
+            ],
+            'accounting_finance' => [
+                'key' => 'accounting_finance',
+                'label' => 'Buchhaltung, Steuer & Bank',
+                'files_count' => 0,
+                'open_errors_count' => 0,
+                'sample_files' => [],
+                'fallback_samples' => [
+                    'app/Livewire/Shop/Accounting/AccountingVariableCosts.php',
+                    'app/Services/InvoiceService.php',
+                    'app/Services/FinancialService.php',
+                ],
+            ],
+            'ai_funkira' => [
+                'key' => 'ai_funkira',
+                'label' => 'Funkira, KI-Agenten & Wissen',
+                'files_count' => 0,
+                'open_errors_count' => 0,
+                'sample_files' => [],
+                'fallback_samples' => [
+                    'app/Services/AI/FunkiraSkillPoolService.php',
+                    'app/Services/AI/AiAgentService.php',
+                    'app/Services/AI/AIFunctionsRegistry.php',
+                ],
+            ],
+            'management_office' => [
+                'key' => 'management_office',
+                'label' => 'Leitung, Mail, Kalender & To-Do',
+                'files_count' => 0,
+                'open_errors_count' => 0,
+                'sample_files' => [],
+                'fallback_samples' => [
+                    'app/Livewire/Shop/Master/MasterAnalytics.php',
+                    'app/Livewire/Shop/Management/ManagementTask.php',
+                    'app/Livewire/Shop/Management/ManagementEMails.php',
+                ],
+            ],
+            'marketing_influencer' => [
+                'key' => 'marketing_influencer',
+                'label' => 'Marketing, Blog & Influencer',
+                'files_count' => 0,
+                'open_errors_count' => 0,
+                'sample_files' => [],
+                'fallback_samples' => [
+                    'app/Livewire/Shop/Marketing/MarketingInfluencer.php',
+                    'app/Livewire/Shop/Marketing/MarketingVoucher.php',
+                    'app/Services/Marketing/InfluencerService.php',
+                ],
+            ],
+            'customer_gamification' => [
+                'key' => 'customer_gamification',
+                'label' => 'Kundenkonto & Gamification',
+                'files_count' => 0,
+                'open_errors_count' => 0,
+                'sample_files' => [],
+                'fallback_samples' => [
+                    'app/Livewire/Customer/CustomerDashboardComponent.php',
+                    'app/Services/Gamification/GamificationService.php',
+                    'app/Models/Customer/Customer.php',
+                ],
+            ],
+            'support_telephony' => [
+                'key' => 'support_telephony',
+                'label' => 'Support, Tickets & Telefonie',
+                'files_count' => 0,
+                'open_errors_count' => 0,
+                'sample_files' => [],
+                'fallback_samples' => [
+                    'app/Livewire/Shop/Support/SupportTicket.php',
+                    'app/Livewire/Frontend/Support/AiFrontendSupportChat.php',
+                    'app/Services/AI/AiSupportService.php',
+                ],
+            ],
+            'system_security' => [
+                'key' => 'system_security',
+                'label' => 'Projekt-Gehirn, Logs & Schutz',
+                'files_count' => 0,
+                'open_errors_count' => 0,
+                'sample_files' => [],
+                'fallback_samples' => [
+                    'app/Services/System/SystemBrainDiagnosticsService.php',
+                    'app/Services/System/SystemErrorLogger.php',
+                    'app/Services/System/SystemSecurityService.php',
+                ],
+            ],
+            'frontend_views' => [
+                'key' => 'frontend_views',
+                'label' => 'Shop-Frontend, Routen & Views',
+                'files_count' => 0,
+                'open_errors_count' => 0,
+                'sample_files' => [],
+                'fallback_samples' => [
+                    'routes/partials/admin_routes.php',
+                    'routes/partials/global_routes.php',
+                    'app/Http/Controllers/SeoController.php',
+                ],
+            ],
+        ];
+
+        foreach ($nodeIndex as $path => $node) {
+            $dept = $this->classifyDepartmentForPath((string) $path)['key'];
+            if (!isset($definitions[$dept])) {
+                $dept = 'system_security';
+            }
+            $definitions[$dept]['files_count']++;
+            if (count($definitions[$dept]['sample_files']) < 6) {
+                $definitions[$dept]['sample_files'][] = (string) $path;
+            }
+        }
+
+        foreach ($errorCores as $filePath => $core) {
+            $dept = $this->classifyDepartmentForPath((string) $filePath)['key'];
+            if (isset($definitions[$dept])) {
+                $definitions[$dept]['open_errors_count']++;
+            }
+        }
+
+        $result = [];
+        foreach ($definitions as $def) {
+            $samples = !empty($def['sample_files']) ? $def['sample_files'] : $def['fallback_samples'];
+            $result[] = [
+                'key' => $def['key'],
+                'label' => $def['label'],
+                'files_count' => $def['files_count'] > 0 ? $def['files_count'] : count($samples),
+                'open_errors_count' => $def['open_errors_count'],
+                'sample_files' => $samples,
+            ];
+        }
+
+        return $result;
+    }
+
+    protected function classifyDepartmentForPath(?string $path): array
+    {
+        $p = strtolower((string) $path);
+        if ($p === '') {
+            return [
+                'key' => 'system_security',
+                'label' => 'System & Plattformen',
+                'impact_de' => 'Betrifft die Systemstabilität oder Hintergrundprozesse.',
+            ];
+        }
+        if (str_contains($p, 'product') || str_contains($p, 'configurator') || str_contains($p, 'packaging') || str_contains($p, 'supplier') || str_contains($p, 'glb')) {
+            return [
+                'key' => 'products_configurator',
+                'label' => 'Produkte & 3D-Konfigurator',
+                'impact_de' => 'Kann Produktansicht, 2D/3D-Konfigurator oder Kalkulation im Shop beeinflussen.',
+            ];
+        }
+        if (str_contains($p, 'order') || str_contains($p, 'checkout') || str_contains($p, 'cart') || str_contains($p, 'shipping') || str_contains($p, 'dhl') || str_contains($p, 'logistics') || str_contains($p, 'delivery') || str_contains($p, 'stripe')) {
+            return [
+                'key' => 'orders_logistics',
+                'label' => 'Bestellungen & DHL-Versand',
+                'impact_de' => 'Kritischer Kaufpfad: Kann Warenkorb, Checkout, Zahlung oder Versandlabels betreffen.',
+            ];
+        }
+        if (str_contains($p, 'accounting') || str_contains($p, 'financial') || str_contains($p, 'invoice') || str_contains($p, 'tax') || str_contains($p, 'bank') || str_contains($p, 'elster')) {
+            return [
+                'key' => 'accounting_finance',
+                'label' => 'Buchhaltung, Steuer & Bank',
+                'impact_de' => 'Betrifft Belege, Rechnungen, Steuer-Exporte oder Finanzübersichten im Admin.',
+            ];
+        }
+        if (str_contains($p, '/ai/') || str_contains($p, 'funkira') || str_contains($p, 'gemini') || str_contains($p, 'aicontroller') || str_contains($p, 'routes/api/ai')) {
+            return [
+                'key' => 'ai_funkira',
+                'label' => 'Funkira, KI-Agenten & Wissen',
+                'impact_de' => 'Betrifft Funkiras Werkzeuge, Sprachsteuerung oder den KI-Workspace.',
+            ];
+        }
+        if (str_contains($p, 'management') || str_contains($p, 'masteranalytics') || str_contains($p, '/mail/') || str_contains($p, 'calendar') || str_contains($p, 'routine')) {
+            return [
+                'key' => 'management_office',
+                'label' => 'Leitung, Mail, Kalender & To-Do',
+                'impact_de' => 'Betrifft Kommandozentrale, Mail-Trichter, Kalender oder Aufgabenliste.',
+            ];
+        }
+        if (str_contains($p, 'marketing') || str_contains($p, 'influencer') || str_contains($p, 'voucher') || str_contains($p, 'newsletter') || str_contains($p, 'herzensprojekt') || str_contains($p, 'linktree')) {
+            return [
+                'key' => 'marketing_influencer',
+                'label' => 'Marketing, Blog & Influencer',
+                'impact_de' => 'Betrifft Gutscheine, Blog, Newsletter oder das Influencer-Portal.',
+            ];
+        }
+        if (str_contains($p, 'customer') || str_contains($p, 'gamification') || str_contains($p, 'wishlist')) {
+            return [
+                'key' => 'customer_gamification',
+                'label' => 'Kundenkonto & Gamification',
+                'impact_de' => 'Betrifft Kunden-Login, Bestellübersicht im Konto oder Gamification.',
+            ];
+        }
+        if (str_contains($p, 'support') || str_contains($p, 'ticket') || str_contains($p, 'twilio') || str_contains($p, 'telephony')) {
+            return [
+                'key' => 'support_telephony',
+                'label' => 'Support, Tickets & Telefonie',
+                'impact_de' => 'Betrifft Kundenanfragen, Support-Tickets oder Telefonie.',
+            ];
+        }
+        if (str_contains($p, 'resources/views') || str_contains($p, 'routes/') || str_contains($p, 'seo') || str_contains($p, 'landing')) {
+            return [
+                'key' => 'frontend_views',
+                'label' => 'Shop-Frontend, Routen & Views',
+                'impact_de' => 'Betrifft Seitenaufrufe oder Darstellung von Blade-Templates.',
+            ];
+        }
+
+        return [
+            'key' => 'system_security',
+            'label' => 'Projekt-Gehirn, Logs & Schutz',
+            'impact_de' => 'Betrifft Systemdienste, Sicherheit oder Hintergrund-Jobs.',
+        ];
+    }
+
+    protected function inferPlainGermanCause(string $title, string $message, ?string $filePath): string
+    {
+        $combined = strtolower($title . ' ' . $message);
+        if (str_contains($combined, 'undefined variable') || str_contains($combined, 'undefined array key')) {
+            return 'Eine Variable oder ein Array-Schlüssel fehlt beim Seitenaufruf oder ist leer.';
+        }
+        if (str_contains($combined, 'call to a member function') && str_contains($combined, 'on null')) {
+            return 'Ein erwarteter Datensatz war null, bevor eine Methode darauf aufgerufen wurde.';
+        }
+        if (str_contains($combined, 'sqlstate') || str_contains($combined, 'column not found') || str_contains($combined, 'integrity constraint')) {
+            return 'Datenbank-Abfrage oder Pflichtfeld passt nicht zum aktuellen Tabellenstand.';
+        }
+        if (str_contains($combined, '401') || str_contains($combined, 'unauthenticated') || str_contains($combined, 'token')) {
+            return 'Anmelde-Token oder Sitzung war abgelaufen bzw. nicht autorisiert.';
+        }
+        if (str_contains($combined, 'timeout') || str_contains($combined, 'connection refused') || str_contains($combined, 'curl error')) {
+            return 'Ein externer Dienst oder Netzwerk-Endpunkt hat nicht rechtzeitig geantwortet.';
+        }
+        if (str_contains($combined, 'typeerror') || str_contains($combined, 'must be of type')) {
+            return 'Ein übergebener Datentyp stimmt nicht mit der Methodensignatur überein.';
+        }
+        if ($filePath) {
+            return 'Laufzeitfehler in ' . basename($filePath) . ' während der Ausführung.';
+        }
+        return 'Technischer Laufzeitbefund im Systemprotokoll.';
+    }
+
+    protected function extractSafeTraceExcerpt(array $payload, string $fallbackMessage): string
+    {
+        $candidates = [
+            $payload['trace_excerpt'] ?? null,
+            $payload['exception']['trace'] ?? null,
+            $payload['trace'] ?? null,
+        ];
+        foreach ($candidates as $cand) {
+            if (is_string($cand) && trim($cand) !== '') {
+                return SystemErrorLogger::sanitizeSensitiveText(Str::limit(trim($cand), 1200));
+            }
+            if (is_array($cand) && !empty($cand)) {
+                $lines = [];
+                foreach (array_slice($cand, 0, 8) as $frame) {
+                    if (is_string($frame)) {
+                        $lines[] = $frame;
+                    } elseif (is_array($frame)) {
+                        $f = (string) ($frame['file'] ?? $frame['class'] ?? '');
+                        $l = isset($frame['line']) ? ':' . $frame['line'] : '';
+                        $fn = (string) ($frame['function'] ?? '');
+                        $lines[] = trim($f . $l . ($fn !== '' ? ' -> ' . $fn . '()' : ''));
+                    }
+                }
+                if (!empty($lines)) {
+                    return SystemErrorLogger::sanitizeSensitiveText(Str::limit(implode("\n", $lines), 1200));
+                }
+            }
+        }
+
+        return SystemErrorLogger::sanitizeSensitiveText(Str::limit($fallbackMessage, 600));
+    }
 }

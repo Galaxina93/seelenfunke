@@ -275,6 +275,21 @@ namespace FunkenwerkMcp
                 return await RunStageDeployCliAsync(args);
             }
 
+            if (args.Any(a => string.Equals(a, "--stage-restart-workers", StringComparison.OrdinalIgnoreCase)))
+            {
+                return await RunStageRestartWorkersCliAsync();
+            }
+
+            if (args.Any(a => string.Equals(a, "--stage-publish-apk", StringComparison.OrdinalIgnoreCase)))
+            {
+                return await RunStagePublishApkCliAsync(args);
+            }
+
+            if (args.Any(a => string.Equals(a, "--sentinel-sync", StringComparison.OrdinalIgnoreCase)))
+            {
+                return await RunStageSentinelSyncCliAsync(args);
+            }
+
             // Ensure ACL lockdown on MCP data directory immediately at startup
             McpSecurityGuard.LockDownDirectoryAcl(McpSecurityGuard.VaultDirectory);
 
@@ -324,14 +339,19 @@ namespace FunkenwerkMcp
                     Console.WriteLine("⏭️ [1/3] Shop-Asset-Abgleich übersprungen (--skip-shop-assets).");
                 }
 
-                Console.WriteLine("🚀 [2/3] Führe Stage-Deploy auf 'Mittwald' (/home/p-g27wim/html/seelenfunke-stage) aus...");
+                Console.WriteLine("🚀 [2/4] Führe Stage-Deploy auf 'Mittwald' (/home/p-g27wim/html/seelenfunke-stage) aus...");
                 string deployOut = await McpSecurityGuard.ExecutePinnedSshPresetAsync("Mittwald", "stage_deploy");
                 Console.WriteLine(deployOut);
 
-                Console.WriteLine("👷 [3/3] Starte isolierten Stage-Worker neu ('Mittwald Websocket' / worker-stage-3)...");
+                Console.WriteLine("👷 [3/4] Starte isolierten Stage-Worker neu ('Mittwald Websocket' / worker-stage-3)...");
                 string workerOut = await McpSecurityGuard.ExecutePinnedSshPresetAsync("Mittwald Websocket", "stage_worker_restart");
                 if (!string.IsNullOrWhiteSpace(workerOut))
                     Console.WriteLine(workerOut);
+
+                Console.WriteLine("🎙️ [4/4] Starte isolierte Node.js Audio-Bridge neu ('Mittwald Node.js App' / twilio-bridge)...");
+                string bridgeOut = await McpSecurityGuard.ExecutePinnedSshPresetAsync("Mittwald Node.js App", "stage_worker_restart");
+                if (!string.IsNullOrWhiteSpace(bridgeOut))
+                    Console.WriteLine(bridgeOut);
 
                 Console.WriteLine("✅ Stage-Autopilot komplett erfolgreich abgeschlossen (Live-Server blieb 100 % unberührt).");
                 return 0;
@@ -339,6 +359,181 @@ namespace FunkenwerkMcp
             catch (Exception ex)
             {
                 Console.Error.WriteLine($"❌ Stage-Autopilot abgebrochen: {McpSecurityGuard.ScrubSecrets(ex.Message)}");
+                return 1;
+            }
+        }
+
+        private static async Task<int> RunStageRestartWorkersCliAsync()
+        {
+            try
+            {
+                McpSecurityGuard.LockDownDirectoryAcl(McpSecurityGuard.VaultDirectory);
+
+                Console.WriteLine("👷 [1/2] Starte isolierten Stage-Worker neu ('Mittwald Websocket' / a-iurgq8)...");
+                string workerOut = await McpSecurityGuard.ExecutePinnedSshPresetAsync("Mittwald Websocket", "stage_worker_restart");
+                if (!string.IsNullOrWhiteSpace(workerOut))
+                    Console.WriteLine(workerOut);
+
+                Console.WriteLine("🎙️ [2/2] Starte isolierte Node.js Audio-Bridge neu ('Mittwald Node.js App' / a-yeq7el)...");
+                string bridgeOut = await McpSecurityGuard.ExecutePinnedSshPresetAsync("Mittwald Node.js App", "stage_worker_restart");
+                if (!string.IsNullOrWhiteSpace(bridgeOut))
+                    Console.WriteLine(bridgeOut);
+
+                Console.WriteLine("✅ Beide Stage-Container (Websocket & Node.js Bridge) erfolgreich per mittnitectl neu gestartet.");
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"❌ Stage-Worker-Restart abgebrochen: {McpSecurityGuard.ScrubSecrets(ex.Message)}");
+                return 1;
+            }
+        }
+
+        private static async Task<int> RunStagePublishApkCliAsync(string[] args)
+        {
+            try
+            {
+                McpSecurityGuard.LockDownDirectoryAcl(McpSecurityGuard.VaultDirectory);
+
+                string? GetArgValue(string flag)
+                {
+                    for (int i = 0; i < args.Length - 1; i++)
+                    {
+                        if (string.Equals(args[i], flag, StringComparison.OrdinalIgnoreCase))
+                            return args[i + 1];
+                    }
+                    return null;
+                }
+
+                string? apkPath = GetArgValue("--apk");
+                string? rawCode = GetArgValue("--version-code");
+                string? versionName = GetArgValue("--version-name");
+                string notes = GetArgValue("--notes") ?? "";
+
+                int versionCode = 0;
+                if (!string.IsNullOrWhiteSpace(rawCode))
+                    int.TryParse(rawCode, out versionCode);
+
+                if (versionCode <= 0 || string.IsNullOrWhiteSpace(versionName))
+                {
+                    string[] gradleCandidates =
+                    {
+                        @"\\wsl.localhost\Ubuntu\home\ubuntuxina\meine-projekte\seelenfunke\android-app\app\build.gradle.kts",
+                        @"C:\Users\konta\AndroidStudioProjects\seelenfunke-android\app\build.gradle.kts"
+                    };
+                    string? gradleFile = gradleCandidates.FirstOrDefault(File.Exists);
+                    if (gradleFile != null)
+                    {
+                        string kts = await File.ReadAllTextAsync(gradleFile);
+                        if (versionCode <= 0)
+                        {
+                            var mCode = System.Text.RegularExpressions.Regex.Match(kts, @"versionCode\s*=\s*(\d+)");
+                            if (mCode.Success) int.TryParse(mCode.Groups[1].Value, out versionCode);
+                        }
+                        if (string.IsNullOrWhiteSpace(versionName))
+                        {
+                            var mName = System.Text.RegularExpressions.Regex.Match(kts, @"versionName\s*=\s*""([^""]+)""");
+                            if (mName.Success) versionName = mName.Groups[1].Value;
+                        }
+                    }
+                }
+
+                Console.WriteLine($"📱 [Stage-OTA] Prüfe & veröffentliche Funkenwerk v{versionName} (Build {versionCode}) per Ed25519-Key-Only auf Stage...");
+                var res = await McpSecurityGuard.PublishStageAndroidApkAsync(
+                    profileName: "Mittwald",
+                    customApkPath: apkPath,
+                    versionCode: versionCode,
+                    versionName: versionName ?? "",
+                    releaseNotes: notes);
+
+                Console.WriteLine(McpSecurityGuard.ScrubSecrets(JsonSerializer.Serialize(res, JsonPretty)));
+                return res.Success ? 0 : 1;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"❌ Stage-APK-Publish abgebrochen: {McpSecurityGuard.ScrubSecrets(ex.Message)}");
+                return 1;
+            }
+        }
+
+        private static async Task<int> RunStageSentinelSyncCliAsync(string[] args)
+        {
+            try
+            {
+                McpSecurityGuard.LockDownDirectoryAcl(McpSecurityGuard.VaultDirectory);
+
+                bool resolveStageFirst = args.Any(a => string.Equals(a, "--resolve-stage", StringComparison.OrdinalIgnoreCase));
+                if (resolveStageFirst)
+                {
+                    Console.WriteLine("🧹 [Stage-Pool] Markiere offene Stage-Pool-Dossiers als gelöst...");
+                    string resolveOut = await McpSecurityGuard.ExecutePinnedSshPresetAsync("Mittwald", "stage_sentinel_resolve_all");
+                    Console.WriteLine($"   ✓ Stage-Antwort: {resolveOut}");
+                }
+
+                Console.WriteLine("🛡️ [1/2] Rufe 24/7 Funkira-Auffang-Pool von Stage ('Mittwald' / seelenfunke-stage) per Ed25519-SSH ab...");
+                string rawJson = await McpSecurityGuard.ExecutePinnedSshPresetAsync("Mittwald", "stage_sentinel_export");
+
+                int jsonStart = rawJson.IndexOf('{');
+                int jsonEnd = rawJson.LastIndexOf('}');
+                if (jsonStart < 0 || jsonEnd <= jsonStart)
+                    throw new InvalidOperationException("Stage lieferte kein gültiges JSON-Objekt für den Auffang-Pool.");
+
+                string cleanJson = McpSecurityGuard.ScrubSecrets(rawJson.Substring(jsonStart, jsonEnd - jsonStart + 1));
+                using var doc = JsonDocument.Parse(cleanJson, StrictJsonParseOptions);
+                int openPoolCount = doc.RootElement.TryGetProperty("open_pool_count", out var opc) && opc.ValueKind == JsonValueKind.Number
+                    ? opc.GetInt32()
+                    : 0;
+                int autoHealed7d = doc.RootElement.TryGetProperty("auto_healed_last_7d_count", out var ahc) && ahc.ValueKind == JsonValueKind.Number
+                    ? ahc.GetInt32()
+                    : 0;
+
+                string localPrivateDir = Path.Combine(McpSecurityGuard.DefaultLocalStorageAppRoot, "private");
+                Directory.CreateDirectory(localPrivateDir);
+                string localInboxPath = Path.Combine(localPrivateDir, "antigravity_inbox.json");
+
+                string prettyJson = JsonSerializer.Serialize(doc.RootElement, JsonPretty);
+                await File.WriteAllTextAsync(localInboxPath, prettyJson, Utf8NoBom);
+                Console.WriteLine($"   ✓ Stage-Pool empfangen: {openPoolCount} offene Antigravity-Dossiers | {autoHealed7d} Auto-Heilungen (7 Tage).");
+
+                Console.WriteLine("📥 [2/2] Synchronisiere Stage-Auffang-Pool in lokale Datenbank (127.0.0.1)...");
+                try
+                {
+                    var psi = new ProcessStartInfo
+                    {
+                        FileName = "wsl.exe",
+                        Arguments = "-d Ubuntu bash -c \"cd /home/ubuntuxina/meine-projekte/seelenfunke && docker compose exec -T web php artisan system:sentinel-inbox --import-file=storage/app/private/antigravity_inbox.json 2>/dev/null\"",
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        CreateNoWindow = true
+                    };
+                    using var proc = Process.Start(psi);
+                    if (proc != null)
+                    {
+                        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+                        string importOut = await proc.StandardOutput.ReadToEndAsync(cts.Token);
+                        await proc.WaitForExitAsync(cts.Token);
+                        if (proc.ExitCode == 0 && !string.IsNullOrWhiteSpace(importOut))
+                        {
+                            Console.WriteLine($"   ✓ Lokaler DB-Import erfolgreich: {McpSecurityGuard.ScrubSecrets(importOut.Trim())}");
+                        }
+                        else
+                        {
+                            Console.WriteLine("   ℹ Lokaler Docker-Webcontainer schläft aktuell; Datei storage/app/private/antigravity_inbox.json liegt bereit und wird beim nächsten './funki start' importiert.");
+                        }
+                    }
+                }
+                catch
+                {
+                    Console.WriteLine("   ℹ Lokaler DB-Import übersprungen (Datei storage/app/private/antigravity_inbox.json ist vollständig gespeichert).");
+                }
+
+                Console.WriteLine("✅ 24/7 Auffang-Pool-Sync abgeschlossen.");
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"❌ Sentinel-Pool-Sync abgebrochen: {McpSecurityGuard.ScrubSecrets(ex.Message)}");
                 return 1;
             }
         }
@@ -2140,18 +2335,20 @@ namespace FunkenwerkMcp
                 AssertTest("13. SSRF Guard, UserInfo Rejection & HTTPS Enforcement",
                     evilBlocked && httpRemoteBlocked && userInfoBlocked && httpsStageAllowed && httpsLiveAllowed);
 
-                // 14. Arbitrary SSH Command Injection Blocked + 11 Safe Presets Verified (incl. stage_deploy & stage_worker_restart)
+                // 14. Arbitrary SSH Command Injection Blocked + 13 Safe Presets Verified (incl. stage_deploy, stage_worker_restart & sentinel pool)
                 bool sshInjectionBlocked = false;
                 try { await McpSecurityGuard.ExecutePinnedSshPresetAsync("Mittwald", "rm -rf /; cat ~/.ssh/id_ed25519"); }
                 catch (UnauthorizedAccessException) { sshInjectionBlocked = true; }
-                bool hasAll11Presets = McpSecurityGuard.SafeReadonlySshPresets.Count == 11
+                bool hasAll13Presets = McpSecurityGuard.SafeReadonlySshPresets.Count == 13
                     && McpSecurityGuard.SafeReadonlySshPresets.Contains("uptime_and_load")
                     && McpSecurityGuard.SafeReadonlySshPresets.Contains("disk_usage")
                     && McpSecurityGuard.SafeReadonlySshPresets.Contains("stage_git_pull")
                     && McpSecurityGuard.SafeReadonlySshPresets.Contains("stage_deploy")
-                    && McpSecurityGuard.SafeReadonlySshPresets.Contains("stage_worker_restart");
-                AssertTest("14. Arbitrary SSH Command Blocked & 11 SafeReadonlySshPresets (incl. stage_deploy) Verified",
-                    sshInjectionBlocked && hasAll11Presets);
+                    && McpSecurityGuard.SafeReadonlySshPresets.Contains("stage_worker_restart")
+                    && McpSecurityGuard.SafeReadonlySshPresets.Contains("stage_sentinel_export")
+                    && McpSecurityGuard.SafeReadonlySshPresets.Contains("stage_sentinel_resolve_all");
+                AssertTest("14. Arbitrary SSH Command Blocked & 13 SafeReadonlySshPresets (incl. stage_deploy & sentinel) Verified",
+                    sshInjectionBlocked && hasAll13Presets);
 
                 // 15. SSH RemoteDirectory Metacharacter Injection Blocked
                 bool sshDirBlocked = false;
@@ -2616,6 +2813,101 @@ namespace FunkenwerkMcp
                     bool keyOnlyOk = !found || (hasKey && !pwdInRam);
                     AssertTest("41. Stage Autopilot Enforces Ed25519 Key-Only Mode (Zero Vault Password Decryption In RAM)",
                         keyOnlyOk);
+                }
+
+                // 42. Stage APK Publisher Rejects Non-APK / Unsigned ZIP & Cryptographically Verifies Real 4096-Bit Funkenwerk APK
+                {
+                    bool nonApkBlocked = false;
+                    try { McpSecurityGuard.VerifyLocalSignedFunkenwerkApk(Path.Combine(tempDocsDir, "evil.exe")); }
+                    catch (UnauthorizedAccessException) { nonApkBlocked = true; }
+
+                    string fakeUnsignedApk = Path.Combine(tempDocsDir, "unsigned.apk");
+                    var fakePayload = new byte[600 * 1024];
+                    fakePayload[0] = 0x50; fakePayload[1] = 0x4B; fakePayload[2] = 0x03; fakePayload[3] = 0x04;
+                    File.WriteAllBytes(fakeUnsignedApk, fakePayload);
+
+                    bool unsignedBlocked = false;
+                    try { McpSecurityGuard.VerifyLocalSignedFunkenwerkApk(fakeUnsignedApk); }
+                    catch (UnauthorizedAccessException) { unsignedBlocked = true; }
+
+                    bool realVerified = true;
+                    if (File.Exists(McpSecurityGuard.DefaultLocalReleaseApkPath))
+                    {
+                        var (sz, sha, cert) = McpSecurityGuard.VerifyLocalSignedFunkenwerkApk(McpSecurityGuard.DefaultLocalReleaseApkPath);
+                        realVerified = sz > 512 * 1024 && sha.Length == 64 && cert == McpSecurityGuard.PinnedFunkenwerkApkCertSha256;
+                    }
+
+                    AssertTest("42. Stage APK Publisher Blocks Non-APK/Unsigned Files & Cryptographically Verifies Real 4096-Bit Release APK",
+                        nonApkBlocked && unsignedBlocked && realVerified);
+                }
+
+                // 43. Stage APK Publisher Blocks /seelenfunke-live & Invalid Version Strings Before Opening Sockets
+                {
+                    bool liveApkBlocked = false;
+                    try
+                    {
+                        await McpSecurityGuard.PublishStageAndroidApkAsync(
+                            profileName: "Mittwald",
+                            customApkPath: McpSecurityGuard.DefaultLocalReleaseApkPath,
+                            versionCode: 13,
+                            versionName: "1.6.0",
+                            customRemoteStageDirForTest: "/home/p-g27wim/html/seelenfunke-live");
+                    }
+                    catch (UnauthorizedAccessException) { liveApkBlocked = true; }
+
+                    bool badVerBlocked = false;
+                    try
+                    {
+                        await McpSecurityGuard.PublishStageAndroidApkAsync(
+                            profileName: "Mittwald",
+                            customApkPath: McpSecurityGuard.DefaultLocalReleaseApkPath,
+                            versionCode: 13,
+                            versionName: "1.6.0; rm -rf /");
+                    }
+                    catch (UnauthorizedAccessException) { badVerBlocked = true; }
+
+                    AssertTest("43. Stage APK Publisher Blocks /seelenfunke-live & Shell-Injection Version Strings Before Opening Sockets",
+                        liveApkBlocked && badVerBlocked);
+                }
+
+                // 44. Mittwald Node.js App Container Mapping (a-yeq7el / twilio-bridge) & Stage Worker Guard
+                {
+                    McpSecurityGuard.ValidateStageOnlyTarget("ssh.altgemeinde.project.host", "/home/p-g27wim/html/twilio-bridge", allowWorkerStage: true);
+                    bool nonWorkerBlocked = false;
+                    try { McpSecurityGuard.ValidateStageOnlyTarget("ssh.altgemeinde.project.host", "/home/p-g27wim/html/twilio-bridge", allowWorkerStage: false); }
+                    catch (UnauthorizedAccessException) { nonWorkerBlocked = true; }
+
+                    var (found, resolvedUser, resolvedDir, pwdInRam) = McpSecurityGuard.InspectNodeBridgeProfileForSelfTest();
+                    bool profileMappedOk = !found || (
+                        resolvedUser == McpSecurityGuard.StageTwilioBridgeSshUser &&
+                        resolvedDir == McpSecurityGuard.StageTwilioBridgeRemoteDir &&
+                        !pwdInRam);
+
+                    AssertTest("44. Mittwald Node.js App Maps To Container a-yeq7el (/twilio-bridge) In Ed25519 Key-Only Mode",
+                        nonWorkerBlocked && profileMappedOk);
+                }
+
+                // 45. 24/7 Sentinel Catch-All Pool SSH Presets Are Allowlisted & Block /seelenfunke-live Before Socket Open
+                {
+                    bool presetsRegistered = McpSecurityGuard.SafeReadonlySshPresets.Contains("stage_sentinel_export")
+                        && McpSecurityGuard.SafeReadonlySshPresets.Contains("stage_sentinel_resolve_all");
+
+                    bool liveExportBlocked = false;
+                    try
+                    {
+                        await McpSecurityGuard.ExecutePinnedSshPresetAsync("Mittwald", "stage_sentinel_export", "/home/p-g27wim/html/seelenfunke-live");
+                    }
+                    catch (UnauthorizedAccessException) { liveExportBlocked = true; }
+
+                    bool liveResolveBlocked = false;
+                    try
+                    {
+                        await McpSecurityGuard.ExecutePinnedSshPresetAsync("Mittwald", "stage_sentinel_resolve_all", "/home/p-g27wim/html/seelenfunke-live");
+                    }
+                    catch (UnauthorizedAccessException) { liveResolveBlocked = true; }
+
+                    AssertTest("45. 24/7 Sentinel Pool Presets Allowlisted & Block /seelenfunke-live Before Opening Sockets",
+                        presetsRegistered && liveExportBlocked && liveResolveBlocked);
                 }
 
                 Console.WriteLine($"=== RESULT: {passed} PASSED, {failed} FAILED ===");

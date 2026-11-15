@@ -403,10 +403,14 @@ class AppServiceProvider extends ServiceProvider
         \Illuminate\Support\Facades\Queue::after($heartbeatCallback);
 
         // 7. Lückenlose Fehler-Erfassung ("jede Mücke") für /admin/global-logs (SystemLog):
-        //    a) Alle abgefangenen Log::warning / Log::error / Log::critical / Log::alert / Log::emergency Aufrufe
-        //    b) Fehlgeschlagene Queue-Jobs (JobFailed)
-        //    c) Fehlgeschlagene Cron-/Scheduler-Tasks (ScheduledTaskFailed)
-        //    d) Alle mit Fehler-Exit-Code beendeten Artisan-/Cron-Befehle (CommandFinished)
+        //    a) Harter PHP-Shutdown- & Out-of-Memory-Wächter (register_shutdown_function + lokaler Dead-Letter-Spool)
+        //    b) Alle abgefangenen Log::warning / Log::error / Log::critical / Log::alert / Log::emergency Aufrufe
+        //    c) Fehlgeschlagene Queue-Jobs (JobFailed)
+        //    d) Fehlgeschlagene Cron-/Scheduler-Tasks (ScheduledTaskFailed)
+        //    e) Alle mit Fehler-Exit-Code beendeten Artisan-/Cron-Befehle (CommandFinished)
+        if (!app()->runningUnitTests() && class_exists(\App\Services\System\SystemErrorLogger::class)) {
+            \App\Services\System\SystemErrorLogger::registerFatalShutdownHandler();
+        }
         \Illuminate\Support\Facades\Event::listen(\Illuminate\Log\Events\MessageLogged::class, function (\Illuminate\Log\Events\MessageLogged $event) {
             $lvl = strtolower((string) $event->level);
             if (!in_array($lvl, ['warning', 'error', 'critical', 'alert', 'emergency'], true)) {
@@ -475,6 +479,7 @@ class AppServiceProvider extends ServiceProvider
                     'optimize', 'optimize:clear', 'config:cache', 'config:clear', 'cache:clear',
                     'route:cache', 'route:clear', 'route:list', 'view:cache', 'view:clear',
                     'event:cache', 'event:clear', 'ai:generate-map', 'system:check-routes',
+                    'system:sentinel-inbox',
                 ];
                 if (in_array($cmdName, $ignoredInteractiveCommands, true) || str_starts_with($cmdName, 'make:') || str_starts_with($cmdName, 'ide-helper:')) {
                     return;

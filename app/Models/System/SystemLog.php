@@ -191,6 +191,32 @@ protected $table = 'system_logs';
         return $query->whereIn('status', ['error', 'warning']);
     }
 
+    public function scopeQueuedForAntigravity(Builder $query): Builder
+    {
+        return $query->openIssues()->where('payload->triage->state', 'queued_for_antigravity');
+    }
+
+    public function scopeAutoHealedEntries(Builder $query): Builder
+    {
+        return $query->where(function (Builder $q) {
+            $q->where('payload->auto_healed', true)
+                ->orWhere('payload->triage->state', 'auto_healed')
+                ->orWhere('title', 'like', '[AUTO-GEHEILT]%');
+        });
+    }
+
+    public function triageState(): ?string
+    {
+        $payload = is_array($this->payload) ? $this->payload : (json_decode((string) $this->payload, true) ?: []);
+        if (!empty($payload['triage']['state']) && is_string($payload['triage']['state'])) {
+            return $payload['triage']['state'];
+        }
+        if (!empty($payload['auto_healed']) || str_starts_with((string) $this->title, '[AUTO-GEHEILT]')) {
+            return 'auto_healed';
+        }
+        return null;
+    }
+
     public function scopeArchivedEntries(Builder $query): Builder
     {
         return $query->whereNotIn('status', ['error', 'warning']);

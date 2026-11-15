@@ -167,11 +167,15 @@ Im Zuge dieser Umstellung wurde auch die restliche Struktur der Hintergrund-Proz
    - **Vorteil:** Ressourcenschonend, da der PHP-Prozess nach Erledigung der Aufgaben (meist < 2 Sekunden) sofort beendet wird und den RAM wieder freigibt.
    - **Status:** Der minütliche Cronjob auf der Web-App `seelenfunke-stage` mit dem Parameter `schedule:run` bleibt der führende Scheduler. Die redundante Worker-App wurde entfernt, um doppelte Task-Ausführungen (und damit z. B. doppelten Mailversand) zuverlässig zu verhindern.
 
-**Bereinigte Gesamtstruktur auf Stage:**
-* **Web-App Container (`seelenfunke-stage`):** Läuft als Webserver und führt minütlich den Cronjob `schedule:run` aus.
+**Bereinigte Gesamtstruktur auf Stage (`Projekt p-g27wim`, Stand 15.11.2026):**
+* **Web-App Container `seelenfunke-stage` (`a-lc6tkm`, SSH `kontakt@mein-seelenfunke.de@a-lc6tkm`, `/html/seelenfunke-stage`):** Bedient `https://stage.mein-seelenfunke.de`, proxyt `ws.mein-seelenfunke.de` per `.htaccess` auf `a-iurgq8:6001` und führt minütlich den Cronjob `schedule:run` aus.
 * **Worker-App `WORKER - Jobs (Mails,PDF) Stage`:** Läuft permanent für die Queue-Abarbeitung.
-* **Worker-App `WORKER - Websocket Stage` (`a-iurgq8`):** Läuft permanent für den Laravel Reverb WebSocket-Server.
+* **Worker-App `WORKER - Websocket Stage` (`a-iurgq8`, SSH `kontakt@mein-seelenfunke.de@a-iurgq8`, `/html/worker-stage-3`):** Läuft permanent unter `mittnite` (`php artisan reverb:start`) für Pusher/Echo-Events **sowie** für die integrierte ReactPHP Twilio-Telefonsekretärin (`wss://ws.mein-seelenfunke.de/twilio-stream` & `/twilio-health`).
+* **Node.js-App `seelenfunke-nodejs` (`a-yeq7el`, SSH `kontakt@mein-seelenfunke.de@a-yeq7el`, `/html/twilio-bridge`):** Läuft permanent unter `mittnite` (`node server-twilio.js`) direkt hinter `https://api-live-bridge.mein-seelenfunke.de` (`/gemini-live`, `/twilio-stream`, `/health`).
 
-**Fazit:** Der Workaround mit zwei Cronjobs im selben Container war eine exzellente temporäre Lösung. Mit den neuen Erkenntnissen des Supports zur korrekten Hostname-Auflösung (`a-iurgq8` ohne `.internal`) wechseln wir zur nativen Worker-App-Architektur. Dies macht den minütlichen Reverb-Cronjob und den "Zombie-Killer" in `MasterAnalytics.php` hinfällig, da Mittwalds `mittnite` nun die Prozessüberwachung übernimmt. Gleichzeitig sorgt die Entfernung des redundanten Scheduler-Workers für ein saubereres, ressourcenschonenderes und fehlerfreies System-Setup.
+> [!TIP]
+> **Vollautomatischer Sync & Dual-Restart:** `./funki stage-deploy` führt automatisch `./funki sync-worker` aus und startet danach sowohl `a-iurgq8` (`Mittwald Websocket`) als auch `a-yeq7el` (`Mittwald Node.js App`) per direktem Container-SSH (`mittnitectl job restart`) neu. Die vollständige Container-, Twilio- und Gemini-Live-Gesamtdokumentation befindet sich in [`Support_Twilio_Call_Dokumentation.md`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/Abschlussberichte/Support/Support_Twilio_Call_Dokumentation.md).
+
+**Fazit:** Der Workaround mit zwei Cronjobs im selben Container war eine exzellente temporäre Lösung. Mit der korrekten Hostname-Auflösung (`a-iurgq8` ohne `.internal`) und den direkten Container-SSH-Logins (`@a-iurgq8` und `@a-yeq7el`) läuft die gesamte Echtzeit- und Telefonie-Infrastruktur nativ, überwacht durch Mittwalds `mittnite` und vollautomatisch wartbar über `./funki stage-deploy` bzw. `FunkenwerkMcp.exe --stage-restart-workers`.
 
 

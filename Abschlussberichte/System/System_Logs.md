@@ -13,9 +13,11 @@ Ziel dieses Moduls ist es, Administratoren und Entwicklern eine zentrale Diagnos
 - [SystemLog](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Models/System/SystemLog.php): Das zentrale Modell für Log-Einträge. Speichert den ausführenden KI-Agenten (`ai_agent_id`), Log-Typ, die Action-ID zur Gruppierung nach Domänen, einen Titel, Detailnachrichten, Status (`success`, `warning`, `error`, `running`), JSON-Payloads sowie Start- und Endzeitpunkte.
 - [SystemSchedulerLog](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Models/System/SystemSchedulerLog.php): Dediziertes Ausführungsprotokoll (`system_scheduler_logs`, Migration `2026_11_14_094500_create_system_scheduler_logs_table.php`) für alle geplanten Server-Cronjobs.
 
-### Services & Livewire-Controller
-- [SystemErrorLogger](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/System/SystemErrorLogger.php): Zentraler Diagnose-, Secret-Scrubbing- und 24h-Deduplizierungs-Service für unbehandelte Exceptions, `Log::warning`/`Log::error`-Ereignisse, fehlgeschlagene operative Cronjobs sowie den Cross-Platform Error-Sentinel.
-- [SystemLogs](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/System/SystemLogs.php): Der Controller für das administrative Log-Cockpit (`/admin/logs`). Bietet Such- und Filtersysteme (nach Status, Log-Typ, Agent, Domain) und Funktionen zum Löschen von Einträgen, zum manuellen Umschalten des Lösungsstatus (`toggleStatus`) sowie zum gesammelten Abschließen offener Fehler/Warnungen (`markAllAsDone`).
+### Services, Commands & Livewire-Controller
+- [SystemErrorLogger](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/System/SystemErrorLogger.php): Zentraler Diagnose-, Secret-Scrubbing- und 24h-Deduplizierungs-Service für unbehandelte Exceptions, harte PHP-Shutdown-/OOM-Abstürze (`registerFatalShutdownHandler`), kompilierte Blade-View-Rückauflösung (`resolveCompiledBladeViewPath`), lokalen Dead-Letter-Notfall-Spool (`sentinel_deadletter.jsonl`), `Log::warning`/`Log::error`-Ereignisse, fehlgeschlagene operative Cronjobs sowie den Cross-Platform Error-Sentinel.
+- [SentinelTriageService](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/System/SentinelTriageService.php): Zweistufiger 24/7 Selbstheilungs-Wächter (Stufe 1 autonome Infrastruktur-Selbstheilung + Stufe 2 einmaliges Antigravity-Reparatur-Dossier im Auffang-Pool `storage/app/private/antigravity_inbox.json`).
+- [SentinelTriageCommand](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Console/Commands/System/SentinelTriageCommand.php) (`system:sentinel-triage`) & [SentinelInboxCommand](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Console/Commands/System/SentinelInboxCommand.php) (`system:sentinel-inbox`): 5-Minuten-Wächter-Zyklus sowie Offline-Catch-Up-Synchronisation zwischen 24/7-Stage und lokalem Notebook (`127.0.0.1`).
+- [SystemLogs](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/System/SystemLogs.php): Der Controller für das administrative Log-Cockpit (`/admin/global-logs`) mit den drei Ansichten `Offen`, `Auffang-Pool` und `Archiv`, 1-Klick-Button `Wächter prüfen` (`runSentinelTriageNow`) sowie aufklappbarer Funkira-Dossier-Ansicht.
 
 ---
 
@@ -102,3 +104,42 @@ Das administrative Log-Cockpit unter `/admin/global-logs` ([`SystemLogs.php`](fi
   - **Kryptografischer Bridge-Fallback (`HMAC-SHA256`):** [`server-twilio.js`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/server-twilio.js) und [`SystemSecurityService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/System/SystemSecurityService.php) leiten ohne separates `GEMINI_BRIDGE_SECRET` einen domänengetrennten `HMAC-SHA256` aus `APP_KEY` ab (behebt HTTP-403 / Code-4003 zwischen internen Mittwald-Containern auf `/api/ai/verify-token` und `/api/log/websocket`).
   - **Exakte Packagist-Semver-Prüfung:** [`SystemSecurityAuditCommand.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Console/Commands/SystemSecurityAuditCommand.php) wertet Versions-Constraints via `versionMatchesPackagistConstraint()` auch ohne installiertes `composer/semver` (`--no-dev`) präzise aus (eliminiert Fehlalarme historischer Alt-CVEs).
   - **PHP 8.4 QR-Code & Livewire-Navigation:** [`InvoiceService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/InvoiceService.php) kapselt `BaconQrCode`-Deprecations sauber ab; [`master-analytics.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/master/master-analytics.blade.php) und [`frontend-error-tracker.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/components/layouts/partials/frontend-error-tracker.blade.php) verhindern transiente Alpine-/DOM-Swap-Meldungen bei `wire:navigate`.
+
+---
+
+### 7. 24/7 Selbstheilungs-Wächter & Antigravity-Auffang-Pool (`SentinelTriageService`)
+
+Damit selbst dann kein einziger Fehler verloren geht oder unbemerkt bleibt, wenn das lokale Notebook ausgeschaltet und Antigravity offline ist, arbeitet auf Stage (`https://stage.mein-seelenfunke.de`) rund um die Uhr alle 5 Minuten der zweistufige **Funkira Selbstheilungs-Wächter** ([`SentinelTriageService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/System/SentinelTriageService.php)):
+
+```mermaid
+flowchart TD
+    A["Alle Quellen: Portal, Queue, PHP-Shutdown, Android, Mini-PC, Desktop & Bridges"] --> B["SystemErrorLogger + Dead-Letter-Spool (0% Verlust)"]
+    B --> C["5-Minuten Cronjob: system:sentinel-triage --probe-bridges"]
+    C --> D{"Stufe 1: Sicher autonom heilbar?"}
+    D -- "Ja (Cache/View-Stream, Watchdog, abgelaufenes 419 < 25, erholte Bridge)" --> E["[AUTO-GEHEILT] -> 7-Tage-Archiv (status = success)"]
+    D -- "Nein (Echter Code-Bug oder Fehler-Sturm)" --> F["Stufe 2: 1x pro Fingerprint Funkira-Dossier bauen"]
+    F --> G["24/7 Auffang-Pool: antigravity_inbox.json + Tab 'Auffang-Pool'"]
+    G --> H["Notebook startet: FunkenwerkMcp.exe --sentinel-sync / ./funki start"]
+    H --> I["1:1 Sync in lokales 127.0.0.1 SystemLog + Bereit für Antigravity Code-Fix"]
+```
+
+1. **Lückenlose Erfassung ("Jeder noch so klebrige Fehler"):**
+   - **PHP Fatal / Shutdown / OOM Catcher:** `SystemErrorLogger::registerFatalShutdownHandler()` (registriert in [`AppServiceProvider.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Providers/AppServiceProvider.php)) fängt selbst harte PHP-Prozessabbrüche (`E_ERROR`, `E_PARSE`, `E_COMPILE_ERROR`, Memory-Limit, Max-Execution-Time) ab.
+   - **Kompilierte Blade-View-Rückauflösung:** Fehler in `storage/framework/views/*.php` werden über den eingebetteten `**PATH ... .blade.php ENDPATH**`-Header automatisch auf die echte `.blade.php`-Quelldatei zurückgeführt.
+   - **Dead-Letter-Notfall-Spool (`sentinel_deadletter.jsonl`):** Falls MySQL im Moment eines Fehlers kurzzeitig nicht erreichbar ist, puffert `writeDeadLetterFallback()` den geheimnisbereinigten Eintrag lokal auf Disk und `drainDeadLetterSpool()` spült ihn beim nächsten Wächter-Lauf verlustfrei in `system_logs` nach.
+   - **Aktiver Queue- & Echtzeit-Brücken-Puls:** `probeActiveInfrastructure()` importiert abgebrochene Einträge aus `failed_jobs` und prüft per IPv4-Puls `https://ws.mein-seelenfunke.de/twilio-health` (`a-iurgq8`) sowie `https://api-live-bridge.mein-seelenfunke.de/health` (`a-yeq7el`). Sobald eine gestörte Brücke wieder mit `HTTP 200` antwortet, heilt der Wächter die offene Warnung automatisch auf `[AUTO-GEHEILT]`.
+
+2. **Stufe 1: Autonome Infrastruktur-Selbstheilung (0 Quellcode-Mutation):**
+   - Verifizierbare Betriebsereignisse (bestätigte Client-Watchdog-Heilungen, kompilierte View-/Cache-Stream-Konflikte nach `view:clear` + `cache:clear`, einzelne abgelaufene Browser-Formular-Tokens `< 25`, abgemeldete FCM-Tokens sowie abgeklungene DNS-/Cache-Engpässe nach positivem Live-DB/Cache-Test) werden automatisch bereinigt und ehrlich als `[AUTO-GEHEILT]` (`status = 'success'`) ins 7-Tage-Archiv verschoben.
+   - Echte Code-Fehler in Views (`Undefined variable`, `Syntax error`) oder Fehler-Stürme (z. B. `HTTP 419 >= 25`) werden **niemals** blind weggeheilt, sondern eskalieren zwingend in Stufe 2.
+
+3. **Stufe 2: Antigravity-Auffang-Pool (`Auffang-Pool` / `antigravity_inbox.json`):**
+   - Funkira verändert niemals eigenmächtig PHP-/JS-/C#-Quellcode auf dem Server. Stattdessen baut `SentinelTriageService` **strikt 1x pro eindeutigem SHA-256-Fingerprint** (keine Token-Schleifen bei Wiederholungsfehlern!) ein geheimnisbereinigtes **Funkira Reparatur-Dossier**:
+     - Exakte Zieldatei, Zeilennummer und `+/- 12` Zeilen bereinigter Quellcode-Ausschnitt (strenge Pfad-Whitelist, `.env`/`storage/`/`vendor/` hart gesperrt)
+     - Aufrufer- und Abhängigkeits-Nachbarschaft aus `SystemNeuralNode`
+     - Deterministische Diagnose plus optionale einmalige `gemini-2.5-flash` Wurzelursachen- und Fix-Plan-Analyse (IPv4, 24h Cache)
+     - Gedrosselter Smartphone-Push-Alarm (max. 1x pro 6h, ausschließlich bei `criticality = critical` und vorhandener `firebase-service-account.json`).
+
+4. **24/7 Offline-Brücke zum lokalen Notebook (`FunkenwerkMcp` & `./funki`):**
+   - Über die Ed25519-Key-Only SSH-Presets `stage_sentinel_export` und `stage_sentinel_resolve_all` in [`McpSecurityGuard.cs`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/funkenwerk-mcp/McpSecurityGuard.cs) und den CLI-Befehl `FunkenwerkMcp.exe --sentinel-sync` ([`Program.cs`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/funkenwerk-mcp/Program.cs), integriert in `./funki start` und `./funki sentinel`) zieht das lokale System beim Einschalten automatisch den gesamten 24/7-Stage-Auffang-Pool nach `storage/app/private/antigravity_inbox.json` und synchronisiert alle Einträge 1:1 in die lokale Datenbank (`127.0.0.1`).
+   - Vollständig abgesichert durch [`SentinelSelfHealingAndInboxTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/System/SentinelSelfHealingAndInboxTest.php) sowie Selbsttest #45 in `FunkenwerkMcp` (`45/45 PASSED`).

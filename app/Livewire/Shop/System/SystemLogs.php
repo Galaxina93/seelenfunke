@@ -4,6 +4,7 @@ namespace App\Livewire\Shop\System;
 
 use App\Console\Commands\System\CleanupSystemLogsCommand;
 use App\Models\System\SystemLog;
+use App\Services\System\SentinelTriageService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Livewire\Component;
@@ -46,7 +47,7 @@ class SystemLogs extends Component
             abort(403);
         }
 
-        if (!in_array($this->viewTab, ['open', 'archived'], true)) {
+        if (!in_array($this->viewTab, ['open', 'pool', 'archived'], true)) {
             $this->viewTab = 'open';
         }
 
@@ -55,6 +56,7 @@ class SystemLogs extends Component
         }
 
         CleanupSystemLogsCommand::pruneOpportunistically();
+        app(SentinelTriageService::class)->runOpportunistically();
     }
 
     public function updatingSearch(): void { $this->resetPage(); }
@@ -66,8 +68,18 @@ class SystemLogs extends Component
 
     public function switchViewTab(string $tab): void
     {
-        $this->viewTab = $tab === 'archived' ? 'archived' : 'open';
+        $this->viewTab = in_array($tab, ['open', 'pool', 'archived'], true) ? $tab : 'open';
         $this->statusFilter = '';
+        $this->resetPage();
+    }
+
+    public function runSentinelTriageNow(): void
+    {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403);
+        }
+
+        app(SentinelTriageService::class)->runTriageCycle(probeBridges: false, allowAiEnrichment: true);
         $this->resetPage();
     }
 
@@ -118,6 +130,8 @@ class SystemLogs extends Component
                     ->where('title', 'not like', '[GELÖST]%')
                     ->update(['title' => DB::raw("CONCAT('[GELÖST] ', title)")]);
             }
+
+            app(SentinelTriageService::class)->writeInboxSnapshotFile();
         }
 
         $this->resetPage();
@@ -154,6 +168,7 @@ class SystemLogs extends Component
                 }
             }
             $log->save();
+            app(SentinelTriageService::class)->writeInboxSnapshotFile();
         }
     }
 
@@ -224,6 +239,8 @@ class SystemLogs extends Component
 
         if ($this->statusFilter !== '') {
             $query->where('status', $this->statusFilter);
+        } elseif ($this->viewTab === 'pool') {
+            $query->queuedForAntigravity();
         } elseif ($this->viewTab === 'archived') {
             $query->archivedEntries();
         } else {
@@ -237,6 +254,8 @@ class SystemLogs extends Component
         $openErrors = SystemLog::where('status', 'error')->count();
         $openWarnings = SystemLog::where('status', 'warning')->count();
         $openTotal = $openErrors + $openWarnings;
+        $poolCount = SystemLog::queuedForAntigravity()->count();
+        $autoHealedCount = SystemLog::autoHealedEntries()->where('finished_at', '>=', now()->subDays(7))->count();
         $archivedCount = SystemLog::archivedEntries()->count();
 
         $openByPlatform = [];
@@ -265,6 +284,8 @@ class SystemLogs extends Component
             'openErrors' => $openErrors,
             'openWarnings' => $openWarnings,
             'openTotal' => $openTotal,
+            'poolCount' => $poolCount,
+            'autoHealedCount' => $autoHealedCount,
             'archivedCount' => $archivedCount,
             'openByPlatform' => $openByPlatform,
             'agents' => $agents,

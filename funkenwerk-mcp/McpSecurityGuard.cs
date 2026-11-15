@@ -9,6 +9,7 @@ using System.Runtime.InteropServices;
 using System.Security.AccessControl;
 using System.Security.Authentication;
 using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using System.Security.Principal;
 using System.Text;
 using System.Text.Json;
@@ -54,6 +55,19 @@ namespace FunkenwerkMcp
         public int UploadedCount { get; set; }
         public long UploadedBytes { get; set; }
         public List<string> UploadedFiles { get; set; } = new();
+    }
+
+    public sealed class StageAndroidApkPublishResultDto
+    {
+        public bool Success { get; set; }
+        public string TargetHost { get; set; } = "";
+        public string TargetRemoteVaultDir { get; set; } = "";
+        public int VersionCode { get; set; }
+        public string VersionName { get; set; } = "";
+        public string ApkSha256 { get; set; } = "";
+        public string CertSha256 { get; set; } = "";
+        public long FileSizeBytes { get; set; }
+        public string RemoteManifestJson { get; set; } = "";
     }
 
     public static class McpSecurityGuard
@@ -155,6 +169,8 @@ namespace FunkenwerkMcp
         public const string StageAllowedHost = "ssh.altgemeinde.project.host";
         public const string StageWebRemoteDir = "/home/p-g27wim/html/seelenfunke-stage";
         public const string StageWorkerRemoteDir = "/home/p-g27wim/html/worker-stage-3";
+        public const string StageTwilioBridgeRemoteDir = "/home/p-g27wim/html/twilio-bridge";
+        public const string StageTwilioBridgeSshUser = "kontakt@mein-seelenfunke.de@a-yeq7el";
         public const string DefaultLocalStorageAppRoot = @"\\wsl.localhost\Ubuntu\home\ubuntuxina\meine-projekte\seelenfunke\storage\app";
 
         public static readonly IReadOnlyList<string> SafeReadonlySshPresets = new[]
@@ -169,7 +185,9 @@ namespace FunkenwerkMcp
             "list_dir",
             "stage_git_pull",
             "stage_deploy",
-            "stage_worker_restart"
+            "stage_worker_restart",
+            "stage_sentinel_export",
+            "stage_sentinel_resolve_all"
         };
 
         private static readonly string[] AllowedShopAssetPrefixes =
@@ -1270,12 +1288,32 @@ namespace FunkenwerkMcp
                             ? overrideRemoteDir!.Trim()
                             : (el.TryGetProperty(src.DirProp, out var dp) && !string.IsNullOrWhiteSpace(dp.GetString()) ? dp.GetString()!.Trim() : "/");
 
-                        if (host.Equals("ssh.altgemeinde.project.host", StringComparison.OrdinalIgnoreCase) &&
-                            (string.IsNullOrWhiteSpace(user) || user.StartsWith("sftp-", StringComparison.OrdinalIgnoreCase)))
+                        if (host.Equals("ssh.altgemeinde.project.host", StringComparison.OrdinalIgnoreCase))
                         {
-                            user = remDir.Contains("worker-stage", StringComparison.OrdinalIgnoreCase)
-                                ? "kontakt@mein-seelenfunke.de@a-iurgq8"
-                                : "kontakt@mein-seelenfunke.de@a-lc6tkm";
+                            bool isNodeBridgeTarget = name.Equals("Mittwald Node.js App", StringComparison.OrdinalIgnoreCase)
+                                || remDir.Contains("twilio-bridge", StringComparison.OrdinalIgnoreCase);
+
+                            if (isNodeBridgeTarget)
+                            {
+                                if (string.IsNullOrWhiteSpace(user)
+                                    || user.StartsWith("sftp-", StringComparison.OrdinalIgnoreCase)
+                                    || user.EndsWith("@a-bycqrf", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    user = StageTwilioBridgeSshUser;
+                                }
+
+                                if (string.IsNullOrWhiteSpace(overrideRemoteDir)
+                                    && (remDir == "/" || remDir.EndsWith("/seelenfunke-stage", StringComparison.OrdinalIgnoreCase)))
+                                {
+                                    remDir = StageTwilioBridgeRemoteDir;
+                                }
+                            }
+                            else if (string.IsNullOrWhiteSpace(user) || user.StartsWith("sftp-", StringComparison.OrdinalIgnoreCase))
+                            {
+                                user = remDir.Contains("worker-stage", StringComparison.OrdinalIgnoreCase)
+                                    ? "kontakt@mein-seelenfunke.de@a-iurgq8"
+                                    : "kontakt@mein-seelenfunke.de@a-lc6tkm";
+                            }
                         }
 
                         if (string.IsNullOrWhiteSpace(keyPath) || keyPath.EndsWith(".ppk", StringComparison.OrdinalIgnoreCase) || !File.Exists(keyPath))
@@ -1425,12 +1463,16 @@ namespace FunkenwerkMcp
             }
 
             bool isStageWeb = string.Equals(normDir, StageWebRemoteDir, StringComparison.Ordinal);
-            bool isStageWorker = allowWorkerStage && string.Equals(normDir, StageWorkerRemoteDir, StringComparison.Ordinal);
+            bool isStageWorker = allowWorkerStage && (
+                string.Equals(normDir, StageWorkerRemoteDir, StringComparison.Ordinal) ||
+                string.Equals(normDir, StageTwilioBridgeRemoteDir, StringComparison.Ordinal));
 
             if (!isStageWeb && !isStageWorker)
             {
                 AppendAuditLog("stage_airgap_guard", $"{normHost}:{normDir}", "DENY:non_stage_dir");
-                string expected = allowWorkerStage ? $"{StageWebRemoteDir} oder {StageWorkerRemoteDir}" : StageWebRemoteDir;
+                string expected = allowWorkerStage
+                    ? $"{StageWebRemoteDir}, {StageWorkerRemoteDir} oder {StageTwilioBridgeRemoteDir}"
+                    : StageWebRemoteDir;
                 throw new UnauthorizedAccessException($"Stage-Operation abgelehnt: Zielpfad '{normDir}' entspricht nicht exakt '{expected}'.");
             }
         }
@@ -1536,10 +1578,12 @@ namespace FunkenwerkMcp
                 "stage_git_pull" => "git pull --ff-only origin main",
                 "stage_deploy" => "bash ./funki stage-deploy",
                 "stage_worker_restart" => "(mittnitectl job restart 2>/dev/null || php artisan queue:restart) && (mittnitectl job status 2>/dev/null || true)",
+                "stage_sentinel_export" => "(php artisan system:sentinel-triage --probe-bridges >/dev/null 2>&1 || true) && php artisan system:sentinel-inbox --export-json 2>/dev/null",
+                "stage_sentinel_resolve_all" => "php artisan system:sentinel-inbox --resolve-all --resolved-by=Antigravity 2>/dev/null",
                 _ => throw new UnauthorizedAccessException($"SSH-Preset '{preset}' ist nicht in der Sicherheits-Allowlist enthalten.")
             };
 
-            bool isStageMutationPreset = preset is "stage_git_pull" or "stage_deploy" or "stage_worker_restart";
+            bool isStageMutationPreset = preset is "stage_git_pull" or "stage_deploy" or "stage_worker_restart" or "stage_sentinel_export" or "stage_sentinel_resolve_all";
 
             if (!string.IsNullOrWhiteSpace(safeSubdirectory))
             {
@@ -1573,7 +1617,9 @@ namespace FunkenwerkMcp
             int timeoutSeconds = preset switch
             {
                 "stage_deploy" => 150,
+                "stage_sentinel_export" => 45,
                 "stage_worker_restart" => 35,
+                "stage_sentinel_resolve_all" => 25,
                 _ => 15
             };
 
@@ -1644,9 +1690,17 @@ namespace FunkenwerkMcp
                         throw new UnauthorizedAccessException("SSH Host-Key-Prüfung fehlgeschlagen (MITM-Schutz aktiv).");
 
                     // RemoteDirectory was strictly validated against ^[A-Za-z0-9/_.\-~]+$ in ValidateSshEndpointParameters
-                    string fullCmd = !string.IsNullOrWhiteSpace(creds.RemoteDirectory) && creds.RemoteDirectory != "/"
-                        ? $"cd -- '{creds.RemoteDirectory}' && {remoteCommand}"
-                        : remoteCommand;
+                    string fullCmd;
+                    if (preset == "stage_worker_restart" && !string.IsNullOrWhiteSpace(creds.RemoteDirectory) && creds.RemoteDirectory != "/")
+                    {
+                        fullCmd = $"(cd -- '{creds.RemoteDirectory}' 2>/dev/null || true) && {remoteCommand}";
+                    }
+                    else
+                    {
+                        fullCmd = !string.IsNullOrWhiteSpace(creds.RemoteDirectory) && creds.RemoteDirectory != "/"
+                            ? $"cd -- '{creds.RemoteDirectory}' && {remoteCommand}"
+                            : remoteCommand;
+                    }
 
                     using var cmd = client.CreateCommand(fullCmd);
                     cmd.CommandTimeout = TimeSpan.FromSeconds(timeoutSeconds);
@@ -1655,10 +1709,14 @@ namespace FunkenwerkMcp
                     int exitCode = cmd.ExitStatus ?? 0;
                     client.Disconnect();
 
-                    string combined = string.IsNullOrWhiteSpace(stderr) ? stdout : $"{stdout}\n{stderr}";
+                    bool isPureJsonPreset = preset is "stage_sentinel_export" or "stage_sentinel_resolve_all";
+                    string combined = (isPureJsonPreset && exitCode == 0)
+                        ? stdout
+                        : (string.IsNullOrWhiteSpace(stderr) ? stdout : $"{stdout}\n{stderr}");
                     combined = AnsiEscapeRegex.Replace(combined, "");
-                    if (combined.Length > 16384)
-                        combined = combined.Substring(0, 16384) + "\n...[Ausgabe gekürzt]";
+                    int maxChars = preset == "stage_sentinel_export" ? 262144 : 16384;
+                    if (combined.Length > maxChars)
+                        combined = combined.Substring(0, maxChars) + "\n...[Ausgabe gekürzt]";
 
                     if (isStageMutationPreset && exitCode != 0)
                     {
@@ -1933,6 +1991,412 @@ namespace FunkenwerkMcp
             });
         }
 
+        public const string PinnedFunkenwerkApkCertSha256 = "e4c85cdd79648fa19430c91b47e1db036544d60d2fa6136a0c5106300c849064";
+        public const string DefaultLocalReleaseApkPath = @"C:\Users\konta\AndroidStudioProjects\seelenfunke-android\app\build\outputs\apk\release\app-release.apk";
+        private static readonly Regex SafeApkVersionNameRegex = new(@"^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}(?:-[A-Za-z0-9._-]+)?$", RegexOptions.Compiled);
+
+        public static (long FileSize, string ApkSha256, string CertSha256) VerifyLocalSignedFunkenwerkApk(string apkPath)
+        {
+            if (string.IsNullOrWhiteSpace(apkPath) || apkPath.Contains("..", StringComparison.Ordinal))
+                throw new UnauthorizedAccessException("Ungültiger APK-Dateipfad blockiert.");
+
+            string fullPath = Path.GetFullPath(apkPath);
+            if (!string.Equals(Path.GetExtension(fullPath), ".apk", StringComparison.OrdinalIgnoreCase))
+                throw new UnauthorizedAccessException("Nur echte .apk-Release-Pakete sind zulässig.");
+
+            if (!File.Exists(fullPath))
+                throw new FileNotFoundException($"Lokales Release-APK nicht gefunden: {fullPath}");
+
+            if (HasReparsePointInAncestry(fullPath))
+                throw new UnauthorizedAccessException("Symlink oder Reparse-Point im APK-Pfad verweigert.");
+
+            var fi = new FileInfo(fullPath);
+            if (fi.Length < 512L * 1024L || fi.Length > 95L * 1024L * 1024L)
+                throw new UnauthorizedAccessException($"APK-Größe außerhalb des erlaubten Sicherheitsrahmens (512 KB .. 95 MB): {fi.Length} Bytes.");
+
+            using var fs = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            Span<byte> magic = stackalloc byte[4];
+            if (fs.Read(magic) != 4 || magic[0] != 0x50 || magic[1] != 0x4B || magic[2] != 0x03 || magic[3] != 0x04)
+                throw new UnauthorizedAccessException("Ungültiger ZIP/APK-Header (PK\\x03\\x04 fehlt).");
+
+            fs.Position = 0;
+            string apkSha256 = Convert.ToHexString(SHA256.HashData(fs)).ToLowerInvariant();
+
+            int eocdWindow = (int)Math.Min(fi.Length, 65557L);
+            byte[] tail = new byte[eocdWindow];
+            fs.Position = fi.Length - eocdWindow;
+            if (fs.Read(tail, 0, eocdWindow) != eocdWindow)
+                throw new UnauthorizedAccessException("APK-EOCD konnte nicht gelesen werden.");
+
+            int eocdPos = -1;
+            for (int i = eocdWindow - 22; i >= 0; i--)
+            {
+                if (tail[i] == 0x50 && tail[i + 1] == 0x4B && tail[i + 2] == 0x05 && tail[i + 3] == 0x06)
+                {
+                    eocdPos = i;
+                    break;
+                }
+            }
+            if (eocdPos < 0)
+                throw new UnauthorizedAccessException("Ungültiges ZIP-EOCD in APK.");
+
+            uint cdOffset = BitConverter.ToUInt32(tail, eocdPos + 16);
+            if (cdOffset < 32 || cdOffset >= fi.Length)
+                throw new UnauthorizedAccessException("APK besitzt keinen gültigen V2/V3-Signaturblock.");
+
+            byte[] footer = new byte[24];
+            fs.Position = (long)cdOffset - 24L;
+            if (fs.Read(footer, 0, 24) != 24 || Encoding.ASCII.GetString(footer, 8, 16) != "APK Sig Block 42")
+                throw new UnauthorizedAccessException("APK Sig Block 42 fehlt (unsigniertes Paket blockiert).");
+
+            ulong blockSizeFooter = BitConverter.ToUInt64(footer, 0);
+            long blockStart = (long)cdOffset - 8L - (long)blockSizeFooter;
+            if (blockSizeFooter < 32UL || blockSizeFooter > 16777216UL || blockStart < 0)
+                throw new UnauthorizedAccessException("Ungültige Größe des APK-Signaturblocks.");
+
+            byte[] header = new byte[8];
+            fs.Position = blockStart;
+            if (fs.Read(header, 0, 8) != 8 || BitConverter.ToUInt64(header, 0) != blockSizeFooter)
+                throw new UnauthorizedAccessException("Inkonsistenter APK-Signaturblock.");
+
+            int pairsLen = (int)(blockSizeFooter - 24UL);
+            byte[] pairsBytes = new byte[pairsLen];
+            if (fs.Read(pairsBytes, 0, pairsLen) != pairsLen)
+                throw new UnauthorizedAccessException("APK-Signaturblock konnte nicht vollständig gelesen werden.");
+
+            int pos = 0;
+            while (pos + 12 <= pairsLen)
+            {
+                ulong pairLen = BitConverter.ToUInt64(pairsBytes, pos);
+                pos += 8;
+                if (pairLen < 4UL || (ulong)pos + pairLen > (ulong)pairsLen)
+                    break;
+
+                uint pairId = BitConverter.ToUInt32(pairsBytes, pos);
+                int valOffset = pos + 4;
+                int valLen = (int)(pairLen - 4UL);
+                pos += (int)pairLen;
+
+                if (pairId == 0x7109871au || pairId == 0xf05368c0u)
+                {
+                    if (VerifyV2OrV3BlockPinned(pairsBytes.AsSpan(valOffset, valLen), out string matchedCertHex))
+                        return (fi.Length, apkSha256, matchedCertHex);
+                }
+            }
+
+            throw new UnauthorizedAccessException(
+                "Sicherheitsabbruch: APK ist nicht mit dem gepinnten 4096-Bit-RSA-Funkenwerk-Zertifikat signiert.");
+        }
+
+        private static bool VerifyV2OrV3BlockPinned(ReadOnlySpan<byte> blockVal, out string certHexLower)
+        {
+            certHexLower = "";
+            if (blockVal.Length < 16) return false;
+
+            uint signersLen = BitConverter.ToUInt32(blockVal.Slice(0, 4));
+            if (signersLen < 12 || 4 + (int)signersLen > blockVal.Length) return false;
+            var signers = blockVal.Slice(4, (int)signersLen);
+
+            uint firstSignerLen = BitConverter.ToUInt32(signers.Slice(0, 4));
+            if (firstSignerLen < 12 || 4 + (int)firstSignerLen > signers.Length) return false;
+            var firstSigner = signers.Slice(4, (int)firstSignerLen);
+
+            uint signedDataLen = BitConverter.ToUInt32(firstSigner.Slice(0, 4));
+            if (signedDataLen < 8 || 4 + (int)signedDataLen + 4 > firstSigner.Length) return false;
+            var signedData = firstSigner.Slice(4, (int)signedDataLen);
+
+            uint digestsLen = BitConverter.ToUInt32(signedData.Slice(0, 4));
+            int certsOffset = 4 + (int)digestsLen;
+            if (certsOffset < 4 || certsOffset + 8 > signedData.Length) return false;
+
+            uint certsLen = BitConverter.ToUInt32(signedData.Slice(certsOffset, 4));
+            if (certsLen < 4 || certsOffset + 4 + (int)certsLen > signedData.Length) return false;
+            var certsBuf = signedData.Slice(certsOffset + 4, (int)certsLen);
+
+            uint firstCertLen = BitConverter.ToUInt32(certsBuf.Slice(0, 4));
+            if (firstCertLen < 64 || 4 + (int)firstCertLen > certsBuf.Length) return false;
+            byte[] firstCertDer = certsBuf.Slice(4, (int)firstCertLen).ToArray();
+
+            string actualCertHex = Convert.ToHexString(SHA256.HashData(firstCertDer)).ToLowerInvariant();
+            byte[] actualBytes = Encoding.ASCII.GetBytes(actualCertHex);
+            byte[] expectedBytes = Encoding.ASCII.GetBytes(PinnedFunkenwerkApkCertSha256);
+            if (!CryptographicOperations.FixedTimeEquals(actualBytes, expectedBytes))
+                return false;
+
+            using var cert = X509CertificateLoader.LoadCertificate(firstCertDer);
+            using RSA? rsa = cert.GetRSAPublicKey();
+            if (rsa == null) return false;
+
+            int[] candidateSigOffsets = { 4 + (int)signedDataLen, 4 + (int)signedDataLen + 8 };
+            byte[] signedDataBytes = signedData.ToArray();
+
+            foreach (int sigsOffset in candidateSigOffsets)
+            {
+                if (sigsOffset < 4 || sigsOffset + 4 > firstSigner.Length) continue;
+                uint sigsLen = BitConverter.ToUInt32(firstSigner.Slice(sigsOffset, 4));
+                if (sigsLen < 12 || sigsOffset + 4 + (int)sigsLen > firstSigner.Length) continue;
+                var sigsBuf = firstSigner.Slice(sigsOffset + 4, (int)sigsLen);
+
+                int sigPos = 0;
+                while (sigPos + 12 <= sigsBuf.Length)
+                {
+                    uint entryLen = BitConverter.ToUInt32(sigsBuf.Slice(sigPos, 4));
+                    sigPos += 4;
+                    if (entryLen < 8 || sigPos + (int)entryLen > sigsBuf.Length) break;
+                    var entry = sigsBuf.Slice(sigPos, (int)entryLen);
+                    sigPos += (int)entryLen;
+
+                    uint sigAlgo = BitConverter.ToUInt32(entry.Slice(0, 4));
+                    uint sigBytesLen = BitConverter.ToUInt32(entry.Slice(4, 4));
+                    if (sigBytesLen < 64 || 8 + (int)sigBytesLen > entry.Length) continue;
+                    byte[] sigBytes = entry.Slice(8, (int)sigBytesLen).ToArray();
+
+                    HashAlgorithmName? hashAlgo = sigAlgo switch
+                    {
+                        0x0103u => HashAlgorithmName.SHA256,
+                        0x0104u => HashAlgorithmName.SHA512,
+                        _ => null
+                    };
+                    if (hashAlgo.HasValue && rsa.VerifyData(signedDataBytes, sigBytes, hashAlgo.Value, RSASignaturePadding.Pkcs1))
+                    {
+                        certHexLower = actualCertHex;
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        public static async Task<StageAndroidApkPublishResultDto> PublishStageAndroidApkAsync(
+            string profileName = "Mittwald",
+            string? customApkPath = null,
+            int versionCode = 0,
+            string versionName = "",
+            string releaseNotes = "",
+            string? customRemoteStageDirForTest = null)
+        {
+            EnforceRateLimit("stage_publish_android_apk", isSshCall: true);
+
+            string targetRemoteDir = string.IsNullOrWhiteSpace(customRemoteStageDirForTest)
+                ? StageWebRemoteDir
+                : customRemoteStageDirForTest.Trim();
+
+            // 1. Hard Live-Air-Gap Guard BEFORE touching files, vaults, or opening sockets
+            ValidateStageOnlyTarget(StageAllowedHost, targetRemoteDir, allowWorkerStage: false);
+
+            if (versionCode < 1 || versionCode > 999999)
+                throw new UnauthorizedAccessException($"Ungültiger versionCode ({versionCode}).");
+
+            string cleanVersionName = (versionName ?? "").Trim();
+            if (!SafeApkVersionNameRegex.IsMatch(cleanVersionName))
+                throw new UnauthorizedAccessException($"Ungültiges versionName-Format ('{cleanVersionName}').");
+
+            string cleanNotes = (releaseNotes ?? "").Trim();
+            if (cleanNotes.Length > 500)
+                cleanNotes = cleanNotes.Substring(0, 500);
+
+            // 2. Cryptographic client-side verification of the signed Funkenwerk Release APK BEFORE opening network sockets
+            string localApkPath = string.IsNullOrWhiteSpace(customApkPath) ? DefaultLocalReleaseApkPath : customApkPath;
+            var (apkSize, apkSha256, certSha256) = VerifyLocalSignedFunkenwerkApk(localApkPath);
+
+            // 3. Resolve Stage SSH/SFTP profile in strict Ed25519 Key-Only mode (zero vault password decryption)
+            using var creds = ResolveProfileInternal(profileName, targetRemoteDir, forceKeyOnlyNoPasswordDecrypt: true)
+                ?? throw new InvalidOperationException($"Profil '{profileName}' wurde nicht gefunden.");
+
+            ValidateStageOnlyTarget(creds.Host, creds.RemoteDirectory, allowWorkerStage: false);
+
+            if (!HasAnySha256PinForHost(creds.Host, creds.Port))
+            {
+                AppendAuditLog("stage_publish_android_apk", $"{creds.Host}:{creds.Port}", "DENY:unpinned_host_key");
+                throw new UnauthorizedAccessException($"Host '{creds.Host}:{creds.Port}' ist nicht per SHA-256 gepinnt.");
+            }
+
+            var fwPinned = LoadFunkenwerkPinnedHostKeysSha256();
+            string remoteVaultDir = $"{StageWebRemoteDir}/storage/app/private/releases/android";
+            string remoteStageTmpName = $"_ota_stage_{Guid.NewGuid():N}.apk.tmp";
+            string remoteStageTmpFull = $"{remoteVaultDir}/{remoteStageTmpName}";
+
+            string payloadJson = JsonSerializer.Serialize(new
+            {
+                tmp_file = remoteStageTmpFull,
+                version_code = versionCode,
+                version_name = cleanVersionName,
+                sha256 = apkSha256,
+                release_notes = cleanNotes
+            });
+            string payloadB64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(payloadJson));
+
+            return await Task.Run(() =>
+            {
+                var authMethods = new List<AuthenticationMethod>();
+                PrivateKeyFile? keyFile = null;
+                try
+                {
+                    if (!string.IsNullOrWhiteSpace(creds.PrivateKeyPath) && File.Exists(creds.PrivateKeyPath))
+                    {
+                        keyFile = new PrivateKeyFile(creds.PrivateKeyPath);
+                        authMethods.Add(new PrivateKeyAuthenticationMethod(creds.Username, keyFile));
+                    }
+                    if (keyFile == null || authMethods.Count == 0)
+                    {
+                        AppendAuditLog("stage_publish_android_apk", creds.Name, "DENY:stage_requires_ed25519_key");
+                        throw new UnauthorizedAccessException(
+                            "Stage-APK-Publish erzwingt reine Ed25519-SSH-Key-Authentifizierung (Passwort-Fallback ist hart deaktiviert).");
+                    }
+
+                    bool VerifyPinnedKey(byte[] hostKeyBytes, string hostKeyName)
+                    {
+                        string actualFp = "SHA256:" + Convert.ToBase64String(SHA256.HashData(hostKeyBytes)).TrimEnd('=');
+                        byte[] actualBytes = Encoding.ASCII.GetBytes(actualFp);
+
+                        var allowedFps = new List<string>();
+                        string exactKey = $"{creds.Host.ToLowerInvariant()}:{creds.Port}:{hostKeyName}";
+                        if (fwPinned.TryGetValue(exactKey, out string? fwExact)) allowedFps.Add(fwExact);
+                        if (fwPinned.TryGetValue($"{creds.Host}:{creds.Port}", out string? fwHostPort)) allowedFps.Add(fwHostPort);
+                        allowedFps.AddRange(FindOpenSshPinnedFingerprintsForHost(creds.Host, creds.Port, hostKeyName));
+
+                        foreach (string candidateFp in allowedFps)
+                        {
+                            byte[] expectedBytes = Encoding.ASCII.GetBytes(candidateFp.Trim());
+                            if (actualBytes.Length == expectedBytes.Length &&
+                                CryptographicOperations.FixedTimeEquals(actualBytes, expectedBytes))
+                            {
+                                return true;
+                            }
+                        }
+                        return false;
+                    }
+
+                    var connInfo = new ConnectionInfo(creds.Host, creds.Port, creds.Username, authMethods.ToArray())
+                    {
+                        Timeout = TimeSpan.FromSeconds(20)
+                    };
+
+                    // 4. Upload verified APK via SFTP into private Stage vault temp file (symlink-guarded)
+                    using (var sftp = new SftpClient(connInfo))
+                    {
+                        bool sftpPinned = false;
+                        sftp.HostKeyReceived += (s, e) => { sftpPinned = VerifyPinnedKey(e.HostKey, e.HostKeyName); e.CanTrust = sftpPinned; };
+                        sftp.Connect();
+                        if (!sftpPinned || !sftp.IsConnected)
+                            throw new UnauthorizedAccessException("SFTP Host-Key-Prüfung für Stage-APK-Publish fehlgeschlagen.");
+
+                        string[] parts = remoteVaultDir.Trim('/').Split('/');
+                        string current = "";
+                        foreach (string part in parts)
+                        {
+                            current += "/" + part;
+                            if (!current.StartsWith(StageWebRemoteDir, StringComparison.Ordinal))
+                                continue;
+
+                            if (sftp.Exists(current))
+                            {
+                                var attr = sftp.GetAttributes(current);
+                                if (attr.IsSymbolicLink)
+                                    throw new UnauthorizedAccessException($"Remote-Symlink-Verzeichnis verweigert: {current}");
+                            }
+                            else
+                            {
+                                sftp.CreateDirectory(current);
+                            }
+                        }
+
+                        using (var fs = new FileStream(Path.GetFullPath(localApkPath), FileMode.Open, FileAccess.Read, FileShare.Read))
+                        {
+                            sftp.UploadFile(fs, remoteStageTmpFull, canOverride: true);
+                        }
+
+                        sftp.Disconnect();
+                    }
+
+                    // 5. Activate & server-side re-verify via AndroidReleaseService on Stage (strict APP_URL air-gap check)
+                    string phpRunnerB64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(@"
+require 'vendor/autoload.php';
+$app = require_once 'bootstrap/app.php';
+$app->make(\Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+$appUrl = rtrim((string) config('app.url'), '/');
+if ($appUrl !== 'https://stage.mein-seelenfunke.de') {
+    fwrite(STDERR, 'LIVE-AIR-GAP SPERRE: APP_URL=' . $appUrl);
+    exit(2);
+}
+$in = json_decode(base64_decode($argv[1]), true, 512, JSON_THROW_ON_ERROR);
+$tmp = (string) $in['tmp_file'];
+try {
+    $svc = app(\App\Services\System\AndroidReleaseService::class);
+    $manifest = $svc->storeVerifiedRelease(
+        $tmp,
+        (int) $in['version_code'],
+        (string) $in['version_name'],
+        (string) $in['sha256'],
+        (string) ($in['release_notes'] ?? ''),
+        true
+    );
+    @chmod(storage_path('app/private/releases'), 0750);
+    @chmod(storage_path('app/private/releases/android'), 0750);
+    echo json_encode($manifest, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+} finally {
+    if (is_file($tmp)) {
+        @unlink($tmp);
+    }
+}
+"));
+
+                    string activateCmd = $"cd -- '{StageWebRemoteDir}' && php -r 'eval(base64_decode(\"{phpRunnerB64}\"));' -- '{payloadB64}'";
+                    string remoteOut;
+                    using (var ssh = new SshClient(connInfo))
+                    {
+                        bool sshPinned = false;
+                        ssh.HostKeyReceived += (s, e) => { sshPinned = VerifyPinnedKey(e.HostKey, e.HostKeyName); e.CanTrust = sshPinned; };
+                        ssh.Connect();
+                        if (!sshPinned || !ssh.IsConnected)
+                            throw new UnauthorizedAccessException("SSH Host-Key-Prüfung für Stage-APK-Aktivierung fehlgeschlagen.");
+
+                        using var cmd = ssh.CreateCommand(activateCmd);
+                        cmd.CommandTimeout = TimeSpan.FromSeconds(45);
+                        string stdout = cmd.Execute() ?? "";
+                        string stderr = cmd.Error ?? "";
+                        int exitCode = cmd.ExitStatus ?? 0;
+
+                        if (exitCode != 0)
+                        {
+                            // Best-effort cleanup of temp upload if PHP exited early before finally
+                            try
+                            {
+                                using var cleanCmd = ssh.CreateCommand($"rm -f -- '{remoteStageTmpFull}'");
+                                cleanCmd.Execute();
+                            }
+                            catch { }
+                            ssh.Disconnect();
+                            AppendAuditLog("stage_publish_android_apk", $"v{cleanVersionName}-b{versionCode}:exit={exitCode}", "ERROR");
+                            throw new InvalidOperationException($"Stage-APK-Aktivierung fehlgeschlagen (Exit {exitCode}): {ScrubSecrets((stdout + "\n" + stderr).Trim())}");
+                        }
+
+                        ssh.Disconnect();
+                        remoteOut = stdout.Trim();
+                    }
+
+                    AppendAuditLog("stage_publish_android_apk", $"v{cleanVersionName}-b{versionCode},sha={apkSha256.Substring(0, 12)}", "ALLOW");
+                    return new StageAndroidApkPublishResultDto
+                    {
+                        Success = true,
+                        TargetHost = creds.Host,
+                        TargetRemoteVaultDir = remoteVaultDir,
+                        VersionCode = versionCode,
+                        VersionName = cleanVersionName,
+                        ApkSha256 = apkSha256,
+                        CertSha256 = certSha256,
+                        FileSizeBytes = apkSize,
+                        RemoteManifestJson = ScrubSecrets(remoteOut)
+                    };
+                }
+                finally
+                {
+                    keyFile?.Dispose();
+                }
+            });
+        }
+
         // =====================================================================
         // LAYER 8: SHA-256 HASH-CHAINED TAMPER-EVIDENT AUDIT LOG
         // =====================================================================
@@ -2044,6 +2508,16 @@ namespace FunkenwerkMcp
             bool hasKey = !string.IsNullOrWhiteSpace(creds.PrivateKeyPath) && File.Exists(creds.PrivateKeyPath);
             bool hasPwd = creds.PasswordUtf8 != null && creds.PasswordUtf8.Length > 0;
             return (true, hasKey, hasPwd);
+        }
+
+        internal static (bool ProfileFound, string ResolvedUser, string ResolvedRemoteDir, bool PasswordDecryptedInRam) InspectNodeBridgeProfileForSelfTest()
+        {
+            using var creds = ResolveProfileInternal("Mittwald Node.js App", overrideRemoteDir: null, forceKeyOnlyNoPasswordDecrypt: true);
+            if (creds == null)
+                return (false, "", "", false);
+
+            bool hasPwd = creds.PasswordUtf8 != null && creds.PasswordUtf8.Length > 0;
+            return (true, creds.Username, creds.RemoteDirectory, hasPwd);
         }
 
         public static SecurityAuditStatusDto RunSecuritySelfAudit()

@@ -113,6 +113,14 @@ class SystemCronjobSeeder extends Seeder
                 'is_active' => true,
             ],
             [
+                'name' => 'Funkira Selbstheilungs-Wächter & Antigravity-Pool',
+                'description' => 'Prüft alle 5 Minuten Queue, Echtzeit-Brücken und offene SystemLogs: heilt Infrastruktur-Störungen automatisch und bereitet für echte Code-Bugs einmalig ein Antigravity-Dossier vor',
+                'command' => 'system:sentinel-triage',
+                'parameters' => '--probe-bridges',
+                'schedule' => '*/5 * * * *',
+                'is_active' => true,
+            ],
+            [
                 'name' => 'System-Log Selbstbereinigung (7-Tage-Archiv)',
                 'description' => 'Bereinigt täglich um 04:15 Uhr gelöste Archiv-Logs (>7 Tage), DSGVO-Altlasten (>30 Tage), Zombie-Tasks und führt Duplikate zusammen',
                 'command' => 'system:logs-cleanup',

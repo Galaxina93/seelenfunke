@@ -11,6 +11,9 @@ class SystemErrorLogger
      * Verhindert Endlosschleifen, falls während des Schreibens in system_logs selbst ein Log-Event ausgelöst wird.
      */
     protected static bool $isRecording = false;
+    protected static bool $fatalHandlerRegistered = false;
+
+    public const DEAD_LETTER_SPOOL_FILE = 'app/private/sentinel_deadletter.jsonl';
 
     /**
      * Speichert bereits protokollierte Exception-Objekt-IDs innerhalb desselben Request-Zyklus,
@@ -27,6 +30,28 @@ class SystemErrorLogger
     {
         $msgLower = strtolower($message);
         $classLower = strtolower((string) $exceptionClass);
+
+        if (str_contains($msgLower, 'allowed memory size')
+            || str_contains($msgLower, 'maximum execution time')
+            || str_contains($msgLower, 'out of memory')
+            || str_contains($classLower, 'fatalerror')
+            || str_contains($classLower, 'parseerror')) {
+            return [
+                'category' => 'php_fatal_or_oom',
+                'probable_cause' => 'Harter PHP-Prozessabbruch (Speicherlimit erschöpft, Zeitüberschreitung oder Fatal/Parse-Error).',
+                'recommended_action' => 'Prüfe die exakte Datei und Zeilennummer im Antigravity-Dossier (z. B. unpaginierte Abfrage, Endlosschleife oder Syntax-/Typfehler).',
+            ];
+        }
+
+        if (str_contains($msgLower, 'bridge_unhealthy')
+            || str_contains($msgLower, 'twilio-health')
+            || str_contains($msgLower, 'api-live-bridge')) {
+            return [
+                'category' => 'bridge_health_unreachable',
+                'probable_cause' => 'Eine der Echtzeit-WebSocket-Brücken (Reverb-Worker a-iurgq8 oder Node.js-Bridge a-yeq7el) antwortete nicht rechtzeitig auf den Gesundheits-Puls.',
+                'recommended_action' => 'Prüfe Container-Status via mittnitectl job status bzw. führe FunkenwerkMcp.exe --stage-restart-workers aus.',
+            ];
+        }
 
         if (str_contains($classLower, 'blueprintsecurityexception') || str_contains($msgLower, 'architektur-blueprint')) {
             return [
@@ -491,12 +516,18 @@ class SystemErrorLogger
                 return $existing;
             }
 
+            $resolvedFile = self::resolveCompiledBladeViewPath($e->getFile()) ?? $e->getFile();
+            if ($resolvedFile !== $e->getFile()) {
+                $payload['compiled_view_file'] = $e->getFile();
+                $payload['file'] = $resolvedFile;
+            }
+
             $payload['fingerprint'] = $fingerprint;
             $payload['occurrences_count'] = 1;
             $payload['first_seen_at'] = now()->toIso8601String();
             $payload['last_seen_at'] = now()->toIso8601String();
 
-            return SystemLog::create([
+            $attributes = [
                 'type' => $type,
                 'action_id' => $resolvedActionId,
                 'title' => Str::limit(($titlePrefix ?: 'System-Fehler') . ' (' . class_basename($e) . ')', 190),
@@ -505,7 +536,14 @@ class SystemErrorLogger
                 'payload' => $payload,
                 'started_at' => now(),
                 'finished_at' => now(),
-            ]);
+            ];
+
+            try {
+                return SystemLog::create($attributes);
+            } catch (\Throwable $dbEx) {
+                self::writeDeadLetterFallback($attributes);
+                return null;
+            }
         } catch (\Throwable $ignore) {
             return null;
         } finally {
@@ -582,7 +620,7 @@ class SystemErrorLogger
                 return $existing;
             }
 
-            return SystemLog::create([
+            $attributes = [
                 'type' => 'system',
                 'action_id' => $actionId,
                 'title' => 'System-Log ' . strtoupper($level) . ' (' . ($diagnosis['category'] ?? 'general') . ')',
@@ -590,7 +628,7 @@ class SystemErrorLogger
                 'status' => $status,
                 'payload' => [
                     'level' => $level,
-                    'file' => $callerInfo['file'],
+                    'file' => self::resolveCompiledBladeViewPath($callerInfo['file']) ?? $callerInfo['file'],
                     'line' => $callerInfo['line'],
                     'trace_excerpt' => $callerInfo['trace_excerpt'],
                     'fingerprint' => $fingerprint,
@@ -604,7 +642,14 @@ class SystemErrorLogger
                 ],
                 'started_at' => now(),
                 'finished_at' => now(),
-            ]);
+            ];
+
+            try {
+                return SystemLog::create($attributes);
+            } catch (\Throwable $dbEx) {
+                self::writeDeadLetterFallback($attributes);
+                return null;
+            }
         } catch (\Throwable $ignore) {
             return null;
         } finally {
@@ -652,7 +697,7 @@ class SystemErrorLogger
 
             $diagnosis = self::diagnose($message, null, 'Console/Commands');
 
-            return SystemLog::create([
+            $attributes = [
                 'type' => 'scheduler',
                 'action_id' => $actionId,
                 'title' => Str::limit('Cronjob fehlgeschlagen: ' . $cronjobName . ' (Exit ' . $exitCode . ')', 190),
@@ -672,7 +717,14 @@ class SystemErrorLogger
                 ], $extra),
                 'started_at' => now(),
                 'finished_at' => now(),
-            ]);
+            ];
+
+            try {
+                return SystemLog::create($attributes);
+            } catch (\Throwable $dbEx) {
+                self::writeDeadLetterFallback($attributes);
+                return null;
+            }
         } catch (\Throwable $ignore) {
             return null;
         } finally {
@@ -818,7 +870,7 @@ class SystemErrorLogger
                 'server_environment' => self::buildServerEnvironment(),
             ];
 
-            return SystemLog::create([
+            $attributes = [
                 'type' => $platform === 'portal' ? 'system' : $platform,
                 'action_id' => $actionId,
                 'title' => $finalTitle,
@@ -827,7 +879,198 @@ class SystemErrorLogger
                 'payload' => $payload,
                 'started_at' => now(),
                 'finished_at' => now(),
-            ]);
+            ];
+
+            try {
+                return SystemLog::create($attributes);
+            } catch (\Throwable $dbEx) {
+                self::writeDeadLetterFallback($attributes);
+                return null;
+            }
+        } catch (\Throwable $ignore) {
+            return null;
+        } finally {
+            self::$isRecording = false;
+        }
+    }
+
+    /**
+     * Löst kompilierte Laravel-Blade-Views (storage/framework/views/*.php) auf die echte .blade.php-Quelldatei zurück.
+     */
+    public static function resolveCompiledBladeViewPath(?string $file): ?string
+    {
+        if ($file === null || $file === '') {
+            return null;
+        }
+
+        $normalized = str_replace('\\', '/', $file);
+        if (!str_contains($normalized, '/framework/views/') && !str_contains($normalized, '/sf_views_')) {
+            return $file;
+        }
+
+        try {
+            if (is_file($file) && is_readable($file)) {
+                $tail = '';
+                $fh = @fopen($file, 'rb');
+                if ($fh) {
+                    $size = @filesize($file) ?: 0;
+                    if ($size > 4096) {
+                        @fseek($fh, -4096, SEEK_END);
+                    }
+                    $tail = (string) @fread($fh, 4096);
+                    @fclose($fh);
+                }
+
+                if ($tail !== '' && preg_match('/\*\*PATH\s+(.+?\.blade\.php)\s+ENDPATH\*\*/', $tail, $m)) {
+                    return trim($m[1]);
+                }
+
+                $head = (string) @file_get_contents($file, false, null, 0, 1024);
+                if ($head !== '' && preg_match('/\*\*PATH\s+(.+?\.blade\.php)\s+ENDPATH\*\*/', $head, $m2)) {
+                    return trim($m2[1]);
+                }
+            }
+        } catch (\Throwable $ignore) {
+        }
+
+        return $file;
+    }
+
+    /**
+     * Lokaler Notfall-Spool (sentinel_deadletter.jsonl), falls während eines Fehlers selbst die DB kurz nicht antwortet.
+     * Wird beim nächsten Lauf von SentinelTriageService automatisch in system_logs nachgespült (0 % Datenverlust).
+     */
+    public static function writeDeadLetterFallback(array $attributes): void
+    {
+        try {
+            $spoolPath = storage_path(self::DEAD_LETTER_SPOOL_FILE);
+            $dir = dirname($spoolPath);
+            if (!is_dir($dir)) {
+                @mkdir($dir, 0775, true);
+            }
+
+            if (is_file($spoolPath) && (@filesize($spoolPath) ?: 0) > 512 * 1024) {
+                $lines = @file($spoolPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [];
+                $lines = array_slice($lines, -120);
+                @file_put_contents($spoolPath, implode("\n", $lines) . "\n", LOCK_EX);
+            }
+
+            $safeEntry = [
+                'queued_at' => now()->toIso8601String(),
+                'type' => (string) ($attributes['type'] ?? 'system'),
+                'action_id' => (string) ($attributes['action_id'] ?? 'system:deadletter'),
+                'title' => Str::limit(self::sanitizeSensitiveText((string) ($attributes['title'] ?? 'System-Fehler')), 190),
+                'message' => Str::limit(self::sanitizeSensitiveText((string) ($attributes['message'] ?? '')), 2000),
+                'status' => (string) ($attributes['status'] ?? 'error'),
+                'payload' => is_array($attributes['payload'] ?? null)
+                    ? self::sanitizeArrayRecursive($attributes['payload'])
+                    : [],
+            ];
+
+            $jsonLine = json_encode($safeEntry, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            if (is_string($jsonLine) && $jsonLine !== '') {
+                @file_put_contents($spoolPath, $jsonLine . "\n", FILE_APPEND | LOCK_EX);
+                @chmod($spoolPath, 0600);
+            }
+        } catch (\Throwable $ignore) {
+        }
+    }
+
+    /**
+     * Registriert einen PHP-Shutdown-Wächter, der selbst harte PHP-Abstürze (Out of Memory, Max Execution Time,
+     * E_ERROR, E_PARSE, E_COMPILE_ERROR) lückenlos in system_logs bzw. den lokalen Notfall-Spool schreibt.
+     */
+    public static function registerFatalShutdownHandler(): void
+    {
+        if (self::$fatalHandlerRegistered) {
+            return;
+        }
+        self::$fatalHandlerRegistered = true;
+
+        register_shutdown_function(function (): void {
+            $err = error_get_last();
+            if (!is_array($err)) {
+                return;
+            }
+            $fatalTypes = [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR];
+            if (!in_array((int) ($err['type'] ?? 0), $fatalTypes, true)) {
+                return;
+            }
+            self::recordFatalShutdownError($err);
+        });
+    }
+
+    /**
+     * Verarbeitet einen harten PHP-Shutdown-Fehler (z. B. aus error_get_last()) und sichert ihn in system_logs.
+     */
+    public static function recordFatalShutdownError(array $error): ?SystemLog
+    {
+        if (self::$isRecording) {
+            return null;
+        }
+
+        $rawMessage = trim((string) ($error['message'] ?? 'Fatal PHP Shutdown Error'));
+        $rawFile = (string) ($error['file'] ?? '');
+        $line = isset($error['line']) ? (int) $error['line'] : null;
+        $errType = (int) ($error['type'] ?? E_ERROR);
+
+        // Falls derselbe Fehler bereits durch Laravels ExceptionHandler in diesem Zyklus als FatalError erfasst wurde -> Duplikat vermeiden
+        $dedupeSig = 'fatal:' . md5($rawFile . ':' . ($line ?? 0) . ':' . mb_substr($rawMessage, 0, 120));
+        if (isset(self::$loggedExceptionIds[crc32($dedupeSig)])) {
+            return null;
+        }
+
+        self::$isRecording = true;
+        try {
+            self::$loggedExceptionIds[crc32($dedupeSig)] = true;
+
+            $resolvedFile = self::resolveCompiledBladeViewPath($rawFile) ?? $rawFile;
+            $sanitizedMessage = self::sanitizeSensitiveText($rawMessage);
+            $diagnosis = self::diagnose($sanitizedMessage, 'FatalShutdownError', $resolvedFile);
+            $actionId = 'system:fatal_shutdown:' . ($diagnosis['category'] ?? 'php_fatal_or_oom');
+
+            $normalizedSig = preg_replace('/\b\d+\b/', '#', strtolower($sanitizedMessage));
+            $fingerprint = hash('sha256', strtolower('system|' . $actionId . '|' . $resolvedFile . '|' . ($line ?? 0) . '|' . mb_substr((string) $normalizedSig, 0, 160)));
+
+            $existing = self::incrementRecentDuplicate('system', $actionId, ['error', 'warning'], $fingerprint, 1);
+            if ($existing) {
+                return $existing;
+            }
+
+            $payload = [
+                'platform' => 'portal',
+                'platform_label' => 'Webportal',
+                'exception_class' => 'FatalShutdownError(E_' . $errType . ')',
+                'file' => $resolvedFile !== '' ? $resolvedFile : null,
+                'compiled_view_file' => ($resolvedFile !== $rawFile && $rawFile !== '') ? $rawFile : null,
+                'line' => $line,
+                'php_error_type' => $errType,
+                'fingerprint' => $fingerprint,
+                'occurrences_count' => 1,
+                'first_seen_at' => now()->toIso8601String(),
+                'last_seen_at' => now()->toIso8601String(),
+                'diagnosis' => $diagnosis,
+                'execution_context' => self::buildExecutionContext(),
+                'server_environment' => self::buildServerEnvironment(),
+            ];
+
+            $attributes = [
+                'type' => 'system',
+                'action_id' => $actionId,
+                'title' => Str::limit('Kritischer PHP-Abbruch (' . ($diagnosis['category'] ?? 'Fatal') . ')', 190),
+                'message' => Str::limit($sanitizedMessage, 2000),
+                'status' => 'error',
+                'payload' => $payload,
+                'started_at' => now(),
+                'finished_at' => now(),
+            ];
+
+            try {
+                return SystemLog::create($attributes);
+            } catch (\Throwable $dbEx) {
+                self::writeDeadLetterFallback($attributes);
+                return null;
+            }
         } catch (\Throwable $ignore) {
             return null;
         } finally {

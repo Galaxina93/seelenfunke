@@ -22,58 +22,44 @@ Die Lösung baut auf zwei Kernsystemen auf, die miteinander kommunizieren:
 - **Multitasking Blueprint:** In `GeminiAgent.php` wurde das Limit (Slicing auf max. 1 Tool) entfernt. Der Agent durchläuft jetzt eine native Event-Loop, um **mehrere Werkzeuge parallel/nacheinander** auszuführen, bevor er an den Nutzer antwortet.
 - **Funki CLI:** Der Befehl `funki telefon` wurde hinzugefügt, um den Node.js Server lokal schnell starten zu können.
 
-## 3. Server-Einrichtung (Mittwald Stage Server)
+## 3. Server-Einrichtung (Mittwald mStudio Container-Architektur)
 
-Da für die Echtzeit-Bridge ein laufender Node.js Prozess nötig ist, muss dieser auf dem Live/Stage-Server (Mittwald) dauerhaft aktiv sein.
-
-### 3.1 Node.js nativ aktivieren
-Da Mittwald eine "Chroot"-Umgebung in SSH-Sitzungen verwendet, funktioniert das manuelle Installieren via NVM oft nicht (Bibliotheks-Fehler).
-Lösung:
-1. Im Mittwald **mStudio** in den Bereich *Software / Apps* gehen.
-2. Die App **"Node.js"** installieren (Empfohlen: Version 20.x LTS oder 22.x).
-3. Nach der Installation das aktuelle SSH-Fenster schließen und neu verbinden.
-
-### 3.2 Twilio-Bridge starten (PM2)
-Sobald Node.js aktiv ist, können die benötigten Pakete installiert und der Server gestartet werden:
-```bash
-# 1. In Projekt navigieren
-cd ~/html/seelenfunke-stage
-
-# 2. Abhängigkeiten installieren
-npm install ws dotenv wavefile
-
-# 3. Server dauerhaft im Hintergrund mit PM2 starten
-npx pm2 start server-twilio.js --name "twilio-bridge"
-
-# 4. Status des Servers für Reboots sichern
-npx pm2 save
-```
-
-Wartungsbefehle für PM2:
-- Logs live ansehen: `npx pm2 logs twilio-bridge`
-- Server neustarten: `npx pm2 restart twilio-bridge`
-- Server stoppen: `npx pm2 stop twilio-bridge`
+> [!IMPORTANT]
+> **AKTUALISIERTER PRODUKTIV-AUFBAU (KEIN `PM2` & KEIN PORT `:8081` AUF MITTWALD):**  
+> Die früheren Entwürfe mit `npx pm2` und `wss://stage.mein-seelenfunke.de:8081` sind auf Mittwald mStudio **abgelöst**, da Mittwald jede App in einem eigenen Chroot-Container mit eigenem Prozess-Supervisor (`mittnite`) kapselt.  
+> Der aktive Aufbau besteht aus drei isolierten Containern im Projekt `p-g27wim` (vollständige Matrix & Schaubild siehe [`Support_Twilio_Call_Dokumentation.md`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/Abschlussberichte/Support/Support_Twilio_Call_Dokumentation.md)):
+> 1. **Web-App (`a-lc6tkm`, `/html/seelenfunke-stage`):** Hostet `https://stage.mein-seelenfunke.de` (`/api/twilio/inbound`, `/api/twilio/call-log`) und proxyt `ws.mein-seelenfunke.de` per `.htaccess` auf `a-iurgq8:6001`.
+> 2. **PHP-Worker Websocket (`a-iurgq8`, `/html/worker-stage-3`, SSH `kontakt@mein-seelenfunke.de@a-iurgq8`):** Führt `php artisan reverb:start` inkl. der primären Twilio-Telefonie-Bridge (`wss://ws.mein-seelenfunke.de/twilio-stream`, `v2.0-reverb-live-secretary`) unter `mittnite` aus.
+> 3. **Node.js App (`a-yeq7el`, `/html/twilio-bridge`, SSH `kontakt@mein-seelenfunke.de@a-yeq7el`):** Führt `node server-twilio.js` (`v1.4-live-secretary`) unter `mittnite` für `wss://api-live-bridge.mein-seelenfunke.de/gemini-live` (sowie `/twilio-stream` und `/health`) aus.
+>
+> **Deployment & Neustart (vollautomatisch):**
+> ```bash
+> ./funki stage-deploy
+> ```
+> Synchronisiert per `./funki sync-worker` alle Dateien physisch (`cp`/`rsync`, keine Symlinks!) samt `GEMINI_BRIDGE_SECRET` und startet anschließend beide Container (`a-iurgq8` und `a-yeq7el`) direkt via `mittnitectl job restart` neu. Einzel-Neustart jederzeit über `FunkenwerkMcp.exe --stage-restart-workers` oder in **Funkenwerk SSH** (Profile `Mittwald Websocket` bzw. `Mittwald Node.js App` -> `mittnitectl job restart`).
 
 ## 4. Wichtige Environment-Variablen (.env)
-Damit alles funktioniert, müssen folgende Parameter zwingend in der `.env` Datei vorhanden sein:
+Damit alles funktioniert, sind folgende Parameter in der `.env` hinterlegt:
 
 ```env
-# Twilio Zugangsdaten für die Festnetz-Infrastruktur
+# Twilio Zugangsdaten für die Gifhorner Festnetznummer (+49 5371 7269023)
 TWILIO_ACCOUNT_SID=AC...
 TWILIO_AUTH_TOKEN=...
-TWILIO_PHONE_NUMBER=+49...
+TWILIO_PHONE_NUMBER=+4953717269023
 
-# Die öffentliche URL für den Node.js WebSocket.
-# Auf dem Stage Server: wss://stage.mein-seelenfunke.de:8081/twilio-stream
-# Lokal (beim Testen via Laptop): wss://<ngrok-id>.ngrok-free.app/twilio-stream
-TWILIO_WSS_URL=wss://stage.mein-seelenfunke.de:8081/twilio-stream
+# Öffentliche WebSocket-URLs auf Mittwald mStudio:
+# Primäre Telefonie-Sekretärinnen-Bridge (Reverb-Worker a-iurgq8):
+TWILIO_WSS_URL=wss://ws.mein-seelenfunke.de/twilio-stream
+# Dedizierte Node.js Live-AI-Bridge (Node-App a-yeq7el):
+GEMINI_PROXY_WS_URL=wss://api-live-bridge.mein-seelenfunke.de/gemini-live
 
-# API Keys für Gemini 2.0 Multimodal Live & Analyse
+# Gemeinsames Container-Secret zwischen Stage, Reverb-Worker & Node.js-Bridge
+GEMINI_BRIDGE_SECRET=...
+
+# API Keys für Gemini 3.1 Flash Live (Aoede) & Gemini 2.5 Flash Call-Analyse
 GEMINI_API_KEY=AIza...
 GOOGLE_API_KEY=AIza...
 ```
-
-> **Achtung zur Firewall:** Sollte der Anruf zustande kommen, aber direkt stumm auflegen, bedeutet dies, dass Twilio keine Verbindung zum WebSocket aufbauen konnte. In diesem Fall muss in den Mittwald Firewall-Regeln (oder Nginx Proxy) sichergestellt werden, dass Port **8081** von außen via WSS erreichbar ist.
 
 ---
 
