@@ -489,21 +489,22 @@
                          class="bg-gray-50/80 rounded-2xl border border-gray-200/80 overflow-hidden transition-all">
                         <button type="button"
                                 @click="specsOpen = !specsOpen"
-                                class="w-full p-5 sm:px-6 flex items-center justify-between gap-4 text-left hover:bg-gray-100/70 transition-colors cursor-pointer group">
-                            <div class="flex items-center gap-2.5">
+                                class="w-full p-4 sm:px-6 sm:py-5 flex items-center justify-between gap-3 text-left hover:bg-gray-100/70 transition-colors cursor-pointer group">
+                            <div class="flex items-center gap-2.5 min-w-0">
                                 <svg class="w-5 h-5 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                                 </svg>
-                                <span class="text-sm font-bold uppercase text-gray-900 tracking-wider group-hover:text-primary-dark transition-colors">
-                                    Produktdetails & Eigenschaften
+                                <span class="text-xs sm:text-sm font-bold uppercase text-gray-900 tracking-wide group-hover:text-primary-dark transition-colors truncate">
+                                    Produktdetails
                                 </span>
-                                <span class="px-2.5 py-0.5 text-[10px] font-bold rounded-full bg-white text-gray-500 border border-gray-200">
-                                    {{ count($validAttributes) }} {{ count($validAttributes) === 1 ? 'Merkmal' : 'Merkmale' }}
+                                <span class="inline-flex flex-nowrap items-center gap-1 px-2.5 py-1 text-[10px] leading-none font-bold rounded-full bg-white text-gray-600 border border-gray-200 whitespace-nowrap shrink-0">
+                                    <span>{{ count($validAttributes) }}</span>
+                                    <span>{{ count($validAttributes) === 1 ? 'Merkmal' : 'Merkmale' }}</span>
                                 </span>
                             </div>
-                            <span class="inline-flex items-center gap-1.5 text-xs font-bold text-gray-500 group-hover:text-primary-dark shrink-0 transition-colors">
+                            <span class="inline-flex items-center gap-1.5 text-xs font-bold text-gray-500 group-hover:text-primary-dark whitespace-nowrap shrink-0 transition-colors">
                                 <span x-text="specsOpen ? 'Ausblenden' : 'Anzeigen'">Anzeigen</span>
-                                <svg class="w-4 h-4 transition-transform duration-300" :class="specsOpen ? 'rotate-180 text-primary-dark' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                <svg class="w-4 h-4 shrink-0 transition-transform duration-300" :class="specsOpen ? 'rotate-180 text-primary-dark' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
                                 </svg>
                             </span>
