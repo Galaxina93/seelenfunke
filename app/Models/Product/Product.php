@@ -1425,15 +1425,19 @@ use HasFactory, HasUuids, SoftDeletes;
         $seasonalSetStatus = $this->getSeasonalImageSetStatus();
         $mediaPassed = $hasAnyMainImage && $seasonalSetStatus['is_complete'];
 
+        $shortMissingMedia = !$hasAnyMainImage
+            ? 'Hauptbild fehlt'
+            : (!empty($seasonalSetStatus['active_missing_label'])
+                ? 'Bild „' . $seasonalSetStatus['active_missing_label'] . '“ fehlt (' . $seasonalSetStatus['filled_count'] . '/' . $seasonalSetStatus['total_count'] . ')'
+                : 'Saison-Bilder (' . $seasonalSetStatus['filled_count'] . '/' . $seasonalSetStatus['total_count'] . ')');
+
         $checks[] = [
             'key'           => 'media',
             'step'          => 2,
             'sub_step'      => 1,
             'section'       => 'collection',
             'label'         => 'Medien & Galerie',
-            'short_missing' => !$hasAnyMainImage
-                ? 'Hauptbild fehlt'
-                : 'Saison-Bilder (' . $seasonalSetStatus['filled_count'] . '/' . $seasonalSetStatus['total_count'] . ')',
+            'short_missing' => $shortMissingMedia,
             'passed'        => $mediaPassed,
             'detail'        => $mediaPassed
                 ? ($seasonalSetStatus['auto_enabled'] ? 'Hauptbild & alle 12 Saisonbilder gepflegt' : 'Produktbilder vorhanden')
@@ -1929,77 +1933,192 @@ use HasFactory, HasUuids, SoftDeletes;
     }
 
     /**
-     * Liefert die priorisierte Liste der Feiertags-/Anlass-Namen (aus ProductTemplate::holiday)
-     * passend zum aktuellen Feiertagsfenster bzw. zur aktiven Jahreszeit (oder zu einem historischen Kaufdatum $referenceDate).
+     * Normalisiert beliebige Feiertags-/Jahreszeiten-Bezeichnungen (z. B. aus ?holiday=weihnachten)
+     * auf einen der 12 kanonischen Slot-Schlüssel (4 Jahreszeiten + 8 Feiertage).
      */
-    public static function resolvePreferredHolidayCandidates(?string $explicitHoliday = null, ?\Carbon\CarbonInterface $referenceDate = null): array
+    public static function normalizeSeasonalSlotKey(?string $raw): ?string
     {
-        $candidates = [];
-
-        if ($explicitHoliday !== null && trim($explicitHoliday) !== '') {
-            $candidates[] = trim($explicitHoliday);
+        if ($raw === null) {
+            return null;
         }
+
+        $trimmed = trim($raw);
+        if ($trimmed === '') {
+            return null;
+        }
+
+        $norm = mb_strtolower($trimmed);
+
+        return match ($norm) {
+            'winter', 'sale_winter', 'new_year', 'neujahr', 'silvester' => 'Winter',
+            'frühling', 'fruehling', 'spring', 'womens_day', 'weltfrauentag' => 'Frühling',
+            'sommer', 'summer', 'sale_summer' => 'Sommer',
+            'herbst', 'autumn', 'fall', 'trauer' => 'Herbst',
+            'weihnachten', 'christmas', 'xmas', 'advent', 'advent_1', 'nikolaus' => 'Weihnachten',
+            'ostern', 'easter', 'taufe', 'einschulung' => 'Ostern',
+            'valentinstag', 'valentines', 'valentine' => 'Valentinstag',
+            'muttertag', 'mothers_day' => 'Muttertag',
+            'vatertag', 'fathers_day', 'himmelfahrt' => 'Vatertag',
+            'halloween' => 'Halloween',
+            'hochzeit', 'wedding', 'verlobung', 'jubiläum', 'jubilaeum' => 'Hochzeit',
+            'geburtstag', 'birthday' => 'Geburtstag',
+            default => $trimmed,
+        };
+    }
+
+    /**
+     * Ermittelt den zum Zeitpunkt $referenceDate (Standard: jetzt) primär erwarteten Saison-/Feiertags-Slot
+     * sowie die Basis-Jahreszeit, den Versand-Cutoff-Status und den nächsten bevorstehenden Feiertag.
+     *
+     * Wichtig: Sobald ein Feiertag vorbei ist (z. B. ab 27.12. nach Weihnachten oder ab 15.02. nach Valentinstag),
+     * liefert diese Methode sofort ausschließlich die aktive Jahreszeit (z. B. "Winter") zurück.
+     *
+     * @return array{slot: string, group: string, season_slot: string, event_key: ?string, is_before_cutoff: bool, upcoming_holiday_slot: ?string}
+     */
+    public static function resolveActivePrimarySeasonalSlot(?\Carbon\CarbonInterface $referenceDate = null): array
+    {
+        $now = $referenceDate ? \Carbon\Carbon::instance($referenceDate) : \Carbon\Carbon::now();
+
+        try {
+            if ($referenceDate === null) {
+                $seasonKey = app(\App\Services\ConfiguratorService::class)->getActiveSeasonKey();
+            } else {
+                $seasonKey = match ((int) $now->month) {
+                    3, 4, 5   => 'ostern',
+                    6, 7, 8   => 'sommer',
+                    9, 10, 11 => 'herbst',
+                    default   => 'winter',
+                };
+            }
+        } catch (\Throwable $e) {
+            $seasonKey = match ((int) $now->month) {
+                3, 4, 5   => 'ostern',
+                6, 7, 8   => 'sommer',
+                9, 10, 11 => 'herbst',
+                default   => 'winter',
+            };
+        }
+
+        $seasonSlot = match ($seasonKey) {
+            'ostern' => 'Frühling',
+            'sommer' => 'Sommer',
+            'herbst' => 'Herbst',
+            default  => 'Winter',
+        };
+
+        $activeHolidaySlot = null;
+        $activeEventKey = null;
+        $isBeforeCutoff = false;
+        $upcomingHolidaySlot = null;
+        $closestUpcomingDays = 999;
 
         try {
             $autopilot = app(\App\Services\Marketing\HolidayOfferAutopilotService::class);
-            $now = $referenceDate ? \Carbon\Carbon::instance($referenceDate) : \Carbon\Carbon::now();
+            $eventDefs = $autopilot->getEventDefinitions();
 
-            // 1. Prüfe aktives Angebotsfenster oder Feiertag bis inkl. Feiertags-Tag zum Zeitpunkt $now
-            foreach ($autopilot->getEventDefinitions() as $eventKey => $def) {
+            $holidayEventMap = [
+                'valentines'  => 'Valentinstag',
+                'easter'      => 'Ostern',
+                'mothers_day' => 'Muttertag',
+                'fathers_day' => 'Vatertag',
+                'halloween'   => 'Halloween',
+                'advent_1'    => 'Weihnachten',
+                'christmas'   => 'Weihnachten',
+            ];
+
+            foreach ($holidayEventMap as $eventKey => $slotName) {
+                $def = $eventDefs[$eventKey] ?? [];
                 foreach ([$now->year, $now->year - 1, $now->year + 1] as $yr) {
                     $eventDate = $autopilot->getHolidayDate($eventKey, $yr);
                     if (!$eventDate) {
                         continue;
                     }
+
                     $startDaysBefore = max(14, (int) ($def['start_days_before'] ?? 14));
                     $winStart = $eventDate->copy()->subDays($startDaysBefore)->startOfDay();
-                    $winEnd = $eventDate->copy()->addDays(1)->endOfDay();
+
+                    if ($eventKey === 'christmas') {
+                        // Weihnachten läuft bis einschließlich 2. Weihnachtsfeiertag (26.12. 23:59:59)
+                        $winEnd = \Carbon\Carbon::create($yr, 12, 26)->endOfDay();
+                    } elseif ($eventKey === 'advent_1') {
+                        // Nahtlose Brücke vom 1. Advent in das Weihnachts-Fenster (bis 26.12.)
+                        $winEnd = \Carbon\Carbon::create($yr, 12, 26)->endOfDay();
+                    } elseif ($eventKey === 'easter') {
+                        // Ostersonntag + Ostermontag
+                        $winEnd = $eventDate->copy()->addDays(1)->endOfDay();
+                    } else {
+                        // Eintägige Feiertage enden exakt am Ende des Feiertags (23:59:59)
+                        $winEnd = $eventDate->copy()->endOfDay();
+                    }
 
                     if ($now->between($winStart, $winEnd)) {
-                        $mapped = match ($eventKey) {
-                            'valentines'  => ['Valentinstag', 'Winter', 'Hochzeit'],
-                            'womens_day'  => ['Frühling', 'Muttertag', 'Valentinstag', 'Ostern'],
-                            'easter'      => ['Ostern', 'Frühling', 'Muttertag'],
-                            'mothers_day' => ['Muttertag', 'Frühling', 'Hochzeit'],
-                            'fathers_day' => ['Vatertag', 'Frühling', 'Geburtstag'],
-                            'sale_summer' => ['Sommer', 'Hochzeit', 'Geburtstag'],
-                            'halloween'   => ['Halloween', 'Herbst', 'Geburtstag'],
-                            'advent_1', 'christmas' => ['Weihnachten', 'Winter'],
-                            'sale_winter' => ['Winter', 'Weihnachten'],
-                            'new_year'    => ['Winter', 'Geburtstag', 'Weihnachten'],
-                            default       => [],
-                        };
-                        foreach ($mapped as $m) {
-                            $candidates[] = $m;
+                        $activeHolidaySlot = $slotName;
+                        $activeEventKey = ($eventKey === 'advent_1') ? 'christmas' : $eventKey;
+
+                        $cutoffEventKey = ($eventKey === 'advent_1') ? 'christmas' : $eventKey;
+                        $cutoffDateBase = $autopilot->getHolidayDate($cutoffEventKey, $yr) ?: $eventDate;
+                        $cutoffDef = $eventDefs[$cutoffEventKey] ?? $def;
+                        $endDaysBefore = max(0, (int) ($cutoffDef['end_days_before'] ?? 4));
+                        $cutoffEnd = $cutoffDateBase->copy()->subDays($endDaysBefore)->endOfDay();
+                        $isBeforeCutoff = $now->lte($cutoffEnd);
+                        break 2;
+                    }
+
+                    if ($eventKey !== 'advent_1' && $now->lt($winStart)) {
+                        $daysUntilEvent = (int) $now->copy()->startOfDay()->diffInDays($eventDate->copy()->startOfDay(), false);
+                        if ($daysUntilEvent > 0 && $daysUntilEvent <= 35 && $daysUntilEvent < $closestUpcomingDays) {
+                            $closestUpcomingDays = $daysUntilEvent;
+                            $upcomingHolidaySlot = $slotName;
                         }
                     }
                 }
             }
-
-            // 2. Fallback über die aktive Jahreszeit (heute aus /admin/configuration, bei historischen Bestellungen aus dem Kaufmonat)
-            if ($referenceDate === null || $now->isSameDay(\Carbon\Carbon::now())) {
-                $seasonKey = app(\App\Services\ConfiguratorService::class)->getActiveSeasonKey();
-            } else {
-                $seasonKey = match ((int) $now->month) {
-                    3, 4, 5  => 'ostern',
-                    6, 7, 8  => 'sommer',
-                    9, 10, 11 => 'herbst',
-                    default  => 'winter',
-                };
-            }
-            $seasonFallback = match ($seasonKey) {
-                'ostern' => ['Frühling', 'Ostern', 'Muttertag', 'Vatertag', 'Hochzeit'],
-                'sommer' => ['Sommer', 'Hochzeit', 'Geburtstag', 'Vatertag', 'Muttertag'],
-                'herbst' => ['Herbst', 'Halloween', 'Geburtstag', 'Hochzeit'],
-                'winter' => ['Winter', 'Weihnachten', 'Valentinstag', 'Geburtstag'],
-                default  => ['Winter', 'Sommer', 'Herbst', 'Frühling', 'Weihnachten', 'Ostern', 'Hochzeit'],
-            };
-            foreach ($seasonFallback as $s) {
-                $candidates[] = $s;
-            }
         } catch (\Throwable $e) {
-            // Fallback bei DB-/Service-Bootstrapping
-            $candidates = array_merge($candidates, ['Winter', 'Sommer', 'Herbst', 'Frühling', 'Halloween', 'Weihnachten', 'Ostern', 'Hochzeit', 'Geburtstag']);
+            // Fallback auf reine Jahreszeit bei DB-/Bootstrapping-Fehlern
+        }
+
+        if ($activeHolidaySlot !== null) {
+            return [
+                'slot'                  => $activeHolidaySlot,
+                'group'                 => 'holiday',
+                'season_slot'           => $seasonSlot,
+                'event_key'             => $activeEventKey,
+                'is_before_cutoff'      => $isBeforeCutoff,
+                'upcoming_holiday_slot' => $upcomingHolidaySlot,
+            ];
+        }
+
+        return [
+            'slot'                  => $seasonSlot,
+            'group'                 => 'season',
+            'season_slot'           => $seasonSlot,
+            'event_key'             => null,
+            'is_before_cutoff'      => false,
+            'upcoming_holiday_slot' => $upcomingHolidaySlot,
+        ];
+    }
+
+    /**
+     * Liefert die priorisierte Liste der zulässigen Saison-/Feiertags-Slots zum Zeitpunkt $referenceDate.
+     *
+     * WICHTIGE FALLBACK-REGEL:
+     * - Außerhalb eines aktiven Feiertagsfensters wird AUSSCHLIESSLICH die aktuelle Jahreszeit geprüft
+     *   (niemals vergangene oder fremde Feiertage wie Weihnachten im Januar oder Sommer!).
+     * - Fehlt das Bild für den aktiven Feiertag bzw. die aktive Jahreszeit, endet die Kandidatenliste hier,
+     *   damit resolveMainImageMeta() zuverlässig auf das neutrale Hauptbild (is_main = true) zurückfällt.
+     */
+    public static function resolvePreferredHolidayCandidates(?string $explicitHoliday = null, ?\Carbon\CarbonInterface $referenceDate = null): array
+    {
+        if ($explicitHoliday !== null && trim($explicitHoliday) !== '') {
+            $normalized = self::normalizeSeasonalSlotKey($explicitHoliday);
+            return array_values(array_unique(array_filter([$normalized, trim($explicitHoliday)])));
+        }
+
+        $ctx = self::resolveActivePrimarySeasonalSlot($referenceDate);
+        $candidates = [$ctx['slot']];
+
+        if ($ctx['group'] === 'holiday' && $ctx['season_slot'] !== $ctx['slot']) {
+            $candidates[] = $ctx['season_slot'];
         }
 
         return array_values(array_unique($candidates));
@@ -2007,7 +2126,8 @@ use HasFactory, HasUuids, SoftDeletes;
 
     /**
      * Findet die passende aktive Produktvorlage für das saisonale / Feiertags-Hauptbild.
-     * Optional kann nach einer spezifischen Produktvariante ($variantId) oder einem Referenzdatum ($referenceDate) gefiltert werden.
+     * Gibt strikt null zurück, wenn keine Vorlage zum aktiven Feiertag / zur aktiven Jahreszeit passt,
+     * damit das System sauber auf das neutrale Produkt-Hauptbild (is_main = true) zurückfällt.
      */
     public function resolveSeasonalTemplate(?string $explicitHoliday = null, array $excludeImagePaths = [], ?string $variantId = null, ?\Carbon\CarbonInterface $referenceDate = null): ?ProductTemplate
     {
@@ -2050,8 +2170,7 @@ use HasFactory, HasUuids, SoftDeletes;
             }
         }
 
-        // Letzter Fallback: Erste aktive Vorlage, deren Bild noch nicht ausgeschlossen ist
-        return $activeTemplates->first(fn(ProductTemplate $tpl) => !in_array($tpl->preview_image, $excludeImagePaths, true));
+        return null;
     }
 
     /**
@@ -2193,25 +2312,9 @@ use HasFactory, HasUuids, SoftDeletes;
                             }
                         }
                     }
-
-                    // Falls noch nicht alle Jahreszeiten befüllt sind, nutze das erste gepflegte Saisonbild als Fallback
-                    if ($explicitHoliday === null) {
-                        foreach ($customSeasonalMap as $hKey => $sEntry) {
-                            $sPath = is_array($sEntry) ? ($sEntry['path'] ?? null) : (is_string($sEntry) ? $sEntry : null);
-                            if (empty($sPath) || in_array($sPath, $excludeImagePaths, true)) {
-                                continue;
-                            }
-                            $sUrl = ProductTemplate::resolveImageUrl($sPath);
-                            if ($sUrl) {
-                                return [
-                                    'path'            => $sPath,
-                                    'url'             => $sUrl,
-                                    'is_ai_generated' => is_array($sEntry) ? filter_var($sEntry['is_ai_generated'] ?? true, FILTER_VALIDATE_BOOLEAN) : true,
-                                    'label'           => $this->name . ' (' . $hKey . ')',
-                                ];
-                            }
-                        }
-                    }
+                    // WICHTIG: Kein beliebiger Ersttreffer-Fallback auf fremde Feiertage (z. B. Weihnachten im Juli)!
+                    // Wenn der aktive Feiertag bzw. die aktive Jahreszeit noch kein Bild hat, fällt die Methode unten
+                    // sauber auf das neutrale Hauptbild (is_main = true in media_gallery) zurück.
                 }
             }
 
@@ -2496,7 +2599,7 @@ use HasFactory, HasUuids, SoftDeletes;
      *
      * @return array<string, array{holiday: string, label: string, hint: string, icon: string, group: string, path: ?string, url: ?string, is_ai_generated: bool, source: ?string, is_active_today: bool}>
      */
-    public function getSeasonalMainImagesOverview(): array
+    public function getSeasonalMainImagesOverview(?\Carbon\CarbonInterface $referenceDate = null): array
     {
         $settings = is_array($this->configurator_settings) ? $this->configurator_settings : [];
         $customSeasonalMap = isset($settings['seasonal_images']) && is_array($settings['seasonal_images'])
@@ -2508,7 +2611,7 @@ use HasFactory, HasUuids, SoftDeletes;
             : $this->templates()->get();
 
         $activeMeta = $this->isAutoSeasonalMainImageEnabled()
-            ? $this->resolveMainImageMeta(null, true)
+            ? $this->resolveMainImageMeta(null, true, [], $referenceDate)
             : null;
         $activePathToday = $activeMeta['path'] ?? null;
 
@@ -2583,13 +2686,18 @@ use HasFactory, HasUuids, SoftDeletes;
      * Berechnet den Vollständigkeits-Status des Saison- & Feiertags-Bildersatzes (für die ! / ✓ Anzeige in der Produktübersicht).
      * - Ist der Schalter "Automatisch nach Jahreszeit / Feiertag" deaktiviert, ist der Status automatisch grün (is_complete = true).
      * - Ist der Schalter aktiviert, müssen alle 4 Jahreszeiten + alle 8 Feiertage mindestens 1 Bild besitzen.
+     * - Fehlt das Bild für den aktuell aktiven Feiertag bzw. (nach Feiertags-Ende) für die aktive Jahreszeit,
+     *   meldet active_missing_label den fehlenden Anlass direkt am Produkt, während im Shop das neutrale Hauptbild als Fallback greift.
      *
-     * @return array{is_complete: bool, auto_enabled: bool, filled_count: int, total_count: int, seasons_filled: int, seasons_total: int, holidays_filled: int, holidays_total: int, missing_labels: array<int, string>, tooltip: string}
+     * @return array{is_complete: bool, auto_enabled: bool, filled_count: int, total_count: int, seasons_filled: int, seasons_total: int, holidays_filled: int, holidays_total: int, missing_labels: array<int, string>, primary_expected_slot: string, active_missing_label: ?string, upcoming_missing_label: ?string, fallback_active: bool, tooltip: string}
      */
-    public function getSeasonalImageSetStatus(): array
+    public function getSeasonalImageSetStatus(?\Carbon\CarbonInterface $referenceDate = null): array
     {
         $autoEnabled = $this->isAutoSeasonalMainImageEnabled();
-        $overview = $this->getSeasonalMainImagesOverview();
+        $overview = $this->getSeasonalMainImagesOverview($referenceDate);
+        $slotCtx = self::resolveActivePrimarySeasonalSlot($referenceDate);
+        $primarySlot = $slotCtx['slot'];
+        $upcomingSlot = $slotCtx['upcoming_holiday_slot'];
 
         $seasonsTotal = count(self::SEASONAL_SEASON_SLOTS);
         $holidaysTotal = count(self::SEASONAL_HOLIDAY_SLOTS);
@@ -2617,35 +2725,64 @@ use HasFactory, HasUuids, SoftDeletes;
 
         if (!$autoEnabled) {
             return [
-                'is_complete'     => true,
-                'auto_enabled'    => false,
-                'filled_count'    => $filledCount,
-                'total_count'     => $totalCount,
-                'seasons_filled'  => $seasonsFilled,
-                'seasons_total'   => $seasonsTotal,
-                'holidays_filled' => $holidaysFilled,
-                'holidays_total'  => $holidaysTotal,
-                'missing_labels'  => [],
-                'tooltip'         => 'Saison-Automatik aus (Kein Saison-Bildersatz erforderlich)',
+                'is_complete'            => true,
+                'auto_enabled'           => false,
+                'filled_count'           => $filledCount,
+                'total_count'            => $totalCount,
+                'seasons_filled'         => $seasonsFilled,
+                'seasons_total'          => $seasonsTotal,
+                'holidays_filled'        => $holidaysFilled,
+                'holidays_total'         => $holidaysTotal,
+                'missing_labels'         => [],
+                'primary_expected_slot'  => $primarySlot,
+                'active_missing_label'   => null,
+                'upcoming_missing_label' => null,
+                'fallback_active'        => false,
+                'tooltip'                => 'Saison-Automatik aus (Neutrales Hauptbild aktiv)',
             ];
         }
 
+        $activeMissingLabel = in_array($primarySlot, $missingLabels, true) ? $primarySlot : null;
+        $upcomingMissingLabel = ($upcomingSlot !== null && in_array($upcomingSlot, $missingLabels, true)) ? $upcomingSlot : null;
+
+        // Prüfe, ob irgendein zulässiger Kandidat für heute ein Bild hat (z. B. Winter während Weihnachten), sonst greift das neutrale Hauptbild
+        $validCandidates = self::resolvePreferredHolidayCandidates(null, $referenceDate);
+        $hasCandidateImage = false;
+        foreach ($validCandidates as $cand) {
+            if (!empty($overview[$cand]['path'])) {
+                $hasCandidateImage = true;
+                break;
+            }
+        }
+        $fallbackActive = !$hasCandidateImage;
+
         $isComplete = ($filledCount === $totalCount);
-        $tooltip = $isComplete
-            ? "Bildersatz komplett ({$filledCount}/{$totalCount} Jahreszeiten- & Feiertagsbilder gepflegt)"
-            : "Bildersatz unvollständig ({$filledCount}/{$totalCount} gepflegt) | Offen: " . implode(', ', $missingLabels);
+        if ($isComplete) {
+            $tooltip = "Bildersatz komplett ({$filledCount}/{$totalCount} Jahreszeiten- & Feiertagsbilder gepflegt)";
+        } elseif ($activeMissingLabel !== null) {
+            $fallbackNote = $fallbackActive
+                ? "Neutrales Hauptbild als Fallback aktiv (Bild für „{$activeMissingLabel}“ fehlt noch)"
+                : "Bild für „{$activeMissingLabel}“ fehlt noch";
+            $tooltip = "{$fallbackNote} | Gesamt: {$filledCount}/{$totalCount} gepflegt | Offen: " . implode(', ', $missingLabels);
+        } else {
+            $tooltip = "Bildersatz unvollständig ({$filledCount}/{$totalCount} gepflegt) | Offen: " . implode(', ', $missingLabels);
+        }
 
         return [
-            'is_complete'     => $isComplete,
-            'auto_enabled'    => true,
-            'filled_count'    => $filledCount,
-            'total_count'     => $totalCount,
-            'seasons_filled'  => $seasonsFilled,
-            'seasons_total'   => $seasonsTotal,
-            'holidays_filled' => $holidaysFilled,
-            'holidays_total'  => $holidaysTotal,
-            'missing_labels'  => $missingLabels,
-            'tooltip'         => $tooltip,
+            'is_complete'            => $isComplete,
+            'auto_enabled'           => true,
+            'filled_count'           => $filledCount,
+            'total_count'            => $totalCount,
+            'seasons_filled'         => $seasonsFilled,
+            'seasons_total'          => $seasonsTotal,
+            'holidays_filled'        => $holidaysFilled,
+            'holidays_total'         => $holidaysTotal,
+            'missing_labels'         => $missingLabels,
+            'primary_expected_slot'  => $primarySlot,
+            'active_missing_label'   => $activeMissingLabel,
+            'upcoming_missing_label' => $upcomingMissingLabel,
+            'fallback_active'        => $fallbackActive,
+            'tooltip'                => $tooltip,
         ];
     }
 

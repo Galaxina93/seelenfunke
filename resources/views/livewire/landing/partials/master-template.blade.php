@@ -1,10 +1,13 @@
 @php
     $product = $product ?? $landingPage->product;
-    $heroImageMeta = $heroImageMeta ?? $product->resolveMainImageMeta();
-    $seasonalTemplate = $seasonalTemplate ?? ($product->isAutoSeasonalMainImageEnabled() ? $product->resolveSeasonalTemplate() : null);
+    $resolvedProfile = $resolvedProfile ?? $landingPage->resolveActiveProfile();
+    $mediaHolidayHint = $resolvedProfile['media_holiday_hint'] ?? null;
+    $allowSeasonalHero = ($resolvedProfile['slot_key'] ?? 'standard') !== 'standard';
+    $heroImageMeta = $heroImageMeta ?? $product->resolveMainImageMeta($mediaHolidayHint, $allowSeasonalHero);
+    $seasonalTemplate = $seasonalTemplate ?? ($allowSeasonalHero && ($mediaHolidayHint !== null || $product->isAutoSeasonalMainImageEnabled()) ? $product->resolveSeasonalTemplate($mediaHolidayHint) : null);
     $excludeForDetail = !empty($heroImageMeta['path']) ? [$heroImageMeta['path']] : [];
     $detailImageMeta = $detailImageMeta ?? ($product->resolveMainImageMeta(null, false, $excludeForDetail) ?: $heroImageMeta);
-    $dynamicProfile = $dynamicProfile ?? \App\Models\Marketing\MarketingLandingPage::buildDynamicProfile($product, $heroImageMeta, $seasonalTemplate);
+    $dynamicProfile = $dynamicProfile ?? \App\Models\Marketing\MarketingLandingPage::buildDynamicProfile($product, $heroImageMeta, $seasonalTemplate, $resolvedProfile);
     $activeTheme = $activeTheme ?? app(\App\Services\ConfiguratorService::class)->getCurrentActiveTheme();
     $primaryCtaUrl = $primaryCtaUrl ?? route('product.show', $product->slug);
     $approvedReviews = $approvedReviews ?? collect();
@@ -42,20 +45,25 @@
     $ratingAvg = round((float) ($product->approved_reviews_avg ?? $product->average_rating ?? 0), 1);
     $ratingCount = (int) ($product->approved_reviews_count ?? $product->review_count ?? 0);
 
-    // Bereinige den sichtbaren Haupttitel von SEO-Suffixen wie "| Mein Seelenfunke"
-    $rawTitle = trim((string) ($landingPage->title ?: $product->name));
-    $escapedCompany = preg_quote($companyName, '/');
-    $displayTitle = trim((string) preg_replace('/\s*[\|–-]\s*(?:' . $escapedCompany . '|Mein[- ]Seelenfunke|Personalisiertes|Massives|Weizenglas).*$/iu', '', $rawTitle)) ?: $product->name;
+    // Bereinige den sichtbaren Haupttitel von SEO-Suffixen hinter "|"
+    $rawTitle = trim((string) ($resolvedProfile['title'] ?? ($landingPage->title ?: $product->name)));
+    $displayTitle = trim((string) preg_replace('/\s*\|.*$/u', '', $rawTitle)) ?: $product->name;
+
+    $heroSubline = trim((string) ($resolvedProfile['headline'] ?? ($landingPage->headline ?: '')));
+    if ($heroSubline === '') {
+        $heroSubline = $product->short_description ?? "Das persönliche Unikat aus unserer Manufaktur in {$companyCity}.";
+    }
 
     // Kurzer, einzeiliger CTA-Text (verhindert Zeilenumbruch im Button)
-    $rawCta = trim((string) ($landingPage->cta_text ?: ''));
-    $ctaButtonText = ($rawCta !== '' && mb_strlen($rawCta) <= 28)
+    $rawCta = trim((string) ($resolvedProfile['cta_text'] ?? ($landingPage->cta_text ?: '')));
+    $ctaButtonText = ($rawCta !== '' && mb_strlen($rawCta) <= 30)
         ? $rawCta
         : ($isVoucher ? 'Jetzt Gutschein gestalten' : ($isDigital ? 'Jetzt Download ansehen' : ($isService ? 'Jetzt Service anfragen' : ($product->isPersonalizable() ? 'Jetzt Unikat gestalten' : 'Jetzt im Shop ansehen'))));
 
     $cleanSalesCopy = \App\Models\Marketing\MarketingLandingPage::sanitizeLegalCopy(
-        (string) ($landingPage->sales_copy ?: $product->description)
+        (string) ($resolvedProfile['sales_copy'] ?? ($landingPage->sales_copy ?: $product->description))
     );
+    $occasionBenefits = $dynamicProfile['occasion_benefits'] ?? [];
     $validAttributes = $dynamicProfile['valid_attributes'] ?? \App\Models\Marketing\MarketingLandingPage::extractEssentialAttributes($product);
     $collectionBannerUrl = $dynamicProfile['collection_banner_url'] ?? \App\Models\Marketing\MarketingLandingPage::resolveCollectionBannerUrl();
     $ctaBannerUrl = $dynamicProfile['cta_banner_url'] ?? asset('shop/frontend/banners/cta_wertschaetzung.webp');
@@ -67,8 +75,7 @@
     dynamische Shop-Lieferzeit (`SystemDeliveryDisplay` / `DeliverySetting`), Staffelpreise & einzeilige CTAs.
 --}}
 <section class="relative bg-white pt-28 pb-16 lg:pt-36 lg:pb-28 overflow-hidden" aria-label="Produktvorstellung">
-    <div class="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-amber-50/30 via-gray-50/40 to-white pointer-events-none" aria-hidden="true"></div>
-    <div class="absolute -top-24 -right-24 w-96 h-96 bg-primary/10 rounded-full blur-3xl pointer-events-none" aria-hidden="true"></div>
+    <div class="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-stone-50/70 via-gray-50/30 to-white pointer-events-none" aria-hidden="true"></div>
 
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-start">
@@ -76,11 +83,18 @@
             {{-- Linke Seite: Text, Preis, Lieferzeit, Staffelpreise & CTA (7 Spalten) --}}
             <div class="order-2 lg:order-1 lg:col-span-7 text-center lg:text-left">
 
-                {{-- Kategorien & Sternebewertung --}}
-                <div class="flex flex-wrap items-center justify-center lg:justify-start gap-3 mb-4">
+                {{-- Anlass-/Manufaktur-Kicker, Kategorien & Sternebewertung --}}
+                <div class="flex flex-wrap items-center justify-center lg:justify-start gap-2.5 mb-4">
+                    @if(!empty($dynamicProfile['hero_badge']))
+                        <span class="inline-flex items-center gap-1.5 text-[11px] font-bold tracking-wide text-gray-800 bg-stone-50 border border-[#C5A059]/40 px-3 py-1 rounded-full">
+                            <span class="text-[#C5A059]">✦</span>
+                            <span>{{ $dynamicProfile['hero_badge'] }}</span>
+                        </span>
+                    @endif
+
                     @if($product->categories && $product->categories->isNotEmpty())
                         <div class="flex flex-wrap items-center gap-1.5">
-                            @foreach($product->categories->take(3) as $cat)
+                            @foreach($product->categories->take(2) as $cat)
                                 <span class="text-[10px] font-bold uppercase tracking-widest text-gray-500 bg-gray-100 px-2.5 py-1 rounded-md">
                                     {{ $cat->name }}
                                 </span>
@@ -89,10 +103,10 @@
                     @endif
 
                     @if($ratingCount > 0)
-                        <a href="#kundenbewertungen" class="inline-flex items-center gap-1.5 text-xs font-bold text-gray-800 hover:text-primary transition-colors bg-amber-50/80 border border-amber-200/60 px-3 py-1 rounded-full">
-                            <span class="flex items-center text-amber-400">
+                        <a href="#kundenbewertungen" class="inline-flex items-center gap-1.5 text-xs font-bold text-gray-800 hover:text-primary transition-colors bg-stone-50 border border-stone-200 px-3 py-1 rounded-full">
+                            <span class="flex items-center text-[#C5A059]">
                                 @for($i = 1; $i <= 5; $i++)
-                                    <svg class="w-3.5 h-3.5 {{ $i <= round($ratingAvg) ? 'text-amber-400' : 'text-gray-300' }}" viewBox="0 0 20 20" fill="currentColor">
+                                    <svg class="w-3.5 h-3.5 {{ $i <= round($ratingAvg) ? 'text-[#C5A059]' : 'text-gray-300' }}" viewBox="0 0 20 20" fill="currentColor">
                                         <path fill-rule="evenodd" d="M10.868 2.884c-.321-.772-1.415-.772-1.736 0l-1.83 4.401-4.753.381c-.833.067-1.171 1.107-.536 1.651l3.62 3.102-1.106 4.637c-.194.813.691 1.456 1.405 1.02L10 15.591l4.069 2.485c.713.436 1.598-.207 1.404-1.02l-1.106-4.637 3.62-3.102c.635-.544.297-1.584-.536-1.65l-4.752-.382-1.831-4.401z" clip-rule="evenodd" />
                                     </svg>
                                 @endfor
@@ -108,10 +122,22 @@
                     {{ $displayTitle }}
                 </h1>
 
-                {{-- Subline / Hook --}}
-                <p class="text-lg sm:text-xl text-gray-600 mb-8 leading-relaxed font-light max-w-2xl mx-auto lg:mx-0">
-                    {{ $landingPage->headline ?: ($product->short_description ?? "Das persönliche Unikat aus unserer Manufaktur in {$companyCity}.") }}
+                {{-- Subline / Hook (dynamisch nach aktivem Saison-/Feiertags-Profil) --}}
+                <p class="text-lg sm:text-xl text-gray-600 mb-6 leading-relaxed font-light max-w-2xl mx-auto lg:mx-0">
+                    {{ $heroSubline }}
                 </p>
+
+                {{-- Exakt 3 kurze Anlass-Vorteile auf cleanem Hintergrund mit goldenem Haken (✓ in #C5A059) --}}
+                @if(!empty($occasionBenefits))
+                    <ul class="space-y-2 mb-7 max-w-2xl mx-auto lg:mx-0 text-left">
+                        @foreach(array_slice($occasionBenefits, 0, 3) as $benefit)
+                            <li class="flex items-start gap-2.5 text-sm font-medium text-gray-800">
+                                <span class="font-bold text-[#C5A059] shrink-0 mt-0.5" aria-hidden="true">✓</span>
+                                <span>{{ $benefit }}</span>
+                            </li>
+                        @endforeach
+                    </ul>
+                @endif
 
                 {{-- Rechtssicherer Preis-, Steuer-, Versand-, Lieferzeit- & Staffelpreis-Block --}}
                 <div class="bg-gray-50/90 border border-gray-200/80 rounded-2xl p-5 sm:p-6 mb-8 max-w-2xl mx-auto lg:mx-0 text-left shadow-xs">
@@ -450,7 +476,7 @@
                     <ul class="space-y-3 mb-8">
                         @foreach($dynamicProfile['story_points'] as $point)
                             <li class="flex items-start gap-3 text-sm font-medium text-gray-800">
-                                <span class="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5 text-xs font-bold">✓</span>
+                                <span class="w-5 h-5 rounded-full bg-[#C5A059]/15 text-[#C5A059] flex items-center justify-center shrink-0 mt-0.5 text-xs font-bold">✓</span>
                                 <span>{{ $point }}</span>
                             </li>
                         @endforeach
@@ -833,7 +859,7 @@
 
     <div class="max-w-4xl mx-auto px-4 text-center relative z-10">
         <h2 id="cta-heading" class="text-3xl sm:text-5xl font-serif font-bold text-white mb-6 drop-shadow-lg">
-            Bereit für echte Wertschätzung?
+            {{ $dynamicProfile['cta_heading'] ?? 'Bereit für echte Wertschätzung?' }}
         </h2>
         <p class="text-xl text-stone-100 mb-12 max-w-2xl mx-auto font-light leading-relaxed drop-shadow">
             @if($isVoucher)
@@ -841,7 +867,7 @@
             @elseif($isDigital)
                 Erhalte jetzt {{ $product->name }} mit direktem Download nach deiner Bestellung.
             @elseif($isService)
-                Frag jetzt unverbindlich an – wir beraten dich persönlich aus unserer Manufaktur in {{ $companyCity }}.
+                Frag jetzt unverbindlich an: wir beraten dich persönlich aus unserer Manufaktur in {{ $companyCity }}.
             @elseif($product->isPersonalizable())
                 Egal ob Einzelstück für einen besonderen Anlass oder als persönliches Geschenk: Gestalte jetzt {{ $product->name }} online.
             @else

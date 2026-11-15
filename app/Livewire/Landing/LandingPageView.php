@@ -19,6 +19,7 @@ class LandingPageView extends Component
 
     public ?string $requestedHoliday = null;
     public ?string $requestedTemplateId = null;
+    public bool $isAdTraffic = false;
 
     public function mount($slug)
     {
@@ -68,6 +69,10 @@ class LandingPageView extends Component
 
         $rawTemplateId = trim((string) (request()->query('t') ?: request()->query('template', '')));
         $this->requestedTemplateId = $rawTemplateId !== '' ? mb_substr($rawTemplateId, 0, 64) : null;
+
+        $this->isAdTraffic = request()->has('gclid')
+            || request()->has('gad_source')
+            || request()->boolean('ad');
 
         // Tracker logic (DSGVO-konform mit App-Key-Salt und Längenbegrenzung)
         try {
@@ -131,16 +136,23 @@ class LandingPageView extends Component
 
         $activeTemplates = $product->templates->where('is_active', true)->values();
 
-        // 1. Prüfe auf explizite Vorlage (?t=...) oder saisonale Vorlage
+        // 0. Aktives Jahreszeiten-/Feiertags-Vorlagenprofil der EINEN Landingpage auflösen (inkl. Post-Holiday-Guard)
+        $resolvedProfile = $this->landingPage->resolveActiveProfile($this->requestedHoliday, $this->isAdTraffic);
+        $mediaHolidayHint = $resolvedProfile['media_holiday_hint'] ?? null;
+        $allowSeasonalForHero = ($resolvedProfile['slot_key'] ?? 'standard') !== 'standard';
+
+        // 1. Prüfe auf explizite Vorlage (?t=...) oder saisonale Vorlage passend zum aufgelösten Profil
         $selectedTemplate = null;
         if ($this->requestedTemplateId) {
             $selectedTemplate = $activeTemplates->firstWhere('id', $this->requestedTemplateId);
         }
 
         $seasonalTemplate = $selectedTemplate
-            ?: ($product->isAutoSeasonalMainImageEnabled() ? $product->resolveSeasonalTemplate($this->requestedHoliday) : null);
+            ?: ($allowSeasonalForHero && ($mediaHolidayHint !== null || $product->isAutoSeasonalMainImageEnabled())
+                ? $product->resolveSeasonalTemplate($mediaHolidayHint)
+                : null);
 
-        // 2. Hauptbild (Hero) auflösen
+        // 2. Hauptbild (Hero) auflösen (fällt bei fehlendem Saisonbild strikt auf das neutrale Hauptbild zurück!)
         if ($selectedTemplate && !empty($selectedTemplate->preview_image)) {
             $heroImageMeta = [
                 'path'            => $selectedTemplate->preview_image,
@@ -149,7 +161,7 @@ class LandingPageView extends Component
                 'label'           => $selectedTemplate->name,
             ];
         } else {
-            $heroImageMeta = $product->resolveMainImageMeta($this->requestedHoliday, true);
+            $heroImageMeta = $product->resolveMainImageMeta($mediaHolidayHint, $allowSeasonalForHero);
         }
 
         // 3. Interaktive Hero-Medien-Galerie aufbauen (Saisonbild + Standard-Galerie ohne Duplikate)
@@ -210,12 +222,13 @@ class LandingPageView extends Component
         // 6. Aktive Jahreszeit / Feiertags-Kontext
         $activeTheme = app(ConfiguratorService::class)->getCurrentActiveTheme();
 
-        // 7. Dynamisches Produkt-Profil (USPs, Badges, Story-Checkliste)
-        $dynamicProfile = MarketingLandingPage::buildDynamicProfile($product, $heroImageMeta, $seasonalTemplate);
+        // 7. Dynamisches Produkt- & Anlass-Profil (Hero-Badge, 3 goldene ✓-Vorteile, Highlights, Story-Checkliste, Banner)
+        $dynamicProfile = MarketingLandingPage::buildDynamicProfile($product, $heroImageMeta, $seasonalTemplate, $resolvedProfile);
 
-        // 8. Primäre Ziel-URL (bei expliziter Vorlagen-Kampagne direkt mit ?t=...)
-        $primaryCtaUrl = $selectedTemplate
-            ? route('product.show', ['product' => $product->slug, 't' => $selectedTemplate->id])
+        // 8. Primäre Ziel-URL (übergibt passende Saison-/Kampagnenvorlage direkt an den Konfigurator)
+        $ctaTemplate = $selectedTemplate ?: ($resolvedProfile['is_explicit'] ? $seasonalTemplate : null);
+        $primaryCtaUrl = $ctaTemplate
+            ? route('product.show', ['product' => $product->slug, 't' => $ctaTemplate->id])
             : route('product.show', $product->slug);
 
         // 9. Cross-Selling Empfehlungen
@@ -226,6 +239,7 @@ class LandingPageView extends Component
 
         return view('livewire.landing.landing-page-view', [
             'product'          => $product,
+            'resolvedProfile'  => $resolvedProfile,
             'heroImageMeta'    => $heroImageMeta,
             'detailImageMeta'  => $detailImageMeta,
             'heroGallery'      => $heroGallery,
@@ -239,4 +253,3 @@ class LandingPageView extends Component
         ]);
     }
 }
-

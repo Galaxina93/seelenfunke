@@ -1,86 +1,54 @@
-# Marketing - Landing Pages
+# Marketing: Dynamische Produkt-Landingpages (`/l/{slug}` mit 13 Vorlagen-Profilen)
 
-Dieses Dokument beschreibt die Funktionsweise und Implementierung des Landingpage-Systems im Laravel-Projekt. Dieses System ermöglicht es, für ausgewählte Produkte vollautomatisch SEO-optimierte Landingpages mit dedizierten Designs und integriertem Besuchertracking zu generieren.
-
-## Zielsetzung
-Das Landingpage-System dient der Erstellung fokussierter Verkaufsseiten für Produkte. Es trennt die administrative Erstellung im Backend von der dynamischen Ausspielung im Frontend, wobei jede Landingpage als eigenständige Blade-Layout-Datei erzeugt wird. So können Entwickler oder Marketing-Mitarbeiter das Design individuell im Dateisystem verfeinern.
+**Stand:** 15.11.2026  
+**System:** Mein-Seelenfunke (`MarketingLandingPage.php`, `LandingPageView.php`, `MarketingLandingPages.php`, `Product.php`)
 
 ---
 
-## Beteiligte Komponenten & Modelle
+## 1. Architektur-Prinzip: 1 Landingpage pro Produkt + 13 logische Vorlagen-Profile
 
-### Backend-Livewire-Controller
-* [MarketingLandingPages](file:///wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Marketing/MarketingLandingPages.php)
-  * Verwaltet die Generierung und Regeneration der Layout-Dateien.
-  * Steuert die Verknüpfung mit den Produkten und die Initialisierung der Standardtexte.
+Statt für jedes Produkt dutzende einzelne Landingpages für Jahreszeiten und Feiertage zu pflegen, besitzt jedes aktive Produkt **genau eine dauerhafte URL `/l/{slug}`**, die über das JSON-Feld `seasonal_profiles` in [`MarketingLandingPage.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Models/Marketing/MarketingLandingPage.php) **13 logische Vorlagen-Profile** steuert:
 
-### Frontend-Livewire-Controller
-* [LandingPageView](file:///wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Landing/LandingPageView.php)
-  * Löst die Route `/l/{slug}` auf.
-  * Prüft die Existenz der Landingpage in der Datenbank und lädt die Produktinformationen.
-  * Enthält die IP-basierte Sperrlogik zur Vermeidung von Tracking-Spam.
-
-### Modelle
-* [MarketingLandingPage](file:///wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Models/Marketing/MarketingLandingPage.php)
-  * Repräsentiert den Datenbankeintrag mit Attributen wie `slug`, `title`, `headline`, `sales_copy`, `cta_text` und `status`.
-* [Product](file:///wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Models/Product/Product.php)
-  * Die Landingpage ist direkt an ein Produkt gebunden.
-* [PageVisit](file:///wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Models/Tracking/PageVisit.php)
-  * Dient zur Protokollierung der Aufrufe.
+* **1x Standard (Zeitlos / Evergreen-Fallback):** Speicherung auf den Hauptspalten (`title`, `headline`, `sales_copy`, `cta_text`).
+* **4x Jahreszeiten-Profile (`seasonal_profiles`):** `Winter`, `Frühling`, `Sommer`, `Herbst`.
+* **8x Feiertags- & Anlass-Profile (`seasonal_profiles`):** `Weihnachten`, `Valentinstag`, `Ostern`, `Muttertag`, `Vatertag`, `Halloween`, `Hochzeit`, `Geburtstag`.
 
 ---
 
-## Technischer Datenfluss & Generierungsprozess
+## 2. Beteiligte Komponenten & Modelle
 
-### 1. Generierung einer neuen Landingpage (`doGenerate`)
-Wenn im Backend der Button zur Erstellung einer Landingpage gedrückt wird:
-1. Das `Product` wird geladen.
-2. Der Dateipfad für das Blade-Template wird bestimmt: `resources/views/frontend/pages/landingpages/{product-slug}.blade.php`.
-3. Es wird ein Standard-Stub geladen (`resources/views/stubs/landing-page-template.stub`) und in die Zieldatei geschrieben.
-4. Es wird ein Datenbank-Eintrag in `marketing_landing_pages` erstellt oder aktualisiert (`updateOrCreate`):
-   * **Headline**: standardmäßig `"Entdecke die Magie von " + Produktname`
-   * **Sales-Copy**: Produktbeschreibung.
-   * **CTA-Text**: Wird dynamisch über `getDefaultCtaText` je nach Produkttyp bestimmt.
-
-### 2. CTA-Text-Bestimmung (`getDefaultCtaText`)
-Die Call-To-Action (CTA) Beschriftung wird intelligent vorselektiert:
-* **Personalisierbar**: `"Jetzt dein Unikat gestalten"`
-* **Digitales Produkt**: `"Jetzt digitalen Download ansehen"`
-* **Service/Dienstleistung**: `"Jetzt Dienstleistung buchen"`
-* **Physisches Standardprodukt**: `"Jetzt zum Produkt"`
+* **Model [`MarketingLandingPage.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Models/Marketing/MarketingLandingPage.php):**
+  * Synchronisiert sich automatisch mit jedem aktiven Produkt (`syncForProduct()`).
+  * Erzeugt über `generateSeasonalProfileCopy()` und `generateAllSeasonalProfiles()` abmahnsichere, emotionsstarke Vorlagentexte ohne KI-Gedankenstriche (`sanitizeLegalCopy()`).
+  * Steuert über `resolveActiveProfile()` und `buildDynamicProfile()` alle Sektionen des zentralen Master-Templates (`master-template.blade.php`): SEO-Titel, Anlass-Kicker im Hero, `<h1>`-Hook, **exakt 3 kurze Vorteile mit goldenem Haken (`✓` in `#C5A059`)**, Saison-Banner, Story-Überschrift, Verkaufstext und Abschluss-CTA.
+* **Frontend-Komponente [`LandingPageView.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Landing/LandingPageView.php) & [`master-template.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/landing/partials/master-template.blade.php):**
+  * Rendert `/l/{slug}` strikt im freundlichen **Light-Mode** mit mattem Schwarz-Gold (`#C5A059`).
+  * Erkennt bezahlte Anzeigen-Aufrufe (`gclid`, `gad_source`, `ad=1`) und aktiviert bei abgelaufenen Feiertagen automatisch den **Post-Holiday-Guard** (`isCalendarHolidayRecentlyExpired()`), damit nach einem Fest niemals veraltete Feiertagstexte oder Lieferversprechen ausgespielt werden.
+  * Protokolliert Aufrufe datenschutzkonform in [`PageVisit.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Models/Tracking/PageVisit.php) mit 1-Stunden-IP-Hash-Sperre.
+* **Admin-Komponente [`MarketingLandingPages.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Marketing/MarketingLandingPages.php) (`/admin/marketing-landing-pages`):**
+  * Zeigt in Groß-, Mittel- und Listenansicht das aktuell aktive Vorlagen-Profil sowie eventuelle Bild-Fehlhinweise direkt auf der Kachel an.
+  * Bietet im `Bearbeiten`-Modal einen **13-Profile-Umschalter**, Direkt-Vorschau (`/l/{slug}?holiday=...`), `127.0.0.1`-sicheres Link-Kopieren, `Profil aktiv`-Schalter und Einzelprofil-Speicherung (`Profil speichern`).
+* **Produktbild-Kaskade in [`Product.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Models/Product/Product.php):**
+  * `resolveMainImageMeta()` prüft im aktiven Feiertagsfenster zuerst das Feiertagsbild, danach das Jahreszeitenbild und fällt bei fehlendem Folge-Saisonbild (z. B. am `27.12.` nach Weihnachten, wenn `Winter` noch fehlt) **sofort auf das neutrale Hauptbild (`is_main = true`)** zurück.
+  * `getSeasonalImageSetStatus()` und `getReadinessReport()` melden direkt am Produkt (`active_missing_label`, `fallback_active`), welches Jahreszeiten- oder Feiertagsbild aktuell noch fehlt.
 
 ---
 
-## Frontend-Routing & Tracking
-
-### 1. Routing
-Die Routen-Definition ist in `routes/partials/global_routes.php` registriert:
-```php
-Route::get('/l/{slug}', \App\Livewire\Landing\LandingPageView::class)->name('landing-page');
-```
-
-### 2. Besucher-Tracking (`mount` in `LandingPageView`)
-Beim Aufruf der Landingpage wird im Hintergrund ein `PageVisit`-Eintrag angelegt. Um Klick-Spam und doppeltes Zählen zu vermeiden, greift eine **1-Stunden-Sperre pro IP-Hash**:
-1. Der IP-Hash wird erzeugt: `hash('sha256', Request::ip())`.
-2. Es wird geprüft, ob in der letzten Stunde bereits ein Eintrag für diesen Pfad (`/l/{slug}`) mit diesem IP-Hash vorhanden ist.
-3. Falls nicht, wird ein neuer `PageVisit`-Eintrag erfasst mit:
-   * `session_id`
-   * `ip_hash`
-   * `url` & `path`
-   * `user_agent` & `referer` (Herkunfts-URL zur UTM-Auswertung)
+## 3. Auflösungs-Reihenfolge beim Aufruf von `/l/{slug}`
 
 ```mermaid
-sequenceDiagram
-    participant C as Client
-    participant L as LandingPageView (Frontend)
-    participant DB as Datenbank
-    
-    C->>L: Aufruf /l/{slug}
-    L->>DB: Query MarketingLandingPage mit slug
-    DB-->>L: Gibt LandingPage & Product zurück
-    L->>DB: Prüfe PageVisit (letzte 1 Std., gleicher IP-Hash)
-    alt Kein Visit in letzter Stunde
-        L->>DB: Schreibe neuen PageVisit
-    end
-    L-->>C: Render View (Custom Blade)
+flowchart TD
+    A["Aufruf /l/{slug} oder /l/{slug}?holiday=..."] --> B{"Parameter ?holiday=... gesetzt?"}
+    B -->|"Ja + Ad-Klick (gclid / ad=1) nach Feiertags-Ende"| C["Post-Holiday-Guard greift: Wechsel auf aktuelle Jahreszeit / Standard"]
+    B -->|"Ja (gültige Kampagne oder Vorschau)"| D["Lädt explizites Anlass-Profil + passendes Saisonbild (oder Hauptbild-Fallback)"]
+    B -->|"Nein (organischer Aufruf)"| E{"Aktiver Feiertag laut HolidayOfferAutopilotService?"}
+    E -->|"Ja (z. B. Advent bis 26.12.)"| F["Lädt aktives Feiertags-Profil (inkl. Cutoff-Prüfung)"]
+    E -->|"Nein (z. B. ab 27.12.)"| G["Lädt aktives Jahreszeiten-Profil (Winter, Frühling, Sommer, Herbst) bzw. Standard-Profil"]
 ```
+
+---
+
+## 4. Verzahnung mit dem Google-Ads-Konzept
+
+Die vollständige Strategie für Google Search Ads, Google Shopping Feed (`/feed/google-shopping.xml`), Echtfoto-Gatekeeper und Versand-Cutoff-Pausierung ist dokumentiert unter:
+* [`Konzept_Google_Ads_Autopilot_und_Merchant_Strategie.md`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/Abschlussberichte/Konzepte/Konzept_Google_Ads_Autopilot_und_Merchant_Strategie.md)

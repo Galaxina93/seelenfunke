@@ -18,23 +18,35 @@
                     localStorage.setItem('admin_landing_pages_layout_mode', '{{ $currentLayout }}');
                 }
             } catch (e) {}
+        },
+        copyLinkSafe(text) {
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(text).catch(() => {});
+                return;
+            }
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.focus();
+            ta.select();
+            try { document.execCommand('copy'); } catch (e) {}
+            document.body.removeChild(ta);
         }
      }"
      x-init="syncLandingPageLayout()"
      class="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-9xl mx-auto space-y-6 pb-20 animate-fade-in-up font-sans antialiased text-gray-700 dark:text-gray-300">
 
-    {{-- HEADER BEREICH (Identische Ansichtslogik & Optik wie /admin/product-templates) --}}
+    {{-- HEADER BEREICH --}}
     <div class="flex flex-col xl:flex-row justify-between items-start xl:items-end mb-6 gap-6 animate-fade-in-up">
         <div>
-            <h1 class="text-3xl sm:text-4xl font-serif font-bold text-gray-900 dark:text-white mb-2 tracking-tight">
-                Produkt-Landing-Pages
-            </h1>
-            <div class="flex flex-wrap items-center gap-3 text-gray-600 dark:text-gray-400">
-                <p class="text-xs sm:text-sm font-medium">
-                    Dynamische Adaption an Produkttyp, Jahreszeiten-Vorlagen, Feiertags-Autopilot & EU AI Act.
-                </p>
+            <div class="flex flex-wrap items-center gap-3">
+                <h1 class="text-3xl sm:text-4xl font-serif font-bold text-gray-900 dark:text-white tracking-tight">
+                    Produkt-Landing-Pages
+                </h1>
                 <span class="px-3 py-1.5 bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 dark:shadow-inner rounded-lg text-[10px] font-black uppercase tracking-widest text-gray-500">
-                    {{ $activeLpCount }}/{{ $totalProductsCount }} Aktiv
+                    {{ $activeLpCount }}/{{ $totalProductsCount }} Aktiv · je 13 Profile
                 </span>
             </div>
         </div>
@@ -222,6 +234,8 @@
                         $lp = $product->landingPage;
                         $isLpActive = $lp && $lp->status === 'active';
                         $hasCustomFile = $lp && \Illuminate\Support\Facades\File::exists(resource_path('views/frontend/pages/landingpages/' . $lp->slug . '.blade.php'));
+                        $activeLpProfile = $lp ? $lp->resolveActiveProfile() : null;
+                        $seasonalImgStatus = $product->getSeasonalImageSetStatus();
                         $mainImageMeta = $product->resolveMainImageMeta();
                         $resolvedImageUrl = $mainImageMeta['url'] ?? null;
                         $isAiImage = (bool) ($mainImageMeta['is_ai_generated'] ?? false);
@@ -259,9 +273,17 @@
                                 <div class="flex items-center gap-2.5 flex-wrap mb-1">
                                     <h3 class="font-serif text-base sm:text-lg font-bold text-gray-900 dark:text-white truncate">{{ $product->name }}</h3>
 
-                                    @if($activeSeasonalTemplate)
-                                        <span class="px-2.5 py-0.5 rounded-lg bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-20)] text-[9px] font-black uppercase tracking-widest">
-                                            {{ $activeSeasonalTemplate->holiday ?: $activeSeasonalTemplate->name }}
+                                    @if($activeLpProfile)
+                                        <span class="px-2.5 py-0.5 rounded-lg bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-20)] text-[9px] font-black uppercase tracking-widest"
+                                              title="Aktuell geladenes Landingpage-Profil">
+                                            {{ $activeLpProfile['icon'] }} {{ $activeLpProfile['label'] }}
+                                        </span>
+                                    @endif
+
+                                    @if(!empty($seasonalImgStatus['active_missing_label']))
+                                        <span class="px-2 py-0.5 rounded-lg bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/30 text-[9px] font-black uppercase tracking-widest cursor-help"
+                                              title="{{ $seasonalImgStatus['tooltip'] }}">
+                                            ! {{ $seasonalImgStatus['active_missing_label'] }}-Bild fehlt (Hauptbild aktiv)
                                         </span>
                                     @endif
 
@@ -275,7 +297,7 @@
                                 </div>
 
                                 <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
-                                    <span class="text-[var(--theme-color)] font-mono font-bold">{{ $product->slug === 'geschenkgutschein' ? '5,00 € – 1.000,00 €' : $product->formatted_price }}</span>
+                                    <span class="text-[var(--theme-color)] font-mono font-bold">{{ $product->slug === 'geschenkgutschein' ? '5,00 € bis 1.000,00 €' : $product->formatted_price }}</span>
                                     <span class="text-[11px] font-mono text-gray-400 dark:text-gray-500">{{ $lpPath }}</span>
                                     <span class="text-[10px] font-mono text-gray-400 dark:text-gray-500">{{ $visits30d }} Aufrufe (30T) · {{ $visitsTotal }} gesamt</span>
                                 </div>
@@ -343,8 +365,10 @@
                         $lp = $product->landingPage;
                         $isLpActive = $lp && $lp->status === 'active';
                         $hasCustomFile = $lp && \Illuminate\Support\Facades\File::exists(resource_path('views/frontend/pages/landingpages/' . $lp->slug . '.blade.php'));
+                        $activeLpProfile = $lp ? $lp->resolveActiveProfile() : null;
+                        $seasonalImgStatus = $product->getSeasonalImageSetStatus();
 
-                        // Dynamische Saison- & Produktbild-Auflösung nach neuester System-Logik
+                        // Dynamische Saison- & Produktbild-Auflösung nach neuester System-Logik (fällt strikt auf Hauptbild zurück)
                         $mainImageMeta = $product->resolveMainImageMeta();
                         $resolvedImageUrl = $mainImageMeta['url'] ?? null;
                         $isAiImage = (bool) ($mainImageMeta['is_ai_generated'] ?? false);
@@ -392,19 +416,30 @@
                         {{-- Vorschaubild (1:1 aspect-square in Groß & Mittel, damit nichts abgeschnitten oder zu nah dargestellt wird) --}}
                         <div class="{{ $currentLayout === 'medium' ? 'aspect-square rounded-2xl mb-4 mt-1.5' : 'aspect-square rounded-[1.5rem] mb-6 mt-2' }} bg-gray-100 dark:bg-gray-950 overflow-hidden relative border border-gray-200 dark:border-gray-800 dark:shadow-inner group-hover:border-gray-300 dark:group-hover:border-gray-700 transition-colors">
                             {{-- Saison-/Anlass-Badge oben links --}}
-                            <div class="absolute top-3 left-3 z-10 flex flex-col items-start gap-1.5 pointer-events-none max-w-[65%]">
-                                @if($activeSeasonalTemplate)
-                                    <span class="px-2.5 py-1 rounded-full bg-gray-900/80 backdrop-blur-md text-white text-[9px] font-black uppercase tracking-widest border border-white/15 shadow-sm truncate max-w-full">
+                            <div class="absolute top-3 left-3 z-10 flex flex-col items-start gap-1.5 max-w-[68%]">
+                                @if($activeLpProfile)
+                                    <span class="pointer-events-none px-2.5 py-1 rounded-full bg-gray-900/80 backdrop-blur-md text-white text-[9px] font-black uppercase tracking-widest border border-white/15 shadow-sm truncate max-w-full">
+                                        {{ $activeLpProfile['icon'] }} {{ $activeLpProfile['label'] }}
+                                    </span>
+                                @elseif($activeSeasonalTemplate)
+                                    <span class="pointer-events-none px-2.5 py-1 rounded-full bg-gray-900/80 backdrop-blur-md text-white text-[9px] font-black uppercase tracking-widest border border-white/15 shadow-sm truncate max-w-full">
                                         {{ $activeSeasonalTemplate->holiday ?: $activeSeasonalTemplate->name }}
                                     </span>
                                 @elseif($product->slug === 'geschenkgutschein' && !empty($mainImageMeta['label']))
-                                    <span class="px-2.5 py-1 rounded-full bg-gray-900/80 backdrop-blur-md text-white text-[9px] font-black uppercase tracking-widest border border-white/15 shadow-sm truncate max-w-full">
+                                    <span class="pointer-events-none px-2.5 py-1 rounded-full bg-gray-900/80 backdrop-blur-md text-white text-[9px] font-black uppercase tracking-widest border border-white/15 shadow-sm truncate max-w-full">
                                         {{ $mainImageMeta['label'] }}
                                     </span>
                                 @endif
 
+                                @if(!empty($seasonalImgStatus['active_missing_label']))
+                                    <span class="px-2.5 py-0.5 rounded-full bg-gray-900/85 backdrop-blur-md text-[var(--theme-color)] text-[8px] font-black uppercase tracking-widest border border-[var(--theme-color-40)] shadow-sm truncate max-w-full cursor-help"
+                                          title="{{ $seasonalImgStatus['tooltip'] }}">
+                                        ! {{ $seasonalImgStatus['active_missing_label'] }}-Bild fehlt
+                                    </span>
+                                @endif
+
                                 @if($saleBadgeText)
-                                    <span class="px-2.5 py-0.5 rounded-full bg-red-600/95 text-white text-[8px] font-black uppercase tracking-widest shadow-sm">
+                                    <span class="pointer-events-none px-2.5 py-0.5 rounded-full bg-red-600/95 text-white text-[8px] font-black uppercase tracking-widest shadow-sm">
                                         {{ $saleBadgeText }}
                                     </span>
                                 @endif
@@ -441,7 +476,7 @@
                                 {{ $product->name }}
                             </h3>
                             <span class="text-xs font-mono font-bold text-[var(--theme-color)] shrink-0">
-                                {{ $product->slug === 'geschenkgutschein' ? '5,00 € – 1.000,00 €' : $product->formatted_price }}
+                                {{ $product->slug === 'geschenkgutschein' ? '5,00 € bis 1.000,00 €' : $product->formatted_price }}
                             </span>
                         </div>
 
@@ -449,6 +484,12 @@
                         <div class="flex items-center justify-between gap-2 mb-3 flex-wrap">
                             <span class="text-[10px] font-mono text-gray-400 dark:text-gray-500 truncate">{{ $lpPath }}</span>
                             <div class="flex items-center gap-1.5">
+                                @if($lp)
+                                    <span class="px-2 py-0.5 rounded-md bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-20)] text-[8px] font-black uppercase tracking-widest"
+                                          title="1 Standard + 4 Jahreszeiten + 8 Feiertags-Profile">
+                                        13 Profile
+                                    </span>
+                                @endif
                                 @if($activeTemplatesCount > 0)
                                     <span class="px-2 py-0.5 rounded-md bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/20 text-[8px] font-black uppercase tracking-widest">
                                         {{ $activeTemplatesCount }} Vorlagen
@@ -464,7 +505,7 @@
 
                         {{-- Headline Vorschau --}}
                         <p class="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 leading-relaxed mb-4 border-t border-gray-100 dark:border-gray-800/50 pt-3">
-                            {{ $lp?->headline ?: ($product->short_description ?: $product->description) }}
+                            {{ $activeLpProfile['headline'] ?? ($lp?->headline ?: ($product->short_description ?: $product->description)) }}
                         </p>
 
                         {{-- Footer Aktionen (Identisch zu /admin/product-templates) --}}
@@ -480,7 +521,7 @@
                                     <button type="button"
                                             x-data="{ copied: false }"
                                             @click="
-                                                navigator.clipboard.writeText('{{ url('/l/' . $lp->slug) }}');
+                                                copyLinkSafe('{{ url('/l/' . $lp->slug) }}');
                                                 copied = true;
                                                 setTimeout(() => copied = false, 2000);
                                             "
@@ -495,7 +536,7 @@
                                     <button type="button"
                                             wire:click="regenerateCopy('{{ $lp->id }}')"
                                             class="text-gray-500 hover:text-[var(--theme-color)] transition-colors border-b border-gray-300 dark:border-gray-700 hover:border-[var(--theme-color)] pb-0.5 cursor-pointer"
-                                            title="Texte aus Produktdaten erneuern">
+                                            title="Alle 13 Vorlagen-Profile aus Produktdaten erneuern">
                                         Sync
                                     </button>
                                     <button type="button"
@@ -518,68 +559,172 @@
         @endif
     @endif
 
-    {{-- BEARBEITEN-MODAL --}}
+    {{-- BEARBEITEN-MODAL (1 LANDINGPAGE + 13 VORLAGEN-PROFILE) --}}
     @if($showEditModal)
         @php
             $modalProduct = $editingLandingPage?->product;
-            $modalImageMeta = $modalProduct ? $modalProduct->resolveMainImageMeta() : null;
-            $modalSeasonalTpl = ($modalProduct && $modalProduct->isAutoSeasonalMainImageEnabled()) ? $modalProduct->resolveSeasonalTemplate() : null;
+            $currentProfileDef = $profileDefinitions[$selectedProfileSlot] ?? ($profileDefinitions['standard'] ?? [
+                'key' => 'standard',
+                'label' => 'Standard (Zeitlos)',
+                'icon' => '✨',
+                'group' => 'standard',
+                'query_param' => null,
+            ]);
+            $modalOverview = $modalProduct ? $modalProduct->getSeasonalMainImagesOverview() : [];
+            $modalSlotMissingImg = ($selectedProfileSlot !== 'standard' && $modalProduct && $modalProduct->isAutoSeasonalMainImageEnabled() && empty($modalOverview[$selectedProfileSlot]['path']));
+            $modalImageMeta = $modalProduct
+                ? $modalProduct->resolveMainImageMeta($selectedProfileSlot !== 'standard' ? $selectedProfileSlot : null, $selectedProfileSlot !== 'standard')
+                : null;
+            $previewUrl = $editingLandingPage
+                ? ($selectedProfileSlot === 'standard'
+                    ? url('/l/' . $editingLandingPage->slug)
+                    : url('/l/' . $editingLandingPage->slug . '?holiday=' . ($currentProfileDef['query_param'] ?? urlencode($selectedProfileSlot))))
+                : '#';
+            $previewRelativePath = $editingLandingPage
+                ? ($selectedProfileSlot === 'standard'
+                    ? '/l/' . $editingLandingPage->slug
+                    : '/l/' . $editingLandingPage->slug . '?holiday=' . ($currentProfileDef['query_param'] ?? urlencode($selectedProfileSlot)))
+                : '';
+            $seasonProfilesList = collect($profileDefinitions)->where('group', 'season');
+            $holidayProfilesList = collect($profileDefinitions)->where('group', 'holiday');
+            $storedSeasonalProfiles = is_array($editingLandingPage?->seasonal_profiles) ? $editingLandingPage->seasonal_profiles : [];
         @endphp
         <div class="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 bg-gray-900/60 dark:bg-gray-950/80 backdrop-blur-md">
-            <div class="relative w-full max-w-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl shadow-2xl p-6 sm:p-8 space-y-6">
-                <div class="flex items-start justify-between border-b border-gray-200 dark:border-gray-800 pb-4 gap-4">
-                    <div class="flex items-center gap-3.5">
+            <div class="relative w-full max-w-3xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl shadow-2xl p-6 sm:p-8 space-y-5 my-6">
+                {{-- Header --}}
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between border-b border-gray-200 dark:border-gray-800 pb-4 gap-4">
+                    <div class="flex items-center gap-3.5 min-w-0">
                         @if(!empty($modalImageMeta['url']))
                             <img src="{{ $modalImageMeta['url'] }}"
                                  alt="{{ $modalProduct?->name }}"
                                  class="w-14 h-14 rounded-2xl object-cover border border-gray-200 dark:border-gray-700 shrink-0">
                         @endif
-                        <div>
-                            <h2 class="text-xl font-serif font-bold text-gray-900 dark:text-white">
-                                Landing Page bearbeiten: {{ $modalProduct?->name }}
+                        <div class="min-w-0">
+                            <h2 class="text-lg sm:text-xl font-serif font-bold text-gray-900 dark:text-white truncate">
+                                {{ $modalProduct?->name }}
                             </h2>
-                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                                @if($modalSeasonalTpl)
-                                    Aktives Saisonbild: <strong>{{ $modalSeasonalTpl->name }} ({{ $modalSeasonalTpl->holiday }})</strong>
-                                @else
-                                    Passe Titel, Werbetexte und CTA-Button für maximale Conversion an.
+                            <div class="flex flex-wrap items-center gap-1.5 mt-1">
+                                <span class="px-2.5 py-0.5 rounded-lg bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-20)] text-[9px] font-black uppercase tracking-widest">
+                                    {{ $currentProfileDef['icon'] }} {{ $currentProfileDef['label'] }}
+                                </span>
+                                @if($modalSlotMissingImg)
+                                    <span class="px-2 py-0.5 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 text-[9px] font-black uppercase tracking-widest cursor-help"
+                                          title="Für {{ $selectedProfileSlot }} ist noch kein eigenes Saisonfoto im Produkt hinterlegt. Es greift automatisch das neutrale Hauptbild.">
+                                        ! Fallback: Hauptbild ({{ $selectedProfileSlot }}-Bild fehlt)
+                                    </span>
                                 @endif
-                            </p>
+                                @if($previewRelativePath !== '')
+                                    <span class="text-[10px] font-mono text-gray-400 dark:text-gray-500 truncate">{{ $previewRelativePath }}</span>
+                                @endif
+                            </div>
                         </div>
                     </div>
-                    <button type="button" wire:click="closeEditModal" class="text-gray-400 hover:text-gray-700 dark:hover:text-white p-1 rounded-lg cursor-pointer">
-                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
+
+                    <div class="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                        @if($editingLandingPage)
+                            <a href="{{ $previewUrl }}"
+                               target="_blank"
+                               class="px-3 py-1.5 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 text-[10px] font-black uppercase tracking-widest transition-colors">
+                                Vorschau &nearr;
+                            </a>
+                            <button type="button"
+                                    x-data="{ copiedModalUrl: false }"
+                                    @click="
+                                        copyLinkSafe('{{ $previewUrl }}');
+                                        copiedModalUrl = true;
+                                        setTimeout(() => copiedModalUrl = false, 2000);
+                                    "
+                                    class="px-3 py-1.5 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 text-[10px] font-black uppercase tracking-widest transition-colors cursor-pointer"
+                                    title="Direktlink für dieses Profil kopieren">
+                                <span x-show="!copiedModalUrl">Link</span>
+                                <span x-show="copiedModalUrl" x-cloak class="text-emerald-500">Kopiert</span>
+                            </button>
+                        @endif
+                        <button type="button"
+                                wire:click="applySmartDefaultsInModal"
+                                class="px-3 py-1.5 rounded-xl bg-[var(--theme-color-10)] hover:bg-[var(--theme-color-20)] text-[var(--theme-color)] border border-[var(--theme-color-30)] text-[10px] font-black uppercase tracking-widest transition-colors cursor-pointer"
+                                title="Texte dieses Profils aus Produktdaten vorbelegen">
+                            Vorlage füllen
+                        </button>
+                        <button type="button" wire:click="closeEditModal" class="text-gray-400 hover:text-gray-700 dark:hover:text-white p-1.5 rounded-lg cursor-pointer">
+                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
                 </div>
 
-                <div class="flex items-center justify-between bg-amber-50/70 dark:bg-amber-500/10 border border-amber-200/80 dark:border-amber-500/20 rounded-2xl px-4 py-2.5">
-                    <span class="text-xs text-amber-900 dark:text-amber-300">
-                        Möchtest du die Texte automatisch passend zu Produkttyp & Material vorbelegen?
-                    </span>
-                    <button type="button"
-                            wire:click="applySmartDefaultsInModal"
-                            class="text-xs font-bold text-amber-900 dark:text-amber-200 underline hover:no-underline shrink-0 ml-3 cursor-pointer">
-                        ✨ Aus Produktdaten füllen
-                    </button>
+                {{-- 13-Profile-Umschalter (1 Standard + 4 Jahreszeiten + 8 Feiertage) --}}
+                <div class="bg-gray-50 dark:bg-gray-950/80 border border-gray-200 dark:border-gray-800 rounded-2xl p-3.5 space-y-2.5">
+                    <div class="flex flex-wrap items-center gap-1.5">
+                        <span class="text-[9px] font-black uppercase tracking-widest text-gray-400 dark:text-gray-500 mr-1">Basis & Saison:</span>
+                        <button type="button"
+                                wire:click="selectProfileSlot('standard')"
+                                class="px-2.5 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider border transition-all cursor-pointer {{ $selectedProfileSlot === 'standard' ? 'bg-[var(--theme-color)] text-gray-950 border-[var(--theme-color)] shadow-sm' : 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-800 hover:border-[var(--theme-color-40)]' }}">
+                            ✨ Standard
+                        </button>
+                        @foreach($seasonProfilesList as $pKey => $pDef)
+                            @php
+                                $isCurrentSlot = ($selectedProfileSlot === $pKey);
+                                $hasSlotPhoto = !empty($modalOverview[$pKey]['path']);
+                                $isSlotEnabled = array_key_exists('enabled', $storedSeasonalProfiles[$pKey] ?? []) ? (bool) $storedSeasonalProfiles[$pKey]['enabled'] : true;
+                            @endphp
+                            <button type="button"
+                                    wire:click="selectProfileSlot('{{ $pKey }}')"
+                                    title="{{ $pDef['label'] }}{{ $hasSlotPhoto ? ' (Saisonbild vorhanden)' : ' (Fallback: Hauptbild)' }}"
+                                    class="px-2.5 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider border transition-all flex items-center gap-1.5 cursor-pointer {{ $isCurrentSlot ? 'bg-[var(--theme-color)] text-gray-950 border-[var(--theme-color)] shadow-sm' : ($isSlotEnabled ? 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-800 hover:border-[var(--theme-color-40)]' : 'bg-gray-100 dark:bg-gray-950 text-gray-400 dark:text-gray-600 border-gray-200/60 dark:border-gray-800/60') }}">
+                                <span>{{ $pDef['icon'] }} {{ $pDef['label'] }}</span>
+                                <span class="w-1.5 h-1.5 rounded-full {{ $hasSlotPhoto ? 'bg-emerald-500' : ($isCurrentSlot ? 'bg-gray-950/40' : 'bg-gray-300 dark:bg-gray-700') }}"></span>
+                            </button>
+                        @endforeach
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-1.5 pt-2 border-t border-gray-200/70 dark:border-gray-800/70">
+                        <span class="text-[9px] font-black uppercase tracking-widest text-gray-400 dark:text-gray-500 mr-1">Feiertage:</span>
+                        @foreach($holidayProfilesList as $pKey => $pDef)
+                            @php
+                                $isCurrentSlot = ($selectedProfileSlot === $pKey);
+                                $hasSlotPhoto = !empty($modalOverview[$pKey]['path']);
+                                $isSlotEnabled = array_key_exists('enabled', $storedSeasonalProfiles[$pKey] ?? []) ? (bool) $storedSeasonalProfiles[$pKey]['enabled'] : true;
+                            @endphp
+                            <button type="button"
+                                    wire:click="selectProfileSlot('{{ $pKey }}')"
+                                    title="{{ $pDef['label'] }}{{ $hasSlotPhoto ? ' (Feiertagsbild vorhanden)' : ' (Fallback: Hauptbild)' }}"
+                                    class="px-2.5 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider border transition-all flex items-center gap-1.5 cursor-pointer {{ $isCurrentSlot ? 'bg-[var(--theme-color)] text-gray-950 border-[var(--theme-color)] shadow-sm' : ($isSlotEnabled ? 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-800 hover:border-[var(--theme-color-40)]' : 'bg-gray-100 dark:bg-gray-950 text-gray-400 dark:text-gray-600 border-gray-200/60 dark:border-gray-800/60') }}">
+                                <span>{{ $pDef['icon'] }} {{ $pDef['label'] }}</span>
+                                <span class="w-1.5 h-1.5 rounded-full {{ $hasSlotPhoto ? 'bg-emerald-500' : ($isCurrentSlot ? 'bg-gray-950/40' : 'bg-gray-300 dark:bg-gray-700') }}"></span>
+                            </button>
+                        @endforeach
+                    </div>
                 </div>
 
                 <form wire:submit.prevent="saveEdit" class="space-y-4">
                     <div>
-                        <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-1.5">Produkt-Titel / SEO-Titel auf Landingpage</label>
+                        <div class="flex items-center justify-between gap-2 mb-1.5">
+                            <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400">
+                                Produkt-Titel / SEO-Titel ({{ $currentProfileDef['label'] }})
+                            </label>
+                            @if($selectedProfileSlot !== 'standard')
+                                <label class="inline-flex items-center gap-2 cursor-pointer select-none">
+                                    <input type="checkbox"
+                                           wire:model="editProfileEnabled"
+                                           class="rounded border-gray-300 dark:border-gray-700 text-[var(--theme-color)] focus:ring-[var(--theme-color)] bg-white dark:bg-gray-950">
+                                    <span class="text-[10px] font-black uppercase tracking-widest text-gray-700 dark:text-gray-300">Profil aktiv</span>
+                                </label>
+                            @endif
+                        </div>
                         <input type="text" wire:model="editTitle" class="w-full bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-2xl px-4 py-3 text-sm text-gray-900 dark:text-white focus:border-[var(--theme-color)] focus:ring-1 focus:ring-[var(--theme-color)] focus:outline-none">
                         @error('editTitle') <span class="text-xs text-red-500 dark:text-red-400">{{ $message }}</span> @enderror
                     </div>
 
                     <div>
-                        <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-1.5">Headline / Subline (Verkaufs-Hook im Hero)</label>
+                        <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-1.5">Headline / Subline (Hero-Hook)</label>
                         <input type="text" wire:model="editHeadline" class="w-full bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-2xl px-4 py-3 text-sm text-gray-900 dark:text-white focus:border-[var(--theme-color)] focus:ring-1 focus:ring-[var(--theme-color)] focus:outline-none" placeholder="z.B. Magische Lichtbrechung für die Ewigkeit">
                         @error('editHeadline') <span class="text-xs text-red-500 dark:text-red-400">{{ $message }}</span> @enderror
                     </div>
 
                     <div>
-                        <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-1.5">Werbetext / Story (Details-Sektion)</label>
+                        <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-1.5">Werbetext / Story</label>
                         <textarea rows="5" wire:model="editSalesCopy" class="w-full bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-2xl px-4 py-3 text-sm text-gray-900 dark:text-white focus:border-[var(--theme-color)] focus:ring-1 focus:ring-[var(--theme-color)] focus:outline-none" placeholder="Beschreibe die Besonderheit, Emotion und Veredelung des Produkts..."></textarea>
                         @error('editSalesCopy') <span class="text-xs text-red-500 dark:text-red-400">{{ $message }}</span> @enderror
                     </div>
@@ -592,7 +737,7 @@
                         </div>
 
                         <div>
-                            <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-1.5">Status</label>
+                            <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-1.5">Landingpage-Status</label>
                             <select wire:model="editStatus" class="w-full bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-2xl px-4 py-3 text-sm text-gray-900 dark:text-white focus:border-[var(--theme-color)] focus:ring-1 focus:ring-[var(--theme-color)] focus:outline-none">
                                 <option value="active">Aktiv (öffentlich aufrufbar)</option>
                                 <option value="draft">Entwurf (nur Admin-Vorschau)</option>
@@ -601,12 +746,15 @@
                         </div>
                     </div>
 
-                    <div class="flex items-center justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-800">
+                    <div class="flex flex-wrap items-center justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-800">
                         <button type="button" wire:click="closeEditModal" class="px-5 py-2.5 text-xs font-black uppercase tracking-widest text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-xl hover:bg-gray-100 dark:hover:bg-white/5 transition-colors cursor-pointer">
                             Abbrechen
                         </button>
+                        <button type="button" wire:click="saveCurrentProfileOnly" class="px-5 py-2.5 text-xs font-black uppercase tracking-widest text-[var(--theme-color)] bg-[var(--theme-color-10)] hover:bg-[var(--theme-color-20)] border border-[var(--theme-color-30)] rounded-xl transition-all cursor-pointer">
+                            Profil speichern
+                        </button>
                         <button type="submit" class="px-6 py-2.5 text-xs font-black uppercase tracking-widest text-gray-950 bg-[var(--theme-color)] hover:opacity-90 rounded-xl shadow-sm transition-all cursor-pointer">
-                            Änderungen speichern
+                            Speichern &amp; schließen
                         </button>
                     </div>
                 </form>

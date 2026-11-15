@@ -277,7 +277,22 @@ class ManagementTaskSeeder extends Seeder
                             'Echte Addon-Fotos im ProductSeeder & Konfigurator hinterlegen',
                         ],
                     ],
-                    ['title' => 'Landing Pages umfangreich und fett mit den echten Produktfotos aufbauen', 'priority' => 'hoch'],
+                    [
+                        'title' => 'Landing Pages umfangreich und fett mit den echten Produktfotos & Multi-Profil-Logik (Jahreszeiten & Feiertage) aufbauen',
+                        'priority' => 'hoch',
+                        'ai_plan' => "Konzept-Verknüpfung: Abschlussberichte/Konzepte/Konzept_Google_Ads_Autopilot_und_Merchant_Strategie.md\n\nArchitektur-Vorgabe:\n1. KEINE 117 einzelnen Landing Pages verwalten, sondern 1 feste Produkt-Landingpage (/l/{slug}) mit 13 logischen Vorlagen-Profilen (1 Standard/Evergreen + 4 Jahreszeiten + 8 Feiertage).\n2. Jedes Profil passt Headline, Verkaufstext, 3 Vorteile, Story-Sektion, Lieferfrist-Hinweis und Hero-Bild logisch an den aktiven Feiertag bzw. die Jahreszeit an (inkl. ?holiday={anlass} für Google Ads & Post-Holiday-Guard nach dem Fest).\n3. Strikter Bild-Fallback in Product.php: Ist z. B. Weihnachten vorbei und das Folge-Saisonbild (Winter) fehlt noch, greift sofort das neutrale Hauptbild (is_main = true), während am Produkt selbst gemeldet wird, welche Jahreszeiten-/Feiertagsbilder noch fehlen.",
+                        'subtasks' => [
+                            [
+                                'title' => 'Bild-Fallback-Kaskade in Product.php härten: Nach Feiertags-Ende sofort Fallback auf neutrales Hauptbild (kein Stehenbleiben von Weihnachtsbildern) + Fehlmeldung am Produkt schärfen',
+                                'is_completed' => true,
+                            ],
+                            [
+                                'title' => 'Multi-Profil-Engine auf MarketingLandingPage (/l/{slug}) bauen: 1 Landing Page mit 13 Vorlagen-Profilen (Standard + 4 Jahreszeiten + 8 Feiertage) für Texte, Aufbau & Konfigurator-Einstieg',
+                                'is_completed' => true,
+                            ],
+                            'Landing Pages mit den echten eigenen Produkt- & Saisonfotos befüllen und Ziel-URLs (/l/{slug} & /l/{slug}?holiday=...) sauber mit dem Google-Ads-Konzept verzahnen',
+                        ],
+                    ],
                 ],
             ],
             [
@@ -287,6 +302,18 @@ class ManagementTaskSeeder extends Seeder
                     'color' => '#D69E2E',
                 ],
                 'taks' => [
+                    [
+                        'title' => 'Sobald alle echten Produktfotos im System hinterlegt sind: Google-Ads- & Merchant-Center-Autopilot („Bis zum letzten Klick") nach Konzept umsetzen',
+                        'priority' => 'hoch',
+                        'ai_plan' => "WICHTIG (Start-Voraussetzung): Erst starten, sobald alle Produktfotos aus PHASE 1 selbst echt fotografiert (ohne Werbetext-Overlays im Bild für Google Shopping!) und ohne KI-Platzhalter im System hinterlegt sind!\nKonzept-Dokument: Abschlussberichte/Konzepte/Konzept_Google_Ads_Autopilot_und_Merchant_Strategie.md\n\nGeplanter Ablauf:\n1. Google Ads Konto & Google Merchant Center auf Mein-Seelenfunke (Alina Steinhauer, Gifhorn, FYRST) eröffnen + Überprüfung der Werbetreibenden durchführen.\n2. Stufe 1 (Shop-Tracking & Feed): Cookie-Kategorie 'marketing' + Google Consent Mode v2 + Kaufwert-Conversion-Tracking in OrderCheckoutSuccess + Echtfoto-Gatekeeper in /feed/google-shopping.xml.\n3. Stufe 2 (Saison- & Evergreen-Kampagnen-Studio): Ausbau in Funkenwerk Space #8 ('Ads & Budget') für Zugpferde (>= 20 € Netto-DB) -> Schicht A Evergreen auf /l/{slug} + Schicht B Feiertags-/Jahreszeiten-Anzeigengruppen auf /l/{slug}?holiday={anlass} (nur aktiv bei vorhandenem Echtfoto des Anlasses!).\n4. Stufe 3 (Google Ads API mit PAUSED-Schreibschutz & Versand-Cutoff-Stopp): Offizielle Google Ads API ('Explorer Access') anbinden -> Kampagnen werden fertig pausiert ins Konto gelegt (Alina klickt nur noch auf 'Aktiv') und Feiertags-Ads pausieren exakt am Manufaktur-Versand-Cutoff vor dem Fest automatisch.",
+                        'subtasks' => [
+                            'Google-Ads-Konto & Google-Merchant-Center-Konto eröffnen (Mein-Seelenfunke, FYRST-Zahlungsmittel) + Überprüfung der Werbetreibenden abschließen',
+                            'Google Ads API im Google-Cloud-Projekt aktivieren (Explorer Access) und OAuth-Zugang im lokalen Funkenwerk-Tresor hinterlegen',
+                            'Stufe 1 umsetzen: Cookie-Kategorie marketing + Google Consent Mode v2 + echtes Kaufwert-Conversion-Tracking + Echtfoto-Gatekeeper für /feed/google-shopping.xml',
+                            'Stufe 2 umsetzen: KI-Kampagnen-Studio in Funkenwerk Space #8 inkl. Jahreszeiten-/Feiertags-Anzeigengruppen auf /l/{slug}?holiday={anlass}, Echtfoto-Prüfung & CSV-Export bauen',
+                            'Stufe 3 umsetzen: Direkter Google-Ads-API-Upload mit hartem PAUSED-Schreibschutz, Tagesbudget-Deckel & automatischem Feiertags-Versand-Cutoff-Stopp auf /admin/dashboard',
+                        ],
+                    ],
                     ['title' => 'Zum Start des neuen Instagram Accounts das Handy in eine Schleife tun und aufmachen. Filmen und Instagram Seite auf den Handy offen haben (zweit Handy nutzen)', 'priority' => 'mittel'],
                     ['title' => 'ETSY nur als Booster nutzen und auf Produkt Konfigurator weiterleiten', 'priority' => 'hoch'],
                     ['title' => 'QR Code, Insta, tiktok mit ins Paket legen', 'priority' => 'mittel'],

@@ -30,10 +30,12 @@ class MarketingLandingPages extends Component
     public string $filterType = 'all';   // all, physical, digital, service
     public string $layoutMode = 'large'; // 'large' (Groß), 'medium' (Mittel), 'list' (Listenansicht)
 
-    // Modal state for editing
+    // Modal state for editing (1 Landingpage + 13 Vorlagen-Profile)
     public bool $showEditModal = false;
     #[\Livewire\Attributes\Locked]
     public ?string $editingLandingPageId = null;
+    public string $selectedProfileSlot = 'standard';
+    public bool $editProfileEnabled = true;
     public string $editTitle = '';
     public string $editHeadline = '';
     public string $editSalesCopy = '';
@@ -43,11 +45,12 @@ class MarketingLandingPages extends Component
     protected function rules(): array
     {
         return [
-            'editTitle'     => 'required|string|max:255',
-            'editHeadline'  => 'nullable|string|max:255',
-            'editSalesCopy' => 'nullable|string|max:5000',
-            'editCtaText'   => 'nullable|string|max:100',
-            'editStatus'    => 'required|in:active,draft',
+            'editTitle'          => 'required|string|max:255',
+            'editHeadline'       => 'nullable|string|max:255',
+            'editSalesCopy'      => 'nullable|string|max:5000',
+            'editCtaText'        => 'nullable|string|max:100',
+            'editStatus'         => 'required|in:active,draft',
+            'editProfileEnabled' => 'boolean',
         ];
     }
 
@@ -67,7 +70,7 @@ class MarketingLandingPages extends Component
     {
         $this->ensureStaffAccess();
 
-        // Automatische Synchronisation für alle Produkte (inkl. neu angelegter Produkte)
+        // Automatische Synchronisation für alle Produkte (inkl. aller 13 Vorlagen-Profile)
         $products = Product::with('landingPage')
             ->where('slug', 'not like', 'draft-%')
             ->get();
@@ -102,7 +105,7 @@ class MarketingLandingPages extends Component
     }
 
     /**
-     * Synchronisiert alle Produkte und aktualisiert auf Wunsch die Marketingtexte anhand der aktuellen Produktdaten.
+     * Synchronisiert alle Produkte und aktualisiert auf Wunsch alle 13 Vorlagen-Profile anhand der aktuellen Produktdaten.
      */
     public function syncAllLandingPages(bool $forceRegenerateCopy = false): void
     {
@@ -122,7 +125,7 @@ class MarketingLandingPages extends Component
         $this->dispatch('notify', [
             'type'    => 'success',
             'message' => $forceRegenerateCopy
-                ? "Alle {$syncedCount} Landing Pages wurden mit frischen Produkttexten synchronisiert!"
+                ? "Alle {$syncedCount} Landing Pages inkl. 13 Saison- & Feiertags-Profilen erneuert!"
                 : "{$syncedCount} Landing Pages erfolgreich geprüft & synchronisiert.",
         ]);
     }
@@ -154,8 +157,7 @@ class MarketingLandingPages extends Component
     }
 
     /**
-     * Generiert die Marketingtexte (Titel, Headline, Verkaufstext, CTA) einer einzelnen Landing Page
-     * intelligent aus den aktuellen Produktdaten neu.
+     * Generiert alle 13 Vorlagen-Profile (Standard + 4 Jahreszeiten + 8 Feiertage) einer einzelnen Landing Page neu.
      */
     public function regenerateCopy($landingPageId): void
     {
@@ -170,29 +172,96 @@ class MarketingLandingPages extends Component
 
         $this->dispatch('notify', [
             'type'    => 'success',
-            'message' => 'Marketingtexte für „' . $lp->product->name . '“ wurden aus den Produktdaten neu generiert.',
+            'message' => 'Alle 13 Vorlagen-Profile für „' . $lp->product->name . '“ wurden neu generiert.',
         ]);
     }
 
     /**
-     * Opens the edit modal for a specific landing page.
+     * Opens the edit modal for a specific landing page (optional direkt auf einem bestimmten Saison-/Feiertags-Profil).
      */
-    public function openEditModal($landingPageId)
+    public function openEditModal($landingPageId, string $initialSlot = 'standard')
     {
         $this->ensureStaffAccess();
 
-        $lp = MarketingLandingPage::findOrFail($landingPageId);
+        $lp = MarketingLandingPage::with('product')->findOrFail($landingPageId);
         $this->editingLandingPageId = $lp->id;
-        $this->editTitle = $lp->title ?: '';
-        $this->editHeadline = $lp->headline ?: '';
-        $this->editSalesCopy = $lp->sales_copy ?: '';
-        $this->editCtaText = $lp->cta_text ?: '';
         $this->editStatus = $lp->status ?: 'active';
+        $this->loadProfileIntoForm($lp, $initialSlot);
         $this->showEditModal = true;
     }
 
     /**
-     * Füllt im geöffneten Modal die Felder mit den intelligenten Produkt-Standardtexten.
+     * Wechselt im geöffneten Bearbeiten-Modal zwischen 'standard', den 4 Jahreszeiten und den 8 Feiertagen.
+     */
+    public function selectProfileSlot(string $slot): void
+    {
+        $this->ensureStaffAccess();
+
+        if (!$this->editingLandingPageId) {
+            return;
+        }
+
+        $definitions = MarketingLandingPage::getAllProfileDefinitions();
+        if (!isset($definitions[$slot])) {
+            return;
+        }
+
+        $lp = MarketingLandingPage::with('product')->find($this->editingLandingPageId);
+        if (!$lp) {
+            return;
+        }
+
+        $this->resetValidation();
+        $this->loadProfileIntoForm($lp, $slot);
+    }
+
+    private function loadProfileIntoForm(MarketingLandingPage $lp, string $slot): void
+    {
+        $definitions = MarketingLandingPage::getAllProfileDefinitions();
+        $validSlot = isset($definitions[$slot]) ? $slot : 'standard';
+        $this->selectedProfileSlot = $validSlot;
+
+        if ($validSlot === 'standard') {
+            $this->editProfileEnabled = true;
+            $this->editTitle = $lp->title ?: '';
+            $this->editHeadline = $lp->headline ?: '';
+            $this->editSalesCopy = $lp->sales_copy ?: '';
+            $this->editCtaText = $lp->cta_text ?: '';
+            return;
+        }
+
+        $storedProfiles = is_array($lp->seasonal_profiles) ? $lp->seasonal_profiles : [];
+        $entry = isset($storedProfiles[$validSlot]) && is_array($storedProfiles[$validSlot])
+            ? $storedProfiles[$validSlot]
+            : null;
+
+        if ($entry && (!empty($entry['headline']) || !empty($entry['sales_copy']))) {
+            $this->editProfileEnabled = array_key_exists('enabled', $entry) ? (bool) $entry['enabled'] : true;
+            $this->editTitle = (string) ($entry['title'] ?? ($lp->title ?: ''));
+            $this->editHeadline = (string) ($entry['headline'] ?? '');
+            $this->editSalesCopy = (string) ($entry['sales_copy'] ?? '');
+            $this->editCtaText = (string) ($entry['cta_text'] ?? ($lp->cta_text ?: ''));
+            return;
+        }
+
+        $defaults = $lp->product
+            ? MarketingLandingPage::generateSeasonalProfileCopy($lp->product, $validSlot)
+            : [
+                'title'      => $lp->title ?: '',
+                'headline'   => $lp->headline ?: '',
+                'sales_copy' => $lp->sales_copy ?: '',
+                'cta_text'   => $lp->cta_text ?: '',
+            ];
+
+        $this->editProfileEnabled = $entry ? (bool) ($entry['enabled'] ?? true) : true;
+        $this->editTitle = $defaults['title'];
+        $this->editHeadline = $defaults['headline'];
+        $this->editSalesCopy = $defaults['sales_copy'];
+        $this->editCtaText = $defaults['cta_text'];
+    }
+
+    /**
+     * Füllt im geöffneten Modal die Felder des aktuell gewählten Profils intelligent aus den Produktdaten vor.
      */
     public function applySmartDefaultsInModal(): void
     {
@@ -207,7 +276,10 @@ class MarketingLandingPages extends Component
             return;
         }
 
-        $defaults = MarketingLandingPage::generateDefaultCopy($lp->product);
+        $defaults = ($this->selectedProfileSlot === 'standard')
+            ? MarketingLandingPage::generateDefaultCopy($lp->product)
+            : MarketingLandingPage::generateSeasonalProfileCopy($lp->product, $this->selectedProfileSlot);
+
         $this->editTitle = $defaults['title'];
         $this->editHeadline = $defaults['headline'];
         $this->editSalesCopy = $defaults['sales_copy'];
@@ -218,13 +290,27 @@ class MarketingLandingPages extends Component
     {
         $this->showEditModal = false;
         $this->editingLandingPageId = null;
+        $this->selectedProfileSlot = 'standard';
         $this->resetValidation();
     }
 
     /**
-     * Saves the modified landing page copy and status.
+     * Speichert das aktuell gewählte Profil, ohne das Modal zu schließen (ideal zum Durcharbeiten mehrerer Feiertage).
+     */
+    public function saveCurrentProfileOnly(): void
+    {
+        $this->persistCurrentProfile(false);
+    }
+
+    /**
+     * Speichert das aktuell gewählte Profil + Status und schließt das Modal.
      */
     public function saveEdit()
+    {
+        $this->persistCurrentProfile(true);
+    }
+
+    private function persistCurrentProfile(bool $closeModal): void
     {
         $this->ensureStaffAccess();
         $this->validate();
@@ -233,19 +319,50 @@ class MarketingLandingPages extends Component
             return;
         }
 
-        $lp = MarketingLandingPage::findOrFail($this->editingLandingPageId);
-        $lp->update([
-            'title'      => $this->editTitle,
-            'headline'   => $this->editHeadline,
-            'sales_copy' => $this->editSalesCopy,
-            'cta_text'   => $this->editCtaText,
-            'status'     => $this->editStatus,
-        ]);
+        $lp = MarketingLandingPage::with('product')->findOrFail($this->editingLandingPageId);
 
-        $this->closeEditModal();
+        $cleanTitle = trim(str_replace(' – ', ': ', $this->editTitle));
+        $cleanHeadline = trim(str_replace(' – ', ': ', $this->editHeadline));
+        $cleanSalesCopy = MarketingLandingPage::sanitizeLegalCopy($this->editSalesCopy);
+        $cleanCta = trim(str_replace(' – ', ' ', $this->editCtaText));
+
+        if ($this->selectedProfileSlot === 'standard') {
+            $lp->update([
+                'title'      => $cleanTitle,
+                'headline'   => $cleanHeadline,
+                'sales_copy' => $cleanSalesCopy,
+                'cta_text'   => $cleanCta,
+                'status'     => $this->editStatus,
+            ]);
+            $savedLabel = 'Standard (Zeitlos)';
+        } else {
+            $profiles = is_array($lp->seasonal_profiles) ? $lp->seasonal_profiles : [];
+            if ($lp->product && empty($profiles)) {
+                $profiles = MarketingLandingPage::generateAllSeasonalProfiles($lp->product, [], false);
+            }
+
+            $profiles[$this->selectedProfileSlot] = [
+                'enabled'    => (bool) $this->editProfileEnabled,
+                'title'      => $cleanTitle,
+                'headline'   => $cleanHeadline,
+                'sales_copy' => $cleanSalesCopy,
+                'cta_text'   => $cleanCta,
+            ];
+
+            $lp->update([
+                'seasonal_profiles' => $profiles,
+                'status'            => $this->editStatus,
+            ]);
+            $savedLabel = $this->selectedProfileSlot;
+        }
+
+        if ($closeModal) {
+            $this->closeEditModal();
+        }
+
         $this->dispatch('notify', [
             'type'    => 'success',
-            'message' => 'Landing Page Inhalte erfolgreich aktualisiert!',
+            'message' => "Profil „{$savedLabel}“ erfolgreich gespeichert!",
         ]);
     }
 
@@ -276,7 +393,6 @@ class MarketingLandingPages extends Component
         $lp = MarketingLandingPage::findOrFail($landingPageId);
         $productName = $lp->product ? $lp->product->name : $lp->title;
 
-        // Delete custom blade file if one exists (nur für Administratoren und gültige Slugs)
         $safeSlug = Str::slug((string) $lp->slug);
         if ($safeSlug !== '' && Auth::guard('admin')->check()) {
             $customBlade = resource_path('views/frontend/pages/landingpages/' . $safeSlug . '.blade.php');
@@ -422,8 +538,9 @@ class MarketingLandingPages extends Component
         $activeTheme = app(ConfiguratorService::class)->getCurrentActiveTheme();
         $autopilotEnabled = app(HolidayOfferAutopilotService::class)->isEnabled();
         $editingLandingPage = $this->editingLandingPageId
-            ? MarketingLandingPage::with('product')->find($this->editingLandingPageId)
+            ? MarketingLandingPage::with(['product.templates' => fn($q) => $q->where('is_active', true)])->find($this->editingLandingPageId)
             : null;
+        $profileDefinitions = MarketingLandingPage::getAllProfileDefinitions();
 
         return view('livewire.shop.marketing.marketing-landing-pages', [
             'products'           => $products,
@@ -432,6 +549,7 @@ class MarketingLandingPages extends Component
             'activeTheme'        => $activeTheme,
             'autopilotEnabled'   => $autopilotEnabled,
             'editingLandingPage' => $editingLandingPage,
+            'profileDefinitions' => $profileDefinitions,
         ]);
     }
 }

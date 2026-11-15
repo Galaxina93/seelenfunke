@@ -607,6 +607,11 @@
                             <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-[9px] font-black uppercase tracking-wider">
                                 <span>Heute aktiv: {{ $activeSeasonalSlot['label'] }}</span>
                             </span>
+                        @elseif($autoSeasonalEnabled && !empty($seasonalSetStatus['active_missing_label']))
+                            <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 text-[9px] font-black uppercase tracking-wider"
+                                  title="{{ $seasonalSetStatus['tooltip'] }}">
+                                <span>Fallback: Hauptbild ({{ $seasonalSetStatus['active_missing_label'] }}-Bild fehlt)</span>
+                            </span>
                         @endif
                     </div>
 
