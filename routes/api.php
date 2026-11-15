@@ -242,6 +242,12 @@ Route::post('/twilio/outbound', [\App\Http\Controllers\Api\TwilioCallController:
 Route::post('/twilio/inbound', [\App\Http\Controllers\Api\TwilioCallController::class, 'inbound'])
     ->withoutMiddleware([\App\Http\Middleware\VerifyCsrfToken::class])
     ->middleware('throttle:60,1');
+Route::get('/twilio/greeting/{token}.wav', [\App\Http\Controllers\Api\TwilioCallController::class, 'greetingAudio'])
+    ->where('token', '[a-f0-9]{32,64}')
+    ->middleware('throttle:60,1');
+Route::post('/twilio/inbound-status', [\App\Http\Controllers\Api\TwilioCallController::class, 'inboundStatus'])
+    ->withoutMiddleware([\App\Http\Middleware\VerifyCsrfToken::class])
+    ->middleware('throttle:60,1');
 Route::post('/twilio/call-log', [\App\Http\Controllers\Api\TwilioCallController::class, 'callLog'])
     ->withoutMiddleware([\App\Http\Middleware\VerifyCsrfToken::class])
     ->middleware('throttle:30,1');
