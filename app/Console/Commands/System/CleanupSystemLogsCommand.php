@@ -125,7 +125,7 @@ class CleanupSystemLogsCommand extends Command
         $vendorDeprecationIds = SystemLog::query()
             ->where('type', 'system')
             ->where('status', 'warning')
-            ->where('action_id', 'like', 'system:log:%deprecation%')
+            ->where('message', 'like', '%deprecated%')
             ->where(function ($q) {
                 $q->where('message', 'like', '%/vendor/%')
                     ->orWhere('message', 'like', '%\\vendor\\%');

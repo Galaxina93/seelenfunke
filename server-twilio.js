@@ -1,5 +1,6 @@
 import { WebSocketServer } from 'ws';
 import http from 'http';
+import crypto from 'crypto';
 import dns from 'dns';
 import dotenv from 'dotenv';
 import WebSocket from 'ws';
@@ -21,11 +22,19 @@ try {
 dotenv.config();
 
 function resolveProxySecret() {
-    return process.env.GEMINI_BRIDGE_SECRET
+    const explicit = process.env.GEMINI_BRIDGE_SECRET
         || process.env.AI_PROXY_SECRET
         || process.env.TWILIO_BRIDGE_SECRET
         || process.env.BRIDGE_SECRET
         || '';
+    if (explicit && explicit.trim() !== '') {
+        return explicit.trim();
+    }
+    const appKey = (process.env.APP_KEY || '').trim();
+    if (appKey !== '') {
+        return crypto.createHmac('sha256', appKey).update('seelenfunke-internal-bridge-v1').digest('hex');
+    }
+    return '';
 }
 
 function scrubBridgeSecrets(raw) {

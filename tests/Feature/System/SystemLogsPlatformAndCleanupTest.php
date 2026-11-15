@@ -241,4 +241,44 @@ class SystemLogsPlatformAndCleanupTest extends TestCase
         );
         $this->assertNull($ignored);
     }
+
+    public function test_packagist_semver_constraint_matcher_and_hmac_bridge_fallback_work_reliably(): void
+    {
+        $this->assertTrue(
+            \App\Console\Commands\SystemSecurityAuditCommand::versionMatchesPackagistConstraint(
+                '11.20.0',
+                '>=11.0.0,<11.35.1|>=12.0.0,<12.1.1'
+            )
+        );
+        $this->assertFalse(
+            \App\Console\Commands\SystemSecurityAuditCommand::versionMatchesPackagistConstraint(
+                '11.44.2',
+                '>=11.0.0,<11.35.1|>=12.0.0,<12.1.1'
+            )
+        );
+        $this->assertFalse(
+            \App\Console\Commands\SystemSecurityAuditCommand::versionMatchesPackagistConstraint(
+                '12.5.0',
+                '<6.20.42|>=7.0.0,<7.30.6|>=8.0.0,<8.83.26'
+            )
+        );
+
+        // Ohne explizites GEMINI_BRIDGE_SECRET akzeptiert isTrustedBridgeRequest den domänengetrennten HMAC(APP_KEY), lehnt aber leere/falsche Header strikt ab
+        config([
+            'services.gemini.bridge_secret' => '',
+            'services.ai.proxy_secret' => '',
+            'services.twilio.bridge_secret' => '',
+            'app.key' => 'base64:TestAppKeyForBridgeHmacVerification1234567890=',
+        ]);
+
+        $validHmac = hash_hmac('sha256', 'seelenfunke-internal-bridge-v1', 'base64:TestAppKeyForBridgeHmacVerification1234567890=');
+
+        $reqValid = \Illuminate\Http\Request::create('https://stage.mein-seelenfunke.de/api/ai/verify-token', 'POST');
+        $reqValid->headers->set('X-Bridge-Secret', $validHmac);
+        $this->assertTrue(\App\Services\System\SystemSecurityService::isTrustedBridgeRequest($reqValid));
+
+        $reqInvalid = \Illuminate\Http\Request::create('https://stage.mein-seelenfunke.de/api/ai/verify-token', 'POST');
+        $reqInvalid->headers->set('X-Bridge-Secret', 'forged-secret');
+        $this->assertFalse(\App\Services\System\SystemSecurityService::isTrustedBridgeRequest($reqInvalid));
+    }
 }

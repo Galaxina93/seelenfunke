@@ -67,6 +67,21 @@ class SystemSecurityAuditCommand extends Command
         );
 
         if (class_exists(SystemLog::class)) {
+            if ($overallStatus !== 'error') {
+                // Selbstheilung: frühere offene Paket-Warnungen nach erfolgreichem Audit automatisch archivieren
+                SystemLog::query()
+                    ->where('action_id', 'security:package_audit')
+                    ->whereIn('status', ['error', 'warning'])
+                    ->get()
+                    ->each(function (SystemLog $staleAudit) {
+                        $t = (string) $staleAudit->title;
+                        $staleAudit->title = str_starts_with($t, '[GELÖST]') ? $t : mb_substr('[GELÖST] ' . $t, 0, 250);
+                        $staleAudit->status = 'success';
+                        $staleAudit->finished_at = now();
+                        $staleAudit->saveQuietly();
+                    });
+            }
+
             SystemLog::create([
                 'type' => 'security',
                 'action_id' => 'security:package_audit',
@@ -130,8 +145,12 @@ class SystemSecurityAuditCommand extends Command
         $outdated = [];
 
         if (!$skipNetwork) {
+            $composerBin = File::exists(base_path('composer.phar'))
+                ? [PHP_BINARY, base_path('composer.phar')]
+                : ['composer'];
+
             // 1. CVE-Prüfung via composer audit (mit Fallback auf Packagist Security API)
-            $auditJson = $this->runJsonProcess(['composer', 'audit', '--no-dev', '--no-interaction', '--format=json'], 25);
+            $auditJson = $this->runJsonProcess(array_merge($composerBin, ['audit', '--no-dev', '--no-interaction', '--format=json']), 25);
 
             if (is_array($auditJson) && isset($auditJson['advisories']) && is_array($auditJson['advisories'])) {
                 foreach ($auditJson['advisories'] as $pkgName => $pkgAdvisories) {
@@ -152,7 +171,7 @@ class SystemSecurityAuditCommand extends Command
             }
 
             // 2. Direkte Paket-Updates prüfen via composer outdated --direct
-            $outdatedJson = $this->runJsonProcess(['composer', 'outdated', '--direct', '--no-interaction', '--format=json'], 25);
+            $outdatedJson = $this->runJsonProcess(array_merge($composerBin, ['outdated', '--direct', '--no-interaction', '--format=json']), 25);
             if (is_array($outdatedJson) && isset($outdatedJson['installed']) && is_array($outdatedJson['installed'])) {
                 foreach ($outdatedJson['installed'] as $item) {
                     $status = (string) ($item['latest-status'] ?? 'up-to-date');
@@ -206,8 +225,11 @@ class SystemSecurityAuditCommand extends Command
                     continue;
                 }
                 foreach ((array) $pkgAdvisories as $adv) {
-                    $affected = (string) ($adv['affectedVersions'] ?? '');
-                    if ($affected !== '' && class_exists(\Composer\Semver\Semver::class)) {
+                    $affected = trim((string) ($adv['affectedVersions'] ?? ''));
+                    if ($affected === '') {
+                        continue;
+                    }
+                    if (class_exists(\Composer\Semver\Semver::class)) {
                         try {
                             if (!\Composer\Semver\Semver::satisfies($installedVersion, $affected)) {
                                 continue;
@@ -215,6 +237,8 @@ class SystemSecurityAuditCommand extends Command
                         } catch (\Throwable) {
                             continue;
                         }
+                    } elseif (!self::versionMatchesPackagistConstraint($installedVersion, $affected)) {
+                        continue;
                     }
                     $advisories[] = [
                         'package' => (string) $pkgName,
@@ -232,6 +256,58 @@ class SystemSecurityAuditCommand extends Command
         } catch (\Throwable) {
             return [];
         }
+    }
+
+    /**
+     * Wertet Packagist-Security-Constraints (z. B. ">=11.0.0,<11.35.1|>=12.0.0,<12.1.1")
+     * zuverlässig via PHP version_compare() aus, auch wenn composer/semver (--no-dev) nicht installiert ist.
+     */
+    public static function versionMatchesPackagistConstraint(string $installedVersion, string $constraint): bool
+    {
+        $installed = ltrim(trim($installedVersion), 'vV');
+        if ($installed === '' || str_starts_with($installed, 'dev-') || str_ends_with($installed, '-dev')) {
+            return false;
+        }
+
+        $normalized = str_replace('||', '|', trim($constraint));
+        if ($normalized === '') {
+            return false;
+        }
+
+        $orBranches = array_filter(array_map('trim', explode('|', $normalized)), fn ($b) => $b !== '');
+        foreach ($orBranches as $branch) {
+            $clauses = preg_split('/\s*,\s*|\s+(?=[<>!=^~])/', $branch, -1, PREG_SPLIT_NO_EMPTY);
+            if (empty($clauses)) {
+                continue;
+            }
+
+            $branchMatches = true;
+            foreach ($clauses as $clause) {
+                $clause = trim($clause);
+                if (preg_match('/^(<=|>=|!=|==|=|<|>)\s*[vV]?([0-9][0-9A-Za-z.\-_+]*)$/', $clause, $m)) {
+                    $op = $m[1] === '=' ? '==' : $m[1];
+                    $target = $m[2];
+                    if (!version_compare($installed, $target, $op)) {
+                        $branchMatches = false;
+                        break;
+                    }
+                } elseif (preg_match('/^[vV]?([0-9]+(?:\.[0-9]+){1,3}(?:-[0-9A-Za-z.\-]+)?)$/', $clause, $m)) {
+                    if (!version_compare($installed, $m[1], '==')) {
+                        $branchMatches = false;
+                        break;
+                    }
+                } else {
+                    $branchMatches = false;
+                    break;
+                }
+            }
+
+            if ($branchMatches) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function auditNpmPackages(bool $skipNetwork): array

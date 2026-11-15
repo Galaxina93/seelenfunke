@@ -40,8 +40,15 @@ class FetchMailsCommand extends Command
 
         $failedAccounts = 0;
         foreach ($accounts as $account) {
-            if (trim((string) $account->password) === '') {
-                $this->line("Postfach übersprungen (kein Passwort hinterlegt): {$account->email}");
+            $rawPassword = trim((string) $account->password);
+            if ($rawPassword === '' || in_array(strtolower($rawPassword), ['password', 'secret', 'changeme', 'dummy', 'test', 'placeholder'], true)) {
+                $this->line("Postfach übersprungen (kein produktives Passwort hinterlegt): {$account->email}");
+                continue;
+            }
+
+            $authCooldownKey = 'imap_auth_failed_cooldown_' . $account->id . '_' . substr(sha1($rawPassword), 0, 10);
+            if (\Illuminate\Support\Facades\Cache::has($authCooldownKey)) {
+                $this->line("Postfach pausiert (IMAP-Authentifizierungs-Cooldown aktiv): {$account->email}");
                 continue;
             }
 
@@ -250,15 +257,31 @@ class FetchMailsCommand extends Command
                 $account->update(['status' => 'connected', 'last_sync_at' => now()]);
 
             } catch (\Throwable $e) {
+                $errMsg = $e->getMessage();
+                $isAuthFailure = stripos($errMsg, 'AUTHENTICATIONFAILED') !== false
+                    || stripos($errMsg, 'Invalid credentials') !== false
+                    || stripos($errMsg, 'LOGIN failed') !== false;
+
+                if ($isAuthFailure) {
+                    // 6h Schutzsperre gegen minütliches IMAP-Hammering / Fail2ban-Sperre (wird bei Passwort-Änderung via Hash sofort aufgehoben)
+                    \Illuminate\Support\Facades\Cache::put($authCooldownKey, true, now()->addHours(6));
+                }
+
+                $account->update(['status' => 'error']);
+
+                if ($isAuthFailure && !app()->environment('production')) {
+                    // Auf Stage/Local kein Cronjob-Fehler-Spam durch Test-/Platzhalter-Zugangsdaten
+                    $this->warn("IMAP-Anmeldung auf Nicht-Produktionsumgebung übersprungen ({$account->email}): Cooldown 6h aktiviert.");
+                    continue;
+                }
+
                 $failedAccounts++;
                 $throttleKey = 'imap_fetch_error_logged_' . $account->id;
                 if (!\Illuminate\Support\Facades\Cache::has($throttleKey)) {
-                    \Illuminate\Support\Facades\Cache::put($throttleKey, true, now()->addMinutes(60));
-                    Log::error("IMAP Fetch failed for {$account->email}: " . $e->getMessage(), ['exception' => $e]);
+                    \Illuminate\Support\Facades\Cache::put($throttleKey, true, now()->addHours($isAuthFailure ? 6 : 1));
+                    Log::error("IMAP Fetch failed for {$account->email}: " . $errMsg, ['exception' => $e]);
                 }
-                $this->error("FEHLER beim Abruf von {$account->email}: " . $e->getMessage());
-
-                $account->update(['status' => 'error']);
+                $this->error("FEHLER beim Abruf von {$account->email}: " . $errMsg);
             }
         }
 

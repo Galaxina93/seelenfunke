@@ -33,6 +33,11 @@ class GeminiTtsService
             return null;
         }
 
+        $billingCooldownKey = 'gemini_tts_billing_depleted_cooldown';
+        if (Cache::has($billingCooldownKey)) {
+            return null;
+        }
+
         $models = [
             'gemini-3.1-flash-tts-preview',
             'gemini-3.8-flash-tts',
@@ -138,6 +143,17 @@ class GeminiTtsService
                     Cache::put($cooldownKey, true, 300);
                     $errorsSummary[] = "{$model}: HTTP 429 quota_exhausted";
                     continue;
+                }
+
+                if (
+                    $apiErrCode === 402
+                    || stripos($apiErrMsg, 'prepayment credits') !== false
+                    || stripos($apiErrMsg, 'billing') !== false
+                ) {
+                    // Projektweites Prepaid-Guthaben leer -> 30 Min Cooldown & sofortiger Offline-TTS-Fallback ohne Warnungs-Flut
+                    Cache::put($billingCooldownKey, true, 1800);
+                    $errorsSummary[] = "{$model}: HTTP 402 billing_credits_depleted";
+                    break;
                 }
 
                 if ($apiErrCode >= 400 && $apiErrCode < 500 && $apiErrCode !== 408 && $apiErrCode !== 404) {

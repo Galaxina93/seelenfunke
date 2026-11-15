@@ -262,6 +262,8 @@ protected $table = 'system_logs';
             'aborterror',
             'networkerror when attempting to fetch resource',
             'failed to fetch',
+            'unexpected token \'<\', "<!doctype',
+            'is not valid json',
         ];
 
         foreach ($noiseMarkers as $marker) {

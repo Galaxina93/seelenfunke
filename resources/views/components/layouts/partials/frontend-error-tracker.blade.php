@@ -100,6 +100,7 @@
                 lower.includes('could not find livewire component in dom tree') ||
                 lower.includes('aborterror') ||
                 lower.includes('the user aborted a request') ||
+                (lower.includes('unexpected token') && lower.includes('<!doctype')) ||
                 lower === 'script error.' ||
                 lower === 'script error'
             ) {

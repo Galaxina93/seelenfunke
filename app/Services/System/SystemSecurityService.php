@@ -150,7 +150,15 @@ class SystemSecurityService
             ?: $request->input('bridge_secret');
 
         if (is_string($providedSecret) && trim($providedSecret) !== '') {
-            foreach ($configuredSecrets as $secret) {
+            $candidateSecrets = $configuredSecrets;
+            if (empty($candidateSecrets)) {
+                $appKey = trim((string) config('app.key', ''));
+                if ($appKey !== '') {
+                    $candidateSecrets[] = hash_hmac('sha256', 'seelenfunke-internal-bridge-v1', $appKey);
+                }
+            }
+
+            foreach ($candidateSecrets as $secret) {
                 if (hash_equals((string) $secret, $providedSecret)) {
                     return true;
                 }
