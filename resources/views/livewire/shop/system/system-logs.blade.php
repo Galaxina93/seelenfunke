@@ -220,7 +220,7 @@
                             <tr x-show="expanded" x-transition x-cloak>
                                 <td colspan="5" class="px-8 py-6 bg-gray-50/80 dark:bg-gray-950/80 border-t border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-inner">
                                     @php
-                                        $cPayload = is_array($log->payload) ? $log->payload : (json_decode($log->payload, true) ?? []);
+                                        $cPayload = is_array($log->payload) ? $log->payload : (json_decode((string) $log->payload, true) ?? []);
                                         $diag = $cPayload['diagnosis'] ?? null;
                                         $tel = $cPayload['session_telemetry'] ?? null;
                                         $execCtx = $cPayload['execution_context'] ?? null;
