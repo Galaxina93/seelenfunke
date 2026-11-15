@@ -166,31 +166,23 @@ class AnalyticsService
     private function checkSystemLogs(): ?array
     {
         if (!class_exists(\App\Models\System\SystemLog::class)) return null;
-        $totalLogs = \App\Models\System\SystemLog::count();
-        $unresolvedLogsQuery = \App\Models\System\SystemLog::where('status', 'error')
-            ->where(function ($q) {
-                $q->where('started_at', '>=', now()->subHours(48))
-                  ->orWhere('created_at', '>=', now()->subHours(48));
-            });
+
+        $unresolvedLogsQuery = \App\Models\System\SystemLog::where('status', 'error');
         $unresolvedLogsCount = (clone $unresolvedLogsQuery)->count();
-        
+
         $status = $unresolvedLogsCount > 0 ? 'error' : 'success';
-        $msg = $unresolvedLogsCount > 0 ? $unresolvedLogsCount . ' Fehler (letzte 48h)' : 'Alles fehlerfrei (48h)';
-        if ($unresolvedLogsCount > 0) {
-            $types = (clone $unresolvedLogsQuery)->select('type')->distinct()->pluck('type')->map(function ($t) {
-                return match ((string) $t) {
-                    'android' => 'Android',
-                    'minipc_linux' => 'Mini-PC',
-                    'windows_desktop' => 'Funkenwerk',
-                    'frontend_error' => 'Frontend',
-                    default => 'Portal',
-                };
-            })->unique()->values()->all();
-            if (!empty($types)) {
-                $msg = $unresolvedLogsCount . ' Fehler (' . implode(', ', array_slice($types, 0, 3)) . ')';
+        $msg = $unresolvedLogsCount > 0 ? $unresolvedLogsCount . ' offene Fehler' : 'Keine offenen Fehler';
+
+        $latestErrors = (clone $unresolvedLogsQuery)->latest()->take(20)->get();
+        if ($unresolvedLogsCount > 0 && $latestErrors->isNotEmpty()) {
+            $platforms = $latestErrors->map(fn ($log) => $log->resolvePlatformMeta()['short'])
+                ->unique()
+                ->values()
+                ->all();
+            if (!empty($platforms)) {
+                $msg = $unresolvedLogsCount . ' Fehler (' . implode(', ', array_slice($platforms, 0, 3)) . ')';
             }
         }
-        if ($totalLogs === 0) { $msg = 'Keine System-Logs vorhanden'; $status = 'success'; }
 
         return [
             'status' => $status,
@@ -198,14 +190,15 @@ class AnalyticsService
             'title' => 'Log',
             'message' => $msg,
             'count' => $unresolvedLogsCount,
-            'data' => $unresolvedLogsQuery->latest()->take(5)->get()->map(function($log) {
+            'data' => $latestErrors->take(5)->map(function ($log) {
                 return [
                     'id' => $log->id,
-                    'title' => $log->title,
+                    'title' => '[' . $log->resolvePlatformMeta()['short'] . '] ' . $log->title,
                     'type' => $log->type,
-                    'created_at' => $log->created_at ? $log->created_at->format('d.m. H:i') : ''
+                    'platform' => $log->resolvePlatformKey(),
+                    'created_at' => $log->created_at ? $log->created_at->format('d.m. H:i') : '',
                 ];
-            })->toArray()
+            })->toArray(),
         ];
     }
 

@@ -55,15 +55,21 @@ Um Laufzeiten von Automatisierungen genau zu tracken, nutzt das System zwei Hilf
 Log-Einträge verwenden strukturierte `action_id`-Werte im Format `domain:action` (z. B. `stripe:webhook`, `ebay:crawler`, `ai:workspace`). 
 Der Controller parst diese IDs im Render-Prozess dynamisch vor dem Doppelpunkt (`:`), um eine Liste aller aktiven Log-Domänen zu generieren. Dadurch kann der Administrator das Log-Terminal nach spezifischen Integrationen filtern.
 
-### 3. Fehler-Wiederholungs-Analyse (Error Grouping)
-In der Log-Übersicht ermittelt der Controller über ein Sub-Select die Häufigkeit identischer Fehlermeldungen:
-```sql
-SELECT COUNT(*) FROM system_logs as l2 WHERE l2.message = system_logs.message AND l2.status = "error"
-```
-Dadurch sieht der Administrator sofort, ob ein bestimmter API-Fehler (z. B. Verbindungsabbruch zu Shopify oder Twilio) ein isolierter Einzelfall ist oder periodisch auftritt.
+### 3. Fehler-Wiederholungs-Analyse & 24h-Deduplizierung
+Anstelle langsamer Sub-Selects führt [`SystemLog::create()`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Models/System/SystemLog.php) gemeinsam mit [`SystemErrorLogger`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/System/SystemErrorLogger.php) bereits beim Schreiben eine universelle 24h-SHA-256-Deduplizierung durch und zählt identische Ereignisse performant über `payload.occurrences_count` hoch. Dadurch sieht der Administrator sofort anhand des Badges (z. B. `3x`), ob ein Fehler ein isolierter Einzelfall ist oder wiederholt auftritt.
 
-### 4. Interaktive Fehlerauflösung & Sammelaktion
-Über die Methode `toggleStatus($logId)` können einzelne Fehler und Warnungen im Livewire-Dashboard als `success` (gelöst) markiert werden. Zusätzlich steht im Header neben „Filter zurücksetzen“ der Button **„Alle als erledigt markieren“** (`markAllAsDone()`) bereit, der sämtliche offenen Fehler- und Warnungs-Einträge (`status` in `['error', 'warning']`, unter Berücksichtigung aktiver Such-/Domänen-/Typ-/Agenten-Filter) in einem Schritt auf `success` setzt und den Titel mit `[GELÖST]` kennzeichnet.
+### 4. Bereichs-Differenzierung in Spalte 1, Offen-Fokus & 7-Tage-Selbstbereinigung
+Das administrative Log-Cockpit unter `/admin/global-logs` ([`SystemLogs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/System/SystemLogs.php) und [`system-logs.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/system/system-logs.blade.php)) trennt aktive Probleme strikt von erledigten Protokollen:
+- **Spalte 1 (`Bereich`):** Direkt in der ersten Tabellenspalte sowie über klickbare Bereichs-Pills wird jeder Eintrag eindeutig einem der vier Ökosystem-Bereiche zugeordnet (`SystemLog::PLATFORMS` & `scopeForPlatform()`):
+  1. **Webportal** (`portal`: Laravel Shop, Checkout, Livewire, Frontend, Queue & Scheduler)
+  2. **Android App** (`android`: Funkenwerk Android App & Smartphone-Dienste)
+  3. **Mini-PC** (`minipc_linux`: Werkstatt-Mini-PC `Funkenwerk OS Linux`)
+  4. **Funkenwerk Software** (`windows_desktop`: Funkenwerk Windows Desktop Suite)
+- **Zählung ausschließlich ungelöster Meldungen (`Offen` vs. `Archiv`):** Standardmäßig öffnet `/admin/global-logs` im Tab **Offen** (`status IN ('error', 'warning')`) und zählt in den KPI-Kacheln sowie im Dashboard (`/admin/dashboard`) ausschließlich ungelöste Fehler und Warnungen. Sobald ein Eintrag gelöst wird (`toggleStatus` oder `markAllAsDone`), wandert er mit `[GELÖST]` (`status = 'info'`) automatisch zur Seite in den separaten Tab **Archiv**.
+- **Automatischer 7-Tage-Selbstreinigungs-Zyklus (`system:logs-cleanup`):** Über [`CleanupSystemLogsCommand.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Console/Commands/System/CleanupSystemLogsCommand.php) (täglich um `04:15` Uhr via [`SystemCronjobSeeder.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/database/seeders/SystemCronjobSeeder.php) / [`routes/console.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/routes/console.php) sowie gedrosselt beim Öffnen des Cockpits) räumt sich das Log selbstständig auf:
+  - Gelöste Meldungen und Routine-Erfolgslogs im Archiv werden nach **7 Tagen** automatisch gelöscht (inkl. Komprimierung von `system_scheduler_logs` auf 7 Tage und Abschluss hängender `running`-Zombies > 6h).
+  - Gesetzlich und sicherheitsrelevante Nachweise (`SystemLog::isAuditProtected()`, insb. DSGVO-Opt-ins, Einwilligungen und Security-Audits) bleiben automatisch für **30 Tage** geschützt (`RetentionPolicy::ShortLived_30Days`).
+  - Offene, noch nicht gelöste Fehler (`error` / `warning`) werden niemals automatisch weggelöscht, sondern bis zur echten Behebung sichtbar gehalten und dedupliziert.
 
 ---
 

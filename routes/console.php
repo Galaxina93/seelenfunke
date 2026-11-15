@@ -128,6 +128,9 @@ try {
                     if ($commandClean === 'shop:send-abandoned-cart-reminders') {
                         $abandonedCartReminderRegistered = true;
                     }
+                    if ($commandBase === 'system:logs-cleanup') {
+                        $logsCleanupRegistered = true;
+                    }
                     $event->withoutOverlapping();
                     if (!isset($_GET['sync_schedule']) && getenv('SYNC_SCHEDULE') !== '1') {
                         $event->runInBackground();
@@ -239,6 +242,14 @@ try {
             ->everyFiveMinutes()
             ->withoutOverlapping()
             ->runInBackground();
+    }
+
+    // Ausfallsicherer Fallback für die nächtliche 7-Tage-SystemLog-Selbstbereinigung (nur falls noch nicht in system_cronjobs hinterlegt)
+    if ((!isset($logsCleanupRegistered) || !$logsCleanupRegistered)
+        && (!Schema::hasTable('system_cronjobs') || !SystemCronjob::where('command', 'system:logs-cleanup')->exists())) {
+        Schedule::command('system:logs-cleanup', ['--prune'])
+            ->dailyAt('04:15')
+            ->withoutOverlapping();
     }
 } catch (\Throwable $e) {
     // Fange DB-Verbindungsfehler oder ähnliche globale Ausnahmen ab

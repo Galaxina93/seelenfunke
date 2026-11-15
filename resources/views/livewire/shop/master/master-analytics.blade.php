@@ -1,6 +1,7 @@
 <div wire:poll.15s.visible="checkLiveOrders"
      x-data="{
         focusMode: {{ $focusMode ? 'true' : 'false' }},
+        activeTab: null,
         dashboardReady: true,
         orderIncomingPulse: false,
         orderIncomingNumber: null

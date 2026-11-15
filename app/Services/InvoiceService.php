@@ -380,6 +380,17 @@ class InvoiceService
      */
     public function generateQrCodeSvgDataUri(string $payload, int $size = 110): string
     {
+        $previousHandler = null;
+        $previousHandler = set_error_handler(static function (int $errno, string $errstr, string $errfile = '', int $errline = 0) use (&$previousHandler): bool {
+            if ($errno === E_DEPRECATED || $errno === E_USER_DEPRECATED) {
+                return true;
+            }
+            if (is_callable($previousHandler)) {
+                return (bool) $previousHandler($errno, $errstr, $errfile, $errline);
+            }
+            return false;
+        });
+
         try {
             $renderer = new ImageRenderer(
                 new RendererStyle($size, 1),
@@ -391,6 +402,8 @@ class InvoiceService
         } catch (\Throwable $e) {
             Log::warning('QR-Code Generierung fehlgeschlagen: ' . $e->getMessage());
             return '';
+        } finally {
+            restore_error_handler();
         }
     }
 

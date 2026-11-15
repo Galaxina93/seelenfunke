@@ -4547,11 +4547,7 @@ trait AiSystemFuncs
             ->orderByDesc('id');
 
         if ($platform !== '' && $platform !== 'all') {
-            if ($platform === 'portal') {
-                $query->whereIn('type', ['system', 'frontend_error', 'scheduler', 'websocket']);
-            } else {
-                $query->where('type', $platform);
-            }
+            $query->forPlatform($platform);
         }
 
         $rows = $query->limit(25)->get();
@@ -4571,7 +4567,7 @@ trait AiSystemFuncs
 
             $items[] = [
                 'id' => $row->id,
-                'platform' => $payload['platform'] ?? $row->type,
+                'platform' => $row->resolvePlatformKey(),
                 'status' => $row->status,
                 'auto_healed' => $isAutoHealed,
                 'auto_heal_action' => $payload['auto_heal_action'] ?? null,

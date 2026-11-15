@@ -523,6 +523,21 @@ class SystemErrorLogger
             return null;
         }
 
+        $levelLower = strtolower($level);
+        $contextFile = is_string($context['file'] ?? null) ? $context['file'] : '';
+        if (
+            in_array($levelLower, ['warning', 'notice', 'info'], true)
+            && (stripos($message, 'deprecated') !== false || stripos($message, 'return type of') !== false)
+            && (
+                str_contains($message, '/vendor/')
+                || str_contains($message, '\\vendor\\')
+                || str_contains($contextFile, '/vendor/')
+                || str_contains($contextFile, '\\vendor\\')
+            )
+        ) {
+            return null;
+        }
+
         if (isset($context['exception']) && $context['exception'] instanceof \Throwable) {
             return self::recordException(
                 $context['exception'],

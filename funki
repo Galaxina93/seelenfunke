@@ -454,6 +454,10 @@ case "$1" in
             echo "🔄 Synchronisiere Worker-Container (worker-stage-3)..."
             bash "$STAGE_DIR/funki" sync-worker
 
+            echo "🧹 Bereinige & prüfe globales SystemLog auf Stage..."
+            php artisan db:seed --class=SystemCronjobSeeder --force 2>/dev/null || true
+            php artisan system:logs-cleanup --audit --prune
+
             echo "✅ Prüfe Stage-Routen-Gesundheit..."
             php artisan system:check-routes --routes-only
 

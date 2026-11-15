@@ -113,6 +113,14 @@ class SystemCronjobSeeder extends Seeder
                 'is_active' => true,
             ],
             [
+                'name' => 'System-Log Selbstbereinigung (7-Tage-Archiv)',
+                'description' => 'Bereinigt täglich um 04:15 Uhr gelöste Archiv-Logs (>7 Tage), DSGVO-Altlasten (>30 Tage), Zombie-Tasks und führt Duplikate zusammen',
+                'command' => 'system:logs-cleanup',
+                'parameters' => '--prune',
+                'schedule' => '15 4 * * *',
+                'is_active' => true,
+            ],
+            [
                 'name' => 'Automatische Sicherheitsprüfung (Pakete & CVEs)',
                 'description' => 'Prüft täglich um 04:30 Uhr alle Laravel/Composer-, NPM-, Funkenwerk- & Android-Pakete auf Sicherheitslücken (CVEs) und System-Schranken',
                 'command' => 'system:security-audit',

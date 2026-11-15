@@ -70,9 +70,69 @@
         if (window._frontendErrorTrackerInitialized) return;
         window._frontendErrorTrackerInitialized = true;
 
+        window.__sfWireNavigating = false;
+        window.__sfPageUnloading = false;
+        let wireNavTimer = null;
+        const seenErrorSignatures = new Set();
+
+        document.addEventListener('livewire:navigating', function() {
+            window.__sfWireNavigating = true;
+            if (wireNavTimer) clearTimeout(wireNavTimer);
+            wireNavTimer = setTimeout(function() {
+                window.__sfWireNavigating = false;
+            }, 2500);
+        });
+
+        document.addEventListener('livewire:navigated', function() {
+            if (wireNavTimer) clearTimeout(wireNavTimer);
+            wireNavTimer = setTimeout(function() {
+                window.__sfWireNavigating = false;
+            }, 450);
+        });
+
+        window.addEventListener('beforeunload', function() { window.__sfPageUnloading = true; });
+        window.addEventListener('pagehide', function() { window.__sfPageUnloading = true; });
+
+        function isTransientClientNoise(msgStr) {
+            const lower = msgStr.toLowerCase();
+            if (
+                lower.includes('resizeobserver loop') ||
+                lower.includes('could not find livewire component in dom tree') ||
+                lower.includes('aborterror') ||
+                lower.includes('the user aborted a request') ||
+                lower === 'script error.' ||
+                lower === 'script error'
+            ) {
+                return true;
+            }
+            if ((window.__sfWireNavigating || window.__sfPageUnloading) && (
+                lower.includes('is not defined') ||
+                lower.includes('failed to fetch') ||
+                lower.includes('load failed') ||
+                lower.includes('networkerror when attempting to fetch resource')
+            )) {
+                return true;
+            }
+            return false;
+        }
+
         function logErrorToBackend(message, source, lineno, colno, errorObj, type = 'js_error', extra = {}) {
+            const msgStr = String(message || 'Unknown Frontend Error').trim();
+            if (!msgStr || isTransientClientNoise(msgStr)) {
+                return;
+            }
+
+            const sig = type + '|' + (source || window.location.pathname) + '|' + (lineno || 0) + '|' + msgStr.slice(0, 160);
+            if (seenErrorSignatures.has(sig)) {
+                return;
+            }
+            if (seenErrorSignatures.size >= 60) {
+                seenErrorSignatures.clear();
+            }
+            seenErrorSignatures.add(sig);
+
             let payload = Object.assign({
-                message: String(message || 'Unknown Frontend Error'),
+                message: msgStr,
                 source: source || window.location.pathname,
                 lineno: lineno || 0,
                 colno: colno || 0,

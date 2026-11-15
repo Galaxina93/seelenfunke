@@ -83,10 +83,18 @@ class GenerateAiMap extends Command
         $markdown .= "## 7. Services & Geschäftslogik (`app/Services/<Domain>/*.php`)\n";
         $markdown .= $this->scanDirectoryGrouped(app_path('Services'), 'App\\Services');
 
-        // Save ai_map.md
+        // Save ai_map.md (gracefully skip when root/bind-mount permissions block write)
         $outputPath = base_path('ai_map.md');
-        File::put($outputPath, $markdown);
-        $this->info("AI Map successfully written to: {$outputPath} (" . strlen($markdown) . " bytes)");
+        if ((File::exists($outputPath) && !is_writable($outputPath)) || (!File::exists($outputPath) && !is_writable(dirname($outputPath)))) {
+            $this->warn("AI Map konnte mangels Schreibrechten nicht aktualisiert werden (übersprungen): {$outputPath}");
+        } else {
+            $written = @file_put_contents($outputPath, $markdown);
+            if ($written === false) {
+                $this->warn("AI Map konnte nicht geschrieben werden (übersprungen): {$outputPath}");
+            } else {
+                $this->info("AI Map successfully written to: {$outputPath} (" . strlen($markdown) . " bytes)");
+            }
+        }
 
         // Sync embedded AI_MAP block in project GEMINI.md and global Windows GEMINI.md if present
         $this->syncEmbeddedAiMap(base_path('GEMINI.md'), $markdown);
@@ -138,7 +146,7 @@ class GenerateAiMap extends Command
      */
     protected function syncEmbeddedAiMap(string $targetPath, string $aiMapMarkdown): void
     {
-        if (!File::exists($targetPath)) {
+        if (!File::exists($targetPath) || !is_writable($targetPath)) {
             return;
         }
 
@@ -150,8 +158,7 @@ class GenerateAiMap extends Command
             $pattern = '/' . preg_quote($startMarker, '/') . '.*?' . preg_quote($endMarker, '/') . '/s';
             $replacement = $startMarker . "\n" . trim($aiMapMarkdown) . "\n" . $endMarker;
             $updated = preg_replace($pattern, $replacement, $content, 1);
-            if ($updated !== null) {
-                File::put($targetPath, $updated);
+            if ($updated !== null && @file_put_contents($targetPath, $updated) !== false) {
                 $this->info("Synced AI Map into: {$targetPath} (" . strlen($updated) . " bytes)");
             }
         }
