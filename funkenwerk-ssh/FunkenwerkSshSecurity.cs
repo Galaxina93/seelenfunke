@@ -673,11 +673,54 @@ namespace FunkenwerkSsh
             }
 
             bool changed = !_isSelfTestMode && ImportFromPuttyAndWinScpRegistry(profiles);
+            if (!_isSelfTestMode && NormalizeMittwaldContainerProfiles(profiles))
+            {
+                changed = true;
+            }
             if (changed || !File.Exists(profFile))
             {
                 SaveProfiles(profiles);
             }
             return profiles;
+        }
+
+        private static bool NormalizeMittwaldContainerProfiles(List<SshConnectionProfile> profiles)
+        {
+            bool updated = false;
+            string defaultEd25519 = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".ssh", "id_ed25519");
+
+            foreach (var p in profiles)
+            {
+                if (!string.Equals(p.Host, "ssh.altgemeinde.project.host", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                if (string.Equals(p.Name, "Mittwald Node.js App", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (string.IsNullOrWhiteSpace(p.Username)
+                        || p.Username.StartsWith("sftp-", StringComparison.OrdinalIgnoreCase)
+                        || p.Username.EndsWith("@a-bycqrf", StringComparison.OrdinalIgnoreCase))
+                    {
+                        p.Username = "kontakt@mein-seelenfunke.de@a-yeq7el";
+                        updated = true;
+                    }
+
+                    if (string.IsNullOrWhiteSpace(p.StartupDirectory)
+                        || p.StartupDirectory == "/"
+                        || p.StartupDirectory.EndsWith("/seelenfunke-stage", StringComparison.OrdinalIgnoreCase))
+                    {
+                        p.StartupDirectory = "/home/p-g27wim/html/twilio-bridge";
+                        updated = true;
+                    }
+
+                    if (string.IsNullOrWhiteSpace(p.PrivateKeyPath) && File.Exists(defaultEd25519))
+                    {
+                        p.PrivateKeyPath = defaultEd25519;
+                        updated = true;
+                    }
+                }
+            }
+
+            return updated;
         }
 
         private static void BackupCorruptVaultFile(string filePath)

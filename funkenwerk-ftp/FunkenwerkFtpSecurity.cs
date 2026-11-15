@@ -222,13 +222,28 @@ namespace FunkenwerkFtp
             string cleanUser = (username ?? "").Trim();
             string cleanKey = ResolveOpenSshKeyPath(privateKeyPath);
 
-            // Map Mittwald SFTP-only user (sftp-...) to the real interactive SSH container user
-            if (cleanHost.Equals("ssh.altgemeinde.project.host", StringComparison.OrdinalIgnoreCase) &&
-                (string.IsNullOrWhiteSpace(cleanUser) || cleanUser.StartsWith("sftp-", StringComparison.OrdinalIgnoreCase)))
+            // Map Mittwald SFTP-only / general SSH user to the real interactive SSH container user
+            if (cleanHost.Equals("ssh.altgemeinde.project.host", StringComparison.OrdinalIgnoreCase))
             {
-                cleanUser = cleanRemote.Contains("worker-stage", StringComparison.OrdinalIgnoreCase)
-                    ? "kontakt@mein-seelenfunke.de@a-iurgq8"
-                    : "kontakt@mein-seelenfunke.de@a-lc6tkm";
+                bool isNodeBridge = (!string.IsNullOrWhiteSpace(name) && name.Equals("Mittwald Node.js App", StringComparison.OrdinalIgnoreCase))
+                    || cleanRemote.Contains("twilio-bridge", StringComparison.OrdinalIgnoreCase);
+
+                if (isNodeBridge && (string.IsNullOrWhiteSpace(cleanUser)
+                    || cleanUser.StartsWith("sftp-", StringComparison.OrdinalIgnoreCase)
+                    || cleanUser.EndsWith("@a-bycqrf", StringComparison.OrdinalIgnoreCase)))
+                {
+                    cleanUser = "kontakt@mein-seelenfunke.de@a-yeq7el";
+                    if (cleanRemote == "/" || cleanRemote.EndsWith("/seelenfunke-stage", StringComparison.OrdinalIgnoreCase))
+                    {
+                        cleanRemote = "/home/p-g27wim/html/twilio-bridge";
+                    }
+                }
+                else if (string.IsNullOrWhiteSpace(cleanUser) || cleanUser.StartsWith("sftp-", StringComparison.OrdinalIgnoreCase))
+                {
+                    cleanUser = cleanRemote.Contains("worker-stage", StringComparison.OrdinalIgnoreCase)
+                        ? "kontakt@mein-seelenfunke.de@a-iurgq8"
+                        : "kontakt@mein-seelenfunke.de@a-lc6tkm";
+                }
             }
 
             string sshVaultDir = SshHandoffVaultDir;

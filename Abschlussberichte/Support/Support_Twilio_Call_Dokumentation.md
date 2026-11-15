@@ -24,22 +24,25 @@ Anstatt das Installationsverzeichnis von Laravel und Node.js zu mischen (was zu 
 
 ### Die saubere Architektur & Deployment-Workflow:
 
-> [!CAUTION]
-> **OBLIGATORISCHER DEPLOYMENT-WORKFLOW**
-> Da Mittwald Node.js-Apps in strikt isolierten Containern betreibt, schlagen herkömmliche SSH-Neustarts (wie `kill -9`) fehl. Um sicherzustellen, dass die App wirklich den neuesten Code zieht, **MUSS** folgender strikter Workflow bei *jedem* Update zwingend eingehalten werden:
+> [!IMPORTANT]
+> **DIREKTER CONTAINER-NEUSTART PER CLI (`mittnitectl` auf `a-yeq7el`)**
+> Da Mittwald jede App in einem eigenen Container betreibt, schlagen Neustart-Befehle in allgemeinen SSH-Sitzungen (`a-bycqrf` / `a-lc6tkm`) fehl. Über den direkten App-Container-SSH-Zugang **`kontakt@mein-seelenfunke.de@a-yeq7el@ssh.altgemeinde.project.host`** (Profil `Mittwald Node.js App` in Funkenwerk SSH / Funkenwerk MCP) existiert `/var/run/mittnite.sock`, sodass die Node.js-App ohne Löschen/Neuanlegen und ohne mStudio-Klick direkt neu gestartet wird:
+> ```bash
+> mittnitectl job restart
+> mittnitectl job status
+> ```
+> `./funki stage-deploy` (bzw. `FunkenwerkMcp.exe --stage-restart-workers`) kopiert `server-twilio.js` sowie `GEMINI_BRIDGE_SECRET` automatisch nach `/home/p-g27wim/html/twilio-bridge` und führt `mittnitectl job restart` sowohl auf `a-iurgq8` (`Mittwald Websocket`) als auch auf `a-yeq7el` (`Mittwald Node.js App`) vollautomatisch aus.
 
-1. **App komplett löschen:** Die alte Node.js-App `seelenfunke-nodejs` im Mittwald-Dashboard restlos löschen.
-2. **App neu erstellen:** Eine neue App `seelenfunke-nodejs` anlegen mit dem Installationsverzeichnis `/html/twilio-bridge`.
-3. **Domain verknüpfen:** Die Domain `api-live-bridge.mein-seelenfunke.de` (und optional als Fallback weiterhin `twilio.mein-seelenfunke.de`) mit der neuen App verknüpfen.
-4. **Dateien kopieren:** Über die SSH-Konsole die aktuellen Dateien aus dem Stage-Projekt in den Bridge-Ordner kopieren:
+1. **App-Konfiguration (`seelenfunke-nodejs`, Shortcode `a-yeq7el`):** Installationsverzeichnis `/html/twilio-bridge`, Domain `api-live-bridge.mein-seelenfunke.de`, Startbefehl `node server-twilio.js`.
+2. **Manuelle Erstbefüllung (nur bei neu angelegtem Ordner nötig):**
    ```bash
-   cd /html/twilio-bridge
+   cd /home/p-g27wim/html/twilio-bridge
    cp ../seelenfunke-stage/server-twilio.js .
    cp ../seelenfunke-stage/.env .
    cp ../seelenfunke-stage/package.json .
    cp -r ../seelenfunke-stage/node_modules .
    ```
-5. **Startbefehl:** Mittwald führt im Hintergrund `node server-twilio.js` aus. Unser Code (`const PORT = process.env.PORT || 8081;`) greift den von Mittwald vergebenen Port ab und lauscht auf `0.0.0.0`.
+3. **Neustart im Node.js-Container (`a-yeq7el`):** `mittnitectl job restart` (automatisiert in `./funki stage-deploy`).
 
 ## 4. Fazit Architektur
 Der hartnäckige `503 Service Unavailable` Fehler war kein Netzwerkfehler, sondern ein `MODULE_NOT_FOUND` Crash beim Booten, verursacht durch tote Symlinks innerhalb der isolierten Mittwald Container-Umgebung. Durch das harte Kopieren der Dateien (`cp` statt `ln -s`) und die strikte Trennung der Ordner ist die Infrastruktur nun hochgradig robust.

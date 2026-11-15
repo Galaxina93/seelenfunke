@@ -233,38 +233,28 @@ Mit dieser Implementierung verfügt Seelenfunke über eine **hochmoderne, extrem
 Folgende Einstellungen sind beim Anlegen der Node.js App im Mittwald mStudio hinterlegt:
 
 *   **Name:** `seelenfunke-nodejs`
-*   **Installationsverzeichnis:** `/html/twilio-bridge` (relativ: `twilio-bridge`)
-*   **Startbefehl:** `node server-twilio.js`
+*   **App-Container SSH-Login:** `kontakt@mein-seelenfunke.de@a-yeq7el@ssh.altgemeinde.project.host` (Profil `Mittwald Node.js App` in Funkenwerk SSH / MCP)
+*   **Installationsverzeichnis:** `/html/twilio-bridge` (`/home/p-g27wim/html/twilio-bridge`)
+*   **Startbefehl:** `node server-twilio.js` (überwacht durch Mittwalds `mittnite`)
 *   **Verknüpfung / Domain:** `api-live-bridge.mein-seelenfunke.de`
-*   **Interner Health- & Ping-Port:** `127.0.0.1:8081` (`GET /health`)
+*   **Öffentlicher Health-Check:** `https://api-live-bridge.mein-seelenfunke.de/health`
 
-### 9.2 Erstmalige Bereitstellung & Manuelles Update nach `git pull`
-Um nach einem Git-Deployment die aktualisierte `server-twilio.js` aus dem Staging-Projekt in das Ausführungsverzeichnis der Node.js-App zu übernehmen, führen Sie per SSH auf dem Server folgende Befehle aus:
+### 9.2 Vollautomatischer Sync & Container-Neustart (`./funki stage-deploy` & Funkenwerk MCP)
+> **Wichtig (Chroot-Isolierung):** Keine Symlinks auf `../seelenfunke-stage` anlegen, da der Container-Käfig bei `/html/twilio-bridge` beginnt! Dateien müssen physisch per `cp` kopiert werden.
 
-```bash
-cd /html/twilio-bridge
-cp ../seelenfunke-stage/server-twilio.js .
-cp ../seelenfunke-stage/.env .
-cp ../seelenfunke-stage/package.json .
-cp -r ../seelenfunke-stage/node_modules .
-```
-
-### 9.3 Empfohlene Dauerlösung: Symlink statt manuellem Kopieren
-Damit zukünftige `git pull`-Updates in `/html/seelenfunke-stage` **automatisch** auch in `/html/twilio-bridge` wirksam sind (ohne jedes Mal `cp` ausführen zu müssen), empfiehlt sich das einmalige Anlegen eines symbolischen Links:
-
-```bash
-cd /html/twilio-bridge
-ln -sf ../seelenfunke-stage/server-twilio.js /html/twilio-bridge/server-twilio.js
-ln -sf ../seelenfunke-stage/.env /html/twilio-bridge/.env
-```
-
-**Nach jedem Update von `server-twilio.js`:**
-1. Im Mittwald mStudio unter **Apps → `seelenfunke-nodejs`** auf **„Neu starten“ (Restart)** klicken (damit Node.js den neuen Code in den Arbeitsspeicher lädt).
-2. Zur schnellen Verifikation per SSH oder im Browser-Widget prüfen:
+Bei jedem `./funki stage-deploy` passiert dies vollautomatisch:
+1. `./funki sync-worker` kopiert die aktuelle `server-twilio.js` physisch nach `/home/p-g27wim/html/twilio-bridge/server-twilio.js` und synchronisiert `GEMINI_BRIDGE_SECRET` zwischen Stage, Reverb-Worker (`worker-stage-3`) und `twilio-bridge/.env`.
+2. Anschließend verbindet sich `FunkenwerkMcp` per Ed25519-Key-Only direkt in den Node.js-App-Container (`kontakt@mein-seelenfunke.de@a-yeq7el@ssh.altgemeinde.project.host`) und führt über `/var/run/mittnite.sock` aus:
    ```bash
-   curl -s http://127.0.0.1:8081/health
+   mittnitectl job restart
+   mittnitectl job status
    ```
-   Die Ausgabe muss `"bridge_version": "v1.3-stable"` und `"status": "ok"` anzeigen (alternativ sichtbar beim Hovern über den grünen Live-Ping-Punkt im Seiten-Widget **„Live-AI“**).
+   (Einzeln jederzeit ausführbar via `FunkenwerkMcp.exe --stage-restart-workers` oder MCP-Tool `ssh_exec_safe_readonly` mit `profileName: "Mittwald Node.js App"`, `preset: "stage_worker_restart"`.)
+3. **Verifikation:**
+   ```bash
+   curl -sS https://api-live-bridge.mein-seelenfunke.de/health
+   ```
+   Liefert `"status": "ok"`, `"bridge_version": "v1.4-live-secretary"` und den frischen `"started_at"`-Zeitstempel.
 
 ---
 

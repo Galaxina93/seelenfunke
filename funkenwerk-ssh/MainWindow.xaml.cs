@@ -372,7 +372,14 @@ namespace FunkenwerkSsh
                 if (host.Equals("ssh.altgemeinde.project.host", StringComparison.OrdinalIgnoreCase) &&
                     (string.IsNullOrWhiteSpace(user) || user.StartsWith("sftp-", StringComparison.OrdinalIgnoreCase)))
                 {
-                    user = "kontakt@mein-seelenfunke.de@a-lc6tkm";
+                    string selectedDir = !string.IsNullOrWhiteSpace(overrideStartupDir)
+                        ? overrideStartupDir
+                        : (ProfilesListBox.SelectedItem as SshConnectionProfile)?.StartupDirectory ?? "";
+                    user = selectedDir.Contains("twilio-bridge", StringComparison.OrdinalIgnoreCase)
+                        ? "kontakt@mein-seelenfunke.de@a-yeq7el"
+                        : selectedDir.Contains("worker-stage", StringComparison.OrdinalIgnoreCase)
+                            ? "kontakt@mein-seelenfunke.de@a-iurgq8"
+                            : "kontakt@mein-seelenfunke.de@a-lc6tkm";
                     UserBox.Text = user;
                 }
 
