@@ -136,6 +136,27 @@ class CleanupSystemLogsCommand extends Command
             $stats['transient_deleted'] += SystemLog::whereIn('id', $vendorDeprecationIds)->delete();
         }
 
+        // 1c. Auf Stage-Umgebungen unkonfigurierte IMAP-Testpostfach-Meldungen ins Archiv überführen
+        if (str_contains(strtolower((string) config('app.url')), 'stage.')) {
+            SystemLog::query()
+                ->whereIn('status', ['error', 'warning'])
+                ->where(function ($q) {
+                    $q->where('action_id', 'scheduler:cronjob_failed:crm:fetch-mails')
+                        ->orWhere(function ($sq) {
+                            $sq->where('message', 'like', '%AUTHENTICATIONFAILED%')
+                                ->where('type', 'system');
+                        });
+                })
+                ->get()
+                ->each(function (SystemLog $log) {
+                    $t = (string) $log->title;
+                    $log->title = str_starts_with($t, '[GELÖST]') ? $t : mb_substr('[GELÖST] ' . $t, 0, 250);
+                    $log->status = 'success';
+                    $log->finished_at = $log->finished_at ?? now();
+                    $log->saveQuietly();
+                });
+        }
+
         // 2. Identische offene Fehler/Warnungen zusammenführen (1 Eintrag mit occurrences_count statt hunderter Duplikate)
         $openLogs = SystemLog::query()
             ->whereIn('status', ['error', 'warning'])

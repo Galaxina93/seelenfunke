@@ -38,6 +38,9 @@ class FetchMailsCommand extends Command
             return self::SUCCESS;
         }
 
+        $isStageOrDev = !app()->environment('production')
+            || str_contains(strtolower((string) config('app.url')), 'stage.');
+
         $failedAccounts = 0;
         foreach ($accounts as $account) {
             $rawPassword = trim((string) $account->password);
@@ -46,8 +49,24 @@ class FetchMailsCommand extends Command
                 continue;
             }
 
-            $authCooldownKey = 'imap_auth_failed_cooldown_' . $account->id . '_' . substr(sha1($rawPassword), 0, 10);
-            if (\Illuminate\Support\Facades\Cache::has($authCooldownKey)) {
+            $pwdFingerprint = substr(sha1($rawPassword . '|' . (string) $account->imap_host . '|' . (string) ($account->imap_username ?: $account->email)), 0, 16);
+            $authCooldownKey = 'imap_auth_failed_cooldown_' . $account->id . '_' . $pwdFingerprint;
+            $settingKey = 'imap_auth_backoff_' . $account->id;
+
+            $persistedBackoff = null;
+            if (\Illuminate\Support\Facades\Schema::hasTable('system_settings')) {
+                $rawBackoff = \App\Models\System\SystemSetting::where('key', $settingKey)->value('value');
+                $persistedBackoff = is_string($rawBackoff) ? json_decode($rawBackoff, true) : null;
+            }
+
+            if (
+                \Illuminate\Support\Facades\Cache::has($authCooldownKey)
+                || (
+                    is_array($persistedBackoff)
+                    && ($persistedBackoff['pwd_fp'] ?? '') === $pwdFingerprint
+                    && (int) ($persistedBackoff['until'] ?? 0) > now()->timestamp
+                )
+            ) {
                 $this->line("Postfach pausiert (IMAP-Authentifizierungs-Cooldown aktiv): {$account->email}");
                 continue;
             }
@@ -255,6 +274,9 @@ class FetchMailsCommand extends Command
                 $client->disconnect();
 
                 $account->update(['status' => 'connected', 'last_sync_at' => now()]);
+                if (\Illuminate\Support\Facades\Schema::hasTable('system_settings')) {
+                    \App\Models\System\SystemSetting::where('key', $settingKey)->delete();
+                }
 
             } catch (\Throwable $e) {
                 $errMsg = $e->getMessage();
@@ -263,15 +285,21 @@ class FetchMailsCommand extends Command
                     || stripos($errMsg, 'LOGIN failed') !== false;
 
                 if ($isAuthFailure) {
-                    // 6h Schutzsperre gegen minütliches IMAP-Hammering / Fail2ban-Sperre (wird bei Passwort-Änderung via Hash sofort aufgehoben)
-                    \Illuminate\Support\Facades\Cache::put($authCooldownKey, true, now()->addHours(6));
+                    $backoffHours = $isStageOrDev ? 24 : 6;
+                    \Illuminate\Support\Facades\Cache::put($authCooldownKey, true, now()->addHours($backoffHours));
+                    if (\Illuminate\Support\Facades\Schema::hasTable('system_settings')) {
+                        \App\Models\System\SystemSetting::updateOrCreate(
+                            ['key' => $settingKey],
+                            ['value' => json_encode(['pwd_fp' => $pwdFingerprint, 'until' => now()->addHours($backoffHours)->timestamp])]
+                        );
+                    }
                 }
 
                 $account->update(['status' => 'error']);
 
-                if ($isAuthFailure && !app()->environment('production')) {
+                if ($isAuthFailure && $isStageOrDev) {
                     // Auf Stage/Local kein Cronjob-Fehler-Spam durch Test-/Platzhalter-Zugangsdaten
-                    $this->warn("IMAP-Anmeldung auf Nicht-Produktionsumgebung übersprungen ({$account->email}): Cooldown 6h aktiviert.");
+                    $this->warn("IMAP-Anmeldung auf Stage/Dev übersprungen ({$account->email}): Cooldown 24h aktiviert.");
                     continue;
                 }
 
