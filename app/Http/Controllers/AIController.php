@@ -665,16 +665,16 @@ class AIController extends Controller
             }
         }
 
-        // Retrieve the API Key
+        // Retrieve Vertex AI / Gemini Live credentials
         $apiKey = config('services.gemini.key');
 
-        if (empty($apiKey)) {
+        if (!\App\Services\AI\VertexAiService::hasCredentials()) {
             \App\Services\System\SystemErrorLogger::recordCrossPlatformEvent([
                 'platform' => 'portal',
                 'severity' => 'error',
                 'component' => 'ai_live_credentials',
-                'title' => 'Gemini Live API-Key fehlt in der Konfiguration',
-                'message' => 'Aufruf von /api/ai/live-credentials schlug fehl, da config(services.gemini.key) leer ist.',
+                'title' => 'Gemini/Vertex Live Zugangsdaten fehlen in der Konfiguration',
+                'message' => 'Aufruf von /api/ai/live-credentials schlug fehl, da weder Vertex AI Service Account noch config(services.gemini.key) aktiv ist.',
                 'context' => ['env' => (string) config('app.env')],
             ]);
             return response()->json(['error' => 'No Gemini API Key configured.'], 500, [
@@ -765,9 +765,16 @@ class AIController extends Controller
         
         $user = auth()->user() ?: auth('admin')->user() ?: \App\Services\AI\AiAuthHelper::getUser();
         
+        $liveEndpoint = \App\Services\AI\VertexAiService::resolveLiveWebSocketEndpoint();
+
         // Cache credentials for 5 minutes
         \Illuminate\Support\Facades\Cache::put('gemini_live_token_' . $token, [
             'api_key' => $apiKey,
+            'is_vertex' => $liveEndpoint['is_vertex'],
+            'vertex_access_token' => $liveEndpoint['is_vertex'] ? $liveEndpoint['token'] : null,
+            'vertex_host' => $liveEndpoint['host'],
+            'vertex_path' => $liveEndpoint['path'],
+            'live_model' => $liveEndpoint['model'],
             'system_instruction' => $systemInstruction,
             'voice_name' => $voiceName,
             'tools' => [['functionDeclarations' => $functionDeclarations]],
@@ -802,6 +809,7 @@ class AIController extends Controller
             'token' => $token,
             'chat_session_id' => $sessionId,
             'ws_url' => $wsUrl,
+            'live_model' => $liveEndpoint['model'],
             'origin_url' => $originUrl,
             'system_instruction' => $systemInstruction,
             'voice_name' => $voiceName,
@@ -811,7 +819,7 @@ class AIController extends Controller
         ];
 
         if ($wantsDirect) {
-            $responsePayload['direct_ws_url'] = 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=' . rawurlencode((string) $apiKey);
+            $responsePayload['direct_ws_url'] = $liveEndpoint['direct_ws_url'];
         }
 
         return response()->json($responsePayload, 200, [

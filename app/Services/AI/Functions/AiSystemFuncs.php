@@ -4469,14 +4469,11 @@ trait AiSystemFuncs
         if (empty($query)) return ['status' => 'error', 'message' => 'Query fehlt.'];
 
         try {
-            $apiKey = config('services.gemini.key');
-            if (empty($apiKey)) {
+            if (!\App\Services\AI\VertexAiService::hasCredentials()) {
                 return ['status' => 'error', 'message' => 'Gemini API Key fehlt. Websuche nicht möglich.'];
             }
 
             // Wir nutzen Gemini 3 Flash für schnelle, tiefe Suche via Search Grounding
-            $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=" . $apiKey;
-
             $payload = [
                 "contents" => [
                     [
@@ -4495,9 +4492,7 @@ trait AiSystemFuncs
                 ]
             ];
 
-            $response = \Illuminate\Support\Facades\Http::timeout(45)
-                ->withHeaders(['Content-Type' => 'application/json'])
-                ->post($url, $payload);
+            $response = \App\Services\AI\VertexAiService::generateContent('gemini-3-flash-preview', $payload, 45);
 
             if ($response->successful()) {
                 $data = $response->json();

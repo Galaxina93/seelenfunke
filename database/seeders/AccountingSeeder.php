@@ -647,6 +647,19 @@ class AccountingSeeder extends Seeder
 
         $specialIssues = [
             [
+                'title'          => '2x Schaumstoff Meterware Schwarz (Dicke 1cm, je 250cm)',
+                'location'       => 'www.schaumstoffonline.de (Schaumstoffonline DE)',
+                'amount'         => -44.37,
+                'date'           => '2026-11-16',
+                'category'       => 'Verpackungen',
+                'tax_rate'       => 19,
+                'invoice_number' => 'SO24133',
+                'note'           => "Quittung / Steuerrechnung: #SO24133 vom 16.11.2026 | Status: Ganz bezahlt (44,37 €)\nPosition:\n- 2x Schaumstoff Meterware Schwarz Dicke 1cm, 250cm (Artikelnummer: schaumstoff-meterware-schwarz-1cm-dick-250cm, 19,0% Steuern): je 17,21 € brutto = 34,42 € brutto (28,92 € netto)\nZwischensumme: 34,42 € brutto | Versand: 9,95 € brutto (8,36 € netto) | Gesamt (Netto): 37,28 € | DE MwSt. (19,0%): 7,09 € | Gesamt (Brutto): 44,37 €\nHändler: Schaumstoffonline DE, Steenplaetsstraat 7, 2288 AA Rijswijk, Netherlands, USt-IdNr.: NL858268632B01 (858268632B01), HRB: 70332754, IBAN: NL37KNAB0256916543, E-Mail: mail@schaumstoffonline.de, Web: www.schaumstoffonline.de",
+                'file_paths'     => [
+                    'buchhaltung/receipts/2026/11/2026-11-16_Schaumstoffonline_2x-Schaumstoff-Meterware-Schwarz-1cm-250cm-Rechnung-SO24133.pdf'
+                ]
+            ],
+            [
                 'title'          => 'Inwa 10W PC- & Monitor-Lautsprecher mit Klemme (USB A/C, Plug-and-Play, HD Stereo Sound, Schwarz)',
                 'location'       => 'Amazon (Huide Europe)',
                 'amount'         => -22.99,

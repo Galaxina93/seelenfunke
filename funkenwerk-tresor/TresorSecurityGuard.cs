@@ -1,8 +1,11 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -700,6 +703,220 @@ namespace FunkenwerkTresor
                 {
                     _clipboardExpireUtc = DateTime.MinValue;
                 }
+            }
+        }
+
+        // =====================================================================
+        // ZERO-SECRET KI-TRESOR-BROKER EXPORT (DPAPI + AES-256-GCM)
+        // =====================================================================
+        private static readonly byte[] s_aiBrokerMagic = "FWAIBRK1"u8.ToArray();
+        private static readonly byte[] s_aiBrokerDpapiEntropy = "Funkenwerk-Tresor-AI-Broker-v1"u8.ToArray();
+        private static readonly byte[] s_aiBrokerAeadAad = "Funkenwerk-Tresor-AI-Broker-AEAD-v1"u8.ToArray();
+        private const byte AiBrokerFormatVersion = 0x01;
+
+        public static string AiBrokerVaultFilePath => Path.Combine(TresorAppSettings.DataDir, "ai_broker_vault.bin");
+
+        public sealed class AiBrokerExportEntryDto
+        {
+            public string Id { get; set; } = "";
+            public string Title { get; set; } = "";
+            public string Url { get; set; } = "";
+            public string Username { get; set; } = "";
+            public string Password { get; set; } = "";
+            public string TotpSeedOrConfig { get; set; } = "";
+            public string ApiToken { get; set; } = "";
+            public string UpdatedAtUtc { get; set; } = "";
+        }
+
+        /// <summary>
+        /// Synchronizes ONLY entries with AiBrokerEnabled == true into %LOCALAPPDATA%\FunkenwerkTresor\ai_broker_vault.bin.
+        /// Entries without explicit single-item opt-in remain 100% excluded.
+        /// Encrypted with random 256-bit AES-GCM DEK wrapped via Windows DPAPI CurrentUser + fixed entropy.
+        /// </summary>
+        public static int SyncAiBrokerVault(IEnumerable<KdbxEntry>? allEntries, string? customVaultFilePath = null)
+        {
+            string targetPath = string.IsNullOrWhiteSpace(customVaultFilePath)
+                ? AiBrokerVaultFilePath
+                : Path.GetFullPath(customVaultFilePath);
+
+            string? dir = Path.GetDirectoryName(targetPath);
+            if (!string.IsNullOrEmpty(dir))
+            {
+                if (!Directory.Exists(dir))
+                    Directory.CreateDirectory(dir);
+                TresorAppSettings.LockDownDirectoryAcl(dir);
+            }
+
+            var approved = (allEntries ?? Enumerable.Empty<KdbxEntry>())
+                .Where(e => e != null && e.AiBrokerEnabled)
+                .GroupBy(e => e.UuidHex ?? "", StringComparer.OrdinalIgnoreCase)
+                .Select(g => g.OrderByDescending(x => x.ModifiedUtc).First())
+                .ToList();
+
+            byte[]? plainJsonUtf8 = null;
+            byte[]? dek = null;
+            byte[]? wrappedDek = null;
+            byte[]? nonce = null;
+            byte[]? tag = null;
+            byte[]? cipherBytes = null;
+            byte[]? envelopeBytes = null;
+            string tmpPath = targetPath + ".tmp_" + Convert.ToHexString(RandomNumberGenerator.GetBytes(6)).ToLowerInvariant();
+
+            try
+            {
+                using (var jsonMs = new MemoryStream(Math.Max(64, approved.Count * 256)))
+                {
+                    using (var writer = new Utf8JsonWriter(jsonMs))
+                    {
+                        writer.WriteStartArray();
+                        foreach (var e in approved)
+                        {
+                            DateTime modUtc = e.ModifiedUtc.Kind == DateTimeKind.Utc
+                                ? e.ModifiedUtc
+                                : e.ModifiedUtc.ToUniversalTime();
+
+                            writer.WriteStartObject();
+                            writer.WriteString("Id", e.UuidHex ?? "");
+                            writer.WriteString("Title", e.Title ?? "");
+                            writer.WriteString("Url", e.Url ?? "");
+                            writer.WriteString("Username", e.UserName ?? "");
+                            writer.WriteString("Password", e.Password ?? "");
+                            writer.WriteString("TotpSeedOrConfig", e.TotpSecretOrUri ?? "");
+                            writer.WriteString("ApiToken", e.ApiToken ?? "");
+                            writer.WriteString("UpdatedAtUtc", modUtc.ToString("O"));
+                            writer.WriteEndObject();
+                        }
+                        writer.WriteEndArray();
+                        writer.Flush();
+                    }
+
+                    plainJsonUtf8 = jsonMs.ToArray();
+                    if (jsonMs.TryGetBuffer(out ArraySegment<byte> bufSeg) && bufSeg.Array != null)
+                        CryptographicOperations.ZeroMemory(bufSeg.Array);
+                }
+
+                dek = RandomNumberGenerator.GetBytes(32);
+                nonce = RandomNumberGenerator.GetBytes(12);
+                tag = new byte[16];
+                cipherBytes = new byte[plainJsonUtf8.Length];
+
+                using (var aesGcm = new AesGcm(dek, 16))
+                {
+                    aesGcm.Encrypt(nonce, plainJsonUtf8, cipherBytes, tag, s_aiBrokerAeadAad);
+                }
+
+                wrappedDek = ProtectedData.Protect(dek, s_aiBrokerDpapiEntropy, DataProtectionScope.CurrentUser);
+
+                using (var outMs = new MemoryStream(64 + wrappedDek.Length + cipherBytes.Length))
+                using (var bw = new BinaryWriter(outMs, Encoding.UTF8, leaveOpen: true))
+                {
+                    bw.Write(s_aiBrokerMagic);
+                    bw.Write(AiBrokerFormatVersion);
+                    bw.Write(wrappedDek.Length);
+                    bw.Write(wrappedDek);
+                    bw.Write(nonce);
+                    bw.Write(tag);
+                    bw.Write(cipherBytes.Length);
+                    bw.Write(cipherBytes);
+                    bw.Flush();
+                    envelopeBytes = outMs.ToArray();
+                    if (outMs.TryGetBuffer(out ArraySegment<byte> outSeg) && outSeg.Array != null)
+                        CryptographicOperations.ZeroMemory(outSeg.Array);
+                }
+
+                File.WriteAllBytes(tmpPath, envelopeBytes);
+                TresorAppSettings.LockDownFileAcl(tmpPath);
+                File.Move(tmpPath, targetPath, overwrite: true);
+                TresorAppSettings.LockDownFileAcl(targetPath);
+
+                return approved.Count;
+            }
+            finally
+            {
+                if (plainJsonUtf8 != null) CryptographicOperations.ZeroMemory(plainJsonUtf8);
+                if (dek != null) CryptographicOperations.ZeroMemory(dek);
+                if (wrappedDek != null) CryptographicOperations.ZeroMemory(wrappedDek);
+                if (nonce != null) CryptographicOperations.ZeroMemory(nonce);
+                if (tag != null) CryptographicOperations.ZeroMemory(tag);
+                if (cipherBytes != null) CryptographicOperations.ZeroMemory(cipherBytes);
+                if (envelopeBytes != null) CryptographicOperations.ZeroMemory(envelopeBytes);
+                if (File.Exists(tmpPath))
+                {
+                    try { File.Delete(tmpPath); } catch { }
+                }
+            }
+        }
+
+        internal static (List<AiBrokerExportEntryDto> Entries, string RawJsonForTest) ReadAiBrokerVaultForSelfTest(string? customVaultFilePath = null)
+        {
+            string targetPath = string.IsNullOrWhiteSpace(customVaultFilePath)
+                ? AiBrokerVaultFilePath
+                : Path.GetFullPath(customVaultFilePath);
+
+            if (!File.Exists(targetPath))
+                throw new FileNotFoundException("KI-Broker-Tresordatei nicht gefunden.", targetPath);
+
+            byte[]? rawFile = null;
+            byte[]? wrappedDek = null;
+            byte[]? dek = null;
+            byte[]? nonce = null;
+            byte[]? tag = null;
+            byte[]? cipherBytes = null;
+            byte[]? plainUtf8 = null;
+
+            try
+            {
+                rawFile = File.ReadAllBytes(targetPath);
+                if (rawFile.Length < 45)
+                    throw new InvalidDataException("KI-Broker-Tresordatei ist zu kurz oder beschädigt.");
+
+                using var ms = new MemoryStream(rawFile, writable: false);
+                using var br = new BinaryReader(ms, Encoding.UTF8, leaveOpen: true);
+
+                byte[] magic = br.ReadBytes(8);
+                if (!magic.AsSpan().SequenceEqual(s_aiBrokerMagic))
+                    throw new InvalidDataException("Ungültiger KI-Broker Magic-Header.");
+
+                byte ver = br.ReadByte();
+                if (ver != AiBrokerFormatVersion)
+                    throw new InvalidDataException($"Nicht unterstützte KI-Broker Formatversion: {ver}");
+
+                int wrappedLen = br.ReadInt32();
+                if (wrappedLen <= 0 || wrappedLen > 4096 || ms.Length - ms.Position < wrappedLen + 32)
+                    throw new InvalidDataException("Ungültige DPAPI-DEK-Länge in KI-Broker-Tresordatei.");
+
+                wrappedDek = br.ReadBytes(wrappedLen);
+                nonce = br.ReadBytes(12);
+                tag = br.ReadBytes(16);
+
+                int cipherLen = br.ReadInt32();
+                if (cipherLen < 2 || cipherLen > 16 * 1024 * 1024 || ms.Length - ms.Position != cipherLen)
+                    throw new InvalidDataException("Ungültige Ciphertext-Länge in KI-Broker-Tresordatei.");
+
+                cipherBytes = br.ReadBytes(cipherLen);
+                dek = ProtectedData.Unprotect(wrappedDek, s_aiBrokerDpapiEntropy, DataProtectionScope.CurrentUser);
+                if (dek.Length != 32)
+                    throw new CryptographicException("Entpackter DEK hat keine 256 Bit.");
+
+                plainUtf8 = new byte[cipherLen];
+                using (var aesGcm = new AesGcm(dek, 16))
+                {
+                    aesGcm.Decrypt(nonce, cipherBytes, tag, plainUtf8, s_aiBrokerAeadAad);
+                }
+
+                string json = Encoding.UTF8.GetString(plainUtf8);
+                var list = JsonSerializer.Deserialize<List<AiBrokerExportEntryDto>>(json) ?? new List<AiBrokerExportEntryDto>();
+                return (list, json);
+            }
+            finally
+            {
+                if (rawFile != null) CryptographicOperations.ZeroMemory(rawFile);
+                if (wrappedDek != null) CryptographicOperations.ZeroMemory(wrappedDek);
+                if (dek != null) CryptographicOperations.ZeroMemory(dek);
+                if (nonce != null) CryptographicOperations.ZeroMemory(nonce);
+                if (tag != null) CryptographicOperations.ZeroMemory(tag);
+                if (cipherBytes != null) CryptographicOperations.ZeroMemory(cipherBytes);
+                if (plainUtf8 != null) CryptographicOperations.ZeroMemory(plainUtf8);
             }
         }
     }

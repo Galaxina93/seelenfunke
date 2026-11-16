@@ -685,17 +685,199 @@ namespace FunkenwerkTresor
                     }
                 });
 
-                AddCheck("22. MainWindow XAML-Instanziierung, Boot-Log in DataDir & sauberes Schließen", () =>
+                AddCheck("22. MainWindow XAML-Instanziierung, Zero-Noise Boot-Log in DataDir & sauberes Schließen", () =>
                 {
-                    App.LogBoot("SelfTest Boot-Log Check");
                     string bootLogPath = Path.Combine(TresorAppSettings.DataDir, "funkenwerk_tresor_boot.log");
+                    if (File.Exists(bootLogPath)) File.Delete(bootLogPath);
+
                     var win = new MainWindow();
                     try
                     {
                         IntPtr hwnd = new WindowInteropHelper(win).EnsureHandle();
                         bool titleOk = win.Title.Contains("Tresor", StringComparison.Ordinal);
+                        win.Close();
+                        // Reguläres Öffnen & Schließen darf 0 Bytes in funkenwerk_tresor_boot.log schreiben!
+                        long quietCloseBytes = File.Exists(bootLogPath) ? new FileInfo(bootLogPath).Length : 0;
+
+                        bool unloadNoiseFiltered = App.IsBenignShutdownException(
+                            new DllNotFoundException("Dll was not found.\n   at __std_type_info_destroy_list(__type_info_node*)\n   at <CrtImplementationDetails>.ModuleUninitializer.SingletonDomainUnload(Object source, EventArgs arguments)"));
+                        bool realCrashKept = !App.IsBenignShutdownException(new InvalidOperationException("Real crash"));
+
+                        App.LogBoot("SelfTest Boot-Log Check");
                         bool logAclOk = File.Exists(bootLogPath) && VerifyStrictNtfsFileAcl(bootLogPath);
-                        return hwnd != IntPtr.Zero && titleOk && logAclOk;
+                        return hwnd != IntPtr.Zero && titleOk && quietCloseBytes == 0 && unloadNoiseFiltered && realCrashKept && logAclOk;
+                    }
+                    finally
+                    {
+                        try { win.Close(); } catch { }
+                    }
+                });
+
+                AddCheck("23. Eintrags-Modal Icon-Auswahlleiste (0 Horizontal-Scrollbar, alle 20 Icons unverdeckt sichtbar)", () =>
+                {
+                    var win = new MainWindow();
+                    try
+                    {
+                        var (iconBarOk, _, diag) = win.VerifyModalIconBarAndAutocompleteForSelfTest();
+                        if (!iconBarOk)
+                            throw new InvalidOperationException(diag);
+                        return true;
+                    }
+                    finally
+                    {
+                        win.Close();
+                    }
+                });
+
+                AddCheck("24. Eintrags-Modal User-Name-Vorschläge (0px Layout-Zucken & sofortige Übernahme per Mausklick)", () =>
+                {
+                    var win = new MainWindow();
+                    try
+                    {
+                        var (_, autocompleteOk, diag) = win.VerifyModalIconBarAndAutocompleteForSelfTest();
+                        if (!autocompleteOk)
+                            throw new InvalidOperationException(diag);
+                        return true;
+                    }
+                    finally
+                    {
+                        win.Close();
+                    }
+                });
+
+                AddCheck("25. KDBX 4.1 Verlustfreier Roundtrip für AiBrokerEnabled & geschütztes ApiToken (Protected=\"True\")", () =>
+                {
+                    var db = KdbxDatabase.CreateNewDefault("KDBX41_Broker");
+                    db.FormatMajor = 4;
+                    db.FormatMinor = 1;
+                    db.Argon2MemoryBytes = 16UL * 1024UL * 1024UL;
+                    db.Argon2Iterations = 2;
+
+                    var approved = new KdbxEntry
+                    {
+                        Title = "Mittwald mStudio",
+                        UserName = "kontakt@mein-seelenfunke.de",
+                        Password = "Mittwald#Pass!2026",
+                        Url = "https://studio.mittwald.de",
+                        TotpSecretOrUri = "JBSWY3DPEHPK3PXP",
+                        AiBrokerEnabled = true,
+                        ApiToken = "mw_pat_RoundtripToken#2026!Äöü"
+                    };
+                    var priv = new KdbxEntry
+                    {
+                        Title = "FYRST Privat & Bank",
+                        UserName = "alina.bank",
+                        Password = "TopSecretBank#2026",
+                        Url = "https://banking.fyrst.de"
+                    };
+                    db.RootGroup.Entries.Add(approved);
+                    db.RootGroup.Entries.Add(priv);
+
+                    byte[] kdbx41Bytes = KdbxCryptoEngine.WriteKdbx4Bytes(db, "Kdbx41Master#2026!");
+                    var loaded = KdbxCryptoEngine.OpenKdbxBytes(kdbx41Bytes, "Kdbx41Master#2026!");
+                    var loadedApproved = loaded.GetAllEntriesFlat().FirstOrDefault(e => e.Title == "Mittwald mStudio");
+                    var loadedPriv = loaded.GetAllEntriesFlat().FirstOrDefault(e => e.Title == "FYRST Privat & Bank");
+
+                    return loaded.FormatMajor == 4
+                        && loaded.FormatMinor == 1
+                        && loadedApproved != null
+                        && loadedApproved.AiBrokerEnabled
+                        && loadedApproved.ApiToken == "mw_pat_RoundtripToken#2026!Äöü"
+                        && loadedApproved.CustomStrings.TryGetValue(KdbxEntry.CustomKeyApiToken, out var tokCs)
+                        && tokCs.IsProtected
+                        && loadedPriv != null
+                        && !loadedPriv.AiBrokerEnabled
+                        && string.IsNullOrEmpty(loadedPriv.ApiToken)
+                        && !loadedPriv.CustomStrings.ContainsKey(KdbxEntry.CustomKeyAiBrokerEnabled);
+                });
+
+                AddCheck("26. SyncAiBrokerVault (DPAPI + AES-256-GCM + CurrentUser ACL): 0 % Private Einträge in ai_broker_vault.bin", () =>
+                {
+                    var allEntries = new List<KdbxEntry>
+                    {
+                        new KdbxEntry
+                        {
+                            Title = "Sparkasse Privat",
+                            UserName = "privat_konto_991",
+                            Password = "PrivatBankSecret_NeverExport!",
+                            Url = "https://sparkasse.de",
+                            AiBrokerEnabled = false
+                        },
+                        new KdbxEntry
+                        {
+                            Title = "ELSTER Privat",
+                            UserName = "elster_alina",
+                            Password = "ElsterPrivatePassword_NeverExport!",
+                            ApiToken = "elster_private_tok_999",
+                            AiBrokerEnabled = false
+                        },
+                        new KdbxEntry
+                        {
+                            UuidHex = "AABBCCDDEEFF00112233445566778899",
+                            Title = "Mittwald Hosting",
+                            UserName = "kontakt@mein-seelenfunke.de",
+                            Password = "MittwaldApprovedPassword#1",
+                            Url = "https://studio.mittwald.de",
+                            TotpSecretOrUri = "JBSWY3DPEHPK3PXP",
+                            ApiToken = "mw_pat_ApprovedToken#77",
+                            AiBrokerEnabled = true
+                        }
+                    };
+
+                    int syncedCount = TresorSecurityGuard.SyncAiBrokerVault(allEntries);
+                    string vaultPath = TresorSecurityGuard.AiBrokerVaultFilePath;
+                    if (syncedCount != 1 || !File.Exists(vaultPath) || !VerifyStrictNtfsFileAcl(vaultPath))
+                        return false;
+
+                    byte[] rawOnDisk = File.ReadAllBytes(vaultPath);
+                    string asciiDisk = Encoding.UTF8.GetString(rawOnDisk);
+                    bool diskOpaque = asciiDisk.StartsWith("FWAIBRK1", StringComparison.Ordinal)
+                        && !asciiDisk.Contains("Sparkasse", StringComparison.OrdinalIgnoreCase)
+                        && !asciiDisk.Contains("Mittwald", StringComparison.OrdinalIgnoreCase)
+                        && !asciiDisk.Contains("MittwaldApprovedPassword", StringComparison.Ordinal)
+                        && !asciiDisk.Contains("mw_pat_ApprovedToken", StringComparison.Ordinal);
+
+                    var (decryptedList, rawDecryptedJson) = TresorSecurityGuard.ReadAiBrokerVaultForSelfTest(vaultPath);
+                    bool zeroPrivateLeak = !rawDecryptedJson.Contains("Sparkasse", StringComparison.OrdinalIgnoreCase)
+                        && !rawDecryptedJson.Contains("PrivatBankSecret_NeverExport", StringComparison.Ordinal)
+                        && !rawDecryptedJson.Contains("ELSTER", StringComparison.OrdinalIgnoreCase)
+                        && !rawDecryptedJson.Contains("elster_private_tok_999", StringComparison.Ordinal);
+
+                    bool approvedMatched = decryptedList.Count == 1
+                        && decryptedList[0].Id == "AABBCCDDEEFF00112233445566778899"
+                        && decryptedList[0].Title == "Mittwald Hosting"
+                        && decryptedList[0].Url == "https://studio.mittwald.de"
+                        && decryptedList[0].Username == "kontakt@mein-seelenfunke.de"
+                        && decryptedList[0].Password == "MittwaldApprovedPassword#1"
+                        && decryptedList[0].ApiToken == "mw_pat_ApprovedToken#77"
+                        && decryptedList[0].TotpSeedOrConfig.Contains("JBSWY3DPEHPK3PXP", StringComparison.Ordinal);
+
+                    // Tamper test (1-byte flip in GCM ciphertext must fail closed)
+                    string tamperedPath = vaultPath + ".tampered";
+                    byte[] tampered = (byte[])rawOnDisk.Clone();
+                    tampered[^1] ^= 0xFF;
+                    File.WriteAllBytes(tamperedPath, tampered);
+                    bool tamperRejected = false;
+                    try { TresorSecurityGuard.ReadAiBrokerVaultForSelfTest(tamperedPath); }
+                    catch (CryptographicException) { tamperRejected = true; }
+
+                    // 0 approved entries -> valid encrypted empty array []
+                    int emptyCount = TresorSecurityGuard.SyncAiBrokerVault(allEntries.Where(x => !x.AiBrokerEnabled));
+                    var (emptyDecrypted, emptyJson) = TresorSecurityGuard.ReadAiBrokerVaultForSelfTest(vaultPath);
+                    bool emptyVaultOk = emptyCount == 0 && emptyDecrypted.Count == 0 && emptyJson == "[]";
+
+                    return diskOpaque && zeroPrivateLeak && approvedMatched && tamperRejected && emptyVaultOk;
+                });
+
+                AddCheck("27. Eintrags-Modal KI-Broker UI (Switch, API-Token Auge-Icon, KI-Badge & Auto-Sync beim Speichern)", () =>
+                {
+                    var win = new MainWindow();
+                    try
+                    {
+                        var (ok, diag) = win.VerifyAiBrokerModalAndBadgeForSelfTest();
+                        if (!ok)
+                            throw new InvalidOperationException(diag);
+                        return true;
                     }
                     finally
                     {

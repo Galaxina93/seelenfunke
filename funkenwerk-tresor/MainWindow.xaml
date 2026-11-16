@@ -31,6 +31,8 @@
         <SolidColorBrush x:Key="HoverBgBrush" Color="#EEF5FD"/>
         <SolidColorBrush x:Key="ModalCardBgBrush" Color="#FFFFFF"/>
         <SolidColorBrush x:Key="InputBgBrush" Color="#FFFFFF"/>
+        <SolidColorBrush x:Key="AiBadgeBgBrush" Color="#1FC5A059"/>
+        <SolidColorBrush x:Key="AiBadgeTextBrush" Color="#8C6822"/>
 
         <!-- Kompakte Toolbar-Buttons wie in KeePass -->
         <Style x:Key="ToolbarIconBtn" TargetType="Button">
@@ -258,6 +260,75 @@
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="8,5"/>
             <Setter Property="FontSize" Value="12.5"/>
+        </Style>
+
+        <!-- Schlanke, moderne Scrollbars (damit Icons & kleine Listen niemals von breiten System-Scrollbalken verdeckt werden) -->
+        <Style x:Key="SlimScrollBarThumb" TargetType="Thumb">
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="OverridesDefaultStyle" Value="True"/>
+            <Setter Property="IsTabStop" Value="False"/>
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Thumb">
+                        <Border x:Name="ThumbBd"
+                                Background="#94A3B8"
+                                CornerRadius="3.5"
+                                Opacity="0.72"/>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ThumbBd" Property="Background" Value="#C5A059"/>
+                                <Setter TargetName="ThumbBd" Property="Opacity" Value="0.95"/>
+                            </Trigger>
+                            <Trigger Property="IsDragging" Value="True">
+                                <Setter TargetName="ThumbBd" Property="Background" Value="#A8843E"/>
+                                <Setter TargetName="ThumbBd" Property="Opacity" Value="1"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="ScrollBar">
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="OverridesDefaultStyle" Value="True"/>
+            <Style.Triggers>
+                <Trigger Property="Orientation" Value="Vertical">
+                    <Setter Property="Width" Value="7"/>
+                    <Setter Property="Height" Value="Auto"/>
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="ScrollBar">
+                                <Grid Background="Transparent" Width="7" Margin="1,2">
+                                    <Track x:Name="PART_Track" IsDirectionReversed="True" Focusable="False">
+                                        <Track.Thumb>
+                                            <Thumb Style="{StaticResource SlimScrollBarThumb}"/>
+                                        </Track.Thumb>
+                                    </Track>
+                                </Grid>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Trigger>
+                <Trigger Property="Orientation" Value="Horizontal">
+                    <Setter Property="Width" Value="Auto"/>
+                    <Setter Property="Height" Value="7"/>
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="ScrollBar">
+                                <Grid Background="Transparent" Height="7" Margin="2,1">
+                                    <Track x:Name="PART_Track" IsDirectionReversed="False" Focusable="False">
+                                        <Track.Thumb>
+                                            <Thumb Style="{StaticResource SlimScrollBarThumb}"/>
+                                        </Track.Thumb>
+                                    </Track>
+                                </Grid>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Trigger>
+            </Style.Triggers>
         </Style>
     </Window.Resources>
 
@@ -734,11 +805,23 @@
                                                 <ColumnDefinition Width="*"/>
                                             </Grid.ColumnDefinitions>
 
-                                            <!-- Col 0: Icon + Title -->
-                                            <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="5,0" VerticalAlignment="Center">
-                                                <Image Width="16" Height="16" Source="{Binding IconImage}" Margin="0,0,5,0" RenderOptions.BitmapScalingMode="HighQuality"/>
+                                            <!-- Col 0: Icon + Title + dezentes KI-Badge -->
+                                            <DockPanel Grid.Column="0" Margin="5,0" VerticalAlignment="Center" LastChildFill="True">
+                                                <Image DockPanel.Dock="Left" Width="16" Height="16" Source="{Binding IconImage}" Margin="0,0,5,0" RenderOptions.BitmapScalingMode="HighQuality"/>
+                                                <Border DockPanel.Dock="Right"
+                                                        Visibility="{Binding AiBrokerBadgeVisibility}"
+                                                        Background="{DynamicResource AiBadgeBgBrush}"
+                                                        BorderBrush="#C5A059"
+                                                        BorderThickness="1"
+                                                        CornerRadius="3"
+                                                        Padding="4,0"
+                                                        Margin="4,0,0,0"
+                                                        VerticalAlignment="Center"
+                                                        ToolTip="Für KI-Broker freigegeben">
+                                                    <TextBlock Text="KI" FontSize="9.5" FontWeight="Bold" Foreground="{DynamicResource AiBadgeTextBrush}" VerticalAlignment="Center"/>
+                                                </Border>
                                                 <TextBlock Text="{Binding Title}" FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
-                                            </StackPanel>
+                                            </DockPanel>
 
                                             <!-- Col 1: User Name -->
                                             <TextBlock Grid.Column="1" Text="{Binding UserName}" FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}" Margin="6,0" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
@@ -827,6 +910,18 @@
                                     <Image x:Name="BottomEntryIcon" Width="16" Height="16" Margin="0,0,6,0"/>
                                     <TextBlock x:Name="BottomEntryTitle" Text="Titel" FontWeight="Bold" FontSize="12.5" Foreground="{DynamicResource TextPrimaryBrush}"/>
                                     <TextBlock x:Name="BottomEntryGroupPath" Text=" (Gruppe)" FontSize="11.5" Foreground="{DynamicResource TextSecondaryBrush}" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                                    <Border x:Name="BottomAiBrokerBadge"
+                                            Visibility="Collapsed"
+                                            Background="{DynamicResource AiBadgeBgBrush}"
+                                            BorderBrush="#C5A059"
+                                            BorderThickness="1"
+                                            CornerRadius="3"
+                                            Padding="5,0"
+                                            Margin="8,0,0,0"
+                                            VerticalAlignment="Center"
+                                            ToolTip="Für KI-Broker freigegeben">
+                                        <TextBlock Text="KI" FontSize="9.5" FontWeight="Bold" Foreground="{DynamicResource AiBadgeTextBrush}" VerticalAlignment="Center"/>
+                                    </Border>
                                 </StackPanel>
 
                                 <WrapPanel Grid.Row="1" Margin="0,0,0,4">
@@ -970,7 +1065,7 @@
                                 </Grid.ColumnDefinitions>
                                 <PasswordBox x:Name="OpenMasterPassBox" Style="{StaticResource TresorPasswordBox}" KeyDown="OpenMasterPassBox_KeyDown"/>
                                 <TextBox x:Name="OpenMasterPassTextBox" Style="{StaticResource TresorTextBox}" Visibility="Collapsed" KeyDown="OpenMasterPassBox_KeyDown"/>
-                                <Button Grid.Column="1" Content="👁" Style="{StaticResource SecondaryBtn}" Width="34" Margin="6,0,0,0" Click="ToggleOpenMasterEye_Click" ToolTip="Passwort ein-/ausblenden"/>
+                                <Button Grid.Column="1" Content="👁" Style="{StaticResource SecondaryBtn}" Width="34" Padding="0" Margin="6,0,0,0" Click="ToggleOpenMasterEye_Click" ToolTip="Passwort ein-/ausblenden"/>
                             </Grid>
 
                             <TextBlock Text="SCHLÜSSELDATEI (.KEYX / .KEY - OPTIONAL)" FontSize="10.5" FontWeight="Bold" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
@@ -982,7 +1077,7 @@
                                 </Grid.ColumnDefinitions>
                                 <TextBox x:Name="OpenKeyfilePathBox" Style="{StaticResource TresorTextBox}"/>
                                 <Button Grid.Column="1" Content="🗝 Wählen" Style="{StaticResource SecondaryBtn}" Margin="6,0,0,0" Click="BrowseOpenKeyfile_Click"/>
-                                <Button Grid.Column="2" Content="✕" Style="{StaticResource SecondaryBtn}" Width="28" Margin="4,0,0,0" Click="ClearOpenKeyfile_Click"/>
+                                <Button Grid.Column="2" Content="✕" Style="{StaticResource SecondaryBtn}" Width="28" Padding="0" Margin="4,0,0,0" Click="ClearOpenKeyfile_Click"/>
                             </Grid>
 
                             <Button Content="🔓 Tresor entsperren" Style="{StaticResource GoldBtn}" Height="36" Click="UnlockDatabase_Click"/>
@@ -1020,7 +1115,7 @@
                                     <PasswordBox x:Name="CreateMasterRepeatBox" Style="{StaticResource TresorPasswordBox}" KeyDown="CreateMasterPassBox_KeyDown"/>
                                     <TextBox x:Name="CreateMasterRepeatTextBox" Style="{StaticResource TresorTextBox}" Visibility="Collapsed" KeyDown="CreateMasterPassBox_KeyDown"/>
                                 </StackPanel>
-                                <Button Grid.Column="3" Content="👁" Style="{StaticResource SecondaryBtn}" Width="34" VerticalAlignment="Bottom" Margin="6,0,0,0" Click="ToggleCreateMasterEye_Click"/>
+                                <Button Grid.Column="3" Content="👁" Style="{StaticResource SecondaryBtn}" Width="34" Padding="0" VerticalAlignment="Bottom" Margin="6,0,0,0" Click="ToggleCreateMasterEye_Click"/>
                             </Grid>
 
                             <TextBlock Text="OPTIONALE 2-FAKTOR SCHLÜSSELDATEI (.KEYX)" FontSize="10.5" FontWeight="Bold" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
@@ -1066,12 +1161,13 @@
                         BorderBrush="#C5A059"
                         BorderThickness="1.5"
                         CornerRadius="6"
-                        Padding="20,16">
+                        Padding="20,16"
+                        PreviewMouseDown="EntryEditorModalCard_PreviewMouseDown">
                     <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="820">
                     <StackPanel>
                         <DockPanel Margin="0,0,0,12">
-                            <TextBlock x:Name="EntryModalHeaderText" Text="Eintrag bearbeiten" FontSize="15" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}"/>
                             <Button DockPanel.Dock="Right" Content="✕" Style="{StaticResource ToolbarIconBtn}" Width="24" Height="24" Click="CloseEntryModal_Click"/>
+                            <TextBlock x:Name="EntryModalHeaderText" Text="Eintrag bearbeiten" FontSize="15" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center"/>
                         </DockPanel>
 
                         <Grid Margin="0,0,0,8">
@@ -1090,66 +1186,144 @@
                             </StackPanel>
                         </Grid>
 
-                        <!-- Icon-Auswahl für Eintrag -->
+                        <!-- Icon-Auswahl für Eintrag (ohne breiten Horizontal-Scrollbalken, alle Icons klar sichtbar) -->
                         <TextBlock Text="Icon" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,3"/>
                         <ListBox x:Name="EditEntryIconPicker"
-                                 Height="36"
+                                 MinHeight="38"
+                                 MaxHeight="84"
+                                 Padding="2,2"
                                  Margin="0,0,0,8"
                                  Background="{DynamicResource InputBgBrush}"
                                  BorderBrush="{DynamicResource BorderBrushColor}"
                                  BorderThickness="1"
-                                 ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto">
                             <ListBox.ItemsPanel>
                                 <ItemsPanelTemplate>
                                     <WrapPanel Orientation="Horizontal"/>
                                 </ItemsPanelTemplate>
                             </ListBox.ItemsPanel>
+                            <ListBox.ItemContainerStyle>
+                                <Style TargetType="ListBoxItem">
+                                    <Setter Property="Padding" Value="3"/>
+                                    <Setter Property="Margin" Value="1"/>
+                                    <Setter Property="Cursor" Value="Hand"/>
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="ListBoxItem">
+                                                <Border x:Name="IconItemBd"
+                                                        Background="Transparent"
+                                                        BorderBrush="Transparent"
+                                                        BorderThickness="1.2"
+                                                        CornerRadius="3"
+                                                        Padding="{TemplateBinding Padding}">
+                                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsSelected" Value="True">
+                                                        <Setter TargetName="IconItemBd" Property="Background" Value="{DynamicResource SelectionBgBrush}"/>
+                                                        <Setter TargetName="IconItemBd" Property="BorderBrush" Value="#C5A059"/>
+                                                    </Trigger>
+                                                    <MultiTrigger>
+                                                        <MultiTrigger.Conditions>
+                                                            <Condition Property="IsMouseOver" Value="True"/>
+                                                            <Condition Property="IsSelected" Value="False"/>
+                                                        </MultiTrigger.Conditions>
+                                                        <Setter TargetName="IconItemBd" Property="Background" Value="{DynamicResource HoverBgBrush}"/>
+                                                    </MultiTrigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </ListBox.ItemContainerStyle>
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
-                                    <Image Width="16" Height="16" Source="{Binding Image}" ToolTip="{Binding Name}" Margin="2"/>
+                                    <Image Width="18" Height="18" Source="{Binding Image}" ToolTip="{Binding Name}" RenderOptions.BitmapScalingMode="HighQuality"/>
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
                         </ListBox>
 
-                        <Grid Margin="0,0,0,8">
+                        <Grid Margin="0,0,0,8" Panel.ZIndex="60">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="10"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0">
-                                <TextBlock Text="User Name (Benutzer / E-Mail)" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,3"/>
-                                <TextBox x:Name="EditUserBox"
+                            <Grid Grid.Column="0" Panel.ZIndex="60">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="0"/>
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Text="User Name (Benutzer / E-Mail)" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,3"/>
+                                <TextBox Grid.Row="1"
+                                         x:Name="EditUserBox"
                                          Style="{StaticResource TresorTextBox}"
                                          TextChanged="EditUserBox_TextChanged"
                                          PreviewKeyDown="EditUserBox_PreviewKeyDown"
                                          GotFocus="EditUserBox_GotFocus"
                                          LostFocus="EditUserBox_LostFocus"/>
-                                <Border x:Name="UserSuggestionsPopupBorder"
-                                        Visibility="Collapsed"
-                                        Background="{DynamicResource InputBgBrush}"
-                                        BorderBrush="#C5A059"
-                                        BorderThickness="1"
-                                        CornerRadius="3"
-                                        Margin="0,2,0,0"
-                                        MaxHeight="105">
-                                    <ListBox x:Name="UserSuggestionsListBox"
-                                             Background="Transparent"
-                                             BorderThickness="0"
-                                             Focusable="False"
-                                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                             PreviewMouseLeftButtonUp="UserSuggestionsListBox_PreviewMouseLeftButtonUp">
-                                        <ListBox.ItemTemplate>
-                                            <DataTemplate>
-                                                <DockPanel Margin="4,1.5">
-                                                    <TextBlock DockPanel.Dock="Left" Text="{Binding UserName}" FontSize="11.5" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}"/>
-                                                    <TextBlock DockPanel.Dock="Right" Text="{Binding ContextHint}" FontSize="10.5" Foreground="{DynamicResource TextMutedBrush}" Margin="8,0,0,0" HorizontalAlignment="Right" TextTrimming="CharacterEllipsis"/>
-                                                </DockPanel>
-                                            </DataTemplate>
-                                        </ListBox.ItemTemplate>
-                                    </ListBox>
-                                </Border>
-                            </StackPanel>
+                                <!-- Schwebendes Overlay ohne Layout-Sprung ("Zucken") & ohne Fokusverlust beim Anklicken -->
+                                <Canvas Grid.Row="2" HorizontalAlignment="Left" VerticalAlignment="Top" Panel.ZIndex="120">
+                                    <Border x:Name="UserSuggestionsPopupBorder"
+                                            Visibility="Collapsed"
+                                            Width="{Binding ActualWidth, ElementName=EditUserBox}"
+                                            Canvas.Left="0"
+                                            Canvas.Top="2"
+                                            Background="{DynamicResource ModalCardBgBrush}"
+                                            BorderBrush="#C5A059"
+                                            BorderThickness="1.2"
+                                            CornerRadius="4"
+                                            MaxHeight="145">
+                                        <Border.Effect>
+                                            <DropShadowEffect BlurRadius="10" ShadowDepth="2" Direction="270" Color="#000000" Opacity="0.18"/>
+                                        </Border.Effect>
+                                        <ListBox x:Name="UserSuggestionsListBox"
+                                                 Background="Transparent"
+                                                 BorderThickness="0"
+                                                 Focusable="False"
+                                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                                 PreviewMouseDown="UserSuggestionsListBox_PreviewMouseDown">
+                                            <ListBox.ItemContainerStyle>
+                                                <Style TargetType="ListBoxItem">
+                                                    <Setter Property="Focusable" Value="False"/>
+                                                    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                                    <Setter Property="Padding" Value="7,4"/>
+                                                    <Setter Property="Cursor" Value="Hand"/>
+                                                    <Setter Property="Template">
+                                                        <Setter.Value>
+                                                            <ControlTemplate TargetType="ListBoxItem">
+                                                                <Border x:Name="SugBd"
+                                                                        Background="Transparent"
+                                                                        Padding="{TemplateBinding Padding}">
+                                                                    <ContentPresenter VerticalAlignment="Center"/>
+                                                                </Border>
+                                                                <ControlTemplate.Triggers>
+                                                                    <Trigger Property="IsSelected" Value="True">
+                                                                        <Setter TargetName="SugBd" Property="Background" Value="{DynamicResource SelectionBgBrush}"/>
+                                                                    </Trigger>
+                                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                                        <Setter TargetName="SugBd" Property="Background" Value="{DynamicResource HoverBgBrush}"/>
+                                                                    </Trigger>
+                                                                </ControlTemplate.Triggers>
+                                                            </ControlTemplate>
+                                                        </Setter.Value>
+                                                    </Setter>
+                                                </Style>
+                                            </ListBox.ItemContainerStyle>
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <DockPanel>
+                                                        <TextBlock DockPanel.Dock="Right" Text="{Binding ContextHint}" FontSize="10.5" Foreground="{DynamicResource TextMutedBrush}" Margin="8,0,0,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                                        <TextBlock Text="{Binding UserName}" FontSize="11.5" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                                    </DockPanel>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
+                                        </ListBox>
+                                    </Border>
+                                </Canvas>
+                            </Grid>
                             <StackPanel Grid.Column="2">
                                 <TextBlock Text="URL (Webseite / IP)" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,3"/>
                                 <TextBox x:Name="EditUrlBox" Style="{StaticResource TresorTextBox}"/>
@@ -1165,7 +1339,7 @@
                             </Grid.ColumnDefinitions>
                             <PasswordBox x:Name="EditPassBox" Style="{StaticResource TresorPasswordBox}" FontFamily="Consolas"/>
                             <TextBox x:Name="EditPassTextBox" Style="{StaticResource TresorTextBox}" FontFamily="Consolas" Visibility="Collapsed"/>
-                            <Button Grid.Column="1" Content="👁" Style="{StaticResource SecondaryBtn}" Width="32" Margin="5,0,0,0" Click="ToggleEditPassEye_Click" ToolTip="Passwort zeigen"/>
+                            <Button Grid.Column="1" Content="👁" Style="{StaticResource SecondaryBtn}" Width="34" Padding="0" Margin="5,0,0,0" Click="ToggleEditPassEye_Click" ToolTip="Passwort zeigen"/>
                             <Button Grid.Column="2" Content="🎲 Generieren" Style="{StaticResource SecondaryBtn}" Margin="5,0,0,0" Click="GenerateInlinePassword_Click"/>
                         </Grid>
 
@@ -1177,8 +1351,52 @@
                             </Grid.ColumnDefinitions>
                             <PasswordBox x:Name="EditTotpBox" Style="{StaticResource TresorPasswordBox}" FontFamily="Consolas"/>
                             <TextBox x:Name="EditTotpTextBox" Style="{StaticResource TresorTextBox}" FontFamily="Consolas" Visibility="Collapsed"/>
-                            <Button Grid.Column="1" Content="👁" Style="{StaticResource SecondaryBtn}" Width="32" Margin="5,0,0,0" Click="ToggleEditTotpEye_Click"/>
+                            <Button Grid.Column="1" Content="👁" Style="{StaticResource SecondaryBtn}" Width="34" Padding="0" Margin="5,0,0,0" Click="ToggleEditTotpEye_Click" ToolTip="2FA Secret zeigen"/>
                         </Grid>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,3">
+                            <TextBlock Text="API-Token" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                            <Border Width="15" Height="15" CornerRadius="7.5"
+                                    Background="{DynamicResource HeaderBgBrush}"
+                                    BorderBrush="#C5A059"
+                                    BorderThickness="1"
+                                    Margin="6,0,0,0"
+                                    Cursor="Help"
+                                    VerticalAlignment="Center"
+                                    ToolTipService.InitialShowDelay="120"
+                                    ToolTip="Optionales geschütztes API-Token (z. B. Mittwald mStudio API v2 Token). Wird verschlüsselt im KDBX-Tresor gespeichert.">
+                                <TextBlock Text="!" FontSize="9.5" FontWeight="Bold" Foreground="#C5A059" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                        </StackPanel>
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <PasswordBox x:Name="EditApiTokenBox" Style="{StaticResource TresorPasswordBox}" FontFamily="Consolas"/>
+                            <TextBox x:Name="EditApiTokenTextBox" Style="{StaticResource TresorTextBox}" FontFamily="Consolas" Visibility="Collapsed"/>
+                            <Button x:Name="EditApiTokenEyeBtn" Grid.Column="1" Content="👁" Style="{StaticResource SecondaryBtn}" Width="34" Padding="0" Margin="5,0,0,0" Click="ToggleEditApiTokenEye_Click" ToolTip="API-Token ein-/ausblenden"/>
+                        </Grid>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8" VerticalAlignment="Center">
+                            <CheckBox x:Name="EditAiBrokerCheckBox"
+                                      Content="Für KI-Broker freigeben"
+                                      FontSize="12"
+                                      FontWeight="SemiBold"
+                                      Foreground="{DynamicResource TextPrimaryBrush}"
+                                      VerticalAlignment="Center"/>
+                            <Border Width="16" Height="16" CornerRadius="8"
+                                    Background="{DynamicResource HeaderBgBrush}"
+                                    BorderBrush="#C5A059"
+                                    BorderThickness="1"
+                                    Margin="6,0,0,0"
+                                    Cursor="Help"
+                                    VerticalAlignment="Center"
+                                    ToolTipService.InitialShowDelay="120"
+                                    ToolTip="Einzel-Freigabe für den lokalen Zero-Secret KI-Tresor-Broker (DPAPI + AES-256-GCM). Nicht markierte Einträge bleiben zu 100 % ausgeschlossen.">
+                                <TextBlock Text="!" FontSize="10" FontWeight="Bold" Foreground="#C5A059" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                        </StackPanel>
 
                         <DockPanel Margin="0,0,0,3">
                             <TextBlock DockPanel.Dock="Left" Text="Notes (Notizen)" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}"/>
@@ -1268,7 +1486,7 @@
                         </DockPanel>
 
                         <DockPanel>
-                            <Button DockPanel.Dock="Left" Content="Abbrechen" Style="{StaticResource SecondaryBtn}" Click="CloseEntryModal_Click"/>
+                            <Button DockPanel.Dock="Left" Content="Abbrechen" Style="{StaticResource SecondaryBtn}" Margin="0,0,8,0" Click="CloseEntryModal_Click"/>
                             <Button DockPanel.Dock="Right" Content="💾 OK / Übernehmen" Style="{StaticResource GoldBtn}" Click="SaveEntryModal_Click"/>
                         </DockPanel>
                     </StackPanel>
@@ -1292,8 +1510,8 @@
                         Padding="20,16">
                     <StackPanel>
                         <DockPanel Margin="0,0,0,12">
-                            <TextBlock x:Name="GroupModalHeaderText" Text="Gruppe bearbeiten" FontSize="15" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}"/>
                             <Button DockPanel.Dock="Right" Content="✕" Style="{StaticResource ToolbarIconBtn}" Width="24" Height="24" Click="CloseGroupModal_Click"/>
+                            <TextBlock x:Name="GroupModalHeaderText" Text="Gruppe bearbeiten" FontSize="15" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center"/>
                         </DockPanel>
 
                         <TextBlock Text="Gruppenname" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
@@ -1301,11 +1519,13 @@
 
                         <TextBlock Text="Icon im Strukturbaum wählen" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
                         <ListBox x:Name="GroupModalIconPicker"
-                                 Height="145"
+                                 Height="155"
                                  Margin="0,0,0,14"
                                  Background="{DynamicResource InputBgBrush}"
                                  BorderBrush="{DynamicResource BorderBrushColor}"
-                                 BorderThickness="1">
+                                 BorderThickness="1"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto">
                             <ListBox.ItemsPanel>
                                 <ItemsPanelTemplate>
                                     <WrapPanel Orientation="Horizontal"/>
@@ -1314,7 +1534,7 @@
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
                                     <StackPanel Orientation="Horizontal" Width="180" Margin="3,2">
-                                        <Image Width="16" Height="16" Source="{Binding Image}" Margin="0,0,6,0"/>
+                                        <Image Width="16" Height="16" Source="{Binding Image}" Margin="0,0,6,0" RenderOptions.BitmapScalingMode="HighQuality"/>
                                         <TextBlock Text="{Binding Name}" FontSize="11.5" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
                                     </StackPanel>
                                 </DataTemplate>
@@ -1322,7 +1542,7 @@
                         </ListBox>
 
                         <DockPanel>
-                            <Button DockPanel.Dock="Left" Content="Abbrechen" Style="{StaticResource SecondaryBtn}" Click="CloseGroupModal_Click"/>
+                            <Button DockPanel.Dock="Left" Content="Abbrechen" Style="{StaticResource SecondaryBtn}" Margin="0,0,8,0" Click="CloseGroupModal_Click"/>
                             <Button DockPanel.Dock="Right" Content="✓ Speichern" Style="{StaticResource GoldBtn}" Click="SaveGroupModal_Click"/>
                         </DockPanel>
                     </StackPanel>
@@ -1345,8 +1565,8 @@
                         Padding="20,16">
                     <StackPanel>
                         <DockPanel Margin="0,0,0,12">
-                            <TextBlock Text="📥 .kdbx Datenbank importieren / zusammenführen" FontSize="14.5" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}"/>
                             <Button DockPanel.Dock="Right" Content="✕" Style="{StaticResource ToolbarIconBtn}" Width="24" Height="24" Click="CloseImportModal_Click"/>
+                            <TextBlock Text="📥 .kdbx Datenbank importieren / zusammenführen" FontSize="14.5" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center"/>
                         </DockPanel>
 
                         <TextBlock Text="QUELL-DATENBANK (.KDBX)" FontSize="10.5" FontWeight="Bold" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
@@ -1367,7 +1587,7 @@
                             </Grid.ColumnDefinitions>
                             <PasswordBox x:Name="ImportSourcePassBox" Style="{StaticResource TresorPasswordBox}"/>
                             <TextBox x:Name="ImportSourcePassTextBox" Style="{StaticResource TresorTextBox}" Visibility="Collapsed"/>
-                            <Button Grid.Column="1" Content="👁" Style="{StaticResource SecondaryBtn}" Width="32" Margin="6,0,0,0" Click="ToggleImportPassEye_Click"/>
+                            <Button Grid.Column="1" Content="👁" Style="{StaticResource SecondaryBtn}" Width="34" Padding="0" Margin="6,0,0,0" Click="ToggleImportPassEye_Click"/>
                         </Grid>
 
                         <TextBlock Text="SCHLÜSSELDATEI DER QUELL-DB (OPTIONAL)" FontSize="10.5" FontWeight="Bold" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
@@ -1381,7 +1601,7 @@
                         </Grid>
 
                         <DockPanel>
-                            <Button DockPanel.Dock="Left" Content="Abbrechen" Style="{StaticResource SecondaryBtn}" Click="CloseImportModal_Click"/>
+                            <Button DockPanel.Dock="Left" Content="Abbrechen" Style="{StaticResource SecondaryBtn}" Margin="0,0,8,0" Click="CloseImportModal_Click"/>
                             <Button DockPanel.Dock="Right" Content="📥 Jetzt importieren" Style="{StaticResource GoldBtn}" Click="ExecuteImportMerge_Click"/>
                         </DockPanel>
                     </StackPanel>
@@ -1404,8 +1624,8 @@
                         Padding="20,16">
                     <StackPanel>
                         <DockPanel Margin="0,0,0,12">
-                            <TextBlock Text="🎲 Passwort- &amp; Passphrasen-Generator" FontSize="14.5" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}"/>
                             <Button DockPanel.Dock="Right" Content="✕" Style="{StaticResource ToolbarIconBtn}" Width="24" Height="24" Click="CloseGeneratorModal_Click"/>
+                            <TextBlock Text="🎲 Passwort- &amp; Passphrasen-Generator" FontSize="14.5" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center"/>
                         </DockPanel>
 
                         <Border Background="{DynamicResource InputBgBrush}" BorderBrush="#C5A059" BorderThickness="1" CornerRadius="4" Padding="10,8" Margin="0,0,0,10">
@@ -1421,8 +1641,8 @@
                         </Border>
 
                         <DockPanel Margin="0,0,0,6">
-                            <TextBlock Text="Länge:" FontSize="11.5" Foreground="{DynamicResource TextSecondaryBrush}"/>
                             <TextBlock x:Name="GenLenLabel" DockPanel.Dock="Right" Text="20 Zeichen" FontSize="11.5" FontWeight="Bold"/>
+                            <TextBlock Text="Länge:" FontSize="11.5" Foreground="{DynamicResource TextSecondaryBrush}"/>
                         </DockPanel>
                         <Slider x:Name="GenLengthSlider" Minimum="8" Maximum="64" Value="20" IsSnapToTickEnabled="True" TickFrequency="1" ValueChanged="GenOptions_Changed" Margin="0,0,0,10"/>
 
@@ -1435,7 +1655,7 @@
 
                         <DockPanel>
                             <Button DockPanel.Dock="Left" Content="↻ Neu würfeln" Style="{StaticResource SecondaryBtn}" Click="RegeneratePassword_Click"/>
-                            <Button DockPanel.Dock="Left" Content="🗣 4-Wort Passphrase" Style="{StaticResource SecondaryBtn}" Margin="6,0,0,0" Click="GeneratePassphraseBtn_Click"/>
+                            <Button DockPanel.Dock="Left" Content="🗣 4-Wort Passphrase" Style="{StaticResource SecondaryBtn}" Margin="6,0,8,0" Click="GeneratePassphraseBtn_Click"/>
                             <Button DockPanel.Dock="Right" Content="📋 Kopieren" Style="{StaticResource GoldBtn}" Click="CopyGeneratedPassword_Click"/>
                         </DockPanel>
                     </StackPanel>

@@ -335,17 +335,14 @@ class TelegramAgentController extends Controller
         
         $base64 = base64_encode(file_get_contents($fullPath));
         
-        $apiKey = (string) config('services.gemini.key', '');
-        if ($apiKey === '') {
+        if (!\App\Services\AI\VertexAiService::hasCredentials()) {
             return "";
         }
-        
-        // Use the native Gemini endpoint with header authentication (prevents API key leakage in URL logs)
-        $nativeUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
         
         $payload = [
             "contents" => [
                 [
+                    "role" => "user",
                     "parts" => [
                         ["text" => "Transkribiere bitte diese Sprachnachricht. Antworte AUSSCHLIESSLICH mit dem exakten, abgetippten Text des Nutzers, ohne Kommentare oder Zusätze."],
                         ["inlineData" => [
@@ -357,7 +354,7 @@ class TelegramAgentController extends Controller
             ]
         ];
         
-        $response = Http::timeout(30)->withHeaders(['x-goog-api-key' => $apiKey])->post($nativeUrl, $payload);
+        $response = \App\Services\AI\VertexAiService::generateContent('gemini-3.5-flash', $payload, 30);
         if ($response->successful()) {
             $data = $response->json();
             return $data['candidates'][0]['content']['parts'][0]['text'] ?? "";

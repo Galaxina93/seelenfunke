@@ -48,6 +48,15 @@ class FunkiraLiveViewModel : ViewModel() {
     private val _voiceAmplitude = MutableStateFlow(0f)
     val voiceAmplitude: StateFlow<Float> = _voiceAmplitude.asStateFlow()
 
+    private val _aiSpeechAmplitude = MutableStateFlow(0f)
+    val aiSpeechAmplitude: StateFlow<Float> = _aiSpeechAmplitude.asStateFlow()
+
+    private val _isAiSpeakingFlow = MutableStateFlow(false)
+    val isAiSpeakingFlow: StateFlow<Boolean> = _isAiSpeakingFlow.asStateFlow()
+
+    private val _falconEmotion = MutableStateFlow("idle")
+    val falconEmotion: StateFlow<String> = _falconEmotion.asStateFlow()
+
     private val _liveLogs = MutableStateFlow<List<String>>(emptyList())
     val liveLogs: StateFlow<List<String>> = _liveLogs.asStateFlow()
 
@@ -79,14 +88,18 @@ class FunkiraLiveViewModel : ViewModel() {
     // Audio recording & playback threads
     private var recordingJob: Job? = null
     private var connectJob: Job? = null
+    private var visionStreamJob: Job? = null
+    private var speechDecayJob: Job? = null
     private var audioTrack: AudioTrack? = null
     private var isRecordingActive = false
     @Volatile private var isAiSpeaking = false
     @Volatile private var setupCompletedForCurrentSocket = false
+    private var userManuallyPickedNonFalcon: Boolean = false
     private var fallbackDirectUrl: String? = null
     private var fallbackOriginUrl: String = "https://mein-seelenfunke.de"
+    private var activeLiveModel: String = "models/gemini-3.1-flash-live-preview"
     private var activeSysInstruction: String = ""
-    private var activeVoiceName: String = "Kore"
+    private var activeVoiceName: String = "Orus"
     private var activeToolsJson: String? = null
 
     private var shouldEndCall = false
@@ -103,13 +116,18 @@ class FunkiraLiveViewModel : ViewModel() {
             aiRepository.getAgents()
                 .onSuccess { list ->
                     _agents.value = list
-                    val defaultAgent = list.find { it.name.equals("Funkira", ignoreCase = true) } ?: list.firstOrNull()
-                    defaultAgent?.let { selectAgent(it) }
+                    val defaultAgent = list.find { it.name.equals("Falcon", ignoreCase = true) }
+                        ?: list.find { it.name.equals("Funkira", ignoreCase = true) }
+                        ?: list.firstOrNull()
+                    defaultAgent?.let { selectAgent(it, userInitiated = false) }
                 }
         }
     }
 
-    fun selectAgent(agent: de.meinseelenfunke.app.data.api.AiAgent) {
+    fun selectAgent(agent: de.meinseelenfunke.app.data.api.AiAgent, userInitiated: Boolean = true) {
+        if (userInitiated) {
+            userManuallyPickedNonFalcon = !agent.name.equals("Falcon", ignoreCase = true)
+        }
         if (_selectedAgent.value?.id == agent.id) return
         
         val wasNull = _selectedAgent.value == null
@@ -191,7 +209,8 @@ class FunkiraLiveViewModel : ViewModel() {
         _isConnecting.value = true
         _error.value = null
         shouldEndCall = false
-        isAiSpeaking = false
+        setAiSpeakingState(false)
+        _falconEmotion.value = "idle"
         _shouldCloseScreen.value = false
         _liveSubtitle.value = null
         aiTurnTranscript.clear()
@@ -202,6 +221,18 @@ class FunkiraLiveViewModel : ViewModel() {
         chatSessionId = "android_live_${java.util.UUID.randomUUID()}"
 
         connectJob = viewModelScope.launch(Dispatchers.IO) {
+            if (_selectedAgent.value == null) {
+                aiRepository.getAgents().onSuccess { list ->
+                    _agents.value = list
+                    val preferred = list.find { it.name.equals("Falcon", ignoreCase = true) }
+                        ?: list.find { it.name.equals("Funkira", ignoreCase = true) }
+                        ?: list.firstOrNull()
+                    if (preferred != null) {
+                        _selectedAgent.value = preferred
+                    }
+                }
+            }
+
             val baseUrl = de.meinseelenfunke.app.di.ServiceLocator.getBaseUrl()
             val parsedUri = try { java.net.URI(baseUrl) } catch (_: Exception) { null }
             val host = parsedUri?.host ?: "stage.mein-seelenfunke.de"
@@ -232,8 +263,25 @@ class FunkiraLiveViewModel : ViewModel() {
                     fallbackOriginUrl = creds.origin_url?.takeIf { it.isNotBlank() } ?: defaultOrigin
                     fallbackDirectUrl = creds.direct_ws_url?.takeIf { it.isNotBlank() }
                         ?: buildDirectGeminiWsUrl(localGeminiKey)
-                    activeSysInstruction = creds.system_instruction
-                    activeVoiceName = creds.voice_name
+                    activeLiveModel = creds.live_model?.takeIf { it.isNotBlank() } ?: "models/gemini-3.1-flash-live-preview"
+                    val isFalconSelected = _selectedAgent.value == null ||
+                        _selectedAgent.value?.name?.equals("Falcon", ignoreCase = true) == true ||
+                        (!userManuallyPickedNonFalcon && _agents.value.none { it.name.equals("Falcon", ignoreCase = true) })
+                    activeSysInstruction = if (isFalconSelected && !creds.system_instruction.contains("Falcon", ignoreCase = true)) {
+                        "Du bist Falcon (mit c), der technische Mitgründer, Chef-Architekt und die direkte rechte Hand von Alina Steinhauer bei Mein-Seelenfunke und Funkenwerk.\n\n" + creds.system_instruction
+                    } else {
+                        creds.system_instruction
+                    }
+                    activeVoiceName = if (isFalconSelected) {
+                        val serverVoice = creds.voice_name.trim()
+                        if (serverVoice.isBlank() || serverVoice.equals("Kore", ignoreCase = true) || serverVoice.equals("Aoede", ignoreCase = true)) {
+                            "Orus"
+                        } else {
+                            serverVoice
+                        }
+                    } else {
+                        creds.voice_name.ifBlank { "Kore" }
+                    }
                     activeToolsJson = creds.tools?.toString()
 
                     if (!isTrustedLiveWebSocketHost(rawWsUrl, host)) {
@@ -272,9 +320,13 @@ class FunkiraLiveViewModel : ViewModel() {
                     if (!directCandidate.isNullOrBlank()) {
                         fallbackDirectUrl = null
                         fallbackOriginUrl = defaultOrigin
-                        activeSysInstruction =
+                        val useFalconFallback = !userManuallyPickedNonFalcon
+                        activeSysInstruction = if (useFalconFallback) {
+                            "STRIKTE SPRACHREGEL (HÖCHSTE PRIORITÄT): Sprich und antworte ZU 100% AUSSCHLIESSLICH auf DEUTSCH! Du bist Falcon (mit c), der technische Mitgründer, Chef-Architekt und die direkte rechte Hand von Alina Steinhauer bei Mein-Seelenfunke und Funkenwerk. Antworte souverän, herzlich, klar und prägnant auf Deutsch."
+                        } else {
                             "STRIKTE SPRACHREGEL (HÖCHSTE PRIORITÄT): Sprich und antworte ZU 100% AUSSCHLIESSLICH auf DEUTSCH! Du bist Funkira, Alinas KI-Assistentin von Mein-Seelenfunke. Antworte herzlich, natürlich und prägnant auf Deutsch."
-                        activeVoiceName = "Kore"
+                        }
+                        activeVoiceName = if (useFalconFallback) "Orus" else "Kore"
                         activeToolsJson = null
                         de.meinseelenfunke.app.util.ErrorSentinelReporter.captureAutoHeal(
                             context = ServiceLocator.context,
@@ -291,15 +343,22 @@ class FunkiraLiveViewModel : ViewModel() {
 
                     _isConnecting.value = false
                     de.meinseelenfunke.app.util.NavigationBridge.isLiveCallActive = false
-                    _error.value = "Authentifizierung fehlgeschlagen: ${err.localizedMessage}"
+                    val credErrDetail = safeErrorDetail(err) ?: err.javaClass.simpleName.ifBlank { "Unbekannter Fehler" }
+                    _error.value = if (de.meinseelenfunke.app.util.ErrorSentinelReporter.isTransientWebSocketDisconnect(err)) {
+                        formatWebSocketFailureMessage(err, httpStatusCode = null, setupWasComplete = false)
+                    } else {
+                        "Authentifizierung fehlgeschlagen: $credErrDetail"
+                    }
                     addLog("Fehler: ${_error.value}")
-                    de.meinseelenfunke.app.util.ErrorSentinelReporter.captureError(
-                        context = ServiceLocator.context,
-                        tag = "funkira_live_credentials",
-                        message = "Funkira Live-Start fehlgeschlagen: ${err.message}",
-                        throwable = err,
-                        extraContext = mapOf("base_host" to host)
-                    )
+                    if (!de.meinseelenfunke.app.util.ErrorSentinelReporter.isTransientWebSocketDisconnect(err)) {
+                        de.meinseelenfunke.app.util.ErrorSentinelReporter.captureError(
+                            context = ServiceLocator.context,
+                            tag = "funkira_live_credentials",
+                            message = "Funkira Live-Start fehlgeschlagen: $credErrDetail",
+                            throwable = err,
+                            extraContext = mapOf("base_host" to host)
+                        )
+                    }
                 }
         }
     }
@@ -340,9 +399,14 @@ class FunkiraLiveViewModel : ViewModel() {
                 addLog("[WS-Setup]: URL: $maskedUrl")
 
                 // Send Setup configuration payload
+                val resolvedSetupModel = if (url.contains("aiplatform.googleapis.com", ignoreCase = true) && activeLiveModel.startsWith("projects/")) {
+                    activeLiveModel
+                } else {
+                    "models/gemini-3.1-flash-live-preview"
+                }
                 val setup = JsonObject().apply {
                     add("setup", JsonObject().apply {
-                        addProperty("model", "models/gemini-3.1-flash-live-preview")
+                        addProperty("model", resolvedSetupModel)
                         add("generationConfig", JsonObject().apply {
                             val modalities = JsonArray()
                             modalities.add("AUDIO")
@@ -370,6 +434,10 @@ class FunkiraLiveViewModel : ViewModel() {
                                     }
                                     if (!strictPrompt.contains("TOKEN-SPAR-DISZIPLIN")) {
                                         strictPrompt = "$strictPrompt\n\n$brevityRule"
+                                    }
+                                    val falconDeviceToolsRule = "LOKALE SMARTPHONE-SUPERTOOLS: Nutze bei Musikwünschen sofort falcon_music_control (z.B. action='play_sport' für Sport-/Workout-Musik), für Kamera-Sicht oder ein Foto falcon_camera_control (action='enable_vision', 'disable_vision', 'switch_camera', 'take_photo'), für Entwicklungsaufträge/Ideen/Bugs an deinen Leitstand Antigravity falcon_send_to_antigravity (setze attach_captured_photo=true wenn gerade ein Foto geschossen wurde), für Statusabfragen falcon_check_antigravity_status, zum Öffnen von App-Bereichen falcon_app_navigate und für deinen 3D-Ausdruck falcon_set_emotion."
+                                    if (!strictPrompt.contains("LOKALE SMARTPHONE-SUPERTOOLS")) {
+                                        strictPrompt = "$strictPrompt\n\n$falconDeviceToolsRule"
                                     }
                                     addProperty("text", strictPrompt)
                                 })
@@ -400,7 +468,7 @@ class FunkiraLiveViewModel : ViewModel() {
 
                 val setupStr = gson.toJson(setup)
                 val sent = ws.send(setupStr)
-                val agentName = _selectedAgent.value?.name ?: "Funkira"
+                val agentName = _selectedAgent.value?.name ?: "Falcon"
                 addLog("$agentName-Sitzung wird konfiguriert...")
                 if (!sent) {
                     addLog("Fehler: Konfiguration konnte nicht gesendet werden (Send-Buffer voll?)")
@@ -419,22 +487,33 @@ class FunkiraLiveViewModel : ViewModel() {
 
             override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
                 if (ws != this@FunkiraLiveViewModel.webSocket) return
-                val errorMsg = "Verbindungsfehler: ${t.localizedMessage}" +
-                        (if (response != null) " (HTTP ${response.code})" else "")
-                if (!setupCompletedForCurrentSocket && !isDirectGoogle && tryFailoverToDirectGemini(errorMsg, t)) {
+                val httpCode = response?.code
+                val wasSetupComplete = setupCompletedForCurrentSocket
+                val disconnectMsg = formatWebSocketFailureMessage(
+                    t = t,
+                    httpStatusCode = httpCode,
+                    setupWasComplete = wasSetupComplete
+                )
+                if (!wasSetupComplete && !isDirectGoogle && tryFailoverToDirectGemini(disconnectMsg, t)) {
                     return
                 }
-                de.meinseelenfunke.app.util.ErrorSentinelReporter.captureError(
-                    context = ServiceLocator.context,
-                    tag = "funkira_live_ws",
-                    message = errorMsg,
-                    throwable = t,
-                    extraContext = mapOf(
-                        "mode" to if (isDirectGoogle) "direct_google" else "portal_bridge",
-                        "http_status" to (response?.code?.toString() ?: "0")
+                val isTransient = de.meinseelenfunke.app.util.ErrorSentinelReporter.isTransientWebSocketDisconnect(t, httpCode)
+                if (!isTransient) {
+                    _error.value = disconnectMsg
+                    de.meinseelenfunke.app.util.ErrorSentinelReporter.captureError(
+                        context = ServiceLocator.context,
+                        tag = "funkira_live_ws",
+                        message = disconnectMsg,
+                        throwable = t,
+                        extraContext = mapOf(
+                            "mode" to if (isDirectGoogle) "direct_google" else "portal_bridge",
+                            "http_status" to (httpCode?.toString() ?: "0")
+                        )
                     )
-                )
-                handleDisconnect(errorMsg)
+                } else if (!shouldEndCall && !(wasSetupComplete && t is java.io.EOFException)) {
+                    _error.value = disconnectMsg
+                }
+                handleDisconnect(disconnectMsg)
             }
 
             override fun onClosing(ws: WebSocket, code: Int, reason: String) {
@@ -492,7 +571,7 @@ class FunkiraLiveViewModel : ViewModel() {
     private fun handleServerMessage(jsonText: String) {
         try {
             val root = gson.fromJson(jsonText, JsonObject::class.java) ?: return
-            val agentName = _selectedAgent.value?.name ?: "Funkira"
+            val agentName = _selectedAgent.value?.name ?: "Falcon"
 
             // Check if server sent a persisted transcript notice
             if (root.has("type") && root.get("type").asString == "liveTranscriptPersisted") {
@@ -518,6 +597,7 @@ class FunkiraLiveViewModel : ViewModel() {
                 setupCompletedForCurrentSocket = true
                 addLog("[System]: Setup vollständig abgeschlossen. Gespräch gestartet.")
                 startRecording()
+                startVisionStreamLoop()
                 return
             }
 
@@ -554,7 +634,7 @@ class FunkiraLiveViewModel : ViewModel() {
                 // Handle interruption/barge-in
                 if (serverContent.has("interrupted") && serverContent.get("interrupted").asBoolean) {
                     addLog("[System]: Unterbrechung erkannt.")
-                    isAiSpeaking = false
+                    setAiSpeakingState(false)
                     flushAudioPlayback()
                     if (aiTurnTranscript.isNotBlank()) {
                         val cleanText = sanitizeAiTranscript(aiTurnTranscript.toString().trim())
@@ -569,7 +649,7 @@ class FunkiraLiveViewModel : ViewModel() {
                 if (serverContent.has("turnComplete") && serverContent.get("turnComplete").asBoolean) {
                     viewModelScope.launch {
                         delay(300)
-                        isAiSpeaking = false
+                        setAiSpeakingState(false)
                     }
                     if (userTurnTranscript.isNotBlank()) {
                         addLog("Du: ${userTurnTranscript.toString().trim()}")
@@ -594,7 +674,7 @@ class FunkiraLiveViewModel : ViewModel() {
                 }
 
                 if (serverContent.has("modelTurn")) {
-                    isAiSpeaking = true
+                    setAiSpeakingState(true)
                     val modelTurn = serverContent.getAsJsonObject("modelTurn")
                     if (modelTurn.has("parts")) {
                         val parts = modelTurn.getAsJsonArray("parts")
@@ -676,6 +756,23 @@ class FunkiraLiveViewModel : ViewModel() {
                             sendToolResponse(callId, name, resultObj)
                             return@forEach
                         }
+
+                        if (de.meinseelenfunke.app.util.FalconClientTools.isLocalFalconTool(name)) {
+                            val localArgs = if (callObj.has("args")) callObj.get("args") else null
+                            viewModelScope.launch(Dispatchers.IO) {
+                                val resObj = de.meinseelenfunke.app.util.FalconClientTools.executeLocalFalconTool(
+                                    context = ServiceLocator.context,
+                                    toolName = name,
+                                    argsElement = localArgs,
+                                    chatSessionId = chatSessionId,
+                                    onEmotionChanged = { emo -> _falconEmotion.value = emo },
+                                    onNavigate = { _ -> }
+                                )
+                                addLog("[Falcon-Tool]: '$name' lokal ausgeführt.")
+                                sendToolResponse(callId, name, resObj)
+                            }
+                            return@forEach
+                        }
                         
                         viewModelScope.launch(Dispatchers.IO) {
                             val args = if (callObj.has("args")) callObj.get("args") else null
@@ -717,10 +814,11 @@ class FunkiraLiveViewModel : ViewModel() {
                                     eventObj?.let { handleFrontendEvent(it) }
                                 }
                                 .onFailure { err ->
-                                    addLog("[Aktion-Fehler]: Tool '$name' fehlgeschlagen: ${err.localizedMessage}")
+                                    val toolErrDetail = safeErrorDetail(err) ?: err.javaClass.simpleName.ifBlank { "Tool-Fehler" }
+                                    addLog("[Aktion-Fehler]: Tool '$name' fehlgeschlagen: $toolErrDetail")
                                     val errorJson = JsonObject().apply {
                                         addProperty("status", "error")
-                                        addProperty("message", err.localizedMessage)
+                                        addProperty("message", toolErrDetail)
                                     }
                                     sendToolResponse(callId, name, errorJson)
                                 }
@@ -732,7 +830,8 @@ class FunkiraLiveViewModel : ViewModel() {
 
         } catch (e: Exception) {
             e.printStackTrace()
-            addLog("[System-Fehler]: Exception beim Verarbeiten der Nachricht: ${e.localizedMessage}")
+            val parseErrDetail = safeErrorDetail(e) ?: e.javaClass.simpleName.ifBlank { "Verarbeitungsfehler" }
+            addLog("[System-Fehler]: Exception beim Verarbeiten der Nachricht: $parseErrDetail")
         }
     }
 
@@ -874,18 +973,27 @@ class FunkiraLiveViewModel : ViewModel() {
                 track.play()
             }
             
-            // Apply software digital gain (e.g., 2.5x volume boost)
+            // Apply software digital gain (e.g., 2.5x volume boost) & compute speech amplitude for 3D lip-sync
             val boostedBytes = ByteArray(pcmBytes.size)
+            var peakSample = 0
             for (i in 0 until pcmBytes.size step 2) {
                 if (i + 1 < pcmBytes.size) {
                     val low = pcmBytes[i].toInt() and 0xFF
                     val high = pcmBytes[i+1].toInt()
                     val sample = ((high shl 8) or low).toShort()
+                    val absRaw = kotlin.math.abs(sample.toInt())
+                    if (absRaw > peakSample) peakSample = absRaw
                     val boosted = (sample * 2.5f).toInt()
                     val clamped = maxOf(Short.MIN_VALUE.toInt(), minOf(Short.MAX_VALUE.toInt(), boosted))
                     boostedBytes[i] = (clamped and 0xFF).toByte()
                     boostedBytes[i+1] = ((clamped ushr 8) and 0xFF).toByte()
                 }
+            }
+            _aiSpeechAmplitude.value = (peakSample / 15000f).coerceIn(0f, 1f)
+            speechDecayJob?.cancel()
+            speechDecayJob = viewModelScope.launch {
+                delay(280L)
+                _aiSpeechAmplitude.value = 0f
             }
 
             val written = track.write(boostedBytes, 0, boostedBytes.size)
@@ -987,7 +1095,7 @@ class FunkiraLiveViewModel : ViewModel() {
                         if (isAiSpeaking) {
                             if (maxVal > 12000) {
                                 android.util.Log.d("FunkiraLive", "Local user interruption detected (amplitude: $maxVal). Flushing audio playback.")
-                                isAiSpeaking = false
+                                setAiSpeakingState(false)
                                 flushAudioPlayback()
                             } else {
                                 _voiceAmplitude.value = 0f
@@ -1041,16 +1149,55 @@ class FunkiraLiveViewModel : ViewModel() {
         }
     }
 
+    private fun setAiSpeakingState(speaking: Boolean) {
+        isAiSpeaking = speaking
+        _isAiSpeakingFlow.value = speaking
+        if (!speaking) {
+            speechDecayJob?.cancel()
+            _aiSpeechAmplitude.value = 0f
+        }
+        try {
+            de.meinseelenfunke.app.util.MusicPlayerManager.setVoiceDucking(speaking)
+        } catch (_: Throwable) { }
+    }
+
+    private fun startVisionStreamLoop() {
+        visionStreamJob?.cancel()
+        visionStreamJob = viewModelScope.launch(Dispatchers.IO) {
+            while (_isConnected.value && setupCompletedForCurrentSocket) {
+                try {
+                    if (de.meinseelenfunke.app.util.FalconCameraController.isVisionActive.value) {
+                        val b64 = de.meinseelenfunke.app.util.FalconCameraController.getLatestVisionFrameBase64()
+                        val ws = webSocket
+                        if (!b64.isNullOrBlank() && ws != null) {
+                            val packet = de.meinseelenfunke.app.util.FalconClientTools.buildRealtimeVideoFramePacket(b64)
+                            ws.send(gson.toJson(packet))
+                        }
+                    }
+                } catch (_: Throwable) {
+                }
+                delay(1000L)
+            }
+        }
+    }
+
+    private fun stopVisionStreamLoop() {
+        visionStreamJob?.cancel()
+        visionStreamJob = null
+    }
+
     private fun handleDisconnect(reason: String) {
         _isConnected.value = false
         _isConnecting.value = false
-        isAiSpeaking = false
+        setAiSpeakingState(false)
+        _falconEmotion.value = "idle"
+        stopVisionStreamLoop()
         connectJob?.cancel()
         connectJob = null
         stopRecording()
         releaseAudioTrack()
         if (aiTurnTranscript.isNotBlank()) {
-            val agentName = _selectedAgent.value?.name ?: "Funkira"
+            val agentName = _selectedAgent.value?.name ?: "Falcon"
             addLog("$agentName: ${aiTurnTranscript.toString().trim()}")
             aiTurnTranscript.clear()
         }
@@ -1128,6 +1275,7 @@ class FunkiraLiveViewModel : ViewModel() {
                 })
             })
         }
+        de.meinseelenfunke.app.util.FalconClientTools.appendFalconToolDeclarations(decls)
     }
 
     private fun createDefaultToolsWithEndCall(): JsonArray {
@@ -1210,7 +1358,9 @@ class FunkiraLiveViewModel : ViewModel() {
             return wsHost == cleanBase ||
                 wsHost == "mein-seelenfunke.de" ||
                 wsHost.endsWith(".mein-seelenfunke.de") ||
-                wsHost == "generativelanguage.googleapis.com"
+                wsHost == "generativelanguage.googleapis.com" ||
+                wsHost == "aiplatform.googleapis.com" ||
+                wsHost.endsWith("-aiplatform.googleapis.com")
         }
 
         fun buildDirectGeminiWsUrl(apiKey: String?): String? {
@@ -1218,6 +1368,56 @@ class FunkiraLiveViewModel : ViewModel() {
             if (clean.length < 16) return null
             val encoded = java.net.URLEncoder.encode(clean, "UTF-8")
             return "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=$encoded"
+        }
+
+        fun safeErrorDetail(t: Throwable?): String? {
+            if (t == null) return null
+            return t.localizedMessage?.trim()?.takeIf {
+                it.isNotBlank() && !it.equals("null", ignoreCase = true)
+            } ?: t.message?.trim()?.takeIf {
+                it.isNotBlank() && !it.equals("null", ignoreCase = true)
+            }
+        }
+
+        fun formatWebSocketFailureMessage(
+            t: Throwable,
+            httpStatusCode: Int? = null,
+            setupWasComplete: Boolean = false
+        ): String {
+            if (de.meinseelenfunke.app.util.ErrorSentinelReporter.isTransientWebSocketDisconnect(t, httpStatusCode)) {
+                var cur: Throwable? = t
+                var depth = 0
+                while (cur != null && depth < 6) {
+                    when (cur) {
+                        is java.io.EOFException -> {
+                            return if (setupWasComplete) "Verbindung beendet" else "Verbindung getrennt"
+                        }
+                        is java.net.UnknownHostException,
+                        is java.net.ConnectException,
+                        is java.net.NoRouteToHostException -> {
+                            return "Keine Internetverbindung"
+                        }
+                        is java.net.SocketTimeoutException -> {
+                            return "Zeitüberschreitung der Verbindung"
+                        }
+                        is java.net.SocketException,
+                        is javax.net.ssl.SSLException -> {
+                            return "Verbindung kurz unterbrochen"
+                        }
+                    }
+                    cur = cur.cause
+                    depth++
+                }
+                return "Verbindung getrennt"
+            }
+
+            val detail = safeErrorDetail(t)
+            val httpSuffix = if (httpStatusCode != null && httpStatusCode > 0) " (HTTP $httpStatusCode)" else ""
+            return when {
+                detail != null -> "Verbindungsfehler: $detail$httpSuffix"
+                httpSuffix.isNotEmpty() -> "Verbindungsfehler$httpSuffix"
+                else -> "Verbindungsfehler (${t.javaClass.simpleName.ifBlank { "Unbekannt" }})"
+            }
         }
     }
 }

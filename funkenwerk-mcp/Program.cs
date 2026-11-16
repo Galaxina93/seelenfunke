@@ -6,6 +6,9 @@ using System.IO.Pipes;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Net.Sockets;
+using System.Net.WebSockets;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
@@ -290,6 +293,45 @@ namespace FunkenwerkMcp
                 return await RunStageSentinelSyncCliAsync(args);
             }
 
+            if (args.Any(a => string.Equals(a, "--ag-set-master-chat", StringComparison.OrdinalIgnoreCase)) ||
+                args.Any(a => a.StartsWith("--ag-set-master-chat=", StringComparison.OrdinalIgnoreCase)))
+            {
+                return RunAgSetMasterChatCli(args);
+            }
+
+            if (args.Any(a => string.Equals(a, "--ag-inbox-sync", StringComparison.OrdinalIgnoreCase)))
+            {
+                return await RunAgInboxSyncCliAsync(args);
+            }
+
+            if (args.Any(a => string.Equals(a, "--ag-inbox-complete", StringComparison.OrdinalIgnoreCase)) ||
+                args.Any(a => a.StartsWith("--ag-inbox-complete=", StringComparison.OrdinalIgnoreCase)))
+            {
+                return await RunAgInboxCompleteCliAsync(args);
+            }
+
+            if (args.Any(a => string.Equals(a, "--ag-sidecar-daemon", StringComparison.OrdinalIgnoreCase)))
+            {
+                return await RunAgSidecarDaemonCliAsync(args);
+            }
+
+            if (args.Any(a => string.Equals(a, "--tresor-list", StringComparison.OrdinalIgnoreCase)))
+            {
+                return RunTresorListCli();
+            }
+
+            if (args.Any(a => string.Equals(a, "--tresor-browser-login", StringComparison.OrdinalIgnoreCase)) ||
+                args.Any(a => a.StartsWith("--tresor-browser-login=", StringComparison.OrdinalIgnoreCase)))
+            {
+                return await RunTresorBrowserLoginCliAsync(args);
+            }
+
+            if (args.Any(a => string.Equals(a, "--mittwald-api", StringComparison.OrdinalIgnoreCase)) ||
+                args.Any(a => a.StartsWith("--mittwald-api=", StringComparison.OrdinalIgnoreCase)))
+            {
+                return await RunMittwaldApiBrokerCliAsync(args);
+            }
+
             // Ensure ACL lockdown on MCP data directory immediately at startup
             McpSecurityGuard.LockDownDirectoryAcl(McpSecurityGuard.VaultDirectory);
 
@@ -456,13 +498,198 @@ namespace FunkenwerkMcp
             }
         }
 
+        internal static (int ArchivedFiles, long ArchivedBytes, long RemainingActiveBytes) ArchiveAndZeroWindowsDesktopLogs(string? localAppDataOverride = null)
+        {
+            string baseLocal = string.IsNullOrWhiteSpace(localAppDataOverride)
+                ? Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)
+                : localAppDataOverride;
+
+            int archivedFiles = 0;
+            long archivedBytes = 0;
+            string stamp = DateTime.UtcNow.ToString("yyyy-MM-dd_HHmmss");
+            var cutoffUtc = DateTime.UtcNow.AddDays(-30);
+
+            string tresorDir = Path.Combine(baseLocal, "FunkenwerkTresor");
+            string tresorBootLog = Path.Combine(tresorDir, "funkenwerk_tresor_boot.log");
+            if (File.Exists(tresorBootLog))
+            {
+                long sz = new FileInfo(tresorBootLog).Length;
+                if (sz > 0)
+                {
+                    string archDir = Path.Combine(tresorDir, "archive");
+                    Directory.CreateDirectory(archDir);
+                    McpSecurityGuard.LockDownDirectoryAcl(archDir);
+                    string raw = File.ReadAllText(tresorBootLog, Encoding.UTF8);
+                    string archPath = Path.Combine(archDir, $"healed_{stamp}_funkenwerk_tresor_boot.log");
+                    string header = $"# Seelenfunke Windows Log-Archiv | Archiviert: {DateTimeOffset.Now:O} | Quelle: funkenwerk_tresor_boot.log ({sz} Bytes){Environment.NewLine}";
+                    File.WriteAllText(archPath, header + McpSecurityGuard.ScrubSecrets(raw), Utf8NoBom);
+                    File.WriteAllText(tresorBootLog, "", Utf8NoBom);
+                    archivedFiles++;
+                    archivedBytes += sz;
+
+                    foreach (var f in Directory.GetFiles(archDir))
+                    {
+                        if (File.GetLastWriteTimeUtc(f) < cutoffUtc)
+                        {
+                            try { File.Delete(f); } catch { }
+                        }
+                    }
+                }
+            }
+
+            string fwDir = Path.Combine(baseLocal, "Funkenwerk");
+            string fwQueue = Path.Combine(fwDir, "error_sentinel_queue.json");
+            if (File.Exists(fwQueue))
+            {
+                long qSz = new FileInfo(fwQueue).Length;
+                if (qSz > 0)
+                {
+                    string archDir = Path.Combine(fwDir, "archive");
+                    Directory.CreateDirectory(archDir);
+                    McpSecurityGuard.LockDownDirectoryAcl(archDir);
+                    string rawQ = File.ReadAllText(fwQueue, Encoding.UTF8);
+                    string archQ = Path.Combine(archDir, $"healed_{stamp}_error_sentinel_queue.json");
+                    File.WriteAllText(archQ, McpSecurityGuard.ScrubSecrets(rawQ), Utf8NoBom);
+                    archivedFiles++;
+                    archivedBytes += qSz;
+                }
+                try { File.Delete(fwQueue); } catch { File.WriteAllText(fwQueue, "", Utf8NoBom); }
+            }
+
+            long rem = (File.Exists(tresorBootLog) ? new FileInfo(tresorBootLog).Length : 0)
+                     + (File.Exists(fwQueue) ? new FileInfo(fwQueue).Length : 0);
+            return (archivedFiles, archivedBytes, rem);
+        }
+
+        internal static int CollectWindowsDesktopDossiers(
+            HashSet<string> seenFingerprints,
+            JsonArray itemsArray,
+            string? localAppDataOverride = null)
+        {
+            string baseLocal = string.IsNullOrWhiteSpace(localAppDataOverride)
+                ? Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)
+                : localAppDataOverride;
+
+            int added = 0;
+
+            string fwQueue = Path.Combine(baseLocal, "Funkenwerk", "error_sentinel_queue.json");
+            if (File.Exists(fwQueue) && new FileInfo(fwQueue).Length > 0)
+            {
+                try
+                {
+                    if (JsonNode.Parse(File.ReadAllText(fwQueue, Encoding.UTF8)) is JsonArray qArr)
+                    {
+                        foreach (var qItem in qArr)
+                        {
+                            if (qItem is not JsonObject ev) continue;
+                            bool autoHealed = (ev["AutoHealed"] ?? ev["auto_healed"])?.GetValue<bool>() ?? false;
+                            if (autoHealed) continue;
+
+                            string evTitle = McpSecurityGuard.ScrubSecrets((ev["Title"] ?? ev["title"])?.GetValue<string>() ?? "Windows Funkenwerk Fehler");
+                            string evComp = McpSecurityGuard.ScrubSecrets((ev["Component"] ?? ev["component"])?.GetValue<string>() ?? "funkenwerk_wpf");
+                            string evFp = (ev["Fingerprint"] ?? ev["fingerprint"])?.GetValue<string>() ?? "";
+                            if (string.IsNullOrWhiteSpace(evFp))
+                            {
+                                byte[] hash = System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes($"windows_desktop|{evComp}|{evTitle}".ToLowerInvariant()));
+                                evFp = Convert.ToHexString(hash).ToLowerInvariant();
+                            }
+                            if (!seenFingerprints.Add(evFp)) continue;
+
+                            itemsArray.Add(new JsonObject
+                            {
+                                ["dossier_version"] = 2,
+                                ["fingerprint"] = evFp,
+                                ["origin_environment"] = "windows_local",
+                                ["prepared_at"] = (ev["OccurredAt"] ?? ev["occurred_at"])?.GetValue<string>() ?? DateTimeOffset.Now.ToString("O"),
+                                ["prepared_by"] = "Funkenwerk Windows Sentinel",
+                                ["criticality"] = "standard",
+                                ["platform"] = "windows_desktop",
+                                ["platform_label"] = "Funkenwerk Software",
+                                ["type"] = "windows_desktop",
+                                ["action_id"] = $"windows_desktop:{evComp}",
+                                ["severity"] = (ev["Severity"] ?? ev["severity"])?.GetValue<string>() ?? "error",
+                                ["title"] = evTitle,
+                                ["message"] = McpSecurityGuard.ScrubSecrets((ev["Message"] ?? ev["message"])?.GetValue<string>() ?? ""),
+                                ["culprit_file"] = "funkenwerk/App.xaml.cs",
+                                ["line"] = null,
+                                ["occurrences_count"] = 1,
+                                ["probable_cause"] = "Lokaler Laufzeitfehler in der Funkenwerk Windows Suite.",
+                                ["recommended_action"] = "Stacktrace in funkenwerk/ prüfen und Fehlerursache beheben.",
+                                ["trace_excerpt"] = McpSecurityGuard.ScrubSecrets((ev["Stacktrace"] ?? ev["stacktrace"])?.GetValue<string>() ?? "")
+                            });
+                            added++;
+                        }
+                    }
+                }
+                catch { }
+            }
+
+            string tresorBootLog = Path.Combine(baseLocal, "FunkenwerkTresor", "funkenwerk_tresor_boot.log");
+            if (File.Exists(tresorBootLog) && new FileInfo(tresorBootLog).Length > 0)
+            {
+                try
+                {
+                    string rawBoot = File.ReadAllText(tresorBootLog, Encoding.UTF8);
+                    string trimmedBoot = rawBoot.Trim();
+                    if (!string.IsNullOrEmpty(trimmedBoot))
+                    {
+                        string scrubbedBoot = McpSecurityGuard.ScrubSecrets(trimmedBoot);
+                        string excerpt = scrubbedBoot.Length > 1800
+                            ? scrubbedBoot.Substring(scrubbedBoot.Length - 1800)
+                            : scrubbedBoot;
+                        bool hasException = scrubbedBoot.Contains("EXCEPTION", StringComparison.OrdinalIgnoreCase) ||
+                                            scrubbedBoot.Contains("STARTUP_CATCH", StringComparison.OrdinalIgnoreCase);
+                        string title = hasException
+                            ? "[Funkenwerk Tresor] Ausnahme in funkenwerk_tresor_boot.log erkannt"
+                            : "[Funkenwerk Tresor] funkenwerk_tresor_boot.log > 0 Bytes";
+                        byte[] hash = System.Security.Cryptography.SHA256.HashData(
+                            Encoding.UTF8.GetBytes($"windows_desktop|funkenwerk_tresor_boot|{title}".ToLowerInvariant()));
+                        string fp = Convert.ToHexString(hash).ToLowerInvariant();
+
+                        if (seenFingerprints.Add(fp))
+                        {
+                            itemsArray.Add(new JsonObject
+                            {
+                                ["dossier_version"] = 2,
+                                ["fingerprint"] = fp,
+                                ["origin_environment"] = "windows_local",
+                                ["prepared_at"] = DateTimeOffset.Now.ToString("O"),
+                                ["prepared_by"] = "Funkenwerk Windows Sentinel",
+                                ["criticality"] = "standard",
+                                ["platform"] = "windows_desktop",
+                                ["platform_label"] = "Funkenwerk Software",
+                                ["type"] = "windows_desktop",
+                                ["action_id"] = "windows_desktop:funkenwerk_tresor_boot",
+                                ["severity"] = hasException ? "error" : "warning",
+                                ["title"] = title,
+                                ["message"] = $"funkenwerk_tresor_boot.log ({new FileInfo(tresorBootLog).Length} Bytes) enthält unarchivierte Einträge.",
+                                ["culprit_file"] = "funkenwerk-tresor/App.xaml.cs",
+                                ["line"] = 48,
+                                ["occurrences_count"] = 1,
+                                ["probable_cause"] = "Unbehandelte Ausnahme oder nicht-archiviertes Boot-Log in Funkenwerk Tresor.",
+                                ["recommended_action"] = "funkenwerk-tresor/App.xaml.cs prüfen und nach Fix per --resolve-all archivieren.",
+                                ["trace_excerpt"] = excerpt
+                            });
+                            added++;
+                        }
+                    }
+                }
+                catch { }
+            }
+
+            return added;
+        }
+
         private static async Task<int> RunStageSentinelSyncCliAsync(string[] args)
         {
             try
             {
                 McpSecurityGuard.LockDownDirectoryAcl(McpSecurityGuard.VaultDirectory);
 
-                bool resolveStageFirst = args.Any(a => string.Equals(a, "--resolve-stage", StringComparison.OrdinalIgnoreCase));
+                bool resolveAll = args.Any(a => string.Equals(a, "--resolve-all", StringComparison.OrdinalIgnoreCase));
+                bool resolveStageFirst = resolveAll || args.Any(a => string.Equals(a, "--resolve-stage", StringComparison.OrdinalIgnoreCase));
+                bool resolveMiniPcFirst = resolveAll || args.Any(a => string.Equals(a, "--resolve-minipc", StringComparison.OrdinalIgnoreCase));
+
                 if (resolveStageFirst)
                 {
                     Console.WriteLine("🧹 [Stage-Pool] Markiere offene Stage-Pool-Dossiers als gelöst...");
@@ -470,7 +697,63 @@ namespace FunkenwerkMcp
                     Console.WriteLine($"   ✓ Stage-Antwort: {resolveOut}");
                 }
 
-                Console.WriteLine("🛡️ [1/2] Rufe 24/7 Funkira-Auffang-Pool von Stage ('Mittwald' / seelenfunke-stage) per Ed25519-SSH ab...");
+                if (resolveMiniPcFirst)
+                {
+                    try
+                    {
+                        Console.WriteLine("🧹 [Mini-PC] Archiviere erledigte Dossiers & leere Haupt-Logs auf 0 Bytes...");
+                        string miniResolveOut = await McpSecurityGuard.ExecutePinnedSshPresetAsync("Manufaktur Mini-PC", "minipc_sentinel_resolve_all");
+                        Console.WriteLine($"   ✓ Mini-PC-Antwort: {miniResolveOut}");
+                    }
+                    catch (Exception miniEx)
+                    {
+                        Console.WriteLine($"   ℹ Mini-PC aktuell im Energiesparmodus/offline ({McpSecurityGuard.ScrubSecrets(miniEx.Message)}).");
+                    }
+                }
+
+                if (resolveAll || args.Any(a => string.Equals(a, "--resolve-windows", StringComparison.OrdinalIgnoreCase)))
+                {
+                    try
+                    {
+                        var (winFiles, winBytes, winRem) = ArchiveAndZeroWindowsDesktopLogs();
+                        if (winFiles > 0)
+                        {
+                            Console.WriteLine($"🧹 [Windows-Desktop] {winFiles} Logdatei(en) ({winBytes} Bytes) ins Archiv verschoben (Rest: {winRem} Bytes).");
+                        }
+                    }
+                    catch { }
+                }
+
+                if (resolveAll)
+                {
+                    try
+                    {
+                        Console.WriteLine("🧹 [Lokal] Archiviere lokale Haupt-Logs (storage/logs/*.log -> archive/) & leere auf 0 Bytes...");
+                        var localResolvePsi = new ProcessStartInfo
+                        {
+                            FileName = "wsl.exe",
+                            Arguments = "-d Ubuntu bash -c \"docker exec -u www-data mein_php_server php /var/www/html/artisan system:sentinel-inbox --resolve-all --resolved-by=Antigravity 2>/dev/null\"",
+                            UseShellExecute = false,
+                            RedirectStandardOutput = true,
+                            RedirectStandardError = true,
+                            CreateNoWindow = true
+                        };
+                        using var lProc = Process.Start(localResolvePsi);
+                        if (lProc != null)
+                        {
+                            using var lCts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+                            string lOut = await lProc.StandardOutput.ReadToEndAsync(lCts.Token);
+                            await lProc.WaitForExitAsync(lCts.Token);
+                            if (lProc.ExitCode == 0 && !string.IsNullOrWhiteSpace(lOut))
+                            {
+                                Console.WriteLine($"   ✓ Lokal-Antwort: {McpSecurityGuard.ScrubSecrets(lOut.Trim())}");
+                            }
+                        }
+                    }
+                    catch { }
+                }
+
+                Console.WriteLine("🛡️ [1/3] Rufe 24/7 Funkira-Auffang-Pool von Stage ('Mittwald' / seelenfunke-stage) per Ed25519-SSH ab...");
                 string rawJson = await McpSecurityGuard.ExecutePinnedSshPresetAsync("Mittwald", "stage_sentinel_export");
 
                 int jsonStart = rawJson.IndexOf('{');
@@ -479,19 +762,145 @@ namespace FunkenwerkMcp
                     throw new InvalidOperationException("Stage lieferte kein gültiges JSON-Objekt für den Auffang-Pool.");
 
                 string cleanJson = McpSecurityGuard.ScrubSecrets(rawJson.Substring(jsonStart, jsonEnd - jsonStart + 1));
-                using var doc = JsonDocument.Parse(cleanJson, StrictJsonParseOptions);
-                int openPoolCount = doc.RootElement.TryGetProperty("open_pool_count", out var opc) && opc.ValueKind == JsonValueKind.Number
-                    ? opc.GetInt32()
-                    : 0;
-                int autoHealed7d = doc.RootElement.TryGetProperty("auto_healed_last_7d_count", out var ahc) && ahc.ValueKind == JsonValueKind.Number
-                    ? ahc.GetInt32()
-                    : 0;
+                var rootNode = JsonNode.Parse(cleanJson)?.AsObject()
+                    ?? throw new InvalidOperationException("Stage-JSON konnte nicht als Objekt geparst werden.");
+
+                var itemsArray = rootNode["items"]?.AsArray() ?? new JsonArray();
+                if (rootNode["items"] == null)
+                {
+                    rootNode["items"] = itemsArray;
+                }
+
+                var seenFingerprints = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var existingNode in itemsArray)
+                {
+                    string? fp = existingNode?["fingerprint"]?.GetValue<string>();
+                    if (!string.IsNullOrWhiteSpace(fp))
+                        seenFingerprints.Add(fp);
+                }
+
+                int miniPcAdded = 0;
+                Console.WriteLine("🖥️ [2/3] Rufe direkte Funkira-Keller-Dossiers vom Manufaktur Mini-PC (192.168.188.151) ab...");
+                try
+                {
+                    string rawMiniJson = await McpSecurityGuard.ExecutePinnedSshPresetAsync("Manufaktur Mini-PC", "minipc_sentinel_export");
+                    int mStart = rawMiniJson.IndexOf('{');
+                    int mEnd = rawMiniJson.LastIndexOf('}');
+                    if (mStart >= 0 && mEnd > mStart)
+                    {
+                        string cleanMini = McpSecurityGuard.ScrubSecrets(rawMiniJson.Substring(mStart, mEnd - mStart + 1));
+                        var miniRoot = JsonNode.Parse(cleanMini)?.AsObject();
+                        if (miniRoot != null)
+                        {
+                            if (miniRoot["handoff"] is JsonObject handoffObj)
+                            {
+                                string hoTitle = handoffObj["title"]?.GetValue<string>() ?? "Mini-PC Befund";
+                                string hoPlatform = handoffObj["platform"]?.GetValue<string>() ?? "minipc_linux";
+                                string hoComp = handoffObj["item_key"]?.GetValue<string>() ?? "cellar_handoff";
+                                string hoFp = handoffObj["fingerprint"]?.GetValue<string>() ?? "";
+                                if (string.IsNullOrWhiteSpace(hoFp))
+                                {
+                                    byte[] hash = System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes($"{hoPlatform}|{hoComp}|{hoTitle}".ToLowerInvariant()));
+                                    hoFp = Convert.ToHexString(hash).ToLowerInvariant();
+                                }
+
+                                if (seenFingerprints.Add(hoFp))
+                                {
+                                    var converted = new JsonObject
+                                    {
+                                        ["dossier_version"] = 2,
+                                        ["fingerprint"] = hoFp,
+                                        ["origin_environment"] = "minipc_direct",
+                                        ["prepared_at"] = handoffObj["prepared_at"]?.GetValue<string>() ?? DateTimeOffset.Now.ToString("O"),
+                                        ["prepared_by"] = handoffObj["prepared_by"]?.GetValue<string>() ?? "Funkira Mini-PC Analyse-Keller",
+                                        ["criticality"] = (handoffObj["severity"]?.GetValue<string>() == "critical") ? "critical" : "high",
+                                        ["platform"] = hoPlatform,
+                                        ["platform_label"] = handoffObj["platform_label"]?.GetValue<string>() ?? "Mini-PC",
+                                        ["type"] = "minipc",
+                                        ["action_id"] = hoComp,
+                                        ["severity"] = handoffObj["severity"]?.GetValue<string>() ?? "error",
+                                        ["title"] = hoTitle,
+                                        ["message"] = handoffObj["message"]?.GetValue<string>() ?? "",
+                                        ["culprit_file"] = handoffObj["culprit_file"]?.GetValue<string>(),
+                                        ["line"] = handoffObj["line"] != null ? JsonNode.Parse(handoffObj["line"]!.ToJsonString()) : null,
+                                        ["route_or_command"] = handoffObj["route"]?.GetValue<string>() ?? "",
+                                        ["occurrences_count"] = handoffObj["occurrences_count"]?.GetValue<int>() ?? 1,
+                                        ["probable_cause"] = handoffObj["probable_cause"]?.GetValue<string>() ?? "",
+                                        ["recommended_action"] = handoffObj["recommended_action"]?.GetValue<string>() ?? "",
+                                        ["alina_note"] = handoffObj["alina_note"]?.GetValue<string>(),
+                                        ["trace_excerpt"] = handoffObj["trace_excerpt"]?.GetValue<string>() ?? ""
+                                    };
+                                    itemsArray.Add(converted);
+                                    miniPcAdded++;
+                                }
+                            }
+
+                            if (miniRoot["open_history"] is JsonArray openHist)
+                            {
+                                foreach (var histItem in openHist)
+                                {
+                                    if (histItem is not JsonObject ev) continue;
+                                    string evFp = (ev["Fingerprint"] ?? ev["fingerprint"])?.GetValue<string>() ?? "";
+                                    string evTitle = (ev["Title"] ?? ev["title"])?.GetValue<string>() ?? "Mini-PC Laufzeitfehler";
+                                    string evComp = (ev["Component"] ?? ev["component"])?.GetValue<string>() ?? "minipc_runtime";
+                                    if (string.IsNullOrWhiteSpace(evFp))
+                                    {
+                                        byte[] hash = System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes($"minipc_linux|{evComp}|{evTitle}".ToLowerInvariant()));
+                                        evFp = Convert.ToHexString(hash).ToLowerInvariant();
+                                    }
+                                    if (!seenFingerprints.Add(evFp)) continue;
+
+                                    var convertedEv = new JsonObject
+                                    {
+                                        ["dossier_version"] = 2,
+                                        ["fingerprint"] = evFp,
+                                        ["origin_environment"] = "minipc_direct",
+                                        ["prepared_at"] = (ev["OccurredAt"] ?? ev["occurred_at"])?.GetValue<string>() ?? DateTimeOffset.Now.ToString("O"),
+                                        ["prepared_by"] = "Funkira Mini-PC Sentinel",
+                                        ["criticality"] = "standard",
+                                        ["platform"] = "minipc_linux",
+                                        ["platform_label"] = "Mini-PC",
+                                        ["type"] = "minipc",
+                                        ["action_id"] = evComp,
+                                        ["severity"] = (ev["Severity"] ?? ev["severity"])?.GetValue<string>() ?? "error",
+                                        ["title"] = evTitle,
+                                        ["message"] = (ev["Message"] ?? ev["message"])?.GetValue<string>() ?? "",
+                                        ["culprit_file"] = null,
+                                        ["line"] = null,
+                                        ["occurrences_count"] = 1,
+                                        ["probable_cause"] = "Ungeheilter Laufzeitbefund aus Funkiras lokalem Mini-PC-Protokoll.",
+                                        ["recommended_action"] = "Stacktrace und Komponente in funkenwerk-os-linux prüfen.",
+                                        ["trace_excerpt"] = (ev["Stacktrace"] ?? ev["stacktrace"])?.GetValue<string>() ?? ""
+                                    };
+                                    itemsArray.Add(convertedEv);
+                                    miniPcAdded++;
+                                }
+                            }
+                        }
+                    }
+                    Console.WriteLine($"   ✓ Mini-PC direkt abgeglichen: {miniPcAdded} zusätzliche lokale Dossiers übernommen.");
+                }
+                catch (Exception miniSyncEx)
+                {
+                    Console.WriteLine($"   ℹ Mini-PC aktuell im Energiesparmodus/nicht erreichbar ({McpSecurityGuard.ScrubSecrets(miniSyncEx.Message)}). Stage-Pool wird weiterverarbeitet.");
+                }
+
+                int winDesktopAdded = CollectWindowsDesktopDossiers(seenFingerprints, itemsArray);
+                if (winDesktopAdded > 0)
+                {
+                    Console.WriteLine($"   ⚠ Windows-Desktop geprüft: {winDesktopAdded} lokale(s) Dossier(s) übernommen.");
+                }
+
+                int openPoolCount = itemsArray.Count;
+                rootNode["open_pool_count"] = openPoolCount;
+                int autoHealed7d = rootNode["auto_healed_last_7d_count"]?.GetValue<int>() ?? 0;
 
                 string localPrivateDir = Path.Combine(McpSecurityGuard.DefaultLocalStorageAppRoot, "private");
                 Directory.CreateDirectory(localPrivateDir);
                 string localInboxPath = Path.Combine(localPrivateDir, "antigravity_inbox.json");
+                string localHandoffPath = Path.Combine(localPrivateDir, "antigravity_error_handoff.json");
 
-                string prettyJson = JsonSerializer.Serialize(doc.RootElement, JsonPretty);
+                string prettyJson = rootNode.ToJsonString(JsonPretty);
                 try
                 {
                     await File.WriteAllTextAsync(localInboxPath, prettyJson, Utf8NoBom);
@@ -502,15 +911,21 @@ namespace FunkenwerkMcp
                         File.Delete(localInboxPath);
                     await File.WriteAllTextAsync(localInboxPath, prettyJson, Utf8NoBom);
                 }
-                Console.WriteLine($"   ✓ Stage-Pool empfangen: {openPoolCount} offene Antigravity-Dossiers | {autoHealed7d} Auto-Heilungen (7 Tage).");
 
-                Console.WriteLine("📥 [2/2] Synchronisiere Stage-Auffang-Pool in lokale Datenbank (127.0.0.1)...");
+                if (openPoolCount == 0 && File.Exists(localHandoffPath))
+                {
+                    try { File.Delete(localHandoffPath); } catch { }
+                }
+
+                Console.WriteLine($"   ✓ Universums-Pool zusammengeführt: {openPoolCount} offene Antigravity-Dossiers | {autoHealed7d} Auto-Heilungen (7 Tage).");
+
+                Console.WriteLine("📥 [3/3] Synchronisiere Universums-Auffang-Pool in lokale Datenbank (mein_php_server)...");
                 try
                 {
                     var psi = new ProcessStartInfo
                     {
                         FileName = "wsl.exe",
-                        Arguments = "-d Ubuntu bash -c \"cd /home/ubuntuxina/meine-projekte/seelenfunke && docker compose exec -T web php artisan system:sentinel-inbox --import-file=storage/app/private/antigravity_inbox.json 2>/dev/null\"",
+                        Arguments = "-d Ubuntu bash -c \"docker exec -u www-data mein_php_server php /var/www/html/artisan system:sentinel-inbox --import-file=storage/app/private/antigravity_inbox.json 2>/dev/null\"",
                         UseShellExecute = false,
                         RedirectStandardOutput = true,
                         RedirectStandardError = true,
@@ -524,11 +939,11 @@ namespace FunkenwerkMcp
                         await proc.WaitForExitAsync(cts.Token);
                         if (proc.ExitCode == 0 && !string.IsNullOrWhiteSpace(importOut))
                         {
-                            Console.WriteLine($"   ✓ Lokaler DB-Import erfolgreich: {McpSecurityGuard.ScrubSecrets(importOut.Trim())}");
+                            Console.WriteLine($"   ✓ Lokaler DB-Import & Code-Snippet-Anreicherung erfolgreich: {McpSecurityGuard.ScrubSecrets(importOut.Trim())}");
                         }
                         else
                         {
-                            Console.WriteLine("   ℹ Lokaler Docker-Webcontainer schläft aktuell; Datei storage/app/private/antigravity_inbox.json liegt bereit und wird beim nächsten './funki start' importiert.");
+                            Console.WriteLine("   ℹ Lokaler Docker-Container schläft aktuell; Datei storage/app/private/antigravity_inbox.json liegt vollständig bereit.");
                         }
                     }
                 }
@@ -537,12 +952,841 @@ namespace FunkenwerkMcp
                     Console.WriteLine("   ℹ Lokaler DB-Import übersprungen (Datei storage/app/private/antigravity_inbox.json ist vollständig gespeichert).");
                 }
 
-                Console.WriteLine("✅ 24/7 Auffang-Pool-Sync abgeschlossen.");
+                Console.WriteLine("✅ 24/7 Universums-Auffang-Pool-Sync abgeschlossen.");
                 return 0;
             }
             catch (Exception ex)
             {
                 Console.Error.WriteLine($"❌ Sentinel-Pool-Sync abgebrochen: {McpSecurityGuard.ScrubSecrets(ex.Message)}");
+                return 1;
+            }
+        }
+
+        // =====================================================================
+        // AG DIRECT BRIDGE CLI & SHARED ORCHESTRATION (2-PHASE COMMIT)
+        // =====================================================================
+        private static string? GetCliOptionValue(string[] args, string flagName)
+        {
+            string eqPrefix = flagName + "=";
+            for (int i = 0; i < args.Length; i++)
+            {
+                if (args[i].StartsWith(eqPrefix, StringComparison.OrdinalIgnoreCase))
+                    return args[i].Substring(eqPrefix.Length);
+
+                if (string.Equals(args[i], flagName, StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
+                    return args[i + 1];
+            }
+            return null;
+        }
+
+        private static int RunAgSetMasterChatCli(string[] args)
+        {
+            try
+            {
+                McpSecurityGuard.LockDownDirectoryAcl(McpSecurityGuard.VaultDirectory);
+                string? rawGuid = GetCliOptionValue(args, "--ag-set-master-chat");
+                if (string.IsNullOrWhiteSpace(rawGuid))
+                    throw new ArgumentException("Bitte eine gültige Konversations-ID übergeben: --ag-set-master-chat <guid>");
+
+                var existing = McpSecurityGuard.LoadAgBridgeConfig();
+                existing.MasterConversationId = McpSecurityGuard.ValidateAgConversationId(rawGuid);
+                var saved = McpSecurityGuard.SaveAgBridgeConfig(existing);
+
+                Console.WriteLine(McpSecurityGuard.ScrubSecrets(JsonSerializer.Serialize(new
+                {
+                    status = "success",
+                    master_conversation_id = saved.MasterConversationId,
+                    poll_interval_seconds = saved.PollIntervalSeconds,
+                    config_path = McpSecurityGuard.AgDirectBridgeConfigPath
+                }, JsonPretty)));
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"❌ Master-Chat Konfiguration fehlgeschlagen: {McpSecurityGuard.ScrubSecrets(ex.Message)}");
+                return 1;
+            }
+        }
+
+        private static async Task<int> RunAgInboxSyncCliAsync(string[] args)
+        {
+            try
+            {
+                McpSecurityGuard.LockDownDirectoryAcl(McpSecurityGuard.VaultDirectory);
+                bool peekOnly = args.Any(a => string.Equals(a, "--peek-only", StringComparison.OrdinalIgnoreCase));
+                var resultNode = await SyncAgDirectInboxAsync(peekOnly: peekOnly, isDaemonInternal: false);
+                Console.WriteLine(McpSecurityGuard.ScrubSecrets(resultNode.ToJsonString(JsonPretty)));
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"❌ AG-Inbox-Sync fehlgeschlagen: {McpSecurityGuard.ScrubSecrets(ex.Message)}");
+                return 1;
+            }
+        }
+
+        private static async Task<int> RunAgInboxCompleteCliAsync(string[] args)
+        {
+            try
+            {
+                McpSecurityGuard.LockDownDirectoryAcl(McpSecurityGuard.VaultDirectory);
+
+                string? rawId = null;
+                string summary = "Erledigt durch Antigravity.";
+
+                int idx = Array.FindIndex(args, a => string.Equals(a, "--ag-inbox-complete", StringComparison.OrdinalIgnoreCase));
+                if (idx >= 0)
+                {
+                    if (idx + 1 < args.Length)
+                        rawId = args[idx + 1];
+                    if (idx + 2 < args.Length)
+                        summary = string.Join(" ", args.Skip(idx + 2)).Trim();
+                }
+                else
+                {
+                    rawId = GetCliOptionValue(args, "--ag-inbox-complete");
+                    string? optSum = GetCliOptionValue(args, "--summary");
+                    if (!string.IsNullOrWhiteSpace(optSum))
+                        summary = optSum!;
+                }
+
+                if (string.IsNullOrWhiteSpace(rawId))
+                    throw new ArgumentException("Aufruf: --ag-inbox-complete <id> \"<kurze Zusammenfassung>\"");
+
+                var res = await CompleteAgDirectInboxItemAsync(rawId!, summary);
+                Console.WriteLine(McpSecurityGuard.ScrubSecrets(JsonSerializer.Serialize(res, JsonPretty)));
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"❌ AG-Inbox-Fertigmeldung fehlgeschlagen: {McpSecurityGuard.ScrubSecrets(ex.Message)}");
+                return 1;
+            }
+        }
+
+        private static async Task<int> RunAgSidecarDaemonCliAsync(string[] args)
+        {
+            McpSecurityGuard.LockDownDirectoryAcl(McpSecurityGuard.VaultDirectory);
+
+            string? cliConvId = GetCliOptionValue(args, "--conversation-id");
+            if (!string.IsNullOrWhiteSpace(cliConvId))
+            {
+                cliConvId = McpSecurityGuard.ValidateAgConversationId(cliConvId);
+                if (!File.Exists(McpSecurityGuard.AgDirectBridgeConfigPath))
+                {
+                    try
+                    {
+                        McpSecurityGuard.SaveAgBridgeConfig(new AgDirectBridgeConfigDto
+                        {
+                            MasterConversationId = cliConvId,
+                            PollIntervalSeconds = McpSecurityGuard.DefaultAgPollIntervalSeconds
+                        });
+                    }
+                    catch { }
+                }
+            }
+
+            DateTime startupConfigWriteUtc = File.Exists(McpSecurityGuard.AgDirectBridgeConfigPath)
+                ? File.GetLastWriteTimeUtc(McpSecurityGuard.AgDirectBridgeConfigPath)
+                : DateTime.MinValue;
+
+            using var cts = new CancellationTokenSource();
+            Console.CancelKeyPress += (s, e) =>
+            {
+                e.Cancel = true;
+                try { cts.Cancel(); } catch { }
+            };
+            AppDomain.CurrentDomain.ProcessExit += (s, e) =>
+            {
+                try { cts.Cancel(); } catch { }
+            };
+
+            while (!cts.IsCancellationRequested)
+            {
+                int pollSeconds = McpSecurityGuard.DefaultAgPollIntervalSeconds;
+                try
+                {
+                    var cfg = McpSecurityGuard.LoadAgBridgeConfig();
+                    pollSeconds = Math.Clamp(cfg.PollIntervalSeconds, McpSecurityGuard.MinAgPollIntervalSeconds, 3600);
+
+                    DateTime currentCfgWriteUtc = File.Exists(McpSecurityGuard.AgDirectBridgeConfigPath)
+                        ? File.GetLastWriteTimeUtc(McpSecurityGuard.AgDirectBridgeConfigPath)
+                        : DateTime.MinValue;
+
+                    // Hot-reload if ag_direct_bridge_config.json was updated via --ag-set-master-chat after startup
+                    string targetConversationId = (currentCfgWriteUtc > startupConfigWriteUtc || string.IsNullOrWhiteSpace(cliConvId))
+                        ? cfg.MasterConversationId
+                        : cliConvId!;
+
+                    targetConversationId = McpSecurityGuard.ValidateAgConversationId(targetConversationId);
+
+                    var pendingEntries = new List<(JsonObject Item, bool FromStage, bool FromLocal)>();
+                    var byId = new Dictionary<string, int>(StringComparer.Ordinal);
+
+                    // 1a. Peek pending on Stage (0 status mutation, 0 KI-tokens when empty)
+                    try
+                    {
+                        string stageRaw = await McpSecurityGuard.ExecuteStageAgInboxCommandAsync("peek_pending", isDaemonInternal: true);
+                        var stageObj = ParseJsonObjectFromCliOutput(stageRaw);
+                        if (stageObj?["items"] is JsonArray stageItems)
+                        {
+                            foreach (var node in stageItems)
+                            {
+                                if (node is not JsonObject itemObj) continue;
+                                string? id = itemObj["id"]?.GetValue<string>();
+                                if (string.IsNullOrWhiteSpace(id)) continue;
+                                string safeId = McpSecurityGuard.ValidateAgInboxSingleId(id);
+                                byId[safeId] = pendingEntries.Count;
+                                pendingEntries.Add(((JsonObject)itemObj.DeepClone(), FromStage: true, FromLocal: false));
+                            }
+                        }
+                    }
+                    catch (Exception stageEx)
+                    {
+                        Console.Error.WriteLine($"[AG-Sidecar] Stage-Poll Warnung: {McpSecurityGuard.ScrubSecrets(stageEx.Message)}");
+                    }
+
+                    // 1b. Peek local antigravity_direct_inbox.json (0 process spawns when idle/absent)
+                    try
+                    {
+                        foreach (var localItem in ReadLocalDirectInboxItems(onlyPending: true))
+                        {
+                            string? id = localItem["id"]?.GetValue<string>();
+                            if (string.IsNullOrWhiteSpace(id)) continue;
+                            string safeId = McpSecurityGuard.ValidateAgInboxSingleId(id);
+                            if (byId.TryGetValue(safeId, out int existingIdx))
+                            {
+                                var cur = pendingEntries[existingIdx];
+                                pendingEntries[existingIdx] = (cur.Item, cur.FromStage, FromLocal: true);
+                            }
+                            else
+                            {
+                                byId[safeId] = pendingEntries.Count;
+                                pendingEntries.Add((localItem, FromStage: false, FromLocal: true));
+                            }
+                        }
+                    }
+                    catch { }
+
+                    // 2. Deliver each pending item with strict 2-phase commit
+                    foreach (var (itemObj, fromStage, fromLocal) in pendingEntries)
+                    {
+                        if (cts.IsCancellationRequested) break;
+
+                        string safeId = McpSecurityGuard.ValidateAgInboxSingleId(itemObj["id"]?.GetValue<string>());
+                        string? savedMediaPath = null;
+                        bool hasAttachment = itemObj["has_attachment"]?.GetValue<bool>() == true;
+                        string? b64 = itemObj["attachment_base64"]?.GetValue<string>();
+
+                        if (hasAttachment && !string.IsNullOrWhiteSpace(b64))
+                        {
+                            savedMediaPath = McpSecurityGuard.SaveAgDirectAttachmentSafe(
+                                safeId,
+                                itemObj["attachment_name"]?.GetValue<string>(),
+                                itemObj["attachment_mime"]?.GetValue<string>(),
+                                b64!);
+                        }
+                        else if (hasAttachment)
+                        {
+                            string? existingLocalMedia = itemObj["local_attachment_path"]?.GetValue<string>();
+                            if (!string.IsNullOrWhiteSpace(existingLocalMedia) && File.Exists(existingLocalMedia))
+                                savedMediaPath = existingLocalMedia;
+                        }
+
+                        string title = itemObj["title"]?.GetValue<string>() ?? "";
+                        string? body = itemObj["body"]?.GetValue<string>();
+                        string? execMode = itemObj["execution_mode"]?.GetValue<string>();
+                        var checklist = ExtractChecklistStrings(itemObj["checklist"]);
+
+                        string promptText = McpSecurityGuard.BuildAgDirectMasterPrompt(
+                            safeId,
+                            title,
+                            body,
+                            checklist,
+                            execMode,
+                            savedMediaPath);
+
+                        // Phase 1: Deliver to Antigravity Master-Chat via agentapi (UseShellExecute = false, ArgumentList)
+                        var (sentOk, exitCode, errOut) = await SendAgentApiMessageSafeAsync(targetConversationId, promptText, cts.Token);
+                        if (!sentOk || exitCode != 0)
+                        {
+                            Console.Error.WriteLine($"[AG-Sidecar] Zustellung für '{safeId}' noch nicht möglich (Exit {exitCode}: {errOut}) - bleibt pending für nächsten Zyklus.");
+                            continue;
+                        }
+
+                        // Phase 2 (ONLY on ExitCode == 0): Mark delivered on Stage and locally
+                        if (fromStage)
+                        {
+                            await McpSecurityGuard.ExecuteStageAgInboxCommandAsync("mark_delivered", itemId: safeId, isDaemonInternal: true);
+                        }
+
+                        var sanitizedCopy = (JsonObject)itemObj.DeepClone();
+                        sanitizedCopy.Remove("attachment_base64");
+                        sanitizedCopy["status"] = "delivered";
+                        sanitizedCopy["delivered_at"] = DateTimeOffset.Now.ToString("O");
+                        if (!string.IsNullOrWhiteSpace(savedMediaPath))
+                            sanitizedCopy["local_attachment_path"] = savedMediaPath;
+
+                        await SyncItemsToLocalPortalBestEffortAsync(new JsonArray(sanitizedCopy), markDeliveredId: fromLocal ? safeId : null);
+                        await UpsertOrUpdateLocalDirectInboxJsonAsync(sanitizedCopy, safeId, "delivered", null);
+
+                        Console.Error.WriteLine($"[AG-Sidecar] Direktnachricht '{safeId}' verlustfrei an Master-Chat ({targetConversationId}) zugestellt.");
+                    }
+                }
+                catch (OperationCanceledException) when (cts.IsCancellationRequested)
+                {
+                    break;
+                }
+                catch (Exception cycleEx)
+                {
+                    Console.Error.WriteLine($"[AG-Sidecar] Zyklus-Fehler: {McpSecurityGuard.ScrubSecrets(cycleEx.Message)}");
+                }
+
+                try
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(pollSeconds), cts.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+            }
+
+            return 0;
+        }
+
+        private static async Task<(bool Success, int ExitCode, string ErrorSummary)> SendAgentApiMessageSafeAsync(
+            string targetConversationId,
+            string promptText,
+            CancellationToken ct)
+        {
+            try
+            {
+                var psi = McpSecurityGuard.BuildAgentApiSendMessageStartInfo(targetConversationId, promptText);
+                using var proc = Process.Start(psi);
+                if (proc == null)
+                    return (false, -1, "agentapi Prozess konnte nicht gestartet werden.");
+
+                using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                timeoutCts.CancelAfter(TimeSpan.FromSeconds(30));
+
+                var outTask = proc.StandardOutput.ReadToEndAsync(timeoutCts.Token);
+                var errTask = proc.StandardError.ReadToEndAsync(timeoutCts.Token);
+                await proc.WaitForExitAsync(timeoutCts.Token);
+                string stdOut = await outTask;
+                string stdErr = await errTask;
+
+                string combinedErr = McpSecurityGuard.ScrubSecrets((stdErr + " " + stdOut).Trim());
+                if (combinedErr.Length > 300) combinedErr = combinedErr.Substring(0, 300);
+                return (proc.ExitCode == 0, proc.ExitCode, combinedErr);
+            }
+            catch (Exception ex)
+            {
+                return (false, -1, McpSecurityGuard.ScrubSecrets(ex.Message));
+            }
+        }
+
+        internal static List<string> ExtractChecklistStrings(JsonNode? checklistNode)
+        {
+            var list = new List<string>();
+            if (checklistNode is not JsonArray arr)
+                return list;
+
+            foreach (var elem in arr)
+            {
+                if (elem == null) continue;
+                if (elem is JsonValue val && val.TryGetValue<string>(out string? s) && !string.IsNullOrWhiteSpace(s))
+                {
+                    list.Add(s.Trim());
+                }
+                else if (elem is JsonObject obj)
+                {
+                    string? txt = (obj["text"] ?? obj["title"] ?? obj["label"] ?? obj["item"])?.GetValue<string>();
+                    if (!string.IsNullOrWhiteSpace(txt))
+                    {
+                        bool done = (obj["done"] ?? obj["checked"] ?? obj["completed"])?.GetValue<bool>() == true;
+                        list.Add(done ? $"[x] {txt!.Trim()}" : txt!.Trim());
+                    }
+                }
+            }
+            return list;
+        }
+
+        private static JsonObject? ParseJsonObjectFromCliOutput(string? raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return null;
+            int start = raw.IndexOf('{');
+            int end = raw.LastIndexOf('}');
+            if (start < 0 || end <= start) return null;
+            string slice = raw.Substring(start, end - start + 1);
+            return JsonNode.Parse(slice, documentOptions: StrictJsonParseOptions)?.AsObject();
+        }
+
+        private static void ExtractAttachmentsAndSanitizeItems(JsonArray itemsArray)
+        {
+            foreach (var node in itemsArray)
+            {
+                if (node is not JsonObject itemObj) continue;
+                string? rawId = itemObj["id"]?.GetValue<string>();
+                if (string.IsNullOrWhiteSpace(rawId)) continue;
+
+                string safeId = McpSecurityGuard.ValidateAgInboxSingleId(rawId);
+                bool hasAttachment = itemObj["has_attachment"]?.GetValue<bool>() == true;
+                string? b64 = itemObj["attachment_base64"]?.GetValue<string>();
+
+                if (hasAttachment && !string.IsNullOrWhiteSpace(b64))
+                {
+                    string savedPath = McpSecurityGuard.SaveAgDirectAttachmentSafe(
+                        safeId,
+                        itemObj["attachment_name"]?.GetValue<string>(),
+                        itemObj["attachment_mime"]?.GetValue<string>(),
+                        b64!);
+                    itemObj["local_attachment_path"] = savedPath;
+                }
+
+                itemObj.Remove("attachment_base64");
+
+                if (itemObj["title"] != null)
+                    itemObj["title"] = McpSecurityGuard.ScrubSecrets(itemObj["title"]!.GetValue<string>());
+                if (itemObj["body"] != null && itemObj["body"]!.GetValueKind() == JsonValueKind.String)
+                    itemObj["body"] = McpSecurityGuard.ScrubSecrets(itemObj["body"]!.GetValue<string>());
+            }
+        }
+
+        private static async Task<JsonObject> SyncAgDirectInboxAsync(bool peekOnly, bool isDaemonInternal)
+        {
+            string stageOp = peekOnly ? "peek_pending" : "pull_pending";
+            JsonObject? rootObj = null;
+            string? stageWarning = null;
+
+            try
+            {
+                string rawStage = await McpSecurityGuard.ExecuteStageAgInboxCommandAsync(stageOp, isDaemonInternal: isDaemonInternal);
+                rootObj = ParseJsonObjectFromCliOutput(rawStage);
+                if (rootObj == null)
+                    throw new InvalidOperationException("Stage lieferte kein gültiges JSON-Objekt für system:ag-inbox.");
+            }
+            catch (Exception ex)
+            {
+                if (!File.Exists(McpSecurityGuard.DefaultLocalDirectInboxPath))
+                    throw;
+                stageWarning = McpSecurityGuard.ScrubSecrets(ex.Message);
+                rootObj = new JsonObject
+                {
+                    ["status"] = "success",
+                    ["source"] = "local_fallback",
+                    ["stage_warning"] = stageWarning,
+                    ["items"] = new JsonArray()
+                };
+            }
+
+            var itemsArray = rootObj["items"]?.AsArray() ?? new JsonArray();
+            if (rootObj["items"] == null)
+                rootObj["items"] = itemsArray;
+
+            var seenIds = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var n in itemsArray)
+            {
+                string? id = n?["id"]?.GetValue<string>();
+                if (!string.IsNullOrWhiteSpace(id))
+                    seenIds.Add(id!);
+            }
+
+            // Merge any local pending items from storage/app/private/antigravity_direct_inbox.json
+            foreach (var localItem in ReadLocalDirectInboxItems(onlyPending: true))
+            {
+                string? id = localItem["id"]?.GetValue<string>();
+                if (string.IsNullOrWhiteSpace(id) || !seenIds.Add(id!))
+                    continue;
+
+                string safeId = McpSecurityGuard.ValidateAgInboxSingleId(id);
+                if (!peekOnly)
+                {
+                    localItem["status"] = "delivered";
+                    localItem["delivered_at"] = DateTimeOffset.Now.ToString("O");
+                    await UpsertOrUpdateLocalDirectInboxJsonAsync(null, safeId, "delivered", null);
+                    await TryRunLocalDockerAgInboxAsync($"--mark-delivered={safeId}");
+                }
+                itemsArray.Add(localItem);
+            }
+
+            ExtractAttachmentsAndSanitizeItems(itemsArray);
+            rootObj["count"] = itemsArray.Count;
+
+            if (itemsArray.Count > 0)
+            {
+                await SyncItemsToLocalPortalBestEffortAsync(itemsArray, markDeliveredId: null);
+                foreach (var n in itemsArray)
+                {
+                    if (n is JsonObject jo && jo["id"] != null)
+                    {
+                        string sid = McpSecurityGuard.ValidateAgInboxSingleId(jo["id"]!.GetValue<string>());
+                        await UpsertOrUpdateLocalDirectInboxJsonAsync(jo, sid, jo["status"]?.GetValue<string>() ?? (peekOnly ? "pending" : "delivered"), null);
+                    }
+                }
+            }
+
+            return rootObj;
+        }
+
+        private static async Task<JsonObject> ListAgDirectInboxAsync()
+        {
+            string rawStage = await McpSecurityGuard.ExecuteStageAgInboxCommandAsync("list", isDaemonInternal: false);
+            var rootObj = ParseJsonObjectFromCliOutput(rawStage)
+                ?? throw new InvalidOperationException("Stage lieferte kein gültiges JSON für system:ag-inbox --list.");
+
+            if (rootObj["items"] is JsonArray itemsArr)
+            {
+                ExtractAttachmentsAndSanitizeItems(itemsArr);
+            }
+
+            var cfg = McpSecurityGuard.LoadAgBridgeConfig();
+            rootObj["bridge_config"] = JsonSerializer.SerializeToNode(cfg, JsonCompact);
+            return rootObj;
+        }
+
+        private static async Task<object> CompleteAgDirectInboxItemAsync(string rawId, string? rawSummary)
+        {
+            string safeId = McpSecurityGuard.ValidateAgInboxSingleId(rawId);
+            string cleanSummary = McpSecurityGuard.ScrubSecrets((rawSummary ?? "").Replace('\0', ' ').Trim());
+            if (string.IsNullOrWhiteSpace(cleanSummary))
+                cleanSummary = "Erledigt durch Antigravity.";
+            if (cleanSummary.Length > 4000)
+                cleanSummary = cleanSummary.Substring(0, 4000);
+
+            string summaryB64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(cleanSummary));
+
+            bool stageCompleted = false;
+            string? stageError = null;
+            try
+            {
+                await McpSecurityGuard.ExecuteStageAgInboxCommandAsync("complete", itemId: safeId, summary: cleanSummary, isDaemonInternal: false);
+                stageCompleted = true;
+            }
+            catch (Exception ex)
+            {
+                stageError = McpSecurityGuard.ScrubSecrets(ex.Message);
+            }
+
+            bool localDockerCompleted = await TryRunLocalDockerAgInboxAsync($"--complete={safeId}", $"--summary-b64={summaryB64}");
+            bool localJsonUpdated = await UpsertOrUpdateLocalDirectInboxJsonAsync(null, safeId, "completed", cleanSummary);
+
+            if (!stageCompleted && !localDockerCompleted && !localJsonUpdated)
+            {
+                throw new InvalidOperationException($"Fertigmeldung für '{safeId}' konnte weder auf Stage ({stageError}) noch lokal gespeichert werden.");
+            }
+
+            return new
+            {
+                status = "success",
+                id = safeId,
+                summary = cleanSummary,
+                stage_completed = stageCompleted,
+                stage_warning = stageError,
+                local_docker_completed = localDockerCompleted,
+                local_file_updated = localJsonUpdated
+            };
+        }
+
+        private static List<JsonObject> ReadLocalDirectInboxItems(bool onlyPending)
+        {
+            var results = new List<JsonObject>();
+            string path = McpSecurityGuard.DefaultLocalDirectInboxPath;
+            if (!File.Exists(path)) return results;
+
+            try
+            {
+                var fi = new FileInfo(path);
+                if (fi.Length < 2 || fi.Length > 32L * 1024L * 1024L) return results;
+                if (McpSecurityGuard.HasReparsePointInAncestry(path)) return results;
+
+                string raw = File.ReadAllText(path, Encoding.UTF8);
+                if (string.IsNullOrWhiteSpace(raw)) return results;
+
+                var parsed = JsonNode.Parse(raw, documentOptions: StrictJsonParseOptions);
+                JsonArray? arr = parsed as JsonArray ?? parsed?["items"] as JsonArray;
+                if (arr == null) return results;
+
+                foreach (var node in arr)
+                {
+                    if (node is not JsonObject obj) continue;
+                    string status = obj["status"]?.GetValue<string>() ?? "pending";
+                    if (!onlyPending || string.Equals(status, "pending", StringComparison.OrdinalIgnoreCase))
+                    {
+                        results.Add((JsonObject)obj.DeepClone());
+                    }
+                }
+            }
+            catch { }
+
+            return results;
+        }
+
+        private static async Task<bool> UpsertOrUpdateLocalDirectInboxJsonAsync(
+            JsonObject? itemSnapshot,
+            string safeId,
+            string newStatus,
+            string? completedSummary)
+        {
+            string path = McpSecurityGuard.DefaultLocalDirectInboxPath;
+            try
+            {
+                string? dir = Path.GetDirectoryName(path);
+                if (string.IsNullOrWhiteSpace(dir) || !Directory.Exists(McpSecurityGuard.DefaultLocalStorageAppRoot))
+                    return false;
+
+                Directory.CreateDirectory(dir);
+                if (McpSecurityGuard.HasReparsePointInAncestry(path))
+                    return false;
+
+                JsonNode rootNode;
+                JsonArray itemsArr;
+                if (File.Exists(path))
+                {
+                    string existingRaw = await File.ReadAllTextAsync(path, Encoding.UTF8);
+                    var parsed = string.IsNullOrWhiteSpace(existingRaw)
+                        ? null
+                        : JsonNode.Parse(existingRaw, documentOptions: StrictJsonParseOptions);
+
+                    if (parsed is JsonArray topArr)
+                    {
+                        rootNode = topArr;
+                        itemsArr = topArr;
+                    }
+                    else if (parsed is JsonObject topObj)
+                    {
+                        rootNode = topObj;
+                        itemsArr = topObj["items"] as JsonArray ?? new JsonArray();
+                        topObj["items"] = itemsArr;
+                    }
+                    else
+                    {
+                        itemsArr = new JsonArray();
+                        rootNode = new JsonObject { ["items"] = itemsArr };
+                    }
+                }
+                else
+                {
+                    if (itemSnapshot == null)
+                        return false;
+                    itemsArr = new JsonArray();
+                    rootNode = new JsonObject { ["items"] = itemsArr };
+                }
+
+                JsonObject? found = null;
+                foreach (var n in itemsArr)
+                {
+                    if (n is JsonObject o && string.Equals(o["id"]?.GetValue<string>(), safeId, StringComparison.Ordinal))
+                    {
+                        found = o;
+                        break;
+                    }
+                }
+
+                if (found == null)
+                {
+                    if (itemSnapshot == null)
+                        return false;
+                    found = (JsonObject)itemSnapshot.DeepClone();
+                    found.Remove("attachment_base64");
+                    itemsArr.Add(found);
+                }
+
+                found["status"] = newStatus;
+                string nowIso = DateTimeOffset.Now.ToString("O");
+                if (newStatus == "delivered")
+                    found["delivered_at"] = nowIso;
+                if (newStatus == "completed")
+                {
+                    found["completed_at"] = nowIso;
+                    if (completedSummary != null)
+                        found["ag_response_summary"] = completedSummary;
+                }
+
+                if (rootNode is JsonObject rootObj)
+                    rootObj["updated_at"] = nowIso;
+
+                string outJson = rootNode.ToJsonString(JsonPretty);
+                try
+                {
+                    await File.WriteAllTextAsync(path, outJson, Utf8NoBom);
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    if (File.Exists(path)) File.Delete(path);
+                    await File.WriteAllTextAsync(path, outJson, Utf8NoBom);
+                }
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static async Task SyncItemsToLocalPortalBestEffortAsync(JsonArray sanitizedItems, string? markDeliveredId)
+        {
+            try
+            {
+                var payloadObj = new JsonObject
+                {
+                    ["items"] = sanitizedItems.DeepClone()
+                };
+                string payloadJson = payloadObj.ToJsonString(JsonCompact);
+                if (payloadJson.Length <= 90_000)
+                {
+                    string b64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(payloadJson));
+                    await TryRunLocalDockerAgInboxAsync($"--import-b64={b64}");
+                }
+
+                if (!string.IsNullOrWhiteSpace(markDeliveredId))
+                {
+                    string safeId = McpSecurityGuard.ValidateAgInboxMarkDeliveredIds(markDeliveredId);
+                    await TryRunLocalDockerAgInboxAsync($"--mark-delivered={safeId}");
+                }
+            }
+            catch { }
+        }
+
+        private static async Task<bool> TryRunLocalDockerAgInboxAsync(params string[] artisanFlags)
+        {
+            try
+            {
+                var psi = new ProcessStartInfo
+                {
+                    FileName = "wsl.exe",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+                psi.ArgumentList.Add("-d");
+                psi.ArgumentList.Add("Ubuntu");
+                psi.ArgumentList.Add("--");
+                psi.ArgumentList.Add("docker");
+                psi.ArgumentList.Add("exec");
+                psi.ArgumentList.Add("-u");
+                psi.ArgumentList.Add("www-data");
+                psi.ArgumentList.Add("mein_php_server");
+                psi.ArgumentList.Add("php");
+                psi.ArgumentList.Add("/var/www/html/artisan");
+                psi.ArgumentList.Add("system:ag-inbox");
+                foreach (string flag in artisanFlags)
+                {
+                    psi.ArgumentList.Add(flag);
+                }
+
+                using var proc = Process.Start(psi);
+                if (proc == null) return false;
+
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+                var outTask = proc.StandardOutput.ReadToEndAsync(cts.Token);
+                var errTask = proc.StandardError.ReadToEndAsync(cts.Token);
+                await proc.WaitForExitAsync(cts.Token);
+                await Task.WhenAll(outTask, errTask);
+                return proc.ExitCode == 0;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static string? TryReadCliOption(string[] args, string flagName)
+        {
+            string eqPrefix = flagName + "=";
+            for (int i = 0; i < args.Length; i++)
+            {
+                if (args[i].StartsWith(eqPrefix, StringComparison.OrdinalIgnoreCase))
+                    return args[i].Substring(eqPrefix.Length).Trim();
+
+                if (string.Equals(args[i], flagName, StringComparison.OrdinalIgnoreCase) &&
+                    i + 1 < args.Length &&
+                    !args[i + 1].StartsWith("--", StringComparison.Ordinal))
+                {
+                    return args[i + 1].Trim();
+                }
+            }
+            return null;
+        }
+
+        public static int RunTresorListCli()
+        {
+            try
+            {
+                McpSecurityGuard.LockDownDirectoryAcl(McpSecurityGuard.VaultDirectory);
+                var res = McpTresorBroker.ListApprovedEntries();
+                Console.WriteLine(McpSecurityGuard.ScrubSecrets(JsonSerializer.Serialize(res, JsonPretty)));
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"❌ Tresor-Broker Fehler: {McpSecurityGuard.ScrubSecrets(ex.Message)}");
+                return 1;
+            }
+        }
+
+        public static async Task<int> RunTresorBrowserLoginCliAsync(string[] args)
+        {
+            try
+            {
+                McpSecurityGuard.LockDownDirectoryAcl(McpSecurityGuard.VaultDirectory);
+
+                string? titleOrId = TryReadCliOption(args, "--tresor-browser-login")
+                                 ?? TryReadCliOption(args, "--entry");
+
+                if (string.IsNullOrWhiteSpace(titleOrId))
+                    throw new ArgumentException("Bitte <titleOrId> angeben: --tresor-browser-login <titleOrId> [--submit] [--totp-only]");
+
+                bool submit = args.Any(a => string.Equals(a, "--submit", StringComparison.OrdinalIgnoreCase));
+                bool totpOnly = args.Any(a => string.Equals(a, "--totp-only", StringComparison.OrdinalIgnoreCase));
+
+                int? portOverride = null;
+                string? rawPort = TryReadCliOption(args, "--port");
+                if (!string.IsNullOrWhiteSpace(rawPort) && int.TryParse(rawPort, out int pVal))
+                    portOverride = pVal;
+
+                var res = await McpTresorBroker.BrowserLoginAsync(titleOrId, submit: submit, totpOnly: totpOnly, cdpPortOverride: portOverride);
+                Console.WriteLine(McpSecurityGuard.ScrubSecrets(JsonSerializer.Serialize(res, JsonPretty)));
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"❌ Tresor Browser-Login abgebrochen: {McpSecurityGuard.ScrubSecrets(ex.Message)}");
+                return 1;
+            }
+        }
+
+        public static async Task<int> RunMittwaldApiBrokerCliAsync(string[] args)
+        {
+            try
+            {
+                McpSecurityGuard.LockDownDirectoryAcl(McpSecurityGuard.VaultDirectory);
+
+                string? preset = TryReadCliOption(args, "--mittwald-api")
+                              ?? TryReadCliOption(args, "--preset");
+
+                if (string.IsNullOrWhiteSpace(preset))
+                    throw new ArgumentException("Bitte <preset> angeben: --mittwald-api <preset> [--entry <titleOrId>] [--project-id <id>] [--app-id <id>] [--cronjob-id <id>]");
+
+                string? entry = TryReadCliOption(args, "--entry");
+                string? projectId = TryReadCliOption(args, "--project-id");
+                string? appId = TryReadCliOption(args, "--app-id");
+                string? cronjobId = TryReadCliOption(args, "--cronjob-id");
+
+                var res = await McpTresorBroker.ExecuteMittwaldApiPresetAsync(
+                    preset: preset,
+                    entryTitleOrId: entry,
+                    projectId: projectId,
+                    appId: appId,
+                    cronjobId: cronjobId);
+
+                Console.WriteLine(McpSecurityGuard.ScrubSecrets(JsonSerializer.Serialize(res, JsonPretty)));
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"❌ Mittwald API-Broker abgebrochen: {McpSecurityGuard.ScrubSecrets(ex.Message)}");
                 return 1;
             }
         }
@@ -737,7 +1981,7 @@ namespace FunkenwerkMcp
                 serverInfo = new
                 {
                     name = "funkenwerk-mcp",
-                    version = "1.3.0"
+                    version = "1.6.0"
                 },
                 instructions = "Gehärteter lokaler Funkenwerk MCP-Server (Zero-Secret Architektur v1.3) für Mein-Seelenfunke: PDF-Formulare inspizieren & ausfüllen, 3-Wege Aufgaben/Kalender/Einkaufsliste synchronisieren, Musikplayer & Fokus-Modus live steuern, Smart-Home-Steckdosen & IP-Kameras steuern, alle Funkenwerk Collection Apps starten und sichere Server-Aktionen ohne Credential-Exposition ausführen."
             };
@@ -1036,7 +2280,7 @@ namespace FunkenwerkMcp
                     "profileName": { "type": "string", "description": "Name des gespeicherten Profils (z. B. 'Mittwald' oder 'Mittwald Websocket')." },
                     "preset": {
                       "type": "string",
-                      "enum": ["disk_usage", "uptime_and_load", "php_version", "artisan_about", "git_status", "git_log", "git_branch", "list_dir", "stage_git_pull", "stage_deploy", "stage_worker_restart"]
+                      "enum": ["disk_usage", "uptime_and_load", "php_version", "artisan_about", "git_status", "git_log", "git_branch", "list_dir", "stage_git_pull", "stage_deploy", "stage_worker_restart", "stage_sentinel_export", "stage_sentinel_resolve_all", "minipc_sentinel_export", "minipc_sentinel_resolve_all"]
                     },
                     "remoteDirectory": { "type": "string", "description": "Optionaler sicherer Zielordner auf dem Server." }
                   },
@@ -1262,6 +2506,131 @@ namespace FunkenwerkMcp
                     "bridgeParams": { "type": "object", "description": "Optionale Parameter für action='filmcraft_bridge'." }
                   },
                   "required": ["action"],
+                  "additionalProperties": false
+                }
+                """)
+            },
+            new
+            {
+                name = "ag_direct_inbox",
+                description = "Verwaltet die 24/7 'Direktnachricht an AG'-Brücke zwischen Alinas Android-App (via Stage) und dem lokalen Antigravity Master-Chat: Neue pending-Aufträge abholen & Bilder unter AgDirectMedia speichern ('pull'), alle Einträge auflisten ('list'), erledigte Punkte mit Zusammenfassung zurückmelden ('complete') oder die Master-Chat Konversations-ID setzen ('set_master_chat').",
+                inputSchema = JsonNode.Parse("""
+                {
+                  "type": "object",
+                  "properties": {
+                    "action": {
+                      "type": "string",
+                      "enum": ["pull", "list", "complete", "set_master_chat"],
+                      "description": "Aktion: 'pull', 'list', 'complete' oder 'set_master_chat'."
+                    },
+                    "id": {
+                      "type": "string",
+                      "description": "Auftrags-ID (z. B. 'ag_...') bei action='complete'."
+                    },
+                    "summary": {
+                      "type": "string",
+                      "description": "Kurze Zusammenfassung der Umsetzung bzw. des Konzepts für Alinas Android-App bei action='complete'."
+                    },
+                    "conversation_id": {
+                      "type": "string",
+                      "description": "Konversations-ID (GUID) des zentralen Master-Chats bei action='set_master_chat'."
+                    }
+                  },
+                  "required": ["action"],
+                  "additionalProperties": false
+                }
+                """)
+            },
+            new
+            {
+                name = "tresor_list_ai_entries",
+                description = "Listet ausschließlich passwortfreie Metadaten der in Funkenwerk Tresor explizit für den KI-Broker freigegebenen Einträge auf (id, title, allowed_host, has_username, has_password, has_totp, has_api_token, updated_at). Gibt NIEMALS Passwörter, TOTP-Seeds oder API-Tokens aus; private Einträge ohne Freigabe sind zu 100 % ausgeschlossen.",
+                inputSchema = JsonNode.Parse("""
+                {
+                  "type": "object",
+                  "properties": {},
+                  "additionalProperties": false
+                }
+                """)
+            },
+            new
+            {
+                name = "tresor_browser_login",
+                description = "Führt einen blinden Zero-Secret Browser-Auto-Fill (inkl. mehrstufigem Login & 6-stelligem RFC-6238 2FA-TOTP) über lokales Chrome DevTools Loopback (127.0.0.1 DevToolsActivePort / Port 9222) aus. Ein harter Fail-Closed Anti-Phishing-Guard prüft zwingend https:// und die exakte Host-/Basis-Domain des Tresor-Eintrags. Liefert ausschließlich passwortfreie Statusfelder zurück.",
+                inputSchema = JsonNode.Parse("""
+                {
+                  "type": "object",
+                  "properties": {
+                    "titleOrId": {
+                      "type": "string",
+                      "description": "Titel oder ID des im Funkenwerk Tresor freigegebenen Eintrags (z. B. 'Mittwald')."
+                    },
+                    "entry": {
+                      "type": "string",
+                      "description": "Alternativer Alias für titleOrId."
+                    },
+                    "submit": {
+                      "type": "boolean",
+                      "description": "Klickt nach dem Befüllen automatisch auf Weiter/Anmelden und durchläuft mehrstufige E-Mail -> Passwort -> 2FA-Schritte (Standard: false)."
+                    },
+                    "totpOnly": {
+                      "type": "boolean",
+                      "description": "Füllt ausschließlich den 6-stelligen RFC-6238 2FA-TOTP-Code ein (Standard: false)."
+                    },
+                    "cdpPort": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 65535,
+                      "description": "Optionaler lokaler Loopback-Port (127.0.0.1), falls DevToolsActivePort übersprungen werden soll."
+                    }
+                  },
+                  "additionalProperties": false
+                }
+                """)
+            },
+            new
+            {
+                name = "mittwald_api_broker",
+                description = "Offizieller Zero-Secret Mittwald mStudio REST API v2 Broker (strikt https://api.mittwald.de/v2/...): Liest das API-Token im RAM aus dem freigegebenen Tresor-Eintrag, sendet die Anfrage, nullt das Token via ZeroMemory und bereinigt die Antwort per DLP. Stage-Mutationen unterliegen einer harten Fail-Closed Live-Air-Gap-Sperre (nur Stage-IDs a-lc6tkm, a-iurgq8, a-yeq7el bzw. verifizierte Stage-Apps/Cronjobs erlaubt; Live/Production wird hart blockiert).",
+                inputSchema = JsonNode.Parse("""
+                {
+                  "type": "object",
+                  "properties": {
+                    "preset": {
+                      "type": "string",
+                      "enum": ["user_self", "list_projects", "list_apps", "get_app", "list_cronjobs", "list_ingresses", "restart_stage_app", "execute_stage_cronjob"],
+                      "description": "Freigegebenes Diagnose- oder Stage-Preset."
+                    },
+                    "entry": {
+                      "type": "string",
+                      "description": "Optionaler Titel oder ID des freigegebenen Tresor-Eintrags (Standard-Suche: 'Mittwald')."
+                    },
+                    "projectId": {
+                      "type": "string",
+                      "description": "Mittwald Projekt-ID (z. B. 'p-g27wim' oder UUID) für list_apps, list_cronjobs, list_ingresses."
+                    },
+                    "project_id": {
+                      "type": "string",
+                      "description": "Alias für projectId."
+                    },
+                    "appId": {
+                      "type": "string",
+                      "description": "Mittwald App-Installations-ID (z. B. 'a-lc6tkm', 'a-iurgq8', 'a-yeq7el' oder UUID) für get_app / restart_stage_app."
+                    },
+                    "app_id": {
+                      "type": "string",
+                      "description": "Alias für appId."
+                    },
+                    "cronjobId": {
+                      "type": "string",
+                      "description": "Mittwald Cronjob-ID für execute_stage_cronjob (nur verifizierte Stage-Cronjobs erlaubt)."
+                    },
+                    "cronjob_id": {
+                      "type": "string",
+                      "description": "Alias für cronjobId."
+                    }
+                  },
+                  "required": ["preset"],
                   "additionalProperties": false
                 }
                 """)
@@ -1900,6 +3269,75 @@ namespace FunkenwerkMcp
                     }
                 }
 
+                case "ag_direct_inbox":
+                {
+                    string action = GetString(args, "action", 32).ToLowerInvariant();
+                    switch (action)
+                    {
+                        case "pull":
+                            return await SyncAgDirectInboxAsync(peekOnly: false, isDaemonInternal: false);
+
+                        case "list":
+                            return await ListAgDirectInboxAsync();
+
+                        case "complete":
+                        {
+                            string itemId = GetString(args, "id", 80);
+                            string? summary = GetOptString(args, "summary", 4000);
+                            return await CompleteAgDirectInboxItemAsync(itemId, summary);
+                        }
+
+                        case "set_master_chat":
+                        {
+                            string convId = GetString(args, "conversation_id", 80);
+                            var cfg = McpSecurityGuard.LoadAgBridgeConfig();
+                            cfg.MasterConversationId = McpSecurityGuard.ValidateAgConversationId(convId);
+                            var saved = McpSecurityGuard.SaveAgBridgeConfig(cfg);
+                            return new
+                            {
+                                status = "success",
+                                master_conversation_id = saved.MasterConversationId,
+                                poll_interval_seconds = saved.PollIntervalSeconds,
+                                config_path = McpSecurityGuard.AgDirectBridgeConfigPath
+                            };
+                        }
+
+                        default:
+                            throw new ArgumentException("Erlaubte ag_direct_inbox Aktionen: pull, list, complete, set_master_chat.");
+                    }
+                }
+
+                case "tresor_list_ai_entries":
+                {
+                    return McpTresorBroker.ListApprovedEntries();
+                }
+
+                case "tresor_browser_login":
+                {
+                    string titleOrId = GetOptString(args, "titleOrId", 256)
+                                    ?? GetOptString(args, "entry", 256)
+                                    ?? throw new ArgumentException("Pflichtparameter 'titleOrId' (oder 'entry') fehlt.");
+                    bool submit = GetBool(args, "submit", defaultVal: false);
+                    bool totpOnly = GetBool(args, "totpOnly", defaultVal: false);
+                    int? cdpPort = args["cdpPort"] != null ? args["cdpPort"]!.GetValue<int>() : null;
+                    return await McpTresorBroker.BrowserLoginAsync(titleOrId, submit: submit, totpOnly: totpOnly, cdpPortOverride: cdpPort);
+                }
+
+                case "mittwald_api_broker":
+                {
+                    string preset = GetString(args, "preset", 64);
+                    string? entry = GetOptString(args, "entry", 256);
+                    string? projectId = GetOptString(args, "projectId", 80) ?? GetOptString(args, "project_id", 80);
+                    string? appId = GetOptString(args, "appId", 80) ?? GetOptString(args, "app_id", 80);
+                    string? cronjobId = GetOptString(args, "cronjobId", 80) ?? GetOptString(args, "cronjob_id", 80);
+                    return await McpTresorBroker.ExecuteMittwaldApiPresetAsync(
+                        preset: preset,
+                        entryTitleOrId: entry,
+                        projectId: projectId,
+                        appId: appId,
+                        cronjobId: cronjobId);
+                }
+
                 default:
                     throw new ArgumentException($"Unbekanntes Tool '{toolName}'.");
             }
@@ -2174,6 +3612,418 @@ namespace FunkenwerkMcp
             }
         }
 
+        private sealed class MockMittwaldHttpHandler : HttpMessageHandler
+        {
+            public List<(HttpMethod Method, Uri Uri, string? Bearer, string? XAccessToken)> Captured { get; } = new();
+
+            protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+            {
+                string? bearer = request.Headers.Authorization?.Parameter;
+                string? xTok = request.Headers.TryGetValues("x-access-token", out var vals) ? vals.FirstOrDefault() : null;
+                lock (Captured)
+                {
+                    Captured.Add((request.Method, request.RequestUri!, bearer, xTok));
+                }
+
+                string p = request.RequestUri!.PathAndQuery;
+                HttpStatusCode code = HttpStatusCode.OK;
+                string json = "{}";
+
+                if (p == "/v2/users/self" && request.Method == HttpMethod.Get)
+                {
+                    // Intentionally echo token inside a field to prove Outbound DLP scrubbing strips it!
+                    json = JsonSerializer.Serialize(new
+                    {
+                        userId = "u-alina-sf",
+                        email = "kontakt@mein-seelenfunke.de",
+                        echoLeak = bearer ?? ""
+                    });
+                }
+                else if (p == "/v2/projects" && request.Method == HttpMethod.Get)
+                {
+                    json = """[{"id":"proj-uuid-sf-01","shortId":"p-g27wim","description":"Mein-Seelenfunke Hosting"}]""";
+                }
+                else if (p == "/v2/projects/proj-uuid-sf-01/app-installations" && request.Method == HttpMethod.Get)
+                {
+                    json = """
+                    [
+                      {"id":"app-uuid-stage-web","shortId":"a-lc6tkm","description":"seelenfunke-stage","installationPath":"/html/seelenfunke-stage"},
+                      {"id":"app-uuid-stage-worker","shortId":"a-iurgq8","description":"worker-stage-3","installationPath":"/html/worker-stage-3"},
+                      {"id":"app-uuid-live-web","shortId":"a-bycqrf","description":"seelenfunke-live","installationPath":"/html/seelenfunke-live"}
+                    ]
+                    """;
+                }
+                else if (p == "/v2/app-installations/a-lc6tkm" && request.Method == HttpMethod.Get)
+                {
+                    // Simulate Mittwald requiring UUID on direct GET so shortId->UUID resolution is exercised!
+                    code = HttpStatusCode.NotFound;
+                    json = """{"message":"App installation not found by shortId"}""";
+                }
+                else if (p == "/v2/app-installations/app-uuid-stage-web" && request.Method == HttpMethod.Get)
+                {
+                    json = """{"id":"app-uuid-stage-web","shortId":"a-lc6tkm","description":"seelenfunke-stage","installationPath":"/html/seelenfunke-stage"}""";
+                }
+                else if (p == "/v2/app-installations/app-uuid-live-web" && request.Method == HttpMethod.Get)
+                {
+                    json = """{"id":"app-uuid-live-web","shortId":"a-bycqrf","description":"seelenfunke-live","installationPath":"/html/seelenfunke-live"}""";
+                }
+                else if (p == "/v2/app-installations/app-uuid-ambiguous" && request.Method == HttpMethod.Get)
+                {
+                    json = """{"id":"app-uuid-ambiguous","shortId":"a-zzzz99","description":"kundenportal","installationPath":"/html/portal"}""";
+                }
+                else if (p == "/v2/app-installations/app-uuid-stage-web/actions/restart" && request.Method == HttpMethod.Post)
+                {
+                    code = HttpStatusCode.NoContent;
+                    json = "";
+                }
+                else if (p == "/v2/projects/proj-uuid-sf-01/cronjobs" && request.Method == HttpMethod.Get)
+                {
+                    json = """[{"id":"cron-stage-01","shortId":"cj-stage1","description":"Stage Scheduler","appId":"app-uuid-stage-web"}]""";
+                }
+                else if (p == "/v2/ingresses?projectId=proj-uuid-sf-01" && request.Method == HttpMethod.Get)
+                {
+                    json = """[{"id":"ing-stage-01","hostname":"stage.mein-seelenfunke.de"}]""";
+                }
+                else if (p == "/v2/cronjobs/cron-stage-01" && request.Method == HttpMethod.Get)
+                {
+                    json = """{"id":"cron-stage-01","shortId":"cj-stage1","description":"Stage Queue Check","appId":"app-uuid-stage-web","destination":{"url":"https://stage.mein-seelenfunke.de/cron"}}""";
+                }
+                else if (p == "/v2/cronjobs/cron-stage-01/actions/execute" && request.Method == HttpMethod.Post)
+                {
+                    code = HttpStatusCode.NoContent;
+                    json = "";
+                }
+                else if (p == "/v2/cronjobs/cron-generic-on-live-app" && request.Method == HttpMethod.Get)
+                {
+                    // Generic cronjob title without 'live', but owned by Live app app-uuid-live-web -> must still be caught & blocked!
+                    json = """{"id":"cron-generic-on-live-app","shortId":"cj-999","description":"Hourly Artisan Schedule","appId":"app-uuid-live-web"}""";
+                }
+                else
+                {
+                    code = HttpStatusCode.NotFound;
+                    json = """{"message":"not found"}""";
+                }
+
+                var resp = new HttpResponseMessage(code);
+                if (!string.IsNullOrEmpty(json))
+                    resp.Content = new StringContent(json, Encoding.UTF8, "application/json");
+                return Task.FromResult(resp);
+            }
+        }
+
+        private sealed class MockCdpLoopbackServer : IAsyncDisposable
+        {
+            private readonly TcpListener _listener;
+            private readonly CancellationTokenSource _cts = new();
+            private readonly Task _acceptLoop;
+
+            public int Port { get; }
+            public string ActiveTabUrl { get; set; } = "https://login.mittwald.de/sso";
+            public bool SimulateMultiStep { get; set; } = true;
+            public bool DisableHttpJsonList { get; set; }
+            public bool FlattenAttachUsed { get; private set; }
+            public int CallFunctionCount { get; private set; }
+            public string? CapturedUsername { get; private set; }
+            public string? CapturedPassword { get; private set; }
+            public string? CapturedTotp { get; private set; }
+            public bool CapturedSubmitted { get; private set; }
+
+            private int _stepPhase; // 0 = email only, 1 = password visible, 2 = otp visible
+
+            public MockCdpLoopbackServer()
+            {
+                _listener = new TcpListener(IPAddress.Loopback, 0);
+                _listener.Start();
+                Port = ((IPEndPoint)_listener.LocalEndpoint).Port;
+                _acceptLoop = Task.Run(AcceptLoopAsync);
+            }
+
+            public void ResetState(string tabUrl, bool multiStep, bool disableJsonList)
+            {
+                ActiveTabUrl = tabUrl;
+                SimulateMultiStep = multiStep;
+                DisableHttpJsonList = disableJsonList;
+                FlattenAttachUsed = false;
+                CallFunctionCount = 0;
+                CapturedUsername = null;
+                CapturedPassword = null;
+                CapturedTotp = null;
+                CapturedSubmitted = false;
+                _stepPhase = 0;
+            }
+
+            private async Task AcceptLoopAsync()
+            {
+                while (!_cts.IsCancellationRequested)
+                {
+                    TcpClient client;
+                    try
+                    {
+                        client = await _listener.AcceptTcpClientAsync(_cts.Token);
+                    }
+                    catch
+                    {
+                        break;
+                    }
+                    _ = Task.Run(() => HandleClientAsync(client));
+                }
+            }
+
+            private async Task HandleClientAsync(TcpClient tcp)
+            {
+                using (tcp)
+                await using (var stream = tcp.GetStream())
+                {
+                    var headerSb = new StringBuilder();
+                    byte[] one = new byte[1];
+                    while (headerSb.Length < 8192)
+                    {
+                        int n = await stream.ReadAsync(one.AsMemory(0, 1), _cts.Token);
+                        if (n <= 0) return;
+                        headerSb.Append((char)one[0]);
+                        if (headerSb.Length >= 4 &&
+                            headerSb[^4] == '\r' && headerSb[^3] == '\n' &&
+                            headerSb[^2] == '\r' && headerSb[^1] == '\n')
+                        {
+                            break;
+                        }
+                    }
+
+                    string rawHeaders = headerSb.ToString();
+                    string[] lines = rawHeaders.Split("\r\n", StringSplitOptions.RemoveEmptyEntries);
+                    if (lines.Length == 0) return;
+
+                    if (lines[0].StartsWith("GET /json/list ", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (DisableHttpJsonList)
+                        {
+                            byte[] r404 = Encoding.UTF8.GetBytes("HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+                            await stream.WriteAsync(r404, _cts.Token);
+                            return;
+                        }
+
+                        string listBody = JsonSerializer.Serialize(new[]
+                        {
+                            new
+                            {
+                                id = "page-1",
+                                type = "page",
+                                url = ActiveTabUrl,
+                                webSocketDebuggerUrl = $"ws://127.0.0.1:{Port}/devtools/page/page-1"
+                            }
+                        });
+                        byte[] bodyBytes = Encoding.UTF8.GetBytes(listBody);
+                        byte[] hdrBytes = Encoding.ASCII.GetBytes(
+                            $"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {bodyBytes.Length}\r\nConnection: close\r\n\r\n");
+                        await stream.WriteAsync(hdrBytes, _cts.Token);
+                        await stream.WriteAsync(bodyBytes, _cts.Token);
+                        return;
+                    }
+
+                    string? secKey = null;
+                    foreach (string h in lines)
+                    {
+                        if (h.StartsWith("Sec-WebSocket-Key:", StringComparison.OrdinalIgnoreCase))
+                            secKey = h.Substring("Sec-WebSocket-Key:".Length).Trim();
+                    }
+                    if (string.IsNullOrEmpty(secKey)) return;
+
+                    string accept = Convert.ToBase64String(
+                        SHA1.HashData(Encoding.ASCII.GetBytes(secKey + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11")));
+                    byte[] upgradeResp = Encoding.ASCII.GetBytes(
+                        $"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: {accept}\r\n\r\n");
+                    await stream.WriteAsync(upgradeResp, _cts.Token);
+
+                    using var ws = WebSocket.CreateFromStream(stream, isServer: true, subProtocol: null, keepAliveInterval: TimeSpan.FromSeconds(30));
+                    byte[] buf = new byte[32768];
+
+                    while (ws.State == WebSocketState.Open && !_cts.IsCancellationRequested)
+                    {
+                        using var msgMs = new MemoryStream();
+                        WebSocketReceiveResult r;
+                        do
+                        {
+                            r = await ws.ReceiveAsync(new ArraySegment<byte>(buf), _cts.Token);
+                            if (r.MessageType == WebSocketMessageType.Close)
+                            {
+                                await ws.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "bye", CancellationToken.None);
+                                return;
+                            }
+                            msgMs.Write(buf, 0, r.Count);
+                        }
+                        while (!r.EndOfMessage);
+
+                        var req = JsonNode.Parse(msgMs.ToArray()) as JsonObject;
+                        if (req == null) continue;
+
+                        int id = req["id"]?.GetValue<int>() ?? 0;
+                        string? sessId = req["sessionId"]?.GetValue<string>();
+                        string method = req["method"]?.GetValue<string>() ?? "";
+                        var pObj = req["params"] as JsonObject;
+
+                        JsonObject resultObj;
+                        if (method == "Target.getTargets")
+                        {
+                            resultObj = new JsonObject
+                            {
+                                ["targetInfos"] = new JsonArray(
+                                    new JsonObject
+                                    {
+                                        ["targetId"] = "target-mw-1",
+                                        ["type"] = "page",
+                                        ["url"] = ActiveTabUrl
+                                    })
+                            };
+                        }
+                        else if (method == "Target.attachToTarget")
+                        {
+                            if (pObj?["flatten"]?.GetValue<bool>() == true)
+                                FlattenAttachUsed = true;
+                            resultObj = new JsonObject { ["sessionId"] = "sess-flat-1" };
+                        }
+                        else if (method == "Target.detachFromTarget")
+                        {
+                            resultObj = new JsonObject();
+                        }
+                        else if (method == "Runtime.evaluate")
+                        {
+                            string expr = pObj?["expression"]?.GetValue<string>() ?? "";
+                            if (expr.Contains("location.href", StringComparison.Ordinal))
+                            {
+                                resultObj = new JsonObject
+                                {
+                                    ["result"] = new JsonObject { ["type"] = "string", ["value"] = ActiveTabUrl }
+                                };
+                            }
+                            else
+                            {
+                                resultObj = new JsonObject
+                                {
+                                    ["result"] = new JsonObject { ["type"] = "object", ["objectId"] = "win-obj-1" }
+                                };
+                            }
+                        }
+                        else if (method == "Runtime.callFunctionOn")
+                        {
+                            CallFunctionCount++;
+                            var argsArr = pObj?["arguments"] as JsonArray;
+                            string mode = argsArr?[0]?["value"]?.GetValue<string>() ?? "";
+                            string uVal = argsArr?[1]?["value"]?.GetValue<string>() ?? "";
+                            string pVal = argsArr?[2]?["value"]?.GetValue<string>() ?? "";
+                            string tVal = argsArr?[3]?["value"]?.GetValue<string>() ?? "";
+                            bool sub = argsArr?[4]?["value"]?.GetValue<bool>() ?? false;
+
+                            JsonObject valPayload;
+                            if (mode == "probe")
+                            {
+                                valPayload = new JsonObject
+                                {
+                                    ["hasUser"] = _stepPhase == 0,
+                                    ["hasPass"] = _stepPhase == 1 || !SimulateMultiStep,
+                                    ["hasOtp"] = _stepPhase == 2,
+                                    ["href"] = ActiveTabUrl
+                                };
+                            }
+                            else if (mode == "credentials")
+                            {
+                                CapturedUsername = uVal;
+                                if (!SimulateMultiStep)
+                                {
+                                    CapturedPassword = pVal;
+                                    CapturedSubmitted = sub;
+                                    valPayload = new JsonObject
+                                    {
+                                        ["filledUser"] = !string.IsNullOrEmpty(uVal),
+                                        ["filledPass"] = !string.IsNullOrEmpty(pVal),
+                                        ["filledTotp"] = false,
+                                        ["submitted"] = sub,
+                                        ["hasPassNow"] = true,
+                                        ["hasOtpNow"] = false
+                                    };
+                                }
+                                else
+                                {
+                                    // Multi-step Step 1: only email visible initially
+                                    if (sub) _stepPhase = 1;
+                                    CapturedSubmitted = sub;
+                                    valPayload = new JsonObject
+                                    {
+                                        ["filledUser"] = !string.IsNullOrEmpty(uVal),
+                                        ["filledPass"] = false,
+                                        ["filledTotp"] = false,
+                                        ["submitted"] = sub,
+                                        ["hasPassNow"] = false,
+                                        ["hasOtpNow"] = false
+                                    };
+                                }
+                            }
+                            else if (mode == "password_only")
+                            {
+                                CapturedPassword = pVal;
+                                if (sub) _stepPhase = 2;
+                                CapturedSubmitted = sub;
+                                valPayload = new JsonObject
+                                {
+                                    ["filledUser"] = false,
+                                    ["filledPass"] = !string.IsNullOrEmpty(pVal),
+                                    ["filledTotp"] = false,
+                                    ["submitted"] = sub,
+                                    ["hasPassNow"] = true,
+                                    ["hasOtpNow"] = false
+                                };
+                            }
+                            else // totp_only
+                            {
+                                CapturedTotp = tVal;
+                                CapturedSubmitted = sub;
+                                valPayload = new JsonObject
+                                {
+                                    ["filledUser"] = false,
+                                    ["filledPass"] = false,
+                                    ["filledTotp"] = !string.IsNullOrEmpty(tVal),
+                                    ["submitted"] = sub,
+                                    ["hasPassNow"] = false,
+                                    ["hasOtpNow"] = true
+                                };
+                            }
+
+                            resultObj = new JsonObject
+                            {
+                                ["result"] = new JsonObject
+                                {
+                                    ["type"] = "object",
+                                    ["value"] = valPayload
+                                }
+                            };
+                        }
+                        else
+                        {
+                            resultObj = new JsonObject();
+                        }
+
+                        var respObj = new JsonObject
+                        {
+                            ["id"] = id,
+                            ["result"] = resultObj
+                        };
+                        if (!string.IsNullOrEmpty(sessId))
+                            respObj["sessionId"] = sessId;
+
+                        byte[] outBytes = Encoding.UTF8.GetBytes(respObj.ToJsonString());
+                        await ws.SendAsync(new ArraySegment<byte>(outBytes), WebSocketMessageType.Text, endOfMessage: true, _cts.Token);
+                    }
+                }
+            }
+
+            public async ValueTask DisposeAsync()
+            {
+                _cts.Cancel();
+                try { _listener.Stop(); } catch { }
+                try { await _acceptLoop; } catch { }
+                _cts.Dispose();
+            }
+        }
+
         public static async Task<int> RunAllAsync()
         {
             int passed = 0;
@@ -2222,7 +4072,7 @@ namespace FunkenwerkMcp
                 McpOrganizerClient.TestHttpClientOverride = mockClient;
                 McpOrganizerClient.TestBaseUrlOverride = "https://stage.mein-seelenfunke.de/api";
 
-                Console.WriteLine("=== FUNKENWERK MCP v1.5 HARDENED ZERO-TRUST & E2E SELF-TEST (40 CHECKS) ===");
+                Console.WriteLine("=== FUNKENWERK MCP v1.6 HARDENED ZERO-TRUST & E2E SELF-TEST (57 CHECKS) ===");
 
                 // 01. Path Traversal Defense
                 AssertThrowsSecurity("01. Block Path Traversal (..\\..\\Windows\\System32)", () =>
@@ -2344,20 +4194,22 @@ namespace FunkenwerkMcp
                 AssertTest("13. SSRF Guard, UserInfo Rejection & HTTPS Enforcement",
                     evilBlocked && httpRemoteBlocked && userInfoBlocked && httpsStageAllowed && httpsLiveAllowed);
 
-                // 14. Arbitrary SSH Command Injection Blocked + 13 Safe Presets Verified (incl. stage_deploy, stage_worker_restart & sentinel pool)
+                // 14. Arbitrary SSH Command Injection Blocked + 15 Safe Presets Verified (incl. stage_deploy, stage_worker_restart, stage & minipc sentinel pool)
                 bool sshInjectionBlocked = false;
                 try { await McpSecurityGuard.ExecutePinnedSshPresetAsync("Mittwald", "rm -rf /; cat ~/.ssh/id_ed25519"); }
                 catch (UnauthorizedAccessException) { sshInjectionBlocked = true; }
-                bool hasAll13Presets = McpSecurityGuard.SafeReadonlySshPresets.Count == 13
+                bool hasAll15Presets = McpSecurityGuard.SafeReadonlySshPresets.Count == 15
                     && McpSecurityGuard.SafeReadonlySshPresets.Contains("uptime_and_load")
                     && McpSecurityGuard.SafeReadonlySshPresets.Contains("disk_usage")
                     && McpSecurityGuard.SafeReadonlySshPresets.Contains("stage_git_pull")
                     && McpSecurityGuard.SafeReadonlySshPresets.Contains("stage_deploy")
                     && McpSecurityGuard.SafeReadonlySshPresets.Contains("stage_worker_restart")
                     && McpSecurityGuard.SafeReadonlySshPresets.Contains("stage_sentinel_export")
-                    && McpSecurityGuard.SafeReadonlySshPresets.Contains("stage_sentinel_resolve_all");
-                AssertTest("14. Arbitrary SSH Command Blocked & 13 SafeReadonlySshPresets (incl. stage_deploy & sentinel) Verified",
-                    sshInjectionBlocked && hasAll13Presets);
+                    && McpSecurityGuard.SafeReadonlySshPresets.Contains("stage_sentinel_resolve_all")
+                    && McpSecurityGuard.SafeReadonlySshPresets.Contains("minipc_sentinel_export")
+                    && McpSecurityGuard.SafeReadonlySshPresets.Contains("minipc_sentinel_resolve_all");
+                AssertTest("14. Arbitrary SSH Command Blocked & 15 SafeReadonlySshPresets (incl. Stage & Mini-PC Sentinel) Verified",
+                    sshInjectionBlocked && hasAll15Presets);
 
                 // 15. SSH RemoteDirectory Metacharacter Injection Blocked
                 bool sshDirBlocked = false;
@@ -2551,15 +4403,24 @@ namespace FunkenwerkMcp
                         && verifyAuto.Fields.First(f => f.Name == "Bank-Name").Value == "FYRST (Deutsche Bank AG)");
                 }
 
-                // 25. MCP JSON-RPC 2.0 Handshake, Notification Silence & Tools Catalog
+                // 25. MCP JSON-RPC 2.0 Handshake, Notification Silence & 25-Tool Schema Catalog
                 string? initResp = await Program.ProcessJsonRpcMessageAsync("""{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"antigravity","version":"2.0"}}}""");
                 string? notifResp = await Program.ProcessJsonRpcMessageAsync("""{"jsonrpc":"2.0","method":"notifications/initialized"}""");
                 string? toolsResp = await Program.ProcessJsonRpcMessageAsync("""{"jsonrpc":"2.0","id":3,"method":"tools/list","params":{}}""");
-                AssertTest("25. MCP JSON-RPC 2.0 Handshake, Notification Silence & 21-Tool Schema Catalog",
+                int catalogToolCount = toolsResp != null
+                    ? (JsonNode.Parse(toolsResp)?["result"]?["tools"] as JsonArray)?.Count ?? 0
+                    : 0;
+                AssertTest("25. MCP JSON-RPC 2.0 Handshake, Notification Silence & 25-Tool Schema Catalog",
                     initResp != null && initResp.Contains("\"funkenwerk-mcp\"")
                     && notifResp == null
+                    && catalogToolCount == 25
                     && toolsResp != null && toolsResp.Contains("\"uptime_and_load\"") && toolsResp.Contains("\"pdf_autofill_stammdaten\"")
-                    && toolsResp.Contains("\"stage_sync_shop_assets\"") && toolsResp.Contains("\"stage_deploy\""));
+                    && toolsResp.Contains("\"stage_sync_shop_assets\"") && toolsResp.Contains("\"stage_deploy\"")
+                    && toolsResp.Contains("\"ag_direct_inbox\"")
+                    && toolsResp.Contains("\"tresor_list_ai_entries\"")
+                    && toolsResp.Contains("\"tresor_browser_login\"")
+                    && toolsResp.Contains("\"mittwald_api_broker\""),
+                    $"catalogToolCount={catalogToolCount}");
 
                 // 26. MCP resources/list & resources/read E2E
                 string? resListResp = await Program.ProcessJsonRpcMessageAsync("""{"jsonrpc":"2.0","id":2601,"method":"resources/list","params":{}}""");
@@ -2919,6 +4780,533 @@ namespace FunkenwerkMcp
                         presetsRegistered && liveExportBlocked && liveResolveBlocked);
                 }
 
+                // 46. Mini-PC Direct Sentinel Presets Block Non-Mini-PC Hosts & Master-Key Access Before Socket Open
+                {
+                    bool nonMiniHostBlocked = false;
+                    try
+                    {
+                        McpSecurityGuard.ValidateMiniPcOnlyTarget("ssh.altgemeinde.project.host");
+                    }
+                    catch (UnauthorizedAccessException) { nonMiniHostBlocked = true; }
+
+                    bool masterKeyPathBlocked = false;
+                    try
+                    {
+                        McpSecurityGuard.ValidateMiniPcOnlyTarget("192.168.188.151", "/home/alina/.local/share/FunkenwerkOS/master.key");
+                    }
+                    catch (UnauthorizedAccessException) { masterKeyPathBlocked = true; }
+
+                    McpSecurityGuard.ValidateMiniPcOnlyTarget("192.168.188.151", "/home/alina/.local/share/FunkenwerkOS");
+
+                    AssertTest("46. Mini-PC Direct Sentinel Presets Enforce 192.168.188.151 & Block master.key Paths",
+                        nonMiniHostBlocked && masterKeyPathBlocked);
+                }
+
+                // 47. AG Direct Bridge ID & Stage-Only Guard (Blocks Shell-Injection, Flags, Traversal & /seelenfunke-live)
+                {
+                    string okSingle = McpSecurityGuard.ValidateAgInboxSingleId("ag_20261116_abc123");
+                    string okBatch = McpSecurityGuard.ValidateAgInboxMarkDeliveredIds("ag_20261116_001,ag_20261116_002");
+                    string okGuid = McpSecurityGuard.ValidateAgConversationId("a75e6db9-d026-4955-97c0-6e8695d6193d");
+
+                    string[] maliciousIds =
+                    {
+                        "",
+                        "ab",
+                        "-rf",
+                        "--help",
+                        "ag_1; rm -rf /",
+                        "ag_1$(whoami)",
+                        "../ag_1",
+                        "ag_1' OR '1'='1",
+                        "ag_1,,ag_2",
+                        "ag_1,"
+                    };
+
+                    bool allMaliciousBlocked = true;
+                    foreach (string bad in maliciousIds)
+                    {
+                        bool blockedSingle = false;
+                        try { McpSecurityGuard.ValidateAgInboxSingleId(bad); }
+                        catch (UnauthorizedAccessException) { blockedSingle = true; }
+
+                        bool blockedDelivered = false;
+                        try { McpSecurityGuard.ValidateAgInboxMarkDeliveredIds(bad); }
+                        catch (UnauthorizedAccessException) { blockedDelivered = true; }
+
+                        bool blockedConv = false;
+                        try { McpSecurityGuard.ValidateAgConversationId(bad); }
+                        catch (UnauthorizedAccessException) { blockedConv = true; }
+
+                        if (!blockedSingle || !blockedDelivered || !blockedConv)
+                        {
+                            allMaliciousBlocked = false;
+                            break;
+                        }
+                    }
+
+                    bool liveAgBlocked = false;
+                    try
+                    {
+                        await McpSecurityGuard.ExecuteStageAgInboxCommandAsync(
+                            "peek_pending",
+                            customRemoteStageDirForTest: "/home/p-g27wim/html/seelenfunke-live");
+                    }
+                    catch (UnauthorizedAccessException) { liveAgBlocked = true; }
+
+                    AssertTest("47. AG Direct Bridge Validates IDs/GUIDs Against Command-Injection & Blocks /seelenfunke-live",
+                        okSingle == "ag_20261116_abc123"
+                        && okBatch == "ag_20261116_001,ag_20261116_002"
+                        && okGuid == "a75e6db9-d026-4955-97c0-6e8695d6193d"
+                        && allMaliciousBlocked
+                        && liveAgBlocked);
+                }
+
+                // 48. AG Direct Bridge Prompt Formatting (concept vs direct + Numbered Checklist + Attachment + Completion CLI)
+                {
+                    var sampleChecklistNode = JsonNode.Parse("""["Rohling ausmessen", {"text": "3D-Modell anpassen", "done": false}]""");
+                    var extractedChecklist = Program.ExtractChecklistStrings(sampleChecklistNode);
+                    string fakeMediaPath = @"C:\Users\konta\AppData\Local\Funkenwerk\AgDirectMedia\ag_test_01.png";
+
+                    string conceptPrompt = McpSecurityGuard.BuildAgDirectMasterPrompt(
+                        itemId: "ag_test_01",
+                        title: "Neuer Schlüsselanhänger",
+                        body: "Bitte erst Materialkosten kalkulieren.",
+                        checklist: extractedChecklist,
+                        executionMode: "concept",
+                        savedAttachmentPath: fakeMediaPath);
+
+                    string directPrompt = McpSecurityGuard.BuildAgDirectMasterPrompt(
+                        itemId: "ag_test_02",
+                        title: "Tippfehler im Footer beheben",
+                        body: null,
+                        checklist: null,
+                        executionMode: "direct",
+                        savedAttachmentPath: null);
+
+                    AssertTest("48. AG Direct Bridge Prompt Formatting (concept vs direct + Checklist + Media Path + Complete CLI)",
+                        conceptPrompt.Contains("[DIREKTNACHRICHT AUS ANDROID-APP | ID: ag_test_01 | MODUS: Erst Konzept (warte auf Go)]")
+                        && conceptPrompt.Contains("Hauptpunkt: Neuer Schlüsselanhänger")
+                        && conceptPrompt.Contains("Bitte erst Materialkosten kalkulieren.")
+                        && conceptPrompt.Contains("1. Rohling ausmessen")
+                        && conceptPrompt.Contains("2. 3D-Modell anpassen")
+                        && conceptPrompt.Contains($"Angehängtes Bild lokal gespeichert unter: {fakeMediaPath} (bitte per read_file ansehen)")
+                        && conceptPrompt.Contains("--ag-inbox-complete ag_test_01 \"<kurze Zusammenfassung>\"")
+                        && directPrompt.Contains("[DIREKTNACHRICHT AUS ANDROID-APP | ID: ag_test_02 | MODUS: Direkt umsetzen via Orchester-Subagenten]")
+                        && !directPrompt.Contains("Angehängtes Bild lokal gespeichert unter:")
+                        && directPrompt.Contains("--ag-inbox-complete ag_test_02 \"<kurze Zusammenfassung>\""));
+                }
+
+                // 49. AG Direct Bridge Attachment Decoder Magic-Header & Extension Security Guard (.png / .jpg / .webp Only)
+                {
+                    byte[] validPng = { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52 };
+                    byte[] validJpg = { 0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01, 0xFF, 0xD9 };
+                    byte[] validWebp = { 0x52, 0x49, 0x46, 0x46, 0x10, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50, 0x56, 0x50, 0x38, 0x20 };
+                    byte[] disguisedExe = Encoding.ASCII.GetBytes("MZ_FAKE_WINDOWS_EXECUTABLE_PAYLOAD");
+
+                    string savedPng = McpSecurityGuard.SaveAgDirectAttachmentSafe("ag_img_png", "screen.png", "image/png", Convert.ToBase64String(validPng));
+                    string savedJpg = McpSecurityGuard.SaveAgDirectAttachmentSafe("ag_img_jpg", "photo.jpeg", "image/jpeg", Convert.ToBase64String(validJpg));
+                    string savedWebp = McpSecurityGuard.SaveAgDirectAttachmentSafe("ag_img_webp", "shot.webp", "image/webp", Convert.ToBase64String(validWebp));
+
+                    bool exeBlocked = false;
+                    try { McpSecurityGuard.SaveAgDirectAttachmentSafe("ag_bad_exe", "screen.png", "image/png", Convert.ToBase64String(disguisedExe)); }
+                    catch (UnauthorizedAccessException) { exeBlocked = true; }
+
+                    bool svgExtBlocked = false;
+                    try { McpSecurityGuard.SaveAgDirectAttachmentSafe("ag_bad_svg", "xss.svg", "image/png", Convert.ToBase64String(validPng)); }
+                    catch (UnauthorizedAccessException) { svgExtBlocked = true; }
+
+                    AssertTest("49. AG Direct Bridge Media Guard Saves Valid PNG/JPG/WEBP & Blocks Disguised EXE/SVG Payloads",
+                        File.Exists(savedPng) && savedPng.EndsWith("ag_img_png.png", StringComparison.Ordinal)
+                        && File.Exists(savedJpg) && savedJpg.EndsWith("ag_img_jpg.jpg", StringComparison.Ordinal)
+                        && File.Exists(savedWebp) && savedWebp.EndsWith("ag_img_webp.webp", StringComparison.Ordinal)
+                        && exeBlocked
+                        && svgExtBlocked);
+                }
+
+                // 50. AG Direct Bridge Config Roundtrip (ag_direct_bridge_config.json) & MCP Tool set_master_chat E2E
+                {
+                    McpSecurityGuard.ResetRateLimiterForTests();
+                    var savedCfg = McpSecurityGuard.SaveAgBridgeConfig(new AgDirectBridgeConfigDto
+                    {
+                        MasterConversationId = "11111111-2222-3333-4444-555555555555",
+                        PollIntervalSeconds = 5 // Must clamp to MinAgPollIntervalSeconds (10s)
+                    });
+                    var loadedCfg = McpSecurityGuard.LoadAgBridgeConfig();
+                    string rawCfgJson = await File.ReadAllTextAsync(McpSecurityGuard.AgDirectBridgeConfigPath);
+
+                    string? mcpSetResp = await Program.ProcessJsonRpcMessageAsync(new JsonObject
+                    {
+                        ["jsonrpc"] = "2.0",
+                        ["id"] = 5001,
+                        ["method"] = "tools/call",
+                        ["params"] = new JsonObject
+                        {
+                            ["name"] = "ag_direct_inbox",
+                            ["arguments"] = new JsonObject
+                            {
+                                ["action"] = "set_master_chat",
+                                ["conversation_id"] = "a75e6db9-d026-4955-97c0-6e8695d6193d"
+                            }
+                        }
+                    }.ToJsonString());
+
+                    string? mcpBadIdResp = await Program.ProcessJsonRpcMessageAsync(new JsonObject
+                    {
+                        ["jsonrpc"] = "2.0",
+                        ["id"] = 5002,
+                        ["method"] = "tools/call",
+                        ["params"] = new JsonObject
+                        {
+                            ["name"] = "ag_direct_inbox",
+                            ["arguments"] = new JsonObject
+                            {
+                                ["action"] = "complete",
+                                ["id"] = "ag_1; whoami",
+                                ["summary"] = "Test"
+                            }
+                        }
+                    }.ToJsonString());
+
+                    var reloadedAfterMcp = McpSecurityGuard.LoadAgBridgeConfig();
+                    AssertTest("50. AG Direct Bridge Config JSON Roundtrip, Min-10s Clamp & MCP ag_direct_inbox E2E",
+                        savedCfg.PollIntervalSeconds == 10
+                        && loadedCfg.MasterConversationId == "11111111-2222-3333-4444-555555555555"
+                        && loadedCfg.PollIntervalSeconds == 10
+                        && rawCfgJson.Contains("\"master_conversation_id\"")
+                        && rawCfgJson.Contains("\"poll_interval_seconds\"")
+                        && mcpSetResp != null && mcpSetResp.Contains("\"isError\":false")
+                        && reloadedAfterMcp.MasterConversationId == "a75e6db9-d026-4955-97c0-6e8695d6193d"
+                        && mcpBadIdResp != null && mcpBadIdResp.Contains("\"isError\":true"));
+                }
+
+                // 51. AG Direct Bridge agentapi ProcessStartInfo Shell-Injection Immunity (UseShellExecute=false + ArgumentList)
+                {
+                    string trickyPrompt = "[DIREKTNACHRICHT] \"Quotes\" & calc.exe | $(whoami) %APPDATA%\nZeile 2";
+                    var psiWithExe = McpSecurityGuard.BuildAgentApiSendMessageStartInfo(
+                        "a75e6db9-d026-4955-97c0-6e8695d6193d",
+                        trickyPrompt,
+                        agentApiExeOverride: @"C:\Antigravity\language_server.exe");
+                    var psiFallback = McpSecurityGuard.BuildAgentApiSendMessageStartInfo(
+                        "a75e6db9-d026-4955-97c0-6e8695d6193d",
+                        trickyPrompt,
+                        agentApiExeOverride: null,
+                        ignoreEnvironmentVariableForTest: true);
+
+                    AssertTest("51. AG Direct Bridge agentapi ProcessStartInfo Enforces UseShellExecute=false & ArgumentList",
+                        !psiWithExe.UseShellExecute
+                        && psiWithExe.FileName == @"C:\Antigravity\language_server.exe"
+                        && psiWithExe.ArgumentList.Count == 5
+                        && psiWithExe.ArgumentList[0] == "agentapi"
+                        && psiWithExe.ArgumentList[1] == "send-message"
+                        && psiWithExe.ArgumentList[2] == "--"
+                        && psiWithExe.ArgumentList[3] == "a75e6db9-d026-4955-97c0-6e8695d6193d"
+                        && psiWithExe.ArgumentList[4] == trickyPrompt
+                        && !psiFallback.UseShellExecute
+                        && psiFallback.FileName == "agentapi"
+                        && psiFallback.ArgumentList.Count == 4
+                        && psiFallback.ArgumentList[0] == "send-message"
+                        && psiFallback.ArgumentList[1] == "--"
+                        && psiFallback.ArgumentList[2] == "a75e6db9-d026-4955-97c0-6e8695d6193d"
+                        && psiFallback.ArgumentList[3] == trickyPrompt);
+                }
+
+                // 52. Zero-Secret Tresor Broker Vault Roundtrip (DPAPI + AES-256-GCM), Exclusion Of Private Entries & Tamper Guard
+                string tempBrokerVault = Path.Combine(tempVaultDir, "ai_broker_vault.bin");
+                McpTresorBroker.TestBrokerVaultFileOverride = tempBrokerVault;
+                {
+                    McpSecurityGuard.ResetRateLimiterForTests();
+                    McpTresorBroker.WriteBrokerVaultForTest(tempBrokerVault, new[]
+                    {
+                        new McpTresorBroker.TestBrokerSeedEntry
+                        {
+                            Id = "priv-bank-001",
+                            Title = "Sparkasse Privat",
+                            Url = "https://sparkasse.de",
+                            Username = "alina_privat",
+                            Password = "PrivatBankTopSecretPassword#99!",
+                            TotpSeedOrConfig = "JBSWY3DPEHPK3PXP",
+                            ApiToken = "priv_bank_token_999",
+                            AiBrokerEnabled = false
+                        },
+                        new McpTresorBroker.TestBrokerSeedEntry
+                        {
+                            Id = "mw-approved-001",
+                            Title = "Mittwald mStudio",
+                            Url = "https://studio.mittwald.de",
+                            Username = "kontakt@mein-seelenfunke.de",
+                            Password = "MittwaldVaultSecretPassword#2026!",
+                            TotpSeedOrConfig = "otpauth://totp/Mittwald:Alina?secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ&digits=6&algorithm=SHA1",
+                            ApiToken = "mw_pat_SuperSecretBrokerToken2026!",
+                            UpdatedAtUtc = "2026-11-16T09:00:00Z",
+                            AiBrokerEnabled = true
+                        }
+                    });
+
+                    string? listMcpResp = await Program.ProcessJsonRpcMessageAsync(
+                        """{"jsonrpc":"2.0","id":5201,"method":"tools/call","params":{"name":"tresor_list_ai_entries","arguments":{}}}""");
+                    var directList = McpTresorBroker.ListApprovedEntries();
+
+                    // Verify 1-byte AES-GCM tamper is rejected Fail-Closed
+                    string tamperedVault = tempBrokerVault + ".tampered";
+                    byte[] rawVaultBytes = await File.ReadAllBytesAsync(tempBrokerVault);
+                    rawVaultBytes[^1] ^= 0xFF;
+                    await File.WriteAllBytesAsync(tamperedVault, rawVaultBytes);
+                    McpTresorBroker.TestBrokerVaultFileOverride = tamperedVault;
+                    bool tamperBlocked = false;
+                    try { McpTresorBroker.ListApprovedEntries(); }
+                    catch (CryptographicException) { tamperBlocked = true; }
+                    finally { McpTresorBroker.TestBrokerVaultFileOverride = tempBrokerVault; }
+
+                    // Verify private entry cannot be looked up by BrowserLogin or MittwaldBroker
+                    string? privLookupResp = await Program.ProcessJsonRpcMessageAsync(
+                        """{"jsonrpc":"2.0","id":5202,"method":"tools/call","params":{"name":"tresor_browser_login","arguments":{"titleOrId":"Sparkasse Privat"}}}""");
+
+                    string listInnerText = listMcpResp != null
+                        ? (JsonNode.Parse(listMcpResp)?["result"]?["content"]?[0]?["text"]?.GetValue<string>() ?? "")
+                        : "";
+
+                    AssertTest("52. Tresor Broker DPAPI+AES-256-GCM Roundtrip: 0 % Private Entries & 0 Secrets Exposed In tresor_list_ai_entries",
+                        directList.VaultExists
+                        && directList.Count == 1
+                        && directList.Entries[0].Id == "mw-approved-001"
+                        && directList.Entries[0].AllowedHost == "studio.mittwald.de"
+                        && directList.Entries[0].HasUsername
+                        && directList.Entries[0].HasPassword
+                        && directList.Entries[0].HasTotp
+                        && directList.Entries[0].HasApiToken
+                        && listMcpResp != null
+                        && listMcpResp.Contains("\"isError\":false")
+                        && listInnerText.Contains("\"studio.mittwald.de\"", StringComparison.Ordinal)
+                        && !listMcpResp.Contains("Sparkasse", StringComparison.OrdinalIgnoreCase)
+                        && !listMcpResp.Contains("MittwaldVaultSecretPassword", StringComparison.Ordinal)
+                        && !listMcpResp.Contains("GEZDGNBVGY3TQOJQ", StringComparison.Ordinal)
+                        && !listMcpResp.Contains("mw_pat_SuperSecretBrokerToken", StringComparison.Ordinal)
+                        && !listMcpResp.Contains("kontakt@mein-seelenfunke.de", StringComparison.Ordinal)
+                        && tamperBlocked
+                        && privLookupResp != null && privLookupResp.Contains("\"isError\":true"));
+                }
+
+                // 53. RFC-6238 TOTP Vectors (SHA1/SHA256/SHA512) & Anti-Phishing Domain Guard
+                {
+                    var t59 = DateTimeOffset.FromUnixTimeSeconds(59);
+                    byte[] sha1Seed = Encoding.UTF8.GetBytes("GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ");
+                    byte[] sha256Uri = Encoding.UTF8.GetBytes("otpauth://totp/Test?secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZA====&digits=8&algorithm=SHA256");
+                    byte[] sha512Uri = Encoding.UTF8.GetBytes("otpauth://totp/Test?secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNA=&digits=8&algorithm=SHA512");
+
+                    bool totpOk = McpTresorBroker.TryGenerateTotpCode(sha1Seed, t59, out string c1, out int rem1) && c1 == "287082" && rem1 == 1
+                        && McpTresorBroker.TryGenerateTotpCode(sha256Uri, t59, out string c256, out _) && c256 == "46119246"
+                        && McpTresorBroker.TryGenerateTotpCode(sha512Uri, t59, out string c512, out _) && c512 == "90693936";
+
+                    // Exact + direct subdomain of registrable base domain allowed
+                    string m1 = McpTresorBroker.ValidateAntiPhishingTargetUrl("https://studio.mittwald.de", "https://studio.mittwald.de/app/projects");
+                    string m2 = McpTresorBroker.ValidateAntiPhishingTargetUrl("https://studio.mittwald.de", "https://login.mittwald.de/oauth2/authorize");
+
+                    // Phishing / downgrade / PSL / UserInfo attacks MUST all throw UnauthorizedAccessException
+                    (string EntryUrl, string EvilTabUrl)[] phishingCases =
+                    {
+                        ("https://studio.mittwald.de", "http://studio.mittwald.de/login"),
+                        ("https://studio.mittwald.de", "https://evil-mittwald.com/login"),
+                        ("https://studio.mittwald.de", "https://studio.mittwald.de.evil.com/login"),
+                        ("https://studio.mittwald.de", "https://google.com"),
+                        ("https://studio.mittwald.de", "https://studio.mittwald.de@evil.com/login"),
+                        ("https://portal.firma.co.uk", "https://attacker.co.uk/login"),
+                        ("https://myshop.github.io", "https://phisher.github.io/login"),
+                        ("https://studio.mittwald.de", "https://deep.nested.login.mittwald.de/phish")
+                    };
+
+                    bool allPhishingBlocked = true;
+                    foreach (var (eUrl, badTab) in phishingCases)
+                    {
+                        bool threw = false;
+                        try { McpTresorBroker.ValidateAntiPhishingTargetUrl(eUrl, badTab); }
+                        catch (UnauthorizedAccessException) { threw = true; }
+                        if (!threw) { allPhishingBlocked = false; break; }
+                    }
+
+                    AssertTest("53. RFC-6238 TOTP Vectors (SHA1/SHA256/SHA512) & Anti-Phishing Guard (Blocks HTTP, evil-mittwald.com, PSL & UserInfo)",
+                        totpOk && m1 == "studio.mittwald.de" && m2 == "login.mittwald.de" && allPhishingBlocked);
+                }
+
+                // 54 & 55. Loopback CDP Browser Auto-Fill E2E (DevToolsActivePort flatten=true Multi-Step + /json/list Fallback + Phishing Abort)
+                await using (var mockCdp = new MockCdpLoopbackServer())
+                {
+                    McpSecurityGuard.ResetRateLimiterForTests();
+                    string fakeActivePortFile = Path.Combine(tempVaultDir, "DevToolsActivePort");
+                    await File.WriteAllLinesAsync(fakeActivePortFile, new[]
+                    {
+                        mockCdp.Port.ToString(),
+                        "/devtools/browser/11111111-2222-3333-4444-555555555555"
+                    });
+                    McpTresorBroker.TestDevToolsActivePortFileOverride = fakeActivePortFile;
+                    McpTresorBroker.TestDefaultCdpPortOverride = mockCdp.Port;
+
+                    // 54: DevToolsActivePort mode (HTTP /json/list disabled just like chrome://inspect/#remote-debugging!) + Multi-Step Email -> Password -> 2FA TOTP
+                    mockCdp.ResetState("https://login.mittwald.de/sso", multiStep: true, disableJsonList: true);
+                    string? loginMcpResp = await Program.ProcessJsonRpcMessageAsync(new JsonObject
+                    {
+                        ["jsonrpc"] = "2.0",
+                        ["id"] = 5401,
+                        ["method"] = "tools/call",
+                        ["params"] = new JsonObject
+                        {
+                            ["name"] = "tresor_browser_login",
+                            ["arguments"] = new JsonObject
+                            {
+                                ["titleOrId"] = "Mittwald",
+                                ["submit"] = true
+                            }
+                        }
+                    }.ToJsonString());
+
+                    string loginInnerText = loginMcpResp != null
+                        ? (JsonNode.Parse(loginMcpResp)?["result"]?["content"]?[0]?["text"]?.GetValue<string>() ?? "")
+                        : "";
+
+                    bool multiStepOk = mockCdp.FlattenAttachUsed
+                        && mockCdp.CapturedUsername == "kontakt@mein-seelenfunke.de"
+                        && mockCdp.CapturedPassword == "MittwaldVaultSecretPassword#2026!"
+                        && !string.IsNullOrEmpty(mockCdp.CapturedTotp) && mockCdp.CapturedTotp!.Length == 6 && mockCdp.CapturedTotp.All(char.IsDigit)
+                        && mockCdp.CapturedSubmitted
+                        && loginMcpResp != null
+                        && loginMcpResp.Contains("\"isError\":false")
+                        && loginInnerText.Contains("\"matched_host\": \"login.mittwald.de\"", StringComparison.Ordinal)
+                        && loginInnerText.Contains("\"filled_username\": true", StringComparison.Ordinal)
+                        && loginInnerText.Contains("\"filled_password\": true", StringComparison.Ordinal)
+                        && loginInnerText.Contains("\"filled_totp\": true", StringComparison.Ordinal)
+                        && !loginMcpResp.Contains("MittwaldVaultSecretPassword", StringComparison.Ordinal)
+                        && !loginMcpResp.Contains(mockCdp.CapturedTotp, StringComparison.Ordinal);
+
+                    AssertTest("54. Tresor Browser Login E2E Over DevToolsActivePort (Target.attachToTarget flatten=true, Multi-Step + 2FA TOTP, 0 Secrets Output)",
+                        multiStepOk, loginMcpResp ?? "null");
+
+                    // 55: Fallback to /json/list when DevToolsActivePort is absent + Fail-Closed Anti-Phishing on evil tab (0 credentials sent!)
+                    McpTresorBroker.TestDevToolsActivePortFileOverride = Path.Combine(tempVaultDir, "NonExistent_DevToolsActivePort");
+                    mockCdp.ResetState("https://studio.mittwald.de/login", multiStep: false, disableJsonList: false);
+                    var jsonListRes = await McpTresorBroker.BrowserLoginAsync("Mittwald", submit: true, totpOnly: false);
+
+                    mockCdp.ResetState("https://evil-mittwald.com/phish", multiStep: false, disableJsonList: false);
+                    bool evilAbortedBeforeFill = false;
+                    try
+                    {
+                        await McpTresorBroker.BrowserLoginAsync("Mittwald", submit: true, totpOnly: false);
+                    }
+                    catch (UnauthorizedAccessException)
+                    {
+                        evilAbortedBeforeFill = true;
+                    }
+
+                    AssertTest("55. Tresor Browser Login /json/list Fallback & Fail-Closed Phishing Abort (0 DOM Calls On evil-mittwald.com)",
+                        jsonListRes.Status == "ok"
+                        && jsonListRes.MatchedHost == "studio.mittwald.de"
+                        && jsonListRes.FilledUsername
+                        && jsonListRes.FilledPassword
+                        && evilAbortedBeforeFill
+                        && mockCdp.CallFunctionCount == 0
+                        && mockCdp.CapturedPassword == null);
+                }
+
+                // 56 & 57. Official Mittwald mStudio REST API v2 Broker & Hard Live-Air-Gap Guard
+                using (var mockMw = new MockMittwaldHttpHandler())
+                using (var mockMwClient = new HttpClient(mockMw) { Timeout = TimeSpan.FromSeconds(5) })
+                {
+                    McpSecurityGuard.ResetRateLimiterForTests();
+                    McpTresorBroker.TestMittwaldHttpClientOverride = mockMwClient;
+
+                    // 56: Read-only presets + dual headers + DLP token scrubbing when echoed
+                    var selfRes = await McpTresorBroker.ExecuteMittwaldApiPresetAsync("user_self");
+                    var projRes = await McpTresorBroker.ExecuteMittwaldApiPresetAsync("list_projects");
+                    var appsRes = await McpTresorBroker.ExecuteMittwaldApiPresetAsync("list_apps", projectId: "proj-uuid-sf-01");
+                    var cronListRes = await McpTresorBroker.ExecuteMittwaldApiPresetAsync("list_cronjobs", projectId: "proj-uuid-sf-01");
+                    var ingRes = await McpTresorBroker.ExecuteMittwaldApiPresetAsync("list_ingresses", projectId: "proj-uuid-sf-01");
+
+                    string serializedSelf = JsonSerializer.Serialize(selfRes);
+                    bool headersVerified = mockMw.Captured.Count == 5
+                        && mockMw.Captured.All(r => r.Uri.Scheme == "https" && r.Uri.Host == "api.mittwald.de"
+                            && r.Bearer == "mw_pat_SuperSecretBrokerToken2026!"
+                            && r.XAccessToken == "mw_pat_SuperSecretBrokerToken2026!");
+
+                    AssertTest("56. Mittwald API v2 Broker Read-Only Presets, Dual Auth Headers & Outbound DLP Token Scrubbing",
+                        headersVerified
+                        && selfRes.Status == "ok"
+                        && projRes.Data is JsonArray
+                        && appsRes.Data is JsonArray
+                        && cronListRes.Data is JsonArray
+                        && ingRes.Data is JsonArray
+                        && !serializedSelf.Contains("mw_pat_SuperSecretBrokerToken2026!", StringComparison.Ordinal)
+                        && serializedSelf.Contains("[REDACTED-BY-FUNKENWERK-DLP]", StringComparison.Ordinal));
+
+                    // 57: Stage mutations (shortId a-lc6tkm -> UUID resolution + Stage cronjob) ALLOWED; ALL Live/Ambiguous apps & cronjobs HARD-BLOCKED!
+                    mockMw.Captured.Clear();
+                    var restartStageRes = await McpTresorBroker.ExecuteMittwaldApiPresetAsync("restart_stage_app", appId: "a-lc6tkm");
+                    var execStageCronRes = await McpTresorBroker.ExecuteMittwaldApiPresetAsync("execute_stage_cronjob", cronjobId: "cron-stage-01");
+
+                    int postsAfterValidStage = mockMw.Captured.Count(r => r.Method == HttpMethod.Post);
+
+                    bool liveShortIdBlocked = false;
+                    try { await McpTresorBroker.ExecuteMittwaldApiPresetAsync("restart_stage_app", appId: "a-bycqrf"); }
+                    catch (UnauthorizedAccessException) { liveShortIdBlocked = true; }
+
+                    bool liveUuidBlockedAfterGet = false;
+                    try { await McpTresorBroker.ExecuteMittwaldApiPresetAsync("restart_stage_app", appId: "app-uuid-live-web"); }
+                    catch (UnauthorizedAccessException) { liveUuidBlockedAfterGet = true; }
+
+                    bool ambiguousAppBlocked = false;
+                    try { await McpTresorBroker.ExecuteMittwaldApiPresetAsync("restart_stage_app", appId: "app-uuid-ambiguous"); }
+                    catch (UnauthorizedAccessException) { ambiguousAppBlocked = true; }
+
+                    bool liveOwnedCronBlocked = false;
+                    try { await McpTresorBroker.ExecuteMittwaldApiPresetAsync("execute_stage_cronjob", cronjobId: "cron-generic-on-live-app"); }
+                    catch (UnauthorizedAccessException) { liveOwnedCronBlocked = true; }
+
+                    int postsAfterBlockedAttempts = mockMw.Captured.Count(r => r.Method == HttpMethod.Post);
+
+                    AssertTest("57. Mittwald API v2 Live-Air-Gap Guard Allows Stage (a-lc6tkm) & Blocks All Live Apps/Cronjobs With 0 Live POSTs",
+                        restartStageRes.HttpStatus == 204
+                        && execStageCronRes.HttpStatus == 204
+                        && postsAfterValidStage == 2
+                        && liveShortIdBlocked
+                        && liveUuidBlockedAfterGet
+                        && ambiguousAppBlocked
+                        && liveOwnedCronBlocked
+                        && postsAfterBlockedAttempts == 2);
+                }
+
+                // 58. Windows Desktop Zero-Log-Baseline (funkenwerk_tresor_boot.log + error_sentinel_queue.json Detection, DLP Scrubbing & Archive-to-0-Bytes)
+                {
+                    string winLocalRoot = Path.Combine(tempRoot, "MockLocalAppData");
+                    string mockTresorDir = Path.Combine(winLocalRoot, "FunkenwerkTresor");
+                    string mockFwDir = Path.Combine(winLocalRoot, "Funkenwerk");
+                    Directory.CreateDirectory(mockTresorDir);
+                    Directory.CreateDirectory(mockFwDir);
+
+                    string mockBootLog = Path.Combine(mockTresorDir, "funkenwerk_tresor_boot.log");
+                    File.WriteAllText(mockBootLog, "[12:00:00.000] DOMAIN_EXCEPTION: Crash with Bearer SecretBearerToken99999999999999999999", Encoding.UTF8);
+
+                    string mockQueue = Path.Combine(mockFwDir, "error_sentinel_queue.json");
+                    File.WriteAllText(mockQueue, "[{\"Component\":\"camera_studio\",\"Title\":\"MockCrash\",\"Message\":\"key=SuperSecret12345\",\"Severity\":\"error\",\"AutoHealed\":false}]", Encoding.UTF8);
+
+                    var seenFps = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    var items = new JsonArray();
+                    int detected = Program.CollectWindowsDesktopDossiers(seenFps, items, winLocalRoot);
+                    string itemsDump = items.ToJsonString();
+
+                    var (archFiles, archBytes, remBytes) = Program.ArchiveAndZeroWindowsDesktopLogs(winLocalRoot);
+                    int detectedAfterZero = Program.CollectWindowsDesktopDossiers(new HashSet<string>(StringComparer.OrdinalIgnoreCase), new JsonArray(), winLocalRoot);
+                    bool tresorArchiveExists = Directory.Exists(Path.Combine(mockTresorDir, "archive")) &&
+                                               Directory.GetFiles(Path.Combine(mockTresorDir, "archive"), "healed_*_funkenwerk_tresor_boot.log").Length == 1;
+
+                    AssertTest("58. Windows Desktop Zero-Log-Baseline (Tresor Boot-Log & Queue Detection, DLP Scrubbing & Lossless 0-Byte Reset)",
+                        detected == 2
+                        && !itemsDump.Contains("SecretBearerToken99999999999999999999", StringComparison.Ordinal)
+                        && archFiles == 2
+                        && archBytes > 0
+                        && remBytes == 0
+                        && new FileInfo(mockBootLog).Length == 0
+                        && !File.Exists(mockQueue)
+                        && tresorArchiveExists
+                        && detectedAfterZero == 0);
+                }
+
                 Console.WriteLine($"=== RESULT: {passed} PASSED, {failed} FAILED ===");
                 return failed == 0 ? 0 : 1;
             }
@@ -2926,6 +5314,10 @@ namespace FunkenwerkMcp
             {
                 McpOrganizerClient.TestHttpClientOverride = null;
                 McpOrganizerClient.TestBaseUrlOverride = null;
+                McpTresorBroker.TestBrokerVaultFileOverride = null;
+                McpTresorBroker.TestDevToolsActivePortFileOverride = null;
+                McpTresorBroker.TestDefaultCdpPortOverride = null;
+                McpTresorBroker.TestMittwaldHttpClientOverride = null;
                 McpSecurityGuard.ResetRateLimiterForTests();
                 try
                 {

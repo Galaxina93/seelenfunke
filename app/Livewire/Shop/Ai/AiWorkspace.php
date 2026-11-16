@@ -171,10 +171,11 @@ class AiWorkspace extends Component
         $agents = AiAgent::where('is_active', true)->get();
         if ($agents->isEmpty()) return;
 
-        // Ping LLM once globally (shared Gemini provider infrastructure)
+        // Ping LLM once globally (shared Gemini/Vertex provider infrastructure)
         $start = microtime(true);
-        $llmUrl = config('services.gemini.url') ?: 'https://generativelanguage.googleapis.com/v1beta/openai/';
-        $key = config('services.gemini.key');
+        $openAi = \App\Services\AI\VertexAiService::resolveOpenAiEndpoint();
+        $llmUrl = $openAi['base_url'];
+        $key = $openAi['token'];
         
         $llmStatus = 'Offline';
         try {
@@ -242,8 +243,9 @@ class AiWorkspace extends Component
         $llmStatus = 'Fehler';
         try {
             $start = microtime(true);
-            $llmUrl = config('services.gemini.url') ?: 'https://generativelanguage.googleapis.com/v1beta/openai/';
-            $key = config('services.gemini.key');
+            $openAi = \App\Services\AI\VertexAiService::resolveOpenAiEndpoint();
+            $llmUrl = $openAi['base_url'];
+            $key = $openAi['token'];
             
             $response = \Illuminate\Support\Facades\Http::timeout(3)->withToken($key)->get(rtrim($llmUrl, '/') . '/models');
             

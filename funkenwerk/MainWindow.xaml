@@ -732,15 +732,15 @@
                                 <TextBlock Text="✨ KI" FontSize="11" FontWeight="Bold"/>
                             </Button>
                             <Button x:Name="MailSyncBtn" Grid.Column="2" Click="SyncMails_Click" ToolTip="Postfächer synchronisieren (IMAP)"
-                                    Background="#1F2430" Foreground="#D1D5DB" BorderBrush="Transparent" BorderThickness="1" Padding="8,5" Margin="0,0,5,0" Cursor="Hand">
+                                    Background="#161922" Foreground="#E5E7EB" BorderBrush="#262A36" BorderThickness="1" Padding="8,5" Margin="0,0,5,0" Cursor="Hand">
                                 <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <TextBlock x:Name="MailSyncIconTxt" Text="↻" FontSize="11.5" FontWeight="Bold" VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5">
+                                    <TextBlock x:Name="MailSyncIconTxt" Text="↻" Foreground="#E5E7EB" FontSize="11.5" FontWeight="Bold" VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5">
                                         <TextBlock.RenderTransform>
                                             <RotateTransform x:Name="MailSyncIconRotate" Angle="0"/>
                                         </TextBlock.RenderTransform>
                                     </TextBlock>
-                                    <TextBlock x:Name="MailSyncLabelTxt" Text="Sync" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" Margin="4,0,0,0"/>
+                                    <TextBlock x:Name="MailSyncLabelTxt" Text="Sync" Foreground="#E5E7EB" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" Margin="4,0,0,0"/>
                                 </StackPanel>
                             </Button>
                             <Button Grid.Column="3" Click="OpenCompose_Click" ToolTip="Neue E-Mail verfassen"

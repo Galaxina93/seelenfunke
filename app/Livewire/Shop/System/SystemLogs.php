@@ -134,6 +134,10 @@ class SystemLogs extends Component
             app(SentinelTriageService::class)->writeInboxSnapshotFile();
         }
 
+        if (SystemLog::openIssues()->count() === 0 && !app()->runningUnitTests()) {
+            \App\Services\System\LogArchiveService::archiveAndZeroActiveLogs('Admin Global-Logs', 30);
+        }
+
         $this->resetPage();
     }
 

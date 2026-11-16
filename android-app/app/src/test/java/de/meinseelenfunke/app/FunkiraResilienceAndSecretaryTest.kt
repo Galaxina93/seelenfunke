@@ -396,4 +396,68 @@ class FunkiraResilienceAndSecretaryTest {
             de.meinseelenfunke.app.util.NavigationBridge.parseTarget("phone_secretary")
         )
     }
+
+    @Test
+    fun formatWebSocketFailureMessage_preventsLiteralNullAndFormatsCleanGermanStatusTexts() {
+        val eofAfterSetup = FunkiraLiveViewModel.formatWebSocketFailureMessage(
+            t = java.io.EOFException(),
+            httpStatusCode = null,
+            setupWasComplete = true
+        )
+        assertEquals("Verbindung beendet", eofAfterSetup)
+        assertFalse(eofAfterSetup.contains("null", ignoreCase = true))
+
+        val eofBeforeSetup = FunkiraLiveViewModel.formatWebSocketFailureMessage(
+            t = java.io.EOFException(),
+            httpStatusCode = null,
+            setupWasComplete = false
+        )
+        assertEquals("Verbindung getrennt", eofBeforeSetup)
+
+        val sslAbort = FunkiraLiveViewModel.formatWebSocketFailureMessage(
+            t = javax.net.ssl.SSLException("Software caused connection abort"),
+            httpStatusCode = null,
+            setupWasComplete = true
+        )
+        assertEquals("Verbindung kurz unterbrochen", sslAbort)
+
+        val offlineDns = FunkiraLiveViewModel.formatWebSocketFailureMessage(
+            t = java.net.UnknownHostException(),
+            httpStatusCode = null,
+            setupWasComplete = false
+        )
+        assertEquals("Keine Internetverbindung", offlineDns)
+
+        val timeoutMsg = FunkiraLiveViewModel.formatWebSocketFailureMessage(
+            t = java.net.SocketTimeoutException(),
+            httpStatusCode = null,
+            setupWasComplete = false
+        )
+        assertEquals("Zeitüberschreitung der Verbindung", timeoutMsg)
+
+        // Real exception with null message must never render "Verbindungsfehler: null"
+        val nullMsgBug = FunkiraLiveViewModel.formatWebSocketFailureMessage(
+            t = IllegalStateException(),
+            httpStatusCode = null,
+            setupWasComplete = true
+        )
+        assertEquals("Verbindungsfehler (IllegalStateException)", nullMsgBug)
+        assertFalse(nullMsgBug.contains("null", ignoreCase = true))
+
+        val http401NullMsg = FunkiraLiveViewModel.formatWebSocketFailureMessage(
+            t = java.io.EOFException(),
+            httpStatusCode = 401,
+            setupWasComplete = false
+        )
+        assertEquals("Verbindungsfehler (HTTP 401)", http401NullMsg)
+        assertFalse(http401NullMsg.contains("null", ignoreCase = true))
+
+        val tlsFail = FunkiraLiveViewModel.formatWebSocketFailureMessage(
+            t = javax.net.ssl.SSLHandshakeException("Pinning mismatch"),
+            httpStatusCode = null,
+            setupWasComplete = false
+        )
+        assertEquals("Verbindungsfehler: Pinning mismatch", tlsFail)
+        assertFalse(tlsFail.contains(" \u2013 "))
+    }
 }

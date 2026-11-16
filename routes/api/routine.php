@@ -369,8 +369,7 @@ Route::prefix('funki/routine')->group(function () {
             ], 422);
         }
 
-        $apiKey = (string) (config('services.gemini.key') ?: config('services.gemini.api_key') ?: '');
-        if ($apiKey === '') {
+        if (!\App\Services\AI\VertexAiService::hasCredentials()) {
             return response()->json([
                 'success' => false,
                 'transcript' => '',
@@ -397,12 +396,16 @@ Route::prefix('funki/routine')->group(function () {
         ];
 
         try {
-            $ch = curl_init('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent');
+            $endpoint = \App\Services\AI\VertexAiService::resolveGenerateContentEndpoint('gemini-3.5-flash');
+            $curlHeaders = [];
+            foreach ($endpoint['headers'] as $hKey => $hVal) {
+                $curlHeaders[] = "{$hKey}: {$hVal}";
+            }
+            $curlHeaders[] = 'Expect:';
+
+            $ch = curl_init($endpoint['url']);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                'Content-Type: application/json',
-                'x-goog-api-key: ' . $apiKey,
-            ]);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, $curlHeaders);
             curl_setopt($ch, CURLOPT_POST, true);
             curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
             curl_setopt($ch, CURLOPT_TIMEOUT, 9);

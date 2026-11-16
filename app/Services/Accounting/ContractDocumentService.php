@@ -345,8 +345,8 @@ class ContractDocumentService
      */
     protected function callGeminiForContract(UploadedFile|string $file, string $extractedText = ''): ?array
     {
-        $apiKey = config('services.gemini.key', env('GEMINI_API_KEY'));
-        if (empty($apiKey)) {
+        $apiKey = (string) config('services.gemini.key', env('GEMINI_API_KEY'));
+        if (!\App\Services\AI\VertexAiService::hasCredentials()) {
             return null;
         }
 
@@ -439,10 +439,7 @@ PROMPT;
 
         foreach ($models as $model) {
             try {
-                $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent";
-                $response = Http::timeout(35)
-                    ->withHeaders(['x-goog-api-key' => $apiKey])
-                    ->post($url, $payload);
+                $response = \App\Services\AI\VertexAiService::generateContent($model, $payload, 35);
 
                 if ($response->successful()) {
                     $resData = $response->json();

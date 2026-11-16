@@ -1560,12 +1560,11 @@ trait AiFinanceFuncs
 
     public static function analyzeDocumentWithGemini(string $absolutePath, string $mime = 'application/pdf'): ?string
     {
-        $apiKey = config('services.gemini.key', env('GEMINI_API_KEY'));
-        if (empty($apiKey)) {
+        if (!\App\Services\AI\VertexAiService::hasCredentials()) {
             return null;
         }
 
-        $models = ['gemini-3-flash-preview', 'gemini-3.1-flash-lite-preview', 'gemini-2.5-flash', 'gemini-1.5-flash'];
+        $models = ['gemini-3-flash-preview', 'gemini-3.5-flash-lite'];
         $base64 = base64_encode(file_get_contents($absolutePath));
 
         $prompt = "Du bist ein intelligenter Dokumenten- und Vertrags-Analyst für Buchhaltung und Finanzen. Analysiere dieses PDF-Dokument (Vertrag/Beleg) vollständig und strukturiert auf Deutsch.\n"
@@ -1581,6 +1580,7 @@ trait AiFinanceFuncs
         $payload = [
             'contents' => [
                 [
+                    'role' => 'user',
                     'parts' => [
                         ['text' => $prompt],
                         [
@@ -1599,8 +1599,7 @@ trait AiFinanceFuncs
 
         foreach ($models as $model) {
             try {
-                $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$apiKey}";
-                $response = \Illuminate\Support\Facades\Http::timeout(60)->post($url, $payload);
+                $response = \App\Services\AI\VertexAiService::generateContent($model, $payload, 60);
                 if ($response->successful()) {
                     $resData = $response->json();
                     $text = $resData['candidates'][0]['content']['parts'][0]['text'] ?? null;

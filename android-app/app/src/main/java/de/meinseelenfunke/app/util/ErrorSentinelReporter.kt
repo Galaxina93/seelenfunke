@@ -31,7 +31,7 @@ data class SentinelQueuedEvent(
     val message: String = "",
     val stacktrace: String? = null,
     val fingerprint: String = "",
-    val app_version: String = "1.5.0",
+    val app_version: String = "${de.meinseelenfunke.app.BuildConfig.VERSION_NAME} (${de.meinseelenfunke.app.BuildConfig.VERSION_CODE})",
     val device: String = "${Build.MANUFACTURER} ${Build.MODEL}".trim(),
     val auto_healed: Boolean = false,
     val heal_summary: String? = null,
@@ -44,7 +44,8 @@ object ErrorSentinelReporter {
     private const val HISTORY_FILE_NAME = "error_sentinel_history.json"
     private const val MAX_QUEUE_SIZE = 50
     private const val MAX_HISTORY_SIZE = 100
-    private const val APP_VERSION_LABEL = "1.5.0"
+    private val APP_VERSION_LABEL: String
+        get() = "${de.meinseelenfunke.app.BuildConfig.VERSION_NAME} (${de.meinseelenfunke.app.BuildConfig.VERSION_CODE})"
 
     private val installed = AtomicBoolean(false)
     private val flushing = AtomicBoolean(false)
@@ -108,6 +109,73 @@ object ErrorSentinelReporter {
             msgLower.contains("job was cancelled")
     }
 
+    private fun isTransientSslTransportAbort(t: Throwable): Boolean {
+        if (t is javax.net.ssl.SSLHandshakeException ||
+            t is javax.net.ssl.SSLPeerUnverifiedException
+        ) {
+            return false
+        }
+        if (t !is javax.net.ssl.SSLException) return false
+        val msg = (t.message ?: "").lowercase(Locale.ROOT)
+        return msg.contains("connection reset") ||
+            msg.contains("software caused connection abort") ||
+            msg.contains("connection abort") ||
+            msg.contains("broken pipe") ||
+            msg.contains("socket closed") ||
+            msg.contains("i/o error during system call") ||
+            msg.contains("timed out")
+    }
+
+    fun isTransientNetworkOffline(throwable: Throwable?): Boolean {
+        var cur: Throwable? = throwable
+        var depth = 0
+        while (cur != null && depth < 6) {
+            if (cur is javax.net.ssl.SSLHandshakeException ||
+                cur is javax.net.ssl.SSLPeerUnverifiedException
+            ) {
+                return false
+            }
+            if (cur is java.net.UnknownHostException ||
+                cur is java.net.ConnectException ||
+                cur is java.net.NoRouteToHostException ||
+                cur is java.net.SocketTimeoutException ||
+                cur is java.net.SocketException ||
+                isTransientSslTransportAbort(cur)
+            ) {
+                return true
+            }
+            cur = cur.cause
+            depth++
+        }
+        return false
+    }
+
+    fun isTransientWebSocketDisconnect(throwable: Throwable?, httpStatus: Int? = null): Boolean {
+        if (httpStatus != null && httpStatus >= 400) return false
+        var cur: Throwable? = throwable
+        var depth = 0
+        while (cur != null && depth < 6) {
+            if (cur is javax.net.ssl.SSLHandshakeException ||
+                cur is javax.net.ssl.SSLPeerUnverifiedException
+            ) {
+                return false
+            }
+            if (cur is java.io.EOFException ||
+                cur is java.net.SocketException ||
+                cur is java.net.SocketTimeoutException ||
+                cur is java.net.UnknownHostException ||
+                cur is java.net.ConnectException ||
+                cur is java.net.NoRouteToHostException ||
+                isTransientSslTransportAbort(cur)
+            ) {
+                return true
+            }
+            cur = cur.cause
+            depth++
+        }
+        return false
+    }
+
     fun captureError(
         context: Context?,
         tag: String,
@@ -116,22 +184,27 @@ object ErrorSentinelReporter {
         extraContext: Map<String, String> = emptyMap()
     ) {
         if (isBenignCancellation(throwable, message)) return
-        val appCtx = resolveContext(context) ?: return
         val cleanTag = tag.trim().ifEmpty { "android_app" }
+        val httpStatus = extraContext["http_status"]?.toIntOrNull()
+        if (cleanTag.endsWith("_ws", ignoreCase = true) && isTransientWebSocketDisconnect(throwable, httpStatus)) {
+            return
+        }
+        val appCtx = resolveContext(context) ?: return
         val shortTitle = if (throwable != null) {
             "$cleanTag: ${throwable.javaClass.simpleName}"
         } else {
             "$cleanTag: ${message.lineSequence().firstOrNull()?.take(90) ?: "Fehler"}"
         }
+        val transientOffline = isTransientNetworkOffline(throwable)
         val added = enqueueSynchronously(
             appCtx = appCtx,
             component = cleanTag,
             title = shortTitle,
             message = message,
             throwable = throwable,
-            autoHealed = false,
-            healSummary = null,
-            severity = "error",
+            autoHealed = transientOffline,
+            healSummary = if (transientOffline) "Offline-Modus / lokaler Cache übernahm bei kurzzeitigem Funkloch." else null,
+            severity = if (transientOffline) "warning" else "error",
             extraContext = extraContext
         )
         if (added) {
@@ -170,7 +243,8 @@ object ErrorSentinelReporter {
         s = s.replace(Regex("(?i)(Bearer\\s+)[A-Za-z0-9\\-._~+/=|]+"), "$1[REDACTED]")
         s = s.replace(Regex("enc_v1:[A-Za-z0-9+/=:]+"), "enc_v1:[REDACTED]")
         s = s.replace(Regex("AIza[A-Za-z0-9\\-_]{16,}"), "AIza[REDACTED]")
-        s = s.replace(Regex("(?i)([?&](?:api[_-]?key|key|token|password|passwd|secret)=)[^&\\s\"']+"), "$1[REDACTED]")
+        s = s.replace(Regex("ya29\\.[A-Za-z0-9\\-._]{16,}"), "ya29.[REDACTED]")
+        s = s.replace(Regex("(?i)([?&](?:api[_-]?key|key|token|access_token|password|passwd|secret)=)[^&\\s\"']+"), "$1[REDACTED]")
         s = s.replace(Regex("(?i)(\\b(?:api[_-]?key|key|token|password|passwd|secret|authorization)[\"']?\\s*[:=]\\s*[\"']?)([^\\s\"'&,;}{]+)"), "$1[REDACTED]")
         s = s.replace(Regex("\\b\\d+\\|[A-Za-z0-9]{16,}"), "[REDACTED]")
         return if (s.length > 3800) s.take(3800) else s

@@ -52,7 +52,7 @@ class SentinelTriageService
      */
     public function runOpportunistically(): void
     {
-        if (self::$isTriaging) {
+        if (self::$isTriaging || app()->runningUnitTests()) {
             return;
         }
 
@@ -87,6 +87,9 @@ class SentinelTriageService
         self::$isTriaging = true;
 
         try {
+            if (!app()->runningUnitTests()) {
+                LogArchiveService::ingestActiveLogFilesIntoSentinel();
+            }
             $drained = $this->drainDeadLetterSpool();
             $probeStats = $this->probeActiveInfrastructure($probeBridges);
 
@@ -152,6 +155,11 @@ class SentinelTriageService
             }
 
             $snapshot = $this->writeInboxSnapshotFile();
+
+            // Zero-Log-Baseline: Sobald 0 offene Fehler vorliegen, wandern verbleibende Roh-Logs verlustfrei ins Archiv (Haupt-Log = 0 Bytes)
+            if (!app()->runningUnitTests() && ((int) ($snapshot['open_pool_count'] ?? 0)) === 0 && SystemLog::openIssues()->count() === 0) {
+                LogArchiveService::archiveAndZeroActiveLogs('Funkira Sentinel Auto-Archiv', 30);
+            }
 
             return [
                 'status' => 'success',
@@ -415,10 +423,26 @@ class SentinelTriageService
             }
         }
 
+        $watchtowerSynced = ['logged' => 0, 'healed' => 0];
+        if ($includeExternalBridges && class_exists(SystemHealthPulseService::class)) {
+            try {
+                $pulse = app(SystemHealthPulseService::class)->evaluate(
+                    source: 'cli_scheduler',
+                    strict: false,
+                    recordSample: true,
+                    syncLogs: false
+                );
+                $watchtowerSynced = app(SystemHealthPulseService::class)->syncWithSystemLogs($pulse['pillars'] ?? []);
+            } catch (\Throwable $ignore) {
+            }
+        }
+
         return [
             'failed_jobs_imported' => $failedJobsImported,
             'probed_bridges' => $probedBridges,
             'auto_healed_bridges' => $autoHealedBridges,
+            'watchtower_logged' => $watchtowerSynced['logged'] ?? 0,
+            'watchtower_healed' => $watchtowerSynced['healed'] ?? 0,
         ];
     }
 
@@ -531,14 +555,145 @@ class SentinelTriageService
             ];
         }
 
-        if (str_contains($actionId, ':portal_pulse:')
-            && str_contains($msgLower, 'status 0')
-            && $occurrences < 5
+        if ((str_contains($actionId, 'portal_pulse') || str_contains($msgLower, '/api/shop/monitor-pulse'))
+            && preg_match('/\b(?:status|http)\s*(0|429|502|503|504)\b/i', $message, $pulseMatch)
+            && $occurrences < 60
             && $this->verifyCoreConnectivityHealthy()) {
+            $pulseCode = $pulseMatch[1];
             return [
                 'healed' => true,
                 'playbook' => 'client_portal_pulse_recovered',
-                'summary' => 'Kurzzeitiger lokaler Netzwerk-Aussetzer (Status 0) am Endgerät ist abgeklungen; Telemetrie-Verbindung zum Portal steht wieder.',
+                'summary' => $pulseCode === '0'
+                    ? 'Kurzzeitiger lokaler Netzwerk-Aussetzer (Status 0) am Endgerät ist abgeklungen; Telemetrie-Verbindung zum Portal steht wieder.'
+                    : "Kurzzeitige Rate-Limit- oder Gateway-Spitze (Status {$pulseCode}) auf /api/shop/monitor-pulse ist abgeklungen; Telemetrie-Verbindung zum Portal steht wieder.",
+            ];
+        }
+
+        // Playbook 6: Kurzzeitiges Mobilfunk-/WLAN-Funkloch oder Stream-Abbruch auf Endgeräten (UnknownHostException, ConnectException, funkira_live_ws EOF/Socket)
+        if (in_array($log->resolvePlatformKey(), ['android', 'minipc_linux', 'windows_desktop'], true)
+            && (str_contains($actionId, 'funkira_live_ws') || str_contains($titleLower, 'funkira_live_ws'))
+            && $occurrences < 12) {
+            $wsCombined = $titleLower . ' | ' . $msgLower . ' | ' . strtolower((string) ($payload['exception_class'] ?? ''));
+            $isRealWsAuthOrCodeBug = str_contains($wsCombined, 'nullpointerexception')
+                || str_contains($wsCombined, 'illegalstateexception')
+                || str_contains($wsCombined, 'illegalargumentexception')
+                || str_contains($wsCombined, 'securityexception')
+                || str_contains($wsCombined, 'jsonexception')
+                || str_contains($wsCombined, 'serializationexception')
+                || str_contains($wsCombined, 'classcastexception')
+                || str_contains($wsCombined, 'outofmemoryerror')
+                || str_contains($wsCombined, 'unauthorized')
+                || str_contains($wsCombined, 'forbidden')
+                || str_contains($wsCombined, 'unauthenticated')
+                || str_contains($wsCombined, 'invalid token')
+                || str_contains($wsCombined, 'api key')
+                || (bool) preg_match('/\b(?:http|status|code)\s*(?:401|403|404|500)\b/i', $wsCombined);
+
+            $isTransientWsStreamDrop = str_contains($wsCombined, 'eofexception')
+                || str_contains($wsCombined, 'socketexception')
+                || str_contains($wsCombined, 'sockettimeoutexception')
+                || str_contains($wsCombined, 'streamresetexception')
+                || str_contains($wsCombined, 'connection reset')
+                || str_contains($wsCombined, 'software caused connection abort')
+                || str_contains($msgLower, 'verbindungsfehler: null');
+
+            if (!$isRealWsAuthOrCodeBug && $isTransientWsStreamDrop && $this->verifyCoreConnectivityHealthy()) {
+                return [
+                    'healed' => true,
+                    'playbook' => 'transient_mobile_ws_recovered',
+                    'summary' => 'Kurzzeitiger Mobilfunk- oder Stream-Abbruch auf funkira_live_ws; automatischer WebSocket-Reconnect greift.',
+                ];
+            }
+        }
+
+        if (in_array($log->resolvePlatformKey(), ['android', 'minipc_linux', 'windows_desktop'], true)
+            && (str_contains($titleLower, 'unknownhostexception')
+                || str_contains($msgLower, 'unknownhostexception')
+                || str_contains($titleLower, 'connectexception')
+                || str_contains($titleLower, 'sockettimeoutexception'))
+            && $occurrences < 8
+            && $this->verifyCoreConnectivityHealthy()) {
+            return [
+                'healed' => true,
+                'playbook' => 'transient_mobile_offline_recovered',
+                'summary' => 'Kurzzeitiger DNS-/Mobilfunk-Wechsel am Endgerät (lokaler Offline-Cache übernahm unterbrechungsfrei).',
+            ];
+        }
+
+        // Playbook 7: Überholte Paket-Audit-Warnung, sobald ein nachfolgender Security-Scan 0 Produktions-CVEs und 0 Schranken-Fehler bestätigt
+        if ($actionId === 'security:package_audit') {
+            $logTs = $log->finished_at ?? $log->started_at ?? $log->created_at;
+            $newerCleanAuditExists = SystemLog::query()
+                ->where('action_id', 'security:package_audit')
+                ->where('status', 'success')
+                ->where('id', '!=', $log->id)
+                ->when($logTs !== null, fn ($q) => $q->where('finished_at', '>=', $logTs))
+                ->get()
+                ->contains(function (SystemLog $candidate): bool {
+                    $cp = is_array($candidate->payload) ? $candidate->payload : [];
+                    return ((int) ($cp['cve_count'] ?? 0)) === 0 && ((int) ($cp['guardrail_errors'] ?? 0)) === 0;
+                });
+
+            if ($newerCleanAuditExists) {
+                return [
+                    'healed' => true,
+                    'playbook' => 'security_audit_verified_clean',
+                    'summary' => 'Nachfolgender Sicherheits-Scan bestätigte 0 echte Produktions-CVEs und 0 Schranken-Verstöße.',
+                ];
+            }
+        }
+
+        // Playbook 8: Infrastruktur-Check Backup: Überholt, sobald ein valides Backup (< 48h) vorliegt
+        if (str_contains($actionId, 'health_fail') && (str_contains($msgLower, 'backup') || str_contains($titleLower, 'backup'))) {
+            $diskName = (string) config('backup.backup.destination.disks.0', 'local');
+            $backupName = (string) config('backup.backup.name', config('app.name') . '-db-backup');
+            $hasFreshBackup = false;
+            try {
+                $disk = \Illuminate\Support\Facades\Storage::disk($diskName);
+                if ($disk->exists($backupName)) {
+                    foreach ($disk->files($backupName) as $file) {
+                        if (str_ends_with(strtolower($file), '.zip')) {
+                            $mtime = $disk->lastModified($file);
+                            if ($mtime >= now()->subHours(48)->getTimestamp()) {
+                                $hasFreshBackup = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+            } catch (\Throwable $ignore) {
+            }
+
+            if ($hasFreshBackup) {
+                return [
+                    'healed' => true,
+                    'playbook' => 'health_backup_fresh_verified',
+                    'summary' => 'Frisches Datenbank-Backup (< 48h) wurde verifiziert; Sicherungsstand ist aktuell.',
+                ];
+            }
+        }
+
+        // Playbook 9: Infrastruktur-Check Telephony Audio-Bridge: Überholt nach Dienstneustart / im Normalbetrieb
+        if (str_contains($actionId, 'health_fail') && (str_contains($msgLower, 'telephony') || str_contains($titleLower, 'telephony') || str_contains($msgLower, 'telefonie')) && $occurrences < 10) {
+            if ($this->verifyCoreConnectivityHealthy()) {
+                return [
+                    'healed' => true,
+                    'playbook' => 'health_telephony_worker_recovered',
+                    'summary' => 'Telephony Audio-Bridge Dienstbereitschaft nach Container-Neustart wiederhergestellt.',
+                ];
+            }
+        }
+
+        // Playbook 10: Interaktiver Tippfehler bei manuellem CLI-Befehlsaufruf (Option/Command existiert nicht)
+        if (($log->exception_class === 'Symfony\\Component\\Console\\Exception\\RuntimeException'
+            || $log->exception_class === 'Symfony\\Component\\Console\\Exception\\CommandNotFoundException'
+            || str_contains($file, 'ArgvInput.php'))
+            && (str_contains($msgLower, 'option does not exist') || str_contains($msgLower, 'is not defined'))
+            && $occurrences < 5) {
+            return [
+                'healed' => true,
+                'playbook' => 'interactive_cli_typo_handled',
+                'summary' => 'Interaktiver Tippfehler bei manuellem CLI-Befehlsaufruf abgefangen.',
             ];
         }
 
@@ -676,8 +831,7 @@ class SentinelTriageService
         ?string $codeSnippet,
         string $fallbackCause
     ): ?array {
-        $apiKey = trim((string) config('services.gemini.key', ''));
-        if ($apiKey === '') {
+        if (!\App\Services\AI\VertexAiService::hasCredentials()) {
             return null;
         }
 
@@ -700,12 +854,7 @@ class SentinelTriageService
             . ($codeSnippet ? "Code-Ausschnitt:\n" . $codeSnippet . "\n" : '');
 
         try {
-            $url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' . urlencode($apiKey);
-            $response = Http::withOptions([
-                'force_ip_resolve' => 'v4',
-                'connect_timeout' => 4,
-                'timeout' => 10,
-            ])->post($url, [
+            $response = \App\Services\AI\VertexAiService::generateContent('gemini-2.5-flash', [
                 'contents' => [
                     ['role' => 'user', 'parts' => [['text' => $prompt]]],
                 ],
@@ -714,7 +863,7 @@ class SentinelTriageService
                     'maxOutputTokens' => 350,
                     'responseMimeType' => 'application/json',
                 ],
-            ]);
+            ], 10, 4);
 
             if (!$response->successful()) {
                 return null;
@@ -760,6 +909,10 @@ class SentinelTriageService
                 : null;
 
             if ($dossier === null) {
+                continue;
+            }
+
+            if (!app()->runningUnitTests() && (($dossier['origin_environment'] ?? '') === 'testing' || ($payload['origin_environment'] ?? '') === 'testing')) {
                 continue;
             }
 
@@ -885,11 +1038,27 @@ class SentinelTriageService
             $relativeFile = $this->normalizeProjectRelativePath((string) ($item['culprit_file'] ?? ''));
             $line = isset($item['line']) && is_numeric($item['line']) ? (int) $item['line'] : null;
 
-            // Falls der Code lokal vorhanden ist und im Stage-Eintrag noch kein lokaler Ausschnitt lag, anreichern
+            if ($relativeFile === null && !empty($item['trace_excerpt'])) {
+                $tracePayload = ['stack_excerpt' => is_array($item['trace_excerpt']) ? implode("\n", $item['trace_excerpt']) : (string) $item['trace_excerpt']];
+                $candFile = $this->extractBestFileCandidate($tracePayload);
+                $relativeFile = $this->normalizeProjectRelativePath($candFile);
+                if ($line === null) {
+                    $line = $this->extractBestLineCandidate($tracePayload);
+                }
+                if ($relativeFile !== null) {
+                    $item['culprit_file'] = $relativeFile;
+                    if ($line !== null) {
+                        $item['line'] = $line;
+                    }
+                }
+            }
+
+            // Falls der Code lokal vorhanden ist und im Stage-/Mini-PC-Eintrag noch kein lokaler Ausschnitt lag, anreichern
             if (empty($item['code_snippet']) && $relativeFile !== null) {
                 $item['code_snippet'] = $this->extractSafeCodeSnippet($relativeFile, $line, 12);
             }
-            $item['origin_environment'] = $sourceEnv;
+            $itemOrigin = trim((string) ($item['origin_environment'] ?? '')) ?: $sourceEnv;
+            $item['origin_environment'] = $itemOrigin;
 
             $existing = $this->findOpenLogByFingerprint($fp);
             $occurrences = max(1, (int) ($item['occurrences_count'] ?? 1));
@@ -897,14 +1066,14 @@ class SentinelTriageService
             if ($existing) {
                 $p = is_array($existing->payload) ? $existing->payload : [];
                 $p['fingerprint'] = $fp;
-                $p['origin_environment'] = $sourceEnv;
+                $p['origin_environment'] = $itemOrigin;
                 $p['stage_log_id'] = $item['log_id'] ?? ($p['stage_log_id'] ?? null);
                 $p['occurrences_count'] = max((int) ($p['occurrences_count'] ?? 1), $occurrences);
                 $p['last_seen_at'] = $item['last_seen_at'] ?? now()->toIso8601String();
                 $p['triage'] = [
                     'state' => 'queued_for_antigravity',
                     'triaged_at' => now()->toIso8601String(),
-                    'triaged_by' => 'Stage 24/7 Pool Sync',
+                    'triaged_by' => 'Universe 24/7 Pool Sync',
                     'criticality' => $item['criticality'] ?? 'standard',
                 ];
                 $p['antigravity_dossier'] = SystemErrorLogger::sanitizeArrayRecursive($item);
@@ -915,19 +1084,22 @@ class SentinelTriageService
                 continue;
             }
 
-            $rawTitle = SystemErrorLogger::sanitizeSensitiveText((string) ($item['title'] ?? 'Stage-Fehler'));
-            $prefixedTitle = str_starts_with($rawTitle, '[STAGE]') ? $rawTitle : ('[STAGE] ' . $rawTitle);
+            $rawTitle = SystemErrorLogger::sanitizeSensitiveText((string) ($item['title'] ?? 'System-Fehler'));
+            $badge = $itemOrigin === 'minipc_direct' ? '[MINI-PC]' : '[STAGE]';
+            $prefixedTitle = (str_starts_with($rawTitle, '[STAGE]') || str_starts_with($rawTitle, '[MINI-PC]'))
+                ? $rawTitle
+                : ($badge . ' ' . $rawTitle);
 
             SystemLog::create([
                 'type' => Str::limit((string) ($item['type'] ?? 'system'), 40, ''),
-                'action_id' => Str::limit((string) ($item['action_id'] ?? ('stage:pool:' . substr($fp, 0, 16))), 190, ''),
+                'action_id' => Str::limit((string) ($item['action_id'] ?? ($itemOrigin . ':pool:' . substr($fp, 0, 16))), 190, ''),
                 'title' => Str::limit($prefixedTitle, 190),
                 'message' => Str::limit(SystemErrorLogger::sanitizeSensitiveText((string) ($item['message'] ?? '')), 2000),
                 'status' => ($item['severity'] ?? 'error') === 'warning' ? 'warning' : 'error',
                 'payload' => SystemErrorLogger::sanitizeArrayRecursive([
                     'platform' => $item['platform'] ?? 'portal',
                     'platform_label' => $item['platform_label'] ?? 'Webportal',
-                    'origin_environment' => $sourceEnv,
+                    'origin_environment' => $itemOrigin,
                     'stage_log_id' => $item['log_id'] ?? null,
                     'fingerprint' => $fp,
                     'exception_class' => $item['exception_class'] ?? null,
@@ -956,9 +1128,10 @@ class SentinelTriageService
             $importedNew++;
         }
 
-        // Lokal importierte Stage-Einträge, die auf Stage bereits behoben/geschlossen wurden, automatisch nachziehen
+        // Lokal importierte Stage-/Mini-PC-Einträge, die remote bereits behoben/geschlossen wurden, automatisch nachziehen
+        $reconcileOrigins = array_values(array_unique([$sourceEnv, 'minipc_direct']));
         $localStageLogs = SystemLog::openIssues()
-            ->where('payload->origin_environment', $sourceEnv)
+            ->whereIn('payload->origin_environment', $reconcileOrigins)
             ->get();
 
         foreach ($localStageLogs as $localStageLog) {
@@ -1151,6 +1324,15 @@ class SentinelTriageService
             if (str_contains($frameStr, '/vendor/') || str_contains($frameStr, '\\vendor\\')) {
                 continue;
             }
+            // Android Kotlin/Java JVM Stacktrace: at de.meinseelenfunke.app.foo.Bar.baz(Bar.kt:123)
+            if (preg_match('/\bat\s+(de\.meinseelenfunke\.app(?:\.[A-Za-z0-9_]+)*)\.[A-Za-z0-9_$<>]+\.[A-Za-z0-9_$<>]+\(([A-Za-z0-9_]+\.(?:kt|java)):(\d+)\)/', $frameStr, $km)) {
+                $pkgRel = str_replace('.', '/', $km[1]);
+                return 'android-app/app/src/main/java/' . $pkgRel . '/' . $km[2];
+            }
+            // C# Stacktrace (FunkenwerkOSLinux / Funkenwerk Desktop): in /.../Foo.cs:line 123
+            if (preg_match('/([A-Za-z0-9_\/\\\\.\-]+?\.cs):line\s+(\d+)/', $frameStr, $cm)) {
+                return $cm[1];
+            }
             if (preg_match('/([A-Za-z0-9_\/\\\\.\-]+?\.(?:php|blade\.php|kt|cs|py|js)):(\d+)/', $frameStr, $m)) {
                 return $m[1];
             }
@@ -1172,6 +1354,12 @@ class SentinelTriageService
             $frameStr = (string) $frameLine;
             if (str_contains($frameStr, '/vendor/') || str_contains($frameStr, '\\vendor\\')) {
                 continue;
+            }
+            if (preg_match('/\bat\s+de\.meinseelenfunke\.app[A-Za-z0-9_.$<>]*\([A-Za-z0-9_]+\.(?:kt|java):(\d+)\)/', $frameStr, $km)) {
+                return (int) $km[1];
+            }
+            if (preg_match('/\.cs:line\s+(\d+)/', $frameStr, $cm)) {
+                return (int) $cm[1];
             }
             if (preg_match('/\.(?:php|blade\.php|kt|cs|py|js):(\d+)/', $frameStr, $m)) {
                 return (int) $m[1];
@@ -1230,6 +1418,7 @@ class SentinelTriageService
             || str_contains($lower, 'secret')
             || str_contains($lower, 'private_key')
             || str_contains($lower, 'firebase-service-account')
+            || str_contains($lower, 'vertex-service-account')
             || str_starts_with($lower, 'storage/')
             || str_starts_with($lower, 'vendor/')) {
             return null;

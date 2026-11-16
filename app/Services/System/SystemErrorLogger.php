@@ -221,6 +221,12 @@ class SystemErrorLogger
             $clean
         );
 
+        $clean = (string) preg_replace(
+            '/\bya29\.[A-Za-z0-9\-._]{16,}\b/',
+            '[REDACTED_VERTEX_TOKEN]',
+            $clean
+        );
+
         return (string) preg_replace(
             '/((?:api[_-]?key|key|token|access[_-]?token|refresh[_-]?token|password|passwd|secret|signature|pin|authorization)["\']?\s*[=:]\s*["\']?)([^\s&"\'\r\n},;]+)/i',
             '$1[REDACTED]',

@@ -14,6 +14,7 @@ class BootReceiver : BroadcastReceiver() {
             CalendarAlarmScheduler.rescheduleAlarmsFromCache(context)
             FunkenwerkAlarmManager.ensureInitialized(context)
             FunkenwerkAlarmManager.scheduleAllActiveAlarms(context)
+            de.meinseelenfunke.app.util.ShopWatchtowerManager.schedulePeriodicWatchtower(context)
         }
     }
 }

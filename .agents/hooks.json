@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \"C:/Users/konta/.gemini/antigravity/bin/agy_wsl_guard.py\" --hook",
+            "command": "python C:/Users/konta/.gemini/antigravity/bin/agy_wsl_guard.py --hook",
             "timeout": 10
           }
         ]

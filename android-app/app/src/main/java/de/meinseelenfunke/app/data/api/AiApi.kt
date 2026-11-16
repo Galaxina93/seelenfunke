@@ -32,6 +32,7 @@ data class LiveCredentialsResponse(
     val token: String?,
     val ws_url: String?,
     val direct_ws_url: String? = null,
+    val live_model: String? = null,
     val origin_url: String? = null,
     val system_instruction: String,
     val voice_name: String,

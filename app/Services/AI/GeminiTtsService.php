@@ -27,14 +27,13 @@ class GeminiTtsService
             return $testWav;
         }
 
-        $apiKey = config('services.gemini.key') ?: config('services.gemini.api_key') ?: env('GEMINI_API_KEY');
-        if (empty($apiKey)) {
-            Log::warning("GeminiTtsService: No GEMINI_API_KEY found.");
+        if (!VertexAiService::hasCredentials()) {
+            Log::warning("GeminiTtsService: Neither Vertex AI nor GEMINI_API_KEY configured.");
             return null;
         }
 
         $billingCooldownKey = 'gemini_tts_billing_depleted_cooldown';
-        if (Cache::has($billingCooldownKey)) {
+        if (!VertexAiService::isEnabled() && Cache::has($billingCooldownKey)) {
             return null;
         }
 
@@ -78,14 +77,18 @@ class GeminiTtsService
                 continue;
             }
 
-            $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent";
+            $endpoint = VertexAiService::resolveGenerateContentEndpoint($model);
+            $url = $endpoint['url'];
+            $curlHeaders = [];
+            foreach ($endpoint['headers'] as $hKey => $hVal) {
+                $curlHeaders[] = "{$hKey}: {$hVal}";
+            }
+            $curlHeaders[] = 'Expect:';
+
             try {
                 $ch = curl_init($url);
                 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                    'Content-Type: application/json',
-                    'x-goog-api-key: ' . $apiKey,
-                ]);
+                curl_setopt($ch, CURLOPT_HTTPHEADER, $curlHeaders);
                 curl_setopt($ch, CURLOPT_POST, true);
                 curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
                 curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
@@ -110,6 +113,13 @@ class GeminiTtsService
                     if ($pcmData === false || $pcmData === '') {
                         $errorsSummary[] = "{$model}: empty_pcm_payload";
                         continue;
+                    }
+
+                    // Manche Modelle (z.B. gemini-3.8-flash-tts) liefern bereits einen vollständigen RIFF/WAV-Container
+                    if (str_starts_with($pcmData, 'RIFF')) {
+                        $wavBase64 = base64_encode($pcmData);
+                        Cache::put($cacheKey, $wavBase64, 86400);
+                        return $wavBase64;
                     }
 
                     // Wrap RAW PCM into standard WAV container (24kHz, mono, 16-bit)

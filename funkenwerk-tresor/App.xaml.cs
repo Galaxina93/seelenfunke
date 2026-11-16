@@ -8,8 +8,30 @@ namespace FunkenwerkTresor
 {
     public partial class App : Application
     {
+        private static volatile bool s_isShuttingDown;
+
         [DllImport("kernel32.dll")]
         private static extern bool AttachConsole(int dwProcessId);
+
+        public static bool IsBenignShutdownException(object? exObj)
+        {
+            if (exObj == null) return false;
+            string text = exObj.ToString() ?? "";
+            bool isNativeUnloadNoise = text.Contains("__std_type_info_destroy_list", StringComparison.Ordinal) ||
+                                       text.Contains("__scrt_uninitialize_type_info", StringComparison.Ordinal) ||
+                                       text.Contains("SingletonDomainUnload", StringComparison.Ordinal) ||
+                                       text.Contains("_app_exit_callback", StringComparison.Ordinal);
+            if (isNativeUnloadNoise)
+                return true;
+
+            if ((s_isShuttingDown || Environment.HasShutdownStarted) &&
+                (exObj is OperationCanceledException || text.Contains("TaskCanceledException", StringComparison.Ordinal)))
+            {
+                return true;
+            }
+
+            return false;
+        }
 
         public static void LogBoot(string msg)
         {
@@ -24,15 +46,27 @@ namespace FunkenwerkTresor
             catch { }
         }
 
+        protected override void OnExit(ExitEventArgs e)
+        {
+            s_isShuttingDown = true;
+            base.OnExit(e);
+        }
+
         protected override void OnStartup(StartupEventArgs e)
         {
             DispatcherUnhandledException += (s, ex) =>
             {
-                LogBoot("DISPATCHER_EXCEPTION: " + ex.Exception);
+                if (!IsBenignShutdownException(ex.Exception))
+                {
+                    LogBoot("DISPATCHER_EXCEPTION: " + ex.Exception);
+                }
             };
             AppDomain.CurrentDomain.UnhandledException += (s, ex) =>
             {
-                LogBoot("DOMAIN_EXCEPTION: " + ex.ExceptionObject);
+                if (!IsBenignShutdownException(ex.ExceptionObject))
+                {
+                    LogBoot("DOMAIN_EXCEPTION: " + ex.ExceptionObject);
+                }
             };
 
             base.OnStartup(e);
@@ -45,8 +79,6 @@ namespace FunkenwerkTresor
                 return;
             }
 
-            LogBoot("OnStartup args=" + string.Join(" ", e.Args));
-
             string? initialKdbxPath = e.Args.FirstOrDefault(a =>
                 !a.StartsWith("-", StringComparison.Ordinal) &&
                 File.Exists(a));
@@ -54,14 +86,11 @@ namespace FunkenwerkTresor
             try
             {
                 var win = new MainWindow(initialKdbxPath);
-                win.Loaded += (_, _) => LogBoot($"MainWindow.Loaded Title='{win.Title}' Vis={win.Visibility} State={win.WindowState} W={win.ActualWidth} H={win.ActualHeight}");
-                win.ContentRendered += (_, _) => LogBoot("MainWindow.ContentRendered");
-                win.Closing += (_, _) => LogBoot("MainWindow.Closing\n" + Environment.StackTrace);
-                win.Closed += (_, _) => LogBoot("MainWindow.Closed");
+                win.Closing += (_, _) => { s_isShuttingDown = true; };
+                win.Closed += (_, _) => { s_isShuttingDown = true; };
                 MainWindow = win;
                 win.Show();
                 win.Activate();
-                LogBoot("win.Show() completed");
             }
             catch (Exception ex)
             {

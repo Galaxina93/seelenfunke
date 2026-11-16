@@ -1129,13 +1129,11 @@ trait AiTaskFuncs
                 ]
             ];
 
-            $apiKey = config('services.gemini.key', env('GEMINI_API_KEY'));
-            if (empty($apiKey)) {
+            if (!\App\Services\AI\VertexAiService::hasCredentials()) {
                 return 'Fehler: Kein Gemini API Key konfiguriert.';
             }
 
-            $url = "https://generativelanguage.googleapis.com/v1beta/models/{$modelName}:generateContent?key=" . $apiKey;
-            $response = \Illuminate\Support\Facades\Http::timeout(60)->post($url, $payload);
+            $response = \App\Services\AI\VertexAiService::generateContent($modelName, $payload, 60);
 
             if ($response->failed()) {
                 return 'API Fehler bei der Bildanalyse: ' . $response->body();

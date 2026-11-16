@@ -13,6 +13,7 @@ using System.Security.Cryptography.X509Certificates;
 using System.Security.Principal;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Renci.SshNet;
@@ -70,6 +71,15 @@ namespace FunkenwerkMcp
         public string RemoteManifestJson { get; set; } = "";
     }
 
+    public sealed class AgDirectBridgeConfigDto
+    {
+        [JsonPropertyName("master_conversation_id")]
+        public string MasterConversationId { get; set; } = McpSecurityGuard.DefaultMasterConversationId;
+
+        [JsonPropertyName("poll_interval_seconds")]
+        public int PollIntervalSeconds { get; set; } = McpSecurityGuard.DefaultAgPollIntervalSeconds;
+    }
+
     public static class McpSecurityGuard
     {
         public const long MaxPdfFileBytes = 50L * 1024L * 1024L; // 50 MB hard cap
@@ -105,7 +115,8 @@ namespace FunkenwerkMcp
             @"/funkenwerk collection/",
             @"\funkenwerkmcp\",
             @"\funkenwerkftp\",
-            @"\funkenwerkssh\"
+            @"\funkenwerkssh\",
+            @"\funkenwerktresor\"
         };
 
         private static readonly string[] BlockedFileNames =
@@ -119,6 +130,8 @@ namespace FunkenwerkMcp
             "mcp_config.json",
             "profiles_vault.json",
             "ssh_profiles_vault.json",
+            "ai_broker_vault.bin",
+            "devtoolsactiveport",
             "known_hosts",
             "known_hosts_sha256.json",
             "master.dpapi",
@@ -163,7 +176,11 @@ namespace FunkenwerkMcp
             new(@"\beyJ[A-Za-z0-9_\-]{10,}\.eyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}\b", RegexOptions.Compiled), // JWTs
             new(@"(?i)https?://[^/\s:@]+:[^/\s@]+@[^\s/]+", RegexOptions.Compiled),                     // Basic-Auth credentials in HTTP URLs
             new(@"(?i)rtsps?://[^/\s:@""']+:[^/\s@""']+@[^\s""']+", RegexOptions.Compiled),             // RTSP camera credentials in URLs
-            new(@"(?i)Bearer\s+[A-Za-z0-9\-._~+/|=]{20,}", RegexOptions.Compiled)                       // Raw Bearer headers
+            new(@"(?i)Bearer\s+[A-Za-z0-9\-._~+/|=]{20,}", RegexOptions.Compiled),                      // Raw Bearer headers
+            new(@"(?i)otpauth://totp/[^\s""']+", RegexOptions.Compiled),                                // Raw TOTP otpauth:// URIs
+            new(@"(?i)""(?:totp_seed|totpSeed|totpSecret|TotpSeedOrConfig|ApiToken|x-access-token)""\s*:\s*""[^""\r\n]+""", RegexOptions.Compiled), // Broker/TOTP/Token JSON fields
+            new(@"(?i)(?:x-access-token|MITTWALD_API_TOKEN)\s*[=:]\s*\S+", RegexOptions.Compiled),      // Raw Mittwald token headers/vars
+            new(@"\bmw_pat_[A-Za-z0-9\-._~+/=]{12,}\b", RegexOptions.Compiled)                          // Mittwald PAT tokens
         };
 
         public const string StageAllowedHost = "ssh.altgemeinde.project.host";
@@ -171,6 +188,8 @@ namespace FunkenwerkMcp
         public const string StageWorkerRemoteDir = "/home/p-g27wim/html/worker-stage-3";
         public const string StageTwilioBridgeRemoteDir = "/home/p-g27wim/html/twilio-bridge";
         public const string StageTwilioBridgeSshUser = "kontakt@mein-seelenfunke.de@a-yeq7el";
+        public const string MiniPcAllowedHost = "192.168.188.151";
+        public const string MiniPcSentinelDataDir = "/home/alina/.local/share/FunkenwerkOS";
         public const string DefaultLocalStorageAppRoot = @"\\wsl.localhost\Ubuntu\home\ubuntuxina\meine-projekte\seelenfunke\storage\app";
 
         public static readonly IReadOnlyList<string> SafeReadonlySshPresets = new[]
@@ -187,7 +206,9 @@ namespace FunkenwerkMcp
             "stage_deploy",
             "stage_worker_restart",
             "stage_sentinel_export",
-            "stage_sentinel_resolve_all"
+            "stage_sentinel_resolve_all",
+            "minipc_sentinel_export",
+            "minipc_sentinel_resolve_all"
         };
 
         private static readonly string[] AllowedShopAssetPrefixes =
@@ -1477,6 +1498,28 @@ namespace FunkenwerkMcp
             }
         }
 
+        public static void ValidateMiniPcOnlyTarget(string host, string? safeSubdirectory = null)
+        {
+            string normHost = (host ?? "").Trim();
+            string normDir = (safeSubdirectory ?? "").Trim().Replace('\\', '/');
+
+            if (normDir.Contains("..", StringComparison.Ordinal)
+                || normDir.Contains("live", StringComparison.OrdinalIgnoreCase)
+                || normDir.Contains("production", StringComparison.OrdinalIgnoreCase)
+                || normDir.Contains("steinhauer-invest", StringComparison.OrdinalIgnoreCase)
+                || normDir.Contains("master.key", StringComparison.OrdinalIgnoreCase))
+            {
+                AppendAuditLog("minipc_airgap_guard", $"{normHost}:{normDir}", "DENY:blocked_path");
+                throw new UnauthorizedAccessException("MINI-PC-SPERRE: Ungültiger oder gesperrter Zielpfad.");
+            }
+
+            if (!string.Equals(normHost, MiniPcAllowedHost, StringComparison.OrdinalIgnoreCase))
+            {
+                AppendAuditLog("minipc_airgap_guard", $"{normHost}:{normDir}", "DENY:non_minipc_host");
+                throw new UnauthorizedAccessException($"Mini-PC-Sentinel-Operationen sind ausschließlich auf '{MiniPcAllowedHost}' erlaubt.");
+            }
+        }
+
         public static string ValidatePureShopAssetRelativePath(string relPath)
         {
             string norm = (relPath ?? "").Trim().Replace('\\', '/');
@@ -1580,10 +1623,75 @@ namespace FunkenwerkMcp
                 "stage_worker_restart" => "(mittnitectl job restart 2>/dev/null || php artisan queue:restart) && (mittnitectl job status 2>/dev/null || true)",
                 "stage_sentinel_export" => "(php artisan system:sentinel-triage --probe-bridges >/dev/null 2>&1 || true) && php artisan system:sentinel-inbox --export-json 2>/dev/null",
                 "stage_sentinel_resolve_all" => "php artisan system:sentinel-inbox --resolve-all --resolved-by=Antigravity 2>/dev/null",
+                "minipc_sentinel_export" =>
+                    "python3 -c 'import json,os; d=\"/home/alina/.local/share/FunkenwerkOS\"; " +
+                    "rd=lambda f: (json.load(open(os.path.join(d,f),\"r\",encoding=\"utf-8\")) if os.path.isfile(os.path.join(d,f)) and os.path.getsize(os.path.join(d,f))>0 else None); " +
+                    "ho=rd(\"antigravity_error_handoff.json\"); " +
+                    "ho=ho if isinstance(ho,dict) and ho.get(\"status\")!=\"resolved\" else None; " +
+                    "hi=rd(\"sentinel_history.json\") or []; " +
+                    "uh=[x for x in (hi if isinstance(hi,list) else []) if isinstance(x,dict) and not x.get(\"AutoHealed\",x.get(\"auto_healed\",False))][-25:]; " +
+                    "qu=rd(\"sentinel_queue.json\") or []; " +
+                    "print(json.dumps({\"source\":\"minipc_direct\",\"handoff\":ho,\"open_history\":uh,\"queued\":qu if isinstance(qu,list) else []}))'",
+                "minipc_sentinel_resolve_all" =>
+                    "python3 -c \"import base64; exec(base64.b64decode('" + Convert.ToBase64String(Encoding.UTF8.GetBytes("""
+import json, os, datetime, time
+d = "/home/alina/.local/share/FunkenwerkOS"
+ad = os.path.join(d, "archive")
+os.makedirs(ad, mode=0o700, exist_ok=True)
+now = datetime.datetime.now(datetime.timezone.utc)
+stamp = now.strftime("%Y-%m-%d_%H%M%S")
+ym = now.strftime("%Y-%m")
+c = 0
+ab = 0
+hp = os.path.join(d, "antigravity_error_handoff.json")
+if os.path.isfile(hp) and os.path.getsize(hp) > 0:
+    try:
+        ho = json.load(open(hp, "r", encoding="utf-8"))
+        if isinstance(ho, dict):
+            ho.update({"status": "resolved", "resolved_by": "Antigravity", "resolved_at": now.isoformat()})
+        ap = os.path.join(ad, f"handoff_{stamp}.json")
+        json.dump(ho, open(ap, "w", encoding="utf-8"), indent=2, ensure_ascii=False)
+        os.chmod(ap, 0o600)
+        ab += os.path.getsize(hp)
+        c += 1
+    except Exception:
+        pass
+if os.path.isfile(hp):
+    os.remove(hp)
+sp = os.path.join(d, "sentinel_history.json")
+if os.path.isfile(sp) and os.path.getsize(sp) > 0:
+    ab += os.path.getsize(sp)
+    try:
+        hi = json.load(open(sp, "r", encoding="utf-8"))
+        if isinstance(hi, list) and len(hi) > 0:
+            af = os.path.join(ad, f"sentinel_archive_{ym}.jsonl")
+            with open(af, "a", encoding="utf-8") as out:
+                for x in hi:
+                    if isinstance(x, dict):
+                        x.update({"AutoHealed": True, "ArchivedAt": now.isoformat(), "ResolvedBy": "Antigravity"})
+                    out.write(json.dumps(x, ensure_ascii=False) + "\n")
+            os.chmod(af, 0o600)
+    except Exception:
+        pass
+    open(sp, "w", encoding="utf-8").write("")
+    os.chmod(sp, 0o600)
+qp = os.path.join(d, "sentinel_queue.json")
+if os.path.isfile(qp):
+    os.remove(qp)
+cut = time.time() - 30 * 86400
+for f in os.listdir(ad):
+    fp = os.path.join(ad, f)
+    if os.path.isfile(fp) and os.path.getmtime(fp) < cut:
+        os.remove(fp)
+rem = os.path.getsize(sp) if os.path.isfile(sp) else 0
+print(json.dumps({"status": "success", "archived_handoffs": c, "archived_bytes": ab, "active_log_bytes_remaining": rem}))
+""".Replace("\r\n", "\n"))) + "'))\"",
                 _ => throw new UnauthorizedAccessException($"SSH-Preset '{preset}' ist nicht in der Sicherheits-Allowlist enthalten.")
             };
 
             bool isStageMutationPreset = preset is "stage_git_pull" or "stage_deploy" or "stage_worker_restart" or "stage_sentinel_export" or "stage_sentinel_resolve_all";
+            bool isMiniPcSentinelPreset = preset is "minipc_sentinel_export" or "minipc_sentinel_resolve_all";
+            bool enforceEd25519KeyOnly = isStageMutationPreset || isMiniPcSentinelPreset;
 
             if (!string.IsNullOrWhiteSpace(safeSubdirectory))
             {
@@ -1594,14 +1702,22 @@ namespace FunkenwerkMcp
                 {
                     ValidateStageOnlyTarget(StageAllowedHost, safeSubdirectory, allowWorkerStage: preset == "stage_worker_restart");
                 }
+                else if (isMiniPcSentinelPreset)
+                {
+                    ValidateMiniPcOnlyTarget(MiniPcAllowedHost, safeSubdirectory);
+                }
             }
 
-            using var creds = ResolveProfileInternal(profileName, safeSubdirectory, forceKeyOnlyNoPasswordDecrypt: isStageMutationPreset)
+            using var creds = ResolveProfileInternal(profileName, safeSubdirectory, forceKeyOnlyNoPasswordDecrypt: enforceEd25519KeyOnly)
                 ?? throw new InvalidOperationException($"Profil '{profileName}' wurde nicht gefunden.");
 
             if (isStageMutationPreset)
             {
                 ValidateStageOnlyTarget(creds.Host, creds.RemoteDirectory, allowWorkerStage: preset == "stage_worker_restart");
+            }
+            else if (isMiniPcSentinelPreset)
+            {
+                ValidateMiniPcOnlyTarget(creds.Host, safeSubdirectory);
             }
 
             // FAIL-CLOSED SHA-256 HOST-KEY PINNING (Checks FunkenwerkSsh, FunkenwerkFtp, and OpenSSH ~/.ssh/known_hosts)
@@ -1620,6 +1736,8 @@ namespace FunkenwerkMcp
                 "stage_sentinel_export" => 45,
                 "stage_worker_restart" => 35,
                 "stage_sentinel_resolve_all" => 25,
+                "minipc_sentinel_export" => 15,
+                "minipc_sentinel_resolve_all" => 15,
                 _ => 15
             };
 
@@ -1634,7 +1752,7 @@ namespace FunkenwerkMcp
                         keyFile = new PrivateKeyFile(creds.PrivateKeyPath);
                         authMethods.Add(new PrivateKeyAuthenticationMethod(creds.Username, keyFile));
                     }
-                    if (isStageMutationPreset)
+                    if (enforceEd25519KeyOnly)
                     {
                         if (keyFile == null)
                         {
@@ -1709,16 +1827,16 @@ namespace FunkenwerkMcp
                     int exitCode = cmd.ExitStatus ?? 0;
                     client.Disconnect();
 
-                    bool isPureJsonPreset = preset is "stage_sentinel_export" or "stage_sentinel_resolve_all";
+                    bool isPureJsonPreset = preset is "stage_sentinel_export" or "stage_sentinel_resolve_all" or "minipc_sentinel_export" or "minipc_sentinel_resolve_all";
                     string combined = (isPureJsonPreset && exitCode == 0)
                         ? stdout
                         : (string.IsNullOrWhiteSpace(stderr) ? stdout : $"{stdout}\n{stderr}");
                     combined = AnsiEscapeRegex.Replace(combined, "");
-                    int maxChars = preset == "stage_sentinel_export" ? 262144 : 16384;
+                    int maxChars = (preset is "stage_sentinel_export" or "minipc_sentinel_export") ? 262144 : 16384;
                     if (combined.Length > maxChars)
                         combined = combined.Substring(0, maxChars) + "\n...[Ausgabe gekürzt]";
 
-                    if (isStageMutationPreset && exitCode != 0)
+                    if ((isStageMutationPreset || isMiniPcSentinelPreset) && exitCode != 0)
                     {
                         AppendAuditLog("ssh_exec_safe_readonly", $"{creds.Name}:{preset}:exit={exitCode}", "ERROR");
                         throw new InvalidOperationException($"Stage-Preset '{preset}' meldete Exit-Code {exitCode}:\n{ScrubSecrets(combined.Trim())}");
@@ -2518,6 +2636,527 @@ try {
 
             bool hasPwd = creds.PasswordUtf8 != null && creds.PasswordUtf8.Length > 0;
             return (true, creds.Username, creds.RemoteDirectory, hasPwd);
+        }
+
+        // =====================================================================
+        // AG DIRECT BRIDGE (ANDROID -> STAGE -> LOCAL ANTIGRAVITY MASTER-CHAT)
+        // =====================================================================
+        public const string DefaultMasterConversationId = "a75e6db9-d026-4955-97c0-6e8695d6193d";
+        public const int DefaultAgPollIntervalSeconds = 20;
+        public const int MinAgPollIntervalSeconds = 10;
+        public const long MaxAgAttachmentBytes = 20L * 1024L * 1024L;
+        public const string DefaultLocalDirectInboxPath = @"\\wsl.localhost\Ubuntu\home\ubuntuxina\meine-projekte\seelenfunke\storage\app\private\antigravity_direct_inbox.json";
+
+        private static readonly Regex SafeAgConversationIdRegex = new(@"^[A-Za-z0-9][A-Za-z0-9_\-]{2,79}$", RegexOptions.Compiled);
+        private static readonly Regex SafeAgInboxSingleIdRegex = new(@"^[A-Za-z0-9][A-Za-z0-9_\-]{2,79}$", RegexOptions.Compiled);
+        private static readonly Regex SafeAgInboxMarkDeliveredIdsRegex = new(@"^[A-Za-z0-9][A-Za-z0-9_,\-]{2,119}$", RegexOptions.Compiled);
+        private static readonly Regex SafeBase64PayloadRegex = new(@"^[A-Za-z0-9+/=]*$", RegexOptions.Compiled);
+
+        public static string FunkenwerkSharedAppDataDir => !string.IsNullOrWhiteSpace(_vaultDirOverride)
+            ? _vaultDirOverride!
+            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Funkenwerk");
+
+        public static string AgDirectBridgeConfigPath => Path.Combine(FunkenwerkSharedAppDataDir, "ag_direct_bridge_config.json");
+
+        public static string AgDirectMediaDir => Path.Combine(FunkenwerkSharedAppDataDir, "AgDirectMedia");
+
+        public static string ValidateAgConversationId(string? rawConversationId)
+        {
+            string clean = (rawConversationId ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(clean) || !SafeAgConversationIdRegex.IsMatch(clean) || clean.Contains("--", StringComparison.Ordinal))
+                throw new UnauthorizedAccessException("Ungültige Master-Chat Konversations-ID (erwartet GUID oder sichere ID ohne Sonderzeichen).");
+            return clean;
+        }
+
+        public static string ValidateAgInboxSingleId(string? rawId)
+        {
+            string clean = (rawId ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(clean) || !SafeAgInboxSingleIdRegex.IsMatch(clean) || clean.Contains("--", StringComparison.Ordinal))
+                throw new UnauthorizedAccessException($"Ungültige AG-Inbox-ID blockiert ('{ScrubSecrets(clean)}').");
+            return clean;
+        }
+
+        public static string ValidateAgInboxMarkDeliveredIds(string? rawIds)
+        {
+            string clean = (rawIds ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(clean)
+                || !SafeAgInboxMarkDeliveredIdsRegex.IsMatch(clean)
+                || clean.Contains("--", StringComparison.Ordinal)
+                || clean.Contains(",,", StringComparison.Ordinal)
+                || clean.EndsWith(",", StringComparison.Ordinal))
+            {
+                throw new UnauthorizedAccessException($"Ungültige AG-Inbox-ID-Liste blockiert ('{ScrubSecrets(clean)}').");
+            }
+
+            foreach (string part in clean.Split(',', StringSplitOptions.RemoveEmptyEntries))
+            {
+                ValidateAgInboxSingleId(part);
+            }
+            return clean;
+        }
+
+        public static AgDirectBridgeConfigDto LoadAgBridgeConfig(string? customConfigPath = null)
+        {
+            string path = string.IsNullOrWhiteSpace(customConfigPath) ? AgDirectBridgeConfigPath : Path.GetFullPath(customConfigPath);
+            if (!File.Exists(path))
+            {
+                return new AgDirectBridgeConfigDto
+                {
+                    MasterConversationId = DefaultMasterConversationId,
+                    PollIntervalSeconds = DefaultAgPollIntervalSeconds
+                };
+            }
+
+            if (HasReparsePointInAncestry(path))
+                throw new UnauthorizedAccessException("Symlink/Reparse-Point in ag_direct_bridge_config.json blockiert.");
+
+            string json = File.ReadAllText(path, Encoding.UTF8);
+            var parsed = JsonSerializer.Deserialize<AgDirectBridgeConfigDto>(json, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = false,
+                MaxDepth = 8
+            }) ?? new AgDirectBridgeConfigDto();
+
+            string safeConvId = string.IsNullOrWhiteSpace(parsed.MasterConversationId)
+                ? DefaultMasterConversationId
+                : ValidateAgConversationId(parsed.MasterConversationId);
+
+            int safePoll = parsed.PollIntervalSeconds <= 0
+                ? DefaultAgPollIntervalSeconds
+                : Math.Clamp(parsed.PollIntervalSeconds, MinAgPollIntervalSeconds, 3600);
+
+            return new AgDirectBridgeConfigDto
+            {
+                MasterConversationId = safeConvId,
+                PollIntervalSeconds = safePoll
+            };
+        }
+
+        public static AgDirectBridgeConfigDto SaveAgBridgeConfig(AgDirectBridgeConfigDto config, string? customConfigPath = null)
+        {
+            if (config == null) throw new ArgumentNullException(nameof(config));
+
+            string safeConvId = ValidateAgConversationId(config.MasterConversationId);
+            int safePoll = config.PollIntervalSeconds <= 0
+                ? DefaultAgPollIntervalSeconds
+                : Math.Clamp(config.PollIntervalSeconds, MinAgPollIntervalSeconds, 3600);
+
+            var normalized = new AgDirectBridgeConfigDto
+            {
+                MasterConversationId = safeConvId,
+                PollIntervalSeconds = safePoll
+            };
+
+            string path = string.IsNullOrWhiteSpace(customConfigPath) ? AgDirectBridgeConfigPath : Path.GetFullPath(customConfigPath);
+            string dir = Path.GetDirectoryName(path) ?? throw new InvalidOperationException("Ungültiges Konfigurationsverzeichnis.");
+            if (!Directory.Exists(dir))
+            {
+                Directory.CreateDirectory(dir);
+            }
+            LockDownDirectoryAcl(dir);
+            RejectReparsePointsInHierarchy(path);
+
+            string json = JsonSerializer.Serialize(normalized, new JsonSerializerOptions { WriteIndented = true });
+            string tmpPath = Path.Combine(dir, $".agcfg_{Convert.ToHexString(RandomNumberGenerator.GetBytes(8)).ToLowerInvariant()}.tmp");
+            try
+            {
+                File.WriteAllText(tmpPath, json, new UTF8Encoding(false));
+                RejectReparsePointsInHierarchy(path);
+                File.Move(tmpPath, path, overwrite: true);
+                LockDownFileAcl(path);
+            }
+            finally
+            {
+                try { if (File.Exists(tmpPath)) File.Delete(tmpPath); } catch { }
+            }
+
+            AppendAuditLog("ag_bridge_config", $"conv={safeConvId},poll={safePoll}s", "ALLOW");
+            return normalized;
+        }
+
+        public static string SaveAgDirectAttachmentSafe(
+            string itemId,
+            string? attachmentName,
+            string? attachmentMime,
+            string attachmentBase64,
+            string? customMediaDir = null)
+        {
+            string safeId = ValidateAgInboxSingleId(itemId);
+            if (string.IsNullOrWhiteSpace(attachmentBase64))
+                throw new ArgumentException("Leerer Base64-Bildanhang.");
+
+            if (!string.IsNullOrWhiteSpace(attachmentName))
+            {
+                string rawExt = Path.GetExtension(attachmentName.Trim()).ToLowerInvariant();
+                if (!string.IsNullOrEmpty(rawExt) && rawExt is not ".png" and not ".jpg" and not ".jpeg" and not ".webp")
+                {
+                    throw new UnauthorizedAccessException($"Nicht erlaubte Anhang-Dateiendung ('{rawExt}'). Nur .png, .jpg und .webp sind freigegeben.");
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(attachmentMime))
+            {
+                string normMime = attachmentMime.Trim().ToLowerInvariant();
+                int semi = normMime.IndexOf(';');
+                if (semi >= 0) normMime = normMime.Substring(0, semi).Trim();
+                if (!string.IsNullOrEmpty(normMime) &&
+                    normMime is not "image/png" and not "image/jpeg" and not "image/jpg" and not "image/webp" and not "application/octet-stream")
+                {
+                    throw new UnauthorizedAccessException($"Nicht erlaubter Anhang-MIME-Typ ('{normMime}'). Nur PNG, JPG und WEBP sind freigegeben.");
+                }
+            }
+
+            string cleanB64 = attachmentBase64.Trim();
+            int commaIdx = cleanB64.IndexOf(',');
+            if (cleanB64.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase) && commaIdx > 0)
+            {
+                cleanB64 = cleanB64.Substring(commaIdx + 1).Trim();
+            }
+
+            if (cleanB64.Length > 28_000_000)
+                throw new InvalidOperationException("Bildanhang überschreitet das Sicherheitslimit von 20 MB.");
+
+            byte[] bytes;
+            try
+            {
+                bytes = Convert.FromBase64String(cleanB64);
+            }
+            catch (FormatException)
+            {
+                throw new UnauthorizedAccessException("Ungültige Base64-Kodierung im Bildanhang.");
+            }
+
+            if (bytes.Length < 12 || bytes.Length > MaxAgAttachmentBytes)
+                throw new UnauthorizedAccessException("Bildanhang-Größe außerhalb des zulässigen Rahmens (12 Bytes .. 20 MB).");
+
+            bool isPng = bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47
+                      && bytes[4] == 0x0D && bytes[5] == 0x0A && bytes[6] == 0x1A && bytes[7] == 0x0A;
+
+            bool isJpg = bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF;
+
+            bool isWebp = bytes[0] == 0x52 && bytes[1] == 0x49 && bytes[2] == 0x46 && bytes[3] == 0x46
+                       && bytes[8] == 0x57 && bytes[9] == 0x45 && bytes[10] == 0x42 && bytes[11] == 0x50;
+
+            string ext = isPng ? ".png"
+                       : isJpg ? ".jpg"
+                       : isWebp ? ".webp"
+                       : throw new UnauthorizedAccessException("Ungültiger Bild-Magic-Header: Nur echte PNG-, JPG- oder WEBP-Binärdaten werden gespeichert.");
+
+            string mediaDir = string.IsNullOrWhiteSpace(customMediaDir) ? AgDirectMediaDir : Path.GetFullPath(customMediaDir);
+            if (!Directory.Exists(mediaDir))
+            {
+                Directory.CreateDirectory(mediaDir);
+            }
+            LockDownDirectoryAcl(mediaDir);
+
+            string finalPath = Path.Combine(mediaDir, $"{safeId}{ext}");
+            RejectReparsePointsInHierarchy(finalPath);
+
+            string tmpPath = Path.Combine(mediaDir, $".agimg_{Convert.ToHexString(RandomNumberGenerator.GetBytes(8)).ToLowerInvariant()}.tmp");
+            try
+            {
+                File.WriteAllBytes(tmpPath, bytes);
+                RejectReparsePointsInHierarchy(finalPath);
+                File.Move(tmpPath, finalPath, overwrite: true);
+                LockDownFileAcl(finalPath);
+            }
+            finally
+            {
+                try { if (File.Exists(tmpPath)) File.Delete(tmpPath); } catch { }
+            }
+
+            AppendAuditLog("ag_direct_media", $"{safeId}{ext} ({bytes.Length}B)", "ALLOW");
+            return finalPath;
+        }
+
+        public static string BuildAgDirectMasterPrompt(
+            string itemId,
+            string? title,
+            string? body,
+            IEnumerable<string>? checklist,
+            string? executionMode,
+            string? savedAttachmentPath)
+        {
+            string safeId = ValidateAgInboxSingleId(itemId);
+            bool isDirect = string.Equals((executionMode ?? "").Trim(), "direct", StringComparison.OrdinalIgnoreCase);
+            string modeLabel = isDirect
+                ? "Direkt umsetzen via Orchester-Subagenten"
+                : "Erst Konzept (warte auf Go)";
+
+            string cleanTitle = ScrubSecrets((title ?? "").Replace('\0', ' ').Trim());
+            if (string.IsNullOrWhiteSpace(cleanTitle))
+                cleanTitle = "(Ohne Titel)";
+
+            string cleanBody = ScrubSecrets((body ?? "").Replace('\0', ' ').Trim());
+
+            var sb = new StringBuilder();
+            sb.AppendLine($"[DIREKTNACHRICHT AUS ANDROID-APP | ID: {safeId} | MODUS: {modeLabel}]");
+            sb.AppendLine();
+            sb.AppendLine($"Hauptpunkt: {cleanTitle}");
+
+            if (!string.IsNullOrWhiteSpace(cleanBody))
+            {
+                sb.AppendLine();
+                sb.AppendLine("Beschreibung:");
+                sb.AppendLine(cleanBody);
+            }
+
+            if (checklist != null)
+            {
+                var validItems = checklist
+                    .Select(x => ScrubSecrets((x ?? "").Replace('\0', ' ').Trim()))
+                    .Where(x => !string.IsNullOrWhiteSpace(x))
+                    .Take(100)
+                    .ToList();
+
+                if (validItems.Count > 0)
+                {
+                    sb.AppendLine();
+                    sb.AppendLine("Checkliste:");
+                    for (int i = 0; i < validItems.Count; i++)
+                    {
+                        sb.AppendLine($"{i + 1}. {validItems[i]}");
+                    }
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(savedAttachmentPath))
+            {
+                string cleanPath = savedAttachmentPath.Replace('\0', ' ').Trim();
+                sb.AppendLine();
+                sb.AppendLine($"Angehängtes Bild lokal gespeichert unter: {cleanPath} (bitte per read_file ansehen)");
+            }
+
+            sb.AppendLine();
+            sb.Append($"Sobald dieser Punkt vollständig erledigt (bzw. das Konzept erstellt) ist, markiere ihn für Alinas Android-App als erledigt via: & 'C:\\Users\\konta\\AppData\\Local\\Funkenwerk\\SentinelCli\\FunkenwerkMcp.exe' --ag-inbox-complete {safeId} \"<kurze Zusammenfassung>\"");
+
+            return sb.ToString();
+        }
+
+        public static ProcessStartInfo BuildAgentApiSendMessageStartInfo(
+            string targetConversationId,
+            string promptText,
+            string? agentApiExeOverride = null,
+            bool ignoreEnvironmentVariableForTest = false)
+        {
+            string safeConvId = ValidateAgConversationId(targetConversationId);
+            string cleanPrompt = (promptText ?? "").Replace("\0", "").Trim();
+            if (string.IsNullOrWhiteSpace(cleanPrompt))
+                throw new ArgumentException("Prompt-Text darf nicht leer sein.");
+            if (cleanPrompt.Length > 65536)
+                cleanPrompt = cleanPrompt.Substring(0, 65536);
+
+            string? configuredExe = !string.IsNullOrWhiteSpace(agentApiExeOverride)
+                ? agentApiExeOverride.Trim()
+                : (ignoreEnvironmentVariableForTest ? null : Environment.GetEnvironmentVariable("ANTIGRAVITY_AGENTAPI_EXE")?.Trim());
+
+            string defaultLsExe = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "Programs", "Antigravity", "resources", "bin", "language_server.exe");
+
+            if (string.IsNullOrWhiteSpace(configuredExe) && !ignoreEnvironmentVariableForTest && File.Exists(defaultLsExe))
+            {
+                configuredExe = defaultLsExe;
+            }
+
+            var psi = new ProcessStartInfo
+            {
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+
+            if (!string.IsNullOrWhiteSpace(configuredExe))
+            {
+                psi.FileName = configuredExe;
+                psi.ArgumentList.Add("agentapi");
+                psi.ArgumentList.Add("send-message");
+                psi.ArgumentList.Add("--");
+                psi.ArgumentList.Add(safeConvId);
+                psi.ArgumentList.Add(cleanPrompt);
+            }
+            else
+            {
+                psi.FileName = "agentapi";
+                psi.ArgumentList.Add("send-message");
+                psi.ArgumentList.Add("--");
+                psi.ArgumentList.Add(safeConvId);
+                psi.ArgumentList.Add(cleanPrompt);
+            }
+
+            return psi;
+        }
+
+        public static async Task<string> ExecuteStageAgInboxCommandAsync(
+            string operation,
+            string? itemId = null,
+            string? summary = null,
+            string profileName = "Mittwald",
+            bool isDaemonInternal = false,
+            string? customRemoteStageDirForTest = null)
+        {
+            if (!isDaemonInternal)
+            {
+                EnforceRateLimit("ag_direct_inbox", isSshCall: true);
+            }
+
+            string targetRemoteDir = string.IsNullOrWhiteSpace(customRemoteStageDirForTest)
+                ? StageWebRemoteDir
+                : customRemoteStageDirForTest.Trim();
+
+            // Hard Live-Air-Gap Guard BEFORE touching vaults or opening any sockets
+            ValidateStageOnlyTarget(StageAllowedHost, targetRemoteDir, allowWorkerStage: false);
+
+            string remoteCommand;
+            string auditSummary;
+            switch ((operation ?? "").Trim().ToLowerInvariant())
+            {
+                case "peek_pending":
+                    remoteCommand = "php artisan system:ag-inbox --peek-pending 2>/dev/null";
+                    auditSummary = "peek_pending";
+                    break;
+
+                case "pull_pending":
+                    remoteCommand = "php artisan system:ag-inbox --pull-pending 2>/dev/null";
+                    auditSummary = "pull_pending";
+                    break;
+
+                case "list":
+                    remoteCommand = "php artisan system:ag-inbox --list 2>/dev/null";
+                    auditSummary = "list";
+                    break;
+
+                case "mark_delivered":
+                {
+                    string safeIds = ValidateAgInboxMarkDeliveredIds(itemId);
+                    remoteCommand = $"php artisan system:ag-inbox --mark-delivered={safeIds} 2>/dev/null";
+                    auditSummary = $"mark_delivered:{safeIds}";
+                    break;
+                }
+
+                case "complete":
+                {
+                    string safeId = ValidateAgInboxSingleId(itemId);
+                    string cleanSummary = ScrubSecrets((summary ?? "").Replace('\0', ' ').Trim());
+                    if (string.IsNullOrWhiteSpace(cleanSummary))
+                        cleanSummary = "Erledigt durch Antigravity.";
+                    if (cleanSummary.Length > 4000)
+                        cleanSummary = cleanSummary.Substring(0, 4000);
+
+                    string summaryB64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(cleanSummary));
+                    if (!SafeBase64PayloadRegex.IsMatch(summaryB64))
+                        throw new UnauthorizedAccessException("Ungültige Base64-Zusammenfassung blockiert.");
+
+                    remoteCommand = $"php artisan system:ag-inbox --complete={safeId} --summary-b64='{summaryB64}' 2>/dev/null";
+                    auditSummary = $"complete:{safeId}";
+                    break;
+                }
+
+                default:
+                    throw new UnauthorizedAccessException($"AG-Inbox-Operation '{operation}' ist nicht in der Sicherheits-Allowlist enthalten.");
+            }
+
+            using var creds = ResolveProfileInternal(profileName, targetRemoteDir, forceKeyOnlyNoPasswordDecrypt: true)
+                ?? throw new InvalidOperationException($"Profil '{profileName}' wurde nicht gefunden.");
+
+            ValidateStageOnlyTarget(creds.Host, creds.RemoteDirectory, allowWorkerStage: false);
+
+            if (!HasAnySha256PinForHost(creds.Host, creds.Port))
+            {
+                AppendAuditLog("ag_direct_inbox", $"{creds.Host}:{creds.Port}", "DENY:unpinned_host_key");
+                throw new UnauthorizedAccessException($"Host '{creds.Host}:{creds.Port}' ist nicht per SHA-256 gepinnt.");
+            }
+
+            var fwPinned = LoadFunkenwerkPinnedHostKeysSha256();
+
+            return await Task.Run(() =>
+            {
+                var authMethods = new List<AuthenticationMethod>();
+                PrivateKeyFile? keyFile = null;
+                try
+                {
+                    if (!string.IsNullOrWhiteSpace(creds.PrivateKeyPath) && File.Exists(creds.PrivateKeyPath))
+                    {
+                        keyFile = new PrivateKeyFile(creds.PrivateKeyPath);
+                        authMethods.Add(new PrivateKeyAuthenticationMethod(creds.Username, keyFile));
+                    }
+                    if (keyFile == null || authMethods.Count == 0)
+                    {
+                        AppendAuditLog("ag_direct_inbox", $"{creds.Name}:{auditSummary}", "DENY:stage_requires_ed25519_key");
+                        throw new UnauthorizedAccessException(
+                            "Stage AG-Inbox erzwingt reine Ed25519-SSH-Key-Authentifizierung (Passwort-Fallback ist hart deaktiviert).");
+                    }
+
+                    var connInfo = new ConnectionInfo(creds.Host, creds.Port, creds.Username, authMethods.ToArray())
+                    {
+                        Timeout = TimeSpan.FromSeconds(12)
+                    };
+
+                    using var client = new SshClient(connInfo);
+                    bool hostVerified = false;
+                    client.HostKeyReceived += (s, e) =>
+                    {
+                        string actualFp = "SHA256:" + Convert.ToBase64String(SHA256.HashData(e.HostKey)).TrimEnd('=');
+                        byte[] actualBytes = Encoding.ASCII.GetBytes(actualFp);
+
+                        var allowedFps = new List<string>();
+                        string exactKey = $"{creds.Host.ToLowerInvariant()}:{creds.Port}:{e.HostKeyName}";
+                        if (fwPinned.TryGetValue(exactKey, out string? fwExact)) allowedFps.Add(fwExact);
+                        if (fwPinned.TryGetValue($"{creds.Host}:{creds.Port}", out string? fwHostPort)) allowedFps.Add(fwHostPort);
+                        allowedFps.AddRange(FindOpenSshPinnedFingerprintsForHost(creds.Host, creds.Port, e.HostKeyName));
+
+                        bool matchedPin = false;
+                        foreach (string candidateFp in allowedFps)
+                        {
+                            byte[] expectedBytes = Encoding.ASCII.GetBytes(candidateFp.Trim());
+                            if (actualBytes.Length == expectedBytes.Length &&
+                                CryptographicOperations.FixedTimeEquals(actualBytes, expectedBytes))
+                            {
+                                matchedPin = true;
+                                break;
+                            }
+                        }
+
+                        hostVerified = matchedPin;
+                        e.CanTrust = matchedPin;
+                    };
+
+                    client.Connect();
+                    if (!hostVerified || !client.IsConnected)
+                        throw new UnauthorizedAccessException("SSH Host-Key-Prüfung für Stage AG-Inbox fehlgeschlagen (MITM-Schutz aktiv).");
+
+                    string fullCmd = $"cd -- '{StageWebRemoteDir}' && {remoteCommand}";
+                    using var cmd = client.CreateCommand(fullCmd);
+                    cmd.CommandTimeout = TimeSpan.FromSeconds(30);
+                    string stdout = cmd.Execute() ?? "";
+                    string stderr = cmd.Error ?? "";
+                    int exitCode = cmd.ExitStatus ?? 0;
+                    client.Disconnect();
+
+                    string cleanOut = AnsiEscapeRegex.Replace(stdout, "").Trim();
+                    if (cleanOut.Length > 32 * 1024 * 1024)
+                        throw new InvalidOperationException("Stage AG-Inbox Antwort überschreitet das 32 MB Sicherheitslimit.");
+
+                    if (exitCode != 0)
+                    {
+                        string errDetail = ScrubSecrets(AnsiEscapeRegex.Replace($"{stdout}\n{stderr}", "").Trim());
+                        if (errDetail.Length > 2000) errDetail = errDetail.Substring(0, 2000);
+                        AppendAuditLog("ag_direct_inbox", $"{creds.Name}:{auditSummary}:exit={exitCode}", "ERROR");
+                        throw new InvalidOperationException($"Stage AG-Inbox ({auditSummary}) meldete Exit-Code {exitCode}: {errDetail}");
+                    }
+
+                    if (!isDaemonInternal || auditSummary != "peek_pending")
+                    {
+                        AppendAuditLog("ag_direct_inbox", $"{creds.Name}:{auditSummary}", "ALLOW");
+                    }
+                    return cleanOut;
+                }
+                finally
+                {
+                    keyFile?.Dispose();
+                }
+            });
         }
 
         public static SecurityAuditStatusDto RunSecuritySelfAudit()

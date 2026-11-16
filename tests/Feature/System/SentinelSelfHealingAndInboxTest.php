@@ -417,4 +417,175 @@ class SentinelSelfHealingAndInboxTest extends TestCase
         $this->assertSame('success', $pulseBlipLog->status);
         $this->assertSame('client_portal_pulse_recovered', $pulseBlipLog->payload['triage']['playbook'] ?? null);
     }
+
+    public function test_portal_pulse_429_5xx_and_funkira_live_ws_drops_auto_heal_while_real_ws_and_pulse_bugs_escalate(): void
+    {
+        SystemLog::openIssues()->update(['status' => 'success']);
+
+        // 1. Transient 429 & 503 on /api/shop/monitor-pulse -> auto_healed
+        $pulse429 = SystemLog::create([
+            'type' => 'minipc_linux',
+            'action_id' => 'minipc_linux:portal_pulse:d6f170df4e85883d',
+            'title' => '[Werkstatt Mini-PC] Portal-Pulse nicht erreichbar (STAGE)',
+            'message' => 'GET https://stage.mein-seelenfunke.de/api/shop/monitor-pulse lieferte Status 429.',
+            'status' => 'warning',
+            'payload' => ['platform' => 'minipc_linux', 'occurrences_count' => 38, 'fingerprint' => hash('sha256', 'pulse_429_' . uniqid())],
+            'started_at' => now()->subMinutes(10),
+            'finished_at' => now()->subMinutes(1),
+        ]);
+
+        $pulse503 = SystemLog::create([
+            'type' => 'windows_desktop',
+            'action_id' => 'windows_desktop:portal_pulse:gw503',
+            'title' => '[Funkenwerk] Portal-Pulse Gateway Timeout',
+            'message' => 'GET https://stage.mein-seelenfunke.de/api/shop/monitor-pulse lieferte Status 503.',
+            'status' => 'warning',
+            'payload' => ['platform' => 'windows_desktop', 'occurrences_count' => 2, 'fingerprint' => hash('sha256', 'pulse_503_' . uniqid())],
+            'started_at' => now()->subMinutes(2),
+            'finished_at' => now()->subMinutes(2),
+        ]);
+
+        // 2. Real 500 Internal Server Error on portal_pulse -> MUST escalate to Antigravity!
+        $pulse500Bug = SystemLog::create([
+            'type' => 'minipc_linux',
+            'action_id' => 'minipc_linux:portal_pulse:err500',
+            'title' => '[Werkstatt Mini-PC] Portal-Pulse Serverfehler',
+            'message' => 'GET https://stage.mein-seelenfunke.de/api/shop/monitor-pulse lieferte Status 500.',
+            'status' => 'error',
+            'payload' => ['platform' => 'minipc_linux', 'occurrences_count' => 1, 'fingerprint' => hash('sha256', 'pulse_500_' . uniqid())],
+            'started_at' => now()->subMinute(),
+            'finished_at' => now()->subMinute(),
+        ]);
+
+        // 3. Transient mobile stream drop on funkira_live_ws (EOFException / Verbindungsfehler: null) -> auto_healed
+        $wsEof = SystemLog::create([
+            'type' => 'android',
+            'action_id' => 'android:funkira_live_ws:bfc488cf104d7cf9',
+            'title' => '[Android App] funkira_live_ws: EOFException',
+            'message' => 'Verbindungsfehler: null',
+            'status' => 'error',
+            'payload' => ['platform' => 'android', 'occurrences_count' => 1, 'fingerprint' => hash('sha256', 'ws_eof_' . uniqid())],
+            'started_at' => now()->subMinutes(5),
+            'finished_at' => now()->subMinutes(5),
+        ]);
+
+        // 4. Real crash / auth error on funkira_live_ws -> MUST escalate to Antigravity!
+        $wsAuthOrCrash = SystemLog::create([
+            'type' => 'android',
+            'action_id' => 'android:funkira_live_ws:crash01',
+            'title' => '[Android App] funkira_live_ws: IllegalStateException',
+            'message' => 'HTTP 401 Unauthorized handshake rejected',
+            'status' => 'error',
+            'payload' => ['platform' => 'android', 'occurrences_count' => 1, 'fingerprint' => hash('sha256', 'ws_crash_' . uniqid())],
+            'started_at' => now()->subMinute(),
+            'finished_at' => now()->subMinute(),
+        ]);
+
+        // 5. Superseded security:package_audit warning followed by a clean re-run (0 CVEs) -> auto_healed
+        $staleCveLog = SystemLog::create([
+            'type' => 'security',
+            'action_id' => 'security:package_audit',
+            'title' => '[STAGE] Sicherheitsprüfung: Verwundbarkeiten erkannt',
+            'message' => '63 Sicherheitslücke(n) (CVE) in Paketen erkannt!',
+            'status' => 'warning',
+            'payload' => ['platform' => 'portal', 'occurrences_count' => 1, 'fingerprint' => hash('sha256', 'stale_cve_' . uniqid())],
+            'started_at' => now()->subHours(2),
+            'finished_at' => now()->subHours(2),
+        ]);
+
+        SystemLog::create([
+            'type' => 'security',
+            'action_id' => 'security:package_audit',
+            'title' => 'Automatische Sicherheitsprüfung abgeschlossen',
+            'message' => '0 Sicherheitslücken (CVEs)',
+            'status' => 'success',
+            'payload' => ['cve_count' => 0, 'guardrail_errors' => 0],
+            'started_at' => now()->subMinutes(5),
+            'finished_at' => now()->subMinutes(5),
+        ]);
+
+        $stats = app(SentinelTriageService::class)->runTriageCycle(probeBridges: false, allowAiEnrichment: false);
+
+        $pulse429->refresh();
+        $pulse503->refresh();
+        $pulse500Bug->refresh();
+        $wsEof->refresh();
+        $wsAuthOrCrash->refresh();
+        $staleCveLog->refresh();
+
+        $this->assertSame('auto_healed', $pulse429->triageState());
+        $this->assertSame('client_portal_pulse_recovered', $pulse429->payload['triage']['playbook'] ?? null);
+
+        $this->assertSame('auto_healed', $pulse503->triageState());
+        $this->assertSame('auto_healed', $wsEof->triageState());
+        $this->assertSame('transient_mobile_ws_recovered', $wsEof->payload['triage']['playbook'] ?? null);
+
+        $this->assertSame('auto_healed', $staleCveLog->triageState());
+        $this->assertSame('security_audit_verified_clean', $staleCveLog->payload['triage']['playbook'] ?? null);
+
+        $this->assertSame('queued_for_antigravity', $pulse500Bug->triageState());
+        $this->assertSame('queued_for_antigravity', $wsAuthOrCrash->triageState());
+        $this->assertSame(2, $stats['open_pool_count']);
+    }
+
+    public function test_health_fail_backup_and_telephony_and_cli_typo_are_auto_healed(): void
+    {
+        $backupDisk = config('backup.backup.destination.disks.0', 'local');
+        $backupName = config('backup.backup.name', config('app.name') . '-db-backup');
+        \Illuminate\Support\Facades\Storage::fake($backupDisk);
+        \Illuminate\Support\Facades\Storage::disk($backupDisk)->put("{$backupName}/test_recent_backup.zip", 'zipdata');
+
+        $backupFail = SystemLog::create([
+            'type' => 'system',
+            'action_id' => 'system:health_fail',
+            'title' => 'Infrastruktur-Ausfall: Backup',
+            'message' => 'Das Datenbank-Backup ist überfällig. Gefahr bei Datenverlust!',
+            'status' => 'error',
+            'payload' => ['platform' => 'portal', 'occurrences_count' => 1, 'fingerprint' => hash('sha256', 'bk_' . uniqid())],
+            'started_at' => now()->subMinutes(10),
+            'finished_at' => now()->subMinutes(10),
+        ]);
+
+        $telephonyFail = SystemLog::create([
+            'type' => 'system',
+            'action_id' => 'system:health_fail',
+            'title' => 'Infrastruktur-Ausfall: Telephony',
+            'message' => 'Die KI-Telefonie Audio-Bridge ist down! HTTP Status: 500',
+            'status' => 'error',
+            'payload' => ['platform' => 'portal', 'occurrences_count' => 1, 'fingerprint' => hash('sha256', 'tel_' . uniqid())],
+            'started_at' => now()->subMinutes(10),
+            'finished_at' => now()->subMinutes(10),
+        ]);
+
+        $cliTypo = SystemLog::create([
+            'type' => 'system',
+            'action_id' => 'system:exception:application_runtime_error',
+            'title' => 'System-Fehler (RuntimeException)',
+            'message' => 'The "--summary" option does not exist.',
+            'status' => 'error',
+            'payload' => [
+                'platform' => 'portal',
+                'occurrences_count' => 1,
+                'file' => 'vendor/symfony/console/Input/ArgvInput.php',
+                'fingerprint' => hash('sha256', 'typo_' . uniqid())
+            ],
+            'started_at' => now()->subMinutes(5),
+            'finished_at' => now()->subMinutes(5),
+        ]);
+
+        $stats = app(SentinelTriageService::class)->runTriageCycle(probeBridges: false, allowAiEnrichment: false);
+
+        $backupFail->refresh();
+        $telephonyFail->refresh();
+        $cliTypo->refresh();
+
+        $this->assertSame('auto_healed', $backupFail->triageState());
+        $this->assertSame('health_backup_fresh_verified', $backupFail->payload['triage']['playbook'] ?? null);
+
+        $this->assertSame('auto_healed', $telephonyFail->triageState());
+        $this->assertSame('health_telephony_worker_recovered', $telephonyFail->payload['triage']['playbook'] ?? null);
+
+        $this->assertSame('auto_healed', $cliTypo->triageState());
+        $this->assertSame('interactive_cli_typo_handled', $cliTypo->payload['triage']['playbook'] ?? null);
+    }
 }

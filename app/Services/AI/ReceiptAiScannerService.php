@@ -117,13 +117,13 @@ class ReceiptAiScannerService
             }
 
             $apiKey = config('services.gemini.key', env('GEMINI_API_KEY'));
-            if (empty($apiKey) && !app()->runningUnitTests()) {
-                Log::warning('ReceiptAiScannerService: GEMINI_API_KEY ist nicht konfiguriert.');
+            if (!VertexAiService::hasCredentials() && !app()->runningUnitTests()) {
+                Log::warning('ReceiptAiScannerService: Weder Vertex AI noch GEMINI_API_KEY konfiguriert.');
                 return null;
             }
 
             // In Unit Tests: Fake-Response zurückgeben, falls kein Key oder Mock (nach erfolgreicher Pfad-&-Typ-Prüfung)
-            if (app()->runningUnitTests() && empty($apiKey)) {
+            if (app()->runningUnitTests() && empty($apiKey) && !VertexAiService::isEnabled()) {
                 return self::mockResponseForTests();
             }
 
@@ -204,11 +204,7 @@ PROMPT;
                     $modelPayload = $payload;
                     $modelPayload['generationConfig'] = $genConfig;
 
-                    $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent";
-                    $response = Http::connectTimeout(6)
-                        ->timeout(22)
-                        ->withHeaders(['x-goog-api-key' => $apiKey])
-                        ->post($url, $modelPayload);
+                    $response = VertexAiService::generateContent($model, $modelPayload, 22, 6);
 
                     if ($response->successful()) {
                         $resData = $response->json();

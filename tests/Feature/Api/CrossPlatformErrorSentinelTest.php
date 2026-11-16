@@ -127,4 +127,55 @@ class CrossPlatformErrorSentinelTest extends TestCase
         $this->assertGreaterThanOrEqual(1, $toolRes['open_errors_count'] ?? 0);
         $this->assertGreaterThanOrEqual(1, $toolRes['auto_healed_count'] ?? 0);
     }
+
+    public function test_monitor_pulse_uses_dedicated_per_device_rate_limiter_while_keeping_sanctum_auth_strict(): void
+    {
+        $admin = Admin::factory()->create();
+        $miniPcToken = $admin->createToken('FunkenwerkMiniPc', ['monitor:pulse'])->plainTextToken;
+        $androidToken = $admin->createToken('AndroidApp', ['*'])->plainTextToken;
+        $wrongScopeToken = $admin->createToken('NoPulseScope', ['mail:read'])->plainTextToken;
+
+        $customer = Customer::factory()->create();
+        $customerToken = $customer->createToken('CustomerWeb', ['*'])->plainTextToken;
+
+        // Unauthenticated -> 401
+        $this->getJson('/api/shop/monitor-pulse')->assertStatus(401);
+
+        // Customer -> 403
+        $this->withHeader('Authorization', 'Bearer ' . $customerToken)
+            ->getJson('/api/shop/monitor-pulse')
+            ->assertStatus(403);
+
+        Auth::forgetGuards();
+
+        // Admin token lacking monitor:pulse or * -> 403
+        $this->withHeader('Authorization', 'Bearer ' . $wrongScopeToken)
+            ->getJson('/api/shop/monitor-pulse')
+            ->assertStatus(403);
+
+        Auth::forgetGuards();
+
+        // Mini-PC sends 65 requests (> old 60/min global api limit) -> all 200 OK under dedicated 180/min monitor-pulse limiter
+        $lastMiniPcResp = null;
+        for ($i = 0; $i < 65; $i++) {
+            Auth::forgetGuards();
+            $lastMiniPcResp = $this->withServerVariables(['REMOTE_ADDR' => '198.51.100.10'])
+                ->withHeader('Authorization', 'Bearer ' . $miniPcToken)
+                ->getJson('/api/shop/monitor-pulse');
+            $lastMiniPcResp->assertOk();
+        }
+
+        $this->assertSame('180', (string) $lastMiniPcResp->headers->get('X-RateLimit-Limit'));
+        $this->assertLessThanOrEqual(115, (int) $lastMiniPcResp->headers->get('X-RateLimit-Remaining'));
+
+        // Android sharing the SAME Admin user & router IP has its own independent PAT bucket (179 remaining)
+        Auth::forgetGuards();
+        $androidResp = $this->withServerVariables(['REMOTE_ADDR' => '198.51.100.10'])
+            ->withHeader('Authorization', 'Bearer ' . $androidToken)
+            ->getJson('/api/shop/monitor-pulse');
+
+        $androidResp->assertOk();
+        $this->assertSame('180', (string) $androidResp->headers->get('X-RateLimit-Limit'));
+        $this->assertSame('179', (string) $androidResp->headers->get('X-RateLimit-Remaining'));
+    }
 }

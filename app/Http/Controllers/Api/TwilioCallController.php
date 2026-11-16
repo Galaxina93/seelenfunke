@@ -356,10 +356,9 @@ class TwilioCallController extends Controller
         $extractedRahmenbedingungen = [];
         $extractedActionRequired = '';
 
-        // Bewerte das Live-Gespräch strukturiert mit Gemini (Besprochenes, Rahmenbedingungen, Was Alina tun soll)
+        // Bewerte das Live-Gespräch strukturiert mit Gemini/Vertex AI (Besprochenes, Rahmenbedingungen, Was Alina tun soll)
         if (!empty($transcriptLines)) {
-            $apiKey = config('services.gemini.key');
-            if ($apiKey && (!app()->environment('testing') || config('services.gemini.allow_in_tests', false))) {
+            if (\App\Services\AI\VertexAiService::hasCredentials() && (!app()->environment('testing') || config('services.gemini.allow_in_tests', false))) {
                 try {
                     $transcriptText = mb_substr(implode("\n", $transcriptLines), 0, 15000);
                     if ($verifiedInboundMeta !== null) {
@@ -379,21 +378,15 @@ class TwilioCallController extends Controller
                         $prompt = "Du bist eine Analyse-KI. Folgendes ist das vollständige Protokoll eines Telefonats.\nZiel des Anrufs war: " . ($data['objective'] ?? 'Unbekannt') . "\n\nTranscript:\n" . $transcriptText . "\n\nBitte bewerte, ob das Ziel erreicht wurde. Antworte ausschließlich mit einem JSON Objekt in folgendem exaktem Format (Kein Markdown, keine Backticks): {\"summary\": \"Kurzes klares Fazit\", \"rahmenbedingungen\": [], \"action_required\": \"Nächster Schritt\", \"next_steps\": [\"Task 1\"], \"goals\": [{\"task\": \"Erstes Ziel aus dem Objective\", \"achieved\": true}]}";
                     }
 
-                    $candidateModels = ['gemini-2.5-flash', 'gemini-flash-latest', 'gemini-3.5-flash'];
+                    $candidateModels = ['gemini-3.5-flash', 'gemini-3-flash-preview'];
                     $response = null;
                     foreach ($candidateModels as $modelName) {
                         try {
-                            $tryRes = Http::withOptions([
-                                'force_ip_resolve' => 'v4',
-                                'connect_timeout' => 5,
-                            ])->timeout(15)->withHeaders([
-                                'Content-Type' => 'application/json',
-                                'x-goog-api-key' => $apiKey,
-                            ])->post("https://generativelanguage.googleapis.com/v1beta/models/{$modelName}:generateContent", [
+                            $tryRes = \App\Services\AI\VertexAiService::generateContent($modelName, [
                                 'contents' => [
-                                    ['parts' => [['text' => $prompt]]],
+                                    ['role' => 'user', 'parts' => [['text' => $prompt]]],
                                 ],
-                            ]);
+                            ], 15, 5);
                             if ($tryRes->successful()) {
                                 $response = $tryRes;
                                 break;

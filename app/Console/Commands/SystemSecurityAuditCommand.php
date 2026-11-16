@@ -67,18 +67,35 @@ class SystemSecurityAuditCommand extends Command
         );
 
         if (class_exists(SystemLog::class)) {
+            $healedStaleAudits = 0;
             if ($overallStatus !== 'error') {
-                // Selbstheilung: frühere offene Paket-Warnungen nach erfolgreichem Audit automatisch archivieren
+                // Selbstheilung: frühere offene Paket-Warnungen nach erfolgreichem Audit (0 Prod-CVEs, 0 Schranken-Fehler) sauber heilen
+                $healSummary = 'Erneuter Sicherheits-Scan bestätigte 0 Produktions-CVEs und 0 Schranken-Verstöße.';
                 SystemLog::query()
                     ->where('action_id', 'security:package_audit')
                     ->whereIn('status', ['error', 'warning'])
                     ->get()
-                    ->each(function (SystemLog $staleAudit) {
+                    ->each(function (SystemLog $staleAudit) use (&$healedStaleAudits, $healSummary) {
                         $t = (string) $staleAudit->title;
-                        $staleAudit->title = str_starts_with($t, '[GELÖST]') ? $t : mb_substr('[GELÖST] ' . $t, 0, 250);
+                        if (!str_starts_with($t, '[AUTO-GEHEILT]') && !str_starts_with($t, '[GELÖST]')) {
+                            $t = mb_substr('[AUTO-GEHEILT] ' . $t, 0, 190);
+                        }
+                        $sp = is_array($staleAudit->payload) ? $staleAudit->payload : [];
+                        $sp['auto_healed'] = true;
+                        $sp['auto_heal_action'] = $healSummary;
+                        $sp['triage'] = [
+                            'state' => 'auto_healed',
+                            'playbook' => 'security_audit_verified_clean',
+                            'healed_at' => now()->toIso8601String(),
+                            'healed_by' => 'SystemSecurityAuditCommand',
+                            'summary' => $healSummary,
+                        ];
+                        $staleAudit->title = $t;
                         $staleAudit->status = 'success';
+                        $staleAudit->payload = $sp;
                         $staleAudit->finished_at = now();
                         $staleAudit->saveQuietly();
+                        $healedStaleAudits++;
                     });
             }
 
@@ -101,6 +118,13 @@ class SystemSecurityAuditCommand extends Command
                 'started_at' => now(),
                 'finished_at' => now(),
             ]);
+
+            if ($healedStaleAudits > 0 && !app()->runningUnitTests() && class_exists(\App\Services\System\SentinelTriageService::class)) {
+                try {
+                    app(\App\Services\System\SentinelTriageService::class)->writeInboxSnapshotFile();
+                } catch (\Throwable) {
+                }
+            }
         }
 
         if ($overallStatus === 'error' && !$this->option('no-alert') && !app()->runningUnitTests()) {
@@ -317,12 +341,13 @@ class SystemSecurityAuditCommand extends Command
 
         $prodDeps = [];
         $devDeps = [];
+        $lock = [];
         $lockedCount = 0;
 
         if (File::exists($packageJsonPath)) {
             $json = json_decode(File::get($packageJsonPath), true) ?: [];
-            $prodDeps = $json['dependencies'] ?? [];
-            $devDeps = $json['devDependencies'] ?? [];
+            $prodDeps = is_array($json['dependencies'] ?? null) ? $json['dependencies'] : [];
+            $devDeps = is_array($json['devDependencies'] ?? null) ? $json['devDependencies'] : [];
         }
 
         if (File::exists($packageLockPath)) {
@@ -334,9 +359,15 @@ class SystemSecurityAuditCommand extends Command
         $advisories = [];
 
         if (!$skipNetwork && File::exists($packageLockPath)) {
-            $auditJson = $this->runJsonProcess(['npm', 'audit', '--omit=dev', '--json'], 25);
+            // Prüft maßgeblich die aktuelle package-lock.json (--package-lock-only ignoriert verwaiste Alt-node_modules auf Stage)
+            $auditJson = $this->runJsonProcess(['npm', 'audit', '--package-lock-only', '--omit=dev', '--json'], 25);
+            if (!is_array($auditJson) || isset($auditJson['error'])) {
+                $auditJson = $this->runJsonProcess(['npm', 'audit', '--omit=dev', '--json'], 25);
+            }
+
             if (is_array($auditJson) && isset($auditJson['vulnerabilities']) && is_array($auditJson['vulnerabilities'])) {
-                foreach ($auditJson['vulnerabilities'] as $pkgName => $vuln) {
+                $prodVulns = self::filterProdNpmVulnerabilities($auditJson['vulnerabilities'], $lock, $prodDeps);
+                foreach ($prodVulns as $pkgName => $vuln) {
                     $severity = strtolower((string) ($vuln['severity'] ?? 'moderate'));
                     $viaTitle = 'NPM Security Advisory';
                     $viaUrl = '';
@@ -384,6 +415,99 @@ class SystemSecurityAuditCommand extends Command
             'advisories' => array_slice($advisories, 0, 25),
             'direct_packages' => array_slice($directPackagesList, 0, 30),
         ];
+    }
+
+    /**
+     * Filtert reine Build-/Dev-Abhängigkeiten (dev: true in package-lock.json), die ältere Server-npm-Versionen
+     * trotz --omit=dev im vulnerabilities-Objekt ausgeben, während jede echte direkte oder transitive
+     * Produktions-Abhängigkeit unverändert erhalten bleibt.
+     */
+    public static function filterProdNpmVulnerabilities(array $vulnerabilities, array $lock, array $prodDeps): array
+    {
+        $filtered = [];
+        foreach ($vulnerabilities as $pkgName => $vuln) {
+            if (!is_array($vuln)) {
+                continue;
+            }
+            if (self::isPureDevNpmVulnerability((string) $pkgName, $vuln, $lock, $prodDeps)) {
+                continue;
+            }
+            $filtered[(string) $pkgName] = $vuln;
+        }
+
+        return $filtered;
+    }
+
+    public static function isPureDevNpmVulnerability(string $pkgName, array $vuln, array $lock, array $prodDeps): bool
+    {
+        $lockPackages = is_array($lock['packages'] ?? null) ? $lock['packages'] : [];
+        $lockLegacyDeps = is_array($lock['dependencies'] ?? null) ? $lock['dependencies'] : [];
+
+        if (!empty($vuln['nodes']) && is_array($vuln['nodes']) && !empty($lockPackages)) {
+            $normalizedNodes = array_values(array_filter(array_map(
+                static fn ($n) => trim((string) $n, '/'),
+                $vuln['nodes']
+            )));
+
+            if (empty($normalizedNodes)) {
+                return false;
+            }
+
+            if (isset($prodDeps[$pkgName]) && in_array('node_modules/' . $pkgName, $normalizedNodes, true)) {
+                return false;
+            }
+
+            foreach ($normalizedNodes as $nodePath) {
+                if (!isset($lockPackages[$nodePath]) || !is_array($lockPackages[$nodePath])) {
+                    return false;
+                }
+                $nodeMeta = $lockPackages[$nodePath];
+                if (empty($nodeMeta['dev']) && empty($nodeMeta['devOptional'])) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        if (isset($prodDeps[$pkgName])) {
+            return false;
+        }
+
+        if (!empty($lockPackages)) {
+            $matchedMetas = [];
+            $directNodeKey = 'node_modules/' . $pkgName;
+            $nestedSuffix = '/node_modules/' . $pkgName;
+
+            foreach ($lockPackages as $pathKey => $meta) {
+                if (!is_array($meta) || $pathKey === '') {
+                    continue;
+                }
+                $pathStr = (string) $pathKey;
+                if ($pathStr === $directNodeKey || str_ends_with($pathStr, $nestedSuffix) || (($meta['name'] ?? null) === $pkgName)) {
+                    $matchedMetas[] = $meta;
+                }
+            }
+
+            if (empty($matchedMetas)) {
+                return false;
+            }
+
+            foreach ($matchedMetas as $meta) {
+                if (empty($meta['dev']) && empty($meta['devOptional'])) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        if (!empty($lockLegacyDeps) && isset($lockLegacyDeps[$pkgName]) && is_array($lockLegacyDeps[$pkgName])) {
+            $legacyMeta = $lockLegacyDeps[$pkgName];
+            return !empty($legacyMeta['dev']) || !empty($legacyMeta['devOptional']);
+        }
+
+        return false;
     }
 
     private function auditAppPackages(): array

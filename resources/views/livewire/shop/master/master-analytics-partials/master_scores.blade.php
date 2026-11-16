@@ -137,11 +137,12 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
             'ws' => ['label' => 'WebSocket (Events/Reverb)', 'host' => env('MIX_PUSHER_HOST', env('VITE_REVERB_HOST', env('PUSHER_HOST', '127.0.0.1'))), 'port' => env('MIX_PUSHER_PORT', env('VITE_REVERB_PORT', env('PUSHER_PORT', '6001'))), 'desc' => 'WebSocket-Verbindung (z.B. Reverb / Pusher) für Live-Updates (Chat, Analytics).'],
             'dhl' => ['label' => 'DHL Paket API', 'host' => 'api.dhl.com', 'port' => '443', 'desc' => 'Label-Generierung und Sendungsverfolgung.'],
             'finapi' => ['label' => 'finAPI (Bank)', 'host' => env('FINAPI_ENV', 'live') === 'live' ? 'live.finapi.io' : 'sandbox.finapi.io', 'port' => '443', 'desc' => 'Schnittstelle zur Bankkonto-Synchronisation.'],
-            'gemini' => ['label' => 'Google Gemini', 'host' => 'generativelanguage.googleapis.com', 'port' => '443', 'desc' => 'Google AI Basismodell für komplexe Task-Bewältigung.'],
+            'gemini' => ['label' => 'Google Gemini (Vertex AI)', 'host' => \App\Services\AI\VertexAiService::isEnabled() ? 'aiplatform.googleapis.com' : 'generativelanguage.googleapis.com', 'port' => '443', 'desc' => 'Google Cloud Vertex AI Basismodell (Postpay SEPA) für komplexe Task-Bewältigung.'],
             'google_places' => ['label' => 'Google Places', 'host' => 'maps.googleapis.com', 'port' => '443', 'desc' => 'Schnittstelle für automatische Kundenbewertungen.'],
             'elster' => ['label' => 'Elster (ERiC)', 'host' => 'elster.de', 'port' => '443', 'desc' => 'Anbindung zur Finanzbehörde der Bundesrepublik Deutschland.'],
             'scraperapi' => ['label' => 'ScraperAPI', 'host' => 'api.scraperapi.com', 'port' => '80', 'desc' => 'Proxy-Service für Marktforschung und SEO-Agenten.'],
             'telephony' => ['label' => 'Gemini Audio Bridge', 'host' => 'localhost', 'port' => env('TWILIO_WS_PORT', '8081'), 'desc' => app()->environment('local') ? 'Lokal deaktiviert. Funktioniert nur auf Stage/Live und hat keinen Einfluss auf den Health-Score.' : 'Node.js WebSocket Server für Echtzeit-Sprachanrufe zwischen Twilio und KI.'],
+            'watchtower' => ['label' => '24/7 Watchtower', 'host' => '/api/system/health-pulse', 'port' => '443', 'desc' => 'Gebündelter 4-Säulen-Wächter (Shop & SSL, Cronjobs, Queue-Worker, Shop/NAS-Backups) inkl. 90-Tage-Uptime.'],
         ];
 
         $systemGroups = [
@@ -159,7 +160,7 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
             ],
             'Background & Security' => [
                 'color' => 'bg-purple-500 dark:shadow-[0_0_8px_rgba(168,85,247,0.8)]',
-                'items' => ['queue', 'scheduler', 'backup']
+                'items' => ['watchtower', 'queue', 'scheduler', 'backup']
             ]
         ];
 
@@ -2440,6 +2441,102 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
                     </button>
                 </div>
 
+                @php
+                    $wtPulse = $systemHealth['watchtower']['pulse'] ?? null;
+                    if (!$wtPulse && class_exists(\App\Services\System\SystemHealthPulseService::class)) {
+                        $wtSvc = app(\App\Services\System\SystemHealthPulseService::class);
+                        $wtUp = $wtSvc->summarizeUptime();
+                        $wtNodes = $wtSvc->getWatchtowerNodesSummary();
+                        $wtPulse = [
+                            'uptime_90d_percent' => $wtUp['uptime_90d_percent'] ?? 100.0,
+                            'daily_bars' => $wtUp['daily_bars'] ?? [],
+                            'pillars' => null,
+                            'watchtower' => $wtNodes,
+                        ];
+                    }
+                    $wtUptimePct = number_format((float) ($wtPulse['uptime_90d_percent'] ?? 100.0), 2, ',', '.');
+                    $wtBars = is_array($wtPulse['daily_bars'] ?? null) ? $wtPulse['daily_bars'] : [];
+                    $wtPillars = is_array($wtPulse['pillars'] ?? null) ? $wtPulse['pillars'] : [];
+                    $wtActiveNodes = (int) ($wtPulse['watchtower']['active_nodes_count'] ?? 0);
+                    $wtPillarLabels = [
+                        'shop' => 'Shop & SSL',
+                        'cronjobs' => 'Cronjobs',
+                        'queues' => 'Queue-Worker',
+                        'backups' => 'Backups',
+                    ];
+                @endphp
+
+                <div class="bg-white/90 dark:bg-gray-950/50 rounded-[1.75rem] border border-gray-200 dark:border-gray-800 p-5 mb-6 flex flex-col gap-4">
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <div class="flex items-center gap-2.5">
+                            <span class="w-2 h-2 rounded-full bg-[#C5A059]"></span>
+                            <h5 class="text-xs font-black text-gray-800 dark:text-white uppercase tracking-widest">Watchtower & 90-Tage-Uptime</h5>
+                            <div class="relative" x-data="{ wtTip: false }" @mouseenter="wtTip = true" @mouseleave="wtTip = false">
+                                <x-heroicon-m-information-circle class="w-4 h-4 text-gray-400 dark:text-gray-500 hover:text-[#C5A059] cursor-help transition-colors" />
+                                <div x-show="wtTip" x-transition.opacity.duration.150ms class="absolute bottom-full mb-2 left-0 w-[260px] p-3 bg-white dark:bg-gray-950 border border-[#C5A059]/40 rounded-xl shadow-2xl z-[100] text-left" style="display: none;">
+                                    <div class="text-[11px] text-gray-700 dark:text-gray-300 font-medium leading-relaxed">
+                                        Prüft gebündelt Shop/SSL, Cronjobs, Queue-Worker sowie Shop- und NAS-Backups über Smartphone, Mini-PC und Synology NAS.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="px-3 py-1 rounded-lg bg-gray-100 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-[10px] font-black uppercase tracking-widest text-gray-700 dark:text-gray-300">
+                                Außen-Wächter: <span class="text-[#C5A059]">{{ $wtActiveNodes }}</span>
+                            </span>
+                            <span class="px-3 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-[11px] font-black tracking-wider text-emerald-600 dark:text-emerald-400">
+                                {{ $wtUptimePct }} %
+                            </span>
+                        </div>
+                    </div>
+
+                    @if(count($wtBars) > 0)
+                        <div class="flex items-center gap-1 h-5 w-full" aria-label="30-Tage Uptime Verlauf">
+                            @foreach($wtBars as $bar)
+                                @php
+                                    $barBg = match($bar['status'] ?? 'nodata') {
+                                        'ok' => 'bg-emerald-500/85 hover:bg-emerald-400',
+                                        'warning' => 'bg-amber-500/85 hover:bg-amber-400',
+                                        'critical' => 'bg-red-500 hover:bg-red-400',
+                                        default => 'bg-gray-200 dark:bg-gray-800 hover:bg-gray-300 dark:hover:bg-gray-700',
+                                    };
+                                    $barTitle = ($bar['date'] ?? '') . ($bar['percent'] !== null ? (' · ' . $bar['percent'] . '%') : ' · Keine Messung');
+                                @endphp
+                                <div class="flex-1 h-full rounded-[3px] transition-colors {{ $barBg }}" title="{{ $barTitle }}"></div>
+                            @endforeach
+                        </div>
+                    @endif
+
+                    @if(count($wtPillars) > 0)
+                        <div class="grid grid-cols-2 lg:grid-cols-4 gap-2.5 pt-1">
+                            @foreach($wtPillarLabels as $pKey => $pTitle)
+                                @php
+                                    $pInfo = $wtPillars[$pKey] ?? null;
+                                    $pSt = $pInfo['status'] ?? 'ok';
+                                    $pDot = match($pSt) {
+                                        'critical' => 'bg-red-500',
+                                        'warning' => 'bg-amber-500',
+                                        default => 'bg-emerald-500',
+                                    };
+                                    $pTxt = match($pSt) {
+                                        'critical' => 'text-red-600 dark:text-red-400',
+                                        'warning' => 'text-amber-600 dark:text-amber-400',
+                                        default => 'text-emerald-600 dark:text-emerald-400',
+                                    };
+                                @endphp
+                                <div class="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-gray-50 dark:bg-gray-900/70 border border-gray-200/80 dark:border-gray-800">
+                                    <div class="flex items-center gap-2 min-w-0">
+                                        <span class="w-1.5 h-1.5 rounded-full shrink-0 {{ $pDot }}"></span>
+                                        <span class="text-[10px] font-black uppercase tracking-wider text-gray-700 dark:text-gray-300 truncate">{{ $pTitle }}</span>
+                                    </div>
+                                    <span class="text-[10px] font-bold truncate {{ $pTxt }}">{{ $pInfo['label'] ?? 'OK' }}</span>
+                                </div>
+                            @endforeach
+                        </div>
+                    @endif
+                </div>
+
                 <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 lg:gap-8">
                     @foreach($systemGroups as $groupName => $groupInfo)
                         <div class="bg-gray-50/60 dark:bg-gray-950/40 rounded-[2rem] border border-gray-200 dark:border-gray-800 flex flex-col p-6 shadow-inner gap-5">
@@ -2753,6 +2850,35 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
                                                         <span wire:loading.remove wire:target="fixSystem('backup')"><i class="bi bi-clock-history"></i> Backup manuell anstoßen</span>
                                                         <span wire:loading wire:target="fixSystem('backup')" class="animate-pulse">Backup läuft...</span>
                                                     </button>
+                                                @endif
+
+                                                @if($sKey === 'watchtower' && $health)
+                                                    @php
+                                                        $wtNodesList = $health['pulse']['watchtower']['nodes'] ?? [];
+                                                        $wtNasInfo = $health['pulse']['pillars']['backups']['nas_backup'] ?? null;
+                                                    @endphp
+                                                    <div class="flex flex-col gap-1 text-left font-mono mt-2 bg-gray-100 dark:bg-gray-900/50 p-2 rounded-lg border border-gray-200 dark:border-gray-800">
+                                                        <span class="text-[9px] font-bold text-[#C5A059] uppercase tracking-widest mb-1">Außen-Wächter Knoten:</span>
+                                                        @forelse($wtNodesList as $wtNode)
+                                                            <div class="flex justify-between gap-2 text-[9px]">
+                                                                <span class="text-gray-600 dark:text-gray-400 truncate">{{ $wtNode['label'] ?? '' }}</span>
+                                                                <span class="{{ !empty($wtNode['active']) ? 'text-emerald-500 dark:text-emerald-400' : 'text-amber-500' }} font-bold shrink-0">
+                                                                    {{ !empty($wtNode['active']) ? 'Aktiv' : 'Wartet' }}
+                                                                </span>
+                                                            </div>
+                                                        @empty
+                                                            <div class="text-[9px] text-gray-500">Bereit für Smartphone / Mini-PC / NAS</div>
+                                                        @endforelse
+                                                        @if($wtNasInfo && ($wtNasInfo['status'] ?? 'unknown') !== 'unknown')
+                                                            <div class="border-t border-gray-200 dark:border-gray-800 my-1"></div>
+                                                            <div class="flex justify-between gap-2 text-[9px]">
+                                                                <span class="text-gray-600 dark:text-gray-400">NAS-Backup:</span>
+                                                                <span class="{{ ($wtNasInfo['status'] ?? '') === 'ok' ? 'text-emerald-500 dark:text-emerald-400' : 'text-amber-500' }} font-bold">
+                                                                    {{ ($wtNasInfo['status'] ?? '') === 'ok' ? 'OK' : strtoupper((string) ($wtNasInfo['status'] ?? '')) }}
+                                                                </span>
+                                                            </div>
+                                                        @endif
+                                                    </div>
                                                 @endif
 
                                                 @if($sKey === 'telephony')

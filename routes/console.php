@@ -145,11 +145,21 @@ try {
                     $event->sendOutputTo($outputLogFile);
                 }
 
-                $event->onSuccess(function () use ($job) {
+                $event->onSuccess(function () use ($job, $outputLogFile) {
                     $job->update([
                         'last_run_at' => now(),
                         'status' => 'success'
                     ]);
+
+                    // Temporäre cron-*.log nach fehlerfreiem Lauf konsistent auf 0 Bytes halten (echte Fehlerzeilen bleiben für Sentinel erhalten)
+                    if (is_string($outputLogFile)
+                        && $outputLogFile !== ''
+                        && is_file($outputLogFile)
+                        && !is_link($outputLogFile)
+                        && class_exists(\App\Services\System\LogArchiveService::class)
+                        && !\App\Services\System\LogArchiveService::fileHasErrorLines($outputLogFile)) {
+                        @file_put_contents($outputLogFile, '');
+                    }
                 })->onFailure(function () use ($job, $commandBase, $outputLogFile) {
                     $job->update([
                         'last_run_at' => now(),

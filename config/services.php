@@ -62,6 +62,16 @@ return [
         'bridge_secret' => env('GEMINI_BRIDGE_SECRET', env('AI_PROXY_SECRET', env('BRIDGE_SECRET'))),
     ],
 
+    'vertex' => [
+        'enabled' => (bool) env('GOOGLE_VERTEX_ENABLED', true),
+        'allow_in_tests' => (bool) env('GOOGLE_VERTEX_ALLOW_IN_TESTS', false),
+        'project_id' => env('GOOGLE_VERTEX_PROJECT_ID', 'gen-lang-client-0670786367'),
+        'location' => env('GOOGLE_VERTEX_LOCATION', 'global'),
+        'live_location' => env('GOOGLE_VERTEX_LIVE_LOCATION', 'europe-west4'),
+        'live_model' => env('GOOGLE_VERTEX_LIVE_MODEL', 'gemini-live-2.5-flash-native-audio'),
+        'credentials_file' => env('GOOGLE_VERTEX_SERVICE_ACCOUNT_PATH', storage_path('app/vertex-service-account.json')),
+    ],
+
     'twilio' => [
         'sid' => env('TWILIO_SID', env('TWILIO_ACCOUNT_SID')),
         'token' => env('TWILIO_TOKEN', env('TWILIO_AUTH_TOKEN')),

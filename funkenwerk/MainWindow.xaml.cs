@@ -661,6 +661,8 @@ namespace Funkenwerk
             {
                 SwitchSpaceUI(_activeSpace);
                 _currentRenderingSpaceKey = "mail";
+                if (!_isMailSyncRunning)
+                    ResetMailSyncButtonAppearance();
                 RenderMailAccountsSidebar();
                 RenderFunnelFilterPills();
                 RenderMailMessagesList();
@@ -5001,29 +5003,44 @@ namespace Funkenwerk
         private bool _isMailSyncRunning = false;
         private int _mailSyncResetGeneration = 0;
 
+        private static SolidColorBrush DirectHexBrush(string hex) =>
+            new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
+
         private void ResetMailSyncButtonAppearance()
         {
-            if (MailSyncIconRotate != null)
+            string prevSpace = _currentRenderingSpaceKey;
+            _currentRenderingSpaceKey = "mail";
+            try
             {
-                MailSyncIconRotate.BeginAnimation(RotateTransform.AngleProperty, null);
-                MailSyncIconRotate.Angle = 0;
+                if (MailSyncIconRotate != null)
+                {
+                    MailSyncIconRotate.BeginAnimation(RotateTransform.AngleProperty, null);
+                    MailSyncIconRotate.Angle = 0;
+                }
+                var defaultFg = _isDarkMode ? BrushFromHex("#E5E7EB") : DirectHexBrush("#1F2937");
+                var defaultBg = _isDarkMode ? BrushFromHex("#161922") : DirectHexBrush("#FFFFFF");
+                var defaultBorder = _isDarkMode ? BrushFromHex("#262A36") : DirectHexBrush("#CBD5E1");
+                if (MailSyncBtn != null)
+                {
+                    MailSyncBtn.Background = defaultBg;
+                    MailSyncBtn.BorderBrush = defaultBorder;
+                    MailSyncBtn.BorderThickness = new Thickness(1);
+                    MailSyncBtn.Foreground = defaultFg;
+                }
+                if (MailSyncIconTxt != null)
+                {
+                    MailSyncIconTxt.Text = "↻";
+                    MailSyncIconTxt.Foreground = defaultFg;
+                }
+                if (MailSyncLabelTxt != null)
+                {
+                    MailSyncLabelTxt.Text = "Sync";
+                    MailSyncLabelTxt.Foreground = defaultFg;
+                }
             }
-            var defaultFg = BrushFromHex(_isDarkMode ? "#D1D5DB" : "#1F2937");
-            if (MailSyncBtn != null)
+            finally
             {
-                MailSyncBtn.Background = BrushFromHex(_isDarkMode ? "#1F2430" : "#E5E7EB");
-                MailSyncBtn.BorderBrush = Brushes.Transparent;
-                MailSyncBtn.Foreground = defaultFg;
-            }
-            if (MailSyncIconTxt != null)
-            {
-                MailSyncIconTxt.Text = "↻";
-                MailSyncIconTxt.Foreground = defaultFg;
-            }
-            if (MailSyncLabelTxt != null)
-            {
-                MailSyncLabelTxt.Text = "Sync";
-                MailSyncLabelTxt.Foreground = defaultFg;
+                _currentRenderingSpaceKey = prevSpace;
             }
         }
 
@@ -5056,20 +5073,21 @@ namespace Funkenwerk
                 PlaySoundNav();
 
                 // 1. Immediate Gold Button & Continuous 360° Spin Feedback
+                var syncActiveFg = DirectHexBrush(_isDarkMode ? "#C5A059" : "#926B21");
                 if (MailSyncBtn != null)
                 {
-                    MailSyncBtn.Background = BrushFromHex(_isDarkMode ? "#262013" : "#FEF9EC");
-                    MailSyncBtn.BorderBrush = BrushFromHex("#C5A059");
+                    MailSyncBtn.Background = DirectHexBrush(_isDarkMode ? "#262013" : "#FEF9EC");
+                    MailSyncBtn.BorderBrush = DirectHexBrush("#C5A059");
                 }
                 if (MailSyncIconTxt != null)
                 {
                     MailSyncIconTxt.Text = "↻";
-                    MailSyncIconTxt.Foreground = BrushFromHex("#C5A059");
+                    MailSyncIconTxt.Foreground = syncActiveFg;
                 }
                 if (MailSyncLabelTxt != null)
                 {
                     MailSyncLabelTxt.Text = "Lädt...";
-                    MailSyncLabelTxt.Foreground = BrushFromHex("#C5A059");
+                    MailSyncLabelTxt.Foreground = syncActiveFg;
                 }
                 if (MailSyncIconRotate != null)
                 {
@@ -5083,12 +5101,12 @@ namespace Funkenwerk
                 // 2. Show Live Compact Progress Strip below Mail Header
                 if (MailSyncStatusBar != null)
                 {
-                    MailSyncStatusBar.Background = BrushFromHex(_isDarkMode ? "#1A1710" : "#FFFBEB");
-                    MailSyncStatusBar.BorderBrush = BrushFromHex(_isDarkMode ? "#4D3D1E" : "#E5C787");
-                    if (MailSyncStatusDot != null) MailSyncStatusDot.Fill = BrushFromHex("#C5A059");
+                    MailSyncStatusBar.Background = DirectHexBrush(_isDarkMode ? "#1A1710" : "#FFFBEB");
+                    MailSyncStatusBar.BorderBrush = DirectHexBrush(_isDarkMode ? "#4D3D1E" : "#E5C787");
+                    if (MailSyncStatusDot != null) MailSyncStatusDot.Fill = DirectHexBrush("#C5A059");
                     if (MailSyncStatusTxt != null)
                     {
-                        MailSyncStatusTxt.Foreground = BrushFromHex(_isDarkMode ? "#C5A059" : "#926B21");
+                        MailSyncStatusTxt.Foreground = DirectHexBrush(_isDarkMode ? "#C5A059" : "#926B21");
                         MailSyncStatusTxt.Text = "Synchronisiere Postfächer...";
                     }
                     if (MailSyncTimerTxt != null) MailSyncTimerTxt.Text = "";
@@ -5153,31 +5171,33 @@ namespace Funkenwerk
                 if (newMailsCount > 0) PlaySoundMailChime();
                 else PlaySoundActionPop();
 
+                var okFg = DirectHexBrush(_isDarkMode ? "#34D399" : "#047857");
+                var okBorder = DirectHexBrush(_isDarkMode ? "#10B981" : "#6EE7B7");
                 if (MailSyncBtn != null)
                 {
-                    MailSyncBtn.Background = BrushFromHex(_isDarkMode ? "#0F291E" : "#ECFDF5");
-                    MailSyncBtn.BorderBrush = BrushFromHex("#10B981");
+                    MailSyncBtn.Background = DirectHexBrush(_isDarkMode ? "#0F291E" : "#ECFDF5");
+                    MailSyncBtn.BorderBrush = okBorder;
                 }
                 if (MailSyncIconTxt != null)
                 {
                     MailSyncIconTxt.Text = "✓";
-                    MailSyncIconTxt.Foreground = BrushFromHex("#10B981");
+                    MailSyncIconTxt.Foreground = okFg;
                 }
                 if (MailSyncLabelTxt != null)
                 {
                     MailSyncLabelTxt.Text = newMailsCount > 0 ? $"+{newMailsCount} neu" : "Aktuell";
-                    MailSyncLabelTxt.Foreground = BrushFromHex("#10B981");
+                    MailSyncLabelTxt.Foreground = okFg;
                 }
                 if (MailSyncStatusBar != null)
                 {
-                    MailSyncStatusBar.Background = BrushFromHex(_isDarkMode ? "#0F241C" : "#ECFDF5");
-                    MailSyncStatusBar.BorderBrush = BrushFromHex("#10B981");
-                    if (MailSyncStatusDot != null) MailSyncStatusDot.Fill = BrushFromHex("#10B981");
+                    MailSyncStatusBar.Background = DirectHexBrush(_isDarkMode ? "#0F241C" : "#ECFDF5");
+                    MailSyncStatusBar.BorderBrush = okBorder;
+                    if (MailSyncStatusDot != null) MailSyncStatusDot.Fill = DirectHexBrush("#10B981");
                     if (MailSyncProgressBar != null) MailSyncProgressBar.Visibility = Visibility.Collapsed;
                     if (MailSyncTimerTxt != null) MailSyncTimerTxt.Text = "";
                     if (MailSyncStatusTxt != null)
                     {
-                        MailSyncStatusTxt.Foreground = BrushFromHex(_isDarkMode ? "#34D399" : "#047857");
+                        MailSyncStatusTxt.Foreground = okFg;
                         MailSyncStatusTxt.Text = newMailsCount > 0
                             ? (newMailsCount == 1 ? "1 neue E-Mail geladen" : $"{newMailsCount} neue E-Mails geladen")
                             : (syncedAccounts > 0 ? $"Aktuell · {syncedAccounts} Postfächer geprüft" : "Postfächer aktuell");
@@ -5201,31 +5221,33 @@ namespace Funkenwerk
                     MailSyncIconRotate.BeginAnimation(RotateTransform.AngleProperty, null);
                     MailSyncIconRotate.Angle = 0;
                 }
+                var warnFg = DirectHexBrush(_isDarkMode ? "#FBBF24" : "#B45309");
+                var warnBorder = DirectHexBrush(_isDarkMode ? "#F59E0B" : "#FCD34D");
                 if (MailSyncBtn != null)
                 {
-                    MailSyncBtn.Background = BrushFromHex(_isDarkMode ? "#2B1E12" : "#FEF3C7");
-                    MailSyncBtn.BorderBrush = BrushFromHex("#F59E0B");
+                    MailSyncBtn.Background = DirectHexBrush(_isDarkMode ? "#2B1E12" : "#FEF3C7");
+                    MailSyncBtn.BorderBrush = warnBorder;
                 }
                 if (MailSyncIconTxt != null)
                 {
                     MailSyncIconTxt.Text = "⚠";
-                    MailSyncIconTxt.Foreground = BrushFromHex("#F59E0B");
+                    MailSyncIconTxt.Foreground = warnFg;
                 }
                 if (MailSyncLabelTxt != null)
                 {
                     MailSyncLabelTxt.Text = "Sync";
-                    MailSyncLabelTxt.Foreground = BrushFromHex("#F59E0B");
+                    MailSyncLabelTxt.Foreground = warnFg;
                 }
                 if (MailSyncStatusBar != null)
                 {
-                    MailSyncStatusBar.Background = BrushFromHex(_isDarkMode ? "#261B11" : "#FEF3C7");
-                    MailSyncStatusBar.BorderBrush = BrushFromHex("#F59E0B");
-                    if (MailSyncStatusDot != null) MailSyncStatusDot.Fill = BrushFromHex("#F59E0B");
+                    MailSyncStatusBar.Background = DirectHexBrush(_isDarkMode ? "#261B11" : "#FEF3C7");
+                    MailSyncStatusBar.BorderBrush = warnBorder;
+                    if (MailSyncStatusDot != null) MailSyncStatusDot.Fill = DirectHexBrush("#F59E0B");
                     if (MailSyncProgressBar != null) MailSyncProgressBar.Visibility = Visibility.Collapsed;
                     if (MailSyncTimerTxt != null) MailSyncTimerTxt.Text = "";
                     if (MailSyncStatusTxt != null)
                     {
-                        MailSyncStatusTxt.Foreground = BrushFromHex(_isDarkMode ? "#FBBF24" : "#B45309");
+                        MailSyncStatusTxt.Foreground = warnFg;
                         MailSyncStatusTxt.Text = "Sync fehlgeschlagen · Server prüfen";
                     }
                     MailSyncStatusBar.Visibility = Visibility.Visible;
@@ -24001,6 +24023,28 @@ namespace Funkenwerk
                 ApplyThemeMode(true);
                 SwitchSpaceUI("mail");
                 return true;
+            });
+
+            // 27. MailSyncBtn Light/Dark Mode contrast & non-inversion check
+            Check("MailSyncBtn Light/Dark Mode contrast (no dark #1F2937 pill in Light Mode)", () =>
+            {
+                ApplyThemeMode(false);
+                ResetMailSyncButtonAppearance();
+                var lightBg = (MailSyncBtn.Background as SolidColorBrush)?.Color ?? Colors.Black;
+                var lightFg = (MailSyncLabelTxt.Foreground as SolidColorBrush)?.Color ?? Colors.White;
+                var lightIconFg = (MailSyncIconTxt.Foreground as SolidColorBrush)?.Color ?? Colors.White;
+                bool lightOk = lightBg.R >= 235 && lightBg.G >= 235 && lightBg.B >= 235 &&
+                               lightFg.R <= 75 && lightFg.G <= 85 && lightFg.B <= 99 &&
+                               lightIconFg.R <= 75 && lightIconFg.G <= 85 && lightIconFg.B <= 99;
+
+                ApplyThemeMode(true);
+                ResetMailSyncButtonAppearance();
+                var darkBg = (MailSyncBtn.Background as SolidColorBrush)?.Color ?? Colors.White;
+                var darkFg = (MailSyncLabelTxt.Foreground as SolidColorBrush)?.Color ?? Colors.Black;
+                bool darkOk = darkBg.R <= 35 && darkBg.G <= 40 && darkBg.B <= 50 &&
+                              darkFg.R >= 200 && darkFg.G >= 200 && darkFg.B >= 200;
+
+                return lightOk && darkOk;
             });
 
             ShutdownSmartHomeEngine();

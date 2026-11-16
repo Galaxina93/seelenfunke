@@ -1263,8 +1263,7 @@ class ProductConfiguratorService
             array_values($manifest['items'] ?? [])
         );
 
-        $apiKey = config('services.gemini.key', env('GEMINI_API_KEY'));
-        if (!empty($apiKey)) {
+        if (\App\Services\AI\VertexAiService::hasCredentials()) {
             $hintInstruction = $styleHint !== ''
                 ? "Zusätzlicher Wunsch / Anlass / Stil-Hinweis: \"{$styleHint}\"."
                 : "Stil: Emotional, edel, zeitlos und perfekt für eine hochwertige Geschenk-Gravur der Manufaktur 'Mein Seelenfunke'.";
@@ -1297,11 +1296,7 @@ PROMPT;
 
             foreach (['gemini-2.5-flash', 'gemini-1.5-flash'] as $model) {
                 try {
-                    $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent";
-                    $response = Http::timeout(20)->withHeaders([
-                        'x-goog-api-key' => $apiKey,
-                        'Content-Type'   => 'application/json',
-                    ])->post($url, $payload);
+                    $response = \App\Services\AI\VertexAiService::generateContent($model, $payload, 20);
 
                     if ($response->successful()) {
                         $rawText = $response->json('candidates.0.content.parts.0.text', '[]');

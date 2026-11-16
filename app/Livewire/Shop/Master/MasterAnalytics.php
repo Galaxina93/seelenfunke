@@ -967,7 +967,7 @@ class MasterAnalytics extends Component
                 $pool->as('stripe')->timeout(4)->withoutRedirecting()->get('https://api.stripe.com/healthcheck'),
                 $pool->as('dhl')->timeout(4)->withoutRedirecting()->get('https://api.dhl.com'),
                 $pool->as('finapi')->timeout(4)->withoutRedirecting()->get($finapiUrl),
-                $pool->as('gemini')->timeout(4)->withoutRedirecting()->get('https://generativelanguage.googleapis.com'),
+                $pool->as('gemini')->timeout(4)->withoutRedirecting()->get(\App\Services\AI\VertexAiService::getHealthCheckUrl()),
                 $pool->as('google_places')->timeout(4)->withoutRedirecting()->get('https://maps.googleapis.com'),
                 $pool->as('elster')->timeout(4)->withoutRedirecting()->get('https://www.elster.de/elsterweb/serverstatus_rss.xml'),
                 $pool->as('scraperapi')->timeout(4)->withoutRedirecting()->get('http://api.scraperapi.com'),
@@ -1005,6 +1005,36 @@ class MasterAnalytics extends Component
                 $health[$key] = ['status' => $status, 'value' => 'Failed', 'error' => 'Sub-Check abgebrochen.'];
             }
             $this->logSystemFailure('api_pool', 'Der asynchrone API-HTTP-Pool ist komplett abgestürzt: ' . $e->getMessage());
+        }
+
+        // 12. Zentraler 24/7 Watchtower & 90-Tage Uptime Puls
+        try {
+            $pulseReport = app(\App\Services\System\SystemHealthPulseService::class)->evaluate(
+                source: 'dashboard',
+                strict: false,
+                recordSample: true,
+                syncLogs: false
+            );
+            $wtStatus = match ($pulseReport['status'] ?? 'ok') {
+                'critical' => 'error',
+                'warning' => 'warning',
+                default => 'connected',
+            };
+            $uptimeFormatted = number_format((float) ($pulseReport['uptime_90d_percent'] ?? 100.0), 2, ',', '.') . '%';
+            $activeNodes = (int) ($pulseReport['watchtower']['active_nodes_count'] ?? 0);
+            $health['watchtower'] = [
+                'status' => $wtStatus,
+                'value' => $activeNodes > 0 ? "{$uptimeFormatted} ({$activeNodes} Wächter)" : "{$uptimeFormatted} Uptime",
+                'error' => $wtStatus !== 'connected' ? ($pulseReport['headline'] ?? null) : null,
+                'pulse' => $pulseReport,
+            ];
+        } catch (\Throwable $wtEx) {
+            $health['watchtower'] = [
+                'status' => 'warning',
+                'value' => 'Prüfung ausstehend',
+                'error' => 'Watchtower-Puls konnte nicht geladen werden.',
+                'pulse' => null,
+            ];
         }
 
         foreach ($health as $svcKey => $svcState) {

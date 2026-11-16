@@ -333,27 +333,40 @@ class TwilioGeminiLiveBridgeService
             $sendGoogleFrame,
             $cleanupAll
         ): void {
-            $apiKey = self::resolveLiveGeminiApiKey();
+            $liveEndpoint = \App\Services\AI\VertexAiService::resolveLiveWebSocketEndpoint();
+            $isVertexLive = (bool) ($liveEndpoint['is_vertex'] ?? false);
+            $apiKey = $isVertexLive ? (string) ($liveEndpoint['token'] ?? '') : self::resolveLiveGeminiApiKey();
+
             if ($apiKey === '') {
-                self::recordIssue('missing_gemini_api_key', 'Kein GEMINI_API_KEY für Twilio-Live konfiguriert.');
+                self::recordIssue('missing_gemini_api_key', 'Weder Vertex AI Service Account noch GEMINI_API_KEY für Twilio-Live konfiguriert.');
                 $cleanupAll(true);
                 return;
             }
+
+            $wsHost = $isVertexLive ? (string) $liveEndpoint['host'] : 'generativelanguage.googleapis.com';
+            $wsPath = $isVertexLive
+                ? (string) $liveEndpoint['path']
+                : ('/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=' . rawurlencode($apiKey));
+            $liveModelName = $isVertexLive ? (string) $liveEndpoint['model'] : 'models/gemini-3.1-flash-live-preview';
 
             $connector = new Connector([
                 'timeout' => 8.0,
                 'happy_eyeballs' => true,
                 'tls' => [
                     'SNI_enabled' => true,
-                    'peer_name' => 'generativelanguage.googleapis.com',
+                    'peer_name' => $wsHost,
                     'verify_peer' => true,
                     'verify_peer_name' => true,
                 ],
             ], $loop);
 
-            $connector->connect('tls://generativelanguage.googleapis.com:443')->then(
+            $connector->connect("tls://{$wsHost}:443")->then(
                 function (ConnectionInterface $stream) use (
                     $apiKey,
+                    $isVertexLive,
+                    $wsHost,
+                    $wsPath,
+                    $liveModelName,
                     $loop,
                     &$callContext,
                     &$streamSid,
@@ -574,7 +587,7 @@ class TwilioGeminiLiveBridgeService
 
                             $setupPayload = [
                                 'setup' => [
-                                    'model' => 'models/gemini-3.1-flash-live-preview',
+                                    'model' => $liveModelName,
                                     'systemInstruction' => [
                                         'parts' => [['text' => $systemPrompt]],
                                     ],
@@ -628,13 +641,14 @@ class TwilioGeminiLiveBridgeService
                     });
 
                     $wsKey = base64_encode(random_bytes(16));
-                    $path = '/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=' . rawurlencode($apiKey);
-                    $upgradeReq = "GET {$path} HTTP/1.1\r\n"
-                        . "Host: generativelanguage.googleapis.com\r\n"
+                    $authHeader = $isVertexLive ? "Authorization: Bearer {$apiKey}\r\n" : '';
+                    $upgradeReq = "GET {$wsPath} HTTP/1.1\r\n"
+                        . "Host: {$wsHost}\r\n"
                         . "Upgrade: websocket\r\n"
                         . "Connection: Upgrade\r\n"
                         . "Sec-WebSocket-Key: {$wsKey}\r\n"
                         . "Sec-WebSocket-Version: 13\r\n"
+                        . $authHeader
                         . "Origin: {$originUrl}\r\n"
                         . "Referer: {$originUrl}\r\n\r\n";
 

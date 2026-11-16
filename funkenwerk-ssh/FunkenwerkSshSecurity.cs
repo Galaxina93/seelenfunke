@@ -1375,9 +1375,26 @@ namespace FunkenwerkSsh
                     return ambientStillUntouched && lightOk && darkOk && execModeReachable && win.Title.Contains("Funkenwerk SSH", StringComparison.Ordinal);
                 });
 
+                // 21. Mini-PC SMB3 Loopback Tunnel SHA-256 Host-Key Pinning & Strict 127.0.0.1 Bind Guard
+                Check("21_MiniPcSmbTunnel_HostKeyPinningAndLoopbackGuard", () =>
+                {
+                    string pinPath = Path.Combine(tempRoot, "minipc_hostkey.sha256");
+                    byte[] genuineHostKey = RandomNumberGenerator.GetBytes(64);
+                    byte[] spoofedHostKey = RandomNumberGenerator.GetBytes(64);
+
+                    bool tofuOk = MiniPcTunnelEngine.VerifyOrPinHostKeyFingerprint(pinPath, genuineHostKey);
+                    bool matchOk = MiniPcTunnelEngine.VerifyOrPinHostKeyFingerprint(pinPath, genuineHostKey);
+                    bool mitmRejected = !MiniPcTunnelEngine.VerifyOrPinHostKeyFingerprint(pinPath, spoofedHostKey);
+                    bool loopbackGuardOk = MiniPcTunnelEngine.IsLoopbackBindOnly("127.0.0.1") &&
+                                           !MiniPcTunnelEngine.IsLoopbackBindOnly("0.0.0.0") &&
+                                           !MiniPcTunnelEngine.IsLoopbackBindOnly("*");
+
+                    return tofuOk && matchOk && mitmRejected && loopbackGuardOk;
+                });
+
                 logs.Add($"SUMMARY: {passed}/{passed + failed} checks passed.");
                 logLines = logs;
-                return failed == 0 && passed >= 20;
+                return failed == 0 && passed >= 21;
             }
             finally
             {

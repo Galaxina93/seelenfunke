@@ -13,6 +13,7 @@ class GeminiAgent implements AiProviderInterface
 {
     protected string $baseUrl;
     protected string $apiKey;
+    protected bool $isVertex = false;
     protected \App\Models\Ai\AiAgent $agent;
     public string $dynamicSystemPrompt = '';
     protected array $ephemeralEquippedPools = [];
@@ -24,12 +25,14 @@ class GeminiAgent implements AiProviderInterface
 
     public function __construct(\App\Models\Ai\AiAgent $agent)
     {
-        $this->baseUrl = config('services.gemini.url');
-        $this->apiKey = config('services.gemini.key');
+        $openAi = VertexAiService::resolveOpenAiEndpoint();
+        $this->baseUrl = $openAi['base_url'];
+        $this->apiKey = $openAi['token'];
+        $this->isVertex = $openAi['is_vertex'];
         $this->agent = $agent;
 
         if (empty($this->apiKey)) {
-            Log::warning("Gemini AI API key is missing. Ensure GEMINI_AI_API_KEY is placed in your .env");
+            Log::warning("Gemini/Vertex AI credentials missing. Ensure GOOGLE_VERTEX_SERVICE_ACCOUNT_PATH or GEMINI_API_KEY is configured.");
         }
     }
 
@@ -461,7 +464,8 @@ class GeminiAgent implements AiProviderInterface
             $modelName = $isPro ? 'gemini-3.1-pro-preview' : 'gemini-3.5-flash';
         }
 
-        $payload['model'] = $modelName;
+        $modelName = VertexAiService::resolveModel($modelName);
+        $payload['model'] = VertexAiService::formatOpenAiModel($modelName, $this->isVertex);
 
         if ($isPublicCustomerSupport) {
             // Token-Guard: Im öffentlichen Kunden-Support begrenzen wir die maximale Antwortlänge strikt
@@ -513,7 +517,7 @@ class GeminiAgent implements AiProviderInterface
 
             $startTime = microtime(true);
             // Bei oft überlasteten Next-Gen/Pro-Modellen sofort nach 1 Fehlversuch auf stabiles 3.5-flash wechseln statt 3x zu warten
-            $maxRetries = in_array($payload['model'], ['gemini-3.8-flash', 'gemini-3.1-pro-preview'], true) ? 0 : 2;
+            $maxRetries = in_array($modelName, ['gemini-3.8-flash', 'gemini-3.1-pro-preview'], true) ? 0 : 2;
             $retryCount = 0;
             $responseString = null;
             $httpCode = 0;
@@ -689,6 +693,16 @@ class GeminiAgent implements AiProviderInterface
                 // Re-assemble standard response string behavior for errors or successful parsed outputs
                 $responseString = $rawResponseString;
 
+                // Bei abgelaufenem Vertex OAuth2 Token einmalig erneuern und sofort wiederholen
+                if ($this->isVertex && $httpCode === 401 && $retryCount === 0) {
+                    $freshToken = VertexAiService::getAccessToken(true);
+                    if (!empty($freshToken)) {
+                        $this->apiKey = $freshToken;
+                        $retryCount++;
+                        continue;
+                    }
+                }
+
                 // Erfolgreicher Aufruf oder harter lokaler 4xx Client Fehler (Ausnahme 429 Rate Limit) -> Abbrechen, da Retry nutzlos.
                 if (!$curlError && $httpCode < 500 && $httpCode !== 429) {
                     break;
@@ -709,10 +723,11 @@ class GeminiAgent implements AiProviderInterface
                     // Blockiert absichtlich den Prozess, da die Retry-Warteschlange seriell erfolgen muss
                     sleep($sleepSeconds);
                 } else if ($retryCount == $maxRetries + 1 && (in_array($httpCode, [0, 429, 503]) || $curlError)) {
-                    if (str_contains($payload['model'] ?? '', 'pro') || ($payload['model'] ?? '') === 'gemini-3.8-flash') {
+                    $plainCurrentModel = VertexAiService::resolveModel((string) ($payload['model'] ?? ''));
+                    if (str_contains($plainCurrentModel, 'pro') || $plainCurrentModel === 'gemini-3.8-flash') {
                         // SILENT FALLBACK AUF STABILES 3.5 FLASH WENN PRO ODER 3.8 FLASH ÜBERLASTET (503/429) IST
                         Log::warning("Gemini {$payload['model']} overloaded or timed out ({$httpCode}). Executing silent fallback to Gemini 3.5 Flash.", ['payload_size' => strlen(json_encode($payload))]);
-                        $payload['model'] = 'gemini-3.5-flash';
+                        $payload['model'] = VertexAiService::formatOpenAiModel('gemini-3.5-flash', $this->isVertex);
                         $retryCount = 0;
                         $maxRetries = 1;
 
@@ -723,10 +738,10 @@ class GeminiAgent implements AiProviderInterface
                                 'pulse_color' => 'orange'
                             ], 60);
                         } catch (\Exception $e) {}
-                    } else if (in_array($payload['model'] ?? '', ['gemini-3.5-flash', 'gemini-3-flash-preview'], true)) {
+                    } else if (in_array($plainCurrentModel, ['gemini-3.5-flash', 'gemini-3-flash-preview'], true)) {
                         // High load on 3.5 Flash: fallback to stable ultra-lightweight 3.5 Flash Lite (0.7s)
                         Log::warning("Gemini 3.5 Flash API overloaded ({$httpCode}). Executing fallback to Gemini 3.5 Flash Lite.", ['payload_size' => strlen(json_encode($payload))]);
-                        $payload['model'] = 'gemini-3.5-flash-lite';
+                        $payload['model'] = VertexAiService::formatOpenAiModel('gemini-3.5-flash-lite', $this->isVertex);
                         $retryCount = 0;
                         $maxRetries = 1;
                     }
@@ -1083,8 +1098,10 @@ class GeminiAgent implements AiProviderInterface
     {
         $payload = AiAgentService::getAgentPayload($agent);
 
-        $baseUrl = config('services.gemini.url');
-        $apiKey = config('services.gemini.key');
+        $openAi = VertexAiService::resolveOpenAiEndpoint();
+        $baseUrl = $openAi['base_url'];
+        $apiKey = $openAi['token'];
+        $isVertex = $openAi['is_vertex'];
 
         try {
             $startTime = microtime(true);
@@ -1103,7 +1120,8 @@ class GeminiAgent implements AiProviderInterface
                 $isPro = str_contains($modelName, 'pro');
                 $modelName = $isPro ? 'gemini-3.1-pro-preview' : 'gemini-3.5-flash';
             }
-            $payload['model'] = $modelName;
+            $modelName = VertexAiService::resolveModel($modelName);
+            $payload['model'] = VertexAiService::formatOpenAiModel($modelName, $isVertex);
 
             $requestPayload = [
                 'model' => $payload['model'],
@@ -1164,16 +1182,27 @@ class GeminiAgent implements AiProviderInterface
                     return $data['choices'][0]['message']['content'] ?? 'Das LLM hat keinen Text zurückgegeben.';
                 }
 
-                if (in_array($httpCode, [0, 429, 503]) && $retryCount === 0) {
-                    if (str_contains($payload['model'] ?? '', 'pro') || ($payload['model'] ?? '') === 'gemini-3.8-flash') {
-                        \Illuminate\Support\Facades\Log::warning("processDirectPrompt: {$payload['model']} Overloaded ($httpCode). Falling back to 3.5 flash.");
-                        $requestPayload['model'] = 'gemini-3.5-flash';
-                        $payload['model'] = 'gemini-3.5-flash';
+                if ($isVertex && $httpCode === 401 && $retryCount === 0) {
+                    $fresh = VertexAiService::getAccessToken(true);
+                    if (!empty($fresh)) {
+                        $apiKey = $fresh;
                         continue;
-                    } else if (in_array($payload['model'] ?? '', ['gemini-3.5-flash', 'gemini-3-flash-preview'], true)) {
+                    }
+                }
+
+                if (in_array($httpCode, [0, 429, 503]) && $retryCount === 0) {
+                    $plainModel = VertexAiService::resolveModel((string) ($payload['model'] ?? ''));
+                    if (str_contains($plainModel, 'pro') || $plainModel === 'gemini-3.8-flash') {
+                        \Illuminate\Support\Facades\Log::warning("processDirectPrompt: {$payload['model']} Overloaded ($httpCode). Falling back to 3.5 flash.");
+                        $fallbackModel = VertexAiService::formatOpenAiModel('gemini-3.5-flash', $isVertex);
+                        $requestPayload['model'] = $fallbackModel;
+                        $payload['model'] = $fallbackModel;
+                        continue;
+                    } else if (in_array($plainModel, ['gemini-3.5-flash', 'gemini-3-flash-preview'], true)) {
                         \Illuminate\Support\Facades\Log::warning("processDirectPrompt: Flash Overloaded ($httpCode). Falling back to 3.5 flash lite.");
-                        $requestPayload['model'] = 'gemini-3.5-flash-lite';
-                        $payload['model'] = 'gemini-3.5-flash-lite';
+                        $fallbackModel = VertexAiService::formatOpenAiModel('gemini-3.5-flash-lite', $isVertex);
+                        $requestPayload['model'] = $fallbackModel;
+                        $payload['model'] = $fallbackModel;
                         continue;
                     }
                 }
@@ -1187,23 +1216,22 @@ class GeminiAgent implements AiProviderInterface
     }
 
     /**
-     * Schickt einen Prompt zusammen mit einem Bild (Base64) an das Vision LLM (Gemini 1.5).
+     * Schickt einen Prompt zusammen mit einem Bild (Base64) an das Vision LLM (Vertex AI / Gemini).
      */
     public static function processVisionPrompt(\App\Models\Ai\AiAgent $agent, string $prompt, string $base64Image, string $mimeType = 'image/jpeg'): string
     {
         $payload = AiAgentService::getAgentPayload($agent);
-        $apiKey = config('services.gemini.key');
 
-        if (empty($apiKey)) {
+        if (!VertexAiService::hasCredentials()) {
             return "Vision API Fehler: Kein Gemini API Key konfiguriert.";
         }
 
         try {
             $startTime = microtime(true);
 
-            // Nutze explizit gemini-2.5-flash-image, da dieses spezialisierte Modell nativ Base64 unterstützt
-            // und nicht von den generellen 503 "High Demand" Ausfällen der Standardmodelle betroffen ist.
-            $googleUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent';
+            $visionModel = VertexAiService::isEnabled() ? 'gemini-3.5-flash' : 'gemini-2.5-flash-image';
+            $endpoint = VertexAiService::resolveGenerateContentEndpoint($visionModel);
+            $googleUrl = $endpoint['url'];
 
             // Entferne evtl. vorhandene data:image/jpeg;base64,... Header, falls Base64 nicht raw ist
             if (str_contains($base64Image, ',')) {
@@ -1218,6 +1246,7 @@ class GeminiAgent implements AiProviderInterface
                 ],
                 'contents' => [
                     [
+                        'role' => 'user',
                         'parts' => [
                             ['text' => $prompt],
                             [
@@ -1231,6 +1260,16 @@ class GeminiAgent implements AiProviderInterface
                 ]
             ];
 
+            if ($endpoint['is_vertex']) {
+                $requestPayload = VertexAiService::normalizeGenerateContentPayload($requestPayload);
+            }
+
+            $curlHeaders = [];
+            foreach ($endpoint['headers'] as $hKey => $hVal) {
+                $curlHeaders[] = "{$hKey}: {$hVal}";
+            }
+            $curlHeaders[] = 'Expect:';
+
             // WICHTIG: Ersetze Guzzle durch puren curl_init, da Guzzle / Http::post in Docker hier wegen
             // Expect: 100-continue und TCP MTU-Fragmentierung bei der Base64 payload in Timeout 28 rennt.
             $ch = curl_init($googleUrl);
@@ -1240,10 +1279,7 @@ class GeminiAgent implements AiProviderInterface
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($ch, CURLOPT_POST, true);
             curl_setopt($ch, CURLOPT_REFERER, request()->headers->get('referer') ?? config('app.url'));
-            curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                'Content-Type: application/json',
-                'x-goog-api-key: ' . $apiKey,
-            ]);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, $curlHeaders);
             curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($requestPayload));
             curl_setopt($ch, CURLOPT_TIMEOUT, 30);
             curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4); // Docker IPv6 Blackholing verhindern

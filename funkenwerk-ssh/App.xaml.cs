@@ -34,6 +34,22 @@ namespace FunkenwerkSsh
                 }
             }
 
+            if (e.Args.Any(a => string.Equals(a, "--minipc-tunnel", StringComparison.OrdinalIgnoreCase)))
+            {
+                ShutdownMode = ShutdownMode.OnExplicitShutdown;
+                var tunnelThread = new System.Threading.Thread(() =>
+                {
+                    int code = MiniPcTunnelEngine.RunHeadlessTunnelDaemon();
+                    Environment.Exit(code);
+                })
+                {
+                    IsBackground = false,
+                    Name = "FunkenwerkMiniPcSmbTunnel"
+                };
+                tunnelThread.Start();
+                return;
+            }
+
             string? handoffNonce = null;
             for (int i = 0; i < e.Args.Length - 1; i++)
             {

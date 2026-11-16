@@ -281,8 +281,7 @@ class DateitrichterService
      */
     protected function ocrViaGemini(string $fullPath, string $mime): ?string
     {
-        $apiKey = config('services.gemini.key', env('GEMINI_API_KEY'));
-        if (empty($apiKey) || !file_exists($fullPath)) {
+        if (!\App\Services\AI\VertexAiService::hasCredentials() || !file_exists($fullPath)) {
             return null;
         }
 
@@ -291,7 +290,7 @@ class DateitrichterService
             return null;
         }
 
-        $models = ['gemini-3-flash-preview', 'gemini-3.1-flash-lite-preview', 'gemini-2.5-flash', 'gemini-1.5-flash'];
+        $models = ['gemini-3-flash-preview', 'gemini-3.5-flash-lite'];
         $base64 = base64_encode(file_get_contents($fullPath));
 
         $prompt = "Du bist ein intelligenter Dokumenten-Analyst für Verwaltung, Behörden, Medizin und Recht. Analysiere dieses Dokument vollständig und transkribiere den gesamten Inhalt strukturiert auf Deutsch. Erfasse alle Absender (z.B. BKK firmus, Agentur für Arbeit), Empfänger, Datumsangaben, Aktenzeichen, Diagnosen, Paragraphen, Beträge und Kernaussagen.";
@@ -299,6 +298,7 @@ class DateitrichterService
         $payload = [
             'contents' => [
                 [
+                    'role' => 'user',
                     'parts' => [
                         ['text' => $prompt],
                         [
@@ -317,8 +317,7 @@ class DateitrichterService
 
         foreach ($models as $model) {
             try {
-                $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$apiKey}";
-                $response = \Illuminate\Support\Facades\Http::timeout(45)->post($url, $payload);
+                $response = \App\Services\AI\VertexAiService::generateContent($model, $payload, 45);
                 if ($response->successful()) {
                     $resData = $response->json();
                     $text = $resData['candidates'][0]['content']['parts'][0]['text'] ?? null;

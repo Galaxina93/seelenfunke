@@ -44,5 +44,16 @@ class RouteServiceProvider extends ServiceProvider
         RateLimiter::for('api', function (Request $request) {
             return Limit::perMinute(60)->by($request->user()?->id ?: $request->ip());
         });
+
+        RateLimiter::for('monitor-pulse', function (Request $request) {
+            $user = $request->user();
+            $userKey = (string) ($user?->getAuthIdentifier() ?: 'guest');
+            $token = ($user && method_exists($user, 'currentAccessToken')) ? $user->currentAccessToken() : null;
+            $tokenSuffix = $token instanceof \Laravel\Sanctum\PersonalAccessToken
+                ? ('|pat:' . $token->getKey())
+                : '';
+
+            return Limit::perMinute(180)->by('monitor-pulse:' . $userKey . $tokenSuffix . '|' . $request->ip());
+        });
     }
 }

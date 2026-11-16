@@ -1,0 +1,18 @@
+Mein-Seelenfunke | Synology DSM Aufgabenplaner Einrichtung (1 Minute)
+======================================================================
+
+Hinweis: Dein Smartphone (Funkenwerk Android App) und dein Werkstatt-Mini-PC
+überwachen den Shop bereits vollautomatisch von außen. Die Synology NAS ist
+als dritter, dauerhaft kabelgebundener 24/7-Wächter vorbereitet:
+
+1. Datei "watchtower.env.example" im Ordner Funkenwerk_Watchtower in "watchtower.env"
+   umbenennen und dein Read-Only Monitor-Token (WATCHTOWER_BEARER_TOKEN) eintragen.
+2. Synology DSM öffnen (http://192.168.188.33:5000):
+   Systemsteuerung -> Aufgabenplaner -> Erstellen -> Geplante Aufgabe -> Benutzerdefiniertes Skript.
+3. Allgemein:
+   Vorgang: Seelenfunke_Watchtower
+   Benutzer: root (oder dein Admin-Konto)
+4. Zeitplan:
+   Täglich ausführen, Häufigkeit: Alle 2 Minuten (00:00 bis 23:58).
+5. Aufgabeneinstellungen (Befehl ausführen):
+   bash "/volume1/Backups/Unterlagen/Funkenwerk_Watchtower/funkenwerk_watchtower.sh"

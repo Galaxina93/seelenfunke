@@ -21,6 +21,23 @@ require_local() {
     fi
 }
 
+# Helper-Funktion: Wählt automatisch das aktuellste lokale FunkenwerkMcp.exe Binary
+resolve_mcp_exe() {
+    local cli_exe="/mnt/c/Users/konta/AppData/Local/Funkenwerk/SentinelCli/FunkenwerkMcp.exe"
+    local col_exe="/mnt/c/Users/konta/Desktop/Funkenwerk Collection/Funkenwerk MCP/FunkenwerkMcp.exe"
+    if [ -f "$cli_exe" ] && [ -f "$col_exe" ]; then
+        if [ "$cli_exe" -nt "$col_exe" ]; then
+            echo "$cli_exe"
+        else
+            echo "$col_exe"
+        fi
+    elif [ -f "$cli_exe" ]; then
+        echo "$cli_exe"
+    else
+        echo "$col_exe"
+    fi
+}
+
 # Helper-Funktion: Repariert Datei-Berechtigungen und optimiert Caches
 run_rights() {
     echo "🔐 Repariere Datei-Berechtigungen..."
@@ -151,7 +168,7 @@ case "$1" in
         run_rights
 
         # 24/7 Stage-Auffang-Pool beim Start nahtlos synchronisieren (nicht-blockierend)
-        MCP_WIN_EXE="/mnt/c/Users/konta/Desktop/Funkenwerk Collection/Funkenwerk MCP/FunkenwerkMcp.exe"
+        MCP_WIN_EXE="$(resolve_mcp_exe)"
         if [ -f "$MCP_WIN_EXE" ]; then
             echo "🛡️ Synchronisiere 24/7 Funkira-Auffang-Pool von Stage..."
             "$MCP_WIN_EXE" --sentinel-sync || true
@@ -363,6 +380,12 @@ case "$1" in
           --exclude='node_modules' \
           "$SRC_DIR" "$DEST_DIR"
 
+        if [ -f "$SCRIPT_DIR/storage/app/vertex-service-account.json" ]; then
+            mkdir -p "$DEST_DIR/storage/app"
+            cp -f "$SCRIPT_DIR/storage/app/vertex-service-account.json" "$DEST_DIR/storage/app/vertex-service-account.json"
+            chmod 600 "$DEST_DIR/storage/app/vertex-service-account.json" || true
+        fi
+
         echo "🧹 Bereinige Cache im Worker..."
         cd "$DEST_DIR"
         php artisan config:clear
@@ -372,6 +395,10 @@ case "$1" in
         if [ -d "$TWILIO_BRIDGE_DIR" ] && [ -f "$SCRIPT_DIR/server-twilio.js" ]; then
             echo "🔄 Synchronisiere server-twilio.js & Bridge-Secret mit twilio-bridge..."
             cp -f "$SCRIPT_DIR/server-twilio.js" "$TWILIO_BRIDGE_DIR/server-twilio.js"
+            if [ -f "$SCRIPT_DIR/storage/app/vertex-service-account.json" ]; then
+                cp -f "$SCRIPT_DIR/storage/app/vertex-service-account.json" "$TWILIO_BRIDGE_DIR/vertex-service-account.json"
+                chmod 600 "$TWILIO_BRIDGE_DIR/vertex-service-account.json" || true
+            fi
             if [ -f "$SCRIPT_DIR/.env" ] && [ -f "$TWILIO_BRIDGE_DIR/.env" ]; then
                 STAGE_BRIDGE_SECRET="$(grep -E '^GEMINI_BRIDGE_SECRET=' "$SCRIPT_DIR/.env" | tail -n 1 | cut -d'=' -f2- | tr -d ' "\r' || true)"
                 if [ -z "$STAGE_BRIDGE_SECRET" ]; then
@@ -408,7 +435,7 @@ case "$1" in
         if [ "$IS_LOCAL" = true ]; then
             echo "🛍️ Aktualisiere reines Shop-Asset-Manifest (Musik, Buchhaltung & Privatdaten bleiben 100 % lokal)..."
             $PREFIX_DEFAULT php artisan system:shop-asset-manifest --write
-            MCP_EXE="/mnt/c/Users/konta/Desktop/Funkenwerk Collection/Funkenwerk MCP/FunkenwerkMcp.exe"
+            MCP_EXE="$(resolve_mcp_exe)"
             if [ -f "$MCP_EXE" ]; then
                 echo "🚢 Starte verschlüsselten Stage-Autopilot über Funkenwerk MCP..."
                 "$MCP_EXE" --stage-deploy "$@"
@@ -530,7 +557,7 @@ case "$1" in
         ;;
     sentinel)
         shift
-        MCP_WIN_EXE="/mnt/c/Users/konta/Desktop/Funkenwerk Collection/Funkenwerk MCP/FunkenwerkMcp.exe"
+        MCP_WIN_EXE="$(resolve_mcp_exe)"
         if [ "$1" = "sync" ] || [ -z "$1" ]; then
             if [ -f "$MCP_WIN_EXE" ]; then
                 "$MCP_WIN_EXE" --sentinel-sync

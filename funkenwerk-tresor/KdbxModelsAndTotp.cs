@@ -339,6 +339,43 @@ namespace FunkenwerkTresor
             }
         }
 
+        public const string CustomKeyAiBrokerEnabled = "FwAiBrokerEnabled";
+        public const string CustomKeyApiToken = "FwApiToken";
+
+        public bool AiBrokerEnabled
+        {
+            get => CustomStrings.TryGetValue(CustomKeyAiBrokerEnabled, out var cs)
+                   && string.Equals(cs.Value?.Trim(), "true", StringComparison.OrdinalIgnoreCase);
+            set
+            {
+                if (value)
+                    CustomStrings[CustomKeyAiBrokerEnabled] = new KdbxCustomString { Value = "true", IsProtected = false };
+                else
+                    CustomStrings.Remove(CustomKeyAiBrokerEnabled);
+            }
+        }
+
+        public string ApiToken
+        {
+            get => CustomStrings.TryGetValue(CustomKeyApiToken, out var cs) ? (cs.Value ?? "") : "";
+            set
+            {
+                string clean = (value ?? "").Trim();
+                if (string.IsNullOrEmpty(clean))
+                {
+                    if (CustomStrings.TryGetValue(CustomKeyApiToken, out var old))
+                        old.Value = "";
+                    CustomStrings.Remove(CustomKeyApiToken);
+                }
+                else
+                {
+                    CustomStrings[CustomKeyApiToken] = new KdbxCustomString { Value = clean, IsProtected = true };
+                }
+            }
+        }
+
+        public bool HasApiToken => !string.IsNullOrWhiteSpace(ApiToken);
+
         public bool HasTotp => !string.IsNullOrWhiteSpace(TotpSecretOrUri) && TotpEngine.TryGenerateTotp(TotpSecretOrUri, DateTimeOffset.UtcNow, out _, out _);
 
         public string DomainBadge

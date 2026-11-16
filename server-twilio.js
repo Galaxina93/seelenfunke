@@ -41,7 +41,8 @@ function scrubBridgeSecrets(raw) {
     if (!raw) return '';
     return String(raw)
         .replace(/AIza[A-Za-z0-9\-_]{16,}/g, 'AIza[REDACTED]')
-        .replace(/([?&](?:api[_-]?key|key|token|secret)=)[^&\s"']+/gi, '$1[REDACTED]')
+        .replace(/ya29\.[A-Za-z0-9\-._]{16,}/g, 'ya29.[REDACTED]')
+        .replace(/([?&](?:api[_-]?key|key|token|access_token|secret)=)[^&\s"']+/gi, '$1[REDACTED]')
         .replace(/(Bearer\s+)[A-Za-z0-9\-._~+|/]+=*/gi, '$1[REDACTED]');
 }
 
@@ -84,7 +85,7 @@ async function fetchBackendWithRetry(url, options = {}, timeoutMs = 5000) {
     throw lastErr || new Error('Backend request failed');
 }
 
-const BRIDGE_VERSION = 'v1.4-live-secretary';
+const BRIDGE_VERSION = 'v1.5-vertex-live-secretary';
 const bridgeStartedAt = new Date().toISOString();
 let activeLiveSessions = 0;
 let activeTwilioCalls = 0;
@@ -94,6 +95,108 @@ let lastIssue = null;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+// --- GOOGLE CLOUD VERTEX AI (POSTPAY SEPA) NATIVE SERVICE ACCOUNT AUTH ---
+const VERTEX_LIVE_LOCATION = (process.env.GOOGLE_VERTEX_LIVE_LOCATION || 'europe-west4').trim();
+const VERTEX_LIVE_MODEL_ID = (process.env.GOOGLE_VERTEX_LIVE_MODEL || 'gemini-live-2.5-flash-native-audio').trim();
+let cachedVertexSa = undefined;
+let cachedVertexToken = null;
+let cachedVertexTokenExpiresAt = 0;
+
+function loadVertexServiceAccount() {
+    if (String(process.env.GOOGLE_VERTEX_ENABLED || 'true').toLowerCase() === 'false') {
+        return null;
+    }
+    if (cachedVertexSa !== undefined) {
+        return cachedVertexSa;
+    }
+    const candidates = [];
+    if (process.env.GOOGLE_VERTEX_SERVICE_ACCOUNT_PATH) {
+        const rawPath = process.env.GOOGLE_VERTEX_SERVICE_ACCOUNT_PATH.trim();
+        candidates.push(rawPath);
+        candidates.push(join(__dirname, rawPath));
+    }
+    candidates.push(join(__dirname, 'storage', 'app', 'vertex-service-account.json'));
+    candidates.push(join(__dirname, 'vertex-service-account.json'));
+    candidates.push(join(__dirname, '..', 'seelenfunke-stage', 'storage', 'app', 'vertex-service-account.json'));
+
+    for (const candidate of candidates) {
+        try {
+            if (fs.existsSync(candidate)) {
+                const parsed = JSON.parse(fs.readFileSync(candidate, 'utf8'));
+                if (parsed && parsed.client_email && parsed.private_key) {
+                    cachedVertexSa = parsed;
+                    return cachedVertexSa;
+                }
+            }
+        } catch (_) {}
+    }
+    cachedVertexSa = null;
+    return null;
+}
+
+function getVertexProjectId() {
+    const envPid = (process.env.GOOGLE_VERTEX_PROJECT_ID || '').trim();
+    if (envPid) return envPid;
+    const sa = loadVertexServiceAccount();
+    return (sa && sa.project_id) ? sa.project_id : 'gen-lang-client-0670786367';
+}
+
+function getVertexLiveModelResource() {
+    return `projects/${getVertexProjectId()}/locations/${VERTEX_LIVE_LOCATION}/publishers/google/models/${VERTEX_LIVE_MODEL_ID}`;
+}
+
+function base64Url(input) {
+    return Buffer.from(input).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+async function ensureVertexAccessToken(forceRefresh = false) {
+    const sa = loadVertexServiceAccount();
+    if (!sa) return null;
+    const nowSec = Math.floor(Date.now() / 1000);
+    if (!forceRefresh && cachedVertexToken && cachedVertexTokenExpiresAt - 180 > nowSec) {
+        return cachedVertexToken;
+    }
+    try {
+        const tokenUri = sa.token_uri || 'https://oauth2.googleapis.com/token';
+        const headerSeg = base64Url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
+        const claimsSeg = base64Url(JSON.stringify({
+            iss: sa.client_email,
+            scope: 'https://www.googleapis.com/auth/cloud-platform',
+            aud: tokenUri,
+            iat: nowSec - 10,
+            exp: nowSec + 3590
+        }));
+        const signer = crypto.createSign('RSA-SHA256');
+        signer.update(`${headerSeg}.${claimsSeg}`);
+        signer.end();
+        const sigSeg = signer.sign(sa.private_key).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+        const assertion = `${headerSeg}.${claimsSeg}.${sigSeg}`;
+
+        const body = new URLSearchParams({
+            grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+            assertion
+        });
+        const res = await fetch(tokenUri, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: body.toString()
+        });
+        if (res.ok) {
+            const json = await res.json();
+            if (json && json.access_token) {
+                cachedVertexToken = json.access_token;
+                cachedVertexTokenExpiresAt = nowSec + Number(json.expires_in || 3600);
+                return cachedVertexToken;
+            }
+        } else {
+            console.warn(`⚠️ Vertex OAuth2 Token HTTP ${res.status}`);
+        }
+    } catch (err) {
+        console.warn('⚠️ Vertex OAuth2 Token Fehler:', scrubBridgeSecrets(err?.message || String(err)));
+    }
+    return null;
+}
 
 // Automatische Ursachenanalyse für WebSocket Close-Codes & Fehlermeldungen
 function diagnoseWsIssue(code, reason, source = 'google') {
@@ -354,10 +457,22 @@ sendLogToBackend('info', 'Node.js Audio-Brücke erfolgreich gestartet.', 'websoc
 
 const PORT = process.env.PORT || process.env.TWILIO_WS_PORT || 8081;
 const GOOGLE_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+const HAS_VERTEX_SA = Boolean(loadVertexServiceAccount());
 
-if (!GOOGLE_API_KEY) {
-    console.error("❌ GEMINI_API_KEY is missing in .env!");
+if (!GOOGLE_API_KEY && !HAS_VERTEX_SA) {
+    console.error("❌ Weder Vertex AI Service Account noch GEMINI_API_KEY in .env gefunden!");
     process.exit(1);
+}
+
+if (HAS_VERTEX_SA) {
+    ensureVertexAccessToken().then(tok => {
+        if (tok) {
+            console.log(`✅ Vertex AI Live OAuth2 Token vorgewärmt (${VERTEX_LIVE_LOCATION} / ${VERTEX_LIVE_MODEL_ID}).`);
+        }
+    });
+    setInterval(() => {
+        ensureVertexAccessToken(true).catch(() => {});
+    }, 45 * 60 * 1000).unref();
 }
 
 const server = http.createServer((req, res) => {
@@ -366,6 +481,8 @@ const server = http.createServer((req, res) => {
         res.end(JSON.stringify({
             status: 'ok',
             bridge_version: BRIDGE_VERSION,
+            ai_provider: HAS_VERTEX_SA ? 'vertex_ai_postpay' : 'gemini_ai_studio',
+            vertex_region: HAS_VERTEX_SA ? VERTEX_LIVE_LOCATION : null,
             started_at: bridgeStartedAt,
             uptime_seconds: Math.floor(process.uptime()),
             active_live_sessions: activeLiveSessions,
@@ -453,16 +570,28 @@ function initGeminiLiveProxy(clientWs, creds, reqMeta = {}) {
     let aiTurnTranscript = "";
     let userTurnTranscript = "";
     let lastPersistedAiText = "";
-    
-    const HOST = "generativelanguage.googleapis.com";
-    const WS_URL = `wss://${HOST}/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${creds.api_key}`;
-    
+
+    const vertexBearer = creds.vertex_access_token || cachedVertexToken || null;
+    const useVertexLive = Boolean((creds.is_vertex || HAS_VERTEX_SA) && vertexBearer);
+    const HOST = useVertexLive
+        ? (creds.vertex_host || `${VERTEX_LIVE_LOCATION}-aiplatform.googleapis.com`)
+        : "generativelanguage.googleapis.com";
+    const WS_PATH = useVertexLive
+        ? (creds.vertex_path || '/ws/google.cloud.aiplatform.v1beta1.LlmBidiService/BidiGenerateContent')
+        : `/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${creds.api_key || GOOGLE_API_KEY}`;
+    const WS_URL = `wss://${HOST}${WS_PATH}`;
+    const wsHeaders = {
+        'Referer': process.env.APP_URL || 'https://stage.mein-seelenfunke.de'
+    };
+    if (useVertexLive) {
+        wsHeaders['Authorization'] = `Bearer ${vertexBearer}`;
+        effectiveModel = creds.live_model || getVertexLiveModelResource();
+    }
+
     const googleWs = new WebSocket(WS_URL, {
         family: 4,
         handshakeTimeout: 8500,
-        headers: {
-            'Referer': process.env.APP_URL || 'https://stage.mein-seelenfunke.de'
-        },
+        headers: wsHeaders,
         origin: process.env.APP_URL || 'https://stage.mein-seelenfunke.de'
     });
     const googleQueue = [];
@@ -764,18 +893,29 @@ function initGeminiLiveProxy(clientWs, creds, reqMeta = {}) {
             }
             if (data && data.setup) {
                 requestedModel = data.setup.model || null;
-                const DEFAULT_LIVE_MODEL = 'models/gemini-3.1-flash-live-preview';
-                const VALID_LIVE_MODELS = [
-                    'models/gemini-3.1-flash-live-preview',
-                    'models/gemini-2.0-flash-live-001'
-                ];
                 let setupModified = false;
-                if (!data.setup.model || !VALID_LIVE_MODELS.includes(data.setup.model)) {
-                    debugLog(`⚠️ Gemini Live Proxy: Client sendete veraltetes/inkompatibles Modell "${data.setup.model}". Normalisiere auf "${DEFAULT_LIVE_MODEL}".`);
-                    data.setup.model = DEFAULT_LIVE_MODEL;
-                    normalizationsApplied.model_rewritten = true;
-                    setupModified = true;
-                    recordEvent('model_normalized', `${requestedModel} -> ${DEFAULT_LIVE_MODEL}`);
+                if (useVertexLive) {
+                    const targetVertexModel = creds.live_model || getVertexLiveModelResource();
+                    if (data.setup.model !== targetVertexModel) {
+                        debugLog(`🔄 Vertex AI Live Proxy: Setze setup.model auf "${targetVertexModel}".`);
+                        data.setup.model = targetVertexModel;
+                        normalizationsApplied.model_rewritten = true;
+                        setupModified = true;
+                        recordEvent('model_normalized_vertex', `${requestedModel} -> ${targetVertexModel}`);
+                    }
+                } else {
+                    const DEFAULT_LIVE_MODEL = 'models/gemini-3.1-flash-live-preview';
+                    const VALID_LIVE_MODELS = [
+                        'models/gemini-3.1-flash-live-preview',
+                        'models/gemini-2.0-flash-live-001'
+                    ];
+                    if (!data.setup.model || !VALID_LIVE_MODELS.includes(data.setup.model)) {
+                        debugLog(`⚠️ Gemini Live Proxy: Client sendete veraltetes/inkompatibles Modell "${data.setup.model}". Normalisiere auf "${DEFAULT_LIVE_MODEL}".`);
+                        data.setup.model = DEFAULT_LIVE_MODEL;
+                        normalizationsApplied.model_rewritten = true;
+                        setupModified = true;
+                        recordEvent('model_normalized', `${requestedModel} -> ${DEFAULT_LIVE_MODEL}`);
+                    }
                 }
                 effectiveModel = data.setup.model;
                 if (!data.setup.inputAudioTranscription) {
@@ -980,15 +1120,24 @@ function handleTwilioConnection(ws) {
         }).catch(e => console.error("Error sending call log to backend:", e));
     };
 
-    // 1. Initialisiere die Gemini Live API Verbindung
-    const initGemini = () => {
-        const HOST = "generativelanguage.googleapis.com";
-        const WS_URL = `wss://${HOST}/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${GOOGLE_API_KEY}`;
-        
+    // 1. Initialisiere die Vertex AI / Gemini Live API Verbindung
+    const initGemini = async () => {
+        const vToken = HAS_VERTEX_SA ? await ensureVertexAccessToken() : null;
+        const useVertexTwilio = Boolean(vToken);
+        const HOST = useVertexTwilio ? `${VERTEX_LIVE_LOCATION}-aiplatform.googleapis.com` : "generativelanguage.googleapis.com";
+        const WS_URL = useVertexTwilio
+            ? `wss://${HOST}/ws/google.cloud.aiplatform.v1beta1.LlmBidiService/BidiGenerateContent`
+            : `wss://${HOST}/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${GOOGLE_API_KEY}`;
+        const wsHeaders = {
+            'Referer': process.env.APP_URL || 'https://stage.mein-seelenfunke.de'
+        };
+        if (useVertexTwilio) {
+            wsHeaders['Authorization'] = `Bearer ${vToken}`;
+        }
+
         geminiWs = new WebSocket(WS_URL, {
-            headers: {
-                'Referer': process.env.APP_URL || 'https://stage.mein-seelenfunke.de'
-            },
+            family: 4,
+            headers: wsHeaders,
             origin: process.env.APP_URL || 'https://stage.mein-seelenfunke.de'
         });
 
@@ -1078,7 +1227,7 @@ Sobald du dich verabschiedet hast, MUSST du sofort das Tool 'end_call' aufrufen,
 
             const setupMessage = {
                 setup: {
-                    model: 'models/gemini-3.1-flash-live-preview',
+                    model: useVertexTwilio ? getVertexLiveModelResource() : 'models/gemini-3.1-flash-live-preview',
                     systemInstruction: {
                         parts: [{ text: systemPrompt }]
                     },

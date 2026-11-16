@@ -22,6 +22,8 @@ class SeelenfunkeApp : Application() {
 
         // Initialize Notification Channels on Android Oreo (API 26) and above
         createNotificationChannels()
+        de.meinseelenfunke.app.util.ShopWatchtowerManager.ensureNotificationChannel(this)
+        de.meinseelenfunke.app.util.ShopWatchtowerManager.schedulePeriodicWatchtower(this)
 
         // Auto-start background wake-word listening service if enabled
         if (ServiceLocator.isWakeWordEnabled()) {

@@ -81,7 +81,8 @@ object StandalonePhoneSecretaryEngine {
         val url: String,
         val isDirectGoogle: Boolean,
         val originUrl: String,
-        val voiceName: String
+        val voiceName: String,
+        val liveModel: String = "models/gemini-3.1-flash-live-preview"
     )
 
     private const val WARM_CACHE_TTL_MS = 75_000L
@@ -373,18 +374,25 @@ object StandalonePhoneSecretaryEngine {
         val voice = creds?.voice_name?.takeIf { it.isNotBlank() } ?: "Kore"
         val list = mutableListOf<WsCandidate>()
 
-        // 1. Fastest path: Direct Gemini Live WebSocket (skips proxy hop for ~250 ms faster greeting)
+        // 1. Fastest path: Direct Vertex AI / Gemini Live WebSocket (skips proxy hop for ~250 ms faster greeting)
         val serverDirect = creds?.direct_ws_url?.takeIf { it.isNotBlank() }
+        val serverLiveModel = creds?.live_model?.takeIf { it.isNotBlank() } ?: "models/gemini-3.1-flash-live-preview"
         val localDirect = FunkiraLiveViewModel.buildDirectGeminiWsUrl(ServiceLocator.getGeminiApiKey())
         val bestDirect = serverDirect ?: localDirect
         if (!bestDirect.isNullOrBlank()) {
+            val directModel = if (bestDirect.contains("aiplatform.googleapis.com", ignoreCase = true) && serverLiveModel.startsWith("projects/")) {
+                serverLiveModel
+            } else {
+                "models/gemini-3.1-flash-live-preview"
+            }
             list.add(
                 WsCandidate(
                     label = "direct_gemini_live",
                     url = bestDirect,
                     isDirectGoogle = true,
                     originUrl = origin,
-                    voiceName = voice
+                    voiceName = voice,
+                    liveModel = directModel
                 )
             )
         }
@@ -485,7 +493,7 @@ object StandalonePhoneSecretaryEngine {
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 val setup = JsonObject().apply {
                     add("setup", JsonObject().apply {
-                        addProperty("model", "models/gemini-3.1-flash-live-preview")
+                        addProperty("model", candidate.liveModel)
                         add("generationConfig", JsonObject().apply {
                             add("responseModalities", JsonArray().apply { add("AUDIO") })
                             add("speechConfig", JsonObject().apply {

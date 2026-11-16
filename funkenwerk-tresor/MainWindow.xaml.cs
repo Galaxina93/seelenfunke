@@ -25,6 +25,7 @@ namespace FunkenwerkTresor
         public string PasswordDisplay { get; init; } = "••••••••";
         public string Url => Entry.Url;
         public string NotesSingleLine => Entry.NotesSingleLine;
+        public Visibility AiBrokerBadgeVisibility => Entry.AiBrokerEnabled ? Visibility.Visible : Visibility.Collapsed;
     }
 
     public sealed class GroupComboOption
@@ -79,6 +80,7 @@ namespace FunkenwerkTresor
             try
             {
                 KdbxCryptoEngine.SaveKdbxFileWithCompositeKey(Database, Database.FilePath, rawCompositeKey);
+                TresorSecurityGuard.SyncAiBrokerVault(Database.GetAllEntriesFlat(includeRecycleBin: false));
             }
             finally
             {
@@ -140,6 +142,7 @@ namespace FunkenwerkTresor
         private bool _createMasterEyeVisible;
         private bool _editPassEyeVisible;
         private bool _editTotpEyeVisible;
+        private bool _editApiTokenEyeVisible;
         private bool _importPassEyeVisible;
 
         private bool _suppressTreeSelectionEvent;
@@ -289,6 +292,8 @@ namespace FunkenwerkTresor
                 SetBrush("HoverBgBrush", "#1B2538");
                 SetBrush("ModalCardBgBrush", "#151C28");
                 SetBrush("InputBgBrush", "#0B0F17");
+                SetBrush("AiBadgeBgBrush", "#2EC5A059");
+                SetBrush("AiBadgeTextBrush", "#E2BE78");
                 ThemeBtnIcon.Text = "☀";
             }
             else
@@ -309,6 +314,8 @@ namespace FunkenwerkTresor
                 SetBrush("HoverBgBrush", "#EEF5FD");
                 SetBrush("ModalCardBgBrush", "#FFFFFF");
                 SetBrush("InputBgBrush", "#FFFFFF");
+                SetBrush("AiBadgeBgBrush", "#1FC5A059");
+                SetBrush("AiBadgeTextBrush", "#8C6822");
                 ThemeBtnIcon.Text = "🌙";
             }
         }
@@ -895,7 +902,9 @@ namespace FunkenwerkTresor
             {
                 if (current is T match)
                     return match;
-                current = VisualTreeHelper.GetParent(current);
+                current = (current is Visual || current is System.Windows.Media.Media3D.Visual3D)
+                    ? VisualTreeHelper.GetParent(current) ?? LogicalTreeHelper.GetParent(current)
+                    : LogicalTreeHelper.GetParent(current);
             }
             return null;
         }
@@ -1227,6 +1236,8 @@ namespace FunkenwerkTresor
                 BottomEntryIcon.Source = _selectedEntry.IconImage;
                 BottomEntryTitle.Text = string.IsNullOrWhiteSpace(_selectedEntry.Title) ? "(Ohne Titel)" : _selectedEntry.Title;
                 BottomEntryGroupPath.Text = $" ({_selectedEntry.GroupName})";
+                if (BottomAiBrokerBadge != null)
+                    BottomAiBrokerBadge.Visibility = _selectedEntry.AiBrokerEnabled ? Visibility.Visible : Visibility.Collapsed;
                 BottomEntryUser.Text = string.IsNullOrWhiteSpace(_selectedEntry.UserName) ? "-" : _selectedEntry.UserName;
                 BottomEntryPassword.Text = _revealTablePasswords
                     ? _selectedEntry.Password
@@ -1502,6 +1513,13 @@ namespace FunkenwerkTresor
             EditTotpBox.Password = entry.TotpSecretOrUri;
             EditTotpTextBox.Text = "";
 
+            _editApiTokenEyeVisible = false;
+            EditApiTokenBox.Visibility = Visibility.Visible;
+            EditApiTokenTextBox.Visibility = Visibility.Collapsed;
+            EditApiTokenBox.Password = entry.ApiToken;
+            EditApiTokenTextBox.Text = "";
+            EditAiBrokerCheckBox.IsChecked = entry.AiBrokerEnabled;
+
             // Gruppen-Combo mit Pfaden befüllen
             var groupOptions = new List<GroupComboOption>();
             void BuildGroupPaths(KdbxGroup g, string prefix)
@@ -1640,31 +1658,43 @@ namespace FunkenwerkTresor
         {
             if (string.IsNullOrWhiteSpace(chosenUserName)) return;
             _suppressUserSuggestionEvents = true;
-            EditUserBox.Text = chosenUserName;
-            EditUserBox.CaretIndex = chosenUserName.Length;
-            UserSuggestionsPopupBorder.Visibility = Visibility.Collapsed;
-            _suppressUserSuggestionEvents = false;
-            EditUserBox.Focus();
+            try
+            {
+                EditUserBox.Text = chosenUserName;
+                EditUserBox.CaretIndex = chosenUserName.Length;
+                UserSuggestionsPopupBorder.Visibility = Visibility.Collapsed;
+                EditUserBox.Focus();
+                Keyboard.Focus(EditUserBox);
+            }
+            finally
+            {
+                _suppressUserSuggestionEvents = false;
+            }
         }
 
         private void EditUserBox_TextChanged(object sender, TextChangedEventArgs e)
         {
-            if (!EditUserBox.IsKeyboardFocusWithin) return;
+            if (_suppressUserSuggestionEvents || !EditUserBox.IsKeyboardFocusWithin) return;
             UpdateUsernameSuggestions(EditUserBox.Text, showTopWhenEmpty: false);
         }
 
         private void EditUserBox_GotFocus(object sender, RoutedEventArgs e)
         {
+            if (_suppressUserSuggestionEvents) return;
             if (!string.IsNullOrWhiteSpace(EditUserBox.Text))
                 UpdateUsernameSuggestions(EditUserBox.Text, showTopWhenEmpty: false);
         }
 
         private void EditUserBox_LostFocus(object sender, RoutedEventArgs e)
         {
-            Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
+            Dispatcher.BeginInvoke(DispatcherPriority.Input, new Action(() =>
             {
-                if (!EditUserBox.IsKeyboardFocusWithin && UserSuggestionsPopupBorder != null)
+                if (!EditUserBox.IsKeyboardFocusWithin &&
+                    UserSuggestionsPopupBorder != null &&
+                    !UserSuggestionsPopupBorder.IsMouseOver)
+                {
                     UserSuggestionsPopupBorder.Visibility = Visibility.Collapsed;
+                }
             }));
         }
 
@@ -1717,14 +1747,154 @@ namespace FunkenwerkTresor
             }
         }
 
-        private void UserSuggestionsListBox_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        private void UserSuggestionsListBox_PreviewMouseDown(object sender, MouseButtonEventArgs e)
         {
+            if (e.ChangedButton != MouseButton.Left)
+                return;
+
+            if (FindVisualAncestor<System.Windows.Controls.Primitives.ScrollBar>(e.OriginalSource as DependencyObject) != null)
+                return;
+
             var item = FindVisualAncestor<ListBoxItem>(e.OriginalSource as DependencyObject);
             if (item?.DataContext is UsernameSuggestionItem suggestion)
             {
                 ApplyUsernameSuggestion(suggestion.UserName);
                 e.Handled = true;
             }
+        }
+
+        private void EntryEditorModalCard_PreviewMouseDown(object sender, MouseButtonEventArgs e)
+        {
+            if (UserSuggestionsPopupBorder == null || UserSuggestionsPopupBorder.Visibility != Visibility.Visible)
+                return;
+
+            if (e.OriginalSource is DependencyObject dep)
+            {
+                if (ReferenceEquals(dep, EditUserBox) || FindVisualAncestor<TextBox>(dep) == EditUserBox)
+                    return;
+
+                DependencyObject? cur = dep;
+                while (cur != null)
+                {
+                    if (ReferenceEquals(cur, UserSuggestionsPopupBorder))
+                        return;
+                    cur = (cur is Visual || cur is System.Windows.Media.Media3D.Visual3D)
+                        ? VisualTreeHelper.GetParent(cur) ?? LogicalTreeHelper.GetParent(cur)
+                        : LogicalTreeHelper.GetParent(cur);
+                }
+            }
+
+            UserSuggestionsPopupBorder.Visibility = Visibility.Collapsed;
+        }
+
+        internal (bool IconBarOk, bool AutocompleteOk, string Diag) VerifyModalIconBarAndAutocompleteForSelfTest()
+        {
+            var testDb = KdbxDatabase.CreateNewDefault("ModalSelfTestDB");
+            testDb.RootGroup.Entries.Add(new KdbxEntry
+            {
+                Title = "Mein-Seelenfunke Shop",
+                UserName = "kontakt@mein-seelenfunke.de",
+                Password = "TestSecret#1"
+            });
+            testDb.RootGroup.Entries.Add(new KdbxEntry
+            {
+                Title = "FYRST Geschäftskonto",
+                UserName = "alina@mein-seelenfunke.de",
+                Password = "TestSecret#2"
+            });
+
+            byte[] dummyKey = RandomNumberGenerator.GetBytes(32);
+            try
+            {
+                SetVaultLockedUiState(isLocked: false);
+                LoadDatabaseIntoWorkspace(testDb, dummyKey);
+            }
+            finally
+            {
+                CryptographicOperations.ZeroMemory(dummyKey);
+            }
+
+            NewEntry_Click(this, new RoutedEventArgs());
+            var rootContent = (FrameworkElement)Content;
+            rootContent.ApplyTemplate();
+            rootContent.Measure(new Size(1180, 780));
+            rootContent.Arrange(new Rect(0, 0, 1180, 780));
+            rootContent.UpdateLayout();
+
+            bool horizDisabled = ScrollViewer.GetHorizontalScrollBarVisibility(EditEntryIconPicker) == ScrollBarVisibility.Disabled;
+            var iconScrollViewer = FindVisualDescendant<ScrollViewer>(EditEntryIconPicker);
+            bool noHorizBarShown = iconScrollViewer != null && iconScrollViewer.ComputedHorizontalScrollBarVisibility == Visibility.Collapsed;
+            int visibleIcons = 0;
+            for (int i = 0; i < EditEntryIconPicker.Items.Count; i++)
+            {
+                if (EditEntryIconPicker.ItemContainerGenerator.ContainerFromIndex(i) is ListBoxItem lbi &&
+                    lbi.ActualHeight >= 22 && lbi.ActualWidth >= 22)
+                {
+                    visibleIcons++;
+                }
+            }
+            bool iconBarOk = horizDisabled && noHorizBarShown && EditEntryIconPicker.Items.Count >= 20 && visibleIcons == EditEntryIconPicker.Items.Count;
+
+            double passYBefore = EditPassBox.TranslatePoint(new Point(0, 0), EntryEditorModalCard).Y;
+
+            EditUserBox.Text = "kontakt@mein-";
+            UpdateUsernameSuggestions("kontakt@mein-", showTopWhenEmpty: false);
+            rootContent.Measure(new Size(1180, 780));
+            rootContent.Arrange(new Rect(0, 0, 1180, 780));
+            rootContent.UpdateLayout();
+
+            double passYDuring = EditPassBox.TranslatePoint(new Point(0, 0), EntryEditorModalCard).Y;
+            bool zeroLayoutTwitch = Math.Abs(passYDuring - passYBefore) < 0.05 && passYBefore > 50;
+            bool popupOpened = UserSuggestionsPopupBorder.Visibility == Visibility.Visible && UserSuggestionsListBox.Items.Count >= 1;
+
+            bool clickApplied = false;
+            bool itemNonFocusable = false;
+            bool hitTestMatched = false;
+            if (popupOpened && UserSuggestionsListBox.ItemContainerGenerator.ContainerFromIndex(0) is ListBoxItem sugItem)
+            {
+                itemNonFocusable = !sugItem.Focusable;
+                Point clickPt = sugItem.TranslatePoint(new Point(Math.Max(12, sugItem.ActualWidth * 0.25), Math.Max(6, sugItem.ActualHeight * 0.5)), EntryEditorModalCard);
+                var hit = VisualTreeHelper.HitTest(EntryEditorModalCard, clickPt);
+                var hitTarget = hit?.VisualHit as UIElement ?? sugItem;
+                hitTestMatched = hit?.VisualHit != null && ReferenceEquals(FindVisualAncestor<ListBoxItem>(hit.VisualHit), sugItem);
+
+                var mouseDownArgs = new MouseButtonEventArgs(Mouse.PrimaryDevice, Environment.TickCount, MouseButton.Left)
+                {
+                    RoutedEvent = Mouse.PreviewMouseDownEvent,
+                    Source = hitTarget
+                };
+                hitTarget.RaiseEvent(mouseDownArgs);
+                rootContent.Measure(new Size(1180, 780));
+                rootContent.Arrange(new Rect(0, 0, 1180, 780));
+                rootContent.UpdateLayout();
+
+                double passYAfter = EditPassBox.TranslatePoint(new Point(0, 0), EntryEditorModalCard).Y;
+                clickApplied = hitTestMatched &&
+                               string.Equals(EditUserBox.Text, "kontakt@mein-seelenfunke.de", StringComparison.Ordinal) &&
+                               UserSuggestionsPopupBorder.Visibility == Visibility.Collapsed &&
+                               Math.Abs(passYAfter - passYBefore) < 0.05;
+            }
+
+            CloseEntryModal_Click(this, new RoutedEventArgs());
+            bool autocompleteOk = popupOpened && zeroLayoutTwitch && itemNonFocusable && hitTestMatched && clickApplied;
+            string diag = $"horizDisabled={horizDisabled}, noHorizBarShown={noHorizBarShown}, visibleIcons={visibleIcons}/{EditEntryIconPicker.Items.Count}, popupOpened={popupOpened}, zeroLayoutTwitch={zeroLayoutTwitch} ({passYBefore:F1}->{passYDuring:F1}), itemNonFocusable={itemNonFocusable}, hitTestMatched={hitTestMatched}, clickApplied={clickApplied} ('{EditUserBox.Text}')";
+            return (iconBarOk, autocompleteOk, diag);
+        }
+
+        private static T? FindVisualDescendant<T>(DependencyObject? root) where T : DependencyObject
+        {
+            if (root == null) return null;
+            int count = VisualTreeHelper.GetChildrenCount(root);
+            for (int i = 0; i < count; i++)
+            {
+                var child = VisualTreeHelper.GetChild(root, i);
+                if (child is T match)
+                    return match;
+                var nested = FindVisualDescendant<T>(child);
+                if (nested != null)
+                    return nested;
+            }
+            return null;
         }
 
         private void EditNotesResizeThumb_DragDelta(object sender, System.Windows.Controls.Primitives.DragDeltaEventArgs e)
@@ -1769,6 +1939,13 @@ namespace FunkenwerkTresor
             EditTotpTextBox.Visibility = Visibility.Collapsed;
             EditTotpBox.Visibility = Visibility.Visible;
 
+            _editApiTokenEyeVisible = false;
+            EditApiTokenBox.Password = "";
+            EditApiTokenTextBox.Text = "";
+            EditApiTokenTextBox.Visibility = Visibility.Collapsed;
+            EditApiTokenBox.Visibility = Visibility.Visible;
+            EditAiBrokerCheckBox.IsChecked = false;
+
             foreach (var att in _editingAttachments)
                 CryptographicOperations.ZeroMemory(att.Data);
             _editingAttachments.Clear();
@@ -1781,6 +1958,18 @@ namespace FunkenwerkTresor
                 UserSuggestionsPopupBorder.Visibility = Visibility.Collapsed;
             ClearEntryModalSensitiveInputs();
             EntryEditorModal.Visibility = Visibility.Collapsed;
+        }
+
+        private void SyncOpenSessionsAiBrokerVault()
+        {
+            try
+            {
+                var allEntries = _openSessions.Count > 0
+                    ? _openSessions.SelectMany(s => s.Database.GetAllEntriesFlat(includeRecycleBin: false)).ToList()
+                    : (_activeDb?.GetAllEntriesFlat(includeRecycleBin: false) ?? new List<KdbxEntry>());
+                TresorSecurityGuard.SyncAiBrokerVault(allEntries);
+            }
+            catch { }
         }
 
         private void SaveEntryModal_Click(object sender, RoutedEventArgs e)
@@ -1797,6 +1986,9 @@ namespace FunkenwerkTresor
 
             string pass = _editPassEyeVisible ? EditPassTextBox.Text : EditPassBox.Password;
             string totp = (_editTotpEyeVisible ? EditTotpTextBox.Text : EditTotpBox.Password).Trim();
+            string apiToken = (_editApiTokenEyeVisible ? EditApiTokenTextBox.Text : EditApiTokenBox.Password).Trim();
+            bool aiBrokerEnabled = EditAiBrokerCheckBox.IsChecked == true;
+
             if (!string.IsNullOrWhiteSpace(totp) && !TotpEngine.IsValidSecretOrUri(totp))
             {
                 MessageBox.Show(
@@ -1817,6 +2009,8 @@ namespace FunkenwerkTresor
             _editingEntry.Url = (EditUrlBox.Text ?? "").Trim();
             _editingEntry.Notes = EditNotesBox.Text ?? "";
             _editingEntry.TotpSecretOrUri = totp;
+            _editingEntry.ApiToken = apiToken;
+            _editingEntry.AiBrokerEnabled = aiBrokerEnabled;
             if (_isCreatingNewEntry || _entryIconChangedByUser || string.IsNullOrWhiteSpace(_editingEntry.CustomIconUuidHex))
             {
                 _editingEntry.IconId = iconId == 1048 ? 48 : iconId;
@@ -1861,6 +2055,7 @@ namespace FunkenwerkTresor
             RebuildGroupTreeView(selectGroupUuid: targetGroup.UuidHex);
             RefreshEntriesTable(selectEntryUuid: savedUuid);
             AutoSaveIfPossible($"Eintrag „{title}“ gespeichert.");
+            SyncOpenSessionsAiBrokerVault();
         }
 
         private void DuplicateEntry_Click(object sender, RoutedEventArgs e)
@@ -2413,6 +2608,7 @@ namespace FunkenwerkTresor
 
                 targetDb.FilePath = dbPath;
                 KdbxCryptoEngine.SaveKdbxFileWithCompositeKey(targetDb, dbPath, compositeKey);
+                TresorSecurityGuard.SyncAiBrokerVault(targetDb.GetAllEntriesFlat(includeRecycleBin: false));
 
                 _activeKeyfilePath = keyfile;
 
@@ -2488,6 +2684,7 @@ namespace FunkenwerkTresor
                         s.SaveDatabaseFile();
                 }
 
+                SyncOpenSessionsAiBrokerVault();
                 UpdateDirtyIndicator();
                 RenderOpenDatabasesTabBar();
                 string fileName = Path.GetFileName(_activeDb.FilePath);
@@ -2537,6 +2734,7 @@ namespace FunkenwerkTresor
             RenderOpenDatabasesTabBar();
             if (anySaved)
             {
+                SyncOpenSessionsAiBrokerVault();
                 ShowSaveFeedback(statusMsg + " (Gespeichert)");
                 return;
             }
@@ -2925,6 +3123,93 @@ namespace FunkenwerkTresor
                 EditTotpTextBox.Visibility = Visibility.Collapsed;
                 EditTotpBox.Visibility = Visibility.Visible;
             }
+        }
+
+        private void ToggleEditApiTokenEye_Click(object sender, RoutedEventArgs e)
+        {
+            _editApiTokenEyeVisible = !_editApiTokenEyeVisible;
+            if (_editApiTokenEyeVisible)
+            {
+                EditApiTokenTextBox.Text = EditApiTokenBox.Password;
+                EditApiTokenBox.Password = "";
+                EditApiTokenBox.Visibility = Visibility.Collapsed;
+                EditApiTokenTextBox.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                EditApiTokenBox.Password = EditApiTokenTextBox.Text;
+                EditApiTokenTextBox.Text = "";
+                EditApiTokenTextBox.Visibility = Visibility.Collapsed;
+                EditApiTokenBox.Visibility = Visibility.Visible;
+            }
+        }
+
+        internal (bool Ok, string Diag) VerifyAiBrokerModalAndBadgeForSelfTest()
+        {
+            var testDb = KdbxDatabase.CreateNewDefault("BrokerModalTestDB");
+            var privateEntry = new KdbxEntry
+            {
+                Title = "Privat Hausbank",
+                UserName = "alina.privat",
+                Password = "BankSecret#Private",
+                Url = "https://banking.fyrst.de",
+                AiBrokerEnabled = false
+            };
+            testDb.RootGroup.Entries.Add(privateEntry);
+
+            byte[] dummyKey = RandomNumberGenerator.GetBytes(32);
+            try
+            {
+                SetVaultLockedUiState(isLocked: false);
+                LoadDatabaseIntoWorkspace(testDb, dummyKey);
+            }
+            finally
+            {
+                CryptographicOperations.ZeroMemory(dummyKey);
+            }
+
+            NewEntry_Click(this, new RoutedEventArgs());
+            EditTitleBox.Text = "Mittwald mStudio";
+            EditUserBox.Text = "kontakt@mein-seelenfunke.de";
+            EditUrlBox.Text = "https://studio.mittwald.de";
+            EditPassBox.Password = "MittwaldPass#2026";
+            EditTotpBox.Password = "JBSWY3DPEHPK3PXP";
+            EditApiTokenBox.Password = "mw_pat_LiveTestToken99!";
+            EditAiBrokerCheckBox.IsChecked = true;
+
+            ToggleEditApiTokenEye_Click(this, new RoutedEventArgs());
+            bool eyeRevealOk = _editApiTokenEyeVisible
+                && EditApiTokenTextBox.Visibility == Visibility.Visible
+                && EditApiTokenBox.Visibility == Visibility.Collapsed
+                && EditApiTokenTextBox.Text == "mw_pat_LiveTestToken99!"
+                && string.IsNullOrEmpty(EditApiTokenBox.Password);
+
+            ToggleEditApiTokenEye_Click(this, new RoutedEventArgs());
+            bool eyeHideOk = !_editApiTokenEyeVisible
+                && EditApiTokenBox.Visibility == Visibility.Visible
+                && EditApiTokenTextBox.Visibility == Visibility.Collapsed
+                && EditApiTokenBox.Password == "mw_pat_LiveTestToken99!"
+                && string.IsNullOrEmpty(EditApiTokenTextBox.Text);
+
+            SaveEntryModal_Click(this, new RoutedEventArgs());
+
+            var rows = EntriesListBox.Items.OfType<EntryRowViewModel>().ToList();
+            var mwRow = rows.FirstOrDefault(r => r.Title == "Mittwald mStudio");
+            var privRow = rows.FirstOrDefault(r => r.Title == "Privat Hausbank");
+
+            bool badgesOk = mwRow != null && mwRow.AiBrokerBadgeVisibility == Visibility.Visible
+                && privRow != null && privRow.AiBrokerBadgeVisibility == Visibility.Collapsed
+                && BottomAiBrokerBadge.Visibility == Visibility.Visible;
+
+            var (exported, rawJson) = TresorSecurityGuard.ReadAiBrokerVaultForSelfTest();
+            bool syncOk = exported.Count == 1
+                && exported[0].Title == "Mittwald mStudio"
+                && exported[0].ApiToken == "mw_pat_LiveTestToken99!"
+                && !rawJson.Contains("Privat Hausbank", StringComparison.Ordinal)
+                && !rawJson.Contains("BankSecret#Private", StringComparison.Ordinal);
+
+            bool ok = eyeRevealOk && eyeHideOk && badgesOk && syncOk;
+            return (ok, $"eyeReveal={eyeRevealOk}, eyeHide={eyeHideOk}, badges={badgesOk}, sync={syncOk} (count={exported.Count})");
         }
 
         private void ToggleImportPassEye_Click(object sender, RoutedEventArgs e)

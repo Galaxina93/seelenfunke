@@ -822,7 +822,7 @@ Route::middleware('auth:sanctum')->group(function () {
             'Cache-Control' => 'no-store, no-cache, must-revalidate, private',
             'X-Content-Type-Options' => 'nosniff',
         ]);
-    })->middleware('throttle:60,1');
+    })->withoutMiddleware('throttle:api')->middleware('throttle:monitor-pulse');
 
     // --- 2a-bis. Verschlüsselte Eingang-Trichter Abholung für den Werkstatt-Mini-PC (nur Admin mit ai:funkira oder *) ---
     Route::prefix('shop/minipc-trichter')->middleware('throttle:60,1')->group(function () {
@@ -1019,6 +1019,107 @@ Route::middleware('auth:sanctum')->group(function () {
                 'data' => $result,
             ], 200, ['Cache-Control' => 'no-store, private']);
         });
+    });
+
+    // --- 2a-quinquies. Zentraler 24/7 Watchtower & 4-Säulen Health-Puls (Synology NAS, Smartphone, Mini-PC & Desktop) ---
+    Route::prefix('system/health-pulse')->middleware('throttle:120,1')->group(function () {
+        $authorizeHealthPulse = static function (\Illuminate\Http\Request $request, bool $requireFullToken = false): \App\Models\Admin\Admin {
+            $user = $request->user();
+            if (!$user instanceof \App\Models\Admin\Admin) {
+                abort(403, 'Nur Administratoren dürfen auf den System-Health-Puls zugreifen.');
+            }
+
+            if ($request->bearerToken()) {
+                $pat = \Laravel\Sanctum\PersonalAccessToken::findToken((string) $request->bearerToken());
+                if ($pat) {
+                    if ($pat->expires_at && $pat->expires_at->isPast()) {
+                        abort(401, 'Token abgelaufen.');
+                    }
+                    if ($requireFullToken) {
+                        if (!$pat->can('*')) {
+                            abort(403, 'Vollzugriffs-Token für Token-Ausstellung erforderlich.');
+                        }
+                    } elseif (!$pat->can('*') && !$pat->can('monitor:pulse') && !$pat->can('ai:funkira')) {
+                        abort(403, 'Unzureichende Token-Berechtigung für Watchtower Health-Puls.');
+                    }
+                }
+            }
+
+            if (method_exists($user, 'currentAccessToken') && $user->currentAccessToken()) {
+                if ($requireFullToken) {
+                    if (!$user->tokenCan('*')) {
+                        abort(403, 'Vollzugriffs-Token für Token-Ausstellung erforderlich.');
+                    }
+                } elseif (!$user->tokenCan('*') && !$user->tokenCan('monitor:pulse') && !$user->tokenCan('ai:funkira')) {
+                    abort(403, 'Unzureichende Token-Berechtigung für Watchtower Health-Puls.');
+                }
+            }
+
+            return $user;
+        };
+
+        Route::get('/', function (\Illuminate\Http\Request $request) use ($authorizeHealthPulse) {
+            $authorizeHealthPulse($request, false);
+
+            $source = $request->query('source');
+            $strict = filter_var($request->query('strict', false), FILTER_VALIDATE_BOOLEAN);
+            $syncLogs = filter_var($request->query('sync_logs', true), FILTER_VALIDATE_BOOLEAN);
+
+            $report = app(\App\Services\System\SystemHealthPulseService::class)->evaluate(
+                source: is_string($source) ? $source : null,
+                strict: $strict,
+                recordSample: true,
+                syncLogs: $syncLogs
+            );
+
+            return response()->json([
+                'success' => true,
+                'data' => $report,
+            ], 200, [
+                'Cache-Control' => 'no-store, no-cache, must-revalidate, private',
+                'X-Content-Type-Options' => 'nosniff',
+            ]);
+        });
+
+        Route::post('/nas-heartbeat', function (\Illuminate\Http\Request $request) use ($authorizeHealthPulse) {
+            $authorizeHealthPulse($request, false);
+
+            $validated = $request->validate([
+                'status' => 'required|string|in:ok,warning,error',
+                'summary' => 'nullable|string|max:300',
+                'copied_count' => 'nullable|integer|min:0',
+                'deleted_count' => 'nullable|integer|min:0',
+                'nas_host' => 'nullable|string|max:64',
+                'source' => 'nullable|string|max:40',
+            ]);
+
+            $saved = app(\App\Services\System\SystemHealthPulseService::class)->recordNasBackupHeartbeat($validated);
+
+            return response()->json([
+                'success' => true,
+                'data' => $saved,
+            ], 200, ['Cache-Control' => 'no-store, private']);
+        });
+
+        Route::post('/issue-token', function (\Illuminate\Http\Request $request) use ($authorizeHealthPulse) {
+            $admin = $authorizeHealthPulse($request, true);
+
+            $deviceSuffix = preg_replace('/[^A-Za-z0-9_-]/', '', (string) $request->input('device_name', 'SynologyNAS'));
+            $deviceClean = $deviceSuffix !== '' ? substr($deviceSuffix, 0, 32) : 'SynologyNAS';
+            $tokenName = 'FunkenwerkWatchtower-' . $deviceClean . '-admin';
+
+            $admin->tokens()->where('name', $tokenName)->delete();
+            $plainTextToken = $admin->createToken($tokenName, ['monitor:pulse'])->plainTextToken;
+
+            return response()->json([
+                'success' => true,
+                'token_name' => $tokenName,
+                'scope' => 'monitor:pulse',
+                'token' => $plainTextToken,
+            ], 200, [
+                'Cache-Control' => 'no-store, no-cache, must-revalidate, private',
+            ]);
+        })->middleware('throttle:10,1');
     });
 
     // Selbst-Herabstufung eines Voll-Admin-Tokens auf ein reines Read-Only Manufaktur-Monitor-Token (monitor:pulse)

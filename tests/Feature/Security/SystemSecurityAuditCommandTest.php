@@ -124,4 +124,69 @@ class SystemSecurityAuditCommandTest extends TestCase
         $this->assertSame('30 4 * * *', $securityJob['schedule']);
         $this->assertTrue($securityJob['is_active']);
     }
+
+    #[Test]
+    public function npm_filter_excludes_pure_dev_lockfile_packages_while_preserving_all_prod_cves_and_heals_stale_audit_log(): void
+    {
+        $prodDeps = [
+            'vite' => '^7.0.6',
+            'ws' => '^8.20.0',
+        ];
+
+        $mockLock = [
+            'lockfileVersion' => 3,
+            'packages' => [
+                '' => ['dependencies' => $prodDeps, 'devDependencies' => ['laravel-mix' => '^6.0.49', 'axios' => '^0.27.2']],
+                'node_modules/ws' => ['version' => '8.20.0'],
+                'node_modules/vite' => ['version' => '7.0.6'],
+                'node_modules/picomatch' => ['version' => '4.0.4'],
+                'node_modules/@parcel/watcher/node_modules/picomatch' => ['version' => '4.0.3', 'dev' => true, 'optional' => true],
+                'node_modules/laravel-mix' => ['version' => '6.0.49', 'dev' => true],
+                'node_modules/axios' => ['version' => '0.27.2', 'dev' => true],
+            ],
+        ];
+
+        $rawVulnerabilities = [
+            'laravel-mix' => ['severity' => 'high', 'nodes' => ['node_modules/laravel-mix']],
+            'axios' => ['severity' => 'high'], // legacy npm output without nodes array
+            'picomatch' => ['severity' => 'moderate', 'nodes' => ['node_modules/@parcel/watcher/node_modules/picomatch']],
+            'ws' => ['severity' => 'critical', 'nodes' => ['node_modules/ws']],
+            'unknown-prod-pkg' => ['severity' => 'high', 'nodes' => ['node_modules/unknown-prod-pkg']],
+        ];
+
+        $filtered = SystemSecurityAuditCommand::filterProdNpmVulnerabilities($rawVulnerabilities, $mockLock, $prodDeps);
+
+        $this->assertArrayNotHasKey('laravel-mix', $filtered);
+        $this->assertArrayNotHasKey('axios', $filtered);
+        $this->assertArrayNotHasKey('picomatch', $filtered);
+        $this->assertArrayHasKey('ws', $filtered);
+        $this->assertArrayHasKey('unknown-prod-pkg', $filtered);
+
+        // If picomatch's production node itself is affected, it MUST NOT be filtered out!
+        $prodPicomatchVuln = [
+            'picomatch' => ['severity' => 'high', 'nodes' => ['node_modules/picomatch']],
+        ];
+        $filteredProd = SystemSecurityAuditCommand::filterProdNpmVulnerabilities($prodPicomatchVuln, $mockLock, $prodDeps);
+        $this->assertArrayHasKey('picomatch', $filteredProd);
+
+        // Clean re-run heals an open security:package_audit warning in Sentinel
+        $staleWarning = \App\Models\System\SystemLog::create([
+            'type' => 'security',
+            'action_id' => 'security:package_audit',
+            'title' => 'Sicherheitsprüfung: Verwundbarkeiten erkannt',
+            'message' => '63 Sicherheitslücke(n) (CVE) in Paketen erkannt!',
+            'status' => 'warning',
+            'payload' => ['cve_count' => 63],
+            'started_at' => now()->subHour(),
+            'finished_at' => now()->subHour(),
+        ]);
+
+        $this->artisan('system:security-audit --skip-network --no-alert')
+            ->assertExitCode(0);
+
+        $staleWarning->refresh();
+        $this->assertSame('success', $staleWarning->status);
+        $this->assertSame('auto_healed', $staleWarning->triageState());
+        $this->assertStringStartsWith('[AUTO-GEHEILT]', (string) $staleWarning->title);
+    }
 }

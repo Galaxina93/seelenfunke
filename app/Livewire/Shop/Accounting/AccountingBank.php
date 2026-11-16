@@ -531,9 +531,13 @@ class AccountingBank extends Component
 
         // 6. Query LLM
         try {
-            $agentModelName = strtolower($agent->model ?? 'gemini-2.5-flash');
-            $apiUrl = config('services.gemini.url');
-            $apiKey = config('services.gemini.key');
+            $openAi = \App\Services\AI\VertexAiService::resolveOpenAiEndpoint();
+            $apiUrl = $openAi['base_url'];
+            $apiKey = $openAi['token'];
+            $agentModelName = \App\Services\AI\VertexAiService::formatOpenAiModel(
+                strtolower($agent->model ?? 'gemini-3.5-flash'),
+                $openAi['is_vertex']
+            );
 
             $response = \Illuminate\Support\Facades\Http::withToken($apiKey)
                 ->timeout(60)

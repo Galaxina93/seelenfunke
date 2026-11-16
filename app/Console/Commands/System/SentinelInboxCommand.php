@@ -37,15 +37,17 @@ class SentinelInboxCommand extends Command
             );
 
             $prunedCount = 0;
+            $archiveStats = [
+                'archived_files_count' => 0,
+                'archived_bytes' => 0,
+                'active_log_bytes_remaining' => 0,
+            ];
             if ($resolveAll) {
-                $pruneStats = CleanupSystemLogsCommand::executePrune(7, 30, true);
+                $pruneStats = CleanupSystemLogsCommand::executePrune(7, 30, false);
                 $prunedCount = (int) ($pruneStats['archived_deleted'] ?? 0) + (int) ($pruneStats['transient_deleted'] ?? 0);
 
                 if (!app()->runningUnitTests()) {
-                    $laravelLog = storage_path('logs/laravel.log');
-                    if (is_file($laravelLog) && is_writable($laravelLog)) {
-                        @file_put_contents($laravelLog, '');
-                    }
+                    $archiveStats = \App\Services\System\LogArchiveService::archiveAndZeroActiveLogs($resolvedBy, 30);
                 }
             }
 
@@ -53,6 +55,9 @@ class SentinelInboxCommand extends Command
                 'status' => 'success',
                 'resolved_count' => $count,
                 'pruned_archive_count' => $prunedCount,
+                'archived_logfiles_count' => $archiveStats['archived_files_count'] ?? 0,
+                'archived_log_bytes' => $archiveStats['archived_bytes'] ?? 0,
+                'active_log_bytes_remaining' => $archiveStats['active_log_bytes_remaining'] ?? 0,
                 'resolved_by' => $resolvedBy,
             ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
 
