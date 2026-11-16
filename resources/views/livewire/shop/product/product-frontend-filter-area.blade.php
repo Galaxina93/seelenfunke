@@ -82,6 +82,19 @@
                         Entdecke Unikate, die deine Seele berühren. Jedes Stück wird mit Liebe, modernster Technik und Sorgfalt für dich personalisiert.
                     </p>
                 @endif
+
+                <div class="mt-7 flex justify-center">
+                    <button type="button"
+                            data-testid="hero-open-3d-showroom-btn"
+                            @click="$dispatch('open-louvre-showroom')"
+                            class="inline-flex items-center justify-center gap-2.5 px-7 py-3.5 rounded-2xl bg-white hover:bg-[#FAF6EE] text-gray-900 border-2 border-[#C5A059] shadow-lg text-xs sm:text-sm font-bold uppercase tracking-widest transition-all cursor-pointer">
+                        <svg class="w-4 h-4 text-[#C5A059] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3l9 15H3L12 3z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v15" />
+                        </svg>
+                        <span>3D shoppen</span>
+                    </button>
+                </div>
             </div>
         </div>
         @endif
@@ -92,9 +105,8 @@
             <div class="bg-white rounded-2xl shadow-xl shadow-gray-200/50 border border-gray-100 p-4 md:p-5 mb-12">
 
                 @if(empty($isDigitalDomain))
-                {{-- Kopfleiste: 3-Welten-Kollektions-Weiche + Begehbarer 3D-Showroom Button (0 Subtexte) --}}
-                <div class="flex flex-col lg:flex-row items-stretch lg:items-center gap-2.5 mb-4">
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 p-1.5 bg-gray-50 rounded-2xl border border-gray-100 flex-1">
+                {{-- Kopfleiste: 3-Welten-Kollektions-Weiche (volle Breite, 0 Subtexte) --}}
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 p-1.5 bg-gray-50 rounded-2xl border border-gray-100 mb-4">
                         <button type="button"
                                 wire:click="setCollectionWorld('manufaktur')"
                                 class="flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer {{ $collectionWorld === 'manufaktur' ? 'bg-[#F5F1E8] text-gray-900 border border-[#D8C9A8] shadow-sm' : 'text-gray-600 hover:text-gray-900 hover:bg-white/70 border border-transparent' }}">
@@ -124,17 +136,6 @@
                                 <span class="px-1.5 py-0.5 rounded-md text-[10px] font-black leading-none {{ $collectionWorld === 'voucher' ? 'bg-white/90 text-gray-900 border border-[#D8C9A8]/60' : 'bg-gray-200/80 text-gray-600' }}">{{ $voucherCount }}</span>
                             @endif
                         </button>
-                    </div>
-
-                    <button type="button"
-                            @click="$dispatch('open-louvre-showroom')"
-                            class="inline-flex items-center justify-center gap-2.5 px-5 py-3.5 rounded-2xl bg-white hover:bg-[#FAF6EE] text-gray-900 border border-[#C5A059] shadow-sm hover:shadow-md text-xs font-bold uppercase tracking-wider transition-all shrink-0 cursor-pointer">
-                        <svg class="w-4 h-4 text-[#C5A059] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3l9 15H3L12 3z" />
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v15" />
-                        </svg>
-                        <span>3D shoppen</span>
-                    </button>
                 </div>
                 @endif
                 
@@ -810,306 +811,1063 @@
     </div>
 
     @if(empty($isDigitalDomain))
-    {{-- Begehbarer 3D-Showroom im Louvre-Stil (0 KB Initial-Last, On-Demand via Klick auf "3D shoppen") --}}
-    <div id="sf-louvre-showroom-modal"
+    {{-- Vereinte 3D-User-Lobby: Louvre-Produktgalerie + Goldenes Ehrenportal + Halle der Helden (0 KB Initial-Last, 0 Tailwind-Abhaengigkeit) --}}
+    <div id="sf-louvre-showroom-host"
          wire:ignore
          x-data="window.sfLouvreShowroomModal()"
-         @open-louvre-showroom.window="openShowroom()"
-         @keydown.escape.window="handleEscape()">
+         x-init="initLobbyListeners()"
+         @open-louvre-showroom.window="openShowroom(($event.detail && $event.detail.zone) ? $event.detail.zone : 'gallery')">
 
-        <div x-show="isOpen"
-             x-cloak
-             x-transition.opacity.duration.250ms
-             role="dialog"
-             aria-modal="true"
-             aria-label="Mein Seelenfunke Louvre Showroom"
-             class="fixed inset-0 z-[2147483500] bg-[#0B0E14] overflow-hidden select-none flex flex-col">
+        <style id="sf-3d-lobby-scoped-css">
+            [x-cloak] { display: none !important; }
+            @keyframes sfLobbySpin { to { transform: rotate(360deg); } }
+            .sf-lobby-modal {
+                position: fixed !important;
+                top: 0 !important;
+                left: 0 !important;
+                right: 0 !important;
+                bottom: 0 !important;
+                inset: 0 !important;
+                width: 100vw !important;
+                height: 100vh !important;
+                height: 100dvh !important;
+                z-index: 2147483000 !important;
+                background: #FAF8F5 !important;
+                overflow: hidden !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                box-sizing: border-box !important;
+                user-select: none !important;
+                -webkit-user-select: none !important;
+                font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+                color: #111827;
+            }
+            .sf-lobby-modal.is-open { display: flex !important; flex-direction: column !important; }
+            .sf-lobby-modal.is-closed { display: none !important; }
+            .sf-lobby-topbar {
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                padding: 14px 20px;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 12px;
+                flex-wrap: wrap;
+                pointer-events: none;
+                z-index: 30;
+                box-sizing: border-box;
+            }
+            .sf-lobby-nav-pill {
+                pointer-events: auto;
+                background: rgba(255, 255, 255, 0.94);
+                border: 1px solid rgba(197, 160, 89, 0.42);
+                border-radius: 999px;
+                padding: 5px;
+                box-shadow: 0 8px 24px rgba(17, 24, 39, 0.08);
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                flex-wrap: wrap;
+                max-width: 100%;
+                box-sizing: border-box;
+            }
+            .sf-lobby-zone-btn {
+                appearance: none;
+                border: none;
+                border-radius: 999px;
+                padding: 7px 14px;
+                font-size: 12px;
+                font-weight: 800;
+                line-height: 1.2;
+                background: transparent;
+                color: #111827;
+                cursor: pointer;
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                white-space: nowrap;
+                transition: background-color 150ms ease, color 150ms ease;
+            }
+            .sf-lobby-zone-btn:hover { background: rgba(197, 160, 89, 0.14); }
+            .sf-lobby-zone-btn.is-active { background: #C5A059 !important; color: #FFFFFF !important; }
+            .sf-lobby-stages-btn {
+                appearance: none;
+                border: 1px solid rgba(197, 160, 89, 0.55);
+                border-radius: 999px;
+                padding: 6px 12px;
+                font-size: 11px;
+                font-weight: 800;
+                line-height: 1.2;
+                background: #FAF8F5;
+                color: #111827;
+                cursor: pointer;
+                display: inline-flex;
+                align-items: center;
+                gap: 5px;
+                white-space: nowrap;
+            }
+            .sf-lobby-stages-btn:hover { background: #FFFFFF; }
+            .sf-lobby-actions {
+                pointer-events: auto;
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                flex-wrap: wrap;
+            }
+            .sf-lobby-pill-btn {
+                appearance: none;
+                background: rgba(255, 255, 255, 0.94);
+                color: #111827;
+                border: 1px solid rgba(197, 160, 89, 0.48);
+                border-radius: 999px;
+                padding: 7px 13px;
+                font-size: 12px;
+                font-weight: 800;
+                line-height: 1.2;
+                box-shadow: 0 8px 24px rgba(17, 24, 39, 0.08);
+                cursor: pointer;
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                white-space: nowrap;
+                transition: background-color 150ms ease, border-color 150ms ease;
+            }
+            .sf-lobby-pill-btn:hover { background: #FFFFFF; border-color: #C5A059; }
+            .sf-lobby-pill-btn.is-gold { background: #C5A059; color: #FFFFFF; border-color: #C5A059; }
+            .sf-lobby-close-btn {
+                appearance: none;
+                background: rgba(255, 255, 255, 0.96);
+                color: #111827;
+                border: 1px solid rgba(197, 160, 89, 0.55);
+                border-radius: 999px;
+                padding: 7px 14px;
+                font-size: 12px;
+                font-weight: 800;
+                line-height: 1.2;
+                box-shadow: 0 8px 24px rgba(17, 24, 39, 0.10);
+                cursor: pointer;
+                display: inline-flex;
+                align-items: center;
+                gap: 7px;
+                white-space: nowrap;
+            }
+            .sf-lobby-close-btn:hover { background: #FFFFFF; border-color: #C5A059; }
+            .sf-lobby-kbd {
+                display: inline-block;
+                padding: 2px 6px;
+                border-radius: 6px;
+                background: #FAF8F5;
+                border: 1px solid rgba(197, 160, 89, 0.45);
+                color: #6B7280;
+                font-size: 10px;
+                font-weight: 800;
+                line-height: 1.1;
+            }
+            .sf-lobby-badge {
+                background: rgba(255, 255, 255, 0.94);
+                color: #111827;
+                border: 1px solid rgba(197, 160, 89, 0.45);
+                border-radius: 999px;
+                padding: 6px 11px;
+                font-size: 11px;
+                font-weight: 800;
+                display: inline-flex;
+                align-items: center;
+                gap: 5px;
+                white-space: nowrap;
+                box-shadow: 0 6px 18px rgba(17, 24, 39, 0.06);
+            }
+            .sf-lobby-dot { width: 8px; height: 8px; border-radius: 999px; display: inline-block; flex-shrink: 0; }
+            .sf-lobby-dot.is-live { background: #10B981; }
+            .sf-lobby-dot.is-solo { background: #9CA3AF; }
+            .sf-lobby-instance-wrap { position: relative; display: inline-flex; }
+            .sf-lobby-instance-popover {
+                position: absolute;
+                top: calc(100% + 8px);
+                right: 0;
+                width: 260px;
+                background: #FFFFFF;
+                border: 1px solid rgba(197, 160, 89, 0.45);
+                border-radius: 16px;
+                padding: 12px;
+                box-shadow: 0 18px 40px rgba(17, 24, 39, 0.14);
+                z-index: 60;
+                color: #111827;
+                box-sizing: border-box;
+            }
+            .sf-lobby-instance-list {
+                max-height: 176px;
+                overflow-y: auto;
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+            }
+            .sf-lobby-instance-item {
+                appearance: none;
+                width: 100%;
+                padding: 7px 11px;
+                border-radius: 11px;
+                border: 1px solid rgba(197, 160, 89, 0.38);
+                background: #FAF8F5;
+                color: #111827;
+                font-size: 11px;
+                font-weight: 800;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                cursor: pointer;
+                box-sizing: border-box;
+            }
+            .sf-lobby-instance-item:hover { background: #F5EFE2; }
+            .sf-lobby-instance-item.is-current { background: #C5A059; color: #FFFFFF; border-color: #C5A059; }
+            .sf-lobby-instance-form {
+                margin-top: 10px;
+                padding-top: 10px;
+                border-top: 1px solid rgba(197, 160, 89, 0.28);
+                display: flex;
+                align-items: center;
+                gap: 6px;
+            }
+            .sf-lobby-instance-input {
+                width: 58px;
+                padding: 6px 8px;
+                border-radius: 10px;
+                border: 1px solid rgba(197, 160, 89, 0.55);
+                background: #FAF8F5;
+                color: #111827;
+                font-size: 12px;
+                font-weight: 800;
+                outline: none;
+                box-sizing: border-box;
+            }
+            .sf-lobby-instance-submit {
+                appearance: none;
+                flex: 1;
+                padding: 7px 10px;
+                border-radius: 10px;
+                border: none;
+                background: #C5A059;
+                color: #FFFFFF;
+                font-size: 11px;
+                font-weight: 800;
+                cursor: pointer;
+            }
+            .sf-lobby-stage {
+                position: relative;
+                flex: 1 1 auto;
+                min-height: 0;
+                width: 100%;
+                height: 100%;
+                overflow: hidden;
+            }
+            .sf-lobby-canvas {
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                width: 100% !important;
+                height: 100% !important;
+                display: block;
+                touch-action: none;
+                cursor: grab;
+            }
+            .sf-lobby-loading {
+                position: absolute;
+                inset: 0;
+                z-index: 26;
+                background: #FAF8F5;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                gap: 14px;
+                padding: 24px;
+                text-align: center;
+            }
+            .sf-lobby-spinner {
+                width: 40px;
+                height: 40px;
+                border-radius: 999px;
+                border: 3px solid rgba(197, 160, 89, 0.26);
+                border-top-color: #C5A059;
+                animation: sfLobbySpin 0.85s linear infinite;
+            }
+            .sf-lobby-loading-label {
+                font-size: 12px;
+                font-weight: 800;
+                letter-spacing: 0.16em;
+                text-transform: uppercase;
+                color: #9A7738;
+            }
+            .sf-lobby-error-card {
+                background: #FFFFFF;
+                color: #111827;
+                border: 1px solid rgba(197, 160, 89, 0.55);
+                border-radius: 18px;
+                padding: 22px 24px;
+                max-width: 360px;
+                box-shadow: 0 16px 36px rgba(17, 24, 39, 0.12);
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 14px;
+            }
+            .sf-lobby-floating-anchor {
+                position: absolute;
+                top: 0;
+                left: 0;
+                z-index: 20;
+                will-change: transform;
+                transition: opacity 180ms ease;
+                pointer-events: none;
+            }
+            .sf-lobby-floating-card {
+                position: relative;
+                width: 276px;
+                max-width: calc(100vw - 24px);
+                background: rgba(255, 255, 255, 0.96);
+                border: 1px solid rgba(197, 160, 89, 0.55);
+                border-radius: 16px;
+                padding: 14px 16px;
+                box-shadow: 0 14px 34px rgba(17, 24, 39, 0.12);
+                color: #111827;
+                pointer-events: auto;
+                box-sizing: border-box;
+            }
+            .sf-lobby-floating-arrow {
+                width: 12px;
+                height: 12px;
+                background: rgba(255, 255, 255, 0.96);
+                border-right: 1px solid rgba(197, 160, 89, 0.55);
+                border-bottom: 1px solid rgba(197, 160, 89, 0.55);
+                transform: rotate(45deg);
+                margin: -6px auto 0;
+                pointer-events: none;
+            }
+            .sf-lobby-prod-head { display: flex; align-items: flex-start; gap: 10px; }
+            .sf-lobby-prod-thumb {
+                width: 46px;
+                height: 46px;
+                border-radius: 12px;
+                object-fit: cover;
+                background: #FAF8F5;
+                border: 1px solid rgba(197, 160, 89, 0.35);
+                flex-shrink: 0;
+            }
+            .sf-lobby-prod-cat {
+                display: block;
+                font-size: 10px;
+                font-weight: 800;
+                letter-spacing: 0.14em;
+                text-transform: uppercase;
+                color: #9A7738;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+            .sf-lobby-prod-title {
+                margin: 2px 0 0;
+                font-family: Georgia, "Times New Roman", serif;
+                font-size: 15px;
+                font-weight: 700;
+                line-height: 1.28;
+                color: #111827;
+            }
+            .sf-lobby-prod-price { display: inline-block; margin-top: 3px; font-size: 13px; font-weight: 800; color: #111827; }
+            .sf-lobby-prod-benefits {
+                margin-top: 10px;
+                padding-top: 10px;
+                border-top: 1px solid rgba(197, 160, 89, 0.25);
+                display: flex;
+                flex-direction: column;
+                gap: 5px;
+            }
+            .sf-lobby-prod-benefit-row {
+                display: flex;
+                align-items: flex-start;
+                gap: 6px;
+                font-size: 11px;
+                font-weight: 700;
+                line-height: 1.3;
+                color: #111827;
+            }
+            .sf-lobby-prod-check { color: #C5A059; font-weight: 900; flex-shrink: 0; }
+            .sf-lobby-prod-cta {
+                margin-top: 11px;
+                width: 100%;
+                padding: 9px 14px;
+                border-radius: 12px;
+                background: #C5A059;
+                color: #FFFFFF;
+                font-size: 12px;
+                font-weight: 800;
+                text-decoration: none;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 6px;
+                box-sizing: border-box;
+                transition: background-color 150ms ease;
+            }
+            .sf-lobby-prod-cta:hover { background: #B38E46; }
+            .sf-lobby-hero-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+            .sf-lobby-hero-rank {
+                padding: 3px 9px;
+                border-radius: 999px;
+                background: #C5A059;
+                color: #FFFFFF;
+                font-size: 11px;
+                font-weight: 900;
+                flex-shrink: 0;
+            }
+            .sf-lobby-hero-name {
+                margin: 0;
+                font-family: Georgia, "Times New Roman", serif;
+                font-size: 15px;
+                font-weight: 700;
+                color: #111827;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+                flex: 1;
+            }
+            .sf-lobby-hero-me {
+                padding: 2px 7px;
+                border-radius: 999px;
+                background: #FAF8F5;
+                border: 1px solid #C5A059;
+                color: #9A7738;
+                font-size: 9px;
+                font-weight: 900;
+                flex-shrink: 0;
+            }
+            .sf-lobby-hero-stats {
+                margin-top: 10px;
+                padding-top: 10px;
+                border-top: 1px solid rgba(197, 160, 89, 0.28);
+                display: flex;
+                flex-wrap: wrap;
+                gap: 6px;
+            }
+            .sf-lobby-hero-chip {
+                padding: 4px 9px;
+                border-radius: 9px;
+                background: #FAF8F5;
+                border: 1px solid rgba(197, 160, 89, 0.45);
+                color: #111827;
+                font-size: 11px;
+                font-weight: 800;
+            }
+            .sf-lobby-portal-pill {
+                pointer-events: auto;
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                padding: 10px 18px;
+                border-radius: 999px;
+                background: rgba(255, 255, 255, 0.96);
+                color: #111827;
+                border: 1px solid #C5A059;
+                box-shadow: 0 14px 32px rgba(17, 24, 39, 0.14);
+                font-size: 12px;
+                font-weight: 800;
+                text-decoration: none;
+                white-space: nowrap;
+            }
+            .sf-lobby-chat-panel {
+                position: absolute;
+                bottom: 84px;
+                right: 20px;
+                z-index: 24;
+                width: 304px;
+                max-width: calc(100vw - 24px);
+                background: rgba(255, 255, 255, 0.96);
+                color: #111827;
+                border: 1px solid rgba(197, 160, 89, 0.55);
+                border-radius: 16px;
+                padding: 12px;
+                box-shadow: 0 16px 38px rgba(17, 24, 39, 0.14);
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+                box-sizing: border-box;
+            }
+            .sf-lobby-chat-head {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 8px;
+                padding-bottom: 6px;
+                border-bottom: 1px solid rgba(197, 160, 89, 0.25);
+            }
+            .sf-lobby-chat-scroll {
+                max-height: 156px;
+                overflow-y: auto;
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+                padding-right: 2px;
+            }
+            .sf-lobby-chat-msg {
+                border-radius: 11px;
+                background: #FAF8F5;
+                border: 1px solid rgba(197, 160, 89, 0.26);
+                padding: 6px 9px;
+                font-size: 11px;
+                color: #111827;
+            }
+            .sf-lobby-stick-wrap { position: absolute; bottom: 22px; left: 20px; z-index: 22; }
+            .sf-lobby-stick {
+                width: 84px;
+                height: 84px;
+                border-radius: 999px;
+                background: rgba(255, 255, 255, 0.88);
+                border: 1px solid rgba(197, 160, 89, 0.52);
+                box-shadow: 0 10px 26px rgba(17, 24, 39, 0.12);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                position: relative;
+                touch-action: none;
+                cursor: pointer;
+            }
+            .sf-lobby-stick-knob {
+                width: 34px;
+                height: 34px;
+                border-radius: 999px;
+                background: #C5A059;
+                border: 2px solid #FFFFFF;
+                box-shadow: 0 4px 12px rgba(17, 24, 39, 0.18);
+                pointer-events: none;
+            }
+            .sf-lobby-quick-actions {
+                position: absolute;
+                bottom: 22px;
+                right: 20px;
+                z-index: 22;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+            .sf-lobby-icon-btn {
+                appearance: none;
+                height: 44px;
+                min-width: 44px;
+                padding: 0 12px;
+                border-radius: 14px;
+                background: rgba(255, 255, 255, 0.94);
+                color: #111827;
+                border: 1px solid rgba(197, 160, 89, 0.55);
+                box-shadow: 0 10px 24px rgba(17, 24, 39, 0.10);
+                font-size: 13px;
+                font-weight: 800;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                gap: 6px;
+                cursor: pointer;
+            }
+            .sf-lobby-icon-btn:hover { background: #FFFFFF; border-color: #C5A059; }
+            .sf-lobby-bottom-stack {
+                position: absolute;
+                bottom: 14px;
+                left: 12px;
+                right: 12px;
+                z-index: 21;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 7px;
+                pointer-events: none;
+            }
+            .sf-lobby-bottom-pill {
+                pointer-events: auto;
+                display: inline-flex;
+                flex-wrap: wrap;
+                align-items: center;
+                justify-content: center;
+                gap: 6px;
+                padding: 6px 10px;
+                border-radius: 999px;
+                background: rgba(255, 255, 255, 0.94);
+                border: 1px solid rgba(197, 160, 89, 0.48);
+                box-shadow: 0 10px 28px rgba(17, 24, 39, 0.12);
+                max-width: 100%;
+                box-sizing: border-box;
+            }
+            .sf-lobby-step-btn {
+                appearance: none;
+                padding: 6px 12px;
+                border-radius: 999px;
+                border: 1px solid rgba(197, 160, 89, 0.40);
+                background: #FAF8F5;
+                color: #111827;
+                font-size: 11px;
+                font-weight: 800;
+                cursor: pointer;
+                white-space: nowrap;
+            }
+            .sf-lobby-step-btn:hover { background: #F5EFE2; }
+            .sf-lobby-step-btn.is-active { background: #C5A059; color: #FFFFFF; border-color: #C5A059; }
+            .sf-lobby-exhibit-btn {
+                appearance: none;
+                padding: 6px 14px;
+                border-radius: 999px;
+                border: 1px solid rgba(197, 160, 89, 0.35);
+                background: #FFFFFF;
+                color: #111827;
+                font-size: 11px;
+                font-weight: 800;
+                cursor: pointer;
+                max-width: 260px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+            .sf-lobby-hint-pill {
+                pointer-events: none;
+                padding: 5px 14px;
+                border-radius: 999px;
+                background: rgba(255, 255, 255, 0.90);
+                border: 1px solid rgba(197, 160, 89, 0.38);
+                color: #374151;
+                font-size: 11px;
+                font-weight: 700;
+                box-shadow: 0 6px 18px rgba(17, 24, 39, 0.08);
+                white-space: nowrap;
+            }
+            @media (max-width: 767px) {
+                .sf-lobby-topbar { padding: 10px 12px; gap: 8px; }
+                .sf-lobby-zone-btn { padding: 6px 10px; font-size: 11px; }
+                .sf-lobby-pill-btn, .sf-lobby-close-btn { padding: 6px 10px; font-size: 11px; }
+                .sf-lobby-kbd, .sf-lobby-hint-pill, .sf-lobby-hide-sm { display: none !important; }
+                .sf-lobby-stick-wrap { bottom: 72px; left: 12px; }
+                .sf-lobby-stick { width: 74px; height: 74px; }
+                .sf-lobby-quick-actions { bottom: 72px; right: 12px; }
+                .sf-lobby-chat-panel { bottom: 132px; right: 12px; }
+                .sf-lobby-exhibit-btn { max-width: 175px; }
+            }
+        </style>
 
-            {{-- Schlichter Schwarz-Gold Museums-Header inkl. Live/Solo-Schalter & Fokus-Schutz --}}
-            <div class="relative z-30 h-14 px-3 sm:px-6 bg-[#0B0E14]/95 border-b border-[#C5A059]/35 flex items-center justify-between gap-2 sm:gap-3 shrink-0">
-                <div class="flex items-center gap-2 sm:gap-2.5 min-w-0">
-                    <span class="w-7 h-7 rounded-lg bg-[#C5A059]/15 border border-[#C5A059]/45 flex items-center justify-center text-[#C5A059] shrink-0">
-                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3l9 15H3L12 3z" />
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v15" />
-                        </svg>
-                    </span>
-                    <span class="text-[11px] sm:text-xs font-bold uppercase tracking-[0.18em] text-[#FAF8F5] truncate">
-                        MEIN SEELENFUNKE · LOUVRE SHOWROOM
-                    </span>
-                    <span x-show="funkiInfo.level > 0"
-                          class="hidden md:inline-flex items-center px-2.5 py-0.5 rounded-full bg-[#141821] border border-[#C5A059]/40 text-[10px] font-bold uppercase tracking-wider text-[#E6C687] shrink-0"
-                          x-text="'Funki Lv. ' + funkiInfo.level">
-                    </span>
-                    <span x-show="!funkiInfo.is_guest && funkiInfo.weapon"
-                          class="hidden xl:inline-flex items-center px-2.5 py-0.5 rounded-full bg-[#141821] border border-[#C5A059]/35 text-[10px] font-bold uppercase tracking-wider text-[#FAF8F5] shrink-0"
-                          x-text="funkiInfo.weapon ? (funkiInfo.weapon.name + ' · ' + funkiInfo.weapon.class_label) : ''">
-                    </span>
-                </div>
+        <template x-teleport="body">
+            <div id="sf-louvre-showroom-modal"
+                 x-ref="lobbyModalRoot"
+                 x-show="isOpen"
+                 x-cloak
+                 role="dialog"
+                 aria-modal="true"
+                 aria-label="MEIN SEELENFUNKE · LOUVRE SHOWROOM"
+                 :class="isOpen ? 'sf-lobby-modal is-open' : 'sf-lobby-modal is-closed'"
+                 style="position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; width: 100vw !important; height: 100dvh !important; z-index: 2147483000 !important; background: #FAF8F5 !important; overflow: hidden !important; margin: 0 !important; padding: 0 !important;">
 
-                <div class="flex items-center gap-2 shrink-0">
-                    <span x-show="multiplayer.is_authenticated && multiplayer.enabled && !soloMode && focusedProduct !== null"
-                          class="hidden lg:inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-[#FAF8F5] text-[#111827] border border-[#C5A059]/60 text-[10px] font-bold uppercase tracking-wider">
-                        <span class="text-[#C5A059]">&#10003;</span>
-                        <span>Fokus-Schutz</span>
-                    </span>
+                {{-- Edle schwebende Light-Mode HUD-Leiste --}}
+                <div class="sf-lobby-topbar">
+                    <div class="sf-lobby-nav-pill">
+                        <button type="button"
+                                data-testid="lobby-zone-gallery-btn"
+                                @click="switchZone('gallery')"
+                                :class="currentZone === 'gallery' ? 'sf-lobby-zone-btn is-active' : 'sf-lobby-zone-btn'">
+                            <span>🛍️ Kollektion</span>
+                        </button>
+                        <button type="button"
+                                data-testid="lobby-zone-heroes-btn"
+                                @click="switchZone('heroes')"
+                                :class="currentZone === 'heroes' ? 'sf-lobby-zone-btn is-active' : 'sf-lobby-zone-btn'">
+                            <span x-show="!isCustomerAuthenticated()">🔒</span>
+                            <span>🏛️ Halle der Helden</span>
+                        </button>
+                        <button type="button"
+                                x-show="currentZone === 'heroes' && isCustomerAuthenticated()"
+                                data-testid="lobby-stages-preview-btn"
+                                @click="cycleStagesPreview()"
+                                class="sf-lobby-stages-btn">
+                            <span x-text="stagesPreviewLabel()"></span>
+                        </button>
+                    </div>
 
-                    <button type="button"
-                            x-show="multiplayer.is_authenticated && multiplayer.enabled"
-                            data-testid="louvre-live-solo-toggle"
-                            @click="toggleSoloMode()"
-                            :class="soloMode ? 'bg-[#141821] text-[#FAF8F5] border-[#C5A059]/45' : 'bg-[#FAF8F5] text-[#111827] border-[#C5A059]'"
-                            class="px-2.5 sm:px-3 py-1.5 rounded-xl border text-[11px] font-bold tracking-wide transition-colors cursor-pointer inline-flex items-center gap-1.5"
-                            :title="soloMode ? 'In den gemeinsamen 12er-Raum wechseln' : 'Ungestört alleine umschauen (Solo)'">
-                        <span class="w-2 h-2 rounded-full" :class="soloMode ? 'bg-gray-400' : 'bg-emerald-500'"></span>
-                        <span x-text="soloMode ? 'Solo' : ('Live · ' + roomLabel() + ' (' + onlineCount() + ')')"></span>
-                    </button>
+                    <div class="sf-lobby-actions">
+                        <span x-show="isCustomerAuthenticated() && !soloMode && focusedProduct !== null"
+                              class="sf-lobby-badge sf-lobby-hide-sm">
+                            <span style="color:#C5A059;">&#10003;</span>
+                            <span>Fokus-Schutz</span>
+                        </span>
 
-                    <button type="button"
-                            @click="closeShowroom()"
-                            class="px-3 sm:px-3.5 py-2 rounded-xl bg-[#141821] hover:bg-[#1E2430] text-[#FAF8F5] border border-[#C5A059]/50 text-xs font-bold tracking-wide transition-colors cursor-pointer shrink-0">
-                        &times; <span class="hidden sm:inline">Zurück zum Shop</span><span class="sm:hidden">Shop</span>
-                    </button>
-                </div>
-            </div>
+                        <button type="button"
+                                x-show="isCustomerAuthenticated()"
+                                data-testid="louvre-live-solo-toggle"
+                                @click="toggleSoloMode()"
+                                class="sf-lobby-pill-btn"
+                                :title="soloMode ? 'Multiplayer aktivieren' : 'Ungestört alleine umschauen (Solo)'">
+                            <span class="sf-lobby-dot" :class="soloMode ? 'is-solo' : 'is-live'"></span>
+                            <span x-text="soloMode ? 'Solo' : 'Live'"></span>
+                        </button>
 
-            {{-- 3D-Louvre Buehne + Räumliche Light-Mode Schwebetafel --}}
-            <div class="relative flex-1 min-h-0 w-full overflow-hidden">
-                <canvas x-ref="louvreCanvas"
-                        class="absolute inset-0 w-full h-full block touch-none cursor-grab"></canvas>
-
-                {{-- Lade- & Fehlerstatus --}}
-                <div x-show="isLoading || loadError !== ''"
-                     class="absolute inset-0 z-30 bg-[#0B0E14]/90 flex flex-col items-center justify-center p-6 text-center">
-                    <template x-if="isLoading">
-                        <div class="flex flex-col items-center gap-3">
-                            <div class="w-10 h-10 rounded-full border-2 border-[#C5A059]/30 border-t-[#C5A059] animate-spin"></div>
-                            <span class="text-xs font-bold uppercase tracking-[0.2em] text-[#E6C687]">Louvre Galerie wird geöffnet</span>
-                        </div>
-                    </template>
-                    <template x-if="!isLoading && loadError !== ''">
-                        <div class="bg-white text-[#111827] rounded-2xl p-6 max-w-sm border border-gray-200 shadow-xl space-y-4">
-                            <p class="text-sm font-semibold text-[#111827]" x-text="loadError"></p>
+                        {{-- Manueller Multiplayer-Instanzen-Waehler (Light-Mode Clean-Design, 0 Subtexte) --}}
+                        <div x-show="isCustomerAuthenticated() && !soloMode"
+                             @click.outside="instanceMenuOpen = false"
+                             class="sf-lobby-instance-wrap">
                             <button type="button"
-                                    @click="closeShowroom()"
-                                    class="px-5 py-2.5 rounded-xl bg-[#111827] text-white text-xs font-bold uppercase tracking-wider cursor-pointer">
-                                Zurück zum Shop
+                                    id="sf-lobby-instance-btn"
+                                    @click="instanceMenuOpen = !instanceMenuOpen"
+                                    class="sf-lobby-pill-btn">
+                                <span x-text="'🌐 Instanz #' + lobbyInstanceId + ' · ' + currentInstanceCount() + '/' + lobbyCapacity + ' ▾'"></span>
                             </button>
-                        </div>
-                    </template>
-                </div>
 
-                {{-- Stufe 2: Schwebendes World-Space Info-Schild am fokussierten Podest (100 % Seelenfunke Light-Mode, kein blockierendes Popup!) --}}
-                <div x-ref="floatingCard"
-                     data-testid="louvre-floating-space-card"
-                     style="opacity: 0; visibility: hidden; pointer-events: none; transform: translate3d(-9999px, -9999px, 0);"
-                     class="absolute top-0 left-0 z-20 will-change-transform transition-opacity duration-200 pointer-events-none">
-                    <div @pointerdown.stop
-                         class="pointer-events-auto w-[252px] sm:w-[280px] rounded-2xl bg-[#FAF8F5]/95 backdrop-blur-md text-[#111827] border border-[#C5A059]/65 shadow-xl p-3.5">
-                        <div class="flex items-start gap-2.5">
-                            <template x-if="focusedProduct && focusedProduct.preview_image_url">
-                                <img :src="focusedProduct.preview_image_url"
-                                     :alt="focusedProduct ? focusedProduct.name : ''"
-                                     class="w-11 h-11 rounded-xl object-cover bg-white border border-[#C5A059]/35 shrink-0">
-                            </template>
-                            <div class="min-w-0 flex-1">
-                                <span class="block text-[10px] font-bold uppercase tracking-[0.16em] text-[#9A7738] truncate"
-                                      x-text="focusedProduct ? (focusedProduct.category_name || 'Kollektion') : ''"></span>
-                                <h3 class="text-sm sm:text-[15px] font-serif font-bold text-[#111827] leading-snug line-clamp-2"
-                                    x-text="focusedProduct ? focusedProduct.name : ''"></h3>
-                                <span class="inline-block mt-0.5 text-sm font-bold text-[#111827]"
-                                      x-text="focusedPriceLabel()"></span>
+                            <div id="sf-lobby-instance-menu"
+                                 x-show="instanceMenuOpen"
+                                 x-cloak
+                                 @pointerdown.stop
+                                 class="sf-lobby-instance-popover">
+                                <div class="sf-lobby-instance-list">
+                                    <template x-for="inst in availableInstances()" :key="inst.id">
+                                        <button type="button"
+                                                @click="switchLobbyInstance(inst.id)"
+                                                :class="Number(inst.id) === Number(lobbyInstanceId) ? 'sf-lobby-instance-item is-current' : 'sf-lobby-instance-item'">
+                                            <span x-text="'Instanz #' + inst.id"></span>
+                                            <span x-text="inst.count + '/' + (inst.capacity || lobbyCapacity)"></span>
+                                        </button>
+                                    </template>
+                                </div>
+
+                                <form @submit.prevent="switchLobbyInstance(customInstanceInput)"
+                                      class="sf-lobby-instance-form">
+                                    <span style="font-size:11px;font-weight:800;color:#111827;white-space:nowrap;">Instanz #</span>
+                                    <input type="number"
+                                           min="1"
+                                           max="50"
+                                           x-model.number="customInstanceInput"
+                                           aria-label="Instanz Nummer"
+                                           class="sf-lobby-instance-input">
+                                    <button type="submit" class="sf-lobby-instance-submit">
+                                        Wechseln
+                                    </button>
+                                </form>
                             </div>
                         </div>
 
-                        {{-- Maximal 3 kurze Vorteile mit goldenem Haken (#C5A059) --}}
-                        <div x-show="focusedBenefits().length > 0"
-                             class="mt-2.5 pt-2.5 border-t border-[#C5A059]/25 space-y-1.5">
-                            <template x-for="(benefit, bIdx) in focusedBenefits()" :key="bIdx">
-                                <div class="flex items-start gap-2 text-[11px] font-semibold text-[#111827]">
-                                    <span class="text-[#C5A059] font-black leading-4 shrink-0">&#10003;</span>
-                                    <span class="leading-4 line-clamp-1" x-text="benefit"></span>
-                                </div>
-                            </template>
-                        </div>
+                        <button type="button"
+                                data-testid="lobby-fullscreen-btn"
+                                @click="toggleFullscreen()"
+                                :class="isFullscreen ? 'sf-lobby-pill-btn is-gold' : 'sf-lobby-pill-btn'"
+                                title="Vollbild umschalten (Taste F)">
+                            <span x-text="isFullscreen ? '🗗 Teilbild' : '⛶ Vollbild'"></span>
+                        </button>
 
-                        {{-- 1 direkter Gold-Button zur Produktseite --}}
-                        <a :href="focusedProduct ? focusedProduct.product_url : '#'"
-                           class="mt-3 w-full py-2.5 px-4 rounded-xl bg-[#C5A059] hover:bg-[#B38E46] text-[#111827] font-bold text-xs tracking-wide shadow-sm flex items-center justify-center gap-1.5 transition-colors">
-                            <span x-text="focusedProduct && focusedProduct.is_personalizable ? 'Jetzt gestalten' : 'Zum Produkt'"></span>
+                        <button type="button"
+                                data-testid="lobby-close-btn"
+                                @click="closeShowroom()"
+                                class="sf-lobby-close-btn"
+                                title="Zurück zum Shop (Esc)">
+                            <span>✕ Schließen</span>
+                            <span class="sf-lobby-kbd">Esc</span>
+                        </button>
+                    </div>
+                </div>
+
+                {{-- 3D-User-Lobby Buehne + Schwebende Light-Mode Raum-Tafeln (0 Popups, 0 Tailwind-Abhaengigkeit) --}}
+                <div class="sf-lobby-stage">
+                    <canvas x-ref="louvreCanvas" class="sf-lobby-canvas"></canvas>
+
+                    {{-- Lade- & Fehlerstatus im Light-Mode --}}
+                    <div x-show="isLoading || loadError !== ''" class="sf-lobby-loading">
+                        <template x-if="isLoading">
+                            <div style="display:flex;flex-direction:column;align-items:center;gap:12px;">
+                                <div class="sf-lobby-spinner"></div>
+                                <span class="sf-lobby-loading-label">3D-Lobby wird geöffnet</span>
+                            </div>
+                        </template>
+                        <template x-if="!isLoading && loadError !== ''">
+                            <div class="sf-lobby-error-card">
+                                <p style="margin:0;font-size:14px;font-weight:700;color:#111827;" x-text="loadError"></p>
+                                <button type="button"
+                                        @click="closeShowroom()"
+                                        class="sf-lobby-pill-btn is-gold">
+                                    Zurück zum Shop
+                                </button>
+                            </div>
+                        </template>
+                    </div>
+
+                    {{-- Schwebendes World-Space Produkt-Schild (Bereich 1: Kollektion, 100 % Light-Mode) --}}
+                    <div x-ref="floatingCard"
+                         data-testid="louvre-floating-space-card"
+                         style="opacity: 0; visibility: hidden; pointer-events: none; transform: translate3d(-9999px, -9999px, 0);"
+                         class="sf-lobby-floating-anchor">
+                        <div @pointerdown.stop class="sf-lobby-floating-card">
+                            <div class="sf-lobby-prod-head">
+                                <template x-if="focusedProduct && focusedProduct.preview_image_url">
+                                    <img :src="focusedProduct.preview_image_url"
+                                         :alt="focusedProduct ? focusedProduct.name : ''"
+                                         class="sf-lobby-prod-thumb">
+                                </template>
+                                <div style="min-width:0;flex:1;">
+                                    <span class="sf-lobby-prod-cat"
+                                          x-text="focusedProduct ? (focusedProduct.category_name || 'Kollektion') : ''"></span>
+                                    <h3 class="sf-lobby-prod-title"
+                                        x-text="focusedProduct ? focusedProduct.name : ''"></h3>
+                                    <span class="sf-lobby-prod-price"
+                                          x-text="focusedPriceLabel()"></span>
+                                </div>
+                            </div>
+
+                            <div x-show="focusedBenefits().length > 0" class="sf-lobby-prod-benefits">
+                                <template x-for="(benefit, bIdx) in focusedBenefits()" :key="bIdx">
+                                    <div class="sf-lobby-prod-benefit-row">
+                                        <span class="sf-lobby-prod-check">&#10003;</span>
+                                        <span x-text="benefit"></span>
+                                    </div>
+                                </template>
+                            </div>
+
+                            <a :href="focusedProduct ? focusedProduct.product_url : '#'" class="sf-lobby-prod-cta">
+                                <span x-text="focusedProduct && focusedProduct.is_personalizable ? 'Jetzt gestalten' : 'Zum Produkt'"></span>
+                                <span>&rarr;</span>
+                            </a>
+                        </div>
+                        <div class="sf-lobby-floating-arrow"></div>
+                    </div>
+
+                    {{-- Schwebende World-Space Helden-Stats-Tafel (Bereich 2: Top-5-Ehrenpodeste) --}}
+                    <div x-ref="floatingHeroCard"
+                         data-testid="lobby-floating-hero-card"
+                         style="opacity: 0; visibility: hidden; pointer-events: none; transform: translate3d(-9999px, -9999px, 0);"
+                         class="sf-lobby-floating-anchor">
+                        <div @pointerdown.stop class="sf-lobby-floating-card">
+                            <div class="sf-lobby-hero-head">
+                                <span class="sf-lobby-hero-rank"
+                                      x-text="focusedHero ? ('#' + focusedHero.slot) : '#1'"></span>
+                                <h3 class="sf-lobby-hero-name"
+                                    x-text="focusedHero ? focusedHero.display_name : 'Freier Ehrenplatz'"></h3>
+                                <span x-show="focusedHero && focusedHero.is_me" class="sf-lobby-hero-me">
+                                    DU
+                                </span>
+                            </div>
+
+                            <div x-show="focusedHero && !focusedHero.is_placeholder" class="sf-lobby-hero-stats">
+                                <span class="sf-lobby-hero-chip"
+                                      x-text="focusedHero ? ('Stufe ' + focusedHero.level + ' · ' + focusedHero.level_title) : ''"></span>
+                                <span class="sf-lobby-hero-chip"
+                                      x-text="focusedHero ? ('✨ ' + (focusedHero.sparks_formatted || focusedHero.sparks) + ' Funken') : ''"></span>
+                                <span class="sf-lobby-hero-chip"
+                                      x-text="focusedHero ? (focusedHero.ship_class || 'KLASSE C') : ''"></span>
+                                <span class="sf-lobby-hero-chip"
+                                      x-text="focusedHero ? ('🏆 ' + (focusedHero.titles_count || 1) + ' Erfolge') : ''"></span>
+                            </div>
+                        </div>
+                        <div class="sf-lobby-floating-arrow"></div>
+                    </div>
+
+                    {{-- Schwebendes Light-Mode Schild am goldenen Ehrenportal fuer nicht eingeloggte Gaeste --}}
+                    <div x-ref="floatingPortalCard"
+                         data-testid="lobby-guest-portal-card"
+                         style="opacity: 0; visibility: hidden; pointer-events: none; transform: translate3d(-9999px, -9999px, 0);"
+                         class="sf-lobby-floating-anchor">
+                        <a href="/login" @pointerdown.stop class="sf-lobby-portal-pill">
+                            <span>🔒</span>
+                            <span>Mitglieder-Lobby · Anmelden</span>
                             <span>&rarr;</span>
                         </a>
                     </div>
-                    <div class="w-3 h-3 rotate-45 bg-[#FAF8F5] border-r border-b border-[#C5A059]/65 mx-auto -mt-1.5 pointer-events-none"></div>
-                </div>
 
-                {{-- Ein-/ausklappbarer Light-Mode Raum-Chat (pausiert automatisch bei aktivem Exponat-Fokus / Kauf-Ruheschutz) --}}
-                <div x-show="!isLoading && loadError === '' && chatOpen && multiplayer.is_authenticated && multiplayer.enabled && !soloMode && focusedProduct === null"
-                     @pointerdown.stop
-                     data-testid="louvre-room-chat-panel"
-                     class="absolute bottom-36 right-3 sm:bottom-24 sm:right-6 z-20 w-[284px] sm:w-[316px] rounded-2xl bg-[#FAF8F5]/95 backdrop-blur-md text-[#111827] border border-[#C5A059]/65 shadow-2xl p-3 flex flex-col gap-2">
-                    <div class="flex items-center justify-between gap-2 pb-1.5 border-b border-[#C5A059]/25">
-                        <div class="flex items-center gap-1.5 min-w-0">
-                            <span class="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
-                            <span class="text-[11px] font-bold uppercase tracking-wider text-[#111827] truncate"
-                                  x-text="roomLabel() + ' · Chat'"></span>
+                    {{-- Ein-/ausklappbarer Light-Mode Raum-Chat --}}
+                    <div x-show="!isLoading && loadError === '' && chatOpen && isCustomerAuthenticated() && !soloMode && focusedProduct === null"
+                         @pointerdown.stop
+                         data-testid="louvre-room-chat-panel"
+                         class="sf-lobby-chat-panel">
+                        <div class="sf-lobby-chat-head">
+                            <div style="display:flex;align-items:center;gap:6px;min-width:0;">
+                                <span class="sf-lobby-dot is-live"></span>
+                                <span style="font-size:11px;font-weight:800;letter-spacing:0.05em;text-transform:uppercase;color:#111827;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+                                      x-text="'Instanz #' + lobbyInstanceId + ' · Chat'"></span>
+                            </div>
+                            <button type="button"
+                                    @click="chatOpen = false"
+                                    style="appearance:none;width:24px;height:24px;border-radius:8px;border:none;background:transparent;color:#4B5563;font-size:15px;font-weight:800;cursor:pointer;"
+                                    aria-label="Chat minimieren">&times;</button>
                         </div>
-                        <button type="button"
-                                @click="chatOpen = false"
-                                class="w-6 h-6 rounded-lg hover:bg-black/5 text-gray-600 font-bold text-sm leading-none flex items-center justify-center cursor-pointer"
-                                aria-label="Chat minimieren">&times;</button>
-                    </div>
 
-                    <div x-ref="chatScrollBox"
-                         class="max-h-40 overflow-y-auto space-y-1.5 pr-1 text-xs">
-                        <template x-if="visibleChatMessages().length === 0">
-                            <div class="py-3 text-center text-[11px] font-semibold text-gray-500">
-                                Noch keine Nachrichten im Raum.
-                            </div>
-                        </template>
-                        <template x-for="msg in visibleChatMessages()" :key="msg.id">
-                            <div class="rounded-xl bg-white/90 border border-[#C5A059]/25 px-2.5 py-1.5">
-                                <div class="flex items-center justify-between gap-1.5">
-                                    <div class="flex items-center gap-1 min-w-0">
-                                        <span class="font-bold text-[11px] text-[#111827] truncate" x-text="msg.display_name"></span>
-                                        <span class="px-1.5 py-0.5 rounded bg-[#F5F1E8] border border-[#D8C9A8] text-[9px] font-black text-[#9A7738] shrink-0"
-                                              x-text="msg.class_label || 'KLASSE C'"></span>
-                                    </div>
-                                    <div x-show="msg.player_id !== multiplayer.player_id" class="flex items-center gap-1 shrink-0">
-                                        <button type="button"
-                                                @click="mutePeer(msg.player_id)"
-                                                class="text-[10px] font-bold text-gray-500 hover:text-gray-900 px-1 cursor-pointer"
-                                                title="Spieler lokal stummschalten">Stumm</button>
-                                        <button type="button"
-                                                @click="reportPeer(msg.player_id)"
-                                                class="text-[10px] font-bold text-red-600 hover:text-red-700 px-1 cursor-pointer"
-                                                title="Unangemessene Nachricht melden">Melden</button>
-                                    </div>
+                        <div x-ref="chatScrollBox" class="sf-lobby-chat-scroll">
+                            <template x-if="visibleChatMessages().length === 0">
+                                <div style="padding:12px 0;text-align:center;font-size:11px;font-weight:600;color:#6B7280;">
+                                    Noch keine Nachrichten im Raum.
                                 </div>
-                                <p class="mt-0.5 text-[11px] text-gray-800 leading-snug break-words" x-text="msg.text"></p>
-                            </div>
-                        </template>
+                            </template>
+                            <template x-for="msg in visibleChatMessages()" :key="msg.id">
+                                <div class="sf-lobby-chat-msg">
+                                    <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
+                                        <div style="display:flex;align-items:center;gap:5px;min-width:0;">
+                                            <span style="font-weight:800;font-size:11px;color:#111827;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" x-text="msg.display_name"></span>
+                                            <span style="padding:1px 6px;border-radius:5px;background:#FFFFFF;border:1px solid rgba(197,160,89,0.45);font-size:9px;font-weight:900;color:#9A7738;flex-shrink:0;"
+                                                  x-text="msg.class_label || 'KLASSE C'"></span>
+                                        </div>
+                                        <div x-show="msg.player_id !== multiplayer.player_id" style="display:flex;align-items:center;gap:4px;flex-shrink:0;">
+                                            <button type="button"
+                                                    @click="mutePeer(msg.player_id)"
+                                                    style="appearance:none;border:none;background:transparent;font-size:10px;font-weight:800;color:#6B7280;cursor:pointer;padding:0 3px;"
+                                                    title="Spieler lokal stummschalten">Stumm</button>
+                                            <button type="button"
+                                                    @click="reportPeer(msg.player_id)"
+                                                    style="appearance:none;border:none;background:transparent;font-size:10px;font-weight:800;color:#DC2626;cursor:pointer;padding:0 3px;"
+                                                    title="Unangemessene Nachricht melden">Melden</button>
+                                        </div>
+                                    </div>
+                                    <p style="margin:3px 0 0;font-size:11px;color:#1F2937;line-height:1.35;word-break:break-word;" x-text="msg.text"></p>
+                                </div>
+                            </template>
+                        </div>
+
+                        <div x-show="chatFeedback !== ''"
+                             style="padding:6px 9px;border-radius:10px;background:#FAF8F5;border:1px solid rgba(197,160,89,0.45);font-size:11px;font-weight:700;color:#111827;"
+                             x-text="chatFeedback"></div>
+
+                        <form @submit.prevent="sendChatMessage()" style="display:flex;align-items:center;gap:6px;padding-top:2px;">
+                            <input type="text"
+                                   x-model="chatDraft"
+                                   maxlength="100"
+                                   placeholder="Nachricht..."
+                                   style="flex:1;min-width:0;padding:7px 10px;border-radius:10px;background:#FAF8F5;border:1px solid rgba(197,160,89,0.5);font-size:12px;font-weight:600;color:#111827;outline:none;">
+                            <button type="submit"
+                                    :disabled="chatSending"
+                                    style="appearance:none;padding:7px 12px;border-radius:10px;border:none;background:#C5A059;color:#FFFFFF;font-size:12px;font-weight:800;cursor:pointer;flex-shrink:0;">
+                                Senden
+                            </button>
+                        </form>
                     </div>
 
-                    <div x-show="chatFeedback !== ''"
-                         class="px-2.5 py-1.5 rounded-xl bg-white border border-[#C5A059]/45 text-[11px] font-semibold text-[#111827]"
-                         x-text="chatFeedback"></div>
-
-                    <form @submit.prevent="sendChatMessage()" class="flex items-center gap-1.5 pt-0.5">
-                        <input type="text"
-                               x-model="chatDraft"
-                               maxlength="100"
-                               placeholder="Nachricht..."
-                               class="flex-1 min-w-0 px-2.5 py-1.5 rounded-xl bg-white border border-[#C5A059]/45 text-xs font-medium text-[#111827] placeholder-gray-400 focus:outline-none focus:border-[#C5A059]">
-                        <button type="submit"
-                                :disabled="chatSending"
-                                class="px-3 py-1.5 rounded-xl bg-[#C5A059] hover:bg-[#B38E46] disabled:opacity-50 text-[#111827] text-xs font-bold transition-colors cursor-pointer shrink-0">
-                            Senden
-                        </button>
-                    </form>
-                </div>
-
-                {{-- Virtueller Mobile-Stick unten links (1-Hand & Smartphone Steuerung) --}}
-                <div x-show="!isLoading && loadError === '' && products.length > 0"
-                     class="absolute bottom-20 left-4 sm:bottom-6 sm:left-6 z-20">
-                    <div x-ref="stickZone"
-                         @pointerdown.stop.prevent="startStick($event)"
-                         @pointermove.stop.prevent="moveStick($event)"
-                         @pointerup.stop.prevent="endStick()"
-                         @pointercancel.stop.prevent="endStick()"
-                         class="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-[#0B0E14]/75 border border-[#C5A059]/45 backdrop-blur-sm flex items-center justify-center relative touch-none cursor-pointer shadow-lg"
-                         aria-label="Bewegungssteuerung">
-                        <div class="w-2 h-2 rounded-full bg-[#C5A059]/30"></div>
-                        <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#C5A059] border border-[#FFF8E1]/60 shadow-md pointer-events-none transition-transform duration-75"
-                             :style="'transform: translate3d(' + stickUiX + 'px, ' + stickUiY + 'px, 0)'"></div>
+                    {{-- Virtueller Mobile-Stick unten links --}}
+                    <div x-show="!isLoading && loadError === ''" class="sf-lobby-stick-wrap">
+                        <div x-ref="stickZone"
+                             @pointerdown.stop.prevent="startStick($event)"
+                             @pointermove.stop.prevent="moveStick($event)"
+                             @pointerup.stop.prevent="endStick()"
+                             @pointercancel.stop.prevent="endStick()"
+                             class="sf-lobby-stick"
+                             aria-label="Bewegungssteuerung">
+                            <div class="sf-lobby-stick-knob"
+                                 :style="'transform: translate3d(' + stickUiX + 'px, ' + stickUiY + 'px, 0)'"></div>
+                        </div>
                     </div>
-                </div>
 
-                {{-- Kompakte Action-Leiste unten rechts: Springen (alle), Gamification-Waffe & Raum-Chat (eingeloggte Kunden) --}}
-                <div x-show="!isLoading && loadError === '' && products.length > 0"
-                     @pointerdown.stop
-                     class="absolute bottom-20 right-4 sm:bottom-6 sm:right-6 z-20 flex items-center gap-2">
-                    <button type="button"
-                            data-testid="louvre-jump-btn"
-                            @click="triggerJump()"
-                            class="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-[#0B0E14]/85 hover:bg-[#141821] text-[#FAF8F5] border border-[#C5A059]/55 shadow-lg backdrop-blur-sm flex items-center justify-center text-base font-bold transition-colors cursor-pointer"
-                            title="Springen (Leertaste)"
-                            aria-label="Springen">
-                        &#10514;
-                    </button>
-
-                    <button type="button"
-                            x-show="!funkiInfo.is_guest && funkiInfo.weapon"
-                            data-testid="louvre-weapon-btn"
-                            @click="triggerWeapon()"
-                            class="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-[#0B0E14]/85 hover:bg-[#141821] text-[#C5A059] border border-[#C5A059]/65 shadow-lg backdrop-blur-sm flex items-center justify-center text-base font-bold transition-colors cursor-pointer"
-                            :title="funkiInfo.weapon ? (funkiInfo.weapon.name + ' aktivieren (Taste F)') : 'Waffen-Effekt'"
-                            aria-label="Waffen-Effekt">
-                        &#10022;
-                    </button>
-
-                    <button type="button"
-                            x-show="multiplayer.is_authenticated && multiplayer.enabled && !soloMode"
-                            data-testid="louvre-chat-toggle-btn"
-                            @click="toggleChatPanel()"
-                            :class="chatOpen ? 'bg-[#FAF8F5] text-[#111827] border-[#C5A059]' : 'bg-[#0B0E14]/85 text-[#FAF8F5] border-[#C5A059]/55'"
-                            class="relative h-11 sm:h-12 px-3.5 rounded-2xl border shadow-lg backdrop-blur-sm flex items-center justify-center gap-1.5 text-xs font-bold transition-colors cursor-pointer"
-                            title="Raum-Chat öffnen"
-                            aria-label="Raum-Chat">
-                        <span>Chat</span>
-                        <span x-show="unreadChatCount > 0 && !chatOpen"
-                              class="px-1.5 py-0.5 rounded-full bg-[#C5A059] text-[#111827] text-[10px] font-black leading-none"
-                              x-text="unreadChatCount"></span>
-                    </button>
-                </div>
-
-                {{-- Kompakte Schwarz-Gold Museums-Leiste (Vorheriges | Exponat X/N | Naechstes) --}}
-                <div x-show="!isLoading && loadError === '' && products.length > 0"
-                     class="absolute bottom-4 inset-x-3 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 z-20 flex justify-center pointer-events-none">
-                    <div class="pointer-events-auto inline-flex items-center gap-1.5 sm:gap-2 px-2.5 py-2 rounded-2xl bg-[#0B0E14]/90 border border-[#C5A059]/50 shadow-2xl backdrop-blur-md max-w-full">
+                    {{-- Kompakte Action-Leiste unten rechts --}}
+                    <div x-show="!isLoading && loadError === ''"
+                         @pointerdown.stop
+                         class="sf-lobby-quick-actions">
                         <button type="button"
-                                @click="prevExhibit()"
-                                class="px-3 py-2 rounded-xl bg-[#141821] hover:bg-[#1E2430] text-[#FAF8F5] border border-[#C5A059]/35 text-xs font-bold transition-colors cursor-pointer shrink-0">
-                            &lsaquo; <span class="hidden sm:inline">Vorheriges</span>
+                                data-testid="louvre-jump-btn"
+                                @click="triggerJump()"
+                                class="sf-lobby-icon-btn"
+                                title="Springen (Leertaste)"
+                                aria-label="Springen">
+                            &#10514;
                         </button>
 
                         <button type="button"
-                                @click="focusCurrentExhibit()"
-                                class="px-3.5 py-2 rounded-xl bg-[#141821]/80 hover:bg-[#1E2430] border border-[#C5A059]/30 text-xs font-bold text-[#E6C687] truncate max-w-[180px] sm:max-w-[260px] cursor-pointer"
-                                title="Zum Podest gehen">
-                            <span x-text="'Exponat ' + (activeIndex + 1) + '/' + products.length"></span>
-                            <span class="hidden md:inline text-[#FAF8F5]" x-show="activeExhibitName() !== ''" x-text="' · ' + activeExhibitName()"></span>
+                                data-testid="louvre-weapon-btn"
+                                @click="triggerWeapon()"
+                                class="sf-lobby-icon-btn"
+                                style="color:#9A7738;"
+                                :title="funkiInfo.weapon ? (funkiInfo.weapon.name + ' aktivieren (Rechtsklick / Taste G)') : 'Aktion ausführen (Rechtsklick / Taste G)'"
+                                aria-label="Waffen-Effekt">
+                            &#10022;
                         </button>
 
                         <button type="button"
-                                @click="nextExhibit()"
-                                class="px-3 py-2 rounded-xl bg-[#141821] hover:bg-[#1E2430] text-[#FAF8F5] border border-[#C5A059]/35 text-xs font-bold transition-colors cursor-pointer shrink-0">
-                            <span class="hidden sm:inline">Nächstes</span> &rsaquo;
+                                x-show="multiplayer.is_authenticated && multiplayer.enabled && !soloMode"
+                                data-testid="louvre-chat-toggle-btn"
+                                @click="toggleChatPanel()"
+                                class="sf-lobby-icon-btn"
+                                title="Raum-Chat öffnen"
+                                aria-label="Raum-Chat">
+                            <span>Chat</span>
+                            <span x-show="unreadChatCount > 0 && !chatOpen"
+                                  style="padding:2px 6px;border-radius:999px;background:#C5A059;color:#FFFFFF;font-size:10px;font-weight:900;line-height:1;"
+                                  x-text="unreadChatCount"></span>
                         </button>
+                    </div>
+
+                    {{-- Untere Navigation + dezente Light-Mode Steuerungs-Pill --}}
+                    <div x-show="!isLoading && loadError === ''" class="sf-lobby-bottom-stack">
+                        <div x-show="currentZone === 'gallery' && products.length > 0" class="sf-lobby-bottom-pill">
+                            <button type="button" @click="prevExhibit()" class="sf-lobby-step-btn">
+                                &lsaquo; <span class="sf-lobby-hide-sm">Vorheriges</span>
+                            </button>
+
+                            <button type="button"
+                                    @click="focusCurrentExhibit()"
+                                    class="sf-lobby-exhibit-btn"
+                                    title="Zum Podest gehen">
+                                <span x-text="'Exponat ' + (activeIndex + 1) + '/' + products.length"></span>
+                                <span class="sf-lobby-hide-sm" x-show="activeExhibitName() !== ''" x-text="' · ' + activeExhibitName()"></span>
+                            </button>
+
+                            <button type="button" @click="nextExhibit()" class="sf-lobby-step-btn">
+                                <span class="sf-lobby-hide-sm">Nächstes</span> &rsaquo;
+                            </button>
+                        </div>
+
+                        <div x-show="currentZone === 'heroes'" class="sf-lobby-bottom-pill">
+                            <template x-for="slotNum in [1, 2, 3, 4, 5]" :key="slotNum">
+                                <button type="button"
+                                        @click="focusHeroSlot(slotNum)"
+                                        :class="focusedHero && focusedHero.slot === slotNum ? 'sf-lobby-step-btn is-active' : 'sf-lobby-step-btn'"
+                                        x-text="'#' + slotNum">
+                                </button>
+                            </template>
+                            <button type="button"
+                                    @click="focusMyHeroPlace()"
+                                    class="sf-lobby-step-btn is-active">
+                                ⭐ Mein Platz
+                            </button>
+                        </div>
+
+                        <div class="sf-lobby-hint-pill">
+                            WASD / Pfeiltasten · Maus ziehen · ⛶ Vollbild · Esc Schließen
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
+        </template>
     </div>
 
     <script>
         window.sfLouvreShowroomModal = function () {
             return {
                 isOpen: false,
+                isFullscreen: false,
                 isLoading: false,
                 loadError: '',
+                currentZone: 'gallery',
+                stagesPreviewMode: 'live',
                 products: [],
+                heroesPayload: {
+                    founding_era: true,
+                    total_heroes: 0,
+                    my_hero_slot: null,
+                    customer_logged_in: false,
+                    customer_opt_in: false,
+                    level_models: {},
+                    heroes: []
+                },
                 funkiInfo: { is_guest: true, level: 2, name: '', weapon: null, player_id: null },
                 multiplayer: {
                     enabled: false,
                     is_authenticated: false,
                     solo_only: true,
                     room_id: null,
-                    sync_interval_ms: 0,
+                    sync_interval_ms: 1800,
                     player_id: null,
                     display_name: null,
                     weapon: null
                 },
+                lobbyAuthenticated: false,
+                lobbyInstanceId: 1,
+                lobbyCapacity: 20,
+                lobbyInstances: [{ id: 1, count: 1, capacity: 20, is_full: false, is_current: true }],
+                instanceMenuOpen: false,
+                customInstanceInput: 1,
                 soloMode: false,
                 peers: [],
                 chatOpen: false,
@@ -1121,45 +1879,196 @@
                 mutedPlayerIds: [],
                 activeIndex: 0,
                 focusedProduct: null,
+                focusedHero: null,
                 stickActive: false,
                 stickUiX: 0,
                 stickUiY: 0,
+                prevHtmlOverflow: '',
                 prevOverflow: '',
                 _engine: null,
                 _syncTimer: null,
                 _syncInFlight: false,
                 _feedbackTimer: null,
+                _fsResizeTimer: null,
                 _seenMessageIds: null,
+                _pageHideBound: null,
+                _captureKeydownBound: null,
+                _fullscreenChangeBound: null,
+
+                initLobbyListeners() {
+                    if (!this._captureKeydownBound) {
+                        this._captureKeydownBound = (e) => {
+                            if (!this.isOpen) return;
+                            const key = e.key || '';
+                            const code = e.code || '';
+
+                            if (key === 'Escape' || code === 'Escape' || e.keyCode === 27) {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                this.handleEscape();
+                                return;
+                            }
+
+                            const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
+                            if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+
+                            if ((code === 'KeyF' || key === 'f' || key === 'F') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+                                e.preventDefault();
+                                this.toggleFullscreen();
+                            }
+                        };
+                        window.addEventListener('keydown', this._captureKeydownBound, true);
+                    }
+
+                    if (!this._fullscreenChangeBound) {
+                        this._fullscreenChangeBound = () => {
+                            const fsEl = document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement || null;
+                            this.isFullscreen = Boolean(fsEl);
+                            if (this._engine) {
+                                this._engine.resize();
+                                requestAnimationFrame(() => {
+                                    if (this._engine) this._engine.resize();
+                                });
+                                if (this._fsResizeTimer) clearTimeout(this._fsResizeTimer);
+                                this._fsResizeTimer = setTimeout(() => {
+                                    if (this._engine) this._engine.resize();
+                                }, 120);
+                            }
+                        };
+                        document.addEventListener('fullscreenchange', this._fullscreenChangeBound);
+                        document.addEventListener('webkitfullscreenchange', this._fullscreenChangeBound);
+                    }
+                },
+
+                toggleFullscreen() {
+                    const activeFs = document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement || null;
+                    if (activeFs) {
+                        if (typeof document.exitFullscreen === 'function') {
+                            Promise.resolve(document.exitFullscreen()).catch(() => {});
+                        } else if (typeof document.webkitExitFullscreen === 'function') {
+                            document.webkitExitFullscreen();
+                        }
+                        return;
+                    }
+
+                    const modalRoot = this.$refs.lobbyModalRoot || document.getElementById('sf-louvre-showroom-modal');
+                    if (!modalRoot) return;
+
+                    if (typeof modalRoot.requestFullscreen === 'function') {
+                        Promise.resolve(modalRoot.requestFullscreen({ navigationUI: 'hide' }))
+                            .then(() => { this.isFullscreen = true; })
+                            .catch(() => {});
+                    } else if (typeof modalRoot.webkitRequestFullscreen === 'function') {
+                        modalRoot.webkitRequestFullscreen();
+                        this.isFullscreen = true;
+                    }
+                },
 
                 csrfToken() {
                     const el = document.querySelector('meta[name="csrf-token"]');
                     return el ? (el.getAttribute('content') || '') : '';
                 },
 
-                roomLabel() {
-                    const raw = String(this.multiplayer.room_id || '');
-                    const m = raw.match(/(\d+)$/);
-                    return m ? ('Raum ' + m[1]) : 'Raum 1';
+                isCustomerAuthenticated() {
+                    return Boolean(
+                        this.lobbyAuthenticated
+                        || this.multiplayer.is_authenticated
+                        || (this.funkiInfo && !this.funkiInfo.is_guest)
+                        || (this.heroesPayload && this.heroesPayload.customer_logged_in)
+                    );
                 },
 
-                onlineCount() {
-                    if (this.soloMode || !this.multiplayer.enabled) return 1;
+                availableInstances() {
+                    if (Array.isArray(this.lobbyInstances) && this.lobbyInstances.length > 0) {
+                        return this.lobbyInstances;
+                    }
+                    return [{
+                        id: this.lobbyInstanceId,
+                        count: 1 + (Array.isArray(this.peers) ? this.peers.length : 0),
+                        capacity: this.lobbyCapacity,
+                        is_full: false,
+                        is_current: true
+                    }];
+                },
+
+                currentInstanceCount() {
+                    const list = this.availableInstances();
+                    for (let i = 0; i < list.length; i++) {
+                        if (Number(list[i].id) === Number(this.lobbyInstanceId)) {
+                            return Math.max(1, Number(list[i].count) || (1 + this.peers.length));
+                        }
+                    }
                     return 1 + (Array.isArray(this.peers) ? this.peers.length : 0);
                 },
 
-                openShowroom() {
-                    if (this.isOpen) return;
+                stagesPreviewLabel() {
+                    if (this.stagesPreviewMode === '1-5') return '✨ Stufen 1-5';
+                    if (this.stagesPreviewMode === '6-10') return '✨ Stufen 6-10';
+                    return '✨ Stufen';
+                },
+
+                switchZone(targetZone) {
+                    const z = (targetZone === 'heroes' || targetZone === 'hall') ? 'heroes' : 'gallery';
+                    if (this._engine) {
+                        this._engine.goToZone(z, false);
+                        this.currentZone = this._engine.getCurrentZone();
+                    } else {
+                        this.currentZone = z;
+                    }
+                },
+
+                cycleStagesPreview() {
+                    if (!this._engine) return;
+                    this.stagesPreviewMode = this._engine.cycleStagesPreviewMode();
+                },
+
+                focusHeroSlot(slotNum) {
+                    if (this._engine) {
+                        this._engine.goToHeroSlot(slotNum);
+                    }
+                },
+
+                focusMyHeroPlace() {
+                    if (this._engine) {
+                        this._engine.goToMyHeroPlace();
+                    }
+                },
+
+                openShowroom(initialZone = 'gallery') {
+                    const requestedZone = (initialZone === 'heroes' || initialZone === 'hall') ? 'heroes' : 'gallery';
+                    if (this.isOpen) {
+                        this.switchZone(requestedZone);
+                        return;
+                    }
+
+                    this.initLobbyListeners();
                     this.isOpen = true;
+                    this.isFullscreen = Boolean(document.fullscreenElement || document.webkitFullscreenElement);
                     this.isLoading = true;
                     this.loadError = '';
+                    this.currentZone = requestedZone;
+                    this.stagesPreviewMode = 'live';
                     this.focusedProduct = null;
+                    this.focusedHero = null;
+                    this.instanceMenuOpen = false;
                     this.peers = [];
                     this.chatMessages = [];
                     this.unreadChatCount = 0;
                     this.chatFeedback = '';
                     this._seenMessageIds = new Set();
+                    this.prevHtmlOverflow = document.documentElement.style.overflow || '';
                     this.prevOverflow = document.body.style.overflow || '';
+                    document.documentElement.style.overflow = 'hidden';
                     document.body.style.overflow = 'hidden';
+
+                    if (!this._pageHideBound) {
+                        this._pageHideBound = () => {
+                            if (this.isOpen) {
+                                this.sendLobbyLeaveBeacon();
+                            }
+                        };
+                        window.addEventListener('pagehide', this._pageHideBound);
+                    }
 
                     const dataPromise = fetch('/shop/showroom-data', {
                         method: 'GET',
@@ -1172,26 +2081,41 @@
                         return res.json();
                     });
 
-                    const modulePromise = import('/js/seelenfunke-louvre-showroom-3d.js?v=20261116v2');
+                    const heroesPromise = fetch('/funkenwerk-welt/heroes-data', {
+                        method: 'GET',
+                        credentials: 'same-origin',
+                        cache: 'no-store',
+                        headers: { 'Accept': 'application/json' }
+                    })
+                        .then((res) => (res.ok ? res.json() : null))
+                        .catch(() => null);
 
-                    Promise.all([dataPromise, modulePromise])
-                        .then(([payload, mod]) => {
+                    const modulePromise = import('/js/seelenfunke-louvre-showroom-3d.js?v=20261116v3');
+
+                    Promise.all([dataPromise, heroesPromise, modulePromise])
+                        .then(([payload, heroesJson, mod]) => {
                             if (!this.isOpen) return;
                             this.products = Array.isArray(payload.products) ? payload.products : [];
                             this.funkiInfo = payload.player_funki || { is_guest: true, level: 2, name: '', weapon: null, player_id: null };
+                            if (heroesJson && heroesJson.success) {
+                                this.heroesPayload = heroesJson;
+                            }
                             this.multiplayer = payload.multiplayer || {
                                 enabled: false,
                                 is_authenticated: false,
                                 solo_only: true,
                                 room_id: null,
-                                sync_interval_ms: 0,
+                                sync_interval_ms: 1800,
                                 player_id: null
                             };
-                            this.soloMode = !this.multiplayer.enabled;
+
+                            const isAuth = this.isCustomerAuthenticated();
+                            this.lobbyAuthenticated = isAuth;
+                            this.soloMode = false;
                             this.activeIndex = 0;
                             this.isLoading = false;
 
-                            if (this.products.length === 0) {
+                            if (this.products.length === 0 && !isAuth) {
                                 this.loadError = 'Aktuell sind keine Ausstellungsstücke freigegeben.';
                                 return;
                             }
@@ -1205,8 +2129,13 @@
                                 this._engine = mod.createLouvreShowroom({
                                     canvas: this.$refs.louvreCanvas,
                                     floatingCardEl: this.$refs.floatingCard || null,
+                                    floatingHeroCardEl: this.$refs.floatingHeroCard || null,
+                                    floatingPortalCardEl: this.$refs.floatingPortalCard || null,
                                     products: this.products,
+                                    heroesPayload: this.heroesPayload,
                                     playerFunki: this.funkiInfo,
+                                    isAuthenticatedCustomer: isAuth,
+                                    initialZone: requestedZone,
                                     soloMode: this.soloMode,
                                     onFocusProductChange: (prod, idx) => {
                                         this.focusedProduct = prod || null;
@@ -1217,8 +2146,14 @@
                                             this.activeIndex = idx;
                                         }
                                     },
+                                    onFocusHeroChange: (heroInfo) => {
+                                        this.focusedHero = heroInfo || null;
+                                    },
                                     onActiveExhibitChange: (idx) => {
                                         this.activeIndex = idx;
+                                    },
+                                    onZoneChange: (zone) => {
+                                        this.currentZone = zone;
                                     },
                                     onSelectProduct: (prod) => {
                                         if (prod && prod.product_url) {
@@ -1231,7 +2166,9 @@
                                     this._engine.setMutedPlayers(this.mutedPlayerIds);
                                 }
 
-                                this.startMultiplayerLoop();
+                                if (isAuth) {
+                                    this.joinLobbyInstance();
+                                }
                             });
                         })
                         .catch(() => {
@@ -1240,16 +2177,60 @@
                         });
                 },
 
-                startMultiplayerLoop() {
-                    this.stopMultiplayerLoop();
-                    if (!this.isOpen || !this.multiplayer.is_authenticated || !this.multiplayer.enabled) {
+                joinLobbyInstance() {
+                    if (!this.isOpen || !this._engine || !this.isCustomerAuthenticated() || this.soloMode) {
                         return;
                     }
-                    const intervalMs = Math.max(200, Number(this.multiplayer.sync_interval_ms) || 220);
-                    this.runMultiplayerSync(true);
+                    const st = this._engine.getLocalSyncState();
+                    fetch('/funkenwerk-welt/lobby/join', {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': this.csrfToken()
+                        },
+                        body: JSON.stringify({
+                            x: st.x,
+                            z: st.z,
+                            rot_y: st.rot_y,
+                            speed: st.speed,
+                            zone: st.zone
+                        })
+                    })
+                        .then((res) => (res.ok ? res.json() : null))
+                        .then((data) => {
+                            if (!data || !data.ok || !this.isOpen) return;
+                            this.lobbyAuthenticated = Boolean(data.authenticated);
+                            if (data.instance_id) {
+                                this.lobbyInstanceId = Number(data.instance_id) || 1;
+                                this.customInstanceInput = this.lobbyInstanceId;
+                            }
+                            if (data.hard_cap) {
+                                this.lobbyCapacity = Number(data.hard_cap) || 20;
+                            }
+                            if (Array.isArray(data.instances)) {
+                                this.lobbyInstances = data.instances;
+                            }
+                            this.peers = Array.isArray(data.peers) ? data.peers : [];
+                            if (this._engine) {
+                                this._engine.updatePeers(this.peers);
+                            }
+                            if (this.lobbyAuthenticated) {
+                                this.startMultiplayerLoop();
+                            }
+                        })
+                        .catch(() => {});
+                },
+
+                startMultiplayerLoop() {
+                    this.stopMultiplayerLoop();
+                    if (!this.isOpen || !this.lobbyAuthenticated || this.soloMode) {
+                        return;
+                    }
                     this._syncTimer = setInterval(() => {
-                        this.runMultiplayerSync(false);
-                    }, intervalMs);
+                        this.runMultiplayerSync();
+                    }, 1800);
                 },
 
                 stopMultiplayerLoop() {
@@ -1260,15 +2241,14 @@
                     this._syncInFlight = false;
                 },
 
-                runMultiplayerSync(isInitialTick) {
+                runMultiplayerSync() {
                     if (!this.isOpen || !this._engine || this._syncInFlight) return;
-                    if (!this.multiplayer.is_authenticated || !this.multiplayer.enabled) return;
+                    if (!this.lobbyAuthenticated || this.soloMode) return;
 
                     this._syncInFlight = true;
-                    const localState = this._engine.getLocalSyncState();
-                    localState.soloMode = this.soloMode;
+                    const st = this._engine.getLocalSyncState();
 
-                    fetch('/shop/showroom-sync', {
+                    fetch('/funkenwerk-welt/lobby/sync', {
                         method: 'POST',
                         credentials: 'same-origin',
                         headers: {
@@ -1276,17 +2256,26 @@
                             'Accept': 'application/json',
                             'X-CSRF-TOKEN': this.csrfToken()
                         },
-                        body: JSON.stringify(localState)
+                        body: JSON.stringify({
+                            instance_id: this.lobbyInstanceId,
+                            x: st.x,
+                            z: st.z,
+                            rot_y: st.rot_y,
+                            speed: st.speed,
+                            zone: st.zone
+                        })
                     })
                         .then((res) => (res.ok ? res.json() : null))
                         .then((data) => {
-                            if (!data || !data.success || !this.isOpen || !this._engine) return;
-                            if (data.room_id) {
-                                this.multiplayer.room_id = data.room_id;
+                            if (!data || !data.ok || !this.isOpen || !this._engine) return;
+                            if (data.instance_id) {
+                                this.lobbyInstanceId = Number(data.instance_id) || this.lobbyInstanceId;
+                            }
+                            if (Array.isArray(data.instances)) {
+                                this.lobbyInstances = data.instances;
                             }
                             this.peers = Array.isArray(data.peers) ? data.peers : [];
                             this._engine.updatePeers(this.peers);
-                            this.ingestRoomMessages(Array.isArray(data.messages) ? data.messages : [], isInitialTick);
                         })
                         .catch(() => {})
                         .finally(() => {
@@ -1294,46 +2283,82 @@
                         });
                 },
 
-                ingestRoomMessages(incoming, isInitialTick) {
-                    if (!this._seenMessageIds) {
-                        this._seenMessageIds = new Set();
-                    }
-                    const nowMs = Date.now();
-                    let addedUnread = 0;
+                switchLobbyInstance(targetId) {
+                    if (!this.isOpen || !this._engine || !this.lobbyAuthenticated) return;
+                    const cleanTarget = Math.max(1, Math.min(50, parseInt(targetId, 10) || 1));
+                    const st = this._engine.getLocalSyncState();
+                    this.instanceMenuOpen = false;
 
-                    for (let i = 0; i < incoming.length; i++) {
-                        const m = incoming[i];
-                        if (!m || !m.id) continue;
-                        if (!this._seenMessageIds.has(m.id)) {
-                            this._seenMessageIds.add(m.id);
-                            const isMuted = this.mutedPlayerIds.indexOf(m.player_id) !== -1;
-                            const isRecent = Math.abs(nowMs - (Number(m.created_at_ms) || nowMs)) < 7500;
-                            if (!isMuted && (!isInitialTick || isRecent) && this._engine) {
-                                this._engine.showChatBubble(m.player_id, m.text);
+                    fetch('/funkenwerk-welt/lobby/switch', {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': this.csrfToken()
+                        },
+                        body: JSON.stringify({
+                            target_instance: cleanTarget,
+                            x: st.x,
+                            z: st.z,
+                            rot_y: st.rot_y,
+                            zone: st.zone
+                        })
+                    })
+                        .then((res) => (res.ok ? res.json() : null))
+                        .then((data) => {
+                            if (!data || !data.ok || !this.isOpen || !this._engine) return;
+                            if (data.instance_id) {
+                                this.lobbyInstanceId = Number(data.instance_id) || cleanTarget;
+                                this.customInstanceInput = this.lobbyInstanceId;
                             }
-                            if (!isInitialTick && !isMuted && m.player_id !== this.multiplayer.player_id && !this.chatOpen) {
-                                addedUnread += 1;
+                            if (Array.isArray(data.instances)) {
+                                this.lobbyInstances = data.instances;
                             }
-                        }
-                    }
+                            this.peers = Array.isArray(data.peers) ? data.peers : [];
+                            this._engine.updatePeers(this.peers);
+                        })
+                        .catch(() => {});
+                },
 
-                    this.chatMessages = incoming;
-                    if (addedUnread > 0) {
-                        this.unreadChatCount += addedUnread;
+                sendLobbyLeaveBeacon() {
+                    if (!this.lobbyAuthenticated) return;
+                    const token = this.csrfToken();
+                    if (navigator.sendBeacon && typeof FormData !== 'undefined') {
+                        const fd = new FormData();
+                        fd.append('_token', token);
+                        fd.append('instance_id', String(this.lobbyInstanceId));
+                        navigator.sendBeacon('/funkenwerk-welt/lobby/leave', fd);
+                        return;
                     }
+                    fetch('/funkenwerk-welt/lobby/leave', {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        keepalive: true,
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': token
+                        },
+                        body: JSON.stringify({ instance_id: this.lobbyInstanceId })
+                    }).catch(() => {});
                 },
 
                 toggleSoloMode() {
-                    if (!this.multiplayer.is_authenticated || !this.multiplayer.enabled) return;
+                    if (!this.isCustomerAuthenticated()) return;
                     this.soloMode = !this.soloMode;
+                    this.instanceMenuOpen = false;
                     if (this.soloMode) {
                         this.chatOpen = false;
                         this.peers = [];
+                        this.stopMultiplayerLoop();
+                        this.sendLobbyLeaveBeacon();
+                    } else {
+                        this.joinLobbyInstance();
                     }
                     if (this._engine) {
                         this._engine.setSoloMode(this.soloMode);
                     }
-                    this.runMultiplayerSync(false);
                 },
 
                 toggleChatPanel() {
@@ -1361,7 +2386,7 @@
                 sendChatMessage() {
                     const text = String(this.chatDraft || '').trim();
                     if (text === '' || this.chatSending) return;
-                    if (!this.multiplayer.is_authenticated || !this.multiplayer.enabled || this.soloMode) return;
+                    if (!this.isCustomerAuthenticated() || this.soloMode) return;
 
                     this.chatSending = true;
                     fetch('/shop/showroom-chat', {
@@ -1446,25 +2471,49 @@
                 },
 
                 closeShowroom() {
+                    if (!this.isOpen) return;
+                    this.stopMultiplayerLoop();
+                    if (!this.soloMode) {
+                        this.sendLobbyLeaveBeacon();
+                    }
+                    const activeFs = document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement || null;
+                    if (activeFs) {
+                        if (typeof document.exitFullscreen === 'function') {
+                            Promise.resolve(document.exitFullscreen()).catch(() => {});
+                        } else if (typeof document.webkitExitFullscreen === 'function') {
+                            document.webkitExitFullscreen();
+                        }
+                    }
+                    this.isFullscreen = false;
                     this.isOpen = false;
                     this.isLoading = false;
                     this.focusedProduct = null;
+                    this.focusedHero = null;
+                    this.instanceMenuOpen = false;
                     this.chatOpen = false;
-                    this.stopMultiplayerLoop();
                     if (this._feedbackTimer) {
                         clearTimeout(this._feedbackTimer);
                         this._feedbackTimer = null;
+                    }
+                    if (this._fsResizeTimer) {
+                        clearTimeout(this._fsResizeTimer);
+                        this._fsResizeTimer = null;
                     }
                     this.endStick();
                     if (this._engine) {
                         this._engine.destroy();
                         this._engine = null;
                     }
+                    document.documentElement.style.overflow = this.prevHtmlOverflow;
                     document.body.style.overflow = this.prevOverflow;
                 },
 
                 handleEscape() {
                     if (!this.isOpen) return;
+                    if (this.instanceMenuOpen) {
+                        this.instanceMenuOpen = false;
+                        return;
+                    }
                     this.closeShowroom();
                 },
 

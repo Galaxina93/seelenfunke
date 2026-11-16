@@ -202,6 +202,20 @@ Route::get('/api/gamification/funkenwerk-heroes', [\App\Http\Controllers\Api\Fun
     ->middleware('throttle:60,1')
     ->name('gamification.funkenwerk-heroes.api');
 
+// Multi-Instanz 3D-User-Lobby (Auto-Sharding Soft-Cap 16 / Hard-Cap 20, Zero-PII)
+Route::post('/funkenwerk-welt/lobby/join', [\App\Http\Controllers\Api\CustomerLobbyController::class, 'join'])
+    ->middleware('throttle:120,1')
+    ->name('gamification.funkenwerk-lobby.join');
+Route::post('/funkenwerk-welt/lobby/sync', [\App\Http\Controllers\Api\CustomerLobbyController::class, 'sync'])
+    ->middleware('throttle:120,1')
+    ->name('gamification.funkenwerk-lobby.sync');
+Route::post('/funkenwerk-welt/lobby/switch', [\App\Http\Controllers\Api\CustomerLobbyController::class, 'switchInstance'])
+    ->middleware('throttle:120,1')
+    ->name('gamification.funkenwerk-lobby.switch');
+Route::post('/funkenwerk-welt/lobby/leave', [\App\Http\Controllers\Api\CustomerLobbyController::class, 'leave'])
+    ->middleware('throttle:120,1')
+    ->name('gamification.funkenwerk-lobby.leave');
+
 // --- 4. Rechtliches & Weiteres ---
 Route::get('/impressum', function () {
     return view('frontend.pages.impressum');

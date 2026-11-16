@@ -60,18 +60,36 @@ class Louvre3DShowroomTest extends TestCase
         $html = $response->getContent();
 
         $this->assertNotFalse($html);
-        $this->assertStringContainsString('3D shoppen', $html);
+        $this->assertStringContainsString('data-testid="hero-open-3d-showroom-btn"', $html);
+        $response->assertSeeInOrder([
+            'Unsere Kollektion',
+            'Entdecke Unikate, die deine Seele berühren.',
+            '3D shoppen',
+            'Manufaktur-Kollektion',
+        ]);
         $this->assertStringContainsString('id="sf-louvre-showroom-modal"', $html);
         $this->assertStringContainsString('MEIN SEELENFUNKE · LOUVRE SHOWROOM', $html);
         $this->assertStringContainsString('Zurück zum Shop', $html);
         $this->assertStringContainsString($active->name, $html);
 
-        // Schwebendes Light-Mode Raum-Schild statt blockierender Produkt-Popups
+        // Schwebende Light-Mode Raum-Schilder (Produkte, Top-5-Helden & Gast-Ehrenportal) statt blockierender Popups
         $this->assertStringContainsString('data-testid="louvre-floating-space-card"', $html);
+        $this->assertStringContainsString('data-testid="lobby-floating-hero-card"', $html);
+        $this->assertStringContainsString('data-testid="lobby-guest-portal-card"', $html);
+        $this->assertStringContainsString('Mitglieder-Lobby · Anmelden', $html);
+        $this->assertStringContainsString('id="sf-lobby-instance-btn"', $html);
+        $this->assertStringContainsString('id="sf-lobby-instance-menu"', $html);
+        $this->assertStringContainsString('data-testid="lobby-zone-gallery-btn"', $html);
+        $this->assertStringContainsString('data-testid="lobby-zone-heroes-btn"', $html);
+        $this->assertStringContainsString('data-testid="lobby-stages-preview-btn"', $html);
+        $this->assertStringContainsString('/funkenwerk-welt/lobby/join', $html);
+        $this->assertStringContainsString('/funkenwerk-welt/lobby/sync', $html);
+        $this->assertStringContainsString('/funkenwerk-welt/lobby/switch', $html);
+        $this->assertStringContainsString('/funkenwerk-welt/lobby/leave', $html);
         $this->assertStringContainsString('bg-[#FAF8F5]/95', $html);
         $this->assertStringContainsString('Jetzt gestalten', $html);
         $this->assertStringContainsString('Zum Produkt', $html);
-        $this->assertStringContainsString("import('/js/seelenfunke-louvre-showroom-3d.js?v=20261116v2')", $html);
+        $this->assertStringContainsString("import('/js/seelenfunke-louvre-showroom-3d.js?v=20261116v3')", $html);
         $this->assertStringNotContainsString('openCurrentExhibitDrawer', $html);
         $this->assertStringNotContainsString('lightboxOpen', $html);
 
@@ -98,6 +116,7 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringContainsString('this.renderer.shadowMap.enabled = false', $js);
         $this->assertStringNotContainsString('new THREE.PointLight', $js);
         $this->assertStringNotContainsString('new THREE.SpotLight', $js);
+        $this->assertStringNotContainsString('https://', $js);
         $this->assertStringContainsString('new THREE.InstancedMesh(', $js);
         $this->assertStringContainsString('exhibitLoadQueue', $js);
 
@@ -121,17 +140,38 @@ class Louvre3DShowroomTest extends TestCase
             $this->assertStringContainsString($jointName, $js);
         }
 
-        // Distanzgekoppelte Schrittphase (0 % Foot-Sliding) & sanftes Gehen<->Stehen-Blending
+        // Distanzgekoppelte Schrittphase (0 % Foot-Sliding) & sanftes Gehen<->Stehen-Blending + Peer-Interpolation
         $this->assertStringContainsString('stepDist * strideFrequency', $js);
         $this->assertStringContainsString('Math.exp(-dt * 10.0)', $js);
         $this->assertStringContainsString('Math.cos(2.0 * phaseL)', $js);
+        $this->assertStringContainsString('pData.peer_id', $js);
 
-        // 3. Physisches Podest-Schild (Stufe 1) & GPU World-Space Schwebetafel (Stufe 2) ohne KI-Gedankenstriche
+        // 3. 1:1 Goldene Pantheon "Halle der Helden" + Level 1..10 Funki-GLBs + individuelle Stufen-Animationen
+        $this->assertStringContainsString('HALLE DER HELDEN', $js);
+        $this->assertStringContainsString('#ECEAE4', $js);
+        $this->assertStringContainsString('#133B5C', $js);
+        $this->assertStringContainsString('const domeBaseY = entY + 5.35;', $js);
+        $this->assertStringContainsString('((r + 0.5) / 6) * Math.PI', $js);
+        $this->assertStringContainsString('FUNKI_GLB_FRONT_ROTATION_Y = -Math.PI * 0.5', $js);
+        $this->assertStringContainsString('funki_lvl_1_rags.glb', $js);
+        $this->assertStringContainsString('funki_lvl_10_god_of_soul.glb', $js);
+        $this->assertStringContainsString('_updateHeroPedestalAnimations', $js);
+        $this->assertStringContainsString('Freier Ehrenplatz', $js);
+
+        // 4. Physisches Podest-Schild (Stufe 1) & GPU World-Space Schwebetafel (Stufe 2) ohne KI-Gedankenstriche
         $this->assertStringContainsString('buildStelePlaqueTexture', $js);
         $this->assertStringContainsString('.project(this.camera)', $js);
         $this->assertStringContainsString('translate3d(', $js);
         $this->assertStringNotContainsString(' ' . "\u{2013}" . ' ', $js);
         $this->assertStringNotContainsString(' ' . "\u{2014}" . ' ', $js);
+
+        // 5. Doppelsprung mit 360-Grad-Salto und Schlag-Animation (Faust & Waffe) auf Maustaste
+        $this->assertStringContainsString('jumpCount', $js);
+        $this->assertStringContainsString('isSomersault', $js);
+        $this->assertStringContainsString('somersaultProgress', $js);
+        $this->assertStringContainsString('triggerStrikeAction', $js);
+        $this->assertStringContainsString('_spawnDoubleJumpBurst', $js);
+        $this->assertStringContainsString('_spawnUnarmedPunchBurst', $js);
     }
 
     public function test_showroom_data_returns_active_products_gallery_three_benefits_and_guest_funki_level_2(): void

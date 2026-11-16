@@ -1,75 +1,45 @@
 # Konzept & Machbarkeitsstudie: Immersiver 3D-Showroom („3D shoppen“) auf `/shop`
 
 **Datum:** 16.11.2026  
-**Autor:** Falcone (Technischer Mitgründer & Chef-Architekt)  
-**Auftrags-ID:** `ag_20261116_185257_29e7042b` (Erweitert durch Louvre-Upgrade `ag_20261116_185534_b2629338` · Freigegeben durch `ag_20261116_185621_ccf578f9`)  
-**Status:** ✅ Vollständig umgesetzt als Begehbarer 3D-Showroom im Louvre-Stil (`GET /shop/showroom-data`, `public/js/seelenfunke-louvre-showroom-3d.js`, Light-Mode Produkt-Drawer auf `/shop`)
+**Autor:** Falcone & Agenti (KI-Architektur & 60-FPS 3D-Welten)  
+**Auftrags-IDs:** `ag_20261116_185257_29e7042b`, `ag_20261116_185534_b2629338`, `ag_20261116_185621_ccf578f9` sowie Performance-, Gelenk-Rig- & Raum-Schild-Upgrade `ag_20261116_211159_e783a984`, `ag_20261116_211249_d80fe20b`, `ag_20261116_211305_e5f58cab`, `ag_20261116_211355_3c79041a`  
+**Status:** ✅ Vollständig umgesetzt & 60-FPS optimiert (`GET /shop/showroom-data`, `public/js/seelenfunke-louvre-showroom-3d.js?v=20261116v2`, schwebende Light-Mode Raum-Tafel & voll artikuliertes 3D-Gelenk-Rig)
 
 ---
 
 ## 1. Ehrliche Mitgründer-Einschätzung & Unternehmerischer Mehrwert
 
-**Machbarkeit: 100 % machbar, und zwar ohne Fremd-Engine-Ballast direkt auf unserer vorhandenen Infrastruktur.**
+**Machbarkeit: 100 % nativ umgesetzt auf unserer vorhandenen Three.js-Infrastruktur (`0 KB` Initial-Last auf `/shop`).**
 
-Warum sich dieses Feature für **Mein-Seelenfunke** unternehmerisch wirklich lohnt (und wo die Fallstricke liegen, die wir von Tag 1 an vermeiden):
-1. **Alle teuren 3D-Assets existieren bereits:** Im Gegensatz zu normalen Online-Shops, die für einen 3D-Showroom erst monatelang Modelle bauen müssen, besitzen wir bereits **alle komprimierten Produkt-`.glb`-Modelle** (Kristall, Echtgold-/Silber-Schmuck, Schiefer, Anhänger) **und** alle **10 Funki-Charakter-Modelle (`Lv. 1` bis `Lv. 10`)**.
-2. **Starker Marken-USP & Verweildauer:** Ein begehbares, lichtdurchflutetes **Gifhorner Manufaktur-Atelier** hebt Mein-Seelenfunke sofort von jedem 08/15-Geschenkeshop auf Etsy oder Amazon ab und verbindet Produktkatalog + Funki-Stufen organisch miteinander.
-3. **Null Risiko für SEO & Conversion auf `/shop`:** Der klassische 2D-Shop unter `/shop` bleibt zu 100 % unverändert schnell (`0 KB` Zusatzlast beim Seitenaufruf). Die 3D-Engine lädt ausschließlich **On-Demand** erst dann, wenn der Kunde aktiv auf **`3D shoppen`** klickt.
+1. **Alle 3D-Assets & Markenwerte vereint:** Aktive Shop-Produkte (`status = 'active'`) erscheinen mit ihren komprimierten `.glb`-Modellen (bzw. gerahmten Museums-Aufstellern) in einer edlen Louvre-Galerie.
+2. **Null Risiko für SEO & Ladezeit auf `/shop`:** Der reguläre 2D-Shop unter `/shop` lädt `0 KB` 3D-Skripte vorab. Erst beim Klick auf **`3D shoppen`** wird das ES-Modul on-demand geladen; beim Schließen fällt die CPU-/GPU-Last strikt auf `0 %` zurück (`cancelAnimationFrame`, `AbortController`, `dispose`, `forceContextLoss`).
+3. **100 % flüssiger Museumsrundgang ohne Popup-Überflutung:** Statt bildschirmblockierender Produkt-Popups liest der Besucher Produktinfos direkt am physischen Podest-Schild (`Stufe 1`) sowie auf einer luftigen, im 3D-Raum über dem fokussierten Podest verankerten Light-Mode-Schwebetafel (`Stufe 2`).
 
 ---
 
-## 2. Technische Engine-Entscheidung: `Three.js v0.182` statt Babylon.js
-
-Als dein technischer Mitgründer gebe ich dir hier **eine klare Architekturentscheidung**:
-* **Empfehlung: Natives `Three.js v0.182` + `MeshoptDecoder` (bereits im Projekt installiert) statt Babylon.js.**
-* **Grund:** `Three.js v0.182` treibt bereits unseren 3D-Produktkonfigurator sowie die 3D-Wasserstadt (`public/js/funkenwerk-heroes-3d.js`) mit stabilen 60 FPS an. Babylon.js würde ~3,5 MB zusätzlichen JavaScript-Ballast, doppelte Shader-Pipelines und abweichende PBR- Glas-/Gold-Darstellungen bedeuten. Mit `Three.js` sehen K9-Kristallglas, 14k-Ion-Plating-Gold und Schiefer im Showroom **1:1 identisch** aus wie im Produktkonfigurator.
+## 2. Architektur der 3 Technischen Kern-Säulen (`v20261116v2`)
 
 ```mermaid
 flowchart LR
-    Shop["/shop Kollektionsseite (0 KB 3D-Last)"] -->|"Klick auf '3D shoppen'"| Loader["On-Demand Loader (seelenfunke-atelier-3d.js)"]
-    Loader --> API["GET /api/shop/showroom-products (JSON: aktive Produkte, Bilder, Preise, .glb-Pfade)"]
-    Loader --> Scene["Helles 3D-Manufaktur-Atelier (Three.js 60 FPS)"]
-    Scene --> Walk["Steuerung: WASD / Tap-to-Walk / Virtueller Stick + Podest-Schnellwahl"]
-    Walk -->|"Klick / Taste E am Podest"| Drawer["Heller Clean-Design Produkt-Drawer (Bild-Lightbox, Preis, 3 Vorteile, 'Jetzt personalisieren')"]
-    Drawer --> Config["Direktsprung in /produkt/{slug} (2D/3D-Konfigurator)"]
+    Shop["/shop Kollektionsseite (0 KB 3D-Last)"] -->|"Klick auf '3D shoppen'"| Loader["On-Demand ES-Modul (seelenfunke-louvre-showroom-3d.js?v=20261116v2)"]
+    Loader --> API["GET /shop/showroom-data (Aktive Produkte, Preise, 3 Vorteile, Funki-Level)"]
+    Loader --> Perf["60-FPS Louvre-Szene (InstancedMesh, DPR <= 1.5, 0 ShadowMaps, Distanz-Queue)"]
+    Perf --> Rig["Voll artikuliertes Gelenk-Rig (Hüfte, Knie, Knöchel, Schulter, Ellbogen, Hände)"]
+    Rig -->|"Proximity < 3.4 m oder Klick"| Card["Light-Mode Raum-Schwebetafel (3D project + GPU translate3d + Gold-CTA)"]
+    Card --> Config["Direktsprung zu /produkt/{slug}"]
 ```
 
----
+### A. Butterweiche 60-FPS Performance
+* **Zero Dynamic Light Overload & Zero Shadow Maps:** Exakt `1x HemisphereLight` + `1x DirectionalLight` ohne Echtzeit-Shadow-Maps (`shadowMap.enabled = false`), kombiniert mit vorberechnetem `PMREM`-Studio-Environment, gebackenen AO-Bodenkontaktschatten und schnellen Studio-MatCaps für den Avatar.
+* **Konsequentes `THREE.InstancedMesh`-Batching:** Sämtliche statischen Architektur- und Podest-Wiederholungen (Kolonnaden-Pfeiler, Kapitelle, Boden-Intarsien, Louvre-Rautenfachwerk, Goldknoten, AO-Schatten, Sockel, Monolithen, Goldkragen, Samtauflagen, Vitrinenhauben, Eckprofile, Lichtkegel und Schildträger) sind gebündelt.
+* **Fillrate-, GC- & Streaming-Disziplin:** Strikte Begrenzung via `renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5))`, wiederverwendete Scratch-Vektoren ohne Pro-Frame-Allokationen und eine nach Spieler-Distanz sortierte Nachlade-Queue (`exhibitLoadQueue`, 1 Exponat pro Tick inkl. `512px` Textur-Downscaling).
 
-## 3. Raumgestaltung, Steuerung & Seelenfunke Clean-Design (Baustein 1 & 2)
+### B. Natürliche Geh- & Gelenkanimationen (0 % Foot-Sliding)
+* **Hierarchisches 3D-Gelenk-Rig:**
+  * **Bein-Kette links & rechts:** `hipPivotL/R` -> Oberschenkel -> `kneePivotL/R` -> Unterschenkel -> `anklePivotL/R` -> modellierter Schuh mit Gold-Rahmensohle.
+  * **Arm- & Hand-Kette links & rechts:** `shoulderPivotL/R` -> Oberarm -> `elbowPivotL/R` -> Unterarm -> `wristPivotL/R` -> modellierte Handfläche, Daumen & 4 Finger (`fingerCurlL/R`).
+  * **Rumpf, Hüfte & Funki-Visor-Kopf:** Distanzgekoppelte Schrittphase (`walkPhase += stepDist * 4.48`), vertikaler Doppelstand-Impuls (`cos(2 * walkPhase)`), Kreuzgang-Gegenschwung, sanftes Gehen-Stehen-Blending (`1 - Math.exp(-dt * 10)`), natürliches Blinzeln und dezenter Kopf-Blick zum nächstgelegenen Exponat.
 
-### A. Einstieg auf `/shop` (`ProductFrontendFilterArea`)
-* Oben in der Filter-/Kopfleiste von `/shop` sitzt ein dezenter, edler Button im hellen Schwarz-Gold-Stil: **`3D shoppen`** (Icon: Würfel/Atelier, `#C5A059` Akzent, ohne erklärende Subtexte).
-* Klick öffnet das Vollbild-Overlay im selben Fenster (mit klarem `× Zurück zum Shop`-Button oben rechts).
-
-### B. Das 3D-Atelier (Immer freundlich & hell statt dunkler Gaming-Höhle)
-* **Architektur:** Lichtdurchflutete Boutique-Galerie mit hellem Naturstein-/Warmweiß-Boden (`#FAF8F5`), sanftem Oberlicht, warmen Holz-/Messing-Akzenten und mattschwarzen Ausstellungs-Podesten mit feiner `#C5A059` Goldkante.
-* **Dynamische Podeste aus der Datenbank:** Jedes aktive Produkt (`status = 'active'`) erhält automatisch ein eigenes Podest in der passenden Themen-Nische (*Glas & Kristall*, *Schmuck & Atelier*, *Schiefer & Metall*). Auf dem Podest schwebt/rotiert sanft das echte `.glb`-Modell im realen Größenverhältnis (oder ein gerahmtes Galerie-Aufsteller-Display, falls ein Produkt rein digital/ohne `.glb` ist).
-* **Spieler-Charakter:**
-  * Eingeloggte Kunden laufen mit **ihrer aktuell erreichten Funki-Stufe (`Lv. 1` bis `Lv. 10`)** durch das Atelier.
-  * Gäste laufen mit dem freundlichen Basis-Funki (`Lv. 2`).
-
-### C. Kinderleichte Steuerung auf Desktop & Smartphone (Kein Frust!)
-1. **Desktop:** `WASD` / Pfeiltasten zum Laufen, Maus ziehen zum Umsehen, **Klick auf ein Podest** (oder `Enter` / `E` in Podestnähe) öffnet das Produkt. Zusätzlich **Tap-to-Walk**: Klickt ein Kunde direkt auf ein Podest in der Ferne, läuft Funki automatisch dorthin!
-2. **Smartphone / Tablet:** Sanfter virtueller Daumen-Stick unten links **plus** direktes Antippen jedes sichtbaren Podests (Funki läuft automatisch hin) **plus** eine schlanke horizontale Podest-Leiste (`‹ Vorheriges Stück | Nächstes Stück ›`), falls jemand einhändig durch die Kollektion gleiten möchte.
-
-### D. Produkt-Detailansicht direkt in der 3D-Welt (Light-Mode Drawer)
-Sobald man ein Produkt am Podest anklickt, gleitet rechts ein **heller Seelenfunke Clean-Design Drawer** (`bg-white`, `text-gray-900`, kein Darkmode im Shop-Frontend!) ins Bild:
-* **Interaktiver Bild-Slider + Lightbox:** Alle echten Produktbilder inkl. Maßbild (letzte Position mit mm-Maßen) direkt durchblätterbar und per Klick als Lightbox vergrößerbar.
-* **Klare Fakten:** Produktname, Preis (inkl. MwSt.), Lieferzeit-Badge und exakt die **3 kurzen Vorteile mit goldenem Haken (`✓` in `#C5A059`)**.
-* **Direkter Abschluss ohne Umweg:**
-  * Bei personalisierbaren Unikaten: Gold-Schwarz Primärbutton **`Jetzt personalisieren`** -> führt direkt zum 2D/3D-Konfigurator auf `/produkt/{slug}`.
-  * Bei Sofortkauf-/Digital-Produkten: **`In den Warenkorb`** direkt aus dem 3D-Atelier heraus.
-
----
-
-## 4. Schlanker Umsetzungsplan (Nach deinem „Go“)
-
-1. **Read-Only Showroom-Datenquelle:** Leichtgewichtiger gecachter Endpunkt/Payload für aktive Shop-Produkte (Titel, Slug, Preis, Galerie-URLs, `.glb`-Pfad, Kategorie, 3 Vorteile; respektiert selbstverständlich unsere `Shop Live-Freigabe`-Sperre!).
-2. **`public/js/seelenfunke-atelier-3d.js`:** Modulare 60-FPS Three.js-Szene (Instanced Geometrie für Podeste/Raum, Lazy-Loading der `.glb`-Modelle nach Distanz, Kollisionskreis um Podeste, Desktop-`WASD` + Mobile-Touch/Tap-to-Walk).
-3. **UI-Integration in `/shop`:** `3D shoppen`-Button in `ProductFrontendFilterArea` + heller Produkt-Drawer mit Lightbox & Direkt-CTA.
-4. **Automatisierte Tests & Performance-Guard:** PHPUnit-Feature-Test für Daten-Payload, Wartungs-/Live-Sperre und `0 KB` Initial-Overhead auf `/shop`.
-
----
-
-**Bereit für dein Urteil:** Wenn dir dieser Aufbau (helles Manufaktur-Atelier mit eigenem Funki-Charakter, `WASD` + Tap-to-Walk + heller Produkt-Drawer direkt auf `/shop`) gefällt, gib mir einfach kurz das **„Go“**!
+### C. Physische Podest-Schilder & Schwebende Raum-Infos statt Popups (Baustein 1 & 2)
+* **Stufe 1 (Physisches 3D-Podest-Schild):** Jedes Podest trägt vorn ein helles Light-Mode-Schild (`#FAF8F5`, `#C5A059` Goldrahmen, Text `#111827`) mit Kategorie, Produktname und Preis (`ab XX,XX €`).
+* **Stufe 2 (World-Space Floating Card):** Tritt der Besucher näher als `< 3.4 m` an ein Podest heran (oder klickt ein Podest an), erscheint direkt über der Vitrine im 3D-Raum verankert (`project(camera)` + `translate3d(x, y, 0)`) eine kompakte Light-Mode-Schwebetafel mit Gold-Kategorie, Produktname, Preis, maximal **3 kurzen Vorteilen** (`✓` in `#C5A059`) und **1 direktem Gold-Button** (`Jetzt gestalten` bzw. `Zum Produkt`). Läuft man weiter, blendet die Tafel automatisch zum nächsten Podest um.

@@ -337,44 +337,67 @@ class FunkenwerkHallOfHeroesAndProductFocusTest extends TestCase
         $this->assertStringEndsWith('/shop/customer/gamification/models/funki_lvl_10_god_of_soul.glb', (string) $authJson['heroes'][0]['model_url']);
         $this->assertStringEndsWith('/shop/customer/gamification/models/funki_lvl_6_craftsman.glb', (string) $authJson['heroes'][1]['model_url']);
 
-        // 3. Verify 3D JS asset adheres to Clean-Design, native GLB 2.0 loader, -Math.PI/2 front rotation & Pantheon lighting
-        $jsCode = (string) file_get_contents(public_path('js/funkenwerk-heroes-3d.js'));
-        $this->assertStringNotContainsString(' ' . "\u{2013}" . ' ', $jsCode);
-        $this->assertStringNotContainsString('https://', $jsCode);
-        $this->assertStringNotContainsString('Herrscherin über das Seelenfunken-Universum', $jsCode);
-        $this->assertStringContainsString('HALLE DER HELDEN', $jsCode);
-        $this->assertStringContainsString('#ECEAE4', $jsCode);
-        $this->assertStringContainsString('((r + 0.5) / 6) * Math.PI', $jsCode);
-        $this->assertStringContainsString('parseGlbBinary', $jsCode);
-        $this->assertStringContainsString('0x46546C67', $jsCode);
-        $this->assertStringContainsString('FUNKI_GLB_FRONT_ROTATION_Y = -Math.PI * 0.5', $jsCode);
-        $this->assertStringContainsString('HemisphereLight', $jsCode);
-        $this->assertStringContainsString('glbTemplateCache = new Map()', $jsCode);
-        $this->assertStringContainsString('_createFunkiCharacterByLevel', $jsCode);
-        $this->assertStringContainsString('Freier Ehrenplatz', $jsCode);
+        // 3. Verify 3D User Lobby loader & engine adhere to Clean-Design, 1:1 Pantheon Hall of Heroes & Multiplayer Instances (0 Water City!)
+        $loaderJs = (string) file_get_contents(public_path('js/funkenwerk-heroes-3d.js'));
+        $engineJs = (string) file_get_contents(public_path('js/seelenfunke-louvre-showroom-3d.js'));
 
-        // 4. Verify "Funkenwerk 3D öffnen" button renders directly in visible Customer Dashboard & Funki page, and is REMOVED from Checkout Success
+        $this->assertStringNotContainsString(' ' . "\u{2013}" . ' ', $loaderJs);
+        $this->assertStringNotContainsString(' ' . "\u{2014}" . ' ', $loaderJs);
+        $this->assertStringNotContainsString('https://', $loaderJs);
+        $this->assertStringNotContainsString('_buildWaterMetropolis', $loaderJs);
+        $this->assertStringNotContainsString('startOrbitalFlyIn', $loaderJs);
+        $this->assertStringContainsString('/js/seelenfunke-louvre-showroom-3d.js?v=20261116v3', $loaderJs);
+        $this->assertStringContainsString('sf-lobby-instance-btn', $loaderJs);
+        $this->assertStringContainsString('sf-lobby-instance-menu', $loaderJs);
+        $this->assertStringContainsString('/funkenwerk-welt/lobby/join', $loaderJs);
+        $this->assertStringContainsString('/funkenwerk-welt/lobby/sync', $loaderJs);
+        $this->assertStringContainsString('/funkenwerk-welt/lobby/switch', $loaderJs);
+        $this->assertStringContainsString('/funkenwerk-welt/lobby/leave', $loaderJs);
+
+        $this->assertStringNotContainsString(' ' . "\u{2013}" . ' ', $engineJs);
+        $this->assertStringNotContainsString('https://', $engineJs);
+        $this->assertStringNotContainsString('Herrscherin über das Seelenfunken-Universum', $engineJs);
+        $this->assertStringContainsString('HALLE DER HELDEN', $engineJs);
+        $this->assertStringContainsString('#ECEAE4', $engineJs);
+        $this->assertStringContainsString('#133B5C', $engineJs);
+        $this->assertStringContainsString('const domeBaseY = entY + 5.35;', $engineJs);
+        $this->assertStringContainsString('((r + 0.5) / 6) * Math.PI', $engineJs);
+        $this->assertStringContainsString('parseGlbBinary', $engineJs);
+        $this->assertStringContainsString('0x46546C67', $engineJs);
+        $this->assertStringContainsString('FUNKI_GLB_FRONT_ROTATION_Y = -Math.PI * 0.5', $engineJs);
+        $this->assertStringContainsString('HemisphereLight', $engineJs);
+        $this->assertStringContainsString('glbTemplateCache = new Map()', $engineJs);
+        $this->assertStringContainsString('_createFunkiCharacterByLevel', $engineJs);
+        $this->assertStringContainsString('Freier Ehrenplatz', $engineJs);
+
+        // 4. Verify "3D-Lobby öffnen" / "Halle der Helden 3D" buttons render in Customer Dashboard & Funki page (0 internal Funkenwerk references!), and remain REMOVED from Checkout Success
         $dashTest = Livewire::actingAs($meCustomer, 'customer')
             ->test(CustomerDashboardComponent::class)
-            ->assertSee('Funkenwerk 3D öffnen')
-            ->assertSeeHtml('data-testid="dashboard-open-funkenwerk-3d"')
+            ->assertSee('3D-Lobby öffnen')
+            ->assertDontSee('Funkenwerk 3D öffnen')
+            ->assertSeeHtml('data-testid="dashboard-open-user-lobby-3d"')
             ->assertSeeHtml('funkenwerk-heroes-3d.js')
-            ->assertSeeHtml("open('orbit')");
+            ->assertSeeHtml("open('lobby')")
+            ->assertSeeHtml("open('hall')");
 
         $dashHtml = (string) $dashTest->html();
         $visibleDashHtml = explode('<template x-teleport="body">', $dashHtml)[0] ?? '';
-        $this->assertStringContainsString('data-testid="dashboard-open-funkenwerk-3d"', $visibleDashHtml);
-        $this->assertStringContainsString('Funkenwerk 3D öffnen', $visibleDashHtml);
+        $this->assertStringContainsString('data-testid="dashboard-open-user-lobby-3d"', $visibleDashHtml);
+        $this->assertStringContainsString('3D-Lobby öffnen', $visibleDashHtml);
 
         $this->actingAs($meCustomer, 'customer')
             ->get('/customer/dashboard')
             ->assertOk()
-            ->assertSee('Funkenwerk 3D öffnen')
-            ->assertSee('data-testid="dashboard-open-funkenwerk-3d"', false);
+            ->assertSee('3D-Lobby öffnen')
+            ->assertDontSee('Funkenwerk 3D öffnen')
+            ->assertSee('data-testid="dashboard-open-user-lobby-3d"', false);
 
         Livewire::actingAs($meCustomer, 'customer')
             ->test(CustomerFunkiComponent::class)
-            ->assertSee('Funkenwerk 3D öffnen');
+            ->assertSee('Halle der Helden 3D')
+            ->assertDontSee('Funkenwerk 3D öffnen')
+            ->assertSeeHtml('data-testid="funki-open-hall-of-heroes-3d"')
+            ->assertSeeHtml("open('hall')");
 
         $this->createPaidOrder('ORD-SUCC-CLEAN-01', $meCustomer, false, 'pending');
 
@@ -383,6 +406,8 @@ class FunkenwerkHallOfHeroesAndProductFocusTest extends TestCase
             ->assertSee('ORD-SUCC-CLEAN-01')
             ->assertSee('Zur Bestellung')
             ->assertSee('Weiter einkaufen')
+            ->assertDontSee('3D-Lobby öffnen')
+            ->assertDontSee('Halle der Helden 3D')
             ->assertDontSee('Funkenwerk 3D öffnen')
             ->assertDontSeeHtml('funkenwerk-heroes-3d.js')
             ->assertDontSeeHtml('SeelenfunkeHeroes3D');
@@ -390,6 +415,7 @@ class FunkenwerkHallOfHeroesAndProductFocusTest extends TestCase
         $this->actingAs($meCustomer, 'customer')
             ->get('/checkout/success')
             ->assertOk()
+            ->assertDontSee('3D-Lobby öffnen')
             ->assertDontSee('Funkenwerk 3D öffnen')
             ->assertDontSee('SeelenfunkeHeroes3D', false);
     }
