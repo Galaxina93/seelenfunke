@@ -25,6 +25,7 @@
     # lokale Hosts, POST/API/Webhook-Aufrufe und ACME-Challenges bleiben unberuehrt).
     # -----------------------------------------------------
     RewriteCond %{HTTP_HOST} ^mein-seelenfunke\.de$ [NC]
+    RewriteCond %{DOCUMENT_ROOT}/../.env -f
     RewriteCond %{REQUEST_METHOD} ^(GET|HEAD)$ [NC]
     RewriteCond %{REQUEST_URI} !^/(api(/|$)|stripe(/|$)|twilio|up($|/)|\.well-known(/|$)) [NC]
     RewriteRule ^ https://www.mein-seelenfunke.de%{REQUEST_URI} [R=301,L]

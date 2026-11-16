@@ -3,7 +3,7 @@
 **Datum:** 16.11.2026  
 **Autor:** Falcone (Technischer Mitgründer & Chef-Architekt)  
 **System:** Mein-Seelenfunke Live-Infrastruktur (`seelenfunke-live` auf Mittwald mStudio, Server `s-pis5pf`, Projekt `p-g27wim`)  
-**Status:** Konzept erstellt (Wartet auf Go von Inhaberin Alina Steinhauer vor technischer Ausführung)
+**Status:** Technische Umsetzung zu 95 % auf `seelenfunke-live` (`a-bycqrf`) ausgerollt & `mein-seelenfunke.de` live auf HTTP 503 Wartungsseite geschaltet (finaler mStudio-Schreibschritt wartet auf `api_write`-Token im Funkenwerk Tresor)
 
 ---
 
@@ -155,8 +155,22 @@ Sobald Alina das Startsignal („Go“) erteilt, wird die Bereitstellung in 6 sa
 
 ---
 
-## 6. Fazit & Nächster Schritt
+## 6. Aktueller Umsetzungsstand (16.11.2026) & Letzter 1-Minuten-Schritt
 
-Das System ist von der Codebasis her zu 100 % auf diese Bereitstellung vorbereitet. Es bedarf keiner Code-Änderungen an der Middleware oder den Views.
+### Bereits vollständig erledigt & live verifiziert:
+1. **Produktions-Initialisierung ([`SystemPrepareLiveCommand.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Console/Commands/SystemPrepareLiveCommand.php)):** Idempotentes Artisan-Command `php artisan system:prepare-live` inkl. Schutz in [`SystemSettingSeeder.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/database/seeders/SystemSettingSeeder.php) (`maintenance_mode` per `firstOrCreate`) und PHPUnit-Suite [`LivePreparationMaintenanceTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/System/LivePreparationMaintenanceTest.php) (**11/11 Tests, 2.051 Assertions Grün**).
+2. **Zero-Secret Mittwald-Live-Provisioner ([`McpTresorBroker.cs`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/funkenwerk-mcp/McpTresorBroker.cs)):** Lokales CLI-Kommando `FunkenwerkMcp.exe --mittwald-prepare-live --step=all|infra|env|cron|check` (**61/61 Selbsttests Grün**; Stage-Air-Gap und `steinhauer-invest`-Sperre zu 100 % erhalten).
+3. **Codebase, Composer & Shop-Assets auf `seelenfunke-live` (`a-bycqrf`) übertragen:**
+   - Vollständiger Produktions-Code + `135/135` Composer-Pakete (`--no-dev`) + kompiliertes `npm run prod` Bundle in `/home/p-g27wim/html/seelenfunke-live` installiert.
+   - Reine Shop-Medien (**315 Manifest-Assets / 363 Dateien inkl. Presets**, `0 Byte` Musik/Buchhaltung/Privatdaten) synchronisiert und `public/storage` verknüpft.
+4. **Live-Schutzschild auf `https://mein-seelenfunke.de` scharf geschaltet:**
+   - Liefert ab sofort **`HTTP 503 Service Unavailable`** (`X-Robots-Tag: noindex, noarchive`, `Retry-After: 3600`) mit der Seelenfunke-Gifhorn-Wartungsseite aus.
+   - Alle Systempfade außerhalb von `public/` (`composer.json`, `.git/HEAD`, `app/*`) sind hart mit **`HTTP 403 Forbidden`** verriegelt.
 
-**Nächster Schritt:** Wir warten auf Alinas ausdrückliches **„Go“**, um die 6 Umsetzungsschritte auf Mittwald auszuführen.
+### Offener 1-Minuten-Handgriff für den finalen mStudio-Schreibzugriff:
+- Das aktuell im **Funkenwerk Tresor** unter `Mittwald - AI Agent Hosting` gespeicherte API-Token besitzt bei Mittwald ausschließlich Lese-Rechte (`api_read` -> `HTTP 403 PermissionDenied` bei `PATCH /v2/app-installations` und `POST /v2/ingresses`).
+- **Sobald Alina im Mittwald mStudio unter Profil -> API-Tokens ein Token mit Lese- & Schreibrechten erzeugt und im Funkenwerk Tresor bei `Mittwald - AI Agent Hosting` speichert**, erledigt ein einziger Aufruf (`FunkenwerkMcp.exe --mittwald-prepare-live --step=all` + `php artisan migrate --force && php artisan system:prepare-live`) vollautomatisch in 15 Sekunden:
+  1. Umstellung des Document-Root von `a-bycqrf` auf `/public`
+  2. Anlage von Ingress + DNS + Let's-Encrypt-Zertifikat für `www.mein-seelenfunke.de`
+  3. Zero-Secret Provisionierung von `mysql_gv2avu` (`dbu_gv2avu`) + isolierter `.env` (`CACHE_STORE=database`, `SESSION_DRIVER=database`, `QUEUE_CONNECTION=sync`) + Übernahme von Alinas Admin-Zugang und allen 28 Produktions-Seedern bei aktivem Wartungsmodus (`maintenance_mode = 'true'`)
+  4. Aktivierung des minütlichen System-Cronjobs `Seelenfunke Live - Scheduler`
