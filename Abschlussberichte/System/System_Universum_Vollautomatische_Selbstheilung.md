@@ -123,3 +123,10 @@ Zu jeder vollen Stunde (`CRON_TZ=Europe/Berlin 0 * * * *`) startet [sidecar.json
   - `storage/app/private/antigravity_inbox.json`: `open_pool_count = 0`, `items: []`
   - Bestätigung durch `FunkenwerkMcp.exe --sentinel-hourly-guard`: **`0` offene Dossiers, `0 Bytes` Fehler-Logs**.
 
+### 16.11.2026 (Gemini-Bridge Health-Check-Präzisierung & Sofort-Warnprozess bei echten Bridge-Ausfällen)
+* **Architektur- & Selbstheilungs-Erweiterung (`MasterAnalytics.php` & `SentinelTriageService.php`):**
+  1. **Präzise JSON-Health-Endpunkte statt WebSocket-Pfad ([`MasterAnalytics.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Master/MasterAnalytics.php)):** Die Live-Gesundheitsprüfung der Echtzeit-Bridges prüft gezielt `/twilio-health` (`a-iurgq8` / `ws.mein-seelenfunke.de`) und `/health` (`a-yeq7el` / `api-live-bridge.mein-seelenfunke.de`) auf `status === "ok"` inklusive `400 ms`-Retry anstelle von `/twilio-stream` (verhindert Schein-Fehler durch fehlende WebSocket-Upgrade-Header).
+  2. **Sofort-Warnkette & Auto-Heil-Quittierung ([`SentinelTriageService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/System/SentinelTriageService.php)):** Echte Ausfälle von `a-iurgq8` oder `a-yeq7el` werden sofort unter `sentinel:bridge_down:*` erfasst, schalten die Statuskachel im Operativen Status (`/admin/dashboard`) auf Rot, lösen eine gedrosselte Warn-Mail sowie einen Admin-Push via `FirebaseService::sendToAdmins` aus und werden nach erfolgreicher Wiederherstellung automatisch mit `[AUTO-GEHEILT]` quittiert.
+* **Testnachweis:** **`23/23 Tests Grün`**.
+
+

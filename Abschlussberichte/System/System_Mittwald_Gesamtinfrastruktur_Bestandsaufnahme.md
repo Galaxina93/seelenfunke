@@ -1,6 +1,6 @@
 # Mittwald mStudio Gesamtinfrastruktur: Vollständige Bestandsaufnahme (`p-g27wim`)
 
-**Stand der Live-Prüfung:** 16.11.2026 (reine Read-Only-Bestandsaufnahme über die Mittwald REST-API v2, SSH-Verzeichnisprüfung und Live-Health-Endpunkte; `0` Änderungen vorgenommen)  
+**Stand der Live-Prüfung:** 16.11.2026 (Basis-Bestandsaufnahme über Mittwald REST-API v2 & SSH; **aktualisiert am 16.11.2026** nach produktiver Live-Vorbereitung von `seelenfunke-live` / `a-bycqrf`)  
 **Geprüftes Projekt:** `Alina` (Kurz-ID: **`p-g27wim`**, UUID: `a7a6fd9f-3844-4bdd-8fe0-c7d1c0827cc5`)  
 **Cluster & Server:** Cluster `altgemeinde` (`project.host`), Server **`s-pis5pf`** (`3b1025d6-63fa-4ac5-9b9d-4070a2a21918`)  
 **Öffentliche Ingress-IPs:** IPv4 **`185.215.158.114`** | IPv6 **`2a03:2a01:a330:a::2`**  
@@ -21,7 +21,8 @@ flowchart TD
         D_Stage["stage.mein-seelenfunke.de"]
         D_Ws["ws.mein-seelenfunke.de"]
         D_Node["api-live-bridge.mein-seelenfunke.de"]
-        D_Live["mein-seelenfunke.de"]
+        D_Live["mein-seelenfunke.de (Kanonische Hauptdomain)"]
+        D_LiveWww["www.mein-seelenfunke.de (HTTP 301 -> mein-seelenfunke.de)"]
         D_Invest["steinhauer-invest.de"]
         D_Unused["twilio.mein-seelenfunke.de / openwebui.p-g27wim.project.space (Standardseite, ungenutzt)"]
     end
@@ -31,19 +32,20 @@ flowchart TD
         WorkerWs["a-iurgq8 · WORKER - Websocket Stage (PHP-Worker 8.5.12: Reverb + Twilio-Bridge Port 6001)"]
         WorkerJobs["a-mihbdu · WORKER - Jobs Stage (PHP-Worker 8.5.12: queue:work)"]
         AppNode["a-yeq7el · seelenfunke-nodejs (Node.js 25.9.0: server-twilio.js)"]
-        AppLive["a-bycqrf · seelenfunke-live (PHP 8.4.27, aktuell leerer Platzhalter)"]
+        AppLive["a-bycqrf · seelenfunke-live (PHP 8.4.27, DocRoot /public, 315 Shop-Assets, Live-Freigabe gesperrt)"]
         AppInvest["a-s4sdym · steinhauer-invest (PHP 8.5.12, DocRoot /public)"]
     end
 
     subgraph Data["Datenbanken, Cache & Scheduler"]
         DbStage["MySQL 8.4 · mysql_nkzzsf (Stage)"]
         RedisStage["Redis 8.6 · redis_t4tm3u (32 MiB, allkeys-lru)"]
-        CronStage["Cronjob cron-x3mf9s (* * * * *: artisan schedule:run)"]
-        DbLive["MySQL 8.4 · mysql_gv2avu (Live, 0 B)"]
+        CronStage["Cronjob cron-x3mf9s (* * * * *: Stage schedule:run)"]
+        DbLive["MySQL 8.4 · mysql_gv2avu (Live, 148 Tabellen, 28 Seeder)"]
+        CronLive["Cronjob e41d0deb (* * * * *: Live schedule:run)"]
         DbInvest["MySQL 8.4 · mysql_fg9zlg (steinhauer-invest)"]
     end
 
-    Internet --> D_Stage & D_Ws & D_Node & D_Live & D_Invest
+    Internet --> D_Stage & D_Ws & D_Node & D_Live & D_LiveWww & D_Invest
     Twilio -->|"POST /api/twilio/inbound"| D_Stage
     Twilio -->|"WSS /twilio-stream"| D_Ws
 
@@ -51,10 +53,12 @@ flowchart TD
     D_Ws --> AppStage
     AppStage -->|".htaccess Proxy ws://a-iurgq8:6001"| WorkerWs
     D_Node --> AppNode
+    D_LiveWww -->|"301"| D_Live
     D_Live --> AppLive
     D_Invest --> AppInvest
 
     CronStage --> AppStage
+    CronLive --> AppLive
     AppStage --> DbStage & RedisStage
     WorkerWs --> DbStage & RedisStage
     WorkerJobs --> DbStage & RedisStage
@@ -64,7 +68,7 @@ flowchart TD
 
 ---
 
-## 2. Registrierte Hauptdomains & Alle 8 Ingress-Routings (Subdomains)
+## 2. Registrierte Hauptdomains & Alle 9 Ingress-Routings (Subdomains)
 
 ### 2.1 Registrierte DENIC-Domains im Projekt
 Beide Hauptdomains liegen direkt bei Mittwald auf den Standard-Nameservern (`ns01.agenturserver.de`, `ns01.agenturserver.co`, `ns01.agenturserver.it`) und sind bei der DENIC verifiziert:
@@ -74,30 +78,31 @@ Beide Hauptdomains liegen direkt bei Mittwald auf den Standard-Nameservern (`ns0
 | **`mein-seelenfunke.de`** | `d85517f0-01cb-48be-be07-d976e036962c` | `DENIC-22374-M7BSR694ZVN9VHMHNL8P` | `kontakt@mein-seelenfunke.de` | Mittwald Standard (`usesDefaultNameserver: true`) | Verbunden & aktiv |
 | **`steinhauer-invest.de`** | `443ef383-18b5-4f03-bf2b-fe8c0610ebe0` | `DENIC-22374-9LVXQTK2DF7ZFF84SPXV` | `alina.stone@t-online.de` | Mittwald Standard (`usesDefaultNameserver: true`) | Verbunden & verifiziert |
 
-### 2.2 Alle 8 konfigurierten Domains / Subdomains (Virtual-Host-Ingresses)
-Für alle 8 Hostnamen ist automatisches ACME-SSL/TLS (`tls.acme = true`, `isCreated = true`, `0` DNS-Validierungsfehler) aktiv:
+### 2.2 Alle 9 konfigurierten Domains / Subdomains (Virtual-Host-Ingresses)
+Für alle 9 Hostnamen ist automatisches ACME-SSL/TLS (`tls.acme = true`, `isCreated = true`, `0` DNS-Validierungsfehler) aktiv:
 
 | # | Hostname (Domain / Subdomain) | Ingress-UUID | Pfad | Verknüpftes Ziel in mStudio | Produktive Rolle |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | 1 | **`stage.mein-seelenfunke.de`** | `805ceb89-8305-47fa-bc00-2c4c2a3b4009` | `/` | App **`a-lc6tkm`** (`seelenfunke-stage`) | Aktives Stage-Hauptportal, REST-API, Funkenwerk-Sync & Twilio-Inbound-Webhook (`/api/twilio/inbound`) |
 | 2 | **`ws.mein-seelenfunke.de`** | `d98ad2db-b5da-45ec-857b-fe09ef981bbb` | `/` | App **`a-lc6tkm`** (`seelenfunke-stage`) -> `.htaccess`-Proxy auf **`a-iurgq8:6001`** | Öffentlicher WSS-Endpunkt für Laravel Reverb (`/app/*`) **und** die primäre Twilio-Telefonsekretärin (`/twilio-stream`, `/twilio-health`) |
 | 3 | **`api-live-bridge.mein-seelenfunke.de`** | `cb79eeb6-44a3-42d9-9f32-c0fbb6b6296d` | `/` | App **`a-yeq7el`** (`seelenfunke-nodejs`) | Direkter öffentlicher HTTPS/WSS-Endpunkt auf den Node.js-Container (`/gemini-live` für Web- & Android-Live-Sprachchat, `/twilio-stream`, `/health`) |
-| 4 | **`mein-seelenfunke.de`** | `713ea3f6-bf74-4176-82df-4b495e6d6952` | `/` | App **`a-bycqrf`** (`seelenfunke-live`) | Reservierte Live-Hauptdomain (Ordner `/seelenfunke-live` aktuell noch leerer Platzhalter vor Live-Gang; durch 4-fach Air-Gap vor Stage-Skripten geschützt) |
+| 4 | **`mein-seelenfunke.de`** | `713ea3f6-bf74-4176-82df-4b495e6d6952` | `/` | App **`a-bycqrf`** (`seelenfunke-live`) | Kanonische Live-Hauptdomain (`APP_URL=https://mein-seelenfunke.de`, aktiv initialisiert hinter `Shop Live-Freigabe = false` / `HTTP 503`; 4-fach Air-Gap zu Stage) |
 | 5 | **`steinhauer-invest.de`** | `04a84168-d62e-4a84-ac4f-0e90284d0e8d` | `/` | App **`a-s4sdym`** (`steinhauer-invest`) | Eigenständige Web-App für Steinhauer Invest |
 | 6 | **`twilio.mein-seelenfunke.de`** | `1dd7550c-6f1b-4794-b060-f6fee75086ac` | `/` | `useDefaultPage: true` *(keine App)* | Historische Test-Subdomain ohne App-Zuweisung (zeigt nur die Mittwald-Standardseite; produktiv nicht mehr in Verwendung) |
 | 7 | **`openwebui.p-g27wim.project.space`** | `bd00c847-53fa-4d09-9261-bb8f30e6006b` | `/` | `useDefaultPage: true` *(keine App)* | Historische Test-Subdomain ohne aktiven Container (`stacks`, `services` und `volumes` im Projekt sind komplett leer) |
 | 8 | **`p-g27wim.project.space`** | `7da368d9-c025-4d55-8dea-cecaa4cb8451` | `/` | `useDefaultPage: true` (`isDefault: true`) | Automatische interne Mittwald-Systemdomain des Projekts |
+| 9 | **`www.mein-seelenfunke.de`** | `3cc5333c-5b83-46f8-8e6c-72ed843bee8a` | `/` | App **`a-bycqrf`** (`seelenfunke-live`) | Live-Subdomain-Ingress (`isCreated: true`, DNS-Zone `c24e2c43-db7b-4386-8811-d1df5b3042e5`), leitet Aufrufe per **`HTTP 301`** auf `https://mein-seelenfunke.de` weiter |
 
 ---
 
 ## 3. DNS-Zonen-Konfiguration im Detail
 
-In der Mittwald-DNS-Verwaltung sind **14 Zoneneinträge** konfiguriert:
+In der Mittwald-DNS-Verwaltung sind **15 Zoneneinträge** konfiguriert:
 
 1. **Web- & WebSocket-Routing (`mein-seelenfunke.de` & Subdomains):**
-   * `mein-seelenfunke.de`, `ws.mein-seelenfunke.de`, `api-live-bridge.mein-seelenfunke.de` und `twilio.mein-seelenfunke.de` stehen auf **`managedBy.ingressId`** (Mittwald setzt automatisch `A` auf `185.215.158.114` und `AAAA` auf `2a03:2a01:a330:a::2`).
+   * `mein-seelenfunke.de`, `www.mein-seelenfunke.de` (`c24e2c43-db7b-4386-8811-d1df5b3042e5`), `ws.mein-seelenfunke.de`, `api-live-bridge.mein-seelenfunke.de` und `twilio.mein-seelenfunke.de` stehen auf **`managedBy.ingressId`** (Mittwald setzt automatisch `A` auf `185.215.158.114` und `AAAA` auf `2a03:2a01:a330:a::2`).
    * **Besonderheit bei `stage.mein-seelenfunke.de` (`13107715-1a38-40ec-b28f-82df24666bf6`):** Hier ist ein expliziter `A`-Record auf `185.215.158.114` mit leerem `AAAA`-Array (`aaaa: []`, reines IPv4) hinterlegt.
-   * **Subdomain `www.`:** Weder für `www.mein-seelenfunke.de` noch für `www.steinhauer-invest.de` ist aktuell ein eigener Ingress/DNS-Eintrag angelegt (für den späteren Live-Start vormerken).
+   * **Subdomain `www.`:** Für `www.mein-seelenfunke.de` ist der Ingress + Dual-Stack-DNS-Eintrag aktiv (`HTTP 301` auf `mein-seelenfunke.de`); für `www.steinhauer-invest.de` ist aktuell kein eigener Ingress angelegt.
 2. **E-Mail-Zustellung & Authentifizierung (`mein-seelenfunke.de` & `steinhauer-invest.de` identisch aufgebaut):**
    * **MX:** `managed: true` (automatischer Mittwald-Mailserver).
    * **SPF (`TXT` auf Hauptdomain):** `v=spf1 include:agenturserver.de ~all`.
@@ -117,7 +122,7 @@ Im Projektverzeichnis `/home/p-g27wim/html` liegen exakt **6 physische App-Ordne
 | **`a-iurgq8`** | `WORKER - Websocket Stage` | `PHP-Worker` | `c86beb79-f946-4419-8bc3-3fcaf095dcfd` | `/worker-stage-3` | `php artisan reverb:start --host=0.0.0.0 --port=6001` | PHP `8.5.12` (`patchLevel`), Composer `2.9.7` (`patchLevel`) | via `.env` (`mysql_nkzzsf` + `redis_t4tm3u`) |
 | **`a-mihbdu`** | `WORKER - Jobs (Mails,PDF) Stage` | `PHP-Worker` | `cc7590dc-444c-403c-a653-c31e05af385d` | `/worker-stage` | `php /html/seelenfunke-stage/artisan queue:work --tries=3 --max-time=3600` | PHP `8.5.12` (`none`), Composer `2.9.7` (`none`) | via Stage-`.env` (`mysql_nkzzsf` + `redis_t4tm3u`) |
 | **`a-yeq7el`** | `seelenfunke-nodejs` | `Node.js` | `740bd870-cd0d-4ee4-b601-991c6b8ec9ea` | `/twilio-bridge` | `node server-twilio.js` | Node.js `25.9.0` (`patchLevel`) | spricht per HTTPS/REST mit `stage.mein-seelenfunke.de` |
-| **`a-bycqrf`** | `seelenfunke-live` | `PHP` | `93f33f15-d27c-4d15-9f85-155eb9adace8` | `/seelenfunke-live` | DocRoot: **`/`** *(Hinweis: vor Laravel-Livegang auf `/public` stellen)* | PHP `8.4.27` (`patchLevel`), Composer `2.7.7` (`patchLevel`), MySQL-CLI `8.0.40` | `mysql_gv2avu` |
+| **`a-bycqrf`** | `seelenfunke-live` | `PHP` | `93f33f15-d27c-4d15-9f85-155eb9adace8` | `/seelenfunke-live` | DocRoot: **`/public`** (`customDocumentRoot: "/public"`, 315 Shop-Assets, `Shop Live-Freigabe = false`) | PHP `8.4.27` (`patchLevel`), Composer `2.7.7` (`patchLevel`), MySQL-CLI `8.0.40` | `mysql_gv2avu` |
 | **`a-s4sdym`** | `steinhauer-invest` | `PHP` | `2be54dff-9651-416e-8aba-79a5b63749ff` | `/steinhauer-invest` | DocRoot: **`/public`** | PHP `8.5.12` (`patchLevel`), Node `22.23.5` (`none`), Composer `2.7.7`, MySQL-CLI `8.4.5` | `mysql_fg9zlg` |
 
 > [!NOTE]
@@ -165,7 +170,7 @@ Alle Datenbanken laufen rein projekt-intern auf dem Cluster-DB-Host `*.pg-s-pis5
 | Typ & Version | DB-Name | Beschreibung | Interner Hostname & Port | Hauptbenutzer | Zeichensatz / Policy | Aktuelle Größe |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **MySQL `8.4`** | **`mysql_nkzzsf`** | `seelenfunke-stage` | `mysql-nkzzsf.pg-s-pis5pf.db.project.host:3306` | `dbu_nkzzsf` | `utf8mb4_general_ci` | `11,39 MiB` |
-| **MySQL `8.4`** | **`mysql_gv2avu`** | `seelenfunke-live` | `mysql-gv2avu.pg-s-pis5pf.db.project.host:3306` | `dbu_gv2avu` | `utf8mb4_general_ci` | `0 B` (leer) |
+| **MySQL `8.4`** | **`mysql_gv2avu`** | `seelenfunke-live` | `mysql-gv2avu.pg-s-pis5pf.db.project.host:3306` | `dbu_gv2avu` | `utf8mb4_general_ci` | Aktiv initialisiert (`148 Tabellen`, `28 Produktions-Seeder`, `0` Test-Bestellungen) |
 | **MySQL `8.4`** | **`mysql_fg9zlg`** | `steinhauer-invest` | `mysql-fg9zlg.pg-s-pis5pf.db.project.host:3306` | `dbu_fg9zlg` | `utf8mb4_general_ci` | `1,55 MiB` |
 | **Redis `8.6`** | **`redis_t4tm3u`** | `seelenfunke-stage-redis` | `redis-t4tm3u.pg-s-pis5pf.db.project.host:6379` | *(intern)* | `maxMemory: 32 MiB`, `allkeys-lru`, `persistent: true` | `13,41 MiB` |
 
@@ -184,12 +189,15 @@ Alle Datenbanken laufen rein projekt-intern auf dem Cluster-DB-Host `*.pg-s-pis5
 ## 8. Cronjobs, System-Backups & SSH-/SFTP-Zugänge
 
 ### 8.1 Konfigurierte mStudio-Cronjobs
-Es existiert exakt **1 sauber entkoppelter System-Cronjob** (keine doppelten Scheduler-Worker mehr):
-* **`cron-x3mf9s` (`Seelenfunke Stage - Scheduler`, UUID `86fc4aeb-5b65-4f08-88d2-1825ffb69b9e`):**
-  * **Ziel-App:** `a-lc6tkm` (`seelenfunke-stage`)
-  * **Befehl:** `/usr/bin/php /html/seelenfunke-stage/artisan schedule:run`
-  * **Intervall & Zeitzone:** `* * * * *` (minütlich), `Europe/Berlin`, `concurrencyPolicy: forbid`, Timeout `3600 s`, Fehler-Alarm ab `1` Fehlschlag.
-  * **Letzte Ausführung:** `Complete` (`exitCode: 0`, Laufzeit `2000 ms`).
+Es existieren exakt **2 sauber entkoppelte System-Cronjobs** (jeweils 1 für Stage und 1 für Live, keine doppelten Scheduler-Worker):
+1. **`cron-x3mf9s` (`Seelenfunke Stage - Scheduler`, UUID `86fc4aeb-5b65-4f08-88d2-1825ffb69b9e`):**
+   * **Ziel-App:** `a-lc6tkm` (`seelenfunke-stage`)
+   * **Befehl:** `/usr/bin/php /html/seelenfunke-stage/artisan schedule:run`
+   * **Intervall & Zeitzone:** `* * * * *` (minütlich), `Europe/Berlin`, `concurrencyPolicy: forbid`, Timeout `3600 s`, Fehler-Alarm ab `1` Fehlschlag.
+2. **`Seelenfunke Live - Scheduler` (UUID `e41d0deb-e8ba-4fda-825b-c1437f440b78`):**
+   * **Ziel-App:** `a-bycqrf` (`seelenfunke-live`)
+   * **Befehl:** `/usr/bin/php /html/seelenfunke-live/artisan schedule:run`
+   * **Intervall & Zeitzone:** `* * * * *` (minütlich), `Europe/Berlin` (`crm:fetch-mails` in `system_cronjobs` während der Pre-Launch-Phase pausiert, damit Stage alleiniger IMAP-Poller bleibt).
 
 ### 8.2 Automatische Mittwald-System-Backups
 * **Backup-Plan `2e2bb706-e4bd-4b4d-8025-f201105746ff`:** Läuft täglich um **`03:57 UTC`** (`57 3 * * *`) mit **`30 Tagen` Aufbewahrungsdauer** (`ttl: 30d`). Aktuell belegen die Projekt-Backups `3,27 GiB` (zusätzlich zu unseren lokalen Snapshot-Delta-Backups auf dem Synology NAS).
@@ -208,18 +216,24 @@ Alle SSH- und SFTP-Verbindungen laufen über **`ssh.altgemeinde.project.host:22`
 
 ---
 
-## 9. Offene Beobachtungen & Merkpunkte für später (heute unverändert belassen)
+## 9. Nachtrag 16.11.2026 (Live-Vorbereitung `seelenfunke-live`) & Offene Merkpunkte
 
-Gemäß Vorgabe wurde **nichts verändert**. Bei der Durchsicht sind vier saubere Merkpunkte aufgefallen, die wir bei Gelegenheit oder vor dem Live-Gang am `01.11.2026` gezielt entscheiden können:
+### 9.1 Produktiv umgesetzt am 16.11.2026 (`seelenfunke-live` / `a-bycqrf`)
+Aus den ursprünglichen Merkpunkten der Read-Only-Bestandsaufnahme wurden für die geschützte Live-Vorbereitung folgende Infrastruktur-Schritte vollzogen:
+1. **`customDocumentRoot: "/public"` auf `a-bycqrf` (`seelenfunke-live`):** Aktiv umgestellt und mit Produktions-Code sowie **315 kuratierten Shop-Assets** (`0 Byte` Musik/Buchhaltung/Privatdaten) bestückt.
+2. **Datenbank `mysql_gv2avu` aktiv initialisiert:** **148 Tabellen** migriert und **28 Produktions-Seeder** eingespielt; `Shop Live-Freigabe` (`shop_is_live`) standardmäßig gesperrt (`false` -> `HTTP 503` auf dem gesamten öffentlichen Frontend inkl. Produktkonfigurator).
+3. **9. Ingress `www.mein-seelenfunke.de` (`3cc5333c-5b83-46f8-8e6c-72ed843bee8a`):** Inklusive ACME-TLS (`isCreated: true`) und DNS-Zone (`c24e2c43-db7b-4386-8811-d1df5b3042e5`) eingerichtet; leitet Aufrufe per **`HTTP 301`** auf die kanonische Hauptdomain `https://mein-seelenfunke.de` weiter.
+4. **2. System-Cronjob `Seelenfunke Live - Scheduler` (`e41d0deb-e8ba-4fda-825b-c1437f440b78`):** Minütlicher Laravel-Scheduler (`* * * * *`) auf `a-bycqrf` aktiv.
 
-1. **Zwei ungenutzte Alt-Subdomains ohne Ziel-App:** `twilio.mein-seelenfunke.de` und `openwebui.p-g27wim.project.space` zeigen beide nur auf `useDefaultPage: true` (leere Mittwald-Standardseite) und werden von keinem aktiven Dienst genutzt. Sie können bei Gelegenheit im mStudio aufgeräumt werden.
-2. **Document-Root bei `seelenfunke-live` (`a-bycqrf`):** Steht aktuell noch auf `/` statt `/public` (Ordner und Datenbank `mysql_gv2avu` sind derzeit noch leer). Vor dem echten Live-Rollout muss das Document-Root dort wie auf Stage auf `/public` gesetzt werden.
-3. **`www.`-Subdomains & DMARC-Eintrag:** Aktuell existieren noch kein `www.mein-seelenfunke.de`-Ingress (für eine saubere `301`-Weiterleitung auf `mein-seelenfunke.de`) und noch kein `_dmarc`-TXT-Record im DNS; SPF und doppeltes RSA-DKIM (1024 + 2048 Bit) sind hingegen bereits vollständig aktiv.
-4. **IPv6 (`AAAA`) auf `stage.mein-seelenfunke.de`:** Während alle anderen Ingresses per `managedBy.ingressId` Dual-Stack (IPv4 + IPv6) nutzen, besitzt `stage.mein-seelenfunke.de` einen manuellen `A`-Record nur für IPv4 (`185.215.158.114`). Das stört den Betrieb nicht, erklärt aber das abweichende DNS-Verhalten gegenüber `mein-seelenfunke.de`.
+### 9.2 Verbleibende optionale Merkpunkte
+1. **Zwei ungenutzte Alt-Subdomains ohne Ziel-App:** `twilio.mein-seelenfunke.de` und `openwebui.p-g27wim.project.space` zeigen beide nur auf `useDefaultPage: true` (leere Mittwald-Standardseite) und können bei Gelegenheit im mStudio entfernt werden.
+2. **`www.steinhauer-invest.de` & DMARC-Eintrag:** SPF und doppeltes RSA-DKIM (1024 + 2048 Bit) sind aktiv; ein optionaler `_dmarc`-TXT-Record sowie ein etwaiger `www.`-Ingress für `steinhauer-invest.de` können bei Bedarf ergänzt werden.
+3. **IPv6 (`AAAA`) auf `stage.mein-seelenfunke.de`:** Nutzt weiterhin bewusst einen expliziten IPv4-`A`-Record (`185.215.158.114`), während `mein-seelenfunke.de` und `www.mein-seelenfunke.de` Dual-Stack fahren.
 
 ---
 
 ## 10. Weiterführende Detailberichte
+* Live-Domain-Vorbereitung, 2-Switch-Architektur (`Shop Live-Freigabe` & `Wartungsmodus`) & Abnahmeprotokoll: [`Konzept_Mittwald_Live_Domain_Vorbereitung_Wartungsmodus.md`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/Abschlussberichte/Konzepte/Konzept_Mittwald_Live_Domain_Vorbereitung_Wartungsmodus.md)
 * Historie & Herleitung des Reverb-Worker-Proxyings: [`System_Mittwald_Reverb_Architektur.md`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/Abschlussberichte/System/System_Mittwald_Reverb_Architektur.md)
 * Detailprotokoll der Twilio- & Gemini-Live-Audio-Pipeline: [`Support_Twilio_Call_Dokumentation.md`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/Abschlussberichte/Support/Support_Twilio_Call_Dokumentation.md)
 * Vollautomatische 4-Säulen-Selbstheilung & Zero-Log-Prinzip: [`System_Universum_Vollautomatische_Selbstheilung.md`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/Abschlussberichte/System/System_Universum_Vollautomatische_Selbstheilung.md)
