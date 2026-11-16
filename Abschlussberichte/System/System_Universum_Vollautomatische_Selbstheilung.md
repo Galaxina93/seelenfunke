@@ -11,8 +11,9 @@ Das Mein-Seelenfunke-Ökosystem arbeitet nach dem verbindlichen **Zero-Log-Basel
 
 | Plattform | Aktive Haupt-Logs (Normalzustand = `0 Bytes` / leer) | Verlustfreies Log-Archiv (Geheimnisbereinigt, 30 Tage Rotation) |
 | :--- | :--- | :--- |
-| **Portal & Stage (`LogArchiveService`)** | `storage/logs/laravel.log` (`0 B`), `storage/logs/twilio_bridge.log` (`0 B`), `storage/app/private/antigravity_inbox.json` (`items: []`), Tab `Offen` in `/admin/global-logs` (`0`) | `storage/logs/archive/YYYY-MM/healed_YYYY-MM-DD_HHmmss_*.log` + DB-Tab `Archiv / Geheilt` in `/admin/global-logs` |
+| **Portal & Stage (`LogArchiveService`)** | `storage/logs/laravel.log` (`0 B`), `storage/logs/twilio_bridge.log` (`0 B`), `storage/logs/cron-*.log` (`0 B`), `storage/app/private/antigravity_inbox.json` (`items: []`), Tab `Offen` in `/admin/global-logs` (`0`) | `storage/logs/archive/YYYY-MM/healed_YYYY-MM-DD_HHmmss_*.log` + DB-Tab `Archiv / Geheilt` in `/admin/global-logs` |
 | **Manufaktur Mini-PC (`192.168.188.151`)** | `/home/alina/.local/share/FunkenwerkOS/sentinel_history.json` (`0 B`), kein offenes `antigravity_error_handoff.json`, kein `sentinel_queue.json` | `/home/alina/.local/share/FunkenwerkOS/archive/sentinel_archive_YYYY-MM.jsonl` & `archive/handoff_*.json` (`chmod 0600`) |
+| **Windows Funkenwerk (`FunkenwerkMcp` & `Tresor`)** | `%LOCALAPPDATA%\Funkenwerk\error_sentinel_queue.json` (nicht vorhanden / `0 B`), `%LOCALAPPDATA%\FunkenwerkTresor\funkenwerk_tresor_boot.log` (`0 B`) | `%LOCALAPPDATA%\FunkenwerkTresor\archive\healed_YYYY-MM-DD_HHmmss_funkenwerk_tresor_boot.log` + Stage-Archiv |
 | **Android-App (`ErrorSentinelReporter`)** | `files/error_sentinel_queue.json` (wird nach Hintergrund-Versand via `ShopWatchtowerJobService` sofort gelöscht) | `files/error_sentinel_history.json` (verschlüsselter lokaler Ringpuffer) + Stage-Archiv |
 
 ---
@@ -67,3 +68,22 @@ Zu jeder vollen Stunde (`CRON_TZ=Europe/Berlin 0 * * * *`) führt Antigravity au
   - Mini-PC `/home/alina/.local/share/FunkenwerkOS/sentinel_history.json`: **`0 Bytes`**
   - `storage/app/private/antigravity_inbox.json`: `open_pool_count = 0`, `items = []`
   - Stage-Pool (Mittwald `seelenfunke-stage`): `open_pool_count = 0`, gelöst und archiviert.
+
+### 16.11.2026, 13:25 Uhr (4-Säulen-Ursachenheilung, Rate-Limiter-Entkopplung, Android OTA `v1.8.0` & Zero-Log-Baseline)
+* **Erfasste & dauerhaft im Code geheilte Befunde (`4 Stage-Dossiers`, `14 Stage-Cron-Logs`, `Mini-PC History` & `Tresor Boot-Log`):**
+  1. `Portal & Mini-PC` (`RouteServiceProvider.php`, `routes/api.php`, `LinuxVaultAndApi.cs`, `SentinelTriageService.php` / `stage_log_id: 3425`): Dedizierten `RateLimiter::for('monitor-pulse')` (`180/min` getrennt nach `user_id + Token-ID + IP`) eingeführt, damit sich Mini-PC, Windows Funkenwerk und Android-App bei geteiltem Admin-Konto nicht mehr gegenseitig in HTTP `429` drosseln; auf dem Mini-PC (`192.168.188.151`) `Retry-After`-Backoff und `AutoHealRecoverableHistory` für `Status 429/502/503/504` ergänzt (`CONNECTED = True`, `STAGE · 137 ms`, `0` neue `429`).
+  2. `Portal / Sicherheit` (`SystemSecurityAuditCommand.php` / `stage_log_id: 3428`): `auditNpmPackages()` auf `--package-lock-only --omit=dev --json` plus `filterProdNpmVulnerabilities()` gehärtet (ignoriert verwaiste `node_modules/`-Dev-Reste, behält 100 % Schärfe für echte Prod-CVEs); auf Stage `vendor/`-Sync + `APP_DEBUG=false` verifiziert (`135` Composer- & `953` NPM-Pakete geprüft -> **`0` Prod-CVEs, `6/6` System-Schranken grün**).
+  3. `Portal / Stage-Logs` (`LogArchiveService.php`, `routes/console.php`): Alle aktiven `storage/logs/*.log` inkl. `cron-*.log` (exkl. `archive/`) in Fehler-Ingestion und `0-Byte`-Archivierung aufgenommen; fehlerfreie temporäre `cron-*.log` werden nach `onSuccess` direkt auf `0 Bytes` gehalten.
+  4. `Windows Funkenwerk` (`funkenwerk-tresor/App.xaml.cs`, `funkenwerk-mcp/Program.cs`, `funki`): Reguläres Close-Stacktrace-Logging und CRT-Shutdown-Unload-Noise in `FunkenwerkTresor` beseitigt; `funkenwerk_tresor_boot.log` wird von `FunkenwerkMcp --sentinel-sync` überwacht und bei `--resolve-all` verlustfrei nach `%LOCALAPPDATA%\FunkenwerkTresor\archive\` archiviert; Dual-Binary-Sync für `FunkenwerkMcp.exe` eingerichtet; zusätzlich `PreToolUse`-Quoting in `.agents/hooks.json` entstört.
+  5. `Android-App` (`ErrorSentinelReporter.kt`, `FunkiraLiveViewModel.kt`, `FalconClientTools.kt`, `build.gradle.kts` / `stage_log_id: 3424` & `3433`): Transiente WebSocket-/Mobilfunk-Abbrüche (`EOFException`, `SocketException`, Transport-`SSLException`) auf `*_ws`-Kanälen gefiltert, `"Verbindungsfehler: null"` im UI eliminiert, `Dispatchers.Main.immediate` in `FalconClientTools` gehärtet, 1:1 mit Windows-Mirror synchronisiert (`211/211` Dateien SHA-256 identisch) und als 4096-Bit-RSA-signiertes Release **`v1.8.0` (`versionCode = 24`)** per `--stage-publish-apk` ausgerollt.
+* **Testnachweis (`100 % Grün` über alle 4 Säulen):**
+  - **Portal / Stage (PHPUnit in `mein_php_server`)**: `221 passed (4.478 assertions), 0 failed`.
+  - **Manufaktur Mini-PC (`FunkenwerkOS.Linux`)**: `44/44 TESTS BESTANDEN` (lokal + live auf `192.168.188.151`, `funkenwerk-os.service` `active running`).
+  - **Windows Funkenwerk (`Tresor` & `FunkenwerkMcp`)**: `27/27` (`FunkenwerkTresor --self-test`) & `58/58` (`FunkenwerkMcp.exe --self-test`).
+  - **Android-App (`seelenfunke-android`)**: `65/65` Unit-Tests in `11` Test-Suiten grün (`gradlew testDebugUnitTest`) + `assembleRelease` (`release-b24`).
+* **Verifizierter Endstatus (Harte Gegenprobe nach `--sentinel-sync --resolve-all`):**
+  - Stage `storage/logs/laravel.log` & `14x cron-*.log`: **`0 Bytes`** (`open_pool_count = 0`)
+  - Lokal `storage/logs/laravel.log` & `twilio_bridge.log`: **`0 Bytes`** (`antigravity_inbox.json`: `open_pool_count = 0`, `items: []`)
+  - Mini-PC `/home/alina/.local/share/FunkenwerkOS/sentinel_history.json`: **`0 Bytes`** (kein Handoff, keine Queue)
+  - Windows `%LOCALAPPDATA%\FunkenwerkTresor\funkenwerk_tresor_boot.log`: **`0 Bytes`** (keine Queue)
+  - Android Stage-OTA `manifest.json`: **`v1.8.0` (`version_code = 24`)**, `open_pool_count = 0`.
