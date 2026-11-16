@@ -1889,13 +1889,20 @@ class OrderOverview extends Component
             $camInfo = $cockpit->syncCameraFromHostOrLaser(null, false);
             $laserGuide = $item->product->getLaserInstructionSummary();
 
+            $downloadService = app(\App\Services\Export\FileDownloadService::class);
+            $productCfg = is_string($item->product?->configurator_settings)
+                ? (json_decode($item->product->configurator_settings, true) ?: [])
+                : ($item->product?->configurator_settings ?? []);
+            $calibration = $downloadService->resolvePhysicalBlankCalibration($item->product, $productCfg, $conf, false);
+
             // Schneller Disk-Cache für das hochauflösende Gravur-Overlay (spart ~800ms GD-Render + MB-große Base64-Strings bei jedem Klick)
             $cacheHash = sha1(
-                'v4-4mm-bevel|'
+                'v5-crystal-82pct|'
                 . $item->id . '|'
                 . $effectiveSide . '|'
                 . ($item->updated_at?->timestamp ?? 0) . '|'
                 . ($item->product?->updated_at?->timestamp ?? 0) . '|'
+                . json_encode($calibration) . '|'
                 . json_encode($conf)
             );
             $publicDisk = \Illuminate\Support\Facades\Storage::disk('public');

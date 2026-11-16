@@ -19,8 +19,24 @@ class AuthRegister extends Component
 
     public string $company_hp = ''; // Honeypot für Spam-Bots
 
+    protected function ensureRegistrationAllowed(): void
+    {
+        if (!\App\Http\Middleware\EnforceShopMaintenanceMode::isShopLive(request())
+            && !\Illuminate\Support\Facades\Auth::guard('admin')->check()
+        ) {
+            abort(503);
+        }
+    }
+
+    public function boot(): void
+    {
+        $this->ensureRegistrationAllowed();
+    }
+
     public function mount(?string $sessionToken = null)
     {
+        $this->ensureRegistrationAllowed();
+
         if (SystemBlockedIp::isBlocked(request()->ip())) {
             abort(403, 'Zugriff verweigert.');
         }
@@ -127,6 +143,8 @@ class AuthRegister extends Component
 
     public function register()
     {
+        $this->ensureRegistrationAllowed();
+
         $ip = request()->ip();
 
         if (SystemBlockedIp::isBlocked($ip)) {

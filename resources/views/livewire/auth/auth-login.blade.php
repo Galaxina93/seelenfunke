@@ -53,11 +53,13 @@
                     </a>
 
                     <h1 class="text-2xl sm:text-3xl font-serif font-bold text-gray-900 tracking-tight">
-                        Kunden-Login
+                        {{ ($shopLiveUnlocked ?? true) ? 'Kunden-Login' : 'Verwaltung' }}
                     </h1>
-                    <p class="mt-2 text-xs text-gray-500 max-w-sm mx-auto">
-                        Melde dich an, um auf deine digitalen Güter und dein Profil zuzugreifen.
-                    </p>
+                    @if($shopLiveUnlocked ?? true)
+                        <p class="mt-2 text-xs text-gray-500 max-w-sm mx-auto">
+                            Melde dich an, um auf deine digitalen Güter und dein Profil zuzugreifen.
+                        </p>
+                    @endif
                 </div>
 
                 <form x-data="{ submitting: false }"
@@ -145,39 +147,41 @@
                     </div>
                 </form>
 
-                <div class="mt-6 relative z-10">
-                    <div class="relative">
-                        <div class="absolute inset-0 flex items-center">
-                            <div class="w-full border-t border-gray-200"></div>
+                @if($shopLiveUnlocked ?? true)
+                    <div class="mt-6 relative z-10">
+                        <div class="relative">
+                            <div class="absolute inset-0 flex items-center">
+                                <div class="w-full border-t border-gray-200"></div>
+                            </div>
+                            <div class="relative flex justify-center text-[10px] font-bold uppercase tracking-wider">
+                                <span class="px-3 bg-white text-gray-400">Oder weiter mit</span>
+                            </div>
                         </div>
-                        <div class="relative flex justify-center text-[10px] font-bold uppercase tracking-wider">
-                            <span class="px-3 bg-white text-gray-400">Oder weiter mit</span>
+
+                        <div class="mt-5">
+                            <a href="{{ route('auth.google', ['guard' => 'customer']) }}"
+                               data-sf-portal="login"
+                               class="w-full flex justify-center items-center py-2.5 px-4 border border-gray-300 rounded-xl shadow-sm bg-white text-xs font-bold text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 group">
+                                <svg class="w-4 h-4 mr-2.5 group-hover:scale-105 transition-transform duration-200" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+                                    <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path>
+                                    <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"></path>
+                                    <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"></path>
+                                    <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"></path>
+                                </svg>
+                                <span>Google Login</span>
+                            </a>
+                        </div>
+
+                        {{-- REGISTRIERUNG --}}
+                        <div class="mt-6 text-center bg-amber-50/60 rounded-2xl p-4 border border-amber-200/60">
+                            <span class="block text-[10px] font-bold uppercase tracking-wider text-amber-800/80 mb-1">Jetzt hier registrieren</span>
+                            <p class="text-xs text-gray-600 mb-1">Noch kein Teil unserer Reise?</p>
+                            <a href="{{ route('livewire.auth.register') }}" class="text-xs font-bold text-amber-700 hover:text-amber-900 transition-colors inline-flex items-center gap-1 underline decoration-amber-300 underline-offset-4">
+                                Konto erstellen ✨
+                            </a>
                         </div>
                     </div>
-
-                    <div class="mt-5">
-                        <a href="{{ route('auth.google', ['guard' => 'customer']) }}"
-                           data-sf-portal="login"
-                           class="w-full flex justify-center items-center py-2.5 px-4 border border-gray-300 rounded-xl shadow-sm bg-white text-xs font-bold text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 group">
-                            <svg class="w-4 h-4 mr-2.5 group-hover:scale-105 transition-transform duration-200" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
-                                <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path>
-                                <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"></path>
-                                <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"></path>
-                                <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"></path>
-                            </svg>
-                            <span>Google Login</span>
-                        </a>
-                    </div>
-
-                    {{-- REGISTRIERUNG --}}
-                    <div class="mt-6 text-center bg-amber-50/60 rounded-2xl p-4 border border-amber-200/60">
-                        <span class="block text-[10px] font-bold uppercase tracking-wider text-amber-800/80 mb-1">Jetzt hier registrieren</span>
-                        <p class="text-xs text-gray-600 mb-1">Noch kein Teil unserer Reise?</p>
-                        <a href="{{ route('livewire.auth.register') }}" class="text-xs font-bold text-amber-700 hover:text-amber-900 transition-colors inline-flex items-center gap-1 underline decoration-amber-300 underline-offset-4">
-                            Konto erstellen ✨
-                        </a>
-                    </div>
-                </div>
+                @endif
             @endif
 
             {{-- ========================================== --}}
@@ -308,8 +312,10 @@
                 <a href="{{ route('impressum') }}" class="hover:text-gray-800 underline underline-offset-2 transition-colors">Impressum</a>
                 <span>•</span>
                 <a href="{{ route('datenschutz') }}" class="hover:text-gray-800 underline underline-offset-2 transition-colors">Datenschutzerklärung</a>
-                <span>•</span>
-                <a href="{{ route('agb') }}" class="hover:text-gray-800 underline underline-offset-2 transition-colors">AGB</a>
+                @if($shopLiveUnlocked ?? true)
+                    <span>•</span>
+                    <a href="{{ route('agb') }}" class="hover:text-gray-800 underline underline-offset-2 transition-colors">AGB</a>
+                @endif
             </div>
             <div>&copy; {{ date('Y') }} mein-seelenfunke. Alle Rechte vorbehalten.</div>
         </div>

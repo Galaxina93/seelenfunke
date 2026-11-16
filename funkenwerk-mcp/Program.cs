@@ -6509,7 +6509,7 @@ namespace FunkenwerkMcp
                         && pdoCallsOnFirstRun == 2
                         && writtenEnv1.Contains("APP_ENV=production\n", StringComparison.Ordinal)
                         && writtenEnv1.Contains("APP_DEBUG=false\n", StringComparison.Ordinal)
-                        && writtenEnv1.Contains("APP_URL=https://www.mein-seelenfunke.de\n", StringComparison.Ordinal)
+                        && writtenEnv1.Contains("APP_URL=https://mein-seelenfunke.de\n", StringComparison.Ordinal)
                         && writtenEnv1.Contains($"DB_HOST={McpSecurityGuard.PinnedLiveMysqlHost}\n", StringComparison.Ordinal)
                         && writtenEnv1.Contains($"DB_DATABASE={McpSecurityGuard.PinnedLiveMysqlDatabase}\n", StringComparison.Ordinal)
                         && writtenEnv1.Contains($"DB_USERNAME={McpSecurityGuard.PinnedLiveMysqlUser}\n", StringComparison.Ordinal)
@@ -6525,7 +6525,8 @@ namespace FunkenwerkMcp
                         && writtenEnv1.Contains("REDIS_HOST=127.0.0.1\n", StringComparison.Ordinal)
                         && !writtenEnv1.Contains("redis-t4tm3u", StringComparison.Ordinal)
                         && !writtenEnv1.Contains("StageRedisSecretPassword!", StringComparison.Ordinal)
-                        && writtenEnv1.Contains("GOOGLE_REDIRECT_URL=https://www.mein-seelenfunke.de/auth/google/callback\n", StringComparison.Ordinal)
+                        && writtenEnv1.Contains("GOOGLE_REDIRECT_URL=https://mein-seelenfunke.de/auth/google/callback\n", StringComparison.Ordinal)
+                        && firstRunSummary["env"]?["isolation_enforced"]?["APP_URL"]?.GetValue<string>() == "https://mein-seelenfunke.de"
                         && writtenEnv1.Contains("STRIPE_SECRET=sk_test_MockStageStripeKey999\n", StringComparison.Ordinal)
                         && writtenEnv1.Contains("MAIL_HOST=mail.agenturserver.de\n", StringComparison.Ordinal)
                         && !writtenEnv1.Contains("\r\n", StringComparison.Ordinal)

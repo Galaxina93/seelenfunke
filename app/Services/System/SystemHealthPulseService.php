@@ -2,10 +2,13 @@
 
 namespace App\Services\System;
 
+use App\Models\Management\ManagementTask;
+use App\Models\Management\ManagementTaskList;
 use App\Models\System\SystemLog;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -21,9 +24,21 @@ class SystemHealthPulseService
     public const LIVE_DOMAIN_CACHE_TTL = 300;
     public const LIVE_PRIMARY_HOST = 'mein-seelenfunke.de';
     public const LIVE_WWW_HOST = 'www.mein-seelenfunke.de';
+
+    public const GEMINI_BRIDGE_CACHE_KEY = 'system_health_pulse_gemini_bridge_v1';
+    public const GEMINI_BRIDGE_CACHE_TTL = 60;
+    public const GEMINI_BRIDGE_PUSH_LOCK_KEY = 'gemini_bridge_outage_push_lock';
+    public const GEMINI_BRIDGE_PUSH_COOLDOWN_SECONDS = 900;
+    public const GEMINI_BRIDGE_DEFAULT_HEALTH_URL = 'https://api-live-bridge.mein-seelenfunke.de/health';
+    public const TWILIO_BRIDGE_DEFAULT_HEALTH_URL = 'https://ws.mein-seelenfunke.de/twilio-health';
+    public const GEMINI_BRIDGE_LOG_ACTION_ID = 'watchtower:health_fail:gemini_bridge';
+    public const GEMINI_BRIDGE_TASK_TITLE = '⚠️ Gemini Audio Bridge auf Stage ausgefallen';
+    public const GEMINI_BRIDGE_RESTART_CMD = 'ssh kontakt@mein-seelenfunke.de@a-yeq7el@ssh.altgemeinde.project.host "mittnitectl job restart"';
+
     public const MAX_LEDGER_DAYS = 90;
 
     protected static ?\Closure $liveDomainProbeResolver = null;
+    protected static ?\Closure $geminiBridgeProbeResolver = null;
 
     private const ALLOWED_SOURCES = [
         'synology_nas' => 'Synology NAS',
@@ -44,9 +59,19 @@ class SystemHealthPulseService
         return self::$liveDomainProbeResolver !== null;
     }
 
+    public static function setGeminiBridgeProbeResolver(?\Closure $resolver): void
+    {
+        self::$geminiBridgeProbeResolver = $resolver;
+    }
+
+    public function hasCustomGeminiBridgeProbeResolver(): bool
+    {
+        return self::$geminiBridgeProbeResolver !== null;
+    }
+
     /**
      * Zentraler 4-Säulen Health-Puls (Shop & SSL, Cronjobs, Queue-Worker, Backups)
-     * inklusive passivem Mittwald Live-Domain-Puls, 90-Tage-Uptime-Historie und Außen-Wächter-Registrierung.
+     * inklusive Mittwald Live-Domain-Puls, Gemini Audio-Bridge-Prüfung, 90-Tage-Uptime-Historie und Außen-Wächter-Registrierung.
      */
     public function evaluate(
         ?string $source = null,
@@ -54,7 +79,8 @@ class SystemHealthPulseService
         bool $recordSample = true,
         bool $syncLogs = false,
         ?int $overrideSslDays = null,
-        ?array $overrideLiveDomain = null
+        ?array $overrideLiveDomain = null,
+        ?array $overrideGeminiBridge = null
     ): array {
         $startedAt = microtime(true);
         $now = now();
@@ -69,6 +95,7 @@ class SystemHealthPulseService
         $queuePillar = $this->evaluateQueuesPillar($effectiveStrict, $now);
         $backupPillar = $this->evaluateBackupsPillar($effectiveStrict, $now);
         $liveDomain = $this->evaluateLiveDomain($effectiveStrict, $overrideLiveDomain);
+        $geminiBridge = $this->evaluateGeminiBridge($effectiveStrict, $overrideGeminiBridge);
 
         $pillars = [
             'shop' => $shopPillar,
@@ -105,16 +132,31 @@ class SystemHealthPulseService
             $warningPillars[] = 'live_domain';
         }
 
+        $bridgeSt = (string) ($geminiBridge['status'] ?? 'ok');
+        if ($bridgeSt === 'critical') {
+            $overallStatus = 'critical';
+            $criticalPillars[] = 'gemini_bridge';
+        } elseif ($bridgeSt === 'warning') {
+            if ($overallStatus === 'ok') {
+                $overallStatus = 'warning';
+            }
+            $warningPillars[] = 'gemini_bridge';
+        }
+
         $uptimeSummary = $recordSample
             ? $this->recordAndSummarizeUptime($overallStatus, $shopPillar['status'] === 'ok', $now)
             : $this->summarizeUptime($now);
 
+        $logSync = ['logged' => 0, 'healed' => 0];
         if ($syncLogs) {
             $syncTargets = $pillars;
             if (!empty($liveDomain['probed'])) {
                 $syncTargets['live_domain'] = $liveDomain;
             }
-            $this->syncWithSystemLogs($syncTargets, $now);
+            if (!empty($geminiBridge['probed'])) {
+                $syncTargets['gemini_bridge'] = $geminiBridge;
+            }
+            $logSync = $this->syncWithSystemLogs($syncTargets, $now);
         }
 
         $watchtowerSummary = $this->getWatchtowerNodesSummary($now);
@@ -139,7 +181,9 @@ class SystemHealthPulseService
             'daily_bars' => $uptimeSummary['daily_bars'],
             'pillars' => $pillars,
             'live_domain' => $liveDomain,
+            'gemini_bridge' => $geminiBridge,
             'watchtower' => $watchtowerSummary,
+            'log_sync' => $logSync,
         ];
     }
 
@@ -183,7 +227,10 @@ class SystemHealthPulseService
         }
         Cache::forget(self::SSL_CACHE_KEY);
         Cache::forget(self::LIVE_DOMAIN_CACHE_KEY);
+        Cache::forget(self::GEMINI_BRIDGE_CACHE_KEY);
+        Cache::forget(self::GEMINI_BRIDGE_PUSH_LOCK_KEY);
         self::$liveDomainProbeResolver = null;
+        self::$geminiBridgeProbeResolver = null;
     }
 
     /**
@@ -418,6 +465,374 @@ class SystemHealthPulseService
             'www_ingress_active' => $wwwIngressActive,
             'www_http_status' => $wwwHttpStatus,
             'www_status' => $wwwStatus,
+            'checked_at' => $raw['checked_at'] ?? now()->toIso8601String(),
+        ];
+    }
+
+    /**
+     * Liefert die Health-URLs für die Node.js Gemini Live Audio-Bridge (a-yeq7el)
+     * sowie optional für die Twilio-Reverb-Bridge (a-iurgq8, sofern ws.mein-seelenfunke.de aktiv ist).
+     */
+    public function resolveGeminiBridgeHealthUrls(): array
+    {
+        $rawLiveUrl = trim((string) env('GEMINI_LIVE_BRIDGE_URL', ''));
+        if ($rawLiveUrl === '') {
+            $rawLiveUrl = trim((string) config('services.gemini.proxy_ws_url', ''));
+        }
+
+        $liveBridgeHealthUrl = $this->deriveHealthUrlFromBridgeConfig(
+            $rawLiveUrl,
+            '/health',
+            self::GEMINI_BRIDGE_DEFAULT_HEALTH_URL
+        );
+
+        $twilioWss = strtolower(trim((string) config('services.twilio.wss_url', '')));
+        $twilioBridgeHealthUrl = ($twilioWss !== '' && str_contains($twilioWss, 'ws.mein-seelenfunke.de'))
+            ? self::TWILIO_BRIDGE_DEFAULT_HEALTH_URL
+            : null;
+
+        return [
+            'live_bridge' => $liveBridgeHealthUrl,
+            'reverb_twilio' => $twilioBridgeHealthUrl,
+        ];
+    }
+
+    protected function deriveHealthUrlFromBridgeConfig(string $rawUrl, string $healthPath, string $defaultUrl): string
+    {
+        if ($rawUrl === '') {
+            return $defaultUrl;
+        }
+
+        $normalized = preg_replace(['#^wss://#i', '#^ws://#i'], ['https://', 'http://'], $rawUrl) ?? $rawUrl;
+        if (!str_contains($normalized, '://')) {
+            $normalized = 'https://' . ltrim($normalized, '/');
+        }
+
+        $parsed = @parse_url($normalized);
+        $host = strtolower((string) ($parsed['host'] ?? ''));
+        if ($host === '' || in_array($host, ['localhost', '127.0.0.1', '::1'], true)) {
+            return $defaultUrl;
+        }
+
+        $scheme = strtolower((string) ($parsed['scheme'] ?? 'https'));
+        $port = isset($parsed['port']) ? (int) $parsed['port'] : null;
+        $defaultPort = $scheme === 'https' ? 443 : 80;
+        $portPart = ($port !== null && $port > 0 && $port !== $defaultPort) ? ':' . $port : '';
+
+        return $scheme . '://' . $host . $portPart . '/' . ltrim($healthPath, '/');
+    }
+
+    /**
+     * Liefert kurzzeitig gecachte (60s TTL NUR bei gesundem Status!) oder frisch geprüfte Gemini-Bridge-Messdaten.
+     * Ein Fehlerzustand wird niemals im Cache gehalten, damit eine Erholung sofort erkannt wird.
+     */
+    public function getCachedOrProbeGeminiBridge(bool $forceRefresh = false): array
+    {
+        if ($forceRefresh) {
+            Cache::forget(self::GEMINI_BRIDGE_CACHE_KEY);
+        } else {
+            $cached = Cache::get(self::GEMINI_BRIDGE_CACHE_KEY);
+            if (is_array($cached) && !empty($cached['healthy'])) {
+                return $cached;
+            }
+        }
+
+        if (self::$geminiBridgeProbeResolver !== null) {
+            try {
+                $custom = (self::$geminiBridgeProbeResolver)();
+                $raw = is_array($custom) ? $custom : ['healthy' => false, 'live_bridge_ok' => false, 'live_bridge_http_status' => 0];
+            } catch (\Throwable $e) {
+                $raw = [
+                    'healthy' => false,
+                    'reachable' => false,
+                    'live_bridge_ok' => false,
+                    'live_bridge_http_status' => 0,
+                    'error' => SystemErrorLogger::sanitizeSensitiveText($e->getMessage()),
+                ];
+            }
+        } else {
+            $raw = $this->probeGeminiBridge();
+        }
+
+        $normalized = $this->normalizeGeminiBridgeProbePayload($raw);
+        if (!empty($normalized['healthy'])) {
+            Cache::put(self::GEMINI_BRIDGE_CACHE_KEY, $normalized, self::GEMINI_BRIDGE_CACHE_TTL);
+        } else {
+            Cache::forget(self::GEMINI_BRIDGE_CACHE_KEY);
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * Erzwingt eine ungecachte Echtzeit-Prüfung und Bewertung der Gemini Audio Bridge (z. B. für SentinelTriageService).
+     */
+    public function probeAndEvaluateGeminiBridgeFresh(): array
+    {
+        $raw = $this->getCachedOrProbeGeminiBridge(true);
+
+        return $this->evaluateGeminiBridge(true, $raw);
+    }
+
+    /**
+     * Aktiver HTTP-Health-Check (3s Timeout + 1 Retry nach 300ms bei Fehler) für die Gemini Live Audio-Bridge
+     * sowie optional für die Twilio-Reverb-Bridge.
+     */
+    public function probeGeminiBridge(): array
+    {
+        $urls = $this->resolveGeminiBridgeHealthUrls();
+        $liveProbe = $this->probeSingleBridgeHealthEndpoint($urls['live_bridge'], 3.0);
+
+        $twilioProbe = null;
+        if ($urls['reverb_twilio'] !== null) {
+            $twilioProbe = $this->probeSingleBridgeHealthEndpoint($urls['reverb_twilio'], 3.0);
+        }
+
+        $twilioOk = $twilioProbe === null ? true : (bool) $twilioProbe['ok'];
+        $healthy = (bool) $liveProbe['ok'] && $twilioOk;
+        $totalLatency = round(
+            (float) $liveProbe['latency_ms'] + (float) ($twilioProbe['latency_ms'] ?? 0.0),
+            2
+        );
+
+        return [
+            'probed' => true,
+            'healthy' => $healthy,
+            'live_bridge_url' => $urls['live_bridge'],
+            'live_bridge_ok' => (bool) $liveProbe['ok'],
+            'live_bridge_reachable' => (bool) $liveProbe['reachable'],
+            'live_bridge_http_status' => (int) $liveProbe['http_status'],
+            'live_bridge_json_status' => $liveProbe['json_status'],
+            'live_bridge_version' => $liveProbe['bridge_version'],
+            'live_bridge_error' => $liveProbe['error'],
+            'twilio_bridge_url' => $urls['reverb_twilio'],
+            'twilio_bridge_probed' => $twilioProbe !== null,
+            'twilio_bridge_ok' => $twilioOk,
+            'twilio_bridge_http_status' => $twilioProbe !== null ? (int) $twilioProbe['http_status'] : null,
+            'twilio_bridge_json_status' => $twilioProbe['json_status'] ?? null,
+            'twilio_bridge_error' => $twilioProbe['error'] ?? null,
+            'latency_ms' => $totalLatency,
+            'checked_at' => now()->toIso8601String(),
+        ];
+    }
+
+    protected function probeSingleBridgeHealthEndpoint(string $url, float $timeoutSeconds = 3.0): array
+    {
+        $t0 = microtime(true);
+        $lastHttpStatus = 0;
+        $lastJsonStatus = null;
+        $lastBridgeVersion = null;
+        $lastReachable = false;
+        $lastError = null;
+        $attemptsUsed = 0;
+
+        for ($attempt = 1; $attempt <= 2; $attempt++) {
+            $attemptsUsed = $attempt;
+            if ($attempt === 2 && !app()->runningUnitTests()) {
+                usleep(300_000);
+            }
+
+            try {
+                $response = Http::withOptions([
+                    'force_ip_resolve' => 'v4',
+                    'connect_timeout' => $timeoutSeconds,
+                    'timeout' => $timeoutSeconds,
+                ])->acceptJson()->get($url);
+
+                $lastHttpStatus = $response->status();
+                $lastReachable = $lastHttpStatus > 0;
+                $decoded = $response->json();
+                $lastJsonStatus = is_array($decoded) && isset($decoded['status']) ? (string) $decoded['status'] : null;
+                $lastBridgeVersion = is_array($decoded) && isset($decoded['bridge_version']) ? (string) $decoded['bridge_version'] : null;
+
+                if ($lastHttpStatus === 200 && $lastJsonStatus === 'ok') {
+                    return [
+                        'url' => $url,
+                        'reachable' => true,
+                        'ok' => true,
+                        'http_status' => 200,
+                        'json_status' => 'ok',
+                        'bridge_version' => $lastBridgeVersion,
+                        'latency_ms' => round((microtime(true) - $t0) * 1000, 2),
+                        'attempts' => $attemptsUsed,
+                        'error' => null,
+                    ];
+                }
+
+                $lastError = $lastHttpStatus === 200
+                    ? 'Unerwarteter Health-Payload (status=' . ($lastJsonStatus ?? 'null') . ')'
+                    : 'HTTP ' . $lastHttpStatus;
+            } catch (\Throwable $e) {
+                $lastReachable = false;
+                $lastHttpStatus = 0;
+                $lastError = SystemErrorLogger::sanitizeSensitiveText($e->getMessage());
+            }
+        }
+
+        return [
+            'url' => $url,
+            'reachable' => $lastReachable,
+            'ok' => false,
+            'http_status' => $lastHttpStatus,
+            'json_status' => $lastJsonStatus,
+            'bridge_version' => $lastBridgeVersion,
+            'latency_ms' => round((microtime(true) - $t0) * 1000, 2),
+            'attempts' => $attemptsUsed,
+            'error' => $lastError,
+        ];
+    }
+
+    protected function normalizeGeminiBridgeProbePayload(array $raw): array
+    {
+        $urls = $this->resolveGeminiBridgeHealthUrls();
+        $liveUrl = (string) ($raw['live_bridge_url'] ?? $urls['live_bridge']);
+        $twilioUrl = array_key_exists('twilio_bridge_url', $raw) ? $raw['twilio_bridge_url'] : $urls['reverb_twilio'];
+
+        if (array_key_exists('live_bridge_ok', $raw)) {
+            $liveOk = (bool) $raw['live_bridge_ok'];
+            $liveHttpStatus = (int) ($raw['live_bridge_http_status'] ?? ($liveOk ? 200 : 503));
+            $liveReachable = array_key_exists('live_bridge_reachable', $raw)
+                ? (bool) $raw['live_bridge_reachable']
+                : ($liveHttpStatus > 0);
+            $liveJsonStatus = $raw['live_bridge_json_status'] ?? ($liveOk ? 'ok' : null);
+        } else {
+            $liveReachable = array_key_exists('reachable', $raw)
+                ? (bool) $raw['reachable']
+                : (((int) ($raw['http_status'] ?? 200)) > 0);
+            $liveHttpStatus = (int) ($raw['http_status'] ?? ($liveReachable ? 200 : 0));
+            $bodyStatus = is_array($raw['body'] ?? null) ? ($raw['body']['status'] ?? null) : null;
+            $liveJsonStatus = $raw['json_status'] ?? $bodyStatus ?? ($raw['status'] ?? ($liveHttpStatus === 200 && $liveReachable ? 'ok' : null));
+            $liveOk = $liveReachable && $liveHttpStatus === 200 && $liveJsonStatus === 'ok';
+            if (array_key_exists('healthy', $raw) && $raw['healthy'] === false) {
+                $liveOk = false;
+            }
+        }
+
+        $twilioProbed = array_key_exists('twilio_bridge_probed', $raw)
+            ? (bool) $raw['twilio_bridge_probed']
+            : array_key_exists('twilio_bridge_ok', $raw);
+        $twilioOk = $twilioProbed ? (bool) ($raw['twilio_bridge_ok'] ?? true) : true;
+        $twilioHttpStatus = $twilioProbed
+            ? (int) ($raw['twilio_bridge_http_status'] ?? ($twilioOk ? 200 : 503))
+            : null;
+
+        $healthy = $liveOk && $twilioOk;
+
+        return [
+            'probed' => (bool) ($raw['probed'] ?? true),
+            'healthy' => $healthy,
+            'live_bridge_url' => $liveUrl,
+            'live_bridge_ok' => $liveOk,
+            'live_bridge_reachable' => $liveReachable,
+            'live_bridge_http_status' => $liveHttpStatus,
+            'live_bridge_json_status' => $liveJsonStatus,
+            'live_bridge_version' => $raw['live_bridge_version'] ?? ($raw['bridge_version'] ?? null),
+            'live_bridge_error' => $raw['live_bridge_error'] ?? ($raw['error'] ?? null),
+            'twilio_bridge_url' => $twilioUrl,
+            'twilio_bridge_probed' => $twilioProbed,
+            'twilio_bridge_ok' => $twilioOk,
+            'twilio_bridge_http_status' => $twilioHttpStatus,
+            'twilio_bridge_json_status' => $raw['twilio_bridge_json_status'] ?? ($twilioOk && $twilioProbed ? 'ok' : null),
+            'twilio_bridge_error' => $raw['twilio_bridge_error'] ?? null,
+            'latency_ms' => round((float) ($raw['latency_ms'] ?? 0.0), 2),
+            'checked_at' => $raw['checked_at'] ?? now()->toIso8601String(),
+        ];
+    }
+
+    public function evaluateGeminiBridge(bool $strict, ?array $overrideGeminiBridge = null): array
+    {
+        $urls = $this->resolveGeminiBridgeHealthUrls();
+
+        if ($overrideGeminiBridge !== null) {
+            $raw = $this->normalizeGeminiBridgeProbePayload($overrideGeminiBridge);
+            $enforceStrictThresholds = true;
+        } elseif (self::$geminiBridgeProbeResolver !== null) {
+            $raw = $this->getCachedOrProbeGeminiBridge(false);
+            $enforceStrictThresholds = true;
+        } elseif (app()->runningUnitTests()) {
+            // In isolierten Unit-Tests ohne Custom-Resolver keine echten Netzwerk-Calls auslösen
+            return [
+                'probed' => false,
+                'status' => 'ok',
+                'label' => 'Übersprungen (Testumgebung)',
+                'issues' => [],
+                'live_bridge_url' => $urls['live_bridge'],
+                'live_bridge_ok' => true,
+                'live_bridge_http_status' => 200,
+                'twilio_bridge_url' => $urls['reverb_twilio'],
+                'twilio_bridge_probed' => false,
+                'twilio_bridge_ok' => true,
+                'twilio_bridge_http_status' => null,
+                'latency_ms' => 0.0,
+                'checked_at' => now()->toIso8601String(),
+            ];
+        } elseif (!app()->environment('production', 'staging') && !$strict && !Cache::has(self::GEMINI_BRIDGE_CACHE_KEY)) {
+            return [
+                'probed' => false,
+                'status' => 'ok',
+                'label' => 'Bereit (Auf Abruf lokal)',
+                'issues' => [],
+                'live_bridge_url' => $urls['live_bridge'],
+                'live_bridge_ok' => true,
+                'live_bridge_http_status' => 200,
+                'twilio_bridge_url' => $urls['reverb_twilio'],
+                'twilio_bridge_probed' => false,
+                'twilio_bridge_ok' => true,
+                'twilio_bridge_http_status' => null,
+                'latency_ms' => 0.0,
+                'checked_at' => now()->toIso8601String(),
+            ];
+        } else {
+            $raw = $this->getCachedOrProbeGeminiBridge(false);
+            $enforceStrictThresholds = $strict;
+        }
+
+        $liveOk = (bool) ($raw['live_bridge_ok'] ?? false);
+        $liveHttp = (int) ($raw['live_bridge_http_status'] ?? 0);
+        $twilioProbed = (bool) ($raw['twilio_bridge_probed'] ?? false);
+        $twilioOk = (bool) ($raw['twilio_bridge_ok'] ?? true);
+        $twilioHttp = $raw['twilio_bridge_http_status'] ?? null;
+        $latencyMs = round((float) ($raw['latency_ms'] ?? 0.0), 2);
+
+        $status = 'ok';
+        $issues = [];
+
+        if (!$liveOk) {
+            $status = $this->escalateStatus($status, $enforceStrictThresholds ? 'critical' : 'warning');
+            $liveHost = (string) (parse_url((string) $raw['live_bridge_url'], PHP_URL_HOST) ?: 'api-live-bridge.mein-seelenfunke.de');
+            $detail = $liveHttp > 0
+                ? "HTTP {$liveHttp}"
+                : ((string) ($raw['live_bridge_error'] ?? '') ?: 'Timeout / Nicht erreichbar');
+            $issues[] = "Gemini Live Audio-Bridge ({$liveHost}) gestört ({$detail})";
+        }
+
+        if ($twilioProbed && !$twilioOk) {
+            $status = $this->escalateStatus($status, $enforceStrictThresholds ? 'critical' : 'warning');
+            $twDetail = ($twilioHttp !== null && (int) $twilioHttp > 0)
+                ? "HTTP {$twilioHttp}"
+                : ((string) ($raw['twilio_bridge_error'] ?? '') ?: 'Timeout / Nicht erreichbar');
+            $issues[] = "Twilio Reverb Audio-Bridge (ws.mein-seelenfunke.de) gestört ({$twDetail})";
+        }
+
+        $label = match ($status) {
+            'critical', 'warning' => $issues[0] ?? 'Gemini Audio Bridge gestört',
+            default => $latencyMs > 0 ? "Online ({$latencyMs} ms)" : 'Online',
+        };
+
+        return [
+            'probed' => true,
+            'status' => $status,
+            'label' => $label,
+            'issues' => $issues,
+            'live_bridge_url' => $raw['live_bridge_url'],
+            'live_bridge_ok' => $liveOk,
+            'live_bridge_http_status' => $liveHttp,
+            'live_bridge_version' => $raw['live_bridge_version'] ?? null,
+            'twilio_bridge_url' => $raw['twilio_bridge_url'],
+            'twilio_bridge_probed' => $twilioProbed,
+            'twilio_bridge_ok' => $twilioOk,
+            'twilio_bridge_http_status' => $twilioHttp,
+            'latency_ms' => $latencyMs,
             'checked_at' => $raw['checked_at'] ?? now()->toIso8601String(),
         ];
     }
@@ -1218,7 +1633,10 @@ class SystemHealthPulseService
         $healed = 0;
 
         foreach ($pillars as $pillarKey => $pillar) {
-            $actionId = 'watchtower:pillar:' . $pillarKey;
+            $isGeminiBridge = ((string) $pillarKey === 'gemini_bridge');
+            $actionId = $isGeminiBridge
+                ? self::GEMINI_BRIDGE_LOG_ACTION_ID
+                : ('watchtower:pillar:' . $pillarKey);
             $status = (string) ($pillar['status'] ?? 'ok');
             $titleBase = 'Watchtower: ' . $this->pillarLabel((string) $pillarKey) . ' kritisch';
 
@@ -1233,6 +1651,7 @@ class SystemHealthPulseService
 
                 if ($existing) {
                     $p = is_array($existing->payload) ? $existing->payload : [];
+                    $p['level'] = 'ERROR';
                     $p['occurrences_count'] = ((int) ($p['occurrences_count'] ?? 1)) + 1;
                     $p['last_seen_at'] = $now->toIso8601String();
                     $p['pillar_snapshot'] = $pillar;
@@ -1248,6 +1667,7 @@ class SystemHealthPulseService
                         'message' => Str::limit($issueText, 2000),
                         'status' => 'error',
                         'payload' => [
+                            'level' => 'ERROR',
                             'platform' => 'portal',
                             'platform_label' => 'Watchtower',
                             'component' => 'watchtower_' . $pillarKey,
@@ -1263,6 +1683,10 @@ class SystemHealthPulseService
                         'finished_at' => $now,
                     ]);
                     $logged++;
+                }
+
+                if ($isGeminiBridge) {
+                    $this->notifyGeminiBridgeOutage($pillar, $issueText, $now);
                 }
             } elseif ($status === 'ok') {
                 $openLogs = SystemLog::openIssues()
@@ -1284,10 +1708,133 @@ class SystemHealthPulseService
                     $openLog->save();
                     $healed++;
                 }
+
+                if ($isGeminiBridge) {
+                    $this->resolveGeminiBridgeOutage($now);
+                }
             }
         }
 
         return ['logged' => $logged, 'healed' => $healed];
+    }
+
+    /**
+     * Erzeugt bei einem Ausfall der Gemini Audio Bridge idempotent eine dringende Aufgabe
+     * auf /admin/dashboard (Baustein 6) und sendet gedrosselt (max. 1x alle 15 Min) eine FCM-Push-Warnung an Admin-Geräte.
+     */
+    public function notifyGeminiBridgeOutage(array $bridgeReport, ?string $issueText = null, ?Carbon $now = null): ?ManagementTask
+    {
+        $now = $now ?? now();
+        $cleanIssue = $issueText ?: (implode(' | ', $bridgeReport['issues'] ?? []) ?: 'Gemini Audio Bridge antwortet nicht mit HTTP 200 (status=ok)');
+        $task = null;
+
+        try {
+            if (class_exists(ManagementTask::class) && Schema::hasTable('management_tasks') && Schema::hasTable('management_task_lists')) {
+                $task = ManagementTask::query()
+                    ->whereNull('parent_id')
+                    ->where('is_completed', false)
+                    ->where('is_archived', false)
+                    ->where('title', self::GEMINI_BRIDGE_TASK_TITLE)
+                    ->first();
+
+                $planLines = [
+                    'Automatische Watchtower-Warnung (' . $now->format('d.m.Y H:i:s') . ')',
+                    'Befund: ' . $cleanIssue,
+                    'Notfall-Neustart Node.js Gemini Live-Bridge (a-yeq7el):',
+                    self::GEMINI_BRIDGE_RESTART_CMD,
+                    'Notfall-Neustart Twilio Reverb-Bridge (a-iurgq8, falls betroffen):',
+                    'ssh kontakt@mein-seelenfunke.de@a-iurgq8@ssh.altgemeinde.project.host "mittnitectl job restart"',
+                    'Hinweis: Sobald der Health-Check wieder HTTP 200 (status=ok) meldet, wird diese Aufgabe automatisch erledigt.',
+                ];
+
+                if (!$task) {
+                    $defaultList = ManagementTaskList::where('is_archived', false)
+                        ->orderBy('position', 'asc')
+                        ->orderBy('created_at', 'asc')
+                        ->first();
+
+                    if (!$defaultList) {
+                        $defaultList = ManagementTaskList::create([
+                            'name' => 'Allgemein',
+                            'icon' => 'clipboard-document-list',
+                            'color' => '#C5A059',
+                            'position' => 0,
+                        ]);
+                    }
+
+                    $task = ManagementTask::create([
+                        'task_list_id' => $defaultList->id,
+                        'title' => self::GEMINI_BRIDGE_TASK_TITLE,
+                        'is_completed' => false,
+                        'is_archived' => false,
+                        'position' => 0,
+                        'priority' => 'hoch',
+                        'ai_plan' => implode("\n", $planLines),
+                    ]);
+                } else {
+                    $task->update([
+                        'priority' => 'hoch',
+                        'ai_plan' => implode("\n", $planLines),
+                    ]);
+                }
+            }
+        } catch (\Throwable $ignore) {
+        }
+
+        try {
+            if (Cache::add(self::GEMINI_BRIDGE_PUSH_LOCK_KEY, $now->toIso8601String(), self::GEMINI_BRIDGE_PUSH_COOLDOWN_SECONDS)) {
+                if (class_exists(\App\Services\FirebaseService::class)) {
+                    $firebase = app(\App\Services\FirebaseService::class);
+                    $credentialsPath = (string) config('services.firebase.credentials_file', storage_path('app/firebase-service-account.json'));
+                    $isCustomInstance = get_class($firebase) !== \App\Services\FirebaseService::class;
+
+                    if ($isCustomInstance || ($credentialsPath !== '' && is_file($credentialsPath))) {
+                        $firebase->sendToAdmins(
+                            '⚠️ Gemini Audio Bridge ausgefallen',
+                            Str::limit($cleanIssue . ' · Bitte Dienst auf Stage neustarten.', 220, '...'),
+                            [
+                                'type' => 'gemini_bridge_outage',
+                                'navigate_to' => 'organizer',
+                                'open_subtab' => '7',
+                                'task_id' => (string) ($task?->id ?? ''),
+                            ]
+                        );
+                    }
+                }
+            }
+        } catch (\Throwable $ignore) {
+        }
+
+        return $task;
+    }
+
+    /**
+     * Hakt eine offene automatische Gemini-Bridge-Warnaufgabe auf /admin/dashboard als erledigt ab
+     * und gibt den Push-Rate-Limit-Lock nach bestätigter Erholung wieder frei.
+     */
+    public function resolveGeminiBridgeOutage(?Carbon $now = null): int
+    {
+        $resolvedTasks = 0;
+        Cache::forget(self::GEMINI_BRIDGE_PUSH_LOCK_KEY);
+
+        try {
+            if (class_exists(ManagementTask::class) && Schema::hasTable('management_tasks')) {
+                $openTasks = ManagementTask::query()
+                    ->whereNull('parent_id')
+                    ->where('is_completed', false)
+                    ->where('title', self::GEMINI_BRIDGE_TASK_TITLE)
+                    ->get();
+
+                foreach ($openTasks as $openTask) {
+                    $openTask->is_completed = true;
+                    $openTask->save();
+                    $resolvedTasks++;
+                }
+            }
+        } catch (\Throwable $ignore) {
+        }
+
+        return $resolvedTasks;
     }
 
     protected function pillarLabel(string $key): string
@@ -1298,6 +1845,7 @@ class SystemHealthPulseService
             'queues' => 'Queue-Worker',
             'backups' => 'Backups',
             'live_domain' => 'Live-Domain',
+            'gemini_bridge' => 'Gemini Audio Bridge',
             default => ucfirst($key),
         };
     }

@@ -594,6 +594,9 @@ class FileDownloadService
 
         // HINWEIS: Kein roter Hilfsrahmen (<rect stroke="#FF0000">) mehr im SVG,
         // da xTool Studio / XCS sonst standardmäßig eine aktive Liniengravur daraus macht.
+        if ($clipPointsSvg !== '') {
+            $svg .= '  <g clip-path="url(#workingAreaClip)">' . "\n";
+        }
 
         // Logos vor dem SVG-Aufbau exakt nach Konfigurator-zIndex (Default 10 + idx) sortieren,
         // damit Vektor-Symbole mit höherem zIndex (z. B. weihnachtsbaum.svg zIndex=31) über dem Porträtfoto (zIndex=11) liegen.
@@ -924,6 +927,10 @@ class FileDownloadService
 
                 $svg .= '  </g>' . "\n";
             }
+        }
+
+        if ($clipPointsSvg !== '') {
+            $svg .= "  </g>\n";
         }
 
         $svg .= '</svg>';
@@ -1549,7 +1556,11 @@ class FileDownloadService
             'seelen-kristall' => [
                 'widthMm'      => 161.5,
                 'heightMm'     => 161.5,
-                'plateBoxPct'  => ['left' => 14.23, 'top' => 9.83, 'width' => 71.54, 'height' => 71.54],
+                // Konzentrisch um die 2D-Scheibenmitte (50.00 %, 45.60 %): bildet den 68.0 %-Konfigurator-Arbeitskreis
+                // maßstabsgetreu auf 82.93 % (= Ø 133.93 mm, 13.79 mm Randabstand je Seite) innerhalb des Ø 161.5 mm
+                // blauen Außenrahmens ab, also mit ~2.8 mm Sicherheitsabstand vor dem ~11.0 mm breiten geschliffenen
+                // Facettenkranz (Ø ~139.5 mm Innenfacette) und oberhalb der unteren Kristallsockel-Klebekante.
+                'plateBoxPct'  => ['left' => 9.00, 'top' => 4.60, 'width' => 82.00, 'height' => 82.00],
                 'contourShape' => 'circle',
             ],
             'seelen-anhaenger' => [
@@ -1573,6 +1584,12 @@ class FileDownloadService
             'goldenes-seelen-herz' => [
                 'widthMm'      => 25.0,
                 'heightMm'     => 22.0,
+                'plateBoxPct'  => ['left' => 17.5, 'top' => 35.125, 'width' => 65.0, 'height' => 59.125],
+                'contourShape' => 'heart_goldenes',
+            ],
+            'echtgold-seelen-herz' => [
+                'widthMm'      => 13.0,
+                'heightMm'     => 14.0,
                 'plateBoxPct'  => ['left' => 17.5, 'top' => 35.125, 'width' => 65.0, 'height' => 59.125],
                 'contourShape' => 'heart_goldenes',
             ],
@@ -1674,13 +1691,15 @@ class FileDownloadService
                 $pbWidth = (float) $pb['width'];
                 $pbHeight = (float) $pb['height'];
 
-                // Veraltete 78.24%- oder 74.20%-Vorlage beim Seelen-Kristall automatisch auf exakt 4.0 mm Facettenrand (71.54% -> Ø 153.5 mm glatte Glasflaeche) heben
+                // Veraltete 78.24%-, 74.20%- oder 71.54%-Vorlagen beim Seelen-Kristall automatisch auf 82.00%
+                // (Ø 133.93 mm Arbeitskreis konzentrisch innerhalb des Ø 161.5 mm Kristall-Außenrahmens) heben
                 $isLegacyCrystalBox = $matchedProfile !== null
                     && ($matchedProfile['contourShape'] ?? null) === 'circle'
                     && abs((float) ($matchedProfile['widthMm'] ?? 0.0) - 161.5) < 0.05
                     && (
                         (abs($pbWidth - 78.24) < 0.30 && abs($pbLeft - 10.88) < 0.30)
                         || (abs($pbWidth - 74.20) < 0.30 && abs($pbLeft - 12.90) < 0.30)
+                        || (abs($pbWidth - 71.54) < 0.30 && abs($pbLeft - 14.23) < 0.30)
                     );
 
                 $plateBoxPct = $isLegacyCrystalBox
@@ -1694,6 +1713,8 @@ class FileDownloadService
             }
         } elseif ($matchedProfile !== null && !empty($matchedProfile['plateBoxPct'])) {
             $plateBoxPct = $matchedProfile['plateBoxPct'];
+        } elseif ($overlayType === 'plane' && $matchedProfile === null) {
+            $plateBoxPct = $this->detectOverlayAlphaBoundingBoxPct($product, $productConfig, (float) $widthMm, (float) $heightMm);
         }
 
         if ($overlayType === 'cylinder') {
@@ -1701,10 +1722,8 @@ class FileDownloadService
                 $widthMm = $widthMm * M_PI;
             }
             $plateBoxPct = null;
-        } elseif ($overlayType === 'plane' && $plateBoxPct === null && in_array($productConfig['area_shape'] ?? '', ['custom', 'circle'], true)) {
-            $stageSpanMm = (($productConfig['area_shape'] ?? '') === 'circle')
-                ? min($widthMm, $heightMm)
-                : max($widthMm, $heightMm);
+        } elseif ($overlayType === 'plane' && $plateBoxPct === null && ($productConfig['area_shape'] ?? '') === 'circle' && abs($widthMm - $heightMm) > 0.01) {
+            $stageSpanMm = min($widthMm, $heightMm);
             $widthMm = $stageSpanMm;
             $heightMm = $stageSpanMm;
         }
@@ -1727,6 +1746,128 @@ class FileDownloadService
             'plateBoxPct'  => $plateBoxPct,
             'contourShape' => $contourShape,
         ];
+    }
+
+    /**
+     * Erkennt für generische flache Produkte ohne festes Katalogprofil automatisch die sichtbare
+     * Rohlings-Sub-Box (in %) innerhalb eines freigestellten transparenten Konfigurator-Overlays (overlay.png).
+     *
+     * @return ?array{left: float, top: float, width: float, height: float}
+     */
+    protected function detectOverlayAlphaBoundingBoxPct(
+        $product,
+        array $productConfig,
+        float $widthMm,
+        float $heightMm
+    ): ?array {
+        $previewPath = trim((string) ($product->preview_image_path ?? ''));
+        if ($previewPath === '' || !str_ends_with(strtolower($previewPath), '.png')) {
+            return null;
+        }
+
+        try {
+            $disk = Storage::disk('public');
+            if (!$disk->exists($previewPath)) {
+                return null;
+            }
+            $fullPath = $disk->path($previewPath);
+        } catch (\Throwable) {
+            return null;
+        }
+
+        if (!is_file($fullPath)) {
+            return null;
+        }
+
+        static $alphaBoxCache = [];
+        $cacheKey = $fullPath . '|' . (@filemtime($fullPath) ?: 0);
+
+        if (!array_key_exists($cacheKey, $alphaBoxCache)) {
+            $alphaBoxCache[$cacheKey] = null;
+            $rawBytes = @file_get_contents($fullPath);
+            $gd = $rawBytes ? @imagecreatefromstring($rawBytes) : false;
+            if ($gd !== false) {
+                $w = imagesx($gd);
+                $h = imagesy($gd);
+                if ($w >= 16 && $h >= 16) {
+                    $c0 = (imagecolorat($gd, 0, 0) >> 24) & 0x7F;
+                    $c1 = (imagecolorat($gd, $w - 1, 0) >> 24) & 0x7F;
+                    $c2 = (imagecolorat($gd, 0, $h - 1) >> 24) & 0x7F;
+                    $c3 = (imagecolorat($gd, $w - 1, $h - 1) >> 24) & 0x7F;
+
+                    if ($c0 >= 120 && $c1 >= 120 && $c2 >= 120 && $c3 >= 120) {
+                        $minX = $w;
+                        $maxX = -1;
+                        $minY = $h;
+                        $maxY = -1;
+                        $step = ($w > 512 || $h > 512) ? 2 : 1;
+
+                        for ($y = 0; $y < $h; $y += $step) {
+                            for ($x = 0; $x < $w; $x += $step) {
+                                $a = (imagecolorat($gd, $x, $y) >> 24) & 0x7F;
+                                if ($a < 115) {
+                                    if ($x < $minX) {
+                                        $minX = $x;
+                                    }
+                                    if ($x > $maxX) {
+                                        $maxX = $x;
+                                    }
+                                    if ($y < $minY) {
+                                        $minY = $y;
+                                    }
+                                    if ($y > $maxY) {
+                                        $maxY = $y;
+                                    }
+                                }
+                            }
+                        }
+
+                        if ($maxX >= $minX && $maxY >= $minY) {
+                            $alphaBoxCache[$cacheKey] = [
+                                'left'   => round(($minX / $w) * 100.0, 3),
+                                'top'    => round(($minY / $h) * 100.0, 3),
+                                'width'  => round((($maxX - $minX + 1) / $w) * 100.0, 3),
+                                'height' => round((($maxY - $minY + 1) / $h) * 100.0, 3),
+                            ];
+                        }
+                    }
+                }
+                imagedestroy($gd);
+            }
+        }
+
+        $bbox = $alphaBoxCache[$cacheKey];
+        if ($bbox === null) {
+            return null;
+        }
+
+        if (($bbox['width'] >= 96.5 && $bbox['height'] >= 96.5) || $bbox['width'] < 10.0 || $bbox['height'] < 10.0) {
+            return null;
+        }
+
+        if ($widthMm > 0.1 && $heightMm > 0.1) {
+            $physRatio = $widthMm / $heightMm;
+            $boxRatio = $bbox['width'] / max(0.1, $bbox['height']);
+            if (abs(log($boxRatio / $physRatio)) > 0.25) {
+                return null;
+            }
+        }
+
+        $poly = $this->buildWorkingAreaPolygonPercent($productConfig);
+        if (!empty($poly)) {
+            $xs = array_column($poly, 'x');
+            $ys = array_column($poly, 'y');
+            if (
+                min($xs) < ($bbox['left'] - 2.5)
+                || max($xs) > ($bbox['left'] + $bbox['width'] + 2.5)
+                || min($ys) < ($bbox['top'] - 2.5)
+                || max($ys) > ($bbox['top'] + $bbox['height'] + 2.5)
+            ) {
+                return null;
+            }
+        }
+
+        return $bbox;
     }
 
     /**
@@ -1939,12 +2080,11 @@ class FileDownloadService
                 }
             }
         } elseif ($contourShape === 'custom_polygon' && !empty($workingAreaPolygonPct)) {
-            foreach ($workingAreaPolygonPct as $pt) {
-                $ptsMm[] = [
-                    (((float) ($pt['x'] ?? 0.0)) / 100.0) * $widthMm,
-                    (((float) ($pt['y'] ?? 0.0)) / 100.0) * $heightMm,
-                ];
-            }
+            $rawPts = array_map(static fn (array $pt): array => [
+                (float) ($pt['x'] ?? 0.0),
+                (float) ($pt['y'] ?? 0.0),
+            ], $workingAreaPolygonPct);
+            $ptsMm = $normalizePixelPointsToMm($rawPts);
         }
 
         if (count($ptsMm) < 3) {

@@ -35,6 +35,31 @@
 
             <div>
                 <div class="flex items-center gap-2 mb-2 ml-1">
+                    <label class="{{ $labelClass }} !mb-0 !ml-0">Live gehen</label>
+                    <div x-data="{ open: false }" class="relative inline-flex items-center" @mouseenter="open = true" @mouseleave="open = false">
+                        <button type="button" @click.prevent="open = !open" title="Zweiter Hauptschalter vor Verkaufsstart: Solange Live gehen deaktiviert ist, bleibt die gesamte Live-Domain selbst für eingeloggte Admins hinter der Wartungsseite verborgen. Erst wenn Live gehen aktiv und der Wartungsmodus aus ist, ist der Shop öffentlich sichtbar." class="w-4 h-4 rounded-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-500 dark:text-gray-300 text-[10px] font-black flex items-center justify-center hover:border-[var(--theme-color)] hover:text-[var(--theme-color)] transition-colors">!</button>
+                        <div x-show="open" x-cloak class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 w-72 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-3 text-[11px] leading-relaxed text-gray-700 dark:text-gray-200 shadow-xl pointer-events-none">
+                            {{ $infoTexts['shop_is_live'] }}
+                        </div>
+                    </div>
+                </div>
+                <button type="button" wire:click="toggleShopIsLive" role="switch" aria-checked="{{ $shop_is_live ? 'true' : 'false' }}" class="{{ $checkboxContainerClass }} w-full justify-between">
+                    <div class="flex items-center gap-2.5 min-w-0">
+                        <span class="font-bold text-gray-900 dark:text-white text-sm">Live gehen</span>
+                        @if($shop_is_live)
+                            <span class="text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider border bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">Live</span>
+                        @else
+                            <span class="text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider border bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/30">Gesperrt</span>
+                        @endif
+                    </div>
+                    <span class="relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out {{ $shop_is_live ? 'bg-emerald-500' : 'bg-gray-200 dark:bg-gray-800' }}">
+                        <span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {{ $shop_is_live ? 'translate-x-5' : 'translate-x-0' }}"></span>
+                    </span>
+                </button>
+            </div>
+
+            <div>
+                <div class="flex items-center gap-2 mb-2 ml-1">
                     <label class="{{ $labelClass }} !mb-0 !ml-0">Wartungsmodus</label>
                     @include('components.alerts.info-tooltip', ['key' => 'maintenance_mode'])
                 </div>

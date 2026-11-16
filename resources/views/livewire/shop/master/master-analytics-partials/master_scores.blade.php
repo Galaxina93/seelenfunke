@@ -125,6 +125,10 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
         }
 
         // --- 3. SYSTEM SCORE ---
+        $telephonyBridgeUrl = (string) (config('services.gemini.live_bridge_url') ?: config('services.gemini.proxy_ws_url') ?: 'https://api-live-bridge.mein-seelenfunke.de');
+        $telephonyHost = $systemHealth['telephony']['host'] ?? (parse_url($telephonyBridgeUrl, PHP_URL_HOST) ?: 'api-live-bridge.mein-seelenfunke.de');
+        $telephonyPort = $systemHealth['telephony']['port'] ?? (string) (parse_url($telephonyBridgeUrl, PHP_URL_PORT) ?: '443');
+
         $services = [
             'database' => ['label' => 'Datenbank', 'host' => config('database.connections.mysql.host', '127.0.0.1'), 'port' => config('database.connections.mysql.port', '3306'), 'desc' => 'Speichert alle Produkte, Benutzer und Bestellungen.'],
             'storage' => ['label' => 'Server Speicher', 'host' => 'Lokal (SSD)', 'port' => 'N/A', 'desc' => 'Überwacht den verfügbaren Speicherplatz auf dem Server.'],
@@ -141,7 +145,7 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
             'google_places' => ['label' => 'Google Places', 'host' => 'maps.googleapis.com', 'port' => '443', 'desc' => 'Schnittstelle für automatische Kundenbewertungen.'],
             'elster' => ['label' => 'Elster (ERiC)', 'host' => 'elster.de', 'port' => '443', 'desc' => 'Anbindung zur Finanzbehörde der Bundesrepublik Deutschland.'],
             'scraperapi' => ['label' => 'ScraperAPI', 'host' => 'api.scraperapi.com', 'port' => '80', 'desc' => 'Proxy-Service für Marktforschung und SEO-Agenten.'],
-            'telephony' => ['label' => 'Gemini Audio Bridge', 'host' => 'localhost', 'port' => env('TWILIO_WS_PORT', '8081'), 'desc' => app()->environment('local') ? 'Lokal deaktiviert. Funktioniert nur auf Stage/Live und hat keinen Einfluss auf den Health-Score.' : 'Node.js WebSocket Server für Echtzeit-Sprachanrufe zwischen Twilio und KI.'],
+            'telephony' => ['label' => 'Gemini Audio Bridge', 'host' => $telephonyHost, 'port' => $telephonyPort, 'desc' => app()->environment('local') ? 'Lokal inaktiv. Läuft auf Mittwald mStudio (a-yeq7el & a-iurgq8).' : 'Live-Audio- & Telefonie-Bridges (Node.js a-yeq7el & Reverb a-iurgq8).'],
             'watchtower' => ['label' => '24/7 Watchtower', 'host' => '/api/system/health-pulse', 'port' => '443', 'desc' => 'Gebündelter 4-Säulen-Wächter (Shop & SSL, Cronjobs, Queue-Worker, Shop/NAS-Backups) inkl. 90-Tage-Uptime.'],
         ];
 
@@ -396,6 +400,7 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
 
         // --- SUB-SATELLITEN FÜR ALLE DRILL-DOWN TRANSFORMATIONEN IM FOKUS-MODUS ---
         $opRouteMap = [
+            'gemini_bridge' => '/admin/global-logs',
             'product_readiness' => '/admin/products',
             'inventory' => '/admin/products',
             'open_orders' => '/admin/orders',
@@ -438,8 +443,7 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
         $operativeSubNodes = [];
         foreach ($sortedOpenHealthChecks as $hKey => $hCheck) {
             $isErr = in_array($hCheck['status'] ?? '', ['error', 'warning'], true);
-            $operativeSubNodes[] = [
-                'url' => $opRouteMap[$hKey] ?? '/admin/dashboard',
+            $subNode = [
                 'sound' => 'action',
                 'title' => strtoupper($hCheck['title'] ?? $hKey),
                 'value' => $hCheck['count'],
@@ -448,8 +452,14 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
                 'color' => $isErr ? $sfCritical : $sfGold,
                 'critical' => $isErr,
                 'metric' => strtoupper(\Illuminate\Support\Str::limit($hCheck['message'] ?? '', 26)),
-                'status' => 'DIREKT ÖFFNEN ↗',
+                'status' => $hKey === 'gemini_bridge' ? 'DIAGNOSE ÖFFNEN ↗' : 'DIREKT ÖFFNEN ↗',
             ];
+            if ($hKey === 'gemini_bridge') {
+                $subNode['tab'] = 'system';
+            } else {
+                $subNode['url'] = $opRouteMap[$hKey] ?? '/admin/dashboard';
+            }
+            $operativeSubNodes[] = $subNode;
         }
         if (count($operativeSubNodes) === 0) {
             foreach (['routine', 'product_readiness', 'open_orders', 'open_tickets', 'open_tasks', 'special_issues'] as $fallbackKey) {
@@ -1037,7 +1047,7 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
                 'elevated' => false,
                 'coreTitle' => 'Zeitraum & Filter',
                 'coreValue' => $filterModeLabel,
-                'coreBadgeHtml' => '<span class="text-[#ffe39f]">' . $startCarbon->format('d.m.y') . ' – ' . $endCarbon->format('d.m.y') . '</span>',
+                'coreBadgeHtml' => '<span class="text-[#ffe39f]">' . $startCarbon->format('d.m.y') . ' bis ' . $endCarbon->format('d.m.y') . '</span>',
                 'coreClick' => "window.sfPlaySound && window.sfPlaySound('back'); activeTab = null",
                 'nodes' => $settingsSubNodes,
             ],
@@ -1233,6 +1243,40 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
             ]);
         }
     @endphp
+
+    @if(!empty($geminiBridgeAlert['active']))
+        <div x-data="{ showBridgeDiag: false }" class="rounded-2xl border border-red-500/40 bg-red-500/10 dark:bg-red-950/40 px-4 py-3.5 shadow-sm">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <div class="flex items-center gap-3 min-w-0">
+                    <span class="w-9 h-9 rounded-xl bg-red-500/20 border border-red-500/40 flex items-center justify-center shrink-0 text-red-600 dark:text-red-400">
+                        <x-heroicon-s-exclamation-triangle class="w-5 h-5" />
+                    </span>
+                    <div class="flex flex-wrap items-center gap-2 min-w-0">
+                        <span class="text-sm font-black text-red-700 dark:text-red-300 tracking-tight">Gemini Live-Bridge ausgefallen</span>
+                        @if(!empty($geminiBridgeAlert['summary']))
+                            <span class="px-2 py-0.5 rounded-md bg-red-500/15 border border-red-500/30 text-[10px] font-mono font-bold text-red-700 dark:text-red-300">{{ $geminiBridgeAlert['summary'] }}</span>
+                        @endif
+                    </div>
+                </div>
+                <div class="flex items-center gap-2 shrink-0">
+                    <button type="button"
+                            @click="showBridgeDiag = !showBridgeDiag"
+                            class="px-3 py-1.5 rounded-lg border border-red-500/40 bg-white/80 dark:bg-gray-900/80 hover:bg-white dark:hover:bg-gray-900 text-red-700 dark:text-red-300 text-[10px] font-black uppercase tracking-widest transition-colors cursor-pointer">
+                        Diagnose
+                    </button>
+                    <button type="button"
+                            @click="activeTab = 'system'"
+                            class="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white text-[10px] font-black uppercase tracking-widest transition-colors cursor-pointer">
+                        Infrastruktur
+                    </button>
+                </div>
+            </div>
+            <div x-show="showBridgeDiag" x-cloak class="mt-3 pt-3 border-t border-red-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[10px] font-mono text-gray-800 dark:text-gray-200">
+                <span class="break-all">{{ $geminiBridgeAlert['ssh_command'] }}</span>
+                <a href="/admin/global-logs" class="text-red-600 dark:text-red-400 font-sans font-black uppercase tracking-wider shrink-0 hover:underline">Sentinel-Log ↗</a>
+            </div>
+        </div>
+    @endif
 
     <!-- ===================================================================== -->
     <!-- A. FOKUS-MODUS: ANIME.JS CHRONO-CORE & INTERAKTIVE ORBITAL-SZENEN     -->
@@ -2292,6 +2336,7 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
 
                 @php
                     $descriptions = [
+                        'gemini_bridge' => 'Echtzeit-Gesundheitsprüfung der Mittwald-Container a-yeq7el (api-live-bridge.mein-seelenfunke.de/health) und a-iurgq8 (ws.mein-seelenfunke.de/twilio-health).',
                         'product_readiness' => 'Prüft über den 9-Punkte-Check (Basis, Preis, Gewicht, Galerie, Lieferant, Verpackung/LUCID, Konfigurator/Laser, Vorlagen), ob alle Produkte zu 100% vollständig eingerichtet sind.',
                         'inventory' => 'Prüft anhand des produktspezifischen Mindestbestands (bzw. globalen Limits), ob physische Artikel nachbestellt werden müssen oder ausverkauft sind.',
                         'open_orders' => 'Bestellungen in Bearbeitung, die noch verpackt und versendet werden müssen (markiert Express-Bestellungen und Aufträge > 48h sofort als Warnung).',
@@ -2373,6 +2418,8 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
                                 class="bg-gray-50/80 dark:bg-gray-950 hover:bg-gray-100/90 dark:hover:bg-gray-900/80 transition-all group cursor-pointer relative"
                                 @if($key === 'security_audit')
                                     @click="activeTab = 'security'"
+                                @elseif($key === 'gemini_bridge')
+                                    @click="activeTab = 'system'"
                                 @else
                                     onclick="window.open('{{ $actionUrl }}', '_blank')"
                                 @endif>
@@ -2661,8 +2708,8 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
                                             </div>
 
                                             <!-- Tooltip für Services -->
-                                            <div x-show="tooltip" x-transition.opacity.duration.200ms class="absolute bottom-full mb-2 right-0 w-[240px] p-3 bg-white dark:bg-gray-950 border border-[#C5A059]/40 rounded-xl shadow-2xl z-[100] text-center" style="display: none;">
-                                                <div class="text-[10px] text-[#C5A059] font-black uppercase tracking-widest mb-1">{{ $services[$sKey]['host'] }}:{{ $services[$sKey]['port'] }}</div>
+                                            <div x-show="tooltip" x-transition.opacity.duration.200ms class="absolute bottom-full mb-2 right-0 {{ $sKey === 'telephony' ? 'w-[280px] sm:w-[320px]' : 'w-[240px]' }} p-3 bg-white dark:bg-gray-950 border border-[#C5A059]/40 rounded-xl shadow-2xl z-[100] text-center" style="display: none;">
+                                                <div class="text-[10px] text-[#C5A059] font-black uppercase tracking-widest mb-1 break-all">{{ $services[$sKey]['host'] }}:{{ $services[$sKey]['port'] }}</div>
                                                 <div class="text-[11px] text-gray-700 dark:text-gray-300 font-medium leading-relaxed">{{ $services[$sKey]['desc'] }}</div>
                                                 
                                                 @if($sKey === 'queue' && $health)
@@ -2882,29 +2929,68 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
                                                 @endif
 
                                                 @if($sKey === 'telephony')
+                                                    @php
+                                                        $emergencySshCmd = $health['ssh_command'] ?? 'ssh kontakt@mein-seelenfunke.de@a-yeq7el@ssh.altgemeinde.project.host "mittnitectl job restart"';
+                                                        $reverbSshCmd = 'ssh kontakt@mein-seelenfunke.de@a-iurgq8@ssh.altgemeinde.project.host "mittnitectl job restart"';
+                                                    @endphp
+                                                    @if(!empty($health['version']))
+                                                        <div class="flex justify-between gap-2 mt-2 pt-1.5 border-t border-gray-200 dark:border-gray-800 text-[9px] font-mono">
+                                                            <span class="text-gray-500 font-bold">NODE BRIDGE:</span>
+                                                            <span class="text-emerald-600 dark:text-emerald-400 font-bold truncate">{{ $health['version'] }}</span>
+                                                        </div>
+                                                    @endif
+                                                    @if(!empty($health['twilio_version']))
+                                                        <div class="flex justify-between gap-2 mt-0.5 text-[9px] font-mono">
+                                                            <span class="text-gray-500 font-bold">REVERB BRIDGE:</span>
+                                                            <span class="text-emerald-600 dark:text-emerald-400 font-bold truncate">{{ $health['twilio_version'] }}</span>
+                                                        </div>
+                                                    @endif
                                                     @if($status === 'connected')
-                                                        <div class="mt-2 text-[10px] text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 dark:bg-emerald-950/30 p-2 rounded-lg border border-emerald-500/30 dark:border-emerald-900/50 text-left font-medium leading-relaxed">
-                                                            <i class="bi bi-check-circle-fill mr-1"></i> Perfekt! Die Node.js App ist wach, der Port ist offen und das Routing funktioniert. Du kannst jetzt anrufen!
+                                                        <div class="mt-2 text-[10px] text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 dark:bg-emerald-950/30 p-2 rounded-lg border border-emerald-500/30 dark:border-emerald-900/50 text-left font-bold leading-relaxed">
+                                                            <i class="bi bi-check-circle-fill mr-1"></i> Audio-Bridges online (/health & /twilio-health).
                                                         </div>
                                                     @else
-                                                        <div class="mt-2 text-[10px] text-gray-700 dark:text-gray-300 bg-red-500/10 dark:bg-red-950/30 p-2 rounded-lg border border-red-500/30 dark:border-red-900/50 text-left font-medium leading-relaxed">
-                                                            <strong class="text-red-600 dark:text-red-400 block mb-2 uppercase tracking-wider"><i class="bi bi-exclamation-triangle-fill"></i> SSH Notfall-Befehl (Copy & Paste):</strong>
-                                                            <div class="bg-black/10 dark:bg-black/50 rounded p-2 text-gray-700 dark:text-gray-300 font-mono text-[9.5px] leading-relaxed cursor-text selection:bg-purple-500/30 border border-red-500/30 dark:border-red-900/50 mb-2">
-                                                                cd /html/seelenfunke-stage<br>
-                                                                git reset --hard<br>
-                                                                git pull<br>
-                                                                cd /html/twilio-bridge<br>
-                                                                cp ../seelenfunke-stage/server-twilio.js .<br>
-                                                                cp ../seelenfunke-stage/.env .<br>
-                                                                npm install ws dotenv wavefile<br>
-                                                                kill -9 $(ps aux | grep '[n]ode' | awk '{print $2}')
+                                                        <div x-data="{
+                                                            copiedSsh: false,
+                                                            copyEmergencyCmd(cmd) {
+                                                                if (navigator.clipboard && window.isSecureContext) {
+                                                                    navigator.clipboard.writeText(cmd).then(() => {
+                                                                        this.copiedSsh = true;
+                                                                        setTimeout(() => { this.copiedSsh = false; }, 2000);
+                                                                    });
+                                                                    return;
+                                                                }
+                                                                const ta = document.createElement('textarea');
+                                                                ta.value = cmd;
+                                                                ta.style.position = 'fixed';
+                                                                ta.style.opacity = '0';
+                                                                document.body.appendChild(ta);
+                                                                ta.focus();
+                                                                ta.select();
+                                                                document.execCommand('copy');
+                                                                document.body.removeChild(ta);
+                                                                this.copiedSsh = true;
+                                                                setTimeout(() => { this.copiedSsh = false; }, 2000);
+                                                            }
+                                                        }" class="mt-2 text-[10px] text-gray-800 dark:text-gray-200 bg-red-500/10 dark:bg-red-950/30 p-2.5 rounded-lg border border-red-500/30 dark:border-red-900/50 text-left font-medium leading-relaxed">
+                                                            <div class="flex items-center justify-between gap-2 mb-1.5">
+                                                                <strong class="text-red-600 dark:text-red-400 uppercase tracking-wider text-[9px]"><i class="bi bi-exclamation-triangle-fill"></i> SSH Notfallbefehl</strong>
+                                                                <button type="button"
+                                                                        @click.stop="copyEmergencyCmd(@js($emergencySshCmd))"
+                                                                        class="px-2 py-0.5 rounded border border-[#C5A059]/50 bg-[#C5A059]/15 hover:bg-[#C5A059]/30 text-[#C5A059] text-[8px] font-black uppercase tracking-wider transition-colors cursor-pointer">
+                                                                    <span x-text="copiedSsh ? 'Kopiert' : 'Kopieren'"></span>
+                                                                </button>
                                                             </div>
-                                                            <span class="text-gray-500 dark:text-gray-400 italic">Die Node.js App startet danach von alleine neu. Warte ca. 1-2 Minuten, bis die Anzeige grün wird!</span>
+                                                            <div class="bg-gray-100 dark:bg-gray-900 rounded p-2 text-gray-800 dark:text-gray-200 font-mono text-[8.5px] leading-relaxed cursor-text break-all selection:bg-[#C5A059]/30 border border-red-500/20 dark:border-red-900/50 mb-1.5">{{ $emergencySshCmd }}</div>
+                                                            @if(!str_contains($emergencySshCmd, 'a-iurgq8'))
+                                                                <div class="text-[8px] font-mono text-gray-600 dark:text-gray-400 break-all mb-1">Reverb (a-iurgq8): {{ $reverbSshCmd }}</div>
+                                                            @endif
+                                                            <div class="text-[8px] font-mono text-gray-600 dark:text-gray-400">MCP: <code>FunkenwerkMcp.exe --stage-restart-workers</code></div>
                                                         </div>
                                                     @endif
                                                 @endif
 
-                                                @if(isset($health['error']) && $health['error'])
+                                                @if(isset($health['error']) && $health['error'] && $sKey !== 'telephony')
                                                     <div class="mt-1.5 pt-1.5 border-t border-red-500/20 text-red-500 text-[10px] font-bold">{{ $health['error'] }}</div>
                                                 @endif
                                                 @if(isset($health['path']) && $health['path'])
@@ -3056,7 +3142,7 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
                 <!-- 5-SÄULEN ABWEHR-MATRIX (FILTERBAR) -->
                 <div class="mb-8">
                     <div class="flex items-center justify-between mb-3">
-                        <h3 class="text-[11px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest">Abwehr-Kategorien (48h Telemetrie — Klick zum Filtern)</h3>
+                        <h3 class="text-[11px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest">Abwehr-Kategorien (48h Telemetrie · Klick zum Filtern)</h3>
                         @if($threatCategoryFilter !== 'all')
                             <button wire:click="setThreatCategoryFilter('all')" class="text-[10px] font-bold text-purple-500 hover:underline uppercase tracking-wider">Filter zurücksetzen (Alle zeigen)</button>
                         @endif

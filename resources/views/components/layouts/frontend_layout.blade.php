@@ -61,10 +61,15 @@
         'newsletter.verify',
         'customer.verification.verify',
     ];
+    $isLockedPublicFrontend = !\App\Http\Middleware\EnforceShopMaintenanceMode::isShopLive(request())
+        && !\Illuminate\Support\Facades\Auth::guard('admin')->check();
+
     $defaultRobots = in_array($currentRouteName, $noindexRoutes, true)
         ? 'noindex, nofollow'
         : 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1';
-    $resolvedRobots = $robots ?: ($sectionRobots ?: $defaultRobots);
+    $resolvedRobots = $isLockedPublicFrontend
+        ? 'noindex, noarchive'
+        : ($robots ?: ($sectionRobots ?: $defaultRobots));
     $resolvedReferrerPolicy = in_array($currentRouteName, $noReferrerRoutes, true)
         ? 'no-referrer'
         : 'strict-origin-when-cross-origin';
@@ -87,7 +92,7 @@
                 '@id' => url('/#organization'),
                 'name' => $companyName,
                 'alternateName' => 'Mein Seelenfunke Manufaktur',
-                'legalName' => $companyName . ' – ' . $founderName,
+                'legalName' => $companyName . ' · ' . $founderName,
                 'url' => url('/'),
                 'logo' => [
                     '@type' => 'ImageObject',
@@ -179,7 +184,7 @@
     <meta name="keywords" content="Personalisierte Geschenke, Lasergravur, Glasfoto, K9 Kristallglas, Trophäe gravieren, Schieferplatte graviert, 3D Konfigurator, Gifhorn, Braunschweig, Wolfsburg, Hannover, Fotogeschenk, Unikat, Mein Seelenfunke">
     <meta name="robots" content="{{ $resolvedRobots }}">
     <meta name="referrer" content="{{ $resolvedReferrerPolicy }}">
-    <meta name="author" content="{{ $companyName }} – {{ $founderName }}">
+    <meta name="author" content="{{ $companyName }} · {{ $founderName }}">
     <meta name="geo.region" content="DE-NI">
     <meta name="geo.placename" content="{{ $city }}">
 
@@ -200,11 +205,13 @@
 
     {{-- Canonical & Machine-Readable Discovery (Sitemap, Google Shopping Feed & AI Search LLMs.txt) --}}
     <link rel="canonical" href="{{ $resolvedCanonical }}">
-    <link rel="sitemap" type="application/xml" title="Sitemap" href="{{ url('/sitemap.xml') }}">
-    <link rel="alternate" type="application/rss+xml" title="{{ $companyName }} – Google Shopping Product Feed" href="{{ url('/feed/google-shopping.xml') }}">
-    <link rel="alternate" type="application/json" title="{{ $companyName }} – Structured Product Catalog JSON" href="{{ url('/feed/products.json') }}">
-    <link rel="alternate" type="text/plain" title="LLMs.txt – AI Search Summary" href="{{ url('/llms.txt') }}">
-    <link rel="alternate" type="text/plain" title="LLMs-Full.txt – AI Full Product & Shop Knowledge" href="{{ url('/llms-full.txt') }}">
+    @if(!$isLockedPublicFrontend)
+        <link rel="sitemap" type="application/xml" title="Sitemap" href="{{ url('/sitemap.xml') }}">
+        <link rel="alternate" type="application/rss+xml" title="{{ $companyName }} | Google Shopping Product Feed" href="{{ url('/feed/google-shopping.xml') }}">
+        <link rel="alternate" type="application/json" title="{{ $companyName }} | Structured Product Catalog JSON" href="{{ url('/feed/products.json') }}">
+        <link rel="alternate" type="text/plain" title="LLMs.txt | AI Search Summary" href="{{ url('/llms.txt') }}">
+        <link rel="alternate" type="text/plain" title="LLMs-Full.txt | AI Full Product & Shop Knowledge" href="{{ url('/llms-full.txt') }}">
+    @endif
 
     {{-- Global Schema.org JSON-LD (Organization + WebSite) --}}
     <script type="application/ld+json">{!! json_encode($globalSchemaGraph, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) !!}</script>
@@ -303,82 +310,126 @@
     </style>
 </head>
 
-<body class="min-h-screen overflow-x-hidden antialiased">
+<body class="min-h-screen overflow-x-hidden antialiased {{ $isLockedPublicFrontend ? 'bg-[#FAF8F5] text-gray-900 flex flex-col justify-between' : '' }}">
 
 @include('frontend.partials.page_transition_portal')
-@include('frontend.partials.action_dock')
 
-@php
-    $activeReferralCoupon = session('seelenfunke_coupon') ?: request()->cookie('seelenfunke_coupon');
-    $showReferralBanner = false;
-    $bannerHtml = '';
+@if($isLockedPublicFrontend)
+    <header class="border-b border-[#EAE3D5] bg-white/95 backdrop-blur-sm">
+        <div class="max-w-4xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-4">
+            <a href="{{ url('/') }}" class="inline-flex items-center gap-3 group">
+                <img src="{{ asset('shop/projekt/logo/mein-seelenfunke-logo.svg') }}"
+                     onerror="this.onerror=null;this.src='{{ asset('shop/projekt/logo/mein-seelenfunke-logo.png') }}';"
+                     alt="{{ $companyName }}"
+                     class="h-11 sm:h-12 w-auto object-contain">
+            </a>
+            <nav aria-label="Rechtliche Hinweise" class="flex items-center gap-4 text-xs font-semibold text-gray-600">
+                <a href="{{ url('/impressum') }}" class="hover:text-[#C5A059] transition-colors">Impressum</a>
+                <span class="text-gray-300">·</span>
+                <a href="{{ url('/datenschutz') }}" class="hover:text-[#C5A059] transition-colors">Datenschutz</a>
+            </nav>
+        </div>
+    </header>
 
-    if ($activeReferralCoupon) {
-        $customer = \Illuminate\Support\Facades\Auth::guard('customer')->user();
-        $buyerEmail = $customer ? $customer->email : null;
-        $buyerCustomerId = $customer ? $customer->id : null;
-        $referralService = app(\App\Services\ReferralService::class);
-        $referralCheck = $referralService->validateReferralCode($activeReferralCoupon, $buyerEmail, $buyerCustomerId);
+    <main class="relative overflow-x-hidden flex-1">
+        <div class="relative">
+            {{ $slot }}
+        </div>
+    </main>
 
-        if ($referralCheck['is_referral']) {
-            if ($referralCheck['valid']) {
-                $showReferralBanner = true;
-                $bannerHtml = 'Dein <strong>10 % Neukundenrabatt (Code: ' . e($activeReferralCoupon) . ')</strong> ist aktiviert und wird im Warenkorb automatisch abgezogen!';
+    <footer class="border-t border-[#EAE3D5] bg-white/90 py-6 px-4 text-center text-xs text-gray-500">
+        <div class="max-w-3xl mx-auto space-y-2">
+            <p class="font-medium text-gray-700">
+                {{ $companyName }} · Inhaberin: {{ $founderName }} · {{ $streetAddress }}, {{ trim($postalCode . ' ' . $city) }}
+            </p>
+            <p>
+                Kontakt:
+                <a href="mailto:{{ $email }}" class="text-gray-700 hover:text-[#C5A059] underline transition-colors">{{ $email }}</a>
+                · Tel. {{ $phone }}
+            </p>
+            <div class="flex flex-wrap items-center justify-center gap-4 pt-1 text-[11px] font-semibold text-gray-600">
+                <a href="{{ url('/impressum') }}" class="hover:text-[#C5A059] transition-colors">Impressum</a>
+                <span>·</span>
+                <a href="{{ url('/datenschutz') }}" class="hover:text-[#C5A059] transition-colors">Datenschutz</a>
+                <span>·</span>
+                <a href="{{ url('/barrierefreiheit') }}" class="hover:text-[#C5A059] transition-colors">Barrierefreiheit</a>
+                <span>·</span>
+                <a href="{{ url('/login') }}" class="text-gray-400 hover:text-gray-700 transition-colors">Verwaltung</a>
+            </div>
+        </div>
+    </footer>
+@else
+    @include('frontend.partials.action_dock')
+
+    @php
+        $activeReferralCoupon = session('seelenfunke_coupon') ?: request()->cookie('seelenfunke_coupon');
+        $showReferralBanner = false;
+        $bannerHtml = '';
+
+        if ($activeReferralCoupon) {
+            $customer = \Illuminate\Support\Facades\Auth::guard('customer')->user();
+            $buyerEmail = $customer ? $customer->email : null;
+            $buyerCustomerId = $customer ? $customer->id : null;
+            $referralService = app(\App\Services\ReferralService::class);
+            $referralCheck = $referralService->validateReferralCode($activeReferralCoupon, $buyerEmail, $buyerCustomerId);
+
+            if ($referralCheck['is_referral']) {
+                if ($referralCheck['valid']) {
+                    $showReferralBanner = true;
+                    $bannerHtml = 'Dein <strong>10 % Neukundenrabatt (Code: ' . e($activeReferralCoupon) . ')</strong> ist aktiviert und wird im Warenkorb automatisch abgezogen!';
+                } else {
+                    // Bei Eigenwerbung oder Bestandskunde: Banner nicht anzeigen & Cookie/Session bereinigen
+                    session()->forget('seelenfunke_coupon');
+                    \Illuminate\Support\Facades\Cookie::queue(\Illuminate\Support\Facades\Cookie::forget('seelenfunke_coupon'));
+                }
             } else {
-                // Bei Eigenwerbung oder Bestandskunde: Banner nicht anzeigen & Cookie/Session bereinigen
-                session()->forget('seelenfunke_coupon');
-                \Illuminate\Support\Facades\Cookie::queue(\Illuminate\Support\Facades\Cookie::forget('seelenfunke_coupon'));
-            }
-        } else {
-            // Regulärer Gutschein: Gültigkeit & Eigenbestellungs-Sperre prüfen
-            $voucher = \App\Models\Marketing\MarketingVoucher::where('code', $activeReferralCoupon)->where('is_active', true)->first();
-            if ($voucher && $voucher->isValid() && !app(\App\Services\CartService::class)->isInfluencerSelfRedemption($voucher, $buyerEmail)) {
-                $showReferralBanner = true;
-                $bannerHtml = 'Dein Gutscheincode <strong>' . e($activeReferralCoupon) . '</strong> ist aktiviert und wird im Warenkorb automatisch abgezogen!';
-            } else {
-                session()->forget('seelenfunke_coupon');
-                \Illuminate\Support\Facades\Cookie::queue(\Illuminate\Support\Facades\Cookie::forget('seelenfunke_coupon'));
+                // Regulärer Gutschein: Gültigkeit & Eigenbestellungs-Sperre prüfen
+                $voucher = \App\Models\Marketing\MarketingVoucher::where('code', $activeReferralCoupon)->where('is_active', true)->first();
+                if ($voucher && $voucher->isValid() && !app(\App\Services\CartService::class)->isInfluencerSelfRedemption($voucher, $buyerEmail)) {
+                    $showReferralBanner = true;
+                    $bannerHtml = 'Dein Gutscheincode <strong>' . e($activeReferralCoupon) . '</strong> ist aktiviert und wird im Warenkorb automatisch abgezogen!';
+                } else {
+                    session()->forget('seelenfunke_coupon');
+                    \Illuminate\Support\Facades\Cookie::queue(\Illuminate\Support\Facades\Cookie::forget('seelenfunke_coupon'));
+                }
             }
         }
-    }
-@endphp
-@if($showReferralBanner)
-    <div id="referral-coupon-banner"
-         class="referral-coupon-banner bg-gradient-to-r from-amber-500 via-primary to-amber-600 text-white text-xs font-semibold py-2 px-4 shadow-sm relative z-40 transition-all duration-300"
-         x-data="{ show: true }"
-         x-show="show"
-         x-cloak>
-        <div class="max-w-7xl mx-auto flex items-center justify-between gap-3">
-            <div class="flex items-center gap-2 mx-auto sm:mx-0">
-                <span class="text-base animate-pulse">🎁</span>
-                <span>{!! $bannerHtml !!}</span>
+    @endphp
+    @if($showReferralBanner)
+        <div id="referral-coupon-banner"
+             class="referral-coupon-banner bg-gradient-to-r from-amber-500 via-primary to-amber-600 text-white text-xs font-semibold py-2 px-4 shadow-sm relative z-40 transition-all duration-300"
+             x-data="{ show: true }"
+             x-show="show"
+             x-cloak>
+            <div class="max-w-7xl mx-auto flex items-center justify-between gap-3">
+                <div class="flex items-center gap-2 mx-auto sm:mx-0">
+                    <span class="text-base animate-pulse">🎁</span>
+                    <span>{!! $bannerHtml !!}</span>
+                </div>
+                <button @click="show = false" type="button" class="text-white/80 hover:text-white font-bold p-1 leading-none shrink-0 cursor-pointer" title="Schließen">&times;</button>
             </div>
-            <button @click="show = false" type="button" class="text-white/80 hover:text-white font-bold p-1 leading-none shrink-0 cursor-pointer" title="Schließen">&times;</button>
         </div>
-    </div>
+    @endif
+
+    <header>
+        @include('frontend.navigation.navigation')
+    </header>
+
+    <main class="relative overflow-x-hidden">
+        <div class="relative">
+            {{ $slot }}
+
+            @if(auth()->guard('customer')->check() && app(\App\Services\Gamification\GamificationService::class)->isGameModeActive())
+                <livewire:customer.gamification.game-spark-hunt-component />
+            @endif
+        </div>
+    </main>
+
+    {{-- Footer --}}
+    @include('frontend.footer.footer')
+
+    @include('components.gamification.persistent-bgm-dock')
 @endif
-
-<header>
-    @include('frontend.navigation.navigation')
-</header>
-
-<main class="relative overflow-x-hidden">
-    <div class="relative">
-        {{ $slot }}
-
-        @if(auth()->guard('customer')->check() && app(\App\Services\Gamification\GamificationService::class)->isGameModeActive())
-            <livewire:customer.gamification.game-spark-hunt-component />
-        @endif
-    </div>
-</main>
-
-{{-- Footer --}}
-@include('frontend.footer.footer')
-
-@include('components.gamification.persistent-bgm-dock')
-
-{{-- 2. Der Chat bleibt im Hintergrund geladen, wird aber vom Dock gesteuert --}}
-{{-- FunkiChat removed as per request --}}
 
 @livewireScripts
 </body>

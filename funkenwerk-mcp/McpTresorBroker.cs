@@ -2496,7 +2496,7 @@ function(mode, userVal, passVal, totpVal, doSubmit) {
                     ["APP_ENV"] = "production"u8.ToArray(),
                     ["APP_DEBUG"] = "false"u8.ToArray(),
                     ["APP_KEY"] = appKeyValUtf8,
-                    ["APP_URL"] = "https://www.mein-seelenfunke.de"u8.ToArray(),
+                    ["APP_URL"] = "https://mein-seelenfunke.de"u8.ToArray(),
                     ["DB_CONNECTION"] = "mysql"u8.ToArray(),
                     ["DB_HOST"] = Encoding.ASCII.GetBytes(McpSecurityGuard.PinnedLiveMysqlHost),
                     ["DB_PORT"] = "3306"u8.ToArray(),
@@ -2513,7 +2513,7 @@ function(mode, userVal, passVal, totpVal, doSubmit) {
                     ["REDIS_HOST"] = "127.0.0.1"u8.ToArray(),
                     ["REDIS_PASSWORD"] = "null"u8.ToArray(),
                     ["REDIS_PORT"] = "6379"u8.ToArray(),
-                    ["GOOGLE_REDIRECT_URL"] = "https://www.mein-seelenfunke.de/auth/google/callback"u8.ToArray()
+                    ["GOOGLE_REDIRECT_URL"] = "https://mein-seelenfunke.de/auth/google/callback"u8.ToArray()
                 };
 
                 var primaryLines = (preserveExistingLiveDbPassword && liveLines.Count > 0) ? liveLines : stageLines;
@@ -2524,10 +2524,11 @@ function(mode, userVal, passVal, totpVal, doSubmit) {
                 {
                     if (map.TryGetValue("SESSION_DOMAIN", out var sdVal) && AsciiContainsIgnoreCase(sdVal, "stage"u8))
                         forcedOverrides["SESSION_DOMAIN"] = "null"u8.ToArray();
-                    if (map.TryGetValue("ASSET_URL", out var auVal) && AsciiContainsIgnoreCase(auVal, "stage.mein-seelenfunke.de"u8))
-                        forcedOverrides["ASSET_URL"] = "https://www.mein-seelenfunke.de"u8.ToArray();
+                    if (map.TryGetValue("ASSET_URL", out var auVal)
+                        && (AsciiContainsIgnoreCase(auVal, "stage.mein-seelenfunke.de"u8) || AsciiContainsIgnoreCase(auVal, "www.mein-seelenfunke.de"u8)))
+                        forcedOverrides["ASSET_URL"] = "https://mein-seelenfunke.de"u8.ToArray();
                     if (map.TryGetValue("SANCTUM_STATEFUL_DOMAINS", out var ssdVal) && AsciiContainsIgnoreCase(ssdVal, "stage.mein-seelenfunke.de"u8))
-                        forcedOverrides["SANCTUM_STATEFUL_DOMAINS"] = "www.mein-seelenfunke.de,mein-seelenfunke.de"u8.ToArray();
+                        forcedOverrides["SANCTUM_STATEFUL_DOMAINS"] = "mein-seelenfunke.de,www.mein-seelenfunke.de"u8.ToArray();
                 }
 
                 var emittedKeys = new HashSet<string>(StringComparer.Ordinal);
@@ -3188,7 +3189,7 @@ function(mode, userVal, passVal, totpVal, doSubmit) {
                             {
                                 ["APP_ENV"] = "production",
                                 ["APP_DEBUG"] = false,
-                                ["APP_URL"] = "https://www.mein-seelenfunke.de",
+                                ["APP_URL"] = "https://mein-seelenfunke.de",
                                 ["CACHE_STORE"] = "file",
                                 ["CACHE_DRIVER"] = "file",
                                 ["SESSION_DRIVER"] = "file",

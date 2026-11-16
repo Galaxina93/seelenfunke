@@ -353,17 +353,45 @@ class FunkenwerkHallOfHeroesAndProductFocusTest extends TestCase
         $this->assertStringContainsString('_createFunkiCharacterByLevel', $jsCode);
         $this->assertStringContainsString('Freier Ehrenplatz', $jsCode);
 
-        // 4. Verify "Funkenwerk 3D öffnen" button renders cleanly in Customer Portal & Checkout Success
-        Livewire::actingAs($meCustomer, 'customer')
+        // 4. Verify "Funkenwerk 3D öffnen" button renders directly in visible Customer Dashboard & Funki page, and is REMOVED from Checkout Success
+        $dashTest = Livewire::actingAs($meCustomer, 'customer')
             ->test(CustomerDashboardComponent::class)
-            ->assertSee('Funkenwerk 3D öffnen');
+            ->assertSee('Funkenwerk 3D öffnen')
+            ->assertSeeHtml('data-testid="dashboard-open-funkenwerk-3d"')
+            ->assertSeeHtml('funkenwerk-heroes-3d.js')
+            ->assertSeeHtml("open('orbit')");
+
+        $dashHtml = (string) $dashTest->html();
+        $visibleDashHtml = explode('<template x-teleport="body">', $dashHtml)[0] ?? '';
+        $this->assertStringContainsString('data-testid="dashboard-open-funkenwerk-3d"', $visibleDashHtml);
+        $this->assertStringContainsString('Funkenwerk 3D öffnen', $visibleDashHtml);
+
+        $this->actingAs($meCustomer, 'customer')
+            ->get('/customer/dashboard')
+            ->assertOk()
+            ->assertSee('Funkenwerk 3D öffnen')
+            ->assertSee('data-testid="dashboard-open-funkenwerk-3d"', false);
 
         Livewire::actingAs($meCustomer, 'customer')
             ->test(CustomerFunkiComponent::class)
             ->assertSee('Funkenwerk 3D öffnen');
 
-        Livewire::test(OrderCheckoutSuccess::class)
-            ->assertSee('Funkenwerk 3D öffnen');
+        $this->createPaidOrder('ORD-SUCC-CLEAN-01', $meCustomer, false, 'pending');
+
+        Livewire::actingAs($meCustomer, 'customer')
+            ->test(OrderCheckoutSuccess::class)
+            ->assertSee('ORD-SUCC-CLEAN-01')
+            ->assertSee('Zur Bestellung')
+            ->assertSee('Weiter einkaufen')
+            ->assertDontSee('Funkenwerk 3D öffnen')
+            ->assertDontSeeHtml('funkenwerk-heroes-3d.js')
+            ->assertDontSeeHtml('SeelenfunkeHeroes3D');
+
+        $this->actingAs($meCustomer, 'customer')
+            ->get('/checkout/success')
+            ->assertOk()
+            ->assertDontSee('Funkenwerk 3D öffnen')
+            ->assertDontSee('SeelenfunkeHeroes3D', false);
     }
 
     public function test_all_ten_compressed_funki_glb_models_pass_glb_optimizer_inspection_and_watermark(): void

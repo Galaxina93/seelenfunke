@@ -1,25 +1,53 @@
 <div x-show="activeTab === 'system'" class="animate-fade-in space-y-8" style="display: none;">
 
-    {{-- WARTUNGSMODUS SOFORT-SCHALTER --}}
-    <div class="bg-white dark:bg-gray-900/80 backdrop-blur-xl p-5 sm:p-6 rounded-2xl shadow-sm dark:shadow-xl border border-gray-200 dark:border-gray-800 flex items-center justify-between gap-4">
-        <div class="flex items-center gap-2.5 min-w-0">
-            <h2 class="text-base sm:text-lg font-bold text-gray-900 dark:text-white font-sans">Wartungsmodus</h2>
-            @if(!empty($settings['maintenance_mode']))
-                <span class="text-[10px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider border bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/30">Aktiv</span>
-            @else
-                <span class="text-[10px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider border bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">Inaktiv</span>
-            @endif
-            @include('components.alerts.info-tooltip', ['key' => 'maintenance_mode'])
+    {{-- LIVE GEHEN & WARTUNGSMODUS SOFORT-SCHALTER --}}
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div class="bg-white dark:bg-gray-900/80 backdrop-blur-xl p-5 sm:p-6 rounded-2xl shadow-sm dark:shadow-xl border border-gray-200 dark:border-gray-800 flex items-center justify-between gap-4">
+            <div class="flex items-center gap-2.5 min-w-0">
+                <h2 class="text-base sm:text-lg font-bold text-gray-900 dark:text-white font-sans">Live gehen</h2>
+                @if($shop_is_live)
+                    <span class="text-[10px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider border bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">Live</span>
+                @else
+                    <span class="text-[10px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider border bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/30">Gesperrt</span>
+                @endif
+                <div x-data="{ open: false }" class="relative inline-flex items-center" @mouseenter="open = true" @mouseleave="open = false">
+                    <button type="button" @click.prevent="open = !open" title="Zweiter Hauptschalter vor Verkaufsstart: Solange Live gehen deaktiviert ist, bleibt die gesamte Live-Domain selbst für eingeloggte Admins hinter der Wartungsseite verborgen. Erst wenn Live gehen aktiv und der Wartungsmodus aus ist, ist der Shop öffentlich sichtbar." class="w-5 h-5 rounded-full border border-gray-300 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 text-[11px] font-black flex items-center justify-center hover:border-[var(--theme-color)] hover:text-[var(--theme-color)] transition-colors">!</button>
+                    <div x-show="open" x-cloak class="absolute left-0 top-7 z-30 w-72 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 p-3 text-xs text-gray-700 dark:text-gray-300 shadow-xl pointer-events-none">
+                        {{ $infoTexts['shop_is_live'] }}
+                    </div>
+                </div>
+            </div>
+
+            <button
+                type="button"
+                wire:click="toggleShopIsLive"
+                role="switch"
+                aria-checked="{{ $shop_is_live ? 'true' : 'false' }}"
+                class="relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-[var(--theme-color)]/40 {{ $shop_is_live ? 'bg-emerald-500' : 'bg-gray-200 dark:bg-gray-800' }}">
+                <span class="pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {{ $shop_is_live ? 'translate-x-5' : 'translate-x-0' }}"></span>
+            </button>
         </div>
 
-        <button
-            type="button"
-            wire:click="toggleMaintenanceMode"
-            role="switch"
-            aria-checked="{{ !empty($settings['maintenance_mode']) ? 'true' : 'false' }}"
-            class="relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-[var(--theme-color)]/40 {{ !empty($settings['maintenance_mode']) ? 'bg-red-500' : 'bg-gray-200 dark:bg-gray-800' }}">
-            <span class="pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {{ !empty($settings['maintenance_mode']) ? 'translate-x-5' : 'translate-x-0' }}"></span>
-        </button>
+        <div class="bg-white dark:bg-gray-900/80 backdrop-blur-xl p-5 sm:p-6 rounded-2xl shadow-sm dark:shadow-xl border border-gray-200 dark:border-gray-800 flex items-center justify-between gap-4">
+            <div class="flex items-center gap-2.5 min-w-0">
+                <h2 class="text-base sm:text-lg font-bold text-gray-900 dark:text-white font-sans">Wartungsmodus</h2>
+                @if(!empty($settings['maintenance_mode']))
+                    <span class="text-[10px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider border bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/30">Aktiv</span>
+                @else
+                    <span class="text-[10px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider border bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">Inaktiv</span>
+                @endif
+                @include('components.alerts.info-tooltip', ['key' => 'maintenance_mode'])
+            </div>
+
+            <button
+                type="button"
+                wire:click="toggleMaintenanceMode"
+                role="switch"
+                aria-checked="{{ !empty($settings['maintenance_mode']) ? 'true' : 'false' }}"
+                class="relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-[var(--theme-color)]/40 {{ !empty($settings['maintenance_mode']) ? 'bg-red-500' : 'bg-gray-200 dark:bg-gray-800' }}">
+                <span class="pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {{ !empty($settings['maintenance_mode']) ? 'translate-x-5' : 'translate-x-0' }}"></span>
+            </button>
+        </div>
     </div>
 
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">

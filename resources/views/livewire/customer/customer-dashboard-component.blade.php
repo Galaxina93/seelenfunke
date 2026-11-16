@@ -393,6 +393,14 @@
                         </span>
                     </div>
                 @endif
+
+                <button type="button"
+                        data-testid="dashboard-open-funkenwerk-3d"
+                        onclick="(function(){ var e = window.SeelenfunkeHeroes3D; if (e) { if (e.modalEl && !document.body.contains(e.modalEl)) { document.body.appendChild(e.modalEl); } e.open('orbit'); return; } var s = document.getElementById('sf-heroes-3d-script'); if (!s) { s = document.createElement('script'); s.id = 'sf-heroes-3d-script'; s.src = '{{ asset('js/funkenwerk-heroes-3d.js') }}'; s.onload = function(){ if (window.SeelenfunkeHeroes3D) window.SeelenfunkeHeroes3D.open('orbit'); }; document.head.appendChild(s); } })()"
+                        class="col-span-2 sm:col-span-3 py-2.5 px-4 rounded-xl bg-white dark:bg-gray-950/80 hover:bg-[#faf6ee] dark:hover:bg-gray-900 border border-[#C5A059] text-gray-900 dark:text-[#f5dca0] text-xs font-black uppercase tracking-widest shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer">
+                    <span>🏛️</span>
+                    <span>Funkenwerk 3D öffnen</span>
+                </button>
             </div>
         </div>
     </div>
@@ -1779,7 +1787,7 @@
                                 </h4>
                                 <div class="flex flex-wrap items-center gap-2.5">
                                     <button type="button"
-                                            onclick="(function(){ if (window.SeelenfunkeHeroes3D) { window.SeelenfunkeHeroes3D.open('hall'); return; } var s = document.getElementById('sf-heroes-3d-script'); if (!s) { s = document.createElement('script'); s.id = 'sf-heroes-3d-script'; s.src = '{{ asset('js/funkenwerk-heroes-3d.js') }}'; s.onload = function(){ if (window.SeelenfunkeHeroes3D) window.SeelenfunkeHeroes3D.open('hall'); }; document.head.appendChild(s); } })()"
+                                            onclick="(function(){ var e = window.SeelenfunkeHeroes3D; if (e) { if (e.modalEl && !document.body.contains(e.modalEl)) { document.body.appendChild(e.modalEl); } e.open('hall'); return; } var s = document.getElementById('sf-heroes-3d-script'); if (!s) { s = document.createElement('script'); s.id = 'sf-heroes-3d-script'; s.src = '{{ asset('js/funkenwerk-heroes-3d.js') }}'; s.onload = function(){ if (window.SeelenfunkeHeroes3D) window.SeelenfunkeHeroes3D.open('hall'); }; document.head.appendChild(s); } })()"
                                             class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#C5A059] hover:bg-[#b58f48] text-gray-950 text-xs font-black tracking-wide transition cursor-pointer">
                                         <span>🏛️</span>
                                         <span>Funkenwerk 3D öffnen</span>

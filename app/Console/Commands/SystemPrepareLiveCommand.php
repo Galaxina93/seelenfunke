@@ -147,9 +147,9 @@ class SystemPrepareLiveCommand extends Command
 
     protected $signature = 'system:prepare-live
                             {--verify-only : Prüft ausschließlich den Live-Zustand ohne Seeding oder Schreibzugriffe}
-                            {--keep-maintenance-state : Behält den aktuellen maintenance_mode-Wert bei statt true zu erzwingen}';
+                            {--keep-maintenance-state : Behält die aktuellen shop_is_live- und maintenance_mode-Werte bei statt die Live-Sperre zu erzwingen}';
 
-    protected $description = 'Bereitet die Live-Datenbank idempotent im aktiven Wartungsmodus vor (Alina Admin, reine Produktions-Stammdaten, 0 Test-Accounts).';
+    protected $description = 'Bereitet die Live-Datenbank idempotent mit aktivem Wartungsmodus und deaktiviertem Live-gehen-Schalter (HTTP 503) vor.';
 
     public function handle(): int
     {
@@ -165,23 +165,49 @@ class SystemPrepareLiveCommand extends Command
             return self::FAILURE;
         }
 
-        $currentMaintenanceState = filter_var(
-            SystemSetting::where('key', 'maintenance_mode')->value('value') ?? false,
+        $currentShopIsLiveState = filter_var(
+            SystemSetting::where('key', 'shop_is_live')->value('value') ?? false,
             FILTER_VALIDATE_BOOLEAN
         );
+        $currentMaintenanceState = filter_var(
+            SystemSetting::where('key', 'maintenance_mode')->value('value') ?? true,
+            FILTER_VALIDATE_BOOLEAN
+        );
+        $expectedShopIsLiveState = $keepMaintenanceState ? $currentShopIsLiveState : false;
         $expectedMaintenanceState = $keepMaintenanceState ? $currentMaintenanceState : true;
 
         if ($verifyOnly) {
             $this->info('Starte reine Live-Bereitschaftsprüfung (--verify-only)...');
 
-            return $this->verifyLiveState($expectedMaintenanceState);
+            return $this->verifyLiveState($expectedShopIsLiveState, $expectedMaintenanceState);
         }
 
-        $this->info('Starte idempotente Live-Initialisierung für www.mein-seelenfunke.de...');
+        $this->info('Starte idempotente Live-Initialisierung für mein-seelenfunke.de...');
 
-        // a) Fail-Closed Step 1: Sofort Wartungsmodus scharf stellen (sofern nicht --keep-maintenance-state)
+        // a) Fail-Closed Step 1: Live gehen auf false und Wartungsmodus auf true scharf stellen (sofern nicht --keep-maintenance-state)
         if (!$keepMaintenanceState) {
             SystemSetting::updateOrCreate(
+                ['key' => 'shop_is_live'],
+                ['value' => 'false']
+            );
+            SystemSetting::updateOrCreate(
+                ['key' => 'shop_live_unlocked'],
+                ['value' => 'false']
+            );
+            SystemSetting::updateOrCreate(
+                ['key' => 'maintenance_mode'],
+                ['value' => 'true']
+            );
+        } else {
+            SystemSetting::firstOrCreate(
+                ['key' => 'shop_is_live'],
+                ['value' => 'false']
+            );
+            SystemSetting::firstOrCreate(
+                ['key' => 'shop_live_unlocked'],
+                ['value' => 'false']
+            );
+            SystemSetting::firstOrCreate(
                 ['key' => 'maintenance_mode'],
                 ['value' => 'true']
             );
@@ -195,8 +221,16 @@ class SystemPrepareLiveCommand extends Command
         // c) Geordnetes Produktions-Seeding (--force kompatibel in APP_ENV=production)
         $seedingFailed = $this->runProductionSeeders($admin);
 
-        // d) Fail-Closed Step Final: Wartungsmodus erneut hart absichern & global_shop_settings-Cache erneuern
+        // d) Fail-Closed Step Final: Live gehen (false) & Wartungsmodus (true) erneut hart absichern & global_shop_settings-Cache erneuern
         if (!$keepMaintenanceState) {
+            SystemSetting::updateOrCreate(
+                ['key' => 'shop_is_live'],
+                ['value' => 'false']
+            );
+            SystemSetting::updateOrCreate(
+                ['key' => 'shop_live_unlocked'],
+                ['value' => 'false']
+            );
             SystemSetting::updateOrCreate(
                 ['key' => 'maintenance_mode'],
                 ['value' => 'true']
@@ -205,12 +239,12 @@ class SystemPrepareLiveCommand extends Command
         $this->refreshGlobalShopSettingsCache();
 
         if ($seedingFailed) {
-            $this->error('Mindestens ein Produktions-Seeder meldete einen Fehler. Wartungsmodus bleibt geschlossen.');
+            $this->error('Mindestens ein Produktions-Seeder meldete einen Fehler. Live-Sperre und Wartungsmodus bleiben geschlossen.');
 
             return self::FAILURE;
         }
 
-        return $this->verifyLiveState($expectedMaintenanceState);
+        return $this->verifyLiveState($expectedShopIsLiveState, $expectedMaintenanceState);
     }
 
     /**
@@ -483,9 +517,10 @@ class SystemPrepareLiveCommand extends Command
     /**
      * Führt die harte Abschluss-Selbstprüfung aller Live-Sicherheits- und Stammdaten-Kriterien durch.
      */
-    private function verifyLiveState(bool $expectedMaintenanceState): int
+    private function verifyLiveState(bool $expectedShopIsLiveState, bool $expectedMaintenanceState): int
     {
         Cache::forget('global_shop_settings');
+        $actualShopIsLiveState = filter_var(shop_setting('shop_is_live', false), FILTER_VALIDATE_BOOLEAN);
         $actualMaintenanceState = filter_var(shop_setting('maintenance_mode', false), FILTER_VALIDATE_BOOLEAN);
         $this->refreshGlobalShopSettingsCache();
 
@@ -530,8 +565,14 @@ class SystemPrepareLiveCommand extends Command
 
         $checks = [
             [
+                'Prüfpunkt' => 'Live gehen (shop_is_live)',
+                'Ist-Wert' => $actualShopIsLiveState ? 'true (Live)' : 'false (Gesperrt / 503)',
+                'Status' => $actualShopIsLiveState === $expectedShopIsLiveState ? 'OK' : 'FEHLER',
+                'passed' => $actualShopIsLiveState === $expectedShopIsLiveState,
+            ],
+            [
                 'Prüfpunkt' => 'Wartungsmodus (maintenance_mode)',
-                'Ist-Wert' => $actualMaintenanceState ? 'true (aktiv)' : 'false (offen)',
+                'Ist-Wert' => $actualMaintenanceState ? 'true (aktiv)' : 'false (inaktiv)',
                 'Status' => $actualMaintenanceState === $expectedMaintenanceState ? 'OK' : 'FEHLER',
                 'passed' => $actualMaintenanceState === $expectedMaintenanceState,
             ],

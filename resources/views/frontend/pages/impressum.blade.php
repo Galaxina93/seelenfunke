@@ -56,7 +56,7 @@
                             <p class="font-semibold text-gray-900 mb-1">Umsatzsteuer-Identifikationsnummer</p>
                             <p class="text-sm text-gray-600">
                                 Umsatzsteuer-Identifikationsnummer gemäß § 27 a Umsatzsteuergesetz:<br>
-                                <span class="font-mono text-gray-800">{{ shop_setting('company_ust_id', shop_setting('owner_ust_id', 'DE359662265')) }}</span>
+                                <span class="font-mono text-gray-800">{{ shop_setting('company_ust_id', shop_setting('owner_ust_id', 'XXX')) ?: 'XXX' }}</span>
                             </p>
                         </div>
                     </div>
@@ -100,10 +100,10 @@
                     </h2>
                     <div class="text-sm text-gray-700 leading-relaxed space-y-3">
                         <p>
-                            Verantwortlicher Hersteller bzw. Veredler für sämtliche im Online-Shop unter der Marke <strong>{{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}</strong> angebotenen personalisierten und veredelten Produkte im Sinne des Art. 19 der EU-Produktsicherheitsverordnung (Verordnung (EU) 2023/988 – General Product Safety Regulation, GPSR):
+                            Verantwortlicher Hersteller bzw. Veredler für sämtliche im Online-Shop unter der Marke <strong>{{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}</strong> angebotenen personalisierten und veredelten Produkte im Sinne des Art. 19 der EU-Produktsicherheitsverordnung (Verordnung (EU) 2023/988, General Product Safety Regulation, GPSR):
                         </p>
                         <div class="bg-white p-4 rounded-lg border border-amber-200/70 text-gray-800">
-                            <strong>{{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }} – Inh. {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}</strong><br>
+                            <strong>{{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }} · Inh. {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}</strong><br>
                             {{ $impStreetLine }}, {{ $impCityLine }}, {{ $impCountryLabel }}<br>
                             Elektronische Kontaktadresse für Produktsicherheitsanfragen: <a href="mailto:{{ $supportEmail }}" class="text-primary hover:underline font-medium">{{ $supportEmail }}</a>
                         </div>

@@ -19,6 +19,7 @@ class SystemShopConfig extends Component
 
     public string $themingDepartment = 'System';
     public $settings = [];
+    public bool $shop_is_live = false;
     
     // Updates/Reports System-Info
     public $uploads = [];
@@ -81,6 +82,8 @@ class SystemShopConfig extends Component
         'herzensprojekt_cents_per_order',
         'stripe_fee_percent',
         'stripe_fee_fixed_cents',
+        'shop_is_live',
+        'shop_live_unlocked',
         'maintenance_mode',
         'inventory_low_stock_threshold',
         'skip_shipping_for_digital',
@@ -144,6 +147,8 @@ class SystemShopConfig extends Component
         'herzensprojekt_cents_per_order' => 'Spendenbetrag (in Euro), der pro verkauftem Artikel (bzw. Bestellung) für das Herzensprojekt zurückgelegt wird.',
         'stripe_fee_percent' => 'Kalkulatorischer Prozentsatz für Zahlungsanbieter-Gebühren in der Produkt-Margenberechnung (z.B. 2.50%).',
         'stripe_fee_fixed_cents' => 'Kalkulatorische Fixgebühr pro Transaktion in der Produkt-Margenberechnung (Eingabe in Euro, z.B. 0.30).',
+        'shop_is_live' => 'Zweiter Hauptschalter vor Verkaufsstart: Solange Live gehen deaktiviert ist, bleibt die gesamte Live-Domain selbst für eingeloggte Admins hinter der Wartungsseite verborgen. Erst wenn Live gehen aktiv und der Wartungsmodus aus ist, ist der Shop öffentlich sichtbar.',
+        'shop_live_unlocked' => 'Zweiter Hauptschalter vor Verkaufsstart: Solange Live gehen deaktiviert ist, bleibt die gesamte Live-Domain selbst für eingeloggte Admins hinter der Wartungsseite verborgen. Erst wenn Live gehen aktiv und der Wartungsmodus aus ist, ist der Shop öffentlich sichtbar.',
         'maintenance_mode' => 'Schaltet das öffentliche Shop-Frontend in den Wartungsmodus (HTTP 503). Admin-Portal, Login, Funkenwerk-Apps und APIs bleiben erreichbar.',
         'inventory_low_stock_threshold' => 'Ab dieser Stückzahl wird ein Produkt im Dashboard als "niedriger Bestand" markiert.',
         'skip_shipping_for_digital' => 'Wenn aktiviert, werden keine Versandkosten berechnet, sobald der Warenkorb NUR digitale Produkte enthält.',
@@ -226,10 +231,31 @@ class SystemShopConfig extends Component
             $this->settings[$key] = $value;
         }
 
-        $boolKeys = ['is_small_business', 'prices_entered_gross', 'maintenance_mode', 'skip_shipping_for_digital', 'send_order_email_to_admin', 'season_auto_mode'];
+        $boolKeys = ['is_small_business', 'prices_entered_gross', 'shop_is_live', 'shop_live_unlocked', 'maintenance_mode', 'skip_shipping_for_digital', 'send_order_email_to_admin', 'season_auto_mode'];
         foreach($boolKeys as $key) {
             $this->settings[$key] = filter_var($this->settings[$key], FILTER_VALIDATE_BOOLEAN);
         }
+
+        $hasExplicitShopIsLive = array_key_exists('shop_is_live', $dbSettings)
+            && $dbSettings['shop_is_live'] !== null
+            && $dbSettings['shop_is_live'] !== '';
+        $hasExplicitLegacyUnlocked = array_key_exists('shop_live_unlocked', $dbSettings)
+            && $dbSettings['shop_live_unlocked'] !== null
+            && $dbSettings['shop_live_unlocked'] !== '';
+
+        if ($hasExplicitShopIsLive) {
+            $resolvedShopIsLive = filter_var($dbSettings['shop_is_live'], FILTER_VALIDATE_BOOLEAN);
+        } elseif (\App\Http\Middleware\EnforceShopMaintenanceMode::isLiveHost(request())) {
+            $resolvedShopIsLive = false;
+        } elseif ($hasExplicitLegacyUnlocked) {
+            $resolvedShopIsLive = filter_var($dbSettings['shop_live_unlocked'], FILTER_VALIDATE_BOOLEAN);
+        } else {
+            $resolvedShopIsLive = true;
+        }
+
+        $this->shop_is_live = $resolvedShopIsLive;
+        $this->settings['shop_is_live'] = $resolvedShopIsLive;
+        $this->settings['shop_live_unlocked'] = $resolvedShopIsLive;
 
         if (empty($this->settings['manual_active_season'])) {
             $this->settings['manual_active_season'] = app(\App\Services\ConfiguratorService::class)->getCalendarSeasonKey();
@@ -290,6 +316,8 @@ class SystemShopConfig extends Component
             'herzensprojekt_cents_per_order' => 50,
             'stripe_fee_percent' => 2.50,
             'stripe_fee_fixed_cents' => 30,
+            'shop_is_live' => !\App\Http\Middleware\EnforceShopMaintenanceMode::isLiveHost(request()),
+            'shop_live_unlocked' => !\App\Http\Middleware\EnforceShopMaintenanceMode::isLiveHost(request()),
             'maintenance_mode' => false,
             'inventory_low_stock_threshold' => 5,
             'skip_shipping_for_digital' => false,
@@ -305,6 +333,71 @@ class SystemShopConfig extends Component
             'manual_active_animation' => '',
         ];
         return $fallbacks[$key] ?? '';
+    }
+
+    public function toggleShopIsLive(): void
+    {
+        if (!Auth::guard('admin')->check()) {
+            abort(403);
+        }
+
+        $newState = !$this->shop_is_live;
+        $this->persistShopIsLive($newState);
+    }
+
+    public function updatedShopIsLive($value): void
+    {
+        if (!Auth::guard('admin')->check()) {
+            abort(403);
+        }
+
+        $this->persistShopIsLive(filter_var($value, FILTER_VALIDATE_BOOLEAN));
+    }
+
+    public function updatedSettingsShopIsLive($value): void
+    {
+        if (!Auth::guard('admin')->check()) {
+            abort(403);
+        }
+
+        $this->persistShopIsLive(filter_var($value, FILTER_VALIDATE_BOOLEAN));
+    }
+
+    public function toggleShopLiveUnlocked(): void
+    {
+        $this->toggleShopIsLive();
+    }
+
+    public function updatedSettingsShopLiveUnlocked($value): void
+    {
+        $this->updatedSettingsShopIsLive($value);
+    }
+
+    protected function persistShopIsLive(bool $isLive): void
+    {
+        $this->shop_is_live = $isLive;
+        $this->settings['shop_is_live'] = $isLive;
+        $this->settings['shop_live_unlocked'] = $isLive;
+
+        $strValue = $isLive ? 'true' : 'false';
+
+        SystemSetting::updateOrCreate(
+            ['key' => 'shop_is_live'],
+            ['value' => $strValue]
+        );
+        SystemSetting::updateOrCreate(
+            ['key' => 'shop_live_unlocked'],
+            ['value' => $strValue]
+        );
+
+        Cache::forget('global_shop_settings');
+        try {
+            $freshSettings = SystemSetting::pluck('value', 'key');
+            Cache::put('global_shop_settings', $freshSettings, 60);
+        } catch (\Throwable $e) {
+        }
+
+        $this->saved = true;
     }
 
     public function toggleMaintenanceMode(): void
@@ -506,6 +599,9 @@ class SystemShopConfig extends Component
             $this->dispatch('config-validation-failed', tab: $targetTab);
             throw $e;
         }
+
+        $this->settings['shop_is_live'] = $this->shop_is_live;
+        $this->settings['shop_live_unlocked'] = $this->shop_is_live;
 
         $protectedTaxTransitionKeys = [
             'is_small_business',

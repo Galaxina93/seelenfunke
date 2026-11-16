@@ -65,7 +65,9 @@ class AuthLogin extends Component
 
     public function render()
     {
-        return view('livewire.auth.auth-login');
+        return view('livewire.auth.auth-login', [
+            'shopLiveUnlocked' => \App\Http\Middleware\EnforceShopMaintenanceMode::isShopLive(request()),
+        ]);
     }
 
     public function login()
@@ -111,7 +113,10 @@ class AuthLogin extends Component
             }
         }
 
-        $guardsToCheck = ['admin', 'employee', 'customer'];
+        $shopLiveUnlocked = \App\Http\Middleware\EnforceShopMaintenanceMode::isShopLive(request());
+        $guardsToCheck = $shopLiveUnlocked
+            ? ['admin', 'employee', 'customer']
+            : ['admin'];
         $foundGuard = null;
         $foundUser = null;
 

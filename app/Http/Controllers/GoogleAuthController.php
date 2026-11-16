@@ -23,6 +23,12 @@ class GoogleAuthController extends Controller
 {
     public function redirectToGoogle($guard = 'customer')
     {
+        if (!\App\Http\Middleware\EnforceShopMaintenanceMode::isShopLive(request())
+            && !Auth::guard('admin')->check()
+        ) {
+            abort(503);
+        }
+
         $safeGuard = is_string($guard) && in_array($guard, ['customer', 'employee', 'admin'], true)
             ? $guard
             : 'customer';
@@ -34,6 +40,12 @@ class GoogleAuthController extends Controller
 
     public function handleGoogleCallback()
     {
+        if (!\App\Http\Middleware\EnforceShopMaintenanceMode::isShopLive(request())
+            && !Auth::guard('admin')->check()
+        ) {
+            abort(503);
+        }
+
         try {
             if (\App\Models\System\SystemBlockedIp::isBlocked(request()->ip())) {
                 return redirect()->route('login')->with('error', 'Deine IP-Adresse wurde aufgrund verdächtiger Aktivitäten gesperrt.');

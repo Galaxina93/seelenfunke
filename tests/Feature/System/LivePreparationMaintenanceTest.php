@@ -46,17 +46,22 @@ class LivePreparationMaintenanceTest extends TestCase
         }
     }
 
-    public function test_system_prepare_live_seeds_pure_production_data_enforces_maintenance_mode_and_purges_test_accounts(): void
+    public function test_system_prepare_live_seeds_pure_production_data_enforces_two_key_lock_and_purges_test_accounts(): void
     {
         // 1. Erstinitialisierung auf frischer Datenbank
         $exitCode = Artisan::call('system:prepare-live');
         $this->assertSame(0, $exitCode, Artisan::output());
 
-        // Wartungsmodus ist hart aktiv und übersteht erneutes Ausführen von SystemSettingSeeder
+        // Beide Schutzschalter stehen sicher auf Live-Sperre (shop_is_live = false, maintenance_mode = true)
+        // und überstehen ein erneutes Ausführen von SystemSettingSeeder!
+        $this->assertSame('false', SystemSetting::where('key', 'shop_is_live')->value('value'));
+        $this->assertFalse(filter_var(shop_setting('shop_is_live', true), FILTER_VALIDATE_BOOLEAN));
         $this->assertSame('true', SystemSetting::where('key', 'maintenance_mode')->value('value'));
         $this->assertTrue(filter_var(shop_setting('maintenance_mode', false), FILTER_VALIDATE_BOOLEAN));
 
         $this->seed(SystemSettingSeeder::class);
+        $this->assertSame('false', SystemSetting::where('key', 'shop_is_live')->value('value'));
+        $this->assertFalse(filter_var(shop_setting('shop_is_live', true), FILTER_VALIDATE_BOOLEAN));
         $this->assertSame('true', SystemSetting::where('key', 'maintenance_mode')->value('value'));
         $this->assertTrue(filter_var(shop_setting('maintenance_mode', false), FILTER_VALIDATE_BOOLEAN));
 
@@ -138,32 +143,11 @@ class LivePreparationMaintenanceTest extends TestCase
         $this->assertSame(0, Artisan::call('system:prepare-live', ['--verify-only' => true]));
     }
 
-    public function test_public_visitor_receives_503_noindex_maintenance_page_and_lockout_safe_routes_return_200(): void
+    public function test_live_go_live_switch_and_maintenance_mode_workflow_for_alina_and_visitors(): void
     {
         $this->seed(SystemSettingSeeder::class);
-        SystemSetting::updateOrCreate(['key' => 'maintenance_mode'], ['value' => 'true']);
-        Cache::forget('global_shop_settings');
-
-        // Öffentlicher Besucher erhält auf / HTTP 503 + X-Robots-Tag + Wartungstext im Light-Mode
-        $response = $this->get('/');
-        $response->assertStatus(503)
-            ->assertHeader('X-Robots-Tag', 'noindex, noarchive')
-            ->assertHeader('Retry-After', '3600')
-            ->assertSee('Wir bereiten gerade unseren Shop für dich vor')
-            ->assertSee('Alina Steinhauer')
-            ->assertDontSee(' – ');
-
-        $this->assertStringContainsString('class="light"', $response->getContent());
-
-        // Aussperr-Schutz: Login & gesetzliche Pflichtseiten bleiben trotz Wartungsmodus auf 200
-        $this->get('/login')->assertStatus(200);
-        $this->get('/impressum')->assertStatus(200);
-        $this->get('/datenschutz')->assertStatus(200);
-    }
-
-    public function test_authenticated_alina_admin_receives_200_and_can_toggle_maintenance_mode_for_visitors(): void
-    {
-        $this->seed(SystemSettingSeeder::class);
+        SystemSetting::updateOrCreate(['key' => 'shop_is_live'], ['value' => 'false']);
+        SystemSetting::updateOrCreate(['key' => 'shop_live_unlocked'], ['value' => 'false']);
         SystemSetting::updateOrCreate(['key' => 'maintenance_mode'], ['value' => 'true']);
         Cache::forget('global_shop_settings');
 
@@ -182,32 +166,40 @@ class LivePreparationMaintenanceTest extends TestCase
         });
         AdminProfile::firstOrCreate(['admin_id' => $admin->id], ['city' => 'Gifhorn', 'country' => 'DE']);
 
-        // Besucher sieht zunächst 503
-        $this->get('/')->assertStatus(503);
+        // 1. Stufe 1 (shop_is_live = false): Besucher UND eingeloggte Admin sehen auf https://mein-seelenfunke.de/ strikt 503!
+        $this->get('https://mein-seelenfunke.de/')->assertStatus(503)->assertHeader('X-Robots-Tag', 'noindex, noarchive');
+        $this->get('https://mein-seelenfunke.de/login')->assertStatus(200);
+        $this->get('https://mein-seelenfunke.de/impressum')->assertStatus(200);
+        $this->get('https://mein-seelenfunke.de/datenschutz')->assertStatus(200);
+        $this->get('https://mein-seelenfunke.de/barrierefreiheit')->assertStatus(200);
 
-        // Eingeloggte Admin erhält auf / und /admin/settings HTTP 200
-        $this->actingAs($admin, 'admin')->get('/')->assertStatus(200);
-        $this->actingAs($admin, 'admin')->get('/admin/settings')->assertStatus(200);
+        $this->actingAs($admin, 'admin')->get('https://mein-seelenfunke.de/')->assertStatus(503);
+        $this->actingAs($admin, 'admin')->get('https://mein-seelenfunke.de/shop')->assertStatus(503);
+        $this->actingAs($admin, 'admin')->get('https://mein-seelenfunke.de/admin/settings')->assertStatus(200);
 
-        // Admin schaltet in SystemShopConfig per toggleMaintenanceMode den Wartungsmodus aus -> 200 für Besucher
+        // 2. Stufe 2: Alina schaltet "Live gehen" ein, lässt "Wartungsmodus" aber noch aktiv -> Admin sieht 200, Besucher weiterhin 503!
         $component = Livewire::actingAs($admin, 'admin')
             ->test(SystemShopConfig::class)
+            ->assertSet('shop_is_live', false)
             ->assertSet('settings.maintenance_mode', true)
-            ->call('toggleMaintenanceMode')
-            ->assertSet('settings.maintenance_mode', false);
+            ->call('toggleShopIsLive')
+            ->assertSet('shop_is_live', true);
+
+        $this->actingAs($admin, 'admin')->get('https://mein-seelenfunke.de/')->assertStatus(200);
 
         Auth::guard('admin')->logout();
         $this->app['auth']->forgetGuards();
         $this->flushSession();
 
-        $this->get('/')->assertStatus(200);
+        $this->get('https://mein-seelenfunke.de/')->assertStatus(503);
 
-        // Admin schaltet den Wartungsmodus wieder ein -> sofort 503 für Besucher
+        // 3. Stufe 3: Alina schaltet auch den Wartungsmodus aus -> Shop ist öffentlich Live (200 für Besucher)!
         $component = Livewire::actingAs($admin, 'admin')
             ->test(SystemShopConfig::class)
-            ->assertSet('settings.maintenance_mode', false)
+            ->assertSet('shop_is_live', true)
+            ->assertSet('settings.maintenance_mode', true)
             ->call('toggleMaintenanceMode')
-            ->assertSet('settings.maintenance_mode', true);
+            ->assertSet('settings.maintenance_mode', false);
 
         $this->assertNotNull($component);
 
@@ -215,18 +207,15 @@ class LivePreparationMaintenanceTest extends TestCase
         $this->app['auth']->forgetGuards();
         $this->flushSession();
 
-        $this->get('/')
-            ->assertStatus(503)
-            ->assertHeader('X-Robots-Tag', 'noindex, noarchive')
-            ->assertSee('Wir bereiten gerade unseren Shop für dich vor');
+        $this->get('https://mein-seelenfunke.de/')->assertStatus(200);
     }
 
-    public function test_htaccess_enforces_precise_apex_to_www_301_redirect_without_touching_subdomains_or_webhooks(): void
+    public function test_htaccess_enforces_precise_www_to_apex_301_redirect_without_touching_subdomains_or_webhooks(): void
     {
         $htaccess = (string) file_get_contents(public_path('.htaccess'));
 
         $wsPos = strpos($htaccess, 'RewriteRule ^(.*)$ http://a-iurgq8:6001/$1 [P,L]');
-        $canonicalPos = strpos($htaccess, 'RewriteCond %{HTTP_HOST} ^mein-seelenfunke\.de$ [NC]');
+        $canonicalPos = strpos($htaccess, 'RewriteCond %{HTTP_HOST} ^www\.mein-seelenfunke\.de$ [NC]');
 
         $this->assertNotFalse($wsPos);
         $this->assertNotFalse($canonicalPos);
@@ -234,21 +223,21 @@ class LivePreparationMaintenanceTest extends TestCase
 
         $this->assertStringContainsString('RewriteCond %{REQUEST_METHOD} ^(GET|HEAD)$ [NC]', $htaccess);
         $this->assertStringContainsString('RewriteCond %{REQUEST_URI} !^/(api(/|$)|stripe(/|$)|twilio|up($|/)|\.well-known(/|$)) [NC]', $htaccess);
-        $this->assertStringContainsString('RewriteRule ^ https://www.mein-seelenfunke.de%{REQUEST_URI} [R=301,L]', $htaccess);
+        $this->assertStringContainsString('RewriteRule ^ https://mein-seelenfunke.de%{REQUEST_URI} [R=301,L]', $htaccess);
+        $this->assertStringNotContainsString('RewriteRule ^ https://www.mein-seelenfunke.de', $htaccess);
         $this->assertStringNotContainsString(' – ', $htaccess);
 
-        // Host-Regex darf ausschließlich die exakte Apex-Domain mein-seelenfunke.de matchen
-        $hostPattern = '/^mein-seelenfunke\.de$/i';
-        $this->assertSame(1, preg_match($hostPattern, 'mein-seelenfunke.de'));
-        $this->assertSame(1, preg_match($hostPattern, 'MEIN-SEELENFUNKE.DE'));
-        $this->assertSame(0, preg_match($hostPattern, 'www.mein-seelenfunke.de'));
+        $hostPattern = '/^www\.mein-seelenfunke\.de$/i';
+        $this->assertSame(1, preg_match($hostPattern, 'www.mein-seelenfunke.de'));
+        $this->assertSame(1, preg_match($hostPattern, 'WWW.MEIN-SEELENFUNKE.DE'));
+        $this->assertSame(0, preg_match($hostPattern, 'mein-seelenfunke.de'));
         $this->assertSame(0, preg_match($hostPattern, 'stage.mein-seelenfunke.de'));
         $this->assertSame(0, preg_match($hostPattern, 'ws.mein-seelenfunke.de'));
         $this->assertSame(0, preg_match($hostPattern, 'api-live-bridge.mein-seelenfunke.de'));
         $this->assertSame(0, preg_match($hostPattern, '127.0.0.1'));
         $this->assertSame(0, preg_match($hostPattern, 'steinhauer-invest.de'));
+        $this->assertSame(0, preg_match($hostPattern, 'www.steinhauer-invest.de'));
 
-        // Pfad-Ausnahmen schützen APIs, Webhooks, Healthcheck und Let's Encrypt ACME-Challenges
         $excludedUriPattern = '#^/(api(/|$)|stripe(/|$)|twilio|up($|/)|\.well-known(/|$))#i';
         $this->assertSame(1, preg_match($excludedUriPattern, '/api/system/ag-direct-inbox'));
         $this->assertSame(1, preg_match($excludedUriPattern, '/stripe/webhook'));
@@ -256,6 +245,7 @@ class LivePreparationMaintenanceTest extends TestCase
         $this->assertSame(1, preg_match($excludedUriPattern, '/up'));
         $this->assertSame(1, preg_match($excludedUriPattern, '/.well-known/acme-challenge/token-xyz'));
         $this->assertSame(0, preg_match($excludedUriPattern, '/'));
+        $this->assertSame(0, preg_match($excludedUriPattern, '/login'));
         $this->assertSame(0, preg_match($excludedUriPattern, '/shop'));
         $this->assertSame(0, preg_match($excludedUriPattern, '/produkt/seelen-kristall'));
     }

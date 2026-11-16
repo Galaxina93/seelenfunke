@@ -30,6 +30,13 @@ class MasterAnalytics extends Component
     public $stats = [];
     public $healthChecks = [];
     public $systemHealth = [];
+    public array $geminiBridgeAlert = [
+        'active' => false,
+        'title' => 'Gemini Live-Bridge online',
+        'summary' => '',
+        'ssh_command' => null,
+        'items' => [],
+    ];
     public $rangeMode = 'year';
     public bool $focusMode = true;
 
@@ -274,7 +281,7 @@ class MasterAnalytics extends Component
                 'pill_color' => 'from-amber-400/30 via-amber-500/20 to-yellow-500/20 text-amber-600 dark:text-amber-300 border-amber-400/60 shadow-[0_0_15px_rgba(251,191,36,0.3)]',
                 'glow_color' => 'rgba(251,191,36,0.5)',
                 'icon' => 'trophy',
-                'motto' => 'Jahr 7–10 Vision: 12 Mio. € Jahresumsatz (1 Mio. €/Monat) – Marktführer & Exit-Reife!',
+                'motto' => 'Jahr 7-10 Vision: 12 Mio. € Jahresumsatz (1 Mio. €/Monat) · Marktführer & Exit-Reife!',
                 'faith' => '„Siehe, ich habe vor dir eine offene Tür gegeben, die niemand zuschließen kann.“ (Offenbarung 3,8)'
             ],
         ];
@@ -528,6 +535,125 @@ class MasterAnalytics extends Component
             Cache::forget('sys_fail_log_' . $serviceName);
         } catch (\Throwable $ignore) {
         }
+    }
+
+    /**
+     * Leitet aus einer konfigurierten WS/WSS/HTTP/HTTPS Bridge-URL den passenden HTTP-Health-Endpunkt ab.
+     * Verhindert insbesondere HTTP-500-Fehlalarme auf reinen WebSocket-Pfaden wie /twilio-stream oder /gemini-live.
+     */
+    public static function normalizeBridgeHealthUrl(string $rawUrl): ?string
+    {
+        $trimmed = trim($rawUrl);
+        if ($trimmed === '') {
+            return null;
+        }
+
+        if (str_starts_with($trimmed, 'wss://')) {
+            $httpUrl = 'https://' . substr($trimmed, 6);
+        } elseif (str_starts_with($trimmed, 'ws://')) {
+            $httpUrl = 'http://' . substr($trimmed, 5);
+        } elseif (!preg_match('#^https?://#i', $trimmed)) {
+            $isLocalHost = str_starts_with($trimmed, 'localhost') || str_starts_with($trimmed, '127.0.0.1');
+            $httpUrl = ($isLocalHost ? 'http://' : 'https://') . ltrim($trimmed, '/');
+        } else {
+            $httpUrl = $trimmed;
+        }
+
+        $parts = parse_url($httpUrl);
+        if (!is_array($parts) || empty($parts['host'])) {
+            return null;
+        }
+
+        $scheme = strtolower((string) ($parts['scheme'] ?? 'https'));
+        $host = (string) $parts['host'];
+        $port = isset($parts['port']) ? ':' . (int) $parts['port'] : '';
+        $path = rtrim((string) ($parts['path'] ?? ''), '/');
+
+        if (str_ends_with($path, '/twilio-stream')) {
+            $healthPath = substr($path, 0, -strlen('/twilio-stream')) . '/twilio-health';
+        } elseif (str_ends_with($path, '/twilio-health') || str_ends_with($path, '/health')) {
+            $healthPath = $path;
+        } elseif (str_ends_with($path, '/gemini-live')) {
+            $healthPath = substr($path, 0, -strlen('/gemini-live')) . '/health';
+        } elseif ($path === '') {
+            $healthPath = str_starts_with(strtolower($host), 'ws.') ? '/twilio-health' : '/health';
+        } else {
+            $healthPath = str_starts_with(strtolower($host), 'ws.') ? '/twilio-health' : '/health';
+        }
+
+        return "{$scheme}://{$host}{$port}{$healthPath}";
+    }
+
+    /**
+     * Löst die aktiven Audio-Bridge Health-Endpunkte (Node.js a-yeq7el & Reverb-Twilio a-iurgq8) sauber auf.
+     *
+     * @return array<string, array{key: string, label: string, url: string, host: string, port: string, ssh_command: string}>
+     */
+    public static function resolveTelephonyBridgeTargets(): array
+    {
+        $isLocalEnv = app()->environment('local');
+
+        $liveRaw = trim((string) (
+            config('services.gemini.live_bridge_url')
+            ?: config('services.gemini.proxy_ws_url')
+            ?: config('services.ai.gemini_proxy_ws_url')
+            ?: env('GEMINI_LIVE_BRIDGE_URL')
+            ?: env('GEMINI_PROXY_WS_URL')
+            ?: 'https://api-live-bridge.mein-seelenfunke.de'
+        ));
+
+        $liveHealthUrl = self::normalizeBridgeHealthUrl($liveRaw);
+        $liveHost = $liveHealthUrl ? strtolower((string) parse_url($liveHealthUrl, PHP_URL_HOST)) : '';
+
+        if (!$liveHealthUrl || (!$isLocalEnv && in_array($liveHost, ['localhost', '127.0.0.1', '::1'], true))) {
+            $liveHealthUrl = 'https://api-live-bridge.mein-seelenfunke.de/health';
+        }
+
+        $liveScheme = (string) (parse_url($liveHealthUrl, PHP_URL_SCHEME) ?: 'https');
+        $livePort = (string) (parse_url($liveHealthUrl, PHP_URL_PORT) ?: ($liveScheme === 'http' ? '80' : '443'));
+
+        $targets = [
+            'live_bridge' => [
+                'key' => 'live_bridge',
+                'label' => 'Gemini Audio Bridge (a-yeq7el)',
+                'url' => $liveHealthUrl,
+                'host' => (string) (parse_url($liveHealthUrl, PHP_URL_HOST) ?: 'api-live-bridge.mein-seelenfunke.de'),
+                'port' => $livePort,
+                'ssh_command' => 'ssh kontakt@mein-seelenfunke.de@a-yeq7el@ssh.altgemeinde.project.host "mittnitectl job restart"',
+            ],
+        ];
+
+        $twilioRaw = trim((string) (config('services.twilio.wss_url') ?: ''));
+        if ($twilioRaw === '' && !$isLocalEnv) {
+            $targets['twilio_bridge'] = [
+                'key' => 'twilio_bridge',
+                'label' => 'Reverb Telefonie-Bridge (a-iurgq8)',
+                'url' => 'https://ws.mein-seelenfunke.de/twilio-health',
+                'host' => 'ws.mein-seelenfunke.de',
+                'port' => '443',
+                'ssh_command' => 'ssh kontakt@mein-seelenfunke.de@a-iurgq8@ssh.altgemeinde.project.host "mittnitectl job restart"',
+            ];
+        } elseif ($twilioRaw !== '') {
+            $twilioHealthUrl = self::normalizeBridgeHealthUrl($twilioRaw);
+            $twilioHost = $twilioHealthUrl ? strtolower((string) parse_url($twilioHealthUrl, PHP_URL_HOST)) : '';
+            $isLoopback = in_array($twilioHost, ['localhost', '127.0.0.1', '::1'], true);
+
+            if ($twilioHealthUrl && ($isLocalEnv || !$isLoopback) && $twilioHealthUrl !== $liveHealthUrl) {
+                $twilioScheme = (string) (parse_url($twilioHealthUrl, PHP_URL_SCHEME) ?: 'https');
+                $twilioPort = (string) (parse_url($twilioHealthUrl, PHP_URL_PORT) ?: ($twilioScheme === 'http' ? '80' : '443'));
+
+                $targets['twilio_bridge'] = [
+                    'key' => 'twilio_bridge',
+                    'label' => 'Reverb Telefonie-Bridge (a-iurgq8)',
+                    'url' => $twilioHealthUrl,
+                    'host' => (string) (parse_url($twilioHealthUrl, PHP_URL_HOST) ?: 'ws.mein-seelenfunke.de'),
+                    'port' => $twilioPort,
+                    'ssh_command' => 'ssh kontakt@mein-seelenfunke.de@a-iurgq8@ssh.altgemeinde.project.host "mittnitectl job restart"',
+                ];
+            }
+        }
+
+        return $targets;
     }
 
     public function checkSystemHealth(bool $force = false)
@@ -886,37 +1012,195 @@ class MasterAnalytics extends Component
             $health['storage'] = ['status' => 'error', 'value' => 'Fehler', 'error' => 'Storage-Fehler', 'percent_free' => 0];
         }
 
-        // 10. NEU: Telephony (Audio-Bridge) Check
-        $telephonyVersion = 'Unbekannt';
+        // 10. Telephony & Gemini Audio Bridge Check (Node.js a-yeq7el + Reverb-Twilio a-iurgq8)
+        $telephonyVersion = \App\Services\System\TwilioGeminiLiveBridgeService::BRIDGE_VERSION;
         $bridgePath = base_path('server-twilio.js');
         if (file_exists($bridgePath)) {
-            $bridgeContent = file_get_contents($bridgePath);
+            $bridgeContent = (string) @file_get_contents($bridgePath);
             if (preg_match('/const\s+BRIDGE_VERSION\s*=\s*[\'"]([^\'"]+)[\'"]/i', $bridgeContent, $matches)) {
                 $telephonyVersion = $matches[1];
             }
         }
 
-        if (app()->environment('local')) {
-            $health['telephony'] = ['status' => 'connected', 'value' => 'Lokal (inaktiv)', 'error' => null, 'version' => $telephonyVersion];
-        } else {
-            try {
-                $wssUrl = (string) (config('services.twilio.wss_url') ?: 'wss://localhost:8081');
-                // Ersetze wss:// durch https:// für den HTTP Health Check
-                $httpUrl = str_replace(['wss://', 'ws://'], ['https://', 'http://'], $wssUrl);
-                
-                $start = microtime(true);
-                $response = \Illuminate\Support\Facades\Http::timeout(3)->get($httpUrl);
-                $time = round((microtime(true) - $start) * 1000);
+        $bridgeTargets = self::resolveTelephonyBridgeTargets();
+        $primaryBridge = $bridgeTargets['live_bridge'] ?? reset($bridgeTargets);
+        $defaultBridgeHost = $primaryBridge['host'] ?? 'api-live-bridge.mein-seelenfunke.de';
+        $defaultBridgePort = $primaryBridge['port'] ?? '443';
+        $defaultBridgeSsh = $primaryBridge['ssh_command'] ?? 'ssh kontakt@mein-seelenfunke.de@a-yeq7el@ssh.altgemeinde.project.host "mittnitectl job restart"';
 
-                if ($response->successful()) {
-                    $health['telephony'] = ['status' => 'connected', 'value' => "BEREIT ({$time}ms)", 'error' => null, 'version' => $telephonyVersion];
-                } else {
-                    $status = $response->status();
-                    $health['telephony'] = ['status' => 'error', 'value' => "GESTORBEN ({$status})", 'error' => "Die Node.js App ist abgestürzt oder Mittwald lädt noch! Gehe ins mStudio -> App 'seelenfunke-nodejs' -> Klicke auf 'Neu starten'!", 'version' => $telephonyVersion];
-                    $this->logSystemFailure('telephony', "Die KI-Telefonie Audio-Bridge ist down! HTTP Status: {$status}");
+        if (app()->environment('local')) {
+            $health['telephony'] = [
+                'status' => 'connected',
+                'value' => 'Lokal (inaktiv)',
+                'error' => null,
+                'version' => $telephonyVersion,
+                'twilio_version' => null,
+                'host' => $defaultBridgeHost,
+                'port' => $defaultBridgePort,
+                'ssh_command' => $defaultBridgeSsh,
+                'bridges' => [],
+            ];
+        } else {
+            $bridgeStates = [];
+            $versions = [];
+            $failedLabels = [];
+            $failedSshCommands = [];
+            $firstErrorStatus = null;
+            $primaryLatencyMs = 0;
+
+            $sentinel = class_exists(\App\Services\System\SentinelTriageService::class)
+                ? app(\App\Services\System\SentinelTriageService::class)
+                : null;
+            $sentinelStateChanged = false;
+
+            foreach ($bridgeTargets as $tKey => $target) {
+                $sentinelKey = $tKey === 'live_bridge' ? 'gemini_live' : 'twilio_reverb';
+                $isHealthy = false;
+                $httpCode = null;
+                $elapsedMs = 0;
+                $bridgeVer = null;
+                $probeErrorMsg = '';
+
+                for ($attempt = 1; $attempt <= 2; $attempt++) {
+                    if ($attempt > 1) {
+                        usleep(400_000);
+                    }
+
+                    try {
+                        $start = microtime(true);
+                        $response = \Illuminate\Support\Facades\Http::timeout(4)
+                            ->acceptJson()
+                            ->get($target['url']);
+                        $elapsedMs = (int) round((microtime(true) - $start) * 1000);
+                        $httpCode = $response->status();
+
+                        $json = $response->json();
+                        $jsonStatus = is_array($json) && isset($json['status'])
+                            ? strtolower(trim((string) $json['status']))
+                            : null;
+                        $bridgeVer = is_array($json) && !empty($json['bridge_version'])
+                            ? (string) $json['bridge_version']
+                            : null;
+
+                        if ($httpCode === 200 && $jsonStatus === 'ok') {
+                            $isHealthy = true;
+                            $probeErrorMsg = '';
+                            break;
+                        }
+
+                        $probeErrorMsg = $httpCode !== 200
+                            ? "HTTP {$httpCode} von {$target['url']}"
+                            : 'Ungültiger Health-Status (' . ($jsonStatus ?: 'kein status=ok') . ') von ' . $target['url'];
+                    } catch (\Throwable $e) {
+                        $httpCode = null;
+                        $probeErrorMsg = $e->getMessage();
+                    }
                 }
-            } catch (\Exception $e) {
-                $health['telephony'] = ['status' => 'error', 'value' => 'Offline', 'error' => 'Fehler beim Telephony-Check.', 'version' => $telephonyVersion];
+
+                if ($tKey === 'live_bridge' || $primaryLatencyMs === 0) {
+                    $primaryLatencyMs = $elapsedMs;
+                }
+                if ($bridgeVer !== null) {
+                    $versions[$tKey] = $bridgeVer;
+                }
+
+                if ($sentinel !== null) {
+                    $syncRes = $sentinel->syncBridgeProbeResult(
+                        bridgeKey: $sentinelKey,
+                        healthy: $isHealthy,
+                        targetUrl: (string) $target['url'],
+                        httpStatus: $httpCode,
+                        errorDetail: $probeErrorMsg,
+                        flushSnapshot: false
+                    );
+                    if (!empty($syncRes['state_changed'])) {
+                        $sentinelStateChanged = true;
+                    }
+                }
+
+                if ($isHealthy) {
+                    $bridgeStates[$tKey] = [
+                        'label' => $target['label'],
+                        'url' => $target['url'],
+                        'status' => 'connected',
+                        'http_status' => 200,
+                        'latency_ms' => $elapsedMs,
+                        'bridge_version' => $bridgeVer,
+                    ];
+                } elseif ($httpCode !== null) {
+                    if ($firstErrorStatus === null) {
+                        $firstErrorStatus = $httpCode;
+                    }
+                    $failedLabels[] = $target['label'];
+                    $failedSshCommands[] = $target['ssh_command'];
+                    $bridgeStates[$tKey] = [
+                        'label' => $target['label'],
+                        'url' => $target['url'],
+                        'status' => 'error',
+                        'http_status' => $httpCode,
+                        'latency_ms' => $elapsedMs,
+                        'bridge_version' => $bridgeVer,
+                        'ssh_command' => $target['ssh_command'],
+                    ];
+                } else {
+                    $failedLabels[] = $target['label'];
+                    $failedSshCommands[] = $target['ssh_command'];
+                    $bridgeStates[$tKey] = [
+                        'label' => $target['label'],
+                        'url' => $target['url'],
+                        'status' => 'offline',
+                        'http_status' => null,
+                        'error' => $probeErrorMsg,
+                        'ssh_command' => $target['ssh_command'],
+                    ];
+                }
+            }
+
+            if ($sentinel !== null && $sentinelStateChanged) {
+                try {
+                    $sentinel->writeInboxSnapshotFile();
+                } catch (\Throwable $ignore) {
+                }
+            }
+
+            $liveBridgeVersion = $versions['live_bridge'] ?? ($versions['twilio_bridge'] ?? $telephonyVersion);
+            $twilioBridgeVersion = $versions['twilio_bridge'] ?? null;
+
+            if (empty($failedLabels)) {
+                $health['telephony'] = [
+                    'status' => 'connected',
+                    'value' => "BEREIT ({$primaryLatencyMs}ms)",
+                    'error' => null,
+                    'version' => $liveBridgeVersion,
+                    'twilio_version' => $twilioBridgeVersion,
+                    'host' => $defaultBridgeHost,
+                    'port' => $defaultBridgePort,
+                    'ssh_command' => $defaultBridgeSsh,
+                    'bridges' => $bridgeStates,
+                ];
+            } else {
+                $emergencySsh = implode(' && ', array_values(array_unique($failedSshCommands)));
+                $failedSummary = implode(', ', $failedLabels);
+                $valueLabel = $firstErrorStatus !== null ? "GESTORBEN ({$firstErrorStatus})" : 'Offline';
+                $errorDetail = "Audio-Bridge antwortet nicht ({$failedSummary}). SSH Notfallbefehl: {$emergencySsh}";
+
+                $health['telephony'] = [
+                    'status' => 'error',
+                    'value' => $valueLabel,
+                    'error' => $errorDetail,
+                    'version' => $liveBridgeVersion,
+                    'twilio_version' => $twilioBridgeVersion,
+                    'host' => $defaultBridgeHost,
+                    'port' => $defaultBridgePort,
+                    'ssh_command' => $emergencySsh,
+                    'bridges' => $bridgeStates,
+                ];
+
+                $this->logSystemFailure(
+                    'telephony',
+                    "KI-Audio-Bridge Ausfall ({$failedSummary}): {$valueLabel}",
+                    ['bridges' => $bridgeStates, 'ssh_command' => $emergencySsh]
+                );
             }
         }
 
@@ -1339,9 +1623,10 @@ class MasterAnalytics extends Component
     {
         $allLogins = $service->getAllLoginsCollection();
         $rawChecks = $service->getHealthChecks();
-        $this->healthChecks = json_decode(json_encode($rawChecks), true);
+        $this->healthChecks = json_decode(json_encode($rawChecks), true) ?: [];
+        $this->syncGeminiBridgeAlertIntoHealthChecks();
 
-        $rawStats = $service->getStats($this->dateStart, $this->dateEnd, $this->filterType, $allLogins, $this->systemHealth, $rawChecks);
+        $rawStats = $service->getStats($this->dateStart, $this->dateEnd, $this->filterType, $allLogins, $this->systemHealth, $this->healthChecks);
         $this->stats = json_decode(json_encode($rawStats), true);
 
         if ($syncOrderSnapshot) {
@@ -1349,6 +1634,151 @@ class MasterAnalytics extends Component
         }
 
         $this->dispatch('update-charts', stats: $this->stats);
+    }
+
+    /**
+     * Synchronisiert einen aktiven Gemini-Bridge-Ausfall (aus Live-Check oder offenem Sentinel-Log sentinel:bridge_down:*)
+     * als oberste Priorität in den Operativen Status und stellt bei Genesung automatisch Grün wieder her.
+     */
+    protected function syncGeminiBridgeAlertIntoHealthChecks(): void
+    {
+        $items = [];
+        $sshCommands = [];
+
+        if (class_exists(SystemLog::class) && \Illuminate\Support\Facades\Schema::hasTable('system_logs')) {
+            try {
+                $openBridgeLogs = SystemLog::openIssues()
+                    ->where(function ($q) {
+                        $q->where('action_id', 'like', 'sentinel:bridge_down:%')
+                            ->orWhere('action_id', 'like', 'sentinel:bridge_unhealthy:%');
+                    })
+                    ->orderByDesc('id')
+                    ->get();
+
+                foreach ($openBridgeLogs as $log) {
+                    $p = is_array($log->payload) ? $log->payload : [];
+                    $containerId = (string) ($p['container_id'] ?? (str_contains((string) $log->action_id, 'twilio') ? 'a-iurgq8' : 'a-yeq7el'));
+                    $ssh = (string) ($p['ssh_restart_cmd'] ?? (
+                        $containerId === 'a-iurgq8'
+                            ? 'ssh kontakt@mein-seelenfunke.de@a-iurgq8@ssh.altgemeinde.project.host "mittnitectl job restart"'
+                            : 'ssh kontakt@mein-seelenfunke.de@a-yeq7el@ssh.altgemeinde.project.host "mittnitectl job restart"'
+                    ));
+                    $httpCode = $p['last_http_status'] ?? null;
+                    $sshCommands[] = $ssh;
+
+                    $items[] = [
+                        'id' => 'log_' . $log->id,
+                        'container_id' => $containerId,
+                        'label' => $containerId === 'a-iurgq8' ? 'Telefonie & Reverb (a-iurgq8)' : 'Gemini Live-Bridge (a-yeq7el)',
+                        'url' => (string) ($p['bridge_url'] ?? ''),
+                        'http_status' => $httpCode,
+                        'status_badge' => $httpCode ? "HTTP {$httpCode}" : 'Offline',
+                        'ssh_command' => $ssh,
+                    ];
+                }
+
+                // Wenn 0 offene Sentinel-Bridge-Logs existieren, aber systemHealth['telephony'] noch alt auf 'error' stand,
+                // prüfen wir, ob der Sentinel die Bridge inzwischen als [AUTO-GEHEILT] geschlossen hat.
+                if (empty($items) && (($this->systemHealth['telephony']['status'] ?? '') === 'error')) {
+                    $recentlyHealed = SystemLog::autoHealedEntries()
+                        ->where(function ($q) {
+                            $q->where('action_id', 'like', 'sentinel:bridge_down:%')
+                                ->orWhere('action_id', 'like', 'sentinel:bridge_unhealthy:%');
+                        })
+                        ->where('finished_at', '>=', now()->subHours(2))
+                        ->exists();
+
+                    if ($recentlyHealed) {
+                        $this->systemHealth['telephony']['status'] = 'connected';
+                        $this->systemHealth['telephony']['value'] = 'BEREIT (ok)';
+                        $this->systemHealth['telephony']['error'] = null;
+                    }
+                }
+            } catch (\Throwable $ignore) {
+            }
+        }
+
+        if (empty($items) && (($this->systemHealth['telephony']['status'] ?? '') === 'error')) {
+            $bridges = is_array($this->systemHealth['telephony']['bridges'] ?? null)
+                ? $this->systemHealth['telephony']['bridges']
+                : [];
+
+            foreach ($bridges as $bKey => $bState) {
+                if (($bState['status'] ?? 'connected') !== 'connected') {
+                    $containerId = $bKey === 'twilio_bridge' ? 'a-iurgq8' : 'a-yeq7el';
+                    $ssh = (string) ($bState['ssh_command'] ?? (
+                        $containerId === 'a-iurgq8'
+                            ? 'ssh kontakt@mein-seelenfunke.de@a-iurgq8@ssh.altgemeinde.project.host "mittnitectl job restart"'
+                            : 'ssh kontakt@mein-seelenfunke.de@a-yeq7el@ssh.altgemeinde.project.host "mittnitectl job restart"'
+                    ));
+                    $httpCode = $bState['http_status'] ?? null;
+                    $sshCommands[] = $ssh;
+
+                    $items[] = [
+                        'id' => 'live_' . $bKey,
+                        'container_id' => $containerId,
+                        'label' => (string) ($bState['label'] ?? $containerId),
+                        'url' => (string) ($bState['url'] ?? ''),
+                        'http_status' => $httpCode,
+                        'status_badge' => $httpCode ? "HTTP {$httpCode}" : 'Offline',
+                        'ssh_command' => $ssh,
+                    ];
+                }
+            }
+
+            if (empty($items)) {
+                $fallbackSsh = (string) ($this->systemHealth['telephony']['ssh_command']
+                    ?? 'ssh kontakt@mein-seelenfunke.de@a-yeq7el@ssh.altgemeinde.project.host "mittnitectl job restart"');
+                $sshCommands[] = $fallbackSsh;
+                $items[] = [
+                    'id' => 'live_telephony',
+                    'container_id' => str_contains($fallbackSsh, 'a-iurgq8') ? 'a-iurgq8' : 'a-yeq7el',
+                    'label' => 'Gemini Audio Bridge',
+                    'url' => 'https://api-live-bridge.mein-seelenfunke.de/health',
+                    'http_status' => null,
+                    'status_badge' => (string) ($this->systemHealth['telephony']['value'] ?? 'Offline'),
+                    'ssh_command' => $fallbackSsh,
+                ];
+            }
+        }
+
+        unset($this->healthChecks['gemini_bridge']);
+
+        if (!empty($items)) {
+            $badges = array_map(
+                fn (array $it) => $it['container_id'] . ' (' . $it['status_badge'] . ')',
+                $items
+            );
+            $summary = implode(' · ', array_unique($badges));
+            $combinedSsh = implode(' && ', array_values(array_unique($sshCommands)));
+
+            $this->geminiBridgeAlert = [
+                'active' => true,
+                'title' => 'Gemini Live-Bridge ausgefallen',
+                'summary' => $summary,
+                'ssh_command' => $combinedSsh,
+                'items' => $items,
+            ];
+
+            $this->healthChecks = array_merge([
+                'gemini_bridge' => [
+                    'status' => 'error',
+                    'icon' => 'signal-slash',
+                    'title' => 'Gemini Live-Bridge ausgefallen',
+                    'message' => $summary,
+                    'count' => count($items),
+                    'data' => $items,
+                ],
+            ], $this->healthChecks);
+        } else {
+            $this->geminiBridgeAlert = [
+                'active' => false,
+                'title' => 'Gemini Live-Bridge online',
+                'summary' => '',
+                'ssh_command' => null,
+                'items' => [],
+            ];
+        }
     }
 
     public function updateStock($productId, AnalyticsService $service)
@@ -2195,20 +2625,38 @@ class MasterAnalytics extends Component
                             break;
 
                         case 'telephony':
-                            $this->addRepairLog("Versuche KI-Telefonie Bridge neu zu starten...");
-                            try {
-                                $process = \Symfony\Component\Process\Process::fromShellCommandline('npx pm2 restart twilio-bridge', base_path());
-                                $process->run();
-                                if ($process->isSuccessful()) {
-                                    $this->addRepairLog("✓ PM2 hat die Telefonie-Bridge erfolgreich neu gestartet.", 'success');
-                                } else {
-                                    $this->addRepairLog("PM2-Neustart fehlgeschlagen. Starte Notfall-Skript...", 'warning');
-                                    $process2 = \Symfony\Component\Process\Process::fromShellCommandline('nohup node server-twilio.js > twilio.log 2>&1 &', base_path());
-                                    $process2->run();
-                                    $this->addRepairLog("✓ Notfall-Skript (nohup) wurde im Hintergrund abgefeuert.", 'success');
+                            $this->addRepairLog("Prüfe KI-Audio-Bridges (Node.js a-yeq7el & Reverb-Twilio a-iurgq8)...");
+                            \Illuminate\Support\Facades\Artisan::call('config:clear');
+                            Cache::forget('master_analytics_system_health_cache');
+                            Cache::forget('master_analytics_system_health_fresh');
+
+                            $bridgeTargets = self::resolveTelephonyBridgeTargets();
+                            $allBridgesHealthy = true;
+                            foreach ($bridgeTargets as $bridgeTarget) {
+                                try {
+                                    $probeRes = \Illuminate\Support\Facades\Http::timeout(4)->acceptJson()->get($bridgeTarget['url']);
+                                    $probeJson = $probeRes->json();
+                                    $probeOk = $probeRes->successful() && (!is_array($probeJson) || ($probeJson['status'] ?? 'ok') === 'ok');
+                                    if ($probeOk) {
+                                        $ver = is_array($probeJson) ? ($probeJson['bridge_version'] ?? 'ok') : 'ok';
+                                        $this->addRepairLog("✓ {$bridgeTarget['label']} antwortet stabil ({$ver}).", 'success');
+                                    } else {
+                                        $allBridgesHealthy = false;
+                                        $this->addRepairLog("✗ {$bridgeTarget['label']} meldet HTTP {$probeRes->status()}.", 'error');
+                                        $this->addRepairLog("SSH Notfallbefehl: {$bridgeTarget['ssh_command']}", 'warning');
+                                    }
+                                } catch (\Throwable $e) {
+                                    $allBridgesHealthy = false;
+                                    $this->addRepairLog("✗ {$bridgeTarget['label']} nicht erreichbar: " . $e->getMessage(), 'error');
+                                    $this->addRepairLog("SSH Notfallbefehl: {$bridgeTarget['ssh_command']}", 'warning');
                                 }
-                            } catch (\Exception $e) {
-                                $this->addRepairLog("Fehler beim Starten der Bridge: " . $e->getMessage(), 'error');
+                            }
+
+                            if ($allBridgesHealthy) {
+                                $this->resolveSystemFailure('telephony');
+                                $this->addRepairLog("✓ Alle Audio-Bridges sind online. Fehlalarme im SystemLog wurden bereinigt.", 'success');
+                            } else {
+                                $this->addRepairLog("Tipp: Alternativ FunkenwerkMcp.exe --stage-restart-workers ausführen.", 'info');
                             }
                             break;
 
@@ -2290,11 +2738,14 @@ class MasterAnalytics extends Component
 
     public function render()
     {
+        $this->syncGeminiBridgeAlertIntoHealthChecks();
+
         return view('livewire.shop.master.master-analytics', [
             'activeLogins' => $this->activeLogins,
             'systemLogs' => $this->systemLogs,
             'upcomingEvents' => $this->upcomingEvents,
             'currentActiveRoutine' => $this->currentActiveRoutine,
+            'geminiBridgeAlert' => $this->geminiBridgeAlert,
         ]);
     }
 }

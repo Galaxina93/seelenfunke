@@ -242,8 +242,9 @@ class AccountingXmlInvoiceService
         $uriComm = $this->addElement($seller, 'ram:URIUniversalCommunication');
         $this->addElement($uriComm, 'ram:URIID', $sellerEmail, ['schemeID' => 'EM']);
 
-        // Steuernummer & USt-IdNr.
-        if ($ustId = shop_setting('company_ust_id', shop_setting('owner_ust_id'))) {
+        // Steuernummer & USt-IdNr. (Platzhalter 'XXX' aus BT-31 ausschließen)
+        $ustId = trim((string) shop_setting('company_ust_id', shop_setting('owner_ust_id', '')));
+        if ($ustId !== '' && strtoupper($ustId) !== 'XXX') {
             $tax = $this->addElement($seller, 'ram:SpecifiedTaxRegistration');
             $this->addElement($tax, 'ram:ID', $ustId, ['schemeID' => 'VA']);
         }

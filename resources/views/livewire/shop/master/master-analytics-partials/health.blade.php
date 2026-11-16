@@ -33,6 +33,19 @@
         }
     @endphp
 
+    @if(!empty($geminiBridgeAlert['active']))
+        <div class="mb-5 rounded-2xl border border-red-500/40 bg-red-500/10 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-2.5 min-w-0">
+                <i class="bi bi-exclamation-triangle-fill text-red-400 text-base shrink-0"></i>
+                <span class="text-xs font-black text-red-300 uppercase tracking-wider">Gemini Live-Bridge ausgefallen</span>
+                @if(!empty($geminiBridgeAlert['summary']))
+                    <span class="px-2 py-0.5 rounded bg-red-500/20 text-[10px] font-mono font-bold text-red-200">{{ $geminiBridgeAlert['summary'] }}</span>
+                @endif
+            </div>
+            <a href="/admin/global-logs" class="px-3 py-1 rounded-lg bg-red-600 hover:bg-red-500 text-white text-[10px] font-black uppercase tracking-widest transition-colors">Diagnose</a>
+        </div>
+    @endif
+
     <div class="flex flex-col sm:flex-row items-center justify-between mb-6 md:mb-8 bg-gray-950/50 rounded-3xl p-5 md:p-6 border border-gray-800/60 shadow-inner">
         <div class="flex flex-col sm:flex-row items-center text-center sm:text-left gap-4 sm:gap-6 mb-4 sm:mb-0">
             <!-- Score Gauge -->
@@ -222,6 +235,10 @@
         </div>
 
         @php
+            $telephonyBridgeUrl = (string) (config('services.gemini.live_bridge_url') ?: config('services.gemini.proxy_ws_url') ?: 'https://api-live-bridge.mein-seelenfunke.de');
+            $telephonyHost = $systemHealth['telephony']['host'] ?? (parse_url($telephonyBridgeUrl, PHP_URL_HOST) ?: 'api-live-bridge.mein-seelenfunke.de');
+            $telephonyPort = $systemHealth['telephony']['port'] ?? (string) (parse_url($telephonyBridgeUrl, PHP_URL_PORT) ?: '443');
+
             $services = [
                 'database' => ['label' => 'Datenbank', 'host' => config('database.connections.mysql.host', '127.0.0.1'), 'port' => config('database.connections.mysql.port', '3306'), 'desc' => 'Speichert alle Produkte, Benutzer und Bestellungen.'],
                 'storage' => ['label' => 'Server Speicher', 'host' => 'Lokal (SSD)', 'port' => 'N/A', 'desc' => 'Überwacht den verfügbaren Speicherplatz auf dem Server.'],
@@ -231,7 +248,7 @@
                 'queue' => ['label' => 'Queue Worker', 'host' => 'Hintergrund', 'port' => 'N/A', 'desc' => 'Verarbeitet Aufgaben (Mails, PDFs) im Hintergrund.'],
                 'scheduler' => ['label' => 'Task Scheduler', 'host' => 'Cronjob', 'port' => 'CLI', 'desc' => 'Führt zeitgesteuerte Hintergrundaufgaben aus (z.B. Bereinigungen, Erinnerungen).'],
                 'backup' => ['label' => 'System Backup', 'host' => 'Storage', 'port' => 'N/A', 'desc' => 'Prüft, ob in den letzten 48 Stunden eine Sicherung der Datenbank erstellt wurde.'],
-                'telephony' => ['label' => 'WebSocket (Stage/Live)', 'host' => parse_url(env('TWILIO_WSS_URL', 'wss://localhost:8081'), PHP_URL_HOST) ?: env('TWILIO_WSS_URL', 'wss://localhost:8081'), 'port' => parse_url(env('TWILIO_WSS_URL', 'wss://localhost:8081'), PHP_URL_PORT) ?: 'N/A', 'desc' => 'Unsere Node.js Audio-Bridge für den Gemini Live-Call.'],
+                'telephony' => ['label' => 'Gemini Audio Bridge', 'host' => $telephonyHost, 'port' => $telephonyPort, 'desc' => app()->environment('local') ? 'Lokal inaktiv. Läuft auf Mittwald mStudio (a-yeq7el & a-iurgq8).' : 'Live-Audio- & Telefonie-Bridges (Node.js a-yeq7el & Reverb a-iurgq8).'],
             ];
 
             // Hier definieren wir unsere schicken Gruppierungen!
@@ -690,14 +707,67 @@
                                                 @endif
 
                                                 @if($sKey === 'backup' && isset($health['path']))
-                                                    <div class="mt-1 bg-gray-950 p-2 rounded-lg border border-gray-800">
+                                                    <div class="mt-1 bg-gray-100 dark:bg-gray-950 p-2 rounded-lg border border-gray-200 dark:border-gray-800">
                                                         <span class="font-bold text-gray-500 block mb-0.5 text-[9px]">SPEICHERORT:</span>
-                                                        <span class="text-white font-mono text-[10px] break-all">{{ $health['path'] }}</span>
+                                                        <span class="text-gray-900 dark:text-white font-mono text-[10px] break-all">{{ $health['path'] }}</span>
                                                     </div>
                                                 @endif
 
-                                                @if($errorMsg)
-                                                    <div class="text-red-400 font-sans font-bold leading-relaxed bg-red-500/10 p-2 rounded-xl border border-red-500/20 mt-1">
+                                                @if($sKey === 'telephony')
+                                                    @php
+                                                        $emergencySshCmd = $health['ssh_command'] ?? 'ssh kontakt@mein-seelenfunke.de@a-yeq7el@ssh.altgemeinde.project.host "mittnitectl job restart"';
+                                                        $reverbSshCmd = 'ssh kontakt@mein-seelenfunke.de@a-iurgq8@ssh.altgemeinde.project.host "mittnitectl job restart"';
+                                                    @endphp
+                                                    @if(!empty($health['twilio_version']))
+                                                        <div class="flex justify-between gap-4 mt-1"><span class="font-bold text-gray-500">REVERB BRIDGE:</span><span class="text-emerald-500 dark:text-emerald-400 font-bold">{{ $health['twilio_version'] }}</span></div>
+                                                    @endif
+                                                    @if($status === 'connected')
+                                                        <div class="mt-2 text-[10px] font-sans text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 dark:bg-emerald-950/30 p-2 rounded-lg border border-emerald-500/30 dark:border-emerald-900/50 text-left font-bold leading-relaxed">
+                                                            <i class="bi bi-check-circle-fill mr-1"></i> Audio-Bridges online (/health & /twilio-health).
+                                                        </div>
+                                                    @else
+                                                        <div x-data="{
+                                                            copiedSsh: false,
+                                                            copyEmergencyCmd(cmd) {
+                                                                if (navigator.clipboard && window.isSecureContext) {
+                                                                    navigator.clipboard.writeText(cmd).then(() => {
+                                                                        this.copiedSsh = true;
+                                                                        setTimeout(() => { this.copiedSsh = false; }, 2000);
+                                                                    });
+                                                                    return;
+                                                                }
+                                                                const ta = document.createElement('textarea');
+                                                                ta.value = cmd;
+                                                                ta.style.position = 'fixed';
+                                                                ta.style.opacity = '0';
+                                                                document.body.appendChild(ta);
+                                                                ta.focus();
+                                                                ta.select();
+                                                                document.execCommand('copy');
+                                                                document.body.removeChild(ta);
+                                                                this.copiedSsh = true;
+                                                                setTimeout(() => { this.copiedSsh = false; }, 2000);
+                                                            }
+                                                        }" class="mt-2 text-[10px] font-sans text-gray-800 dark:text-gray-200 bg-red-500/10 dark:bg-red-950/30 p-2.5 rounded-lg border border-red-500/30 dark:border-red-900/50 text-left leading-relaxed pointer-events-auto">
+                                                            <div class="flex items-center justify-between gap-2 mb-1.5">
+                                                                <strong class="text-red-600 dark:text-red-400 uppercase tracking-wider text-[9px]"><i class="bi bi-exclamation-triangle-fill"></i> SSH Notfallbefehl</strong>
+                                                                <button type="button"
+                                                                        @click.stop="copyEmergencyCmd(@js($emergencySshCmd))"
+                                                                        class="px-2 py-0.5 rounded border border-[#C5A059]/50 bg-[#C5A059]/15 hover:bg-[#C5A059]/30 text-[#C5A059] text-[8px] font-black uppercase tracking-wider transition-colors cursor-pointer">
+                                                                    <span x-text="copiedSsh ? 'Kopiert' : 'Kopieren'"></span>
+                                                                </button>
+                                                            </div>
+                                                            <div class="bg-white/80 dark:bg-gray-950 rounded p-2 text-gray-800 dark:text-gray-200 font-mono text-[8.5px] leading-relaxed break-all selection:bg-[#C5A059]/30 border border-red-500/20 dark:border-red-900/50 mb-1.5">{{ $emergencySshCmd }}</div>
+                                                            @if(!str_contains($emergencySshCmd, 'a-iurgq8'))
+                                                                <div class="text-[8px] font-mono text-gray-600 dark:text-gray-400 break-all mb-1">Reverb (a-iurgq8): {{ $reverbSshCmd }}</div>
+                                                            @endif
+                                                            <div class="text-[8px] font-mono text-gray-600 dark:text-gray-400">MCP: <code>FunkenwerkMcp.exe --stage-restart-workers</code></div>
+                                                        </div>
+                                                    @endif
+                                                @endif
+
+                                                @if($errorMsg && $sKey !== 'telephony')
+                                                    <div class="text-red-500 dark:text-red-400 font-sans font-bold leading-relaxed bg-red-500/10 p-2 rounded-xl border border-red-500/20 mt-1">
                                                         {{ $errorMsg }}
                                                     </div>
                                                 @endif

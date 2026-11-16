@@ -35,6 +35,8 @@ class SystemSettingSeeder extends Seeder
             }
         }
 
+        $defaultShopIsLive = app()->environment('production') ? 'false' : 'true';
+
         // 2. Alle Einstellungen definieren
         $settings = [
             // Shop Status & Steuern
@@ -43,6 +45,8 @@ class SystemSettingSeeder extends Seeder
             'reduced_tax_rate'          => '7',
             'active_tax_rates'          => json_encode([19, 7, 0]),
             'prices_entered_gross'      => 'true',
+            'shop_is_live'              => $defaultShopIsLive,
+            'shop_live_unlocked'        => $defaultShopIsLive,
             'maintenance_mode'          => 'false',
             'send_order_email_to_admin' => 'true',
 
@@ -67,7 +71,7 @@ class SystemSettingSeeder extends Seeder
 
             'owner_phone'               => '+49 (0) 159 019 668 64',
             'owner_tax_id'              => '19/143/11624',
-            'owner_ust_id'              => 'DE359662265',
+            'owner_ust_id'              => 'XXX',
             'owner_court'               => 'Amtsgericht Gifhorn',
             'owner_website'             => 'www.mein-seelenfunke.de',
 
@@ -122,9 +126,9 @@ class SystemSettingSeeder extends Seeder
             'active_countries'          => json_encode($countries),
         ];
 
-        // 3. Daten in die Datenbank schreiben (maintenance_mode per firstOrCreate schützen, damit ein aktiver Live-Wartungsmodus niemals überschrieben wird)
+        // 3. Daten in die Datenbank schreiben (shop_is_live, shop_live_unlocked und maintenance_mode per firstOrCreate schützen, damit aktive Live-Einstellungen niemals überschrieben werden)
         foreach ($settings as $key => $value) {
-            if ($key === 'maintenance_mode') {
+            if (in_array($key, ['shop_is_live', 'shop_live_unlocked', 'maintenance_mode'], true)) {
                 SystemSetting::firstOrCreate(
                     ['key' => $key],
                     ['value' => $value]

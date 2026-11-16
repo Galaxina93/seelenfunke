@@ -3,9 +3,9 @@
 
         {{-- Header --}}
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
-            <div>
+            <div class="flex items-center gap-2.5">
                 <h1 class="text-3xl sm:text-4xl font-serif font-bold text-gray-900 dark:text-white tracking-tight">Shop-Konfiguration</h1>
-                <p class="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-2 font-medium">Zentrale Steuerung aller Shop-Parameter und rechtlichen Grundlagen.</p>
+                <span title="Zentrale Steuerung aller Shop-Parameter, Live-Freigabe, Wartungsmodus und rechtlichen Grundlagen." class="w-5 h-5 rounded-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-500 dark:text-gray-300 text-[11px] font-black inline-flex items-center justify-center cursor-help hover:border-[var(--theme-color)] hover:text-[var(--theme-color)] transition-colors shrink-0">!</span>
             </div>
             <button
                 wire:click="save"

@@ -119,8 +119,8 @@
             {{ function_exists('shop_setting') ? shop_setting('company_zip', '38518') : '38518' }} {{ function_exists('shop_setting') ? shop_setting('company_city', 'Gifhorn') : 'Gifhorn' }}, Deutschland ·
             E-Mail: <a href="mailto:{{ function_exists('shop_setting') ? shop_setting('company_email', 'kontakt@mein-seelenfunke.de') : 'kontakt@mein-seelenfunke.de' }}" class="underline hover:text-gray-800">{{ function_exists('shop_setting') ? shop_setting('company_email', 'kontakt@mein-seelenfunke.de') : 'kontakt@mein-seelenfunke.de' }}</a> ·
             Tel.: {{ function_exists('shop_setting') ? shop_setting('company_phone', '+49 159 019 668 64') : '+49 159 019 668 64' }}
-            @php $vatId503 = function_exists('shop_setting') ? shop_setting('owner_ust_id', 'DE459668247') : 'DE459668247'; @endphp
-            @if(!empty($vatId503)) · USt-IdNr.: {{ $vatId503 }} @endif
+            @php $vatId503 = function_exists('shop_setting') ? shop_setting('owner_ust_id', 'XXX') : 'XXX'; @endphp
+            @if(!empty($vatId503) && strtoupper(trim((string) $vatId503)) !== 'XXX') · USt-IdNr.: {{ $vatId503 }} @endif
         </p>
         <div class="pt-1 flex items-center justify-center gap-4 text-[11px] font-medium text-gray-500">
             <a href="/impressum" class="hover:text-gray-800 underline">Impressum</a>

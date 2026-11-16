@@ -127,9 +127,11 @@
                         Anmelden
                     </a>
 
-                    <div class="text-xs text-gray-500">
-                        Neu? <a href="{{ route('livewire.auth.register') }}" class="text-primary hover:underline font-bold">Registrieren</a>
-                    </div>
+                    @if(\App\Http\Middleware\EnforceShopMaintenanceMode::isShopLive(request()))
+                        <div class="text-xs text-gray-500">
+                            Neu? <a href="{{ route('livewire.auth.register') }}" class="text-primary hover:underline font-bold">Registrieren</a>
+                        </div>
+                    @endif
                 </div>
             @endif
 
