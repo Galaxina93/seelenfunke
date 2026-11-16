@@ -830,6 +830,7 @@ static void ConfigureKioskApp(
         string act = rawAct.Trim().ToLowerInvariant() switch
         {
             "city" or "overview" => "city",
+            "heroes" or "halle_der_helden" or "helden" => "heroes",
             "throne" or "thronsaal" => "throne",
             "close" => "close",
             _ => "orbit"
@@ -839,6 +840,13 @@ static void ConfigureKioskApp(
             pendingCityAction = act;
         }
         return Results.Json(new { ok = true, queuedCityAction = act });
+    });
+
+    app.MapGet("/api/funkenwerk-city/heroes", async () =>
+    {
+        var s = LinuxVaultAndStorage.LoadSettings();
+        var res = await FunkenwerkCityHeroesBridge.FetchHeroesAsync(s).ConfigureAwait(false);
+        return Results.Content(res.ToJsonString(), "application/json; charset=utf-8");
     });
 
     app.MapPost("/api/funkira/stage-report", async (HttpContext ctx) =>
@@ -3069,7 +3077,7 @@ async Task<int> RunLinuxSelfTestsAsync()
                     jsApp.Contains("isCannedRefusalClientText", StringComparison.Ordinal) &&
                     jsApp.Contains("projectRawVideoBoxToPip", StringComparison.Ordinal) &&
                     !jsApp.Contains("safetySettings", StringComparison.Ordinal) &&
-                    htmlIdx.Contains("/app.js?v=20261116v25", StringComparison.Ordinal);
+                    htmlIdx.Contains("/app.js?v=20261116v26", StringComparison.Ordinal);
 
                 return detectOk && diagAndLoginOk && historyCleanOk && promptHygieneOk && jsOk;
             }).ConfigureAwait(false);
@@ -3754,7 +3762,7 @@ async Task<int> RunLinuxSelfTestsAsync()
                     htmlIdx.Contains("id=\"btn-fw-city-overview\"", StringComparison.Ordinal) &&
                     htmlIdx.Contains("id=\"btn-fw-city-throne\"", StringComparison.Ordinal) &&
                     htmlIdx.Contains("id=\"btn-fw-city-close\"", StringComparison.Ordinal) &&
-                    htmlIdx.Contains("/funkenwerk_city_3d.js?v=20261116v25", StringComparison.Ordinal) &&
+                    htmlIdx.Contains("/funkenwerk_city_3d.js?v=20261116v28", StringComparison.Ordinal) &&
                     cityJs.Contains("MEIN SEELENFUNKE", StringComparison.Ordinal) &&
                     cityJs.Contains("'ALINA'", StringComparison.Ordinal) &&
                     cityJs.Contains("Herrscherin über das Seelenfunken-Universum", StringComparison.Ordinal) &&
@@ -3865,6 +3873,102 @@ async Task<int> RunLinuxSelfTestsAsync()
 
                 return ssrfOk && nullJobOk && deserializeOk && execBlockOk && jpegDimOk && gcodeOk;
             }).ConfigureAwait(false);
+
+            await AssertCheckAsync(46, "Halle der Helden (Carrara-Marmorboden, unverbauter Schriftzug, Funki 3D-Evolution Level 1..10, /api/funkenwerk-city/heroes & 0 KI-Gedankenstriche)", async () =>
+            {
+                // 1. Unauthenticated /api/funkenwerk-city/heroes MUST return 401
+                using var unauthHeroes = await rawHttp.GetAsync("/api/funkenwerk-city/heroes").ConfigureAwait(false);
+                if (unauthHeroes.StatusCode != HttpStatusCode.Unauthorized)
+                    return false;
+
+                // 2. Founding-phase fallback when Portal returns empty/offline -> ok:true, founding_phase:true, heroes:[]
+                FunkenwerkCityHeroesBridge.TestOverrideRawJson = "{\"heroes\":[]}";
+                FunkenwerkCityHeroesBridge.ResetCacheForSelfTest();
+                using var emptyResp = await authedHttp.GetAsync("/api/funkenwerk-city/heroes").ConfigureAwait(false);
+                var emptyJson = JsonNode.Parse(await emptyResp.Content.ReadAsStringAsync().ConfigureAwait(false)) as JsonObject;
+                bool foundingOk = emptyResp.IsSuccessStatusCode &&
+                                  emptyJson?["ok"]?.GetValue<bool>() == true &&
+                                  emptyJson["founding_phase"]?.GetValue<bool>() == true &&
+                                  (emptyJson["heroes"] as JsonArray)?.Count == 0;
+
+                // 3. Mocked Portal heroes response -> normalizes slot, display_name (scrubs en-dash), level, rank_class, aura & is_placeholder
+                FunkenwerkCityHeroesBridge.TestOverrideRawJson = """
+                {
+                  "heroes": [
+                    { "slot": 1, "display_name": "Luna \u2013 Stern", "level": 10, "rank_class": "S", "aura": "gold", "is_placeholder": false },
+                    { "slot": 2, "display_name": "Max M.", "level": 7, "rank_class": "KLASSE A", "aura": "cyan" }
+                  ]
+                }
+                """;
+                FunkenwerkCityHeroesBridge.ResetCacheForSelfTest();
+                using var liveResp = await authedHttp.GetAsync("/api/funkenwerk-city/heroes").ConfigureAwait(false);
+                string liveRaw = await liveResp.Content.ReadAsStringAsync().ConfigureAwait(false);
+                var liveJson = JsonNode.Parse(liveRaw) as JsonObject;
+                var heroesArr = liveJson?["heroes"] as JsonArray;
+                FunkenwerkCityHeroesBridge.TestOverrideRawJson = null;
+                FunkenwerkCityHeroesBridge.ResetCacheForSelfTest();
+
+                bool liveParseOk = liveResp.IsSuccessStatusCode &&
+                                   liveJson?["founding_phase"]?.GetValue<bool>() == false &&
+                                   heroesArr != null && heroesArr.Count == 2 &&
+                                   heroesArr[0]?["slot"]?.GetValue<int>() == 1 &&
+                                   heroesArr[0]?["display_name"]?.GetValue<string>() == "Luna · Stern" &&
+                                   heroesArr[0]?["level"]?.GetValue<int>() == 10 &&
+                                   heroesArr[0]?["rank_class"]?.GetValue<string>() == "KLASSE S" &&
+                                   heroesArr[0]?["aura"]?.GetValue<string>() == "gold" &&
+                                   heroesArr[0]?["is_placeholder"]?.GetValue<bool>() == false &&
+                                   !liveRaw.Contains(" \u2013 ", StringComparison.Ordinal);
+
+                // 4. HTTP control, spoken command ("halle der helden") & MCP minipc_ui_control ("open_hall_of_heroes")
+                using var ctrlHeroes = await authedHttp.PostAsync("/api/funkenwerk-city/control", new StringContent("{\"action\":\"heroes\"}", Encoding.UTF8, "application/json")).ConfigureAwait(false);
+                using var pulseHeroes = await authedHttp.GetAsync("/api/pulse").ConfigureAwait(false);
+                var pulseJson = JsonNode.Parse(await pulseHeroes.Content.ReadAsStringAsync().ConfigureAwait(false)) as JsonObject;
+
+                using var mcpDoc = JsonDocument.Parse("{\"action\":\"open_hall_of_heroes\"}");
+                var (mcpRes, mcpEvt) = await FunkiraLiveAndMcpEngine.ExecuteLocalMiniPcToolAsync("minipc_ui_control", mcpDoc.RootElement).ConfigureAwait(false);
+
+                bool ctrlAndVoiceOk =
+                    ctrlHeroes.IsSuccessStatusCode &&
+                    pulseJson?["pendingCityAction"]?.GetValue<string>() == "heroes" &&
+                    FunkiraLiveAndMcpEngine.TryMatchSpokenFunkenwerkCityCommand("Bring mich in die Halle der Helden") == "open_hall_of_heroes" &&
+                    mcpRes["status"]?.GetValue<string>() == "success" &&
+                    mcpEvt?["action"]?.GetValue<string>() == "open_hall_of_heroes";
+
+                // 5. Frontend 3D Pantheon (raised domeBaseY + offset ribs), Carrara Marble, ALL 10 Funki Levels & HUD buttons + 0 KI en-dashes
+                string htmlIdx = File.ReadAllText(Path.Combine(resolvedWebRoot, "index.html"), Encoding.UTF8);
+                string cityJs = File.ReadAllText(Path.Combine(resolvedWebRoot, "funkenwerk_city_3d.js"), Encoding.UTF8);
+                string[] allTenTitles =
+                {
+                    "Ursprung", "Lehrling", "Helfer", "Kristall-Novize", "Funken-Geselle",
+                    "Gravur-Handwerker", "Kunsthandwerker", "Meister", "Lichtbringer", "Gott des Seelenfunkens"
+                };
+                bool allTenLevelsOk = allTenTitles.All(t => cityJs.Contains(t, StringComparison.Ordinal));
+
+                bool uiAnd3dOk =
+                    allTenLevelsOk &&
+                    htmlIdx.Contains("id=\"btn-fw-city-heroes\"", StringComparison.Ordinal) &&
+                    htmlIdx.Contains("🏛️ Helden", StringComparison.Ordinal) &&
+                    htmlIdx.Contains("id=\"btn-fw-city-hero-levels\"", StringComparison.Ordinal) &&
+                    htmlIdx.Contains("✨ Stufen", StringComparison.Ordinal) &&
+                    cityJs.Contains("HALLE DER HELDEN", StringComparison.Ordinal) &&
+                    cityJs.Contains("Freier Ehrenplatz", StringComparison.Ordinal) &&
+                    cityJs.Contains("_buildHallOfHeroes", StringComparison.Ordinal) &&
+                    cityJs.Contains("makeHallOfHeroesMarbleTexture", StringComparison.Ordinal) &&
+                    cityJs.Contains("#ECEAE4", StringComparison.Ordinal) &&
+                    cityJs.Contains("#133B5C", StringComparison.Ordinal) &&
+                    cityJs.Contains("const domeBaseY = entY + 5.35;", StringComparison.Ordinal) &&
+                    cityJs.Contains("((r + 0.5) / 6) * Math.PI", StringComparison.Ordinal) &&
+                    cityJs.Contains("FUNKI_LEVEL_SPECS", StringComparison.Ordinal) &&
+                    cityJs.Contains("makeFunkiTvFaceTexture", StringComparison.Ordinal) &&
+                    cityJs.Contains("buildFunki3DByLevel", StringComparison.Ordinal) &&
+                    cityJs.Contains("cyclePreviewHeroLevel", StringComparison.Ordinal) &&
+                    cityJs.Contains("flyToHallOfHeroes", StringComparison.Ordinal) &&
+                    cityJs.Contains("/api/funkenwerk-city/heroes", StringComparison.Ordinal) &&
+                    !cityJs.Contains(" \u2013 ", StringComparison.Ordinal) &&
+                    !htmlIdx.Contains(" \u2013 ", StringComparison.Ordinal);
+
+                return foundingOk && liveParseOk && ctrlAndVoiceOk && uiAnd3dOk;
+            }).ConfigureAwait(false);
         }
         finally
         {
@@ -3889,4 +3993,224 @@ async Task<int> RunLinuxSelfTestsAsync()
 
     Console.WriteLine($"FUNKENWERK OS LINUX SELF-TEST: {passed}/{total} TESTS BESTANDEN.");
     return passed == total ? 0 : 1;
+}
+
+internal static class FunkenwerkCityHeroesBridge
+{
+    internal static string? TestOverrideRawJson { get; set; }
+
+    private static readonly object s_cacheLock = new();
+    private static JsonObject? s_cachedPayload;
+    private static DateTime s_cachedAtUtc = DateTime.MinValue;
+
+    public static void ResetCacheForSelfTest()
+    {
+        lock (s_cacheLock)
+        {
+            s_cachedPayload = null;
+            s_cachedAtUtc = DateTime.MinValue;
+        }
+    }
+
+    public static JsonObject NormalizeHeroesPayload(string? rawJson, string sourceLabel = "portal")
+    {
+        var heroesOut = new JsonArray();
+        int realHeroCount = 0;
+        if (!string.IsNullOrWhiteSpace(rawJson))
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(rawJson);
+                var root = doc.RootElement;
+                JsonElement arrEl = default;
+                bool hasArr = false;
+
+                if (root.ValueKind == JsonValueKind.Array)
+                {
+                    arrEl = root;
+                    hasArr = true;
+                }
+                else if (root.ValueKind == JsonValueKind.Object)
+                {
+                    if (root.TryGetProperty("heroes", out var hEl) && hEl.ValueKind == JsonValueKind.Array)
+                    {
+                        arrEl = hEl;
+                        hasArr = true;
+                    }
+                    else if (root.TryGetProperty("data", out var dEl))
+                    {
+                        if (dEl.ValueKind == JsonValueKind.Array)
+                        {
+                            arrEl = dEl;
+                            hasArr = true;
+                        }
+                        else if (dEl.ValueKind == JsonValueKind.Object &&
+                                 dEl.TryGetProperty("heroes", out var dhEl) &&
+                                 dhEl.ValueKind == JsonValueKind.Array)
+                        {
+                            arrEl = dhEl;
+                            hasArr = true;
+                        }
+                    }
+                }
+
+                if (hasArr)
+                {
+                    int idx = 0;
+                    foreach (var item in arrEl.EnumerateArray())
+                    {
+                        if (idx >= 64) break;
+                        if (item.ValueKind != JsonValueKind.Object) continue;
+                        idx++;
+
+                        int slot = idx;
+                        if (item.TryGetProperty("slot", out var sEl) && sEl.TryGetInt32(out int sv) && sv > 0) slot = sv;
+                        else if (item.TryGetProperty("rank", out var rEl) && rEl.TryGetInt32(out int rv) && rv > 0) slot = rv;
+
+                        bool isPlaceholder = item.TryGetProperty("is_placeholder", out var phEl) && phEl.ValueKind == JsonValueKind.True;
+
+                        string rawName = "";
+                        foreach (string nk in new[] { "display_name", "name", "player_name", "username" })
+                        {
+                            if (item.TryGetProperty(nk, out var nEl) && nEl.ValueKind == JsonValueKind.String)
+                            {
+                                rawName = nEl.GetString() ?? "";
+                                if (!string.IsNullOrWhiteSpace(rawName)) break;
+                            }
+                        }
+                        string displayName = WorkshopFocusCoordinator.CleanTextNoEnDash(rawName);
+                        if (string.IsNullOrWhiteSpace(displayName))
+                            continue;
+                        if (displayName.Length > 28)
+                            displayName = displayName.Substring(0, 28).Trim();
+
+                        if (!isPlaceholder && !string.Equals(displayName, "Freier Ehrenplatz", StringComparison.OrdinalIgnoreCase))
+                            realHeroCount++;
+
+                        int level = 1;
+                        foreach (string lk in new[] { "level", "lvl" })
+                        {
+                            if (item.TryGetProperty(lk, out var lEl))
+                            {
+                                if (lEl.ValueKind == JsonValueKind.Number && lEl.TryGetInt32(out int lv)) { level = Math.Clamp(lv, 1, 999); break; }
+                                if (lEl.ValueKind == JsonValueKind.String && int.TryParse(lEl.GetString(), out int lsv)) { level = Math.Clamp(lsv, 1, 999); break; }
+                            }
+                        }
+
+                        string rawClass = "";
+                        foreach (string ck in new[] { "rank_class", "class", "tier" })
+                        {
+                            if (item.TryGetProperty(ck, out var cEl) && cEl.ValueKind == JsonValueKind.String)
+                            {
+                                rawClass = cEl.GetString() ?? "";
+                                if (!string.IsNullOrWhiteSpace(rawClass)) break;
+                            }
+                        }
+                        string rankClass = WorkshopFocusCoordinator.CleanTextNoEnDash(rawClass).ToUpperInvariant();
+                        if (string.IsNullOrWhiteSpace(rankClass))
+                            rankClass = level >= 9 ? "KLASSE S" : (level >= 6 ? "KLASSE A" : (level >= 3 ? "KLASSE B" : "KLASSE C"));
+                        else if (!rankClass.StartsWith("KLASSE", StringComparison.Ordinal))
+                            rankClass = $"KLASSE {rankClass}";
+
+                        string aura = "gold";
+                        foreach (string ak in new[] { "aura", "aura_color" })
+                        {
+                            if (item.TryGetProperty(ak, out var aEl) && aEl.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(aEl.GetString()))
+                            {
+                                aura = WorkshopFocusCoordinator.CleanTextNoEnDash(aEl.GetString()!).ToLowerInvariant();
+                                break;
+                            }
+                        }
+
+                        heroesOut.Add(new JsonObject
+                        {
+                            ["slot"] = slot,
+                            ["display_name"] = displayName,
+                            ["level"] = level,
+                            ["rank_class"] = rankClass,
+                            ["aura"] = aura,
+                            ["is_placeholder"] = isPlaceholder
+                        });
+                    }
+                }
+            }
+            catch { }
+        }
+
+        return new JsonObject
+        {
+            ["ok"] = true,
+            ["source"] = realHeroCount > 0 ? sourceLabel : "founding_fallback",
+            ["founding_phase"] = realHeroCount == 0,
+            ["heroes"] = heroesOut
+        };
+    }
+
+    public static async Task<JsonObject> FetchHeroesAsync(LinuxOsSettings settings)
+    {
+        if (TestOverrideRawJson != null)
+        {
+            return NormalizeHeroesPayload(TestOverrideRawJson, "test_mock");
+        }
+
+        lock (s_cacheLock)
+        {
+            if (s_cachedPayload != null && (DateTime.UtcNow - s_cachedAtUtc).TotalSeconds < 25.0)
+            {
+                return JsonNode.Parse(s_cachedPayload.ToJsonString()) as JsonObject ?? s_cachedPayload;
+            }
+        }
+
+        string normEnv = (settings.ApiEnvironment ?? "live").Trim().ToLowerInvariant() == "stage" ? "stage" : "live";
+        string originUrl = SeelenfunkeLinuxApiClient.ResolveOriginUrl(normEnv);
+        string bearer = LinuxVaultAndStorage.GetToken(settings, normEnv);
+
+        string[] candidateUrls =
+        {
+            $"{originUrl}/funkenwerk-welt/heroes-data",
+            $"{originUrl}/api/gamification/funkenwerk-heroes"
+        };
+
+        foreach (string url in candidateUrls)
+        {
+            if (!SeelenfunkeLinuxApiClient.ValidateHttpsUrl(url))
+                continue;
+
+            try
+            {
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3.0));
+                using var req = new HttpRequestMessage(HttpMethod.Get, url);
+                req.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
+                if (!string.IsNullOrWhiteSpace(bearer))
+                {
+                    req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", bearer);
+                }
+
+                using var resp = await SeelenfunkeLinuxApiClient.SharedHttp.SendAsync(req, cts.Token).ConfigureAwait(false);
+                if (!resp.IsSuccessStatusCode)
+                    continue;
+
+                string body = await resp.Content.ReadAsStringAsync(cts.Token).ConfigureAwait(false);
+                if (string.IsNullOrWhiteSpace(body))
+                    continue;
+
+                var normalized = NormalizeHeroesPayload(body, "portal");
+                lock (s_cacheLock)
+                {
+                    s_cachedPayload = normalized;
+                    s_cachedAtUtc = DateTime.UtcNow;
+                }
+                return JsonNode.Parse(normalized.ToJsonString()) as JsonObject ?? normalized;
+            }
+            catch { }
+        }
+
+        var fallback = NormalizeHeroesPayload(null, "founding_fallback");
+        lock (s_cacheLock)
+        {
+            s_cachedPayload = fallback;
+            s_cachedAtUtc = DateTime.UtcNow;
+        }
+        return fallback;
+    }
 }

@@ -1,7 +1,7 @@
-# Abschlussbericht: Oberste KI-Firmenleitung „Falcon“, Android 3D-Fokus-Leitstand & 3D-Wasserstadt „Funkenwerk“
+# Abschlussbericht: Oberste KI-Firmenleitung „Falcone“, Android 3D-Fokus-Leitstand (`v1.8.5`) & 3D-Wasserstadt „Funkenwerk“ inkl. „Halle der Helden“
 
 **Datum:** 16.11.2026  
-**Abteilungen:** `Leitung`, `Agenten`, `System`, `Funkenwerk Android (v1.8.0)`, `FunkenwerkOS.Linux (Mini-PC)`  
+**Abteilungen:** `Leitung`, `Agenten`, `System`, `Gamification`, `Funkenwerk Android (v1.8.5)`, `FunkenwerkOS.Linux (Mini-PC)`  
 **Status:** ✅ 100 % Grün getestet, sicherheitsgeprüft, auf Stage & Mini-PC (`192.168.188.151`) live ausgerollt
 
 ---
@@ -12,12 +12,12 @@ Im gesamten Universum von **Mein-Seelenfunke** und **Funkenwerk** gilt folgende 
 
 1. **Alina Steinhauer (Inhaberin & Oberste Entscheiderin):**
    * Trifft alle strategischen Richtungsentscheidungen („Go“-Prinzip nach Baustein 3).
-2. **`Falcon` (Technischer Mitgründer, Chef-Architekt & Oberster KI-Boss an Alinas Seite):**
-   * **Erscheinungsbild & Stimme:** Gold-schwarze Maßanzug-Rüstung (`FALCON · Mitgründer`), gepflegter Gentleman-Schnauzer, 24K-Gold-Monokel mit Kette, schicke Frisur sowie markante, ruhige männliche Stimme (`Orus`).
-   * **Universelle Vollmacht (`FunkiraSkillPoolService::isExecutiveRoot`):** Beherrscht sämtliche 9 Abteilungs-Fähigkeitspools (`finance`, `orders`, `products`, `laser`, `marketing`, `mail_contacts`, `support_telephony`, `health_personal`, `system_workspace`), den Co-CEO-Kompass (`master_get_next_best_actions`) sowie den globalen 4-Säulen-Fehler-Sentinel (`system_get_error_sentinel` **strikt ausschließlich auf explizite Nachfrage**, da sich das Universum über die `Zero-Log-Baseline` bereits stündlich selbst heilt).
-   * **Direktleitung zum Entwickler-Orchester (Antigravity):** Leitet gesprochene oder getippte Entwicklungs-, Bugfix- und Konzeptaufträge samt optional selbst geschossenem Kamera-Foto über das 24/7-Stage-Postfach (`/api/system/ag-direct-inbox`) direkt in den zentralen Master-Chat weiter, wo die 5 Spezial-Subagenten (`Shop`, `Funkenwerk/Mini-PC`, `Android`, `Buchhaltung`, `QA`) den Code bauen, testen und ausrollen.
+2. **`Falcone` (`F-A-L-C-O-N-E`, Technischer Mitgründer, Chef-Architekt & Oberster KI-Boss an Alinas Seite):**
+   * **Erscheinungsbild & Stimme:** Gold-schwarze Maßanzug-Rüstung (`FALCONE · Mitgründer`), gepflegter Gentleman-Schnauzer, 24K-Gold-Monokel mit Kette, schicke Frisur sowie markante, ruhige männliche Stimme (`Orus`). Souveräne, symmetrische Gentleman-Körperhaltung (beide Hände tief auf Gürtelschnallen-Höhe mit hartem Winkel-Clamp `clamp(armX, -0.18, 0.12)` und höflichem Begrüßungs-Nicken).
+   * **Universelle Vollmacht (`FunkiraSkillPoolService::isExecutiveRoot`):** Beherrscht sämtliche 9 Abteilungs-Fähigkeitspools (`finance`, `orders`, `products`, `laser`, `marketing`, `mail_contacts`, `support_telephony`, `health_personal`, `system_workspace`), den Co-CEO-Kompass (`master_get_next_best_actions` mit **Produktnamen statt Bestellnummern**) sowie den globalen 4-Säulen-Fehler-Sentinel (`system_get_error_sentinel` **strikt ausschließlich auf explizite Nachfrage**, da sich das Universum über `--sentinel-hourly-guard` bereits stündlich still selbst heilt).
+   * **5-Kanal-Direktleitung zum Entwickler-Orchester (Antigravity):** Leitet gesprochene oder getippte Entwicklungs-, Bugfix- und Konzeptaufträge samt optional selbst geschossenem Kamera-Foto über das 24/7-Stage-Postfach (`/api/system/ag-direct-inbox`) gezielt in die **5 festen Abteilungs-Kanäle** (`👑 Leitung`, `🛍️ Shop`, `📱 Android`, `🖥️ Mini-PC`, `💶 Buchhaltung` oder `➕ Neu`) weiter.
 3. **`Funkira` (Operative Portal- & Werkstatt-Assistenz):**
-   * Bleibt im Webportal-Chat (`is_in_chat = true`) und im Werkstatt-Alltag aktiv, während `Falcon` im Organigramm (`/admin/organigramm`, Abteilung `Leitung`) sichtbar geführt wird, aber sauber aus dem regulären Web-Chat-Widget isoliert ist (`is_in_chat = false`).
+   * Bleibt im Webportal-Chat (`is_in_chat = true`) und im Werkstatt-Alltag aktiv, während `Falcone` im Organigramm (`/admin/organigramm`, Abteilung `Leitung`) sichtbar geführt wird, aber sauber aus dem regulären Web-Chat-Widget isoliert ist (`is_in_chat = false`).
 4. **`Funki` (Air-Gapped Kunden- & Support-Begleiter):**
    * Strikt isoliert im öffentlichen Shop-Frontend ohne jeglichen Zugriff auf Admin-, Finanz-, Mail- oder Systemwerkzeuge.
 
@@ -34,42 +34,42 @@ Im gesamten Universum von **Mein-Seelenfunke** und **Funkenwerk** gilt folgende 
 
 ---
 
-## 3. Funkenwerk Android-App (`v1.8.0`): Vollbild 3D-Falcon, Kamera-Augen & Lokale Steuerung
+## 3. Funkenwerk Android-App (`v1.8.5`, Build `29`): Vollbild 3D-Falcone, 4-Faktor Fast-Unlock, Smart-Home & 5-Kanal-Routing
 
-Beim App-Start landet Admin Alina unmittelbar im **60-FPS 3D-Falcon Fokus-Modus**:
+Beim App-Start landet Admin Alina unmittelbar im **60-FPS 3D-Falcone Fokus-Modus**:
 
 1. **Lokale Three.js 3D-Engine (`assets/falcon3d/`):**
    * Komplett lokal gebündelt ohne externe Netzwerk-Requests (`blockNetworkLoads = true`, `allowUniversalAccessFromFileURLs = false`).
-   * Detailliertes 3D-Modell von **Falcon** (24K-Gold-Rahmen, Gentleman-Frisur, 3D-Monokel mit mitschwingender Goldkette, `768x480` Retina-Display-Gesicht mit Echtzeit-Lippensynchronisation und mitgehendem Schnauzer, Emotions-Engine `idle`/`listening`/`thinking`/`speaking`/`happy`/`proud`/`focused`, an Light- und Dark-Mode angepasst).
-2. **Smartphone-Kamera-Augen & Eigenständiges Fotografieren (`FalconCameraController.kt`):**
-   * Standardmäßig ausgeschaltet; sobald aktiviert (`enable_vision` oder Kamera-Button), erscheint immer ein transparentes sichtbares Live-PIP-Vorschaufenster oben rechts (DSGVO- & Privacy-by-Design).
-   * Sendet kompakte EXIF-korrekte JPEG-Frames über `realtimeInput.video` an den Gemini-3.1-Live-Stream und schießt auf Sprachbefehl (`falcon_camera_control(action="take_photo")`) selbstständig hochauflösende `1440px`-Fotos, die direkt an Entwicklungsaufträge (`falcon_send_to_antigravity(attach_captured_photo=true)`) angehängt werden können.
-3. **Lokale Echtzeit-App- & Musik-Steuerung (`< 50 ms`):**
-   * `falcon_music_control` steuert `MusicPlayerManager` inkl. intelligentem Sport-/Playlist-Matcher und Audio-Ducking während Falcon spricht.
-   * `falcon_app_navigate` wechselt nahtlos in jede Funkenwerk-Ansicht (`Dashboard`, `Beleg-Scanner`, `Finanzen`, `Bestellungen`, `Mails`, `Kalender`, `Aufgaben`, `Musik`), während oben rechts jederzeit per 1-Tap zwischen `3D-Falcon` und `Dashboard` gewechselt werden kann.
+   * Detailliertes 3D-Modell von **Falcone** (`FALCONE / Mitgründer`, sichtbarer artikulierter 2-Ring-Hals, Gentleman-Frisur, 3D-Monokel mit mitschwingender Goldkette, `768x480` Retina-Display-Gesicht vor der Gehäusewand mit Echtzeit-Lippensynchronisation, Pinch-to-Zoom, tiefer `#080A10` Schwarz-Gold-Bühne und symmetrischer Gentleman-Ruhepose auf Gürtelhöhe).
+2. **4-Faktor Trusted Fast-Unlock & Master-Widget-Direktstart (`SecurityIntentHelper.kt`, `MasterWidgetProvider.kt`):**
+   * Wird die App über `"Hey Falcone"` oder ein kryptografisch signiertes Homescreen-Widget (`_fw_sec_token`) geöffnet, während das Android-Gerät selbst bereits entsperrt ist (`!KeyguardManager.isDeviceLocked`), öffnet sie sofort ohne doppelte Fingerabdruck-Abfrage; bei gesperrtem Smartphone bleibt der Schutz strikt aktiv.
+   * Direkt oben im Homescreen-`MasterWidget` sitzt der goldene **1-Tap `Falcone`-Button** (`btn_master_falcone`).
+3. **Nahtloses Mid-Call Auto-Reconnect, 2-Minuten-Ruhewächter, Smart-Home & Kamera-Augen:**
+   * Transiente WebSocket-Unterbrechungen verbinden sich im selben Gesprächsverlauf (`chatSessionId`) automatisch neu; nach 2 Minuten Stille fragt Falcone höflich nach und beendet das Gespräch nach weiteren 25 Sekunden sauber.
+   * `falcon_smarthome_control` schaltet lokale KLAP-v2-Steckdosen & Lichterketten (`Fußleisten Lichterkette`, `Spiegel Lichterkette`), `falcon_music_control` steuert Musik inkl. Audio-Ducking, `FalconCameraController.kt` liefert Opt-in-Kamera-Sicht + eigenständiges `take_photo`, und `falcon_send_to_antigravity` sowie `AgDirectBottomSheets.kt` routen direkt in die **5 Abteilungs-Kanäle** (`👑 Leitung`, `🛍️ Shop`, `📱 Android`, `🖥️ Mini-PC`, `💶 Buchhaltung`, `➕ Neu`).
 
 ---
 
-## 4. Mini-PC (`192.168.188.151`): Die 3D-Wasserstadt „Funkenwerk“
+## 4. Mini-PC (`192.168.188.151`) & Kundenportal: Die 3D-Wasserstadt „Funkenwerk“ & „Halle der Helden“
 
-Auf dem Werkstatt Mini-PC (`FunkenwerkOS.Linux`) öffnet der minimalistische Schwarz-Gold-Button **`Funkenwerk`** unten rechts ([`index.html`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/funkenwerk-os-linux/wwwroot/index.html), [`funkenwerk_city_3d.js`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/funkenwerk-os-linux/wwwroot/funkenwerk_city_3d.js)) die dreistufige 3D-Unternehmenswelt:
+Auf dem Werkstatt Mini-PC (`FunkenwerkOS.Linux`) sowie kundenisoliert im Shop ([`funkenwerk-heroes-3d.js`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/public/js/funkenwerk-heroes-3d.js), [`FunkenwerkHeroesController.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Http/Controllers/Api/FunkenwerkHeroesController.php)) lebt die 3D-Unternehmenswelt:
 
-1. **Orbital-Anflug aus dem Funken-Universum:** Start vor dem atmosphärisch leuchtenden Ozean-Planeten im Sternenfeld mit butterweichem 6-Sekunden-Anflug durch die Wolkenschicht auf den glitzernden GLSL-Ozean.
-2. **Stargate-Atlantis-Metropole auf dem Wasser (`THREE.InstancedMesh` für 60 FPS):**
-   * Zentraler 328 m hoher 24K-Gold- & Obsidian-Hauptturm (Burj Khalifa × Avengers Stark Tower) mit groß leuchtender Fassaden-Inschrift **`MEIN SEELENFUNKE`**.
-   * **7 sternförmige Abteilungs-Piers** mit zwei konzentrischen Ringbrücken, 14 Hafenbecken und 84 animierten Gold-Gleitern in 90 % Gold/Anthrazit plus 10 % dezenten Portal-Abteilungsfarben (`#06B6D4` Support, `#3B82F6` Produkte, `#A855F7` Marketing, `#F59E0B` Bestellungen, `#10B981` Buchhaltung, `#6366F1` Agenten, `#EF4444` System).
-3. **Penthouse-Thronsaal an der Turmspitze (`👑 Thronsaal`):**
-   * 360°-Panorama-Glasrotunde hoch über Stadt und Meer; zentral auf königsrotem Samt-Teppichläufer steht **Alinas Hauptthron** (`ALINA · Herrscherin über das Seelenfunken-Universum`), rechts daneben **Falcons Rechte-Hand-Thron** inklusive 3D-Falcon-Figur.
-   * Beim Schließen (`✕` / `Esc`) stoppt die Render-Schleife vollständig auf `0 % CPU/GPU-Last`.
+1. **Orbital-Anflug & Stargate-Atlantis-Metropole (`THREE.InstancedMesh` für 60 FPS):**
+   * Zentraler 328 m hoher 24K-Gold- & Obsidian-Hauptturm mit leuchtender Inschrift **`MEIN SEELENFUNKE`**, 7 sternförmigen Abteilungs-Piers und 84 animierten Gold-Gleitern auf einem 6-Wellen-GLSL-Ozean.
+2. **Monumentale `🏛️ Halle der Helden` mit echten 3D-Funki-Figuren (Level 1 bis 10):**
+   * Offenes 24K-Gold-Pantheon am vorderen Pracht-Pier mit **100 % unverdeckter Sichtachse** auf den Schriftzug **`HALLE DER HELDEN`** (`domeBaseY = entY + 4.35`, versetzte Kuppel-Rippen) und kontraststarkem **hellem Carrara-Alabaster-Marmorboden** (`#ECEAE4` / `#E2DFD7` mit Saphir-Einfassung `#133B5C`).
+   * **Alle 10 Funki-Evolutionsstufen (`Level 1` bis `Level 10`) als echte 3D-Modelle:** Dynamisch je nach `hero.level` vom sitzenden Level-1-Funki mit Sackleinen & verwelkter Goldblume über Ritter-/Paladin-/Drachen-Goldrüstung bis zum Level-10-Seelengott in 24K-Gold & Amethyst-Kristallrüstung mit violetten Augen, gekreuzten `X`-Kristalllanzen und Armklingen (DSGVO-Zero-PII via `/funkenwerk-welt/heroes-data`, nur `ranking_opt_in = true`; unbesetzte Plätze ehrlich als `Freier Ehrenplatz`).
+3. **Penthouse-Thronsaal an der Turmspitze (`👑 Thronsaal`, exklusiv auf Mini-PC):**
+   * 360°-Panorama-Glasrotunde mit **Alinas Hauptthron** (`ALINA · Herrscherin über das Seelenfunken-Universum`) auf karmesinrotem Samtläufer und **Falcones Rechte-Hand-Thron**; im öffentlichen Shop-Frontend ist der private Thronsaal vollständig entfernt.
 
 ---
 
 ## 5. Sicherheits-Audit & Testnachweise (100 % Grün)
 
-* **Rollen- & Token-Isolation:** Gäste (`401`), Kunden (`403`), externe Rollen (`influencer`, `tax_advisor` -> `403`) sowie eingeschränkte `monitor:pulse`-Tokens (`403`) sind auf allen Falcon- und Inbox-Endpunkten strikt gesperrt; Kunden-Agent `Funki` bleibt zu 100 % air-gapped.
-* **Shell-, Datei- & WebView-Härtung:** `ProcessStartInfo.ArgumentList` mit `UseShellExecute = false` in `FunkenwerkMcp`; `finfo`- + `getimagesizefromstring`-Prüfung und `realpath`-Jail gegen Polyglots/Path-Traversal; Android-3D-WebView ohne Netzwerkzugriff (`blockNetworkLoads = true`); Kamera strikt Opt-in mit sichtbarem Live-PIP-Indikator; lokale Offline-Outbox AES-256-GCM-verschlüsselt.
+* **Rollen-, DSGVO- & Token-Isolation:** Gäste (`401`), Kunden (`403`), externe Rollen (`influencer`, `tax_advisor` -> `403`) sowie eingeschränkte `monitor:pulse`-Tokens (`403`) sind auf allen Falcone- und Inbox-Endpunkten strikt gesperrt; `/funkenwerk-welt/heroes-data` liefert `0` PII (nur `ranking_opt_in = true`); Wartungsmodus (`EnforceShopMaintenanceMode.php`) liefert für Gäste `HTTP 503` im Light-Mode mit § 5 DDG-Impressum bei 100 % freiem Admin-/API-Zugang.
+* **Shell-, Deploy- & Fast-Unlock-Härtung:** `ProcessStartInfo.ArgumentList` mit `UseShellExecute = false` und `StageDeployMutex` in `FunkenwerkMcp` v1.8; 4-Faktor Fast-Unlock blockiert gesperrte Geräte (`isDeviceLocked == true`) und unsignierte Dritt-Intents vollständig.
 * **Automatisierte Test-Suiten:**
-  * **Laravel-Portal (`mein_php_server`):** `18 / 18` Feature-Tests (`394` Assertions) in [`FalconSupremeExecutiveBrainTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/FalconSupremeExecutiveBrainTest.php), [`FunkiraSkillPoolAndFunkiIsolationTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/FunkiraSkillPoolAndFunkiIsolationTest.php), [`AntigravityDirectInboxTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Api/AntigravityDirectInboxTest.php) & [`MasterNextBestActionTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/MasterNextBestActionTest.php) + `93 / 93` Routen grün (`laravel.log = 0 Bytes`).
-  * **Funkenwerk Android (`v1.8.0`, Build `24`):** `65 / 65` Unit-Tests in 11 Test-Suites grün (inkl. [`FalconClientToolsAndMusicMatcherTest.kt`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/android-app/app/src/test/java/de/meinseelenfunke/app/util/FalconClientToolsAndMusicMatcherTest.kt) & [`AgDirectInboxManagerTest.kt`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/android-app/app/src/test/java/de/meinseelenfunke/app/util/AgDirectInboxManagerTest.kt)), 1:1 Mirror-Sync nach [`seelenfunke-android`](file:///C:/Users/konta/AndroidStudioProjects/seelenfunke-android) (`0` Abweichungen) sowie signierter Release-APK-Rollout auf Stage OTA.
-  * **Werkstatt Mini-PC (`FunkenwerkOS.Linux`):** `44 / 44` `--self-test`-Prüfungen grün, live auf `192.168.188.151` ausgerollt (`sentinel_history.json = 0 Bytes`).
-  * **Funkenwerk MCP & Sidecar-Brücke:** `51 / 51` `--self-test`-Prüfungen grün.
+  * **Laravel-Portal (`mein_php_server`):** `28 / 28` Feature-Tests (`562` Assertions) in [`FunkenwerkHallOfHeroesAndProductFocusTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Gamification/FunkenwerkHallOfHeroesAndProductFocusTest.php), [`AntigravityDirectInboxTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Api/AntigravityDirectInboxTest.php) & [`OrderSmartBatchSortingAndFunkiDirectiveTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Order/OrderSmartBatchSortingAndFunkiDirectiveTest.php) + `16 / 16` Wartungsmodus-Tests + `94 / 94` Routen grün (`laravel.log = 0 Bytes`).
+  * **Funkenwerk Android (`v1.8.5`, Build `29`):** `71 / 71` Unit-Tests in `11` Test-Suiten grün, 1:1 Mirror-Sync nach [`seelenfunke-android`](file:///C:/Users/konta/AndroidStudioProjects/seelenfunke-android) (`0` Abweichungen) sowie 4096-Bit-RSA-signierter Release-APK-Rollout auf Stage OTA.
+  * **Werkstatt Mini-PC (`FunkenwerkOS.Linux`):** `46 / 46` `--self-test`-Prüfungen grün (inkl. Stage-xTool-Laser-Relay & 3D-Halle der Helden), live auf `192.168.188.151` ausgerollt (`sentinel_history.json = 0 Bytes`).
+  * **Funkenwerk MCP & Sidecar-Brücke (`v1.8`):** `60 / 60` `--self-test`-Prüfungen grün (inkl. `--sentinel-hourly-guard`, 5-Kanal-Routing & `StageDeployMutex`).

@@ -3030,6 +3030,8 @@
       openFunkenwerkCity('orbit');
     } else if (act === 'open_funkenwerk_city_overview') {
       openFunkenwerkCity('city');
+    } else if (act === 'open_hall_of_heroes') {
+      openFunkenwerkCity('heroes');
     } else if (act === 'open_throne_room') {
       openFunkenwerkCity('throne');
     } else if (act === 'close_funkenwerk_city') {
@@ -3438,6 +3440,7 @@
         }
         if (d && d.cityVoiceCommand) {
           if (d.cityVoiceCommand === 'open_throne_room') openFunkenwerkCity('throne');
+          else if (d.cityVoiceCommand === 'open_hall_of_heroes') openFunkenwerkCity('heroes');
           else if (d.cityVoiceCommand === 'close_funkenwerk_city') closeFunkenwerkCity();
           else openFunkenwerkCity('orbit');
         } else if (d && d.focusVoiceCommand && document.body.classList.contains('focus-mode') && !funkiraStageOpen) {
@@ -5481,6 +5484,8 @@
         openFunkenwerkCity('orbit');
       } else if (data.pendingCityAction === 'city') {
         openFunkenwerkCity('city');
+      } else if (data.pendingCityAction === 'heroes') {
+        openFunkenwerkCity('heroes');
       } else if (data.pendingCityAction === 'throne') {
         openFunkenwerkCity('throne');
       } else if (data.pendingCityAction === 'close' && funkenwerkCityOpen) {
