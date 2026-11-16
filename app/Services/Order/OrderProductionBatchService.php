@@ -454,7 +454,7 @@ class OrderProductionBatchService
         array $productStats,
         ?string $effectiveFocusProductId
     ): array {
-        $ordNo = e('#' . $order->order_number);
+        $focusLabel = e($order->getProductionFocusLabel());
         $cust = e($order->customer_name);
         $packWord = $a['can_fit_envelope'] ? 'Luftpolstertasche' : 'Versandkarton';
         $mfg = $a['manufacturing_overview'] ?? $order->getManufacturingOverview();
@@ -479,10 +479,10 @@ class OrderProductionBatchService
         // 1. Rein digitale Bestellung (Kompatibel mit bestehendem Test '⚡ DIGITALE BEREITSTELLUNG')
         if ($a['is_only_digital']) {
             if ($a['is_paid']) {
-                $actionHtml = "Keine Handarbeit nötig: Digitale Bestellung <strong class=\"text-gray-900 dark:text-white font-bold\">{$ordNo}</strong> ({$cust}) ist bereitgestellt, setze den Status auf <strong class=\"text-emerald-600 dark:text-emerald-400 font-bold\">„Abgeschlossen“</strong>.";
+                $actionHtml = "Keine Handarbeit nötig: <strong class=\"text-gray-900 dark:text-white font-bold\">{$focusLabel}</strong> ({$cust}) ist digital bereitgestellt, setze den Status auf <strong class=\"text-emerald-600 dark:text-emerald-400 font-bold\">„Abgeschlossen“</strong>.";
                 $tipHtml = '<span class="text-blue-600 dark:text-blue-400 font-black">⚡ DIGITALE BEREITSTELLUNG:</span> Ausschließlich digitale Dateien, die Auslieferung erfolgt automatisch über das Kundenportal.';
             } else {
-                $actionHtml = "Zahlung abwarten: Prüfe den Zahlungseingang für die digitale Bestellung <strong class=\"text-gray-900 dark:text-white font-bold\">{$ordNo}</strong> ({$cust}) und buche sie auf <strong class=\"text-gray-900 dark:text-white font-bold\">„Bezahlt“</strong>.";
+                $actionHtml = "Zahlung abwarten: Prüfe den Zahlungseingang für <strong class=\"text-gray-900 dark:text-white font-bold\">{$focusLabel}</strong> ({$cust}) und buche auf <strong class=\"text-gray-900 dark:text-white font-bold\">„Bezahlt“</strong>.";
                 $tipHtml = '<span class="text-blue-600 dark:text-blue-400 font-black">⚡ DIGITALE BEREITSTELLUNG:</span> Nach Zahlungsfreigabe werden alle Downloads vollautomatisch im Kundenkonto freigeschaltet.';
             }
 
@@ -500,7 +500,7 @@ class OrderProductionBatchService
             $item = $a['critical_stock_items'][0];
             $pName = e($item['product_name']);
             $qty = (int) $item['remaining_qty'];
-            $actionHtml = "Lagerbestand sofort prüfen: Für <strong class=\"text-gray-900 dark:text-white font-bold\">{$ordNo}</strong> ({$cust}) fehlen physisch <strong class=\"text-red-500 font-bold\">{$qty}× „{$pName}“</strong> im Bestand.";
+            $actionHtml = "Lagerbestand sofort prüfen: Es fehlen physisch <strong class=\"text-red-500 font-bold\">{$qty}× „{$pName}“</strong> ({$cust}) im Bestand.";
             $tipHtml = '<span class="text-red-500 font-bold">Lagerbestand kritisch:</span> Prüfe den realen Regalbestand oder bestelle den Rohling vor Produktionsbeginn nach.';
 
             return [
@@ -515,7 +515,7 @@ class OrderProductionBatchService
         // 3. Noch unbezahlte Bestellung (Vorkasse / Zahlung offen)
         if ($a['stage'] === 'blocked_unpaid') {
             $prefix = $a['is_express'] ? 'Express-Zahlung prüfen' : 'Noch nicht lasern (Zahlung offen)';
-            $actionHtml = "{$prefix}: Kontrolliere den Geldeingang für <strong class=\"text-gray-900 dark:text-white font-bold\">{$ordNo}</strong> ({$cust}) und klicke erst bei Eingang auf <strong class=\"text-emerald-600 dark:text-emerald-400 font-bold\">„Bezahlt“</strong>.";
+            $actionHtml = "{$prefix}: Kontrolliere den Geldeingang für <strong class=\"text-gray-900 dark:text-white font-bold\">{$focusLabel}</strong> ({$cust}) und klicke erst bei Eingang auf <strong class=\"text-emerald-600 dark:text-emerald-400 font-bold\">„Bezahlt“</strong>.";
             $tipHtml = $a['is_express']
                 ? '<span class="text-amber-600 dark:text-amber-400 font-bold">Express wartet auf Zahlung:</span> Sobald als bezahlt markiert, startet sofort die priorisierte Fertigung.'
                 : 'Alle bezahlten Lager-Aufträge sind bereits abgearbeitet, dieser Auftrag wartet aktuell nur noch auf den Zahlungseingang.';
@@ -532,11 +532,11 @@ class OrderProductionBatchService
         // 4. Alle Positionen bereits fertig gelasert/gepackt -> Nur noch Versand / Label!
         if ($a['stage'] === 'ready_ship') {
             if ($a['has_printable_label']) {
-                $actionHtml = "Fertig produziert, jetzt versenden: Drucke das fertige DHL-Label für <strong class=\"text-gray-900 dark:text-white font-bold\">{$ordNo}</strong> ({$cust}) auf dem MUNBYN, klebe es auf die {$packWord} und stelle auf <strong class=\"text-purple-600 dark:text-purple-400 font-bold\">„Versendet“</strong>.";
+                $actionHtml = "Fertig produziert, jetzt versenden: Drucke das fertige DHL-Label für <strong class=\"text-gray-900 dark:text-white font-bold\">{$focusLabel}</strong> ({$cust}) auf dem MUNBYN, klebe es auf die {$packWord} und stelle auf <strong class=\"text-purple-600 dark:text-purple-400 font-bold\">„Versendet“</strong>.";
                 $tipHtml = '<span class="text-emerald-600 dark:text-emerald-400 font-bold">Versandbereit:</span> Alle Positionen sind abgehakt und das DHL-Etikett liegt druckbereit für Funkenwerk vor.';
                 $badgeLabel = 'Label drucken';
             } else {
-                $actionHtml = "Fertig gelasert, Label erstellen: Öffne <strong class=\"text-gray-900 dark:text-white font-bold\">{$ordNo}</strong> ({$cust}), verpacke die Ware ({$packWord}) und klicke oben rechts auf <strong class=\"text-gray-900 dark:text-white font-bold\">„DHL Label“</strong>.";
+                $actionHtml = "Fertig gelasert, Label erstellen: Verpacke <strong class=\"text-gray-900 dark:text-white font-bold\">{$focusLabel}</strong> ({$cust}) in {$packWord} und klicke oben rechts auf <strong class=\"text-gray-900 dark:text-white font-bold\">„DHL Label“</strong>.";
                 $tipHtml = '<span class="text-emerald-600 dark:text-emerald-400 font-bold">Produktion erledigt:</span> Alle Artikel in diesem Auftrag sind bereits fertiggestellt, es fehlt nur noch das Versandlabel.';
                 $badgeLabel = 'Versandfertig';
             }
@@ -568,24 +568,24 @@ class OrderProductionBatchService
                 : 'und hake die Position ab';
 
             if ($a['is_express']) {
-                $actionHtml = "Express sofort lasern: Öffne <strong class=\"text-gray-900 dark:text-white font-bold\">{$ordNo}</strong> ({$cust}), graviere <strong class=\"text-gray-900 dark:text-white font-bold\">{$qty}× „{$pName}“</strong> ({$setupInstruction}) {$followStep}.";
+                $actionHtml = "Express sofort lasern: Graviere <strong class=\"text-gray-900 dark:text-white font-bold\">{$qty}× „{$pName}“</strong> ({$setupInstruction}, {$cust}) {$followStep}.";
                 $tipHtml = "<span class=\"text-emerald-600 dark:text-emerald-400 font-bold\">Lagerbestand gesichert:</span> Priorisierter Express-Auftrag · Verpackung danach: {$packWord}.";
                 $badgeLabel = 'Express-Laser';
             } elseif ($isActiveFocus && $remainingOtherOrders > 0) {
                 $weiterWort = $remainingOtherOrders === 1 ? 'wartet noch 1 weiterer Auftrag' : "warten noch {$remainingOtherOrders} weitere Aufträge";
-                $actionHtml = "Laser-Serie ohne Umbau fortsetzen: Graviere direkt <strong class=\"text-gray-900 dark:text-white font-bold\">{$qty}× „{$pName}“</strong> ({$setupInstruction}) für <strong class=\"text-gray-900 dark:text-white font-bold\">{$ordNo}</strong>, danach {$weiterWort} mit demselben Artikel.";
+                $actionHtml = "Laser-Serie ohne Umbau fortsetzen: Graviere direkt <strong class=\"text-gray-900 dark:text-white font-bold\">{$qty}× „{$pName}“</strong> ({$setupInstruction}, {$cust}), danach {$weiterWort} mit demselben Artikel.";
                 $tipHtml = "<span class=\"text-emerald-600 dark:text-emerald-400 font-bold\">Rüstzeit-Vorteil aktiv:</span> Dein Laser bleibt unverändert eingerichtet ({$readyUnitsForProduct}× „{$pName}“ über {$readyOrdersForProduct} Aufträge gebündelt).";
                 $badgeLabel = "Serie: {$readyUnitsForProduct}× {$pName}";
             } elseif ($isActiveFocus && $remainingOtherOrders === 0) {
-                $actionHtml = "Letztes Stück der Serie: Graviere jetzt <strong class=\"text-gray-900 dark:text-white font-bold\">{$qty}× „{$pName}“</strong> ({$setupInstruction}) für <strong class=\"text-gray-900 dark:text-white font-bold\">{$ordNo}</strong> {$followStep}.";
+                $actionHtml = "Letztes Stück der Serie: Graviere jetzt <strong class=\"text-gray-900 dark:text-white font-bold\">{$qty}× „{$pName}“</strong> ({$setupInstruction}, {$cust}) {$followStep}.";
                 $tipHtml = "<span class=\"text-emerald-600 dark:text-emerald-400 font-bold\">Serien-Abschluss:</span> Nach dieser Bestellung sind alle offenen „{$pName}“-Gravuren komplett erledigt.";
                 $badgeLabel = 'Letztes Serien-Stück';
             } elseif ($remainingOtherOrders > 0) {
-                $actionHtml = "Serie starten ({$readyOrdersForProduct} Aufträge gebündelt): Rüste auf <strong class=\"text-gray-900 dark:text-white font-bold\">{$setupInstruction}</strong> und lasere zuerst <strong class=\"text-gray-900 dark:text-white font-bold\">{$qty}× „{$pName}“</strong> für <strong class=\"text-gray-900 dark:text-white font-bold\">{$ordNo}</strong> ({$cust}).";
+                $actionHtml = "Serie starten ({$readyOrdersForProduct} Aufträge gebündelt): Lasere zuerst <strong class=\"text-gray-900 dark:text-white font-bold\">{$qty}× „{$pName}“</strong> ({$cust}) auf <strong class=\"text-gray-900 dark:text-white font-bold\">{$setupInstruction}</strong>.";
                 $tipHtml = "<span class=\"text-emerald-600 dark:text-emerald-400 font-bold\">Smart-Sortierung aktiv:</span> {$readyOrdersForProduct} Bestellungen mit insgesamt {$readyUnitsForProduct}× „{$pName}“ liegen direkt untereinander, damit du nur einmal einrichten musst.";
                 $badgeLabel = "Serie: {$readyUnitsForProduct}× {$pName}";
             } else {
-                $actionHtml = "Jetzt lasern: Öffne <strong class=\"text-gray-900 dark:text-white font-bold\">{$ordNo}</strong> ({$cust}), graviere <strong class=\"text-gray-900 dark:text-white font-bold\">{$qty}× „{$pName}“</strong> ({$setupInstruction}) {$followStep}.";
+                $actionHtml = "Jetzt lasern: Graviere <strong class=\"text-gray-900 dark:text-white font-bold\">{$qty}× „{$pName}“</strong> ({$setupInstruction}, {$cust}) {$followStep}.";
                 $tipHtml = $a['is_aging_sla']
                     ? "<span class=\"text-amber-600 dark:text-amber-400 font-bold\">Frist-Priorität:</span> Auftrag wartet seit über 48 Std. und wurde zum Schutz der Lieferzeit nach oben gezogen · Verpackung: {$packWord}."
                     : "<span class=\"text-emerald-600 dark:text-emerald-400 font-bold\">Sofort startklar:</span> Bezahlt & auf Lager · Nach dem Lasern direkt in {$packWord} verpacken.";
@@ -606,7 +606,7 @@ class OrderProductionBatchService
             $item = $a['recommended_item'];
             $pName = e($item['product_name']);
             $qty = (int) $item['remaining_qty'];
-            $actionHtml = "Kein Laser nötig: Nimm <strong class=\"text-gray-900 dark:text-white font-bold\">{$qty}× „{$pName}“</strong> für <strong class=\"text-gray-900 dark:text-white font-bold\">{$ordNo}</strong> ({$cust}) aus dem Lagerregal, verpacke in {$packWord} und klicke auf <strong class=\"text-gray-900 dark:text-white font-bold\">„DHL Label“</strong>.";
+            $actionHtml = "Kein Laser nötig: Nimm <strong class=\"text-gray-900 dark:text-white font-bold\">{$qty}× „{$pName}“</strong> ({$cust}) aus dem Lagerregal, verpacke in {$packWord} und klicke auf <strong class=\"text-gray-900 dark:text-white font-bold\">„DHL Label“</strong>.";
             $tipHtml = '<span class="text-emerald-600 dark:text-emerald-400 font-bold">Schnell-Versand (Lagerware):</span> Keine Gravur erforderlich, direkt am Packtisch abwickeln.' . $extraSuffixHtml;
 
             return [
@@ -624,7 +624,7 @@ class OrderProductionBatchService
             $pName = e($item['product_name']);
             $mQty = (int) $item['missing_supplier_qty'];
             $supName = e($item['supplier_name']);
-            $actionHtml = "Jetzt Rohling nachbestellen: Öffne <strong class=\"text-gray-900 dark:text-white font-bold\">{$ordNo}</strong> ({$cust}), bestelle <strong class=\"text-amber-600 dark:text-amber-400 font-bold\">{$mQty}× „{$pName}“</strong> per 1-Klick-Kauflink bei <strong class=\"text-gray-900 dark:text-white font-bold\">{$supName}</strong> und setze den Haken „Rohling bestellt“.";
+            $actionHtml = "Jetzt Rohling nachbestellen: Bestelle <strong class=\"text-amber-600 dark:text-amber-400 font-bold\">{$mQty}× „{$pName}“</strong> ({$cust}) per 1-Klick-Kauflink bei <strong class=\"text-gray-900 dark:text-white font-bold\">{$supName}</strong> und setze den Haken „Rohling bestellt“.";
             $tipHtml = '<span class="text-amber-600 dark:text-amber-400 font-bold">Auftragsfertigung (Bestand 0):</span> Nach dem Setzen des Hakens rückt der Auftrag sauber in den Wartebereich, bis die Lieferung eintrifft.';
 
             return [
@@ -640,7 +640,8 @@ class OrderProductionBatchService
         if ($a['stage'] === 'blocked_photo_issue' && !empty($a['photo_issue_items'])) {
             $item = $a['photo_issue_items'][0];
             $pName = e($item['product_name']);
-            $actionHtml = "Pausiert wegen Kundenfoto: Prüfe in <strong class=\"text-gray-900 dark:text-white font-bold\">{$ordNo}</strong> ({$cust}), ob für <strong class=\"text-gray-900 dark:text-white font-bold\">„{$pName}“</strong> ein neues Foto vorliegt, oder warte auf die Rückmeldung.";
+            $qty = max(1, (int) ($item['remaining_qty'] ?? 1));
+            $actionHtml = "Pausiert wegen Kundenfoto: Prüfe für <strong class=\"text-gray-900 dark:text-white font-bold\">{$qty}× „{$pName}“</strong> ({$cust}), ob ein neues Foto vorliegt, oder warte auf die Rückmeldung.";
             $tipHtml = '<span class="text-amber-600 dark:text-amber-400 font-bold">Wartet auf Kunden-Korrektur:</span> Alle sofort fertigbaren Aufträge sind bereits erledigt.';
 
             return [
@@ -656,8 +657,9 @@ class OrderProductionBatchService
         if ($a['stage'] === 'blocked_supplier_wait' && !empty($a['waiting_supplier_items'])) {
             $item = $a['waiting_supplier_items'][0];
             $pName = e($item['product_name']);
+            $qty = max(1, (int) ($item['remaining_qty'] ?? 1));
             $supName = e($item['supplier_name']);
-            $actionHtml = "Warten auf Wareneingang: Für <strong class=\"text-gray-900 dark:text-white font-bold\">{$ordNo}</strong> ({$cust}) ist <strong class=\"text-gray-900 dark:text-white font-bold\">„{$pName}“</strong> bei {$supName} im Zulauf, erst nach Anlieferung lasern.";
+            $actionHtml = "Warten auf Wareneingang: <strong class=\"text-gray-900 dark:text-white font-bold\">{$qty}× „{$pName}“</strong> ({$cust}) ist bei {$supName} im Zulauf, erst nach Anlieferung lasern.";
             $tipHtml = '<span class="text-sky-600 dark:text-sky-400 font-bold">Rohling unterwegs:</span> Alle sofort verfügbaren Lager-Aufträge sind bereits abgearbeitet.';
 
             return [
@@ -670,7 +672,7 @@ class OrderProductionBatchService
         }
 
         // 10. Fallback (z. B. Bestellung ohne Positionen)
-        $actionHtml = "Jetzt Auftrag prüfen: Öffne <strong class=\"text-gray-900 dark:text-white font-bold\">{$ordNo}</strong> ({$cust}), kontrolliere die Details und schließe den Versand ab.";
+        $actionHtml = "Jetzt Auftrag prüfen: Kontrolliere <strong class=\"text-gray-900 dark:text-white font-bold\">{$focusLabel}</strong> ({$cust}) und schließe den Versand ab.";
         $tipHtml = $a['is_express']
             ? '<span class="text-emerald-600 dark:text-emerald-400 font-bold">Lagerbestand gesichert!</span> Dieser Express-Versand kann sofort abgewickelt werden.'
             : 'Dieser Auftrag liegt aktuell an oberster Stelle deiner Bearbeitungsliste.';
@@ -960,7 +962,7 @@ class OrderProductionBatchService
             : $order->shipments()->exists();
         $hasDhlLabel = !empty($a['has_printable_label']) || $hasShipmentAny;
         $statusLabel = self::statusLabelDe($status);
-        $ordNo = '#' . $order->order_number;
+        $focusLabel = $order->getProductionFocusLabel();
 
         // 1. Alle physischen Positionen abgehakt + DHL-Label vorhanden, Status aber noch pending/processing
         if ($totalItems > 0 && $completedItems >= $totalItems && empty($a['is_only_digital']) && $hasDhlLabel) {
@@ -970,7 +972,7 @@ class OrderProductionBatchService
                 'suggested_status' => 'shipped',
                 'suggested_status_label' => 'Versendet',
                 'ui_hint' => "Alle Positionen abgehakt und DHL-Label erstellt, Status steht noch auf „{$statusLabel}“.",
-                'ask_alina_prompt' => "Mir ist bei {$ordNo} aufgefallen: Alle Positionen sind abgehakt und das DHL-Label ist bereits erstellt, der Status steht aber noch auf '{$statusLabel}'. Soll ich die Bestellung jetzt für dich auf 'Versendet' umstellen (dann geht auch die Versandmail an den Kunden raus), oder liegt das Paket noch am Packtisch?",
+                'ask_alina_prompt' => "Mir ist bei {$focusLabel} aufgefallen: Alle Positionen sind abgehakt und das DHL-Label ist bereits erstellt, der Status steht aber noch auf '{$statusLabel}'. Soll ich die Bestellung jetzt für dich auf 'Versendet' umstellen (dann geht auch die Versandmail an den Kunden raus), oder liegt das Paket noch am Packtisch?",
             ];
         }
 
@@ -982,7 +984,7 @@ class OrderProductionBatchService
                 'suggested_status' => 'completed',
                 'suggested_status_label' => 'Abgeschlossen',
                 'ui_hint' => "Bezahlte Digital-Bestellung steht noch auf „{$statusLabel}“.",
-                'ask_alina_prompt' => "Mir ist bei {$ordNo} aufgefallen: Es ist eine bezahlte Digital-Bestellung, der Status steht aber noch auf '{$statusLabel}'. Soll ich den Status für dich auf 'Abgeschlossen' stellen?",
+                'ask_alina_prompt' => "Mir ist bei {$focusLabel} aufgefallen: Es ist eine bezahlte Digital-Bestellung, der Status steht aber noch auf '{$statusLabel}'. Soll ich den Status für dich auf 'Abgeschlossen' stellen?",
             ];
         }
 
@@ -999,7 +1001,7 @@ class OrderProductionBatchService
                 'suggested_status' => 'processing',
                 'suggested_status_label' => 'In Bearbeitung',
                 'ui_hint' => 'Fertigung gestartet, Status steht noch auf „Wartend“.',
-                'ask_alina_prompt' => "Mir ist aufgefallen, {$ordNo} steht im System noch auf 'Wartend', obwohl du daran arbeitest. Soll ich den Status für dich auf 'In Bearbeitung' anpassen?",
+                'ask_alina_prompt' => "Mir ist aufgefallen, {$focusLabel} steht im System noch auf 'Wartend', obwohl du daran arbeitest. Soll ich den Status für dich auf 'In Bearbeitung' anpassen?",
             ];
         }
 
@@ -1011,7 +1013,7 @@ class OrderProductionBatchService
                 'suggested_status' => 'pending',
                 'suggested_status_label' => 'Wartend',
                 'ui_hint' => 'Wartet auf Rückmeldung oder Zulieferung, Status steht aktuell auf „In Bearbeitung“.',
-                'ask_alina_prompt' => "Mir ist aufgefallen, bei {$ordNo} wartest du aktuell auf eine Rückmeldung oder Zulieferung, der Status steht aber auf 'In Bearbeitung'. Soll ich ihn solange zurück auf 'Wartend' stellen oder auf 'In Bearbeitung' lassen?",
+                'ask_alina_prompt' => "Mir ist aufgefallen, bei {$focusLabel} wartest du aktuell auf eine Rückmeldung oder Zulieferung, der Status steht aber auf 'In Bearbeitung'. Soll ich ihn solange zurück auf 'Wartend' stellen oder auf 'In Bearbeitung' lassen?",
             ];
         }
 
@@ -1061,15 +1063,7 @@ class OrderProductionBatchService
             : $order->shipments()->exists();
         $hasDhlLabel = !empty($a['has_printable_label']) || $hasShipmentAny;
 
-        $productParts = [];
-        foreach ($order->items->take(3) as $item) {
-            $pName = trim((string) ($item->product_name ?: ($item->product->name ?? 'Artikel')));
-            $productParts[] = ((int) $item->quantity) . 'x ' . $pName;
-        }
-        if ($order->items->count() > 3) {
-            $productParts[] = '+' . ($order->items->count() - 3) . ' weitere';
-        }
-        $productSummary = implode(', ', $productParts);
+        $productSummary = $order->getProductionFocusLabel();
 
         $note = trim((string) ($order->workshop_note ?? ''));
         $paused = (bool) ($order->workshop_checkin_paused ?? false);

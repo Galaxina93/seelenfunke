@@ -587,5 +587,26 @@ class SentinelSelfHealingAndInboxTest extends TestCase
 
         $this->assertSame('auto_healed', $cliTypo->triageState());
         $this->assertSame('interactive_cli_typo_handled', $cliTypo->payload['triage']['playbook'] ?? null);
+
+        $agInboxExit1 = SystemLog::create([
+            'type' => 'scheduler',
+            'action_id' => 'scheduler:cronjob_failed:system:ag-inbox',
+            'title' => 'Cronjob fehlgeschlagen: system:ag-inbox (Exit 1)',
+            'message' => "Der Befehl 'system:ag-inbox' wurde mit Fehler-Exit-Code 1 beendet.",
+            'status' => 'error',
+            'payload' => [
+                'platform' => 'portal',
+                'occurrences_count' => 1,
+                'fingerprint' => hash('sha256', 'ag_inbox_' . uniqid()),
+            ],
+            'started_at' => now()->subMinutes(5),
+            'finished_at' => now()->subMinutes(5),
+        ]);
+
+        $statsAg = app(SentinelTriageService::class)->runTriageCycle(probeBridges: false, allowAiEnrichment: false);
+        $agInboxExit1->refresh();
+
+        $this->assertSame('auto_healed', $agInboxExit1->triageState());
+        $this->assertSame('interactive_ag_inbox_reconciled', $agInboxExit1->payload['triage']['playbook'] ?? null);
     }
 }

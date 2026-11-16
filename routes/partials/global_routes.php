@@ -182,6 +182,14 @@ Route::get('/calculator', function () {
     return view('frontend.pages.calculator');
 })->name('calculator');
 
+// 3D-Wasserstadt „Funkenwerk“ & „Halle der Helden“ (DSGVO Zero-PII JSON für Shop & Mini-PC)
+Route::get('/funkenwerk-welt/heroes-data', [\App\Http\Controllers\Api\FunkenwerkHeroesController::class, 'index'])
+    ->middleware('throttle:60,1')
+    ->name('gamification.funkenwerk-heroes.data');
+Route::get('/api/gamification/funkenwerk-heroes', [\App\Http\Controllers\Api\FunkenwerkHeroesController::class, 'index'])
+    ->middleware('throttle:60,1')
+    ->name('gamification.funkenwerk-heroes.api');
+
 // --- 4. Rechtliches & Weiteres ---
 Route::get('/impressum', function () {
     return view('frontend.pages.impressum');

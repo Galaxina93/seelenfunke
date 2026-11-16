@@ -207,7 +207,8 @@ class MasterNextBestActionTest extends TestCase
         $tipsJoined = implode(' | ', $res['smart_objections_and_tips']);
 
         $this->assertStringContainsString('Vorlauf-Einwand', $tipsJoined);
-        $this->assertStringContainsString('#ORD-SUP-101', $tipsJoined);
+        $this->assertStringContainsString('1× Vergoldeter Herz-Anhänger', $tipsJoined);
+        $this->assertStringNotContainsString('#ORD-SUP-101', $tipsJoined);
         $this->assertStringContainsString('Rüstzeit-Hebel', $tipsJoined);
         $this->assertStringContainsString('Weizenglas Seelenfunke', $tipsJoined);
     }

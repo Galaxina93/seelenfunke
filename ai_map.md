@@ -1,5 +1,5 @@
 # Seelenfunke System-Architektur & AI Map (`ai_map.md`)
-> Generiert via `php artisan ai:generate-map` (2026-11-16 13:12)
+> Generiert via `php artisan ai:generate-map` (2026-11-16 15:09)
 
 ## 1. Ökosystem-Pfade & Umgebungen
 - **Hauptportal (`Mein-Seelenfunke`)**: Win-UNC `\\wsl.localhost\Ubuntu\home\ubuntuxina\meine-projekte\seelenfunke` | WSL `/home/ubuntuxina/meine-projekte/seelenfunke` (Docker PHP: `mein_php_server`) | Lokal `http://127.0.0.1` (`http://seelenfunke.test`) | Stage `https://stage.mein-seelenfunke.de` | Live `https://mein-seelenfunke.de`
@@ -89,7 +89,7 @@
 
 ## 6. HTTP-Controller (`app/Http/Controllers/*.php`)
 - **Accounting**: `InvoiceDownloadController`
-- **Api**: `AntigravityDirectInboxController, TelegramAgentController, TwilioCallController, WorkshopFocusApiController`
+- **Api**: `AntigravityDirectInboxController, FunkenwerkHeroesController, TelegramAgentController, TwilioCallController, WorkshopFocusApiController`
 - **Customer**: `CustomerVerificationController, DigitalProductDownloadController, GiftVoucherDownloadController`
 - **Root**: `AIController, CartReminderUnsubscribeController, Controller, GoogleAuthController, NewsletterController, RevocationFileController, RevocationPdfController, SeoController, StripeWebhookController`
 

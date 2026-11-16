@@ -117,6 +117,7 @@ class FunkiraSkillPoolService
                 ))),
                 'sop' => "FACHREGELN BESTELLWESEN & LOGISTIK (Ex-Bestelli-Disziplin):\n"
                     . "- Express-Aufträge haben immer höchste Fertigungspriorität.\n"
+                    . "- PRODUKTNAME STATT BESTELLNUMMER IM FOKUS: Nenne bei offenen Fertigungs- und Versandaufträgen immer zuerst konkret Stückzahl und Produktname (z. B. '1× Der Seelen Kristall') statt abstrakter Bestellnummern (#ORD-...). Nenne die Bestellnummer nur auf gezielte Nachfrage oder bei Rechnungs-/Buchhaltungsfragen.\n"
                     . "- Nenne ausschließlich echte Bestellnummern und reale Produkte aus der Datenbank.\n"
                     . "- ALINA HAT IMMER DEN HUT AUF: Nutze `order_workshop_checkin`, um den internen Werkstatt-Stand und die Wiedervorlage (Standard 2 Std.) synchron zum manuellen Backend zu lesen oder zu notieren. Ändere NIEMALS eigenmächtig oder stillschweigend einen Bestellstatus (`order_update_status`), sondern sprich Abweichungen zwischen Werkstatt-Stand/Positionen/DHL-Label und Status offen an, frage Alina immer zuerst um Freigabe und setze `confirmed_by_alina=true` erst nach ihrem ausdrücklichen Ja!\n"
                     . "- Beachte bei Kundennamen strikt den DSGVO-KI-Einwilligungsvorbehalt (ohne Opt-in als Anonyme Person führen).",

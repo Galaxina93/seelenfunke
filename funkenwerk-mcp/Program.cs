@@ -293,10 +293,26 @@ namespace FunkenwerkMcp
                 return await RunStageSentinelSyncCliAsync(args);
             }
 
+            if (args.Any(a => string.Equals(a, "--sentinel-hourly-guard", StringComparison.OrdinalIgnoreCase)))
+            {
+                return await RunSentinelHourlyGuardCliAsync(args);
+            }
+
             if (args.Any(a => string.Equals(a, "--ag-set-master-chat", StringComparison.OrdinalIgnoreCase)) ||
                 args.Any(a => a.StartsWith("--ag-set-master-chat=", StringComparison.OrdinalIgnoreCase)))
             {
                 return RunAgSetMasterChatCli(args);
+            }
+
+            if (args.Any(a => string.Equals(a, "--ag-list-channels", StringComparison.OrdinalIgnoreCase)))
+            {
+                return RunAgListChannelsCli();
+            }
+
+            if (args.Any(a => string.Equals(a, "--ag-set-channel-chat", StringComparison.OrdinalIgnoreCase)) ||
+                args.Any(a => a.StartsWith("--ag-set-channel-chat=", StringComparison.OrdinalIgnoreCase)))
+            {
+                return RunAgSetChannelChatCli(args);
             }
 
             if (args.Any(a => string.Equals(a, "--ag-inbox-sync", StringComparison.OrdinalIgnoreCase)))
@@ -362,11 +378,122 @@ namespace FunkenwerkMcp
             }
         }
 
+        public const string DefaultStageDeployMutexName = @"Local\FunkenwerkStageDeployLock";
+
+        public sealed class StageDeployMutexLock : IDisposable
+        {
+            private readonly ManualResetEventSlim _releaseSignal = new(false);
+            private readonly Thread _ownerThread;
+            private int _disposed;
+
+            public bool WaitedForContention { get; }
+
+            private StageDeployMutexLock(Thread ownerThread, bool waitedForContention)
+            {
+                _ownerThread = ownerThread;
+                WaitedForContention = waitedForContention;
+            }
+
+            public static async Task<StageDeployMutexLock> AcquireAsync(
+                TimeSpan timeout,
+                string? customMutexName = null,
+                Action<string>? onWaiting = null)
+            {
+                string mutexName = string.IsNullOrWhiteSpace(customMutexName)
+                    ? DefaultStageDeployMutexName
+                    : customMutexName.Trim();
+
+                var readyTcs = new TaskCompletionSource<StageDeployMutexLock>(TaskCreationOptions.RunContinuationsAsynchronously);
+                StageDeployMutexLock? instance = null;
+
+                var thread = new Thread(() =>
+                {
+                    Mutex? mutex = null;
+                    bool acquired = false;
+                    bool waited = false;
+                    try
+                    {
+                        mutex = new Mutex(initiallyOwned: false, name: mutexName);
+                        try
+                        {
+                            acquired = mutex.WaitOne(0);
+                        }
+                        catch (AbandonedMutexException)
+                        {
+                            acquired = true;
+                        }
+
+                        if (!acquired)
+                        {
+                            waited = true;
+                            onWaiting?.Invoke($"⏳ [StageDeployMutex] Paralleler Stage-Rollout aktiv ({mutexName}) - warte sauber bis zu {(int)Math.Ceiling(timeout.TotalSeconds)} s auf Freigabe...");
+                            try
+                            {
+                                acquired = mutex.WaitOne(timeout);
+                            }
+                            catch (AbandonedMutexException)
+                            {
+                                acquired = true;
+                            }
+                        }
+
+                        if (!acquired)
+                        {
+                            readyTcs.TrySetException(new TimeoutException(
+                                $"Stage-Deploy-Sperre ({mutexName}) wurde nach {(int)timeout.TotalSeconds} Sekunden nicht frei."));
+                            return;
+                        }
+
+                        instance = new StageDeployMutexLock(Thread.CurrentThread, waited);
+                        readyTcs.TrySetResult(instance);
+
+                        // Hold mutex ownership on this exact OS thread until Dispose() signals release
+                        instance._releaseSignal.Wait();
+                    }
+                    catch (Exception ex)
+                    {
+                        readyTcs.TrySetException(ex);
+                    }
+                    finally
+                    {
+                        if (acquired && mutex != null)
+                        {
+                            try { mutex.ReleaseMutex(); } catch { }
+                        }
+                        mutex?.Dispose();
+                        instance?._releaseSignal.Dispose();
+                    }
+                })
+                {
+                    IsBackground = true,
+                    Name = "FunkenwerkStageDeployMutexOwner"
+                };
+
+                thread.Start();
+                return await readyTcs.Task;
+            }
+
+            public void Dispose()
+            {
+                if (Interlocked.Exchange(ref _disposed, 1) != 0)
+                    return;
+
+                try { _releaseSignal.Set(); } catch { }
+                if (Thread.CurrentThread != _ownerThread && _ownerThread.IsAlive)
+                {
+                    _ownerThread.Join(TimeSpan.FromSeconds(5));
+                }
+            }
+        }
+
         private static async Task<int> RunStageDeployCliAsync(string[] args)
         {
             try
             {
                 McpSecurityGuard.LockDownDirectoryAcl(McpSecurityGuard.VaultDirectory);
+                using var deployLock = await StageDeployMutexLock.AcquireAsync(
+                    TimeSpan.FromSeconds(180),
+                    onWaiting: msg => Console.WriteLine(msg));
                 bool skipAssets = args.Any(a => string.Equals(a, "--skip-shop-assets", StringComparison.OrdinalIgnoreCase));
 
                 StageShopAssetSyncResultDto? syncRes = null;
@@ -436,6 +563,9 @@ namespace FunkenwerkMcp
             try
             {
                 McpSecurityGuard.LockDownDirectoryAcl(McpSecurityGuard.VaultDirectory);
+                using var deployLock = await StageDeployMutexLock.AcquireAsync(
+                    TimeSpan.FromSeconds(180),
+                    onWaiting: msg => Console.WriteLine(msg));
 
                 string? GetArgValue(string flag)
                 {
@@ -680,8 +810,13 @@ namespace FunkenwerkMcp
             return added;
         }
 
-        private static async Task<int> RunStageSentinelSyncCliAsync(string[] args)
+        private static async Task<int> RunStageSentinelSyncCliAsync(string[] args, bool quietOutput = false)
         {
+            TextWriter origOut = Console.Out;
+            if (quietOutput)
+            {
+                Console.SetOut(TextWriter.Null);
+            }
             try
             {
                 McpSecurityGuard.LockDownDirectoryAcl(McpSecurityGuard.VaultDirectory);
@@ -748,6 +883,18 @@ namespace FunkenwerkMcp
                             {
                                 Console.WriteLine($"   ✓ Lokal-Antwort: {McpSecurityGuard.ScrubSecrets(lOut.Trim())}");
                             }
+                        }
+                    }
+                    catch { }
+
+                    try
+                    {
+                        string localStorageDir = Path.GetDirectoryName(McpSecurityGuard.DefaultLocalStorageAppRoot) ?? "";
+                        string localLogsDir = Path.Combine(localStorageDir, "logs");
+                        var (locArchCount, locArchBytes, _) = ArchiveAndZeroLocalPortalLogsFallback(localLogsDir);
+                        if (locArchCount > 0)
+                        {
+                            Console.WriteLine($"   ✓ Lokales Log-Archiv-Fallback: {locArchCount} Datei(en) ({locArchBytes} Bytes) archiviert und auf 0 Bytes geleert.");
                         }
                     }
                     catch { }
@@ -960,6 +1107,341 @@ namespace FunkenwerkMcp
                 Console.Error.WriteLine($"❌ Sentinel-Pool-Sync abgebrochen: {McpSecurityGuard.ScrubSecrets(ex.Message)}");
                 return 1;
             }
+            finally
+            {
+                if (quietOutput)
+                {
+                    Console.SetOut(origOut);
+                }
+            }
+        }
+
+        // =====================================================================
+        // HOURLY SENTINEL SILENT GUARD (0 NEW CHATS, 0 TOKENS WHEN HEALTHY)
+        // =====================================================================
+        public enum SentinelHourlyDecision
+        {
+            HealthyZeroBytes,
+            HarmlessInfoLogsOnlyRotate,
+            ErrorNeedsMasterChatNotification,
+            DuplicateErrorAlreadyNotified
+        }
+
+        public sealed class SentinelHourlyEvaluationResult
+        {
+            public SentinelHourlyDecision Decision { get; init; }
+            public int OpenPoolCount { get; init; }
+            public long TotalActiveLogBytes { get; init; }
+            public int NonEmptyLogFilesCount { get; init; }
+            public int SevereLogFilesCount { get; init; }
+            public string StateHash { get; init; } = "";
+            public string TargetConversationId { get; init; } = "";
+            public string? SelfHealPrompt { get; init; }
+            public List<string> SummaryLines { get; init; } = new();
+        }
+
+        internal static bool ContainsSevereLogEntry(string? logContent)
+        {
+            if (string.IsNullOrWhiteSpace(logContent)) return false;
+            return logContent.Contains("[ERROR]", StringComparison.OrdinalIgnoreCase)
+                || logContent.Contains(".ERROR:", StringComparison.OrdinalIgnoreCase)
+                || logContent.Contains("CRITICAL", StringComparison.OrdinalIgnoreCase)
+                || logContent.Contains(".EMERGENCY:", StringComparison.OrdinalIgnoreCase)
+                || logContent.Contains(".ALERT:", StringComparison.OrdinalIgnoreCase)
+                || logContent.Contains("Exception", StringComparison.OrdinalIgnoreCase)
+                || logContent.Contains("Stack trace", StringComparison.OrdinalIgnoreCase)
+                || logContent.Contains("[stacktrace]", StringComparison.OrdinalIgnoreCase);
+        }
+
+        internal static (int ArchivedFiles, long ArchivedBytes, long RemainingActiveBytes) ArchiveAndZeroLocalPortalLogsFallback(string logsDirPath)
+        {
+            if (string.IsNullOrWhiteSpace(logsDirPath) || !Directory.Exists(logsDirPath))
+                return (0, 0, 0);
+
+            int archivedFiles = 0;
+            long archivedBytes = 0;
+            string stamp = DateTime.UtcNow.ToString("yyyy-MM-dd_HHmmss");
+            var cutoffUtc = DateTime.UtcNow.AddDays(-30);
+            string archDir = Path.Combine(logsDirPath, "archive");
+
+            foreach (string logFile in Directory.GetFiles(logsDirPath, "*.log", SearchOption.TopDirectoryOnly))
+            {
+                if (McpSecurityGuard.HasReparsePointInAncestry(logFile)) continue;
+                var fi = new FileInfo(logFile);
+                if (fi.Length <= 0) continue;
+
+                Directory.CreateDirectory(archDir);
+                string raw = File.ReadAllText(logFile, Encoding.UTF8);
+                string fileName = Path.GetFileName(logFile);
+                string archPath = Path.Combine(archDir, $"healed_{stamp}_{fileName}");
+                string header = $"# Seelenfunke Portal Log-Archiv | Archiviert: {DateTimeOffset.Now:O} | Quelle: {fileName} ({fi.Length} Bytes){Environment.NewLine}";
+                File.WriteAllText(archPath, header + McpSecurityGuard.ScrubSecrets(raw), Utf8NoBom);
+                File.WriteAllText(logFile, "", Utf8NoBom);
+                archivedFiles++;
+                archivedBytes += fi.Length;
+            }
+
+            if (Directory.Exists(archDir))
+            {
+                foreach (string oldArch in Directory.GetFiles(archDir, "healed_*.log", SearchOption.TopDirectoryOnly))
+                {
+                    if (File.GetLastWriteTimeUtc(oldArch) < cutoffUtc)
+                    {
+                        try { File.Delete(oldArch); } catch { }
+                    }
+                }
+            }
+
+            long rem = Directory.GetFiles(logsDirPath, "*.log", SearchOption.TopDirectoryOnly)
+                .Sum(f => File.Exists(f) ? new FileInfo(f).Length : 0L);
+
+            return (archivedFiles, archivedBytes, rem);
+        }
+
+        internal static SentinelHourlyEvaluationResult EvaluateSentinelHourlyState(
+            string inboxJsonPath,
+            string logsDirPath,
+            string targetConversationId,
+            string? customLastNotifiedPath = null)
+        {
+            string safeConvId = McpSecurityGuard.ValidateAgConversationId(targetConversationId);
+            int openPoolCount = 0;
+            var fingerprintKeys = new List<string>();
+            var summaryLines = new List<string>();
+
+            if (!string.IsNullOrWhiteSpace(inboxJsonPath) && File.Exists(inboxJsonPath) && !McpSecurityGuard.HasReparsePointInAncestry(inboxJsonPath))
+            {
+                try
+                {
+                    string rawInbox = File.ReadAllText(inboxJsonPath, Encoding.UTF8);
+                    if (!string.IsNullOrWhiteSpace(rawInbox))
+                    {
+                        var root = JsonNode.Parse(rawInbox, documentOptions: StrictJsonParseOptions)?.AsObject();
+                        if (root != null)
+                        {
+                            openPoolCount = root["open_pool_count"]?.GetValue<int>() ?? 0;
+                            if (root["items"] is JsonArray itemsArr)
+                            {
+                                if (itemsArr.Count > openPoolCount)
+                                    openPoolCount = itemsArr.Count;
+
+                                foreach (var n in itemsArr)
+                                {
+                                    if (n is not JsonObject item) continue;
+                                    string platform = McpSecurityGuard.ScrubSecrets(item["platform"]?.GetValue<string>() ?? "portal");
+                                    string title = McpSecurityGuard.ScrubSecrets(item["title"]?.GetValue<string>() ?? "Unbekannter Befund");
+                                    string fp = item["fingerprint"]?.GetValue<string>() ?? "";
+                                    if (string.IsNullOrWhiteSpace(fp))
+                                    {
+                                        fp = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+                                            Encoding.UTF8.GetBytes($"{platform}|{title}".ToLowerInvariant()))).ToLowerInvariant();
+                                    }
+                                    fingerprintKeys.Add($"dossier:{platform}:{fp.ToLowerInvariant()}");
+                                    if (summaryLines.Count < 15)
+                                    {
+                                        summaryLines.Add($"- [{platform}] {title} (Fingerprint: {fp})");
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                catch { }
+            }
+
+            long totalActiveLogBytes = 0;
+            int nonEmptyLogsCount = 0;
+            int severeLogsCount = 0;
+
+            if (!string.IsNullOrWhiteSpace(logsDirPath) && Directory.Exists(logsDirPath))
+            {
+                foreach (string logFile in Directory.GetFiles(logsDirPath, "*.log", SearchOption.TopDirectoryOnly).OrderBy(f => f, StringComparer.OrdinalIgnoreCase))
+                {
+                    if (McpSecurityGuard.HasReparsePointInAncestry(logFile)) continue;
+                    var fi = new FileInfo(logFile);
+                    if (fi.Length <= 0) continue;
+
+                    totalActiveLogBytes += fi.Length;
+                    nonEmptyLogsCount++;
+
+                    string sample;
+                    using (var fs = new FileStream(logFile, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                    {
+                        int readLen = (int)Math.Min(fi.Length, 262144L);
+                        if (fi.Length > readLen)
+                            fs.Position = fi.Length - readLen;
+                        byte[] buf = new byte[readLen];
+                        int actual = fs.Read(buf, 0, readLen);
+                        sample = Encoding.UTF8.GetString(buf, 0, actual);
+                    }
+
+                    if (ContainsSevereLogEntry(sample))
+                    {
+                        severeLogsCount++;
+                        string logHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(sample))).ToLowerInvariant();
+                        string fileName = Path.GetFileName(logFile);
+                        fingerprintKeys.Add($"severelog:{fileName.ToLowerInvariant()}:{logHash}");
+                        if (summaryLines.Count < 15)
+                        {
+                            summaryLines.Add($"- [lokal-log] {fileName} ({fi.Length} Bytes) enthält [ERROR]/CRITICAL/Exception");
+                        }
+                    }
+                }
+            }
+
+            // Fall 1: 0 offene Dossiers UND alle Haupt-Logs 0 Bytes -> Stiller Sofort-Exit (0 KI-Token, 0 Chats)
+            if (openPoolCount == 0 && totalActiveLogBytes == 0)
+            {
+                McpSecurityGuard.ClearSentinelLastNotifiedHash(customLastNotifiedPath);
+                return new SentinelHourlyEvaluationResult
+                {
+                    Decision = SentinelHourlyDecision.HealthyZeroBytes,
+                    OpenPoolCount = 0,
+                    TotalActiveLogBytes = 0,
+                    NonEmptyLogFilesCount = 0,
+                    SevereLogFilesCount = 0,
+                    TargetConversationId = safeConvId
+                };
+            }
+
+            // Fall 2: 0 offene Dossiers, Haupt-Logs > 0 Bytes aber nur harmlose Info-Zeilen -> Direkt rotieren & 0 Bytes (0 KI-Token, 0 Chats)
+            if (openPoolCount == 0 && totalActiveLogBytes > 0 && severeLogsCount == 0)
+            {
+                McpSecurityGuard.ClearSentinelLastNotifiedHash(customLastNotifiedPath);
+                return new SentinelHourlyEvaluationResult
+                {
+                    Decision = SentinelHourlyDecision.HarmlessInfoLogsOnlyRotate,
+                    OpenPoolCount = 0,
+                    TotalActiveLogBytes = totalActiveLogBytes,
+                    NonEmptyLogFilesCount = nonEmptyLogsCount,
+                    SevereLogFilesCount = 0,
+                    TargetConversationId = safeConvId
+                };
+            }
+
+            // Fall 3: Echter ungelöster Fehler -> Deduplizierungs-Hash prüfen & bei neuem Stand an festen Master-Chat senden
+            fingerprintKeys.Sort(StringComparer.Ordinal);
+            string canonical = string.Join("\n", fingerprintKeys);
+            if (string.IsNullOrWhiteSpace(canonical))
+            {
+                canonical = $"open:{openPoolCount}|severe:{severeLogsCount}";
+            }
+            string stateHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(canonical))).ToLowerInvariant();
+
+            string? prevHash = McpSecurityGuard.LoadSentinelLastNotifiedHash(customLastNotifiedPath);
+            if (!string.IsNullOrWhiteSpace(prevHash) && string.Equals(prevHash, stateHash, StringComparison.OrdinalIgnoreCase))
+            {
+                return new SentinelHourlyEvaluationResult
+                {
+                    Decision = SentinelHourlyDecision.DuplicateErrorAlreadyNotified,
+                    OpenPoolCount = openPoolCount,
+                    TotalActiveLogBytes = totalActiveLogBytes,
+                    NonEmptyLogFilesCount = nonEmptyLogsCount,
+                    SevereLogFilesCount = severeLogsCount,
+                    StateHash = stateHash,
+                    TargetConversationId = safeConvId,
+                    SummaryLines = summaryLines
+                };
+            }
+
+            string prompt = BuildSentinelSelfHealMasterPrompt(openPoolCount, severeLogsCount, summaryLines);
+            return new SentinelHourlyEvaluationResult
+            {
+                Decision = SentinelHourlyDecision.ErrorNeedsMasterChatNotification,
+                OpenPoolCount = openPoolCount,
+                TotalActiveLogBytes = totalActiveLogBytes,
+                NonEmptyLogFilesCount = nonEmptyLogsCount,
+                SevereLogFilesCount = severeLogsCount,
+                StateHash = stateHash,
+                TargetConversationId = safeConvId,
+                SelfHealPrompt = prompt,
+                SummaryLines = summaryLines
+            };
+        }
+
+        internal static string BuildSentinelSelfHealMasterPrompt(int openPoolCount, int severeLogFilesCount, IReadOnlyList<string> summaryLines)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine($"[SEELENFUNKE SELBSTHEILUNGS-WÄCHTER | Offene Dossiers: {openPoolCount} | Lokale Fehler-Logs: {severeLogFilesCount}]");
+            sb.AppendLine();
+            sb.AppendLine("Der stündliche C#-Wächter (`--sentinel-hourly-guard`) hat Stage, Mini-PC, Windows & Lokal synchronisiert und echte ungelöste Befunde erkannt:");
+            foreach (string line in summaryLines)
+            {
+                sb.AppendLine(line);
+            }
+            sb.AppendLine();
+            sb.AppendLine("Bitte führe jetzt im bestehenden Master-Chat (delegiert an die passenden Orchester-Subagenten) die verbindliche Selbstheilungskette durch:");
+            sb.AppendLine("1. Lies `\\\\wsl.localhost\\Ubuntu\\home\\ubuntuxina\\meine-projekte\\seelenfunke\\storage\\app\\private\\antigravity_inbox.json` per read_file (und ggf. betroffene `storage/logs/*.log`).");
+            sb.AppendLine("2. SICHERHEITS-LEITPLANKEN: Niemals `production`-Branch (`mein-seelenfunke.de`), `.env`/Keys, `AccountingSeeder.php` oder Live-Zahlungsdaten anfassen; bei Entscheidungsbedarf von Alina ein To-Do über `funkenwerk/tasks_manage` anlegen.");
+            sb.AppendLine("3. CODE-FIX & PFLICHT-TEST (100 % GRÜN): Portal (`docker exec -u www-data mein_php_server php artisan test <Test>`), Mini-PC (`funkenwerk-os-linux` `dotnet build`), Android (synchron in WSL + Mirror `C:\\Users\\konta\\AndroidStudioProjects\\seelenfunke-android`, `gradlew testDebugUnitTest` + `--stage-publish-apk`), Windows (`funkenwerk/` `dotnet build`).");
+            sb.AppendLine("4. PROTOKOLLIERUNG: Jeden Fix kompakt in Abschnitt 4 von `\\\\wsl.localhost\\Ubuntu\\home\\ubuntuxina\\meine-projekte\\seelenfunke\\Abschlussberichte\\System\\System_Universum_Vollautomatische_Selbstheilung.md` dokumentieren.");
+            sb.Append("5. ROLLOUT & 0-BYTE-NULLSTELLUNG: Stage-Fixes via `--stage-deploy --skip-shop-assets` ausrollen und abschließend zwingend `& 'C:\\Users\\konta\\AppData\\Local\\Funkenwerk\\SentinelCli\\FunkenwerkMcp.exe' --sentinel-sync --resolve-all` ausführen, bis `0` offene Dossiers und `0 Bytes` in allen Haupt-Logdateien erreicht sind.");
+            return sb.ToString();
+        }
+
+        private static async Task<int> RunSentinelHourlyGuardCliAsync(string[] args)
+        {
+            try
+            {
+                McpSecurityGuard.LockDownDirectoryAcl(McpSecurityGuard.VaultDirectory);
+
+                string? cliConv = GetCliOptionValue(args, "--conversation-id");
+                string targetConvId = !string.IsNullOrWhiteSpace(cliConv)
+                    ? McpSecurityGuard.ValidateAgConversationId(cliConv)
+                    : McpSecurityGuard.LoadAgBridgeConfig().MasterConversationId;
+
+                // a) Stiller C#-Sync (Stage + Mini-PC + Windows + Lokal, 0 KI-Token, 0 neue Chats)
+                await RunStageSentinelSyncCliAsync(Array.Empty<string>(), quietOutput: true);
+
+                string inboxPath = Path.Combine(McpSecurityGuard.DefaultLocalStorageAppRoot, "private", "antigravity_inbox.json");
+                string localStorageDir = Path.GetDirectoryName(McpSecurityGuard.DefaultLocalStorageAppRoot) ?? "";
+                string logsDir = Path.Combine(localStorageDir, "logs");
+
+                // b) Lokale Auswertung nach dem Zero-Log-Prinzip
+                var eval = EvaluateSentinelHourlyState(inboxPath, logsDir, targetConvId);
+
+                switch (eval.Decision)
+                {
+                    case SentinelHourlyDecision.HealthyZeroBytes:
+                        Console.WriteLine("Universum gesund (0 offene Dossiers, Haupt-Logs 0 Bytes)");
+                        return 0;
+
+                    case SentinelHourlyDecision.HarmlessInfoLogsOnlyRotate:
+                        await RunStageSentinelSyncCliAsync(new[] { "--sentinel-sync", "--resolve-all" }, quietOutput: true);
+                        Console.WriteLine($"Universum gesund (0 offene Dossiers; {eval.TotalActiveLogBytes} Bytes harmlose Info-Logs archiviert & auf 0 Bytes geleert)");
+                        return 0;
+
+                    case SentinelHourlyDecision.DuplicateErrorAlreadyNotified:
+                        Console.WriteLine($"Offener Befund ({eval.OpenPoolCount} Dossiers, Hash {eval.StateHash.Substring(0, 12)}) wurde bereits an Master-Chat {eval.TargetConversationId} gemeldet.");
+                        return 0;
+
+                    case SentinelHourlyDecision.ErrorNeedsMasterChatNotification:
+                    {
+                        var (sentOk, exitCode, errOut) = await SendAgentApiMessageSafeAsync(
+                            eval.TargetConversationId,
+                            eval.SelfHealPrompt!,
+                            CancellationToken.None);
+
+                        if (!sentOk || exitCode != 0)
+                        {
+                            Console.Error.WriteLine($"[Sentinel-Hourly-Guard] Master-Chat Zustellung noch nicht möglich (Exit {exitCode}: {errOut}) - erneuter Versuch beim nächsten Intervall.");
+                            return 1;
+                        }
+
+                        McpSecurityGuard.SaveSentinelLastNotifiedHash(eval.StateHash, eval.TargetConversationId);
+                        Console.WriteLine($"Selbstheilungs-Auftrag ({eval.OpenPoolCount} Dossiers, {eval.SevereLogFilesCount} Fehler-Logs) an festen Master-Chat ({eval.TargetConversationId}) übermittelt.");
+                        return 0;
+                    }
+
+                    default:
+                        return 0;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"❌ Sentinel-Hourly-Guard Fehler: {McpSecurityGuard.ScrubSecrets(ex.Message)}");
+                return 1;
+            }
         }
 
         // =====================================================================
@@ -977,6 +1459,128 @@ namespace FunkenwerkMcp
                     return args[i + 1];
             }
             return null;
+        }
+
+        private static object BuildAgChannelsOverviewObject(AgDirectBridgeConfigDto cfg)
+        {
+            var channelRows = McpSecurityGuard.FixedAgChannels.Select(ch =>
+            {
+                bool hasAssigned = cfg.ChannelConversationIds.TryGetValue(ch, out string? cid) && !string.IsNullOrWhiteSpace(cid);
+                return new
+                {
+                    channel = ch,
+                    title = McpSecurityGuard.GetAgChannelDisplayTitle(ch),
+                    conversation_id = hasAssigned ? cid : null,
+                    auto_create_on_next_message = !hasAssigned && ch != "leitung"
+                };
+            }).ToList();
+
+            return new
+            {
+                status = "success",
+                master_conversation_id = cfg.MasterConversationId,
+                poll_interval_seconds = cfg.PollIntervalSeconds,
+                channel_conversation_ids = cfg.ChannelConversationIds,
+                channels = channelRows,
+                special_channels = new[]
+                {
+                    new { channel = "new", title = McpSecurityGuard.GetAgChannelDisplayTitle("new"), behavior = "opens_dedicated_conversation_per_item" }
+                },
+                config_path = McpSecurityGuard.AgDirectBridgeConfigPath
+            };
+        }
+
+        private static object UpdateOrResetAgChannelChat(string rawChannel, string? rawGuidOrReset, bool forceReset = false)
+        {
+            string safeChannel = McpSecurityGuard.ValidateFixedAgDepartmentChannel(rawChannel);
+            var cfg = McpSecurityGuard.LoadAgBridgeConfig();
+
+            string trimmedVal = (rawGuidOrReset ?? "").Trim();
+            bool isReset = forceReset
+                           || string.IsNullOrEmpty(trimmedVal)
+                           || string.Equals(trimmedVal, "reset", StringComparison.OrdinalIgnoreCase)
+                           || string.Equals(trimmedVal, "clear", StringComparison.OrdinalIgnoreCase)
+                           || string.Equals(trimmedVal, "none", StringComparison.OrdinalIgnoreCase);
+
+            if (isReset)
+            {
+                if (safeChannel == "leitung")
+                {
+                    cfg.MasterConversationId = McpSecurityGuard.DefaultMasterConversationId;
+                    cfg.ChannelConversationIds["leitung"] = McpSecurityGuard.DefaultMasterConversationId;
+                }
+                else
+                {
+                    cfg.ChannelConversationIds.Remove(safeChannel);
+                }
+            }
+            else
+            {
+                string safeGuid = McpSecurityGuard.ValidateAgConversationId(trimmedVal);
+                cfg.ChannelConversationIds[safeChannel] = safeGuid;
+                if (safeChannel == "leitung")
+                {
+                    cfg.MasterConversationId = safeGuid;
+                }
+            }
+
+            var saved = McpSecurityGuard.SaveAgBridgeConfig(cfg);
+            return BuildAgChannelsOverviewObject(saved);
+        }
+
+        private static int RunAgListChannelsCli()
+        {
+            try
+            {
+                McpSecurityGuard.LockDownDirectoryAcl(McpSecurityGuard.VaultDirectory);
+                var cfg = McpSecurityGuard.LoadAgBridgeConfig();
+                Console.WriteLine(McpSecurityGuard.ScrubSecrets(JsonSerializer.Serialize(BuildAgChannelsOverviewObject(cfg), JsonPretty)));
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"❌ Kanal-Übersicht fehlgeschlagen: {McpSecurityGuard.ScrubSecrets(ex.Message)}");
+                return 1;
+            }
+        }
+
+        private static int RunAgSetChannelChatCli(string[] args)
+        {
+            try
+            {
+                McpSecurityGuard.LockDownDirectoryAcl(McpSecurityGuard.VaultDirectory);
+                bool resetFlag = args.Any(a => string.Equals(a, "--reset", StringComparison.OrdinalIgnoreCase));
+                string? rawChannel = null;
+                string? rawGuid = null;
+
+                int idx = Array.FindIndex(args, a => string.Equals(a, "--ag-set-channel-chat", StringComparison.OrdinalIgnoreCase));
+                if (idx >= 0)
+                {
+                    if (idx + 1 < args.Length) rawChannel = args[idx + 1];
+                    if (idx + 2 < args.Length && !args[idx + 2].StartsWith("--", StringComparison.Ordinal))
+                        rawGuid = args[idx + 2];
+                }
+                else
+                {
+                    rawChannel = GetCliOptionValue(args, "--ag-set-channel-chat");
+                    rawGuid = GetCliOptionValue(args, "--conversation-id");
+                }
+
+                if (string.IsNullOrWhiteSpace(rawChannel))
+                    throw new ArgumentException("Aufruf: --ag-set-channel-chat <leitung|shop|android|minipc|buchhaltung> <guid|reset>");
+
+                if (!resetFlag && rawGuid == null)
+                    throw new ArgumentException("Bitte eine Konversations-UUID oder 'reset' angeben: --ag-set-channel-chat <channel> <guid|reset>");
+
+                var result = UpdateOrResetAgChannelChat(rawChannel!, rawGuid, forceReset: resetFlag);
+                Console.WriteLine(McpSecurityGuard.ScrubSecrets(JsonSerializer.Serialize(result, JsonPretty)));
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"❌ Kanal-Konfiguration fehlgeschlagen: {McpSecurityGuard.ScrubSecrets(ex.Message)}");
+                return 1;
+            }
         }
 
         private static int RunAgSetMasterChatCli(string[] args)
@@ -997,6 +1601,7 @@ namespace FunkenwerkMcp
                     status = "success",
                     master_conversation_id = saved.MasterConversationId,
                     poll_interval_seconds = saved.PollIntervalSeconds,
+                    channel_conversation_ids = saved.ChannelConversationIds,
                     config_path = McpSecurityGuard.AgDirectBridgeConfigPath
                 }, JsonPretty)));
                 return 0;
@@ -1196,6 +1801,8 @@ namespace FunkenwerkMcp
                         string title = itemObj["title"]?.GetValue<string>() ?? "";
                         string? body = itemObj["body"]?.GetValue<string>();
                         string? execMode = itemObj["execution_mode"]?.GetValue<string>();
+                        string channel = McpSecurityGuard.NormalizeAgChannel(itemObj["channel"]?.GetValue<string>());
+                        string channelTitle = McpSecurityGuard.GetAgChannelDisplayTitle(channel);
                         var checklist = ExtractChecklistStrings(itemObj["checklist"]);
 
                         string promptText = McpSecurityGuard.BuildAgDirectMasterPrompt(
@@ -1204,13 +1811,80 @@ namespace FunkenwerkMcp
                             body,
                             checklist,
                             execMode,
-                            savedMediaPath);
+                            savedMediaPath,
+                            channel);
 
-                        // Phase 1: Deliver to Antigravity Master-Chat via agentapi (UseShellExecute = false, ArgumentList)
-                        var (sentOk, exitCode, errOut) = await SendAgentApiMessageSafeAsync(targetConversationId, promptText, cts.Token);
+                        // Phase 1: Route to target channel conversation via agentapi (UseShellExecute = false, ArgumentList)
+                        bool sentOk;
+                        int exitCode;
+                        string errOut;
+                        string deliveredTargetDesc;
+
+                        if (channel == "new")
+                        {
+                            string customTitle = string.IsNullOrWhiteSpace(title) ? $"Auftrag {safeId}" : title;
+                            var newConvRes = await StartNewAgentConversationSafeAsync(customTitle, promptText, captureUuid: true, cts.Token);
+                            sentOk = newConvRes.Success;
+                            exitCode = newConvRes.ExitCode;
+                            errOut = newConvRes.ErrorSummary;
+                            deliveredTargetDesc = $"Einzel-Chat '{McpSecurityGuard.SanitizeAgConversationTitle(customTitle)}' ({newConvRes.ExtractedUuid ?? "neu"})";
+                        }
+                        else if (channel == "leitung")
+                        {
+                            (sentOk, exitCode, errOut) = await SendAgentApiMessageSafeAsync(targetConversationId, promptText, cts.Token);
+                            deliveredTargetDesc = $"Kanal 'Leitung' ({targetConversationId})";
+                        }
+                        else
+                        {
+                            // Fixed department channels: shop, android, minipc, buchhaltung
+                            cfg = McpSecurityGuard.LoadAgBridgeConfig();
+                            bool hasExistingDeptUuid = cfg.ChannelConversationIds.TryGetValue(channel, out string? deptUuid)
+                                                       && !string.IsNullOrWhiteSpace(deptUuid);
+
+                            if (hasExistingDeptUuid)
+                            {
+                                string validDeptUuid = McpSecurityGuard.ValidateAgConversationId(deptUuid);
+                                (sentOk, exitCode, errOut) = await SendAgentApiMessageSafeAsync(validDeptUuid, promptText, cts.Token);
+                                deliveredTargetDesc = $"Abteilungs-Kanal '{channelTitle}' ({validDeptUuid})";
+
+                                if (!sentOk || exitCode != 0)
+                                {
+                                    // Fallback if department chat was deleted by user: attempt clean auto-recreation
+                                    var recreateRes = await StartNewAgentConversationSafeAsync(channelTitle, promptText, captureUuid: true, cts.Token);
+                                    if (recreateRes.Success && recreateRes.ExitCode == 0)
+                                    {
+                                        sentOk = true;
+                                        exitCode = 0;
+                                        errOut = "";
+                                        if (!string.IsNullOrWhiteSpace(recreateRes.ExtractedUuid))
+                                        {
+                                            cfg.ChannelConversationIds[channel] = recreateRes.ExtractedUuid!;
+                                            McpSecurityGuard.SaveAgBridgeConfig(cfg);
+                                            startupConfigWriteUtc = DateTime.MinValue;
+                                        }
+                                        deliveredTargetDesc = $"Neu angelegter Abteilungs-Kanal '{channelTitle}' ({recreateRes.ExtractedUuid ?? "auto"})";
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                var createRes = await StartNewAgentConversationSafeAsync(channelTitle, promptText, captureUuid: true, cts.Token);
+                                sentOk = createRes.Success;
+                                exitCode = createRes.ExitCode;
+                                errOut = createRes.ErrorSummary;
+                                if (sentOk && exitCode == 0 && !string.IsNullOrWhiteSpace(createRes.ExtractedUuid))
+                                {
+                                    cfg.ChannelConversationIds[channel] = createRes.ExtractedUuid!;
+                                    McpSecurityGuard.SaveAgBridgeConfig(cfg);
+                                    startupConfigWriteUtc = DateTime.MinValue;
+                                }
+                                deliveredTargetDesc = $"Erstmalig angelegter Abteilungs-Kanal '{channelTitle}' ({createRes.ExtractedUuid ?? "auto"})";
+                            }
+                        }
+
                         if (!sentOk || exitCode != 0)
                         {
-                            Console.Error.WriteLine($"[AG-Sidecar] Zustellung für '{safeId}' noch nicht möglich (Exit {exitCode}: {errOut}) - bleibt pending für nächsten Zyklus.");
+                            Console.Error.WriteLine($"[AG-Sidecar] Zustellung für '{safeId}' (Kanal '{channel}') noch nicht möglich (Exit {exitCode}: {errOut}) - bleibt pending für nächsten Zyklus.");
                             continue;
                         }
 
@@ -1222,6 +1896,7 @@ namespace FunkenwerkMcp
 
                         var sanitizedCopy = (JsonObject)itemObj.DeepClone();
                         sanitizedCopy.Remove("attachment_base64");
+                        sanitizedCopy["channel"] = channel;
                         sanitizedCopy["status"] = "delivered";
                         sanitizedCopy["delivered_at"] = DateTimeOffset.Now.ToString("O");
                         if (!string.IsNullOrWhiteSpace(savedMediaPath))
@@ -1230,7 +1905,7 @@ namespace FunkenwerkMcp
                         await SyncItemsToLocalPortalBestEffortAsync(new JsonArray(sanitizedCopy), markDeliveredId: fromLocal ? safeId : null);
                         await UpsertOrUpdateLocalDirectInboxJsonAsync(sanitizedCopy, safeId, "delivered", null);
 
-                        Console.Error.WriteLine($"[AG-Sidecar] Direktnachricht '{safeId}' verlustfrei an Master-Chat ({targetConversationId}) zugestellt.");
+                        Console.Error.WriteLine($"[AG-Sidecar] Direktnachricht '{safeId}' verlustfrei an {deliveredTargetDesc} zugestellt.");
                     }
                 }
                 catch (OperationCanceledException) when (cts.IsCancellationRequested)
@@ -1253,6 +1928,57 @@ namespace FunkenwerkMcp
             }
 
             return 0;
+        }
+
+        private static async Task<(bool Success, int ExitCode, string ErrorSummary, string? ExtractedUuid)> StartNewAgentConversationSafeAsync(
+            string title,
+            string promptText,
+            bool captureUuid,
+            CancellationToken ct)
+        {
+            try
+            {
+                HashSet<string>? preExistingBrainDirs = captureUuid
+                    ? McpSecurityGuard.SnapshotAntigravityBrainUuidFolders()
+                    : null;
+
+                var psi = McpSecurityGuard.BuildAgentApiNewConversationStartInfo(title, promptText);
+                using var proc = Process.Start(psi);
+                if (proc == null)
+                    return (false, -1, "agentapi new-conversation Prozess konnte nicht gestartet werden.", null);
+
+                using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                timeoutCts.CancelAfter(TimeSpan.FromSeconds(30));
+
+                var outTask = proc.StandardOutput.ReadToEndAsync(timeoutCts.Token);
+                var errTask = proc.StandardError.ReadToEndAsync(timeoutCts.Token);
+                await proc.WaitForExitAsync(timeoutCts.Token);
+                string stdOut = await outTask;
+                string stdErr = await errTask;
+
+                string? extractedUuid = null;
+                if (proc.ExitCode == 0 && captureUuid)
+                {
+                    extractedUuid = McpSecurityGuard.ExtractConversationUuid(stdOut, stdErr, preExistingBrainDirs);
+                    if (string.IsNullOrWhiteSpace(extractedUuid))
+                    {
+                        // Give Antigravity up to 1.8s to materialize %USERPROFILE%\.gemini\antigravity\brain\<uuid>
+                        for (int retry = 0; retry < 6 && string.IsNullOrWhiteSpace(extractedUuid); retry++)
+                        {
+                            await Task.Delay(300, ct);
+                            extractedUuid = McpSecurityGuard.ExtractConversationUuid(null, null, preExistingBrainDirs);
+                        }
+                    }
+                }
+
+                string combinedErr = McpSecurityGuard.ScrubSecrets((stdErr + " " + stdOut).Trim());
+                if (combinedErr.Length > 300) combinedErr = combinedErr.Substring(0, 300);
+                return (proc.ExitCode == 0, proc.ExitCode, combinedErr, extractedUuid);
+            }
+            catch (Exception ex)
+            {
+                return (false, -1, McpSecurityGuard.ScrubSecrets(ex.Message), null);
+            }
         }
 
         private static async Task<(bool Success, int ExitCode, string ErrorSummary)> SendAgentApiMessageSafeAsync(
@@ -1468,7 +2194,7 @@ namespace FunkenwerkMcp
                 stageError = McpSecurityGuard.ScrubSecrets(ex.Message);
             }
 
-            bool localDockerCompleted = await TryRunLocalDockerAgInboxAsync($"--complete={safeId}", $"--summary-b64={summaryB64}");
+            bool localDockerCompleted = await TryRunLocalDockerAgInboxAsync($"--complete={safeId}", $"--summary-b64={summaryB64}", "--ignore-missing");
             bool localJsonUpdated = await UpsertOrUpdateLocalDirectInboxJsonAsync(null, safeId, "completed", cleanSummary);
 
             if (!stageCompleted && !localDockerCompleted && !localJsonUpdated)
@@ -2513,15 +3239,15 @@ namespace FunkenwerkMcp
             new
             {
                 name = "ag_direct_inbox",
-                description = "Verwaltet die 24/7 'Direktnachricht an AG'-Brücke zwischen Alinas Android-App (via Stage) und dem lokalen Antigravity Master-Chat: Neue pending-Aufträge abholen & Bilder unter AgDirectMedia speichern ('pull'), alle Einträge auflisten ('list'), erledigte Punkte mit Zusammenfassung zurückmelden ('complete') oder die Master-Chat Konversations-ID setzen ('set_master_chat').",
+                description = "Verwaltet die 24/7 'Direktnachricht an AG'-Brücke inkl. der 5 festen Abteilungs-Kanäle ('leitung', 'shop', 'android', 'minipc', 'buchhaltung') und Sonder-Kanal 'new': Neue pending-Aufträge abholen ('pull'), alle Einträge auflisten ('list'), erledigte Punkte mit Zusammenfassung zurückmelden ('complete'), Master-Chat setzen ('set_master_chat') oder Abteilungs-Kanal-UUIDs abfragen/setzen/zurücksetzen ('list_channels', 'set_channel_chat', 'reset_channel_chat').",
                 inputSchema = JsonNode.Parse("""
                 {
                   "type": "object",
                   "properties": {
                     "action": {
                       "type": "string",
-                      "enum": ["pull", "list", "complete", "set_master_chat"],
-                      "description": "Aktion: 'pull', 'list', 'complete' oder 'set_master_chat'."
+                      "enum": ["pull", "list", "complete", "set_master_chat", "list_channels", "set_channel_chat", "reset_channel_chat"],
+                      "description": "Aktion: 'pull', 'list', 'complete', 'set_master_chat', 'list_channels', 'set_channel_chat' oder 'reset_channel_chat'."
                     },
                     "id": {
                       "type": "string",
@@ -2531,9 +3257,14 @@ namespace FunkenwerkMcp
                       "type": "string",
                       "description": "Kurze Zusammenfassung der Umsetzung bzw. des Konzepts für Alinas Android-App bei action='complete'."
                     },
+                    "channel": {
+                      "type": "string",
+                      "enum": ["leitung", "shop", "android", "minipc", "buchhaltung"],
+                      "description": "Fester Abteilungs-Kanal bei action='set_channel_chat' oder 'reset_channel_chat'."
+                    },
                     "conversation_id": {
                       "type": "string",
-                      "description": "Konversations-ID (GUID) des zentralen Master-Chats bei action='set_master_chat'."
+                      "description": "Konversations-ID (GUID) bei action='set_master_chat' oder 'set_channel_chat' (oder 'reset' zum Zurücksetzen)."
                     }
                   },
                   "required": ["action"],
@@ -3293,17 +4024,30 @@ namespace FunkenwerkMcp
                             var cfg = McpSecurityGuard.LoadAgBridgeConfig();
                             cfg.MasterConversationId = McpSecurityGuard.ValidateAgConversationId(convId);
                             var saved = McpSecurityGuard.SaveAgBridgeConfig(cfg);
-                            return new
-                            {
-                                status = "success",
-                                master_conversation_id = saved.MasterConversationId,
-                                poll_interval_seconds = saved.PollIntervalSeconds,
-                                config_path = McpSecurityGuard.AgDirectBridgeConfigPath
-                            };
+                            return BuildAgChannelsOverviewObject(saved);
+                        }
+
+                        case "list_channels":
+                        {
+                            var cfg = McpSecurityGuard.LoadAgBridgeConfig();
+                            return BuildAgChannelsOverviewObject(cfg);
+                        }
+
+                        case "set_channel_chat":
+                        {
+                            string chan = GetString(args, "channel", 32);
+                            string? convId = GetOptString(args, "conversation_id", 80);
+                            return UpdateOrResetAgChannelChat(chan, convId, forceReset: false);
+                        }
+
+                        case "reset_channel_chat":
+                        {
+                            string chan = GetString(args, "channel", 32);
+                            return UpdateOrResetAgChannelChat(chan, null, forceReset: true);
                         }
 
                         default:
-                            throw new ArgumentException("Erlaubte ag_direct_inbox Aktionen: pull, list, complete, set_master_chat.");
+                            throw new ArgumentException("Erlaubte ag_direct_inbox Aktionen: pull, list, complete, set_master_chat, list_channels, set_channel_chat, reset_channel_chat.");
                     }
                 }
 
@@ -4072,7 +4816,7 @@ namespace FunkenwerkMcp
                 McpOrganizerClient.TestHttpClientOverride = mockClient;
                 McpOrganizerClient.TestBaseUrlOverride = "https://stage.mein-seelenfunke.de/api";
 
-                Console.WriteLine("=== FUNKENWERK MCP v1.6 HARDENED ZERO-TRUST & E2E SELF-TEST (57 CHECKS) ===");
+                Console.WriteLine("=== FUNKENWERK MCP v1.8 HARDENED ZERO-TRUST & E2E SELF-TEST (60 CHECKS) ===");
 
                 // 01. Path Traversal Defense
                 AssertThrowsSecurity("01. Block Path Traversal (..\\..\\Windows\\System32)", () =>
@@ -5305,6 +6049,212 @@ namespace FunkenwerkMcp
                         && !File.Exists(mockQueue)
                         && tresorArchiveExists
                         && detectedAfterZero == 0);
+                }
+
+                // 59. Sentinel Hourly Silent Guard (0 New Chats, Healthy Fast-Exit, Info-Log Rotation, Master-Chat send-message Only & SHA-256 Deduplication)
+                {
+                    string guardDir = Path.Combine(tempRoot, "SentinelGuardTest");
+                    string guardLogsDir = Path.Combine(guardDir, "logs");
+                    Directory.CreateDirectory(guardLogsDir);
+                    string mockInbox = Path.Combine(guardDir, "antigravity_inbox.json");
+                    string mockLaravelLog = Path.Combine(guardLogsDir, "laravel.log");
+                    string mockNotified = Path.Combine(guardDir, "sentinel_last_notified.json");
+                    string masterChatId = "a75e6db9-d026-4955-97c0-6e8695d6193d";
+
+                    // Case 1: Healthy (open_pool_count == 0, 0-byte log) -> HealthyZeroBytes, 0 prompts
+                    await File.WriteAllTextAsync(mockInbox, """{"open_pool_count":0,"items":[]}""");
+                    await File.WriteAllTextAsync(mockLaravelLog, "");
+                    var evalHealthy = Program.EvaluateSentinelHourlyState(mockInbox, guardLogsDir, masterChatId, mockNotified);
+
+                    // Case 2: Harmless info log (>0 bytes, no ERROR/CRITICAL/Exception) -> HarmlessInfoLogsOnlyRotate + fallback 0-byte reset
+                    await File.WriteAllTextAsync(mockLaravelLog, "[2026-11-16 14:00:00] local.INFO: Scheduler heartbeat completed cleanly.\n");
+                    var evalInfoOnly = Program.EvaluateSentinelHourlyState(mockInbox, guardLogsDir, masterChatId, mockNotified);
+                    var (fbArchCount, fbArchBytes, fbRemBytes) = Program.ArchiveAndZeroLocalPortalLogsFallback(guardLogsDir);
+
+                    // Case 3: Real unresolved dossier -> ErrorNeedsMasterChatNotification via send-message (NEVER new-conversation!) + Deduplication
+                    await File.WriteAllTextAsync(mockInbox, """
+                    {
+                      "open_pool_count": 1,
+                      "items": [
+                        {
+                          "fingerprint": "fp_stage_checkout_err_01",
+                          "platform": "portal",
+                          "title": "Checkout Livewire Exception",
+                          "occurrences_count": 1
+                        }
+                      ]
+                    }
+                    """);
+                    var evalErrFirst = Program.EvaluateSentinelHourlyState(mockInbox, guardLogsDir, masterChatId, mockNotified);
+                    var guardPsi = McpSecurityGuard.BuildAgentApiSendMessageStartInfo(
+                        evalErrFirst.TargetConversationId,
+                        evalErrFirst.SelfHealPrompt ?? "missing",
+                        agentApiExeOverride: @"C:\Antigravity\language_server.exe");
+
+                    McpSecurityGuard.SaveSentinelLastNotifiedHash(evalErrFirst.StateHash, masterChatId, mockNotified);
+
+                    // Even if occurrences_count increments next hour, identical fingerprint set must be deduplicated!
+                    await File.WriteAllTextAsync(mockInbox, """
+                    {
+                      "open_pool_count": 1,
+                      "items": [
+                        {
+                          "fingerprint": "fp_stage_checkout_err_01",
+                          "platform": "portal",
+                          "title": "Checkout Livewire Exception",
+                          "occurrences_count": 7
+                        }
+                      ]
+                    }
+                    """);
+                    var evalErrDuplicate = Program.EvaluateSentinelHourlyState(mockInbox, guardLogsDir, masterChatId, mockNotified);
+
+                    // Once healed back to 0, deduplication state must clear automatically so future regressions re-notify
+                    await File.WriteAllTextAsync(mockInbox, """{"open_pool_count":0,"items":[]}""");
+                    var evalHealedAgain = Program.EvaluateSentinelHourlyState(mockInbox, guardLogsDir, masterChatId, mockNotified);
+
+                    string sidecarFile = Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                        ".gemini", "config", "sidecars", "seelenfunke-universe-self-heal", "sidecar.json");
+                    bool sidecarVerified = true;
+                    if (File.Exists(sidecarFile))
+                    {
+                        string scRaw = await File.ReadAllTextAsync(sidecarFile);
+                        sidecarVerified = scRaw.Contains("--sentinel-hourly-guard", StringComparison.Ordinal)
+                            && !scRaw.Contains("new-conversation", StringComparison.Ordinal);
+                    }
+
+                    AssertTest("59. Sentinel Hourly Silent Guard (0 New Chats, Healthy Fast-Exit, Info Rotation & SHA-256 Deduplication)",
+                        evalHealthy.Decision == Program.SentinelHourlyDecision.HealthyZeroBytes
+                        && evalHealthy.SelfHealPrompt == null
+                        && evalInfoOnly.Decision == Program.SentinelHourlyDecision.HarmlessInfoLogsOnlyRotate
+                        && evalInfoOnly.SelfHealPrompt == null
+                        && fbArchCount == 1 && fbArchBytes > 0 && fbRemBytes == 0
+                        && evalErrFirst.Decision == Program.SentinelHourlyDecision.ErrorNeedsMasterChatNotification
+                        && !string.IsNullOrWhiteSpace(evalErrFirst.SelfHealPrompt)
+                        && guardPsi.ArgumentList.Contains("send-message")
+                        && !guardPsi.ArgumentList.Contains("new-conversation")
+                        && guardPsi.ArgumentList.Contains(masterChatId)
+                        && evalErrDuplicate.Decision == Program.SentinelHourlyDecision.DuplicateErrorAlreadyNotified
+                        && evalErrDuplicate.SelfHealPrompt == null
+                        && evalHealedAgain.Decision == Program.SentinelHourlyDecision.HealthyZeroBytes
+                        && !File.Exists(mockNotified)
+                        && sidecarVerified);
+                }
+
+                // 60. 5 Parallel Department Channels + 'new' Special Channel + UUID Auto-Discovery + StageDeployMutex
+                {
+                    McpSecurityGuard.ResetRateLimiterForTests();
+
+                    // a) NormalizeAgChannel & Title/Scope mapping
+                    bool normOk = McpSecurityGuard.NormalizeAgChannel("shop") == "shop"
+                                  && McpSecurityGuard.NormalizeAgChannel("ANDROID") == "android"
+                                  && McpSecurityGuard.NormalizeAgChannel("mini-pc") == "minipc"
+                                  && McpSecurityGuard.NormalizeAgChannel("buchhaltung") == "buchhaltung"
+                                  && McpSecurityGuard.NormalizeAgChannel("new") == "new"
+                                  && McpSecurityGuard.NormalizeAgChannel("") == "leitung"
+                                  && McpSecurityGuard.NormalizeAgChannel("unbekannt_xyz") == "leitung"
+                                  && McpSecurityGuard.GetAgChannelDisplayTitle("shop") == "Shop & Konfigurator"
+                                  && McpSecurityGuard.GetAgChannelDisplayTitle("buchhaltung") == "Buchhaltung & Marketing";
+
+                    // b) Prompt header includes [KANAL: ...] & file-conflict scope hint
+                    string shopPrompt = McpSecurityGuard.BuildAgDirectMasterPrompt(
+                        "ag_chan_01", "Konfigurator Preislogik", "Prüfen", null, "direct", null, "shop");
+                    bool shopPromptOk = shopPrompt.Contains("[KANAL: Shop & Konfigurator]", StringComparison.Ordinal)
+                                        && shopPrompt.Contains("ohne AccountingSeeder.php", StringComparison.Ordinal);
+
+                    // c) BuildAgentApiNewConversationStartInfo hardening (UseShellExecute=false, --title=..., --)
+                    var newConvPsi = McpSecurityGuard.BuildAgentApiNewConversationStartInfo(
+                        "Shop & Konfigurator\r\nInject",
+                        shopPrompt,
+                        agentApiExeOverride: @"C:\Antigravity\language_server.exe");
+                    bool newConvPsiOk = !newConvPsi.UseShellExecute
+                                        && newConvPsi.ArgumentList.Count == 5
+                                        && newConvPsi.ArgumentList[0] == "agentapi"
+                                        && newConvPsi.ArgumentList[1] == "new-conversation"
+                                        && newConvPsi.ArgumentList[2] == "--title=Shop & Konfigurator Inject"
+                                        && newConvPsi.ArgumentList[3] == "--"
+                                        && newConvPsi.ArgumentList[4] == shopPrompt;
+
+                    // d) UUID extraction from stdout AND from simulated brain directory fallback
+                    string mockBrainRoot = Path.Combine(tempRoot, "MockBrain");
+                    string oldUuid = "11111111-1111-4111-8111-111111111111";
+                    string freshFolderUuid = "22222222-3333-4444-9999-aaaaaaaaaaaa";
+                    string stdoutUuid = "33333333-4444-4555-8666-bbbbbbbbbbbb";
+                    Directory.CreateDirectory(Path.Combine(mockBrainRoot, oldUuid));
+                    var preSnap = McpSecurityGuard.SnapshotAntigravityBrainUuidFolders(mockBrainRoot);
+                    Directory.CreateDirectory(Path.Combine(mockBrainRoot, freshFolderUuid));
+
+                    string? fromStdout = McpSecurityGuard.ExtractConversationUuid($"Created conversation {stdoutUuid} OK", null, preSnap, mockBrainRoot);
+                    string? fromBrainFallback = McpSecurityGuard.ExtractConversationUuid("OK (no id printed)", "", preSnap, mockBrainRoot);
+
+                    // e) ChannelConversationIds persistence + MCP set_channel_chat / list_channels / reset_channel_chat
+                    string? setShopResp = await Program.ProcessJsonRpcMessageAsync(new JsonObject
+                    {
+                        ["jsonrpc"] = "2.0",
+                        ["id"] = 6001,
+                        ["method"] = "tools/call",
+                        ["params"] = new JsonObject
+                        {
+                            ["name"] = "ag_direct_inbox",
+                            ["arguments"] = new JsonObject
+                            {
+                                ["action"] = "set_channel_chat",
+                                ["channel"] = "shop",
+                                ["conversation_id"] = freshFolderUuid
+                            }
+                        }
+                    }.ToJsonString());
+                    var afterSetShopCfg = McpSecurityGuard.LoadAgBridgeConfig();
+                    bool shopPersisted = afterSetShopCfg.ChannelConversationIds.TryGetValue("shop", out string? savedShopId)
+                                         && savedShopId == freshFolderUuid
+                                         && afterSetShopCfg.ChannelConversationIds["leitung"] == afterSetShopCfg.MasterConversationId;
+
+                    string? resetShopResp = await Program.ProcessJsonRpcMessageAsync(new JsonObject
+                    {
+                        ["jsonrpc"] = "2.0",
+                        ["id"] = 6002,
+                        ["method"] = "tools/call",
+                        ["params"] = new JsonObject
+                        {
+                            ["name"] = "ag_direct_inbox",
+                            ["arguments"] = new JsonObject
+                            {
+                                ["action"] = "reset_channel_chat",
+                                ["channel"] = "shop"
+                            }
+                        }
+                    }.ToJsonString());
+                    var afterResetShopCfg = McpSecurityGuard.LoadAgBridgeConfig();
+                    bool shopResetOk = !afterResetShopCfg.ChannelConversationIds.ContainsKey("shop")
+                                       && afterResetShopCfg.ChannelConversationIds["leitung"] == afterResetShopCfg.MasterConversationId;
+
+                    // f) Cross-thread / cross-process StageDeployMutex contention & clean wait handoff
+                    string testMutexName = $@"Local\FunkenwerkStageDeployTest_{Guid.NewGuid():N}";
+                    int waitingLogCount = 0;
+                    Task<Program.StageDeployMutexLock> secondAcquireTask;
+                    using (var firstLock = await Program.StageDeployMutexLock.AcquireAsync(TimeSpan.FromSeconds(5), testMutexName))
+                    {
+                        secondAcquireTask = Program.StageDeployMutexLock.AcquireAsync(
+                            TimeSpan.FromSeconds(5),
+                            testMutexName,
+                            onWaiting: _ => Interlocked.Increment(ref waitingLogCount));
+                        await Task.Delay(120);
+                    }
+                    using var secondLock = await secondAcquireTask;
+                    bool mutexOk = secondLock.WaitedForContention && waitingLogCount == 1;
+
+                    AssertTest("60. 5 Department Channels + 'new' Special Channel + Brain UUID Fallback + StageDeployMutex",
+                        normOk
+                        && shopPromptOk
+                        && newConvPsiOk
+                        && fromStdout == stdoutUuid
+                        && fromBrainFallback == freshFolderUuid
+                        && setShopResp != null && setShopResp.Contains("\"isError\":false")
+                        && shopPersisted
+                        && resetShopResp != null && resetShopResp.Contains("\"isError\":false")
+                        && shopResetOk
+                        && mutexOk);
                 }
 
                 Console.WriteLine($"=== RESULT: {passed} PASSED, {failed} FAILED ===");

@@ -12,6 +12,7 @@ class AntigravityDirectInboxCommand extends Command
         {--pull-pending : Gibt alle pending-Eintraege chronologisch (aelteste zuerst) aus und stellt sie atomar auf delivered}
         {--mark-delivered= : Setzt einen Eintrag oder kommagetrennte IDs von pending auf delivered}
         {--complete= : Setzt einen Eintrag anhand seiner ID auf completed}
+        {--ignore-missing : Beendet bei nicht gefundenen Eintraegen ohne Fehler (status=not_found)}
         {--summary-b64= : Base64-codierte Kurz-Antwort fuer --complete}
         {--summary= : Klartext-Kurz-Antwort fuer --complete}
         {--list : Gibt Status-Zaehler und Eintraege (neueste zuerst) als JSON aus}
@@ -64,6 +65,12 @@ class AntigravityDirectInboxCommand extends Command
 
                 $completedItem = $inbox->completeMessage($completeId, $summary);
                 if ($completedItem === null) {
+                    if ((bool) $this->option('ignore-missing')) {
+                        return $this->emitJson([
+                            'status' => 'not_found',
+                            'message' => 'Eintrag lokal nicht gefunden: ' . $completeId,
+                        ]);
+                    }
                     return $this->emitJsonError('Eintrag nicht gefunden: ' . $completeId);
                 }
 

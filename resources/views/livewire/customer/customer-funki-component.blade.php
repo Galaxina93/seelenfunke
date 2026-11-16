@@ -945,11 +945,19 @@
 
         {{-- Rangliste --}}
         <div class="space-y-3">
-            <div class="flex items-center justify-between">
+            <div class="flex flex-wrap items-center justify-between gap-2.5">
                 <h3 class="text-base font-serif font-bold text-gray-900 dark:text-white">
                     Top Sammler ({{ $hallOfFameTotal }})
                 </h3>
-                <span class="text-[11px] text-gray-500">Seite {{ $hallOfFamePage }} / {{ $hallOfFameLastPage }}</span>
+                <div class="flex items-center gap-2.5">
+                    <button type="button"
+                            onclick="(function(){ if (window.SeelenfunkeHeroes3D) { window.SeelenfunkeHeroes3D.open('hall'); return; } var s = document.getElementById('sf-heroes-3d-script'); if (!s) { s = document.createElement('script'); s.id = 'sf-heroes-3d-script'; s.src = '{{ asset('js/funkenwerk-heroes-3d.js') }}'; s.onload = function(){ if (window.SeelenfunkeHeroes3D) window.SeelenfunkeHeroes3D.open('hall'); }; document.head.appendChild(s); } })()"
+                            class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#C5A059] hover:bg-[#b58f48] text-gray-950 text-xs font-black tracking-wide transition cursor-pointer">
+                        <span>🏛️</span>
+                        <span>Funkenwerk 3D öffnen</span>
+                    </button>
+                    <span class="text-[11px] text-gray-500">Seite {{ $hallOfFamePage }} / {{ $hallOfFameLastPage }}</span>
+                </div>
             </div>
 
             @if(count($hallOfFameLeaders) > 0)

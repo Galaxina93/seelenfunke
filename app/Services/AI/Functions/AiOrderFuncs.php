@@ -28,13 +28,17 @@ trait AiOrderFuncs
             ],
             [
                 'name' => 'order_get_details',
-                'description' => 'Ruft detaillierte Informationen zu einer bestimmten Bestellung oder mehreren passenden Bestellungen ab. Unterstützt Suche nach Bestellnummer, E-Mail, Kundenname, Betragsspannen (in Euro) und Status.',
+                'description' => 'Ruft detaillierte Informationen zu einer bestimmten Bestellung oder mehreren passenden Bestellungen ab. Unterstützt Suche nach Bestellnummer, Produktname (z. B. "Der Seelen Kristall"), E-Mail, Kundenname, Betragsspannen (in Euro) und Status.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
                         'order_number' => [
                             'type' => 'string',
-                            'description' => 'Optional: Die genaue Bestellnummer oder E-Mail des Kunden.'
+                            'description' => 'Optional: Die genaue Bestellnummer, der Produktname (löst automatisch die offene Fokus-Bestellung mit diesem Produkt auf) oder die E-Mail des Kunden.'
+                        ],
+                        'product_name' => [
+                            'type' => 'string',
+                            'description' => 'Optional: Suche nach Produktname (z. B. "Der Seelen Kristall"), um die passende offene Fokus-Bestellung direkt aufzulösen.'
                         ],
                         'customer_name' => [
                             'type' => 'string',
@@ -70,7 +74,11 @@ trait AiOrderFuncs
                     'properties' => [
                         'order_number' => [
                             'type' => 'string',
-                            'description' => 'Die Bestellnummer der Bestellung.'
+                            'description' => 'Die Bestellnummer der Bestellung oder der Produktname der offenen Fokus-Bestellung (z. B. "Der Seelen Kristall").'
+                        ],
+                        'product_name' => [
+                            'type' => 'string',
+                            'description' => 'Optional: Produktname der offenen Fokus-Bestellung, falls keine Bestellnummer angegeben wurde.'
                         ],
                         'status' => [
                             'type' => 'string',
@@ -87,13 +95,13 @@ trait AiOrderFuncs
                             'description' => 'PFLICHT-SCHUTZ: Darf NUR dann true sein, wenn Alina dir im unmittelbaren Gespräch zuvor AUSDRÜCKLICH bestätigt hat, dass du diesen Status jetzt ändern sollst. Ohne Rückfrage immer false übergeben!'
                         ]
                     ],
-                    'required' => ['order_number', 'confirmed_by_alina']
+                    'required' => ['confirmed_by_alina']
                 ],
                 'callable' => [self::class, 'executeOrderUpdateStatus']
             ],
             [
                 'name' => 'order_workshop_checkin',
-                'description' => 'Liest oder speichert den internen Werkstatt-Stand (workshop_note) und die Wiedervorlage (Standard: 2 Stunden) der aktuell wichtigsten zu bearbeitenden Bestellung (oder einer gezielten Bestellnummer). Identische Datenbasis wie Alinas manuelle Werkstatt-Stand-Karte unter /admin/orders. Ändert NIEMALS eigenmächtig den Bestellstatus, sondern meldet etwaige Status-Abweichungen zurück, damit du Alina gezielt fragen kannst!',
+                'description' => 'Liest oder speichert den internen Werkstatt-Stand (workshop_note) und die Wiedervorlage (Standard: 2 Stunden) der aktuell wichtigsten zu bearbeitenden Bestellung (oder einer gezielten Bestellnummer bzw. eines Produktnamens). Identische Datenbasis wie Alinas manuelle Werkstatt-Stand-Karte unter /admin/orders. Ändert NIEMALS eigenmächtig den Bestellstatus, sondern meldet etwaige Status-Abweichungen zurück, damit du Alina gezielt fragen kannst!',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
@@ -104,7 +112,11 @@ trait AiOrderFuncs
                         ],
                         'order_number' => [
                             'type' => 'string',
-                            'description' => 'Optionale Bestellnummer (z. B. ORD-...). Wenn leer gelassen, wird automatisch die aktuell wichtigste offene Prioritäts-Bestellung gewählt.'
+                            'description' => 'Optionale Bestellnummer oder Produktname (z. B. "Der Seelen Kristall"). Wenn leer gelassen, wird automatisch die aktuell wichtigste offene Prioritäts-Bestellung gewählt.'
+                        ],
+                        'product_name' => [
+                            'type' => 'string',
+                            'description' => 'Optionaler Produktname (z. B. "Der Seelen Kristall"), um die passende offene Fokus-Bestellung aufzulösen.'
                         ],
                         'workshop_note' => [
                             'type' => 'string',
@@ -222,23 +234,121 @@ trait AiOrderFuncs
         ];
     }
 
+    private static function normalizeProductLookupTerm(string $raw): string
+    {
+        $clean = trim($raw);
+        $clean = preg_replace('/^\d+\s*[x×]\s*/iu', '', $clean) ?? $clean;
+        $clean = trim($clean, " \t\n\r\0\x0B\"'„“”#");
+        return trim($clean);
+    }
+
+    /**
+     * Löst anhand eines Produktnamens (z. B. "Der Seelen Kristall" oder "1× Der Seelen Kristall")
+     * alle offenen Fokus-Bestellungen (pending / processing) rüstzeit- und prioritätsoptimiert auf.
+     *
+     * @return \Illuminate\Support\Collection<int, OrderOrder>
+     */
+    private static function resolveOpenOrdersByProductName(string $rawProductQuery): \Illuminate\Support\Collection
+    {
+        $term = self::normalizeProductLookupTerm($rawProductQuery);
+        if ($term === '') {
+            return collect();
+        }
+
+        $termEsc = addcslashes($term, '%_\\');
+
+        $matching = OrderOrder::with(['items.product.supplier', 'shipments', 'customer.profile', 'invoices'])
+            ->whereIn('status', ['pending', 'processing'])
+            ->whereHas('items', function ($iq) use ($termEsc) {
+                $iq->where('product_name', 'like', "%{$termEsc}%")
+                    ->orWhereHas('product', function ($pq) use ($termEsc) {
+                        $pq->where('name', 'like', "%{$termEsc}%")
+                            ->orWhere('slug', 'like', "%{$termEsc}%")
+                            ->orWhere('sku', 'like', "%{$termEsc}%");
+                    });
+            })
+            ->get();
+
+        if ($matching->count() <= 1) {
+            return $matching;
+        }
+
+        try {
+            $queue = app(\App\Services\Order\OrderProductionBatchService::class)->buildSmartQueue($matching);
+            if (!empty($queue['ranked_orders']) && $queue['ranked_orders']->isNotEmpty()) {
+                return $queue['ranked_orders'];
+            }
+        } catch (\Throwable $e) {
+            // Fallback auf Express + FIFO
+        }
+
+        return $matching->sortBy([
+            ['is_express', 'desc'],
+            ['created_at', 'asc'],
+        ])->values();
+    }
+
+    /**
+     * Löst eine Bestellung zuerst über exakte Bestellnummer und (falls kein Treffer) über den Produktnamen
+     * der offenen Prioritäts-Bestellung auf.
+     */
+    private static function resolveSingleOrderByIdentifierOrProduct(?string $orderNumberOrProduct, ?string $explicitProductName = null): ?OrderOrder
+    {
+        $rawIdentifier = ltrim(trim((string) $orderNumberOrProduct), '#');
+        if ($rawIdentifier !== '') {
+            $exact = OrderOrder::with(['items.product.supplier', 'shipments'])
+                ->where('order_number', $rawIdentifier)
+                ->first();
+            if ($exact) {
+                return $exact;
+            }
+        }
+
+        $productLookup = trim((string) ($explicitProductName ?: $rawIdentifier));
+        if ($productLookup !== '') {
+            return self::resolveOpenOrdersByProductName($productLookup)->first();
+        }
+
+        return null;
+    }
+
     public static function executeGetOrder(array $args)
     {
         if ($denied = self::assertOrderStaffAccess()) {
             return $denied;
         }
         try {
-            $query = OrderOrder::with(['items', 'customer.profile', 'invoices']);
+            $query = OrderOrder::with(['items.product', 'customer.profile', 'invoices']);
             
             $hasFilters = false;
 
             if (!empty($args['order_number'])) {
-                $termEsc = addcslashes((string) $args['order_number'], '%_\\');
+                $cleanOrderNo = ltrim(trim((string) $args['order_number']), '#');
+                $termEsc = addcslashes($cleanOrderNo, '%_\\');
                 $query->where(function($q) use ($termEsc) {
                     $q->where('order_number', 'like', "%{$termEsc}%")
                       ->orWhere('email', 'like', "%{$termEsc}%");
                 });
                 $hasFilters = true;
+            }
+
+            if (!empty($args['product_name'])) {
+                $prodTerm = self::normalizeProductLookupTerm((string) $args['product_name']);
+                if ($prodTerm !== '') {
+                    $prodEsc = addcslashes($prodTerm, '%_\\');
+                    $query->whereHas('items', function ($iq) use ($prodEsc) {
+                        $iq->where('product_name', 'like', "%{$prodEsc}%")
+                            ->orWhereHas('product', function ($pq) use ($prodEsc) {
+                                $pq->where('name', 'like', "%{$prodEsc}%")
+                                    ->orWhere('slug', 'like', "%{$prodEsc}%")
+                                    ->orWhere('sku', 'like', "%{$prodEsc}%");
+                            });
+                    });
+                    if (empty($args['status'])) {
+                        $query->whereIn('status', ['pending', 'processing']);
+                    }
+                    $hasFilters = true;
+                }
             }
 
             if (!empty($args['customer_name'])) {
@@ -282,11 +392,26 @@ trait AiOrderFuncs
                 $query->orderBy('created_at', 'desc')->take(1);
                 $limit = 1;
             } else {
-                $query->orderBy('created_at', 'desc');
+                $query->orderBy('is_express', 'desc')->orderBy('created_at', 'desc');
                 $limit = 10;
             }
 
             $orders = $query->take($limit)->get();
+
+            // Fallback: Wurde in order_number ein Produktname übergeben (z. B. "Der Seelen Kristall") und keine exakte Bestellnummer getroffen,
+            // löse automatisch die passende offene Fokus-Bestellung (pending/processing) mit diesem Produkt auf!
+            if ($orders->isEmpty() && !empty($args['order_number'])) {
+                $fallbackOpen = self::resolveOpenOrdersByProductName((string) $args['order_number']);
+                if (!empty($args['status'])) {
+                    $fallbackOpen = $fallbackOpen->where('status', $args['status'])->values();
+                }
+                if (!empty($args['payment_status'])) {
+                    $fallbackOpen = $fallbackOpen->where('payment_status', $args['payment_status'])->values();
+                }
+                $orders = $fallbackOpen->take(10);
+            } elseif ($orders->count() > 1 && !empty($args['product_name']) && empty($args['status'])) {
+                $orders = self::resolveOpenOrdersByProductName((string) $args['product_name'])->take(10);
+            }
 
             if ($orders->isEmpty()) {
                 $hint = !empty($args['customer_name'])
@@ -313,7 +438,7 @@ trait AiOrderFuncs
                     foreach ($o->items as $item) {
                         $itemsDetail[] = [
                             'id' => $item->id,
-                            'name' => $item->name,
+                            'name' => $item->product?->name ?? $item->product_name ?? $item->name,
                             'quantity' => $item->quantity,
                             'unit_price' => number_format($item->unit_price / 100, 2, ',', '.') . ' €',
                             'total_price' => number_format($item->total_price / 100, 2, ',', '.') . ' €'
@@ -339,6 +464,7 @@ trait AiOrderFuncs
 
                 $formatted[] = [
                     'order_id' => $o->id,
+                    'production_focus_label' => $o->getProductionFocusLabel(),
                     'order_number' => $o->order_number,
                     'status' => $o->status,
                     'payment_status' => $o->payment_status,
@@ -386,10 +512,17 @@ trait AiOrderFuncs
             return $denied;
         }
         try {
-            $order = OrderOrder::where('order_number', $args['order_number'])->first();
+            $rawOrderRef = trim((string) ($args['order_number'] ?? ''));
+            $rawProdRef = trim((string) ($args['product_name'] ?? ''));
+            if ($rawOrderRef === '' && $rawProdRef === '') {
+                return ['status' => 'error', 'message' => 'Bitte Bestellnummer oder Produktname angeben.'];
+            }
+
+            $order = self::resolveSingleOrderByIdentifierOrProduct($rawOrderRef, $rawProdRef !== '' ? $rawProdRef : null);
             if (!$order) {
                 return ['status' => 'error', 'message' => 'Bestellung nicht gefunden.'];
             }
+            $focusLabel = $order->getProductionFocusLabel();
 
             $updates = [];
             $isCancelling = false;
@@ -426,10 +559,11 @@ trait AiOrderFuncs
                     'status' => 'confirmation_required',
                     'changed' => false,
                     'order_number' => $order->order_number,
+                    'production_focus_label' => $focusLabel,
                     'current_status' => $order->status,
                     'current_status_label' => $currentLabel,
                     'requested_updates' => $updates,
-                    'message' => 'RÜCKFRAGE-SCHUTZ AKTIV: Der Status von #' . $order->order_number . ' wurde noch NICHT geändert! Alina hat immer den Hut auf. Frage Alina jetzt zuerst ausdrücklich um Freigabe' . ($targetLabel ? " (ob du von '{$currentLabel}' auf '{$targetLabel}' umstellen sollst)" : '') . ' und rufe order_update_status erst nach ihrem klaren Ja mit confirmed_by_alina=true auf.',
+                    'message' => 'RÜCKFRAGE-SCHUTZ AKTIV: Der Status von ' . $focusLabel . ' wurde noch NICHT geändert! Alina hat immer den Hut auf. Frage Alina jetzt zuerst ausdrücklich um Freigabe' . ($targetLabel ? " (ob du von '{$currentLabel}' auf '{$targetLabel}' umstellen sollst)" : '') . ' und rufe order_update_status erst nach ihrem klaren Ja mit confirmed_by_alina=true auf.',
                 ];
             }
 
@@ -462,7 +596,9 @@ trait AiOrderFuncs
 
             return [
                 'status' => 'success', 
-                'message' => 'Bestellung ' . $order->order_number . ' erfolgreich aktualisiert.',
+                'order_number' => $order->order_number,
+                'production_focus_label' => $focusLabel,
+                'message' => 'Auftrag ' . $focusLabel . ' erfolgreich aktualisiert.',
                 'new_state' => $updates
             ];
 
@@ -681,14 +817,14 @@ trait AiOrderFuncs
             $batchService = app(\App\Services\Order\OrderProductionBatchService::class);
             $action = strtolower(trim((string) ($args['action'] ?? 'get_priority_checkin')));
             $rawOrderNo = ltrim(trim((string) ($args['order_number'] ?? '')), '#');
+            $rawProductName = trim((string) ($args['product_name'] ?? ''));
 
             $order = null;
-            if ($rawOrderNo !== '') {
-                $order = OrderOrder::with(['items.product.supplier', 'shipments'])
-                    ->where('order_number', $rawOrderNo)
-                    ->first();
+            if ($rawOrderNo !== '' || $rawProductName !== '') {
+                $order = self::resolveSingleOrderByIdentifierOrProduct($rawOrderNo, $rawProductName !== '' ? $rawProductName : null);
                 if (!$order) {
-                    return ['status' => 'error', 'message' => "Bestellung #{$rawOrderNo} wurde nicht gefunden."];
+                    $labelWanted = $rawProductName !== '' ? $rawProductName : ('#' . $rawOrderNo);
+                    return ['status' => 'error', 'message' => "Bestellung {$labelWanted} wurde nicht gefunden."];
                 }
             }
 
@@ -735,11 +871,12 @@ trait AiOrderFuncs
                     'workshop_next_check_at' => null,
                     'workshop_checkin_paused' => false,
                 ]);
-                $snapshot = $batchService->buildWorkshopCheckinSnapshot($order->fresh(['items.product.supplier', 'shipments']));
+                $freshCleared = $order->fresh(['items.product.supplier', 'shipments']);
+                $snapshot = $batchService->buildWorkshopCheckinSnapshot($freshCleared);
                 return [
                     'status' => 'success',
                     'order_status_changed' => false,
-                    'message' => "Werkstatt-Stand für #{$order->order_number} wurde geleert.",
+                    'message' => 'Werkstatt-Stand für ' . $freshCleared->getProductionFocusLabel() . ' wurde geleert.',
                     'checkin' => $snapshot,
                 ];
             }
@@ -754,11 +891,12 @@ trait AiOrderFuncs
                     'workshop_next_check_at' => null,
                     'workshop_checkin_paused' => true,
                 ]);
-                $snapshot = $batchService->buildWorkshopCheckinSnapshot($order->fresh(['items.product.supplier', 'shipments']));
+                $freshPaused = $order->fresh(['items.product.supplier', 'shipments']);
+                $snapshot = $batchService->buildWorkshopCheckinSnapshot($freshPaused);
                 return [
                     'status' => 'success',
                     'order_status_changed' => false,
-                    'message' => "Check-ins für #{$order->order_number} wurden pausiert.",
+                    'message' => 'Check-ins für ' . $freshPaused->getProductionFocusLabel() . ' wurden pausiert.',
                     'checkin' => $snapshot,
                 ];
             }
@@ -789,6 +927,7 @@ trait AiOrderFuncs
 
             $freshOrder = $order->fresh(['items.product.supplier', 'shipments']);
             $snapshot = $batchService->buildWorkshopCheckinSnapshot($freshOrder);
+            $focusLabel = $freshOrder->getProductionFocusLabel();
 
             return [
                 'status' => 'success',
@@ -797,8 +936,8 @@ trait AiOrderFuncs
                 'checkin' => $snapshot,
                 'requires_alina_status_question' => (bool) ($snapshot['has_discrepancy'] ?? false),
                 'instruction_for_funkira' => !empty($snapshot['has_discrepancy'])
-                    ? ('STAND GESPEICHERT, ABER STATUS-RÜCKFRAGE PFLICHT: Ändere den Bestellstatus NICHT heimlich und verschweige die Abweichung NICHT! Bestätige kurz den notierten Stand und frage Alina jetzt ausdrücklich: ' . $snapshot['ask_alina_prompt'])
-                    : ('Bestätige Alina kurz in einem Satz, dass der Werkstatt-Stand zu #' . $freshOrder->order_number . ' vermerkt ist (' . $schedule['mode_label'] . ').'),
+                    ? ('STAND GESPEICHERT, ABER STATUS-RÜCKFRAGE PFLICHT: Ändere den Bestellstatus NICHT heimlich und verschweige die Abweichung NICHT! Bestätige kurz den notierten Stand zu ' . $focusLabel . ' und frage Alina jetzt ausdrücklich: ' . $snapshot['ask_alina_prompt'])
+                    : ('Bestätige Alina kurz in einem Satz, dass der Werkstatt-Stand zu ' . $focusLabel . ' vermerkt ist (' . $schedule['mode_label'] . ').'),
             ];
         } catch (\Exception $e) {
             return ['status' => 'error', 'message' => 'Fehler beim Werkstatt-Check-in: ' . $e->getMessage()];

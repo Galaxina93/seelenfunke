@@ -211,6 +211,49 @@ use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
         return $this->hasMany(OrderOrderItem::class, 'order_id');
     }
 
+    /**
+     * Liefert den glasklaren physischen Artikel-Fokus statt abstrakter Bestellnummern (#ORD-...):
+     * - 1 Artikel: "1× Der Seelen Kristall"
+     * - 2 Artikel: "1× Der Seelen Kristall + 2× Herz-Schlüsselanhänger"
+     * - >= 3 Artikel: "1× Der Seelen Kristall + 1× Schieferplatte (+1 weiterer)" bzw. "(+N weitere)"
+     * - 0 Positionen: Fallback auf "Auftrag #<order_number>"
+     */
+    public function getProductionFocusLabel(int $maxItems = 2): string
+    {
+        $items = $this->relationLoaded('items')
+            ? $this->items
+            : $this->items()->with('product')->get();
+
+        if ($items->isEmpty()) {
+            return 'Auftrag #' . $this->order_number;
+        }
+
+        $limit = max(1, $maxItems);
+        $parts = [];
+
+        foreach ($items->take($limit) as $item) {
+            $product = $item->relationLoaded('product') ? $item->product : $item->product()->first();
+            $rawName = $product?->name ?? $item->product_name ?? $item->name ?? '';
+            $cleanName = trim((string) $rawName);
+            if ($cleanName === '') {
+                $cleanName = 'Artikel';
+            }
+            $qty = max(1, (int) ($item->quantity ?: 1));
+            $parts[] = $qty . '× ' . $cleanName;
+        }
+
+        $label = implode(' + ', $parts);
+        $remaining = $items->count() - $limit;
+
+        if ($remaining === 1) {
+            $label .= ' (+1 weiterer)';
+        } elseif ($remaining > 1) {
+            $label .= ' (+' . $remaining . ' weitere)';
+        }
+
+        return $label;
+    }
+
     public function shipments()
     {
         return $this->hasMany(OrderShipment::class, 'order_id');

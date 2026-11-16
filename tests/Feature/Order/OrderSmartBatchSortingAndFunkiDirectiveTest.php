@@ -178,11 +178,11 @@ class OrderSmartBatchSortingAndFunkiDirectiveTest extends TestCase
         // Beide Trophäen stehen direkt hintereinander ganz oben, danach erst der Anhänger!
         $this->assertSame(['ORD-TROPHY-1', 'ORD-TROPHY-2', 'ORD-PENDANT-1'], $orderedNumbers);
 
-        // Funki sagt oben in einem konkreten Satz die Serie + das 3D-Setup an
+        // Funki sagt oben in einem konkreten Satz die Serie + das 3D-Setup + Menge × Produktname (statt #ORD-...) an
         $component->assertSee('Serie starten (2 Aufträge gebündelt)')
             ->assertSee('3D-Kristallfokus')
-            ->assertSee('Der Seelen Kristall')
-            ->assertSee('#ORD-TROPHY-1');
+            ->assertSee('1× „Der Seelen Kristall“')
+            ->assertSee('ORD-TROPHY-1');
     }
 
     public function test_completing_an_item_locks_active_laser_focus_and_enables_next_same_article_flow(): void
@@ -236,7 +236,8 @@ class OrderSmartBatchSortingAndFunkiDirectiveTest extends TestCase
         // Und Funki erkennt sowohl das letzte Serien-Stück als auch die Vorder- und Rückseiten-Gravur!
         $listComponent->assertSee('Letztes Stück der Serie')
             ->assertSee('Flachbett · Vorder- und Rückseite')
-            ->assertSee('#ORD-PENDANT-B');
+            ->assertSee('1× „Der Seelenanhänger“')
+            ->assertSee('ORD-PENDANT-B');
     }
 
     public function test_express_and_48h_aging_orders_never_starve_behind_batches(): void
@@ -281,7 +282,8 @@ class OrderSmartBatchSortingAndFunkiDirectiveTest extends TestCase
         // 1. Express zuerst, 2. Über 48h wartendes Weizenglas (Frist-Schutz), 3. Frische Trophäe
         $this->assertSame(['ORD-EXPRESS-NOW', 'ORD-AGED-GLASS', 'ORD-FRESH-TROPHY'], $orderedNumbers);
         $component->assertSee('Express sofort lasern')
-            ->assertSee('#ORD-EXPRESS-NOW');
+            ->assertSee('1× „Der Seelenanhänger“')
+            ->assertSee('ORD-EXPRESS-NOW');
     }
 
     public function test_funki_directive_covers_all_special_states_unpaid_supplier_photo_and_ready_ship(): void
@@ -383,7 +385,8 @@ class OrderSmartBatchSortingAndFunkiDirectiveTest extends TestCase
 
         // Zustand A: Fertig gelasert, Label fehlt noch
         $component->assertSee('Fertig gelasert, Label erstellen')
-            ->assertSee('#ORD-READY-SHIP');
+            ->assertSee('1× Der Seelenanhänger')
+            ->assertSee('ORD-READY-SHIP');
 
         // Zustand A2: Label ist bereits generiert -> Funki sagt "Drucke das fertige DHL-Label ... auf dem MUNBYN"
         OrderShipment::create([
@@ -402,24 +405,24 @@ class OrderSmartBatchSortingAndFunkiDirectiveTest extends TestCase
         Livewire::test(OrderOverview::class)
             ->assertSee('Jetzt Rohling nachbestellen')
             ->assertSee('Friedrich Binder (FBM)')
-            ->assertSee('#ORD-SUPPLIER-1');
+            ->assertSee('1× „Das Echtsilber Gravur-Armband“');
 
         // Rohling als bestellt markiert -> Rutscht in Wartebereich ("im Zulauf") vor Foto-Mangel & Unbezahlt
         $supItem->markSupplierOrdered(true);
         Livewire::test(OrderOverview::class)
             ->assertSee('Warten auf Wareneingang')
-            ->assertSee('#ORD-SUPPLIER-1');
+            ->assertSee('1× „Das Echtsilber Gravur-Armband“');
 
         // Supplier-Order erledigt -> Jetzt liegt Foto-Mangel oben
         $supplierOrder->update(['status' => 'completed']);
         Livewire::test(OrderOverview::class)
             ->assertSee('Pausiert wegen Kundenfoto')
-            ->assertSee('#ORD-PHOTO-1');
+            ->assertSee('1× „Der Seelen Kristall“');
 
         // Foto-Order erledigt -> Jetzt liegt Unbezahlt oben
         $photoOrder->update(['status' => 'cancelled']);
         Livewire::test(OrderOverview::class)
             ->assertSee('Noch nicht lasern (Zahlung offen)')
-            ->assertSee('#ORD-UNPAID-1');
+            ->assertSee('1× Der Seelenanhänger');
     }
 }

@@ -19,12 +19,13 @@ Das Mein-Seelenfunke-Ökosystem arbeitet nach dem verbindlichen **Zero-Log-Basel
 ---
 
 ## 3. Verbindliche 5-Schritt-Kette jedes Selbstheilungslaufs (`Seelenfunke Universum Selbstheilung`)
-Zu jeder vollen Stunde (`CRON_TZ=Europe/Berlin 0 * * * *`) führt Antigravity automatisch folgende Kette aus:
+Zu jeder vollen Stunde (`CRON_TZ=Europe/Berlin 0 * * * *`) startet [sidecar.json](file:///C:/Users/konta/.gemini/config/sidecars/seelenfunke-universe-self-heal/sidecar.json) den stillen C#-Wächter `FunkenwerkMcp.exe --sentinel-hourly-guard` (`0` neue Einzel-Chats, `0` KI-Token im Normalbetrieb):
 
-1. **Universeller Pull & Roh-Log-Prüfung:**
-   * `FunkenwerkMcp.exe --sentinel-sync` zieht per gepinntem Ed25519-SSH den Stage-Pool (`Mittwald`) und direkt den Mini-PC (`192.168.188.151`).
-   * `LogArchiveService::ingestActiveLogFilesIntoSentinel()` überführt auch unstrukturierte `[ERROR]`/`CRITICAL`-Zeilen aus `storage/logs/*.log` dedupliziert in `system_logs`.
-   * Sind `open_pool_count == 0` und alle Haupt-Logs `0 Bytes`, beendet sich der Lauf sofort in unter 3 Sekunden.
+1. **Stiller C#-Pull & 3-Phasen-Entscheidung (`EvaluateSentinelHourlyState`):**
+   * `FunkenwerkMcp.exe --sentinel-hourly-guard` zieht per gepinntem Ed25519-SSH den Stage-Pool (`Mittwald`) und direkt den Mini-PC (`192.168.188.151`).
+   * **Fall 1 (`open_pool_count == 0` & alle Haupt-Logs `0 Bytes`):** Stiller Sofort-Exit in `< 3 s` (`ExitCode 0`, `0` Chats, `0` Token).
+   * **Fall 2 (`open_pool_count == 0`, harmlose Info-Logs `> 0 Bytes` ohne `[ERROR]`/`CRITICAL`/`Exception`):** Automatische C#-Rotation nach `storage/logs/archive/` und Nullstellung auf `0 Bytes` (`0` Chats).
+   * **Fall 3 (Echter ungelöster Fehler):** SHA-256-deduplizierte Benachrichtigung ausschließlich per `agentapi send-message` in den einzigen zentralen `Leitung`-Chat (`a75e6db9-d026-4955-97c0-6e8695d6193d`).
 2. **Code-Fix & Pflicht-Test (`100 % Grün`):**
    * PHP/JS/Blade -> `php artisan test` in `mein_php_server`.
    * Mini-PC (`funkenwerk-os-linux`) / Windows (`funkenwerk`) -> `dotnet build` & Selbsttest.
@@ -87,3 +88,26 @@ Zu jeder vollen Stunde (`CRON_TZ=Europe/Berlin 0 * * * *`) führt Antigravity au
   - Mini-PC `/home/alina/.local/share/FunkenwerkOS/sentinel_history.json`: **`0 Bytes`** (kein Handoff, keine Queue)
   - Windows `%LOCALAPPDATA%\FunkenwerkTresor\funkenwerk_tresor_boot.log`: **`0 Bytes`** (keine Queue)
   - Android Stage-OTA `manifest.json`: **`v1.8.0` (`version_code = 24`)**, `open_pool_count = 0`.
+
+### 16.11.2026, 14:15 Uhr (5-Schritt-Universums-Selbstheilung, AG-Inbox CLI-Entkopplung, Android OTA `v1.8.2` (Build 26) & Verifizierte Zero-Log-Baseline `0 Bytes`)
+* **Erfasste & dauerhaft im Code geheilte Befunde:**
+  1. `Portal & CLI-Brücke` (`AppServiceProvider.php`, `AntigravityDirectInboxCommand.php`, `SentinelTriageService.php`, `Program.cs`):
+     - `system:ag-inbox` und `system:sentinel-triage` in `$ignoredInteractiveCommands` in `AppServiceProvider.php` aufgenommen, damit interaktive oder CLI-Bridge-Aufrufe mit Exit 1 (z. B. lokaler Komplettierungs-Versuch für Stage-Meldung) nicht fälschlich als `Cronjob fehlgeschlagen` registriert werden.
+     - `--ignore-missing` Option in `AntigravityDirectInboxCommand.php` und `FunkenwerkMcp` ergänzt, sodass idempotente Fertigmeldungen über Umgebungen hinweg sauber quittiert werden.
+     - Neues Playbook 11 (`interactive_ag_inbox_reconciled`) in `SentinelTriageService.php` implementiert, das bestehende und künftige AG-Inbox-Abschlüsse autonom auto-heilt und archiviert.
+  2. `Android-App` (`WakeWordService.kt`, `AgDirectInboxManagerTest.kt`, `build.gradle.kts`):
+     - Unaufgelöste SDK-Konstante `EXTRA_AUDIO_SOURCE_SAMPLE_RATE` -> `EXTRA_AUDIO_SOURCE_SAMPLING_RATE` korrigiert.
+     - `AgDirectInboxManagerTest.kt` auf den neuen Badge-Text `"Bei Falcone"` aktualisiert.
+     - 1:1 Windows-Mirror synchronisiert (`seelenfunke-android`), alle 65 Unit-Tests 100 % grün.
+     - Release-APK **`v1.8.2` (Build 26)** signiert gebaut (`4.6 MB`, SHA-256: `7bfc62eba78bdbabc02c5d7e0ccfa0a3331a44c73ba06f60615871a47753f4c9`) und via `--stage-publish-apk` auf Stage ausgerollt.
+* **Testnachweis (`100 % Grün` über alle 4 Säulen):**
+  - **Portal / Stage (PHPUnit in `mein_php_server`)**: `SentinelSelfHealingAndInboxTest` (8/8 Tests, 73 Assertions) & `LogArchiveServiceTest` (2/2 Tests, 32 Assertions) bestanden.
+  - **Manufaktur Mini-PC (`FunkenwerkOS.Linux`)**: `45/45 TESTS BESTANDEN` live auf `192.168.188.151`.
+  - **Windows Funkenwerk (`FunkenwerkMcp` & `Tresor`)**: `58/58` MCP-Selbsttests (`FunkenwerkMcp.exe --self-test`) & FunkenwerkTresor Selbsttest bestanden.
+  - **Android-App (`seelenfunke-android`)**: `65/65` Unit-Tests grün (`BUILD SUCCESSFUL`) + `assembleRelease` (`v1.8.2`, Build 26).
+* **Verifizierter Endstatus (Zero-Log-Baseline = 0 Bytes):**
+  - Portal & Stage (`storage/logs/laravel.log`, `twilio_bridge.log`, `14x cron-*.log`): **`0 Bytes`**
+  - `storage/app/private/antigravity_inbox.json`: `open_pool_count = 0`, `items: []`
+  - Manufaktur Mini-PC (`/home/alina/.local/share/FunkenwerkOS/sentinel_history.json`): **`0 Bytes`** (kein Handoff, keine Queue)
+  - Windows Funkenwerk (`%LOCALAPPDATA%\FunkenwerkTresor\funkenwerk_tresor_boot.log`): **`0 Bytes`** (keine Queue)
+  - Android Stage-OTA `manifest.json`: **`v1.8.2` (`version_code = 26`)**, `open_pool_count = 0`.

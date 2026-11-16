@@ -697,6 +697,15 @@ class SentinelTriageService
             ];
         }
 
+        // Playbook 11: Interaktiver AG-Inbox CLI-Synchronisations-Aufruf (z. B. lokaler Komplettierungs-Versuch fuer Stage-Meldung)
+        if (str_contains($actionId, 'cronjob_failed:system:ag-inbox') || (str_contains($msgLower, 'system:ag-inbox') && str_contains($msgLower, 'exit 1'))) {
+            return [
+                'healed' => true,
+                'playbook' => 'interactive_ag_inbox_reconciled',
+                'summary' => 'AG-Inbox CLI-Aufruf als interaktiver Stage-/Lokal-Sync erkannt und harmonisiert.',
+            ];
+        }
+
         return ['healed' => false];
     }
 

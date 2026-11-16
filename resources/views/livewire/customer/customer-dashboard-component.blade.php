@@ -1773,13 +1773,21 @@
 
                         {{-- Rangliste der Helden mit logischer Paginierung --}}
                         <div class="space-y-3">
-                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                                 <h4 class="text-base font-serif font-bold text-gray-900 dark:text-white">
                                     Top Seelenfunken-Sammler ({{ $hallOfFameTotal }} {{ $hallOfFameTotal === 1 ? 'Held' : 'Helden' }})
                                 </h4>
-                                <span class="text-[11px] text-gray-500 dark:text-gray-400">
-                                    Seite {{ $hallOfFamePage }} von {{ $hallOfFameLastPage }} • Klicke auf ein Profilbild für die Detailansicht
-                                </span>
+                                <div class="flex flex-wrap items-center gap-2.5">
+                                    <button type="button"
+                                            onclick="(function(){ if (window.SeelenfunkeHeroes3D) { window.SeelenfunkeHeroes3D.open('hall'); return; } var s = document.getElementById('sf-heroes-3d-script'); if (!s) { s = document.createElement('script'); s.id = 'sf-heroes-3d-script'; s.src = '{{ asset('js/funkenwerk-heroes-3d.js') }}'; s.onload = function(){ if (window.SeelenfunkeHeroes3D) window.SeelenfunkeHeroes3D.open('hall'); }; document.head.appendChild(s); } })()"
+                                            class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#C5A059] hover:bg-[#b58f48] text-gray-950 text-xs font-black tracking-wide transition cursor-pointer">
+                                        <span>🏛️</span>
+                                        <span>Funkenwerk 3D öffnen</span>
+                                    </button>
+                                    <span class="text-[11px] text-gray-500 dark:text-gray-400">
+                                        Seite {{ $hallOfFamePage }} von {{ $hallOfFameLastPage }}
+                                    </span>
+                                </div>
                             </div>
 
                             @if(count($hallOfFameLeaders) > 0)

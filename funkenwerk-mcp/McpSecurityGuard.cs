@@ -78,6 +78,9 @@ namespace FunkenwerkMcp
 
         [JsonPropertyName("poll_interval_seconds")]
         public int PollIntervalSeconds { get; set; } = McpSecurityGuard.DefaultAgPollIntervalSeconds;
+
+        [JsonPropertyName("channel_conversation_ids")]
+        public Dictionary<string, string> ChannelConversationIds { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     }
 
     public static class McpSecurityGuard
@@ -2651,6 +2654,68 @@ try {
         private static readonly Regex SafeAgInboxSingleIdRegex = new(@"^[A-Za-z0-9][A-Za-z0-9_\-]{2,79}$", RegexOptions.Compiled);
         private static readonly Regex SafeAgInboxMarkDeliveredIdsRegex = new(@"^[A-Za-z0-9][A-Za-z0-9_,\-]{2,119}$", RegexOptions.Compiled);
         private static readonly Regex SafeBase64PayloadRegex = new(@"^[A-Za-z0-9+/=]*$", RegexOptions.Compiled);
+        private static readonly Regex ConversationUuidExtractRegex = new(@"\b[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}\b", RegexOptions.Compiled);
+
+        public static readonly IReadOnlyList<string> FixedAgChannels = new[]
+        {
+            "leitung",
+            "shop",
+            "android",
+            "minipc",
+            "buchhaltung"
+        };
+
+        public static string NormalizeAgChannel(string? rawChannel)
+        {
+            string norm = (rawChannel ?? "").Trim().ToLowerInvariant();
+            return norm switch
+            {
+                "leitung" => "leitung",
+                "shop" => "shop",
+                "android" => "android",
+                "minipc" or "mini-pc" => "minipc",
+                "buchhaltung" => "buchhaltung",
+                "new" => "new",
+                _ => "leitung"
+            };
+        }
+
+        public static string ValidateFixedAgDepartmentChannel(string? rawChannel)
+        {
+            string clean = (rawChannel ?? "").Trim().ToLowerInvariant();
+            if (clean == "mini-pc") clean = "minipc";
+            if (!FixedAgChannels.Contains(clean, StringComparer.Ordinal))
+            {
+                throw new ArgumentException(
+                    $"Ungültiger Abteilungs-Kanal '{ScrubSecrets(rawChannel)}'. Erlaubte feste Kanäle: leitung, shop, android, minipc, buchhaltung.");
+            }
+            return clean;
+        }
+
+        public static string GetAgChannelDisplayTitle(string? channel)
+        {
+            return NormalizeAgChannel(channel) switch
+            {
+                "shop" => "Shop & Konfigurator",
+                "android" => "Android & Funkenwerk",
+                "minipc" => "Mini-PC & Laser",
+                "buchhaltung" => "Buchhaltung & Marketing",
+                "new" => "Einzel-Chat",
+                _ => "Leitung"
+            };
+        }
+
+        public static string? GetAgChannelScopeHint(string? channel)
+        {
+            return NormalizeAgChannel(channel) switch
+            {
+                "shop" => "Dateibereichs-Fokus (Dateikonflikt-Schutz): app/, resources/, routes/, database/ (ohne AccountingSeeder.php), tests/.",
+                "android" => "Dateibereichs-Fokus (Dateikonflikt-Schutz): android-app/ + Mirror C:\\Users\\konta\\AndroidStudioProjects\\seelenfunke-android (sowie ggf. funkenwerk/).",
+                "minipc" => "Dateibereichs-Fokus (Dateikonflikt-Schutz): funkenwerk-os-linux/ & Manufaktur Mini-PC (192.168.188.151).",
+                "buchhaltung" => "Dateibereichs-Fokus (Dateikonflikt-Schutz): database/seeders/AccountingSeeder.php, storage/app/buchhaltung/ (receipts/ & contracts/), Marketing & Kalkulation.",
+                _ => null
+            };
+        }
 
         public static string FunkenwerkSharedAppDataDir => !string.IsNullOrWhiteSpace(_vaultDirOverride)
             ? _vaultDirOverride!
@@ -2659,6 +2724,74 @@ try {
         public static string AgDirectBridgeConfigPath => Path.Combine(FunkenwerkSharedAppDataDir, "ag_direct_bridge_config.json");
 
         public static string AgDirectMediaDir => Path.Combine(FunkenwerkSharedAppDataDir, "AgDirectMedia");
+
+        public static string SentinelLastNotifiedPath => Path.Combine(FunkenwerkSharedAppDataDir, "sentinel_last_notified.json");
+
+        public static string? LoadSentinelLastNotifiedHash(string? customPath = null)
+        {
+            string path = string.IsNullOrWhiteSpace(customPath) ? SentinelLastNotifiedPath : Path.GetFullPath(customPath);
+            if (!File.Exists(path)) return null;
+            try
+            {
+                if (HasReparsePointInAncestry(path)) return null;
+                using var doc = JsonDocument.Parse(File.ReadAllText(path, Encoding.UTF8), new JsonDocumentOptions { MaxDepth = 8 });
+                return doc.RootElement.TryGetProperty("state_hash", out var hp) ? hp.GetString() : null;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        public static void SaveSentinelLastNotifiedHash(string stateHash, string conversationId, string? customPath = null)
+        {
+            string safeConvId = ValidateAgConversationId(conversationId);
+            string cleanHash = (stateHash ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(cleanHash) || cleanHash.Length > 128)
+                throw new ArgumentException("Ungültiger Sentinel-Deduplizierungs-Hash.");
+
+            string path = string.IsNullOrWhiteSpace(customPath) ? SentinelLastNotifiedPath : Path.GetFullPath(customPath);
+            string dir = Path.GetDirectoryName(path) ?? throw new InvalidOperationException("Ungültiges Verzeichnis für sentinel_last_notified.json.");
+            if (!Directory.Exists(dir))
+            {
+                Directory.CreateDirectory(dir);
+            }
+            LockDownDirectoryAcl(dir);
+            RejectReparsePointsInHierarchy(path);
+
+            string json = JsonSerializer.Serialize(new
+            {
+                state_hash = cleanHash,
+                conversation_id = safeConvId,
+                notified_at_utc = DateTimeOffset.UtcNow.ToString("O")
+            }, new JsonSerializerOptions { WriteIndented = true });
+
+            string tmpPath = Path.Combine(dir, $".sentlast_{Convert.ToHexString(RandomNumberGenerator.GetBytes(8)).ToLowerInvariant()}.tmp");
+            try
+            {
+                File.WriteAllText(tmpPath, json, new UTF8Encoding(false));
+                RejectReparsePointsInHierarchy(path);
+                File.Move(tmpPath, path, overwrite: true);
+                LockDownFileAcl(path);
+            }
+            finally
+            {
+                try { if (File.Exists(tmpPath)) File.Delete(tmpPath); } catch { }
+            }
+        }
+
+        public static void ClearSentinelLastNotifiedHash(string? customPath = null)
+        {
+            string path = string.IsNullOrWhiteSpace(customPath) ? SentinelLastNotifiedPath : Path.GetFullPath(customPath);
+            try
+            {
+                if (File.Exists(path) && !HasReparsePointInAncestry(path))
+                {
+                    File.Delete(path);
+                }
+            }
+            catch { }
+        }
 
         public static string ValidateAgConversationId(string? rawConversationId)
         {
@@ -2703,7 +2836,11 @@ try {
                 return new AgDirectBridgeConfigDto
                 {
                     MasterConversationId = DefaultMasterConversationId,
-                    PollIntervalSeconds = DefaultAgPollIntervalSeconds
+                    PollIntervalSeconds = DefaultAgPollIntervalSeconds,
+                    ChannelConversationIds = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["leitung"] = DefaultMasterConversationId
+                    }
                 };
             }
 
@@ -2725,10 +2862,31 @@ try {
                 ? DefaultAgPollIntervalSeconds
                 : Math.Clamp(parsed.PollIntervalSeconds, MinAgPollIntervalSeconds, 3600);
 
+            var channelMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (parsed.ChannelConversationIds != null)
+            {
+                foreach (var kv in parsed.ChannelConversationIds)
+                {
+                    string normKey = NormalizeAgChannel(kv.Key);
+                    if (normKey == "new" || normKey == "leitung" || string.IsNullOrWhiteSpace(kv.Value))
+                        continue;
+
+                    try
+                    {
+                        channelMap[normKey] = ValidateAgConversationId(kv.Value);
+                    }
+                    catch { }
+                }
+            }
+
+            // "leitung" mirrors MasterConversationId at all times
+            channelMap["leitung"] = safeConvId;
+
             return new AgDirectBridgeConfigDto
             {
                 MasterConversationId = safeConvId,
-                PollIntervalSeconds = safePoll
+                PollIntervalSeconds = safePoll,
+                ChannelConversationIds = channelMap
             };
         }
 
@@ -2741,10 +2899,30 @@ try {
                 ? DefaultAgPollIntervalSeconds
                 : Math.Clamp(config.PollIntervalSeconds, MinAgPollIntervalSeconds, 3600);
 
+            var normalizedChannels = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (config.ChannelConversationIds != null)
+            {
+                foreach (var kv in config.ChannelConversationIds)
+                {
+                    if (string.IsNullOrWhiteSpace(kv.Key) || string.IsNullOrWhiteSpace(kv.Value))
+                        continue;
+
+                    string normKey = ValidateFixedAgDepartmentChannel(kv.Key);
+                    if (normKey == "leitung")
+                        continue;
+
+                    normalizedChannels[normKey] = ValidateAgConversationId(kv.Value);
+                }
+            }
+
+            // "leitung" always mirrors MasterConversationId
+            normalizedChannels["leitung"] = safeConvId;
+
             var normalized = new AgDirectBridgeConfigDto
             {
                 MasterConversationId = safeConvId,
-                PollIntervalSeconds = safePoll
+                PollIntervalSeconds = safePoll,
+                ChannelConversationIds = normalizedChannels
             };
 
             string path = string.IsNullOrWhiteSpace(customConfigPath) ? AgDirectBridgeConfigPath : Path.GetFullPath(customConfigPath);
@@ -2770,7 +2948,7 @@ try {
                 try { if (File.Exists(tmpPath)) File.Delete(tmpPath); } catch { }
             }
 
-            AppendAuditLog("ag_bridge_config", $"conv={safeConvId},poll={safePoll}s", "ALLOW");
+            AppendAuditLog("ag_bridge_config", $"conv={safeConvId},channels={normalizedChannels.Count},poll={safePoll}s", "ALLOW");
             return normalized;
         }
 
@@ -2875,13 +3053,18 @@ try {
             string? body,
             IEnumerable<string>? checklist,
             string? executionMode,
-            string? savedAttachmentPath)
+            string? savedAttachmentPath,
+            string? channel = null)
         {
             string safeId = ValidateAgInboxSingleId(itemId);
             bool isDirect = string.Equals((executionMode ?? "").Trim(), "direct", StringComparison.OrdinalIgnoreCase);
             string modeLabel = isDirect
                 ? "Direkt umsetzen via Orchester-Subagenten"
                 : "Erst Konzept (warte auf Go)";
+
+            string normChannel = NormalizeAgChannel(channel);
+            string channelTitle = GetAgChannelDisplayTitle(normChannel);
+            string? scopeHint = GetAgChannelScopeHint(normChannel);
 
             string cleanTitle = ScrubSecrets((title ?? "").Replace('\0', ' ').Trim());
             if (string.IsNullOrWhiteSpace(cleanTitle))
@@ -2890,7 +3073,11 @@ try {
             string cleanBody = ScrubSecrets((body ?? "").Replace('\0', ' ').Trim());
 
             var sb = new StringBuilder();
-            sb.AppendLine($"[DIREKTNACHRICHT AUS ANDROID-APP | ID: {safeId} | MODUS: {modeLabel}]");
+            sb.AppendLine($"[DIREKTNACHRICHT AUS ANDROID-APP | ID: {safeId} | MODUS: {modeLabel}] [KANAL: {channelTitle}]");
+            if (!string.IsNullOrWhiteSpace(scopeHint))
+            {
+                sb.AppendLine(scopeHint);
+            }
             sb.AppendLine();
             sb.AppendLine($"Hauptpunkt: {cleanTitle}");
 
@@ -2931,6 +3118,151 @@ try {
             sb.Append($"Sobald dieser Punkt vollständig erledigt (bzw. das Konzept erstellt) ist, markiere ihn für Alinas Android-App als erledigt via: & 'C:\\Users\\konta\\AppData\\Local\\Funkenwerk\\SentinelCli\\FunkenwerkMcp.exe' --ag-inbox-complete {safeId} \"<kurze Zusammenfassung>\"");
 
             return sb.ToString();
+        }
+
+        public static string SanitizeAgConversationTitle(string? rawTitle)
+        {
+            string raw = ScrubSecrets(rawTitle ?? "");
+            var sb = new StringBuilder(Math.Min(raw.Length, 120));
+            foreach (char c in raw)
+            {
+                if (sb.Length >= 120) break;
+                if (c == '\r' || c == '\n' || c == '\t' || char.IsControl(c))
+                    sb.Append(' ');
+                else
+                    sb.Append(c);
+            }
+            string collapsed = Regex.Replace(sb.ToString(), @"\s+", " ").Trim();
+            return string.IsNullOrWhiteSpace(collapsed) ? "Seelenfunke Auftrag" : collapsed;
+        }
+
+        public static ProcessStartInfo BuildAgentApiNewConversationStartInfo(
+            string? title,
+            string promptText,
+            string? agentApiExeOverride = null,
+            bool ignoreEnvironmentVariableForTest = false)
+        {
+            string safeTitle = SanitizeAgConversationTitle(title);
+            string cleanPrompt = (promptText ?? "").Replace("\0", "").Trim();
+            if (string.IsNullOrWhiteSpace(cleanPrompt))
+                throw new ArgumentException("Prompt-Text darf nicht leer sein.");
+            if (cleanPrompt.Length > 65536)
+                cleanPrompt = cleanPrompt.Substring(0, 65536);
+
+            string? configuredExe = !string.IsNullOrWhiteSpace(agentApiExeOverride)
+                ? agentApiExeOverride.Trim()
+                : (ignoreEnvironmentVariableForTest ? null : Environment.GetEnvironmentVariable("ANTIGRAVITY_AGENTAPI_EXE")?.Trim());
+
+            string defaultLsExe = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "Programs", "Antigravity", "resources", "bin", "language_server.exe");
+
+            if (string.IsNullOrWhiteSpace(configuredExe) && !ignoreEnvironmentVariableForTest && File.Exists(defaultLsExe))
+            {
+                configuredExe = defaultLsExe;
+            }
+
+            var psi = new ProcessStartInfo
+            {
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+
+            if (!string.IsNullOrWhiteSpace(configuredExe))
+            {
+                psi.FileName = configuredExe;
+                psi.ArgumentList.Add("agentapi");
+                psi.ArgumentList.Add("new-conversation");
+                psi.ArgumentList.Add("--title=" + safeTitle);
+                psi.ArgumentList.Add("--");
+                psi.ArgumentList.Add(cleanPrompt);
+            }
+            else
+            {
+                psi.FileName = "agentapi";
+                psi.ArgumentList.Add("new-conversation");
+                psi.ArgumentList.Add("--title=" + safeTitle);
+                psi.ArgumentList.Add("--");
+                psi.ArgumentList.Add(cleanPrompt);
+            }
+
+            return psi;
+        }
+
+        public static HashSet<string> SnapshotAntigravityBrainUuidFolders(string? customBrainRootDir = null)
+        {
+            var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            string brainRoot = !string.IsNullOrWhiteSpace(customBrainRootDir)
+                ? Path.GetFullPath(customBrainRootDir)
+                : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".gemini", "antigravity", "brain");
+
+            if (!Directory.Exists(brainRoot))
+                return result;
+
+            try
+            {
+                foreach (string dir in Directory.GetDirectories(brainRoot))
+                {
+                    string name = Path.GetFileName(dir);
+                    if (ConversationUuidExtractRegex.IsMatch(name) && name.Length == 36)
+                    {
+                        result.Add(name.ToLowerInvariant());
+                    }
+                }
+            }
+            catch { }
+
+            return result;
+        }
+
+        public static string? ExtractConversationUuid(
+            string? stdOut,
+            string? stdErr,
+            IReadOnlySet<string>? preExistingBrainFolders = null,
+            string? customBrainRootDir = null)
+        {
+            if (!string.IsNullOrWhiteSpace(stdOut))
+            {
+                var mOut = ConversationUuidExtractRegex.Match(stdOut);
+                if (mOut.Success)
+                    return ValidateAgConversationId(mOut.Value.ToLowerInvariant());
+            }
+
+            if (!string.IsNullOrWhiteSpace(stdErr))
+            {
+                var mErr = ConversationUuidExtractRegex.Match(stdErr);
+                if (mErr.Success)
+                    return ValidateAgConversationId(mErr.Value.ToLowerInvariant());
+            }
+
+            string brainRoot = !string.IsNullOrWhiteSpace(customBrainRootDir)
+                ? Path.GetFullPath(customBrainRootDir)
+                : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".gemini", "antigravity", "brain");
+
+            if (Directory.Exists(brainRoot))
+            {
+                try
+                {
+                    var newDirs = Directory.GetDirectories(brainRoot)
+                        .Select(d => new DirectoryInfo(d))
+                        .Where(di => di.Name.Length == 36
+                                     && ConversationUuidExtractRegex.IsMatch(di.Name)
+                                     && (preExistingBrainFolders == null || !preExistingBrainFolders.Contains(di.Name)))
+                        .OrderByDescending(di => di.CreationTimeUtc)
+                        .ThenByDescending(di => di.LastWriteTimeUtc)
+                        .ToList();
+
+                    if (newDirs.Count > 0)
+                    {
+                        return ValidateAgConversationId(newDirs[0].Name.ToLowerInvariant());
+                    }
+                }
+                catch { }
+            }
+
+            return null;
         }
 
         public static ProcessStartInfo BuildAgentApiSendMessageStartInfo(

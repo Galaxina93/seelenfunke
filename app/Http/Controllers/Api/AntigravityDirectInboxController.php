@@ -49,6 +49,7 @@ class AntigravityDirectInboxController extends Controller
 
         $validated = $request->validate([
             'client_uuid' => 'nullable|string|max:64',
+            'channel' => ['nullable', 'string', 'max:32'],
             'title' => 'required|string|max:500',
             'body' => 'nullable|string|max:5000',
             'execution_mode' => 'nullable|string|in:concept,direct',
@@ -99,6 +100,7 @@ class AntigravityDirectInboxController extends Controller
 
         $result = $this->inboxService->enqueueMessage([
             'client_uuid' => $validated['client_uuid'] ?? null,
+            'channel' => $validated['channel'] ?? 'leitung',
             'title' => $title,
             'body' => $validated['body'] ?? '',
             'checklist' => $checklist,

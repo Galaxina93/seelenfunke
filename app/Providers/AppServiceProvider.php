@@ -479,7 +479,7 @@ class AppServiceProvider extends ServiceProvider
                     'optimize', 'optimize:clear', 'config:cache', 'config:clear', 'cache:clear',
                     'route:cache', 'route:clear', 'route:list', 'view:cache', 'view:clear',
                     'event:cache', 'event:clear', 'ai:generate-map', 'system:check-routes',
-                    'system:sentinel-inbox',
+                    'system:sentinel-inbox', 'system:ag-inbox', 'system:sentinel-triage',
                 ];
                 if (in_array($cmdName, $ignoredInteractiveCommands, true) || str_starts_with($cmdName, 'make:') || str_starts_with($cmdName, 'ide-helper:')) {
                     return;

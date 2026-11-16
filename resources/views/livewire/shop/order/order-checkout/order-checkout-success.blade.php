@@ -440,8 +440,14 @@
                     </div>
 
                     {{-- Action Buttons --}}
-                    <div class="mt-6 flex flex-col sm:flex-row gap-2.5 justify-center transition-all duration-700 delay-300"
+                    <div class="mt-6 flex flex-col sm:flex-row flex-wrap gap-2.5 justify-center transition-all duration-700 delay-300"
                          :class="showSuccessDetails ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'">
+                        <button type="button"
+                                onclick="(function(){ if (window.SeelenfunkeHeroes3D) { window.SeelenfunkeHeroes3D.open('orbit'); return; } var s = document.getElementById('sf-heroes-3d-script'); if (!s) { s = document.createElement('script'); s.id = 'sf-heroes-3d-script'; s.src = '{{ asset('js/funkenwerk-heroes-3d.js') }}'; s.onload = function(){ if (window.SeelenfunkeHeroes3D) window.SeelenfunkeHeroes3D.open('orbit'); }; document.head.appendChild(s); } })()"
+                                class="w-full sm:w-auto px-6 py-3 bg-white hover:bg-[#faf6ee] border border-[#C5A059] text-gray-900 rounded-full text-xs sm:text-sm font-bold transition shadow-2xs flex items-center justify-center gap-2 cursor-pointer">
+                            <span>🏛️</span>
+                            <span>Funkenwerk 3D öffnen</span>
+                        </button>
                         <a href="{{ route('customer.orders', array_filter(['order' => !empty($finalOrderId) ? $finalOrderId : (!empty($finalOrderNumber) ? $finalOrderNumber : null)])) }}"
                            @click="document.body.style.overflow = ''"
                            class="w-full sm:w-auto px-7 py-3 bg-primary text-gray-900 hover:bg-primary-dark hover:text-white rounded-full text-xs sm:text-sm font-semibold transition shadow-sm flex items-center justify-center gap-2">

@@ -317,6 +317,7 @@ class MasterNextBestActionService
                     'open_orders_count' => 0,
                     'express_count' => 0,
                     'priority_order_number' => null,
+                    'priority_product_label' => null,
                 ],
                 'smart_tips' => [],
                 'action_candidates' => [],
@@ -346,10 +347,10 @@ class MasterNextBestActionService
                 $expressCount++;
             }
             if (($a['stage'] ?? '') === 'action_supplier_order') {
-                $supplierNeededOrders[] = '#' . $ord->order_number;
+                $supplierNeededOrders[] = $ord->getProductionFocusLabel();
             }
             if (in_array($a['stage'] ?? '', ['ready_ship', 'ready_digital'], true)) {
-                $readyShipOrders[] = '#' . $ord->order_number;
+                $readyShipOrders[] = $ord->getProductionFocusLabel();
             }
         }
 
@@ -403,6 +404,7 @@ class MasterNextBestActionService
         if ($priorityOrder) {
             $pAnalysis = $analyses[(string) $priorityOrder->id] ?? [];
             $directivePlain = trim((string) ($queue['funki_directive']['action_plain'] ?? ''));
+            $focusLabel = $priorityOrder->getProductionFocusLabel();
             $checkinSnap = $batchService->buildWorkshopCheckinSnapshot($priorityOrder, $now);
 
             if (!empty($checkinSnap['has_discrepancy']) && !empty($checkinSnap['ask_alina_prompt'])) {
@@ -414,6 +416,12 @@ class MasterNextBestActionService
             $isBlockedWait = in_array($stage, ['blocked_supplier_wait', 'blocked_photo_issue', 'blocked_unpaid'], true);
 
             if (!$isBlockedWait) {
+                $priorityTitle = !empty($pAnalysis['is_express'])
+                    ? ($stage === 'ready_laser'
+                        ? "EXPRESS-Fertigung: {$focusLabel} sofort lasern"
+                        : "EXPRESS-Fertigung: {$focusLabel} bearbeiten")
+                    : "Prioritäts-Fertigung: {$focusLabel} bearbeiten";
+
                 $candidates[] = [
                     'key' => 'priority_order_' . $priorityOrder->order_number,
                     'tier' => $isExpressOrSla ? 1 : 2,
@@ -422,12 +430,11 @@ class MasterNextBestActionService
                     'is_quick_win' => in_array($stage, ['ready_ship', 'ready_digital', 'action_supplier_order'], true),
                     'department' => 'Laser-Manufaktur & Bestellungen',
                     'route' => '/admin/orders',
-                    'title' => $directivePlain !== ''
-                        ? $directivePlain
-                        : "Prioritäts-Auftrag #{$priorityOrder->order_number} bearbeiten",
-                    'why' => !empty($pAnalysis['is_express'])
-                        ? 'Express-Auftrag hat höchste Priorität in der Manufaktur.'
-                        : 'Platz 1 deiner rüstzeit-optimierten Fertigungs-Queue.',
+                    'title' => $priorityTitle,
+                    'why' => (!empty($pAnalysis['is_express'])
+                        ? "Express-Auftrag ({$focusLabel}) hat höchste Priorität in der Manufaktur."
+                        : "Platz 1 deiner rüstzeit-optimierten Fertigungs-Queue ({$focusLabel}).")
+                        . ($directivePlain !== '' ? ' ' . $directivePlain : ''),
                 ];
             }
         }
@@ -437,6 +444,7 @@ class MasterNextBestActionService
                 'open_orders_count' => $openOrders->count(),
                 'express_count' => $expressCount,
                 'priority_order_number' => $priorityOrder?->order_number,
+                'priority_product_label' => $priorityOrder?->getProductionFocusLabel(),
                 'funki_directive' => $queue['funki_directive']['action_plain'] ?? null,
             ],
             'smart_tips' => $smartTips,

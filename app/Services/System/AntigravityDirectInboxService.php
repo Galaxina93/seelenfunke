@@ -21,6 +21,7 @@ class AntigravityDirectInboxService
     public const MAX_CHECKLIST_ITEM_LENGTH = 300;
 
     public const ALLOWED_EXECUTION_MODES = ['concept', 'direct'];
+    public const ALLOWED_CHANNELS = ['leitung', 'shop', 'android', 'minipc', 'buchhaltung', 'new'];
     public const ALLOWED_STATUSES = ['pending', 'delivered', 'completed'];
     public const ALLOWED_IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp'];
     public const ALLOWED_IMAGE_MIMES = ['image/png', 'image/jpeg', 'image/webp'];
@@ -63,6 +64,19 @@ class AntigravityDirectInboxService
     public static function isValidItemId(string $id): bool
     {
         return (bool) preg_match('/^[A-Za-z0-9_-]{3,80}$/', $id);
+    }
+
+    public function normalizeChannel(mixed $rawChannel): string
+    {
+        if (!is_scalar($rawChannel) || $rawChannel === null) {
+            return 'leitung';
+        }
+
+        $normalized = strtolower(trim((string) $rawChannel));
+
+        return in_array($normalized, self::ALLOWED_CHANNELS, true)
+            ? $normalized
+            : 'leitung';
     }
 
     /**
@@ -346,6 +360,8 @@ class AntigravityDirectInboxService
                 $mode = 'concept';
             }
 
+            $channel = $this->normalizeChannel($payload['channel'] ?? 'leitung');
+
             $sourceRaw = isset($payload['source']) ? trim((string) $payload['source']) : '';
             $source = ($sourceRaw !== '' && preg_match('/^[A-Za-z0-9_-]{2,40}$/', $sourceRaw))
                 ? $sourceRaw
@@ -369,6 +385,7 @@ class AntigravityDirectInboxService
             $item = $this->formatItemSchema([
                 'id' => $id,
                 'client_uuid' => $clientUuid,
+                'channel' => $channel,
                 'title' => $title,
                 'body' => $body,
                 'checklist' => $checklist,
@@ -724,6 +741,7 @@ class AntigravityDirectInboxService
                 $newItem = $this->formatItemSchema([
                     'id' => $id,
                     'client_uuid' => $clientUuid,
+                    'channel' => $this->normalizeChannel($raw['channel'] ?? 'leitung'),
                     'title' => mb_substr($title, 0, 500),
                     'body' => isset($raw['body']) && $raw['body'] !== null
                         ? mb_substr(trim((string) $raw['body']), 0, 5000)
@@ -886,11 +904,14 @@ class AntigravityDirectInboxService
             ? (string) $raw['status']
             : 'pending';
 
+        $channel = $this->normalizeChannel($raw['channel'] ?? 'leitung');
+
         return [
             'id' => (string) ($raw['id'] ?? ''),
             'client_uuid' => isset($raw['client_uuid']) && trim((string) $raw['client_uuid']) !== ''
                 ? trim((string) $raw['client_uuid'])
                 : null,
+            'channel' => $channel,
             'title' => (string) ($raw['title'] ?? ''),
             'body' => isset($raw['body']) && $raw['body'] !== null ? (string) $raw['body'] : '',
             'checklist' => array_values($checklist),

@@ -160,6 +160,7 @@ class AntigravityDirectInboxTest extends TestCase
         $clientUuid = (string) Str::uuid();
         $jsonResp = $this->postJson('/api/system/ag-direct-inbox', [
             'client_uuid' => $clientUuid,
+            'channel' => 'shop',
             'title' => '  Neues Laser-Layout fuer Schieferplatte  ',
             'body' => 'Bitte erst kurz konzeptionieren.',
             'checklist' => ['  Randabstand 4mm pruefen ', '', '   ', 'Gravurzeit kalkulieren'],
@@ -174,6 +175,7 @@ class AntigravityDirectInboxTest extends TestCase
             ->assertJsonPath('success', true)
             ->assertJsonPath('idempotent_replay', false)
             ->assertJsonPath('data.client_uuid', $clientUuid)
+            ->assertJsonPath('data.channel', 'shop')
             ->assertJsonPath('data.title', 'Neues Laser-Layout fuer Schieferplatte')
             ->assertJsonPath('data.body', 'Bitte erst kurz konzeptionieren.')
             ->assertJsonPath('data.checklist', ['Randabstand 4mm pruefen', 'Gravurzeit kalkulieren'])
@@ -187,9 +189,9 @@ class AntigravityDirectInboxTest extends TestCase
         $firstId = (string) $firstItem['id'];
         $this->assertMatchesRegularExpression('/^ag_[0-9]{8}_[0-9]{6}_[a-f0-9]{8}$/', $firstId);
 
-        // Verify exact 15 schema keys
+        // Verify schema keys including channel
         $expectedKeys = [
-            'id', 'client_uuid', 'title', 'body', 'checklist', 'execution_mode',
+            'id', 'client_uuid', 'channel', 'title', 'body', 'checklist', 'execution_mode',
             'status', 'source', 'has_attachment', 'attachment_name', 'attachment_mime',
             'attachment_rel_path', 'ag_response_summary', 'created_at', 'delivered_at', 'completed_at',
         ];
@@ -215,6 +217,7 @@ class AntigravityDirectInboxTest extends TestCase
 
         $multipartResp = $this->post('/api/system/ag-direct-inbox', [
             'title' => 'Android Widget Abstand optimieren',
+            'channel' => 'unknown_channel_xyz',
             'checklist' => json_encode(['Padding oben 12dp', '  ', 'Gold-Akzent #C5A059']),
             'attachment' => $multipartImage,
         ], [
@@ -223,6 +226,7 @@ class AntigravityDirectInboxTest extends TestCase
 
         $multipartResp->assertStatus(201)
             ->assertJsonPath('success', true)
+            ->assertJsonPath('data.channel', 'leitung')
             ->assertJsonPath('data.execution_mode', 'concept')
             ->assertJsonPath('data.checklist', ['Padding oben 12dp', 'Gold-Akzent #C5A059'])
             ->assertJsonPath('data.has_attachment', true)
