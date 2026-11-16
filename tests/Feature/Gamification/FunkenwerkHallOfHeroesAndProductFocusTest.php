@@ -15,7 +15,9 @@ use App\Models\Product\Product;
 use App\Services\AI\Functions\AiOrderFuncs;
 use App\Services\AI\FunkiraSkillPoolService;
 use App\Services\AI\MasterNextBestActionService;
+use App\Services\Gamification\GameConfig;
 use App\Services\Order\OrderProductionBatchService;
+use App\Services\Storage\GlbOptimizerService;
 use Carbon\Carbon;
 use Database\Seeders\AiAgentSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -314,13 +316,15 @@ class FunkenwerkHallOfHeroesAndProductFocusTest extends TestCase
         $this->assertStringNotContainsString((string) $heroOneCustomer->id, $rawGuestBody);
         $this->assertStringNotContainsString((string) $meCustomer->id, $rawGuestBody);
 
-        // 2. Logged-in customer receives is_me = true and my_hero_slot = 2
+        // 2. Logged-in customer receives is_me = true, my_hero_slot = 2, level_models (1..10) & model_url
         $this->actingAs($meCustomer, 'customer');
         $authResp = $this->getJson('/funkenwerk-welt/heroes-data');
         $authResp->assertOk()
             ->assertJsonPath('customer_logged_in', true)
             ->assertJsonPath('customer_opt_in', true)
             ->assertJsonPath('my_hero_slot', 2)
+            ->assertJsonPath('level_models.1', '/shop/customer/gamification/models/funki_lvl_1_rags.glb')
+            ->assertJsonPath('level_models.10', '/shop/customer/gamification/models/funki_lvl_10_god_of_soul.glb')
             ->assertJsonPath('heroes.0.display_name', 'Sternenwanderer')
             ->assertJsonPath('heroes.0.rank_class', 'S')
             ->assertJsonPath('heroes.0.is_me', false)
@@ -328,13 +332,24 @@ class FunkenwerkHallOfHeroesAndProductFocusTest extends TestCase
             ->assertJsonPath('heroes.1.rank_class', 'A')
             ->assertJsonPath('heroes.1.is_me', true);
 
-        // 3. Verify 3D JS asset adheres to Clean-Design, customer isolation & Alina's Pantheon specs
+        $authJson = $authResp->json();
+        $this->assertCount(10, $authJson['level_models']);
+        $this->assertStringEndsWith('/shop/customer/gamification/models/funki_lvl_10_god_of_soul.glb', (string) $authJson['heroes'][0]['model_url']);
+        $this->assertStringEndsWith('/shop/customer/gamification/models/funki_lvl_6_craftsman.glb', (string) $authJson['heroes'][1]['model_url']);
+
+        // 3. Verify 3D JS asset adheres to Clean-Design, native GLB 2.0 loader, -Math.PI/2 front rotation & Pantheon lighting
         $jsCode = (string) file_get_contents(public_path('js/funkenwerk-heroes-3d.js'));
-        $this->assertStringNotContainsString(' – ', $jsCode);
+        $this->assertStringNotContainsString(' ' . "\u{2013}" . ' ', $jsCode);
+        $this->assertStringNotContainsString('https://', $jsCode);
         $this->assertStringNotContainsString('Herrscherin über das Seelenfunken-Universum', $jsCode);
         $this->assertStringContainsString('HALLE DER HELDEN', $jsCode);
         $this->assertStringContainsString('#ECEAE4', $jsCode);
         $this->assertStringContainsString('((r + 0.5) / 6) * Math.PI', $jsCode);
+        $this->assertStringContainsString('parseGlbBinary', $jsCode);
+        $this->assertStringContainsString('0x46546C67', $jsCode);
+        $this->assertStringContainsString('FUNKI_GLB_FRONT_ROTATION_Y = -Math.PI * 0.5', $jsCode);
+        $this->assertStringContainsString('HemisphereLight', $jsCode);
+        $this->assertStringContainsString('glbTemplateCache = new Map()', $jsCode);
         $this->assertStringContainsString('_createFunkiCharacterByLevel', $jsCode);
         $this->assertStringContainsString('Freier Ehrenplatz', $jsCode);
 
@@ -349,6 +364,43 @@ class FunkenwerkHallOfHeroesAndProductFocusTest extends TestCase
 
         Livewire::test(OrderCheckoutSuccess::class)
             ->assertSee('Funkenwerk 3D öffnen');
+    }
+
+    public function test_all_ten_compressed_funki_glb_models_pass_glb_optimizer_inspection_and_watermark(): void
+    {
+        $levels = GameConfig::getFunkiLevels();
+        $this->assertCount(10, $levels);
+
+        $inspector = app(GlbOptimizerService::class);
+        $totalBytes = 0;
+
+        for ($lvl = 1; $lvl <= 10; $lvl++) {
+            $this->assertArrayHasKey($lvl, $levels);
+            $relPath = (string) ($levels[$lvl]['model_path'] ?? '');
+            $this->assertNotEmpty($relPath, "Level {$lvl} fehlt model_path in GameConfig.");
+            $this->assertStringStartsWith("shop/customer/gamification/models/funki_lvl_{$lvl}_", $relPath);
+            $this->assertStringEndsWith('.glb', $relPath);
+
+            $absPath = public_path($relPath);
+            $this->assertFileExists($absPath, "Komprimierte GLB-Datei für Level {$lvl} fehlt: {$absPath}");
+
+            $info = $inspector->inspectGlb($absPath);
+            $this->assertTrue($info['exists'] ?? false);
+            $this->assertTrue($info['is_optimized'] ?? false);
+            $this->assertTrue($info['is_marked_optimized'] ?? false, "Level {$lvl} muss seelenfunke_optimized = true tragen.");
+            $this->assertTrue($info['has_copyright_watermark'] ?? false, "Level {$lvl} muss UrhG-Wasserzeichen von Alina tragen.");
+            $this->assertFalse($info['needs_optimization'] ?? true);
+            $this->assertLessThan(2 * 1024 * 1024, (int) $info['size_bytes'], "Level {$lvl} muss unter 2.0 MB liegen.");
+            $this->assertGreaterThan(200 * 1024, (int) $info['size_bytes']);
+            $this->assertLessThanOrEqual(26500, (int) $info['triangles']);
+            $this->assertGreaterThanOrEqual(15000, (int) $info['triangles']);
+            $this->assertGreaterThanOrEqual(95.0, (float) ($info['saved_percent'] ?? 0));
+
+            $totalBytes += (int) $info['size_bytes'];
+        }
+
+        // Alle 10 Modelle zusammen ca. 9.7 MB (< 14 MB statt 468 MB!)
+        $this->assertLessThan(14 * 1024 * 1024, $totalBytes);
     }
 
     private function createPaidOrder(string $orderNumber, Customer $customer, bool $isExpress, string $status): OrderOrder

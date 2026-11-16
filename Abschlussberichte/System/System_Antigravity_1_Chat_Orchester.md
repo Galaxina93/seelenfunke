@@ -16,43 +16,48 @@ Das globale Antigravity-Plugin **`seelenfunke-orchestrator`** (`C:\Users\konta\.
 
 ```mermaid
 flowchart TD
-    U["Alina Steinhauer (1-Chat-Leitstand)"] --> D["Dirigent im Haupt-Chat (rules/AGENTS.md + sf-orchestrate)"]
+    U["Alina Steinhauer (Inhaberin)"] --> D["Falcone (Technischer Mitgründer & Rechte Hand)"]
     D -->|"Konzept / Beratung / 1-2 Dateien"| U
-    D -->|"invoke_subagent (isoliertes Kontextfenster)"| S1["sf-shop-laravel (Portal, Konfigurator, Laser, PHPUnit)"]
-    D -->|"invoke_subagent (isoliertes Kontextfenster)"| S2["sf-funkenwerk-systems (Windows Suite, Mini-PC, NAS)"]
-    D -->|"invoke_subagent (isoliertes Kontextfenster)"| S3["sf-android-mobile (Android-App, Mirror-Sync, Gradle)"]
-    D -->|"invoke_subagent (isoliertes Kontextfenster)"| S4["sf-buchhaltung-einkauf (Belege, AccountingSeeder, Kalkulation)"]
-    D -->|"invoke_subagent (isoliertes Kontextfenster)"| S5["sf-qa-berichte (10-Bausteine-Audit, Pfadschutz, Berichte)"]
-    S1 -->|"Max. 12 Punkte + 100 % Grün"| D
-    S2 -->|"Max. 12 Punkte + 100 % Grün"| D
-    S3 -->|"Max. 12 Punkte + 100 % Grün"| D
-    S4 -->|"Max. 12 Punkte + 100 % Grün"| D
-    S5 -->|"Max. 12 Punkte + Freigabe"| D
+    D -->|"invoke_subagent"| A1["buchi (Buchhaltung, Steuern, Verträge)"]
+    D -->|"invoke_subagent"| A2["bestelli (Bestellungen, DHL, Support)"]
+    D -->|"invoke_subagent"| A3["produkti (Produkte, 2D/3D, Gamification)"]
+    D -->|"invoke_subagent"| A4["dr-funki (Leitung, Routine, Gesundheit)"]
+    D -->|"invoke_subagent"| A5["lasi (xTool Laser & Werkstatt Mini-PC)"]
+    D -->|"invoke_subagent"| A6["marketi (Blog, SEO/GEO, Influencer)"]
+    D -->|"invoke_subagent"| A7["agenti (KI-Gehirne & 3D-Stadt Funkenwerk)"]
+    D -->|"invoke_subagent"| A8["einkaufi (Lieferanten, Rohlinge, Verpackung)"]
+    D -->|"invoke_subagent"| A9["globi (Globale Recherche, Audit, Berichte)"]
+    D -->|"invoke_subagent"| A10["systemi (System, Android, Windows, Stage)"]
 ```
 
 ---
 
-## 2. Plugin-Komponenten & Datei-Übersicht
+## 2. Plugin-Komponenten & Datei-Übersicht (`v2.0.0`)
 Installationspfad: `C:\Users\konta\.gemini\config\plugins\seelenfunke-orchestrator\`
 
 ### Manifest, Regelwerk & Orchestrierungs-Skill
-* [`plugin.json`](file:///C:/Users/konta/.gemini/config/plugins/seelenfunke-orchestrator/plugin.json): Offizielles Antigravity-Plugin-Manifest (`v1.0.0`, Autor: `Mein-Seelenfunke (Alina Steinhauer)`), inklusive 3 Schnellstart-Prompts und Schwarz-Gold-Sternlogo ([`assets/logo.svg`](file:///C:/Users/konta/.gemini/config/plugins/seelenfunke-orchestrator/assets/logo.svg)) sowie Kurzübersicht in [`README.md`](file:///C:/Users/konta/.gemini/config/plugins/seelenfunke-orchestrator/README.md).
-* [`rules/AGENTS.md`](file:///C:/Users/konta/.gemini/config/plugins/seelenfunke-orchestrator/rules/AGENTS.md): Dauerhaft aktive Dirigenten-Regel im Haupt-Chat (reines Markdown ohne YAML-Frontmatter). Steuert Delegations-Schwellen, Spezialisten-Auswahl, Parallelität, Dateikonflikt-Schutz und das 12-Punkte-Rückmeldebudget.
+* [`plugin.json`](file:///C:/Users/konta/.gemini/config/plugins/seelenfunke-orchestrator/plugin.json): Offizielles Antigravity-Plugin-Manifest (`v2.0.0`, `Falcone & Die 10 Abteilungs-Kräfte`, Autor: `Mein-Seelenfunke (Alina Steinhauer)`), inklusive Schnellstart-Prompts, Schwarz-Gold-Sternlogo ([`assets/logo.svg`](file:///C:/Users/konta/.gemini/config/plugins/seelenfunke-orchestrator/assets/logo.svg)) sowie Kurzübersicht in [`README.md`](file:///C:/Users/konta/.gemini/config/plugins/seelenfunke-orchestrator/README.md).
+* [`rules/AGENTS.md`](file:///C:/Users/konta/.gemini/config/plugins/seelenfunke-orchestrator/rules/AGENTS.md): Dauerhaft aktive Dirigenten-Regel (reines Markdown ohne YAML-Frontmatter). Steuert Delegations-Schwellen, Auswahl der 10 Abteilungs-Kräfte, Parallelität, Dateikonflikt-Schutz und das 12-Punkte-Rückmeldebudget.
 * [`skills/sf-orchestrate/SKILL.md`](file:///C:/Users/konta/.gemini/config/plugins/seelenfunke-orchestrator/skills/sf-orchestrate/SKILL.md): 3-Phasen-Koordinations-Leitfaden für komplexe Mehr-Abteilungs-Projekte:
   1. **Phase 1 (Triage & Baustein-3-Gate):** Konzept + Mehrwert vor Umsetzung neuer Features; Zerlegung nach Dateigrenzen nach „Go“.
-  2. **Phase 2 (Konfliktfreie Delegation):** Übergabe von Zielpfaden (Windows-UNC), Schnittstellen-Vertrag (z. B. JSON-API-Schema zwischen Shop und Android), Pflicht-Tests bis 100 % Grün und 12-Zeilen-Rückmeldelimit.
+  2. **Phase 2 (Konfliktfreie Delegation):** Übergabe von Zielpfaden (Windows-UNC), Schnittstellen-Vertrag, Pflicht-Tests bis 100 % Grün und 12-Zeilen-Rückmeldelimit.
   3. **Phase 3 (Abschluss-Abnahme & Dokumentation):** Prüfung von Teststatus, `php artisan ai:generate-map`, Verzeichnis-Sauberkeit, Pfad-/Link-Sicherheit und [`Abschlussberichte/README.md`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/Abschlussberichte/README.md).
 
-### Die 5 spezialisierten Hintergrund-Subagenten (`agents/*.md`)
-Alle 5 Agenten sind mit `subagent: true`, `mainAgent: false` und einer expliziten `tools:`-Whitelist definiert:
+### Die 10 spezialisierten Seelenfunke Abteilungs-Kräfte (`agents/*.md`)
+Alle 10 Abteilungs-Kräfte sind mit `subagent: true`, `mainAgent: false` und einer expliziten `tools:`-Whitelist definiert und stehen **Falcone** per Hot-Reload unmittelbar als `TypeName` in `invoke_subagent` bereit:
 
-| Spezialist | Datei | Zuständigkeitsbereich & Pflicht-Prüfungen |
-| :--- | :--- | :--- |
-| **`sf-shop-laravel`** | [`sf-shop-laravel.md`](file:///C:/Users/konta/.gemini/config/plugins/seelenfunke-orchestrator/agents/sf-shop-laravel.md) | Laravel-Hauptportal (`Mein-Seelenfunke`), Livewire 3 (`#[Locked]`, Rollen-Isolation), Blade Clean-Design, 2D/3D-Konfigurator, `Product*Seeder.php`, xTool Laser-Cockpit, REST-API, PHPUnit in `mein_php_server` & `php artisan ai:generate-map`. |
-| **`sf-funkenwerk-systems`** | [`sf-funkenwerk-systems.md`](file:///C:/Users/konta/.gemini/config/plugins/seelenfunke-orchestrator/agents/sf-funkenwerk-systems.md) | Funkenwerk Windows Desktop Suite (`funkenwerk*`, C#/WPF/.NET), Werkstatt Mini-PC (`funkenwerk-os-linux`, SSH `alina@192.168.188.151`), Funkira 3D-Atelier, Python-Brücken, MCP-Tools, `--self-test`-Suiten & Synology NAS (`\\nas\...`). |
-| **`sf-android-mobile`** | [`sf-android-mobile.md`](file:///C:/Users/konta/.gemini/config/plugins/seelenfunke-orchestrator/agents/sf-android-mobile.md) | Funkenwerk Android-App & Homescreen-Widgets (`Kotlin` / `Jetpack Compose`), **zwingender Datei-Sync** von `android-app/` in den Windows-Mirror `C:\Users\konta\AndroidStudioProjects\seelenfunke-android` & `./gradlew testDebugUnitTest`. |
-| **`sf-buchhaltung-einkauf`** | [`sf-buchhaltung-einkauf.md`](file:///C:/Users/konta/.gemini/config/plugins/seelenfunke-orchestrator/agents/sf-buchhaltung-einkauf.md) | Belege (`storage/app/buchhaltung/receipts/`), Verträge (`contracts/`), direkte Pflege in [`AccountingSeeder.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/database/seeders/AccountingSeeder.php) (Cent-Integer, exaktes Kaufdatum, Gewerblich vs. Privat, Dublettenprüfung) sowie wirtschaftlich durchgerechnete Einkaufs-/Verpackungsempfehlungen. |
-| **`sf-qa-berichte`** | [`sf-qa-berichte.md`](file:///C:/Users/konta/.gemini/config/plugins/seelenfunke-orchestrator/agents/sf-qa-berichte.md) | Unabhängiger Qualitäts-, Security- und Regel-Auditor (**striktes Änderungsverbot** an Produktionscode). Prüft alle 10 Seelenfunke-Bausteine, Black-Screen-Pfadschutz (`file://wsl.localhost/...` / `file:///C:/...`), Clean-Design, `0` KI-Gedankenstriche und pflegt `Abschlussberichte/`. |
+| TypeName | Abteilungs-Kraft | Datei | Zuständigkeitsbereich & Pflicht-Prüfungen |
+| :--- | :--- | :--- | :--- |
+| **`buchi`** | **Buchi** | [`buchi.md`](file:///C:/Users/konta/.gemini/config/plugins/seelenfunke-orchestrator/agents/buchi.md) | Buchhaltung, Finanzen, Steuern, Belege (`receipts/`), Verträge (`contracts/`), direkte Pflege in [`AccountingSeeder.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/database/seeders/AccountingSeeder.php) (Cent-Integer, Kaufdatum, Dublettenprüfung, Gewerblich vs. Privat) & Steuerberater-Portal. |
+| **`bestelli`** | **Bestelli** | [`bestelli.md`](file:///C:/Users/konta/.gemini/config/plugins/seelenfunke-orchestrator/agents/bestelli.md) | Bestellungen, Checkout, aktive Lieferzonen (`LogisticsShippingZone`), DHL-Versand, Produktionsfokus-Produktnamen, Angebote, Widerrufe sowie Kunden-Support & KI-Telefonie. |
+| **`produkti`** | **Produkti** | [`produkti.md`](file:///C:/Users/konta/.gemini/config/plugins/seelenfunke-orchestrator/agents/produkti.md) | Produkte (`Product*Seeder.php`), Kalkulator, maßstabsgetreue 2D-Overlays & komprimierte `.glb`-3D-Modelle (`GlbOptimizerService`), abmahnsichere Materialangaben (Bestand `0`) & Kunden-Gamification (Funki Level 1 bis 10). |
+| **`dr-funki`** | **Dr. Funki** | [`dr-funki.md`](file:///C:/Users/konta/.gemini/config/plugins/seelenfunke-orchestrator/agents/dr-funki.md) | Kommandozentrale (`/admin/dashboard`), Tagesroutine, Kalender, Aufgaben, Kontakte, E-Mail-Trichter, Musikplayer (`ManagementMusic`) sowie streng geschützte Gesundheits- & Medikationspläne (`AiHealth*`). |
+| **`lasi`** | **Lasi** | [`lasi.md`](file:///C:/Users/konta/.gemini/config/plugins/seelenfunke-orchestrator/agents/lasi.md) | xTool F2 Ultra UV (`192.168.188.150`), `StageLaserRelayDaemon`, `FunkenwerkOS.Linux` auf dem Werkstatt Mini-PC (`alina@192.168.188.151`), Fokus-Monitor, Reinigungs-/Verpackungs-Logik & 3D-Druck-Vorrichtungen. |
+| **`marketi`** | **Marketi** | [`marketi.md`](file:///C:/Users/konta/.gemini/config/plugins/seelenfunke-orchestrator/agents/marketi.md) | Magazin/Blog, Landingpages, Newsletter, Gutscheine, Herzensprojekte, Linktree (`/links`), SEO/GEO-Strukturdaten, Social-Content (`Craft`) & rollenisoliertes Influencer-Portal. |
+| **`agenti`** | **Agenti** | [`agenti.md`](file:///C:/Users/konta/.gemini/config/plugins/seelenfunke-orchestrator/agents/agenti.md) | KI-Gehirne (`Falcone`, `Funkira`, air-gapped `Funki`), Skill-Pools, Vertex AI, Organigramm, Wissensdatenbank sowie 60-FPS Three.js-3D-Avatare & die 3D-Wasserstadt `Funkenwerk` inkl. `Halle der Helden`. |
+| **`einkaufi`** | **Einkaufi** | [`einkaufi.md`](file:///C:/Users/konta/.gemini/config/plugins/seelenfunke-orchestrator/agents/einkaufi.md) | Lieferanten (`ProductSuppliers`), Rohlinge, Verpackung & LUCID (`ProductPackagingConfigurator`) sowie wirtschaftlich durchgerechnete Mitgründer-Kaufempfehlungen (1 klare Empfehlung mit Link & Startmenge). |
+| **`globi`** | **Globi** | [`globi.md`](file:///C:/Users/konta/.gemini/config/plugins/seelenfunke-orchestrator/agents/globi.md) | Globale Markt-/Web-/Nischen-Recherchen, Crawler, unabhängiges 10-Bausteine-Audit (Clean-Design ohne Subtexte, `0` KI-Gedankenstriche, Light-/Dark-Mode, Black-Screen-Pfadschutz) & Pflege von `Abschlussberichte/`. |
+| **`systemi`** | **Systemi** | [`systemi.md`](file:///C:/Users/konta/.gemini/config/plugins/seelenfunke-orchestrator/agents/systemi.md) | System, Security, Funkenwerk Android-App + 1:1 Windows-Mirror & Stage-OTA, Funkenwerk Windows Suite & Tresor, `FunkenwerkMcp`, 4-Säulen-Selbstheilung, Wartungsmodus, Mittwald Stage-Deploys & Synology NAS. |
 
 ---
 

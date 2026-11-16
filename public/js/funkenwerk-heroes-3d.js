@@ -10,6 +10,22 @@
   var PANTHEON_Y = 5.0;
   var TOTAL_DISPLAY_SLOTS = 29; // Top 5 Pedestal Funki Characters + 24 Colonnade Honor Steles
 
+  // Verified Tripo 3D local front axis (+X) -> -Math.PI / 2 rotates TV face & "Funki" chest text straight to +Z camera
+  var FUNKI_GLB_FRONT_ROTATION_Y = -Math.PI * 0.5;
+
+  var DEFAULT_FUNKI_GLB_URLS = {
+    1: '/shop/customer/gamification/models/funki_lvl_1_rags.glb',
+    2: '/shop/customer/gamification/models/funki_lvl_2_basic.glb',
+    3: '/shop/customer/gamification/models/funki_lvl_3_helper.glb',
+    4: '/shop/customer/gamification/models/funki_lvl_4_novice.glb',
+    5: '/shop/customer/gamification/models/funki_lvl_5_apprentice.glb',
+    6: '/shop/customer/gamification/models/funki_lvl_6_craftsman.glb',
+    7: '/shop/customer/gamification/models/funki_lvl_7_artisan.glb',
+    8: '/shop/customer/gamification/models/funki_lvl_8_master.glb',
+    9: '/shop/customer/gamification/models/funki_lvl_9_lightbringer.glb',
+    10: '/shop/customer/gamification/models/funki_lvl_10_god_of_soul.glb'
+  };
+
   var PIER_ACCENTS = [
     '#D4AF37', '#FDE68A', '#C5A059', '#EAB308', '#38BDF8', '#F59E0B', '#FFF3C4'
   ];
@@ -563,6 +579,328 @@
     return window.__sfThreeLoadingPromise;
   }
 
+  function makeSparkParticleTexture(THREE) {
+    var S = 64;
+    var c = document.createElement('canvas');
+    c.width = S;
+    c.height = S;
+    var ctx = c.getContext('2d');
+    var g = ctx.createRadialGradient(S * 0.5, S * 0.5, 1, S * 0.5, S * 0.5, S * 0.48);
+    g.addColorStop(0.0, 'rgba(255, 255, 255, 1.0)');
+    g.addColorStop(0.28, 'rgba(255, 238, 170, 0.92)');
+    g.addColorStop(0.65, 'rgba(212, 175, 55, 0.35)');
+    g.addColorStop(1.0, 'rgba(197, 160, 89, 0.0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, S, S);
+    var tex = new THREE.CanvasTexture(c);
+    tex.needsUpdate = true;
+    return tex;
+  }
+
+  // Zero-Dependency Native Binary GLB 2.0 Parser (0 external CDN requests!)
+  function parseGlbBinary(THREE, arrayBuffer, maxAniso, disposablesList) {
+    if (!arrayBuffer || arrayBuffer.byteLength < 20) {
+      return Promise.reject(new Error('Ungueltiger GLB-Datenstrom.'));
+    }
+
+    var dv = new DataView(arrayBuffer);
+    var magic = dv.getUint32(0, true);
+    var version = dv.getUint32(4, true);
+    if (magic !== 0x46546C67 || version !== 2) {
+      return Promise.reject(new Error('Nicht unterstuetztes GLB-2.0-Format.'));
+    }
+
+    var jsonObj = null;
+    var binOffset = 0;
+    var binLength = 0;
+    var offset = 12;
+
+    while (offset + 8 <= arrayBuffer.byteLength) {
+      var chunkLen = dv.getUint32(offset, true);
+      var chunkType = dv.getUint32(offset + 4, true);
+      var dataStart = offset + 8;
+      if (dataStart + chunkLen > arrayBuffer.byteLength) break;
+
+      if (chunkType === 0x4E4F534A) {
+        var jsonBytes = new Uint8Array(arrayBuffer, dataStart, chunkLen);
+        var jsonStr = '';
+        if (typeof TextDecoder !== 'undefined') {
+          jsonStr = new TextDecoder('utf-8').decode(jsonBytes);
+        } else {
+          for (var bi = 0; bi < jsonBytes.length; bi++) {
+            jsonStr += String.fromCharCode(jsonBytes[bi]);
+          }
+        }
+        jsonObj = JSON.parse(jsonStr);
+      } else if (chunkType === 0x004E4942) {
+        binOffset = dataStart;
+        binLength = chunkLen;
+      }
+      offset = dataStart + chunkLen;
+    }
+
+    if (!jsonObj || !binLength) {
+      return Promise.reject(new Error('Unvollstaendige GLB-Chunks.'));
+    }
+
+    var COMP_SPECS = {
+      5120: { Ctor: Int8Array, bytes: 1, read: function (v, o) { return v.getInt8(o); } },
+      5121: { Ctor: Uint8Array, bytes: 1, read: function (v, o) { return v.getUint8(o); } },
+      5122: { Ctor: Int16Array, bytes: 2, read: function (v, o) { return v.getInt16(o, true); } },
+      5123: { Ctor: Uint16Array, bytes: 2, read: function (v, o) { return v.getUint16(o, true); } },
+      5125: { Ctor: Uint32Array, bytes: 4, read: function (v, o) { return v.getUint32(o, true); } },
+      5126: { Ctor: Float32Array, bytes: 4, read: function (v, o) { return v.getFloat32(o, true); } }
+    };
+    var TYPE_COUNTS = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4, MAT4: 16 };
+
+    function readAccessorArray(accIdx) {
+      if (accIdx === undefined || accIdx === null || !jsonObj.accessors || !jsonObj.accessors[accIdx]) {
+        return null;
+      }
+      var acc = jsonObj.accessors[accIdx];
+      var bv = (jsonObj.bufferViews && jsonObj.bufferViews[acc.bufferView]) ? jsonObj.bufferViews[acc.bufferView] : null;
+      var spec = COMP_SPECS[acc.componentType];
+      var itemSize = TYPE_COUNTS[acc.type] || 1;
+      if (!bv || !spec) return null;
+
+      var count = acc.count || 0;
+      var byteStart = binOffset + (bv.byteOffset || 0) + (acc.byteOffset || 0);
+      var packedStride = itemSize * spec.bytes;
+      var stride = bv.byteStride || packedStride;
+
+      if (stride === packedStride && (byteStart % spec.bytes) === 0) {
+        return {
+          array: new spec.Ctor(arrayBuffer, byteStart, count * itemSize).slice(),
+          itemSize: itemSize
+        };
+      }
+
+      var out = new spec.Ctor(count * itemSize);
+      for (var i = 0; i < count; i++) {
+        var baseOff = byteStart + i * stride;
+        for (var c = 0; c < itemSize; c++) {
+          out[i * itemSize + c] = spec.read(dv, baseOff + c * spec.bytes);
+        }
+      }
+      return { array: out, itemSize: itemSize };
+    }
+
+    var localTexPromises = {};
+    var localMatPromises = {};
+
+    function loadEmbeddedTexture(texIndex, isSrgb) {
+      if (texIndex === undefined || texIndex === null || !jsonObj.textures || !jsonObj.textures[texIndex]) {
+        return Promise.resolve(null);
+      }
+      var key = texIndex + (isSrgb ? ':srgb' : ':lin');
+      if (localTexPromises[key]) return localTexPromises[key];
+
+      var texDef = jsonObj.textures[texIndex];
+      var imgDef = (jsonObj.images && texDef.source !== undefined) ? jsonObj.images[texDef.source] : null;
+      if (!imgDef || imgDef.bufferView === undefined || !jsonObj.bufferViews || !jsonObj.bufferViews[imgDef.bufferView]) {
+        return Promise.resolve(null);
+      }
+
+      var bv = jsonObj.bufferViews[imgDef.bufferView];
+      var imgStart = binOffset + (bv.byteOffset || 0);
+      var imgBytes = new Uint8Array(arrayBuffer, imgStart, bv.byteLength);
+      var blob = new Blob([imgBytes], { type: imgDef.mimeType || 'image/jpeg' });
+      var blobUrl = URL.createObjectURL(blob);
+
+      localTexPromises[key] = new Promise(function (resolve) {
+        var imgEl = new Image();
+        imgEl.onload = function () {
+          URL.revokeObjectURL(blobUrl);
+          var tex = new THREE.Texture(imgEl);
+          tex.flipY = false;
+          tex.wrapS = THREE.RepeatWrapping;
+          tex.wrapT = THREE.RepeatWrapping;
+          tex.generateMipmaps = true;
+          tex.minFilter = THREE.LinearMipmapLinearFilter;
+          tex.magFilter = THREE.LinearFilter;
+          tex.anisotropy = Math.min(maxAniso || 4, 4);
+          if (isSrgb) {
+            if ('colorSpace' in tex && THREE.SRGBColorSpace) {
+              tex.colorSpace = THREE.SRGBColorSpace;
+            } else if (THREE.sRGBEncoding) {
+              tex.encoding = THREE.sRGBEncoding;
+            }
+          } else {
+            if ('colorSpace' in tex && typeof THREE.NoColorSpace !== 'undefined') {
+              tex.colorSpace = THREE.NoColorSpace;
+            } else if (THREE.LinearEncoding) {
+              tex.encoding = THREE.LinearEncoding;
+            }
+          }
+          tex.needsUpdate = true;
+          if (disposablesList) disposablesList.push(tex);
+          resolve(tex);
+        };
+        imgEl.onerror = function () {
+          URL.revokeObjectURL(blobUrl);
+          resolve(null);
+        };
+        imgEl.src = blobUrl;
+      });
+
+      return localTexPromises[key];
+    }
+
+    function buildMaterial(matIndex) {
+      var key = (matIndex === undefined || matIndex === null) ? 'default' : String(matIndex);
+      if (localMatPromises[key]) return localMatPromises[key];
+
+      var matDef = (jsonObj.materials && jsonObj.materials[matIndex]) ? jsonObj.materials[matIndex] : {};
+      var pbr = matDef.pbrMetallicRoughness || {};
+      var baseIdx = (pbr.baseColorTexture && pbr.baseColorTexture.index !== undefined) ? pbr.baseColorTexture.index : null;
+      var mrIdx = (pbr.metallicRoughnessTexture && pbr.metallicRoughnessTexture.index !== undefined) ? pbr.metallicRoughnessTexture.index : null;
+      var normIdx = (matDef.normalTexture && matDef.normalTexture.index !== undefined) ? matDef.normalTexture.index : null;
+      var emisIdx = (matDef.emissiveTexture && matDef.emissiveTexture.index !== undefined) ? matDef.emissiveTexture.index : null;
+
+      localMatPromises[key] = Promise.all([
+        loadEmbeddedTexture(baseIdx, true),
+        loadEmbeddedTexture(mrIdx, false),
+        loadEmbeddedTexture(normIdx, false),
+        loadEmbeddedTexture(emisIdx, true)
+      ]).then(function (texArr) {
+        var baseTex = texArr[0];
+        var mrTex = texArr[1];
+        var normTex = texArr[2];
+        var emisTex = texArr[3];
+
+        var bcf = Array.isArray(pbr.baseColorFactor) ? pbr.baseColorFactor : [1, 1, 1, 1];
+        var rawMetal = (typeof pbr.metallicFactor === 'number') ? pbr.metallicFactor : (mrTex ? 1.0 : 0.16);
+        var safeMetalness = mrTex ? clamp(rawMetal * 0.34, 0.14, 0.36) : clamp(rawMetal, 0.12, 0.28);
+        var rawRough = (typeof pbr.roughnessFactor === 'number') ? pbr.roughnessFactor : 0.78;
+        var safeRoughness = mrTex ? clamp(rawRough * 0.74, 0.32, 0.86) : clamp(rawRough * 0.84, 0.38, 0.88);
+
+        var opts = {
+          color: new THREE.Color(bcf[0], bcf[1], bcf[2]),
+          metalness: safeMetalness,
+          roughness: safeRoughness,
+          side: matDef.doubleSided ? THREE.DoubleSide : THREE.FrontSide
+        };
+        if (baseTex) opts.map = baseTex;
+        if (mrTex) {
+          opts.roughnessMap = mrTex;
+          opts.metalnessMap = mrTex;
+        }
+        if (normTex) {
+          opts.normalMap = normTex;
+          var ns = (matDef.normalTexture && typeof matDef.normalTexture.scale === 'number') ? matDef.normalTexture.scale : 0.85;
+          opts.normalScale = new THREE.Vector2(ns, ns);
+        }
+        if (emisTex) {
+          opts.emissiveMap = emisTex;
+          var ef = Array.isArray(matDef.emissiveFactor) ? matDef.emissiveFactor : [1, 1, 1];
+          opts.emissive = new THREE.Color(ef[0], ef[1], ef[2]);
+        } else if (Array.isArray(matDef.emissiveFactor)) {
+          opts.emissive = new THREE.Color(matDef.emissiveFactor[0], matDef.emissiveFactor[1], matDef.emissiveFactor[2]);
+        }
+        if (matDef.alphaMode === 'MASK') {
+          opts.alphaTest = (typeof matDef.alphaCutoff === 'number') ? matDef.alphaCutoff : 0.5;
+        } else if (matDef.alphaMode === 'BLEND') {
+          opts.transparent = true;
+          opts.opacity = (typeof bcf[3] === 'number') ? bcf[3] : 1.0;
+        }
+
+        var mat = new THREE.MeshStandardMaterial(opts);
+        if (disposablesList) disposablesList.push(mat);
+        return mat;
+      });
+
+      return localMatPromises[key];
+    }
+
+    function buildNodeAsync(nodeIdx) {
+      var nDef = (jsonObj.nodes && jsonObj.nodes[nodeIdx]) ? jsonObj.nodes[nodeIdx] : null;
+      if (!nDef) return Promise.resolve(new THREE.Group());
+
+      var nodeObj = new THREE.Group();
+      if (Array.isArray(nDef.matrix) && nDef.matrix.length === 16) {
+        var m4 = new THREE.Matrix4();
+        m4.fromArray(nDef.matrix);
+        m4.decompose(nodeObj.position, nodeObj.quaternion, nodeObj.scale);
+      } else {
+        if (Array.isArray(nDef.translation)) nodeObj.position.fromArray(nDef.translation);
+        if (Array.isArray(nDef.rotation)) nodeObj.quaternion.fromArray(nDef.rotation);
+        if (Array.isArray(nDef.scale)) nodeObj.scale.fromArray(nDef.scale);
+      }
+
+      var primTasks = [];
+      if (nDef.mesh !== undefined && jsonObj.meshes && jsonObj.meshes[nDef.mesh]) {
+        var prims = jsonObj.meshes[nDef.mesh].primitives || [];
+        for (var pi = 0; pi < prims.length; pi++) {
+          (function (prim) {
+            primTasks.push(buildMaterial(prim.material).then(function (mat) {
+              var geo = new THREE.BufferGeometry();
+              var attrs = prim.attributes || {};
+              var posData = readAccessorArray(attrs.POSITION);
+              if (!posData) return;
+              geo.setAttribute('position', new THREE.BufferAttribute(posData.array, 3));
+
+              var normData = readAccessorArray(attrs.NORMAL);
+              if (normData) {
+                geo.setAttribute('normal', new THREE.BufferAttribute(normData.array, 3));
+              }
+
+              var uvData = readAccessorArray(attrs.TEXCOORD_0);
+              if (uvData) {
+                geo.setAttribute('uv', new THREE.BufferAttribute(uvData.array, 2));
+              }
+
+              var idxData = readAccessorArray(prim.indices);
+              if (idxData) {
+                geo.setIndex(new THREE.BufferAttribute(idxData.array, 1));
+              }
+
+              if (!normData) {
+                geo.computeVertexNormals();
+              }
+              geo.computeBoundingBox();
+              geo.computeBoundingSphere();
+              if (disposablesList) disposablesList.push(geo);
+
+              nodeObj.add(new THREE.Mesh(geo, mat));
+            }));
+          })(prims[pi]);
+        }
+      }
+
+      var childIndices = Array.isArray(nDef.children) ? nDef.children : [];
+      var childTasks = [];
+      for (var ci = 0; ci < childIndices.length; ci++) {
+        childTasks.push(buildNodeAsync(childIndices[ci]).then(function (childGrp) {
+          nodeObj.add(childGrp);
+        }));
+      }
+
+      return Promise.all(primTasks.concat(childTasks)).then(function () {
+        return nodeObj;
+      });
+    }
+
+    var sceneIdx = (typeof jsonObj.scene === 'number') ? jsonObj.scene : 0;
+    var rootNodes = (jsonObj.scenes && jsonObj.scenes[sceneIdx] && Array.isArray(jsonObj.scenes[sceneIdx].nodes))
+      ? jsonObj.scenes[sceneIdx].nodes
+      : [0];
+
+    var rootGroup = new THREE.Group();
+    var rootPromises = [];
+    for (var ri = 0; ri < rootNodes.length; ri++) {
+      rootPromises.push(buildNodeAsync(rootNodes[ri]).then(function (child) {
+        rootGroup.add(child);
+      }));
+    }
+
+    return Promise.all(rootPromises).then(function () {
+      return {
+        scene: rootGroup,
+        animations: Array.isArray(jsonObj.animations) ? jsonObj.animations : []
+      };
+    });
+  }
+
   function FunkenwerkHeroes3DEngine() {
     this.initialized = false;
     this.running = false;
@@ -590,14 +928,23 @@
       my_hero_slot: null,
       customer_logged_in: false,
       customer_opt_in: false,
+      level_models: {},
       heroes: []
     };
+
+    // RAM Cache Map<level, THREE.Group> so no .glb model is ever downloaded or parsed twice!
+    this.glbTemplateCache = new Map();
+    this.glbLoadingPromises = new Map();
+    this.glbDisposables = [];
+    this._monumentGeneration = 0;
 
     this.slotAnchors = {};
     this.interactiveTargets = [];
     this.dynamicTextures = [];
     this.pantheonDynamicGroup = null;
     this.animatedFunkiFigures = [];
+    this.pedestalSparkMeta = [];
+    this.pedestalSparkPosAttr = null;
 
     this.viewMode = 'orbit';
     this.flight = null;
@@ -606,6 +953,7 @@
     var self = this;
     this._boundLoop = function (ts) { self._tick(ts); };
     this._boundResize = function () { self.resize(); };
+    this._boundPageHide = function () { self.dispose(); };
     this._boundKeydown = function (e) {
       if (e.key === 'Escape' && self.running) {
         self.close();
@@ -774,6 +1122,7 @@
     this.camera = new THREE.PerspectiveCamera(46, window.innerWidth / Math.max(1, window.innerHeight), 0.25, 26000);
 
     this._buildMaterials();
+    this._buildPantheonLighting();
     this._buildCosmosAndSky();
     this._buildOrbitalPlanet();
     this._buildOcean();
@@ -784,9 +1133,34 @@
     this._bindControls();
     window.addEventListener('resize', this._boundResize);
     window.addEventListener('keydown', this._boundKeydown);
+    window.addEventListener('pagehide', this._boundPageHide);
     this.resize();
 
     this.initialized = true;
+  };
+
+  // Noble 3-Point Pantheon Lighting so MeshStandardMaterial on the real Tripo 3D Funki .glb models gleams richly!
+  FunkenwerkHeroes3DEngine.prototype._buildPantheonLighting = function () {
+    var THREE = this.THREE;
+
+    var hemiLight = new THREE.HemisphereLight(0xFFFDF5, 0x2E3C56, 1.35);
+    hemiLight.position.set(0, PANTHEON_Y + 34, PANTHEON_Z);
+    this.scene.add(hemiLight);
+
+    var ambLight = new THREE.AmbientLight(0xFFF8EB, 0.58);
+    this.scene.add(ambLight);
+
+    var keyLight = new THREE.DirectionalLight(0xFFEBC2, 1.75);
+    keyLight.position.set(9.5, PANTHEON_Y + 24.0, PANTHEON_Z + 22.0);
+    keyLight.target.position.set(0, PANTHEON_Y + 4.0, PANTHEON_Z - 5.0);
+    this.scene.add(keyLight);
+    this.scene.add(keyLight.target);
+
+    var rimLight = new THREE.DirectionalLight(0xBAE6FD, 0.72);
+    rimLight.position.set(-14.0, PANTHEON_Y + 17.0, PANTHEON_Z - 20.0);
+    rimLight.target.position.set(0, PANTHEON_Y + 4.0, PANTHEON_Z - 4.0);
+    this.scene.add(rimLight);
+    this.scene.add(rimLight.target);
   };
 
   FunkenwerkHeroes3DEngine.prototype._buildMaterials = function () {
@@ -805,6 +1179,7 @@
     var mcAmethystCrystal = makeLuxuryMatcap(THREE, this.maxAniso, '#7E22CE', '#F3E8FF', '#D8B4FE', 42, 0.62);
 
     var facadeTex = makeSkyscraperFacadeTexture(THREE, this.maxAniso);
+    this.sparkSpriteTex = makeSparkParticleTexture(THREE);
 
     this.mats = {
       goldBright: new THREE.MeshMatcapMaterial({ matcap: mcGoldBright }),
@@ -1394,15 +1769,160 @@
   };
 
   // ============================================================================
-  // 100% AUTHENTIC 3D FUNKI CHARACTER BUILDER FOR LEVELS 1..10
-  // (TV-Screen Monitor Head + Face + Side Gears + "Funki" Chestplate + Lv 1..10 Evolution!)
+  // REAL COMPRESSED TRIPO 3D FUNKI (.GLB) LOADER + RAM CACHE (Map<level, Group>)
+  // Verified Front Rotation: rotation.y = -Math.PI * 0.5 (TV Face & "Funki" Chest -> +Z)
   // ============================================================================
-  FunkenwerkHeroes3DEngine.prototype._createFunkiCharacterByLevel = function (rawLevel, slotNum, scaleFactor) {
+  FunkenwerkHeroes3DEngine.prototype._getFunkiAuraHex = function (lvl) {
+    if (lvl === 10) return 0xA855F7;
+    if (lvl === 9) return 0x38BDF8;
+    if (lvl === 8) return 0xFDE68A;
+    if (lvl === 7) return 0xD4AF37;
+    if (lvl === 6) return 0xF43F5E;
+    if (lvl === 5) return 0x10B981;
+    if (lvl === 4) return 0x38BDF8;
+    if (lvl === 3) return 0xEAB308;
+    if (lvl === 2) return 0xD97706;
+    return 0xC5A059;
+  };
+
+  FunkenwerkHeroes3DEngine.prototype._resolveFunkiModelUrl = function (lvl, hero) {
+    if (hero && !hero.is_placeholder && hero.model_url) {
+      return String(hero.model_url);
+    }
+    if (this.heroesPayload && this.heroesPayload.level_models && this.heroesPayload.level_models[lvl]) {
+      return String(this.heroesPayload.level_models[lvl]);
+    }
+    return DEFAULT_FUNKI_GLB_URLS[lvl] || DEFAULT_FUNKI_GLB_URLS[1];
+  };
+
+  FunkenwerkHeroes3DEngine.prototype._loadFunkiGlbTemplate = function (rawLevel, modelUrl) {
+    var self = this;
+    var THREE = this.THREE;
+    var lvl = clamp(parseInt(rawLevel, 10) || 1, 1, 10);
+
+    if (this.glbTemplateCache.has(lvl)) {
+      return Promise.resolve(this.glbTemplateCache.get(lvl));
+    }
+    if (this.glbLoadingPromises.has(lvl)) {
+      return this.glbLoadingPromises.get(lvl);
+    }
+
+    var url = modelUrl || this._resolveFunkiModelUrl(lvl, null);
+    var p = fetch(url, {
+      method: 'GET',
+      credentials: 'same-origin'
+    })
+      .then(function (resp) {
+        if (!resp.ok) {
+          throw new Error('GLB HTTP ' + resp.status);
+        }
+        return resp.arrayBuffer();
+      })
+      .then(function (buf) {
+        return parseGlbBinary(THREE, buf, self.maxAniso, self.glbDisposables);
+      })
+      .then(function (parsed) {
+        var sceneRoot = parsed.scene;
+        sceneRoot.updateMatrixWorld(true);
+        var bbox = new THREE.Box3().setFromObject(sceneRoot);
+        var rawH = Math.max(0.001, bbox.max.y - bbox.min.y);
+        var centerX = (bbox.min.x + bbox.max.x) * 0.5;
+        var centerZ = (bbox.min.z + bbox.max.z) * 0.5;
+        var minY = bbox.min.y;
+
+        var targetH = (lvl === 1) ? 1.62 : 2.08;
+        var normScale = targetH / rawH;
+        sceneRoot.scale.setScalar(normScale);
+        // Align boots flush on pedestal surface (bbox.min.y -> y = 0.000) and center X/Z
+        sceneRoot.position.set(-centerX * normScale, -minY * normScale, -centerZ * normScale);
+
+        var frontOriented = new THREE.Group();
+        frontOriented.rotation.y = FUNKI_GLB_FRONT_ROTATION_Y;
+        frontOriented.add(sceneRoot);
+
+        var templateGroup = new THREE.Group();
+        templateGroup.add(frontOriented);
+        templateGroup.userData = {
+          level: lvl,
+          hasEmbeddedAnimations: !!(parsed.animations && parsed.animations.length > 0)
+        };
+
+        self.glbTemplateCache.set(lvl, templateGroup);
+        self.glbLoadingPromises.delete(lvl);
+        return templateGroup;
+      })
+      .catch(function (err) {
+        self.glbLoadingPromises.delete(lvl);
+        throw err;
+      });
+
+    this.glbLoadingPromises.set(lvl, p);
+    return p;
+  };
+
+  FunkenwerkHeroes3DEngine.prototype._createFunkiCharacterByLevel = function (rawLevel, slotNum, scaleFactor, hero) {
+    var THREE = this.THREE;
+    var self = this;
+    var lvl = clamp(parseInt(rawLevel, 10) || 1, 1, 10);
+    var mountGen = this._monumentGeneration;
+
+    var root = new THREE.Group();
+    root.scale.setScalar(scaleFactor || 1.0);
+
+    var auraHex = this._getFunkiAuraHex(lvl);
+    var auraOuterMat = new THREE.MeshBasicMaterial({ color: auraHex });
+    this.dynamicTextures.push({ dispose: function () { auraOuterMat.dispose(); } });
+    var auraOuter = new THREE.Mesh(new THREE.TorusGeometry(0.96, 0.036, 10, 40), auraOuterMat);
+    auraOuter.rotation.x = Math.PI * 0.5;
+    auraOuter.position.y = 0.036;
+    root.add(auraOuter);
+
+    var auraInnerMat = new THREE.MeshBasicMaterial({
+      color: 0xFDE68A,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.78
+    });
+    this.dynamicTextures.push({ dispose: function () { auraInnerMat.dispose(); } });
+    var auraInner = new THREE.Mesh(new THREE.RingGeometry(0.58, 0.68, 8), auraInnerMat);
+    auraInner.rotation.x = -Math.PI * 0.5;
+    auraInner.position.y = 0.028;
+    root.add(auraInner);
+
+    var motionRig = new THREE.Group();
+    root.add(motionRig);
+
+    var animRecord = {
+      motionRig: motionRig,
+      auraOuter: auraOuter,
+      auraInner: auraInner,
+      level: lvl,
+      isSitting: (lvl === 1),
+      phase: slotNum * 1.17
+    };
+    this.animatedFunkiFigures.push(animRecord);
+
+    var modelUrl = this._resolveFunkiModelUrl(lvl, hero || null);
+    this._loadFunkiGlbTemplate(lvl, modelUrl)
+      .then(function (templateGroup) {
+        if (mountGen !== self._monumentGeneration || !self.THREE) return;
+        var inst = templateGroup.clone(true);
+        motionRig.add(inst);
+      })
+      .catch(function () {
+        if (mountGen !== self._monumentGeneration || !self.THREE) return;
+        var fallbackGrp = self._buildProceduralFallbackFunki(lvl, slotNum);
+        motionRig.add(fallbackGrp);
+      });
+
+    return root;
+  };
+
+  FunkenwerkHeroes3DEngine.prototype._buildProceduralFallbackFunki = function (rawLevel, slotNum) {
     var THREE = this.THREE;
     var lvl = clamp(parseInt(rawLevel, 10) || 1, 1, 10);
 
     var root = new THREE.Group();
-    root.scale.setScalar(scaleFactor || 1.0);
 
     // Choose Primary Armor & Trim Materials per Official Funki Level (1..10)
     var armorMat = this.mats.goldBright;
@@ -1853,15 +2373,6 @@
       }
     }
 
-    this.animatedFunkiFigures.push({
-      bodyRig: bodyRig,
-      headGroup: headGroup,
-      gearL: gearWheelL,
-      gearR: gearWheelR,
-      isSitting: isSitting,
-      phase: slotNum * 1.15
-    });
-
     return root;
   };
 
@@ -2054,6 +2565,9 @@
     }
     this.dynamicTextures = [];
     this.animatedFunkiFigures = [];
+    this.pedestalSparkMeta = [];
+    this.pedestalSparkPosAttr = null;
+    this._monumentGeneration++;
     this.slotAnchors = {};
     this.interactiveTargets = this.pantheonDomeProxy ? [this.pantheonDomeProxy] : [];
 
@@ -2139,9 +2653,9 @@
       plaqueMesh.rotation.x = -0.08;
       pGrp.add(plaqueMesh);
 
-      // Authentic Level 1..10 3D Funki Character!
-      var funkiChar = this._createFunkiCharacterByLevel(displayLevel, sp.slot, sp.scale);
-      funkiChar.position.set(0, sp.h + 0.14, 0);
+      // Authentic Compressed Level 1..10 Tripo 3D Funki (.glb) Character flush on pedestal top (sp.h + 0.15)!
+      var funkiChar = this._createFunkiCharacterByLevel(displayLevel, sp.slot, sp.scale, hero);
+      funkiChar.position.set(0, sp.h + 0.15, 0);
       pGrp.add(funkiChar);
 
       var proxy = new THREE.Mesh(
@@ -2159,6 +2673,68 @@
       worldCam.y = worldTarget.y + 0.45;
       this.slotAnchors[sp.slot] = { camPos: worldCam, target: worldTarget, hero: isPlaceholder ? null : hero, slot: sp.slot };
     }
+
+    // Rising Golden Seelenfunken Spark Particles around all 5 Honor Pedestals (1 batched Points draw call!)
+    var sparksPerPedestal = 26;
+    var totalPedSparks = pedestalSpecs.length * sparksPerPedestal;
+    var sparkPositions = new Float32Array(totalPedSparks * 3);
+    var sparkColors = new Float32Array(totalPedSparks * 3);
+    var sparkRng = mulberry32(20261117);
+
+    for (var spi = 0; spi < pedestalSpecs.length; spi++) {
+      var pSpec = pedestalSpecs[spi];
+      var pHero = heroBySlot[pSpec.slot] || null;
+      var pLvl = (pHero && !pHero.is_placeholder) ? clamp(Number(pHero.level) || 1, 1, 10) : 1;
+      var accentRgb = hexToRgb(this._getFunkiAuraHex(pLvl));
+
+      for (var sj = 0; sj < sparksPerPedestal; sj++) {
+        var sIdx = spi * sparksPerPedestal + sj;
+        var phaseVal = sparkRng();
+        var baseR = pSpec.w * (0.34 + sparkRng() * 0.26);
+        var spanH = (2.35 + sparkRng() * 0.95) * pSpec.scale;
+        var spd = 0.14 + sparkRng() * 0.16;
+        var sw = (0.65 + sparkRng() * 0.75) * (sj % 2 === 0 ? 1 : -1);
+        var startY = floorTopY + pSpec.h + 0.16;
+
+        this.pedestalSparkMeta.push({
+          baseX: pSpec.x,
+          baseY: startY,
+          baseZ: pSpec.z,
+          radius: baseR,
+          heightSpan: spanH,
+          speed: spd,
+          phase: phaseVal,
+          swirl: sw
+        });
+
+        sparkPositions[sIdx * 3] = pSpec.x + Math.cos(phaseVal * 6.283) * baseR;
+        sparkPositions[sIdx * 3 + 1] = startY + phaseVal * spanH;
+        sparkPositions[sIdx * 3 + 2] = pSpec.z + Math.sin(phaseVal * 6.283) * baseR;
+
+        var useAccent = (sj % 3 === 0);
+        sparkColors[sIdx * 3] = useAccent ? (accentRgb[0] / 255) : 1.0;
+        sparkColors[sIdx * 3 + 1] = useAccent ? (accentRgb[1] / 255) : 0.89;
+        sparkColors[sIdx * 3 + 2] = useAccent ? (accentRgb[2] / 255) : 0.52;
+      }
+    }
+
+    var pedSparkGeo = new THREE.BufferGeometry();
+    this.pedestalSparkPosAttr = new THREE.BufferAttribute(sparkPositions, 3);
+    pedSparkGeo.setAttribute('position', this.pedestalSparkPosAttr);
+    pedSparkGeo.setAttribute('color', new THREE.BufferAttribute(sparkColors, 3));
+    var pedSparkMat = new THREE.PointsMaterial({
+      size: 0.22,
+      map: this.sparkSpriteTex || null,
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.88,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    this.dynamicTextures.push({ dispose: function () { pedSparkGeo.dispose(); pedSparkMat.dispose(); } });
+    var pedSparkPoints = new THREE.Points(pedSparkGeo, pedSparkMat);
+    pedSparkPoints.frustumCulled = false;
+    this.pantheonDynamicGroup.add(pedSparkPoints);
 
     // ========================================================================
     // B. COLONNADE HONOR STELES VIA INSTANCEDMESH (SLOTS #6..#29+, 60 FPS!)
@@ -2612,6 +3188,44 @@
     document.body.style.overflow = this.prevBodyOverflow;
   };
 
+  FunkenwerkHeroes3DEngine.prototype.dispose = function () {
+    this.close();
+    this._monumentGeneration++;
+
+    for (var dtIdx = 0; dtIdx < this.dynamicTextures.length; dtIdx++) {
+      if (this.dynamicTextures[dtIdx] && typeof this.dynamicTextures[dtIdx].dispose === 'function') {
+        this.dynamicTextures[dtIdx].dispose();
+      }
+    }
+    this.dynamicTextures = [];
+
+    for (var gdIdx = 0; gdIdx < this.glbDisposables.length; gdIdx++) {
+      if (this.glbDisposables[gdIdx] && typeof this.glbDisposables[gdIdx].dispose === 'function') {
+        this.glbDisposables[gdIdx].dispose();
+      }
+    }
+    this.glbDisposables = [];
+    this.glbTemplateCache.clear();
+    this.glbLoadingPromises.clear();
+
+    if (this.sparkSpriteTex && typeof this.sparkSpriteTex.dispose === 'function') {
+      this.sparkSpriteTex.dispose();
+      this.sparkSpriteTex = null;
+    }
+
+    window.removeEventListener('resize', this._boundResize);
+    window.removeEventListener('keydown', this._boundKeydown);
+    window.removeEventListener('pagehide', this._boundPageHide);
+
+    if (this.renderer) {
+      this.renderer.dispose();
+      this.renderer = null;
+    }
+    this.scene = null;
+    this.camera = null;
+    this.initialized = false;
+  };
+
   FunkenwerkHeroes3DEngine.prototype.resize = function () {
     if (!this.renderer || !this.camera) return;
     var w = Math.max(1, window.innerWidth);
@@ -2662,15 +3276,54 @@
       this.gliderInst.instanceMatrix.needsUpdate = true;
     }
 
-    // Subtle breathing & spinning temple gears on the 3D Funki heroes!
+    // 60-FPS Living Pedestal Animation for the 3D Funki (.glb) Heroes + Counter-Rotating Level Aura Rings!
     for (var fi = 0; fi < this.animatedFunkiFigures.length; fi++) {
       var fg = this.animatedFunkiFigures[fi];
-      if (!fg.isSitting) {
-        fg.bodyRig.position.y = Math.sin(t * 1.85 + fg.phase) * 0.025;
+      if (!fg.motionRig) continue;
+
+      var breathWave = Math.sin(t * 1.85 + fg.phase);
+      var breathScaleY = 1.0 + breathWave * 0.013;
+      var breathScaleXZ = 1.0 - breathWave * 0.005;
+      fg.motionRig.scale.set(breathScaleXZ, breathScaleY, breathScaleXZ);
+
+      if (fg.level >= 8) {
+        // High-tier Masters, Lightbringers & Gods hover with majestic aura levitation
+        fg.motionRig.position.y = 0.035 + (0.5 + 0.5 * breathWave) * 0.055;
+      } else if (!fg.isSitting) {
+        fg.motionRig.position.y = Math.max(0, breathWave) * 0.016;
+      } else {
+        fg.motionRig.position.y = 0;
       }
-      fg.headGroup.rotation.y = Math.sin(t * 0.8 + fg.phase) * 0.07;
-      if (fg.gearL) fg.gearL.rotation.x = t * 1.2 + fg.phase;
-      if (fg.gearR) fg.gearR.rotation.x = -t * 1.2 - fg.phase;
+
+      // Subtle proud upper-body & gaze presence toward the Hall of Heroes
+      fg.motionRig.rotation.y = Math.sin(t * 0.72 + fg.phase) * 0.082;
+      fg.motionRig.rotation.z = Math.sin(t * 0.52 + fg.phase * 1.3) * 0.016;
+      fg.motionRig.rotation.x = Math.sin(t * 0.94 + fg.phase) * 0.012;
+
+      if (fg.auraOuter) {
+        var auraPulse = 1.0 + Math.sin(t * 2.2 + fg.phase) * 0.032;
+        fg.auraOuter.scale.set(auraPulse, auraPulse, 1.0);
+        fg.auraOuter.rotation.z = t * 0.65 + fg.phase;
+      }
+      if (fg.auraInner) {
+        fg.auraInner.rotation.z = -t * 0.95 - fg.phase;
+      }
+    }
+
+    // Rising Golden Seelenfunken Spark Particles around the 5 Honor Pedestals (0 allocations per frame!)
+    if (this.pedestalSparkPosAttr && this.cityGroup && this.cityGroup.visible) {
+      var posArr = this.pedestalSparkPosAttr.array;
+      for (var si = 0; si < this.pedestalSparkMeta.length; si++) {
+        var sm = this.pedestalSparkMeta[si];
+        var su = ((sm.phase + t * sm.speed) % 1 + 1) % 1;
+        var sang = t * sm.swirl + sm.phase * 6.283185;
+        var sr = sm.radius * (0.76 + 0.24 * Math.sin(su * 3.14159));
+        var p3 = si * 3;
+        posArr[p3] = sm.baseX + Math.cos(sang) * sr;
+        posArr[p3 + 1] = sm.baseY + su * sm.heightSpan;
+        posArr[p3 + 2] = sm.baseZ + Math.sin(sang) * sr;
+      }
+      this.pedestalSparkPosAttr.needsUpdate = true;
     }
   };
 

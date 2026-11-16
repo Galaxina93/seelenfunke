@@ -23,6 +23,14 @@ class FunkenwerkHeroesController extends Controller
     {
         $gameService->ensureHangarColumns();
 
+        $allLevels = GameConfig::getFunkiLevels();
+        $levelModels = [];
+        foreach ($allLevels as $lvl => $cfg) {
+            if (!empty($cfg['model_path'])) {
+                $levelModels[(int) $lvl] = '/' . ltrim((string) $cfg['model_path'], '/');
+            }
+        }
+
         /** @var Customer|null $loggedInCustomer */
         $loggedInCustomer = Auth::guard('customer')->user();
         $customerLoggedIn = $loggedInCustomer !== null;
@@ -41,6 +49,7 @@ class FunkenwerkHeroesController extends Controller
                 'my_hero_slot' => null,
                 'customer_logged_in' => $customerLoggedIn,
                 'customer_opt_in' => false,
+                'level_models' => $levelModels,
                 'heroes' => [],
             ], 200, $this->securityHeaders());
         }
@@ -77,6 +86,8 @@ class FunkenwerkHeroesController extends Controller
                 GameConfig::MAX_LEVEL,
                 max(1, (int) ($profile->level ?: GameConfig::getLevelForLifetimeSparks((int) ($profile->funken_total_earned ?? 0))))
             );
+            $levelCfg = GameConfig::getLevelConfig($level);
+            $modelPath = !empty($levelCfg['model_path']) ? (string) $levelCfg['model_path'] : ('shop/customer/gamification/models/funki_lvl_1_rags.glb');
 
             $displayName = $this->sanitizeZeroPiiDisplayName(
                 $gameService->resolvePublicDisplayName($profile->customer, $profile),
@@ -97,6 +108,7 @@ class FunkenwerkHeroesController extends Controller
                 'level' => $level,
                 'rank_class' => $rankClass,
                 'aura' => $aura,
+                'model_url' => asset($modelPath),
                 'is_me' => $isMe,
             ];
         }
@@ -110,6 +122,7 @@ class FunkenwerkHeroesController extends Controller
             'my_hero_slot' => $myHeroSlot,
             'customer_logged_in' => $customerLoggedIn,
             'customer_opt_in' => $customerOptIn,
+            'level_models' => $levelModels,
             'heroes' => $heroes,
         ], 200, $this->securityHeaders());
     }
@@ -125,8 +138,7 @@ class FunkenwerkHeroesController extends Controller
             return 'Funken-Held #' . $slot;
         }
 
-        // KI-Gedankenstriche konsequent vermeiden
-        $clean = str_replace(' – ', ' · ', $clean);
+        $clean = str_replace(' ' . "\u{2013}" . ' ', ' · ', $clean);
 
         return mb_substr($clean, 0, 28);
     }
