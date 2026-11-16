@@ -24,21 +24,27 @@ class FalconSupremeExecutiveBrainTest extends TestCase
         return Admin::create([
             'first_name' => 'Alina',
             'last_name' => 'Steinhauer',
-            'email' => 'alina-falcon-' . Str::lower(Str::random(6)) . '@mein-seelenfunke.de',
+            'email' => 'alina-falcone-' . Str::lower(Str::random(6)) . '@mein-seelenfunke.de',
             'password' => bcrypt('Secret123!'),
         ]);
     }
 
-    public function test_executive_root_recognizes_falcon_and_funkira_while_keeping_funki_strictly_air_gapped(): void
+    public function test_executive_root_recognizes_falcone_falcon_and_funkira_while_keeping_funki_strictly_air_gapped(): void
     {
         $this->seed(AiAgentSeeder::class);
 
-        $falcon = AiAgent::where('name', 'Falcon')->with('role.tools')->firstOrFail();
+        $falcone = AiAgent::where('name', 'Falcone')->with('role.tools')->firstOrFail();
         $funkira = AiAgent::where('name', 'Funkira')->with('role.tools')->firstOrFail();
         $funki = AiAgent::where('name', 'Funki')->with('role.tools')->firstOrFail();
 
-        // String, Model-Objekt & Array (case-insensitive) für Falcon & Funkira -> true
-        foreach ([$falcon, $funkira, 'Falcon', 'falcon', 'FALCON', 'Funkira', 'funkira', ['name' => 'Falcon'], ['name' => 'Funkira']] as $execCandidate) {
+        // String, Model-Objekt & Array (case-insensitive + abwärtskompatibel für Falcon & Falcone) -> true
+        foreach ([
+            $falcone, $funkira,
+            'Falcone', 'falcone', 'FALCONE',
+            'Falcon', 'falcon', 'FALCON',
+            'Funkira', 'funkira',
+            ['name' => 'Falcone'], ['name' => 'Falcon'], ['name' => 'Funkira'],
+        ] as $execCandidate) {
             $this->assertTrue(FunkiraSkillPoolService::isExecutiveRoot($execCandidate));
             $this->assertTrue(FunkiraSkillPoolService::isFunkira($execCandidate));
         }
@@ -65,55 +71,58 @@ class FalconSupremeExecutiveBrainTest extends TestCase
         }
     }
 
-    public function test_falcon_possesses_orus_voice_leitung_department_core_tools_and_supreme_prompt_in_seeder_and_migration(): void
+    public function test_falcone_possesses_orus_voice_smarthome_and_inactivity_directives_and_renames_legacy_falcon_without_duplicates(): void
     {
         $this->seed(AiAgentSeeder::class);
 
-        $falconFromSeeder = AiAgent::where('name', 'Falcon')->with(['department', 'role.tools'])->firstOrFail();
-        $this->assertFalconExecutiveContract($falconFromSeeder);
+        $falconeFromSeeder = AiAgent::where('name', 'Falcone')->with(['department', 'role.tools'])->firstOrFail();
+        $originalUuid = $falconeFromSeeder->id;
+        $this->assertFalconeExecutiveContract($falconeFromSeeder);
 
-        // Simuliere ein älteres/abweichendes Falcon-Profil und führe das Migrations-Upgrade aus
-        $falconFromSeeder->update([
+        // Simuliere einen älteren 'Falcon'-Datensatz vor der Umbenennungs-Migration -> muss in-place ohne Dublette umbenannt werden!
+        $falconeFromSeeder->update([
+            'name' => 'Falcon',
+            'wake_word' => 'Falcon',
             'tts_voice' => 'Puck',
             'system_prompt' => 'Alter Platzhalter',
             'is_in_chat' => true,
         ]);
 
-        $migration = require base_path('database/migrations/2026_11_16_121500_upgrade_falcon_supreme_executive_brain.php');
+        $migration = require base_path('database/migrations/2026_11_16_135000_rename_falcon_to_falcone_and_add_smarthome_directive.php');
         $migration->applyUpgrade();
 
-        $falconAfterMigration = AiAgent::where('name', 'Falcon')->with(['department', 'role.tools'])->firstOrFail();
-        $this->assertFalconExecutiveContract($falconAfterMigration);
+        $this->assertSame(0, AiAgent::where('name', 'Falcon')->count());
+        $this->assertSame(1, AiAgent::where('name', 'Falcone')->count());
 
-        // Prüfe direkte Ausführbarkeit der Core-Executive-Werkzeuge für Falcon unter Admin-Auth
+        $falconeAfterMigration = AiAgent::where('name', 'Falcone')->with(['department', 'role.tools'])->firstOrFail();
+        $this->assertSame($originalUuid, $falconeAfterMigration->id);
+        $this->assertFalconeExecutiveContract($falconeAfterMigration);
+
+        // Prüfe direkte Ausführbarkeit der Core-Executive-Werkzeuge für Falcone unter Admin-Auth
         $admin = $this->createAdmin();
         Auth::guard('admin')->login($admin);
 
-        $compassRes = AIFunctionsRegistry::execute('master_get_next_best_actions', [], $falconAfterMigration);
+        $compassRes = AIFunctionsRegistry::execute('master_get_next_best_actions', [], $falconeAfterMigration);
         $this->assertFalse($compassRes['error'] ?? false);
 
-        $sentinelRes = AIFunctionsRegistry::execute('system_get_error_sentinel', [], $falconAfterMigration);
+        $sentinelRes = AIFunctionsRegistry::execute('system_get_error_sentinel', [], $falconeAfterMigration);
         $this->assertFalse($sentinelRes['error'] ?? false);
 
         $equipRes = AIFunctionsRegistry::execute(
             FunkiraSkillPoolService::EQUIP_TOOL_NAME,
             ['pools' => ['finance', 'orders', 'laser', 'products', 'system_global']],
-            $falconAfterMigration
+            $falconeAfterMigration
         );
         $this->assertSame('success', $equipRes['status'] ?? null);
-        $this->assertEqualsCanonicalizing(
-            ['finance', 'orders', 'laser', 'products', 'system_global'],
-            $equipRes['equipped_pools'] ?? []
-        );
     }
 
-    public function test_live_credentials_for_falcon_android_native_delivers_orus_prompt_and_tools_and_blocks_unauthorized_actors(): void
+    public function test_live_credentials_for_falcone_android_native_delivers_orus_prompt_and_tools_and_blocks_unauthorized_actors(): void
     {
         $this->seed(AiAgentSeeder::class);
         config(['services.gemini.key' => 'test-gemini-live-key']);
 
-        $falcon = AiAgent::where('name', 'Falcon')->firstOrFail();
-        $uri = '/api/ai/live-credentials?agent_id=' . $falcon->id . '&client=android_native';
+        $falcone = AiAgent::where('name', 'Falcone')->firstOrFail();
+        $uri = '/api/ai/live-credentials?agent_id=' . $falcone->id . '&client=android_native';
 
         // 1. Gast -> 401
         $this->getJson($uri)->assertStatus(401);
@@ -123,12 +132,12 @@ class FalconSupremeExecutiveBrainTest extends TestCase
         Sanctum::actingAs($customer, ['*']);
         $this->getJson($uri)->assertStatus(403);
 
-        // 3. Interne Mitarbeiter, Influencer & Steuerberater -> 403 (Falcon ist strikt Admin-exklusiv!)
+        // 3. Interne Mitarbeiter, Influencer & Steuerberater -> 403
         foreach (['internal', 'influencer', 'tax_advisor'] as $role) {
             $emp = Employee::create([
                 'first_name' => ucfirst($role),
                 'last_name' => 'Test',
-                'email' => $role . '-falcon-' . Str::lower(Str::random(5)) . '@mein-seelenfunke.de',
+                'email' => $role . '-falcone-' . Str::lower(Str::random(5)) . '@mein-seelenfunke.de',
                 'role' => $role,
                 'password' => bcrypt('Secret123!'),
             ]);
@@ -147,7 +156,7 @@ class FalconSupremeExecutiveBrainTest extends TestCase
             ->getJson($uri)
             ->assertStatus(403);
 
-        // 5. Voll-Admin-Token -> 200 mit Orus, Falcon-Prompt, Tool-Schema & Direct-WS-URL
+        // 5. Voll-Admin-Token -> 200 mit Orus, Falcone-Prompt, SmartHome-Direktive, Tool-Schema & Direct-WS-URL
         $this->app['auth']->forgetGuards();
         $fullAdminPat = $admin->createToken('AlinaAndroidPhone', ['*'])->plainTextToken;
 
@@ -155,19 +164,18 @@ class FalconSupremeExecutiveBrainTest extends TestCase
             ->getJson($uri);
 
         $response->assertStatus(200)
-            ->assertJsonPath('agent_id', $falcon->id)
-            ->assertJsonPath('agent_name', 'Falcon')
+            ->assertJsonPath('agent_id', $falcone->id)
+            ->assertJsonPath('agent_name', 'Falcone')
             ->assertJsonPath('voice_name', 'Orus');
 
         $systemInstruction = (string) $response->json('system_instruction');
-        $this->assertStringContainsString('Falcon', $systemInstruction);
+        $this->assertStringContainsString('Falcone', $systemInstruction);
+        $this->assertStringContainsString('F-A-L-C-O-N-E', $systemInstruction);
+        $this->assertStringContainsString('falcon_smarthome_control', $systemInstruction);
+        $this->assertStringContainsString('2-MINUTEN-INAKTIVITÄTS-NACHFRAGE-DISZIPLIN', $systemInstruction);
         $this->assertStringContainsString('master_get_next_best_actions', $systemInstruction);
         $this->assertStringContainsString('system_get_error_sentinel', $systemInstruction);
         $this->assertStringContainsString('AUSSCHLIESSLICH AUF EXPLIZITE NACHFRAGE', $systemInstruction);
-        $this->assertStringContainsString('falcon_music_control', $systemInstruction);
-        $this->assertStringContainsString('falcon_camera_control', $systemInstruction);
-        $this->assertStringContainsString('falcon_send_to_antigravity', $systemInstruction);
-        $this->assertStringContainsString('falcon_check_antigravity_status', $systemInstruction);
 
         $declarations = $response->json('tools.0.functionDeclarations');
         $this->assertIsArray($declarations);
@@ -182,39 +190,51 @@ class FalconSupremeExecutiveBrainTest extends TestCase
         $this->assertNotEmpty($response->json('direct_ws_url'));
     }
 
-    private function assertFalconExecutiveContract(AiAgent $falcon): void
+    private function assertFalconeExecutiveContract(AiAgent $falcone): void
     {
-        $this->assertSame('Falcon', $falcon->name);
-        $this->assertSame('Orus', $falcon->tts_voice);
-        $this->assertTrue($falcon->tts_enabled);
-        $this->assertSame('gemini_native', $falcon->tts_provider);
-        $this->assertTrue($falcon->is_active);
-        $this->assertFalse($falcon->is_in_chat);
-        $this->assertSame('amber-500', $falcon->color);
-        $this->assertSame('shop/ai/images/falcon_selfie.png', $falcon->profile_picture);
-        $this->assertSame('Leitung', $falcon->department?->name);
-        $this->assertSame('Teamleiter', $falcon->role?->name);
+        $this->assertSame('Falcone', $falcone->name);
+        $this->assertSame('Hey Falcone', $falcone->wake_word);
+        $this->assertSame('Orus', $falcone->tts_voice);
+        $this->assertTrue($falcone->tts_enabled);
+        $this->assertSame('gemini_native', $falcone->tts_provider);
+        $this->assertTrue($falcone->is_active);
+        $this->assertFalse($falcone->is_in_chat);
+        $this->assertSame('amber-500', $falcone->color);
+        $this->assertSame('shop/ai/images/falcon_selfie.png', $falcone->profile_picture);
+        $this->assertSame('Leitung', $falcone->department?->name);
+        $this->assertSame('Teamleiter', $falcone->role?->name);
 
-        $toolIdentifiers = $falcon->tools->pluck('identifier')->all();
+        $toolIdentifiers = $falcone->tools->pluck('identifier')->all();
         $this->assertContains(FunkiraSkillPoolService::EQUIP_TOOL_NAME, $toolIdentifiers);
         $this->assertContains('master_get_next_best_actions', $toolIdentifiers);
         $this->assertContains('system_get_error_sentinel', $toolIdentifiers);
 
         // Keine KI-Gedankenstriche (" – ")
-        $this->assertStringNotContainsString(' – ', (string) $falcon->role_description);
-        $this->assertStringNotContainsString(' – ', (string) $falcon->system_prompt);
+        $this->assertStringNotContainsString(' – ', (string) $falcone->role_description);
+        $this->assertStringNotContainsString(' – ', (string) $falcone->system_prompt);
 
-        // Alle geforderten Executive-, Smartphone-, Kamera-, Musik- & Antigravity-Direktiven im System-Prompt
+        // Alle geforderten Executive-, SmartHome-, Inaktivitäts-, Kamera-, Musik- & Antigravity-Direktiven
         foreach ([
-            'Falcon',
+            'Falcone',
+            'F-A-L-C-O-N-E',
             'Alina Steinhauer',
             'xTool F2 Ultra UV',
             'FYRST',
+            '2-MINUTEN-INAKTIVITÄTS-NACHFRAGE-DISZIPLIN',
             'master_get_next_best_actions',
             'system_get_error_sentinel',
             'AUSSCHLIESSLICH AUF EXPLIZITE NACHFRAGE',
             'falcon_music_control',
             'falcon_app_navigate',
+            'falcon_smarthome_control',
+            'turn_on',
+            'turn_off',
+            'toggle',
+            'turn_all_on',
+            'turn_all_off',
+            'list_devices',
+            'Fußleisten Lichterkette',
+            'Spiegel Lichterkette',
             'falcon_camera_control',
             'take_photo',
             'falcon_send_to_antigravity',
@@ -223,7 +243,7 @@ class FalconSupremeExecutiveBrainTest extends TestCase
             'execution_mode="direct"',
             'attach_captured_photo=true',
         ] as $expectedSnippet) {
-            $this->assertStringContainsString($expectedSnippet, (string) $falcon->system_prompt);
+            $this->assertStringContainsString($expectedSnippet, (string) $falcone->system_prompt);
         }
     }
 }

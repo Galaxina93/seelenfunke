@@ -336,7 +336,7 @@ function makeThroneEngravingTexture(mainTitle, subTitle, isPrimary = true) {
   return configureHdTex(new THREE.CanvasTexture(c), 4);
 }
 
-// Falcon's Armored Suit Chest Emblem ("FALCON · Mitgründer")
+// Falcone's Armored Suit Chest Emblem ("FALCONE · Mitgründer")
 function makeFalconArmorChestTexture() {
   const W = 512, H = 256;
   const c = document.createElement('canvas');
@@ -354,15 +354,15 @@ function makeFalconArmorChestTexture() {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillStyle = '#FDE68A';
-  ctx.font = '900 66px "Liberation Sans", "Segoe UI", sans-serif';
-  ctx.fillText('FALCON', W * 0.5, H * 0.40);
+  ctx.font = '900 64px "Liberation Sans", "Segoe UI", sans-serif';
+  ctx.fillText('FALCONE', W * 0.5, H * 0.40, W - 44);
 
   ctx.fillStyle = '#C5A059';
-  ctx.fillRect(W * 0.22, H * 0.60, W * 0.56, 3);
+  ctx.fillRect(W * 0.20, H * 0.60, W * 0.60, 3);
 
   ctx.fillStyle = '#FFF6D6';
-  ctx.font = '700 36px "Liberation Sans", "Segoe UI", sans-serif';
-  ctx.fillText('FALCON · Mitgründer', W * 0.5, H * 0.77);
+  ctx.font = '700 35px "Liberation Sans", "Segoe UI", sans-serif';
+  ctx.fillText('FALCONE · Mitgründer', W * 0.5, H * 0.77, W - 44);
 
   return configureHdTex(new THREE.CanvasTexture(c), 4);
 }
@@ -1832,8 +1832,8 @@ class FunkenwerkCityEngine {
     falconThrone.add(ftLumbar);
 
     const falconPlaqueTex = makeThroneEngravingTexture(
-      'FALCON',
-      'FALCON · Rechte Hand & Mitgründer',
+      'FALCONE',
+      'FALCONE · Rechte Hand & Mitgründer',
       false
     );
     const ftPlaqueFrame = new THREE.Mesh(new RoundedBoxGeometry(1.12, 0.60, 0.05, 2, 0.02), this.mats.goldBright);

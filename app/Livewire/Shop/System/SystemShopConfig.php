@@ -144,7 +144,7 @@ class SystemShopConfig extends Component
         'herzensprojekt_cents_per_order' => 'Spendenbetrag (in Euro), der pro verkauftem Artikel (bzw. Bestellung) für das Herzensprojekt zurückgelegt wird.',
         'stripe_fee_percent' => 'Kalkulatorischer Prozentsatz für Zahlungsanbieter-Gebühren in der Produkt-Margenberechnung (z.B. 2.50%).',
         'stripe_fee_fixed_cents' => 'Kalkulatorische Fixgebühr pro Transaktion in der Produkt-Margenberechnung (Eingabe in Euro, z.B. 0.30).',
-        'maintenance_mode' => 'Sperrt den Zugang zum Shop & Konfigurator. Nur Admins können Wartungen durchführen.',
+        'maintenance_mode' => 'Schaltet das öffentliche Shop-Frontend in den Wartungsmodus (HTTP 503). Admin-Portal, Login, Funkenwerk-Apps und APIs bleiben erreichbar.',
         'inventory_low_stock_threshold' => 'Ab dieser Stückzahl wird ein Produkt im Dashboard als "niedriger Bestand" markiert.',
         'skip_shipping_for_digital' => 'Wenn aktiviert, werden keine Versandkosten berechnet, sobald der Warenkorb NUR digitale Produkte enthält.',
         'send_order_email_to_admin' => 'Bestimmt, ob der Admin bei Bestelleingang eine E-Mail erhalten soll.',
@@ -305,6 +305,45 @@ class SystemShopConfig extends Component
             'manual_active_animation' => '',
         ];
         return $fallbacks[$key] ?? '';
+    }
+
+    public function toggleMaintenanceMode(): void
+    {
+        if (!Auth::guard('admin')->check()) {
+            abort(403);
+        }
+
+        $newState = !filter_var($this->settings['maintenance_mode'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        $this->settings['maintenance_mode'] = $newState;
+        $this->persistMaintenanceMode($newState);
+    }
+
+    public function updatedSettingsMaintenanceMode($value): void
+    {
+        if (!Auth::guard('admin')->check()) {
+            abort(403);
+        }
+
+        $boolState = filter_var($value, FILTER_VALIDATE_BOOLEAN);
+        $this->settings['maintenance_mode'] = $boolState;
+        $this->persistMaintenanceMode($boolState);
+    }
+
+    protected function persistMaintenanceMode(bool $enabled): void
+    {
+        SystemSetting::updateOrCreate(
+            ['key' => 'maintenance_mode'],
+            ['value' => $enabled ? 'true' : 'false']
+        );
+
+        Cache::forget('global_shop_settings');
+        try {
+            $freshSettings = SystemSetting::pluck('value', 'key');
+            Cache::put('global_shop_settings', $freshSettings, 60);
+        } catch (\Throwable $e) {
+        }
+
+        $this->saved = true;
     }
 
     public function toggleSeasonAutoMode(): void

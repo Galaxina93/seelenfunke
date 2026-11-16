@@ -63,24 +63,25 @@ class FunkiraSkillPoolAndFunkiIsolationTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_seeder_activates_only_falcon_funkira_and_funki_and_keeps_web_chat_isolated_to_funkira(): void
+    public function test_seeder_activates_only_falcone_funkira_and_funki_and_keeps_web_chat_isolated_to_funkira(): void
     {
         $this->seed(AiAgentSeeder::class);
         $this->seed(AiCompanyStructureSeeder::class);
 
         $activeNames = AiAgent::where('is_active', true)->pluck('name')->sort()->values()->all();
-        $this->assertSame(['Falcon', 'Funki', 'Funkira'], $activeNames);
+        $this->assertSame(['Falcone', 'Funki', 'Funkira'], $activeNames);
 
         $inChatNames = AiAgent::where('is_in_chat', true)->pluck('name')->all();
         $this->assertSame(['Funkira'], $inChatNames);
 
-        $falcon = AiAgent::where('name', 'Falcon')->with('department')->firstOrFail();
-        $this->assertTrue($falcon->is_active);
-        $this->assertFalse($falcon->is_in_chat);
-        $this->assertSame('amber-500', $falcon->color);
-        $this->assertSame('sparkles', $falcon->icon);
-        $this->assertSame('shop/ai/images/falcon_selfie.png', $falcon->profile_picture);
-        $this->assertSame('Leitung', $falcon->department?->name);
+        $falcone = AiAgent::where('name', 'Falcone')->with('department')->firstOrFail();
+        $this->assertTrue($falcone->is_active);
+        $this->assertFalse($falcone->is_in_chat);
+        $this->assertSame('Hey Falcone', $falcone->wake_word);
+        $this->assertSame('amber-500', $falcone->color);
+        $this->assertSame('sparkles', $falcone->icon);
+        $this->assertSame('shop/ai/images/falcon_selfie.png', $falcone->profile_picture);
+        $this->assertSame('Leitung', $falcone->department?->name);
 
         $retiredNames = AiAgent::where('is_active', false)->pluck('name')->sort()->values()->all();
         $this->assertSame([
@@ -88,23 +89,23 @@ class FunkiraSkillPoolAndFunkiIsolationTest extends TestCase
             'Globi', 'Lasi', 'Marketi', 'Produkti', 'Systemi',
         ], $retiredNames);
 
-        // Router wählt intern immer Funkira ohne jeglichen HTTP-Call und niemals Funki oder Falcon
+        // Router wählt intern immer Funkira ohne jeglichen HTTP-Call und niemals Funki oder Falcone
         Http::fake();
         $routed = AiAgentRouter::determineRequiredAgents('Zeig mir alle offenen Rechnungen und Bestellungen');
         $funkira = AiAgent::where('name', 'Funkira')->firstOrFail();
         $this->assertSame([$funkira->id], $routed);
         Http::assertNothingSent();
 
-        // Auch wenn Funkira temporär aus is_in_chat genommen wird, fällt das Web-Chat-Widget auf Funkira zurück (niemals auf Falcon)
+        // Auch wenn Funkira temporär aus is_in_chat genommen wird, fällt das Web-Chat-Widget auf Funkira zurück (niemals auf Falcone)
         $funkira->update(['is_in_chat' => false]);
         $admin = Admin::factory()->create();
         Auth::guard('admin')->login($admin);
 
         Livewire::test(AiWidget::class)
             ->assertSet('activeAgentIds', [$funkira->id])
-            ->call('toggleAgent', $falcon->id);
+            ->call('toggleAgent', $falcone->id);
 
-        $this->assertFalse($falcon->fresh()->is_in_chat);
+        $this->assertFalse($falcone->fresh()->is_in_chat);
         $this->assertTrue($funkira->fresh()->is_in_chat);
     }
 
@@ -211,17 +212,19 @@ class FunkiraSkillPoolAndFunkiIsolationTest extends TestCase
     public function test_is_funkira_helper_and_live_credentials_endpoint_succeed(): void
     {
         $this->seed(AiAgentSeeder::class);
-        $falcon = AiAgent::where('name', 'Falcon')->firstOrFail();
+        $falcone = AiAgent::where('name', 'Falcone')->firstOrFail();
         $funkira = AiAgent::where('name', 'Funkira')->firstOrFail();
         $funki = AiAgent::where('name', 'Funki')->firstOrFail();
 
-        $this->assertTrue(FunkiraSkillPoolService::isExecutiveRoot($falcon));
+        $this->assertTrue(FunkiraSkillPoolService::isExecutiveRoot($falcone));
         $this->assertTrue(FunkiraSkillPoolService::isExecutiveRoot($funkira));
-        $this->assertTrue(FunkiraSkillPoolService::isFunkira($falcon));
+        $this->assertTrue(FunkiraSkillPoolService::isFunkira($falcone));
         $this->assertTrue(FunkiraSkillPoolService::isFunkira($funkira));
         $this->assertTrue(FunkiraSkillPoolService::isFunkira('Funkira'));
+        $this->assertTrue(FunkiraSkillPoolService::isFunkira('Falcone'));
         $this->assertTrue(FunkiraSkillPoolService::isFunkira('Falcon'));
         $this->assertTrue(FunkiraSkillPoolService::isFunkira(['name' => 'Funkira']));
+        $this->assertTrue(FunkiraSkillPoolService::isFunkira(['name' => 'Falcone']));
         $this->assertTrue(FunkiraSkillPoolService::isFunkira(['name' => 'Falcon']));
         $this->assertFalse(FunkiraSkillPoolService::isExecutiveRoot($funki));
         $this->assertFalse(FunkiraSkillPoolService::isFunkira($funki));

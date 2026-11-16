@@ -15,6 +15,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->web(append: [
+            \App\Http\Middleware\EnforceShopMaintenanceMode::class,
             \App\Http\Middleware\UserLastActivity::class,
             \App\Http\Middleware\TrackVisitor::class,
             \App\Http\Middleware\MarketingTrackingMiddleware::class,

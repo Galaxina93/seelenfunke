@@ -1,5 +1,27 @@
 <div x-show="activeTab === 'system'" class="animate-fade-in space-y-8" style="display: none;">
 
+    {{-- WARTUNGSMODUS SOFORT-SCHALTER --}}
+    <div class="bg-white dark:bg-gray-900/80 backdrop-blur-xl p-5 sm:p-6 rounded-2xl shadow-sm dark:shadow-xl border border-gray-200 dark:border-gray-800 flex items-center justify-between gap-4">
+        <div class="flex items-center gap-2.5 min-w-0">
+            <h2 class="text-base sm:text-lg font-bold text-gray-900 dark:text-white font-sans">Wartungsmodus</h2>
+            @if(!empty($settings['maintenance_mode']))
+                <span class="text-[10px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider border bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/30">Aktiv</span>
+            @else
+                <span class="text-[10px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider border bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">Inaktiv</span>
+            @endif
+            @include('components.alerts.info-tooltip', ['key' => 'maintenance_mode'])
+        </div>
+
+        <button
+            type="button"
+            wire:click="toggleMaintenanceMode"
+            role="switch"
+            aria-checked="{{ !empty($settings['maintenance_mode']) ? 'true' : 'false' }}"
+            class="relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-[var(--theme-color)]/40 {{ !empty($settings['maintenance_mode']) ? 'bg-red-500' : 'bg-gray-200 dark:bg-gray-800' }}">
+            <span class="pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {{ !empty($settings['maintenance_mode']) ? 'translate-x-5' : 'translate-x-0' }}"></span>
+        </button>
+    </div>
+
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
         <div class="bg-white dark:bg-gray-900/80 backdrop-blur-xl border border-gray-200 dark:border-gray-800/60 shadow-sm dark:shadow-[inset_0_0_20px_rgba(0,0,0,0.8)] rounded-2xl p-4 font-sans relative overflow-hidden group flex justify-between items-center">
             <div>

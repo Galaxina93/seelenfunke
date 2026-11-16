@@ -308,6 +308,7 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::get('/admin/user-management', \App\Livewire\Shop\System\SystemUserManagement::class)->name('admin.user-management');
     Route::get('/admin/system/backups', \App\Livewire\Shop\System\SystemBackups::class)->name('admin.system.backups');
     Route::get('/admin/configuration', \App\Livewire\Shop\System\SystemShopConfig::class)->name('admin.configuration');
+    Route::get('/admin/settings', \App\Livewire\Shop\System\SystemShopConfig::class)->name('admin.settings');
     Route::get('/admin/system/funkenwerk-apk/download', function (\Illuminate\Http\Request $request, \App\Services\System\AndroidReleaseService $releaseService) {
         return $releaseService->streamLatestApk($request);
     })->middleware(['signed', 'throttle:ota-download'])->name('admin.system.funkenwerk-apk.download');

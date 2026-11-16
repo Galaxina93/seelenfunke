@@ -7,7 +7,7 @@ class FunkiraSkillPoolService
     public const EQUIP_TOOL_NAME = 'funkira_equip_skill_pool';
 
     /**
-     * Prüft zuverlässig, ob es sich um eine oberste Executive-Root-Instanz (Falcon oder Funkira) handelt.
+     * Prüft zuverlässig, ob es sich um eine oberste Executive-Root-Instanz (Falcone, Falcon oder Funkira) handelt.
      */
     public static function isExecutiveRoot($agent): bool
     {
@@ -25,13 +25,13 @@ class FunkiraSkillPoolService
             return false;
         }
 
-        $trimmed = trim($rawName);
+        $trimmed = strtolower(trim($rawName));
 
-        return strcasecmp($trimmed, 'Falcon') === 0 || strcasecmp($trimmed, 'Funkira') === 0;
+        return in_array($trimmed, ['falcone', 'falcon', 'funkira'], true);
     }
 
     /**
-     * Prüft zuverlässig, ob der übergebene Agent (Model, Array oder String) Executive-Root-Vollmacht (Falcon / Funkira) besitzt.
+     * Prüft zuverlässig, ob der übergebene Agent (Model, Array oder String) Executive-Root-Vollmacht (Falcone / Funkira) besitzt.
      */
     public static function isFunkira($agent): bool
     {

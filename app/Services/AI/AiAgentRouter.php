@@ -18,7 +18,7 @@ class AiAgentRouter
     public static function determineRequiredAgents(string $userInput, array $currentlyActiveIds = []): array
     {
         $internalAgents = AiAgent::where('is_active', true)
-            ->whereNotIn('name', ['Funki', 'Falcon'])
+            ->whereNotIn('name', ['Funki', 'Falcon', 'Falcone'])
             ->get();
 
         if ($internalAgents->isEmpty()) {

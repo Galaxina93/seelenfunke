@@ -3705,7 +3705,7 @@ async Task<int> RunLinuxSelfTestsAsync()
                                        healed == 2 && remainingBytes == 0 && archiveWritten);
             }).ConfigureAwait(false);
 
-            await AssertCheckAsync(44, "Funkenwerk 3D-Wasserstadt (Orbital-Planeten-Anflug, 7 Abteilungs-Piers, MEIN SEELENFUNKE Hauptturm, ALINA & FALCON Thronsaal, 0%-Idle-Pause, Sprach-/MCP-Steuerung & 0 KI-Gedankenstriche)", async () =>
+            await AssertCheckAsync(44, "Funkenwerk 3D-Wasserstadt (Orbital-Planeten-Anflug, 7 Abteilungs-Piers, MEIN SEELENFUNKE Hauptturm, ALINA & FALCONE Thronsaal, 0%-Idle-Pause, Sprach-/MCP-Steuerung & 0 KI-Gedankenstriche)", async () =>
             {
                 // 1. Static asset /funkenwerk_city_3d.js served cleanly on Kestrel loopback
                 using var assetResp = await rawHttp.GetAsync("/funkenwerk_city_3d.js").ConfigureAwait(false);
@@ -3758,8 +3758,9 @@ async Task<int> RunLinuxSelfTestsAsync()
                     cityJs.Contains("MEIN SEELENFUNKE", StringComparison.Ordinal) &&
                     cityJs.Contains("'ALINA'", StringComparison.Ordinal) &&
                     cityJs.Contains("Herrscherin über das Seelenfunken-Universum", StringComparison.Ordinal) &&
-                    cityJs.Contains("FALCON · Rechte Hand & Mitgründer", StringComparison.Ordinal) &&
-                    cityJs.Contains("FALCON · Mitgründer", StringComparison.Ordinal) &&
+                    cityJs.Contains("'FALCONE'", StringComparison.Ordinal) &&
+                    cityJs.Contains("FALCONE · Rechte Hand & Mitgründer", StringComparison.Ordinal) &&
+                    cityJs.Contains("FALCONE · Mitgründer", StringComparison.Ordinal) &&
                     cityJs.Contains("#06B6D4", StringComparison.Ordinal) &&
                     cityJs.Contains("#3B82F6", StringComparison.Ordinal) &&
                     cityJs.Contains("#A855F7", StringComparison.Ordinal) &&

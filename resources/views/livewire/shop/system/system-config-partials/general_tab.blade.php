@@ -38,17 +38,19 @@
                     <label class="{{ $labelClass }} !mb-0 !ml-0">Wartungsmodus</label>
                     @include('components.alerts.info-tooltip', ['key' => 'maintenance_mode'])
                 </div>
-                <label class="{{ $checkboxContainerClass }}">
-                    <div class="relative flex items-center shrink-0">
-                        <input type="checkbox" wire:model="settings.maintenance_mode" class="peer sr-only">
-                        <div class="w-5 h-5 bg-gray-100 dark:bg-gray-900 border-2 border-gray-300 dark:border-gray-700 rounded transition-all peer-checked:bg-red-500 peer-checked:border-red-500 shadow-sm dark:shadow-inner"></div>
-                        <svg class="absolute w-3.5 h-3.5 left-0.5 top-0.5 text-gray-900 opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                <button type="button" wire:click="toggleMaintenanceMode" role="switch" aria-checked="{{ !empty($settings['maintenance_mode']) ? 'true' : 'false' }}" class="{{ $checkboxContainerClass }} w-full justify-between">
+                    <div class="flex items-center gap-2.5 min-w-0">
+                        <span class="font-bold text-gray-900 dark:text-white text-sm">Wartungsmodus</span>
+                        @if(!empty($settings['maintenance_mode']))
+                            <span class="text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider border bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/30">Aktiv</span>
+                        @else
+                            <span class="text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider border bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">Inaktiv</span>
+                        @endif
                     </div>
-                    <div class="min-w-0">
-                        <span class="block font-bold text-gray-900 dark:text-white text-sm group-hover:text-red-500 dark:group-hover:text-red-400 transition-colors">Shop/Konfigurator offline!</span>
-                        <span class="text-[10px] text-gray-500 font-medium uppercase tracking-wider mt-0.5 block">Die Shopseite und der Konfigurator sind nicht mehr erreichbar.</span>
-                    </div>
-                </label>
+                    <span class="relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out {{ !empty($settings['maintenance_mode']) ? 'bg-red-500' : 'bg-gray-200 dark:bg-gray-800' }}">
+                        <span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {{ !empty($settings['maintenance_mode']) ? 'translate-x-5' : 'translate-x-0' }}"></span>
+                    </span>
+                </button>
             </div>
 
             <div>

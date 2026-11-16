@@ -231,7 +231,7 @@ trait ManagesAiChat
 
     public function getAgentsProperty()
     {
-        return AiAgent::where('is_active', true)->whereNotIn('name', ['Funki', 'Falcon'])->orderBy('name')->get();
+        return AiAgent::where('is_active', true)->whereNotIn('name', ['Funki', 'Falcon', 'Falcone'])->orderBy('name')->get();
     }
 
     #[Computed]
@@ -299,14 +299,14 @@ trait ManagesAiChat
     public function toggleAgent($agentId)
     {
         $agent = AiAgent::find($agentId);
-        if (!$agent || in_array($agent->name, ['Funki', 'Falcon'], true)) {
+        if (!$agent || in_array($agent->name, ['Funki', 'Falcon', 'Falcone'], true)) {
             return;
         }
 
         if (AiAuthHelper::isAdmin()) {
             $agent->is_in_chat = !$agent->is_in_chat;
             $agent->save();
-            $this->activeAgentIds = AiAgent::where('is_in_chat', true)->whereNotIn('name', ['Funki', 'Falcon'])->pluck('id')->toArray();
+            $this->activeAgentIds = AiAgent::where('is_in_chat', true)->whereNotIn('name', ['Funki', 'Falcon', 'Falcone'])->pluck('id')->toArray();
         } else {
             if (in_array($agent->id, $this->activeAgentIds, true)) {
                 $this->activeAgentIds = array_values(array_diff($this->activeAgentIds, [$agent->id]));
@@ -388,8 +388,8 @@ trait ManagesAiChat
             if ($agentId) {
                 $agent = \App\Models\Ai\AiAgent::find($agentId);
             }
-            if (!$agent || in_array($agent->name, ['Funki', 'Falcon'], true)) {
-                $agent = \App\Models\Ai\AiAgent::where('is_in_chat', true)->whereNotIn('name', ['Funki', 'Falcon'])->first();
+            if (!$agent || in_array($agent->name, ['Funki', 'Falcon', 'Falcone'], true)) {
+                $agent = \App\Models\Ai\AiAgent::where('is_in_chat', true)->whereNotIn('name', ['Funki', 'Falcon', 'Falcone'])->first();
             }
             $contextData = [
                 'name' => $agent ? $agent->name : 'Funkira',
@@ -763,15 +763,15 @@ trait ManagesAiChat
 
         // Respect the user's manual selection of active agents exclusively
         if (empty($this->activeAgentIds)) {
-            $this->activeAgentIds = AiAgent::where('is_in_chat', true)->whereNotIn('name', ['Funki', 'Falcon'])->pluck('id')->toArray();
+            $this->activeAgentIds = AiAgent::where('is_in_chat', true)->whereNotIn('name', ['Funki', 'Falcon', 'Falcone'])->pluck('id')->toArray();
         }
 
         // Fallback to Teamleiter (Funkira) if no agent is selected
         if (empty($this->activeAgentIds)) {
-            $teamLeader = AiAgent::where('is_active', true)->whereNotIn('name', ['Funki', 'Falcon'])->whereHas('role', function($q) {
+            $teamLeader = AiAgent::where('is_active', true)->whereNotIn('name', ['Funki', 'Falcon', 'Falcone'])->whereHas('role', function($q) {
                 $q->where('name', 'like', '%Teamleiter%');
             })->first();
-            $fallback = $teamLeader ?? AiAgent::where('is_active', true)->whereNotIn('name', ['Funki', 'Falcon'])->first();
+            $fallback = $teamLeader ?? AiAgent::where('is_active', true)->whereNotIn('name', ['Funki', 'Falcon', 'Falcone'])->first();
             if ($fallback) {
                 $fallback->update(['is_in_chat' => true]);
                 $this->activeAgentIds = [$fallback->id];
@@ -852,7 +852,7 @@ trait ManagesAiChat
 
         $agent = AiAgent::find($targetId);
         if ($agent) {
-            if (in_array($agent->name, ['Funki', 'Falcon'], true)) {
+            if (in_array($agent->name, ['Funki', 'Falcon', 'Falcone'], true)) {
                 return;
             }
             if (!AiAuthHelper::isAdmin() && strtolower(trim((string) $agent->name)) === 'funkira') {
@@ -919,7 +919,7 @@ trait ManagesAiChat
         $agent = AiAgent::find($agentId);
         if (
             !$agent
-            || in_array($agent->name, ['Funki', 'Falcon'], true)
+            || in_array($agent->name, ['Funki', 'Falcon', 'Falcone'], true)
             || (!AiAuthHelper::isAdmin() && strtolower(trim((string) $agent->name)) === 'funkira')
         ) {
              $inferenceLock->release();

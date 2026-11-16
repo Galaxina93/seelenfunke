@@ -41,7 +41,7 @@ class AiWidget extends Component
         $this->agentId = $agentId;
         
         $isAdmin = \App\Services\AI\AiAuthHelper::isAdmin();
-        $excludedNames = $isAdmin ? ['Funki', 'Falcon'] : ['Funki', 'Falcon', 'Funkira'];
+        $excludedNames = $isAdmin ? ['Funki', 'Falcon', 'Falcone'] : ['Funki', 'Falcon', 'Falcone', 'Funkira'];
 
         $this->activeAgentIds = \App\Models\Ai\AiAgent::where('is_in_chat', true)
             ->whereNotIn('name', $excludedNames)
@@ -160,7 +160,7 @@ class AiWidget extends Component
     public function updatedAgentId($value)
     {
         $isAdmin = \App\Services\AI\AiAuthHelper::isAdmin();
-        $excludedNames = $isAdmin ? ['Funki', 'Falcon'] : ['Funki', 'Falcon', 'Funkira'];
+        $excludedNames = $isAdmin ? ['Funki', 'Falcon', 'Falcone'] : ['Funki', 'Falcon', 'Falcone', 'Funkira'];
         $query = \App\Models\Ai\AiAgent::where('id', $value)
             ->where('is_active', true)
             ->whereNotIn('name', $excludedNames);
@@ -196,7 +196,7 @@ class AiWidget extends Component
             $volume = isset($data['volume']) ? max(0, min(100, (int) $data['volume'])) : $this->widgetConfig->volume;
             $agentId = $this->widgetConfig->ai_agent_id;
             if (array_key_exists('agentId', $data)) {
-                $excludedNames = \App\Services\AI\AiAuthHelper::isAdmin() ? ['Funki', 'Falcon'] : ['Funki', 'Falcon', 'Funkira'];
+                $excludedNames = \App\Services\AI\AiAuthHelper::isAdmin() ? ['Funki', 'Falcon', 'Falcone'] : ['Funki', 'Falcon', 'Falcone', 'Funkira'];
                 $agentQuery = \App\Models\Ai\AiAgent::where('id', $data['agentId'])
                     ->where('is_active', true)
                     ->whereNotIn('name', $excludedNames);
@@ -266,7 +266,7 @@ class AiWidget extends Component
     public function render()
     {
         $isAdmin = \App\Services\AI\AiAuthHelper::isAdmin();
-        $excludedNames = $isAdmin ? ['Funki', 'Falcon'] : ['Funki', 'Falcon', 'Funkira'];
+        $excludedNames = $isAdmin ? ['Funki', 'Falcon', 'Falcone'] : ['Funki', 'Falcon', 'Falcone', 'Funkira'];
 
         return view('livewire.shop.ai.ai-widget', [
             'tasks' => $isAdmin
