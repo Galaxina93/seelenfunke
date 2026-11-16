@@ -469,6 +469,32 @@ Route::group(['middleware' => [function ($request, $next) {
                 ], 422)->withHeaders(['Cache-Control' => 'no-store, private']);
             }
         })->whereUuid('id');
+
+        // --- WERKSTATT MINI-PC 1-AUFTRAG FOKUS-LEITSTAND API ---
+        Route::group([
+            'prefix' => 'shop/workshop-focus',
+            'middleware' => [function (Request $request, $next) {
+                $user = $request->user();
+                if (!$user instanceof \App\Models\Admin\Admin) {
+                    abort(403, 'Nur Admins dürfen Bestellungen verwalten.');
+                }
+                if (
+                    method_exists($user, 'currentAccessToken')
+                    && $user->currentAccessToken()
+                    && !$user->tokenCan('*')
+                    && !$user->tokenCan('orders:manage')
+                ) {
+                    abort(403, 'Unzureichende Token-Berechtigung.');
+                }
+                return $next($request);
+            }],
+        ], function () {
+            Route::get('/', [\App\Http\Controllers\Api\WorkshopFocusApiController::class, 'index']);
+            Route::post('/send-laser', [\App\Http\Controllers\Api\WorkshopFocusApiController::class, 'sendLaser']);
+            Route::post('/finish-laser-item', [\App\Http\Controllers\Api\WorkshopFocusApiController::class, 'finishLaserItem']);
+            Route::post('/toggle-check', [\App\Http\Controllers\Api\WorkshopFocusApiController::class, 'toggleCheck']);
+            Route::post('/ship-and-next', [\App\Http\Controllers\Api\WorkshopFocusApiController::class, 'shipAndNext']);
+        });
     });
 });
 

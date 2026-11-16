@@ -55,7 +55,7 @@
                 <div class="lg:col-span-5">
                     <div class="flex items-center justify-between mb-1">
                         <label class="text-[10px] font-black uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                            Verpackung aus Katalog
+                            Verpackung zuordnen
                         </label>
                         <div class="flex items-center gap-3 text-[11px] text-gray-500 dark:text-gray-400">
                             <label class="inline-flex items-center gap-1 cursor-pointer">
@@ -72,7 +72,7 @@
                         <option value="">-- Verpackung wählen --</option>
                         @foreach($allCatalogItems as $catItem)
                             <option value="{{ $catItem->id }}">
-                                {{ $catItem->name }} ({{ $catItem->weight_grams }} g · {{ number_format($catItem->unit_cost_cents / 100, 2, ',', '.') }} €)
+                                {{ $catItem->name }} · {{ $catItem->formatted_dimensions }} ({{ $catItem->weight_grams }} g · {{ number_format($catItem->unit_cost_cents / 100, 2, ',', '.') }} €)
                             </option>
                         @endforeach
                     </select>
@@ -226,31 +226,25 @@
         <div class="space-y-2.5">
             @forelse($catalogItems as $item)
                 @php
-                    $tariff = $item->postal_tariff_info;
                     $unitEur = number_format($item->unit_cost_cents / 100, 2, ',', '.');
                     $packEur = number_format($item->pack_price_cents / 100, 2, ',', '.');
-                    $badgeColors = match($tariff['color']) {
-                        'emerald' => 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25',
-                        'amber' => 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/25',
-                        default => 'bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-500/25',
-                    };
                 @endphp
 
                 <div class="bg-white dark:bg-gray-900/85 backdrop-blur-xl rounded-2xl border border-gray-200 dark:border-gray-800 px-4 py-3.5 flex flex-col lg:flex-row lg:items-center justify-between gap-3 hover:border-[var(--theme-color-40)] transition-all">
-                    <!-- Links: Name, Art.-Nr., Maße & LUCID -->
+                    <!-- Links: Name, Maße, Art.-Nr. & LUCID -->
                     <div class="min-w-0 flex-1">
                         <div class="flex flex-wrap items-center gap-2 mb-1">
                             <h3 class="text-sm font-bold text-gray-900 dark:text-white">
                                 {{ $item->name }}
                             </h3>
+                            <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700">
+                                {{ $item->formatted_dimensions }}
+                            </span>
                             @if($item->sku)
-                                <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
+                                <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-gray-50 dark:bg-gray-950 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-800">
                                     {{ $item->sku }}
                                 </span>
                             @endif
-                            <span class="px-2 py-0.5 rounded text-[10px] font-bold border {{ $badgeColors }}">
-                                {{ $tariff['badge'] }}
-                            </span>
                             @if($item->is_upsell_option)
                                 <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-30)]">
                                     +{{ number_format($item->upsell_price_cents / 100, 2, ',', '.') }} € Option
@@ -258,11 +252,10 @@
                             @endif
                         </div>
 
-                        <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+                        <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
                             @if($item->supplier_name)
                                 <span class="font-semibold text-gray-700 dark:text-gray-300">{{ $item->supplier_name }}</span>
                             @endif
-                            <span>{{ $item->formatted_dimensions }}</span>
                             <span>
                                 {{ $item->weight_grams }} g
                                 ({{ $item->primary_weight_grams }}g {{ $availableTypes[$item->primary_material_type] ?? $item->primary_material_type }}{{ $item->secondary_material_type && $item->secondary_weight_grams > 0 ? ' + ' . $item->secondary_weight_grams . 'g ' . ($availableTypes[$item->secondary_material_type] ?? $item->secondary_material_type) : '' }})

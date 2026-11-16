@@ -370,13 +370,13 @@ class ProductSeeder extends Seeder
             ['material_type' => 'paper',     'weight_grams' => 3],
         ]);
 
-        // --- PRODUKT 3: Der Feierabend-Funke (Physisch) ---
+        // --- PRODUKT 3: Der Feierabend-Funke (Physisch / Entwurf fuer spaetere Phase) ---
         $p3 = Product::updateOrCreate(['slug' => 'weizenglas-personalisiert'], [
             'name' => 'Der Feierabend-Funke',
             'type' => 'physical',
             'description' => 'Krönen Sie den wohlverdienten Feierabend mit einem Glas, das genauso einzigartig ist wie Sie! Der Feierabend-Funke ist ein klassisch geformtes, hochwertiges Kristall-Weizenbierglas, das durch eine atemberaubende 360° Rundum-Gravur Ihr persönliches Highlight wird. Mittels feinster Laser-Rotationstechnik brennen wir Ihre Texte, Vereinslogos oder humorvollen Sprüche tief und abriebfest ins Material ein. Das Glas bleibt dabei zu 100% spülmaschinenfest und behält auch nach vielen Einsätzen seine vollkommene Brillanz.',
             'short_description' => 'Premium-Weizenbierglas (0,5l) versehen mit einer beeindruckenden, spülmaschinenfesten 360° Lasergravur. Perfekt als Vereins- oder Männergeschenk.',
-            'status' => 'active',
+            'status' => 'draft',
             'is_personalizable' => true,
             'three_d_active' => true,
             'price' => 2990,

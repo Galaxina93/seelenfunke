@@ -9,6 +9,7 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Sockets;
+using System.Net.WebSockets;
 using System.Security.Authentication;
 using System.Security.Cryptography;
 using System.Text;
@@ -41,6 +42,7 @@ namespace FunkenwerkOSLinux
         public string NasSubFolder { get; set; } = "Unterlagen/Meine_Daten_Backup";
         public string NasUsername { get; set; } = "alina";
         public string EncryptedNasPassword { get; set; } = "";
+        public string EncryptedLocalSmbPassword { get; set; } = "";
         public string LastNasBackupAt { get; set; } = "";
         public string LastNasBackupResult { get; set; } = "";
         public bool NasBackupPendingCatchUp { get; set; } = false;
@@ -258,7 +260,7 @@ namespace FunkenwerkOSLinux
             return false;
         }
 
-        private static void TryRestrictDirPermissions(string path)
+        public static void TryRestrictDirPermissions(string path)
         {
             if (!OperatingSystem.IsLinux()) return;
             try
@@ -592,6 +594,24 @@ namespace FunkenwerkOSLinux
                 : EncryptSecret(plainPassword);
             SaveSettings(settings);
         }
+
+        public static string EnsureOrGetLocalSmbPassword()
+        {
+            lock (s_lock)
+            {
+                var settings = LoadSettings();
+                string existing = DecryptSecret(settings.EncryptedLocalSmbPassword);
+                if (!string.IsNullOrWhiteSpace(existing) && existing.Length >= 24)
+                {
+                    return existing;
+                }
+
+                string generated = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(16));
+                settings.EncryptedLocalSmbPassword = EncryptSecret(generated);
+                SaveSettings(settings);
+                return generated;
+            }
+        }
     }
 
     public static class SeelenfunkeLinuxApiClient
@@ -612,6 +632,7 @@ namespace FunkenwerkOSLinux
         };
         private static long s_lastNetActivityUnixMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         private static string s_lastPulseDiagSignature = "";
+        private static int s_consecutiveZeroPulseFailures = 0;
 
         private static bool s_initializedOrderTracking;
         private static int s_lastOpenOrders = -1;
@@ -1146,8 +1167,13 @@ namespace FunkenwerkOSLinux
                 {
                     snap.IsConnected = false;
                     snap.StatusSummary = status == 401 || status == 403 ? "Token abgelaufen" : "Offline";
+                    if (status == 0)
+                    {
+                        s_consecutiveZeroPulseFailures++;
+                    }
                     string sig = $"{norm}:{status}";
-                    if (s_lastPulseDiagSignature != sig)
+                    bool shouldRecordPulseWarning = status != 0 || s_consecutiveZeroPulseFailures >= 3;
+                    if (shouldRecordPulseWarning && s_lastPulseDiagSignature != sig)
                     {
                         s_lastPulseDiagSignature = sig;
                         ErrorSentinelAndWatchdog.RecordEvent(
@@ -1165,6 +1191,7 @@ namespace FunkenwerkOSLinux
                     return snap;
                 }
 
+                s_consecutiveZeroPulseFailures = 0;
                 s_lastPulseDiagSignature = "";
                 snap.IsConnected = true;
                 snap.StatusSummary = $"{snap.Environment} · {snap.LatencyMs} ms";
@@ -1737,6 +1764,7 @@ namespace FunkenwerkOSLinux
 
         private static string QueueFilePath => Path.Combine(LinuxVaultAndStorage.DataDir, "sentinel_queue.json");
         private static string HistoryFilePath => Path.Combine(LinuxVaultAndStorage.DataDir, "sentinel_history.json");
+        private static string ArchiveDirPath => Path.Combine(LinuxVaultAndStorage.DataDir, "archive");
 
         public static string ScrubSecrets(string? input)
         {
@@ -1874,12 +1902,51 @@ namespace FunkenwerkOSLinux
             }
         }
 
+        private static void AppendEventsToArchiveUnsafe(IEnumerable<SentinelEventDto> items)
+        {
+            try
+            {
+                Directory.CreateDirectory(ArchiveDirPath);
+                LinuxVaultAndStorage.TryRestrictDirPermissions(ArchiveDirPath);
+                string monthFile = Path.Combine(ArchiveDirPath, $"sentinel_archive_{DateTime.UtcNow:yyyy-MM}.jsonl");
+                var sb = new StringBuilder();
+                int count = 0;
+                foreach (var ev in items)
+                {
+                    sb.AppendLine(JsonSerializer.Serialize(ev));
+                    count++;
+                }
+                if (count > 0)
+                {
+                    File.AppendAllText(monthFile, sb.ToString(), new UTF8Encoding(false));
+                    LinuxVaultAndStorage.TryRestrictFilePermissions(monthFile);
+                }
+
+                // 30-Tage-Archivrotation
+                var cutoff = DateTime.UtcNow.AddDays(-30);
+                foreach (var f in Directory.GetFiles(ArchiveDirPath))
+                {
+                    if (File.GetLastWriteTimeUtc(f) < cutoff)
+                    {
+                        try { File.Delete(f); } catch { }
+                    }
+                }
+            }
+            catch { }
+        }
+
         private static void AppendHistoryPersistent(SentinelEventDto item)
         {
             lock (s_queueLock)
             {
                 try
                 {
+                    if (item.AutoHealed)
+                    {
+                        AppendEventsToArchiveUnsafe(new[] { item });
+                        return;
+                    }
+
                     var history = LoadHistoryUnsafe();
                     history.Add(item);
                     while (history.Count > 200)
@@ -1914,33 +1981,53 @@ namespace FunkenwerkOSLinux
                 if (history.Count == 0) return 0;
 
                 int healed = 0;
+                var newlyArchived = new List<SentinelEventDto>();
+                var remainingActive = new List<SentinelEventDto>();
+
                 foreach (var ev in history)
                 {
-                    if (ev.AutoHealed) continue;
+                    if (ev.AutoHealed)
+                    {
+                        newlyArchived.Add(ev);
+                        continue;
+                    }
 
                     string comb = $"{ev.Component} {ev.Title} {ev.Message}".ToLowerInvariant();
                     bool isSense = comb.Contains("sense") || comb.Contains("17701") || comb.Contains("ocr") || comb.Contains("face") || comb.Contains("voice");
                     bool isCamAudio = comb.Contains("camera") || comb.Contains("webcam") || comb.Contains("video") || comb.Contains("audio") || comb.Contains("pipewire") || comb.Contains("alsa");
                     bool isTransientNet = comb.Contains("timeout") || comb.Contains("timed out") || comb.Contains("eai_again") ||
                                           comb.Contains("tryagain") || comb.Contains("websocket") || comb.Contains("socket") ||
-                                          comb.Contains("connection") || comb.Contains("401") || comb.Contains("502") || comb.Contains("503") ||
+                                          comb.Contains("connection") || comb.Contains("goaway") || comb.Contains("session duration") ||
+                                          comb.Contains("portal_pulse") || comb.Contains("status 0") ||
+                                          comb.Contains("401") || comb.Contains("502") || comb.Contains("503") ||
+                                          comb.Contains("bitte einmalig nas-passwort") ||
                                           string.Equals(ev.Severity, "warning", StringComparison.OrdinalIgnoreCase);
 
                     if ((isSense && senseHealthy) || (isCamAudio && cameraHealthy) || isTransientNet)
                     {
                         ev.AutoHealed = true;
                         ev.Severity = "warning";
-                        ev.HealSummary = "Vollautomatisch in Funkiras Kuppelhalle geprüft & geheilt";
+                        ev.HealSummary = "Vollautomatisch in Funkiras Kuppelhalle geprüft & ins Log-Archiv verschoben";
                         healed++;
+                        newlyArchived.Add(ev);
+                    }
+                    else
+                    {
+                        remainingActive.Add(ev);
                     }
                 }
 
-                if (healed > 0)
+                if (newlyArchived.Count > 0)
                 {
-                    Interlocked.Add(ref s_totalAutoHealed, healed);
+                    if (healed > 0)
+                        Interlocked.Add(ref s_totalAutoHealed, healed);
+
+                    AppendEventsToArchiveUnsafe(newlyArchived);
                     try
                     {
-                        File.WriteAllText(HistoryFilePath, JsonSerializer.Serialize(history), new UTF8Encoding(false));
+                        // Zero-Log-Baseline: Wenn keine offenen Fehler verbleiben -> Haupt-Logdatei exakt 0 Bytes!
+                        string nextContent = remainingActive.Count == 0 ? "" : JsonSerializer.Serialize(remainingActive);
+                        File.WriteAllText(HistoryFilePath, nextContent, new UTF8Encoding(false));
                         LinuxVaultAndStorage.TryRestrictFilePermissions(HistoryFilePath);
                     }
                     catch { }
@@ -3069,6 +3156,1744 @@ namespace FunkenwerkOSLinux
             }
             catch { }
             return obj;
+        }
+    }
+
+    // =========================================================================
+    // XTOOL F2 ULTRA UV LOCAL LAN V2 BRIDGE (wss://192.168.188.150:28900)
+    // =========================================================================
+    public static class XtoolLocalLanBridge
+    {
+        public const string DefaultLaserIp = "192.168.188.150";
+        public const int DefaultV2Port = 28900;
+        public const string DefaultParityToken = "2F18DD055BEAF251DF165868202036E8";
+        public const string DefaultUserId = "mk-guest";
+        public const string DefaultUserKey = "bWFrZWJsb2NrLXh0b29s";
+
+        private static readonly object s_camLock = new();
+        private static byte[]? s_cachedCameraJpeg;
+        private static long s_cachedCameraVersion;
+
+        private static readonly object s_watchLock = new();
+        private static CancellationTokenSource? s_watchCts;
+        private static string s_watchOrderId = "";
+        private static string s_watchItemId = "";
+        private static string s_watchSide = "front";
+        private static string s_watchTaskId = "";
+        private static string s_watchPhase = "none"; // none | prepared | working | finished
+        private static bool s_watchSawWorking;
+
+        public static ushort ComputeCrc16Arc(ReadOnlySpan<byte> data)
+        {
+            ushort crc = 0;
+            for (int i = 0; i < data.Length; i++)
+            {
+                crc ^= data[i];
+                for (int j = 0; j < 8; j++)
+                {
+                    crc = (crc & 1) != 0 ? (ushort)((crc >> 1) ^ 0xA001) : (ushort)(crc >> 1);
+                }
+            }
+            return crc;
+        }
+
+        public static byte[] EncodeV2Frame(ReadOnlySpan<byte> payload, int protocolType = 4, bool calcCrc = true)
+        {
+            int len = payload.Length;
+            ushort bodyCrc = calcCrc ? ComputeCrc16Arc(payload) : (ushort)0;
+            Span<byte> hdr8 = stackalloc byte[8];
+            hdr8[0] = 0xBA;
+            hdr8[1] = 0xBE;
+            hdr8[2] = (byte)((len >> 16) & 0xFF);
+            hdr8[3] = (byte)((len >> 8) & 0xFF);
+            hdr8[4] = (byte)(len & 0xFF);
+            hdr8[5] = (byte)((protocolType & 0x7F) | (calcCrc ? 0x00 : 0x80));
+            hdr8[6] = (byte)((bodyCrc >> 8) & 0xFF);
+            hdr8[7] = (byte)(bodyCrc & 0xFF);
+            ushort hdrCrc = ComputeCrc16Arc(hdr8);
+
+            byte[] frame = new byte[10 + len];
+            hdr8.CopyTo(frame);
+            frame[8] = (byte)((hdrCrc >> 8) & 0xFF);
+            frame[9] = (byte)(hdrCrc & 0xFF);
+            if (len > 0)
+            {
+                payload.CopyTo(frame.AsSpan(10));
+            }
+            return frame;
+        }
+
+        public static List<(int ProtocolType, byte[] Body)> ExtractV2Frames(List<byte> streamBuffer)
+        {
+            var result = new List<(int ProtocolType, byte[] Body)>();
+            int cursor = 0;
+            int total = streamBuffer.Count;
+            Span<byte> hdr8 = stackalloc byte[8];
+
+            while (total - cursor >= 10)
+            {
+                if (streamBuffer[cursor] != 0xBA || streamBuffer[cursor + 1] != 0xBE)
+                {
+                    cursor++;
+                    continue;
+                }
+
+                for (int i = 0; i < 8; i++) hdr8[i] = streamBuffer[cursor + i];
+                ushort expectedHdrCrc = (ushort)((streamBuffer[cursor + 8] << 8) | streamBuffer[cursor + 9]);
+                if (ComputeCrc16Arc(hdr8) != expectedHdrCrc)
+                {
+                    cursor++;
+                    continue;
+                }
+
+                int pktLen = (hdr8[2] << 16) | (hdr8[3] << 8) | hdr8[4];
+                if (pktLen < 0 || pktLen > 28 * 1024 * 1024)
+                {
+                    cursor++;
+                    continue;
+                }
+
+                if (total - cursor < 10 + pktLen)
+                {
+                    break;
+                }
+
+                int proto = hdr8[5] & 0x7F;
+                byte[] body = new byte[pktLen];
+                if (pktLen > 0)
+                {
+                    streamBuffer.CopyTo(cursor + 10, body, 0, pktLen);
+                }
+                result.Add((proto, body));
+                cursor += 10 + pktLen;
+            }
+
+            if (cursor > 0)
+            {
+                streamBuffer.RemoveRange(0, cursor);
+            }
+            return result;
+        }
+
+        public static byte[] BuildFileDataFrame(int channel, long offset, ReadOnlySpan<byte> chunk)
+        {
+            byte[] pkt = new byte[7 + chunk.Length];
+            pkt[0] = 129;
+            pkt[1] = (byte)(channel & 0xFF);
+            pkt[2] = (byte)((offset >> 32) & 0xFF);
+            pkt[3] = (byte)((offset >> 24) & 0xFF);
+            pkt[4] = (byte)((offset >> 16) & 0xFF);
+            pkt[5] = (byte)((offset >> 8) & 0xFF);
+            pkt[6] = (byte)(offset & 0xFF);
+            if (chunk.Length > 0)
+            {
+                chunk.CopyTo(pkt.AsSpan(7));
+            }
+            return EncodeV2Frame(pkt, 33, calcCrc: false);
+        }
+
+        public static byte[] BuildFileRequestFrame(int channel, long offset, int windowSize)
+        {
+            Span<byte> pkt = stackalloc byte[10];
+            pkt[0] = 1;
+            pkt[1] = (byte)(channel & 0xFF);
+            pkt[2] = (byte)((offset >> 32) & 0xFF);
+            pkt[3] = (byte)((offset >> 24) & 0xFF);
+            pkt[4] = (byte)((offset >> 16) & 0xFF);
+            pkt[5] = (byte)((offset >> 8) & 0xFF);
+            pkt[6] = (byte)(offset & 0xFF);
+            pkt[7] = (byte)((windowSize >> 16) & 0xFF);
+            pkt[8] = (byte)((windowSize >> 8) & 0xFF);
+            pkt[9] = (byte)(windowSize & 0xFF);
+            return EncodeV2Frame(pkt, 33, calcCrc: false);
+        }
+
+        public static bool TryParseFileRequest(ReadOnlySpan<byte> body, int expectedChannel, out long offset, out int windowSize)
+        {
+            offset = 0;
+            windowSize = 0;
+            if (body.Length < 10 || body[0] != 1 || body[1] != (byte)(expectedChannel & 0xFF))
+                return false;
+
+            offset = ((long)body[2] << 32) | ((long)body[3] << 24) | ((long)body[4] << 16) | ((long)body[5] << 8) | body[6];
+            windowSize = (body[7] << 16) | (body[8] << 8) | body[9];
+            return windowSize > 0 && offset >= 0;
+        }
+
+        public static string AdvanceLaserWatcherState(string currentPhase, ref bool sawWorking, string? observedSignal)
+        {
+            string normPhase = string.IsNullOrWhiteSpace(currentPhase) ? "prepared" : currentPhase.Trim().ToLowerInvariant();
+            string sig = (observedSignal ?? "").Trim().ToUpperInvariant();
+            if (string.IsNullOrEmpty(sig))
+                return normPhase;
+
+            if (sig.Contains("WORK_STARTED", StringComparison.Ordinal) ||
+                sig.Contains("P_WORKING", StringComparison.Ordinal))
+            {
+                sawWorking = true;
+                return "working";
+            }
+
+            if (sawWorking &&
+                (sig.Contains("WORK_FINISHED", StringComparison.Ordinal) ||
+                 sig.Contains("P_IDLE", StringComparison.Ordinal) ||
+                 string.Equals(sig, "IDLE", StringComparison.Ordinal)))
+            {
+                return "finished";
+            }
+
+            if (!sawWorking && (sig.Contains("WORK_PREPARED", StringComparison.Ordinal) || sig.Contains("P_WORK", StringComparison.Ordinal)))
+            {
+                return "prepared";
+            }
+
+            return normPhase;
+        }
+
+        public static async Task<bool> ProbeLaserReachableAsync(string ip = DefaultLaserIp, int port = DefaultV2Port, int timeoutMs = 250)
+        {
+            if (!LinuxVaultAndStorage.IsValidPrivateLanIpv4(ip) || port <= 0 || port > 65535)
+                return false;
+
+            if (!IPAddress.TryParse(ip.Trim(), out var addr))
+                return false;
+
+            using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp)
+            {
+                NoDelay = true
+            };
+            using var cts = new CancellationTokenSource(Math.Clamp(timeoutMs, 80, 1000));
+            try
+            {
+                await socket.ConnectAsync(new IPEndPoint(addr, port), cts.Token).ConfigureAwait(false);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static async Task<ClientWebSocket?> ConnectV2WsAsync(string ip, int port, string path, CancellationToken ct)
+        {
+            if (!LinuxVaultAndStorage.IsValidPrivateLanIpv4(ip) || port != DefaultV2Port)
+                return null;
+
+            var ws = new ClientWebSocket();
+            ws.Options.KeepAliveInterval = TimeSpan.FromSeconds(10);
+            ws.Options.RemoteCertificateValidationCallback = (_, _, _, _) => true;
+            try
+            {
+                using var connectCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                connectCts.CancelAfter(TimeSpan.FromMilliseconds(1400));
+                await ws.ConnectAsync(new Uri($"wss://{ip.Trim()}:{port}{path}"), connectCts.Token).ConfigureAwait(false);
+                return ws;
+            }
+            catch
+            {
+                ws.Dispose();
+                return null;
+            }
+        }
+
+        private static async Task<bool> ReceiveIntoBufferAsync(ClientWebSocket ws, List<byte> streamBuf, int timeoutMs, CancellationToken ct)
+        {
+            byte[] temp = new byte[32768];
+            using var readCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            readCts.CancelAfter(Math.Clamp(timeoutMs, 100, 10000));
+            try
+            {
+                while (true)
+                {
+                    var res = await ws.ReceiveAsync(temp.AsMemory(), readCts.Token).ConfigureAwait(false);
+                    if (res.MessageType == WebSocketMessageType.Close)
+                        return false;
+                    if (res.Count > 0)
+                    {
+                        for (int i = 0; i < res.Count; i++)
+                            streamBuf.Add(temp[i]);
+                    }
+                    if (res.EndOfMessage)
+                        return true;
+                }
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static async Task<JsonObject?> SendV2JsonCmdAsync(
+            ClientWebSocket ws,
+            List<byte> recvBuf,
+            RefInt txId,
+            string sessionToken,
+            string method,
+            string url,
+            JsonObject? prms,
+            JsonObject? data,
+            Action<JsonObject>? onNotice,
+            CancellationToken ct)
+        {
+            int curTx = ++txId.Value;
+            var cmd = new JsonObject
+            {
+                ["type"] = "request",
+                ["method"] = method,
+                ["url"] = url,
+                ["params"] = prms ?? new JsonObject(),
+                ["data"] = data ?? new JsonObject(),
+                ["timestamp"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                ["transactionId"] = curTx
+            };
+            if (!string.IsNullOrEmpty(sessionToken))
+            {
+                cmd["sessionToken"] = sessionToken;
+            }
+
+            byte[] jsonBytes = Encoding.UTF8.GetBytes(cmd.ToJsonString());
+            byte[] encoded = EncodeV2Frame(jsonBytes, 4, calcCrc: true);
+            await ws.SendAsync(encoded.AsMemory(), WebSocketMessageType.Binary, endOfMessage: true, ct).ConfigureAwait(false);
+
+            var sw = Stopwatch.StartNew();
+            while (sw.ElapsedMilliseconds < 7500 && !ct.IsCancellationRequested)
+            {
+                var frames = ExtractV2Frames(recvBuf);
+                foreach (var (proto, body) in frames)
+                {
+                    if (proto != 4 || body.Length == 0) continue;
+                    try
+                    {
+                        if (JsonNode.Parse(Encoding.UTF8.GetString(body)) is JsonObject msg)
+                        {
+                            string mType = msg["type"]?.GetValue<string>() ?? "";
+                            int mTx = msg["transactionId"]?.GetValue<int>() ?? -1;
+                            if (string.Equals(mType, "response", StringComparison.OrdinalIgnoreCase) && mTx == curTx)
+                                return msg;
+                            onNotice?.Invoke(msg);
+                        }
+                    }
+                    catch { }
+                }
+
+                if (!await ReceiveIntoBufferAsync(ws, recvBuf, 2500, ct).ConfigureAwait(false))
+                    break;
+            }
+
+            return null;
+        }
+
+        private sealed class RefInt
+        {
+            public int Value;
+        }
+
+        private static async Task<string> AuthenticateParityAsync(ClientWebSocket mainWs, List<byte> mainBuf, RefInt txId, CancellationToken ct)
+        {
+            string parityToken = Environment.GetEnvironmentVariable("XTOOL_PARITY_TOKEN") ?? DefaultParityToken;
+            if (string.IsNullOrWhiteSpace(parityToken)) parityToken = DefaultParityToken;
+
+            var parity = await SendV2JsonCmdAsync(
+                mainWs,
+                mainBuf,
+                txId,
+                "",
+                "GET",
+                "/v1/user/parity",
+                new JsonObject(),
+                new JsonObject
+                {
+                    ["userID"] = DefaultUserId,
+                    ["userKey"] = DefaultUserKey,
+                    ["timezone"] = "Europe/Berlin",
+                    ["token"] = parityToken
+                },
+                null,
+                ct).ConfigureAwait(false);
+
+            return parity?["data"]?["sessionToken"]?.GetValue<string>() ?? "";
+        }
+
+        public static async Task<(bool Ok, string TaskId, string Error)> UploadXfPackageLocalV2Async(
+            byte[] xfBytes,
+            string ip = DefaultLaserIp)
+        {
+            if (xfBytes == null || xfBytes.Length == 0)
+                return (false, "", "Leeres Laser-Paket.");
+
+            string safeIp = LinuxVaultAndStorage.IsValidPrivateLanIpv4(ip) ? ip.Trim() : DefaultLaserIp;
+            if (!await ProbeLaserReachableAsync(safeIp, DefaultV2Port, 250).ConfigureAwait(false))
+            {
+                return (false, "", "Laser im WLAN nicht erreichbar (bitte einschalten).");
+            }
+
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(18));
+            string uuid = Guid.NewGuid().ToString("D");
+            using var mainWs = await ConnectV2WsAsync(safeIp, DefaultV2Port, $"/websocket?id={uuid}&function=instruction", cts.Token).ConfigureAwait(false);
+            if (mainWs == null)
+                return (false, "", "Steuerkanal zum Laser konnte nicht geöffnet werden.");
+
+            using var fileWs = await ConnectV2WsAsync(safeIp, DefaultV2Port, $"/websocket?id={uuid}&function=file_stream", cts.Token).ConfigureAwait(false);
+            if (fileWs == null)
+                return (false, "", "Dateikanal zum Laser konnte nicht geöffnet werden.");
+
+            try
+            {
+                var mainBuf = new List<byte>(4096);
+                var fileBuf = new List<byte>(8192);
+                var txId = new RefInt();
+
+                string sessionToken = await AuthenticateParityAsync(mainWs, mainBuf, txId, cts.Token).ConfigureAwait(false);
+                if (string.IsNullOrWhiteSpace(sessionToken))
+                    return (false, "", "Authentifizierung am Laser fehlgeschlagen.");
+
+                const int channel = 62;
+                string md5Hex = Convert.ToHexStringLower(MD5.HashData(xfBytes));
+                var upInit = await SendV2JsonCmdAsync(
+                    mainWs,
+                    mainBuf,
+                    txId,
+                    sessionToken,
+                    "PUT",
+                    "/v1/filetransfer/upload",
+                    new JsonObject(),
+                    new JsonObject
+                    {
+                        ["channel"] = channel,
+                        ["digestdata"] = md5Hex,
+                        ["digesttype"] = 1,
+                        ["filename"] = "tmp.xf",
+                        ["filesize"] = xfBytes.Length,
+                        ["filetype"] = 1,
+                        ["packetsize"] = 1048576
+                    },
+                    null,
+                    cts.Token).ConfigureAwait(false);
+
+                if (upInit == null || (upInit["code"]?.GetValue<int>() ?? -1) != 0)
+                    return (false, "", "Dateiübertragung wurde vom Laser abgelehnt.");
+
+                int negotiatedMax = Math.Clamp(upInit["data"]?["packetsize"]?.GetValue<int>() ?? 131072, 16384, 131072);
+                long sentTotal = 0;
+                bool uploadAcked = false;
+                var sw = Stopwatch.StartNew();
+
+                while (sw.ElapsedMilliseconds < 12500 && !uploadAcked && !cts.Token.IsCancellationRequested)
+                {
+                    if (!await ReceiveIntoBufferAsync(fileWs, fileBuf, 3000, cts.Token).ConfigureAwait(false))
+                        break;
+
+                    var frames = ExtractV2Frames(fileBuf);
+                    foreach (var (proto, body) in frames)
+                    {
+                        if (proto == 33 && TryParseFileRequest(body, channel, out long offset, out int windowSize))
+                        {
+                            if (offset >= xfBytes.Length) continue;
+                            long endOffset = Math.Min(xfBytes.Length, offset + windowSize);
+                            long cursor = offset;
+                            while (cursor < endOffset)
+                            {
+                                int chunkLen = (int)Math.Min(Math.Min(negotiatedMax, 65536), endOffset - cursor);
+                                byte[] frameBytes = BuildFileDataFrame(channel, cursor, xfBytes.AsSpan((int)cursor, chunkLen));
+                                await fileWs.SendAsync(frameBytes.AsMemory(), WebSocketMessageType.Binary, endOfMessage: true, cts.Token).ConfigureAwait(false);
+                                cursor += chunkLen;
+                                sentTotal += chunkLen;
+                            }
+                        }
+                        else if (proto == 4 && body.Length > 0)
+                        {
+                            try
+                            {
+                                if (JsonNode.Parse(Encoding.UTF8.GetString(body)) is JsonObject ack &&
+                                    (ack["channel"]?.GetValue<int>() ?? -1) == channel)
+                                {
+                                    uploadAcked = (ack["code"]?.GetValue<int>() ?? -1) == 0;
+                                    if (!uploadAcked)
+                                        return (false, "", "Laser meldete Übertragungsfehler auf Kanal 62.");
+                                    break;
+                                }
+                            }
+                            catch { }
+                        }
+                    }
+                }
+
+                if (!uploadAcked && sentTotal < xfBytes.Length)
+                    return (false, "", "Dateiübertragung an den Laser unvollständig.");
+
+                string taskId = Guid.NewGuid().ToString("D");
+                var cfgResp = await SendV2JsonCmdAsync(
+                    mainWs,
+                    mainBuf,
+                    txId,
+                    sessionToken,
+                    "PUT",
+                    "/v1/processing/upload/config",
+                    new JsonObject
+                    {
+                        ["autoStart"] = 0,
+                        ["taskId"] = taskId
+                    },
+                    new JsonObject
+                    {
+                        ["autoStart"] = 0,
+                        ["fileType"] = "xf",
+                        ["taskId"] = taskId
+                    },
+                    null,
+                    cts.Token).ConfigureAwait(false);
+
+                int cfgCode = cfgResp?["code"]?.GetValue<int>() ?? -1;
+                if (cfgResp == null || cfgCode != 0)
+                    return (false, taskId, "Auftrags-Aktivierung am Laser fehlgeschlagen.");
+
+                return (true, taskId, "");
+            }
+            catch (Exception ex)
+            {
+                return (false, "", ex.Message);
+            }
+            finally
+            {
+                try { if (fileWs.State == WebSocketState.Open) await fileWs.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "", CancellationToken.None).ConfigureAwait(false); } catch { }
+                try { if (mainWs.State == WebSocketState.Open) await mainWs.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "", CancellationToken.None).ConfigureAwait(false); } catch { }
+            }
+        }
+
+        private static async Task<byte[]?> DownloadFileFromLaserV2Async(
+            ClientWebSocket mainWs,
+            List<byte> mainBuf,
+            ClientWebSocket fileWs,
+            List<byte> fileBuf,
+            RefInt txId,
+            string sessionToken,
+            string remoteFilename,
+            int fileType,
+            int channel,
+            CancellationToken ct)
+        {
+            var dlInit = await SendV2JsonCmdAsync(
+                mainWs,
+                mainBuf,
+                txId,
+                sessionToken,
+                "PUT",
+                "/v1/filetransfer/download",
+                new JsonObject(),
+                new JsonObject
+                {
+                    ["channel"] = channel,
+                    ["digesttype"] = 1,
+                    ["filename"] = remoteFilename,
+                    ["filetype"] = fileType,
+                    ["packetsize"] = 1048576
+                },
+                null,
+                ct).ConfigureAwait(false);
+
+            int fileSize = dlInit?["data"]?["filesize"]?.GetValue<int>() ?? 0;
+            if (fileSize <= 0 || fileSize > 25 * 1024 * 1024)
+                return null;
+
+            byte[] reqFrame = BuildFileRequestFrame(channel, 0, fileSize);
+            await fileWs.SendAsync(reqFrame.AsMemory(), WebSocketMessageType.Binary, endOfMessage: true, ct).ConfigureAwait(false);
+
+            byte[] outBytes = new byte[fileSize];
+            int received = 0;
+            var sw = Stopwatch.StartNew();
+
+            while (received < fileSize && sw.ElapsedMilliseconds < 8500 && !ct.IsCancellationRequested)
+            {
+                if (!await ReceiveIntoBufferAsync(fileWs, fileBuf, 2500, ct).ConfigureAwait(false))
+                    break;
+
+                var frames = ExtractV2Frames(fileBuf);
+                foreach (var (_, body) in frames)
+                {
+                    if (body.Length > 7 && body[0] == 129 && body[1] == (byte)(channel & 0xFF))
+                    {
+                        long off = ((long)body[2] << 32) | ((long)body[3] << 24) | ((long)body[4] << 16) | ((long)body[5] << 8) | body[6];
+                        int cLen = body.Length - 7;
+                        if (off >= 0 && off < fileSize && cLen > 0)
+                        {
+                            int writeLen = (int)Math.Min(cLen, fileSize - off);
+                            Buffer.BlockCopy(body, 7, outBytes, (int)off, writeLen);
+                            received += writeLen;
+                        }
+                    }
+                }
+            }
+
+            _ = await SendV2JsonCmdAsync(
+                mainWs,
+                mainBuf,
+                txId,
+                sessionToken,
+                "PUT",
+                "/v1/filetransfer/finish",
+                new JsonObject(),
+                new JsonObject
+                {
+                    ["channel"] = channel,
+                    ["code"] = 0,
+                    ["message"] = "file transfer finish"
+                },
+                null,
+                ct).ConfigureAwait(false);
+
+            return received >= fileSize ? outBytes : null;
+        }
+
+        public static (byte[]? JpegBytes, long Version) GetCachedCameraJpeg()
+        {
+            lock (s_camLock)
+            {
+                if (s_cachedCameraJpeg != null && s_cachedCameraJpeg.Length > 1024)
+                    return (s_cachedCameraJpeg, s_cachedCameraVersion);
+
+                string diskCache = Path.Combine(LinuxVaultAndStorage.DataDir, "xtool_latest_bed.jpg");
+                if (File.Exists(diskCache))
+                {
+                    try
+                    {
+                        byte[] diskBytes = File.ReadAllBytes(diskCache);
+                        if (diskBytes.Length > 1024)
+                        {
+                            s_cachedCameraJpeg = diskBytes;
+                            s_cachedCameraVersion = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                            return (s_cachedCameraJpeg, s_cachedCameraVersion);
+                        }
+                    }
+                    catch { }
+                }
+                return (null, 0);
+            }
+        }
+
+        public static void StoreCachedCameraJpeg(byte[] jpegBytes)
+        {
+            if (jpegBytes == null || jpegBytes.Length <= 1024) return;
+            lock (s_camLock)
+            {
+                s_cachedCameraJpeg = jpegBytes;
+                s_cachedCameraVersion = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                try
+                {
+                    LinuxVaultAndStorage.WriteFileAtomically0600(
+                        Path.Combine(LinuxVaultAndStorage.DataDir, "xtool_latest_bed.jpg"),
+                        jpegBytes);
+                }
+                catch { }
+            }
+        }
+
+        public static async Task<byte[]?> CaptureLiveCameraLocalV2Async(string ip = DefaultLaserIp)
+        {
+            string safeIp = LinuxVaultAndStorage.IsValidPrivateLanIpv4(ip) ? ip.Trim() : DefaultLaserIp;
+            if (!await ProbeLaserReachableAsync(safeIp, DefaultV2Port, 250).ConfigureAwait(false))
+                return null;
+
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(14));
+            string uuid = Guid.NewGuid().ToString("D");
+            using var mainWs = await ConnectV2WsAsync(safeIp, DefaultV2Port, $"/websocket?id={uuid}&function=instruction", cts.Token).ConfigureAwait(false);
+            if (mainWs == null) return null;
+
+            using var fileWs = await ConnectV2WsAsync(safeIp, DefaultV2Port, $"/websocket?id={uuid}&function=file_stream", cts.Token).ConfigureAwait(false);
+            if (fileWs == null) return null;
+
+            try
+            {
+                var mainBuf = new List<byte>(4096);
+                var fileBuf = new List<byte>(65536);
+                var txId = new RefInt();
+
+                string sessionToken = await AuthenticateParityAsync(mainWs, mainBuf, txId, cts.Token).ConfigureAwait(false);
+                if (string.IsNullOrWhiteSpace(sessionToken))
+                    return null;
+
+                string calibCachePath = Path.Combine(LinuxVaultAndStorage.DataDir, "xtool_global_calib.json");
+                string calibJson = "";
+                if (File.Exists(calibCachePath))
+                {
+                    try { calibJson = File.ReadAllText(calibCachePath, Encoding.UTF8); } catch { }
+                }
+                if (string.IsNullOrWhiteSpace(calibJson) || !calibJson.Contains("data0", StringComparison.Ordinal))
+                {
+                    byte[]? calibBytes = await DownloadFileFromLaserV2Async(mainWs, mainBuf, fileWs, fileBuf, txId, sessionToken, "global_calib.json", 3, 2, cts.Token).ConfigureAwait(false);
+                    if (calibBytes != null && calibBytes.Length > 500)
+                    {
+                        string fetchedCalib = Encoding.UTF8.GetString(calibBytes);
+                        if (fetchedCalib.Contains("data0", StringComparison.Ordinal))
+                        {
+                            calibJson = fetchedCalib;
+                            try { LinuxVaultAndStorage.WriteFileAtomically0600(calibCachePath, calibBytes); } catch { }
+                        }
+                    }
+                }
+
+                _ = await SendV2JsonCmdAsync(mainWs, mainBuf, txId, sessionToken, "PUT", "/v1/peripheral/param", new JsonObject { ["type"] = "ir_led" }, new JsonObject { ["action"] = "off", ["index"] = 0 }, null, cts.Token).ConfigureAwait(false);
+                _ = await SendV2JsonCmdAsync(mainWs, mainBuf, txId, sessionToken, "PUT", "/v1/laser-head/parameter", new JsonObject(), new JsonObject { ["action"] = "power", ["ctrl"] = "set", ["value"] = 0 }, null, cts.Token).ConfigureAwait(false);
+
+                _ = await SendV2JsonCmdAsync(mainWs, mainBuf, txId, sessionToken, "POST", "/v1/camera", new JsonObject { ["exp"] = 0, ["stream"] = "0" }, new JsonObject(), null, cts.Token).ConfigureAwait(false);
+                var snap = await SendV2JsonCmdAsync(mainWs, mainBuf, txId, sessionToken, "GET", "/v1/camera/snap", new JsonObject { ["name"] = "main", ["timeOut"] = 30000 }, new JsonObject(), null, cts.Token).ConfigureAwait(false);
+                string remoteFile = snap?["data"]?["filename"]?.GetValue<string>()
+                                 ?? snap?["data"]?["params"]?["filename"]?.GetValue<string>()
+                                 ?? "";
+
+                byte[]? rawJpeg = null;
+                if (!string.IsNullOrWhiteSpace(remoteFile))
+                {
+                    rawJpeg = await DownloadFileFromLaserV2Async(mainWs, mainBuf, fileWs, fileBuf, txId, sessionToken, remoteFile, 5, 9, cts.Token).ConfigureAwait(false);
+                }
+
+                _ = await SendV2JsonCmdAsync(mainWs, mainBuf, txId, sessionToken, "PUT", "/v1/peripheral/param", new JsonObject { ["type"] = "ir_led" }, new JsonObject { ["action"] = "on", ["index"] = 0 }, null, cts.Token).ConfigureAwait(false);
+                _ = await SendV2JsonCmdAsync(mainWs, mainBuf, txId, sessionToken, "PUT", "/v1/laser-head/parameter", new JsonObject(), new JsonObject { ["action"] = "power", ["ctrl"] = "set", ["value"] = 128 }, null, cts.Token).ConfigureAwait(false);
+
+                if (rawJpeg == null || rawJpeg.Length < 10000)
+                    return null;
+
+                byte[]? warped = await LocalSenseBridge.WarpXtoolCameraAsync(rawJpeg, calibJson).ConfigureAwait(false);
+                byte[] finalJpeg = (warped != null && warped.Length > 10000) ? warped : rawJpeg;
+                StoreCachedCameraJpeg(finalJpeg);
+                return finalJpeg;
+            }
+            catch
+            {
+                return null;
+            }
+            finally
+            {
+                try { if (fileWs.State == WebSocketState.Open) await fileWs.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "", CancellationToken.None).ConfigureAwait(false); } catch { }
+                try { if (mainWs.State == WebSocketState.Open) await mainWs.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "", CancellationToken.None).ConfigureAwait(false); } catch { }
+            }
+        }
+
+        public static (string Phase, string OrderId, string ItemId, string Side, string TaskId) GetActiveWatcherSnapshot()
+        {
+            lock (s_watchLock)
+            {
+                return (s_watchPhase, s_watchOrderId, s_watchItemId, s_watchSide, s_watchTaskId);
+            }
+        }
+
+        public static void DisarmPreparedJobWatcher()
+        {
+            lock (s_watchLock)
+            {
+                try { s_watchCts?.Cancel(); } catch { }
+                try { s_watchCts?.Dispose(); } catch { }
+                s_watchCts = null;
+                s_watchOrderId = "";
+                s_watchItemId = "";
+                s_watchSide = "front";
+                s_watchTaskId = "";
+                s_watchPhase = "none";
+                s_watchSawWorking = false;
+            }
+        }
+
+        public static void ArmPreparedJobWatcher(string orderId, string itemId, string side, string taskId, string ip = DefaultLaserIp)
+        {
+            CancellationToken ct;
+            lock (s_watchLock)
+            {
+                try { s_watchCts?.Cancel(); } catch { }
+                try { s_watchCts?.Dispose(); } catch { }
+                s_watchCts = new CancellationTokenSource(TimeSpan.FromMinutes(35));
+                s_watchOrderId = orderId ?? "";
+                s_watchItemId = itemId ?? "";
+                s_watchSide = string.IsNullOrWhiteSpace(side) ? "front" : side.Trim();
+                s_watchTaskId = taskId ?? "";
+                s_watchPhase = "prepared";
+                s_watchSawWorking = false;
+                ct = s_watchCts.Token;
+            }
+
+            string capturedOrderId = orderId ?? "";
+            string capturedItemId = itemId ?? "";
+            string capturedSide = string.IsNullOrWhiteSpace(side) ? "front" : side.Trim();
+            string safeIp = LinuxVaultAndStorage.IsValidPrivateLanIpv4(ip) ? ip.Trim() : DefaultLaserIp;
+
+            _ = Task.Run(async () =>
+            {
+                while (!ct.IsCancellationRequested)
+                {
+                    await Task.Delay(1600, ct).ConfigureAwait(false);
+                    if (!await ProbeLaserReachableAsync(safeIp, DefaultV2Port, 250).ConfigureAwait(false))
+                        continue;
+
+                    using var mainWs = await ConnectV2WsAsync(safeIp, DefaultV2Port, $"/websocket?id={Guid.NewGuid():D}&function=instruction", ct).ConfigureAwait(false);
+                    if (mainWs == null)
+                        continue;
+
+                    try
+                    {
+                        var mainBuf = new List<byte>(4096);
+                        var txId = new RefInt();
+                        string sessionToken = await AuthenticateParityAsync(mainWs, mainBuf, txId, ct).ConfigureAwait(false);
+                        if (string.IsNullOrWhiteSpace(sessionToken))
+                            continue;
+
+                        bool finishedDetected = false;
+                        void InspectSignalString(string? rawText)
+                        {
+                            if (string.IsNullOrWhiteSpace(rawText)) return;
+                            lock (s_watchLock)
+                            {
+                                if (s_watchOrderId != capturedOrderId || s_watchItemId != capturedItemId)
+                                    return;
+                                bool saw = s_watchSawWorking;
+                                s_watchPhase = AdvanceLaserWatcherState(s_watchPhase, ref saw, rawText);
+                                s_watchSawWorking = saw;
+                                if (s_watchPhase == "finished")
+                                    finishedDetected = true;
+                            }
+                        }
+
+                        while (!ct.IsCancellationRequested && mainWs.State == WebSocketState.Open && !finishedDetected)
+                        {
+                            var rt = await SendV2JsonCmdAsync(
+                                mainWs,
+                                mainBuf,
+                                txId,
+                                sessionToken,
+                                "GET",
+                                "/v1/device/runtime-infos",
+                                new JsonObject(),
+                                new JsonObject(),
+                                noticeObj => InspectSignalString(noticeObj.ToJsonString()),
+                                ct).ConfigureAwait(false);
+
+                            string curSt = rt?["data"]?["currentStatus"]?.GetValue<string>() ?? "";
+                            if (!string.IsNullOrEmpty(curSt))
+                                InspectSignalString(curSt);
+
+                            if (finishedDetected)
+                                break;
+
+                            if (await ReceiveIntoBufferAsync(mainWs, mainBuf, 1800, ct).ConfigureAwait(false))
+                            {
+                                foreach (var (proto, body) in ExtractV2Frames(mainBuf))
+                                {
+                                    if (proto == 4 && body.Length > 0)
+                                    {
+                                        InspectSignalString(Encoding.UTF8.GetString(body));
+                                    }
+                                }
+                            }
+                        }
+
+                        if (finishedDetected && !ct.IsCancellationRequested)
+                        {
+                            var curSettings = LinuxVaultAndStorage.LoadSettings();
+                            _ = await WorkshopFocusCoordinator.FinishLaserAsync(
+                                curSettings,
+                                capturedOrderId,
+                                capturedItemId,
+                                capturedSide,
+                                triggeredAutomatically: true).ConfigureAwait(false);
+                            return;
+                        }
+                    }
+                    catch { }
+                    finally
+                    {
+                        try { if (mainWs.State == WebSocketState.Open) await mainWs.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "", CancellationToken.None).ConfigureAwait(false); } catch { }
+                    }
+                }
+            }, CancellationToken.None);
+        }
+    }
+
+    // =========================================================================
+    // MANUFAKTUR FOKUS-LEITSTAND COORDINATOR (LASER + PACKING + CUPS PRINT)
+    // =========================================================================
+    public static class WorkshopFocusCoordinator
+    {
+        internal static Func<string, JsonElement, Task<JsonObject?>>? TestOverrideHandler { get; set; }
+
+        private static readonly object s_stateCacheLock = new();
+        private static JsonObject? s_lastNormalizedState;
+        private static string s_lastPortalLaserJobId = "";
+
+        private static JsonArray SanitizeChecklistArray(JsonArray? rawChecklist)
+        {
+            var cleanChecklist = new JsonArray();
+            if (rawChecklist == null) return cleanChecklist;
+
+            int idx = 0;
+            foreach (var entry in rawChecklist)
+            {
+                idx++;
+                if (entry is JsonObject cObj)
+                {
+                    if (cObj.TryGetPropertyValue("visible", out var visN) && visN is JsonValue visVal && visVal.TryGetValue<bool>(out bool vis) && !vis)
+                        continue;
+                    string key = GetAnyStr(cObj, "key", "id", "step_key");
+                    if (string.IsNullOrWhiteSpace(key)) key = $"step_{idx}";
+                    string lbl = CleanTextNoEnDash(GetAnyStr(cObj, "label", "title", "text", "name"));
+                    if (IsForbiddenNegativeChecklistLabel(lbl))
+                        continue;
+                    bool chk = GetAnyBool(cObj, false, "checked", "done", "completed", "is_checked");
+                    cleanChecklist.Add(new JsonObject
+                    {
+                        ["key"] = key,
+                        ["label"] = lbl,
+                        ["checked"] = chk
+                    });
+                }
+                else if (entry is JsonValue sVal && sVal.TryGetValue<string>(out var sLbl))
+                {
+                    string cleanLbl = CleanTextNoEnDash(sLbl);
+                    if (!IsForbiddenNegativeChecklistLabel(cleanLbl))
+                    {
+                        cleanChecklist.Add(new JsonObject
+                        {
+                            ["key"] = $"step_{idx}",
+                            ["label"] = cleanLbl,
+                            ["checked"] = false
+                        });
+                    }
+                }
+            }
+            return cleanChecklist;
+        }
+
+        public static string CleanTextNoEnDash(string? input)
+        {
+            if (string.IsNullOrWhiteSpace(input)) return "";
+            return input.Replace(" \u2013 ", " · ", StringComparison.Ordinal)
+                        .Replace(" \u2014 ", " · ", StringComparison.Ordinal)
+                        .Trim();
+        }
+
+        private static bool IsForbiddenNegativeChecklistLabel(string? label)
+        {
+            if (string.IsNullOrWhiteSpace(label)) return true;
+            string low = label.Trim().ToLowerInvariant();
+            if (low.Contains("nicht gebucht", StringComparison.Ordinal) ||
+                low.Contains("keine ", StringComparison.Ordinal) ||
+                low.Contains("kein ", StringComparison.Ordinal) ||
+                string.Equals(low, "nein", StringComparison.Ordinal) ||
+                low.EndsWith(": nein", StringComparison.Ordinal) ||
+                low.EndsWith("· nein", StringComparison.Ordinal))
+            {
+                return true;
+            }
+            return false;
+        }
+
+        private static string GetAnyStr(JsonObject? obj, params string[] keys)
+        {
+            if (obj == null) return "";
+            foreach (string k in keys)
+            {
+                if (obj.TryGetPropertyValue(k, out var n) && n != null)
+                {
+                    try
+                    {
+                        if (n is JsonValue jv)
+                        {
+                            if (jv.TryGetValue<string>(out var sv) && sv != null)
+                                return sv;
+                            return jv.ToJsonString().Trim('"');
+                        }
+                    }
+                    catch { }
+                }
+            }
+            return "";
+        }
+
+        private static double GetAnyDouble(JsonObject? obj, double fallback, params string[] keys)
+        {
+            if (obj == null) return fallback;
+            foreach (string k in keys)
+            {
+                if (obj.TryGetPropertyValue(k, out var n) && n is JsonValue jv)
+                {
+                    if (jv.TryGetValue<double>(out double dv) && double.IsFinite(dv)) return dv;
+                    if (jv.TryGetValue<int>(out int iv)) return iv;
+                    if (jv.TryGetValue<string>(out var sv) && double.TryParse(sv, NumberStyles.Float, CultureInfo.InvariantCulture, out double pv))
+                        return pv;
+                }
+            }
+            return fallback;
+        }
+
+        private static int GetAnyInt(JsonObject? obj, int fallback, params string[] keys)
+        {
+            if (obj == null) return fallback;
+            foreach (string k in keys)
+            {
+                if (obj.TryGetPropertyValue(k, out var n) && n is JsonValue jv)
+                {
+                    if (jv.TryGetValue<int>(out int iv)) return iv;
+                    if (jv.TryGetValue<long>(out long lv)) return (int)lv;
+                    if (jv.TryGetValue<string>(out var sv) && int.TryParse(sv, NumberStyles.Integer, CultureInfo.InvariantCulture, out int pv))
+                        return pv;
+                }
+            }
+            return fallback;
+        }
+
+        private static bool GetAnyBool(JsonObject? obj, bool fallback, params string[] keys)
+        {
+            if (obj == null) return fallback;
+            foreach (string k in keys)
+            {
+                if (obj.TryGetPropertyValue(k, out var n) && n is JsonValue jv)
+                {
+                    if (jv.TryGetValue<bool>(out bool bv)) return bv;
+                    if (jv.TryGetValue<int>(out int iv)) return iv != 0;
+                    if (jv.TryGetValue<string>(out var sv))
+                    {
+                        if (string.Equals(sv, "true", StringComparison.OrdinalIgnoreCase) || sv == "1") return true;
+                        if (string.Equals(sv, "false", StringComparison.OrdinalIgnoreCase) || sv == "0") return false;
+                    }
+                }
+            }
+            return fallback;
+        }
+
+        public static JsonObject NormalizeFocusState(JsonNode? rawNode)
+        {
+            var rootObj = rawNode as JsonObject;
+            var payload = (rootObj?["data"] as JsonObject) ?? (rootObj?["focus"] as JsonObject) ?? rootObj ?? new JsonObject();
+
+            bool hasOrder = GetAnyBool(payload, false, "has_order", "hasOrder");
+            int openCount = Math.Max(0, GetAnyInt(payload, hasOrder ? 1 : 0, "open_ready_count", "open_orders_count", "openOrdersCount", "open_count"));
+
+            if (!hasOrder)
+            {
+                var idleObj = new JsonObject
+                {
+                    ["ok"] = true,
+                    ["has_order"] = false,
+                    ["open_orders_count"] = openCount,
+                    ["phase"] = "idle"
+                };
+                lock (s_stateCacheLock)
+                {
+                    s_lastNormalizedState = JsonNode.Parse(idleObj.ToJsonString()) as JsonObject;
+                }
+                return idleObj;
+            }
+
+            var orderSub = payload["order"] as JsonObject;
+            var itemSub = (orderSub?["active_item"] as JsonObject) ?? (payload["active_item"] as JsonObject) ?? (payload["item"] as JsonObject);
+            var laserSub = (itemSub?["laser"] as JsonObject) ?? (orderSub?["laser"] as JsonObject) ?? (payload["laser"] as JsonObject);
+            var jigSub = (itemSub?["jig"] as JsonObject) ?? (payload["jig"] as JsonObject) ?? (laserSub?["jig"] as JsonObject);
+            var packSub = (orderSub?["packaging"] as JsonObject) ?? (payload["packaging"] as JsonObject);
+
+            string phaseRaw = GetAnyStr(payload, "phase", "step", "view").Trim().ToLowerInvariant();
+            string phase = (phaseRaw is "packing" or "verpackung" or "shipping" or "2") ? "packing" : "laser";
+
+            string orderId = GetAnyStr(orderSub, "id", "order_id", "orderId");
+            if (string.IsNullOrEmpty(orderId)) orderId = GetAnyStr(payload, "order_id", "orderId");
+            if (string.IsNullOrEmpty(orderId)) orderId = GetAnyStr(itemSub, "order_id", "orderId");
+
+            string orderNumber = CleanTextNoEnDash(GetAnyStr(orderSub, "order_number", "orderNumber"));
+            if (string.IsNullOrEmpty(orderNumber)) orderNumber = CleanTextNoEnDash(GetAnyStr(payload, "order_number", "orderNumber"));
+
+            string itemId = GetAnyStr(itemSub, "id", "item_id", "itemId");
+            if (string.IsNullOrEmpty(itemId)) itemId = GetAnyStr(payload, "item_id", "itemId");
+            if (string.IsNullOrEmpty(itemId)) itemId = GetAnyStr(laserSub, "item_id", "itemId");
+
+            string productId = GetAnyStr(itemSub, "product_id", "productId");
+            if (string.IsNullOrEmpty(productId)) productId = GetAnyStr(payload, "product_id", "productId");
+
+            string side = GetAnyStr(itemSub, "side");
+            if (string.IsNullOrEmpty(side)) side = GetAnyStr(payload, "side");
+            if (string.IsNullOrEmpty(side)) side = GetAnyStr(laserSub, "side");
+            if (string.IsNullOrWhiteSpace(side)) side = "front";
+
+            int quantity = Math.Max(1, GetAnyInt(itemSub, GetAnyInt(payload, 1, "quantity", "qty"), "quantity", "qty"));
+            string productName = CleanTextNoEnDash(GetAnyStr(itemSub, "product_name", "productName", "name"));
+            if (string.IsNullOrEmpty(productName)) productName = CleanTextNoEnDash(GetAnyStr(payload, "product_name", "productName"));
+            if (string.IsNullOrEmpty(productName)) productName = "Seelenfunke Unikat";
+
+            string productImageUrl = GetAnyStr(itemSub, "product_image_url", "productImageUrl", "product_image");
+            if (string.IsNullOrEmpty(productImageUrl)) productImageUrl = GetAnyStr(payload, "product_image_url", "productImageUrl", "product_image");
+
+            string customerNote = CleanTextNoEnDash(GetAnyStr(itemSub, "customer_note", "customerNote"));
+            if (string.IsNullOrEmpty(customerNote)) customerNote = CleanTextNoEnDash(GetAnyStr(payload, "customer_note", "customerNote"));
+
+            bool hasJig = GetAnyBool(jigSub, GetAnyBool(payload, false, "has_jig"), "has_jig", "hasJig", "enabled");
+            string jigLabel = CleanTextNoEnDash(GetAnyStr(jigSub, "label", "name", "title"));
+            if (string.IsNullOrEmpty(jigLabel)) jigLabel = CleanTextNoEnDash(GetAnyStr(payload, "jig_label"));
+            if (!hasJig || string.IsNullOrWhiteSpace(jigLabel))
+            {
+                hasJig = false;
+                jigLabel = "";
+            }
+
+            double blankW = Math.Clamp(GetAnyDouble(laserSub ?? payload, GetAnyDouble(payload, 50.0, "blank_width_mm", "width_mm"), "blank_width_mm", "width_mm"), 4.0, 200.0);
+            double blankH = Math.Clamp(GetAnyDouble(laserSub ?? payload, GetAnyDouble(payload, 50.0, "blank_height_mm", "height_mm"), "blank_height_mm", "height_mm"), 4.0, 200.0);
+            double centerX = Math.Clamp(GetAnyDouble(laserSub ?? payload, GetAnyDouble(payload, 100.0, "center_x_mm"), "center_x_mm", "x_mm"), 5.0, 195.0);
+            double centerY = Math.Clamp(GetAnyDouble(laserSub ?? payload, GetAnyDouble(payload, 100.0, "center_y_mm"), "center_y_mm", "y_mm"), 5.0, 195.0);
+            double angleDeg = Math.Clamp(GetAnyDouble(laserSub ?? payload, GetAnyDouble(payload, 0.0, "angle_deg"), "angle_deg", "angle"), -180.0, 180.0);
+
+            string contourDPath = GetAnyStr(laserSub, "contour_d_path", "ghost_d_path");
+            if (string.IsNullOrEmpty(contourDPath)) contourDPath = GetAnyStr(payload, "contour_d_path", "ghost_d_path");
+            if (string.IsNullOrWhiteSpace(contourDPath))
+            {
+                string wFmt = blankW.ToString("0.##", CultureInfo.InvariantCulture);
+                string hFmt = blankH.ToString("0.##", CultureInfo.InvariantCulture);
+                contourDPath = $"M 0 0 H {wFmt} V {hFmt} H 0 Z";
+            }
+
+            string engravePreviewDataUrl = GetAnyStr(laserSub, "engrave_preview_data_url", "preview_data_url");
+            if (string.IsNullOrEmpty(engravePreviewDataUrl))
+                engravePreviewDataUrl = GetAnyStr(payload, "engrave_preview_data_url", "preview_data_url");
+
+            string engravePreviewUrl = GetAnyStr(laserSub, "engrave_preview_url", "preview_url");
+            if (string.IsNullOrEmpty(engravePreviewUrl))
+                engravePreviewUrl = GetAnyStr(payload, "engrave_preview_url", "preview_url");
+            if (string.IsNullOrEmpty(engravePreviewDataUrl)) engravePreviewDataUrl = engravePreviewUrl;
+            if (string.IsNullOrEmpty(engravePreviewUrl)) engravePreviewUrl = engravePreviewDataUrl;
+
+            string portalCamUrl = GetAnyStr(laserSub, "portal_camera_url", "camera_url");
+            if (string.IsNullOrEmpty(portalCamUrl))
+                portalCamUrl = GetAnyStr(payload, "portal_camera_url", "camera_url");
+
+            var (cachedCamBytes, camVer) = XtoolLocalLanBridge.GetCachedCameraJpeg();
+            string effectiveCamUrl = cachedCamBytes != null
+                ? $"/api/workshop-focus/camera.jpg?v={camVer}"
+                : portalCamUrl;
+
+            var watcher = XtoolLocalLanBridge.GetActiveWatcherSnapshot();
+            string laserJobState = "none";
+            if (watcher.Phase is "prepared" or "working" &&
+                (string.IsNullOrEmpty(watcher.OrderId) || watcher.OrderId == orderId) &&
+                (string.IsNullOrEmpty(watcher.ItemId) || watcher.ItemId == itemId))
+            {
+                laserJobState = watcher.Phase;
+            }
+            else if (GetAnyBool(laserSub ?? payload, false, "laser_prepared", "is_prepared"))
+            {
+                laserJobState = "prepared";
+            }
+
+            string boxName = CleanTextNoEnDash(GetAnyStr(packSub, "box_name", "boxName", "name"));
+            if (string.IsNullOrEmpty(boxName)) boxName = CleanTextNoEnDash(GetAnyStr(payload, "box_name"));
+            string boxDimensions = CleanTextNoEnDash(GetAnyStr(packSub, "box_dimensions", "boxDimensions", "dimensions"));
+            if (string.IsNullOrEmpty(boxDimensions)) boxDimensions = CleanTextNoEnDash(GetAnyStr(payload, "box_dimensions"));
+
+            var rawChecklist = (packSub?["checklist"] as JsonArray) ?? (payload["checklist"] as JsonArray);
+            var cleanChecklist = SanitizeChecklistArray(rawChecklist);
+
+            if (cleanChecklist.Count == 0 && phase == "packing")
+            {
+                cleanChecklist.Add(new JsonObject { ["key"] = "cleaned", ["label"] = "Reinigen · Isopropanol & Tuch", ["checked"] = false });
+                cleanChecklist.Add(new JsonObject { ["key"] = "thank_you_card", ["label"] = "Dankeskarte", ["checked"] = false });
+            }
+
+            var normalized = new JsonObject
+            {
+                ["ok"] = true,
+                ["has_order"] = true,
+                ["open_orders_count"] = openCount,
+                ["phase"] = phase,
+                ["order_id"] = orderId,
+                ["order_number"] = orderNumber,
+                ["item_id"] = itemId,
+                ["product_id"] = productId,
+                ["side"] = side,
+                ["quantity"] = quantity,
+                ["product_name"] = productName,
+                ["product_image_url"] = productImageUrl,
+                ["customer_note"] = customerNote,
+                ["jig"] = new JsonObject
+                {
+                    ["has_jig"] = hasJig,
+                    ["label"] = jigLabel
+                },
+                ["camera_url"] = effectiveCamUrl,
+                ["portal_camera_url"] = portalCamUrl,
+                ["contour_d_path"] = contourDPath,
+                ["blank_width_mm"] = Math.Round(blankW, 2),
+                ["blank_height_mm"] = Math.Round(blankH, 2),
+                ["center_x_mm"] = Math.Round(centerX, 2),
+                ["center_y_mm"] = Math.Round(centerY, 2),
+                ["angle_deg"] = Math.Round(angleDeg, 2),
+                ["engrave_preview_data_url"] = engravePreviewDataUrl,
+                ["engrave_preview_url"] = engravePreviewUrl,
+                ["laser_job_state"] = laserJobState,
+                ["packaging"] = new JsonObject
+                {
+                    ["box_name"] = boxName,
+                    ["box_dimensions"] = boxDimensions,
+                    ["checklist"] = cleanChecklist
+                }
+            };
+
+            lock (s_stateCacheLock)
+            {
+                s_lastNormalizedState = JsonNode.Parse(normalized.ToJsonString()) as JsonObject;
+            }
+            return normalized;
+        }
+
+        private static async Task<(int StatusCode, JsonNode? Json)> CallPortalJsonAsync(
+            LinuxOsSettings settings,
+            HttpMethod method,
+            string relativeApiPath,
+            JsonObject? bodyObj = null,
+            int timeoutSec = 14)
+        {
+            string norm = (settings.ApiEnvironment ?? "live").Trim().ToLowerInvariant() == "stage" ? "stage" : "live";
+            string bearer = LinuxVaultAndStorage.GetToken(settings, norm);
+            if (string.IsNullOrWhiteSpace(bearer))
+                return (401, null);
+
+            string baseUrl = SeelenfunkeLinuxApiClient.ResolveBaseApiUrl(norm);
+            string fullUrl = $"{baseUrl}/{relativeApiPath.TrimStart('/')}";
+            if (!SeelenfunkeLinuxApiClient.ValidateHttpsUrl(fullUrl))
+                return (403, null);
+
+            try
+            {
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSec));
+                using var req = new HttpRequestMessage(method, fullUrl);
+                req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearer);
+                req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                if (bodyObj != null)
+                {
+                    req.Content = new StringContent(bodyObj.ToJsonString(), new UTF8Encoding(false), "application/json");
+                }
+
+                using var resp = await SeelenfunkeLinuxApiClient.SharedHttp.SendAsync(req, cts.Token).ConfigureAwait(false);
+                int code = (int)resp.StatusCode;
+                string raw = await resp.Content.ReadAsStringAsync(cts.Token).ConfigureAwait(false);
+                JsonNode? parsed = null;
+                if (!string.IsNullOrWhiteSpace(raw))
+                {
+                    try { parsed = JsonNode.Parse(raw); } catch { }
+                }
+                return (code, parsed);
+            }
+            catch
+            {
+                return (0, null);
+            }
+        }
+
+        public static async Task<JsonObject> FetchStateAsync(LinuxOsSettings settings)
+        {
+            if (TestOverrideHandler != null)
+            {
+                using var emptyDoc = JsonDocument.Parse("{}");
+                var mock = await TestOverrideHandler("state", emptyDoc.RootElement).ConfigureAwait(false);
+                return NormalizeFocusState(mock);
+            }
+
+            var (code, node) = await CallPortalJsonAsync(settings, HttpMethod.Get, "shop/workshop-focus").ConfigureAwait(false);
+            if (code == 404)
+            {
+                (code, node) = await CallPortalJsonAsync(settings, HttpMethod.Get, "shop/workshop-focus/state").ConfigureAwait(false);
+            }
+
+            if (code == 401 || code == 403)
+            {
+                return new JsonObject
+                {
+                    ["ok"] = false,
+                    ["authenticated"] = false,
+                    ["has_order"] = false,
+                    ["open_orders_count"] = 0,
+                    ["phase"] = "idle"
+                };
+            }
+
+            if (node == null)
+            {
+                lock (s_stateCacheLock)
+                {
+                    if (s_lastNormalizedState != null)
+                        return JsonNode.Parse(s_lastNormalizedState.ToJsonString()) as JsonObject ?? new JsonObject { ["ok"] = false, ["has_order"] = false };
+                }
+                return new JsonObject
+                {
+                    ["ok"] = false,
+                    ["has_order"] = false,
+                    ["open_orders_count"] = Math.Max(0, SeelenfunkeLinuxApiClient.LatestPulse.OpenOrdersCount),
+                    ["phase"] = "idle"
+                };
+            }
+
+            return NormalizeFocusState(node);
+        }
+
+        public static async Task<JsonObject> RefreshCameraAsync(LinuxOsSettings settings, JsonElement reqBody)
+        {
+            byte[]? localJpeg = await XtoolLocalLanBridge.CaptureLiveCameraLocalV2Async().ConfigureAwait(false);
+
+            if (TestOverrideHandler != null)
+            {
+                var mock = await TestOverrideHandler("camera", reqBody).ConfigureAwait(false);
+                var normMock = NormalizeFocusState(mock);
+                normMock["camera_source"] = localJpeg != null ? "laser_lan_v2" : "portal_fallback";
+                return normMock;
+            }
+
+            var syncPayload = new JsonObject();
+            if (localJpeg != null && localJpeg.Length > 1024)
+            {
+                syncPayload["image_base64"] = Convert.ToBase64String(localJpeg);
+            }
+            _ = await CallPortalJsonAsync(settings, HttpMethod.Post, "funki/laser/camera-sync", syncPayload, timeoutSec: 16).ConfigureAwait(false);
+
+            var refreshedState = await FetchStateAsync(settings).ConfigureAwait(false);
+            if (localJpeg == null)
+            {
+                string portalCam = refreshedState["portal_camera_url"]?.GetValue<string>() ?? "";
+                if (!string.IsNullOrWhiteSpace(portalCam))
+                {
+                    string sep = portalCam.Contains('?') ? "&" : "?";
+                    refreshedState["camera_url"] = $"{portalCam}{sep}r={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
+                }
+            }
+            refreshedState["camera_source"] = localJpeg != null ? "laser_lan_v2" : "portal_fallback";
+            return refreshedState;
+        }
+
+        public static async Task<JsonObject> SendLaserAsync(LinuxOsSettings settings, JsonElement reqBody)
+        {
+            string orderId = "";
+            string itemId = "";
+            string side = "front";
+            double? cx = null, cy = null, ang = null;
+
+            if (reqBody.ValueKind == JsonValueKind.Object)
+            {
+                if (reqBody.TryGetProperty("order_id", out var oEl)) orderId = oEl.GetString() ?? "";
+                if (reqBody.TryGetProperty("item_id", out var iEl)) itemId = iEl.GetString() ?? "";
+                if (reqBody.TryGetProperty("side", out var sEl)) side = sEl.GetString() ?? "front";
+                if (reqBody.TryGetProperty("center_x_mm", out var xEl) && xEl.TryGetDouble(out double xv)) cx = Math.Clamp(xv, 0.0, 200.0);
+                if (reqBody.TryGetProperty("center_y_mm", out var yEl) && yEl.TryGetDouble(out double yv)) cy = Math.Clamp(yv, 0.0, 200.0);
+                if (reqBody.TryGetProperty("angle_deg", out var aEl) && aEl.TryGetDouble(out double av)) ang = Math.Clamp(av, -180.0, 180.0);
+            }
+
+            if (string.IsNullOrEmpty(orderId) || string.IsNullOrEmpty(itemId))
+            {
+                var cur = await FetchStateAsync(settings).ConfigureAwait(false);
+                if (string.IsNullOrEmpty(orderId)) orderId = cur["order_id"]?.GetValue<string>() ?? "";
+                if (string.IsNullOrEmpty(itemId)) itemId = cur["item_id"]?.GetValue<string>() ?? "";
+                if (cx == null && cur["center_x_mm"] != null) cx = cur["center_x_mm"]!.GetValue<double>();
+                if (cy == null && cur["center_y_mm"] != null) cy = cur["center_y_mm"]!.GetValue<double>();
+                if (ang == null && cur["angle_deg"] != null) ang = cur["angle_deg"]!.GetValue<double>();
+            }
+
+            JsonNode? portalRespNode;
+            int statusCode;
+            if (TestOverrideHandler != null)
+            {
+                portalRespNode = await TestOverrideHandler("send-laser", reqBody).ConfigureAwait(false);
+                statusCode = portalRespNode != null ? 200 : 500;
+            }
+            else
+            {
+                var postObj = new JsonObject
+                {
+                    ["order_id"] = orderId,
+                    ["item_id"] = itemId,
+                    ["side"] = side
+                };
+                if (cx.HasValue) postObj["center_x_mm"] = Math.Round(cx.Value, 2);
+                if (cy.HasValue) postObj["center_y_mm"] = Math.Round(cy.Value, 2);
+                if (ang.HasValue) postObj["angle_deg"] = Math.Round(ang.Value, 2);
+
+                (statusCode, portalRespNode) = await CallPortalJsonAsync(settings, HttpMethod.Post, "shop/workshop-focus/send-laser", postObj, timeoutSec: 22).ConfigureAwait(false);
+            }
+
+            var rootObj = portalRespNode as JsonObject;
+            var payload = (rootObj?["data"] as JsonObject) ?? rootObj;
+            if (statusCode < 200 || statusCode >= 300 || payload == null)
+            {
+                string errMsg = CleanTextNoEnDash(GetAnyStr(payload ?? rootObj, "message", "error"));
+                if (string.IsNullOrWhiteSpace(errMsg)) errMsg = "Laser-Paket konnte nicht vom Portal geladen werden.";
+                return new JsonObject
+                {
+                    ["ok"] = false,
+                    ["sent_direct"] = false,
+                    ["error"] = errMsg
+                };
+            }
+
+            bool sentDirect = GetAnyBool(payload, false, "sent_direct", "sentDirect");
+            string portalJobId = GetAnyStr(payload, "job_id", "jobId");
+            if (!string.IsNullOrWhiteSpace(portalJobId))
+            {
+                s_lastPortalLaserJobId = portalJobId;
+            }
+            string taskId = GetAnyStr(payload, "task_id", "taskId", "job_id");
+            string xfB64 = GetAnyStr(payload, "xf_base64", "xfBase64", "xf_package_base64");
+            string deliveryMode = sentDirect ? "portal_direct" : "none";
+
+            if (!sentDirect && !string.IsNullOrWhiteSpace(xfB64))
+            {
+                if (xfB64.Contains(',')) xfB64 = xfB64.Substring(xfB64.IndexOf(',') + 1);
+                byte[] xfBytes;
+                try
+                {
+                    xfBytes = Convert.FromBase64String(xfB64);
+                }
+                catch
+                {
+                    return new JsonObject
+                    {
+                        ["ok"] = false,
+                        ["sent_direct"] = false,
+                        ["error"] = "Ungültiges .xf Paketformat."
+                    };
+                }
+
+                var (upOk, localTaskId, upErr) = await XtoolLocalLanBridge.UploadXfPackageLocalV2Async(xfBytes).ConfigureAwait(false);
+                if (!upOk)
+                {
+                    return new JsonObject
+                    {
+                        ["ok"] = false,
+                        ["sent_direct"] = false,
+                        ["error"] = CleanTextNoEnDash(upErr)
+                    };
+                }
+                sentDirect = true;
+                taskId = localTaskId;
+                deliveryMode = "minipc_lan_v2";
+            }
+
+            if (!sentDirect)
+            {
+                string err = CleanTextNoEnDash(GetAnyStr(payload, "error", "message"));
+                if (string.IsNullOrWhiteSpace(err)) err = "Laser im WLAN nicht erreichbar.";
+                return new JsonObject
+                {
+                    ["ok"] = false,
+                    ["sent_direct"] = false,
+                    ["error"] = err
+                };
+            }
+
+            if (TestOverrideHandler == null)
+            {
+                XtoolLocalLanBridge.ArmPreparedJobWatcher(orderId, itemId, side, taskId);
+            }
+
+            return new JsonObject
+            {
+                ["ok"] = true,
+                ["sent_direct"] = true,
+                ["delivery_mode"] = deliveryMode,
+                ["job_id"] = portalJobId,
+                ["task_id"] = taskId,
+                ["laser_job_state"] = "prepared",
+                ["button_label"] = "Im Laser bereit · Startknopf drücken"
+            };
+        }
+
+        public static async Task<JsonObject> FinishLaserAsync(
+            LinuxOsSettings settings,
+            string? orderId,
+            string? itemId,
+            string? side = "front",
+            bool triggeredAutomatically = false)
+        {
+            XtoolLocalLanBridge.DisarmPreparedJobWatcher();
+
+            string resolvedOrderId = orderId ?? "";
+            string resolvedItemId = itemId ?? "";
+            string batchProductId = "";
+
+            lock (s_stateCacheLock)
+            {
+                if (s_lastNormalizedState != null)
+                {
+                    if (string.IsNullOrEmpty(resolvedOrderId)) resolvedOrderId = s_lastNormalizedState["order_id"]?.GetValue<string>() ?? "";
+                    if (string.IsNullOrEmpty(resolvedItemId)) resolvedItemId = s_lastNormalizedState["item_id"]?.GetValue<string>() ?? "";
+                    batchProductId = s_lastNormalizedState["product_id"]?.GetValue<string>() ?? "";
+                }
+            }
+
+            if (string.IsNullOrEmpty(resolvedOrderId) || string.IsNullOrEmpty(resolvedItemId))
+            {
+                var cur = await FetchStateAsync(settings).ConfigureAwait(false);
+                if (string.IsNullOrEmpty(resolvedOrderId)) resolvedOrderId = cur["order_id"]?.GetValue<string>() ?? "";
+                if (string.IsNullOrEmpty(resolvedItemId)) resolvedItemId = cur["item_id"]?.GetValue<string>() ?? "";
+                if (string.IsNullOrEmpty(batchProductId)) batchProductId = cur["product_id"]?.GetValue<string>() ?? "";
+            }
+
+            var postObj = new JsonObject
+            {
+                ["order_id"] = resolvedOrderId,
+                ["item_id"] = resolvedItemId,
+                ["side"] = string.IsNullOrWhiteSpace(side) ? "front" : side.Trim(),
+                ["auto_detected"] = triggeredAutomatically
+            };
+            if (!string.IsNullOrWhiteSpace(s_lastPortalLaserJobId))
+            {
+                postObj["job_id"] = s_lastPortalLaserJobId;
+                s_lastPortalLaserJobId = "";
+            }
+            if (!string.IsNullOrWhiteSpace(batchProductId))
+            {
+                postObj["batch_product_id"] = batchProductId;
+            }
+
+            if (TestOverrideHandler != null)
+            {
+                using var doc = JsonDocument.Parse(postObj.ToJsonString());
+                var mock = await TestOverrideHandler("finish-laser", doc.RootElement).ConfigureAwait(false);
+                return NormalizeFocusState(mock);
+            }
+
+            var (code, node) = await CallPortalJsonAsync(settings, HttpMethod.Post, "shop/workshop-focus/finish-laser-item", postObj).ConfigureAwait(false);
+            if (code == 404)
+            {
+                (code, node) = await CallPortalJsonAsync(settings, HttpMethod.Post, "shop/workshop-focus/finish-laser", postObj).ConfigureAwait(false);
+            }
+            if (code >= 200 && code < 300 && node != null)
+            {
+                return NormalizeFocusState(node);
+            }
+            return await FetchStateAsync(settings).ConfigureAwait(false);
+        }
+
+        public static async Task<JsonObject> ToggleCheckAsync(LinuxOsSettings settings, JsonElement reqBody)
+        {
+            string orderId = reqBody.ValueKind == JsonValueKind.Object && reqBody.TryGetProperty("order_id", out var oEl) ? (oEl.GetString() ?? "") : "";
+            string itemId = reqBody.ValueKind == JsonValueKind.Object && reqBody.TryGetProperty("item_id", out var iEl) ? (iEl.GetString() ?? "") : "";
+            string key = reqBody.ValueKind == JsonValueKind.Object && reqBody.TryGetProperty("key", out var kEl) ? (kEl.GetString() ?? "") : "";
+            bool? checkedVal = null;
+            if (reqBody.ValueKind == JsonValueKind.Object && reqBody.TryGetProperty("checked", out var cEl) &&
+                (cEl.ValueKind == JsonValueKind.True || cEl.ValueKind == JsonValueKind.False))
+            {
+                checkedVal = cEl.GetBoolean();
+            }
+
+            if (string.IsNullOrEmpty(orderId))
+            {
+                lock (s_stateCacheLock)
+                {
+                    if (s_lastNormalizedState != null)
+                        orderId = s_lastNormalizedState["order_id"]?.GetValue<string>() ?? "";
+                }
+            }
+
+            var postObj = new JsonObject
+            {
+                ["order_id"] = orderId,
+                ["item_id"] = itemId,
+                ["key"] = key
+            };
+            if (checkedVal.HasValue)
+            {
+                postObj["checked"] = checkedVal.Value;
+            }
+
+            if (TestOverrideHandler != null)
+            {
+                using var doc = JsonDocument.Parse(postObj.ToJsonString());
+                var mock = await TestOverrideHandler("toggle-check", doc.RootElement).ConfigureAwait(false);
+                if (mock != null && !mock.ContainsKey("has_order") && mock["checklist"] is JsonArray mockCl)
+                {
+                    lock (s_stateCacheLock)
+                    {
+                        if (s_lastNormalizedState != null && s_lastNormalizedState["packaging"] is JsonObject pkgObj)
+                        {
+                            pkgObj["checklist"] = SanitizeChecklistArray(mockCl);
+                            return JsonNode.Parse(s_lastNormalizedState.ToJsonString()) as JsonObject ?? s_lastNormalizedState;
+                        }
+                    }
+                }
+                return NormalizeFocusState(mock);
+            }
+
+            var (code, node) = await CallPortalJsonAsync(settings, HttpMethod.Post, "shop/workshop-focus/toggle-check", postObj).ConfigureAwait(false);
+            if (code >= 200 && code < 300 && node is JsonObject respObj)
+            {
+                if (respObj.ContainsKey("has_order") || respObj["data"] is JsonObject)
+                {
+                    return NormalizeFocusState(respObj);
+                }
+                if (respObj["checklist"] is JsonArray updatedCl)
+                {
+                    lock (s_stateCacheLock)
+                    {
+                        if (s_lastNormalizedState != null && s_lastNormalizedState["packaging"] is JsonObject pkgObj)
+                        {
+                            pkgObj["checklist"] = SanitizeChecklistArray(updatedCl);
+                            return JsonNode.Parse(s_lastNormalizedState.ToJsonString()) as JsonObject ?? s_lastNormalizedState;
+                        }
+                    }
+                }
+            }
+            return await FetchStateAsync(settings).ConfigureAwait(false);
+        }
+
+        public static async Task<(bool PrintedViaCups, string PrinterName, string SavedPath, string Toast)> PrintOrSaveDhlLabelAsync(
+            byte[] pdfBytes,
+            string? orderNumberOrId,
+            string? suggestedFilename = null)
+        {
+            string rawBase = !string.IsNullOrWhiteSpace(suggestedFilename)
+                ? Path.GetFileNameWithoutExtension(suggestedFilename)
+                : $"DHL-Label-{(string.IsNullOrWhiteSpace(orderNumberOrId) ? DateTime.Now.ToString("yyyyMMdd-HHmmss") : orderNumberOrId)}";
+
+            string safeBase = Regex.Replace(rawBase, @"[^A-Za-z0-9._-]", "_").Trim('_');
+            if (string.IsNullOrWhiteSpace(safeBase)) safeBase = $"DHL-Label-{DateTime.Now:yyyyMMdd-HHmmss}";
+            string safeFileName = safeBase + ".pdf";
+
+            if (OperatingSystem.IsLinux() && string.IsNullOrWhiteSpace(LinuxVaultAndStorage.TestOverrideRootDir))
+            {
+                var (lpStatCode, lpStatOut, _) = await LinuxHardwareEngine.RunProcessAsync("lpstat", new[] { "-p" }, 2500).ConfigureAwait(false);
+                if (lpStatCode == 0 && !string.IsNullOrWhiteSpace(lpStatOut))
+                {
+                    var enabledPrinters = new List<string>();
+                    foreach (string line in lpStatOut.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                    {
+                        if (line.Contains("disabled", StringComparison.OrdinalIgnoreCase)) continue;
+                        var m = Regex.Match(line.Trim(), @"^printer\s+([A-Za-z0-9_.-]+)\s+is\s+", RegexOptions.IgnoreCase);
+                        if (m.Success)
+                        {
+                            enabledPrinters.Add(m.Groups[1].Value);
+                        }
+                    }
+
+                    string? chosenPrinter = enabledPrinters.FirstOrDefault(p =>
+                        p.Contains("MUNBYN", StringComparison.OrdinalIgnoreCase) ||
+                        p.Contains("ITPP", StringComparison.OrdinalIgnoreCase) ||
+                        p.Contains("Label", StringComparison.OrdinalIgnoreCase) ||
+                        p.Contains("DHL", StringComparison.OrdinalIgnoreCase))
+                        ?? enabledPrinters.FirstOrDefault();
+
+                    if (!string.IsNullOrWhiteSpace(chosenPrinter))
+                    {
+                        string tmpPdf = Path.Combine(Path.GetTempPath(), $"fw_dhl_{Guid.NewGuid():N}.pdf");
+                        try
+                        {
+                            LinuxVaultAndStorage.WriteFileAtomically0600(tmpPdf, pdfBytes);
+                            var (lpCode, _, _) = await LinuxHardwareEngine.RunProcessAsync(
+                                "lp",
+                                new[] { "-d", chosenPrinter, "-o", "fit-to-page", tmpPdf },
+                                6000).ConfigureAwait(false);
+                            if (lpCode == 0)
+                            {
+                                return (true, chosenPrinter, "", "DHL Label gedruckt");
+                            }
+                        }
+                        catch { }
+                        finally
+                        {
+                            try { if (File.Exists(tmpPdf)) File.Delete(tmpPdf); } catch { }
+                        }
+                    }
+                }
+            }
+
+            string downloadsDir = Path.Combine(LinuxVaultAndStorage.UserHomeDir, "Downloads");
+            Directory.CreateDirectory(downloadsDir);
+            string fullSavePath = Path.Combine(downloadsDir, safeFileName);
+            LinuxVaultAndStorage.WriteFileAtomically0600(fullSavePath, pdfBytes);
+            return (false, "", fullSavePath, $"Label gespeichert · Downloads/{safeFileName}");
+        }
+
+        public static async Task<JsonObject> ShipAndNextAsync(LinuxOsSettings settings, JsonElement reqBody)
+        {
+            XtoolLocalLanBridge.DisarmPreparedJobWatcher();
+
+            string orderId = reqBody.ValueKind == JsonValueKind.Object && reqBody.TryGetProperty("order_id", out var oEl) ? (oEl.GetString() ?? "") : "";
+            string batchProductId = "";
+            lock (s_stateCacheLock)
+            {
+                if (s_lastNormalizedState != null)
+                {
+                    if (string.IsNullOrEmpty(orderId)) orderId = s_lastNormalizedState["order_id"]?.GetValue<string>() ?? "";
+                    batchProductId = s_lastNormalizedState["product_id"]?.GetValue<string>() ?? "";
+                }
+            }
+            if (string.IsNullOrEmpty(orderId))
+            {
+                var cur = await FetchStateAsync(settings).ConfigureAwait(false);
+                orderId = cur["order_id"]?.GetValue<string>() ?? "";
+                if (string.IsNullOrEmpty(batchProductId)) batchProductId = cur["product_id"]?.GetValue<string>() ?? "";
+            }
+
+            var postObj = new JsonObject
+            {
+                ["order_id"] = orderId
+            };
+            if (!string.IsNullOrWhiteSpace(batchProductId))
+            {
+                postObj["batch_product_id"] = batchProductId;
+            }
+
+            JsonNode? respNode;
+            int statusCode;
+            if (TestOverrideHandler != null)
+            {
+                using var doc = JsonDocument.Parse(postObj.ToJsonString());
+                respNode = await TestOverrideHandler("ship-and-next", doc.RootElement).ConfigureAwait(false);
+                statusCode = respNode != null ? 200 : 500;
+            }
+            else
+            {
+                (statusCode, respNode) = await CallPortalJsonAsync(settings, HttpMethod.Post, "shop/workshop-focus/ship-and-next", postObj, timeoutSec: 25).ConfigureAwait(false);
+            }
+
+            var rootObj = respNode as JsonObject;
+            var payload = (rootObj?["data"] as JsonObject) ?? rootObj;
+            if (statusCode < 200 || statusCode >= 300 || payload == null)
+            {
+                string errMsg = CleanTextNoEnDash(GetAnyStr(payload ?? rootObj, "message", "error"));
+                if (string.IsNullOrWhiteSpace(errMsg)) errMsg = "Versandabschluss fehlgeschlagen.";
+                return new JsonObject
+                {
+                    ["ok"] = false,
+                    ["error"] = errMsg
+                };
+            }
+
+            string pdfB64 = GetAnyStr(payload, "label_pdf_base64", "labelPdfBase64", "pdf_base64");
+            string labelFileName = GetAnyStr(payload, "label_filename", "labelFilename", "filename");
+            string orderNum = GetAnyStr(payload, "order_number", "orderNumber");
+            if (string.IsNullOrEmpty(orderNum)) orderNum = orderId;
+
+            bool printedViaCups = false;
+            string savedPath = "";
+            string toast = "";
+
+            if (!string.IsNullOrWhiteSpace(pdfB64))
+            {
+                if (pdfB64.Contains(',')) pdfB64 = pdfB64.Substring(pdfB64.IndexOf(',') + 1);
+                try
+                {
+                    byte[] pdfBytes = Convert.FromBase64String(pdfB64);
+                    if (pdfBytes.Length > 64)
+                    {
+                        var printRes = await PrintOrSaveDhlLabelAsync(pdfBytes, orderNum, labelFileName).ConfigureAwait(false);
+                        printedViaCups = printRes.PrintedViaCups;
+                        savedPath = printRes.SavedPath;
+                        toast = printRes.Toast;
+                    }
+                }
+                catch { }
+            }
+
+            JsonNode? nextFocusRaw = payload["next_focus"] ?? payload["nextFocus"] ?? rootObj?["next_focus"];
+            JsonObject nextNormalized = nextFocusRaw != null
+                ? NormalizeFocusState(nextFocusRaw)
+                : await FetchStateAsync(settings).ConfigureAwait(false);
+
+            return new JsonObject
+            {
+                ["ok"] = true,
+                ["printed_via_cups"] = printedViaCups,
+                ["saved_path"] = savedPath,
+                ["toast"] = toast,
+                ["next_focus"] = nextNormalized
+            };
         }
     }
 }

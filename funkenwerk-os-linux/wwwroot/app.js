@@ -368,6 +368,8 @@
       sampleFunkiraVoiceFormants(dt);
       if (!fkIdleAtelierMode && !fkTikTokLiveMode) {
         updateFunkiraPersonTracker(dt);
+      } else {
+        document.getElementById('funkira-eye-target')?.classList.add('hidden');
       }
       if (window.Funkira3D && window.Funkira3D.running) {
         window.Funkira3D.setVoiceState(fkMouthOpenSmooth, fkIsSpeaking || fkActiveSources.length > 0);
@@ -775,11 +777,15 @@
   let fkLeftWrist = { x: 224, y: 924, aim: 1.35 };
   let fkRightWrist = { x: 882, y: 525, aim: -1.45 };
 
-  // Real-Time Logitech C920 Person Tracker State (64x36 @ 4.5 Hz = ultra-low GPU readback)
-  const fkTrackCanvas = document.createElement('canvas');
-  fkTrackCanvas.width = 64;
-  fkTrackCanvas.height = 36;
-  const fkTrackCtx = fkTrackCanvas.getContext('2d', { willReadFrequently: true });
+  // Real-Time Logitech C920 Neural YuNet Face Tracker State (480x270 @ ~5.5 Hz local loopback, zero furniture false-positives)
+  const fkFaceTrackCanvas = document.createElement('canvas');
+  fkFaceTrackCanvas.width = 480;
+  fkFaceTrackCanvas.height = 270;
+  const fkFaceTrackCtx = fkFaceTrackCanvas.getContext('2d');
+  let fkFaceTrackBusy = false;
+  let fkLastFaceTrackReqMs = 0;
+  let fkYuNetBox = { valid: false, cx: 0.5, cy: 0.5, relW: 0.14, relH: 0.24, updatedAt: 0 };
+  let fkReticleSmooth = { initialized: false, cx: 0.5, cy: 0.5, relW: 0.14, relH: 0.24 };
   let fkPrevLuma = null;
   let fkLastTrackSampleMs = 0;
   let fkPersonDetected = false;
@@ -920,9 +926,75 @@
     }
   }
 
+  function encodeTrackCanvasJpegAsync(canvas, quality) {
+    return new Promise((resolve) => {
+      canvas.toBlob((blob) => {
+        if (!blob) { resolve(''); return; }
+        const rdr = new FileReader();
+        rdr.onloadend = () => {
+          const res = typeof rdr.result === 'string' ? rdr.result : '';
+          const comma = res.indexOf(',');
+          resolve(comma >= 0 ? res.slice(comma + 1) : '');
+        };
+        rdr.onerror = () => resolve('');
+        rdr.readAsDataURL(blob);
+      }, 'image/jpeg', quality);
+    });
+  }
+
+  function projectRawVideoBoxToPip(vidEl, pipEl, rawUnmirroredCx, rawCy, relW, relH) {
+    const vidW = (vidEl && vidEl.videoWidth > 0) ? vidEl.videoWidth : 640;
+    const vidH = (vidEl && vidEl.videoHeight > 0) ? vidEl.videoHeight : 360;
+    const pipW = (pipEl && pipEl.clientWidth > 0) ? pipEl.clientWidth : 248;
+    const pipH = (pipEl && pipEl.clientHeight > 0) ? pipEl.clientHeight : 140;
+
+    // Exact CSS object-fit: cover + transform: scaleX(-1) geometry
+    const scale = Math.max(pipW / vidW, pipH / vidH);
+    const dispW = vidW * scale;
+    const dispH = vidH * scale;
+    const offX = (pipW - dispW) * 0.5;
+    const offY = (pipH - dispH) * 0.5;
+
+    const pxX = Math.max(4, Math.min(pipW - 4, offX + (1.0 - rawUnmirroredCx) * dispW));
+    const pxY = Math.max(4, Math.min(pipH - 4, offY + rawCy * dispH));
+    const pxW = Math.max(28, Math.min(pipW * 0.72, relW * dispW * 1.22));
+    const pxH = Math.max(30, Math.min(pipH * 0.84, relH * dispH * 1.18));
+
+    return {
+      pxX,
+      pxY,
+      pxW,
+      pxH,
+      normMirX: Math.max(0, Math.min(1, pxX / pipW)),
+      normY: Math.max(0, Math.min(1, pxY / pipH))
+    };
+  }
+
+  function applyDetectedYuNetFace(cx, cy, relW, relH) {
+    const now = Date.now();
+    fkYuNetBox.valid = true;
+    fkYuNetBox.cx = Math.max(0, Math.min(1, Number(cx) || 0.5));
+    fkYuNetBox.cy = Math.max(0, Math.min(1, Number(cy) || 0.5));
+    fkYuNetBox.relW = Math.max(0.03, Math.min(0.85, Number(relW) || 0.14));
+    fkYuNetBox.relH = Math.max(0.04, Math.min(0.92, Number(relH) || 0.24));
+    fkYuNetBox.updatedAt = now;
+
+    const approxMirX = 1.0 - fkYuNetBox.cx;
+    fkPersonConfidence = 1.0;
+    fkPersonConsecHits++;
+    if (fkPersonWasAway && fkSetupComplete && !fkIsSpeaking && !fkIsAiTurn && !fkHasSpokenInTurn && fkWs && fkWs.readyState === WebSocket.OPEN) {
+      fkPersonWasAway = false;
+      const posDesc = approxMirX < 0.36 ? 'links vor dem Monitor' : (approxMirX > 0.64 ? 'rechts vor dem Monitor' : 'direkt vor dem Monitor');
+      fkWs.send(JSON.stringify({ type: 'personPresenceEvent', reason: 'person_returned', position: posDesc }));
+    }
+    fkPersonDetected = true;
+    fkPersonLastSeenMs = now;
+  }
+
   function updateFunkiraPersonTracker(dt) {
     const now = Date.now();
     const vidEl = document.getElementById('funkira-cam-video');
+    const pipEl = document.getElementById('funkira-eye-pip');
     const targetDot = document.getElementById('funkira-eye-target');
 
     if (fkExpressUntilMs > 0 && now > fkExpressUntilMs) {
@@ -934,126 +1006,111 @@
       window.Funkira3D?.resetToCalm();
     }
 
-    const canTrack = funkiraStageOpen && fkCamEnabled && !fkIdleAtelierMode && !fkTikTokLiveMode && vidEl && vidEl.readyState >= 2 && vidEl.videoWidth > 0;
-    if (canTrack && (now - fkLastTrackSampleMs) >= 220) {
-      fkLastTrackSampleMs = now;
-      const tw = 64;
-      const th = 36;
-      fkTrackCtx.drawImage(vidEl, 0, 0, tw, th);
-      const img = fkTrackCtx.getImageData(0, 0, tw, th).data;
-      if (!fkPrevLuma || fkPrevLuma.length !== tw * th) {
-        fkPrevLuma = new Float32Array(tw * th);
-      }
-
-      let skinWeightSum = 0, skinXSum = 0, skinYSum = 0;
-      let motWeightSum = 0, motXSum = 0, motYSum = 0;
-
-      for (let y = 2; y < th - 2; y++) {
-        const ny = y / th;
-        const headZoneBoost = (ny >= 0.08 && ny <= 0.74) ? 1.45 : 0.65;
-        for (let x = 2; x < tw - 2; x++) {
-          const idx = y * tw + x;
-          const p = idx * 4;
-          const r = img[p];
-          const g = img[p + 1];
-          const b = img[p + 2];
-          const luma = 0.299 * r + 0.587 * g + 0.114 * b;
-
-          const diff = Math.abs(luma - fkPrevLuma[idx]);
-          fkPrevLuma[idx] = fkPrevLuma[idx] * 0.45 + luma * 0.55;
-          if (diff > 14) {
-            const mw = (diff - 14) * headZoneBoost;
-            motWeightSum += mw;
-            motXSum += x * mw;
-            motYSum += y * mw;
+    const canTrack = funkiraStageOpen && fkCamEnabled && !fkIdleAtelierMode && !fkTikTokLiveMode && vidEl && vidEl.readyState >= 2 && vidEl.videoWidth > 0 && vidEl.videoHeight > 0;
+    if (canTrack && !fkFaceTrackBusy && (now - fkLastFaceTrackReqMs) >= 180) {
+      fkLastFaceTrackReqMs = now;
+      fkFaceTrackBusy = true;
+      (async () => {
+        try {
+          const tw = Math.min(480, vidEl.videoWidth);
+          const th = Math.max(32, Math.round(vidEl.videoHeight * (tw / vidEl.videoWidth)));
+          if (fkFaceTrackCanvas.width !== tw || fkFaceTrackCanvas.height !== th) {
+            fkFaceTrackCanvas.width = tw;
+            fkFaceTrackCanvas.height = th;
           }
+          fkFaceTrackCtx.drawImage(vidEl, 0, 0, tw, th);
+          const b64 = await encodeTrackCanvasJpegAsync(fkFaceTrackCanvas, 0.70);
+          if (!b64 || !funkiraStageOpen || !fkCamEnabled) return;
 
-          if (r > 58 && g > 34 && b > 20 && r > g * 1.05 && r > b * 1.15 && (r - b) > 15) {
-            const cb = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b;
-            const cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b;
-            if (cb >= 76 && cb <= 133 && cr >= 131 && cr <= 179) {
-              const sw = headZoneBoost * (1.0 + Math.min(1.0, (cr - 131) / 28));
-              skinWeightSum += sw;
-              skinXSum += x * sw;
-              skinYSum += y * sw;
+          const res = await fetch('/api/funkira/face-track', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ data: b64 })
+          });
+          if (!res.ok) return;
+          const out = await res.json();
+          if (out && out.faceDetected && typeof out.cx === 'number' && typeof out.cy === 'number') {
+            applyDetectedYuNetFace(out.cx, out.cy, out.relWidth || 0.14, out.relHeight || 0.24);
+          } else if (out && out.faceReady === false && fkNativeFaceDetector) {
+            const faces = await fkNativeFaceDetector.detect(fkFaceTrackCanvas);
+            if (faces && faces.length > 0) {
+              const bb = faces[0].boundingBox;
+              applyDetectedYuNetFace(
+                (bb.x + bb.width * 0.5) / tw,
+                (bb.y + bb.height * 0.5) / th,
+                bb.width / tw,
+                bb.height / th
+              );
             }
           }
+        } catch { } finally {
+          fkFaceTrackBusy = false;
         }
-      }
+      })();
+    }
 
-      const hasMotion = motWeightSum > 135;
-      const hasSkin = skinWeightSum > 16;
-
-      if (hasMotion || hasSkin) {
-        let rawUnmirroredX = 0.5;
-        let rawY = 0.44;
-        if (hasMotion && hasSkin) {
-          const mx = (motXSum / motWeightSum) / tw;
-          const my = (motYSum / motWeightSum) / th;
-          const sx = (skinXSum / skinWeightSum) / tw;
-          const sy = (skinYSum / skinWeightSum) / th;
-          rawUnmirroredX = mx * 0.46 + sx * 0.54;
-          rawY = my * 0.42 + sy * 0.58;
-        } else if (hasMotion) {
-          rawUnmirroredX = (motXSum / motWeightSum) / tw;
-          rawY = (motYSum / motWeightSum) / th;
-        } else {
-          rawUnmirroredX = (skinXSum / skinWeightSum) / tw;
-          rawY = (skinYSum / skinWeightSum) / th;
-        }
-
-        // Mirror X so screen-left corresponds to Alina's physical left in front of the monitor!
-        const mirX = 1.0 - Math.max(0.06, Math.min(0.94, rawUnmirroredX));
-        const clampedY = Math.max(0.10, Math.min(0.88, rawY));
-        fkPersonRawX += (mirX - fkPersonRawX) * 0.42;
-        fkPersonRawY += (clampedY - fkPersonRawY) * 0.38;
-        fkPersonConfidence = Math.min(1, fkPersonConfidence + 0.28);
-        fkPersonConsecHits++;
-        if (fkPersonConsecHits >= 2) {
-          if (fkPersonWasAway && fkSetupComplete && !fkIsSpeaking && !fkIsAiTurn && !fkHasSpokenInTurn && fkWs && fkWs.readyState === WebSocket.OPEN) {
-            fkPersonWasAway = false;
-            const posDesc = fkPersonRawX < 0.36 ? 'links vor dem Monitor' : (fkPersonRawX > 0.64 ? 'rechts vor dem Monitor' : 'direkt vor dem Monitor');
-            fkWs.send(JSON.stringify({ type: 'personPresenceEvent', reason: 'person_returned', position: posDesc }));
-          }
-          fkPersonDetected = true;
-          fkPersonLastSeenMs = now;
-        }
+    const faceFresh = canTrack && fkYuNetBox.valid && (now - fkYuNetBox.updatedAt) <= 1400;
+    if (faceFresh) {
+      if (!fkReticleSmooth.initialized) {
+        fkReticleSmooth.initialized = true;
+        fkReticleSmooth.cx = fkYuNetBox.cx;
+        fkReticleSmooth.cy = fkYuNetBox.cy;
+        fkReticleSmooth.relW = fkYuNetBox.relW;
+        fkReticleSmooth.relH = fkYuNetBox.relH;
       } else {
-        fkPersonConfidence = Math.max(0, fkPersonConfidence - 0.08);
-        fkPersonConsecHits = 0;
-        if (fkPersonDetected && (now - fkPersonLastSeenMs) > 4500) {
-          fkPersonDetected = false;
-        }
-        if (!fkPersonDetected && fkPersonLastSeenMs > 0 && (now - fkPersonLastSeenMs) > 45000) {
-          fkPersonWasAway = true;
-        }
+        const alpha = 1.0 - Math.exp(-Math.max(0.001, dt) * 18.0);
+        fkReticleSmooth.cx += (fkYuNetBox.cx - fkReticleSmooth.cx) * alpha;
+        fkReticleSmooth.cy += (fkYuNetBox.cy - fkReticleSmooth.cy) * alpha;
+        fkReticleSmooth.relW += (fkYuNetBox.relW - fkReticleSmooth.relW) * alpha;
+        fkReticleSmooth.relH += (fkYuNetBox.relH - fkReticleSmooth.relH) * alpha;
       }
+
+      const proj = projectRawVideoBoxToPip(
+        vidEl,
+        pipEl,
+        fkReticleSmooth.cx,
+        fkReticleSmooth.cy,
+        fkReticleSmooth.relW,
+        fkReticleSmooth.relH
+      );
+
+      fkPersonRawX = proj.normMirX;
+      fkPersonRawY = proj.normY;
 
       if (targetDot) {
-        if (fkPersonDetected && fkPersonConfidence > 0.25) {
-          targetDot.classList.remove('hidden');
-          targetDot.style.left = `${(fkPersonRawX * 100).toFixed(1)}%`;
-          targetDot.style.top = `${(fkPersonRawY * 100).toFixed(1)}%`;
-        } else {
-          targetDot.classList.add('hidden');
-        }
+        targetDot.style.left = `${proj.pxX.toFixed(1)}px`;
+        targetDot.style.top = `${proj.pxY.toFixed(1)}px`;
+        targetDot.style.width = `${proj.pxW.toFixed(1)}px`;
+        targetDot.style.height = `${proj.pxH.toFixed(1)}px`;
+        targetDot.classList.remove('hidden');
       }
+    } else {
+      if (targetDot) targetDot.classList.add('hidden');
+      fkReticleSmooth.initialized = false;
+      fkPersonConfidence = Math.max(0, fkPersonConfidence - dt * 0.85);
+      fkPersonConsecHits = 0;
+      if (fkPersonDetected && (now - fkPersonLastSeenMs) > 3500) {
+        fkPersonDetected = false;
+      }
+      if (!fkPersonDetected && fkPersonLastSeenMs > 0 && (now - fkPersonLastSeenMs) > 45000) {
+        fkPersonWasAway = true;
+      }
+    }
 
-      // Proactive Routine, Phone-Note Briefing & Late-Night Greeting when Funkira sees Alina on Session Start
-      if (fkSetupComplete && !fkProactiveSessionSent && !fkPhoneCallActive && fkWs && fkWs.readyState === WebSocket.OPEN) {
-        const sinceReady = now - fkSetupCompleteAtMs;
-        if (!fkHasSpokenInTurn && !fkIsSpeaking && !fkIsAiTurn) {
-          if ((fkPersonDetected && sinceReady >= 1250) || (fkCamEnabled && sinceReady >= 2500)) {
-            fkProactiveSessionSent = true;
-            if (!fkPersonDetected) fkPersonWasAway = true;
-            const posDesc = fkPersonDetected
-              ? (fkPersonRawX < 0.36 ? 'links vor dem Monitor' : (fkPersonRawX > 0.64 ? 'rechts vor dem Monitor' : 'direkt vor dem Monitor'))
-              : 'vor dem Werkstatt-Monitor';
-            fkWs.send(JSON.stringify({ type: 'personPresenceEvent', reason: 'session_start', position: posDesc, personDetected: fkPersonDetected }));
-          }
-        } else if (fkHasSpokenInTurn || fkIsSpeaking) {
+    // Proactive Routine, Phone-Note Briefing & Late-Night Greeting when Funkira sees Alina on Session Start
+    if (fkSetupComplete && !fkProactiveSessionSent && !fkPhoneCallActive && fkWs && fkWs.readyState === WebSocket.OPEN) {
+      const sinceReady = now - fkSetupCompleteAtMs;
+      if (!fkHasSpokenInTurn && !fkIsSpeaking && !fkIsAiTurn) {
+        if ((fkPersonDetected && sinceReady >= 1250) || (fkCamEnabled && sinceReady >= 2500)) {
           fkProactiveSessionSent = true;
+          if (!fkPersonDetected) fkPersonWasAway = true;
+          const posDesc = fkPersonDetected
+            ? (fkPersonRawX < 0.36 ? 'links vor dem Monitor' : (fkPersonRawX > 0.64 ? 'rechts vor dem Monitor' : 'direkt vor dem Monitor'))
+            : 'vor dem Werkstatt-Monitor';
+          fkWs.send(JSON.stringify({ type: 'personPresenceEvent', reason: 'session_start', position: posDesc, personDetected: fkPersonDetected }));
         }
+      } else if (fkHasSpokenInTurn || fkIsSpeaking) {
+        fkProactiveSessionSent = true;
       }
     }
 
@@ -2891,6 +2948,9 @@
           body: JSON.stringify({ data: b64 })
         });
         const out = await res.json();
+        if (out && out.faceDetected && typeof out.cx === 'number' && typeof out.cy === 'number') {
+          applyDetectedYuNetFace(out.cx, out.cy, out.relWidth || 0.14, out.relHeight || 0.24);
+        }
         if (typeof out.ownerEnrolled === 'boolean') fkOwnerFaceEnrolled = out.ownerEnrolled;
         if (out.effectiveIdentity) fkFaceIdentity = out.effectiveIdentity;
         if (typeof out.companionBadge === 'string') fkCompanionBadge = out.companionBadge;
@@ -3058,6 +3118,10 @@
       workshopTimerLabel = data.label || 'Timer';
       workshopTimerRemain = data.seconds || 0;
       updateWorkshopTimerDom();
+      return;
+    }
+    if (data.command === 'workshopFocus') {
+      handleFunkiraWorkshopFocusCommand(data);
       return;
     }
     if (data.command === 'ui') {
@@ -3307,6 +3371,8 @@
     }
     const vidEl = document.getElementById('funkira-cam-video');
     if (vidEl) vidEl.srcObject = null;
+    fkYuNetBox.valid = false;
+    fkReticleSmooth.initialized = false;
     document.getElementById('funkira-eye-target')?.classList.add('hidden');
 
     if (fkMicSource) { try { fkMicSource.disconnect(); } catch { } fkMicSource = null; }
@@ -3354,7 +3420,9 @@
             : (/Treppe|Terrasse/i.test(rm) ? `Auf der ${rm}` : `Im ${rm}`);
           setFunkiraStatusUi(`${icon} ${loc} · Ruf einfach „Funkira“`, 'online');
         }
-        if (d && d.triggered) {
+        if (d && d.focusVoiceCommand && document.body.classList.contains('focus-mode') && !funkiraStageOpen) {
+          executeSpokenWorkshopFocusCommand(d.focusVoiceCommand);
+        } else if (d && d.triggered) {
           if (funkiraStageOpen && fkIdleAtelierMode) {
             wakeFunkiraFromAtelier('wake_word');
           } else if (!funkiraStageOpen) {
@@ -3788,6 +3856,8 @@
     fkPersonDetected = false;
     fkPersonConsecHits = 0;
     fkPersonWasAway = false;
+    fkYuNetBox.valid = false;
+    fkReticleSmooth.initialized = false;
     fkPrevLuma = null;
     fkTearDrops = [];
     fkMicMuted = false;
@@ -4709,6 +4779,11 @@
     if (fkMediaStream) {
       fkMediaStream.getVideoTracks().forEach(t => { t.enabled = fkCamEnabled; });
     }
+    if (!fkCamEnabled) {
+      fkYuNetBox.valid = false;
+      fkReticleSmooth.initialized = false;
+      document.getElementById('funkira-eye-target')?.classList.add('hidden');
+    }
     e.currentTarget.textContent = fkCamEnabled ? '👁 Auge aktiv' : '🚫 Auge pausiert';
     document.getElementById('funkira-eye-pip').classList.toggle('cam-off', !fkCamEnabled);
     document.getElementById('funkira-eye-dot').classList.toggle('off', !fkCamEnabled);
@@ -4734,9 +4809,507 @@
   });
 
   // =========================================================================
-  // 3. FOCUS MODE & KEYBOARD SHORTCUTS (F = Fokus, K = Funkira, Esc = Close)
+  // 3. MANUFAKTUR FOKUS-LEITSTAND & KEYBOARD SHORTCUTS (F = Fokus, K = Funkira)
   // =========================================================================
   let idleTimer = null;
+  let latestOpenOrdersCount = 0;
+  let wfState = null;
+  let wfPollTimer = null;
+  let wfActionBusy = false;
+  let wfToastTimer = null;
+  let wfCenterXMm = 100.0;
+  let wfCenterYMm = 100.0;
+  let wfAngleDeg = 0.0;
+  let wfBlankWidthMm = 100.0;
+  let wfBlankHeightMm = 100.0;
+  let wfUserAdjustedKey = '';
+  let wfPreparedKey = '';
+  let wfDragging = false;
+  let wfDragStartClientX = 0;
+  let wfDragStartClientY = 0;
+  let wfDragStartXMm = 100.0;
+  let wfDragStartYMm = 100.0;
+
+  function cleanNoEnDashClient(val) {
+    return String(val || '').replace(/\s[\u2013\u2014]\s/g, ' · ').trim();
+  }
+
+  function showWorkshopFocusToast(msg) {
+    const el = document.getElementById('wf-toast');
+    if (!el) return;
+    const txt = cleanNoEnDashClient(msg);
+    if (!txt) {
+      el.classList.add('hidden');
+      return;
+    }
+    el.textContent = txt;
+    el.classList.remove('hidden');
+    if (wfToastTimer) clearTimeout(wfToastTimer);
+    wfToastTimer = setTimeout(() => {
+      el.classList.add('hidden');
+    }, 3800);
+  }
+
+  function updateBlankOverlayTransform() {
+    const ov = document.getElementById('wf-blank-overlay');
+    if (!ov) return;
+    const xPct = (Math.max(0, Math.min(200, wfCenterXMm)) / 200.0) * 100.0;
+    const yPct = (Math.max(0, Math.min(200, wfCenterYMm)) / 200.0) * 100.0;
+    const wPct = (Math.max(4, Math.min(200, wfBlankWidthMm)) / 200.0) * 100.0;
+    const hPct = (Math.max(4, Math.min(200, wfBlankHeightMm)) / 200.0) * 100.0;
+    ov.style.left = `${xPct}%`;
+    ov.style.top = `${yPct}%`;
+    ov.style.width = `${wPct}%`;
+    ov.style.height = `${hPct}%`;
+    ov.style.transform = `translate(-50%, -50%) rotate(${wfAngleDeg}deg)`;
+  }
+
+  function renderSendLaserButtonState(isPreparedOrWorking) {
+    const btn = document.getElementById('btn-wf-send-laser');
+    if (!btn) return;
+    if (isPreparedOrWorking) {
+      btn.classList.add('is-prepared');
+      btn.textContent = 'Im Laser bereit · Startknopf drücken';
+    } else {
+      btn.classList.remove('is-prepared');
+      btn.textContent = 'An Laser senden';
+    }
+  }
+
+  function applyWorkshopFocusState(state, resetManualCoords = false) {
+    if (!state || typeof state !== 'object') return;
+    wfState = state;
+
+    const hasOrder = !!state.has_order;
+    document.body.classList.toggle('wf-has-order', hasOrder);
+
+    const idleView = document.getElementById('wf-idle-view');
+    const orderView = document.getElementById('wf-order-view');
+    if (!hasOrder) {
+      idleView?.classList.remove('hidden');
+      orderView?.classList.add('hidden');
+      wfPreparedKey = '';
+      return;
+    }
+
+    idleView?.classList.add('hidden');
+    orderView?.classList.remove('hidden');
+
+    const qty = Math.max(1, Number(state.quantity) || 1);
+    const prodName = cleanNoEnDashClient(state.product_name || 'Produkt');
+    const headlineEl = document.getElementById('wf-product-headline');
+    if (headlineEl) headlineEl.textContent = `${qty}× ${prodName}`;
+
+    const thumbImg = document.getElementById('wf-product-thumb');
+    const thumbFb = document.getElementById('wf-product-thumb-fallback');
+    const thumbUrl = String(state.product_image_url || '').trim();
+    if (thumbImg && thumbFb) {
+      if (thumbUrl) {
+        if (thumbImg.getAttribute('data-src') !== thumbUrl) {
+          thumbImg.setAttribute('data-src', thumbUrl);
+          thumbImg.src = thumbUrl;
+        }
+        thumbImg.classList.remove('hidden');
+        thumbFb.classList.add('hidden');
+      } else {
+        thumbImg.classList.add('hidden');
+        thumbFb.classList.remove('hidden');
+      }
+    }
+
+    const phase = state.phase === 'packing' ? 'packing' : 'laser';
+    const jigTag = document.getElementById('wf-jig-tag');
+    if (jigTag) {
+      const hasJig = !!(state.jig && state.jig.has_jig && state.jig.label);
+      if (phase === 'laser' && hasJig) {
+        jigTag.textContent = `Form: ${cleanNoEnDashClient(state.jig.label)}`;
+        jigTag.classList.remove('hidden');
+      } else {
+        jigTag.textContent = '';
+        jigTag.classList.add('hidden');
+      }
+    }
+
+    const noteTag = document.getElementById('wf-customer-note-tag');
+    if (noteTag) {
+      const noteTxt = cleanNoEnDashClient(state.customer_note || '');
+      if (noteTxt) {
+        noteTag.textContent = noteTxt;
+        noteTag.classList.remove('hidden');
+      } else {
+        noteTag.textContent = '';
+        noteTag.classList.add('hidden');
+      }
+    }
+
+    const openCntEl = document.getElementById('wf-open-counter');
+    if (openCntEl) {
+      const openN = Math.max(1, Number(state.open_orders_count) || 1);
+      openCntEl.textContent = `Offen: ${openN}`;
+    }
+
+    const laserWrap = document.getElementById('wf-phase-laser');
+    const packWrap = document.getElementById('wf-phase-packing');
+    laserWrap?.classList.toggle('hidden', phase !== 'laser');
+    packWrap?.classList.toggle('hidden', phase !== 'packing');
+
+    const itemIdentityKey = `${state.order_id || ''}:${state.item_id || ''}:${state.side || 'front'}`;
+    if (phase === 'laser') {
+      wfBlankWidthMm = Math.max(4, Math.min(200, Number(state.blank_width_mm) || 100));
+      wfBlankHeightMm = Math.max(4, Math.min(200, Number(state.blank_height_mm) || 100));
+
+      if (resetManualCoords || wfUserAdjustedKey !== itemIdentityKey) {
+        if (resetManualCoords) wfUserAdjustedKey = '';
+        wfCenterXMm = Math.max(5, Math.min(195, Number(state.center_x_mm) || 100));
+        wfCenterYMm = Math.max(5, Math.min(195, Number(state.center_y_mm) || 100));
+        wfAngleDeg = Number(state.angle_deg) || 0;
+      }
+
+      const camImg = document.getElementById('wf-camera-img');
+      const camUrl = String(state.camera_url || state.portal_camera_url || '').trim();
+      if (camImg) {
+        if (camUrl) {
+          if (camImg.getAttribute('data-src') !== camUrl) {
+            camImg.setAttribute('data-src', camUrl);
+            camImg.src = camUrl;
+          }
+          camImg.classList.remove('hidden');
+        } else {
+          camImg.classList.add('hidden');
+        }
+      }
+
+      const svgEl = document.getElementById('wf-contour-svg');
+      const pathEl = document.getElementById('wf-contour-path');
+      if (svgEl && pathEl) {
+        svgEl.setAttribute('viewBox', `0 0 ${wfBlankWidthMm} ${wfBlankHeightMm}`);
+        const dPath = String(state.contour_d_path || '').trim() || `M 0 0 H ${wfBlankWidthMm} V ${wfBlankHeightMm} H 0 Z`;
+        pathEl.setAttribute('d', dPath);
+      }
+
+      const engImg = document.getElementById('wf-engrave-img');
+      const engSrc = String(state.engrave_preview_data_url || state.engrave_preview_url || '').trim();
+      if (engImg) {
+        if (engSrc) {
+          if (engImg.getAttribute('data-src') !== engSrc) {
+            engImg.setAttribute('data-src', engSrc);
+            engImg.src = engSrc;
+          }
+          engImg.classList.remove('hidden');
+        } else {
+          engImg.classList.add('hidden');
+        }
+      }
+
+      updateBlankOverlayTransform();
+      const serverPrepared = state.laser_job_state === 'prepared' || state.laser_job_state === 'working';
+      renderSendLaserButtonState(serverPrepared || wfPreparedKey === itemIdentityKey);
+    } else {
+      wfPreparedKey = '';
+      const pkg = state.packaging || {};
+      const boxName = cleanNoEnDashClient(pkg.box_name || 'Versandverpackung');
+      const boxDims = cleanNoEnDashClient(pkg.box_dimensions || '');
+      const boxNameEl = document.getElementById('wf-pack-box-name');
+      const boxSepEl = document.getElementById('wf-pack-box-sep');
+      const boxDimsEl = document.getElementById('wf-pack-box-dims');
+      if (boxNameEl) boxNameEl.textContent = boxName;
+      if (boxDimsEl) boxDimsEl.textContent = boxDims;
+      if (boxSepEl) boxSepEl.classList.toggle('hidden', !boxDims);
+      if (boxDimsEl) boxDimsEl.classList.toggle('hidden', !boxDims);
+
+      const listEl = document.getElementById('wf-checklist-list');
+      if (listEl && !wfActionBusy) {
+        listEl.innerHTML = '';
+        const items = Array.isArray(pkg.checklist) ? pkg.checklist : [];
+        items.forEach(item => {
+          if (!item || !item.label) return;
+          const lbl = cleanNoEnDashClient(item.label);
+          if (!lbl || /nicht gebucht|^nein$/i.test(lbl)) return;
+          const row = document.createElement('div');
+          row.className = `wf-check-item${item.checked ? ' checked' : ''}`;
+          row.innerHTML = `<div class="wf-check-box">${item.checked ? '✓' : ''}</div><div class="wf-check-label">${esc(lbl)}</div>`;
+          row.addEventListener('click', () => toggleWorkshopChecklistItem(item.key, !item.checked));
+          listEl.appendChild(row);
+        });
+      }
+    }
+  }
+
+  async function fetchWorkshopFocusState(resetManualCoords = false) {
+    if (!document.body.classList.contains('focus-mode')) return;
+    try {
+      const res = await fetch('/api/workshop-focus/state');
+      if (!res.ok) return;
+      const data = await res.json();
+      applyWorkshopFocusState(data, resetManualCoords);
+    } catch { }
+  }
+
+  function syncWorkshopFocusPoller(active) {
+    if (wfPollTimer) {
+      clearInterval(wfPollTimer);
+      wfPollTimer = null;
+    }
+    if (active) {
+      fetchWorkshopFocusState(true);
+      wfPollTimer = setInterval(() => {
+        if (!wfDragging && !wfActionBusy && document.body.classList.contains('focus-mode')) {
+          fetchWorkshopFocusState(false);
+        }
+      }, 1700);
+    } else {
+      document.body.classList.remove('wf-has-order');
+    }
+  }
+
+  async function refreshWorkshopFocusCamera() {
+    if (wfActionBusy) return;
+    wfActionBusy = true;
+    const camBtn = document.getElementById('btn-wf-camera');
+    if (camBtn) camBtn.disabled = true;
+    try {
+      const res = await fetch('/api/workshop-focus/camera', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          order_id: wfState?.order_id || '',
+          item_id: wfState?.item_id || '',
+          side: wfState?.side || 'front'
+        })
+      });
+      if (res.ok) {
+        const out = await res.json();
+        applyWorkshopFocusState(out, true);
+      }
+    } catch { } finally {
+      wfActionBusy = false;
+      if (camBtn) camBtn.disabled = false;
+    }
+  }
+
+  async function sendWorkshopFocusToLaser() {
+    if (wfActionBusy || !wfState || !wfState.has_order) return;
+    wfActionBusy = true;
+    const btn = document.getElementById('btn-wf-send-laser');
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Übertrage...';
+    }
+    try {
+      const res = await fetch('/api/workshop-focus/send-laser', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          order_id: wfState.order_id || '',
+          item_id: wfState.item_id || '',
+          side: wfState.side || 'front',
+          center_x_mm: wfCenterXMm,
+          center_y_mm: wfCenterYMm,
+          angle_deg: wfAngleDeg
+        })
+      });
+      const out = await res.json();
+      if (out && out.ok) {
+        wfPreparedKey = `${wfState.order_id || ''}:${wfState.item_id || ''}:${wfState.side || 'front'}`;
+        renderSendLaserButtonState(true);
+      } else {
+        renderSendLaserButtonState(false);
+        showWorkshopFocusToast(out?.error || 'Laser nicht erreichbar');
+      }
+    } catch {
+      renderSendLaserButtonState(false);
+      showWorkshopFocusToast('Laser-Übertragung fehlgeschlagen');
+    } finally {
+      wfActionBusy = false;
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  async function finishWorkshopFocusLaser() {
+    if (wfActionBusy || !wfState || !wfState.has_order) return;
+    wfActionBusy = true;
+    const btn = document.getElementById('btn-wf-next-packing');
+    if (btn) btn.disabled = true;
+    try {
+      const res = await fetch('/api/workshop-focus/finish-laser', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          order_id: wfState.order_id || '',
+          item_id: wfState.item_id || '',
+          side: wfState.side || 'front'
+        })
+      });
+      if (res.ok) {
+        const out = await res.json();
+        wfPreparedKey = '';
+        applyWorkshopFocusState(out, true);
+      }
+    } catch { } finally {
+      wfActionBusy = false;
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  async function toggleWorkshopChecklistItem(key, nextChecked) {
+    if (!wfState || !wfState.has_order || !key) return;
+    if (wfState.packaging && Array.isArray(wfState.packaging.checklist)) {
+      const target = wfState.packaging.checklist.find(c => c && c.key === key);
+      if (target) target.checked = nextChecked;
+      applyWorkshopFocusState(wfState, false);
+    }
+    try {
+      const res = await fetch('/api/workshop-focus/toggle-check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          order_id: wfState.order_id || '',
+          item_id: wfState.item_id || '',
+          key,
+          checked: nextChecked
+        })
+      });
+      if (res.ok) {
+        const out = await res.json();
+        applyWorkshopFocusState(out, false);
+      }
+    } catch { }
+  }
+
+  async function shipAndNextWorkshopFocus() {
+    if (wfActionBusy || !wfState || !wfState.has_order) return;
+    wfActionBusy = true;
+    const btn = document.getElementById('btn-wf-ship-next');
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Erstelle Versandlabel...';
+    }
+    try {
+      const res = await fetch('/api/workshop-focus/ship-and-next', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          order_id: wfState.order_id || ''
+        })
+      });
+      const out = await res.json();
+      if (out && out.ok) {
+        wfPreparedKey = '';
+        wfUserAdjustedKey = '';
+        if (out.toast) showWorkshopFocusToast(out.toast);
+        if (out.next_focus) {
+          applyWorkshopFocusState(out.next_focus, true);
+        } else {
+          await fetchWorkshopFocusState(true);
+        }
+      } else {
+        showWorkshopFocusToast(out?.error || 'Versandabschluss fehlgeschlagen');
+      }
+    } catch {
+      showWorkshopFocusToast('Versandabschluss fehlgeschlagen');
+    } finally {
+      wfActionBusy = false;
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = 'DHL Label drucken & Weiter';
+      }
+    }
+  }
+
+  function executeSpokenWorkshopFocusCommand(cmd) {
+    if (cmd === 'send_laser') sendWorkshopFocusToLaser();
+    else if (cmd === 'refresh_camera') refreshWorkshopFocusCamera();
+    else if (cmd === 'finish_laser') finishWorkshopFocusLaser();
+    else if (cmd === 'ship_and_next') shipAndNextWorkshopFocus();
+  }
+
+  function handleFunkiraWorkshopFocusCommand(data) {
+    const act = data.action || '';
+    if (act === 'open_focus') {
+      if (funkiraStageOpen && data.waitForSpeechFinish) {
+        const uiCmd = { action: 'focus_on', waitForSpeechFinish: true };
+        fkPendingUiAfterSpeech = uiCmd;
+      } else {
+        if (funkiraStageOpen) closeFunkiraStageImmediate();
+        toggleFocusMode(true);
+      }
+      if (data.state) applyWorkshopFocusState(data.state, true);
+      return;
+    }
+    if (data.state) {
+      applyWorkshopFocusState(data.state, act === 'refresh_camera' || act === 'finish_laser');
+    }
+    if (act === 'send_laser' && data.result) {
+      if (data.result.ok) {
+        if (wfState) wfPreparedKey = `${wfState.order_id || ''}:${wfState.item_id || ''}:${wfState.side || 'front'}`;
+        renderSendLaserButtonState(true);
+      } else if (data.result.error) {
+        showWorkshopFocusToast(data.result.error);
+      }
+    }
+    if (act === 'ship_and_next' && data.result) {
+      if (data.result.toast) showWorkshopFocusToast(data.result.toast);
+      if (data.result.next_focus) applyWorkshopFocusState(data.result.next_focus, true);
+    }
+  }
+
+  // Smooth 60-FPS Drag Alignment on 200x200 mm Laser Bed
+  const wfLaserBedEl = document.getElementById('wf-laser-bed');
+  if (wfLaserBedEl) {
+    wfLaserBedEl.addEventListener('pointerdown', (e) => {
+      if (e.button !== undefined && e.button !== 0) return;
+      wfDragging = true;
+      wfLaserBedEl.classList.add('dragging');
+      wfDragStartClientX = e.clientX;
+      wfDragStartClientY = e.clientY;
+      wfDragStartXMm = wfCenterXMm;
+      wfDragStartYMm = wfCenterYMm;
+      try { wfLaserBedEl.setPointerCapture(e.pointerId); } catch { }
+    });
+
+    wfLaserBedEl.addEventListener('pointermove', (e) => {
+      if (!wfDragging) return;
+      const rect = wfLaserBedEl.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      const dxMm = ((e.clientX - wfDragStartClientX) / rect.width) * 200.0;
+      const dyMm = ((e.clientY - wfDragStartClientY) / rect.height) * 200.0;
+      wfCenterXMm = Math.round(Math.max(5, Math.min(195, wfDragStartXMm + dxMm)) * 10) / 10;
+      wfCenterYMm = Math.round(Math.max(5, Math.min(195, wfDragStartYMm + dyMm)) * 10) / 10;
+      if (wfState) {
+        wfUserAdjustedKey = `${wfState.order_id || ''}:${wfState.item_id || ''}:${wfState.side || 'front'}`;
+      }
+      updateBlankOverlayTransform();
+    });
+
+    const endBedDrag = (e) => {
+      if (!wfDragging) return;
+      wfDragging = false;
+      wfLaserBedEl.classList.remove('dragging');
+      try { wfLaserBedEl.releasePointerCapture(e.pointerId); } catch { }
+    };
+    wfLaserBedEl.addEventListener('pointerup', endBedDrag);
+    wfLaserBedEl.addEventListener('pointercancel', endBedDrag);
+  }
+
+  document.getElementById('wf-product-thumb')?.addEventListener('error', (e) => {
+    e.currentTarget.classList.add('hidden');
+    document.getElementById('wf-product-thumb-fallback')?.classList.remove('hidden');
+  });
+  document.getElementById('wf-camera-img')?.addEventListener('error', (e) => {
+    e.currentTarget.classList.add('hidden');
+  });
+  document.getElementById('btn-wf-camera')?.addEventListener('click', refreshWorkshopFocusCamera);
+  document.getElementById('btn-wf-send-laser')?.addEventListener('click', sendWorkshopFocusToLaser);
+  document.getElementById('btn-wf-next-packing')?.addEventListener('click', finishWorkshopFocusLaser);
+  document.getElementById('btn-wf-ship-next')?.addEventListener('click', shipAndNextWorkshopFocus);
+  document.getElementById('btn-wf-close')?.addEventListener('click', () => toggleFocusMode(false));
+  document.getElementById('btn-wf-idle-close')?.addEventListener('click', () => toggleFocusMode(false));
+  document.getElementById('gewerbe-orb-trigger')?.addEventListener('click', () => {
+    if (!document.body.classList.contains('focus-mode') && latestOpenOrdersCount > 0) {
+      toggleFocusMode(true);
+    }
+  });
+
   function resetMouseIdle() {
     document.body.classList.remove('mouse-idle');
     clearTimeout(idleTimer);
@@ -4752,6 +5325,7 @@
     document.body.classList.toggle('focus-mode', next);
     resetMouseIdle();
     syncAtelierVideoPlayback();
+    syncWorkshopFocusPoller(next);
     try {
       await fetch('/api/settings/focus', {
         method: 'POST',
@@ -4791,6 +5365,10 @@
         closeFunkiraStage();
         return;
       }
+      if (document.body.classList.contains('focus-mode')) {
+        toggleFocusMode(false);
+        return;
+      }
     }
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
     if (e.key === 'f' || e.key === 'F') toggleFocusMode();
@@ -4823,7 +5401,10 @@
       const data = await res.json();
       if (!focusInitApplied) {
         focusInitApplied = true;
-        if (data.focusMode) document.body.classList.add('focus-mode');
+        if (data.focusMode) {
+          document.body.classList.add('focus-mode');
+          syncWorkshopFocusPoller(true);
+        }
       }
       if (typeof data.hasAtelierVideo === 'boolean') {
         serverHasAtelierVideo = data.hasAtelierVideo;
@@ -4843,7 +5424,9 @@
       }
 
       const p = data.pulse;
-      document.getElementById('orb-orders-count').textContent = p.openOrdersCount ?? 0;
+      latestOpenOrdersCount = Number(p.openOrdersCount) || 0;
+      document.getElementById('orb-orders-count').textContent = latestOpenOrdersCount;
+      document.getElementById('gewerbe-orb-trigger')?.classList.toggle('clickable-orb', latestOpenOrdersCount > 0);
       document.getElementById('metric-open-carts').textContent = p.openCartsCount ?? 0;
 
       // Bold Gold Active Routine Banner Centered Below Golden Crystal Orb (Visible in Normal & Focus Mode!)

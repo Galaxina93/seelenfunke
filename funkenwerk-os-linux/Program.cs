@@ -7,6 +7,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Sockets;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -23,6 +24,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using SMBLibrary;
+using SMBLibrary.Client;
+using SMBLibrary.Server;
 
 if (args.Contains("--self-test", StringComparer.OrdinalIgnoreCase))
 {
@@ -80,6 +84,13 @@ if (args.Contains("--provision-nas-creds-stdin", StringComparer.OrdinalIgnoreCas
     return;
 }
 
+if (args.Contains("--print-local-smb-token", StringComparer.OrdinalIgnoreCase))
+{
+    Console.WriteLine(LinuxVaultAndStorage.EnsureOrGetLocalSmbPassword());
+    Environment.Exit(0);
+    return;
+}
+
 if (args.Contains("--rebuild-archive-index", StringComparer.OrdinalIgnoreCase))
 {
     bool withOcr = args.Contains("--with-ocr", StringComparer.OrdinalIgnoreCase);
@@ -101,6 +112,7 @@ _ = LinuxVaultAndStorage.MeineDatenRoot;
 var bootSettings = LinuxVaultAndStorage.LoadSettings();
 LocalSenseBridge.EnsureDaemonStarted();
 DocumentArchiveAndNasEngine.EnsureDaemonStarted();
+DocumentArchiveAndNasEngine.EnsureLoopbackSmbServerStarted();
 ErrorSentinelAndWatchdog.EnsureStarted();
 FunkiraLiveAndMcpEngine.EnsurePhoneConciergePollerStarted();
 
@@ -341,7 +353,8 @@ static void ConfigureKioskApp(
                 reqPath.StartsWith("/api/notes", StringComparison.OrdinalIgnoreCase) ||
                 reqPath.StartsWith("/api/tresor/", StringComparison.OrdinalIgnoreCase) ||
                 reqPath.Equals("/api/tresor", StringComparison.OrdinalIgnoreCase) ||
-                reqPath.StartsWith("/api/funkira/cellar", StringComparison.OrdinalIgnoreCase))
+                reqPath.StartsWith("/api/funkira/cellar", StringComparison.OrdinalIgnoreCase) ||
+                reqPath.StartsWith("/api/workshop-focus", StringComparison.OrdinalIgnoreCase))
             {
                 var curSettings = LinuxVaultAndStorage.LoadSettings();
                 if (IsPrivacyRestrictedActive(curSettings))
@@ -493,6 +506,81 @@ static void ConfigureKioskApp(
         s.FocusMode = focus;
         LinuxVaultAndStorage.SaveSettings(s);
         return Results.Json(new { ok = true, focusMode = focus });
+    });
+
+    // =========================================================================
+    // 1a. MANUFAKTUR FOKUS-LEITSTAND (LASER V2 + PACKING + CUPS PRINT)
+    // =========================================================================
+    static async Task<JsonDocument> ParseRequestBodyOrEmptyAsync(HttpContext ctx)
+    {
+        string raw = "";
+        using (var reader = new StreamReader(ctx.Request.Body, Encoding.UTF8, detectEncodingFromByteOrderMarks: false, bufferSize: 4096, leaveOpen: true))
+        {
+            raw = await reader.ReadToEndAsync().ConfigureAwait(false);
+        }
+        if (string.IsNullOrWhiteSpace(raw)) raw = "{}";
+        try { return JsonDocument.Parse(raw); }
+        catch { return JsonDocument.Parse("{}"); }
+    }
+
+    app.MapGet("/api/workshop-focus/state", async () =>
+    {
+        var s = LinuxVaultAndStorage.LoadSettings();
+        var res = await WorkshopFocusCoordinator.FetchStateAsync(s).ConfigureAwait(false);
+        return Results.Content(res.ToJsonString(), "application/json; charset=utf-8");
+    });
+
+    app.MapGet("/api/workshop-focus/camera.jpg", (HttpContext ctx) =>
+    {
+        var (jpegBytes, _) = XtoolLocalLanBridge.GetCachedCameraJpeg();
+        if (jpegBytes == null || jpegBytes.Length < 1024)
+            return Results.NotFound();
+        ctx.Response.Headers["Cache-Control"] = "no-store, no-cache, must-revalidate, private";
+        return Results.File(jpegBytes, "image/jpeg");
+    });
+
+    app.MapPost("/api/workshop-focus/camera", async (HttpContext ctx) =>
+    {
+        using var doc = await ParseRequestBodyOrEmptyAsync(ctx).ConfigureAwait(false);
+        var s = LinuxVaultAndStorage.LoadSettings();
+        var res = await WorkshopFocusCoordinator.RefreshCameraAsync(s, doc.RootElement).ConfigureAwait(false);
+        return Results.Content(res.ToJsonString(), "application/json; charset=utf-8");
+    });
+
+    app.MapPost("/api/workshop-focus/send-laser", async (HttpContext ctx) =>
+    {
+        using var doc = await ParseRequestBodyOrEmptyAsync(ctx).ConfigureAwait(false);
+        var s = LinuxVaultAndStorage.LoadSettings();
+        var res = await WorkshopFocusCoordinator.SendLaserAsync(s, doc.RootElement).ConfigureAwait(false);
+        return Results.Content(res.ToJsonString(), "application/json; charset=utf-8");
+    });
+
+    app.MapPost("/api/workshop-focus/finish-laser", async (HttpContext ctx) =>
+    {
+        using var doc = await ParseRequestBodyOrEmptyAsync(ctx).ConfigureAwait(false);
+        var root = doc.RootElement;
+        string? orderId = root.ValueKind == JsonValueKind.Object && root.TryGetProperty("order_id", out var oEl) ? oEl.GetString() : null;
+        string? itemId = root.ValueKind == JsonValueKind.Object && root.TryGetProperty("item_id", out var iEl) ? iEl.GetString() : null;
+        string? side = root.ValueKind == JsonValueKind.Object && root.TryGetProperty("side", out var sEl) ? sEl.GetString() : "front";
+        var s = LinuxVaultAndStorage.LoadSettings();
+        var res = await WorkshopFocusCoordinator.FinishLaserAsync(s, orderId, itemId, side, triggeredAutomatically: false).ConfigureAwait(false);
+        return Results.Content(res.ToJsonString(), "application/json; charset=utf-8");
+    });
+
+    app.MapPost("/api/workshop-focus/toggle-check", async (HttpContext ctx) =>
+    {
+        using var doc = await ParseRequestBodyOrEmptyAsync(ctx).ConfigureAwait(false);
+        var s = LinuxVaultAndStorage.LoadSettings();
+        var res = await WorkshopFocusCoordinator.ToggleCheckAsync(s, doc.RootElement).ConfigureAwait(false);
+        return Results.Content(res.ToJsonString(), "application/json; charset=utf-8");
+    });
+
+    app.MapPost("/api/workshop-focus/ship-and-next", async (HttpContext ctx) =>
+    {
+        using var doc = await ParseRequestBodyOrEmptyAsync(ctx).ConfigureAwait(false);
+        var s = LinuxVaultAndStorage.LoadSettings();
+        var res = await WorkshopFocusCoordinator.ShipAndNextAsync(s, doc.RootElement).ConfigureAwait(false);
+        return Results.Content(res.ToJsonString(), "application/json; charset=utf-8");
     });
 
     app.MapPost("/api/settings/wallpaper", async (HttpContext ctx) =>
@@ -775,6 +863,22 @@ static void ConfigureKioskApp(
     app.MapGet("/api/funkira/wake-poll", async () =>
     {
         var resObj = await LocalSenseBridge.PollWakeAsync().ConfigureAwait(false);
+        return Results.Content(resObj.ToJsonString(), "application/json; charset=utf-8");
+    });
+
+    app.MapPost("/api/funkira/face-track", async (HttpContext ctx) =>
+    {
+        using var doc = await JsonDocument.ParseAsync(ctx.Request.Body).ConfigureAwait(false);
+        string b64 = doc.RootElement.TryGetProperty("data", out var dEl) ? (dEl.GetString() ?? "") : "";
+        if (b64.Contains(',')) b64 = b64.Substring(b64.IndexOf(',') + 1);
+        if (string.IsNullOrWhiteSpace(b64))
+            return Results.Json(new { ok = false, faceDetected = false });
+
+        var s = LinuxVaultAndStorage.LoadSettings();
+        if (s.TikTokLiveMode)
+            return Results.Json(new { ok = false, faceDetected = false });
+
+        var resObj = await LocalSenseBridge.TrackFaceFastAsync(b64).ConfigureAwait(false);
         return Results.Content(resObj.ToJsonString(), "application/json; charset=utf-8");
     });
 
@@ -1636,13 +1740,14 @@ static void ConfigureKioskApp(
 async Task<int> RunLinuxSelfTestsAsync()
 {
     int passed = 0;
-    const int total = 38;
+    int total = 0;
 
     string tempRoot = Path.Combine(Path.GetTempPath(), $"fw_os_selftest_{Guid.NewGuid():N}");
     Directory.CreateDirectory(tempRoot);
 
     void AssertCheck(int idx, string name, Func<bool> check)
     {
+        total++;
         bool ok = false;
         string errDetail = "";
         try { ok = check(); }
@@ -1653,6 +1758,7 @@ async Task<int> RunLinuxSelfTestsAsync()
 
     async Task AssertCheckAsync(int idx, string name, Func<Task<bool>> check)
     {
+        total++;
         bool ok = false;
         string errDetail = "";
         try { ok = await check().ConfigureAwait(false); }
@@ -1778,7 +1884,7 @@ async Task<int> RunLinuxSelfTestsAsync()
                    File.Exists(Path.Combine(fk, "funkira_torso.png"));
         });
 
-        AssertCheck(9, "Funkira MCP-Skillset (13 minipc_* Tools inkl. minipc_avatar_move, minipc_error_cellar, minipc_companion_memory & Error-Sentinel)", () =>
+        AssertCheck(9, "Funkira MCP-Skillset (14 minipc_* Tools inkl. minipc_workshop_focus, minipc_avatar_move, minipc_error_cellar, minipc_companion_memory & Error-Sentinel)", () =>
         {
             var merged = FunkiraLiveAndMcpEngine.BuildMergedToolsNode("[]", "");
             var decls = merged[0]?["functionDeclarations"]?.AsArray();
@@ -1792,8 +1898,9 @@ async Task<int> RunLinuxSelfTestsAsync()
 
             var lateEval = FunkiraLiveAndMcpEngine.EvaluateWorkshopRoutine(new DateTime(2026, 11, 12, 23, 15, 0), new PulseSnapshotDto { OpenOrdersCount = 1, ExpressOrdersCount = 0 });
 
-            return decls != null && decls.Count == 13 &&
+            return decls != null && decls.Count == 14 &&
                    lateEval.IsLateNightWarning && !lateEval.IsWorkshopSensible &&
+                   sysPrompt.Contains("minipc_workshop_focus") &&
                    sysPrompt.Contains("minipc_avatar_express") &&
                    sysPrompt.Contains("minipc_avatar_move") &&
                    sysPrompt.Contains("minipc_error_cellar") &&
@@ -2141,7 +2248,13 @@ async Task<int> RunLinuxSelfTestsAsync()
 
                 string symlinkPath = Path.Combine(mdRoot, "08_Privat_Archiv", "escape_link.txt");
                 if (File.Exists(symlinkPath)) File.Delete(symlinkPath);
-                File.CreateSymbolicLink(symlinkPath, "/etc/passwd");
+                bool symCreated = false;
+                try
+                {
+                    File.CreateSymbolicLink(symlinkPath, "/etc/passwd");
+                    symCreated = true;
+                }
+                catch when (!OperatingSystem.IsLinux()) { }
 
                 string masterKeyPath = Path.Combine(LinuxVaultAndStorage.DataDir, "master.key");
 
@@ -2150,13 +2263,13 @@ async Task<int> RunLinuxSelfTestsAsync()
                 using var sshView = await authedHttp.GetAsync($"/api/files/view?path={Uri.EscapeDataString(sshKey)}").ConfigureAwait(false);
                 using var vaultView = await authedHttp.GetAsync($"/api/files/view?path={Uri.EscapeDataString(masterKeyPath)}").ConfigureAwait(false);
                 using var dotView = await authedHttp.GetAsync($"/api/files/view?path={Uri.EscapeDataString(dotFile)}").ConfigureAwait(false);
-                using var symView = await authedHttp.GetAsync($"/api/files/view?path={Uri.EscapeDataString(symlinkPath)}").ConfigureAwait(false);
+                using var symView = await authedHttp.GetAsync($"/api/files/view?path={Uri.EscapeDataString(symCreated ? symlinkPath : Path.Combine(mdRoot, "..", "outside.txt"))}").ConfigureAwait(false);
                 using var etcList = await authedHttp.GetAsync("/api/files/list?path=/etc").ConfigureAwait(false);
 
                 using var fakeRestoreBody = new StringContent(JsonSerializer.Serialize(new { path = legitFile }), Encoding.UTF8, "application/json");
                 using var fakeRestoreResp = await authedHttp.PostAsync("/api/files/restore", fakeRestoreBody).ConfigureAwait(false);
 
-                File.Delete(symlinkPath);
+                if (symCreated && (File.Exists(symlinkPath) || new FileInfo(symlinkPath).LinkTarget != null)) File.Delete(symlinkPath);
                 File.Delete(dotFile);
                 File.Delete(legitFile);
 
@@ -2227,11 +2340,17 @@ async Task<int> RunLinuxSelfTestsAsync()
                 string mdRoot = LinuxVaultAndStorage.MeineDatenRoot;
                 string symOcr = Path.Combine(mdRoot, "08_Privat_Archiv", "ocr_escape.pdf");
                 if (File.Exists(symOcr)) File.Delete(symOcr);
-                File.CreateSymbolicLink(symOcr, "/etc/passwd");
+                bool symOcrCreated = false;
+                try
+                {
+                    File.CreateSymbolicLink(symOcr, "/etc/passwd");
+                    symOcrCreated = true;
+                }
+                catch when (!OperatingSystem.IsLinux()) { }
 
                 var psi = new ProcessStartInfo
                 {
-                    FileName = "/usr/bin/python3",
+                    FileName = OperatingSystem.IsLinux() ? "/usr/bin/python3" : "python",
                     UseShellExecute = false,
                     CreateNoWindow = true,
                     RedirectStandardOutput = true,
@@ -2276,10 +2395,11 @@ async Task<int> RunLinuxSelfTestsAsync()
                     badHostReq.Headers.TryAddWithoutValidation("X-Sense-Token", senseToken);
                     using var badHostResp = await senseClient.SendAsync(badHostReq).ConfigureAwait(false);
 
-                    // Symlink escape on /ocr -> blocked by os.path.realpath
+                    // Symlink/traversal escape on /ocr -> blocked by os.path.realpath
+                    string ocrProbePath = symOcrCreated ? symOcr : Path.Combine(mdRoot, "..", "outside_secret.pdf");
                     using var ocrReq = new HttpRequestMessage(HttpMethod.Post, "/ocr")
                     {
-                        Content = new StringContent(JsonSerializer.Serialize(new { filePath = symOcr, maxPages = 1 }), Encoding.UTF8, "application/json")
+                        Content = new StringContent(JsonSerializer.Serialize(new { filePath = ocrProbePath, maxPages = 1 }), Encoding.UTF8, "application/json")
                     };
                     ocrReq.Headers.TryAddWithoutValidation("X-Sense-Token", senseToken);
                     using var ocrResp = await senseClient.SendAsync(ocrReq).ConfigureAwait(false);
@@ -2383,7 +2503,13 @@ async Task<int> RunLinuxSelfTestsAsync()
                 string mdRoot = LinuxVaultAndStorage.MeineDatenRoot;
                 string davSym = Path.Combine(mdRoot, "08_Privat_Archiv", "dav_escape.txt");
                 if (File.Exists(davSym)) File.Delete(davSym);
-                File.CreateSymbolicLink(davSym, "/etc/passwd");
+                bool davSymCreated = false;
+                try
+                {
+                    File.CreateSymbolicLink(davSym, "/etc/passwd");
+                    davSymCreated = true;
+                }
+                catch when (!OperatingSystem.IsLinux()) { }
 
                 string srcDir = Path.Combine(mdRoot, "03_Manufaktur_Produkte", "DavSrcFolder");
                 Directory.CreateDirectory(srcDir);
@@ -2392,8 +2518,11 @@ async Task<int> RunLinuxSelfTestsAsync()
                 try
                 {
                     // Symlink escape via WebDAV GET -> 403
-                    using var symResp = await rawHttp.GetAsync("/Meine_Daten/08_Privat_Archiv/dav_escape.txt").ConfigureAwait(false);
-                    if (symResp.StatusCode != HttpStatusCode.Forbidden) return false;
+                    if (davSymCreated)
+                    {
+                        using var symResp = await rawHttp.GetAsync("/Meine_Daten/08_Privat_Archiv/dav_escape.txt").ConfigureAwait(false);
+                        if (symResp.StatusCode != HttpStatusCode.Forbidden) return false;
+                    }
 
                     // Directory COPY -> 201 Created
                     using var copyReq1 = new HttpRequestMessage(new HttpMethod("COPY"), "/Meine_Daten/03_Manufaktur_Produkte/DavSrcFolder");
@@ -2412,6 +2541,7 @@ async Task<int> RunLinuxSelfTestsAsync()
                         return false;
 
                     // Directory MOVE with Overwrite: T onto existing destination -> 204 No Content
+                    if (!OperatingSystem.IsLinux()) await Task.Delay(120).ConfigureAwait(false);
                     using var moveOw = new HttpRequestMessage(new HttpMethod("MOVE"), "/Meine_Daten/03_Manufaktur_Produkte/DavSrcFolder");
                     moveOw.Headers.TryAddWithoutValidation("Destination", $"{baseUrl}/Meine_Daten/03_Manufaktur_Produkte/DavCopiedFolder");
                     moveOw.Headers.TryAddWithoutValidation("Overwrite", "T");
@@ -2779,7 +2909,7 @@ async Task<int> RunLinuxSelfTestsAsync()
                     js3d.Contains("s.lineTo( 0.00, 4.10)", StringComparison.Ordinal) &&
                     js3d.Contains("sirenCrystalBell", StringComparison.Ordinal) &&
                     js3d.Contains("this.renderScale < 1.00", StringComparison.Ordinal) &&
-                    htmlIdx.Contains("/funkira3d.js?v=20261115v23", StringComparison.Ordinal);
+                    htmlIdx.Contains("/funkira3d.js?v=20261115v24", StringComparison.Ordinal);
 
                 return hdEngineOk;
             }).ConfigureAwait(false);
@@ -2913,8 +3043,9 @@ async Task<int> RunLinuxSelfTestsAsync()
                     jsApp.Contains("healSpeechCue", StringComparison.Ordinal) &&
                     jsApp.Contains("act === 'open_login'", StringComparison.Ordinal) &&
                     jsApp.Contains("isCannedRefusalClientText", StringComparison.Ordinal) &&
+                    jsApp.Contains("projectRawVideoBoxToPip", StringComparison.Ordinal) &&
                     !jsApp.Contains("safetySettings", StringComparison.Ordinal) &&
-                    htmlIdx.Contains("/app.js?v=20261115v23", StringComparison.Ordinal);
+                    htmlIdx.Contains("/app.js?v=20261115v24", StringComparison.Ordinal);
 
                 return detectOk && diagAndLoginOk && historyCleanOk && promptHygieneOk && jsOk;
             }).ConfigureAwait(false);
@@ -3061,9 +3192,456 @@ async Task<int> RunLinuxSelfTestsAsync()
 
                 return privacyBlockedOk && snapshotOk && handoffAndMcpOk && uiMarkersOk;
             }).ConfigureAwait(false);
+
+            AssertCheck(39, "Loopback SMB2/SMB3 Server (127.0.0.1:17445, NTLMv2-Auth, Byte-Range Read, Papierkorb-Schutz & Symlink-Jail)", () =>
+            {
+                string smbPw = LinuxVaultAndStorage.EnsureOrGetLocalSmbPassword();
+                string smbPwAgain = LinuxVaultAndStorage.EnsureOrGetLocalSmbPassword();
+                if (string.IsNullOrWhiteSpace(smbPw) || smbPw.Length < 24 || smbPw != smbPwAgain)
+                    return false;
+
+                string mdRoot = LinuxVaultAndStorage.MeineDatenRoot;
+                string dotSecret = Path.Combine(mdRoot, ".smb_hidden_secret");
+                File.WriteAllText(dotSecret, "hidden", Encoding.UTF8);
+
+                string outsideSecret = Path.Combine(tempRoot, "outside_smb_secret.txt");
+                File.WriteAllText(outsideSecret, "TOP_SECRET", Encoding.UTF8);
+                string symlinkEscape = Path.Combine(mdRoot, "08_Privat_Archiv", "escape_link.txt");
+                try
+                {
+                    if (File.Exists(symlinkEscape)) File.Delete(symlinkEscape);
+                    File.CreateSymbolicLink(symlinkEscape, outsideSecret);
+                }
+                catch { }
+
+                int smbPort = AllocateFreeLoopbackPort();
+                SMBServer? smbServer = null;
+                try
+                {
+                    smbServer = DocumentArchiveAndNasEngine.StartSmbServerInstance(mdRoot, "alina", smbPw, smbPort);
+
+                    var connectMethod = typeof(SMB2Client).GetMethod(
+                        "Connect",
+                        BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public,
+                        binder: null,
+                        types: new[] { typeof(IPAddress), typeof(SMBTransportType), typeof(int) },
+                        modifiers: null);
+                    if (connectMethod == null)
+                        return false;
+
+                    // 1. Wrong password MUST be rejected by NTLMv2
+                    var badClient = new SMB2Client();
+                    bool badConnected = (bool)(connectMethod.Invoke(badClient, new object[] { IPAddress.Loopback, SMBTransportType.DirectTCPTransport, smbPort }) ?? false);
+                    if (!badConnected)
+                        return false;
+                    NTStatus badLogin = badClient.Login("", "alina", "wrong_password_123");
+                    badClient.Disconnect();
+                    if (badLogin == NTStatus.STATUS_SUCCESS)
+                        return false;
+
+                    // 2. Valid NTLMv2 login + TreeConnect("Meine_Daten")
+                    var client = new SMB2Client();
+                    bool connected = (bool)(connectMethod.Invoke(client, new object[] { IPAddress.Loopback, SMBTransportType.DirectTCPTransport, smbPort }) ?? false);
+                    if (!connected)
+                        return false;
+
+                    try
+                    {
+                        if (client.Login("", "alina", smbPw) != NTStatus.STATUS_SUCCESS)
+                            return false;
+
+                        var store = client.TreeConnect("Meine_Daten", out NTStatus treeStatus);
+                        if (treeStatus != NTStatus.STATUS_SUCCESS || store == null)
+                            return false;
+
+                        try
+                        {
+                            // 3. List root directory -> all 9 pillars visible, .smb_hidden_secret hidden
+                            if (store.CreateFile(out object rootHandle, out _, "", AccessMask.GENERIC_READ, SMBLibrary.FileAttributes.Directory, ShareAccess.Read | ShareAccess.Write, CreateDisposition.FILE_OPEN, CreateOptions.FILE_DIRECTORY_FILE, null) != NTStatus.STATUS_SUCCESS)
+                                return false;
+                            store.QueryDirectory(out var rootItems, rootHandle, "*", FileInformationClass.FileDirectoryInformation);
+                            store.CloseFile(rootHandle);
+
+                            var names = rootItems.OfType<FileDirectoryInformation>().Select(i => i.FileName).ToHashSet(StringComparer.Ordinal);
+                            if (!names.Contains("00_Eingang_Trichter") || !names.Contains("08_Privat_Archiv") || names.Contains(".smb_hidden_secret"))
+                                return false;
+
+                            // 4. Write file, re-open & perform partial Byte-Range Read (proving zero full-file WebDAV buffering)
+                            string relFile = @"08_Privat_Archiv\smb3_speed_test.txt";
+                            byte[] payload = Encoding.ASCII.GetBytes("HELLO_SEELENFUNKE_SMB3_TURBO!");
+                            if (store.CreateFile(out object writeHandle, out _, relFile, AccessMask.GENERIC_WRITE | AccessMask.GENERIC_READ, SMBLibrary.FileAttributes.Normal, ShareAccess.Read, CreateDisposition.FILE_OVERWRITE_IF, CreateOptions.FILE_NON_DIRECTORY_FILE, null) != NTStatus.STATUS_SUCCESS)
+                                return false;
+                            if (store.WriteFile(out int written, writeHandle, 0, payload) != NTStatus.STATUS_SUCCESS || written != payload.Length)
+                                return false;
+                            store.CloseFile(writeHandle);
+
+                            if (store.CreateFile(out object readHandle, out _, relFile, AccessMask.GENERIC_READ, SMBLibrary.FileAttributes.Normal, ShareAccess.Read | ShareAccess.Write, CreateDisposition.FILE_OPEN, CreateOptions.FILE_NON_DIRECTORY_FILE, null) != NTStatus.STATUS_SUCCESS)
+                                return false;
+                            NTStatus rangeSt = store.ReadFile(out byte[] slice, readHandle, offset: 6, maxCount: 11);
+                            store.CloseFile(readHandle);
+                            if (rangeSt != NTStatus.STATUS_SUCCESS || Encoding.ASCII.GetString(slice) != "SEELENFUNKE")
+                                return false;
+
+                            // 5. Delete non-empty file over SMB3 -> moved safely into Papierkorb!
+                            if (store.CreateFile(out object delHandle, out _, relFile, AccessMask.DELETE, SMBLibrary.FileAttributes.Normal, ShareAccess.Delete, CreateDisposition.FILE_OPEN, CreateOptions.FILE_NON_DIRECTORY_FILE, null) != NTStatus.STATUS_SUCCESS)
+                                return false;
+                            if (store.SetFileInformation(delHandle, new FileDispositionInformation { DeletePending = true }) != NTStatus.STATUS_SUCCESS)
+                                return false;
+                            store.CloseFile(delHandle);
+
+                            string diskPath = Path.Combine(mdRoot, "08_Privat_Archiv", "smb3_speed_test.txt");
+                            bool movedToTrash = !File.Exists(diskPath) &&
+                                                Directory.EnumerateFiles(LinuxVaultAndStorage.TrashDir, "*smb3_speed_test.txt*").Any();
+                            if (!movedToTrash)
+                                return false;
+
+                            // 6. Traversal & symlink escape MUST be blocked
+                            NTStatus travSt = store.CreateFile(out object? travH, out _, @"..\outside_smb_secret.txt", AccessMask.GENERIC_READ, SMBLibrary.FileAttributes.Normal, ShareAccess.Read, CreateDisposition.FILE_OPEN, CreateOptions.FILE_NON_DIRECTORY_FILE, null);
+                            if (travH != null) store.CloseFile(travH);
+                            if (travSt == NTStatus.STATUS_SUCCESS)
+                                return false;
+
+                            if (File.Exists(symlinkEscape) || new FileInfo(symlinkEscape).LinkTarget != null)
+                            {
+                                NTStatus symSt = store.CreateFile(out object? symH, out _, @"08_Privat_Archiv\escape_link.txt", AccessMask.GENERIC_READ, SMBLibrary.FileAttributes.Normal, ShareAccess.Read, CreateDisposition.FILE_OPEN, CreateOptions.FILE_NON_DIRECTORY_FILE, null);
+                                if (symH != null) store.CloseFile(symH);
+                                if (symSt == NTStatus.STATUS_SUCCESS)
+                                    return false;
+                            }
+
+                            // 7. HTTP WebDAV GET Range request also returns 206 Partial Content
+                            string rangeDavFile = Path.Combine(mdRoot, "08_Privat_Archiv", "dav_range_check.txt");
+                            File.WriteAllText(rangeDavFile, "0123456789ABCDEF", Encoding.ASCII);
+                            using var rangeReq = new HttpRequestMessage(HttpMethod.Get, "/Meine_Daten/08_Privat_Archiv/dav_range_check.txt");
+                            rangeReq.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(4, 9);
+                            using var rangeResp = rawHttp.Send(rangeReq);
+                            string rangeBody = rangeResp.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+                            if (rangeResp.StatusCode != HttpStatusCode.PartialContent || rangeBody != "456789")
+                                return false;
+
+                            return true;
+                        }
+                        finally
+                        {
+                            store.Disconnect();
+                        }
+                    }
+                    finally
+                    {
+                        client.Logoff();
+                        client.Disconnect();
+                    }
+                }
+                finally
+                {
+                    try { smbServer?.Stop(); } catch { }
+                    try { if (File.Exists(symlinkEscape) || new FileInfo(symlinkEscape).LinkTarget != null) File.Delete(symlinkEscape); } catch { }
+                    try { if (File.Exists(dotSecret)) File.Delete(dotSecret); } catch { }
+                }
+            });
+
+            AssertCheck(40, "24/7 Watchtower Health-Puls & NAS-Heartbeat (Internet-Gegenprüfung, 2-Strike-Schutz, Secret-Scrubbing & Auto-Heal)", () =>
+            {
+                // 1. NAS heartbeat JSON must scrub leaked tokens/keys & clamp negative counts
+                string hbJson = DocumentArchiveAndNasEngine.BuildNasBackupHeartbeatJson(
+                    ok: true,
+                    summary: "Gesichert mit Bearer secret_tok_999999999999999999",
+                    copied: 12,
+                    deleted: -3,
+                    nasHost: "192.168.188.33");
+                if (hbJson.Contains("secret_tok_999999999999999999", StringComparison.Ordinal))
+                    return false;
+                var hbNode = JsonNode.Parse(hbJson) as JsonObject;
+                if (hbNode?["status"]?.GetValue<string>() != "ok" ||
+                    hbNode["copied_count"]?.GetValue<int>() != 12 ||
+                    hbNode["deleted_count"]?.GetValue<int>() != 0 ||
+                    hbNode["source"]?.GetValue<string>() != "minipc_linux")
+                    return false;
+
+                // 2. Local router offline -> MUST suppress false alarm!
+                int strikes = 0;
+                bool open = false;
+                var rOffline = DocumentArchiveAndNasEngine.EvaluateWatchtowerOutcome(
+                    shopHttpReachable: false, httpStatusCode: 0, pulseStatus: null, pulseHeadline: null,
+                    localInternetOnline: false, ref strikes, ref open);
+                if (rOffline.Action != "suppressed_local_offline" || strikes != 0 || open)
+                    return false;
+
+                // 3. First 503 with internet online -> pending confirmation; second 503 -> raise_alert; subsequent 200 ok -> auto_healed!
+                var r1 = DocumentArchiveAndNasEngine.EvaluateWatchtowerOutcome(
+                    shopHttpReachable: true, httpStatusCode: 503, pulseStatus: null, pulseHeadline: null,
+                    localInternetOnline: true, ref strikes, ref open);
+                var r2 = DocumentArchiveAndNasEngine.EvaluateWatchtowerOutcome(
+                    shopHttpReachable: true, httpStatusCode: 503, pulseStatus: null, pulseHeadline: null,
+                    localInternetOnline: true, ref strikes, ref open);
+                var rHeal = DocumentArchiveAndNasEngine.EvaluateWatchtowerOutcome(
+                    shopHttpReachable: true, httpStatusCode: 200, pulseStatus: "ok", pulseHeadline: "Alle 4 Säulen grün",
+                    localInternetOnline: true, ref strikes, ref open);
+
+                return r1.Action == "pending_confirmation" &&
+                       r2.Action == "raise_alert" &&
+                       rHeal.Action == "auto_healed" &&
+                       !open && strikes == 0;
+            });
+
+            await AssertCheckAsync(41, "xTool F2 Ultra UV V2-Protokoll (0xBABE Framing, CRC-16/ARC, Kanal 62 FILE_REQUEST/FILE_DATA, 250ms LAN-Probe & Auto-Finish State-Machine)", async () =>
+            {
+                // 1. Standard CRC-16/ARC test vector ("123456789" -> 0xBB3D)
+                ushort crcVec = XtoolLocalLanBridge.ComputeCrc16Arc("123456789"u8);
+                if (crcVec != 0xBB3D)
+                    return false;
+
+                // 2. EncodeV2Frame + ExtractV2Frames across garbage prefix & concatenated proto=4 + proto=33 frames
+                byte[] jsonPayload = Encoding.UTF8.GetBytes("{\"channel\":62,\"code\":0}");
+                byte[] frame4 = XtoolLocalLanBridge.EncodeV2Frame(jsonPayload, 4, calcCrc: true);
+                byte[] reqFrame33 = XtoolLocalLanBridge.BuildFileRequestFrame(62, 4096, 65536);
+
+                var streamBuf = new List<byte> { 0xFF, 0xBA, 0xBE, 0x00 }; // intentional false magic prefix
+                streamBuf.AddRange(frame4);
+                streamBuf.AddRange(reqFrame33);
+
+                var extracted = XtoolLocalLanBridge.ExtractV2Frames(streamBuf);
+                if (extracted.Count != 2 || streamBuf.Count != 0)
+                    return false;
+
+                bool frame4Ok = extracted[0].ProtocolType == 4 &&
+                                Encoding.UTF8.GetString(extracted[0].Body) == "{\"channel\":62,\"code\":0}";
+
+                bool reqParseOk = extracted[1].ProtocolType == 33 &&
+                                  XtoolLocalLanBridge.TryParseFileRequest(extracted[1].Body, 62, out long parsedOff, out int parsedWin) &&
+                                  parsedOff == 4096 && parsedWin == 65536;
+
+                // 3. BuildFileDataFrame layout (cmd=129, channel=62, 5-byte BE offset + chunk)
+                byte[] chunkBytes = Encoding.ASCII.GetBytes("XF_TAR_BLOCK");
+                byte[] dataFrame = XtoolLocalLanBridge.BuildFileDataFrame(62, 0x0102030405L, chunkBytes);
+                var dataStream = new List<byte>(dataFrame);
+                var dataExtracted = XtoolLocalLanBridge.ExtractV2Frames(dataStream);
+                bool dataFrameOk = dataExtracted.Count == 1 &&
+                                   dataExtracted[0].ProtocolType == 33 &&
+                                   dataExtracted[0].Body.Length == 7 + chunkBytes.Length &&
+                                   dataExtracted[0].Body[0] == 129 &&
+                                   dataExtracted[0].Body[1] == 62 &&
+                                   dataExtracted[0].Body[2] == 0x01 &&
+                                   dataExtracted[0].Body[6] == 0x05;
+
+                // 4. SSRF protection on ProbeLaserReachableAsync (public IP rejected immediately)
+                bool publicBlocked = !await XtoolLocalLanBridge.ProbeLaserReachableAsync("203.0.113.10", 28900, 120).ConfigureAwait(false);
+
+                // 5. Laser run state machine: P_IDLE before WORK_STARTED stays prepared; WORK_STARTED -> WORK_FINISHED/P_IDLE finishes!
+                bool sawWork = false;
+                string st = "prepared";
+                st = XtoolLocalLanBridge.AdvanceLaserWatcherState(st, ref sawWork, "P_IDLE");
+                bool stayedPrepared = st == "prepared" && !sawWork;
+                st = XtoolLocalLanBridge.AdvanceLaserWatcherState(st, ref sawWork, "STATUS_CONTROLLER:WORK_STARTED");
+                bool enteredWorking = st == "working" && sawWork;
+                st = XtoolLocalLanBridge.AdvanceLaserWatcherState(st, ref sawWork, "P_IDLE");
+                bool reachedFinished = st == "finished";
+
+                return frame4Ok && reqParseOk && dataFrameOk && publicBlocked && stayedPrepared && enteredWorking && reachedFinished;
+            }).ConfigureAwait(false);
+
+            await AssertCheckAsync(42, "Manufaktur Fokus-Leitstand Endpunkte, Privacy-Sperre, Clean-Design, CUPS/Downloads-Fallback & Funkira Sprachbefehle", async () =>
+            {
+                // 1. Unauthenticated /api/workshop-focus/state MUST return 401
+                using var unauthResp = await rawHttp.GetAsync("/api/workshop-focus/state").ConfigureAwait(false);
+                if (unauthResp.StatusCode != HttpStatusCode.Unauthorized)
+                    return false;
+
+                // 2. TikTok-Live & Visitor privacy sandbox MUST block /api/workshop-focus/state (403) and minipc_workshop_focus
+                var st = LinuxVaultAndStorage.LoadSettings();
+                st.TikTokLiveMode = true;
+                LinuxVaultAndStorage.SaveSettings(st);
+                using var ttResp = await authedHttp.GetAsync("/api/workshop-focus/state").ConfigureAwait(false);
+
+                st.TikTokLiveMode = false;
+                LinuxVaultAndStorage.SaveSettings(st);
+                LocalSenseBridge.SetIdentityForSelfTest("visitor");
+                using var visResp = await authedHttp.GetAsync("/api/workshop-focus/state").ConfigureAwait(false);
+                using var mcpStatusDoc = JsonDocument.Parse("{\"action\":\"status\"}");
+                var (visMcpRes, _) = await FunkiraLiveAndMcpEngine.ExecuteLocalMiniPcToolAsync("minipc_workshop_focus", mcpStatusDoc.RootElement).ConfigureAwait(false);
+
+                LocalSenseBridge.SetIdentityForSelfTest("alina");
+
+                if (ttResp.StatusCode != HttpStatusCode.Forbidden ||
+                    visResp.StatusCode != HttpStatusCode.Forbidden ||
+                    visMcpRes["status"]?.GetValue<string>() != "blocked")
+                {
+                    return false;
+                }
+
+                // 3. Mock Portal WorkshopFocusApiController nested contract & exercise full lifecycle
+                string currentMockPhase = "laser";
+                bool cleanedChecked = false;
+                byte[] fakePdf = Encoding.ASCII.GetBytes("%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n" + new string('X', 120));
+
+                WorkshopFocusCoordinator.TestOverrideHandler = (action, reqEl) =>
+                {
+                    if (action == "send-laser")
+                    {
+                        return Task.FromResult<JsonObject?>(new JsonObject
+                        {
+                            ["success"] = true,
+                            ["job_id"] = "job-uuid-42",
+                            ["sent_direct"] = true,
+                            ["xf_base64"] = ""
+                        });
+                    }
+                    if (action == "finish-laser")
+                    {
+                        currentMockPhase = "packing";
+                    }
+                    if (action == "toggle-check")
+                    {
+                        cleanedChecked = true;
+                        return Task.FromResult<JsonObject?>(new JsonObject
+                        {
+                            ["success"] = true,
+                            ["checklist"] = new JsonArray(
+                                new JsonObject { ["key"] = "cleaned", ["label"] = "Reinigen · Isopropanol & Tuch", ["checked"] = cleanedChecked },
+                                new JsonObject { ["key"] = "gift_box", ["label"] = "Schmuckbox: Nicht gebucht", ["checked"] = false },
+                                new JsonObject { ["key"] = "thank_you_card", ["label"] = "Dankeskarte", ["checked"] = false }
+                            )
+                        });
+                    }
+                    if (action == "ship-and-next")
+                    {
+                        return Task.FromResult<JsonObject?>(new JsonObject
+                        {
+                            ["success"] = true,
+                            ["order_id"] = "ord-42",
+                            ["order_number"] = "ORD-2026-9901",
+                            ["label_pdf_base64"] = Convert.ToBase64String(fakePdf),
+                            ["next_focus"] = new JsonObject
+                            {
+                                ["has_order"] = false,
+                                ["open_ready_count"] = 0,
+                                ["phase"] = "laser"
+                            }
+                        });
+                    }
+
+                    return Task.FromResult<JsonObject?>(new JsonObject
+                    {
+                        ["has_order"] = true,
+                        ["open_ready_count"] = 2,
+                        ["phase"] = currentMockPhase,
+                        ["order"] = new JsonObject
+                        {
+                            ["id"] = "ord-42",
+                            ["order_number"] = "ORD-2026-9901",
+                            ["active_item"] = new JsonObject
+                            {
+                                ["id"] = "item-42",
+                                ["product_id"] = "prod-kristall",
+                                ["product_name"] = "Der Seelen Kristall",
+                                ["quantity"] = 1,
+                                ["product_image_url"] = "https://mein-seelenfunke.de/storage/kristall.jpg",
+                                ["customer_note"] = "Bitte mittig \u2013 mit Herz",
+                                ["jig"] = new JsonObject { ["has_jig"] = true, ["label"] = "Seelen Kristall" },
+                                ["laser"] = new JsonObject
+                                {
+                                    ["blank_width_mm"] = 161.5,
+                                    ["blank_height_mm"] = 161.5,
+                                    ["center_x_mm"] = 100.0,
+                                    ["center_y_mm"] = 95.0,
+                                    ["angle_deg"] = 0.0,
+                                    ["contour_d_path"] = "M 0 0 L 161.5 0 L 161.5 161.5 L 0 161.5 Z",
+                                    ["engrave_preview_data_url"] = "data:image/png;base64,iVBORw0KGgo=",
+                                    ["portal_camera_url"] = "https://mein-seelenfunke.de/storage/bestellungen/xtool/background.jpg"
+                                }
+                            },
+                            ["packaging"] = new JsonObject
+                            {
+                                ["box_name"] = "Buchverpackung (Trophäe)",
+                                ["box_dimensions"] = "284 × 244 × 70 mm",
+                                ["checklist"] = new JsonArray(
+                                    new JsonObject { ["key"] = "cleaned", ["label"] = "Reinigen · Isopropanol & Tuch", ["checked"] = cleanedChecked },
+                                    new JsonObject { ["key"] = "gift_box", ["label"] = "Schmuckbox: Nicht gebucht", ["checked"] = false },
+                                    new JsonObject { ["key"] = "thank_you_card", ["label"] = "Dankeskarte", ["checked"] = false }
+                                )
+                            }
+                        }
+                    });
+                };
+
+                // 3a. GET state -> laser phase, jig parsed, negative checklist filtered out, en-dash sanitized
+                using var stateResp = await authedHttp.GetAsync("/api/workshop-focus/state").ConfigureAwait(false);
+                string stateRaw = await stateResp.Content.ReadAsStringAsync().ConfigureAwait(false);
+                var stateJson = JsonNode.Parse(stateRaw) as JsonObject;
+                bool stateOk = stateResp.IsSuccessStatusCode &&
+                               stateJson?["has_order"]?.GetValue<bool>() == true &&
+                               stateJson["phase"]?.GetValue<string>() == "laser" &&
+                               stateJson["product_name"]?.GetValue<string>() == "Der Seelen Kristall" &&
+                               stateJson["jig"]?["label"]?.GetValue<string>() == "Seelen Kristall" &&
+                               !stateRaw.Contains(" \u2013 ", StringComparison.Ordinal) &&
+                               !stateRaw.Contains("Nicht gebucht", StringComparison.Ordinal) &&
+                               (stateJson["packaging"]?["checklist"] as JsonArray)?.Count == 2;
+
+                // 3b. POST send-laser
+                using var sendResp = await authedHttp.PostAsync("/api/workshop-focus/send-laser", new StringContent("{\"order_id\":\"ord-42\",\"item_id\":\"item-42\"}", Encoding.UTF8, "application/json")).ConfigureAwait(false);
+                var sendJson = JsonNode.Parse(await sendResp.Content.ReadAsStringAsync().ConfigureAwait(false)) as JsonObject;
+                bool sendOk = sendResp.IsSuccessStatusCode &&
+                              sendJson?["ok"]?.GetValue<bool>() == true &&
+                              sendJson["button_label"]?.GetValue<string>() == "Im Laser bereit · Startknopf drücken";
+
+                // 3c. POST finish-laser -> switches to packing
+                using var finResp = await authedHttp.PostAsync("/api/workshop-focus/finish-laser", new StringContent("{\"order_id\":\"ord-42\",\"item_id\":\"item-42\"}", Encoding.UTF8, "application/json")).ConfigureAwait(false);
+                var finJson = JsonNode.Parse(await finResp.Content.ReadAsStringAsync().ConfigureAwait(false)) as JsonObject;
+                bool finOk = finResp.IsSuccessStatusCode &&
+                             finJson?["phase"]?.GetValue<string>() == "packing" &&
+                             finJson["packaging"]?["box_name"]?.GetValue<string>() == "Buchverpackung (Trophäe)";
+
+                // 3d. POST toggle-check -> merges updated checklist & keeps negative item stripped
+                using var togResp = await authedHttp.PostAsync("/api/workshop-focus/toggle-check", new StringContent("{\"order_id\":\"ord-42\",\"key\":\"cleaned\",\"checked\":true}", Encoding.UTF8, "application/json")).ConfigureAwait(false);
+                var togJson = JsonNode.Parse(await togResp.Content.ReadAsStringAsync().ConfigureAwait(false)) as JsonObject;
+                var togList = togJson?["packaging"]?["checklist"] as JsonArray;
+                bool togOk = togResp.IsSuccessStatusCode &&
+                             togList != null && togList.Count == 2 &&
+                             togList[0]?["checked"]?.GetValue<bool>() == true;
+
+                // 3e. POST ship-and-next -> saves PDF in ~/Downloads/ and loads next_focus (idle)
+                using var shipResp = await authedHttp.PostAsync("/api/workshop-focus/ship-and-next", new StringContent("{\"order_id\":\"ord-42\"}", Encoding.UTF8, "application/json")).ConfigureAwait(false);
+                var shipJson = JsonNode.Parse(await shipResp.Content.ReadAsStringAsync().ConfigureAwait(false)) as JsonObject;
+                string savedPdfPath = shipJson?["saved_path"]?.GetValue<string>() ?? "";
+                bool shipOk = shipResp.IsSuccessStatusCode &&
+                              shipJson?["ok"]?.GetValue<bool>() == true &&
+                              !string.IsNullOrWhiteSpace(savedPdfPath) &&
+                              File.Exists(savedPdfPath) &&
+                              shipJson["next_focus"]?["has_order"]?.GetValue<bool>() == false;
+
+                // 4. Natural German voice command matcher + MCP minipc_workshop_focus
+                bool voiceMatchOk =
+                    FunkiraLiveAndMcpEngine.TryMatchSpokenWorkshopFocusCommand("Bitte jetzt an Laser senden") == "send_laser" &&
+                    FunkiraLiveAndMcpEngine.TryMatchSpokenWorkshopFocusCommand("Kamera aktualisieren") == "refresh_camera" &&
+                    FunkiraLiveAndMcpEngine.TryMatchSpokenWorkshopFocusCommand("Fertig gelasert, weiter zur Verpackung") == "finish_laser" &&
+                    FunkiraLiveAndMcpEngine.TryMatchSpokenWorkshopFocusCommand("DHL Label drucken und Auftrag abschließen") == "ship_and_next";
+
+                using var mcpSendDoc = JsonDocument.Parse("{\"action\":\"send_laser\"}");
+                var (mcpSendRes, mcpSendEvt) = await FunkiraLiveAndMcpEngine.ExecuteLocalMiniPcToolAsync("minipc_workshop_focus", mcpSendDoc.RootElement).ConfigureAwait(false);
+                bool mcpOk = mcpSendRes["status"]?.GetValue<string>() == "success" &&
+                             mcpSendEvt?["command"]?.GetValue<string>() == "workshopFocus";
+
+                // 5. Frontend Clean-Design markers
+                string htmlIdx = File.ReadAllText(Path.Combine(resolvedWebRoot, "index.html"), Encoding.UTF8);
+                string jsApp = File.ReadAllText(Path.Combine(resolvedWebRoot, "app.js"), Encoding.UTF8);
+                string cssRaw = File.ReadAllText(Path.Combine(resolvedWebRoot, "styles.css"), Encoding.UTF8);
+                bool uiOk = htmlIdx.Contains("workshop-focus-stage", StringComparison.Ordinal) &&
+                            htmlIdx.Contains("Alle Aufträge erledigt", StringComparison.Ordinal) &&
+                            htmlIdx.Contains("An Laser senden", StringComparison.Ordinal) &&
+                            htmlIdx.Contains("DHL Label drucken", StringComparison.Ordinal) &&
+                            htmlIdx.Contains("#00bcd4", StringComparison.Ordinal) &&
+                            cssRaw.Contains("#C5A059", StringComparison.Ordinal) &&
+                            jsApp.Contains("/api/workshop-focus/send-laser", StringComparison.Ordinal) &&
+                            jsApp.Contains("/api/workshop-focus/ship-and-next", StringComparison.Ordinal);
+
+                WorkshopFocusCoordinator.TestOverrideHandler = null;
+                LocalSenseBridge.SetIdentityForSelfTest("unenrolled");
+                return stateOk && sendOk && finOk && togOk && shipOk && voiceMatchOk && mcpOk && uiOk;
+            }).ConfigureAwait(false);
         }
         finally
         {
+            WorkshopFocusCoordinator.TestOverrideHandler = null;
             await testApp.StopAsync().ConfigureAwait(false);
         }
     }

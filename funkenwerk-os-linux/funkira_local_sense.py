@@ -128,6 +128,9 @@ class LocalSenseEngine:
         self.parec_proc = None
         self.active_mic_source = ""
         self.last_heard = ""
+        self.last_owner_cx = -1.0
+        self.last_owner_cy = -1.0
+        self.last_owner_ts = 0.0
 
         self._init_models()
         self.worker = threading.Thread(target=self._audio_loop, daemon=True)
@@ -145,7 +148,7 @@ class LocalSenseEngine:
         sface_path = os.path.join(MODELS_DIR, "face_recognition_sface_2021dec.onnx")
         if CV2_AVAILABLE and os.path.isfile(yunet_path) and os.path.isfile(sface_path):
             try:
-                self.detector = cv2.FaceDetectorYN.create(yunet_path, "", (320, 320), 0.72, 0.3, 5000)
+                self.detector = cv2.FaceDetectorYN.create(yunet_path, "", (320, 320), 0.44, 0.3, 5000)
                 self.recognizer = cv2.FaceRecognizerSF.create(sface_path, "")
             except Exception as e:
                 sys.stderr.write(f"[fw-sense] YuNet/SFace init error: {e}\n")
@@ -375,6 +378,112 @@ class LocalSenseEngine:
                     except Exception:
                         pass
 
+    @staticmethod
+    def _extract_face_geometry(f, w: int, h: int) -> tuple[float, float, float, float]:
+        fx, fy, fw, fh = float(f[0]), float(f[1]), float(f[2]), float(f[3])
+        bx = (fx + fw * 0.5) / float(w)
+        by = (fy + fh * 0.5) / float(h)
+        cx, cy = bx, by
+        if len(f) >= 10:
+            re_x, re_y = float(f[4]), float(f[5])
+            le_x, le_y = float(f[6]), float(f[7])
+            nt_x, nt_y = float(f[8]), float(f[9])
+            if (
+                math.isfinite(re_x) and math.isfinite(re_y)
+                and math.isfinite(le_x) and math.isfinite(le_y)
+                and math.isfinite(nt_x) and math.isfinite(nt_y)
+            ):
+                eye_mx = (re_x + le_x) * 0.5
+                eye_my = (re_y + le_y) * 0.5
+                ax = eye_mx * 0.55 + nt_x * 0.45
+                ay = eye_my * 0.52 + nt_y * 0.48
+                if (fx - fw * 0.15) <= ax <= (fx + fw * 1.15) and (fy - fh * 0.15) <= ay <= (fy + fh * 1.15):
+                    cx = bx * 0.65 + (ax / float(w)) * 0.35
+                    cy = by * 0.65 + (ay / float(h)) * 0.35
+
+        cx = max(0.0, min(1.0, cx))
+        cy = max(0.0, min(1.0, cy))
+        rel_w = max(0.02, min(1.0, fw / float(w)))
+        rel_h = max(0.02, min(1.0, fh / float(h)))
+        return cx, cy, rel_w, rel_h
+
+    def track_face_fast(self, jpeg_b64: str) -> dict:
+        if not CV2_AVAILABLE or self.detector is None:
+            return {"ok": False, "faceReady": False, "faceDetected": False}
+        if not jpeg_b64:
+            return {"ok": False, "faceReady": True, "faceDetected": False}
+        if "," in jpeg_b64:
+            jpeg_b64 = jpeg_b64.split(",", 1)[1]
+        try:
+            raw = base64.b64decode(jpeg_b64)
+            arr = np.frombuffer(raw, dtype=np.uint8)
+            img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+            if img is None or img.shape[0] < 32 or img.shape[1] < 32:
+                return {"ok": False, "faceReady": True, "faceDetected": False}
+
+            h0, w0 = img.shape[:2]
+            if w0 > 480 or w0 < 320:
+                target_w = 480.0 if w0 > 480 else 320.0
+                scale = target_w / float(w0)
+                img = cv2.resize(img, (int(target_w), max(32, int(round(h0 * scale)))), interpolation=cv2.INTER_AREA if scale < 1.0 else cv2.INTER_LINEAR)
+
+            h, w = img.shape[:2]
+            candidates = []
+            with self.face_lock:
+                self.detector.setInputSize((w, h))
+                _, faces = self.detector.detect(img)
+                if faces is None or len(faces) == 0:
+                    return {"ok": True, "faceReady": True, "faceDetected": False, "faceCount": 0}
+
+                sorted_faces = sorted(faces, key=lambda f: float(f[2]) * float(f[3]), reverse=True)
+                for idx, f in enumerate(sorted_faces[:5]):
+                    det_score = float(f[-1])
+                    cx, cy, rel_w, rel_h = self._extract_face_geometry(f, w, h)
+                    if rel_w < 0.030 or det_score < 0.44:
+                        continue
+                    if idx > 0 and (rel_w < 0.040 or det_score < 0.62):
+                        continue
+                    candidates.append({
+                        "cx": cx,
+                        "cy": cy,
+                        "relWidth": rel_w,
+                        "relHeight": rel_h,
+                        "score": det_score
+                    })
+
+            if not candidates:
+                return {"ok": True, "faceReady": True, "faceDetected": False, "faceCount": 0}
+
+            chosen = candidates[0]
+            now_ts = time.time()
+            if len(candidates) > 1 and self.last_owner_cx >= 0.0 and (now_ts - self.last_owner_ts) < 15.0:
+                best_d = 999.0
+                best_c = None
+                for c in candidates:
+                    d = math.hypot(c["cx"] - self.last_owner_cx, c["cy"] - self.last_owner_cy)
+                    if d < best_d:
+                        best_d = d
+                        best_c = c
+                if best_c is not None and best_d <= 0.28:
+                    chosen = best_c
+                    self.last_owner_cx = chosen["cx"]
+                    self.last_owner_cy = chosen["cy"]
+                    self.last_owner_ts = now_ts
+
+            return {
+                "ok": True,
+                "faceReady": True,
+                "faceDetected": True,
+                "faceCount": len(candidates),
+                "cx": round(chosen["cx"], 4),
+                "cy": round(chosen["cy"], 4),
+                "relWidth": round(chosen["relWidth"], 4),
+                "relHeight": round(chosen["relHeight"], 4),
+                "score": round(chosen["score"], 4)
+            }
+        except Exception as e:
+            return {"ok": False, "faceReady": True, "faceDetected": False, "message": str(e)}
+
     def analyze_face(self, jpeg_b64: str, owner_embedding: list | None, include_embedding: bool, known_companions: list | None = None) -> dict:
         if not CV2_AVAILABLE or self.detector is None or self.recognizer is None:
             return {"ok": False, "faceReady": False, "faceDetected": False, "identity": "unavailable"}
@@ -408,13 +517,10 @@ class LocalSenseEngine:
 
                 sorted_faces = sorted(faces, key=lambda f: float(f[2]) * float(f[3]), reverse=True)
                 for idx, f in enumerate(sorted_faces[:5]):
-                    fx, fy, fw, fh = float(f[0]), float(f[1]), float(f[2]), float(f[3])
                     det_score = float(f[-1])
-                    rel_w = fw / float(w)
+                    cx, cy, rel_w, rel_h = self._extract_face_geometry(f, w, h)
                     if idx > 0 and (rel_w < 0.044 or det_score < 0.68):
                         continue
-                    cx = max(0.0, min(1.0, (fx + fw * 0.5) / float(w)))
-                    cy = max(0.0, min(1.0, (fy + fh * 0.45) / float(h)))
                     mirror_x = 1.0 - cx
                     side = "links" if mirror_x < 0.40 else ("rechts" if mirror_x > 0.60 else "mitte")
 
@@ -427,6 +533,7 @@ class LocalSenseEngine:
                         "cx": cx,
                         "cy": cy,
                         "relWidth": rel_w,
+                        "relHeight": rel_h,
                         "score": det_score,
                         "side": side,
                         "feat": feat
@@ -527,6 +634,10 @@ class LocalSenseEngine:
                 identity = "visitor"
 
             focus_face = extracted_faces[owner_face_idx] if owner_present else primary
+            if owner_present:
+                self.last_owner_cx = focus_face["cx"]
+                self.last_owner_cy = focus_face["cy"]
+                self.last_owner_ts = time.time()
             out = {
                 "ok": True,
                 "faceReady": True,
@@ -542,6 +653,7 @@ class LocalSenseEngine:
                 "cx": round(focus_face["cx"], 4),
                 "cy": round(focus_face["cy"], 4),
                 "relWidth": round(focus_face["relWidth"], 4),
+                "relHeight": round(focus_face["relHeight"], 4),
                 "score": round(focus_face["score"], 4),
                 "cosine": round(max(0.0, best_owner_cos), 4),
                 "identity": identity
@@ -876,6 +988,88 @@ class LocalSenseEngine:
                     lines.append(txt)
         return "\n".join(lines)
 
+    def warp_xtool_camera(self, jpeg_b64: str, calib_json_raw: str) -> dict:
+        if not CV2_AVAILABLE:
+            return {"ok": False, "message": "OpenCV not available"}
+        try:
+            b64 = (jpeg_b64 or "").strip()
+            if "," in b64:
+                b64 = b64.split(",", 1)[1]
+            if not b64:
+                return {"ok": False, "message": "Empty image"}
+            raw = base64.b64decode(b64)
+            arr = np.frombuffer(raw, dtype=np.uint8)
+            src = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+            if src is None:
+                return {"ok": False, "message": "JPEG decode failed"}
+
+            pts_x = None
+            pts_y = None
+            used_calib = False
+            if calib_json_raw:
+                try:
+                    cobj = json.loads(calib_json_raw)
+                    data0 = str(cobj.get("data0", ""))
+                    matches = re.findall(r"\[(\d+),(\d+)\]", data0)
+                    if len(matches) >= 441:
+                        pts_x = np.zeros((21, 21), dtype=np.float32)
+                        pts_y = np.zeros((21, 21), dtype=np.float32)
+                        for r in range(21):
+                            for c in range(21):
+                                mx, my = matches[r * 21 + c]
+                                pts_x[r, c] = float(mx)
+                                pts_y[r, c] = float(my)
+                except Exception:
+                    pts_x = None
+                    pts_y = None
+
+            if pts_x is not None and pts_y is not None:
+                used_calib = True
+                grid_1d = np.linspace(0.0, 20.0, 2000, dtype=np.float32)
+                c0 = np.clip(np.floor(grid_1d).astype(np.int32), 0, 19)
+                r0 = c0.copy()
+                du = (grid_1d - c0.astype(np.float32))[None, :]
+                dv = (grid_1d - r0.astype(np.float32))[:, None]
+
+                map_x = (
+                    (1.0 - du) * (1.0 - dv) * pts_x[np.ix_(r0, c0)]
+                    + du * (1.0 - dv) * pts_x[np.ix_(r0, c0 + 1)]
+                    + (1.0 - du) * dv * pts_x[np.ix_(r0 + 1, c0)]
+                    + du * dv * pts_x[np.ix_(r0 + 1, c0 + 1)]
+                )
+                map_y = (
+                    (1.0 - du) * (1.0 - dv) * pts_y[np.ix_(r0, c0)]
+                    + du * (1.0 - dv) * pts_y[np.ix_(r0, c0 + 1)]
+                    + (1.0 - du) * dv * pts_y[np.ix_(r0 + 1, c0)]
+                    + du * dv * pts_y[np.ix_(r0 + 1, c0 + 1)]
+                )
+                dst = cv2.remap(
+                    src,
+                    map_x,
+                    map_y,
+                    interpolation=cv2.INTER_LINEAR,
+                    borderMode=cv2.BORDER_CONSTANT,
+                    borderValue=(14, 15, 18)
+                )
+            else:
+                sh, sw = src.shape[:2]
+                crop_w = max(1, int(round(min(sw, sh) * 0.78)))
+                cx = max(0, (sw - crop_w) // 2)
+                cy = max(0, (sh - crop_w) // 2)
+                cropped = src[cy:cy + crop_w, cx:cx + crop_w]
+                dst = cv2.resize(cropped, (2000, 2000), interpolation=cv2.INTER_LINEAR)
+
+            ok_enc, enc_buf = cv2.imencode(".jpg", dst, [int(cv2.IMWRITE_JPEG_QUALITY), 90])
+            if not ok_enc:
+                return {"ok": False, "message": "JPEG encode failed"}
+            return {
+                "ok": True,
+                "usedCalib": used_calib,
+                "warpedBase64": base64.b64encode(enc_buf.tobytes()).decode("ascii")
+            }
+        except Exception as e:
+            return {"ok": False, "message": str(e)}
+
 
 ENGINE = LocalSenseEngine()
 
@@ -939,7 +1133,7 @@ class SenseHandler(BaseHTTPRequestHandler):
         if length < 0:
             self._send_json(400, {"ok": False, "message": "Negative Content-Length"})
             return
-        if length > 6 * 1024 * 1024:
+        if length > 16 * 1024 * 1024:
             self._send_json(413, {"ok": False, "message": "Payload too large"})
             return
         raw = self.rfile.read(length) if length > 0 else b"{}"
@@ -951,6 +1145,11 @@ class SenseHandler(BaseHTTPRequestHandler):
         if self.path.startswith("/wake-control"):
             ENGINE.set_wake_listening(bool(data.get("active", False)))
             self._send_json(200, ENGINE.poll_wake())
+            return
+
+        if self.path.startswith("/face-track"):
+            res = ENGINE.track_face_fast(str(data.get("jpegBase64", "")))
+            self._send_json(200, res)
             return
 
         if self.path.startswith("/face-analyze"):
@@ -978,6 +1177,14 @@ class SenseHandler(BaseHTTPRequestHandler):
                 str(data.get("filePath", "")),
                 str(data.get("imageBase64", "")),
                 int(data.get("maxPages", 5) or 5)
+            )
+            self._send_json(200, res)
+            return
+
+        if self.path.startswith("/xtool-warp"):
+            res = ENGINE.warp_xtool_camera(
+                str(data.get("jpegBase64", "")),
+                str(data.get("calibJson", ""))
             )
             self._send_json(200, res)
             return

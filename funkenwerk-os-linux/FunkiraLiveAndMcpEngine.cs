@@ -197,17 +197,97 @@ namespace FunkenwerkOSLinux
             }
         }
 
+        private static string s_lastConsumedFocusVoicePhrase = "";
+        private static DateTime s_lastConsumedFocusVoiceAtUtc = DateTime.MinValue;
+
         public static async Task<JsonObject> PollWakeAsync()
         {
             EnsureDaemonStarted();
             try
             {
                 string raw = await SenseHttp.GetStringAsync($"{SenseBaseUrl}/wake-poll").ConfigureAwait(false);
-                return JsonNode.Parse(raw) as JsonObject ?? new JsonObject { ["ok"] = false, ["triggered"] = false };
+                var obj = JsonNode.Parse(raw) as JsonObject ?? new JsonObject { ["ok"] = false, ["triggered"] = false };
+                string lastHeard = obj["lastHeard"]?.GetValue<string>() ?? "";
+                bool wakeTrig = obj["triggered"]?.GetValue<bool>() == true;
+
+                if (!wakeTrig && !string.IsNullOrWhiteSpace(lastHeard))
+                {
+                    var curSettings = LinuxVaultAndStorage.LoadSettings();
+                    bool privacyBlocked = curSettings.TikTokLiveMode ||
+                                          string.Equals(EffectivePrivacyIdentity, "visitor", StringComparison.OrdinalIgnoreCase);
+                    if (curSettings.FocusMode && !privacyBlocked)
+                    {
+                        string matchedCmd = FunkiraLiveAndMcpEngine.TryMatchSpokenWorkshopFocusCommand(lastHeard);
+                        if (!string.IsNullOrEmpty(matchedCmd))
+                        {
+                            bool isDuplicate = string.Equals(s_lastConsumedFocusVoicePhrase, lastHeard, StringComparison.OrdinalIgnoreCase) &&
+                                               (DateTime.UtcNow - s_lastConsumedFocusVoiceAtUtc).TotalSeconds < 6.0;
+                            if (!isDuplicate)
+                            {
+                                s_lastConsumedFocusVoicePhrase = lastHeard;
+                                s_lastConsumedFocusVoiceAtUtc = DateTime.UtcNow;
+                                obj["focusVoiceCommand"] = matchedCmd;
+                            }
+                        }
+                    }
+                }
+                return obj;
             }
             catch
             {
                 return new JsonObject { ["ok"] = false, ["triggered"] = false };
+            }
+        }
+
+        public static async Task<byte[]?> WarpXtoolCameraAsync(byte[] rawJpegBytes, string? calibJson)
+        {
+            if (rawJpegBytes == null || rawJpegBytes.Length < 1024)
+                return null;
+            EnsureDaemonStarted();
+            try
+            {
+                var payload = new
+                {
+                    jpegBase64 = Convert.ToBase64String(rawJpegBytes),
+                    calibJson = calibJson ?? ""
+                };
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(6));
+                using var req = new HttpRequestMessage(HttpMethod.Post, $"{SenseBaseUrl}/xtool-warp")
+                {
+                    Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json")
+                };
+                using var resp = await SenseHttp.SendAsync(req, cts.Token).ConfigureAwait(false);
+                if (!resp.IsSuccessStatusCode)
+                    return null;
+                string raw = await resp.Content.ReadAsStringAsync(cts.Token).ConfigureAwait(false);
+                if (JsonNode.Parse(raw) is JsonObject jo &&
+                    jo["ok"]?.GetValue<bool>() == true &&
+                    jo["warpedBase64"]?.GetValue<string>() is string wb64 &&
+                    !string.IsNullOrWhiteSpace(wb64))
+                {
+                    return Convert.FromBase64String(wb64);
+                }
+                return null;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        public static async Task<JsonObject> TrackFaceFastAsync(string jpegB64)
+        {
+            EnsureDaemonStarted();
+            try
+            {
+                using var content = new StringContent(JsonSerializer.Serialize(new { jpegBase64 = jpegB64 }), Encoding.UTF8, "application/json");
+                using var resp = await SenseHttp.PostAsync($"{SenseBaseUrl}/face-track", content).ConfigureAwait(false);
+                string raw = await resp.Content.ReadAsStringAsync().ConfigureAwait(false);
+                return JsonNode.Parse(raw) as JsonObject ?? new JsonObject { ["ok"] = false, ["faceDetected"] = false };
+            }
+            catch
+            {
+                return new JsonObject { ["ok"] = false, ["faceDetected"] = false };
             }
         }
 
@@ -1955,9 +2035,70 @@ namespace FunkenwerkOSLinux
                         },
                         ["required"] = new JsonArray("action")
                     }
+                },
+                new JsonObject
+                {
+                    ["name"] = "minipc_workshop_focus",
+                    ["description"] = "Steuert den Manufaktur-Fokus-Leitstand auf dem Mini-PC Monitor (Lasern am xTool F2 Ultra UV & Reinigen/Verpacken/DHL-Label): 'send_laser' ('An Laser senden' -> überträgt das .xf-Paket direkt an den Laser, WORK_PREPARED), 'refresh_camera' ('Kamera aktualisieren' -> lädt ein frisches Live-Kamerabild vom Laser), 'finish_laser' ('Weiter zur Verpackung' / 'Fertig gelasert' -> schaltet auf Ansicht 2 Reinigen & Verpacken), 'ship_and_next' ('DHL Label drucken' / 'Auftrag abschließen' -> druckt das DHL-Label über CUPS und lädt sofort den nächsten Auftrag), 'open_focus' (öffnet den Fokus-Leitstand) oder 'status' (liest den aktuellen Fokus-Auftrag).",
+                    ["parameters"] = new JsonObject
+                    {
+                        ["type"] = "OBJECT",
+                        ["properties"] = new JsonObject
+                        {
+                            ["action"] = new JsonObject
+                            {
+                                ["type"] = "STRING",
+                                ["description"] = "Aktion im Manufaktur-Fokus-Leitstand.",
+                                ["enum"] = new JsonArray("status", "open_focus", "refresh_camera", "send_laser", "finish_laser", "ship_and_next")
+                            }
+                        },
+                        ["required"] = new JsonArray("action")
+                    }
                 }
             };
             return arr;
+        }
+
+        public static string TryMatchSpokenWorkshopFocusCommand(string? rawText)
+        {
+            if (string.IsNullOrWhiteSpace(rawText)) return "";
+            string norm = Regex.Replace(rawText.Trim().ToLowerInvariant(), @"[^a-zäöüß0-9\s]", " ");
+            norm = Regex.Replace(norm, @"\s+", " ").Trim();
+            if (string.IsNullOrEmpty(norm)) return "";
+
+            if (norm.Contains("an laser senden", StringComparison.Ordinal) ||
+                norm.Contains("an den laser senden", StringComparison.Ordinal) ||
+                norm.Contains("laser senden", StringComparison.Ordinal) ||
+                norm.Contains("ans laser senden", StringComparison.Ordinal))
+            {
+                return "send_laser";
+            }
+
+            if (norm.Contains("kamera aktualisieren", StringComparison.Ordinal) ||
+                norm.Contains("laserkamera aktualisieren", StringComparison.Ordinal) ||
+                norm.Contains("kamerabild aktualisieren", StringComparison.Ordinal) ||
+                norm.Contains("neues kamerabild", StringComparison.Ordinal))
+            {
+                return "refresh_camera";
+            }
+
+            if (norm.Contains("weiter zur verpackung", StringComparison.Ordinal) ||
+                norm.Contains("fertig gelasert", StringComparison.Ordinal) ||
+                norm.Contains("weiter zum verpacken", StringComparison.Ordinal))
+            {
+                return "finish_laser";
+            }
+
+            if (norm.Contains("dhl label drucken", StringComparison.Ordinal) ||
+                norm.Contains("auftrag abschließen", StringComparison.Ordinal) ||
+                norm.Contains("auftrag abschliessen", StringComparison.Ordinal) ||
+                norm.Contains("label drucken und weiter", StringComparison.Ordinal) ||
+                norm.Contains("versandlabel drucken", StringComparison.Ordinal))
+            {
+                return "ship_and_next";
+            }
+
+            return "";
         }
 
         private static readonly HashSet<string> TikTokSafePublicTools = new(StringComparer.OrdinalIgnoreCase)
@@ -1988,7 +2129,8 @@ namespace FunkenwerkOSLinux
             "minipc_document_search",
             "minipc_workshop_helper",
             "minipc_companion_memory",
-            "minipc_error_cellar"
+            "minipc_error_cellar",
+            "minipc_workshop_focus"
         };
 
         public static bool IsToolAllowedInPrivacyMode(string toolName, bool tikTokLiveMode, string? faceIdentity)
@@ -2596,6 +2738,7 @@ namespace FunkenwerkOSLinux
             sb.AppendLine("     * minipc_open_portal_page: Öffne gezielt /admin/orders, /admin/dashboard, /admin/products, /admin/packaging, /admin/mail, /admin/calendar, Buchhaltung oder DHL im großen Browserfenster.");
             sb.AppendLine("     * minipc_companion_memory: Speichere oder verwalte bekannte Begleitpersonen neben Alina (AES-256-GCM Vektor ohne Foto), verknüpft mit Alinas Kontakten aus 'contact_search'.");
             sb.AppendLine("     * minipc_error_cellar (DEIN GEHEIMER 3D-FEHLER-ANALYSE-KELLER & PROJEKT-GEHIRN): Unter deinem Heizungsraum im EG liegt dein geheimer Schwarz-Goldener Fehler-Analyse-Keller ('secret_cellar') mit deinem 3D-Projekt-Gehirn-Hologramm (891 Dateien, 3.856 Datei-Verbindungen, rote Fehlerkerne samt Aufrufern & Referenzen)! Sobald Alina sagt 'Geh in den Geheimkeller / Fehlerraum / Analyse-Keller', 'Zeig mir die Fehler und Datei-Zusammenhänge' oder 'Lass uns den Fehler analysieren', rufe SOFORT 'minipc_error_cellar' mit action='open_and_analyze' auf! Erkläre Alina unten im Keller in 2 bis 3 kurzen, verständlichen Sätzen: (1) welche Datei betroffen ist, (2) was das für den Shop oder Mini-PC bedeutet, und (3) welche Nachbardateien daran hängen. Sobald Alina sagt 'Übergib das an Antigravity' oder 'Stell das Fix-Dossier bereit', rufe 'minipc_error_cellar' mit action='prepare_antigravity_handoff' auf (schreibt das geheimnisbereinigte Reparatur-Dossier antigravity_error_handoff.json, damit Antigravity den Code sofort fixen kann!).");
+            sb.AppendLine("     * minipc_workshop_focus (MANUFAKTUR FOKUS-LEITSTAND · 0 SEKUNDEN AM NOTEBOOK): Wenn Alina sagt 'An Laser senden' -> rufe SOFORT minipc_workshop_focus mit action='send_laser' auf (überträgt den aktuellen Fokus-Auftrag direkt per V2 an den xTool F2 Ultra UV, WORK_PREPARED)! Bei 'Kamera aktualisieren' -> action='refresh_camera'. Bei 'Weiter zur Verpackung' oder 'Fertig gelasert' -> action='finish_laser' (schaltet auf Ansicht 2 Reinigen & Verpacken). Bei 'DHL Label drucken' oder 'Auftrag abschließen' -> action='ship_and_next' (druckt das DHL-Label und lädt nahtlos den nächsten Auftrag).");
             sb.AppendLine("     * minipc_system_status & system_get_error_sentinel: Mit 'minipc_system_status' prüfst du CPU, RAM, Temperatur, Speicher, WLAN, Bluetooth und Kamera des Mini-PCs. Mit dem Server-Tool 'system_get_error_sentinel' liest du das globale, plattformübergreifende Fehler- & Selbstheilungs-Log über ALLE Systeme hinweg (Laravel-Portal, Android-App, Mini-PC Linux & Funkenwerk Windows) aus!");
             bool isPrivacyRestricted = settings.TikTokLiveMode ||
                                        string.Equals(LocalSenseBridge.EffectivePrivacyIdentity, "visitor", StringComparison.OrdinalIgnoreCase);
@@ -3765,6 +3908,144 @@ namespace FunkenwerkOSLinux
                     }, openEvt);
                 }
 
+                case "minipc_workshop_focus":
+                {
+                    if (settings.TikTokLiveMode || string.Equals(LocalSenseBridge.EffectivePrivacyIdentity, "visitor", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return (new JsonObject
+                        {
+                            ["status"] = "blocked",
+                            ["message"] = "Der Manufaktur-Fokus-Leitstand ist im Datenschutz-Modus gesperrt."
+                        }, null);
+                    }
+
+                    string action = SeelenfunkeLinuxApiClient.GetStr(args, "action", "status").Trim().ToLowerInvariant();
+                    using var emptyDoc = JsonDocument.Parse("{}");
+
+                    if (action == "open_focus")
+                    {
+                        settings.FocusMode = true;
+                        LinuxVaultAndStorage.SaveSettings(settings);
+                        var st = await WorkshopFocusCoordinator.FetchStateAsync(settings).ConfigureAwait(false);
+                        var evt = new JsonObject
+                        {
+                            ["type"] = "funkiraLocalCommand",
+                            ["command"] = "workshopFocus",
+                            ["action"] = "open_focus",
+                            ["focusMode"] = true,
+                            ["waitForSpeechFinish"] = true,
+                            ["state"] = JsonNode.Parse(st.ToJsonString())
+                        };
+                        return (new JsonObject
+                        {
+                            ["status"] = "success",
+                            ["action"] = "open_focus",
+                            ["has_order"] = st["has_order"]?.GetValue<bool>() ?? false,
+                            ["phase"] = st["phase"]?.GetValue<string>() ?? "idle",
+                            ["product_name"] = st["product_name"]?.GetValue<string>() ?? "",
+                            ["note"] = "Der Manufaktur-Fokus-Leitstand wird sofort auf dem Monitor geöffnet."
+                        }, evt);
+                    }
+
+                    if (action == "refresh_camera")
+                    {
+                        var st = await WorkshopFocusCoordinator.RefreshCameraAsync(settings, emptyDoc.RootElement).ConfigureAwait(false);
+                        var evt = new JsonObject
+                        {
+                            ["type"] = "funkiraLocalCommand",
+                            ["command"] = "workshopFocus",
+                            ["action"] = "refresh_camera",
+                            ["state"] = JsonNode.Parse(st.ToJsonString())
+                        };
+                        return (new JsonObject
+                        {
+                            ["status"] = "success",
+                            ["action"] = "refresh_camera",
+                            ["camera_source"] = st["camera_source"]?.GetValue<string>() ?? "portal_fallback",
+                            ["center_x_mm"] = st["center_x_mm"] != null ? JsonNode.Parse(st["center_x_mm"]!.ToJsonString()) : null,
+                            ["center_y_mm"] = st["center_y_mm"] != null ? JsonNode.Parse(st["center_y_mm"]!.ToJsonString()) : null,
+                            ["note"] = "Kamerabild des Lasers wurde aktualisiert."
+                        }, evt);
+                    }
+
+                    if (action == "send_laser")
+                    {
+                        var sendRes = await WorkshopFocusCoordinator.SendLaserAsync(settings, emptyDoc.RootElement).ConfigureAwait(false);
+                        bool ok = sendRes["ok"]?.GetValue<bool>() == true;
+                        var evt = new JsonObject
+                        {
+                            ["type"] = "funkiraLocalCommand",
+                            ["command"] = "workshopFocus",
+                            ["action"] = "send_laser",
+                            ["result"] = JsonNode.Parse(sendRes.ToJsonString())
+                        };
+                        return (new JsonObject
+                        {
+                            ["status"] = ok ? "success" : "error",
+                            ["action"] = "send_laser",
+                            ["sent_direct"] = sendRes["sent_direct"]?.GetValue<bool>() ?? false,
+                            ["error"] = sendRes["error"]?.GetValue<string>(),
+                            ["note"] = ok
+                                ? "Auftrag liegt jetzt im xTool F2 Ultra UV bereit (WORK_PREPARED). Sag Alina kurz, dass sie nur noch den Startknopf am Laser drücken muss!"
+                                : $"Übertragung an den Laser fehlgeschlagen: {sendRes["error"]?.GetValue<string>()}"
+                        }, evt);
+                    }
+
+                    if (action == "finish_laser")
+                    {
+                        var st = await WorkshopFocusCoordinator.FinishLaserAsync(settings, null, null, "front", false).ConfigureAwait(false);
+                        var evt = new JsonObject
+                        {
+                            ["type"] = "funkiraLocalCommand",
+                            ["command"] = "workshopFocus",
+                            ["action"] = "finish_laser",
+                            ["state"] = JsonNode.Parse(st.ToJsonString())
+                        };
+                        return (new JsonObject
+                        {
+                            ["status"] = "success",
+                            ["action"] = "finish_laser",
+                            ["phase"] = st["phase"]?.GetValue<string>() ?? "packing",
+                            ["box_name"] = st["packaging"]?["box_name"]?.GetValue<string>() ?? "",
+                            ["note"] = "Auf Ansicht 2 (Reinigen & Verpacken) umgeschaltet."
+                        }, evt);
+                    }
+
+                    if (action == "ship_and_next")
+                    {
+                        var shipRes = await WorkshopFocusCoordinator.ShipAndNextAsync(settings, emptyDoc.RootElement).ConfigureAwait(false);
+                        bool ok = shipRes["ok"]?.GetValue<bool>() == true;
+                        var evt = new JsonObject
+                        {
+                            ["type"] = "funkiraLocalCommand",
+                            ["command"] = "workshopFocus",
+                            ["action"] = "ship_and_next",
+                            ["result"] = JsonNode.Parse(shipRes.ToJsonString())
+                        };
+                        return (new JsonObject
+                        {
+                            ["status"] = ok ? "success" : "error",
+                            ["action"] = "ship_and_next",
+                            ["printed_via_cups"] = shipRes["printed_via_cups"]?.GetValue<bool>() ?? false,
+                            ["toast"] = shipRes["toast"]?.GetValue<string>() ?? "",
+                            ["next_has_order"] = shipRes["next_focus"]?["has_order"]?.GetValue<bool>() ?? false,
+                            ["next_product_name"] = shipRes["next_focus"]?["product_name"]?.GetValue<string>() ?? "",
+                            ["error"] = shipRes["error"]?.GetValue<string>(),
+                            ["note"] = ok
+                                ? "Auftrag abgeschlossen, Versandlabel verarbeitet und der nächste Fokus-Auftrag ist geladen!"
+                                : $"Versandabschluss fehlgeschlagen: {shipRes["error"]?.GetValue<string>()}"
+                        }, evt);
+                    }
+
+                    var curState = await WorkshopFocusCoordinator.FetchStateAsync(settings).ConfigureAwait(false);
+                    return (new JsonObject
+                    {
+                        ["status"] = "success",
+                        ["action"] = "status",
+                        ["focus"] = JsonNode.Parse(curState.ToJsonString())
+                    }, null);
+                }
+
                 default:
                     return (new JsonObject { ["status"] = "error", ["message"] = $"Unbekanntes lokales Tool: {toolName}" }, null);
             }
@@ -4429,7 +4710,19 @@ namespace FunkenwerkOSLinux
                         {
                             int closeCode = (int?)upstreamWs.CloseStatus ?? 0;
                             string closeReason = upstreamWs.CloseStatusDescription ?? "";
-                            if (closeCode != 1000 && closeCode != 1001 && !sessionCts.IsCancellationRequested)
+                            bool isRoutineSessionRollover = closeReason.Contains("GoAway", StringComparison.OrdinalIgnoreCase)
+                                || closeReason.Contains("session duration", StringComparison.OrdinalIgnoreCase);
+
+                            if (isRoutineSessionRollover && !sessionCts.IsCancellationRequested)
+                            {
+                                await SafeSendLocalAsync(JsonSerializer.Serialize(new
+                                {
+                                    type = "funkiraSilentHealReconnect",
+                                    reasonCategory = "session_rollover",
+                                    healSpeechCue = ""
+                                })).ConfigureAwait(false);
+                            }
+                            else if (closeCode != 1000 && closeCode != 1001 && !sessionCts.IsCancellationRequested)
                             {
                                 ErrorSentinelAndWatchdog.RecordEvent(
                                     component: "gemini_live_ws_close",
@@ -4458,6 +4751,17 @@ namespace FunkenwerkOSLinux
                         {
                             using var doc = JsonDocument.Parse(rawText);
                             var root = doc.RootElement;
+
+                            if (root.TryGetProperty("goAway", out _))
+                            {
+                                await SafeSendLocalAsync(JsonSerializer.Serialize(new
+                                {
+                                    type = "funkiraSilentHealReconnect",
+                                    reasonCategory = "session_rollover",
+                                    healSpeechCue = ""
+                                })).ConfigureAwait(false);
+                                triggerSilentHealBreak = true;
+                            }
 
                             if (root.TryGetProperty("setupComplete", out _))
                             {

@@ -96,3 +96,17 @@ Zur vollautomatisierten Label-Ausgabe direkt aus dem Web-Shop (`Local`, `Stage` 
    - **Natives Seelenfunke-Versandlabel:** Falls noch kein DHL-PDF existiert, rendert Funkenwerk nativ ein scharfes `100 × 150 mm` Seelenfunke-Versand- & Packlabel (Absender Manufaktur Gifhorn, Empfängeradresse, Bestellnummer, QR-/Tracking-Referenz und Packliste).
    - **Smarthome-Steuerung:** Im Bereich **Smarthome -> WLAN-Labeldrucker (Shop-Bridge)** lassen sich Live-Status (`Bereit`), Auto-Print-Schalter, Drucker-Ping (`Signalton`), `Test-Label` und die Auftrags-Queue in Echtzeit verwalten.
 
+---
+
+## 6. Verbindlicher Verpackungs-Katalog (`/admin/packaging` · `ProductPackagingSeeder.php`)
+
+Alle Versandverpackungen in `ProductPackagingSeeder.php` und `OrderOrder::resolveRecommendedShippingBox()` tragen einheitliche, sofort verständliche Klarnamen gemäß den realen Karton.eu- & Westpack-Rechnungen:
+
+1. **`Luftpolstertasche`** (`260 × 180 × 10 mm`, A5 braun, Karton.eu Art.-Nr. `135`, `20 g`, `0,14 €` netto): Standard für kleine Einzelartikel (Anhänger, Talisman, Hundemarke, ID-Armband, Gutschein).
+2. **`Buchverpackung (Trophäe)`** (`284 × 244 × 70 mm`, faltbare Wickel-/Buchverpackung, Karton.eu Art.-Nr. `6227`, `155 g` inkl. Polster, `0,60 €` netto): Standard für *Der Seelen Kristall* & Schiefer.
+3. **`Normaler Karton`** (`300 × 230 × 150 mm`, einwellig, Karton.eu Art.-Nr. `2633`, `180 g`, `0,50 €` netto): Für normale Mehr-Artikel-Bestellungen.
+4. **`Mittlerer Karton`** (`600 × 400 × 200 mm`, zweiwellig BC-Welle, Karton.eu Art.-Nr. `165`, `750 g`, `2,78 €` netto): Für mittelgroße Sammelbestellungen.
+5. **`Großer Karton`** (`600 × 400 × 400 mm`, zweiwellig BC-Welle, Karton.eu Art.-Nr. `069`, `1.040 g`, `3,24 €` netto): Für große Sammelbestellungen.
+6. **`Schmuckbox`** (`86 × 86 × 17 mm`, Westpack Frankfurt ECO mit Logo, `20 g`, `1,06 €` netto, `+4,90 €` Option) & **`Geschenkpapier Schwarz-Gold`** (`700 × 500 mm`, `8 g`, `0,10 €` netto, `+2,90 €` Option).
+
+

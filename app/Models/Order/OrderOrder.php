@@ -566,19 +566,19 @@ use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
         }
         $isBulkOrder = $recommendedPackageCount > 1;
         if ($packagingType === 'envelope') {
-            $recommendedBoxHint = 'Karton.eu Luftpolster-Versandtasche (15 g) oder Westpack Schmuckschachtel 86×86×17 mm (Großbrief)';
+            $recommendedBoxHint = 'Luftpolstertasche (260 × 180 × 10 mm · Karton.eu Art.-Nr. 135)';
         } elseif ($isBulkOrder) {
             $recommendedBoxHint = ($weightToUse / $recommendedPackageCount > 10000)
-                ? 'Karton.eu Art.-Nr. 069 (600×400×400 mm, 2-wellig BC-Welle bis 30 kg, max. 20 Trophäen/Paket)'
-                : 'Karton.eu Art.-Nr. 165 (600×400×200 mm, 2-wellig BC-Welle bis 30 kg, max. 10 Trophäen/Paket)';
-        } elseif ($weightToUse > 10000) {
-            $recommendedBoxHint = 'Karton.eu Art.-Nr. 069 (600×400×400 mm, 2-wellig BC-Welle bis 30 kg, 11–20 Trophäen)';
-        } elseif ($weightToUse > 3000) {
-            $recommendedBoxHint = 'Karton.eu Art.-Nr. 165 (600×400×200 mm, 2-wellig BC-Welle bis 30 kg, 4–10 Trophäen)';
-        } elseif ($totalItemsCount === 1 && $weightToUse >= 800 && $weightToUse <= 1100) {
-            $recommendedBoxHint = 'Karton.eu Art.-Nr. 6227 (284×244×0–70 mm Buchverpackung, Einzel-Trophäe)';
+                ? 'Großer Karton (600 × 400 × 400 mm · Karton.eu Art.-Nr. 069)'
+                : 'Mittlerer Karton (600 × 400 × 200 mm · Karton.eu Art.-Nr. 165)';
+        } elseif ($weightToUse > 9000) {
+            $recommendedBoxHint = 'Großer Karton (600 × 400 × 400 mm · Karton.eu Art.-Nr. 069)';
+        } elseif ($weightToUse > 2800) {
+            $recommendedBoxHint = 'Mittlerer Karton (600 × 400 × 200 mm · Karton.eu Art.-Nr. 165)';
+        } elseif ($totalItemsCount === 1 && $weightToUse >= 400 && $weightToUse <= 1200) {
+            $recommendedBoxHint = 'Buchverpackung (Trophäe) (284 × 244 × 70 mm · Karton.eu Art.-Nr. 6227)';
         } else {
-            $recommendedBoxHint = 'Karton.eu Art.-Nr. 2633 (300×230×150 mm Universal-/Bundle- & Weizenglas-Karton)';
+            $recommendedBoxHint = 'Normaler Karton (300 × 230 × 150 mm · Karton.eu Art.-Nr. 2633)';
         }
 
         return [
@@ -1245,14 +1245,75 @@ use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
         $firstItemConf = ($this->items->first() && is_array($this->items->first()->configuration))
             ? $this->items->first()->configuration
             : [];
-        $packingChecks = is_array($firstItemConf['order_packing_checks'] ?? null)
+        $legacyPackingChecks = is_array($firstItemConf['order_packing_checks'] ?? null)
             ? $firstItemConf['order_packing_checks']
             : [];
+        $shippingChecklistRaw = is_array($firstItemConf['shipping_checklist'] ?? null)
+            ? $firstItemConf['shipping_checklist']
+            : [];
+        $packingChecks = array_merge($legacyPackingChecks, $shippingChecklistRaw);
 
-        $thankYouCardChecked = (bool) ($packingChecks['thank_you_card'] ?? in_array((string) $this->status, ['shipped', 'completed'], true));
-        $fragileStickerChecked = (bool) ($packingChecks['fragile_sticker'] ?? in_array((string) $this->status, ['shipped', 'completed'], true));
-        $giftBoxPackingChecked = (bool) ($packingChecks['gift_box'] ?? in_array((string) $this->status, ['shipped', 'completed'], true));
-        $giftWrapPackingChecked = (bool) ($packingChecks['gift_wrap'] ?? in_array((string) $this->status, ['shipped', 'completed'], true));
+        $isAlreadyShipped = in_array((string) $this->status, ['shipped', 'completed'], true);
+        $cleanedChecked = (bool) ($packingChecks['cleaned'] ?? $isAlreadyShipped);
+        $thankYouCardChecked = (bool) ($packingChecks['thank_you_card'] ?? $isAlreadyShipped);
+        $fragileStickerChecked = (bool) ($packingChecks['fragile_sticker'] ?? $isAlreadyShipped);
+        $giftBoxPackingChecked = (bool) ($packingChecks['gift_box'] ?? $isAlreadyShipped);
+        $giftWrapPackingChecked = (bool) ($packingChecks['gift_wrap'] ?? $isAlreadyShipped);
+
+        $shippingChecklist = [
+            'cleaned' => $cleanedChecked,
+            'gift_box' => $giftBoxPackingChecked,
+            'gift_wrap' => $giftWrapPackingChecked,
+            'thank_you_card' => $thankYouCardChecked,
+            'fragile_sticker' => $fragileStickerChecked,
+        ];
+
+        $packingChecklistItems = [];
+        if (!$this->isOnlyDigital() && $totalItems > 0) {
+            $packingChecklistItems[] = [
+                'key' => 'cleaned',
+                'label' => 'Reinigen · Isopropanol & Tuch',
+                'checked' => $cleanedChecked,
+            ];
+
+            if ($hasGiftBox) {
+                $packingChecklistItems[] = [
+                    'key' => 'gift_box',
+                    'label' => $giftBoxCount > 1 ? ($giftBoxCount . '× Schmuckbox') : 'Schmuckbox',
+                    'checked' => $giftBoxPackingChecked,
+                ];
+            }
+
+            if ($hasGiftWrap) {
+                if (in_array('loose', $uniqueWrapModes, true) && !in_array('wrapped', $uniqueWrapModes, true)) {
+                    $wrapChecklistLabel = 'Geschenkpapier · Beilegen';
+                } elseif (in_array('loose', $uniqueWrapModes, true)) {
+                    $wrapChecklistLabel = 'Geschenkpapier · Einpacken & Beilegen';
+                } else {
+                    $wrapChecklistLabel = 'Geschenkpapier · Einpacken';
+                }
+
+                $packingChecklistItems[] = [
+                    'key' => 'gift_wrap',
+                    'label' => $wrapChecklistLabel,
+                    'checked' => $giftWrapPackingChecked,
+                ];
+            }
+
+            $packingChecklistItems[] = [
+                'key' => 'thank_you_card',
+                'label' => 'Dankeskarte',
+                'checked' => $thankYouCardChecked,
+            ];
+
+            if ($requiresFragileSticker) {
+                $packingChecklistItems[] = [
+                    'key' => 'fragile_sticker',
+                    'label' => 'Aufkleber Zerbrechlich',
+                    'checked' => $fragileStickerChecked,
+                ];
+            }
+        }
 
         $autonomousStep = match ((string) $this->status) {
             'pending' => 0, // Wartend -> Start-Screen ("Jetzt starten")
@@ -1279,21 +1340,43 @@ use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
             'gift_box_count' => $giftBoxCount,
             'gift_box_done' => $giftBoxDone,
             'gift_box_summary' => $giftBoxSummaryLabel,
+            'cleaned_checked' => $cleanedChecked,
             'thank_you_card_checked' => $thankYouCardChecked,
             'requires_fragile_sticker' => $requiresFragileSticker,
             'fragile_items' => array_values(array_unique($fragileItemNames)),
             'fragile_sticker_checked' => $fragileStickerChecked,
             'gift_box_packing_checked' => $giftBoxPackingChecked,
             'gift_wrap_packing_checked' => $giftWrapPackingChecked,
+            'shipping_checklist' => $shippingChecklist,
+            'packing_checklist_items' => $packingChecklistItems,
         ];
     }
 
     /**
-     * Schaltet einen Packtisch-Prüfpunkt ('thank_you_card', 'fragile_sticker', 'gift_box', 'gift_wrap') um.
+     * Liefert die gespeicherten Versand-/Pack-Haken als assoziatives Array.
+     */
+    public function getShippingChecklistAttribute(): array
+    {
+        return $this->getManufacturingOverview()['shipping_checklist'];
+    }
+
+    /**
+     * Liefert die chronologische Pack-Checkliste (nur zutreffende Punkte):
+     * 1. Reinigen · Isopropanol & Tuch -> 2. Schmuckbox -> 3. Geschenkpapier -> 4. Dankeskarte -> 5. Aufkleber Zerbrechlich.
+     *
+     * @return array<int, array{key: string, label: string, checked: bool}>
+     */
+    public function resolvePackingChecklistItems(): array
+    {
+        return $this->getManufacturingOverview()['packing_checklist_items'];
+    }
+
+    /**
+     * Schaltet einen Packtisch-Pruefpunkt ('cleaned', 'gift_box', 'gift_wrap', 'thank_you_card', 'fragile_sticker') um.
      */
     public function togglePackingCheck(string $checkKey, ?bool $forceState = null): void
     {
-        if (!in_array($checkKey, ['thank_you_card', 'fragile_sticker', 'gift_box', 'gift_wrap'], true)) {
+        if (!in_array($checkKey, ['cleaned', 'thank_you_card', 'fragile_sticker', 'gift_box', 'gift_wrap'], true)) {
             return;
         }
 
@@ -1307,19 +1390,212 @@ use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
         }
 
         $conf = is_array($firstItem->configuration) ? $firstItem->configuration : [];
-        $packingChecks = is_array($conf['order_packing_checks'] ?? null) ? $conf['order_packing_checks'] : [];
+        $legacyChecks = is_array($conf['order_packing_checks'] ?? null) ? $conf['order_packing_checks'] : [];
+        $shippingChecks = is_array($conf['shipping_checklist'] ?? null) ? $conf['shipping_checklist'] : [];
+        $packingChecks = array_merge($legacyChecks, $shippingChecks);
+
         $current = (bool) ($packingChecks[$checkKey] ?? false);
-        $packingChecks[$checkKey] = $forceState !== null ? $forceState : !$current;
+        $nextValue = $forceState !== null ? $forceState : !$current;
+        $packingChecks[$checkKey] = $nextValue;
+
         $conf['order_packing_checks'] = $packingChecks;
+        $conf['shipping_checklist'] = $packingChecks;
 
         $firstItem->configuration = $conf;
         $firstItem->save();
     }
 
     /**
-     * Erstellt den detaillierten Packtisch-Plan für Schritt 2 (Versand):
-     * Zeigt exakt auf, welche Kartons/Versandtaschen wie oft für welche Produkte der Bestellung
-     * benötigt werden und wie jedes Produkt verpackt werden muss (inkl. Schmuckbox & Geschenkpapier-Modus).
+     * Hakt alle fuer diese Bestellung zutreffenden Pack-Checklistenpunkte ab und gibt die aktualisierte Liste zurueck.
+     *
+     * @return array<int, array{key: string, label: string, checked: bool}>
+     */
+    public function markAllPackingChecks(bool $checked = true): array
+    {
+        $items = $this->resolvePackingChecklistItems();
+        if (empty($items)) {
+            return [];
+        }
+
+        if (!$this->relationLoaded('items')) {
+            $this->load('items');
+        }
+
+        $firstItem = $this->items->first();
+        if ($firstItem) {
+            $conf = is_array($firstItem->configuration) ? $firstItem->configuration : [];
+            $legacyChecks = is_array($conf['order_packing_checks'] ?? null) ? $conf['order_packing_checks'] : [];
+            $shippingChecks = is_array($conf['shipping_checklist'] ?? null) ? $conf['shipping_checklist'] : [];
+            $packingChecks = array_merge($legacyChecks, $shippingChecks);
+
+            foreach ($items as $entry) {
+                $packingChecks[$entry['key']] = $checked;
+            }
+
+            $conf['order_packing_checks'] = $packingChecks;
+            $conf['shipping_checklist'] = $packingChecks;
+            $firstItem->configuration = $conf;
+            $firstItem->save();
+        }
+
+        $this->load('items.product');
+        return $this->resolvePackingChecklistItems();
+    }
+
+    /**
+     * Berechnet den optimalen Versandkarton fuer die gesamte Bestellung anhand der echten Seelenfunke-Kartons:
+     * Luftpolstertasche -> Buchverpackung (Trophäe) -> Normaler Karton -> Mittlerer Karton -> Großer Karton.
+     *
+     * @return array{sku: string, box_name: string, box_dimensions: string, package_count: int}
+     */
+    public function resolveRecommendedShippingBox(): array
+    {
+        if (!$this->relationLoaded('items')) {
+            $this->load('items.product');
+        }
+
+        if ($this->items->isEmpty() || $this->isOnlyDigital()) {
+            return [
+                'sku' => '',
+                'box_name' => 'Digitaler Versand',
+                'box_dimensions' => '',
+                'package_count' => 0,
+            ];
+        }
+
+        $totalPhysicalQty = 0;
+        $trophyOrSlateQty = 0;
+        $glassOrTallQty = 0;
+        $giftBoxCount = 0;
+        $totalWeightGrams = 0;
+
+        foreach ($this->items as $item) {
+            $product = $item->product;
+            $conf = is_array($item->configuration) ? $item->configuration : [];
+            $isDigital = !empty($conf['is_digital'])
+                || ($product && $product->type === 'digital' && !(!empty($conf['is_gift_voucher']) && ($conf['delivery_method'] ?? 'email') === 'post'));
+            $isService = $product && $product->type === 'service';
+
+            if ($isDigital || $isService) {
+                continue;
+            }
+
+            $qty = max(1, (int) $item->quantity);
+            $totalPhysicalQty += $qty;
+
+            $checklist = $item->resolveManufacturingChecklist();
+            $slugLower = mb_strtolower((string) ($product->slug ?? ''));
+            $nameLower = mb_strtolower(((string) ($item->product_name ?? '')) . ' ' . ((string) ($product->name ?? '')));
+            $haystack = $slugLower . ' ' . $nameLower;
+
+            if (!empty($checklist['gift_box']['selected']) || str_contains($slugLower, 'echtgold')) {
+                $giftBoxCount += $qty;
+            }
+
+            $itemWeight = ($product && $product->weight > 0) ? (int) $product->weight : 100;
+            $totalWeightGrams += ($itemWeight * $qty);
+
+            if (
+                str_contains($haystack, 'kristall')
+                || str_contains($haystack, 'schiefer')
+                || str_contains($haystack, 'trophäe')
+                || str_contains($haystack, 'trophaee')
+            ) {
+                $trophyOrSlateQty += $qty;
+            } elseif (
+                str_contains($haystack, 'weizenglas')
+                || str_contains($haystack, 'glas')
+                || str_contains($haystack, 'tasse')
+                || str_contains($haystack, 'becher')
+                || str_contains($haystack, 'flasche')
+            ) {
+                $glassOrTallQty += $qty;
+            }
+        }
+
+        if ($totalPhysicalQty === 0) {
+            return [
+                'sku' => '',
+                'box_name' => 'Digitaler Versand',
+                'box_dimensions' => '',
+                'package_count' => 0,
+            ];
+        }
+
+        $totalWeightGrams += ($giftBoxCount * 20);
+
+        if (
+            $totalWeightGrams > 9000
+            || $trophyOrSlateQty >= 10
+            || $glassOrTallQty >= 12
+            || $totalPhysicalQty >= 25
+            || $giftBoxCount >= 16
+        ) {
+            $sku = 'PKG-BOX-LARGE-069';
+            $fallbackName = 'Großer Karton';
+            $fallbackDims = '600 × 400 × 400 mm';
+        } elseif (
+            $totalWeightGrams > 2800
+            || $trophyOrSlateQty >= 4
+            || $glassOrTallQty >= 5
+            || $totalPhysicalQty >= 10
+            || $giftBoxCount >= 6
+        ) {
+            $sku = 'PKG-BOX-MEDIUM-165';
+            $fallbackName = 'Mittlerer Karton';
+            $fallbackDims = '600 × 400 × 200 mm';
+        } elseif (
+            $trophyOrSlateQty >= 2
+            || ($trophyOrSlateQty === 1 && $totalPhysicalQty >= 2)
+            || $glassOrTallQty >= 1
+            || $giftBoxCount >= 2
+            || $totalPhysicalQty >= 3
+            || ($totalPhysicalQty >= 2 && $giftBoxCount >= 1)
+            || $totalWeightGrams > 1200
+        ) {
+            $sku = 'PKG-BOX-NORMAL-2633';
+            $fallbackName = 'Normaler Karton';
+            $fallbackDims = '300 × 230 × 150 mm';
+        } elseif ($trophyOrSlateQty === 1) {
+            $sku = 'PKG-BOX-CRYSTAL';
+            $fallbackName = 'Buchverpackung (Trophäe)';
+            $fallbackDims = '284 × 244 × 70 mm';
+        } else {
+            $sku = 'PKG-ENV-A1';
+            $fallbackName = 'Luftpolstertasche';
+            $fallbackDims = '260 × 180 × 10 mm';
+        }
+
+        $boxName = $fallbackName;
+        $boxDims = $fallbackDims;
+
+        try {
+            if (\Illuminate\Support\Facades\Schema::hasTable('product_packaging_items')) {
+                $catalogItem = \App\Models\Product\ProductPackagingItem::where('sku', $sku)->first();
+                if ($catalogItem) {
+                    $boxName = (string) $catalogItem->name;
+                    $boxDims = (string) $catalogItem->formatted_dimensions;
+                }
+            }
+        } catch (\Throwable $e) {
+            // Fallback auf Standardwerte in isolierten Unit-Tests
+        }
+
+        $packageCount = $totalWeightGrams > 22000
+            ? max(2, min(30, (int) ceil($totalWeightGrams / 20000)))
+            : 1;
+
+        return [
+            'sku' => $sku,
+            'box_name' => $boxName,
+            'box_dimensions' => $boxDims,
+            'package_count' => $packageCount,
+        ];
+    }
+
+    /**
+     * Erstellt den detaillierten Packtisch-Plan fuer Schritt 2 (Versand):
+     * Nutzt die klaren Karton-Namen (Luftpolstertasche, Buchverpackung (Trophäe), Normaler Karton, Mittlerer Karton, Großer Karton).
      */
     public function getPackingStationPlan(): array
     {
@@ -1336,22 +1612,17 @@ use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
             $dhlDetails = $this->getDhlWeightDetails(1, 'envelope');
         }
 
-        $productIds = $this->items->pluck('product_id')->filter()->unique()->values()->all();
-        $productPackagings = !empty($productIds)
-            ? \App\Models\Product\ProductPackaging::with('packagingItem')
-                ->whereIn('product_id', $productIds)
-                ->get()
-                ->groupBy('product_id')
-            : collect();
-
+        $recommendedBox = $this->resolveRecommendedShippingBox();
         $itemRows = [];
-        $cartonSummary = [];
+        $physicalProductLabels = [];
 
         foreach ($this->items as $item) {
             $product = $item->product;
             $qty = max(1, (int) $item->quantity);
             $checklist = $item->resolveManufacturingChecklist();
-            $isDigital = !empty($item->configuration['is_digital']) || ($product && $product->type === 'digital');
+            $conf = is_array($item->configuration) ? $item->configuration : [];
+            $isDigital = !empty($conf['is_digital'])
+                || ($product && $product->type === 'digital' && !(!empty($conf['is_gift_voucher']) && ($conf['delivery_method'] ?? 'email') === 'post'));
             $isService = $product && $product->type === 'service';
 
             if ($isDigital || $isService) {
@@ -1367,72 +1638,56 @@ use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
                 continue;
             }
 
-            $pkgRecords = $item->product_id ? ($productPackagings->get($item->product_id) ?? collect()) : collect();
-            $primaryPkgItem = $pkgRecords->first()?->packagingItem;
-            $slugAndName = mb_strtolower(((string) ($product->slug ?? '')) . ' ' . ((string) ($item->product_name ?? '')));
-
-            if ($primaryPkgItem) {
-                $boxLabel = (string) $primaryPkgItem->name;
-                $boxDims = (string) $primaryPkgItem->formatted_dimensions;
-                $boxKey = (string) ($primaryPkgItem->sku ?: $primaryPkgItem->name);
-            } elseif (str_contains($slugAndName, 'kristall') || str_contains($slugAndName, 'schiefer') || str_contains($slugAndName, 'trophäe')) {
-                $boxLabel = 'Versandkarton Kristall & Schiefer';
-                $boxDims = '240 × 210 × 60 mm';
-                $boxKey = 'PKG-BOX-CRYSTAL';
-            } elseif (str_contains($slugAndName, 'weizenglas') || str_contains($slugAndName, 'glas')) {
-                $boxLabel = 'Versandkarton Gravurglas';
-                $boxDims = '250 × 100 × 100 mm';
-                $boxKey = 'PKG-BOX-GLASS';
-            } else {
-                $boxLabel = 'Luftpolstertasche A/1';
-                $boxDims = '175 × 120 × 10 mm';
-                $boxKey = 'PKG-ENV-A1';
-            }
-
-            if (!isset($cartonSummary[$boxKey])) {
-                $cartonSummary[$boxKey] = [
-                    'key' => $boxKey,
-                    'label' => $boxLabel,
-                    'dimensions' => $boxDims,
-                    'count' => 0,
-                    'products' => [],
-                ];
-            }
-            $cartonSummary[$boxKey]['count'] += $qty;
-            $cartonSummary[$boxKey]['products'][] = $qty . '× ' . ($item->product_name ?: ($product->name ?? 'Artikel'));
+            $itemLabel = (string) ($item->product_name ?: ($product->name ?? 'Artikel'));
+            $physicalProductLabels[] = $qty . '× ' . $itemLabel;
 
             $instructions = [];
             if (!empty($checklist['gift_box']['selected'])) {
-                $instructions[] = 'Schmuckbox Westpack (86 × 86 × 17 mm)';
+                $instructions[] = 'Schmuckbox (86 × 86 × 17 mm)';
             }
 
             if (!empty($checklist['gift_wrap']['selected'])) {
                 if (($checklist['gift_wrap']['mode'] ?? 'wrapped') === 'loose') {
-                    $instructions[] = 'Geschenkpapier lose als Bogen beilegen';
+                    $instructions[] = 'Geschenkpapier · Beilegen';
                 } else {
-                    $instructions[] = 'Fertig in Geschenkpapier einpacken';
+                    $instructions[] = 'Geschenkpapier · Einpacken';
                 }
             }
 
             $itemRows[] = [
                 'item_id' => $item->id,
-                'product_name' => (string) ($item->product_name ?: ($product->name ?? 'Artikel')),
-                'variant_name' => (string) ($item->configuration['variant_name'] ?? ''),
+                'product_name' => $itemLabel,
+                'variant_name' => (string) ($conf['variant_name'] ?? ''),
                 'quantity' => $qty,
                 'is_physical' => true,
-                'box_label' => $boxLabel,
-                'box_dimensions' => $boxDims,
+                'box_label' => $recommendedBox['box_name'],
+                'box_dimensions' => $recommendedBox['box_dimensions'],
                 'packing_instructions' => $instructions,
             ];
         }
 
+        $cartons = [];
+        if (!empty($physicalProductLabels) && $recommendedBox['package_count'] > 0) {
+            $cartons[] = [
+                'key' => $recommendedBox['sku'] ?: $recommendedBox['box_name'],
+                'label' => $recommendedBox['box_name'],
+                'dimensions' => $recommendedBox['box_dimensions'],
+                'count' => $recommendedBox['package_count'],
+                'products' => $physicalProductLabels,
+            ];
+        }
+
         return [
-            'outer_package_count' => (int) ($dhlDetails['recommended_package_count'] ?? 1),
-            'outer_box_hint' => (string) ($dhlDetails['recommended_box_hint'] ?? 'Standard-Versandkarton'),
+            'outer_package_count' => max((int) ($dhlDetails['recommended_package_count'] ?? 1), (int) $recommendedBox['package_count']),
+            'outer_box_hint' => $recommendedBox['box_dimensions'] !== ''
+                ? ($recommendedBox['box_name'] . ' (' . $recommendedBox['box_dimensions'] . ')')
+                : (string) ($dhlDetails['recommended_box_hint'] ?? 'Normaler Karton'),
+            'box_name' => $recommendedBox['box_name'],
+            'box_dimensions' => $recommendedBox['box_dimensions'],
             'dhl_class' => (string) ($dhlDetails['dhl_class'] ?? 'Paket bis 2 kg'),
             'total_weight_kg' => (float) ($dhlDetails['recommended_weight_per_package'] ?? 0.5),
-            'is_bulk_order' => (bool) ($dhlDetails['is_bulk_order'] ?? false),
-            'cartons' => array_values($cartonSummary),
+            'is_bulk_order' => (bool) ($dhlDetails['is_bulk_order'] ?? ($recommendedBox['package_count'] > 1)),
+            'cartons' => $cartons,
             'items' => $itemRows,
         ];
     }

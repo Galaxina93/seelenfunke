@@ -520,7 +520,7 @@ class OrderOverview extends Component
     }
 
     /**
-     * Schaltet einen Packtisch-Prüfpunkt ('thank_you_card' = Dankeskarte beigelegt, 'fragile_sticker' = Warnaufkleber Zerbrechlich) um.
+     * Schaltet einen Packtisch-Pruefpunkt ('cleaned', 'gift_box', 'gift_wrap', 'thank_you_card', 'fragile_sticker') um.
      */
     public function toggleOrderPackingCheck(string $checkKey): void
     {

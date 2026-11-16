@@ -901,6 +901,12 @@ class MarketingLandingPage extends Model implements HasSystemBlueprint
             $updates['slug'] = $rawSlug;
         }
 
+        if ($product->status !== 'active' && $existing->status !== 'draft') {
+            $updates['status'] = 'draft';
+        } elseif ($forceRegenerateCopy && $product->status === 'active' && $existing->status !== 'active') {
+            $updates['status'] = 'active';
+        }
+
         if (!empty($updates)) {
             $existing->update($updates);
         }

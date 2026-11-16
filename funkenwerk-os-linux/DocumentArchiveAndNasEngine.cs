@@ -8,6 +8,7 @@ using System.IO.Compression;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -15,10 +16,16 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Xml.Linq;
+using DiskAccessLibrary;
+using DiskAccessLibrary.FileSystems.Abstractions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Data.Sqlite;
 using SMBLibrary;
+using SMBLibrary.Adapters;
+using SMBLibrary.Authentication.GSSAPI;
+using SMBLibrary.Authentication.NTLM;
 using SMBLibrary.Client;
+using SMBLibrary.Server;
 using UglyToad.PdfPig;
 
 namespace FunkenwerkOSLinux
@@ -78,6 +85,8 @@ namespace FunkenwerkOSLinux
         private static bool s_daemonStarted;
         private static volatile bool s_backupRunning;
         private static FileSystemWatcher? s_trichterWatcher;
+        private static readonly object s_smbServerLock = new();
+        private static SMBServer? s_loopbackSmbServer;
         private static readonly ConcurrentQueue<string> s_recentTrichterLog = new();
 
         public static string IndexDbPath => Path.Combine(LinuxVaultAndStorage.DataDir, "documents_index.db");
@@ -442,11 +451,18 @@ namespace FunkenwerkOSLinux
                 try { await SyncFullArchiveIndexIncrementalAsync(allowImageOcrPass: true, maxOcrFilesPerPass: 60).ConfigureAwait(false); } catch { }
 
                 int lastNightlyBackupDayOfYear = -1;
+                DateTime nextWatchtowerPulseUtc = DateTime.UtcNow.AddSeconds(25);
                 while (true)
                 {
                     await Task.Delay(12000).ConfigureAwait(false);
                     try { await ProcessTrichterDirectoryAsync().ConfigureAwait(false); } catch { }
                     try { await SyncFullArchiveIndexIncrementalAsync(allowImageOcrPass: true, maxOcrFilesPerPass: 8).ConfigureAwait(false); } catch { }
+
+                    if (DateTime.UtcNow >= nextWatchtowerPulseUtc)
+                    {
+                        nextWatchtowerPulseUtc = DateTime.UtcNow.AddMinutes(3);
+                        try { await ProbeShopHealthPulseWatchtowerAsync().ConfigureAwait(false); } catch { }
+                    }
 
                     try
                     {
@@ -1464,6 +1480,10 @@ namespace FunkenwerkOSLinux
                     st.LastNasBackupAt = GetBerlinNow().ToString("dd.MM.yyyy HH:mm");
                     st.LastNasBackupResult = $"✓ Aktuell ({reason}, 0 Änderungen in {sw.ElapsedMilliseconds} ms)";
                     LinuxVaultAndStorage.SaveSettings(st);
+                    if (!string.Equals(reason, "SelfTest", StringComparison.OrdinalIgnoreCase))
+                    {
+                        _ = ReportNasBackupHeartbeatToShopAsync(true, st.LastNasBackupResult, 0, 0, st.NasHost);
+                    }
                     return (true, st.LastNasBackupResult, 0, 0);
                 }
 
@@ -1578,6 +1598,10 @@ namespace FunkenwerkOSLinux
                                 autoHealed: true,
                                 healSummary: $"Delta-NAS-Backup auf //{st.NasHost}/{st.NasShare} wurde erfolgreich automatisch nachgeholt ({copied} Dateien synchronisiert).");
                         }
+                        if (!string.Equals(reason, "SelfTest", StringComparison.OrdinalIgnoreCase))
+                        {
+                            _ = ReportNasBackupHeartbeatToShopAsync(true, st.LastNasBackupResult, copied, archivedDeletes, st.NasHost);
+                        }
                         return (true, st.LastNasBackupResult, copied, archivedDeletes);
                     }
                     finally
@@ -1599,6 +1623,10 @@ namespace FunkenwerkOSLinux
                     st.NasBackupPendingCatchUp = true;
                     st.LastNasBackupResult = $"Backup-Hinweis: {ex.Message}";
                     LinuxVaultAndStorage.SaveSettings(st);
+                    if (!string.Equals(reason, "SelfTest", StringComparison.OrdinalIgnoreCase))
+                    {
+                        _ = ReportNasBackupHeartbeatToShopAsync(false, st.LastNasBackupResult, 0, 0, st.NasHost);
+                    }
                 }
                 catch { }
                 return (false, ex.Message, 0, 0);
@@ -1607,6 +1635,211 @@ namespace FunkenwerkOSLinux
             {
                 s_backupRunning = false;
                 s_backupLock.Release();
+            }
+        }
+
+        private static int s_watchtowerConsecutiveOutages;
+        private static bool s_watchtowerAlertOpen;
+
+        public static string BuildNasBackupHeartbeatJson(bool ok, string summary, int copied, int deleted, string? nasHost)
+        {
+            string cleanSummary = ErrorSentinelAndWatchdog.ScrubSecrets(summary ?? "");
+            if (cleanSummary.Length > 260) cleanSummary = cleanSummary.Substring(0, 260);
+            string cleanHost = (nasHost ?? "").Trim();
+            if (cleanHost.Length > 64) cleanHost = cleanHost.Substring(0, 64);
+
+            return JsonSerializer.Serialize(new
+            {
+                status = ok ? "ok" : "error",
+                summary = cleanSummary,
+                copied_count = Math.Max(0, copied),
+                deleted_count = Math.Max(0, deleted),
+                nas_host = cleanHost,
+                source = "minipc_linux"
+            });
+        }
+
+        public static (string Action, string Headline) EvaluateWatchtowerOutcome(
+            bool shopHttpReachable,
+            int httpStatusCode,
+            string? pulseStatus,
+            string? pulseHeadline,
+            bool localInternetOnline,
+            ref int consecutiveOutages,
+            ref bool alertAlreadyOpen)
+        {
+            if (!shopHttpReachable || httpStatusCode >= 500)
+            {
+                if (!localInternetOnline)
+                {
+                    // Router reconnect or local Wi-Fi drop: never raise a false shop alarm!
+                    return ("suppressed_local_offline", "Lokales Heimnetz kurz offline (kein Shop-Fehlalarm)");
+                }
+
+                consecutiveOutages++;
+                if (consecutiveOutages >= 2 && !alertAlreadyOpen)
+                {
+                    alertAlreadyOpen = true;
+                    string detail = !shopHttpReachable
+                        ? "Shop antwortet nicht trotz aktiver Internetverbindung"
+                        : $"Shop meldet HTTP {httpStatusCode}";
+                    return ("raise_alert", detail);
+                }
+                return ("pending_confirmation", "Erster Verbindungsfehler, warte auf Gegenprüfung");
+            }
+
+            consecutiveOutages = 0;
+            string normStatus = (pulseStatus ?? "ok").Trim().ToLowerInvariant();
+            if (normStatus == "critical")
+            {
+                if (!alertAlreadyOpen)
+                {
+                    alertAlreadyOpen = true;
+                    return ("raise_alert", string.IsNullOrWhiteSpace(pulseHeadline) ? "Kritische Watchtower-Säule im Shop" : pulseHeadline!);
+                }
+                return ("already_alerted", pulseHeadline ?? "Kritisch");
+            }
+
+            if (alertAlreadyOpen)
+            {
+                alertAlreadyOpen = false;
+                return ("auto_healed", "Alle Shop-Säulen antworten wieder regulär grün");
+            }
+
+            return ("healthy", "OK");
+        }
+
+        public static async Task<bool> ReportNasBackupHeartbeatToShopAsync(bool ok, string summary, int copied, int deleted, string? nasHost)
+        {
+            try
+            {
+                var settings = LinuxVaultAndStorage.LoadSettings();
+                string norm = (settings.ApiEnvironment ?? "live").Trim().ToLowerInvariant() == "stage" ? "stage" : "live";
+                string bearer = LinuxVaultAndStorage.GetToken(settings, norm);
+                if (string.IsNullOrWhiteSpace(bearer)) return false;
+
+                string url = $"{SeelenfunkeLinuxApiClient.ResolveBaseApiUrl(norm)}/system/health-pulse/nas-heartbeat";
+                if (!SeelenfunkeLinuxApiClient.ValidateHttpsUrl(url)) return false;
+
+                string body = BuildNasBackupHeartbeatJson(ok, summary, copied, deleted, nasHost);
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+                using var req = new HttpRequestMessage(System.Net.Http.HttpMethod.Post, url);
+                req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", bearer);
+                req.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
+                req.Content = new StringContent(body, new UTF8Encoding(false), "application/json");
+
+                using var resp = await SeelenfunkeLinuxApiClient.SharedHttp.SendAsync(req, cts.Token).ConfigureAwait(false);
+                return resp.IsSuccessStatusCode;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static async Task<bool> VerifyLocalInternetConnectivityAsync()
+        {
+            string[] checkUrls =
+            {
+                "https://connectivitycheck.gstatic.com/generate_204",
+                "https://1.1.1.1"
+            };
+
+            foreach (string checkUrl in checkUrls)
+            {
+                try
+                {
+                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+                    using var req = new HttpRequestMessage(System.Net.Http.HttpMethod.Head, checkUrl);
+                    using var resp = await SeelenfunkeLinuxApiClient.SharedHttp.SendAsync(req, cts.Token).ConfigureAwait(false);
+                    if ((int)resp.StatusCode >= 200 && (int)resp.StatusCode < 400)
+                        return true;
+                }
+                catch { }
+            }
+            return false;
+        }
+
+        public static async Task ProbeShopHealthPulseWatchtowerAsync()
+        {
+            var settings = LinuxVaultAndStorage.LoadSettings();
+            string norm = (settings.ApiEnvironment ?? "live").Trim().ToLowerInvariant() == "stage" ? "stage" : "live";
+            string bearer = LinuxVaultAndStorage.GetToken(settings, norm);
+            if (string.IsNullOrWhiteSpace(bearer)) return;
+
+            string url = $"{SeelenfunkeLinuxApiClient.ResolveBaseApiUrl(norm)}/system/health-pulse?source=minipc_linux";
+            if (!SeelenfunkeLinuxApiClient.ValidateHttpsUrl(url)) return;
+
+            bool reachable = false;
+            int statusCode = 0;
+            string? pulseStatus = null;
+            string? pulseHeadline = null;
+
+            try
+            {
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+                using var req = new HttpRequestMessage(System.Net.Http.HttpMethod.Get, url);
+                req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", bearer);
+                req.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
+
+                using var resp = await SeelenfunkeLinuxApiClient.SharedHttp.SendAsync(req, cts.Token).ConfigureAwait(false);
+                reachable = true;
+                statusCode = (int)resp.StatusCode;
+                if (statusCode == 401 || statusCode == 403)
+                {
+                    // Expired/scoped token is handled by auth watchdog, not shop outage
+                    return;
+                }
+
+                if (resp.IsSuccessStatusCode)
+                {
+                    string raw = await resp.Content.ReadAsStringAsync(cts.Token).ConfigureAwait(false);
+                    if (System.Text.Json.Nodes.JsonNode.Parse(raw) is System.Text.Json.Nodes.JsonObject root &&
+                        root["data"] is System.Text.Json.Nodes.JsonObject dataObj)
+                    {
+                        pulseStatus = dataObj["status"]?.GetValue<string>();
+                        pulseHeadline = dataObj["headline"]?.GetValue<string>();
+                    }
+                }
+            }
+            catch
+            {
+                reachable = false;
+            }
+
+            bool internetUp = true;
+            if (!reachable || statusCode >= 500)
+            {
+                internetUp = await VerifyLocalInternetConnectivityAsync().ConfigureAwait(false);
+            }
+
+            var (action, headline) = EvaluateWatchtowerOutcome(
+                reachable,
+                statusCode,
+                pulseStatus,
+                pulseHeadline,
+                internetUp,
+                ref s_watchtowerConsecutiveOutages,
+                ref s_watchtowerAlertOpen);
+
+            if (action == "raise_alert")
+            {
+                ErrorSentinelAndWatchdog.RecordEvent(
+                    component: "shop_watchtower",
+                    title: "24/7 Watchtower: Live-Shop Störung erkannt",
+                    message: headline,
+                    autoHealed: false,
+                    severity: "error");
+            }
+            else if (action == "auto_healed")
+            {
+                ErrorSentinelAndWatchdog.RecordEvent(
+                    component: "shop_watchtower",
+                    title: "24/7 Watchtower: Live-Shop Störung erkannt",
+                    message: headline,
+                    autoHealed: true,
+                    healSummary: headline,
+                    severity: "warning");
             }
         }
 
@@ -1885,15 +2118,21 @@ namespace FunkenwerkOSLinux
                         return;
                     }
                     var fi = new FileInfo(localPath);
-                    ctx.Response.StatusCode = StatusCodes.Status200OK;
-                    ctx.Response.ContentType = "application/octet-stream";
-                    ctx.Response.ContentLength = fi.Length;
-                    ctx.Response.Headers["Last-Modified"] = fi.LastWriteTimeUtc.ToString("R");
-                    if (method == "GET")
+                    if (method == "HEAD")
                     {
-                        await using var fs = new FileStream(localPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-                        await fs.CopyToAsync(ctx.Response.Body).ConfigureAwait(false);
+                        ctx.Response.StatusCode = StatusCodes.Status200OK;
+                        ctx.Response.ContentType = "application/octet-stream";
+                        ctx.Response.ContentLength = fi.Length;
+                        ctx.Response.Headers["Accept-Ranges"] = "bytes";
+                        ctx.Response.Headers["Last-Modified"] = fi.LastWriteTimeUtc.ToString("R");
+                        return;
                     }
+                    var fileResult = Results.File(
+                        localPath,
+                        contentType: "application/octet-stream",
+                        lastModified: new DateTimeOffset(fi.LastWriteTimeUtc, TimeSpan.Zero),
+                        enableRangeProcessing: true);
+                    await fileResult.ExecuteAsync(ctx).ConfigureAwait(false);
                     return;
                 }
 
@@ -2233,6 +2472,727 @@ namespace FunkenwerkOSLinux
             catch
             {
                 return DateTime.Now;
+            }
+        }
+
+        // =====================================================================
+        // 11. LOOPBACK NATIVE SMB2/SMB3 SERVER (127.0.0.1:17445) FOR INSTANT Z:\
+        // =====================================================================
+        public const int DefaultLoopbackSmbPort = 17445;
+
+        public static void EnsureLoopbackSmbServerStarted(int port = DefaultLoopbackSmbPort)
+        {
+            lock (s_smbServerLock)
+            {
+                if (s_loopbackSmbServer != null)
+                    return;
+
+                try
+                {
+                    string root = Path.GetFullPath(LinuxVaultAndStorage.MeineDatenRoot);
+                    string smbPassword = LinuxVaultAndStorage.EnsureOrGetLocalSmbPassword();
+                    s_loopbackSmbServer = StartSmbServerInstance(root, "alina", smbPassword, port);
+                }
+                catch (Exception ex)
+                {
+                    Console.Error.WriteLine($"[SMB3-Loopback] Start auf 127.0.0.1:{port} fehlgeschlagen: {ex.Message}");
+                }
+            }
+        }
+
+        internal static SMBServer StartSmbServerInstance(string rootPath, string allowedUser, string password, int port)
+        {
+            if (string.IsNullOrWhiteSpace(allowedUser) || string.IsNullOrWhiteSpace(password))
+                throw new ArgumentException("SMB3 erfordert nicht-leere NTLMv2-Zugangsdaten.");
+
+            string fullRoot = Path.GetFullPath(rootPath);
+            Directory.CreateDirectory(fullRoot);
+
+            var jailedFs = new JailedLinuxDirectoryFileSystem(fullRoot);
+            var ntStore = new NTFileSystemAdapter(jailedFs);
+            var shares = new SMBShareCollection
+            {
+                new FileSystemShare("Meine_Daten", ntStore, CachingPolicy.AutoCaching)
+            };
+
+            var ntlmAuth = new IndependentNTLMAuthenticationProvider(userName =>
+                string.Equals(userName, allowedUser, StringComparison.OrdinalIgnoreCase) ? password : null);
+            var gssProvider = new GSSProvider(ntlmAuth);
+
+            var server = new SMBServer(shares, gssProvider);
+            var startMethod = typeof(SMBServer).GetMethod(
+                "Start",
+                BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public,
+                binder: null,
+                types: new[]
+                {
+                    typeof(IPAddress),
+                    typeof(SMBTransportType),
+                    typeof(int),
+                    typeof(bool),
+                    typeof(bool),
+                    typeof(bool),
+                    typeof(TimeSpan?)
+                },
+                modifiers: null)
+                ?? throw new MissingMethodException("SMBLibrary.Server.SMBServer.Start(7-arg custom port) nicht gefunden.");
+
+            startMethod.Invoke(server, new object?[]
+            {
+                IPAddress.Loopback,
+                SMBTransportType.DirectTCPTransport,
+                port,
+                false, // enableSMB1 = false (strict modern security)
+                true,  // enableSMB2 = true
+                true,  // enableSMB3 = true
+                null   // no forced connection timeout -> instant zero-reconnect Explorer navigation
+            });
+
+            return server;
+        }
+
+        internal sealed class JailedLinuxDirectoryFileSystem : IFileSystem
+        {
+            private const int HResultErrorAlreadyExists = unchecked((int)0x800700B7);
+            private readonly string _canonicalRoot;
+
+            public JailedLinuxDirectoryFileSystem(string rootDirectory)
+            {
+                string full = Path.GetFullPath(rootDirectory).TrimEnd(Path.DirectorySeparatorChar);
+                var di = new DirectoryInfo(full);
+                if (di.LinkTarget != null)
+                {
+                    var resolved = di.ResolveLinkTarget(returnFinalTarget: true);
+                    if (resolved == null || !resolved.Exists)
+                        throw new DirectoryNotFoundException("SMB-Wurzelverzeichnis konnte nicht aufgelöst werden.");
+                    full = Path.GetFullPath(resolved.FullName).TrimEnd(Path.DirectorySeparatorChar);
+                }
+                Directory.CreateDirectory(full);
+                _canonicalRoot = full;
+            }
+
+            public string Name => "NTFS";
+
+            public bool SupportsNamedStreams => false;
+
+            public long Size
+            {
+                get
+                {
+                    try { return new DriveInfo(_canonicalRoot).TotalSize; }
+                    catch { return 512L * 1024L * 1024L * 1024L; }
+                }
+            }
+
+            public long FreeSpace
+            {
+                get
+                {
+                    try { return new DriveInfo(_canonicalRoot).AvailableFreeSpace; }
+                    catch { return 256L * 1024L * 1024L * 1024L; }
+                }
+            }
+
+            public FileSystemEntry GetEntry(string path)
+            {
+                var (localPath, smbFullName, isRoot) = ResolveJailedSmbPath(
+                    path,
+                    allowMissingLeaf: false,
+                    caseInsensitiveLeaf: true,
+                    forMutation: false);
+
+                if (isRoot || Directory.Exists(localPath))
+                {
+                    return BuildDirectoryEntry(localPath, smbFullName, isRoot);
+                }
+
+                if (File.Exists(localPath))
+                {
+                    return BuildFileEntry(localPath, smbFullName);
+                }
+
+                throw new FileNotFoundException("Eintrag nicht gefunden.", path);
+            }
+
+            public List<FileSystemEntry> ListEntriesInDirectory(string path)
+            {
+                var (localPath, smbFullName, _) = ResolveJailedSmbPath(
+                    path,
+                    allowMissingLeaf: false,
+                    caseInsensitiveLeaf: true,
+                    forMutation: false);
+
+                if (!Directory.Exists(localPath))
+                {
+                    if (File.Exists(localPath))
+                        throw new IOException("Pfad ist eine Datei und kein Verzeichnis.");
+                    throw new DirectoryNotFoundException("Verzeichnis nicht gefunden.");
+                }
+
+                var result = new List<FileSystemEntry>();
+                string smbPrefix = smbFullName == "\\" ? "\\" : (smbFullName.TrimEnd('\\') + "\\");
+                var dirInfo = new DirectoryInfo(localPath);
+
+                foreach (var subDir in dirInfo.EnumerateDirectories())
+                {
+                    if (subDir.Name.StartsWith('.'))
+                        continue;
+                    if (!TryValidateExistingChildInJail(subDir, out string resolvedDirPath))
+                        continue;
+
+                    result.Add(BuildDirectoryEntry(resolvedDirPath, smbPrefix + subDir.Name, isRoot: false, displayNameOverride: subDir.Name));
+                }
+
+                foreach (var file in dirInfo.EnumerateFiles())
+                {
+                    if (file.Name.StartsWith('.'))
+                        continue;
+                    if (!TryValidateExistingChildInJail(file, out string resolvedFilePath))
+                        continue;
+
+                    result.Add(BuildFileEntry(resolvedFilePath, smbPrefix + file.Name, displayNameOverride: file.Name));
+                }
+
+                return result;
+            }
+
+            public FileSystemEntry CreateFile(string path)
+            {
+                var (localPath, smbFullName, isRoot) = ResolveJailedSmbPath(
+                    path,
+                    allowMissingLeaf: true,
+                    caseInsensitiveLeaf: true,
+                    forMutation: true);
+
+                if (isRoot)
+                    throw new UnauthorizedAccessException("Wurzelverzeichnis kann nicht als Datei angelegt werden.");
+
+                if (File.Exists(localPath) || Directory.Exists(localPath))
+                    throw new IOException("Datei oder Ordner existiert bereits.", HResultErrorAlreadyExists);
+
+                using (var fs = new FileStream(localPath, FileMode.CreateNew, FileAccess.Write, FileShare.ReadWrite | FileShare.Delete))
+                {
+                }
+
+                return BuildFileEntry(localPath, smbFullName);
+            }
+
+            public FileSystemEntry CreateDirectory(string path)
+            {
+                var (localPath, smbFullName, isRoot) = ResolveJailedSmbPath(
+                    path,
+                    allowMissingLeaf: true,
+                    caseInsensitiveLeaf: true,
+                    forMutation: true);
+
+                if (isRoot)
+                    throw new IOException("Wurzelverzeichnis existiert bereits.", HResultErrorAlreadyExists);
+
+                if (Directory.Exists(localPath) || File.Exists(localPath))
+                    throw new IOException("Verzeichnis existiert bereits.", HResultErrorAlreadyExists);
+
+                Directory.CreateDirectory(localPath);
+                return BuildDirectoryEntry(localPath, smbFullName, isRoot: false);
+            }
+
+            public void Move(string source, string destination)
+            {
+                var (srcLocal, _, srcIsRoot) = ResolveJailedSmbPath(
+                    source,
+                    allowMissingLeaf: false,
+                    caseInsensitiveLeaf: true,
+                    forMutation: true);
+
+                if (srcIsRoot)
+                    throw new UnauthorizedAccessException("Wurzelverzeichnis darf nicht verschoben werden.");
+
+                var (dstLocal, _, dstIsRoot) = ResolveJailedSmbPath(
+                    destination,
+                    allowMissingLeaf: true,
+                    caseInsensitiveLeaf: false,
+                    forMutation: true);
+
+                if (dstIsRoot)
+                    throw new UnauthorizedAccessException("Ziel darf nicht das Wurzelverzeichnis sein.");
+
+                if (string.Equals(srcLocal, dstLocal, StringComparison.Ordinal))
+                    return;
+
+                if (dstLocal.StartsWith(srcLocal + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+                    throw new IOException("Ein Ordner kann nicht in sich selbst verschoben werden.");
+
+                if (File.Exists(dstLocal) || Directory.Exists(dstLocal))
+                    throw new IOException("Ziel existiert bereits.", HResultErrorAlreadyExists);
+
+                if (File.Exists(srcLocal))
+                {
+                    File.Move(srcLocal, dstLocal, overwrite: false);
+                    NotifyArchiveAfterWrite(dstLocal);
+                }
+                else if (Directory.Exists(srcLocal))
+                {
+                    Directory.Move(srcLocal, dstLocal);
+                    _ = Task.Run(() => SyncFullArchiveIndexIncrementalAsync(allowImageOcrPass: false));
+                }
+                else
+                {
+                    throw new FileNotFoundException("Quelldatei nicht gefunden.", source);
+                }
+            }
+
+            public void Delete(string path)
+            {
+                var (localPath, _, isRoot) = ResolveJailedSmbPath(
+                    path,
+                    allowMissingLeaf: false,
+                    caseInsensitiveLeaf: true,
+                    forMutation: true);
+
+                if (isRoot)
+                    throw new UnauthorizedAccessException("Wurzelverzeichnis darf nicht gelöscht werden.");
+
+                if (Directory.Exists(localPath))
+                {
+                    bool hasVisibleChildren = Directory.EnumerateFileSystemEntries(localPath)
+                        .Any(p => !Path.GetFileName(p).StartsWith('.'));
+                    if (hasVisibleChildren)
+                        throw new DirectoryNotEmptyException();
+
+                    // Remove any leftover hidden dotfiles inside an otherwise empty folder before removing the directory
+                    foreach (string hidden in Directory.EnumerateFileSystemEntries(localPath))
+                    {
+                        if (File.Exists(hidden)) File.Delete(hidden);
+                    }
+                    Directory.Delete(localPath, recursive: false);
+                    _ = Task.Run(() => SyncFullArchiveIndexIncrementalAsync(allowImageOcrPass: false));
+                    return;
+                }
+
+                if (File.Exists(localPath))
+                {
+                    long len = new FileInfo(localPath).Length;
+                    if (len > 0 && string.Equals(_canonicalRoot, Path.GetFullPath(LinuxVaultAndStorage.MeineDatenRoot).TrimEnd(Path.DirectorySeparatorChar), StringComparison.Ordinal))
+                    {
+                        if (!LinuxFileManager.MoveToTrash(localPath) && File.Exists(localPath))
+                        {
+                            File.Delete(localPath);
+                        }
+                    }
+                    else
+                    {
+                        File.Delete(localPath);
+                    }
+                    _ = Task.Run(() => SyncFullArchiveIndexIncrementalAsync(allowImageOcrPass: false));
+                    return;
+                }
+
+                throw new FileNotFoundException("Zu löschender Pfad existiert nicht.", path);
+            }
+
+            public List<KeyValuePair<string, ulong>> ListDataStreams(string path) => new();
+
+            public Stream OpenFile(string path, FileMode mode, FileAccess access, FileShare share, FileOptions options)
+            {
+                bool allowMissing = mode is FileMode.Create or FileMode.CreateNew or FileMode.OpenOrCreate or FileMode.Append;
+                bool isWrite = (access & FileAccess.Write) != 0 || allowMissing || mode == FileMode.Truncate;
+
+                var (localPath, _, isRoot) = ResolveJailedSmbPath(
+                    path,
+                    allowMissingLeaf: allowMissing,
+                    caseInsensitiveLeaf: true,
+                    forMutation: isWrite);
+
+                if (isRoot || Directory.Exists(localPath))
+                    throw new UnauthorizedAccessException("Verzeichnis kann nicht als Dateistream geöffnet werden.");
+
+                FileOptions linuxSafeOptions = options & (
+                    FileOptions.Asynchronous |
+                    FileOptions.SequentialScan |
+                    FileOptions.RandomAccess |
+                    FileOptions.WriteThrough |
+                    FileOptions.DeleteOnClose);
+
+                const FileShare linuxRelaxedShare = FileShare.ReadWrite | FileShare.Delete;
+                if (!isWrite)
+                {
+                    return new FileStream(localPath, mode, access, linuxRelaxedShare, 65536, linuxSafeOptions);
+                }
+
+                return new ArchiveNotifyingFileStream(
+                    localPath,
+                    mode,
+                    access,
+                    linuxRelaxedShare,
+                    linuxSafeOptions,
+                    initialMutated: mode is FileMode.Create or FileMode.Truncate);
+            }
+
+            public void SetAttributes(string path, bool? isHidden, bool? isReadonly, bool? isArchived)
+            {
+                var (localPath, _, isRoot) = ResolveJailedSmbPath(
+                    path,
+                    allowMissingLeaf: false,
+                    caseInsensitiveLeaf: true,
+                    forMutation: false);
+
+                if (isRoot)
+                    return;
+
+                if (!File.Exists(localPath) && !Directory.Exists(localPath))
+                    throw new FileNotFoundException("Pfad nicht gefunden.", path);
+
+                if (OperatingSystem.IsLinux() && isReadonly.HasValue && File.Exists(localPath))
+                {
+                    try
+                    {
+                        var mode = File.GetUnixFileMode(localPath);
+                        if (isReadonly.Value)
+                            mode &= ~(UnixFileMode.UserWrite | UnixFileMode.GroupWrite | UnixFileMode.OtherWrite);
+                        else
+                            mode |= UnixFileMode.UserWrite;
+                        File.SetUnixFileMode(localPath, mode);
+                    }
+                    catch { }
+                }
+            }
+
+            public void SetDates(string path, DateTime? creationTimeDT, DateTime? lastWriteTimeDT, DateTime? lastAccessTimeDT)
+            {
+                var (localPath, _, isRoot) = ResolveJailedSmbPath(
+                    path,
+                    allowMissingLeaf: false,
+                    caseInsensitiveLeaf: true,
+                    forMutation: false);
+
+                if (isRoot)
+                    return;
+
+                bool isDir = Directory.Exists(localPath);
+                bool isFile = !isDir && File.Exists(localPath);
+                if (!isDir && !isFile)
+                    throw new FileNotFoundException("Pfad nicht gefunden.", path);
+
+                try
+                {
+                    if (lastWriteTimeDT.HasValue)
+                    {
+                        DateTime utc = NormalizeSmbDateUtc(lastWriteTimeDT.Value);
+                        if (isDir) Directory.SetLastWriteTimeUtc(localPath, utc);
+                        else File.SetLastWriteTimeUtc(localPath, utc);
+                    }
+                    if (lastAccessTimeDT.HasValue)
+                    {
+                        DateTime utc = NormalizeSmbDateUtc(lastAccessTimeDT.Value);
+                        if (isDir) Directory.SetLastAccessTimeUtc(localPath, utc);
+                        else File.SetLastAccessTimeUtc(localPath, utc);
+                    }
+                }
+                catch { }
+            }
+
+            private static DateTime NormalizeSmbDateUtc(DateTime dt)
+            {
+                DateTime utc = dt.Kind == DateTimeKind.Local ? dt.ToUniversalTime() : DateTime.SpecifyKind(dt, DateTimeKind.Utc);
+                if (utc.Year < 1980) return new DateTime(1980, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+                if (utc.Year > 2100) return new DateTime(2100, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+                return utc;
+            }
+
+            private static DateTime SafeTimestampUtc(DateTime dt)
+            {
+                if (dt.Year < 1980) return new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+                return DateTime.SpecifyKind(dt, DateTimeKind.Utc);
+            }
+
+            private static FileSystemEntry BuildDirectoryEntry(string localPath, string smbFullName, bool isRoot, string? displayNameOverride = null)
+            {
+                var di = new DirectoryInfo(localPath);
+                DateTime modUtc = SafeTimestampUtc(di.LastWriteTimeUtc);
+                DateTime crtUtc = SafeTimestampUtc(di.CreationTimeUtc.Year >= 1980 ? di.CreationTimeUtc : modUtc);
+                DateTime accUtc = SafeTimestampUtc(di.LastAccessTimeUtc.Year >= 1980 ? di.LastAccessTimeUtc : modUtc);
+                string name = isRoot ? "" : (displayNameOverride ?? di.Name);
+                return new FileSystemEntry(
+                    fullName: isRoot ? "\\" : smbFullName,
+                    name: name,
+                    isDirectory: true,
+                    size: 0UL,
+                    creationTime: crtUtc,
+                    lastWriteTime: modUtc,
+                    lastAccessTime: accUtc,
+                    isHidden: false,
+                    isReadonly: false,
+                    isArchived: false);
+            }
+
+            private static FileSystemEntry BuildFileEntry(string localPath, string smbFullName, string? displayNameOverride = null)
+            {
+                var fi = new FileInfo(localPath);
+                DateTime modUtc = SafeTimestampUtc(fi.LastWriteTimeUtc);
+                DateTime crtUtc = SafeTimestampUtc(fi.CreationTimeUtc.Year >= 1980 ? fi.CreationTimeUtc : modUtc);
+                DateTime accUtc = SafeTimestampUtc(fi.LastAccessTimeUtc.Year >= 1980 ? fi.LastAccessTimeUtc : modUtc);
+                bool isRo = false;
+                if (OperatingSystem.IsLinux())
+                {
+                    try { isRo = (File.GetUnixFileMode(localPath) & UnixFileMode.UserWrite) == 0; }
+                    catch { }
+                }
+                else
+                {
+                    isRo = fi.IsReadOnly;
+                }
+
+                return new FileSystemEntry(
+                    fullName: smbFullName,
+                    name: displayNameOverride ?? fi.Name,
+                    isDirectory: false,
+                    size: fi.Length > 0 ? (ulong)fi.Length : 0UL,
+                    creationTime: crtUtc,
+                    lastWriteTime: modUtc,
+                    lastAccessTime: accUtc,
+                    isHidden: false,
+                    isReadonly: isRo,
+                    isArchived: true);
+            }
+
+            private bool IsInsideOrEqualRoot(string candidateFullPath)
+            {
+                string norm = Path.GetFullPath(candidateFullPath).TrimEnd(Path.DirectorySeparatorChar);
+                return string.Equals(norm, _canonicalRoot, StringComparison.Ordinal) ||
+                       norm.StartsWith(_canonicalRoot + Path.DirectorySeparatorChar, StringComparison.Ordinal);
+            }
+
+            private bool TryValidateExistingChildInJail(FileSystemInfo info, out string resolvedFullPath)
+            {
+                resolvedFullPath = "";
+                try
+                {
+                    if (info.LinkTarget != null)
+                    {
+                        var target = info.ResolveLinkTarget(returnFinalTarget: true);
+                        if (target == null || !target.Exists)
+                            return false;
+                        string linkFull = Path.GetFullPath(target.FullName).TrimEnd(Path.DirectorySeparatorChar);
+                        if (!IsInsideOrEqualRoot(linkFull))
+                            return false;
+                        resolvedFullPath = linkFull;
+                        return true;
+                    }
+
+                    string full = Path.GetFullPath(info.FullName).TrimEnd(Path.DirectorySeparatorChar);
+                    if (!IsInsideOrEqualRoot(full))
+                        return false;
+                    resolvedFullPath = full;
+                    return true;
+                }
+                catch
+                {
+                    return false;
+                }
+            }
+
+            private (string LocalPath, string SmbFullName, bool IsRoot) ResolveJailedSmbPath(
+                string? rawPath,
+                bool allowMissingLeaf,
+                bool caseInsensitiveLeaf,
+                bool forMutation)
+            {
+                if (rawPath == null || rawPath.Contains('\0'))
+                    throw new UnauthorizedAccessException("Ungültiger SMB-Pfad.");
+
+                string trimmed = rawPath.Replace('/', '\\').Trim('\\');
+                if (string.IsNullOrEmpty(trimmed))
+                    return (_canonicalRoot, "\\", true);
+
+                string[] parts = trimmed.Split('\\', StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length == 0)
+                    return (_canonicalRoot, "\\", true);
+
+                string current = _canonicalRoot;
+                var smbParts = new List<string>(parts.Length);
+
+                for (int i = 0; i < parts.Length; i++)
+                {
+                    string part = parts[i];
+                    bool isLast = i == parts.Length - 1;
+
+                    if (part is "." or "..")
+                        throw new UnauthorizedAccessException("Pfad-Traversal außerhalb von Meine_Daten blockiert.");
+
+                    if (part.StartsWith('.'))
+                    {
+                        if (forMutation)
+                            throw new UnauthorizedAccessException("Versteckte Systemdateien sind über SMB gesperrt.");
+                        if (isLast)
+                            throw new FileNotFoundException("Eintrag nicht gefunden.", rawPath);
+                        throw new DirectoryNotFoundException("Verzeichnis nicht gefunden.");
+                    }
+
+                    string candidate = Path.Combine(current, part);
+                    var fi = new FileInfo(candidate);
+                    var di = new DirectoryInfo(candidate);
+                    bool exists = fi.Exists || di.Exists || fi.LinkTarget != null || di.LinkTarget != null;
+
+                    if (!exists && (!isLast || caseInsensitiveLeaf) && Directory.Exists(current))
+                    {
+                        try
+                        {
+                            string? ciMatch = Directory.EnumerateFileSystemEntries(current)
+                                .FirstOrDefault(e =>
+                                {
+                                    string n = Path.GetFileName(e);
+                                    return !n.StartsWith('.') && string.Equals(n, part, StringComparison.OrdinalIgnoreCase);
+                                });
+                            if (ciMatch != null)
+                            {
+                                part = Path.GetFileName(ciMatch);
+                                candidate = ciMatch;
+                                fi = new FileInfo(candidate);
+                                di = new DirectoryInfo(candidate);
+                                exists = true;
+                            }
+                        }
+                        catch { }
+                    }
+
+                    if (exists)
+                    {
+                        if (fi.LinkTarget != null || di.LinkTarget != null)
+                        {
+                            FileSystemInfo? resolved = fi.LinkTarget != null
+                                ? fi.ResolveLinkTarget(returnFinalTarget: true)
+                                : di.ResolveLinkTarget(returnFinalTarget: true);
+                            if (resolved == null || !resolved.Exists)
+                                throw new UnauthorizedAccessException("Symlink zeigt auf ungültiges Ziel.");
+
+                            string linkFull = Path.GetFullPath(resolved.FullName).TrimEnd(Path.DirectorySeparatorChar);
+                            if (!IsInsideOrEqualRoot(linkFull))
+                                throw new UnauthorizedAccessException("Symlink-Ausbruch außerhalb von Meine_Daten blockiert.");
+
+                            current = linkFull;
+                        }
+                        else
+                        {
+                            current = Path.GetFullPath(candidate).TrimEnd(Path.DirectorySeparatorChar);
+                            if (!IsInsideOrEqualRoot(current))
+                                throw new UnauthorizedAccessException("Pfad liegt außerhalb von Meine_Daten.");
+                        }
+
+                        if (!isLast && !Directory.Exists(current))
+                            throw new DirectoryNotFoundException("Übergeordnetes Element ist kein Ordner.");
+
+                        smbParts.Add(part);
+                    }
+                    else
+                    {
+                        if (!isLast)
+                            throw new DirectoryNotFoundException("Übergeordnetes Verzeichnis existiert nicht.");
+
+                        if (!allowMissingLeaf)
+                            throw new FileNotFoundException("Datei oder Ordner existiert nicht.", rawPath);
+
+                        current = Path.GetFullPath(candidate).TrimEnd(Path.DirectorySeparatorChar);
+                        if (!IsInsideOrEqualRoot(current))
+                            throw new UnauthorizedAccessException("Zielpfad liegt außerhalb von Meine_Daten.");
+
+                        smbParts.Add(part);
+                    }
+                }
+
+                return (current, "\\" + string.Join("\\", smbParts), false);
+            }
+
+            internal static void NotifyArchiveAfterWrite(string localFilePath)
+            {
+                try
+                {
+                    if (!File.Exists(localFilePath))
+                        return;
+                    var fi = new FileInfo(localFilePath);
+                    if (fi.Length <= 0)
+                        return;
+
+                    string mdRoot = Path.GetFullPath(LinuxVaultAndStorage.MeineDatenRoot).TrimEnd(Path.DirectorySeparatorChar);
+                    if (!localFilePath.StartsWith(mdRoot + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+                        return;
+
+                    string trichterDir = Path.Combine(mdRoot, "00_Eingang_Trichter") + Path.DirectorySeparatorChar;
+                    if (localFilePath.StartsWith(trichterDir, StringComparison.Ordinal))
+                    {
+                        try { File.SetLastWriteTimeUtc(localFilePath, DateTime.UtcNow.AddSeconds(-2)); } catch { }
+                        _ = Task.Run(() => ProcessTrichterDirectoryAsync());
+                    }
+                    else
+                    {
+                        _ = Task.Run(() => SyncFullArchiveIndexIncrementalAsync(allowImageOcrPass: true, maxOcrFilesPerPass: 3));
+                    }
+                }
+                catch { }
+            }
+
+            private sealed class ArchiveNotifyingFileStream : FileStream
+            {
+                private readonly string _localFilePath;
+                private bool _mutated;
+                private int _disposed;
+
+                public ArchiveNotifyingFileStream(
+                    string localFilePath,
+                    FileMode mode,
+                    FileAccess access,
+                    FileShare share,
+                    FileOptions options,
+                    bool initialMutated)
+                    : base(localFilePath, mode, access, share, 65536, options)
+                {
+                    _localFilePath = localFilePath;
+                    _mutated = initialMutated;
+                }
+
+                public override void Write(byte[] array, int offset, int count)
+                {
+                    if (count > 0) _mutated = true;
+                    base.Write(array, offset, count);
+                }
+
+                public override void Write(ReadOnlySpan<byte> buffer)
+                {
+                    if (!buffer.IsEmpty) _mutated = true;
+                    base.Write(buffer);
+                }
+
+                public override void WriteByte(byte value)
+                {
+                    _mutated = true;
+                    base.WriteByte(value);
+                }
+
+                public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+                {
+                    if (count > 0) _mutated = true;
+                    return base.WriteAsync(buffer, offset, count, cancellationToken);
+                }
+
+                public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+                {
+                    if (!buffer.IsEmpty) _mutated = true;
+                    return base.WriteAsync(buffer, cancellationToken);
+                }
+
+                public override void SetLength(long value)
+                {
+                    _mutated = true;
+                    base.SetLength(value);
+                }
+
+                protected override void Dispose(bool disposing)
+                {
+                    bool shouldNotify = Interlocked.Exchange(ref _disposed, 1) == 0 && _mutated;
+                    base.Dispose(disposing);
+                    if (shouldNotify)
+                    {
+                        NotifyArchiveAfterWrite(_localFilePath);
+                    }
+                }
             }
         }
     }

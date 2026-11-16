@@ -43,10 +43,79 @@
       <h1 class="gewerbe-brand-title">MEIN SEELENFUNKE</h1>
     </div>
 
-    <div class="gewerbe-center-overlay">
+    <div class="gewerbe-center-overlay" id="gewerbe-orb-trigger">
       <div class="orb-star">✦</div>
       <div class="orb-count" id="orb-orders-count">0</div>
       <div class="orb-label">BESTELLUNGEN</div>
+    </div>
+
+    <!-- MANUFAKTUR FOKUS-LEITSTAND (0 SEKUNDEN AM NOTEBOOK) -->
+    <div id="workshop-focus-stage" class="wf-stage">
+      <div id="wf-idle-view" class="wf-idle-view">
+        <button type="button" class="wf-close-btn wf-idle-close" id="btn-wf-idle-close" title="Fokus schließen">✕</button>
+        <div class="wf-idle-star">✦</div>
+        <div class="wf-idle-title">Alle Aufträge erledigt</div>
+      </div>
+
+      <div id="wf-order-view" class="wf-order-view hidden">
+        <header class="wf-topbar">
+          <div class="wf-topbar-left">
+            <img id="wf-product-thumb" class="wf-product-thumb hidden" alt="" draggable="false" />
+            <div id="wf-product-thumb-fallback" class="wf-product-thumb-fallback">✦</div>
+            <div class="wf-product-headline" id="wf-product-headline">1× Produkt</div>
+            <span class="wf-gold-tag hidden" id="wf-jig-tag"></span>
+            <span class="wf-gold-tag wf-note-tag hidden" id="wf-customer-note-tag"></span>
+          </div>
+          <div class="wf-topbar-right">
+            <span class="wf-open-counter" id="wf-open-counter">Offen: 1</span>
+            <button type="button" class="wf-close-btn" id="btn-wf-close" title="Fokus schließen">✕</button>
+          </div>
+        </header>
+
+        <!-- ANSICHT 1: LASERN -->
+        <div id="wf-phase-laser" class="wf-phase-wrap">
+          <div class="wf-laser-center">
+            <div id="wf-laser-bed" class="wf-laser-bed">
+              <img id="wf-camera-img" class="wf-camera-img hidden" alt="" draggable="false" />
+              <div class="wf-bed-grid"></div>
+              <div id="wf-blank-overlay" class="wf-blank-overlay">
+                <svg id="wf-contour-svg" class="wf-contour-svg" viewBox="0 0 100 100">
+                  <path id="wf-contour-path"
+                        d="M 0 0 H 100 V 100 H 0 Z"
+                        fill="rgba(0, 188, 212, 0.08)"
+                        stroke="#00bcd4"
+                        stroke-width="0.9"
+                        stroke-dasharray="2.4,1.5" />
+                </svg>
+                <img id="wf-engrave-img" class="wf-engrave-img hidden" alt="" draggable="false" />
+              </div>
+            </div>
+          </div>
+
+          <footer class="wf-bottom-bar">
+            <button type="button" class="wf-icon-btn" id="btn-wf-camera" title="Kamerabild aktualisieren">📷</button>
+            <button type="button" class="wf-primary-gold-btn" id="btn-wf-send-laser">An Laser senden</button>
+            <button type="button" class="wf-secondary-btn" id="btn-wf-next-packing">Weiter</button>
+          </footer>
+        </div>
+
+        <!-- ANSICHT 2: REINIGEN & VERPACKEN -->
+        <div id="wf-phase-packing" class="wf-phase-wrap hidden">
+          <div class="wf-pack-box-bar" id="wf-pack-box-bar">
+            <span class="wf-pack-box-name" id="wf-pack-box-name">Versandkarton</span>
+            <span class="wf-pack-box-sep" id="wf-pack-box-sep">·</span>
+            <span class="wf-pack-box-dims" id="wf-pack-box-dims"></span>
+          </div>
+
+          <div class="wf-checklist-wrap" id="wf-checklist-list"></div>
+
+          <footer class="wf-bottom-bar">
+            <button type="button" class="wf-primary-gold-btn wf-ship-btn" id="btn-wf-ship-next">DHL Label drucken &amp; Weiter</button>
+          </footer>
+        </div>
+      </div>
+
+      <div id="wf-toast" class="wf-toast hidden"></div>
     </div>
 
     <div class="gewerbe-routine-banner" id="gewerbe-routine-banner"></div>
@@ -340,7 +409,7 @@
     </div>
   </div>
 
-  <script type="module" src="/funkira3d.js?v=20261115v23"></script>
-  <script src="/app.js?v=20261115v23"></script>
+  <script type="module" src="/funkira3d.js?v=20261115v24"></script>
+  <script src="/app.js?v=20261115v24"></script>
 </body>
 </html>

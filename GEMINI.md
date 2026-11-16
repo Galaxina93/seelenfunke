@@ -159,7 +159,7 @@ Sofern keine andere Codebase genannt wird, beziehen sich alle Anfragen auf **Mei
 
 ## 6. HTTP-Controller (`app/Http/Controllers/*.php`)
 - **Accounting**: `InvoiceDownloadController`
-- **Api**: `TelegramAgentController, TwilioCallController`
+- **Api**: `TelegramAgentController, TwilioCallController, WorkshopFocusApiController`
 - **Customer**: `CustomerVerificationController, DigitalProductDownloadController, GiftVoucherDownloadController`
 - **Root**: `AIController, CartReminderUnsubscribeController, Controller, GoogleAuthController, NewsletterController, RevocationFileController, RevocationPdfController, SeoController, StripeWebhookController`
 

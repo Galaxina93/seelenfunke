@@ -552,7 +552,7 @@ class ProductPackagingConfigurator extends Component
     }
 
     /**
-     * Button 1: „KI eintragen lassen“ – Analysiert den Link und legt den Eintrag direkt im Katalog an!
+     * Button 1: KI eintragen lassen: Analysiert den Link und legt den Eintrag direkt im Katalog an!
      */
     public function createPackagingFromAiUrl(): void
     {
@@ -607,7 +607,7 @@ class ProductPackagingConfigurator extends Component
     }
 
     /**
-     * Button 2: „Link analysieren & im Formular prüfen“ – Befüllt das Modal mit den KI-Daten.
+     * Button 2: Link analysieren und im Formular pruefen: Befuellt das Modal mit den KI-Daten.
      */
     public function analyzeAiUrlIntoModal(): void
     {
@@ -648,7 +648,7 @@ class ProductPackagingConfigurator extends Component
         $this->itemUpsellPriceEur = number_format($parsed['upsell_price_cents'] / 100, 2, ',', '.');
 
         $this->showItemModal = true;
-        $this->dispatch('toast', message: 'KI-Analyse abgeschlossen – Daten im Formular vorbefüllt.', type: 'info');
+        $this->dispatch('toast', message: 'KI-Analyse abgeschlossen. Daten im Formular vorbefüllt.', type: 'info');
     }
 
     protected function isSafeExternalUrl(string $url): bool
@@ -745,7 +745,7 @@ class ProductPackagingConfigurator extends Component
                 }
             }
         } catch (\Throwable $e) {
-            // Kein Abbruch bei Bot-Schutz (z.B. Cloudflare / Amazon) – unsere Domain-Heuristik + Gemini übernimmt
+            // Kein Abbruch bei Bot-Schutz (z.B. Cloudflare / Amazon): unsere Domain-Heuristik + Gemini uebernimmt
         }
 
         // 2. Bekannte B2B-Verpackungslieferanten verknüpfen
@@ -755,10 +755,10 @@ class ProductPackagingConfigurator extends Component
         // 3. Spezifische High-Precision-Profile für bekannte Verpackungen
         if (str_contains($lowerUrl, 'westpack.com') && (str_contains($lowerUrl, '30286060102') || str_contains($lowerUrl, 'frankfurt-eco'))) {
             return [
-                'name' => 'Frankfurt ECO Schmuckschachtel Anhänger/Armreif (mit Logo)',
+                'name' => 'Schmuckbox',
                 'sku' => '30286060102',
                 'category' => 'gift_box',
-                'description' => 'Mattschwarze FSC-Schmuckschachtel inkl. Mein-Seelenfunke-Logodruck & schwarzer Schaumstoffeinlage (Order #29000069521). 17 mm flach für 1,80 € Großbrief.',
+                'description' => 'Mattschwarze FSC-Schmuckschachtel inkl. Mein-Seelenfunke-Logodruck & schwarzer Schaumstoffeinlage (Order #29000069521).',
                 'supplier_name' => 'Westpack A/S',
                 'product_supplier_id' => $westpackSupplier?->id,
                 'length_mm' => 86.0,
@@ -803,9 +803,8 @@ class ProductPackagingConfigurator extends Component
             ];
         }
 
-        // 4. Falls Gemini API Key hinterlegt ist, nutze Gemini 2.5 Flash zur intelligenten Extraktion
-        $apiKey = config('services.gemini.key', env('GEMINI_API_KEY'));
-        if (!empty($apiKey)) {
+        // 4. Falls Vertex AI oder Gemini API Key hinterlegt ist, nutze Gemini zur intelligenten Extraktion
+        if (\App\Services\AI\VertexAiService::hasCredentials()) {
             try {
                 $prompt = "Du bist ein E-Commerce-Verpackungs- und LUCID-Experte für 'Mein Seelenfunke' (Lasergravur-Manufaktur). "
                     . "Analysiere diesen Verpackungs-Link und die Seiten-Metadaten und gib ein valides JSON-Objekt zurück.\n"
@@ -834,15 +833,17 @@ class ProductPackagingConfigurator extends Component
                     . "  \"upsell_price_cents\": 290\n"
                     . "}";
 
-                $aiResp = Http::timeout(8)->post(
-                    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={$apiKey}",
+                $aiResp = \App\Services\AI\VertexAiService::generateContent(
+                    'gemini-2.5-flash',
                     [
-                        'contents' => [['parts' => [['text' => $prompt]]]],
+                        'contents' => [['role' => 'user', 'parts' => [['text' => $prompt]]]],
                         'generationConfig' => [
                             'temperature' => 0.1,
                             'responseMimeType' => 'application/json',
                         ],
-                    ]
+                    ],
+                    8,
+                    4
                 );
 
                 if ($aiResp->successful()) {
@@ -955,8 +956,9 @@ class ProductPackagingConfigurator extends Component
             ->get();
 
         $catalogQuery = ProductPackagingItem::with(['supplier', 'productPackagings'])
-            ->orderByDesc('is_upsell_option')
-            ->orderBy('category')
+            ->orderBy('is_upsell_option')
+            ->orderBy('height_mm')
+            ->orderBy('length_mm')
             ->orderBy('name');
 
         if ($this->catalogCategoryFilter !== 'all') {
@@ -974,7 +976,12 @@ class ProductPackagingConfigurator extends Component
         }
 
         $catalogItems = $catalogQuery->get();
-        $allCatalogItems = ProductPackagingItem::where('is_active', true)->orderBy('name')->get();
+        $allCatalogItems = ProductPackagingItem::where('is_active', true)
+            ->orderBy('is_upsell_option')
+            ->orderBy('height_mm')
+            ->orderBy('length_mm')
+            ->orderBy('name')
+            ->get();
 
         // KPI-Statistiken für den Header
         $configuredProductsCount = $products->filter(fn ($p) => $p->packagings->sum('weight_grams') > 0)->count();

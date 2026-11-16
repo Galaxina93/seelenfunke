@@ -684,7 +684,7 @@ class ProductCreate extends Component
 
         $catalogSku = 'PKG-ENV-A1';
         if (str_contains($slug, 'weizenglas') || str_contains($name, 'glas')) {
-            $catalogSku = 'PKG-BOX-GLASS';
+            $catalogSku = 'PKG-BOX-NORMAL-2633';
         } elseif (!$isBrief || str_contains($slug, 'kristall') || str_contains($slug, 'schiefer') || str_contains($name, 'kristall') || str_contains($name, 'schiefer')) {
             $catalogSku = 'PKG-BOX-CRYSTAL';
         }

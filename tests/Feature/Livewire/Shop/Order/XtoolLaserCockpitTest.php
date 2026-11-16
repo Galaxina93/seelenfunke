@@ -394,8 +394,10 @@ class XtoolLaserCockpitTest extends TestCase
             ->call('toggleItemChecklistTask', $item->id, 'gift_box')
             ->call('toggleItemChecklistTask', $item->id, 'engraving')
             ->assertSet('activeOrderStep', 2)
-            ->assertSee('1× Schwarze Westpack Schmuckbox eingelegt')
-            ->assertSee('Schwarz-Gold-Geschenkpapier lose als Bogen beigelegt')
+            ->assertSee('Reinigen · Isopropanol & Tuch')
+            ->assertSee('Schmuckbox')
+            ->assertSee('Geschenkpapier · Beilegen')
+            ->assertSee('Dankeskarte')
             ->assertDontSee('Standard-Schutzpolsterung');
 
         $this->assertTrue($item->fresh()->is_completed);
@@ -509,16 +511,19 @@ class XtoolLaserCockpitTest extends TestCase
         $component->call('completeCurrentItemAndAdvance', $item2->id)
             ->assertSet('activeOrderStep', 2)
             ->assertSee('Schritt 2 · Verpackung & Versand')
-            ->assertSee('Dankeskarte beigelegt')
-            ->assertSee('Warnaufkleber „Zerbrechlich“ außen aufgeklebt')
+            ->assertSee('Reinigen · Isopropanol & Tuch')
+            ->assertSee('Dankeskarte')
+            ->assertSee('Aufkleber Zerbrechlich')
             ->assertSee('Der Seelen Kristall')
             ->assertDontSee('Standard-Schutzpolsterung');
 
-        // Packtisch-Prüfpunkte abhaken
-        $component->call('toggleOrderPackingCheck', 'thank_you_card')
+        // Packtisch-Pruefpunkte abhaken
+        $component->call('toggleOrderPackingCheck', 'cleaned')
+            ->call('toggleOrderPackingCheck', 'thank_you_card')
             ->call('toggleOrderPackingCheck', 'fragile_sticker');
 
         $overview = $order->fresh()->getManufacturingOverview();
+        $this->assertTrue($overview['cleaned_checked']);
         $this->assertTrue($overview['thank_you_card_checked']);
         $this->assertTrue($overview['requires_fragile_sticker']);
         $this->assertTrue($overview['fragile_sticker_checked']);

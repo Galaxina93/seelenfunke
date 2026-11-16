@@ -513,105 +513,38 @@
                         @endif
                     </div>
 
-                    {{-- 2. PFLICHT-PRÜFUNG VOR DEM VERSCHLIESSEN (Dezent Gold ohne bunte Hintergrundfarben) --}}
-                    <div class="space-y-2 pt-2 border-t border-gray-200 dark:border-gray-800">
-                        <div class="text-[10px] font-black uppercase tracking-widest text-gray-400 dark:text-gray-500">
-                            2. Pflicht-Prüfung vor dem Verschließen des Pakets
+                    {{-- 2. CHRONOLOGISCHE PACK-CHECKLISTE (Cleanes Schwarz-Gold ohne bunte Boxen, nur zutreffende Punkte) --}}
+                    @php
+                        $packingChecklistItems = $mfgOverview['packing_checklist_items'] ?? $model->resolvePackingChecklistItems();
+                    @endphp
+                    @if(!empty($packingChecklistItems))
+                        <div class="space-y-2 pt-2 border-t border-gray-200 dark:border-gray-800">
+                            <div class="text-[10px] font-black uppercase tracking-widest text-gray-400 dark:text-gray-500">
+                                2. Pack-Checkliste
+                            </div>
+
+                            @foreach($packingChecklistItems as $checkItem)
+                                <div wire:click="toggleOrderPackingCheck('{{ $checkItem['key'] }}')"
+                                     class="flex items-center justify-between gap-3 px-4 py-3.5 rounded-2xl bg-white dark:bg-gray-950 border transition-all cursor-pointer {{ $checkItem['checked']
+                                        ? 'border-[var(--theme-color-50)]'
+                                        : 'border-gray-200 dark:border-gray-800 hover:border-[var(--theme-color-40)]' }}">
+                                    <div class="flex items-center gap-3 min-w-0">
+                                        <div class="w-5 h-5 rounded-md border flex items-center justify-center shrink-0 {{ $checkItem['checked']
+                                            ? 'bg-[var(--theme-color)] border-[var(--theme-color)] text-gray-950'
+                                            : 'border-[var(--theme-color)] text-transparent' }}">
+                                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                        </div>
+                                        <span class="text-xs sm:text-sm font-bold text-gray-900 dark:text-white">
+                                            {{ $checkItem['label'] }}
+                                        </span>
+                                    </div>
+                                    <span class="shrink-0 text-[10px] font-black uppercase tracking-wider {{ $checkItem['checked'] ? 'text-[var(--theme-color)]' : 'text-gray-400 dark:text-gray-500' }}">
+                                        {{ $checkItem['checked'] ? 'Erledigt ✓' : 'Offen' }}
+                                    </span>
+                                </div>
+                            @endforeach
                         </div>
-
-                        {{-- Dankeskarte --}}
-                        <div wire:click="toggleOrderPackingCheck('thank_you_card')"
-                             class="flex items-center justify-between gap-3 px-4 py-3.5 rounded-2xl bg-white dark:bg-gray-950 border transition-all cursor-pointer {{ $mfgOverview['thank_you_card_checked']
-                                ? 'border-[var(--theme-color-50)]'
-                                : 'border-gray-200 dark:border-gray-800 hover:border-[var(--theme-color-40)]' }}">
-                            <div class="flex items-center gap-3 min-w-0">
-                                <div class="w-5 h-5 rounded-md border flex items-center justify-center shrink-0 {{ $mfgOverview['thank_you_card_checked']
-                                    ? 'bg-[var(--theme-color)] border-[var(--theme-color)] text-gray-950'
-                                    : 'border-[var(--theme-color)] text-transparent' }}">
-                                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
-                                </div>
-                                <span class="text-xs sm:text-sm font-bold text-gray-900 dark:text-white">
-                                    Dankeskarte beigelegt
-                                </span>
-                            </div>
-                            <span class="shrink-0 text-[10px] font-black uppercase tracking-wider {{ $mfgOverview['thank_you_card_checked'] ? 'text-[var(--theme-color)]' : 'text-gray-400 dark:text-gray-500' }}">
-                                {{ $mfgOverview['thank_you_card_checked'] ? 'Erledigt ✓' : 'Prüfen' }}
-                            </span>
-                        </div>
-
-                        {{-- Warnaufkleber (nur anzeigen, wenn zerbrechliche Ware in der Bestellung enthalten ist) --}}
-                        @if($mfgOverview['requires_fragile_sticker'])
-                            <div wire:click="toggleOrderPackingCheck('fragile_sticker')"
-                                 class="flex items-center justify-between gap-3 px-4 py-3.5 rounded-2xl bg-white dark:bg-gray-950 border transition-all cursor-pointer {{ $mfgOverview['fragile_sticker_checked']
-                                    ? 'border-[var(--theme-color-50)]'
-                                    : 'border-gray-200 dark:border-gray-800 hover:border-[var(--theme-color-40)]' }}">
-                                <div class="flex items-center gap-3 min-w-0">
-                                    <div class="w-5 h-5 rounded-md border flex items-center justify-center shrink-0 {{ $mfgOverview['fragile_sticker_checked']
-                                        ? 'bg-[var(--theme-color)] border-[var(--theme-color)] text-gray-950'
-                                        : 'border-[var(--theme-color)] text-transparent' }}">
-                                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
-                                    </div>
-                                    <span class="text-xs sm:text-sm font-bold text-gray-900 dark:text-white">
-                                        Warnaufkleber „Zerbrechlich“ außen aufgeklebt
-                                    </span>
-                                </div>
-                                <span class="shrink-0 text-[10px] font-black uppercase tracking-wider {{ $mfgOverview['fragile_sticker_checked'] ? 'text-[var(--theme-color)]' : 'text-gray-400 dark:text-gray-500' }}">
-                                    {{ $mfgOverview['fragile_sticker_checked'] ? 'Erledigt ✓' : 'Prüfen' }}
-                                </span>
-                            </div>
-                        @endif
-
-                        {{-- Edle Schmuckbox (NUR anzeigen, wenn tatsächlich gekauft!) --}}
-                        @if($mfgOverview['has_gift_box'])
-                            <div wire:click="toggleOrderPackingCheck('gift_box')"
-                                 class="flex items-center justify-between gap-3 px-4 py-3.5 rounded-2xl bg-white dark:bg-gray-950 border transition-all cursor-pointer {{ $mfgOverview['gift_box_packing_checked']
-                                    ? 'border-[var(--theme-color-50)]'
-                                    : 'border-gray-200 dark:border-gray-800 hover:border-[var(--theme-color-40)]' }}">
-                                <div class="flex items-center gap-3 min-w-0">
-                                    <div class="w-5 h-5 rounded-md border flex items-center justify-center shrink-0 {{ $mfgOverview['gift_box_packing_checked']
-                                        ? 'bg-[var(--theme-color)] border-[var(--theme-color)] text-gray-950'
-                                        : 'border-[var(--theme-color)] text-transparent' }}">
-                                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
-                                    </div>
-                                    <span class="text-xs sm:text-sm font-bold text-gray-900 dark:text-white">
-                                        {{ $mfgOverview['gift_box_count'] }}× Schwarze Westpack Schmuckbox eingelegt
-                                    </span>
-                                </div>
-                                <span class="shrink-0 text-[10px] font-black uppercase tracking-wider {{ $mfgOverview['gift_box_packing_checked'] ? 'text-[var(--theme-color)]' : 'text-gray-400 dark:text-gray-500' }}">
-                                    {{ $mfgOverview['gift_box_packing_checked'] ? 'Erledigt ✓' : 'Prüfen' }}
-                                </span>
-                            </div>
-                        @endif
-
-                        {{-- Geschenkpapier (NUR anzeigen, wenn tatsächlich gekauft!) --}}
-                        @if($mfgOverview['has_gift_wrap'])
-                            @php
-                                $wrapModeLabel = (in_array('loose', $mfgOverview['gift_wrap_modes'], true) && !in_array('wrapped', $mfgOverview['gift_wrap_modes'], true))
-                                    ? 'Schwarz-Gold-Geschenkpapier lose als Bogen beigelegt'
-                                    : (in_array('loose', $mfgOverview['gift_wrap_modes'], true)
-                                        ? 'Schwarz-Gold-Geschenkpapier (verpackt / Bogen beigelegt)'
-                                        : 'Fertig in Schwarz-Gold-Geschenkpapier verpackt');
-                            @endphp
-                            <div wire:click="toggleOrderPackingCheck('gift_wrap')"
-                                 class="flex items-center justify-between gap-3 px-4 py-3.5 rounded-2xl bg-white dark:bg-gray-950 border transition-all cursor-pointer {{ $mfgOverview['gift_wrap_packing_checked']
-                                    ? 'border-[var(--theme-color-50)]'
-                                    : 'border-gray-200 dark:border-gray-800 hover:border-[var(--theme-color-40)]' }}">
-                                <div class="flex items-center gap-3 min-w-0">
-                                    <div class="w-5 h-5 rounded-md border flex items-center justify-center shrink-0 {{ $mfgOverview['gift_wrap_packing_checked']
-                                        ? 'bg-[var(--theme-color)] border-[var(--theme-color)] text-gray-950'
-                                        : 'border-[var(--theme-color)] text-transparent' }}">
-                                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
-                                    </div>
-                                    <span class="text-xs sm:text-sm font-bold text-gray-900 dark:text-white">
-                                        {{ $wrapModeLabel }}
-                                    </span>
-                                </div>
-                                <span class="shrink-0 text-[10px] font-black uppercase tracking-wider {{ $mfgOverview['gift_wrap_packing_checked'] ? 'text-[var(--theme-color)]' : 'text-gray-400 dark:text-gray-500' }}">
-                                    {{ $mfgOverview['gift_wrap_packing_checked'] ? 'Erledigt ✓' : 'Prüfen' }}
-                                </span>
-                            </div>
-                        @endif
-                    </div>
+                    @endif
 
                     {{-- Bereits erzeugte DHL-Labels zum direkten 1-Klick-Nachdrucken --}}
                     @if($model->shipments->isNotEmpty())
