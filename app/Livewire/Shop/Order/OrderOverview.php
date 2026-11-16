@@ -1891,7 +1891,8 @@ class OrderOverview extends Component
 
             // Schneller Disk-Cache für das hochauflösende Gravur-Overlay (spart ~800ms GD-Render + MB-große Base64-Strings bei jedem Klick)
             $cacheHash = sha1(
-                $item->id . '|'
+                'v3-parity|'
+                . $item->id . '|'
                 . $effectiveSide . '|'
                 . ($item->updated_at?->timestamp ?? 0) . '|'
                 . ($item->product?->updated_at?->timestamp ?? 0) . '|'

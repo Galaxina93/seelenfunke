@@ -408,8 +408,17 @@ SPRACHMELODIE: Deine Sprachmelodie ist extrem technisch, monoton und maschinenä
             });
 
             if (!empty($toolIds) && isset($rolesMap['Teamleiter'])) {
-                // Teamleiter (Funkira) startet schlank mit ihren Hauptfähigkeiten (Core) + funkira_equip_skill_pool
-                $teamleiterAllowedTools = FunkiraSkillPoolService::getCoreToolIdentifiers();
+                // Teamleiter (Falcone & Funkira) startet schlank mit den Hauptfähigkeiten (Core) + Server-/Health-Puls + funkira_equip_skill_pool
+                $teamleiterAllowedTools = array_values(array_unique(array_merge(
+                    FunkiraSkillPoolService::getCoreToolIdentifiers(),
+                    [
+                        'system_get_server_status',
+                        'system_get_health',
+                        'system_get_error_sentinel',
+                        'master_get_next_best_actions',
+                        FunkiraSkillPoolService::EQUIP_TOOL_NAME,
+                    ]
+                )));
                 $teamleiterToolIds = AiTool::whereIn('identifier', $teamleiterAllowedTools)->pluck('id');
                 $rolesMap['Teamleiter']->tools()->sync($teamleiterToolIds);
             }
@@ -474,7 +483,8 @@ SPRACHMELODIE: Deine Sprachmelodie ist extrem technisch, monoton und maschinenä
 
                 'Agentenmanager'=> array_merge(
                     array_column(AIFunctionsRegistry::getAiAgentsFuncsSchema(), 'name'),
-                    array_column(AIFunctionsRegistry::getAiMailFuncsSchema(), 'name')
+                    array_column(AIFunctionsRegistry::getAiMailFuncsSchema(), 'name'),
+                    ['system_get_server_status', 'system_get_health']
                 ),
 
                 'Versorgungsmanager'=> array_merge(
@@ -513,6 +523,8 @@ SPRACHMELODIE: Deine Sprachmelodie ist extrem technisch, monoton und maschinenä
                     $rolesMap[$roleName]->tools()->sync($roleToolIds);
                 }
             }
+
+            \Illuminate\Support\Facades\Cache::forget('ai_agent_capabilities_map');
         }
     }
 }

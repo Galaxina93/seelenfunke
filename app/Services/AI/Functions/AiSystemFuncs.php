@@ -419,10 +419,15 @@ trait AiSystemFuncs
             ],
             [
                 'name' => 'system_get_health',
-                'description' => 'Pingt das Server-System an und prüft den technischen Zustand, CPU-Daten, Queue-Workers, Laravel-Caches und Fehler-Logs. Stichworte: Ist das System gesund, Systemüberprüfung, Check Systemstatus, Gibt es IT-Fehler.',
+                'description' => 'Prüft in Echtzeit den technischen Gesundheitszustand des Stage-/Portal-Systems (Datenbank, Cache, Festplatte, SSL, Cronjobs, Queue-Worker, Backups, 90-Tage-Uptime) sowie des Mittwald Live-Servers (mein-seelenfunke.de & www). Stichworte: Ist das System gesund, Systemüberprüfung, Check Systemstatus, Live-Server Status, Gibt es IT-Fehler.',
                 'parameters' => [
                     'type' => 'object',
-                    'properties' => new \stdClass(),
+                    'properties' => [
+                        'force_refresh' => [
+                            'type' => 'boolean',
+                            'description' => 'Optional. Wenn true, wird der 5-Minuten-Cache der Live-Domain geleert und sofort frisch gegen mein-seelenfunke.de & www geprüft.'
+                        ]
+                    ],
                 ],
                 'callable' => [self::class, 'executeGetSystemHealth']
             ],
@@ -2150,35 +2155,90 @@ trait AiSystemFuncs
         ];
     }
 
-    public static function executeGetSystemHealth(array $args)
+    public static function executeGetHealth(array $args = [])
     {
-        if ($denied = self::assertSystemAdminAccess()) return $denied;
+        return self::executeGetSystemHealth($args);
+    }
+
+    public static function executeGetSystemHealth(array $args = [])
+    {
+        if ($denied = self::assertSystemAdminAccess()) {
+            return array_merge(['error' => true], $denied);
+        }
+
+        if (!\App\Services\AI\AiAuthHelper::isAdmin()) {
+            return [
+                'error' => true,
+                'status' => 'error',
+                'message' => 'Zugriff verweigert: Dieses System-Werkzeug ist ausschließlich Administratoren vorbehalten.',
+            ];
+        }
 
         try {
-            $analytics = new \App\Livewire\Shop\Master\MasterAnalytics();
-            $analytics->checkSystemHealth();
-            $isHealthy = $analytics->isSystemHealthy();
+            /** @var \App\Services\System\SystemHealthPulseService $pulseService */
+            $pulseService = app(\App\Services\System\SystemHealthPulseService::class);
+            $forceRefresh = !empty($args['force_refresh']);
+            $overrideLiveDomain = self::resolveSafeLiveDomainProbe($pulseService, $forceRefresh);
 
-            $analytics->dateStart = now()->startOfMonth()->format('Y-m-d');
-            $analytics->dateEnd = now()->endOfMonth()->format('Y-m-d');
-            $analytics->filterType = 'all';
+            $report = $pulseService->evaluate(
+                source: 'dashboard',
+                strict: false,
+                recordSample: false,
+                syncLogs: false,
+                overrideSslDays: null,
+                overrideLiveDomain: $overrideLiveDomain
+            );
 
-            $service = app(\App\Services\AnalyticsService::class);
-            $analytics->loadStats($service);
-            $stats = $analytics->stats;
+            $activeSessions = 0;
+            try {
+                if (\Illuminate\Support\Facades\Schema::hasTable('sessions')) {
+                    $activeSessions = (int) \Illuminate\Support\Facades\DB::table('sessions')
+                        ->where('last_activity', '>=', now()->subMinutes(15)->timestamp)
+                        ->count();
+                }
+            } catch (\Throwable $ignore) {
+            }
+
+            $totalOrders = 0;
+            try {
+                if (class_exists(\App\Models\Order\OrderOrder::class) && \Illuminate\Support\Facades\Schema::hasTable('order_orders')) {
+                    $totalOrders = (int) \App\Models\Order\OrderOrder::whereNotIn('status', ['cancelled', 'refunded'])->count();
+                }
+            } catch (\Throwable $ignore) {
+            }
+
+            $isHealthy = (bool) ($report['healthy'] ?? true);
 
             return [
                 'status' => 'success',
+                'force_refreshed' => $forceRefresh,
                 'is_healthy' => $isHealthy,
-                'active_sessions' => $stats['summary']['active_sessions'] ?? 0,
-                'avg_profit' => $stats['summary']['avg_profit'] ?? 0,
-                'total_orders' => $stats['summary']['total_orders'] ?? 0,
-                'message' => $isHealthy ? 'Das System läuft einwandfrei.' : 'Es gibt Systemwarnungen.'
+                'healthy' => $isHealthy,
+                'overall_status' => $report['status'],
+                'headline' => $report['headline'],
+                'checked_at' => $report['checked_at'],
+                'message' => $isHealthy
+                    ? ('Das System läuft einwandfrei (' . $report['headline'] . ').')
+                    : ('Systemhinweis: ' . $report['headline']),
+                'live_domains' => $report['live_domain'],
+                'live_server' => $report['live_domain'],
+                'stage_and_portal' => [
+                    'environment' => $report['environment'],
+                    'uptime_90d_percent' => $report['uptime_90d_percent'],
+                    'strict_healthy_90d_percent' => $report['strict_healthy_90d_percent'],
+                    'latency_ms' => $report['latency_ms'],
+                    'pillars' => $report['pillars'],
+                    'watchtower' => $report['watchtower'],
+                ],
+                'active_sessions' => $activeSessions,
+                'avg_profit' => 0,
+                'total_orders' => $totalOrders,
             ];
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             return [
+                'error' => true,
                 'status' => 'error',
-                'message' => 'Konnte Systemstatus nicht abrufen: ' . $e->getMessage()
+                'message' => 'Konnte Systemstatus nicht abrufen: ' . $e->getMessage(),
             ];
         }
     }
@@ -4577,6 +4637,56 @@ trait AiSystemFuncs
         ];
     }
 
+    private static function resolveSafeLiveDomainProbe(\App\Services\System\SystemHealthPulseService $pulseService, bool $forceRefresh = false): ?array
+    {
+        if ($forceRefresh) {
+            try {
+                \Illuminate\Support\Facades\Cache::forget(\App\Services\System\SystemHealthPulseService::LIVE_DOMAIN_CACHE_KEY);
+            } catch (\Throwable $ignore) {
+            }
+        }
+
+        if ($pulseService->hasCustomLiveProbeResolver() || !app()->runningUnitTests()) {
+            try {
+                return $pulseService->getCachedOrProbeLiveDomains(false);
+            } catch (\Throwable $cacheOrProbeErr) {
+                if (!$pulseService->hasCustomLiveProbeResolver() && !app()->runningUnitTests()) {
+                    try {
+                        return $pulseService->probeLiveDomains();
+                    } catch (\Throwable $ignore) {
+                    }
+                }
+
+                return [
+                    'probed' => false,
+                    'reachable' => false,
+                    'http_status' => 0,
+                    'latency_ms' => 0.0,
+                    'ssl_days_remaining' => null,
+                    'ssl_valid_until' => null,
+                    'body_bytes' => 0,
+                    'has_shop_markers' => false,
+                    'mode' => 'error',
+                    'www_domain' => \App\Services\System\SystemHealthPulseService::LIVE_WWW_HOST,
+                    'www_ingress_active' => false,
+                    'www_http_status' => 0,
+                    'www_status' => 'pending_ingress',
+                    'checked_at' => now()->toIso8601String(),
+                ];
+            }
+        }
+
+        try {
+            if (\Illuminate\Support\Facades\Cache::has(\App\Services\System\SystemHealthPulseService::LIVE_DOMAIN_CACHE_KEY)) {
+                $cached = \Illuminate\Support\Facades\Cache::get(\App\Services\System\SystemHealthPulseService::LIVE_DOMAIN_CACHE_KEY);
+                return is_array($cached) ? $cached : null;
+            }
+        } catch (\Throwable $ignore) {
+        }
+
+        return null;
+    }
+
     public static function executeGetServerStatus(array $args = [])
     {
         if ($denied = self::assertSystemAdminAccess()) {
@@ -4595,18 +4705,7 @@ trait AiSystemFuncs
             /** @var \App\Services\System\SystemHealthPulseService $pulseService */
             $pulseService = app(\App\Services\System\SystemHealthPulseService::class);
             $forceRefresh = !empty($args['force_refresh']);
-
-            if ($forceRefresh) {
-                \Illuminate\Support\Facades\Cache::forget(\App\Services\System\SystemHealthPulseService::LIVE_DOMAIN_CACHE_KEY);
-            }
-
-            $overrideLiveDomain = null;
-            if ($pulseService->hasCustomLiveProbeResolver() || !app()->runningUnitTests()) {
-                $overrideLiveDomain = $pulseService->getCachedOrProbeLiveDomains(false);
-            } elseif (\Illuminate\Support\Facades\Cache::has(\App\Services\System\SystemHealthPulseService::LIVE_DOMAIN_CACHE_KEY)) {
-                $cached = \Illuminate\Support\Facades\Cache::get(\App\Services\System\SystemHealthPulseService::LIVE_DOMAIN_CACHE_KEY);
-                $overrideLiveDomain = is_array($cached) ? $cached : null;
-            }
+            $overrideLiveDomain = self::resolveSafeLiveDomainProbe($pulseService, $forceRefresh);
 
             $report = $pulseService->evaluate(
                 source: 'dashboard',
@@ -4622,9 +4721,11 @@ trait AiSystemFuncs
                 'force_refreshed' => $forceRefresh,
                 'overall_status' => $report['status'],
                 'healthy' => $report['healthy'],
+                'is_healthy' => $report['healthy'],
                 'headline' => $report['headline'],
                 'checked_at' => $report['checked_at'],
                 'live_server' => $report['live_domain'],
+                'live_domains' => $report['live_domain'],
                 'stage_and_portal' => [
                     'environment' => $report['environment'],
                     'uptime_90d_percent' => $report['uptime_90d_percent'],

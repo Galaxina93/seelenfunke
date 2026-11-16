@@ -595,6 +595,23 @@ class FileDownloadService
         // HINWEIS: Kein roter Hilfsrahmen (<rect stroke="#FF0000">) mehr im SVG,
         // da xTool Studio / XCS sonst standardmäßig eine aktive Liniengravur daraus macht.
 
+        // Logos vor dem SVG-Aufbau exakt nach Konfigurator-zIndex (Default 10 + idx) sortieren,
+        // damit Vektor-Symbole mit höherem zIndex (z. B. weihnachtsbaum.svg zIndex=31) über dem Porträtfoto (zIndex=11) liegen.
+        if (!empty($logos) && is_array($logos)) {
+            $indexedLogos = [];
+            foreach (array_values($logos) as $origIdx => $lEntry) {
+                if (!is_array($lEntry)) {
+                    continue;
+                }
+                $z = (isset($lEntry['zIndex']) && is_numeric($lEntry['zIndex']))
+                    ? (float) $lEntry['zIndex']
+                    : (float) (10 + $origIdx);
+                $indexedLogos[] = ['z' => $z, 'idx' => $origIdx, 'logo' => $lEntry];
+            }
+            usort($indexedLogos, static fn (array $a, array $b): int => ($a['z'] <=> $b['z']) ?: ($a['idx'] <=> $b['idx']));
+            $logos = array_column($indexedLogos, 'logo');
+        }
+
         $textsBakedIntoRaster = false;
         $lastRasterLogoIndex = null;
         if (!empty($logos)) {
@@ -888,7 +905,7 @@ class FileDownloadService
                 if (abs($curve) >= 0.5) {
                     $ttfForMeasure = $this->resolveTtfFontPath((string) $fontFamily);
                     $curvedChars = $this->computeCurvedTextArcChars((string) ($textItem['text'] ?? ''), $safeFontSize, $curve, $ttfForMeasure);
-                    $baselineOffset = number_format($safeFontSize * 0.35, 4, '.', '');
+                    $baselineOffset = number_format($safeFontSize * 0.41, 4, '.', '');
                     foreach ($curvedChars as $c) {
                         if (trim((string) $c['char']) === '') {
                             continue;
@@ -900,7 +917,7 @@ class FileDownloadService
                     }
                 } else {
                     foreach ($lines as $line) {
-                        $svg .= '    <text x="0" y="'.($startY + ($safeFontSize * 0.35)).'" font-family="'.$safeFontFamily.'" font-size="'.$safeFontSize.'" font-weight="bold" fill="#000000"'.$strokeAttr.' text-anchor="'.$textAnchor.'">'.htmlspecialchars((string) $line, ENT_QUOTES, 'UTF-8').'</text>' . "\n";
+                        $svg .= '    <text x="0" y="'.($startY + ($safeFontSize * 0.41)).'" font-family="'.$safeFontFamily.'" font-size="'.$safeFontSize.'" font-weight="bold" fill="#000000"'.$strokeAttr.' text-anchor="'.$textAnchor.'">'.htmlspecialchars((string) $line, ENT_QUOTES, 'UTF-8').'</text>' . "\n";
                         $startY += $lineHeight;
                     }
                 }
@@ -1016,6 +1033,68 @@ class FileDownloadService
         }
         $pngOut = null;
 
+        // Falls neben einem Rasterfoto auch Vektor-Symbole (z. B. weihnachtsbaum.svg mit zIndex=31) enthalten sind,
+        // rendern wir über die gemeinsame zIndex-Stage-Engine und schneiden exakt auf die Tight-Bounding-Box zu.
+        $hasSvgInLogos = false;
+        $hasRasterInLogos = false;
+        foreach ($logos as $lCheck) {
+            $uCheck = strtolower((string) ($lCheck['url'] ?? $lCheck['value'] ?? ''));
+            if ($uCheck === '') {
+                continue;
+            }
+            if (str_ends_with((string) parse_url($uCheck, PHP_URL_PATH), '.svg') || str_starts_with($uCheck, 'data:image/svg')) {
+                $hasSvgInLogos = true;
+            } else {
+                $hasRasterInLogos = true;
+            }
+        }
+
+        if ($hasSvgInLogos && $hasRasterInLogos) {
+            $stageRendered = $this->renderFullStageLaserPng(
+                (float) $widthMm,
+                (float) $heightMm,
+                $workingAreaPolygonPct,
+                $logos,
+                is_array($texts) ? $texts : [],
+                $item
+            );
+            $stageGd = @imagecreatefromstring($stageRendered['pngBytes'] ?? '');
+            if ($stageGd) {
+                $sw = imagesx($stageGd);
+                $sh = imagesy($stageGd);
+                $tMinX = $sw;
+                $tMaxX = -1;
+                $tMinY = $sh;
+                $tMaxY = -1;
+                for ($sy = 0; $sy < $sh; $sy++) {
+                    for ($sx = 0; $sx < $sw; $sx++) {
+                        if (((imagecolorat($stageGd, $sx, $sy) >> 24) & 0x7F) < 126) {
+                            if ($sx < $tMinX) $tMinX = $sx;
+                            if ($sx > $tMaxX) $tMaxX = $sx;
+                            if ($sy < $tMinY) $tMinY = $sy;
+                            if ($sy > $tMaxY) $tMaxY = $sy;
+                        }
+                    }
+                }
+                if ($tMaxX >= $tMinX && $tMaxY >= $tMinY) {
+                    $cw = $tMaxX - $tMinX + 1;
+                    $ch = $tMaxY - $tMinY + 1;
+                    $cropGd = imagecreatetruecolor($cw, $ch);
+                    imagealphablending($cropGd, false);
+                    imagesavealpha($cropGd, true);
+                    $cTrans = imagecolorallocatealpha($cropGd, 255, 255, 255, 127);
+                    imagefill($cropGd, 0, 0, $cTrans);
+                    imagecopy($cropGd, $stageGd, 0, 0, $tMinX, $tMinY, $cw, $ch);
+                    ob_start();
+                    imagepng($cropGd, null, 6);
+                    $pngOut = (string) ob_get_clean();
+                    imagedestroy($cropGd);
+                }
+                imagedestroy($stageGd);
+            }
+        }
+
+        if (!$pngOut) {
         foreach ($logos as $logoItem) {
             $url = $logoItem['url'] ?? '';
             if (empty($url)) continue;
@@ -1089,6 +1168,7 @@ class FileDownloadService
                 $pngOut = $normalizedData;
                 break;
             }
+        }
         }
 
         if (!$pngOut) {
@@ -1469,7 +1549,7 @@ class FileDownloadService
             'seelen-kristall' => [
                 'widthMm'      => 161.5,
                 'heightMm'     => 161.5,
-                'plateBoxPct'  => ['left' => 10.88, 'top' => 6.48, 'width' => 78.24, 'height' => 78.24],
+                'plateBoxPct'  => ['left' => 12.90, 'top' => 8.50, 'width' => 74.20, 'height' => 74.20],
                 'contourShape' => 'circle',
             ],
             'seelen-anhaenger' => [
@@ -1589,12 +1669,26 @@ class FileDownloadService
         if (!empty($productConfig['xtool_plate_box_pct']) && is_array($productConfig['xtool_plate_box_pct'])) {
             $pb = $productConfig['xtool_plate_box_pct'];
             if (!empty($pb['width']) && !empty($pb['height'])) {
-                $plateBoxPct = [
-                    'left'   => (float) ($pb['left'] ?? 0.0),
-                    'top'    => (float) ($pb['top'] ?? 0.0),
-                    'width'  => (float) $pb['width'],
-                    'height' => (float) $pb['height'],
-                ];
+                $pbLeft = (float) ($pb['left'] ?? 0.0);
+                $pbTop = (float) ($pb['top'] ?? 0.0);
+                $pbWidth = (float) $pb['width'];
+                $pbHeight = (float) $pb['height'];
+
+                // Veraltete 78.24%-Vorlage beim Seelen-Kristall automatisch auf die kalibrierte 148.0-mm-Innenfacette (74.20%) heben
+                $isLegacyCrystalBox = $matchedProfile !== null
+                    && ($matchedProfile['contourShape'] ?? null) === 'circle'
+                    && abs((float) ($matchedProfile['widthMm'] ?? 0.0) - 161.5) < 0.05
+                    && abs($pbWidth - 78.24) < 0.25
+                    && abs($pbLeft - 10.88) < 0.25;
+
+                $plateBoxPct = $isLegacyCrystalBox
+                    ? $matchedProfile['plateBoxPct']
+                    : [
+                        'left'   => $pbLeft,
+                        'top'    => $pbTop,
+                        'width'  => $pbWidth,
+                        'height' => $pbHeight,
+                    ];
             }
         } elseif ($matchedProfile !== null && !empty($matchedProfile['plateBoxPct'])) {
             $plateBoxPct = $matchedProfile['plateBoxPct'];
@@ -1881,7 +1975,7 @@ class FileDownloadService
     ): array {
         $minDimMm = max(1.0, min($widthMm, $heightMm));
         $maxDimMm = max(1.0, max($widthMm, $heightMm));
-        $pxPerMm = min(32.0, max(10.0, max(800.0 / $maxDimMm, 132.0 / $minDimMm)));
+        $pxPerMm = min(32.0, max(10.0, max(1000.0 / $maxDimMm, 140.0 / $minDimMm)));
         $stageW = max(32, (int) round($widthMm * $pxPerMm));
         $stageH = max(32, (int) round($heightMm * $pxPerMm));
 
@@ -1907,129 +2001,52 @@ class FileDownloadService
             imagefill($maskImg, 0, 0, $maskWhite);
         }
 
-        $textsBakedIntoPhoto = false;
-        $lastRasterIdx = null;
-        foreach ($logos as $idx => $lCand) {
-            $u = (string) ($lCand['url'] ?? $lCand['value'] ?? $lCand['src'] ?? '');
-            if ($u !== '' && !str_ends_with(strtolower((string) parse_url($u, PHP_URL_PATH)), '.svg') && !str_starts_with($u, 'data:image/svg')) {
-                $lastRasterIdx = $idx;
-            }
-        }
+        // Gemeinsame zIndex-Sortierung von Logos (Default 10 + idx) und Texten (Default 30 + idx)
+        // exakt identisch zur Kunden-Konfigurator-Engine (scripts_frontend_2.blade.php)
+        $sortedQueue = $this->buildSortedLaserLayerQueue($logos, $texts);
 
-        foreach ($logos as $logoIdx => $logo) {
-            $url = (string) ($logo['url'] ?? $logo['value'] ?? $logo['src'] ?? '');
-            if ($url === '') continue;
-
-            [$rawBytes, $ext] = $this->loadSafeLogoBytesAndExt($url, $item);
-            if ($rawBytes === null) continue;
-
-            if ($ext === 'svg') {
-                $this->drawSvgLogoOntoStageCanvas($canvas, $rawBytes, $logo, $widthMm, $heightMm, $stageW, $stageH);
-            } else {
-                $textsForRaster = ($logoIdx === $lastRasterIdx) ? $texts : [];
-                $clipped = $this->clipAndNormalizeRasterLogoForLaser(
-                    $rawBytes,
-                    $ext,
-                    $logo,
-                    $widthMm,
-                    $heightMm,
-                    $workingAreaPolygonPct,
-                    $textsForRaster
-                );
-                if ($clipped !== null) {
-                    if (!empty($textsForRaster)) {
-                        $textsBakedIntoPhoto = true;
-                    }
-                    $partImg = @imagecreatefromstring($clipped['pngData']);
-                    if ($partImg) {
-                        $dstX = (int) round(($clipped['xMm'] / $widthMm) * $stageW);
-                        $dstY = (int) round(($clipped['yMm'] / $heightMm) * $stageH);
-                        $dstW = max(1, (int) round(($clipped['widthMm'] / $widthMm) * $stageW));
-                        $dstH = max(1, (int) round(($clipped['heightMm'] / $heightMm) * $stageH));
-                        imagealphablending($canvas, true);
-                        imagecopyresampled($canvas, $partImg, $dstX, $dstY, 0, 0, $dstW, $dstH, imagesx($partImg), imagesy($partImg));
-                        imagealphablending($canvas, false);
-                        imagedestroy($partImg);
-                    }
+        foreach ($sortedQueue as $entry) {
+            if ($entry['kind'] === 'logo') {
+                $logo = $entry['data'];
+                $url = (string) ($logo['url'] ?? $logo['value'] ?? $logo['src'] ?? '');
+                if ($url === '') {
+                    continue;
                 }
-            }
-        }
 
-        // Falls Texte noch nicht in ein Foto eingebrannt wurden: direkt als gestochen scharfe schwarze TTF-Schrift zeichnen
-        if (!empty($texts) && !$textsBakedIntoPhoto && function_exists('imagettftext')) {
-            imagealphablending($canvas, true);
-            $blackOpaque = imagecolorallocatealpha($canvas, 0, 0, 0, 0);
+                [$rawBytes, $ext] = $this->loadSafeLogoBytesAndExt($url, $item);
+                if ($rawBytes === null) {
+                    continue;
+                }
 
-            foreach ($texts as $textItem) {
-                $rawText = trim((string) ($textItem['text'] ?? ''));
-                if ($rawText === '' || $rawText === 'Text eingeben...') continue;
-
-                $ttfPath = $this->resolveTtfFontPath((string) ($textItem['font'] ?? 'Montserrat'));
-                if (!$ttfPath || !is_file($ttfPath)) continue;
-
-                $txPx = (((float) ($textItem['x'] ?? 50)) / 100.0) * $stageW;
-                $tyPx = (((float) ($textItem['y'] ?? 50)) / 100.0) * $stageH;
-                $rawSize = (float) ($textItem['size'] ?? 1.0);
-                $fontSizeMm = ($rawSize / 25.0) * $widthMm;
-                $fontSizePx = ($fontSizeMm / $widthMm) * $stageW;
-                $ptSize = max(5.0, $fontSizePx * 0.75);
-
-                $tRotDeg = (float) ($textItem['rotation'] ?? 0);
-                $gdAngle = -$tRotDeg;
-                $rad = deg2rad($tRotDeg);
-                $cosA = cos($rad);
-                $sinA = sin($rad);
-                $align = (string) ($textItem['align'] ?? 'center');
-                $curve = max(-100.0, min(100.0, (float) ($textItem['curve'] ?? 0)));
-
-                if (abs($curve) >= 0.5) {
-                    $curvedChars = $this->computeCurvedTextArcChars($rawText, $fontSizePx, $curve, $ttfPath);
-                    foreach ($curvedChars as $c) {
-                        $ch = (string) $c['char'];
-                        if (trim($ch) === '') continue;
-                        $chBbox = @imagettfbbox($ptSize, 0.0, $ttfPath, $ch);
-                        if (!$chBbox) continue;
-                        $localBaseX = -(($chBbox[0] + $chBbox[2]) / 2.0);
-                        $localBaseY = $fontSizePx * 0.33;
-                        $cosC = cos((float) $c['rad']);
-                        $sinC = sin((float) $c['rad']);
-                        $dx = (float) $c['x'] + ($localBaseX * $cosC) - ($localBaseY * $sinC);
-                        $dy = (float) $c['y'] + ($localBaseX * $sinC) + ($localBaseY * $cosC);
-                        $drawX = (int) round($txPx + ($dx * $cosA) - ($dy * $sinA));
-                        $drawY = (int) round($tyPx + ($dx * $sinA) + ($dy * $cosA));
-                        $charGdAngle = -($tRotDeg + (float) $c['deg']);
-                        @imagettftext($canvas, $ptSize, $charGdAngle, $drawX, $drawY, $blackOpaque, $ttfPath, $ch);
-                    }
+                if ($ext === 'svg') {
+                    $this->drawSvgLogoOntoStageCanvas($canvas, $rawBytes, $logo, $widthMm, $heightMm, $stageW, $stageH, true);
                 } else {
-                    $lines = preg_split('/\r\n|\r|\n/', $rawText) ?: [];
-                    $numLines = count($lines);
-                    $lineHeightPx = $fontSizePx * 1.15;
-                    $totalBlockH = ($numLines - 1) * $lineHeightPx;
-
-                    foreach ($lines as $lineIdx => $lineText) {
-                        $lineText = trim($lineText);
-                        if ($lineText === '') continue;
-                        $bbox = @imagettfbbox($ptSize, 0.0, $ttfPath, $lineText);
-                        if (!$bbox) continue;
-
-                        $lineCenterY = $tyPx - ($totalBlockH / 2.0) + ($lineIdx * $lineHeightPx);
-                        $unrotY = $lineCenterY + ($fontSizePx * 0.33);
-                        if ($align === 'left') {
-                            $unrotX = $txPx - $bbox[0];
-                        } elseif ($align === 'right') {
-                            $unrotX = $txPx - $bbox[2];
-                        } else {
-                            $unrotX = $txPx - (($bbox[0] + $bbox[2]) / 2.0);
+                    $clipped = $this->clipAndNormalizeRasterLogoForLaser(
+                        $rawBytes,
+                        $ext,
+                        $logo,
+                        $widthMm,
+                        $heightMm,
+                        $workingAreaPolygonPct,
+                        []
+                    );
+                    if ($clipped !== null) {
+                        $partImg = @imagecreatefromstring($clipped['pngData']);
+                        if ($partImg) {
+                            $dstX = (int) round(($clipped['xMm'] / $widthMm) * $stageW);
+                            $dstY = (int) round(($clipped['yMm'] / $heightMm) * $stageH);
+                            $dstW = max(1, (int) round(($clipped['widthMm'] / $widthMm) * $stageW));
+                            $dstH = max(1, (int) round(($clipped['heightMm'] / $heightMm) * $stageH));
+                            imagealphablending($canvas, true);
+                            imagecopyresampled($canvas, $partImg, $dstX, $dstY, 0, 0, $dstW, $dstH, imagesx($partImg), imagesy($partImg));
+                            imagealphablending($canvas, false);
+                            imagedestroy($partImg);
                         }
-                        $dx = $unrotX - $txPx;
-                        $dy = $unrotY - $tyPx;
-                        $drawX = (int) round($txPx + ($dx * $cosA) - ($dy * $sinA));
-                        $drawY = (int) round($tyPx + ($dx * $sinA) + ($dy * $cosA));
-                        @imagettftext($canvas, $ptSize, $gdAngle, $drawX, $drawY, $blackOpaque, $ttfPath, $lineText);
                     }
                 }
+            } elseif ($entry['kind'] === 'text') {
+                $this->drawTextItemOntoStageCanvas($canvas, $entry['data'], $widthMm, $stageW, $stageH);
             }
-            imagealphablending($canvas, false);
         }
 
         // Hart an der Arbeitsbereich-Maske (workingAreaPolygonPct) clippen
@@ -2052,6 +2069,279 @@ class FileDownloadService
             'pixelWidth'  => $stageW,
             'pixelHeight' => $stageH,
         ];
+    }
+
+    /**
+     * Sortiert Logos (Default zIndex = 10 + idx) und Texte (Default zIndex = 30 + idx) in einer gemeinsamen
+     * Zeichen-Warteschlange exakt analog zum 2D/3D-Shop-Konfigurator.
+     *
+     * @return array<int, array{kind: string, index: int, z: float, order: int, data: array}>
+     */
+    protected function buildSortedLaserLayerQueue(array $logos, array $texts): array
+    {
+        $queue = [];
+        foreach (array_values($logos) as $idx => $logo) {
+            if (!is_array($logo)) {
+                continue;
+            }
+            $z = (isset($logo['zIndex']) && is_numeric($logo['zIndex']))
+                ? (float) $logo['zIndex']
+                : (float) (10 + $idx);
+            $queue[] = [
+                'kind'  => 'logo',
+                'index' => $idx,
+                'z'     => $z,
+                'order' => $idx,
+                'data'  => $logo,
+            ];
+        }
+
+        foreach (array_values($texts) as $idx => $textItem) {
+            if (!is_array($textItem)) {
+                continue;
+            }
+            $z = (isset($textItem['zIndex']) && is_numeric($textItem['zIndex']))
+                ? (float) $textItem['zIndex']
+                : (float) (30 + $idx);
+            $queue[] = [
+                'kind'  => 'text',
+                'index' => $idx,
+                'z'     => $z,
+                'order' => 10000 + $idx,
+                'data'  => $textItem,
+            ];
+        }
+
+        usort($queue, static function (array $a, array $b): int {
+            $cmp = $a['z'] <=> $b['z'];
+            return $cmp !== 0 ? $cmp : ($a['order'] <=> $b['order']);
+        });
+
+        return $queue;
+    }
+
+    /**
+     * Berechnet den exakten vertikalen Baseline-Offset (in Pixeln relativ zur Zeilenmitte) analog zu
+     * HTML5 Canvas textBaseline = 'middle' + yOffset = fontSize * 0.12 in scripts_frontend_2.blade.php.
+     */
+    protected function computeCanvasTextBaselineOffsetPx(float $ptSize, float $fontSizePx, string $ttfPath): float
+    {
+        if (function_exists('imagettfbbox')) {
+            $emBbox = @imagettfbbox($ptSize, 0.0, $ttfPath, 'Äg');
+            if ($emBbox) {
+                $emMiddleToBaseline = -(($emBbox[7] + $emBbox[1]) / 2.0);
+                return $emMiddleToBaseline + ($fontSizePx * 0.12);
+            }
+        }
+
+        return $fontSizePx * 0.41;
+    }
+
+    /**
+     * Zeichnet ein einzelnes Text-Element (gerade oder gebogen) an seiner exakten zIndex-Position auf das Stage-Canvas,
+     * inklusive lokalem weißen Kontrast-Halo auf darunterliegenden opaken Foto-Pixeln.
+     */
+    protected function drawTextItemOntoStageCanvas($canvas, array $textItem, float $widthMm, int $stageW, int $stageH): void
+    {
+        if (!function_exists('imagettftext')) {
+            return;
+        }
+
+        $rawText = trim((string) ($textItem['text'] ?? ''));
+        if ($rawText === '' || $rawText === 'Text eingeben...') {
+            return;
+        }
+
+        $ttfPath = $this->resolveTtfFontPath((string) ($textItem['font'] ?? 'Montserrat'));
+        if (!$ttfPath || !is_file($ttfPath)) {
+            return;
+        }
+
+        $txPx = (((float) ($textItem['x'] ?? 50)) / 100.0) * $stageW;
+        $tyPx = (((float) ($textItem['y'] ?? 50)) / 100.0) * $stageH;
+        $rawSize = (float) ($textItem['size'] ?? 1.0);
+        $fontSizeMm = ($rawSize / 25.0) * $widthMm;
+        $fontSizePx = ($fontSizeMm / max(0.001, $widthMm)) * $stageW;
+        $ptSize = max(4.0, $fontSizePx * 0.75);
+
+        $tRotDeg = (float) ($textItem['rotation'] ?? 0);
+        $gdAngle = -$tRotDeg;
+        $rad = deg2rad($tRotDeg);
+        $cosA = cos($rad);
+        $sinA = sin($rad);
+        $align = (string) ($textItem['align'] ?? 'center');
+        $curve = max(-100.0, min(100.0, (float) ($textItem['curve'] ?? 0)));
+        $haloRadius = max(2, min(8, (int) round($fontSizePx * 0.08)));
+        $baseOffsetPx = $this->computeCanvasTextBaselineOffsetPx($ptSize, $fontSizePx, $ttfPath);
+
+        $glyphMask = imagecreatetruecolor($stageW, $stageH);
+        $haloMask = imagecreatetruecolor($stageW, $stageH);
+        if (!$glyphMask || !$haloMask) {
+            if ($glyphMask) imagedestroy($glyphMask);
+            if ($haloMask) imagedestroy($haloMask);
+            return;
+        }
+
+        $gmBlack = imagecolorallocate($glyphMask, 0, 0, 0);
+        $gmWhite = imagecolorallocate($glyphMask, 255, 255, 255);
+        imagefill($glyphMask, 0, 0, $gmBlack);
+
+        $hmBlack = imagecolorallocate($haloMask, 0, 0, 0);
+        $hmWhite = imagecolorallocate($haloMask, 255, 255, 255);
+        imagefill($haloMask, 0, 0, $hmBlack);
+
+        $bMinX = $stageW;
+        $bMaxX = -1;
+        $bMinY = $stageH;
+        $bMaxY = -1;
+        $rendered = false;
+
+        $expandBounds = static function (array $bbox, int $originX, int $originY) use (&$bMinX, &$bMaxX, &$bMinY, &$bMaxY, $haloRadius, $stageW, $stageH): void {
+            $xs = [$bbox[0], $bbox[2], $bbox[4], $bbox[6]];
+            $ys = [$bbox[1], $bbox[3], $bbox[5], $bbox[7]];
+            $pad = $haloRadius + 4;
+            $x0 = max(0, (int) floor($originX + min($xs)) - $pad);
+            $x1 = min($stageW - 1, (int) ceil($originX + max($xs)) + $pad);
+            $y0 = max(0, (int) floor($originY + min($ys)) - $pad);
+            $y1 = min($stageH - 1, (int) ceil($originY + max($ys)) + $pad);
+            if ($x0 < $bMinX) $bMinX = $x0;
+            if ($x1 > $bMaxX) $bMaxX = $x1;
+            if ($y0 < $bMinY) $bMinY = $y0;
+            if ($y1 > $bMaxY) $bMaxY = $y1;
+        };
+
+        if (abs($curve) >= 0.5) {
+            $curvedChars = $this->computeCurvedTextArcChars($rawText, $fontSizePx, $curve, $ttfPath);
+            foreach ($curvedChars as $c) {
+                $ch = (string) $c['char'];
+                if (trim($ch) === '') {
+                    continue;
+                }
+                $chBbox = @imagettfbbox($ptSize, 0.0, $ttfPath, $ch);
+                if (!$chBbox) {
+                    continue;
+                }
+                $localBaseX = -(($chBbox[0] + $chBbox[2]) / 2.0);
+                $localBaseY = $baseOffsetPx;
+                $cosC = cos((float) $c['rad']);
+                $sinC = sin((float) $c['rad']);
+                $dx = (float) $c['x'] + ($localBaseX * $cosC) - ($localBaseY * $sinC);
+                $dy = (float) $c['y'] + ($localBaseX * $sinC) + ($localBaseY * $cosC);
+                $drawX = (int) round($txPx + ($dx * $cosA) - ($dy * $sinA));
+                $drawY = (int) round($tyPx + ($dx * $sinA) + ($dy * $cosA));
+                $charGdAngle = -($tRotDeg + (float) $c['deg']);
+
+                for ($hy = -$haloRadius; $hy <= $haloRadius; $hy++) {
+                    for ($hx = -$haloRadius; $hx <= $haloRadius; $hx++) {
+                        if (($hx * $hx) + ($hy * $hy) > ($haloRadius * $haloRadius) + 1) {
+                            continue;
+                        }
+                        @imagettftext($haloMask, $ptSize, $charGdAngle, $drawX + $hx, $drawY + $hy, $hmWhite, $ttfPath, $ch);
+                    }
+                }
+                $drawnBox = @imagettftext($glyphMask, $ptSize, $charGdAngle, $drawX, $drawY, $gmWhite, $ttfPath, $ch);
+                if (is_array($drawnBox)) {
+                    $expandBounds([
+                        $drawnBox[0] - $drawX, $drawnBox[1] - $drawY,
+                        $drawnBox[2] - $drawX, $drawnBox[3] - $drawY,
+                        $drawnBox[4] - $drawX, $drawnBox[5] - $drawY,
+                        $drawnBox[6] - $drawX, $drawnBox[7] - $drawY,
+                    ], $drawX, $drawY);
+                }
+                $rendered = true;
+            }
+        } else {
+            $lines = preg_split('/\r\n|\r|\n/', $rawText) ?: [];
+            $numLines = count($lines);
+            $lineHeightPx = $fontSizePx * 1.15;
+            $totalBlockH = ($numLines - 1) * $lineHeightPx;
+
+            foreach ($lines as $lineIdx => $lineText) {
+                $lineText = trim($lineText);
+                if ($lineText === '') {
+                    continue;
+                }
+                $bbox = @imagettfbbox($ptSize, 0.0, $ttfPath, $lineText);
+                if (!$bbox) {
+                    continue;
+                }
+
+                $lineCenterY = $tyPx - ($totalBlockH / 2.0) + ($lineIdx * $lineHeightPx);
+                $unrotY = $lineCenterY + $baseOffsetPx;
+                if ($align === 'left') {
+                    $unrotX = $txPx - $bbox[0];
+                } elseif ($align === 'right') {
+                    $unrotX = $txPx - $bbox[2];
+                } else {
+                    $unrotX = $txPx - (($bbox[0] + $bbox[2]) / 2.0);
+                }
+                $dx = $unrotX - $txPx;
+                $dy = $unrotY - $tyPx;
+                $drawX = (int) round($txPx + ($dx * $cosA) - ($dy * $sinA));
+                $drawY = (int) round($tyPx + ($dx * $sinA) + ($dy * $cosA));
+
+                for ($hy = -$haloRadius; $hy <= $haloRadius; $hy++) {
+                    for ($hx = -$haloRadius; $hx <= $haloRadius; $hx++) {
+                        if (($hx * $hx) + ($hy * $hy) > ($haloRadius * $haloRadius) + 1) {
+                            continue;
+                        }
+                        @imagettftext($haloMask, $ptSize, $gdAngle, $drawX + $hx, $drawY + $hy, $hmWhite, $ttfPath, $lineText);
+                    }
+                }
+                $drawnBox = @imagettftext($glyphMask, $ptSize, $gdAngle, $drawX, $drawY, $gmWhite, $ttfPath, $lineText);
+                if (is_array($drawnBox)) {
+                    $expandBounds([
+                        $drawnBox[0] - $drawX, $drawnBox[1] - $drawY,
+                        $drawnBox[2] - $drawX, $drawnBox[3] - $drawY,
+                        $drawnBox[4] - $drawX, $drawnBox[5] - $drawY,
+                        $drawnBox[6] - $drawX, $drawnBox[7] - $drawY,
+                    ], $drawX, $drawY);
+                }
+                $rendered = true;
+            }
+        }
+
+        if ($rendered && $bMaxX >= $bMinX && $bMaxY >= $bMinY) {
+            imagealphablending($canvas, false);
+            $grayLut = [];
+            for ($g = 0; $g <= 255; $g++) {
+                $grayLut[$g] = imagecolorallocatealpha($canvas, $g, $g, $g, 0);
+            }
+
+            for ($y = $bMinY; $y <= $bMaxY; $y++) {
+                for ($x = $bMinX; $x <= $bMaxX; $x++) {
+                    $gVal = imagecolorat($glyphMask, $x, $y) & 0xFF;
+                    $hVal = imagecolorat($haloMask, $x, $y) & 0xFF;
+                    if ($gVal === 0 && $hVal === 0) {
+                        continue;
+                    }
+
+                    $existing = imagecolorat($canvas, $x, $y);
+                    $exAlpha = ($existing >> 24) & 0x7F;
+
+                    if ($gVal > 20) {
+                        if ($exAlpha < 126) {
+                            $glyphAlpha = min(1.0, $gVal / 220.0);
+                            $gray = max(0, min(255, (int) round(255.0 * (1.0 - $glyphAlpha))));
+                            imagesetpixel($canvas, $x, $y, $grayLut[$gray]);
+                        } else {
+                            // Auf transparentem Grund scharf mit echtem Alpha-Anti-Aliasing zeichnen
+                            $gdAlpha = max(0, min(127, (int) round(127.0 * (1.0 - min(1.0, $gVal / 240.0)))));
+                            imagesetpixel($canvas, $x, $y, imagecolorallocatealpha($canvas, 0, 0, 0, $gdAlpha));
+                        }
+                    } elseif ($hVal > 20 && $exAlpha < 126) {
+                        // Kontrast-Halo ausschließlich auf darunterliegenden opaken Pixeln (z. B. Porträtfoto)
+                        $exGray = $existing & 0xFF;
+                        $haloStrength = min(0.90, ($hVal / 255.0) * 0.90);
+                        $blendedGray = max(0, min(255, (int) round(($exGray * (1.0 - $haloStrength)) + (255.0 * $haloStrength))));
+                        imagesetpixel($canvas, $x, $y, $grayLut[$blendedGray]);
+                    }
+                }
+            }
+        }
+
+        imagedestroy($glyphMask);
+        imagedestroy($haloMask);
     }
 
     /**
@@ -2136,16 +2426,29 @@ class FileDownloadService
     }
 
     /**
-     * Zeichnet ein SVG-Vektorsymbol (z. B. herz.svg, pfotenabdruck.svg, stern.svg) maßstabsgetreu in das GD-Canvas.
+     * Zeichnet ein SVG-Vektorsymbol (inkl. <path>, <circle>, <ellipse>, <rect>, <polygon>, <polyline>,
+     * SVG-Arcs A/a, fill-rule evenodd/nonzero Aussparungen und optionalem weißen Kontrast-Halo über Fotos)
+     * maßstabsgetreu in das GD-Canvas.
      */
-    protected function drawSvgLogoOntoStageCanvas($canvas, string $svgRaw, array $logo, float $widthMm, float $heightMm, int $stageW, int $stageH): void
-    {
+    protected function drawSvgLogoOntoStageCanvas(
+        $canvas,
+        string $svgRaw,
+        array $logo,
+        float $widthMm,
+        float $heightMm,
+        int $stageW,
+        int $stageH,
+        bool $withContrastHaloOverOpaque = true
+    ): void {
         $cleanSvg = \App\Support\SafeHtmlAndSvgSanitizer::sanitizeSvg($svgRaw);
         if ($cleanSvg === '') {
             return;
         }
 
-        $vX = 0.0; $vY = 0.0; $viewW = 24.0; $viewH = 24.0;
+        $vX = 0.0;
+        $vY = 0.0;
+        $viewW = 24.0;
+        $viewH = 24.0;
         if (preg_match('/<svg[^>]*viewBox="([^"]+)"/i', $cleanSvg, $m)) {
             $parts = preg_split('/[\s,]+/', trim($m[1])) ?: [];
             if (count($parts) >= 4) {
@@ -2154,6 +2457,12 @@ class FileDownloadService
                 $viewW = max(1.0, (float) $parts[2]);
                 $viewH = max(1.0, (float) $parts[3]);
             }
+        } elseif (
+            preg_match('/<svg[^>]*\bwidth="([0-9\.]+)[a-z%]*"/i', $cleanSvg, $mw)
+            && preg_match('/<svg[^>]*\bheight="([0-9\.]+)[a-z%]*"/i', $cleanSvg, $mh)
+        ) {
+            $viewW = max(1.0, (float) $mw[1]);
+            $viewH = max(1.0, (float) $mh[1]);
         }
 
         $cxPx = (((float) ($logo['x'] ?? 50)) / 100.0) * $stageW;
@@ -2166,49 +2475,374 @@ class FileDownloadService
         $vbCenterX = $vX + ($viewW / 2.0);
         $vbCenterY = $vY + ($viewH / 2.0);
 
-        imagealphablending($canvas, true);
-        $black = imagecolorallocatealpha($canvas, 0, 0, 0, 0);
+        $shapeElements = $this->extractSvgShapeSubPolygonGroups($cleanSvg);
+        if (empty($shapeElements)) {
+            return;
+        }
 
-        if (preg_match_all('/\bd="([^"]+)"/i', $cleanSvg, $pathMatches)) {
-            foreach ($pathMatches[1] as $dStr) {
-                $subPolys = $this->sampleSvgPathToPolygons($dStr);
-                foreach ($subPolys as $polyPts) {
-                    if (count($polyPts) < 3) continue;
-                    $flat = [];
-                    foreach ($polyPts as [$px, $py]) {
-                        $lx = ($px - $vbCenterX) * $scale;
-                        $ly = ($py - $vbCenterY) * $scale;
-                        $rx = $cxPx + ($lx * $cosR) - ($ly * $sinR);
-                        $ry = $cyPx + ($lx * $sinR) + ($ly * $cosR);
-                        $flat[] = (int) round($rx);
-                        $flat[] = (int) round($ry);
+        $transformedGroups = [];
+        $minX = $stageW;
+        $maxX = -1;
+        $minY = $stageH;
+        $maxY = -1;
+
+        foreach ($shapeElements as $group) {
+            $tSubPolys = [];
+            foreach ($group['subPolys'] as $polyPts) {
+                if (count($polyPts) < 3) {
+                    continue;
+                }
+                $tPts = [];
+                foreach ($polyPts as [$px, $py]) {
+                    $lx = ($px - $vbCenterX) * $scale;
+                    $ly = ($py - $vbCenterY) * $scale;
+                    $rx = $cxPx + ($lx * $cosR) - ($ly * $sinR);
+                    $ry = $cyPx + ($lx * $sinR) + ($ly * $cosR);
+                    $tPts[] = [$rx, $ry];
+                    $ix0 = (int) floor($rx);
+                    $ix1 = (int) ceil($rx);
+                    $iy0 = (int) floor($ry);
+                    $iy1 = (int) ceil($ry);
+                    if ($ix0 < $minX) $minX = $ix0;
+                    if ($ix1 > $maxX) $maxX = $ix1;
+                    if ($iy0 < $minY) $minY = $iy0;
+                    if ($iy1 > $maxY) $maxY = $iy1;
+                }
+                if (count($tPts) >= 3) {
+                    $tSubPolys[] = $tPts;
+                }
+            }
+            if (!empty($tSubPolys)) {
+                $transformedGroups[] = [
+                    'fillRule' => $group['fillRule'],
+                    'subPolys' => $tSubPolys,
+                ];
+            }
+        }
+
+        if (empty($transformedGroups) || $maxX < 0 || $maxY < 0 || $minX >= $stageW || $minY >= $stageH) {
+            return;
+        }
+
+        $haloRadius = $withContrastHaloOverOpaque
+            ? max(2, min(7, (int) round(min($stageW, $stageH) * 0.0042)))
+            : 0;
+        $pad = $haloRadius + 2;
+
+        $bMinX = max(0, $minX - $pad);
+        $bMaxX = min($stageW - 1, $maxX + $pad);
+        $bMinY = max(0, $minY - $pad);
+        $bMaxY = min($stageH - 1, $maxY + $pad);
+        $bw = $bMaxX - $bMinX + 1;
+        $bh = $bMaxY - $bMinY + 1;
+        if ($bw <= 0 || $bh <= 0) {
+            return;
+        }
+
+        $totalPx = $bw * $bh;
+        $finalMask = array_fill(0, $totalPx, 0);
+        $subBuf = imagecreatetruecolor($bw, $bh);
+        if (!$subBuf) {
+            return;
+        }
+        $subBlack = imagecolorallocate($subBuf, 0, 0, 0);
+        $subWhite = imagecolorallocate($subBuf, 255, 255, 255);
+
+        foreach ($transformedGroups as $group) {
+            $isEvenOdd = ($group['fillRule'] === 'evenodd');
+            $subCount = count($group['subPolys']);
+
+            if ($subCount === 1) {
+                imagefilledrectangle($subBuf, 0, 0, $bw - 1, $bh - 1, $subBlack);
+                $flat = [];
+                foreach ($group['subPolys'][0] as [$rx, $ry]) {
+                    $flat[] = (int) round($rx - $bMinX);
+                    $flat[] = (int) round($ry - $bMinY);
+                }
+                if (count($flat) >= 6) {
+                    @imagefilledpolygon($subBuf, $flat, $subWhite);
+                    for ($ly = 0; $ly < $bh; $ly++) {
+                        $rowOff = $ly * $bw;
+                        for ($lx = 0; $lx < $bw; $lx++) {
+                            if ((imagecolorat($subBuf, $lx, $ly) & 0xFF) > 0) {
+                                $finalMask[$rowOff + $lx] = 1;
+                            }
+                        }
                     }
-                    if (count($flat) >= 6) {
-                        @imagefilledpolygon($canvas, $flat, $black);
+                }
+                continue;
+            }
+
+            // Mehrere Sub-Pfade (z. B. weihnachtsbaum.svg mit 6 Kugel-Aussparungen oder brautpaar.svg Innenkleid):
+            // Exakte W3C evenodd- bzw. nonzero-Winding-Auswertung
+            $accum = array_fill(0, $totalPx, 0);
+            foreach ($group['subPolys'] as $tPts) {
+                imagefilledrectangle($subBuf, 0, 0, $bw - 1, $bh - 1, $subBlack);
+                $flat = [];
+                $signedArea2 = 0.0;
+                $m = count($tPts);
+                for ($k = 0; $k < $m; $k++) {
+                    [$x0, $y0] = $tPts[$k];
+                    [$x1, $y1] = $tPts[($k + 1) % $m];
+                    $signedArea2 += ($x0 * $y1) - ($x1 * $y0);
+                    $flat[] = (int) round($x0 - $bMinX);
+                    $flat[] = (int) round($y0 - $bMinY);
+                }
+                if (count($flat) < 6) {
+                    continue;
+                }
+                $sign = ($signedArea2 >= 0.0) ? 1 : -1;
+                @imagefilledpolygon($subBuf, $flat, $subWhite);
+
+                if ($isEvenOdd) {
+                    for ($ly = 0; $ly < $bh; $ly++) {
+                        $rowOff = $ly * $bw;
+                        for ($lx = 0; $lx < $bw; $lx++) {
+                            if ((imagecolorat($subBuf, $lx, $ly) & 0xFF) > 0) {
+                                $accum[$rowOff + $lx] ^= 1;
+                            }
+                        }
+                    }
+                } else {
+                    for ($ly = 0; $ly < $bh; $ly++) {
+                        $rowOff = $ly * $bw;
+                        for ($lx = 0; $lx < $bw; $lx++) {
+                            if ((imagecolorat($subBuf, $lx, $ly) & 0xFF) > 0) {
+                                $accum[$rowOff + $lx] += $sign;
+                            }
+                        }
+                    }
+                }
+            }
+
+            for ($idx = 0; $idx < $totalPx; $idx++) {
+                if ($accum[$idx] !== 0) {
+                    $finalMask[$idx] = 1;
+                }
+            }
+        }
+
+        imagedestroy($subBuf);
+
+        // Schnelle 2-Pass Chamfer-3-4 Distanztransformation für einen glatten weißen Kontrast-Halo
+        // auf darunterliegenden opaken Foto-Pixeln (z. B. Weihnachtsbaum über dunklem Porträtfoto)
+        $inf = 9999;
+        $dist = array_fill(0, $totalPx, $inf);
+        for ($idx = 0; $idx < $totalPx; $idx++) {
+            if ($finalMask[$idx] === 1) {
+                $dist[$idx] = 0;
+            }
+        }
+
+        if ($haloRadius > 0) {
+            for ($ly = 0; $ly < $bh; $ly++) {
+                $rowOff = $ly * $bw;
+                for ($lx = 0; $lx < $bw; $lx++) {
+                    $idx = $rowOff + $lx;
+                    $d = $dist[$idx];
+                    if ($d === 0) {
+                        continue;
+                    }
+                    if ($lx > 0 && $dist[$idx - 1] + 3 < $d) {
+                        $d = $dist[$idx - 1] + 3;
+                    }
+                    if ($ly > 0) {
+                        $up = $idx - $bw;
+                        if ($dist[$up] + 3 < $d) {
+                            $d = $dist[$up] + 3;
+                        }
+                        if ($lx > 0 && $dist[$up - 1] + 4 < $d) {
+                            $d = $dist[$up - 1] + 4;
+                        }
+                        if ($lx + 1 < $bw && $dist[$up + 1] + 4 < $d) {
+                            $d = $dist[$up + 1] + 4;
+                        }
+                    }
+                    $dist[$idx] = $d;
+                }
+            }
+
+            for ($ly = $bh - 1; $ly >= 0; $ly--) {
+                $rowOff = $ly * $bw;
+                for ($lx = $bw - 1; $lx >= 0; $lx--) {
+                    $idx = $rowOff + $lx;
+                    $d = $dist[$idx];
+                    if ($d === 0) {
+                        continue;
+                    }
+                    if ($lx + 1 < $bw && $dist[$idx + 1] + 3 < $d) {
+                        $d = $dist[$idx + 1] + 3;
+                    }
+                    if ($ly + 1 < $bh) {
+                        $dn = $idx + $bw;
+                        if ($dist[$dn] + 3 < $d) {
+                            $d = $dist[$dn] + 3;
+                        }
+                        if ($lx + 1 < $bw && $dist[$dn + 1] + 4 < $d) {
+                            $d = $dist[$dn + 1] + 4;
+                        }
+                        if ($lx > 0 && $dist[$dn - 1] + 4 < $d) {
+                            $d = $dist[$dn - 1] + 4;
+                        }
+                    }
+                    $dist[$idx] = $d;
+                }
+            }
+        }
+
+        imagealphablending($canvas, false);
+        $grayLut = [];
+        for ($g = 0; $g <= 255; $g++) {
+            $grayLut[$g] = imagecolorallocatealpha($canvas, $g, $g, $g, 0);
+        }
+        $blackOpaque = $grayLut[0];
+        $maxHaloDist = $haloRadius * 3;
+
+        for ($ly = 0; $ly < $bh; $ly++) {
+            $gy = $bMinY + $ly;
+            $rowOff = $ly * $bw;
+            for ($lx = 0; $lx < $bw; $lx++) {
+                $d = $dist[$rowOff + $lx];
+                if ($d > $maxHaloDist) {
+                    continue;
+                }
+                $gx = $bMinX + $lx;
+                if ($d === 0) {
+                    imagesetpixel($canvas, $gx, $gy, $blackOpaque);
+                } elseif ($haloRadius > 0) {
+                    $existing = imagecolorat($canvas, $gx, $gy);
+                    $exAlpha = ($existing >> 24) & 0x7F;
+                    if ($exAlpha < 126) {
+                        $exGray = $existing & 0xFF;
+                        $falloff = 1.0 - (($d - 1.0) / max(1.0, (float) $maxHaloDist));
+                        $haloStrength = max(0.0, min(0.92, 0.45 + ($falloff * 0.50)));
+                        $blended = max(0, min(255, (int) round(($exGray * (1.0 - $haloStrength)) + (255.0 * $haloStrength))));
+                        imagesetpixel($canvas, $gx, $gy, $grayLut[$blended]);
                     }
                 }
             }
         }
-        imagealphablending($canvas, false);
     }
 
     /**
-     * Konvertiert einen SVG-Pfad-String (M, L, H, V, C, S, Q, Z in absolut/relativ) in geschlossene Punkt-Polygone.
+     * Extrahiert sämtliche grafischen Grundformen (<path>, <circle>, <ellipse>, <rect>, <polygon>, <polyline>)
+     * eines bereinigten SVG-Dokuments in Dokumentreihenfolge als Sub-Polygon-Gruppen.
+     *
+     * @return array<int, array{fillRule: string, subPolys: array<int, array<int, array{0: float, 1: float}>>}>
+     */
+    protected function extractSvgShapeSubPolygonGroups(string $cleanSvg): array
+    {
+        $groups = [];
+        $svgDefaultFillRule = preg_match('/<svg[^>]*\bfill-rule="\s*evenodd\s*"/i', $cleanSvg) ? 'evenodd' : 'nonzero';
+
+        if (!preg_match_all('/<(path|circle|ellipse|rect|polygon|polyline)\b([^>]*)\/?>/i', $cleanSvg, $matches, PREG_SET_ORDER)) {
+            return [];
+        }
+
+        $attrFloat = static function (string $attrs, string $name, float $default = 0.0): float {
+            if (preg_match('/\b' . preg_quote($name, '/') . '="\s*(-?\d*\.?\d+(?:e[-+]?\d+)?)/i', $attrs, $m)) {
+                return (float) $m[1];
+            }
+            return $default;
+        };
+
+        foreach ($matches as $tagMatch) {
+            $tag = strtolower($tagMatch[1]);
+            $attrs = $tagMatch[2];
+
+            if (preg_match('/\bfill="\s*none\s*"/i', $attrs) && !preg_match('/\bstroke="/i', $attrs)) {
+                continue;
+            }
+
+            $fillRule = $svgDefaultFillRule;
+            if (preg_match('/\bfill-rule="\s*(evenodd|nonzero)\s*"/i', $attrs, $frm)) {
+                $fillRule = strtolower($frm[1]);
+            }
+
+            if ($tag === 'path') {
+                if (preg_match('/\bd="([^"]+)"/i', $attrs, $dm)) {
+                    $subPolys = $this->sampleSvgPathToPolygons($dm[1]);
+                    if (!empty($subPolys)) {
+                        $groups[] = ['fillRule' => $fillRule, 'subPolys' => $subPolys];
+                    }
+                }
+            } elseif ($tag === 'circle') {
+                $cx = $attrFloat($attrs, 'cx', 0.0);
+                $cy = $attrFloat($attrs, 'cy', 0.0);
+                $r = $attrFloat($attrs, 'r', 0.0);
+                if ($r > 0.01) {
+                    $pts = [];
+                    for ($s = 0; $s < 48; $s++) {
+                        $a = (2.0 * M_PI * $s) / 48.0;
+                        $pts[] = [$cx + $r * cos($a), $cy + $r * sin($a)];
+                    }
+                    $groups[] = ['fillRule' => 'nonzero', 'subPolys' => [$pts]];
+                }
+            } elseif ($tag === 'ellipse') {
+                $cx = $attrFloat($attrs, 'cx', 0.0);
+                $cy = $attrFloat($attrs, 'cy', 0.0);
+                $rx = $attrFloat($attrs, 'rx', 0.0);
+                $ry = $attrFloat($attrs, 'ry', 0.0);
+                if ($rx > 0.01 && $ry > 0.01) {
+                    $pts = [];
+                    for ($s = 0; $s < 48; $s++) {
+                        $a = (2.0 * M_PI * $s) / 48.0;
+                        $pts[] = [$cx + $rx * cos($a), $cy + $ry * sin($a)];
+                    }
+                    $groups[] = ['fillRule' => 'nonzero', 'subPolys' => [$pts]];
+                }
+            } elseif ($tag === 'rect') {
+                $x = $attrFloat($attrs, 'x', 0.0);
+                $y = $attrFloat($attrs, 'y', 0.0);
+                $w = $attrFloat($attrs, 'width', 0.0);
+                $h = $attrFloat($attrs, 'height', 0.0);
+                if ($w > 0.01 && $h > 0.01) {
+                    $pts = [
+                        [$x, $y],
+                        [$x + $w, $y],
+                        [$x + $w, $y + $h],
+                        [$x, $y + $h],
+                    ];
+                    $groups[] = ['fillRule' => 'nonzero', 'subPolys' => [$pts]];
+                }
+            } elseif ($tag === 'polygon' || $tag === 'polyline') {
+                if (preg_match('/\bpoints="([^"]+)"/i', $attrs, $pm)) {
+                    preg_match_all('/-?\d*\.?\d+(?:e[-+]?\d+)?/i', $pm[1], $nums);
+                    $coords = $nums[0] ?? [];
+                    $pts = [];
+                    for ($k = 0; $k + 1 < count($coords); $k += 2) {
+                        $pts[] = [(float) $coords[$k], (float) $coords[$k + 1]];
+                    }
+                    if (count($pts) >= 3) {
+                        $groups[] = ['fillRule' => $fillRule, 'subPolys' => [$pts]];
+                    }
+                }
+            }
+        }
+
+        return $groups;
+    }
+
+    /**
+     * Konvertiert einen SVG-Pfad-String (M, L, H, V, C, S, Q, T, A, Z in absolut/relativ) in geschlossene Punkt-Polygone.
      *
      * @return array<int, array<int, array{0: float, 1: float}>>
      */
     protected function sampleSvgPathToPolygons(string $dPath): array
     {
-        preg_match_all('/([MmLlHhVvCcSsQqZz])|(-?\d*\.?\d+(?:e[-+]?\d+)?)/i', $dPath, $tokens);
+        preg_match_all('/([MmLlHhVvCcSsQqTtAaZz])|(-?\d*\.?\d+(?:e[-+]?\d+)?)/i', $dPath, $tokens);
         if (empty($tokens[0])) {
             return [];
         }
 
         $polys = [];
         $currentPoly = [];
-        $cx = 0.0; $cy = 0.0;
-        $startX = 0.0; $startY = 0.0;
-        $prevCtrlX = 0.0; $prevCtrlY = 0.0;
+        $cx = 0.0;
+        $cy = 0.0;
+        $startX = 0.0;
+        $startY = 0.0;
+        $prevCtrlX = 0.0;
+        $prevCtrlY = 0.0;
         $cmd = '';
         $items = $tokens[0];
         $n = count($items);
@@ -2226,6 +2860,8 @@ class FileDownloadService
                     $currentPoly = [];
                     $cx = $startX;
                     $cy = $startY;
+                    $prevCtrlX = $cx;
+                    $prevCtrlY = $cy;
                     continue;
                 }
             }
@@ -2326,6 +2962,41 @@ class FileDownloadService
                 $prevCtrlY = $y1;
                 $cx = $x;
                 $cy = $y;
+            } elseif ($upper === 'T') {
+                if ($i + 1 >= $n) break;
+                $x1 = 2.0 * $cx - $prevCtrlX;
+                $y1 = 2.0 * $cy - $prevCtrlY;
+                $x = (float) $items[$i++] + ($isRel ? $cx : 0.0);
+                $y = (float) $items[$i++] + ($isRel ? $cy : 0.0);
+                for ($s = 1; $s <= 8; $s++) {
+                    $t = $s / 8.0;
+                    $mt = 1.0 - $t;
+                    $bx = ($mt * $mt * $cx) + (2.0 * $mt * $t * $x1) + ($t * $t * $x);
+                    $by = ($mt * $mt * $cy) + (2.0 * $mt * $t * $y1) + ($t * $t * $y);
+                    $currentPoly[] = [$bx, $by];
+                }
+                $prevCtrlX = $x1;
+                $prevCtrlY = $y1;
+                $cx = $x;
+                $cy = $y;
+            } elseif ($upper === 'A') {
+                if ($i + 6 >= $n) break;
+                $rx = (float) $items[$i++];
+                $ry = (float) $items[$i++];
+                $xAxisRot = (float) $items[$i++];
+                $largeArcFlag = ((int) round((float) $items[$i++])) !== 0;
+                $sweepFlag = ((int) round((float) $items[$i++])) !== 0;
+                $x = (float) $items[$i++] + ($isRel ? $cx : 0.0);
+                $y = (float) $items[$i++] + ($isRel ? $cy : 0.0);
+
+                $arcPts = $this->sampleSvgArcToPoints($cx, $cy, $rx, $ry, $xAxisRot, $largeArcFlag, $sweepFlag, $x, $y);
+                foreach ($arcPts as $ap) {
+                    $currentPoly[] = $ap;
+                }
+                $prevCtrlX = $x;
+                $prevCtrlY = $y;
+                $cx = $x;
+                $cy = $y;
             } else {
                 $i++;
             }
@@ -2336,6 +3007,98 @@ class FileDownloadService
         }
 
         return $polys;
+    }
+
+    /**
+     * Berechnet Zwischenpunkte auf einem elliptischen SVG-Bogen (A/a) exakt nach W3C SVG 1.1 F.6.5/F.6.6.
+     *
+     * @return array<int, array{0: float, 1: float}>
+     */
+    protected function sampleSvgArcToPoints(
+        float $x1,
+        float $y1,
+        float $rx,
+        float $ry,
+        float $phiDeg,
+        bool $largeArc,
+        bool $sweep,
+        float $x2,
+        float $y2
+    ): array {
+        if (hypot($x2 - $x1, $y2 - $y1) < 1e-6) {
+            return [];
+        }
+
+        $rx = abs($rx);
+        $ry = abs($ry);
+        if ($rx < 1e-6 || $ry < 1e-6) {
+            return [[$x2, $y2]];
+        }
+
+        $phi = deg2rad(fmod($phiDeg, 360.0));
+        $cosPhi = cos($phi);
+        $sinPhi = sin($phi);
+
+        $dx2 = ($x1 - $x2) / 2.0;
+        $dy2 = ($y1 - $y2) / 2.0;
+        $x1p = ($cosPhi * $dx2) + ($sinPhi * $dy2);
+        $y1p = (-$sinPhi * $dx2) + ($cosPhi * $dy2);
+
+        $lambda = (($x1p * $x1p) / ($rx * $rx)) + (($y1p * $y1p) / ($ry * $ry));
+        if ($lambda > 1.0) {
+            $scaleR = sqrt($lambda);
+            $rx *= $scaleR;
+            $ry *= $scaleR;
+        }
+
+        $rx2 = $rx * $rx;
+        $ry2 = $ry * $ry;
+        $x1p2 = $x1p * $x1p;
+        $y1p2 = $y1p * $y1p;
+
+        $num = max(0.0, ($rx2 * $ry2) - ($rx2 * $y1p2) - ($ry2 * $x1p2));
+        $den = max(1e-9, ($rx2 * $y1p2) + ($ry2 * $x1p2));
+        $coef = (($largeArc === $sweep) ? -1.0 : 1.0) * sqrt($num / $den);
+
+        $cxp = $coef * (($rx * $y1p) / $ry);
+        $cyp = $coef * (-($ry * $x1p) / $rx);
+
+        $acx = ($cosPhi * $cxp) - ($sinPhi * $cyp) + (($x1 + $x2) / 2.0);
+        $acy = ($sinPhi * $cxp) + ($cosPhi * $cyp) + (($y1 + $y2) / 2.0);
+
+        $vecAngle = static function (float $ux, float $uy, float $vx, float $vy): float {
+            $dot = ($ux * $vx) + ($uy * $vy);
+            $len = max(1e-9, hypot($ux, $uy) * hypot($vx, $vy));
+            $ang = acos(max(-1.0, min(1.0, $dot / $len)));
+            return (($ux * $vy) - ($uy * $vx) < 0.0) ? -$ang : $ang;
+        };
+
+        $ux = ($x1p - $cxp) / $rx;
+        $uy = ($y1p - $cyp) / $ry;
+        $vx = (-$x1p - $cxp) / $rx;
+        $vy = (-$y1p - $cyp) / $ry;
+
+        $theta1 = $vecAngle(1.0, 0.0, $ux, $uy);
+        $dTheta = $vecAngle($ux, $uy, $vx, $vy);
+        if (!$sweep && $dTheta > 0.0) {
+            $dTheta -= 2.0 * M_PI;
+        } elseif ($sweep && $dTheta < 0.0) {
+            $dTheta += 2.0 * M_PI;
+        }
+
+        $steps = max(8, min(36, (int) ceil(abs($dTheta) / (M_PI / 12.0))));
+        $pts = [];
+        for ($s = 1; $s <= $steps; $s++) {
+            $ang = $theta1 + ($dTheta * ($s / $steps));
+            $cosA = cos($ang);
+            $sinA = sin($ang);
+            $pts[] = [
+                ($cosPhi * $rx * $cosA) - ($sinPhi * $ry * $sinA) + $acx,
+                ($sinPhi * $rx * $cosA) + ($cosPhi * $ry * $sinA) + $acy,
+            ];
+        }
+
+        return $pts;
     }
 
     /**
@@ -2681,34 +3444,36 @@ class FileDownloadService
         $dstW = max(1, (int) round(($workLogoW_mm / $areaW_mm) * $canvasW));
         $dstH = max(1, (int) round(($workLogoH_mm / $areaH_mm) * $canvasH));
 
-        // Kanten-Bleed-Ausgleich für Vollflächen-Fotos:
-        // Wenn der Kunde ein Foto fast über die gesamte Breite/Höhe des Arbeitsbereichs gezogen hat,
-        // verdeckt im 2D/3D-Editor oft der 2px Auswahlrahmen oder der dunkle Rohling-Untergrund einen minimalen
-        // Spalt (z. B. 0,4 % / wenige Pixel) am äußersten linken/rechten Bogen. Ohne Ausgleich würde die
-        // rechteckige Bildkante den äußeren Herzbogen im SVG senkrecht abschneiden.
-        $maxSnapGapX = (int) round($canvasW * 0.065);
-        $maxSnapGapY = (int) round($canvasH * 0.065);
+        // Symmetrischer Mikro-Bleed-Ausgleich (max. 1,5 %) ausschließlich für nahezu randfüllende Fotos (>= 96 %),
+        // ohne jemals das vom Kunden gewählte Bildzentrum ($origCenterX / $origCenterY) zu verschieben!
+        $maxSnapGapX = max(1, (int) round($canvasW * 0.015));
+        $maxSnapGapY = max(1, (int) round($canvasH * 0.015));
         $leftGap = $dstX;
         $rightGap = $canvasW - ($dstX + $dstW);
         $topGap = $dstY;
         $botGap = $canvasH - ($dstY + $dstH);
 
-        $targetLeft = ($leftGap > 0 && $leftGap <= $maxSnapGapX && $dstW >= $canvasW * 0.85) ? -2 : $dstX;
-        $targetRight = ($rightGap > 0 && $rightGap <= $maxSnapGapX && $dstW >= $canvasW * 0.85) ? ($canvasW + 2) : ($dstX + $dstW);
-        $targetTop = ($topGap > 0 && $topGap <= $maxSnapGapY && $dstH >= $canvasH * 0.85) ? -2 : $dstY;
-        $targetBot = ($botGap > 0 && $botGap <= $maxSnapGapY && $dstH >= $canvasH * 0.85) ? ($canvasH + 2) : ($dstY + $dstH);
+        $origCenterX = $dstX + ($dstW * 0.5);
+        $origCenterY = $dstY + ($dstH * 0.5);
 
-        $neededW = $targetRight - $targetLeft;
-        $neededH = $targetBot - $targetTop;
-        $scaleBleed = max(1.0, $neededW / max(1, $dstW), $neededH / max(1, $dstH));
+        $scaleBleedX = 1.0;
+        if ($dstW >= $canvasW * 0.96 && $leftGap > 0 && $leftGap <= $maxSnapGapX && $rightGap > 0 && $rightGap <= $maxSnapGapX) {
+            $halfSpanNeededX = max($origCenterX + 2.0, ($canvasW + 2.0) - $origCenterX);
+            $scaleBleedX = ($halfSpanNeededX * 2.0) / max(1.0, (float) $dstW);
+        }
 
-        if ($scaleBleed > 1.0 && $scaleBleed <= 1.15) {
+        $scaleBleedY = 1.0;
+        if ($dstH >= $canvasH * 0.96 && $topGap > 0 && $topGap <= $maxSnapGapY && $botGap > 0 && $botGap <= $maxSnapGapY) {
+            $halfSpanNeededY = max($origCenterY + 2.0, ($canvasH + 2.0) - $origCenterY);
+            $scaleBleedY = ($halfSpanNeededY * 2.0) / max(1.0, (float) $dstH);
+        }
+
+        $scaleBleed = max(1.0, $scaleBleedX, $scaleBleedY);
+        if ($scaleBleed > 1.0 && $scaleBleed <= 1.04) {
             $newDstW = (int) ceil($dstW * $scaleBleed);
             $newDstH = (int) ceil($dstH * $scaleBleed);
-            $centerX = ($targetLeft + $targetRight) * 0.5;
-            $centerY = ($targetTop + $targetBot) * 0.5;
-            $dstX = (int) round($centerX - ($newDstW * 0.5));
-            $dstY = (int) round($centerY - ($newDstH * 0.5));
+            $dstX = (int) round($origCenterX - ($newDstW * 0.5));
+            $dstY = (int) round($origCenterY - ($newDstH * 0.5));
             $dstW = $newDstW;
             $dstH = $newDstH;
         }
@@ -2986,6 +3751,7 @@ class FileDownloadService
 
                     $haloRadius = max(2, min(8, (int) round($fontSizePx * 0.08)));
                     $curve = max(-100.0, min(100.0, (float) ($textItem['curve'] ?? 0)));
+                    $baseOffsetPx = $this->computeCanvasTextBaselineOffsetPx($ptSize, $fontSizePx, $ttfPath);
 
                     if (abs($curve) >= 0.5) {
                         $curvedChars = $this->computeCurvedTextArcChars($rawText, $fontSizePx, $curve, $ttfPath);
@@ -3001,7 +3767,7 @@ class FileDownloadService
                             }
 
                             $localBaseX = -(($chBbox[0] + $chBbox[2]) / 2.0);
-                            $localBaseY = $fontSizePx * 0.33;
+                            $localBaseY = $baseOffsetPx;
 
                             $cosC = cos((float) $c['rad']);
                             $sinC = sin((float) $c['rad']);
@@ -3037,7 +3803,7 @@ class FileDownloadService
                             }
 
                             $lineCenterY = $tyPx - ($totalBlockH / 2.0) + ($lineIdx * $lineHeightPx);
-                            $unrotY = $lineCenterY + ($fontSizePx * 0.33);
+                            $unrotY = $lineCenterY + $baseOffsetPx;
 
                             if ($align === 'left') {
                                 $unrotX = $txPx - $bbox[0];

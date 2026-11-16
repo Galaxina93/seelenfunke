@@ -151,6 +151,7 @@ class AIFunctionsRegistry
             'move_agent_to_department',
             'analyze_agents_activity',
             'system_get_server_status',
+            'system_get_health',
             'system_get_error_sentinel',
             'system_write_to_file',
             'system_multi_replace_file',
@@ -293,7 +294,7 @@ class AIFunctionsRegistry
 
         // Panzerglas-Isolation für den externen Support-Agenten 'Funki':
         // Selbst wenn ein Administrator parallel eingeloggt ist, darf 'Funki' NIEMALS interne System-, Finanz-, Brain- oder Pool-Werkzeuge ausführen.
-        if ($agent && ($agent->name ?? null) === 'Funki') {
+        if ($agent && strcasecmp(trim((string) ($agent->name ?? '')), 'Funki') === 0) {
             $isFunkiAllowed = str_starts_with($name, 'support_') || $name === 'system_get_current_time';
             if (!$isFunkiAllowed) {
                 \App\Services\System\SystemSecurityService::logEvent(
@@ -321,10 +322,17 @@ class AIFunctionsRegistry
             if ($hasExplicitToolBoundary) {
                 $allowedTools = $agent->tools->pluck('identifier')->toArray();
                 $allowedTools[] = 'system_get_current_time';
-                if (($agent->name ?? null) === 'Funkira' && !$isPublicSupportChat) {
+                if (FunkiraSkillPoolService::isExecutiveRoot($agent) && !$isPublicSupportChat) {
                     $allowedTools = array_values(array_unique(array_merge(
                         $allowedTools,
-                        FunkiraSkillPoolService::getAllAuthorizedInternalTools()
+                        FunkiraSkillPoolService::getAllAuthorizedInternalTools(),
+                        [
+                            'system_get_server_status',
+                            'system_get_health',
+                            'system_get_error_sentinel',
+                            'master_get_next_best_actions',
+                            FunkiraSkillPoolService::EQUIP_TOOL_NAME,
+                        ]
                     )));
                 }
                 if (in_array('calendar_create_event', $allowedTools, true)) {

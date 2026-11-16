@@ -8,15 +8,35 @@ use App\Models\Customer\Customer;
 
 class AiAuthHelper
 {
-    public static function isAdmin(): bool
+    private static function resolvePrimaryUser()
     {
         $user = Auth::user();
+        if ($user) {
+            return $user;
+        }
+
+        if (config('auth.guards.sanctum')) {
+            try {
+                $sanctumUser = Auth::guard('sanctum')->user();
+                if ($sanctumUser) {
+                    return $sanctumUser;
+                }
+            } catch (\Throwable $ignore) {
+            }
+        }
+
+        return null;
+    }
+
+    public static function isAdmin(): bool
+    {
+        $user = self::resolvePrimaryUser();
         return ($user instanceof Admin) || Auth::guard('admin')->check();
     }
 
     public static function isEmployee(): bool
     {
-        $user = Auth::user();
+        $user = self::resolvePrimaryUser();
         if ($user instanceof \App\Models\Employee\Employee) {
             return $user->isInternalEmployee() && $user->isAccountActive();
         }
@@ -26,7 +46,7 @@ class AiAuthHelper
 
     public static function isExternalPartner(): bool
     {
-        $user = Auth::user();
+        $user = self::resolvePrimaryUser();
         if ($user instanceof \App\Models\Employee\Employee && !$user->isInternalEmployee()) {
             return true;
         }
@@ -36,13 +56,13 @@ class AiAuthHelper
 
     public static function isCustomer(): bool
     {
-        $user = Auth::user();
+        $user = self::resolvePrimaryUser();
         return ($user instanceof Customer) || Auth::guard('customer')->check();
     }
 
     public static function getAdminId()
     {
-        $user = Auth::user();
+        $user = self::resolvePrimaryUser();
         if ($user instanceof Admin) {
             return $user->id;
         }
@@ -51,7 +71,7 @@ class AiAuthHelper
 
     public static function getEmployeeId()
     {
-        $user = Auth::user();
+        $user = self::resolvePrimaryUser();
         if ($user instanceof \App\Models\Employee\Employee) {
             return $user->id;
         }
@@ -60,7 +80,7 @@ class AiAuthHelper
 
     public static function getCustomerId()
     {
-        $user = Auth::user();
+        $user = self::resolvePrimaryUser();
         if ($user instanceof Customer) {
             return $user->id;
         }
@@ -88,16 +108,17 @@ class AiAuthHelper
 
     public static function getUser()
     {
+        $primary = self::resolvePrimaryUser();
         if (self::isAdmin()) {
-            return (Auth::user() instanceof Admin) ? Auth::user() : Auth::guard('admin')->user();
+            return ($primary instanceof Admin) ? $primary : Auth::guard('admin')->user();
         }
         if (self::isEmployee()) {
-            return (Auth::user() instanceof \App\Models\Employee\Employee) ? Auth::user() : Auth::guard('employee')->user();
+            return ($primary instanceof \App\Models\Employee\Employee) ? $primary : Auth::guard('employee')->user();
         }
         if (self::isCustomer()) {
-            return (Auth::user() instanceof Customer) ? Auth::user() : Auth::guard('customer')->user();
+            return ($primary instanceof Customer) ? $primary : Auth::guard('customer')->user();
         }
-        return Auth::user();
+        return $primary;
     }
 
     /**

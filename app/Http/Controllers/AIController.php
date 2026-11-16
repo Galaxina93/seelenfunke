@@ -144,7 +144,7 @@ class AIController extends Controller
                 $sessionId = null;
             }
         }
-        if (!$sessionId && \App\Services\AI\AiAuthHelper::check()) {
+        if (!$sessionId && $currentUserId && \App\Services\AI\AiAuthHelper::check()) {
             $userId = $currentUserId;
             $latestSession = \App\Models\Ai\AiChatSession::where('user_id', $userId)
                 ->where('is_archived', false)
@@ -158,16 +158,12 @@ class AIController extends Controller
             config(['ai.current_session_id' => $sessionId]);
         }
 
-        $agentId = $request->input('agent_id');
-        $agent = null;
-        if ($agentId) {
-            $agent = \App\Models\Ai\AiAgent::where('is_active', true)->find($agentId);
-            if ($agent && !$isAdmin && $this->isAdminOnlyAgent($agent)) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Zugriff verweigert: Die Admin-KI Funkira ist ausschließlich für Administratoren freigegeben.',
-                ], 403);
-            }
+        $agent = $this->resolveRequestedAgent($request);
+        if ($agent && !$isAdmin && $this->isAdminOnlyAgent($agent)) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Zugriff verweigert: Die Admin-KI Funkira ist ausschließlich für Administratoren freigegeben.',
+            ], 403);
         }
         if (!$agent && \App\Services\AI\AiAuthHelper::check()) {
             $user = \App\Services\AI\AiAuthHelper::getUser();
@@ -178,11 +174,12 @@ class AIController extends Controller
         }
         if (!$agent) {
             if ($isAdmin) {
-                $agent = \App\Models\Ai\AiAgent::where('name', 'Funkira')->where('is_active', true)->first()
+                $agent = \App\Models\Ai\AiAgent::where('name', 'Falcone')->where('is_active', true)->first()
+                    ?? \App\Models\Ai\AiAgent::where('name', 'Funkira')->where('is_active', true)->first()
                     ?? \App\Models\Ai\AiAgent::where('is_active', true)->first();
             } else {
                 $agent = \App\Models\Ai\AiAgent::where('name', 'Funki')->where('is_active', true)->first()
-                    ?? \App\Models\Ai\AiAgent::where('is_active', true)->whereRaw('LOWER(name) != ?', ['funkira'])->first();
+                    ?? \App\Models\Ai\AiAgent::where('is_active', true)->whereRaw('LOWER(name) NOT IN (?, ?, ?)', ['funkira', 'falcone', 'falcon'])->first();
             }
         }
 
@@ -543,19 +540,16 @@ class AIController extends Controller
         }
 
         $isAdminUser = \App\Services\AI\AiAuthHelper::isAdmin();
-        $aiAgent = null;
-        if ($request->has('agent_id') && !empty($request->agent_id)) {
-            $aiAgent = \App\Models\Ai\AiAgent::where('is_active', true)->find($request->agent_id);
-            if ($aiAgent && !$isAdminUser && $this->isAdminOnlyAgent($aiAgent)) {
-                return response()->json([
-                    'status' => 'error',
-                    'error' => 'Forbidden',
-                    'message' => 'Zugriff verweigert: Die Admin-KI Funkira ist ausschließlich für Administratoren freigegeben.',
-                ], 403);
-            }
+        $aiAgent = $this->resolveRequestedAgent($request);
+        if ($aiAgent && !$isAdminUser && $this->isAdminOnlyAgent($aiAgent)) {
+            return response()->json([
+                'status' => 'error',
+                'error' => 'Forbidden',
+                'message' => 'Zugriff verweigert: Die Admin-KI Funkira ist ausschließlich für Administratoren freigegeben.',
+            ], 403);
         }
         if (!$aiAgent && $isAdminUser) {
-            $user = auth()->user() ?: auth('admin')->user();
+            $user = \App\Services\AI\AiAuthHelper::getUser() ?: auth()->user() ?: auth('admin')->user();
             $candidateAgent = $user ? $user->ai_agent : null;
             if ($candidateAgent && $candidateAgent->is_active) {
                 $aiAgent = $candidateAgent;
@@ -564,10 +558,11 @@ class AIController extends Controller
         if (!$aiAgent) {
             if ($isAdminUser) {
                 $aiAgent = \App\Models\Ai\AiAgent::where('name', 'Funkira')->where('is_active', true)->first()
+                    ?? \App\Models\Ai\AiAgent::where('name', 'Falcone')->where('is_active', true)->first()
                     ?? \App\Models\Ai\AiAgent::where('is_active', true)->first();
             } else {
                 $aiAgent = \App\Models\Ai\AiAgent::where('name', 'Funki')->where('is_active', true)->first()
-                    ?? \App\Models\Ai\AiAgent::where('is_active', true)->whereRaw('LOWER(name) != ?', ['funkira'])->first();
+                    ?? \App\Models\Ai\AiAgent::where('is_active', true)->whereRaw('LOWER(name) NOT IN (?, ?, ?)', ['funkira', 'falcone', 'falcon'])->first();
             }
         }
         
@@ -738,7 +733,11 @@ class AIController extends Controller
         ];
         if ($isAdminUser) {
             $voiceAllowedTools = array_merge($voiceAllowedTools, [
+                'system_get_server_status',
                 'system_get_health',
+                'system_get_error_sentinel',
+                'master_get_next_best_actions',
+                'funkira_equip_skill_pool',
                 'calendar_get_events', 'calendar_create_event', 'calendar_send_ics_email', 'calendar_update_event', 'calendar_delete_event',
                 'routine_get_day_routines', 'routine_get_evaluation', 'routine_log_progress', 'routine_log_step', 'routine_set_sick_day',
                 'routine_create', 'routine_update', 'routine_delete', 'routine_manage_steps',
@@ -796,7 +795,8 @@ class AIController extends Controller
 
         $isStrictAdmin = $isAdminUser
             || ($request->user() instanceof \App\Models\Admin\Admin)
-            || (auth('admin')->user() instanceof \App\Models\Admin\Admin);
+            || (auth('admin')->user() instanceof \App\Models\Admin\Admin)
+            || (config('auth.guards.sanctum') && auth('sanctum')->user() instanceof \App\Models\Admin\Admin);
 
         $wantsDirect = $isStrictAdmin && (
             $request->query('fallback') === 'direct'
@@ -1263,14 +1263,77 @@ class AIController extends Controller
     }
 
     /**
-     * Prüft, ob ein KI-Agent die exklusive Admin-Instanz (Funkira) ist.
+     * Löst einen explizit angeforderten aktiven KI-Agenten über agent_id, agent_slug oder agent_name auf.
+     */
+    private function resolveRequestedAgent(Request $request): ?\App\Models\Ai\AiAgent
+    {
+        $rawId = trim((string) $request->input('agent_id', ''));
+        if ($rawId !== '') {
+            $byId = \App\Models\Ai\AiAgent::where('is_active', true)->find($rawId);
+            if ($byId) {
+                return $byId;
+            }
+            $byIdAsName = $this->findActiveAgentByNameOrSlug($rawId);
+            if ($byIdAsName) {
+                return $byIdAsName;
+            }
+        }
+
+        foreach (['agent_slug', 'agent_name'] as $param) {
+            $rawVal = trim((string) $request->input($param, ''));
+            if ($rawVal !== '') {
+                $found = $this->findActiveAgentByNameOrSlug($rawVal);
+                if ($found) {
+                    return $found;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function findActiveAgentByNameOrSlug(string $value): ?\App\Models\Ai\AiAgent
+    {
+        $normalized = mb_strtolower(trim($value), 'UTF-8');
+        if ($normalized === '') {
+            return null;
+        }
+
+        $candidates = [$normalized];
+        $deSlugged = str_replace(['-', '_'], ' ', $normalized);
+        if ($deSlugged !== $normalized) {
+            $candidates[] = $deSlugged;
+        }
+        if (in_array($normalized, ['falcon', 'falcone'], true)) {
+            $candidates[] = 'falcone';
+            $candidates[] = 'falcon';
+        }
+
+        foreach (array_values(array_unique($candidates)) as $cand) {
+            $agent = \App\Models\Ai\AiAgent::where('is_active', true)
+                ->whereRaw('LOWER(name) = ?', [$cand])
+                ->first();
+            if ($agent) {
+                return $agent;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Prüft, ob ein KI-Agent eine exklusive Executive-Admin-Instanz (Falcone / Funkira) ist.
      */
     private function isAdminOnlyAgent(\App\Models\Ai\AiAgent $agent): bool
     {
+        if (method_exists(\App\Services\AI\FunkiraSkillPoolService::class, 'isExecutiveRoot')) {
+            return \App\Services\AI\FunkiraSkillPoolService::isExecutiveRoot($agent);
+        }
+
         if (method_exists(\App\Services\AI\FunkiraSkillPoolService::class, 'isFunkira')) {
             return \App\Services\AI\FunkiraSkillPoolService::isFunkira($agent);
         }
 
-        return strcasecmp(trim((string) ($agent->name ?? '')), 'Funkira') === 0;
+        return in_array(strtolower(trim((string) ($agent->name ?? ''))), ['falcone', 'falcon', 'funkira'], true);
     }
 }
