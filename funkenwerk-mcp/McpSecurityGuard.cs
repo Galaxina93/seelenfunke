@@ -174,7 +174,10 @@ namespace FunkenwerkMcp
             new(@"(?i)(APP_KEY|DB_PASSWORD|MAIL_PASSWORD|STRIPE_SECRET|AWS_SECRET_ACCESS_KEY|GEMINI_API_KEY|API_TOKEN)\s*[=:]\s*\S+", RegexOptions.Compiled),
             new(@"(?i)""(?:password|passwd|pwd|tapo_password|secret|api_token)""\s*:\s*""[^""\r\n]+""", RegexOptions.Compiled), // JSON password/secret fields
             new(@"\bAIza[0-9A-Za-z\-_]{30,}\b", RegexOptions.Compiled),                                 // Google API keys
-            new(@"\bsk-[A-Za-z0-9\-_]{24,}\b", RegexOptions.Compiled),                                  // OpenAI/Stripe secret keys
+            new(@"\bsk-[A-Za-z0-9\-_]{24,}\b", RegexOptions.Compiled),                                  // OpenAI secret keys
+            new(@"\b(?:sk|rk)_(?:live|test)_[A-Za-z0-9_]{12,}\b", RegexOptions.Compiled),               // Stripe Secret & Restricted keys
+            new(@"\bwhsec_[A-Za-z0-9_]{12,}\b", RegexOptions.Compiled),                                 // Stripe Webhook signing secrets
+            new(@"\b(?:pi|seti)_[A-Za-z0-9]+_secret_[A-Za-z0-9]+\b", RegexOptions.Compiled),            // Stripe PaymentIntent/SetupIntent client_secret
             new(@"\b(?:ghp_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,})\b", RegexOptions.Compiled),   // GitHub PATs
             new(@"\beyJ[A-Za-z0-9_\-]{10,}\.eyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}\b", RegexOptions.Compiled), // JWTs
             new(@"(?i)https?://[^/\s:@]+:[^/\s@]+@[^\s/]+", RegexOptions.Compiled),                     // Basic-Auth credentials in HTTP URLs

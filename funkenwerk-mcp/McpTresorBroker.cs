@@ -2243,10 +2243,13 @@ function(mode, userVal, passVal, totpVal, doSubmit) {
         // =====================================================================
         // 5. PINNED SEELENFUNKE-LIVE CLI PREPARATION ENGINE (CLI-ONLY, ZERO-SECRET)
         // =====================================================================
+        public const string PinnedLiveDigitalHostname = "digital.mein-seelenfunke.de";
+
         internal static Func<string, string, Task<byte[]?>>? TestReadContainerEnvOverride { get; set; }
         internal static Func<Task<(bool Connected, string StatusToken)>>? TestProbeLiveMysqlPdoOverride { get; set; }
         internal static Func<ReadOnlyMemory<byte>, Task<string>>? TestWriteLiveEnvOverride { get; set; }
         internal static int TestPdoRetryDelayMs { get; set; } = 1500;
+        internal static int TestDnsManagedRetryDelayMs { get; set; } = 2500;
 
         public static void GenerateMittwaldCompliantPasswordChars(Span<char> dest)
         {
@@ -2513,7 +2516,8 @@ function(mode, userVal, passVal, totpVal, doSubmit) {
                     ["REDIS_HOST"] = "127.0.0.1"u8.ToArray(),
                     ["REDIS_PASSWORD"] = "null"u8.ToArray(),
                     ["REDIS_PORT"] = "6379"u8.ToArray(),
-                    ["GOOGLE_REDIRECT_URL"] = "https://mein-seelenfunke.de/auth/google/callback"u8.ToArray()
+                    ["GOOGLE_REDIRECT_URL"] = "https://mein-seelenfunke.de/auth/google/callback"u8.ToArray(),
+                    ["SANCTUM_STATEFUL_DOMAINS"] = "mein-seelenfunke.de,www.mein-seelenfunke.de,digital.mein-seelenfunke.de"u8.ToArray()
                 };
 
                 var primaryLines = (preserveExistingLiveDbPassword && liveLines.Count > 0) ? liveLines : stageLines;
@@ -2528,7 +2532,7 @@ function(mode, userVal, passVal, totpVal, doSubmit) {
                         && (AsciiContainsIgnoreCase(auVal, "stage.mein-seelenfunke.de"u8) || AsciiContainsIgnoreCase(auVal, "www.mein-seelenfunke.de"u8)))
                         forcedOverrides["ASSET_URL"] = "https://mein-seelenfunke.de"u8.ToArray();
                     if (map.TryGetValue("SANCTUM_STATEFUL_DOMAINS", out var ssdVal) && AsciiContainsIgnoreCase(ssdVal, "stage.mein-seelenfunke.de"u8))
-                        forcedOverrides["SANCTUM_STATEFUL_DOMAINS"] = "mein-seelenfunke.de,www.mein-seelenfunke.de"u8.ToArray();
+                        forcedOverrides["SANCTUM_STATEFUL_DOMAINS"] = "mein-seelenfunke.de,www.mein-seelenfunke.de,digital.mein-seelenfunke.de"u8.ToArray();
                 }
 
                 var emittedKeys = new HashSet<string>(StringComparer.Ordinal);
@@ -2615,6 +2619,328 @@ function(mode, userVal, passVal, totpVal, doSubmit) {
             }
         }
 
+        private sealed class SubdomainInfraResult
+        {
+            public string Hostname { get; init; } = "";
+            public string IngressId { get; set; } = "";
+            public bool IngressCreated { get; set; }
+            public bool TlsAcme { get; set; }
+            public bool TlsIsCreated { get; set; }
+            public bool OwnershipVerified { get; set; }
+            public string DnsZoneId { get; set; } = "";
+            public bool DnsZoneCreated { get; set; }
+            public bool DnsSetManagedCalled { get; set; }
+            public int DnsSetManagedAttempts { get; set; }
+            public string ManagedByIngressId { get; set; } = "";
+        }
+
+        private static async Task<SubdomainInfraResult> EnsurePinnedLiveSubdomainInfraAsync(
+            HttpClient client,
+            ReadOnlyMemory<byte> apiTokenUtf8,
+            string leaseTitle,
+            string hostname,
+            string subLabel,
+            JsonArray existingIngresses,
+            List<string> infraErrors,
+            CancellationToken ct)
+        {
+            var res = new SubdomainInfraResult { Hostname = hostname };
+
+            JsonObject? ingObj = null;
+            foreach (var item in existingIngresses)
+            {
+                if (item is JsonObject io &&
+                    string.Equals(io["hostname"]?.GetValue<string>(), hostname, StringComparison.OrdinalIgnoreCase))
+                {
+                    ingObj = io;
+                    break;
+                }
+            }
+
+            if (ingObj == null)
+            {
+                var createIngPayload = new JsonObject
+                {
+                    ["projectId"] = McpSecurityGuard.PinnedLiveProjectId,
+                    ["hostname"] = hostname,
+                    ["paths"] = new JsonArray
+                    {
+                        new JsonObject
+                        {
+                            ["path"] = "/",
+                            ["target"] = new JsonObject
+                            {
+                                ["installationId"] = McpSecurityGuard.PinnedLiveAppUuid
+                            }
+                        }
+                    },
+                    ["tls"] = new JsonObject
+                    {
+                        ["acme"] = true
+                    }
+                };
+                byte[] createIngBytes = Encoding.UTF8.GetBytes(createIngPayload.ToJsonString());
+                var (crSt, crBody, crNode) = await SendMittwaldRequestAsync(
+                    client,
+                    HttpMethod.Post,
+                    "/v2/ingresses",
+                    apiTokenUtf8,
+                    ct,
+                    jsonBodyUtf8: createIngBytes);
+
+                if (crSt == 400)
+                {
+                    createIngPayload.Remove("tls");
+                    byte[] fallbackIngBytes = Encoding.UTF8.GetBytes(createIngPayload.ToJsonString());
+                    (crSt, crBody, crNode) = await SendMittwaldRequestAsync(
+                        client,
+                        HttpMethod.Post,
+                        "/v2/ingresses",
+                        apiTokenUtf8,
+                        ct,
+                        jsonBodyUtf8: fallbackIngBytes);
+                }
+
+                if (crSt is < 200 or >= 300 || crNode is not JsonObject crObj)
+                {
+                    string hint = crSt == 403 ? $" [Tresor-Token '{leaseTitle}' hat nur api_read; benötigt api_write]" : "";
+                    infraErrors.Add($"POST /v2/ingresses ({hostname}) -> HTTP {crSt}{hint}: {crBody}");
+                    throw new InvalidOperationException(string.Join(" || ", infraErrors));
+                }
+
+                res.IngressId = ValidateSafeMittwaldId(crObj["id"]?.GetValue<string>(), "ingressId");
+                res.IngressCreated = true;
+
+                var (gSt, _, gNode) = await SendMittwaldRequestAsync(
+                    client,
+                    HttpMethod.Get,
+                    $"/v2/ingresses/{res.IngressId}",
+                    apiTokenUtf8,
+                    ct);
+                if (gSt is >= 200 and < 300 && gNode is JsonObject gObj)
+                    ingObj = gObj;
+            }
+            else
+            {
+                res.IngressId = ValidateSafeMittwaldId(ingObj["id"]?.GetValue<string>(), "ingressId");
+
+                bool rootPointsToLive = false;
+                if (ingObj["paths"] is JsonArray pathsArr)
+                {
+                    foreach (var pNode in pathsArr)
+                    {
+                        if (pNode is JsonObject po
+                            && string.Equals(po["path"]?.GetValue<string>(), "/", StringComparison.Ordinal)
+                            && string.Equals(po["target"]?["installationId"]?.GetValue<string>(), McpSecurityGuard.PinnedLiveAppUuid, StringComparison.Ordinal))
+                        {
+                            rootPointsToLive = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (!rootPointsToLive)
+                {
+                    var patchPathsArr = new JsonArray
+                    {
+                        new JsonObject
+                        {
+                            ["path"] = "/",
+                            ["target"] = new JsonObject
+                            {
+                                ["installationId"] = McpSecurityGuard.PinnedLiveAppUuid
+                            }
+                        }
+                    };
+                    byte[] patchPathsBytes = Encoding.UTF8.GetBytes(patchPathsArr.ToJsonString());
+                    var (ppSt, ppBody, _) = await SendMittwaldRequestAsync(
+                        client,
+                        HttpMethod.Patch,
+                        $"/v2/ingresses/{res.IngressId}/paths",
+                        apiTokenUtf8,
+                        ct,
+                        jsonBodyUtf8: patchPathsBytes);
+                    if (ppSt is < 200 or >= 300)
+                        infraErrors.Add($"PATCH /v2/ingresses/{res.IngressId}/paths ({hostname}) -> HTTP {ppSt}: {ppBody}");
+                }
+            }
+
+            bool tlsAcmeEnabled = ingObj?["tls"]?["acme"]?.GetValue<bool>() == true;
+            if (!tlsAcmeEnabled)
+            {
+                byte[] patchTlsBytes = Encoding.UTF8.GetBytes("{\"acme\":true}");
+                var (tlsSt, tlsBody, _) = await SendMittwaldRequestAsync(
+                    client,
+                    HttpMethod.Patch,
+                    $"/v2/ingresses/{res.IngressId}/tls",
+                    apiTokenUtf8,
+                    ct,
+                    jsonBodyUtf8: patchTlsBytes);
+                if (tlsSt is < 200 or >= 300)
+                    throw new InvalidOperationException($"PATCH /v2/ingresses/{res.IngressId}/tls ({hostname}) fehlgeschlagen (HTTP {tlsSt}): {tlsBody}");
+                tlsAcmeEnabled = true;
+            }
+
+            var (zListSt, zListBody, zListNode) = await SendMittwaldRequestAsync(
+                client,
+                HttpMethod.Get,
+                $"/v2/projects/{McpSecurityGuard.PinnedLiveProjectId}/dns-zones",
+                apiTokenUtf8,
+                ct);
+            if (zListSt is < 200 or >= 300 || zListNode is not JsonArray zonesArr)
+                throw new InvalidOperationException($"GET /v2/projects/{McpSecurityGuard.PinnedLiveProjectId}/dns-zones fehlgeschlagen (HTTP {zListSt}): {zListBody}");
+
+            JsonObject? zoneObj = null;
+            foreach (var z in zonesArr)
+            {
+                if (z is JsonObject zo &&
+                    string.Equals(zo["domain"]?.GetValue<string>(), hostname, StringComparison.OrdinalIgnoreCase))
+                {
+                    zoneObj = zo;
+                    break;
+                }
+            }
+
+            if (zoneObj == null)
+            {
+                byte[] subZoneBytes = Encoding.UTF8.GetBytes($"{{\"name\":\"{subLabel}\",\"parentZoneId\":\"{McpSecurityGuard.PinnedLiveRootZoneUuid}\"}}");
+                var (szSt, szBody, szNode) = await SendMittwaldRequestAsync(
+                    client,
+                    HttpMethod.Post,
+                    "/v2/dns-zones",
+                    apiTokenUtf8,
+                    ct,
+                    jsonBodyUtf8: subZoneBytes);
+
+                if (szSt is < 200 or >= 300)
+                {
+                    byte[] fallbackProjectZoneBytes = Encoding.UTF8.GetBytes($"{{\"name\":\"{hostname}\"}}");
+                    var (czSt, czBody, czNode) = await SendMittwaldRequestAsync(
+                        client,
+                        HttpMethod.Post,
+                        $"/v2/projects/{McpSecurityGuard.PinnedLiveProjectId}/dns-zones",
+                        apiTokenUtf8,
+                        ct,
+                        jsonBodyUtf8: fallbackProjectZoneBytes);
+                    if (czSt is < 200 or >= 300 || czNode is not JsonObject czObj)
+                        throw new InvalidOperationException($"Anlegen der DNS-Subzone {hostname} fehlgeschlagen (HTTP {szSt}/{czSt}): {szBody} | {czBody}");
+
+                    res.DnsZoneId = ValidateSafeMittwaldId(czObj["id"]?.GetValue<string>(), "dnsZoneId");
+                }
+                else if (szNode is JsonObject szObj)
+                {
+                    res.DnsZoneId = ValidateSafeMittwaldId(szObj["id"]?.GetValue<string>(), "dnsZoneId");
+                }
+
+                res.DnsZoneCreated = true;
+                if (!string.IsNullOrEmpty(res.DnsZoneId))
+                {
+                    var (gzSt, _, gzNode) = await SendMittwaldRequestAsync(
+                        client,
+                        HttpMethod.Get,
+                        $"/v2/dns-zones/{res.DnsZoneId}",
+                        apiTokenUtf8,
+                        ct);
+                    if (gzSt is >= 200 and < 300 && gzNode is JsonObject gzObj)
+                        zoneObj = gzObj;
+                }
+            }
+            else
+            {
+                res.DnsZoneId = ValidateSafeMittwaldId(zoneObj["id"]?.GetValue<string>(), "dnsZoneId");
+            }
+
+            res.ManagedByIngressId = zoneObj?["recordSet"]?["combinedARecords"]?["managedBy"]?["ingressId"]?.GetValue<string>() ?? "";
+            if (!string.IsNullOrEmpty(res.DnsZoneId) && !string.Equals(res.ManagedByIngressId, res.IngressId, StringComparison.Ordinal))
+            {
+                byte[] emptyJsonObj = Encoding.UTF8.GetBytes("{}");
+                int smSt = 0;
+                string smBody = "";
+                const int maxSetManagedAttempts = 7;
+                for (int smAttempt = 1; smAttempt <= maxSetManagedAttempts; smAttempt++)
+                {
+                    res.DnsSetManagedAttempts = smAttempt;
+                    (smSt, smBody, _) = await SendMittwaldRequestAsync(
+                        client,
+                        HttpMethod.Post,
+                        $"/v2/dns-zones/{res.DnsZoneId}/record-sets/a/actions/set-managed",
+                        apiTokenUtf8,
+                        ct,
+                        jsonBodyUtf8: emptyJsonObj);
+                    if (smSt is >= 200 and < 300)
+                        break;
+
+                    if (smAttempt < maxSetManagedAttempts && (smSt == 404 || smSt == 409 || smSt == 412 || smSt == 422 || smSt >= 500))
+                    {
+                        await Task.Delay(TestDnsManagedRetryDelayMs, ct);
+                        continue;
+                    }
+                    break;
+                }
+
+                if (smSt is < 200 or >= 300)
+                    throw new InvalidOperationException($"POST /v2/dns-zones/{res.DnsZoneId}/record-sets/a/actions/set-managed ({hostname}) nach {res.DnsSetManagedAttempts} Versuchen fehlgeschlagen (HTTP {smSt}): {smBody}");
+
+                res.DnsSetManagedCalled = true;
+                var (gz2St, _, gz2Node) = await SendMittwaldRequestAsync(
+                    client,
+                    HttpMethod.Get,
+                    $"/v2/dns-zones/{res.DnsZoneId}",
+                    apiTokenUtf8,
+                    ct);
+                if (gz2St is >= 200 and < 300 && gz2Node is JsonObject gz2Obj)
+                    res.ManagedByIngressId = gz2Obj["recordSet"]?["combinedARecords"]?["managedBy"]?["ingressId"]?.GetValue<string>() ?? res.IngressId;
+            }
+
+            var (finIngSt, _, finIngNode) = await SendMittwaldRequestAsync(
+                client,
+                HttpMethod.Get,
+                $"/v2/ingresses/{res.IngressId}",
+                apiTokenUtf8,
+                ct);
+            if (finIngSt is >= 200 and < 300 && finIngNode is JsonObject finIngObj)
+                ingObj = finIngObj;
+
+            bool ownershipVerified = ingObj?["ownership"]?["verified"]?.GetValue<bool>() == true;
+            if (!ownershipVerified)
+            {
+                await SendMittwaldRequestAsync(
+                    client,
+                    HttpMethod.Post,
+                    $"/v2/ingresses/{res.IngressId}/actions/verify-ownership",
+                    apiTokenUtf8,
+                    ct);
+            }
+
+            bool tlsIsCreated = ingObj?["tls"]?["isCreated"]?.GetValue<bool>() == true;
+            if (!tlsIsCreated)
+            {
+                await SendMittwaldRequestAsync(
+                    client,
+                    HttpMethod.Post,
+                    $"/v2/ingresses/{res.IngressId}/actions/request-acme-certificate-issuance",
+                    apiTokenUtf8,
+                    ct);
+            }
+
+            if (!ownershipVerified || !tlsIsCreated)
+            {
+                var (afterAcmeSt, _, afterAcmeNode) = await SendMittwaldRequestAsync(
+                    client,
+                    HttpMethod.Get,
+                    $"/v2/ingresses/{res.IngressId}",
+                    apiTokenUtf8,
+                    ct);
+                if (afterAcmeSt is >= 200 and < 300 && afterAcmeNode is JsonObject afterAcmeObj)
+                    ingObj = afterAcmeObj;
+            }
+
+            res.TlsAcme = ingObj?["tls"]?["acme"]?.GetValue<bool>() ?? tlsAcmeEnabled;
+            res.TlsIsCreated = ingObj?["tls"]?["isCreated"]?.GetValue<bool>() ?? false;
+            res.OwnershipVerified = ingObj?["ownership"]?["verified"]?.GetValue<bool>() ?? false;
+            return res;
+        }
+
         public static async Task<JsonObject> ExecutePinnedSeelenfunkeLivePrepareAsync(
             string step = "all",
             string? entryTitleOrId = null,
@@ -2671,9 +2997,21 @@ function(mode, userVal, passVal, totpVal, doSubmit) {
 
                     var (cIngSt, _, cIngNode) = await SendMittwaldRequestAsync(
                         client, HttpMethod.Get, $"/v2/ingresses?projectId={Uri.EscapeDataString(McpSecurityGuard.PinnedLiveProjectId)}", lease.ApiTokenUtf8, ct);
-                    bool hasWww = (cIngNode as JsonArray)?.Any(x => string.Equals(x?["hostname"]?.GetValue<string>(), McpSecurityGuard.PinnedLiveWwwHostname, StringComparison.OrdinalIgnoreCase)) == true;
+                    var cIngArr = cIngNode as JsonArray;
+                    var wwwIngItem = cIngArr?.FirstOrDefault(x => string.Equals(x?["hostname"]?.GetValue<string>(), McpSecurityGuard.PinnedLiveWwwHostname, StringComparison.OrdinalIgnoreCase));
+                    var digitalIngItem = cIngArr?.FirstOrDefault(x => string.Equals(x?["hostname"]?.GetValue<string>(), PinnedLiveDigitalHostname, StringComparison.OrdinalIgnoreCase));
                     checkObj["ingresses_http"] = cIngSt;
-                    checkObj["www_ingress_exists"] = hasWww;
+                    checkObj["www_ingress_exists"] = wwwIngItem != null;
+                    checkObj["www_tls_is_created"] = wwwIngItem?["tls"]?["isCreated"]?.GetValue<bool>() == true;
+                    checkObj["digital_ingress_exists"] = digitalIngItem != null;
+                    checkObj["digital_tls_is_created"] = digitalIngItem?["tls"]?["isCreated"]?.GetValue<bool>() == true;
+
+                    var (cDnsSt, _, cDnsNode) = await SendMittwaldRequestAsync(
+                        client, HttpMethod.Get, $"/v2/projects/{McpSecurityGuard.PinnedLiveProjectId}/dns-zones", lease.ApiTokenUtf8, ct);
+                    var cDnsArr = cDnsNode as JsonArray;
+                    checkObj["dns_zones_http"] = cDnsSt;
+                    checkObj["www_dns_zone_exists"] = cDnsArr?.Any(x => string.Equals(x?["domain"]?.GetValue<string>(), McpSecurityGuard.PinnedLiveWwwHostname, StringComparison.OrdinalIgnoreCase)) == true;
+                    checkObj["digital_dns_zone_exists"] = cDnsArr?.Any(x => string.Equals(x?["domain"]?.GetValue<string>(), PinnedLiveDigitalHostname, StringComparison.OrdinalIgnoreCase)) == true;
 
                     var (cCronSt, _, cCronNode) = await SendMittwaldRequestAsync(
                         client, HttpMethod.Get, $"/v2/projects/{McpSecurityGuard.PinnedLiveProjectId}/cronjobs", lease.ApiTokenUtf8, ct);
@@ -2787,7 +3125,7 @@ function(mode, userVal, passVal, totpVal, doSubmit) {
                     infraObj["document_root_after"] = docRootAfter;
                     infraObj["document_root_patched"] = docRootPatched;
 
-                    // 2) Ingress www.mein-seelenfunke.de -> 93f33f15-d27c-4d15-9f85-155eb9adace8 (/) + ACME TLS + DNS Zone
+                    // 2) Ingresses www.mein-seelenfunke.de & digital.mein-seelenfunke.de -> 93f33f15-d27c-4d15-9f85-155eb9adace8 (/) + ACME TLS + DNS Zones
                     var (ingListSt, ingListBody, ingListNode) = await SendMittwaldRequestAsync(
                         client,
                         HttpMethod.Get,
@@ -2797,287 +3135,54 @@ function(mode, userVal, passVal, totpVal, doSubmit) {
                     if (ingListSt is < 200 or >= 300 || ingListNode is not JsonArray ingArr)
                         throw new InvalidOperationException($"GET /v2/ingresses fehlgeschlagen (HTTP {ingListSt}): {ingListBody}");
 
-                    JsonObject? wwwIngressObj = null;
-                    foreach (var item in ingArr)
-                    {
-                        if (item is JsonObject io &&
-                            string.Equals(io["hostname"]?.GetValue<string>(), McpSecurityGuard.PinnedLiveWwwHostname, StringComparison.OrdinalIgnoreCase))
-                        {
-                            wwwIngressObj = io;
-                            break;
-                        }
-                    }
-
-                    bool ingressCreated = false;
-                    string wwwIngressId = "";
-
-                    if (wwwIngressObj == null)
-                    {
-                        var createIngPayload = new JsonObject
-                        {
-                            ["projectId"] = McpSecurityGuard.PinnedLiveProjectId,
-                            ["hostname"] = McpSecurityGuard.PinnedLiveWwwHostname,
-                            ["paths"] = new JsonArray
-                            {
-                                new JsonObject
-                                {
-                                    ["path"] = "/",
-                                    ["target"] = new JsonObject
-                                    {
-                                        ["installationId"] = McpSecurityGuard.PinnedLiveAppUuid
-                                    }
-                                }
-                            }
-                        };
-                        byte[] createIngBytes = Encoding.UTF8.GetBytes(createIngPayload.ToJsonString());
-                        var (crSt, crBody, crNode) = await SendMittwaldRequestAsync(
-                            client,
-                            HttpMethod.Post,
-                            "/v2/ingresses",
-                            lease.ApiTokenUtf8,
-                            ct,
-                            jsonBodyUtf8: createIngBytes);
-                        if (crSt is < 200 or >= 300 || crNode is not JsonObject crObj)
-                        {
-                            string hint = crSt == 403 ? $" [Tresor-Token '{lease.Title}' hat nur api_read; benötigt api_write]" : "";
-                            infraErrors.Add($"POST /v2/ingresses ({McpSecurityGuard.PinnedLiveWwwHostname}) -> HTTP {crSt}{hint}: {crBody}");
-                        }
-                        else
-                        {
-                            wwwIngressId = ValidateSafeMittwaldId(crObj["id"]?.GetValue<string>(), "ingressId");
-                            ingressCreated = true;
-
-                            var (gSt, _, gNode) = await SendMittwaldRequestAsync(
-                                client,
-                                HttpMethod.Get,
-                                $"/v2/ingresses/{wwwIngressId}",
-                                lease.ApiTokenUtf8,
-                                ct);
-                            if (gSt is >= 200 and < 300 && gNode is JsonObject gObj)
-                                wwwIngressObj = gObj;
-                        }
-                    }
-                    else
-                    {
-                        wwwIngressId = ValidateSafeMittwaldId(wwwIngressObj["id"]?.GetValue<string>(), "ingressId");
-
-                        bool rootPointsToLive = false;
-                        if (wwwIngressObj["paths"] is JsonArray pathsArr)
-                        {
-                            foreach (var pNode in pathsArr)
-                            {
-                                if (pNode is JsonObject po
-                                    && string.Equals(po["path"]?.GetValue<string>(), "/", StringComparison.Ordinal)
-                                    && string.Equals(po["target"]?["installationId"]?.GetValue<string>(), McpSecurityGuard.PinnedLiveAppUuid, StringComparison.Ordinal))
-                                {
-                                    rootPointsToLive = true;
-                                    break;
-                                }
-                            }
-                        }
-
-                        if (!rootPointsToLive)
-                        {
-                            var patchPathsArr = new JsonArray
-                            {
-                                new JsonObject
-                                {
-                                    ["path"] = "/",
-                                    ["target"] = new JsonObject
-                                    {
-                                        ["installationId"] = McpSecurityGuard.PinnedLiveAppUuid
-                                    }
-                                }
-                            };
-                            byte[] patchPathsBytes = Encoding.UTF8.GetBytes(patchPathsArr.ToJsonString());
-                            var (ppSt, ppBody, _) = await SendMittwaldRequestAsync(
-                                client,
-                                HttpMethod.Patch,
-                                $"/v2/ingresses/{wwwIngressId}/paths",
-                                lease.ApiTokenUtf8,
-                                ct,
-                                jsonBodyUtf8: patchPathsBytes);
-                            if (ppSt is < 200 or >= 300)
-                                infraErrors.Add($"PATCH /v2/ingresses/{wwwIngressId}/paths -> HTTP {ppSt}: {ppBody}");
-                        }
-                    }
-
-                    if (infraErrors.Count > 0 && string.IsNullOrEmpty(wwwIngressId))
-                        throw new InvalidOperationException(string.Join(" || ", infraErrors));
-
-                    // Ensure TLS ACME is enabled on www ingress
-                    bool tlsAcmeEnabled = wwwIngressObj?["tls"]?["acme"]?.GetValue<bool>() == true;
-                    if (!tlsAcmeEnabled)
-                    {
-                        byte[] patchTlsBytes = Encoding.UTF8.GetBytes("{\"acme\":true}");
-                        var (tlsSt, tlsBody, _) = await SendMittwaldRequestAsync(
-                            client,
-                            HttpMethod.Patch,
-                            $"/v2/ingresses/{wwwIngressId}/tls",
-                            lease.ApiTokenUtf8,
-                            ct,
-                            jsonBodyUtf8: patchTlsBytes);
-                        if (tlsSt is < 200 or >= 300)
-                            throw new InvalidOperationException($"PATCH /v2/ingresses/{wwwIngressId}/tls fehlgeschlagen (HTTP {tlsSt}): {tlsBody}");
-                        tlsAcmeEnabled = true;
-                    }
-
-                    // Check & link DNS Zone for www.mein-seelenfunke.de (managedBy.ingressId)
-                    var (zListSt, zListBody, zListNode) = await SendMittwaldRequestAsync(
+                    var wwwRes = await EnsurePinnedLiveSubdomainInfraAsync(
                         client,
-                        HttpMethod.Get,
-                        $"/v2/projects/{McpSecurityGuard.PinnedLiveProjectId}/dns-zones",
                         lease.ApiTokenUtf8,
+                        lease.Title,
+                        McpSecurityGuard.PinnedLiveWwwHostname,
+                        "www",
+                        ingArr,
+                        infraErrors,
                         ct);
-                    if (zListSt is < 200 or >= 300 || zListNode is not JsonArray zonesArr)
-                        throw new InvalidOperationException($"GET /v2/projects/{McpSecurityGuard.PinnedLiveProjectId}/dns-zones fehlgeschlagen (HTTP {zListSt}): {zListBody}");
 
-                    JsonObject? wwwZoneObj = null;
-                    foreach (var z in zonesArr)
-                    {
-                        if (z is JsonObject zo &&
-                            string.Equals(zo["domain"]?.GetValue<string>(), McpSecurityGuard.PinnedLiveWwwHostname, StringComparison.OrdinalIgnoreCase))
-                        {
-                            wwwZoneObj = zo;
-                            break;
-                        }
-                    }
-
-                    bool dnsZoneCreated = false;
-                    bool dnsSetManagedCalled = false;
-                    string wwwZoneId = "";
-
-                    if (wwwZoneObj == null)
-                    {
-                        byte[] createZoneBytes = Encoding.UTF8.GetBytes($"{{\"name\":\"{McpSecurityGuard.PinnedLiveWwwHostname}\"}}");
-                        var (czSt, czBody, czNode) = await SendMittwaldRequestAsync(
-                            client,
-                            HttpMethod.Post,
-                            $"/v2/projects/{McpSecurityGuard.PinnedLiveProjectId}/dns-zones",
-                            lease.ApiTokenUtf8,
-                            ct,
-                            jsonBodyUtf8: createZoneBytes);
-
-                        if (czSt is < 200 or >= 300)
-                        {
-                            // Fallback to parentZoneId subzone creation if project endpoint rejected
-                            byte[] fallbackZoneBytes = Encoding.UTF8.GetBytes($"{{\"name\":\"www\",\"parentZoneId\":\"{McpSecurityGuard.PinnedLiveRootZoneUuid}\"}}");
-                            var (fbSt, fbBody, fbNode) = await SendMittwaldRequestAsync(
-                                client,
-                                HttpMethod.Post,
-                                "/v2/dns-zones",
-                                lease.ApiTokenUtf8,
-                                ct,
-                                jsonBodyUtf8: fallbackZoneBytes);
-                            if (fbSt is < 200 or >= 300 || fbNode is not JsonObject fbObj)
-                                throw new InvalidOperationException($"Anlegen der DNS-Subzone {McpSecurityGuard.PinnedLiveWwwHostname} fehlgeschlagen (HTTP {czSt}/{fbSt}): {czBody} | {fbBody}");
-
-                            wwwZoneId = ValidateSafeMittwaldId(fbObj["id"]?.GetValue<string>(), "dnsZoneId");
-                        }
-                        else if (czNode is JsonObject czObj)
-                        {
-                            wwwZoneId = ValidateSafeMittwaldId(czObj["id"]?.GetValue<string>(), "dnsZoneId");
-                        }
-
-                        dnsZoneCreated = true;
-                        if (!string.IsNullOrEmpty(wwwZoneId))
-                        {
-                            var (gzSt, _, gzNode) = await SendMittwaldRequestAsync(
-                                client,
-                                HttpMethod.Get,
-                                $"/v2/dns-zones/{wwwZoneId}",
-                                lease.ApiTokenUtf8,
-                                ct);
-                            if (gzSt is >= 200 and < 300 && gzNode is JsonObject gzObj)
-                                wwwZoneObj = gzObj;
-                        }
-                    }
-                    else
-                    {
-                        wwwZoneId = ValidateSafeMittwaldId(wwwZoneObj["id"]?.GetValue<string>(), "dnsZoneId");
-                    }
-
-                    string managedByIngressId = wwwZoneObj?["recordSet"]?["combinedARecords"]?["managedBy"]?["ingressId"]?.GetValue<string>() ?? "";
-                    if (!string.IsNullOrEmpty(wwwZoneId) && !string.Equals(managedByIngressId, wwwIngressId, StringComparison.Ordinal))
-                    {
-                        byte[] emptyJsonObj = Encoding.UTF8.GetBytes("{}");
-                        var (smSt, smBody, _) = await SendMittwaldRequestAsync(
-                            client,
-                            HttpMethod.Post,
-                            $"/v2/dns-zones/{wwwZoneId}/record-sets/a/actions/set-managed",
-                            lease.ApiTokenUtf8,
-                            ct,
-                            jsonBodyUtf8: emptyJsonObj);
-                        if (smSt is < 200 or >= 300)
-                            throw new InvalidOperationException($"POST /v2/dns-zones/{wwwZoneId}/record-sets/a/actions/set-managed fehlgeschlagen (HTTP {smSt}): {smBody}");
-
-                        dnsSetManagedCalled = true;
-                        var (gz2St, _, gz2Node) = await SendMittwaldRequestAsync(
-                            client,
-                            HttpMethod.Get,
-                            $"/v2/dns-zones/{wwwZoneId}",
-                            lease.ApiTokenUtf8,
-                            ct);
-                        if (gz2St is >= 200 and < 300 && gz2Node is JsonObject gz2Obj)
-                            managedByIngressId = gz2Obj["recordSet"]?["combinedARecords"]?["managedBy"]?["ingressId"]?.GetValue<string>() ?? wwwIngressId;
-                    }
-
-                    // Trigger ownership verification & ACME issuance if not yet marked created
-                    var (finIngSt, _, finIngNode) = await SendMittwaldRequestAsync(
+                    var digitalRes = await EnsurePinnedLiveSubdomainInfraAsync(
                         client,
-                        HttpMethod.Get,
-                        $"/v2/ingresses/{wwwIngressId}",
                         lease.ApiTokenUtf8,
+                        lease.Title,
+                        PinnedLiveDigitalHostname,
+                        "digital",
+                        ingArr,
+                        infraErrors,
                         ct);
-                    if (finIngSt is >= 200 and < 300 && finIngNode is JsonObject finIngObj)
-                        wwwIngressObj = finIngObj;
 
-                    bool ownershipVerified = wwwIngressObj?["ownership"]?["verified"]?.GetValue<bool>() == true;
-                    if (!ownershipVerified)
-                    {
-                        await SendMittwaldRequestAsync(
-                            client,
-                            HttpMethod.Post,
-                            $"/v2/ingresses/{wwwIngressId}/actions/verify-ownership",
-                            lease.ApiTokenUtf8,
-                            ct);
-                    }
+                    infraObj["www_hostname"] = wwwRes.Hostname;
+                    infraObj["www_ingress_id"] = wwwRes.IngressId;
+                    infraObj["www_ingress_created"] = wwwRes.IngressCreated;
+                    infraObj["tls_acme"] = wwwRes.TlsAcme;
+                    infraObj["tls_is_created"] = wwwRes.TlsIsCreated;
+                    infraObj["ownership_verified"] = wwwRes.OwnershipVerified;
+                    infraObj["dns_zone_id"] = wwwRes.DnsZoneId;
+                    infraObj["dns_zone_created"] = wwwRes.DnsZoneCreated;
+                    infraObj["dns_set_managed_called"] = wwwRes.DnsSetManagedCalled;
+                    infraObj["dns_managed_by_ingress_id"] = wwwRes.ManagedByIngressId;
 
-                    bool tlsIsCreated = wwwIngressObj?["tls"]?["isCreated"]?.GetValue<bool>() == true;
-                    if (!tlsIsCreated)
-                    {
-                        await SendMittwaldRequestAsync(
-                            client,
-                            HttpMethod.Post,
-                            $"/v2/ingresses/{wwwIngressId}/actions/request-acme-certificate-issuance",
-                            lease.ApiTokenUtf8,
-                            ct);
-                    }
+                    infraObj["digital_hostname"] = digitalRes.Hostname;
+                    infraObj["digital_ingress_id"] = digitalRes.IngressId;
+                    infraObj["digital_ingress_created"] = digitalRes.IngressCreated;
+                    infraObj["digital_tls_acme"] = digitalRes.TlsAcme;
+                    infraObj["digital_tls_is_created"] = digitalRes.TlsIsCreated;
+                    infraObj["digital_ownership_verified"] = digitalRes.OwnershipVerified;
+                    infraObj["digital_dns_zone_id"] = digitalRes.DnsZoneId;
+                    infraObj["digital_dns_zone_created"] = digitalRes.DnsZoneCreated;
+                    infraObj["digital_dns_set_managed_called"] = digitalRes.DnsSetManagedCalled;
+                    infraObj["digital_dns_set_managed_attempts"] = digitalRes.DnsSetManagedAttempts;
+                    infraObj["digital_dns_managed_by_ingress_id"] = digitalRes.ManagedByIngressId;
 
-                    var (afterAcmeSt, _, afterAcmeNode) = await SendMittwaldRequestAsync(
-                        client,
-                        HttpMethod.Get,
-                        $"/v2/ingresses/{wwwIngressId}",
-                        lease.ApiTokenUtf8,
-                        ct);
-                    if (afterAcmeSt is >= 200 and < 300 && afterAcmeNode is JsonObject afterAcmeObj)
-                        wwwIngressObj = afterAcmeObj;
-
-                    infraObj["www_hostname"] = McpSecurityGuard.PinnedLiveWwwHostname;
-                    infraObj["www_ingress_id"] = wwwIngressId;
-                    infraObj["www_ingress_created"] = ingressCreated;
-                    infraObj["tls_acme"] = wwwIngressObj?["tls"]?["acme"]?.GetValue<bool>() ?? tlsAcmeEnabled;
-                    infraObj["tls_is_created"] = wwwIngressObj?["tls"]?["isCreated"]?.GetValue<bool>() ?? false;
-                    infraObj["ownership_verified"] = wwwIngressObj?["ownership"]?["verified"]?.GetValue<bool>() ?? false;
-                    infraObj["dns_zone_id"] = wwwZoneId;
-                    infraObj["dns_zone_created"] = dnsZoneCreated;
-                    infraObj["dns_set_managed_called"] = dnsSetManagedCalled;
-                    infraObj["dns_managed_by_ingress_id"] = managedByIngressId;
                     summary["infra"] = infraObj;
                     if (infraErrors.Count > 0)
                         throw new InvalidOperationException(string.Join(" || ", infraErrors));
 
-                    McpSecurityGuard.AppendAuditLog("mittwald_prepare_live", $"infra:ingress={wwwIngressId}:zone={wwwZoneId}", "ALLOW");
+                    McpSecurityGuard.AppendAuditLog("mittwald_prepare_live", $"infra:www={wwwRes.IngressId}:digital={digitalRes.IngressId}", "ALLOW");
                 }
 
                 // =============================================================
@@ -3195,6 +3300,7 @@ function(mode, userVal, passVal, totpVal, doSubmit) {
                                 ["SESSION_DRIVER"] = "file",
                                 ["QUEUE_CONNECTION"] = "sync",
                                 ["BROADCAST_CONNECTION"] = "log",
+                                ["SANCTUM_STATEFUL_DOMAINS"] = "mein-seelenfunke.de,www.mein-seelenfunke.de,digital.mein-seelenfunke.de",
                                 ["REDIS_ISOLATED"] = true
                             }
                         };
@@ -3307,6 +3413,235 @@ function(mode, userVal, passVal, totpVal, doSubmit) {
                 }
 
                 return summary;
+            }
+            finally
+            {
+                if (ownsClient)
+                    client.Dispose();
+            }
+        }
+
+        // =====================================================================
+        // 6. OFFICIAL STRIPE REST API v1 ZERO-SECRET BROKER (api.stripe.com:443)
+        // =====================================================================
+        public sealed class StripeBrokerResultDto
+        {
+            [JsonPropertyName("status")]
+            public string Status { get; set; } = "ok";
+
+            [JsonPropertyName("preset")]
+            public string Preset { get; set; } = "";
+
+            [JsonPropertyName("http_status")]
+            public int HttpStatus { get; set; }
+
+            [JsonPropertyName("entry_title")]
+            public string EntryTitle { get; set; } = "";
+
+            [JsonPropertyName("key_mode")]
+            public string KeyMode { get; set; } = "unknown";
+
+            [JsonPropertyName("key_kind")]
+            public string KeyKind { get; set; } = "unknown";
+
+            [JsonPropertyName("data")]
+            public JsonNode? Data { get; set; }
+        }
+
+        internal static HttpClient? TestStripeHttpClientOverride { get; set; }
+
+        private static readonly Regex SafeStripeObjectIdRegex = new(@"^[A-Za-z0-9_]{3,96}$", RegexOptions.Compiled);
+
+        public static readonly IReadOnlyList<string> AllowedStripePresets = new[]
+        {
+            "sandbox_audit",
+            "balance",
+            "list_balance_transactions",
+            "list_payment_intents",
+            "get_payment_intent",
+            "list_charges",
+            "list_payouts",
+            "list_disputes",
+            "list_webhooks",
+            "list_events",
+            "list_products",
+            "list_coupons"
+        };
+
+        private static Uri BuildPinnedStripeUri(string v1RelativePath)
+        {
+            if (string.IsNullOrWhiteSpace(v1RelativePath)
+                || !v1RelativePath.StartsWith("/v1/", StringComparison.Ordinal)
+                || v1RelativePath.Contains("..", StringComparison.Ordinal))
+            {
+                throw new UnauthorizedAccessException("Ungültiger Stripe API-v1 Pfad blockiert.");
+            }
+
+            var uri = new Uri("https://api.stripe.com" + v1RelativePath, UriKind.Absolute);
+            if (!string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
+                || !string.Equals(uri.Host, "api.stripe.com", StringComparison.OrdinalIgnoreCase)
+                || !string.IsNullOrEmpty(uri.UserInfo)
+                || uri.Port != 443)
+            {
+                throw new UnauthorizedAccessException("SSRF-Schutz: Stripe API-Broker kommuniziert ausschließlich per HTTPS mit api.stripe.com:443.");
+            }
+            return uri;
+        }
+
+        private static (string KeyKind, string KeyMode) InspectStripeKeyPrefixZeroSecret(ReadOnlySpan<byte> tokenUtf8)
+        {
+            if (tokenUtf8.StartsWith("rk_test_"u8)) return ("restricted", "test");
+            if (tokenUtf8.StartsWith("sk_test_"u8)) return ("secret", "test");
+            if (tokenUtf8.StartsWith("rk_live_"u8)) return ("restricted", "live");
+            if (tokenUtf8.StartsWith("sk_live_"u8)) return ("secret", "live");
+            return ("custom", "unknown");
+        }
+
+        private static async Task<(int StatusCode, string CleanBody, JsonNode? Node)> SendStripeGetRequestAsync(
+            HttpClient client,
+            string v1Path,
+            ReadOnlyMemory<byte> apiTokenUtf8,
+            CancellationToken ct)
+        {
+            Uri uri = BuildPinnedStripeUri(v1Path);
+            char[] tokenChars = new char[Encoding.UTF8.GetCharCount(apiTokenUtf8.Span)];
+            Encoding.UTF8.GetChars(apiTokenUtf8.Span, tokenChars);
+            string tokenStr = new string(tokenChars).Trim();
+
+            try
+            {
+                using var req = new HttpRequestMessage(HttpMethod.Get, uri);
+                req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenStr);
+                req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+                using var resp = await client.SendAsync(req, ct);
+                string rawBody = resp.Content != null ? await resp.Content.ReadAsStringAsync(ct) : "";
+
+                if (!string.IsNullOrEmpty(tokenStr) && rawBody.Contains(tokenStr, StringComparison.Ordinal))
+                    rawBody = rawBody.Replace(tokenStr, "[REDACTED-BY-FUNKENWERK-DLP]", StringComparison.Ordinal);
+
+                string cleanBody = McpSecurityGuard.ScrubSecrets(rawBody);
+                JsonNode? parsed = null;
+                if (!string.IsNullOrWhiteSpace(cleanBody))
+                {
+                    try
+                    {
+                        parsed = JsonNode.Parse(cleanBody, documentOptions: new JsonDocumentOptions { MaxDepth = 24 });
+                    }
+                    catch
+                    {
+                        parsed = JsonValue.Create(cleanBody);
+                    }
+                }
+
+                return ((int)resp.StatusCode, cleanBody, parsed);
+            }
+            finally
+            {
+                Array.Clear(tokenChars, 0, tokenChars.Length);
+            }
+        }
+
+        public static async Task<StripeBrokerResultDto> ExecuteStripeApiPresetAsync(
+            string preset,
+            string? entryTitleOrId = null,
+            string? objectId = null,
+            int limit = 10,
+            CancellationToken ct = default)
+        {
+            string normPreset = (preset ?? "").Trim().ToLowerInvariant();
+            if (!AllowedStripePresets.Contains(normPreset, StringComparer.Ordinal))
+            {
+                McpSecurityGuard.AppendAuditLog("stripe_api_broker", normPreset, "DENY:unknown_preset");
+                throw new UnauthorizedAccessException(
+                    $"Unbekanntes Stripe-Preset '{McpSecurityGuard.ScrubSecrets(preset)}'. Erlaubt: {string.Join(", ", AllowedStripePresets)}.");
+            }
+
+            int safeLimit = Math.Clamp(limit, 1, 50);
+            string lookupQuery = string.IsNullOrWhiteSpace(entryTitleOrId) ? "Stripe" : entryTitleOrId!.Trim();
+            using var lease = ResolveEntrySecretLease(lookupQuery, requireApiToken: true);
+            var (keyKind, keyMode) = InspectStripeKeyPrefixZeroSecret(lease.ApiTokenUtf8.AsSpan());
+
+            bool ownsClient = TestStripeHttpClientOverride == null;
+            HttpClient client = TestStripeHttpClientOverride ?? McpSecurityGuard.CreateHardenedApiClient(TimeSpan.FromSeconds(25));
+
+            try
+            {
+                if (normPreset == "sandbox_audit")
+                {
+                    var audit = new JsonObject();
+                    (string Key, string Path)[] probes =
+                    {
+                        ("balance", "/v1/balance"),
+                        ("webhook_endpoints", "/v1/webhook_endpoints?limit=10"),
+                        ("recent_payment_intents", "/v1/payment_intents?limit=5"),
+                        ("recent_payouts", "/v1/payouts?limit=5"),
+                        ("open_disputes", "/v1/disputes?limit=5"),
+                        ("products", "/v1/products?limit=5"),
+                        ("coupons", "/v1/coupons?limit=5")
+                    };
+
+                    foreach (var (k, p) in probes)
+                    {
+                        var (st, body, n) = await SendStripeGetRequestAsync(client, p, lease.ApiTokenUtf8, ct);
+                        audit[k] = new JsonObject
+                        {
+                            ["http_status"] = st,
+                            ["ok"] = st is >= 200 and < 300,
+                            ["data"] = st is >= 200 and < 300 ? n?.DeepClone() : JsonValue.Create(body)
+                        };
+                    }
+
+                    McpSecurityGuard.AppendAuditLog("stripe_api_broker", $"sandbox_audit:mode={keyMode}:kind={keyKind}", "ALLOW");
+                    return new StripeBrokerResultDto
+                    {
+                        Status = "ok",
+                        Preset = normPreset,
+                        HttpStatus = 200,
+                        EntryTitle = lease.Title,
+                        KeyMode = keyMode,
+                        KeyKind = keyKind,
+                        Data = audit
+                    };
+                }
+
+                string v1Path = normPreset switch
+                {
+                    "balance" => "/v1/balance",
+                    "list_balance_transactions" => $"/v1/balance_transactions?limit={safeLimit}",
+                    "list_payment_intents" => $"/v1/payment_intents?limit={safeLimit}",
+                    "get_payment_intent" =>
+                        !string.IsNullOrWhiteSpace(objectId) && SafeStripeObjectIdRegex.IsMatch(objectId.Trim())
+                            ? $"/v1/payment_intents/{objectId.Trim()}"
+                            : throw new ArgumentException("Ungültige oder fehlende Stripe PaymentIntent-ID (--object-id pi_...)."),
+                    "list_charges" => $"/v1/charges?limit={safeLimit}",
+                    "list_payouts" => $"/v1/payouts?limit={safeLimit}",
+                    "list_disputes" => $"/v1/disputes?limit={safeLimit}",
+                    "list_webhooks" => $"/v1/webhook_endpoints?limit={safeLimit}",
+                    "list_events" => $"/v1/events?limit={safeLimit}",
+                    "list_products" => $"/v1/products?limit={safeLimit}",
+                    "list_coupons" => $"/v1/coupons?limit={safeLimit}",
+                    _ => throw new UnauthorizedAccessException($"Preset '{normPreset}' gesperrt.")
+                };
+
+                var (httpStatus, cleanBody, parsedNode) = await SendStripeGetRequestAsync(client, v1Path, lease.ApiTokenUtf8, ct);
+                if (httpStatus is < 200 or >= 300)
+                {
+                    McpSecurityGuard.AppendAuditLog("stripe_api_broker", $"{normPreset}:http={httpStatus}", "ERROR");
+                    throw new InvalidOperationException($"Stripe API v1 antwortete mit HTTP {httpStatus} bei '{normPreset}': {cleanBody}");
+                }
+
+                McpSecurityGuard.AppendAuditLog("stripe_api_broker", $"{normPreset}:http={httpStatus}:mode={keyMode}", "ALLOW");
+                return new StripeBrokerResultDto
+                {
+                    Status = "ok",
+                    Preset = normPreset,
+                    HttpStatus = httpStatus,
+                    EntryTitle = lease.Title,
+                    KeyMode = keyMode,
+                    KeyKind = keyKind,
+                    Data = parsedNode
+                };
             }
             finally
             {

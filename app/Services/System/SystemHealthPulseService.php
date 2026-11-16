@@ -25,7 +25,8 @@ class SystemHealthPulseService
     public const LIVE_DOMAIN_CACHE_TTL = 45;
     public const LIVE_PRIMARY_HOST = 'mein-seelenfunke.de';
     public const LIVE_WWW_HOST = 'www.mein-seelenfunke.de';
-    public const DIGITAL_SUBDOMAIN_HOST = 'digital.mein-seelenfunke.de';
+    public const LIVE_DIGITAL_HOST = 'digital.mein-seelenfunke.de';
+    public const DIGITAL_SUBDOMAIN_HOST = self::LIVE_DIGITAL_HOST;
     public const STAGE_SUBDOMAIN_HOST = 'stage.mein-seelenfunke.de';
     public const WS_SUBDOMAIN_HOST = 'ws.mein-seelenfunke.de';
     public const LIVE_BRIDGE_SUBDOMAIN_HOST = 'api-live-bridge.mein-seelenfunke.de';
@@ -326,9 +327,11 @@ class SystemHealthPulseService
                         continue;
                     }
                     $poolTimings[$key] = microtime(true);
+                    $connectTimeout = (float) ($cfg['connect_timeout'] ?? 1.8);
+                    $requestTimeout = (float) ($cfg['timeout'] ?? 2.5);
                     $pending = $pool->as($key)
-                        ->connectTimeout(1.8)
-                        ->timeout(2.5)
+                        ->connectTimeout($connectTimeout)
+                        ->timeout($requestTimeout)
                         ->withOptions([
                             'verify' => true,
                             'http_errors' => false,
@@ -408,6 +411,7 @@ class SystemHealthPulseService
 
         $primary = $probedEntries['main'];
         $www = $probedEntries['www'];
+        $digital = $probedEntries['digital'];
 
         $mode = $this->classifyLiveDomainMode(
             (bool) $primary['reachable'],
@@ -419,6 +423,12 @@ class SystemHealthPulseService
         $wwwIngressActive = $www['reachable']
             && $www['http_status'] > 0
             && ($www['http_status'] < 500 || $www['http_status'] === 503);
+
+        $digitalHttpStatus = (int) $digital['http_status'];
+        $digitalIngressActive = (bool) $digital['reachable']
+            && $digitalHttpStatus > 0
+            && ($digitalHttpStatus < 500 || $digitalHttpStatus === 503);
+        $digitalMode = $this->classifyDigitalDomainMode((bool) $digital['reachable'], $digitalHttpStatus);
 
         $digitalReadiness = $this->inspectDigitalShopReadiness();
         $subdomains = $this->buildSubdomainsMatrix($probedEntries, $digitalReadiness, $checkedAt);
@@ -439,10 +449,43 @@ class SystemHealthPulseService
             'www_ingress_active' => $wwwIngressActive,
             'www_http_status' => (int) $www['http_status'],
             'www_status' => $wwwIngressActive ? 'active' : 'pending_ingress',
+            'digital_domain' => self::LIVE_DIGITAL_HOST,
+            'digital_url' => 'https://' . self::LIVE_DIGITAL_HOST,
+            'digital_ingress_active' => $digitalIngressActive,
+            'digital_http_status' => $digitalHttpStatus,
+            'digital_mode' => $digitalMode,
             'subdomains' => $subdomains,
             'digital_subdomain' => $subdomains['digital'],
             'checked_at' => $checkedAt,
         ];
+    }
+
+    /**
+     * Klassifiziert den Betriebsmodus von digital.mein-seelenfunke.de:
+     * - 'maintenance' bei HTTP 503 (gewollter Vorab-Schutz -> kein Fehlalarm für Haupt-Shop)
+     * - 'live_shop' bei HTTP 200 (bzw. 2xx/3xx)
+     * - 'pending_ingress' wenn noch nicht erreichbar (DNS/Ingress offen)
+     * - 'error' bei HTTP >= 500 (außer 503)
+     */
+    public function classifyDigitalDomainMode(bool $reachable, int $httpStatus): string
+    {
+        if (!$reachable || $httpStatus <= 0) {
+            return 'pending_ingress';
+        }
+
+        if ($httpStatus === 503) {
+            return 'maintenance';
+        }
+
+        if ($httpStatus >= 200 && $httpStatus < 400) {
+            return 'live_shop';
+        }
+
+        if ($httpStatus >= 400 && $httpStatus < 500) {
+            return 'pending_ingress';
+        }
+
+        return 'error';
     }
 
     /**
@@ -504,6 +547,11 @@ class SystemHealthPulseService
                 'www_ingress_active' => false,
                 'www_http_status' => 0,
                 'www_status' => 'pending_ingress',
+                'digital_domain' => self::LIVE_DIGITAL_HOST,
+                'digital_url' => 'https://' . self::LIVE_DIGITAL_HOST,
+                'digital_ingress_active' => false,
+                'digital_http_status' => 0,
+                'digital_mode' => 'pending_ingress',
             ];
         } elseif (!app()->environment('production', 'staging') && !$effectiveStrict && !Cache::has(self::LIVE_DOMAIN_CACHE_KEY)) {
             // Lokal ohne strict-Flag kein blockierender Netzwerk-Call beim normalen Dashboard-Aufruf
@@ -524,6 +572,11 @@ class SystemHealthPulseService
                 'www_ingress_active' => false,
                 'www_http_status' => 0,
                 'www_status' => 'pending_ingress',
+                'digital_domain' => self::LIVE_DIGITAL_HOST,
+                'digital_url' => 'https://' . self::LIVE_DIGITAL_HOST,
+                'digital_ingress_active' => false,
+                'digital_http_status' => 0,
+                'digital_mode' => 'pending_ingress',
             ];
         } else {
             $raw = $this->getCachedOrProbeLiveDomains(false);
@@ -549,6 +602,25 @@ class SystemHealthPulseService
         $wwwIngressActive = (bool) ($raw['www_ingress_active'] ?? false);
         $wwwHttpStatus = (int) ($raw['www_http_status'] ?? 0);
         $wwwStatus = $wwwIngressActive ? 'active' : 'pending_ingress';
+
+        $subDigital = is_array($raw['subdomains']['digital'] ?? null)
+            ? $raw['subdomains']['digital']
+            : (is_array($raw['digital_subdomain'] ?? null) ? $raw['digital_subdomain'] : null);
+
+        $digitalHttpStatus = array_key_exists('digital_http_status', $raw)
+            ? (int) $raw['digital_http_status']
+            : (int) ($subDigital['http_status'] ?? 0);
+        $digitalReachable = array_key_exists('digital_reachable', $raw)
+            ? (bool) $raw['digital_reachable']
+            : (array_key_exists('digital_ingress_active', $raw)
+                ? (bool) $raw['digital_ingress_active']
+                : (bool) ($subDigital['reachable'] ?? ($digitalHttpStatus > 0)));
+        $digitalIngressActive = array_key_exists('digital_ingress_active', $raw)
+            ? (bool) $raw['digital_ingress_active']
+            : ($digitalReachable && $digitalHttpStatus > 0 && ($digitalHttpStatus < 500 || $digitalHttpStatus === 503));
+        $digitalMode = isset($raw['digital_mode']) && in_array($raw['digital_mode'], ['maintenance', 'live_shop', 'pending_ingress', 'error'], true)
+            ? (string) $raw['digital_mode']
+            : $this->classifyDigitalDomainMode($digitalReachable || $digitalIngressActive, $digitalHttpStatus);
 
         $status = 'ok';
         $issues = [];
@@ -598,6 +670,11 @@ class SystemHealthPulseService
             'www_ingress_active' => $wwwIngressActive,
             'www_http_status' => $wwwHttpStatus,
             'www_status' => $wwwStatus,
+            'digital_domain' => self::LIVE_DIGITAL_HOST,
+            'digital_url' => 'https://' . self::LIVE_DIGITAL_HOST,
+            'digital_ingress_active' => $digitalIngressActive,
+            'digital_http_status' => $digitalHttpStatus,
+            'digital_mode' => $digitalMode,
             'subdomains' => is_array($raw['subdomains'] ?? null) ? $raw['subdomains'] : null,
             'digital_subdomain' => is_array($raw['digital_subdomain'] ?? null) ? $raw['digital_subdomain'] : null,
             'checked_at' => $raw['checked_at'] ?? now()->toIso8601String(),
@@ -612,12 +689,14 @@ class SystemHealthPulseService
         return [
             'digital' => [
                 'key' => 'digital',
-                'host' => self::DIGITAL_SUBDOMAIN_HOST,
-                'public_url' => 'https://' . self::DIGITAL_SUBDOMAIN_HOST,
-                'probe_url' => 'https://' . self::DIGITAL_SUBDOMAIN_HOST . '/',
+                'host' => self::LIVE_DIGITAL_HOST,
+                'public_url' => 'https://' . self::LIVE_DIGITAL_HOST,
+                'probe_url' => 'https://' . self::LIVE_DIGITAL_HOST . '/',
                 'role_label' => 'Digital-Shop',
                 'follow_redirects' => true,
                 'check_ssl' => true,
+                'connect_timeout' => 1.5,
+                'timeout' => 1.5,
             ],
             'main' => [
                 'key' => 'main',
@@ -937,13 +1016,29 @@ class SystemHealthPulseService
             $dig['spoken_summary'] = $this->buildDigitalSpokenSummary($dig);
             $subdomains['digital'] = $dig;
 
+            $digHttp = (int) ($dig['http_status'] ?? 0);
+            $digReachable = (bool) ($dig['reachable'] ?? false);
+            $liveDomain['digital_domain'] = $liveDomain['digital_domain'] ?? self::LIVE_DIGITAL_HOST;
+            $liveDomain['digital_url'] = $liveDomain['digital_url'] ?? ('https://' . self::LIVE_DIGITAL_HOST);
+            $liveDomain['digital_ingress_active'] = array_key_exists('digital_ingress_active', $liveDomain)
+                ? (bool) $liveDomain['digital_ingress_active']
+                : ($digReachable && $digHttp > 0 && ($digHttp < 500 || $digHttp === 503));
+            $liveDomain['digital_http_status'] = array_key_exists('digital_http_status', $liveDomain)
+                ? (int) $liveDomain['digital_http_status']
+                : $digHttp;
+            $liveDomain['digital_mode'] = $liveDomain['digital_mode']
+                ?? $this->classifyDigitalDomainMode($digReachable, $digHttp);
+
             $liveDomain['subdomains'] = $subdomains;
             $liveDomain['digital_subdomain'] = $dig;
 
             return $liveDomain;
         }
 
-        $digitalIps = $this->resolveHostDnsIps(self::DIGITAL_SUBDOMAIN_HOST);
+        $digitalIps = $this->resolveHostDnsIps(self::LIVE_DIGITAL_HOST);
+        $digOverrideActive = (bool) ($liveDomain['digital_ingress_active'] ?? false);
+        $digOverrideHttp = (int) ($liveDomain['digital_http_status'] ?? 0);
+        $digDnsConfigured = count($digitalIps) > 0 || $digOverrideActive || $digOverrideHttp > 0;
         $mainReachable = (bool) ($liveDomain['reachable'] ?? false);
         $mainHttp = (int) ($liveDomain['http_status'] ?? 0);
         $wwwActive = (bool) ($liveDomain['www_ingress_active'] ?? false);
@@ -956,10 +1051,10 @@ class SystemHealthPulseService
 
         $syntheticEntries = [
             'digital' => [
-                'dns_configured' => count($digitalIps) > 0,
-                'dns_ips' => $digitalIps,
-                'reachable' => false,
-                'http_status' => 0,
+                'dns_configured' => $digDnsConfigured,
+                'dns_ips' => !empty($digitalIps) ? $digitalIps : ($digDnsConfigured ? ['resolved'] : []),
+                'reachable' => $digOverrideActive || $digOverrideHttp > 0,
+                'http_status' => $digOverrideHttp,
                 'latency_ms' => 0.0,
                 'ssl_days_remaining' => null,
                 'ssl_valid_until' => null,
@@ -1012,6 +1107,16 @@ class SystemHealthPulseService
         ];
 
         $subdomains = $this->buildSubdomainsMatrix($syntheticEntries, $digitalReadiness, $checkedAt);
+        $liveDomain['digital_domain'] = $liveDomain['digital_domain'] ?? self::LIVE_DIGITAL_HOST;
+        $liveDomain['digital_url'] = $liveDomain['digital_url'] ?? ('https://' . self::LIVE_DIGITAL_HOST);
+        $liveDomain['digital_ingress_active'] = array_key_exists('digital_ingress_active', $liveDomain)
+            ? (bool) $liveDomain['digital_ingress_active']
+            : ($digOverrideActive || ($digOverrideHttp > 0 && ($digOverrideHttp < 500 || $digOverrideHttp === 503)));
+        $liveDomain['digital_http_status'] = array_key_exists('digital_http_status', $liveDomain)
+            ? (int) $liveDomain['digital_http_status']
+            : $digOverrideHttp;
+        $liveDomain['digital_mode'] = $liveDomain['digital_mode']
+            ?? $this->classifyDigitalDomainMode($digOverrideActive || $digOverrideHttp > 0, $digOverrideHttp);
         $liveDomain['subdomains'] = $subdomains;
         $liveDomain['digital_subdomain'] = $subdomains['digital'];
 

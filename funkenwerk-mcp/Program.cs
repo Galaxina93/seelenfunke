@@ -354,6 +354,12 @@ namespace FunkenwerkMcp
                 return await RunMittwaldPrepareLiveCliAsync(args);
             }
 
+            if (args.Any(a => string.Equals(a, "--stripe-api", StringComparison.OrdinalIgnoreCase)) ||
+                args.Any(a => a.StartsWith("--stripe-api=", StringComparison.OrdinalIgnoreCase)))
+            {
+                return await RunStripeApiBrokerCliAsync(args);
+            }
+
             // Ensure ACL lockdown on MCP data directory immediately at startup
             McpSecurityGuard.LockDownDirectoryAcl(McpSecurityGuard.VaultDirectory);
 
@@ -2560,6 +2566,41 @@ namespace FunkenwerkMcp
             }
         }
 
+        public static async Task<int> RunStripeApiBrokerCliAsync(string[] args)
+        {
+            try
+            {
+                McpSecurityGuard.LockDownDirectoryAcl(McpSecurityGuard.VaultDirectory);
+
+                string? preset = TryReadCliOption(args, "--stripe-api")
+                              ?? TryReadCliOption(args, "--preset");
+
+                if (string.IsNullOrWhiteSpace(preset))
+                    throw new ArgumentException("Bitte <preset> angeben: --stripe-api <preset> [--entry <titleOrId>] [--object-id <id>] [--limit <1..50>]");
+
+                string? entry = TryReadCliOption(args, "--entry");
+                string? objectId = TryReadCliOption(args, "--object-id");
+                int limit = 10;
+                string? rawLimit = TryReadCliOption(args, "--limit");
+                if (!string.IsNullOrWhiteSpace(rawLimit) && int.TryParse(rawLimit, out int parsedLim))
+                    limit = parsedLim;
+
+                var res = await McpTresorBroker.ExecuteStripeApiPresetAsync(
+                    preset: preset,
+                    entryTitleOrId: entry,
+                    objectId: objectId,
+                    limit: limit);
+
+                Console.WriteLine(McpSecurityGuard.ScrubSecrets(JsonSerializer.Serialize(res, JsonPretty)));
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"❌ Stripe API-Broker abgebrochen: {McpSecurityGuard.ScrubSecrets(ex.Message)}");
+                return 1;
+            }
+        }
+
         public static async Task RunStdioServerLoopAsync(Stream stdin, Stream stdout, CancellationToken ct = default)
         {
             var frameReader = new JsonRpcByteFrameReader(stdin);
@@ -4408,6 +4449,12 @@ namespace FunkenwerkMcp
             public bool LiveWwwIngressCreated { get; set; }
             public bool LiveWwwDnsZoneCreated { get; set; }
             public bool LiveWwwDnsManaged { get; set; }
+            public bool LiveDigitalIngressCreated { get; set; }
+            public bool LiveDigitalDnsZoneCreated { get; set; }
+            public bool LiveDigitalDnsManaged { get; set; }
+            public bool LiveDigitalOwnershipVerified { get; set; }
+            public bool LiveDigitalTlsCreated { get; set; }
+            public int DigitalSetManagedCalls { get; set; }
             public bool LiveCronCreated { get; set; }
             public int LiveMysqlPasswordPatchCount { get; set; }
 
@@ -4518,33 +4565,97 @@ namespace FunkenwerkMcp
                 }
                 else if (p == $"/v2/ingresses?projectId={McpSecurityGuard.PinnedLiveProjectId}" && request.Method == HttpMethod.Get)
                 {
-                    json = LiveWwwIngressCreated
-                        ? $$$"""[{"id":"{{{McpSecurityGuard.PinnedLiveApexIngressUuid}}}","hostname":"mein-seelenfunke.de"},{"id":"11111111-2222-4333-8444-555555555555","hostname":"www.mein-seelenfunke.de","paths":[{"path":"/","target":{"installationId":"{{{McpSecurityGuard.PinnedLiveAppUuid}}}"}}],"tls":{"acme":true,"isCreated":true},"ownership":{"verified":true}}]"""
-                        : $$$"""[{"id":"{{{McpSecurityGuard.PinnedLiveApexIngressUuid}}}","hostname":"mein-seelenfunke.de"}]""";
+                    var items = new List<string>
+                    {
+                        $$$"""{"id":"{{{McpSecurityGuard.PinnedLiveApexIngressUuid}}}","hostname":"mein-seelenfunke.de"}"""
+                    };
+                    if (LiveWwwIngressCreated)
+                    {
+                        items.Add($$$"""{"id":"11111111-2222-4333-8444-555555555555","hostname":"www.mein-seelenfunke.de","paths":[{"path":"/","target":{"installationId":"{{{McpSecurityGuard.PinnedLiveAppUuid}}}"}}],"tls":{"acme":true,"isCreated":true},"ownership":{"verified":true}}""");
+                    }
+                    if (LiveDigitalIngressCreated)
+                    {
+                        string tCr = LiveDigitalTlsCreated ? "true" : "false";
+                        string oVr = LiveDigitalOwnershipVerified ? "true" : "false";
+                        items.Add($$$"""{"id":"88888888-9999-4aaa-8bbb-cccccccccccc","hostname":"digital.mein-seelenfunke.de","paths":[{"path":"/","target":{"installationId":"{{{McpSecurityGuard.PinnedLiveAppUuid}}}"}}],"tls":{"acme":true,"isCreated":{{{tCr}}}},"ownership":{"verified":{{{oVr}}}}}""");
+                    }
+                    json = "[" + string.Join(",", items) + "]";
                 }
                 else if (p == "/v2/ingresses" && request.Method == HttpMethod.Post)
                 {
-                    LiveWwwIngressCreated = true;
-                    code = HttpStatusCode.Created;
-                    json = """{"id":"11111111-2222-4333-8444-555555555555","ownership":{"verified":true,"txtRecord":""}}""";
+                    using var ingDoc = JsonDocument.Parse(bodyStr);
+                    string reqHost = ingDoc.RootElement.TryGetProperty("hostname", out var hp) ? (hp.GetString() ?? "") : "";
+                    if (string.Equals(reqHost, McpTresorBroker.PinnedLiveDigitalHostname, StringComparison.OrdinalIgnoreCase))
+                    {
+                        LiveDigitalIngressCreated = true;
+                        code = HttpStatusCode.Created;
+                        json = """{"id":"88888888-9999-4aaa-8bbb-cccccccccccc","ownership":{"verified":false,"txtRecord":""}}""";
+                    }
+                    else
+                    {
+                        LiveWwwIngressCreated = true;
+                        code = HttpStatusCode.Created;
+                        json = """{"id":"11111111-2222-4333-8444-555555555555","ownership":{"verified":true,"txtRecord":""}}""";
+                    }
                 }
                 else if (p == "/v2/ingresses/11111111-2222-4333-8444-555555555555" && request.Method == HttpMethod.Get)
                 {
                     json = $$$"""{"id":"11111111-2222-4333-8444-555555555555","hostname":"www.mein-seelenfunke.de","projectId":"{{{McpSecurityGuard.PinnedLiveProjectId}}}","paths":[{"path":"/","target":{"installationId":"{{{McpSecurityGuard.PinnedLiveAppUuid}}}"}}],"tls":{"acme":true,"isCreated":true},"ownership":{"verified":true}}""";
                 }
+                else if (p == "/v2/ingresses/88888888-9999-4aaa-8bbb-cccccccccccc" && request.Method == HttpMethod.Get)
+                {
+                    string tCr = LiveDigitalTlsCreated ? "true" : "false";
+                    string oVr = LiveDigitalOwnershipVerified ? "true" : "false";
+                    json = $$$"""{"id":"88888888-9999-4aaa-8bbb-cccccccccccc","hostname":"digital.mein-seelenfunke.de","projectId":"{{{McpSecurityGuard.PinnedLiveProjectId}}}","paths":[{"path":"/","target":{"installationId":"{{{McpSecurityGuard.PinnedLiveAppUuid}}}"}}],"tls":{"acme":true,"isCreated":{{{tCr}}}},"ownership":{"verified":{{{oVr}}}}}""";
+                }
+                else if (p == "/v2/ingresses/88888888-9999-4aaa-8bbb-cccccccccccc/actions/verify-ownership" && request.Method == HttpMethod.Post)
+                {
+                    LiveDigitalOwnershipVerified = true;
+                    code = HttpStatusCode.NoContent;
+                    json = "";
+                }
+                else if (p == "/v2/ingresses/88888888-9999-4aaa-8bbb-cccccccccccc/actions/request-acme-certificate-issuance" && request.Method == HttpMethod.Post)
+                {
+                    LiveDigitalTlsCreated = true;
+                    code = HttpStatusCode.NoContent;
+                    json = "";
+                }
                 else if (p == $"/v2/projects/{McpSecurityGuard.PinnedLiveProjectId}/dns-zones" && request.Method == HttpMethod.Get)
                 {
-                    json = LiveWwwDnsZoneCreated
-                        ? (LiveWwwDnsManaged
-                            ? """[{"id":"4fbe5480-bc45-4edc-8a38-6c9648c00f4e","domain":"mein-seelenfunke.de"},{"id":"66666666-7777-4888-9999-aaaaaaaaaaaa","domain":"www.mein-seelenfunke.de","recordSet":{"combinedARecords":{"managedBy":{"ingressId":"11111111-2222-4333-8444-555555555555"}}}}]"""
-                            : """[{"id":"4fbe5480-bc45-4edc-8a38-6c9648c00f4e","domain":"mein-seelenfunke.de"},{"id":"66666666-7777-4888-9999-aaaaaaaaaaaa","domain":"www.mein-seelenfunke.de","recordSet":{"combinedARecords":{}}}]""")
-                        : """[{"id":"4fbe5480-bc45-4edc-8a38-6c9648c00f4e","domain":"mein-seelenfunke.de"}]""";
+                    var zItems = new List<string>
+                    {
+                        """{"id":"4fbe5480-bc45-4edc-8a38-6c9648c00f4e","domain":"mein-seelenfunke.de"}"""
+                    };
+                    if (LiveWwwDnsZoneCreated)
+                    {
+                        zItems.Add(LiveWwwDnsManaged
+                            ? """{"id":"66666666-7777-4888-9999-aaaaaaaaaaaa","domain":"www.mein-seelenfunke.de","recordSet":{"combinedARecords":{"managedBy":{"ingressId":"11111111-2222-4333-8444-555555555555"}}}}"""
+                            : """{"id":"66666666-7777-4888-9999-aaaaaaaaaaaa","domain":"www.mein-seelenfunke.de","recordSet":{"combinedARecords":{}}}""");
+                    }
+                    if (LiveDigitalDnsZoneCreated)
+                    {
+                        zItems.Add(LiveDigitalDnsManaged
+                            ? """{"id":"22222222-3333-4444-8555-666666666666","domain":"digital.mein-seelenfunke.de","recordSet":{"combinedARecords":{"managedBy":{"ingressId":"88888888-9999-4aaa-8bbb-cccccccccccc"}}}}"""
+                            : """{"id":"22222222-3333-4444-8555-666666666666","domain":"digital.mein-seelenfunke.de","recordSet":{"combinedARecords":{}}}""");
+                    }
+                    json = "[" + string.Join(",", zItems) + "]";
                 }
-                else if (p == $"/v2/projects/{McpSecurityGuard.PinnedLiveProjectId}/dns-zones" && request.Method == HttpMethod.Post)
+                else if ((p == "/v2/dns-zones" || p == $"/v2/projects/{McpSecurityGuard.PinnedLiveProjectId}/dns-zones") && request.Method == HttpMethod.Post)
                 {
-                    LiveWwwDnsZoneCreated = true;
-                    code = HttpStatusCode.Created;
-                    json = """{"id":"66666666-7777-4888-9999-aaaaaaaaaaaa"}""";
+                    using var zDoc = JsonDocument.Parse(bodyStr);
+                    string zName = zDoc.RootElement.TryGetProperty("name", out var np) ? (np.GetString() ?? "") : "";
+                    if (zName.StartsWith("digital", StringComparison.OrdinalIgnoreCase))
+                    {
+                        LiveDigitalDnsZoneCreated = true;
+                        code = HttpStatusCode.Created;
+                        json = """{"id":"22222222-3333-4444-8555-666666666666"}""";
+                    }
+                    else
+                    {
+                        LiveWwwDnsZoneCreated = true;
+                        code = HttpStatusCode.Created;
+                        json = """{"id":"66666666-7777-4888-9999-aaaaaaaaaaaa"}""";
+                    }
                 }
                 else if (p == "/v2/dns-zones/66666666-7777-4888-9999-aaaaaaaaaaaa" && request.Method == HttpMethod.Get)
                 {
@@ -4552,11 +4663,32 @@ namespace FunkenwerkMcp
                         ? """{"id":"66666666-7777-4888-9999-aaaaaaaaaaaa","domain":"www.mein-seelenfunke.de","recordSet":{"combinedARecords":{"managedBy":{"ingressId":"11111111-2222-4333-8444-555555555555"}}}}"""
                         : """{"id":"66666666-7777-4888-9999-aaaaaaaaaaaa","domain":"www.mein-seelenfunke.de","recordSet":{"combinedARecords":{}}}""";
                 }
+                else if (p == "/v2/dns-zones/22222222-3333-4444-8555-666666666666" && request.Method == HttpMethod.Get)
+                {
+                    json = LiveDigitalDnsManaged
+                        ? """{"id":"22222222-3333-4444-8555-666666666666","domain":"digital.mein-seelenfunke.de","recordSet":{"combinedARecords":{"managedBy":{"ingressId":"88888888-9999-4aaa-8bbb-cccccccccccc"}}}}"""
+                        : """{"id":"22222222-3333-4444-8555-666666666666","domain":"digital.mein-seelenfunke.de","recordSet":{"combinedARecords":{}}}""";
+                }
                 else if (p == "/v2/dns-zones/66666666-7777-4888-9999-aaaaaaaaaaaa/record-sets/a/actions/set-managed" && request.Method == HttpMethod.Post)
                 {
                     LiveWwwDnsManaged = true;
                     code = HttpStatusCode.OK;
                     json = """{"ingressId":"11111111-2222-4333-8444-555555555555"}""";
+                }
+                else if (p == "/v2/dns-zones/22222222-3333-4444-8555-666666666666/record-sets/a/actions/set-managed" && request.Method == HttpMethod.Post)
+                {
+                    DigitalSetManagedCalls++;
+                    if (DigitalSetManagedCalls == 1)
+                    {
+                        code = HttpStatusCode.NotFound;
+                        json = """{"message":"ingress ips not ready yet"}""";
+                    }
+                    else
+                    {
+                        LiveDigitalDnsManaged = true;
+                        code = HttpStatusCode.OK;
+                        json = """{"ingressId":"88888888-9999-4aaa-8bbb-cccccccccccc"}""";
+                    }
                 }
                 else if (p == $"/v2/mysql-users/{McpSecurityGuard.PinnedLiveMysqlUserUuid}/password" && request.Method == HttpMethod.Patch)
                 {
@@ -6398,6 +6530,7 @@ namespace FunkenwerkMcp
                     McpSecurityGuard.ResetRateLimiterForTests();
                     McpTresorBroker.TestMittwaldHttpClientOverride = mockLiveClient;
                     McpTresorBroker.TestPdoRetryDelayMs = 5;
+                    McpTresorBroker.TestDnsManagedRetryDelayMs = 5;
 
                     // a) Not exposed in MCP tools/list or AllowedMittwaldPresets
                     string? toolsListJson = await Program.ProcessJsonRpcMessageAsync(new JsonObject
@@ -6504,6 +6637,14 @@ namespace FunkenwerkMcp
                         && mockLiveMw.LiveWwwIngressCreated
                         && mockLiveMw.LiveWwwDnsZoneCreated
                         && mockLiveMw.LiveWwwDnsManaged
+                        && mockLiveMw.LiveDigitalIngressCreated
+                        && mockLiveMw.LiveDigitalDnsZoneCreated
+                        && mockLiveMw.LiveDigitalDnsManaged
+                        && mockLiveMw.DigitalSetManagedCalls == 2
+                        && mockLiveMw.LiveDigitalOwnershipVerified
+                        && mockLiveMw.LiveDigitalTlsCreated
+                        && firstRunSummary["infra"]?["digital_ingress_id"]?.GetValue<string>() == "88888888-9999-4aaa-8bbb-cccccccccccc"
+                        && firstRunSummary["infra"]?["digital_dns_zone_id"]?.GetValue<string>() == "22222222-3333-4444-8555-666666666666"
                         && mockLiveMw.LiveCronCreated
                         && mockLiveMw.LiveMysqlPasswordPatchCount == 1
                         && pdoCallsOnFirstRun == 2
@@ -6526,6 +6667,7 @@ namespace FunkenwerkMcp
                         && !writtenEnv1.Contains("redis-t4tm3u", StringComparison.Ordinal)
                         && !writtenEnv1.Contains("StageRedisSecretPassword!", StringComparison.Ordinal)
                         && writtenEnv1.Contains("GOOGLE_REDIRECT_URL=https://mein-seelenfunke.de/auth/google/callback\n", StringComparison.Ordinal)
+                        && writtenEnv1.Contains("SANCTUM_STATEFUL_DOMAINS=mein-seelenfunke.de,www.mein-seelenfunke.de,digital.mein-seelenfunke.de\n", StringComparison.Ordinal)
                         && firstRunSummary["env"]?["isolation_enforced"]?["APP_URL"]?.GetValue<string>() == "https://mein-seelenfunke.de"
                         && writtenEnv1.Contains("STRIPE_SECRET=sk_test_MockStageStripeKey999\n", StringComparison.Ordinal)
                         && writtenEnv1.Contains("MAIL_HOST=mail.agenturserver.de\n", StringComparison.Ordinal)
@@ -6539,12 +6681,19 @@ namespace FunkenwerkMcp
 
                     var secondRunSummary = await McpTresorBroker.ExecutePinnedSeelenfunkeLivePrepareAsync(step: "all");
                     string writtenEnv2 = Encoding.UTF8.GetString(currentMockLiveEnv!);
+                    var checkSummary = await McpTresorBroker.ExecutePinnedSeelenfunkeLivePrepareAsync(step: "check");
+                    bool checkOk = checkSummary["check"]?["www_ingress_exists"]?.GetValue<bool>() == true
+                        && checkSummary["check"]?["digital_ingress_exists"]?.GetValue<bool>() == true
+                        && checkSummary["check"]?["digital_dns_zone_exists"]?.GetValue<bool>() == true
+                        && checkSummary["check"]?["digital_tls_is_created"]?.GetValue<bool>() == true;
+
                     bool secondRunIdempotent = mockLiveMw.LiveMysqlPasswordPatchCount == 1
                         && mockLiveMw.CapturedBodies.All(r => r.Method == HttpMethod.Get)
                         && secondRunSummary["env"]?["mysql_password_rotated"]?.GetValue<bool>() == false
                         && secondRunSummary["env"]?["reused_existing_app_key"]?.GetValue<bool>() == true
                         && secondRunSummary["env"]?["reused_existing_db_password"]?.GetValue<bool>() == true
-                        && string.Equals(writtenEnv1, writtenEnv2, StringComparison.Ordinal);
+                        && string.Equals(writtenEnv1, writtenEnv2, StringComparison.Ordinal)
+                        && checkOk;
 
                     AssertTest("61. Pinned Zero-Secret CLI --mittwald-prepare-live (steinhauer-invest Block, Stage Air-Gap, MCP Exclusion, Infra/Env/Cron & Idempotency)",
                         mcpStrictlyExcluded
@@ -6552,6 +6701,61 @@ namespace FunkenwerkMcp
                         && pwdCompliant
                         && firstRunOk
                         && secondRunIdempotent);
+                }
+
+                // 62. Zero-Secret Stripe API v1 Broker (api.stripe.com:443 Pinning, Bearer Auth, Key-Mode Detection & DLP Scrubbing)
+                {
+                    McpSecurityGuard.ResetRateLimiterForTests();
+                    McpTresorBroker.WriteBrokerVaultForTest(tempBrokerVault, new[]
+                    {
+                        new McpTresorBroker.TestBrokerSeedEntry
+                        {
+                            Id = "stripe-sbx-001",
+                            Title = "Stripe Sandbox",
+                            Url = "https://dashboard.stripe.com",
+                            Username = "kontakt@mein-seelenfunke.de",
+                            Password = "StripeLoginPwd#2026!",
+                            ApiToken = "rk_test_SuperSecretRestrictedKey2026AbCdEf123456",
+                            AiBrokerEnabled = true
+                        }
+                    });
+
+                    var capturedUris = new List<Uri>();
+                    var capturedAuth = new List<string>();
+                    using var mockStripeHandler = new DelegatingMockStripeHandler((req) =>
+                    {
+                        capturedUris.Add(req.RequestUri!);
+                        capturedAuth.Add(req.Headers.Authorization?.ToString() ?? "");
+                        string body = """{"object":"balance","livemode":false,"available":[{"amount":12500,"currency":"eur"}],"echo_leak":"whsec_TestWebhookSecret9876543210abcdef rk_test_SuperSecretRestrictedKey2026AbCdEf123456"}""";
+                        return new HttpResponseMessage(HttpStatusCode.OK)
+                        {
+                            Content = new StringContent(body, Encoding.UTF8, "application/json")
+                        };
+                    });
+                    using var mockStripeClient = new HttpClient(mockStripeHandler);
+                    McpTresorBroker.TestStripeHttpClientOverride = mockStripeClient;
+
+                    var balRes = await McpTresorBroker.ExecuteStripeApiPresetAsync("balance", entryTitleOrId: "Stripe Sandbox");
+                    string balJson = McpSecurityGuard.ScrubSecrets(JsonSerializer.Serialize(balRes));
+
+                    bool badPresetBlocked = false;
+                    try { await McpTresorBroker.ExecuteStripeApiPresetAsync("create_transfer", entryTitleOrId: "Stripe Sandbox"); }
+                    catch (UnauthorizedAccessException) { badPresetBlocked = true; }
+
+                    McpTresorBroker.TestStripeHttpClientOverride = null;
+
+                    AssertTest("62. Zero-Secret Stripe API v1 Broker (api.stripe.com:443 Pinning, rk_test_ Detection, DLP Scrubbing & Preset Allowlist)",
+                        balRes.Status == "ok"
+                        && balRes.KeyKind == "restricted"
+                        && balRes.KeyMode == "test"
+                        && capturedUris.Count == 1
+                        && capturedUris[0].Scheme == "https"
+                        && capturedUris[0].Host == "api.stripe.com"
+                        && capturedAuth[0] == "Bearer rk_test_SuperSecretRestrictedKey2026AbCdEf123456"
+                        && !balJson.Contains("rk_test_SuperSecretRestrictedKey2026AbCdEf123456", StringComparison.Ordinal)
+                        && !balJson.Contains("whsec_TestWebhookSecret9876543210abcdef", StringComparison.Ordinal)
+                        && balJson.Contains("[REDACTED-BY-FUNKENWERK-DLP]", StringComparison.Ordinal)
+                        && badPresetBlocked);
                 }
 
                 Console.WriteLine($"=== RESULT: {passed} PASSED, {failed} FAILED ===");
@@ -6565,10 +6769,12 @@ namespace FunkenwerkMcp
                 McpTresorBroker.TestDevToolsActivePortFileOverride = null;
                 McpTresorBroker.TestDefaultCdpPortOverride = null;
                 McpTresorBroker.TestMittwaldHttpClientOverride = null;
+                McpTresorBroker.TestStripeHttpClientOverride = null;
                 McpTresorBroker.TestReadContainerEnvOverride = null;
                 McpTresorBroker.TestProbeLiveMysqlPdoOverride = null;
                 McpTresorBroker.TestWriteLiveEnvOverride = null;
                 McpTresorBroker.TestPdoRetryDelayMs = 1500;
+                McpTresorBroker.TestDnsManagedRetryDelayMs = 2500;
                 McpSecurityGuard.ResetRateLimiterForTests();
                 try
                 {
@@ -6577,6 +6783,14 @@ namespace FunkenwerkMcp
                 }
                 catch { }
             }
+        }
+
+        private sealed class DelegatingMockStripeHandler : HttpMessageHandler
+        {
+            private readonly Func<HttpRequestMessage, HttpResponseMessage> _responder;
+            public DelegatingMockStripeHandler(Func<HttpRequestMessage, HttpResponseMessage> responder) => _responder = responder;
+            protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+                => Task.FromResult(_responder(request));
         }
     }
 }

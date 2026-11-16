@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -402,5 +403,94 @@ class SystemHealthPulseWatchtowerTest extends TestCase
         );
         $this->assertSame('ok', $healedReport['status']);
         $this->assertSame(0, SystemLog::openIssues()->where('action_id', 'watchtower:pillar:live_domain')->count());
+    }
+
+    public function test_live_domain_probe_reports_digital_domain_modes_503_200_and_pending_ingress_without_false_main_shop_alarm(): void
+    {
+        Storage::fake('local');
+        Config::set('backup.backup.destination.disks', ['local']);
+        Config::set('backup.backup.name', 'seelenfunke-test-backup');
+        Config::set('queue.default', 'sync');
+        Storage::disk('local')->put('seelenfunke-test-backup/fresh.zip', 'ZIP');
+        Cache::put('scheduler_last_run', now()->timestamp, 600);
+        DB::table('failed_jobs')->delete();
+
+        $svc = app(SystemHealthPulseService::class);
+        $this->assertSame('digital.mein-seelenfunke.de', SystemHealthPulseService::LIVE_DIGITAL_HOST);
+
+        $defs = $svc->monitoredSubdomainDefinitions();
+        $this->assertSame('digital.mein-seelenfunke.de', $defs['digital']['host']);
+        $this->assertSame(1.5, $defs['digital']['timeout']);
+        $this->assertSame(1.5, $defs['digital']['connect_timeout']);
+
+        $scenario = 'pending_ingress';
+        Http::fake(function (\Illuminate\Http\Client\Request $request) use (&$scenario) {
+            $url = $request->url();
+
+            if (str_contains($url, 'https://digital.mein-seelenfunke.de')) {
+                return match ($scenario) {
+                    'digital_maintenance' => Http::response('Digital Wartung', 503),
+                    'digital_live' => Http::response('<html><meta name="csrf-token" content="ok">Blueprints</html>', 200),
+                    default => Http::response('Unconfigured', 404),
+                };
+            }
+
+            if (str_contains($url, 'https://mein-seelenfunke.de')) {
+                return $scenario === 'digital_maintenance'
+                    ? Http::response('<html><meta name="csrf-token" content="ok">Livewire</html>', 200)
+                    : Http::response('Wartung', 503);
+            }
+
+            if (str_contains($url, 'https://www.mein-seelenfunke.de')) {
+                return Http::response('', 301);
+            }
+
+            if (str_contains($url, 'https://stage.mein-seelenfunke.de')) {
+                return Http::response('Stage OK', 200);
+            }
+
+            return Http::response(['status' => 'ok'], 200);
+        });
+
+        // 1. DNS/Ingress noch nicht aufgeschaltet -> pending_ingress (kein Fehlalarm)
+        SystemHealthPulseService::setDnsResolver(function (string $host): array {
+            return $host === SystemHealthPulseService::LIVE_DIGITAL_HOST ? [] : ['185.100.10.20'];
+        });
+
+        Cache::forget(SystemHealthPulseService::LIVE_DOMAIN_CACHE_KEY);
+        $pendingReport = $svc->evaluate(source: 'dashboard', strict: true, recordSample: false, syncLogs: false, overrideSslDays: 60);
+        $this->assertSame('ok', $pendingReport['status']);
+        $this->assertTrue($pendingReport['healthy']);
+        $this->assertSame('digital.mein-seelenfunke.de', $pendingReport['live_domain']['digital_domain']);
+        $this->assertSame('https://digital.mein-seelenfunke.de', $pendingReport['live_domain']['digital_url']);
+        $this->assertFalse($pendingReport['live_domain']['digital_ingress_active']);
+        $this->assertSame(0, $pendingReport['live_domain']['digital_http_status']);
+        $this->assertSame('pending_ingress', $pendingReport['live_domain']['digital_mode']);
+
+        // 2. Digital-Domain im Vorab-Schutz (HTTP 503) bei aktivem Haupt-Shop (HTTP 200) -> digital_mode = maintenance, Haupt-Shop bleibt grün!
+        $scenario = 'digital_maintenance';
+        SystemHealthPulseService::setDnsResolver(fn (): array => ['185.100.10.20']);
+
+        Cache::forget(SystemHealthPulseService::LIVE_DOMAIN_CACHE_KEY);
+        $digitalMaintReport = $svc->evaluate(source: 'dashboard', strict: true, recordSample: false, syncLogs: false, overrideSslDays: 60);
+        $this->assertSame('ok', $digitalMaintReport['status']);
+        $this->assertTrue($digitalMaintReport['healthy']);
+        $this->assertSame([], $digitalMaintReport['live_domain']['issues']);
+        $this->assertSame('live_shop', $digitalMaintReport['live_domain']['mode']);
+        $this->assertTrue($digitalMaintReport['live_domain']['digital_ingress_active']);
+        $this->assertSame(503, $digitalMaintReport['live_domain']['digital_http_status']);
+        $this->assertSame('maintenance', $digitalMaintReport['live_domain']['digital_mode']);
+
+        // 3. Digital-Domain öffentlich freigeschaltet (HTTP 200) -> digital_mode = live_shop
+        $scenario = 'digital_live';
+
+        Cache::forget(SystemHealthPulseService::LIVE_DOMAIN_CACHE_KEY);
+        $digitalLiveReport = $svc->evaluate(source: 'dashboard', strict: true, recordSample: false, syncLogs: false, overrideSslDays: 60);
+        $this->assertSame('ok', $digitalLiveReport['status']);
+        $this->assertTrue($digitalLiveReport['healthy']);
+        $this->assertSame('maintenance', $digitalLiveReport['live_domain']['mode']);
+        $this->assertTrue($digitalLiveReport['live_domain']['digital_ingress_active']);
+        $this->assertSame(200, $digitalLiveReport['live_domain']['digital_http_status']);
+        $this->assertSame('live_shop', $digitalLiveReport['live_domain']['digital_mode']);
     }
 }

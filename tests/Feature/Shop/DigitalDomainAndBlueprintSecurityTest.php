@@ -527,4 +527,44 @@ class DigitalDomainAndBlueprintSecurityTest extends TestCase
         $this->assertSame(830000, $afterFr['country_breakdown']['AT']);
         $this->assertSame(200000, $afterFr['country_breakdown']['FR']);
     }
+
+    public function test_htaccess_preserves_digital_subdomain_and_zero_leak_guard_protects_digital_blueprints_mirror(): void
+    {
+        $htaccess = (string) file_get_contents(public_path('.htaccess'));
+        $this->assertStringContainsString('RewriteCond %{HTTP_HOST} ^www\.mein-seelenfunke\.de$ [NC]', $htaccess);
+        $this->assertStringNotContainsString('digital\.mein-seelenfunke\.de', $htaccess);
+        $this->assertStringNotContainsString('digital.mein-seelenfunke.de', $htaccess);
+
+        $builder = app(CleanRoomBlueprintBuilderService::class);
+        $scanner = app(BlueprintZeroLeakScanner::class);
+        $builtPaths = $builder->buildAllPackages();
+
+        $disk = Storage::disk('local');
+        $mirrorRelDir = 'private/digital_blueprints';
+        $disk->makeDirectory($mirrorRelDir);
+
+        foreach ($builtPaths as $slug => $relPath) {
+            $disk->put($mirrorRelDir . '/' . $slug . '.zip', (string) $disk->get($relPath));
+        }
+
+        $cleanReport = $scanner->scanDirectory($disk->path($mirrorRelDir));
+        $this->assertTrue($cleanReport['clean']);
+        $this->assertSame(0, $cleanReport['hits_count']);
+        $this->assertSame(5, $cleanReport['scanned_files']);
+
+        // Kontaminiertes Archiv in digital_blueprints wird sofort erkannt und entfernt
+        $poisonedPath = $disk->path($mirrorRelDir . '/tampered-check.zip');
+        $tamperedZip = new ZipArchive();
+        $this->assertTrue($tamperedZip->open($poisonedPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) === true);
+        $tamperedZip->addFromString('notes.txt', 'Leak test for mein-seelenfunke internal node.');
+        $tamperedZip->close();
+
+        $dirtyReport = $scanner->scanDirectory($disk->path($mirrorRelDir));
+        $this->assertFalse($dirtyReport['clean']);
+        $this->assertGreaterThanOrEqual(1, $dirtyReport['hits_count']);
+
+        @unlink($poisonedPath);
+        $restoredReport = $scanner->scanDirectory($disk->path($mirrorRelDir));
+        $this->assertTrue($restoredReport['clean']);
+    }
 }
