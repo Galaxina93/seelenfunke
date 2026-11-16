@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Ai;
 
+use App\Livewire\Shop\Ai\AiWidget;
 use App\Models\Admin\Admin;
 use App\Models\Ai\AiAgent;
 use App\Models\Customer\Customer;
@@ -11,9 +12,11 @@ use App\Services\AI\AiPromptService;
 use App\Services\AI\FunkiraSkillPoolService;
 use App\Services\AI\GeminiAgent;
 use Database\Seeders\AiAgentSeeder;
+use Database\Seeders\AiCompanyStructureSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
+use Livewire\Livewire;
 use Tests\TestCase;
 
 class InspectableSkillPoolGeminiAgent extends GeminiAgent
@@ -60,15 +63,24 @@ class FunkiraSkillPoolAndFunkiIsolationTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_seeder_activates_only_funkira_and_funki_and_retires_ten_legacy_colleagues(): void
+    public function test_seeder_activates_only_falcon_funkira_and_funki_and_keeps_web_chat_isolated_to_funkira(): void
     {
         $this->seed(AiAgentSeeder::class);
+        $this->seed(AiCompanyStructureSeeder::class);
 
         $activeNames = AiAgent::where('is_active', true)->pluck('name')->sort()->values()->all();
-        $this->assertSame(['Funki', 'Funkira'], $activeNames);
+        $this->assertSame(['Falcon', 'Funki', 'Funkira'], $activeNames);
 
         $inChatNames = AiAgent::where('is_in_chat', true)->pluck('name')->all();
         $this->assertSame(['Funkira'], $inChatNames);
+
+        $falcon = AiAgent::where('name', 'Falcon')->with('department')->firstOrFail();
+        $this->assertTrue($falcon->is_active);
+        $this->assertFalse($falcon->is_in_chat);
+        $this->assertSame('amber-500', $falcon->color);
+        $this->assertSame('sparkles', $falcon->icon);
+        $this->assertSame('shop/ai/images/falcon_selfie.png', $falcon->profile_picture);
+        $this->assertSame('Leitung', $falcon->department?->name);
 
         $retiredNames = AiAgent::where('is_active', false)->pluck('name')->sort()->values()->all();
         $this->assertSame([
@@ -76,12 +88,24 @@ class FunkiraSkillPoolAndFunkiIsolationTest extends TestCase
             'Globi', 'Lasi', 'Marketi', 'Produkti', 'Systemi',
         ], $retiredNames);
 
-        // Router wählt intern immer Funkira ohne jeglichen HTTP-Call und niemals Funki
+        // Router wählt intern immer Funkira ohne jeglichen HTTP-Call und niemals Funki oder Falcon
         Http::fake();
         $routed = AiAgentRouter::determineRequiredAgents('Zeig mir alle offenen Rechnungen und Bestellungen');
         $funkira = AiAgent::where('name', 'Funkira')->firstOrFail();
         $this->assertSame([$funkira->id], $routed);
         Http::assertNothingSent();
+
+        // Auch wenn Funkira temporär aus is_in_chat genommen wird, fällt das Web-Chat-Widget auf Funkira zurück (niemals auf Falcon)
+        $funkira->update(['is_in_chat' => false]);
+        $admin = Admin::factory()->create();
+        Auth::guard('admin')->login($admin);
+
+        Livewire::test(AiWidget::class)
+            ->assertSet('activeAgentIds', [$funkira->id])
+            ->call('toggleAgent', $falcon->id);
+
+        $this->assertFalse($falcon->fresh()->is_in_chat);
+        $this->assertTrue($funkira->fresh()->is_in_chat);
     }
 
     public function test_funkira_equips_skill_pools_dynamically_and_snaps_back_to_core_after_request(): void

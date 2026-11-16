@@ -39,8 +39,6 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Bolt
-import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Image
@@ -78,11 +76,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -90,6 +88,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import de.meinseelenfunke.app.R
 import de.meinseelenfunke.app.ui.theme.AppTheme
 import de.meinseelenfunke.app.ui.theme.Copper
 import de.meinseelenfunke.app.ui.theme.Emerald500
@@ -104,163 +103,6 @@ import kotlinx.coroutines.launch
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
-
-@Composable
-fun AgMicChoiceDialog(
-    openCount: Int,
-    onDismiss: () -> Unit,
-    onSpeakWithAgent: () -> Unit,
-    onOpenAgDirect: () -> Unit
-) {
-    Dialog(onDismissRequest = onDismiss) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(1.dp, Gold.copy(alpha = 0.55f), RoundedCornerShape(20.dp)),
-            colors = CardDefaults.cardColors(containerColor = AppTheme.colors.cardBackground),
-            shape = RoundedCornerShape(20.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Auswahl",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = AppTheme.colors.textSecondary
-                    )
-                    Box(
-                        modifier = Modifier
-                            .size(28.dp)
-                            .clip(CircleShape)
-                            .background(AppTheme.colors.glassSurface)
-                            .clickable(onClick = onDismiss),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Schließen",
-                            tint = AppTheme.colors.textSecondary,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                }
-
-                AgChoiceTile(
-                    icon = Icons.Default.Mic,
-                    label = "Mit Agenten sprechen",
-                    badgeCount = 0,
-                    onClick = {
-                        onDismiss()
-                        onSpeakWithAgent()
-                    }
-                )
-
-                AgChoiceTile(
-                    icon = Icons.Default.Bolt,
-                    label = "Direktnachricht an AG",
-                    badgeCount = openCount,
-                    onClick = {
-                        onDismiss()
-                        onOpenAgDirect()
-                    }
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun AgChoiceTile(
-    icon: ImageVector,
-    label: String,
-    badgeCount: Int,
-    onClick: () -> Unit
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(1.dp, AppTheme.colors.cardBorder, RoundedCornerShape(14.dp))
-            .clip(RoundedCornerShape(14.dp))
-            .clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(containerColor = AppTheme.colors.glassSurface),
-        shape = RoundedCornerShape(14.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 14.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.weight(1f)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(38.dp)
-                        .clip(CircleShape)
-                        .background(Gold.copy(alpha = 0.16f))
-                        .border(1.dp, Gold.copy(alpha = 0.45f), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = Gold,
-                        modifier = Modifier.size(19.dp)
-                    )
-                }
-                Text(
-                    text = label,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = AppTheme.colors.textPrimary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                if (badgeCount > 0) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(50))
-                            .background(Gold)
-                            .padding(horizontal = 7.dp, vertical = 2.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = badgeCount.toString(),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = SpaceBlack
-                        )
-                    }
-                }
-                Icon(
-                    imageVector = Icons.Default.ChevronRight,
-                    contentDescription = null,
-                    tint = Gold,
-                    modifier = Modifier.size(19.dp)
-                )
-            }
-        }
-    }
-}
 
 private sealed class LightboxTarget {
     data class DirectBitmap(val bitmap: ImageBitmap, val title: String) : LightboxTarget()
@@ -361,16 +203,26 @@ fun AgDirectInboxSheet(
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Bolt,
-                        contentDescription = null,
-                        tint = Gold,
-                        modifier = Modifier.size(20.dp)
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .background(Gold.copy(alpha = 0.16f))
+                            .border(1.dp, Gold.copy(alpha = 0.65f), CircleShape)
+                            .padding(2.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.falcon_avatar),
+                            contentDescription = "Falcon",
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
                     Text(
-                        text = "Direktnachricht an AG",
+                        text = "Direktnachricht · Falcon",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
                         color = AppTheme.colors.textPrimary
@@ -780,7 +632,7 @@ fun AgDirectInboxSheet(
                 contentPadding = PaddingValues(horizontal = 16.dp)
             ) {
                 Text(
-                    text = "An AG senden",
+                    text = "An Falcon senden",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold
                 )

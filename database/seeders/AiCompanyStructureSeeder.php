@@ -53,7 +53,7 @@ class AiCompanyStructureSeeder extends Seeder
 
         // 2. Assign Agents
 
-        AiAgent::whereIn('name', ['Funkira'])->update(['ai_department_id' => $deptCeo->id]);
+        AiAgent::whereIn('name', ['Falcon', 'Funkira'])->update(['ai_department_id' => $deptCeo->id]);
         AiAgent::whereIn('name', ['Globi'])->update(['ai_department_id' => $deptCeo->id]);
         AiAgent::whereIn('name', ['Funki'])->update(['ai_department_id' => $deptSupport->id]);
         AiAgent::whereIn('name', ['Produkti'])->update(['ai_department_id' => $deptProducts->id]);

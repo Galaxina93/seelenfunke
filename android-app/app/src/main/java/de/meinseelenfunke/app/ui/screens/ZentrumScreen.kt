@@ -88,7 +88,6 @@ import de.meinseelenfunke.app.ui.theme.Copper
 import de.meinseelenfunke.app.ui.theme.Emerald500
 import de.meinseelenfunke.app.ui.theme.Gold
 import de.meinseelenfunke.app.ui.components.AgDirectInboxSheet
-import de.meinseelenfunke.app.ui.components.AgMicChoiceDialog
 import de.meinseelenfunke.app.ui.components.NewPhoneEntryHintBanner
 import de.meinseelenfunke.app.ui.theme.Rose500
 import de.meinseelenfunke.app.ui.theme.SpaceBlack
@@ -121,7 +120,6 @@ fun ZentrumScreen(
     val isAdmin = userType == "admin" || ServiceLocator.getUserType() == "admin"
     val topContext = androidx.compose.ui.platform.LocalContext.current
     val agOpenCount by AgDirectInboxManager.openCountFlow.collectAsState()
-    var showAgMicChoiceDialog by remember { mutableStateOf(false) }
     var showAgDirectInboxSheet by remember { mutableStateOf(false) }
 
     LaunchedEffect(isPageVisible, isAdmin) {
@@ -132,15 +130,6 @@ fun ZentrumScreen(
                 AgDirectInboxManager.refreshAsync(topContext)
             }
         }
-    }
-
-    if (isAdmin && showAgMicChoiceDialog) {
-        AgMicChoiceDialog(
-            openCount = agOpenCount,
-            onDismiss = { showAgMicChoiceDialog = false },
-            onSpeakWithAgent = onNavigateToLiveChat,
-            onOpenAgDirect = { showAgDirectInboxSheet = true }
-        )
     }
 
     if (isAdmin && showAgDirectInboxSheet) {
@@ -206,38 +195,21 @@ fun ZentrumScreen(
                         )
                     }
                     // Mic
-                    Box(modifier = Modifier.size(34.dp)) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .clip(CircleShape)
-                                .background(AppTheme.colors.glassSurface)
-                                .border(1.dp, AppTheme.colors.glassBorder, CircleShape)
-                                .clickable {
-                                    if (isAdmin) {
-                                        showAgMicChoiceDialog = true
-                                    } else {
-                                        onNavigateToLiveChat()
-                                    }
-                                },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Mic,
-                                contentDescription = "Sprachchat & Direktnachricht",
-                                tint = Gold,
-                                modifier = Modifier.size(17.dp)
-                            )
-                        }
-                        if (isAdmin && agOpenCount > 0) {
-                            Box(
-                                modifier = Modifier
-                                    .size(8.dp)
-                                    .align(Alignment.TopEnd)
-                                    .clip(CircleShape)
-                                    .background(Gold)
-                            )
-                        }
+                    Box(
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .background(AppTheme.colors.glassSurface)
+                            .border(1.dp, AppTheme.colors.glassBorder, CircleShape)
+                            .clickable { onNavigateToLiveChat() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Mic,
+                            contentDescription = "Sprachchat",
+                            tint = Gold,
+                            modifier = Modifier.size(17.dp)
+                        )
                     }
                     // Refresh
                     Box(
@@ -330,6 +302,8 @@ fun ZentrumScreen(
                         orders = orders,
                         totalOrdersCount = totalOrdersCount,
                         isAdmin = isAdmin,
+                        falconOpenCount = agOpenCount,
+                        onOpenFalconDirect = { showAgDirectInboxSheet = true },
                         onNavigateToFinances = onNavigateToFinances,
                         onNavigateToOrganizer = onNavigateToOrganizer,
                         onNavigateToOrders = onNavigateToOrders,
@@ -390,6 +364,8 @@ fun DashboardContent(
     orders: List<OrderSummary> = emptyList(),
     totalOrdersCount: Int = 0,
     isAdmin: Boolean = false,
+    falconOpenCount: Int = 0,
+    onOpenFalconDirect: () -> Unit = {},
     onNavigateToFinances: () -> Unit,
     onNavigateToOrganizer: (subTab: Int) -> Unit,
     onNavigateToOrders: () -> Unit = {},
@@ -543,6 +519,106 @@ fun DashboardContent(
                         viewModel.submitQuickEntry(title, amt, cat, isBiz, date, loc, bytes, name, mime)
                     }
                 )
+            }
+        }
+    }
+
+    // 3b. DIREKTNACHRICHT AN FALCON (1-Tap-Karte für Admin, ohne Subtexte)
+    if (isAdmin) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(1.dp, Gold.copy(alpha = 0.55f), RoundedCornerShape(16.dp))
+                .clip(RoundedCornerShape(16.dp))
+                .clickable(onClick = onOpenFalconDirect),
+            colors = CardDefaults.cardColors(containerColor = AppTheme.colors.cardBackground),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 11.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(Gold.copy(alpha = 0.16f))
+                            .border(1.dp, Gold.copy(alpha = 0.65f), CircleShape)
+                            .padding(2.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.falcon_avatar),
+                            contentDescription = "Falcon",
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "Direktnachricht",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = AppTheme.colors.textPrimary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(50))
+                                .background(Gold.copy(alpha = 0.16f))
+                                .border(1.dp, Gold.copy(alpha = 0.55f), RoundedCornerShape(50))
+                                .padding(horizontal = 8.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = "Falcon",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Gold
+                            )
+                        }
+                    }
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (falconOpenCount > 0) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(50))
+                                .background(Gold)
+                                .padding(horizontal = 7.dp, vertical = 2.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = falconOpenCount.toString(),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = SpaceBlack
+                            )
+                        }
+                    }
+                    Icon(
+                        imageVector = Icons.Default.ArrowForward,
+                        contentDescription = null,
+                        tint = Gold,
+                        modifier = Modifier.size(17.dp)
+                    )
+                }
             }
         }
     }

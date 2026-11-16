@@ -41,7 +41,7 @@ class AiWidget extends Component
         $this->agentId = $agentId;
         
         $isAdmin = \App\Services\AI\AiAuthHelper::isAdmin();
-        $excludedNames = $isAdmin ? ['Funki'] : ['Funki', 'Funkira'];
+        $excludedNames = $isAdmin ? ['Funki', 'Falcon'] : ['Funki', 'Falcon', 'Funkira'];
 
         $this->activeAgentIds = \App\Models\Ai\AiAgent::where('is_in_chat', true)
             ->whereNotIn('name', $excludedNames)
@@ -63,9 +63,9 @@ class AiWidget extends Component
             }
         }
 
-        if ($this->agentId && !$isAdmin) {
+        if ($this->agentId) {
             $preselected = \App\Models\Ai\AiAgent::find($this->agentId);
-            if (!$preselected || strtolower(trim((string) $preselected->name)) === 'funkira') {
+            if (!$preselected || in_array($preselected->name, $excludedNames, true)) {
                 $this->agentId = $this->activeAgentIds[0] ?? null;
             }
         }
@@ -82,7 +82,12 @@ class AiWidget extends Component
                 ]
             );
             if (!$this->agentId && $this->widgetConfig->ai_agent_id) {
-                $this->agentId = $this->widgetConfig->ai_agent_id;
+                $savedAgent = \App\Models\Ai\AiAgent::find($this->widgetConfig->ai_agent_id);
+                if ($savedAgent && $savedAgent->is_active && !in_array($savedAgent->name, $excludedNames, true)) {
+                    $this->agentId = $savedAgent->id;
+                } else {
+                    $this->agentId = $this->activeAgentIds[0] ?? null;
+                }
             }
         }
     }
@@ -155,10 +160,10 @@ class AiWidget extends Component
     public function updatedAgentId($value)
     {
         $isAdmin = \App\Services\AI\AiAuthHelper::isAdmin();
-        $query = \App\Models\Ai\AiAgent::where('id', $value)->where('is_active', true);
-        if (!$isAdmin) {
-            $query->whereNotIn('name', ['Funki', 'Funkira']);
-        }
+        $excludedNames = $isAdmin ? ['Funki', 'Falcon'] : ['Funki', 'Falcon', 'Funkira'];
+        $query = \App\Models\Ai\AiAgent::where('id', $value)
+            ->where('is_active', true)
+            ->whereNotIn('name', $excludedNames);
         $agent = !empty($value) ? $query->first() : null;
         $validAgentId = $agent ? $agent->id : null;
 
@@ -191,10 +196,10 @@ class AiWidget extends Component
             $volume = isset($data['volume']) ? max(0, min(100, (int) $data['volume'])) : $this->widgetConfig->volume;
             $agentId = $this->widgetConfig->ai_agent_id;
             if (array_key_exists('agentId', $data)) {
-                $agentQuery = \App\Models\Ai\AiAgent::where('id', $data['agentId'])->where('is_active', true);
-                if (!\App\Services\AI\AiAuthHelper::isAdmin()) {
-                    $agentQuery->whereNotIn('name', ['Funki', 'Funkira']);
-                }
+                $excludedNames = \App\Services\AI\AiAuthHelper::isAdmin() ? ['Funki', 'Falcon'] : ['Funki', 'Falcon', 'Funkira'];
+                $agentQuery = \App\Models\Ai\AiAgent::where('id', $data['agentId'])
+                    ->where('is_active', true)
+                    ->whereNotIn('name', $excludedNames);
                 $agentId = (!empty($data['agentId']) && $agentQuery->exists())
                     ? $data['agentId']
                     : null;
@@ -261,7 +266,7 @@ class AiWidget extends Component
     public function render()
     {
         $isAdmin = \App\Services\AI\AiAuthHelper::isAdmin();
-        $excludedNames = $isAdmin ? ['Funki'] : ['Funki', 'Funkira'];
+        $excludedNames = $isAdmin ? ['Funki', 'Falcon'] : ['Funki', 'Falcon', 'Funkira'];
 
         return view('livewire.shop.ai.ai-widget', [
             'tasks' => $isAdmin

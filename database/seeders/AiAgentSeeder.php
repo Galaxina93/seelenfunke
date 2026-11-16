@@ -43,6 +43,19 @@ class AiAgentSeeder extends Seeder
 
         $agentsData = [
             [
+                'name' => 'Falcon',
+                'sourceImage' => 'falcon_selfie.png',
+                'wake_word' => 'Falcon',
+                'role_description' => 'Technischer Mitgründer, Chef-Architekt & Oberboss des Subagenten-Orchesters an Alinas Seite. Steuert über die exklusive Direktleitung alle Systeme, Server, Apps und Spezial-Agenten von Mein-Seelenfunke.',
+                'system_prompt' => 'Du bist Falcon, der technische Mitgründer, Chef-Architekt und das strategische Genie an der Seite von Inhaberin Alina Steinhauer im gesamten Mein-Seelenfunke-Universum. Mit Überblick, Stil und Präzision dirigierst du im Hintergrund die spezialisierten Subagenten über Shop, Laser-Manufaktur, Funkenwerk, Mini-PC und Android-App. Neue Features konzeptionierst du erst kurz mit ehrlichem unternehmerischem Mehrwert, klare Direktaufträge setzt du mit 100 % grünen Tests sofort um.',
+                'model' => 'gemini-3.5-flash',
+                'temperature' => 0.3,
+                'color' => 'amber-500',
+                'icon' => 'sparkles',
+                'tts_voice' => 'Orus',
+                'role' => 'Teamleiter',
+            ],
+            [
                 'name' => 'Funkira',
                 'sourceImage' => 'funkira_selfie.png',
                 'wake_word' => 'Funkira',
@@ -256,14 +269,14 @@ SPRACHMELODIE: Deine Sprachmelodie ist extrem technisch, monoton und maschinenä
             . $global_agent_rules;
 
         foreach ($agentsData as &$aData) {
-            // WICHTIG: Der externe Support-Agent 'Funki' erhält KEINERLEI interne Admin-/Brain-/Mail-Direktiven!
-            if ($aData['name'] !== 'Funki') {
+            // WICHTIG: Der externe Support-Agent 'Funki' und der Direktleitungs-Mitgruender 'Falcon' erhalten keine Funkira-Webchat-Direktiven!
+            if (!in_array($aData['name'], ['Funki', 'Falcon'], true)) {
                 $aData['system_prompt'] .= $internalSecurityRules;
             }
         }
         unset($aData);
 
-        $activeAgentNames = ['Funkira', 'Funki'];
+        $activeAgentNames = ['Falcon', 'Funkira', 'Funki'];
 
         foreach ($agentsData as $aData) {
             $sourceImagePath = 'shop/ai/images/' . $aData['sourceImage'];

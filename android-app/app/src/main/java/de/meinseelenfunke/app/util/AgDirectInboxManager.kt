@@ -40,7 +40,7 @@ import kotlin.math.roundToInt
 enum class AgDirectStatus(val code: String, val badgeLabel: String) {
     QUEUED("queued", "Wartet"),
     PENDING("pending", "Gesendet"),
-    DELIVERED("delivered", "Im AG-Chat"),
+    DELIVERED("delivered", "Bei Falcon"),
     COMPLETED("completed", "Erledigt ✓")
 }
 
