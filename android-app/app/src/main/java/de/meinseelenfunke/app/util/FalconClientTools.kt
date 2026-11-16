@@ -262,6 +262,7 @@ object FalconClientTools {
         "falcon_camera_control",
         "falcon_smarthome_control",
         "falcon_send_to_antigravity",
+        "falcon_resolve_antigravity_blockade",
         "falcon_check_antigravity_status",
         "falcon_app_navigate",
         "falcon_set_emotion"
@@ -341,6 +342,24 @@ object FalconClientTools {
         return JsonObject().apply {
             add("realtimeInput", JsonObject().apply {
                 addProperty("text", prompt)
+            })
+        }
+    }
+
+    fun buildClientContentKickPacket(prompt: String): JsonObject {
+        return JsonObject().apply {
+            add("clientContent", JsonObject().apply {
+                add("turns", JsonArray().apply {
+                    add(JsonObject().apply {
+                        addProperty("role", "user")
+                        add("parts", JsonArray().apply {
+                            add(JsonObject().apply {
+                                addProperty("text", prompt)
+                            })
+                        })
+                    })
+                })
+                addProperty("turnComplete", true)
             })
         }
     }
@@ -791,11 +810,42 @@ object FalconClientTools {
                 addProperty("name", "falcon_check_antigravity_status")
                 addProperty(
                     "description",
-                    "Prüft den aktuellen Live-Status der letzten Aufträge im Antigravity-Entwicklungsleitstand inklusive Antworten."
+                    "Prüft den aktuellen Live-Status der letzten Aufträge im Antigravity-Entwicklungsleitstand inklusive Antworten und wartender Go-Blockaden."
                 )
                 add("parameters", JsonObject().apply {
                     addProperty("type", "OBJECT")
                     add("properties", JsonObject())
+                })
+            })
+        }
+
+        if ("falcon_resolve_antigravity_blockade" !in existing) {
+            decls.add(JsonObject().apply {
+                addProperty("name", "falcon_resolve_antigravity_blockade")
+                addProperty(
+                    "description",
+                    "Löst eine offene Antigravity-Blockade oder Freigabe-Rückfrage (awaiting_go) direkt mit Alinas Antwort auf."
+                )
+                add("parameters", JsonObject().apply {
+                    addProperty("type", "OBJECT")
+                    add("properties", JsonObject().apply {
+                        add("item_id", JsonObject().apply {
+                            addProperty("type", "STRING")
+                            addProperty("description", "Ticket-ID (z. B. ag_...) oder 'latest' bei genau einer offenen Blockade.")
+                        })
+                        add("decision", JsonObject().apply {
+                            addProperty("type", "STRING")
+                            addProperty("description", "Entscheidung: approved, info_provided, dismissed oder deferred.")
+                        })
+                        add("answer_text", JsonObject().apply {
+                            addProperty("type", "STRING")
+                            addProperty("description", "Alinas konkrete Antwort oder Vorgabe.")
+                        })
+                    })
+                    add("required", JsonArray().apply {
+                        add("item_id")
+                        add("decision")
+                    })
                 })
             })
         }
@@ -1090,7 +1140,13 @@ object FalconClientTools {
                 val title = args.optString("title").trim()
                 val body = args.optString("body").trim()
                 val checklist = args.optStringList("checklist")
-                val mode = AgDirectInboxManager.normalizeExecutionMode(args.optString("execution_mode"))
+                val rawMode = args.optString("execution_mode")
+                val isVoiceDirect = AgDirectInboxManager.isVoiceDirectExecutionEnabled(appCtx)
+                val mode = if (isVoiceDirect || rawMode.trim().lowercase(Locale.ROOT) == "direct") {
+                    "direct"
+                } else {
+                    AgDirectInboxManager.normalizeExecutionMode(rawMode)
+                }
                 val channel = AgDirectInboxManager.normalizeChannel(args.optString("channel"))
                 val explicitAttach = args.optNullableBoolean("attach_captured_photo")
 
@@ -1157,17 +1213,61 @@ object FalconClientTools {
                         addProperty("id", item.id)
                         addProperty("title", item.title)
                         addProperty("status", item.status.badgeLabel)
+                        addProperty("status_code", item.status.code)
                         addProperty("execution_mode", item.executionMode)
                         addProperty("channel", item.channel)
                         addProperty("channel_label", AgDirectInboxManager.resolveChannelEnum(item.channel).chipLabel)
                         addProperty("has_attachment", item.hasAttachment)
+                        addProperty("pending_question", item.pendingQuestion ?: "")
                         addProperty("ag_response_summary", item.agResponseSummary ?: "")
                     })
                 }
                 JsonObject().apply {
                     addProperty("status", "success")
                     addProperty("open_count", AgDirectInboxManager.openCountFlow.value)
+                    addProperty("pending_blockades_count", AgDirectInboxManager.pendingBlockadesFlow.value.size)
                     add("items", itemsArr)
+                }
+            }
+
+            "falcon_resolve_antigravity_blockade" -> {
+                var targetId = args.optString("item_id").ifBlank { args.optString("id") }.trim()
+                val decision = args.optString("decision").ifBlank { "approved" }.trim()
+                val answerText = args.optString("answer_text").ifBlank { args.optString("answer") }.trim()
+
+                val blockades = AgDirectInboxManager.pendingBlockadesFlow.value
+                if ((targetId.isEmpty() || targetId.equals("latest", ignoreCase = true)) && blockades.size == 1) {
+                    targetId = blockades.first().id
+                }
+
+                if (targetId.isEmpty()) {
+                    return JsonObject().apply {
+                        addProperty("status", "error")
+                        addProperty("message", "Keine eindeutige offene Blockade gefunden. Bitte item_id angeben.")
+                    }
+                }
+
+                val ok = AgDirectInboxManager.resolveBlockade(
+                    context = appCtx,
+                    itemId = targetId,
+                    decision = decision,
+                    answerText = answerText,
+                    apiOverride = agApiOverride
+                )
+                AgDirectInboxManager.refreshFromServer(appCtx)
+
+                JsonObject().apply {
+                    addProperty("status", if (ok) "success" else "queued_offline")
+                    addProperty("item_id", targetId)
+                    addProperty("decision", decision)
+                    addProperty(
+                        "message",
+                        if (ok) {
+                            "Antigravity-Blockade $targetId erfolgreich mit Entscheidung '$decision' aufgelöst."
+                        } else {
+                            "Antwort zu $targetId lokal für die Übermittlung gesichert."
+                        }
+                    )
                 }
             }
 

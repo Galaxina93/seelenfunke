@@ -2,8 +2,12 @@ package de.meinseelenfunke.app.ui.screens
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.app.Activity
+import android.content.ActivityNotFoundException
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.speech.RecognizerIntent
 import android.view.ViewGroup
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
@@ -22,18 +26,22 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -47,16 +55,23 @@ import androidx.compose.material.icons.filled.CallEnd
 import androidx.compose.material.icons.filled.Cameraswitch
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.VideocamOff
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -76,6 +91,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -94,6 +110,7 @@ import de.meinseelenfunke.app.ui.theme.Gold
 import de.meinseelenfunke.app.ui.theme.Rose500
 import de.meinseelenfunke.app.ui.theme.SpaceBlack
 import de.meinseelenfunke.app.util.AgDirectInboxManager
+import de.meinseelenfunke.app.util.AgDirectStatus
 import de.meinseelenfunke.app.util.FalconCameraController
 import de.meinseelenfunke.app.util.FalconClientTools
 import de.meinseelenfunke.app.util.MusicPlayerManager
@@ -116,6 +133,7 @@ fun isAllowedFalconAssetUrl(rawUrl: String?): Boolean {
     return decoded.startsWith(FALCON_ASSET_BASE)
 }
 
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun FalconFocusScreen(
@@ -146,9 +164,20 @@ fun FalconFocusScreen(
 
     val isMusicPlaying by MusicPlayerManager.isPlaying.collectAsState()
     val agOpenCount by AgDirectInboxManager.openCountFlow.collectAsState()
+    val agItems by AgDirectInboxManager.itemsFlow.collectAsState()
+    val pendingBlockades by AgDirectInboxManager.pendingBlockadesFlow.collectAsState()
+    val agGoCount = remember(agItems, pendingBlockades) {
+        pendingBlockades.size
+    }
 
     var showDirectInboxSheet by remember { mutableStateOf(false) }
+    var focusInboxItemId by remember { mutableStateOf<String?>(null) }
+    var blockadeCardSnoozed by remember { mutableStateOf(false) }
+    var showInlineBlockadeReply by remember { mutableStateOf(false) }
+    var inlineBlockadeReplyText by remember { mutableStateOf("") }
+    var isResolvingBlockade by remember { mutableStateOf(false) }
     var showPhotoLightbox by remember { mutableStateOf(false) }
+    var showCameraSourceMenu by remember { mutableStateOf(false) }
     var dismissedSubtitleText by remember { mutableStateOf<String?>(null) }
     var pendingCameraAction by remember { mutableStateOf<PendingCameraAction?>(null) }
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
@@ -190,6 +219,53 @@ fun FalconFocusScreen(
             }
         } else if (!granted) {
             Toast.makeText(context, "Kamera-Berechtigung nicht erteilt.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let {
+            scope.launch {
+                val imported = FalconCameraController.importPhotoFromUri(context, it)
+                if (imported != null) {
+                    showDirectInboxSheet = true
+                }
+            }
+        }
+    }
+
+    val blockadeSpeechLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val spoken = result.data
+                ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+                ?.firstOrNull()
+                ?.trim()
+            if (!spoken.isNullOrEmpty()) {
+                showInlineBlockadeReply = true
+                inlineBlockadeReplyText = if (inlineBlockadeReplyText.isBlank()) {
+                    spoken
+                } else {
+                    "${inlineBlockadeReplyText.trimEnd()} $spoken"
+                }
+            }
+        }
+    }
+
+    // Beharrlichkeits-Mechanik: Wenn Alina "Später" tippt, blendet sich die Warnkarte nach 90 Sekunden
+    // (sowie bei jedem ON_RESUME) automatisch wieder ein, solange die Blockade noch offen ist!
+    LaunchedEffect(blockadeCardSnoozed, pendingBlockades.size) {
+        if (pendingBlockades.isEmpty()) {
+            blockadeCardSnoozed = false
+            showInlineBlockadeReply = false
+            inlineBlockadeReplyText = ""
+        } else if (blockadeCardSnoozed) {
+            delay(90_000L)
+            if (AgDirectInboxManager.pendingBlockadesFlow.value.isNotEmpty()) {
+                blockadeCardSnoozed = false
+            }
         }
     }
 
@@ -260,6 +336,8 @@ fun FalconFocusScreen(
                 }
                 Lifecycle.Event.ON_RESUME -> {
                     webViewRef?.onResume()
+                    blockadeCardSnoozed = false
+                    AgDirectInboxManager.refreshFromServer(context)
                 }
                 else -> {}
             }
@@ -311,24 +389,131 @@ fun FalconFocusScreen(
         }
     }
 
-    if (showPhotoLightbox && lastCapturedPhoto != null) {
+    if (showPhotoLightbox && lastCapturedPhoto?.takeIf { !it.attachedToInbox } != null) {
         val snap = lastCapturedPhoto!!
         AgImageLightboxDialog(
             bitmap = snap.previewBitmap,
             title = snap.fileName,
-            onDismiss = { showPhotoLightbox = false }
+            onDismiss = { showPhotoLightbox = false },
+            onSendToAntigravity = {
+                showPhotoLightbox = false
+                showDirectInboxSheet = true
+            }
         )
     }
 
     if (showDirectInboxSheet) {
         val autoAttach = lastCapturedPhoto?.takeIf { !it.attachedToInbox }?.toPreparedAgAttachment()
         AgDirectInboxSheet(
-            onDismiss = { showDirectInboxSheet = false },
+            onDismiss = {
+                showDirectInboxSheet = false
+                focusInboxItemId = null
+            },
             initialAttachment = autoAttach,
+            initialExpandedItemId = focusInboxItemId,
             onAttachmentSubmitted = {
-                FalconCameraController.markLastPhotoAttached()
+                FalconCameraController.clearLastCapturedPhoto()
             }
         )
+    }
+
+    if (showCameraSourceMenu) {
+        ModalBottomSheet(
+            onDismissRequest = { showCameraSourceMenu = false },
+            containerColor = Color(0xFF10141E),
+            contentColor = Color(0xFFF8FAFC),
+            dragHandle = null,
+            shape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(horizontal = 18.dp, vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Option 1: Foto aufnehmen
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color(0x22FFFFFF))
+                        .border(1.dp, Gold.copy(alpha = 0.40f), RoundedCornerShape(14.dp))
+                        .clickable {
+                            showCameraSourceMenu = false
+                            if (FalconCameraController.hasCameraPermission(context)) {
+                                scope.launch {
+                                    FalconCameraController.captureHighResPhoto(context)
+                                }
+                            } else {
+                                pendingCameraAction = PendingCameraAction("take_photo", "back")
+                                cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                            }
+                        }
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Gold.copy(alpha = 0.16f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PhotoCamera,
+                            contentDescription = null,
+                            tint = Gold,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Text(
+                        text = "Foto aufnehmen",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFFF8FAFC)
+                    )
+                }
+
+                // Option 2: Bild wählen & an Antigravity senden
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color(0x22FFFFFF))
+                        .border(1.dp, Gold.copy(alpha = 0.40f), RoundedCornerShape(14.dp))
+                        .clickable {
+                            showCameraSourceMenu = false
+                            imagePickerLauncher.launch("image/*")
+                        }
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Gold.copy(alpha = 0.16f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Image,
+                            contentDescription = null,
+                            tint = Gold,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Text(
+                        text = "Bild wählen & an Antigravity senden",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFFF8FAFC)
+                    )
+                }
+            }
+        }
     }
 
     val pulseTransition = rememberInfiniteTransition(label = "falconPulse")
@@ -452,39 +637,73 @@ fun FalconFocusScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Status Pill: Falcon · Mitgründer
+            // Status Pill: Falcon · Mitgründer + Go Indikator
             Row(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(50))
-                    .background(stageHudBg)
-                    .border(
-                        1.dp,
-                        if (isConnected) Emerald500.copy(alpha = 0.65f) else Gold.copy(alpha = 0.55f),
-                        RoundedCornerShape(50)
-                    )
-                    .padding(horizontal = 12.dp, vertical = 7.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(7.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Box(
+                Row(
                     modifier = Modifier
-                        .size(8.dp)
-                        .clip(CircleShape)
-                        .background(
-                            when {
-                                isConnected -> Emerald500
-                                isConnecting -> Gold
-                                else -> Gold.copy(alpha = 0.55f)
-                            }
+                        .clip(RoundedCornerShape(50))
+                        .background(stageHudBg)
+                        .border(
+                            1.dp,
+                            if (isConnected) Emerald500.copy(alpha = 0.65f) else Gold.copy(alpha = 0.55f),
+                            RoundedCornerShape(50)
                         )
-                )
-                Text(
-                    text = "Falcone · Mitgründer",
-                    fontSize = 12.5.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = stageHudText,
-                    maxLines = 1
-                )
+                        .padding(horizontal = 12.dp, vertical = 7.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(7.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(
+                                when {
+                                    isConnected -> Emerald500
+                                    isConnecting -> Gold
+                                    else -> Gold.copy(alpha = 0.55f)
+                                }
+                            )
+                    )
+                    Text(
+                        text = "Falcone · Mitgründer",
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = stageHudText,
+                        maxLines = 1
+                    )
+                }
+
+                if (pendingBlockades.isNotEmpty()) {
+                    Row(
+                        modifier = Modifier
+                            .scale(pulseScale.coerceIn(1f, 1.06f))
+                            .clip(RoundedCornerShape(50))
+                            .background(Gold.copy(alpha = 0.22f))
+                            .border(1.2.dp, Gold, RoundedCornerShape(50))
+                            .clickable {
+                                if (blockadeCardSnoozed) {
+                                    blockadeCardSnoozed = false
+                                } else {
+                                    focusInboxItemId = pendingBlockades.firstOrNull()?.id
+                                    showDirectInboxSheet = true
+                                }
+                            }
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = "⚠️ ${pendingBlockades.size} Antwort offen",
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Gold,
+                            maxLines = 1
+                        )
+                    }
+                }
             }
 
             // Right Controls: Camera Eyes, Music Mini Indicator, Dashboard
@@ -678,16 +897,244 @@ fun FalconFocusScreen(
             }
         }
 
-        // 4. Lower-Third Live Subtitle + Bottom Command Dock
+        // 4. Lower-Third Proaktive Blockade-Karte + Live Subtitle + Bottom Command Dock
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
+                .imePadding()
                 .padding(horizontal = 18.dp, vertical = 18.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            val urgentBlockade = pendingBlockades.firstOrNull()
+            AnimatedVisibility(
+                visible = urgentBlockade != null && !blockadeCardSnoozed,
+                enter = fadeIn(),
+                exit = fadeOut()
+            ) {
+                urgentBlockade?.let { blockade ->
+                    val channelChip = AgDirectInboxManager.resolveChannelEnum(blockade.channel).chipLabel
+                    val questionLine = blockade.pendingQuestion?.takeIf { it.isNotBlank() }
+                        ?: blockade.agResponseSummary?.takeIf { it.isNotBlank() }
+                        ?: blockade.title
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color(0xEE0D1017))
+                            .border(1.2.dp, Gold, RoundedCornerShape(16.dp))
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                modifier = Modifier.weight(1f),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(7.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(Gold.copy(alpha = 0.18f))
+                                        .border(1.dp, Gold.copy(alpha = 0.65f), RoundedCornerShape(6.dp))
+                                        .padding(horizontal = 7.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = channelChip,
+                                        fontSize = 10.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Gold,
+                                        maxLines = 1
+                                    )
+                                }
+                                Text(
+                                    text = blockade.title,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = stageHudText,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+
+                            Text(
+                                text = "Später",
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = stageHudMuted,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable {
+                                        blockadeCardSnoozed = true
+                                        showInlineBlockadeReply = false
+                                    }
+                                    .padding(horizontal = 6.dp, vertical = 3.dp)
+                            )
+                        }
+
+                        Text(
+                            text = questionLine,
+                            fontSize = 12.5.sp,
+                            lineHeight = 17.sp,
+                            color = Color(0xFFE2E8F0),
+                            maxLines = 3,
+                            overflow = TextOverflow.Ellipsis
+                        )
+
+                        if (showInlineBlockadeReply) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                OutlinedTextField(
+                                    value = inlineBlockadeReplyText,
+                                    onValueChange = { inlineBlockadeReplyText = it },
+                                    modifier = Modifier.weight(1f),
+                                    placeholder = {
+                                        Text(
+                                            text = "Antwort für Antigravity...",
+                                            fontSize = 12.5.sp,
+                                            color = stageHudMuted
+                                        )
+                                    },
+                                    maxLines = 3,
+                                    shape = RoundedCornerShape(10.dp),
+                                    textStyle = TextStyle(
+                                        fontSize = 13.sp,
+                                        color = stageHudText
+                                    ),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = Gold,
+                                        unfocusedBorderColor = Gold.copy(alpha = 0.40f),
+                                        cursorColor = Gold,
+                                        focusedContainerColor = Color(0xFF151924),
+                                        unfocusedContainerColor = Color(0xFF151924)
+                                    )
+                                )
+
+                                Box(
+                                    modifier = Modifier
+                                        .size(42.dp)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(Gold)
+                                        .clickable {
+                                            val speechIntent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                                                putExtra(
+                                                    RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                                                    RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
+                                                )
+                                                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "de-DE")
+                                                putExtra(RecognizerIntent.EXTRA_PROMPT, "Antwort sprechen")
+                                            }
+                                            try {
+                                                blockadeSpeechLauncher.launch(speechIntent)
+                                            } catch (_: ActivityNotFoundException) {
+                                                Toast.makeText(
+                                                    context,
+                                                    "Spracheingabe auf diesem Gerät nicht verfügbar.",
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
+                                            } catch (_: Exception) {
+                                            }
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Mic,
+                                        contentDescription = "Antwort diktieren",
+                                        tint = SpaceBlack,
+                                        modifier = Modifier.size(19.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Button(
+                                onClick = {
+                                    if (isResolvingBlockade) return@Button
+                                    val customReply = inlineBlockadeReplyText.trim()
+                                    val decision = if (customReply.isNotEmpty()) "info_provided" else "approved"
+                                    val answerPayload = customReply.ifEmpty { "Go erteilt" }
+                                    isResolvingBlockade = true
+                                    scope.launch {
+                                        val ok = AgDirectInboxManager.resolveBlockade(
+                                            context = context,
+                                            itemId = blockade.id,
+                                            decision = decision,
+                                            answerText = answerPayload
+                                        )
+                                        isResolvingBlockade = false
+                                        inlineBlockadeReplyText = ""
+                                        showInlineBlockadeReply = false
+                                        Toast.makeText(
+                                            context,
+                                            if (ok) "✓ Freigabe an Antigravity übermittelt!" else "Offline als Freigabe gespeichert",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                        AgDirectInboxManager.refreshFromServer(context)
+                                    }
+                                },
+                                enabled = !isResolvingBlockade,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(38.dp),
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Gold,
+                                    contentColor = SpaceBlack
+                                ),
+                                contentPadding = PaddingValues(horizontal = 10.dp)
+                            ) {
+                                Text(
+                                    text = if (inlineBlockadeReplyText.isNotBlank()) "✓ Senden & Go" else "✓ Go geben",
+                                    fontSize = 12.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1
+                                )
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(38.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(Color(0x22FFFFFF))
+                                    .border(1.dp, Gold.copy(alpha = 0.60f), RoundedCornerShape(10.dp))
+                                    .combinedClickable(
+                                        onClick = {
+                                            showInlineBlockadeReply = !showInlineBlockadeReply
+                                        },
+                                        onLongClick = {
+                                            focusInboxItemId = blockade.id
+                                            showDirectInboxSheet = true
+                                        }
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = if (showInlineBlockadeReply) "Ausblenden" else "Antworten",
+                                    fontSize = 12.5.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Gold,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    }
+                }
+            }
             val currentSub = liveSubtitle?.trim().orEmpty()
             if (currentSub.isNotEmpty() && currentSub != dismissedSubtitleText) {
                 Row(
@@ -745,16 +1192,11 @@ fun FalconFocusScreen(
                             .clip(CircleShape)
                             .background(stageHudBg)
                             .border(1.dp, Gold.copy(alpha = 0.60f), CircleShape)
-                            .clickable(enabled = !isCapturingPhoto) {
-                                if (FalconCameraController.hasCameraPermission(context)) {
-                                    scope.launch {
-                                        FalconCameraController.captureHighResPhoto(context)
-                                    }
-                                } else {
-                                    pendingCameraAction = PendingCameraAction("take_photo", "back")
-                                    cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-                                }
-                            },
+                            .combinedClickable(
+                                enabled = !isCapturingPhoto,
+                                onClick = { showCameraSourceMenu = true },
+                                onLongClick = { imagePickerLauncher.launch("image/*") }
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
                         if (isCapturingPhoto) {
@@ -773,25 +1215,26 @@ fun FalconFocusScreen(
                         }
                     }
 
-                    lastCapturedPhoto?.let { photo ->
-                        Box(modifier = Modifier.size(48.dp)) {
+                    lastCapturedPhoto?.takeIf { !it.attachedToInbox }?.let { photo ->
+                        Box(modifier = Modifier.size(52.dp)) {
                             Image(
                                 bitmap = photo.previewBitmap,
                                 contentDescription = photo.fileName,
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier
                                     .size(44.dp)
-                                    .align(Alignment.BottomStart)
+                                    .align(Alignment.CenterStart)
                                     .clip(CircleShape)
                                     .border(1.5.dp, Gold, CircleShape)
                                     .clickable { showPhotoLightbox = true }
                             )
+                            // Schnell-Verwerfen (X) oben rechts
                             Box(
                                 modifier = Modifier
                                     .size(18.dp)
                                     .align(Alignment.TopEnd)
                                     .clip(CircleShape)
-                                    .background(SpaceBlack.copy(alpha = 0.85f))
+                                    .background(SpaceBlack.copy(alpha = 0.90f))
                                     .border(1.dp, Rose500, CircleShape)
                                     .clickable { FalconCameraController.clearLastCapturedPhoto() },
                                 contentAlignment = Alignment.Center
@@ -801,6 +1244,24 @@ fun FalconFocusScreen(
                                     contentDescription = "Foto verwerfen",
                                     tint = Rose500,
                                     modifier = Modifier.size(11.dp)
+                                )
+                            }
+                            // Schnell-Senden an Antigravity unten rechts
+                            Box(
+                                modifier = Modifier
+                                    .size(20.dp)
+                                    .align(Alignment.BottomEnd)
+                                    .clip(CircleShape)
+                                    .background(Gold)
+                                    .border(1.dp, SpaceBlack, CircleShape)
+                                    .clickable { showDirectInboxSheet = true },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Bolt,
+                                    contentDescription = "An Antigravity senden",
+                                    tint = SpaceBlack,
+                                    modifier = Modifier.size(13.dp)
                                 )
                             }
                         }

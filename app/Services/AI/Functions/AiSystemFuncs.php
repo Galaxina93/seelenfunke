@@ -864,6 +864,39 @@ trait AiSystemFuncs
                 'callable' => [self::class, 'executeSearchWeb']
             ],
             [
+                'name' => 'ag_list_pending_blockades',
+                'description' => 'Listet alle aktuell wartenden Freigaben, Konzepte und offenen Rückfragen (awaiting_go) von Antigravity inkl. ID, Kanal, Titel, exakter Rückfrage und Wartezeit in Minuten auf.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => new \stdClass(),
+                ],
+                'callable' => [self::class, 'executeListPendingAgBlockades']
+            ],
+            [
+                'name' => 'ag_resolve_pending_blockade',
+                'description' => 'Löst einen offenen Freigabe- oder Rückfrage-Stau bei Antigravity sofort auf. Übermittelt Alinas Entscheidung (approved = Go erteilt, info_provided = Rückfrage beantwortet, dismissed = verwerfen, deferred = später erinnern) inklusive ihrer konkreten Antwort direkt in den zuständigen Antigravity-Kanal.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'item_id' => [
+                            'type' => 'string',
+                            'description' => 'Die Ticket-ID des wartenden Antigravity-Eintrags (z. B. ag_20261116_200716_2dc89d0c) oder "latest", wenn genau eine Blockade offen ist.'
+                        ],
+                        'decision' => [
+                            'type' => 'string',
+                            'description' => 'Alinas Entscheidung: approved (Go zur Umsetzung), info_provided (fehlende Information/Antwort geliefert), dismissed (Konzept verwerfen) oder deferred (später erinnern).',
+                            'enum' => ['approved', 'info_provided', 'dismissed', 'deferred']
+                        ],
+                        'answer_text' => [
+                            'type' => 'string',
+                            'description' => 'Alinas exakte inhaltliche Antwort, Vorgabe oder Freigabe-Notiz für Antigravity.'
+                        ]
+                    ],
+                    'required' => ['item_id', 'decision']
+                ],
+                'callable' => [self::class, 'executeResolvePendingAgBlockade']
+            ],
+            [
                 'name' => 'system_analyze_neural_error',
                 'description' => 'Führt eine tiefgreifende neurale Fehleranalyse für eine defekte Datei (ausgewählt im 3D Projekt Gehirn) aus und generiert einen Markdown Bericht. Nutze dieses Tool, wenn der User im 3D-Gehirn einen Fehler anklickt und analysiert haben möchte.',
                 'parameters' => [
@@ -4551,6 +4584,110 @@ trait AiSystemFuncs
         }
 
         return \App\Services\AI\WebSearchCascadeService::search($query);
+    }
+
+    public static function executeListPendingAgBlockades(array $args)
+    {
+        if ($denied = self::assertSystemAdminAccess()) {
+            return array_merge(['error' => true], $denied);
+        }
+
+        try {
+            $inbox = app(\App\Services\System\AntigravityDirectInboxService::class);
+            $blockades = $inbox->getPendingBlockades();
+
+            return [
+                'status' => 'success',
+                'count' => count($blockades),
+                'pending_blockades' => $blockades,
+                'message' => empty($blockades)
+                    ? 'Aktuell liegen keine offenen Freigabe- oder Rückfrage-Blockaden bei Antigravity vor.'
+                    : ('Es warten aktuell ' . count($blockades) . ' Aufgabe(n) auf eine Entscheidung oder Antwort von Alina.'),
+            ];
+        } catch (\Throwable $e) {
+            return [
+                'error' => true,
+                'status' => 'error',
+                'message' => 'Fehler beim Abruf der offenen Antigravity-Freigaben: ' . $e->getMessage(),
+            ];
+        }
+    }
+
+    public static function executeResolvePendingAgBlockade(array $args)
+    {
+        if ($denied = self::assertSystemAdminAccess()) {
+            return array_merge(['error' => true], $denied);
+        }
+
+        try {
+            $inbox = app(\App\Services\System\AntigravityDirectInboxService::class);
+            $rawId = trim((string) ($args['item_id'] ?? $args['id'] ?? ''));
+            $decision = trim((string) ($args['decision'] ?? 'approved')) ?: 'approved';
+            $answerText = trim((string) ($args['answer_text'] ?? $args['answer'] ?? ''));
+
+            if ($rawId === '' || strtolower($rawId) === 'latest' || !\App\Services\System\AntigravityDirectInboxService::isValidItemId($rawId)) {
+                $openBlockades = $inbox->getPendingBlockades();
+                if ($rawId === '' || strtolower($rawId) === 'latest') {
+                    if (count($openBlockades) === 1) {
+                        $rawId = (string) $openBlockades[0]['id'];
+                    } elseif (empty($openBlockades)) {
+                        return [
+                            'error' => true,
+                            'status' => 'error',
+                            'message' => 'Es liegt aktuell keine offene Antigravity-Blockade zur Auflösung vor.',
+                        ];
+                    } else {
+                        return [
+                            'error' => true,
+                            'status' => 'error',
+                            'message' => 'Mehrere Antigravity-Blockaden sind offen. Bitte gib die konkrete item_id an.',
+                            'pending_blockades' => $openBlockades,
+                        ];
+                    }
+                } else {
+                    $needle = mb_strtolower($rawId);
+                    $matched = array_values(array_filter(
+                        $openBlockades,
+                        static fn (array $b): bool => str_contains(mb_strtolower((string) ($b['title'] ?? '')), $needle)
+                    ));
+                    if (count($matched) === 1) {
+                        $rawId = (string) $matched[0]['id'];
+                    }
+                }
+            }
+
+            $user = \App\Services\AI\AiAuthHelper::getUser();
+            $actorName = ($user && !empty($user->first_name)) ? (string) $user->first_name : 'Alina';
+
+            $resolution = $inbox->resolveBlockadeItem($rawId, $decision, $answerText, $actorName);
+            if ($resolution === null) {
+                return [
+                    'error' => true,
+                    'status' => 'error',
+                    'message' => "Das Antigravity-Ticket '{$rawId}' wurde nicht gefunden.",
+                ];
+            }
+
+            $followup = $resolution['followup_item'];
+            $resolved = $resolution['resolved_item'];
+
+            return [
+                'status' => 'success',
+                'decision' => $resolution['decision'],
+                'resolved_item' => $resolved,
+                'followup_item' => $followup,
+                'remaining_blockades' => count($inbox->getPendingBlockades()),
+                'message' => $followup !== null
+                    ? ("Freigabe/Antwort für '{$resolved['title']}' erfasst und als Direktauftrag '{$followup['id']}' im Kanal '{$followup['channel']}' an Antigravity übergeben.")
+                    : ("Status von '{$resolved['title']}' wurde gemäß Entscheidung '{$resolution['decision']}' aktualisiert."),
+            ];
+        } catch (\Throwable $e) {
+            return [
+                'error' => true,
+                'status' => 'error',
+                'message' => 'Fehler beim Auflösen der Antigravity-Blockade: ' . $e->getMessage(),
+            ];
+        }
     }
 
     public static function executeReadClipboard(array $args)

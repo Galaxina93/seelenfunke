@@ -346,17 +346,33 @@ class AIController extends Controller
                 ], 403);
             }
         } else {
-            if ($isAdmin) {
-                $aiAgent = \App\Models\Ai\AiAgent::where('name', 'Funkira')->where('is_active', true)->first()
-                    ?? \App\Models\Ai\AiAgent::where('is_active', true)->first();
-            } else {
-                $aiAgent = \App\Models\Ai\AiAgent::where('name', 'Funki')->where('is_active', true)->first()
-                    ?? \App\Models\Ai\AiAgent::where('is_active', true)->whereRaw('LOWER(name) != ?', ['funkira'])->first();
+            $aiAgent = $this->resolveRequestedAgent($request);
+            if ($aiAgent && !$isAdmin && $this->isAdminOnlyAgent($aiAgent)) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Zugriff verweigert: Die Admin-KI Funkira ist ausschließlich für Administratoren freigegeben.',
+                ], 403);
+            }
+            if (!$aiAgent) {
+                if ($isAdmin) {
+                    $aiAgent = \App\Models\Ai\AiAgent::where('name', 'Funkira')->where('is_active', true)->first()
+                        ?? \App\Models\Ai\AiAgent::where('is_active', true)->first();
+                } else {
+                    $aiAgent = \App\Models\Ai\AiAgent::where('name', 'Funki')->where('is_active', true)->first()
+                        ?? \App\Models\Ai\AiAgent::where('is_active', true)->whereRaw('LOWER(name) != ?', ['funkira'])->first();
+                }
             }
         }
         
         if (!$aiAgent) {
             return response()->json(['status' => 'error', 'message' => 'No AI Agent found in database.'], 500);
+        }
+
+        if ($isAdmin && \App\Services\AI\FunkiraSkillPoolService::isExecutiveRoot($aiAgent)) {
+            $blockadeCtx = $this->buildPendingAgBlockadeContext();
+            if ($blockadeCtx['directive'] !== '') {
+                $dynamicSystemPrompt .= "\n\n" . $blockadeCtx['directive'];
+            }
         }
 
         $agent = \App\Services\AI\AiAgentFactory::make($aiAgent);
@@ -727,6 +743,14 @@ class AIController extends Controller
         // Für den Echtzeit-Sprachmodus (Gemini Live) optimieren wir die Tools auf die hochrelevanten Sprach- und Interaktions-Funktionen,
         // um Token-Overhead und Inferenz-Latenzen auf TPU-Seite minimal zu halten (Reaktionszeit wie in der mobilen Gemini-App).
         $isFunkiAgent = $aiAgent && strcasecmp(trim((string) ($aiAgent->name ?? '')), 'Funki') === 0;
+        $blockadeContext = ['items' => [], 'directive' => '', 'proactive_kick_prompt' => null];
+        if ($isAdminUser && !$isFunkiAgent) {
+            $blockadeContext = $this->buildPendingAgBlockadeContext();
+            if ($blockadeContext['directive'] !== '') {
+                $systemInstruction .= "\n\n" . $blockadeContext['directive'];
+            }
+        }
+
         $voiceAllowedTools = [
             'system_open_nav_item', 'system_open_zentrum', 'system_close_zentrum', 'system_close_ui',
             'system_trigger_ui_element',
@@ -734,6 +758,8 @@ class AIController extends Controller
         ];
         if ($isAdminUser && !$isFunkiAgent) {
             $voiceAllowedTools = array_merge($voiceAllowedTools, [
+                'ag_resolve_pending_blockade',
+                'ag_list_pending_blockades',
                 'system_search_web',
                 'system_read_web_url',
                 'system_get_server_status',
@@ -786,6 +812,8 @@ class AIController extends Controller
             'user_id' => $user ? $user->id : null,
             'user_name' => $user ? $user->first_name : 'User',
             'user_picture' => ($user && $user->profile) ? $user->profile->photo_path : null,
+            'pending_ag_blockades' => $blockadeContext['items'],
+            'proactive_kick_prompt' => $blockadeContext['proactive_kick_prompt'],
         ], now()->addMinutes(5));
 
         $configuredWsUrl = config('services.gemini.proxy_ws_url');
@@ -821,6 +849,11 @@ class AIController extends Controller
             'tools' => [['functionDeclarations' => $functionDeclarations]],
         ];
 
+        if ($isAdminUser && !$isFunkiAgent) {
+            $responsePayload['pending_ag_blockades'] = $blockadeContext['items'];
+            $responsePayload['proactive_kick_prompt'] = $blockadeContext['proactive_kick_prompt'];
+        }
+
         if ($wantsDirect) {
             $responsePayload['direct_ws_url'] = $liveEndpoint['direct_ws_url'];
         }
@@ -829,6 +862,65 @@ class AIController extends Controller
             'Cache-Control' => 'no-store, no-cache, must-revalidate, private',
             'Pragma' => 'no-cache',
         ]);
+    }
+
+    /**
+     * Erzeugt den proaktiven und beharrlichen System-Kontext bei offenen Antigravity-Freigaben / Rückfragen.
+     *
+     * @return array{items: array<int, array<string, mixed>>, directive: string, proactive_kick_prompt: string|null}
+     */
+    private function buildPendingAgBlockadeContext(): array
+    {
+        try {
+            $inbox = app(\App\Services\System\AntigravityDirectInboxService::class);
+            $blockades = $inbox->getPendingBlockades();
+        } catch (\Throwable) {
+            $blockades = [];
+        }
+
+        if (empty($blockades)) {
+            return [
+                'items' => [],
+                'directive' => '',
+                'proactive_kick_prompt' => null,
+            ];
+        }
+
+        $count = count($blockades);
+        $lines = [
+            '=== AKTIVER FREIGABE- & RÜCKFRAGE-STAU BEI ANTIGRAVITY (HÖCHSTE PRIORITÄT) ===',
+            "ACHTUNG: Aktuell warten {$count} Aufgabe(n) bzw. Konzept(e) von Antigravity dringend auf eine Freigabe oder Information von Alina:",
+        ];
+
+        foreach ($blockades as $idx => $item) {
+            $num = $idx + 1;
+            $id = (string) ($item['id'] ?? '');
+            $channel = (string) ($item['channel'] ?? 'leitung');
+            $title = (string) ($item['title'] ?? '');
+            $question = (string) ($item['pending_question'] ?? $item['ag_response_summary'] ?? 'Wartet auf dein Go.');
+            $mins = (int) ($item['waiting_minutes'] ?? 0);
+            $lines[] = "{$num}. [ID: {$id} | Kanal: {$channel} | Wartet seit: {$mins} Min.] Titel: \"{$title}\" | Offene Rückfrage / Konzept-Status: \"{$question}\"";
+        }
+
+        $lines[] = '';
+        $lines[] = 'VERBINDLICHES PFLICHT-VERHALTEN FÜR DICH ALS FALCONE:';
+        $lines[] = '1. PROAKTIVER SOFORT-HINWEIS: Sprich diesen offenen Freigabe- oder Informations-Stau SOFORT zu Gesprächsbeginn von dir aus aktiv an! Nenne Alina kurz den Titel und die exakte offene Frage von Antigravity.';
+        $lines[] = '2. BEHARRLICH AUF ANTWORT BESTEHEN: Bestehe freundlich, aber beharrlich und unnachgiebig auf einer klaren Antwort, falls es irgendwo hakt! Wenn Alina ausweicht oder das Thema wechselt, ohne die Blockade zu klären, erinnere sie aktiv daran, dass Antigravity genau an dieser Stelle blockiert ist und auf ihre Entscheidung wartet, bis sie entweder ihr "Go" bzw. die fehlende Information gibt, "Verwerfen" sagt oder ausdrücklich "Später erinnern" anweist.';
+        $lines[] = '3. SOFORTIGE STAU-AUFLÖSUNG PER WERKZEUG: Sobald Alina antwortet oder ihr Go gibt, rufe SOFORT das Werkzeug `ag_resolve_pending_blockade` (mit `item_id`, `decision` = `approved` / `info_provided` / `dismissed` / `deferred` und `answer_text` = Alinas exakte Antwort) auf, damit ihre Entscheidung direkt in den richtigen Antigravity-Kanal zugestellt wird und die Blockade verschwindet!';
+        $lines[] = '=== ENDE FREIGABE-STAU-DIREKTIVE ===';
+
+        $first = $blockades[0];
+        $firstTitle = (string) ($first['title'] ?? '');
+        $firstQuestion = mb_substr((string) ($first['pending_question'] ?? 'Wartet auf deine Freigabe.'), 0, 260);
+        $kickPrompt = "SYSTEM-STARTIMPULS FÜR FALCONE: Begrüße Alina kurz und sprich SOFORT von dir aus die offene Antigravity-Blockade an "
+            . "({$count} wartende Freigabe(n), zuerst im Kanal '{$first['channel']}': \"{$firstTitle}\", Rückfrage: \"{$firstQuestion}\"). "
+            . "Bestehe freundlich und beharrlich auf einer klaren Entscheidung oder Antwort, damit du sie sofort per ag_resolve_pending_blockade an Antigravity übermitteln kannst.";
+
+        return [
+            'items' => $blockades,
+            'directive' => implode("\n", $lines),
+            'proactive_kick_prompt' => $kickPrompt,
+        ];
     }
 
     /**

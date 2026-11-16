@@ -7,6 +7,7 @@ use App\Models\Management\ManagementDayRoutineStep;
 use App\Models\Management\ManagementDayRoutineLog;
 use App\Models\System\SystemSetting;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Str;
 
 Route::prefix('funki/routine')->group(function () {
@@ -178,10 +179,41 @@ Route::prefix('funki/routine')->group(function () {
         ];
     };
 
-    Route::get('/smarthome-sync', function () use ($defaultSmartHomeConfig) {
+    $resolveTapoCredentials = function (array $primaryArray, ?string $fallbackKey = null): array {
+        $encEmail = $primaryArray['tapo_email_encrypted'] ?? null;
+        $encPass = $primaryArray['tapo_password_encrypted'] ?? null;
+        if ((!$encEmail || !$encPass) && $fallbackKey) {
+            $rawFallback = SystemSetting::where('key', $fallbackKey)->value('value');
+            $decFallback = is_string($rawFallback) ? json_decode($rawFallback, true) : null;
+            if (is_array($decFallback)) {
+                $encEmail = $encEmail ?: ($decFallback['tapo_email_encrypted'] ?? null);
+                $encPass = $encPass ?: ($decFallback['tapo_password_encrypted'] ?? null);
+            }
+        }
+        $email = null;
+        $pass = null;
+        if ($encEmail) {
+            try {
+                $email = Crypt::decryptString($encEmail);
+            } catch (\Throwable $e) {}
+        }
+        if ($encPass) {
+            try {
+                $pass = Crypt::decryptString($encPass);
+            } catch (\Throwable $e) {}
+        }
+        return [$email, $pass];
+    };
+
+    Route::get('/smarthome-sync', function () use ($defaultSmartHomeConfig, $resolveTapoCredentials) {
         $raw = SystemSetting::where('key', 'funki_smarthome_config')->value('value');
         $decoded = is_string($raw) ? json_decode($raw, true) : null;
         $cfg = is_array($decoded) ? array_merge($defaultSmartHomeConfig(), $decoded) : $defaultSmartHomeConfig();
+
+        [$tapoEmail, $tapoPassword] = $resolveTapoCredentials($cfg, 'funki_alarm_sync_package');
+        unset($cfg['tapo_email_encrypted'], $cfg['tapo_password_encrypted']);
+        $cfg['tapo_email'] = $tapoEmail;
+        $cfg['tapo_password'] = $tapoPassword;
 
         return response()->json([
             'success' => true,
@@ -189,7 +221,7 @@ Route::prefix('funki/routine')->group(function () {
         ]);
     });
 
-    Route::post('/smarthome-sync', function (Request $request) use ($defaultSmartHomeConfig, $defaultAlarmPackage) {
+    Route::post('/smarthome-sync', function (Request $request) use ($defaultSmartHomeConfig, $defaultAlarmPackage, $resolveTapoCredentials) {
         $raw = SystemSetting::where('key', 'funki_smarthome_config')->value('value');
         $existing = is_string($raw) ? json_decode($raw, true) : null;
         $cfg = is_array($existing) ? array_merge($defaultSmartHomeConfig(), $existing) : $defaultSmartHomeConfig();
@@ -290,6 +322,13 @@ Route::prefix('funki/routine')->group(function () {
             ]);
         }
 
+        if ($request->filled('tapo_email')) {
+            $cfg['tapo_email_encrypted'] = Crypt::encryptString(substr(trim((string) $request->input('tapo_email')), 0, 120));
+        }
+        if ($request->filled('tapo_password')) {
+            $cfg['tapo_password_encrypted'] = Crypt::encryptString((string) $request->input('tapo_password'));
+        }
+
         $cfg['updated_at'] = Carbon::now()->toIso8601String();
 
         SystemSetting::updateOrCreate(
@@ -297,15 +336,26 @@ Route::prefix('funki/routine')->group(function () {
             ['value' => json_encode($cfg, JSON_UNESCAPED_UNICODE)]
         );
 
-        // Keep funki_alarm_sync_package.smart_plugs synchronized automatically
+        // Keep funki_alarm_sync_package.smart_plugs and tapo credentials synchronized automatically
         $rawAlarm = SystemSetting::where('key', 'funki_alarm_sync_package')->value('value');
         $existingAlarm = is_string($rawAlarm) ? json_decode($rawAlarm, true) : null;
         $alarmPkg = is_array($existingAlarm) ? array_merge($defaultAlarmPackage(), $existingAlarm) : $defaultAlarmPackage();
         $alarmPkg['smart_plugs'] = $cfg['plugs'];
+        if (!empty($cfg['tapo_email_encrypted'])) {
+            $alarmPkg['tapo_email_encrypted'] = $cfg['tapo_email_encrypted'];
+        }
+        if (!empty($cfg['tapo_password_encrypted'])) {
+            $alarmPkg['tapo_password_encrypted'] = $cfg['tapo_password_encrypted'];
+        }
         SystemSetting::updateOrCreate(
             ['key' => 'funki_alarm_sync_package'],
             ['value' => json_encode($alarmPkg, JSON_UNESCAPED_UNICODE)]
         );
+
+        [$tapoEmail, $tapoPassword] = $resolveTapoCredentials($cfg, 'funki_alarm_sync_package');
+        unset($cfg['tapo_email_encrypted'], $cfg['tapo_password_encrypted']);
+        $cfg['tapo_email'] = $tapoEmail;
+        $cfg['tapo_password'] = $tapoPassword;
 
         return response()->json([
             'success' => true,
@@ -313,7 +363,7 @@ Route::prefix('funki/routine')->group(function () {
         ]);
     });
 
-    Route::get('/alarm-sync', function () use ($defaultAlarmPackage) {
+    Route::get('/alarm-sync', function () use ($defaultAlarmPackage, $resolveTapoCredentials) {
         $raw = SystemSetting::where('key', 'funki_alarm_sync_package')->value('value');
         $decoded = is_string($raw) ? json_decode($raw, true) : null;
         $pkg = is_array($decoded) ? array_merge($defaultAlarmPackage(), $decoded) : $defaultAlarmPackage();
@@ -346,6 +396,11 @@ Route::prefix('funki/routine')->group(function () {
         }
         $pkg['funkira_voice'] = 'Aoede';
         unset($pkg['gemini_tts_key']);
+
+        [$tapoEmail, $tapoPassword] = $resolveTapoCredentials($pkg, 'funki_smarthome_config');
+        unset($pkg['tapo_email_encrypted'], $pkg['tapo_password_encrypted']);
+        $pkg['tapo_email'] = $tapoEmail;
+        $pkg['tapo_password'] = $tapoPassword;
 
         return response()->json([
             'success' => true,
@@ -459,7 +514,7 @@ Route::prefix('funki/routine')->group(function () {
         ]);
     })->middleware('throttle:20,1');
 
-    Route::post('/alarm-sync', function (Request $request) use ($defaultAlarmPackage) {
+    Route::post('/alarm-sync', function (Request $request) use ($defaultAlarmPackage, $resolveTapoCredentials) {
         $raw = SystemSetting::where('key', 'funki_alarm_sync_package')->value('value');
         $existing = is_string($raw) ? json_decode($raw, true) : null;
         $pkg = is_array($existing) ? array_merge($defaultAlarmPackage(), $existing) : $defaultAlarmPackage();
@@ -574,6 +629,33 @@ Route::prefix('funki/routine')->group(function () {
         if ($request->filled('device_name')) {
             $pkg['device_name'] = (string) $request->input('device_name');
         }
+
+        $tapoUpdated = false;
+        if ($request->filled('tapo_email')) {
+            $pkg['tapo_email_encrypted'] = Crypt::encryptString(substr(trim((string) $request->input('tapo_email')), 0, 120));
+            $tapoUpdated = true;
+        }
+        if ($request->filled('tapo_password')) {
+            $pkg['tapo_password_encrypted'] = Crypt::encryptString((string) $request->input('tapo_password'));
+            $tapoUpdated = true;
+        }
+        if ($tapoUpdated) {
+            $rawSmart = SystemSetting::where('key', 'funki_smarthome_config')->value('value');
+            $existingSmart = is_string($rawSmart) ? json_decode($rawSmart, true) : null;
+            if (is_array($existingSmart)) {
+                if (!empty($pkg['tapo_email_encrypted'])) {
+                    $existingSmart['tapo_email_encrypted'] = $pkg['tapo_email_encrypted'];
+                }
+                if (!empty($pkg['tapo_password_encrypted'])) {
+                    $existingSmart['tapo_password_encrypted'] = $pkg['tapo_password_encrypted'];
+                }
+                SystemSetting::updateOrCreate(
+                    ['key' => 'funki_smarthome_config'],
+                    ['value' => json_encode($existingSmart, JSON_UNESCAPED_UNICODE)]
+                );
+            }
+        }
+
         $pkg['last_synced_at'] = Carbon::now()->toIso8601String();
 
         unset($pkg['gemini_tts_key']);
@@ -583,6 +665,11 @@ Route::prefix('funki/routine')->group(function () {
         );
 
         $pkg['funkira_voice'] = 'Aoede';
+
+        [$tapoEmail, $tapoPassword] = $resolveTapoCredentials($pkg, 'funki_smarthome_config');
+        unset($pkg['tapo_email_encrypted'], $pkg['tapo_password_encrypted']);
+        $pkg['tapo_email'] = $tapoEmail;
+        $pkg['tapo_password'] = $tapoPassword;
 
         return response()->json([
             'success' => true,

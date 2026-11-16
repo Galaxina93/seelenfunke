@@ -28,6 +28,17 @@ data class ChatResponse(
     val audio: String? // Base64 WAV data
 )
 
+data class PendingAgBlockadeDto(
+    val id: String = "",
+    val channel: String? = "leitung",
+    val title: String = "",
+    val execution_mode: String? = "concept",
+    val status: String? = "awaiting_go",
+    val pending_question: String? = null,
+    val ag_response_summary: String? = null,
+    val waiting_minutes: Int? = 0
+)
+
 data class LiveCredentialsResponse(
     val token: String?,
     val ws_url: String?,
@@ -36,7 +47,9 @@ data class LiveCredentialsResponse(
     val origin_url: String? = null,
     val system_instruction: String,
     val voice_name: String,
-    val tools: JsonElement?
+    val tools: JsonElement?,
+    val pending_ag_blockades: List<PendingAgBlockadeDto>? = emptyList(),
+    val proactive_kick_prompt: String? = null
 )
 
 data class AiAgent(

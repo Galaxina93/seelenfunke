@@ -136,6 +136,7 @@ class AIFunctionsRegistry
     {
         $adminOnlyPrefixes = [
             'admin_',
+            'ag_',
             'finance_',
             'stripe_',
             'mail_',
@@ -158,6 +159,8 @@ class AIFunctionsRegistry
             'system_get_error_sentinel',
             'system_search_web',
             'system_read_web_url',
+            'ag_list_pending_blockades',
+            'ag_resolve_pending_blockade',
             'system_write_to_file',
             'system_multi_replace_file',
             'system_run_command',
@@ -261,6 +264,47 @@ class AIFunctionsRegistry
                     'error',
                     ['tool' => $name, 'agent' => $rawAgentName]
                 );
+                return [
+                    'error' => true,
+                    'status' => 'error',
+                    'http_status' => 403,
+                    'message' => "ROLE VIOLATION: Nur Executive-Root-Agenten (Falcone & Funkira) dürfen '{$name}' ausführen (403)."
+                ];
+            }
+        }
+
+        // Harte Sicherheits- & Air-Gap-Sperre für Antigravity-Blockade-Werkzeuge (ag_*)
+        if (str_starts_with($name, 'ag_')) {
+            $rawAgentName = is_string($agent)
+                ? trim($agent)
+                : (is_object($agent) ? trim((string) ($agent->name ?? '')) : (is_array($agent) ? trim((string) ($agent['name'] ?? '')) : ''));
+
+            if (strcasecmp($rawAgentName, 'Funki') === 0 || !empty(self::$globalContext['__chat_id']) || !empty($args['__chat_id'])) {
+                \App\Services\System\SystemSecurityService::logEvent(
+                    'security:ai_funki_ag_airgap_blocked',
+                    'Funki Panzerglas-Isolation bei Antigravity-Tool aktiv',
+                    "Der externe Support-Agent 'Funki' bzw. öffentliche Kontext versuchte '{$name}' aufzurufen.",
+                    'error',
+                    ['tool' => $name]
+                );
+                return [
+                    'error' => true,
+                    'status' => 'error',
+                    'http_status' => 403,
+                    'message' => "SANDBOX VIOLATION: Der externe Support-Agent 'Funki' darf '{$name}' niemals ausführen."
+                ];
+            }
+
+            if (!AiAuthHelper::isAdmin()) {
+                return [
+                    'error' => true,
+                    'status' => 'error',
+                    'http_status' => 403,
+                    'message' => "ROLE VIOLATION: Das Werkzeug '{$name}' erfordert Administrator-Berechtigungen (403)."
+                ];
+            }
+
+            if ($agent !== null && !FunkiraSkillPoolService::isExecutiveRoot($agent)) {
                 return [
                     'error' => true,
                     'status' => 'error',
@@ -391,6 +435,8 @@ class AIFunctionsRegistry
                             'system_get_error_sentinel',
                             'system_search_web',
                             'system_read_web_url',
+                            'ag_list_pending_blockades',
+                            'ag_resolve_pending_blockade',
                             'master_get_next_best_actions',
                             FunkiraSkillPoolService::EQUIP_TOOL_NAME,
                         ]

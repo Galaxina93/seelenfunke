@@ -13,6 +13,8 @@ import de.meinseelenfunke.app.data.api.AgDirectCreateResponse
 import de.meinseelenfunke.app.data.api.AgDirectDeleteResponse
 import de.meinseelenfunke.app.data.api.AgDirectInboxItemDto
 import de.meinseelenfunke.app.data.api.AgDirectInboxListResponse
+import de.meinseelenfunke.app.data.api.AgDirectResolveRequest
+import de.meinseelenfunke.app.data.api.AgDirectResolveResponse
 import de.meinseelenfunke.app.di.ServiceLocator
 import kotlinx.coroutines.runBlocking
 import okhttp3.MediaType.Companion.toMediaType
@@ -57,6 +59,8 @@ class AgDirectInboxManagerTest {
         assertEquals("Gesendet", AgDirectInboxManager.mapStatus("pending").badgeLabel)
         assertEquals(AgDirectStatus.DELIVERED, AgDirectInboxManager.mapStatus("delivered"))
         assertEquals("Bei Falcone", AgDirectInboxManager.mapStatus("delivered").badgeLabel)
+        assertEquals(AgDirectStatus.AWAITING_GO, AgDirectInboxManager.mapStatus("awaiting_go"))
+        assertEquals("Go / Antwort fehlt", AgDirectInboxManager.mapStatus("awaiting_go").badgeLabel)
         assertEquals(AgDirectStatus.COMPLETED, AgDirectInboxManager.mapStatus("completed"))
         assertEquals("Erledigt ✓", AgDirectInboxManager.mapStatus("completed").badgeLabel)
     }
@@ -98,6 +102,10 @@ class AgDirectInboxManagerTest {
                 )
                 serverStore.add(0, created)
                 return AgDirectCreateResponse(success = true, data = created)
+            }
+
+            override suspend fun resolveBlockade(id: String, request: AgDirectResolveRequest): AgDirectResolveResponse {
+                return AgDirectResolveResponse(success = true, decision = request.decision)
             }
 
             override suspend fun deleteItem(id: String): AgDirectDeleteResponse {
@@ -327,6 +335,9 @@ class AgDirectInboxManagerTest {
                 )
             }
 
+            override suspend fun resolveBlockade(id: String, request: AgDirectResolveRequest): AgDirectResolveResponse =
+                AgDirectResolveResponse(success = true, decision = request.decision)
+
             override suspend fun deleteItem(id: String): AgDirectDeleteResponse = AgDirectDeleteResponse(true)
 
             override suspend fun getAttachment(id: String): ResponseBody =
@@ -367,5 +378,231 @@ class AgDirectInboxManagerTest {
 
         AgDirectInboxManager.syncAll(context, apiOverride = fakeApi)
         assertEquals("buchhaltung", AgDirectInboxManager.itemsFlow.value.first().channel)
+    }
+
+    @Test
+    fun `categorizes live tickets correctly into Go benötigt, in Arbeit and erledigt`() {
+        val serverItems = listOf(
+            AgDirectInboxItemDto(
+                id = "ag_1",
+                title = "Konzept fuer Verpackungsrabatt",
+                body = "Rabattstaffel berechnen",
+                execution_mode = "concept",
+                status = "delivered",
+                channel = "shop"
+            ),
+            AgDirectInboxItemDto(
+                id = "ag_2",
+                title = "Android OTA Rollout Build",
+                body = "Version 1.0.4 veroeffentlichen",
+                execution_mode = "direct",
+                status = "delivered",
+                channel = "android"
+            ),
+            AgDirectInboxItemDto(
+                id = "ag_3",
+                title = "Buchhaltung Belegprüfung",
+                body = "Westpack Rechnung verbucht",
+                execution_mode = "direct",
+                status = "completed",
+                ag_response_summary = "Beleg mit 149 Euro erfolgreich gebucht",
+                channel = "buchhaltung"
+            )
+        )
+
+        val displayItems = AgDirectInboxManager.mergeOutboxAndServerItems(emptyList(), serverItems)
+        val goItems = displayItems.filter { it.status != AgDirectStatus.COMPLETED && it.executionMode == "concept" }
+        val inProgressItems = displayItems.filter { it.status != AgDirectStatus.COMPLETED && it.executionMode != "concept" }
+        val completedItems = displayItems.filter { it.status == AgDirectStatus.COMPLETED }
+
+        assertEquals(1, goItems.size)
+        assertEquals("Konzept fuer Verpackungsrabatt", goItems[0].title)
+        assertEquals("concept", goItems[0].executionMode)
+
+        assertEquals(1, inProgressItems.size)
+        assertEquals("Android OTA Rollout Build", inProgressItems[0].title)
+        assertEquals("direct", inProgressItems[0].executionMode)
+        assertEquals(AgDirectStatus.DELIVERED, inProgressItems[0].status)
+
+        assertEquals(1, completedItems.size)
+        assertEquals("Buchhaltung Belegprüfung", completedItems[0].title)
+        assertEquals(AgDirectStatus.COMPLETED, completedItems[0].status)
+        assertEquals("Beleg mit 149 Euro erfolgreich gebucht", completedItems[0].agResponseSummary)
+    }
+
+    @Test
+    fun `voice direct execution preference persists in prefs and updates flow reactively`() {
+        // Defaults to true as Alina requested
+        assertTrue(AgDirectInboxManager.isVoiceDirectExecutionEnabled(context))
+        assertTrue(AgDirectInboxManager.voiceDirectExecutionFlow.value)
+
+        // Disable voice direct
+        AgDirectInboxManager.setVoiceDirectExecutionEnabled(context, false)
+        assertFalse(AgDirectInboxManager.isVoiceDirectExecutionEnabled(context))
+        assertFalse(AgDirectInboxManager.voiceDirectExecutionFlow.value)
+
+        // Verify SharedPreferences persistence
+        val prefs = context.getSharedPreferences(AgDirectInboxManager.PREFS_NAME, Context.MODE_PRIVATE)
+        assertFalse(prefs.getBoolean(AgDirectInboxManager.KEY_VOICE_FORCE_DIRECT, true))
+
+        // Re-enable
+        AgDirectInboxManager.setVoiceDirectExecutionEnabled(context, true)
+        assertTrue(AgDirectInboxManager.isVoiceDirectExecutionEnabled(context))
+        assertTrue(AgDirectInboxManager.voiceDirectExecutionFlow.value)
+        assertTrue(prefs.getBoolean(AgDirectInboxManager.KEY_VOICE_FORCE_DIRECT, false))
+    }
+
+    @Test
+    fun `needsGo condition is true only for concept items that are not completed`() {
+        fun checkNeedsGo(mode: String, status: AgDirectStatus): Boolean {
+            val item = AgDirectDisplayItem(
+                id = "test_1",
+                clientUuid = "uuid-1",
+                title = "Test",
+                body = "",
+                checklist = emptyList(),
+                executionMode = mode,
+                status = status,
+                isLocalOutbox = false,
+                hasAttachment = false,
+                attachmentName = null,
+                attachmentMime = null,
+                localAttachmentBase64 = null,
+                agResponseSummary = null,
+                createdAt = null,
+                deliveredAt = null,
+                completedAt = null
+            )
+            return item.executionMode == "concept" && item.status != AgDirectStatus.COMPLETED
+        }
+
+        assertTrue("Concept item in QUEUED state needs go", checkNeedsGo("concept", AgDirectStatus.QUEUED))
+        assertTrue("Concept item in PENDING state needs go", checkNeedsGo("concept", AgDirectStatus.PENDING))
+        assertTrue("Concept item in DELIVERED state needs go", checkNeedsGo("concept", AgDirectStatus.DELIVERED))
+        assertFalse("Concept item in COMPLETED state must not require go", checkNeedsGo("concept", AgDirectStatus.COMPLETED))
+        assertFalse("Direct item in DELIVERED state must not require go", checkNeedsGo("direct", AgDirectStatus.DELIVERED))
+        assertFalse("Direct item in COMPLETED state must not require go", checkNeedsGo("direct", AgDirectStatus.COMPLETED))
+    }
+
+    @Test
+    fun `exposes pendingBlockadesFlow for AWAITING_GO and resolves blockade updating itemsFlow and counts immediately`() = runBlocking {
+        val resolvedCalls = mutableListOf<Pair<String, AgDirectResolveRequest>>()
+        val serverStore = mutableListOf(
+            AgDirectInboxItemDto(
+                id = "ag_20261116_191644_b4360f58",
+                title = "Reine Digital-Domain Instant-Shop",
+                body = "Konzept ausgearbeitet",
+                execution_mode = "concept",
+                channel = "shop",
+                status = "awaiting_go",
+                ag_response_summary = "Mit digital.mein-seelenfunke.de starten oder eigene Domain?",
+                pending_question = "Mit digital.mein-seelenfunke.de starten oder eigene Domain?",
+                awaiting_go_at = "2026-11-16T19:20:00+01:00"
+            ),
+            AgDirectInboxItemDto(
+                id = "ag_20261116_195000_direct99",
+                title = "Normale Hintergrundaufgabe",
+                body = "Laeuft bereits",
+                execution_mode = "direct",
+                channel = "android",
+                status = "delivered"
+            )
+        )
+
+        val fakeApi = object : AgDirectApi {
+            override suspend fun listInbox(limit: Int): AgDirectInboxListResponse {
+                return AgDirectInboxListResponse(
+                    success = true,
+                    counts = AgDirectCountsDto(
+                        pending = serverStore.count { it.status == "pending" },
+                        delivered = serverStore.count { it.status == "delivered" },
+                        awaiting_go = serverStore.count { it.status == "awaiting_go" },
+                        open = serverStore.count { it.status != "completed" },
+                        completed = serverStore.count { it.status == "completed" }
+                    ),
+                    items = serverStore.toList()
+                )
+            }
+
+            override suspend fun createItem(request: AgDirectCreateRequest): AgDirectCreateResponse {
+                return AgDirectCreateResponse(success = true)
+            }
+
+            override suspend fun resolveBlockade(id: String, request: AgDirectResolveRequest): AgDirectResolveResponse {
+                resolvedCalls.add(id to request)
+                val idx = serverStore.indexOfFirst { it.id == id }
+                val orig = serverStore[idx]
+                val resolvedDto = orig.copy(
+                    status = "completed",
+                    pending_question = null,
+                    completed_at = "2026-11-16T20:30:00+01:00",
+                    ag_response_summary = "${orig.ag_response_summary}\n[Freigegeben: ${request.answer_text}]"
+                )
+                serverStore[idx] = resolvedDto
+                val followupDto = AgDirectInboxItemDto(
+                    id = "ag_20261116_203000_follow01",
+                    title = "GO & Antwort zu: ${orig.title}",
+                    body = request.answer_text,
+                    execution_mode = "direct",
+                    channel = orig.channel,
+                    status = "pending",
+                    created_at = "2026-11-16T20:30:00+01:00"
+                )
+                serverStore.add(0, followupDto)
+                return AgDirectResolveResponse(
+                    success = true,
+                    decision = request.decision,
+                    resolved_item = resolvedDto,
+                    followup_item = followupDto,
+                    counts = AgDirectCountsDto(
+                        pending = 1,
+                        delivered = 1,
+                        awaiting_go = 0,
+                        open = 2,
+                        completed = 1
+                    )
+                )
+            }
+
+            override suspend fun deleteItem(id: String): AgDirectDeleteResponse = AgDirectDeleteResponse(true)
+
+            override suspend fun getAttachment(id: String): ResponseBody =
+                ByteArray(0).toResponseBody("image/jpeg".toMediaType())
+        }
+
+        AgDirectInboxManager.syncAll(context, apiOverride = fakeApi)
+
+        val initialBlockades = AgDirectInboxManager.pendingBlockadesFlow.value
+        assertEquals(1, initialBlockades.size)
+        assertEquals("ag_20261116_191644_b4360f58", initialBlockades[0].id)
+        assertEquals(AgDirectStatus.AWAITING_GO, initialBlockades[0].status)
+        assertEquals(
+            "Mit digital.mein-seelenfunke.de starten oder eigene Domain?",
+            initialBlockades[0].pendingQuestion
+        )
+        assertEquals(2, AgDirectInboxManager.openCountFlow.value)
+
+        // Verify second-0 Gemini Live kick packet structure
+        val kickPacket = FalconClientTools.buildClientContentKickPacket("SYSTEM-IMPULS: Offene Freigabe ansprechen")
+        assertTrue(kickPacket.has("clientContent"))
+        assertTrue(kickPacket.getAsJsonObject("clientContent").get("turnComplete").asBoolean)
+
+        val ok = AgDirectInboxManager.resolveBlockade(
+            context = context,
+            itemId = "ag_20261116_191644_b4360f58",
+            decision = "info_provided",
+            answerText = "Starte mit digital.mein-seelenfunke.de",
+            apiOverride = fakeApi
+        )
+        assertTrue(ok)
+        assertEquals(1, resolvedCalls.size)
+        assertEquals("info_provided", resolvedCalls[0].second.decision)
+        assertEquals("Starte mit digital.mein-seelenfunke.de", resolvedCalls[0].second.answer_text)
+
+        // pendingBlockadesFlow must immediately clear to 0 and followup item must appear in itemsFlow
+        assertEquals(0, AgDirectInboxManager.pendingBlockadesFlow.value.size)
+        val updatedItems = AgDirectInboxManager.itemsFlow.value
+        assertTrue(updatedItems.any { it.id == "ag_20261116_203000_follow01" && it.executionMode == "direct" })
+        assertTrue(updatedItems.any { it.id == "ag_20261116_191644_b4360f58" && it.status == AgDirectStatus.COMPLETED })
     }
 }

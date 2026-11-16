@@ -126,7 +126,11 @@ class ChatViewModel : ViewModel() {
             append(content)
             if (file != null) {
                 if (content.isNotBlank()) append("\n")
-                append("📎 Anhang: ${file.name}")
+                if (file.mimeType?.startsWith("image/") == true) {
+                    append("🖼️ Bild: ${file.name}")
+                } else {
+                    append("📎 Anhang: ${file.name}")
+                }
             }
         }
 

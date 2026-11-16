@@ -20,6 +20,7 @@ import android.hardware.camera2.CaptureRequest
 import android.media.ExifInterface
 import android.media.Image
 import android.media.ImageReader
+import android.net.Uri
 import android.os.Handler
 import android.os.HandlerThread
 import android.util.Size
@@ -300,6 +301,36 @@ object FalconCameraController {
             null
         } finally {
             _isCapturingPhoto.value = false
+        }
+    }
+
+    suspend fun importPhotoFromUri(
+        context: Context,
+        uri: Uri,
+        sessionId: String? = null
+    ): FalconCapturedPhoto? = withContext(Dispatchers.IO) {
+        try {
+            val appCtx = context.applicationContext
+            val prepared = AgDirectInboxManager.prepareAttachmentFromUri(appCtx, uri) ?: return@withContext null
+            val photo = FalconCapturedPhoto(
+                base64Jpeg = prepared.base64Jpeg,
+                mimeType = prepared.mimeType,
+                fileName = prepared.fileName,
+                previewBitmap = prepared.previewBitmap,
+                width = prepared.width,
+                height = prepared.height,
+                capturedAtMs = System.currentTimeMillis(),
+                sessionId = sessionId,
+                attachedToInbox = false
+            )
+            _lastCapturedPhoto.value = photo
+            try {
+                SoundManager.playSound(R.raw.click_file_in_project_brain)
+            } catch (_: Throwable) {
+            }
+            photo
+        } catch (_: Throwable) {
+            null
         }
     }
 

@@ -40,6 +40,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Image
@@ -57,6 +58,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -116,6 +119,7 @@ private sealed class LightboxTarget {
 fun AgDirectInboxSheet(
     onDismiss: () -> Unit,
     initialAttachment: PreparedAgAttachment? = null,
+    initialExpandedItemId: String? = null,
     onAttachmentSubmitted: () -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -125,6 +129,7 @@ fun AgDirectInboxSheet(
 
     val items by AgDirectInboxManager.itemsFlow.collectAsState()
     val isSyncing by AgDirectInboxManager.isSyncingFlow.collectAsState()
+    val voiceDirectEnabled by AgDirectInboxManager.voiceDirectExecutionFlow.collectAsState()
 
     var messageText by remember { mutableStateOf("") }
     val checklistItems = remember { mutableStateListOf<String>() }
@@ -132,7 +137,7 @@ fun AgDirectInboxSheet(
     var selectedChannel by remember { mutableStateOf(AgDirectChannel.LEITUNG.code) }
     var selectedAttachment by remember { mutableStateOf(initialAttachment) }
     var isPreparingImage by remember { mutableStateOf(false) }
-    var expandedItemId by remember { mutableStateOf<String?>(null) }
+    var expandedItemId by remember(initialExpandedItemId) { mutableStateOf(initialExpandedItemId) }
     var lightboxTarget by remember { mutableStateOf<LightboxTarget?>(null) }
 
     LaunchedEffect(Unit) {
@@ -668,6 +673,38 @@ fun AgDirectInboxSheet(
 
             HorizontalDivider(color = AppTheme.colors.cardBorder, thickness = 1.dp)
 
+            // Sprachbefehle Direct-Go Switch (Clean Design)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 2.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Sprachbefehle direkt als Go senden",
+                    fontSize = 12.5.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = AppTheme.colors.textPrimary
+                )
+                Switch(
+                    checked = voiceDirectEnabled,
+                    onCheckedChange = { checked ->
+                        AgDirectInboxManager.setVoiceDirectExecutionEnabled(context, checked)
+                    },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = SpaceBlack,
+                        checkedTrackColor = Gold,
+                        checkedBorderColor = Gold,
+                        uncheckedThumbColor = AppTheme.colors.textMuted,
+                        uncheckedTrackColor = AppTheme.colors.cardBackground,
+                        uncheckedBorderColor = AppTheme.colors.cardBorder
+                    )
+                )
+            }
+
+            HorizontalDivider(color = AppTheme.colors.cardBorder, thickness = 1.dp)
+
             // Verlauf
             Text(
                 text = "Verlauf",
@@ -708,6 +745,38 @@ fun AgDirectInboxSheet(
                                     if (ok && expandedItemId == item.id) {
                                         expandedItemId = null
                                     }
+                                }
+                            },
+                            onGrantGo = {
+                                scope.launch {
+                                    val ok = AgDirectInboxManager.resolveBlockade(
+                                        context = context,
+                                        itemId = item.id,
+                                        decision = "approved",
+                                        answerText = "Go erteilt"
+                                    )
+                                    Toast.makeText(
+                                        context,
+                                        if (ok) "✓ Go an Falcone übermittelt!" else "Offline als Direktauftrag gespeichert",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                    AgDirectInboxManager.refreshFromServer(context)
+                                }
+                            },
+                            onReplyAndApprove = { replyText ->
+                                scope.launch {
+                                    val ok = AgDirectInboxManager.resolveBlockade(
+                                        context = context,
+                                        itemId = item.id,
+                                        decision = "info_provided",
+                                        answerText = replyText
+                                    )
+                                    Toast.makeText(
+                                        context,
+                                        if (ok) "✓ Antwort & Freigabe übermittelt!" else "Offline als Antwort gespeichert",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                    AgDirectInboxManager.refreshFromServer(context)
                                 }
                             }
                         )
@@ -787,8 +856,16 @@ private fun AgHistoryItemCard(
     onToggleExpand: () -> Unit,
     onOpenAttachment: () -> Unit,
     onRetry: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onGrantGo: () -> Unit,
+    onReplyAndApprove: (String) -> Unit = {}
 ) {
+    val needsGo = item.status == AgDirectStatus.AWAITING_GO ||
+        (item.executionMode == "concept" && item.status != AgDirectStatus.COMPLETED)
+    var quickReplyText by remember(item.id) { mutableStateOf("") }
+    val questionOrSummary = item.pendingQuestion?.takeIf { it.isNotBlank() }
+        ?: item.agResponseSummary?.takeIf { it.isNotBlank() }
+
     val (badgeBg, badgeBorder, badgeText) = when (item.status) {
         AgDirectStatus.QUEUED -> Triple(
             Copper.copy(alpha = 0.15f),
@@ -803,6 +880,11 @@ private fun AgHistoryItemCard(
         AgDirectStatus.DELIVERED -> Triple(
             Gold.copy(alpha = 0.16f),
             Gold.copy(alpha = 0.55f),
+            Gold
+        )
+        AgDirectStatus.AWAITING_GO -> Triple(
+            Gold.copy(alpha = 0.24f),
+            Gold,
             Gold
         )
         AgDirectStatus.COMPLETED -> Triple(
@@ -820,7 +902,11 @@ private fun AgHistoryItemCard(
         colors = CardDefaults.cardColors(containerColor = AppTheme.colors.glassSurface),
         border = BorderStroke(
             width = 1.dp,
-            color = if (expanded) Gold.copy(alpha = 0.55f) else AppTheme.colors.cardBorder
+            color = when {
+                expanded -> Gold.copy(alpha = 0.75f)
+                needsGo -> Gold.copy(alpha = 0.65f)
+                else -> AppTheme.colors.cardBorder
+            }
         ),
         shape = RoundedCornerShape(12.dp)
     ) {
@@ -837,20 +923,59 @@ private fun AgHistoryItemCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(AppTheme.colors.cardBackground)
-                        .border(1.dp, Gold.copy(alpha = 0.42f), RoundedCornerShape(6.dp))
-                        .padding(horizontal = 7.dp, vertical = 2.dp)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Text(
-                        text = channelBadgeLabel,
-                        fontSize = 10.5.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = AppTheme.colors.textPrimary,
-                        maxLines = 1
-                    )
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(AppTheme.colors.cardBackground)
+                            .border(1.dp, Gold.copy(alpha = 0.42f), RoundedCornerShape(6.dp))
+                            .padding(horizontal = 7.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = channelBadgeLabel,
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = AppTheme.colors.textPrimary,
+                            maxLines = 1
+                        )
+                    }
+
+                    if (needsGo) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(Gold.copy(alpha = 0.16f))
+                                .border(1.dp, Gold.copy(alpha = 0.65f), RoundedCornerShape(6.dp))
+                                .padding(horizontal = 7.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = "⚡ Go benötigt",
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Gold,
+                                maxLines = 1
+                            )
+                        }
+                    } else if (item.executionMode == "concept" && item.status == AgDirectStatus.COMPLETED) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(AppTheme.colors.cardBackground)
+                                .border(1.dp, AppTheme.colors.cardBorder, RoundedCornerShape(6.dp))
+                                .padding(horizontal = 7.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = "Konzept",
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.Normal,
+                                color = AppTheme.colors.textMuted,
+                                maxLines = 1
+                            )
+                        }
+                    }
                 }
 
                 Box(
@@ -889,6 +1014,34 @@ private fun AgHistoryItemCard(
                         contentDescription = "Bild vorhanden",
                         tint = Gold,
                         modifier = Modifier.size(14.dp)
+                    )
+                }
+            }
+
+            if (needsGo && !expanded) {
+                Button(
+                    onClick = onGrantGo,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(34.dp),
+                    shape = RoundedCornerShape(8.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Gold,
+                        contentColor = SpaceBlack
+                    ),
+                    contentPadding = PaddingValues(horizontal = 12.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Bolt,
+                        contentDescription = null,
+                        modifier = Modifier.size(15.dp),
+                        tint = SpaceBlack
+                    )
+                    Spacer(modifier = Modifier.width(5.dp))
+                    Text(
+                        text = "⚡ Go erteilen",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
                     )
                 }
             }
@@ -951,7 +1104,7 @@ private fun AgHistoryItemCard(
                         }
                     }
 
-                    if (!item.agResponseSummary.isNullOrBlank()) {
+                    if (!questionOrSummary.isNullOrBlank()) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -961,11 +1114,93 @@ private fun AgHistoryItemCard(
                                 .padding(10.dp)
                         ) {
                             Text(
-                                text = item.agResponseSummary,
+                                text = questionOrSummary,
                                 fontSize = 12.sp,
                                 color = AppTheme.colors.textPrimary,
                                 lineHeight = 16.sp
                             )
+                        }
+                    }
+
+                    if (needsGo) {
+                        OutlinedTextField(
+                            value = quickReplyText,
+                            onValueChange = { quickReplyText = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = {
+                                Text(
+                                    text = "Antwort / Entscheidung eingeben",
+                                    fontSize = 12.5.sp,
+                                    color = AppTheme.colors.textMuted
+                                )
+                            },
+                            minLines = 1,
+                            maxLines = 3,
+                            shape = RoundedCornerShape(10.dp),
+                            textStyle = TextStyle(
+                                fontSize = 13.sp,
+                                color = AppTheme.colors.textPrimary
+                            ),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Gold,
+                                unfocusedBorderColor = AppTheme.colors.inputBorder,
+                                cursorColor = Gold,
+                                focusedContainerColor = AppTheme.colors.inputBackground,
+                                unfocusedContainerColor = AppTheme.colors.inputBackground
+                            )
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Button(
+                                onClick = onGrantGo,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(40.dp),
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Gold,
+                                    contentColor = SpaceBlack
+                                ),
+                                contentPadding = PaddingValues(horizontal = 10.dp)
+                            ) {
+                                Text(
+                                    text = "⚡ Go",
+                                    fontSize = 12.5.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            Button(
+                                onClick = {
+                                    val answer = quickReplyText.trim()
+                                    if (answer.isNotEmpty()) {
+                                        quickReplyText = ""
+                                        onReplyAndApprove(answer)
+                                    } else {
+                                        onGrantGo()
+                                    }
+                                },
+                                modifier = Modifier
+                                    .weight(1.45f)
+                                    .height(40.dp),
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Emerald500,
+                                    contentColor = Color.White
+                                ),
+                                contentPadding = PaddingValues(horizontal = 10.dp)
+                            ) {
+                                Text(
+                                    text = "✓ Absenden & Freigeben",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
                         }
                     }
 
@@ -1050,18 +1285,21 @@ private fun AgHistoryItemCard(
 fun AgImageLightboxDialog(
     bitmap: ImageBitmap,
     title: String,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onSendToAntigravity: (() -> Unit)? = null
 ) {
     AgImageLightboxDialog(
         target = LightboxTarget.DirectBitmap(bitmap = bitmap, title = title),
-        onDismiss = onDismiss
+        onDismiss = onDismiss,
+        onSendToAntigravity = onSendToAntigravity
     )
 }
 
 @Composable
 private fun AgImageLightboxDialog(
     target: LightboxTarget,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onSendToAntigravity: (() -> Unit)? = null
 ) {
     var bitmap by remember(target) {
         mutableStateOf(
@@ -1201,11 +1439,47 @@ private fun AgImageLightboxDialog(
                     )
                 }
             }
+
+            if (onSendToAntigravity != null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.BottomCenter)
+                        .padding(horizontal = 20.dp, vertical = 20.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(Gold)
+                            .clickable {
+                                onDismiss()
+                                onSendToAntigravity()
+                            }
+                            .padding(horizontal = 22.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Bolt,
+                            contentDescription = null,
+                            tint = SpaceBlack,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Text(
+                            text = "⚡ An Antigravity senden",
+                            color = SpaceBlack,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
         }
     }
 }
 
-private fun formatAgTimestamp(rawIso: String?): String? {
+internal fun formatAgTimestamp(rawIso: String?): String? {
     if (rawIso.isNullOrBlank()) return null
     return try {
         val parsed = OffsetDateTime.parse(rawIso)

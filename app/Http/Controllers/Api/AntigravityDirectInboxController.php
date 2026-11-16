@@ -32,10 +32,12 @@ class AntigravityDirectInboxController extends Controller
 
         $limit = isset($validated['limit']) ? (int) $validated['limit'] : 50;
         $snapshot = $this->inboxService->listInbox($limit);
+        $blockades = $this->inboxService->getPendingBlockades();
 
         return $this->withSecurityHeaders(response()->json([
             'success' => true,
             'counts' => $snapshot['counts'],
+            'pending_blockades' => $blockades,
             'items' => $snapshot['items'],
         ], 200));
     }
@@ -114,8 +116,57 @@ class AntigravityDirectInboxController extends Controller
         return $this->withSecurityHeaders(response()->json([
             'success' => true,
             'idempotent_replay' => $isReplay,
+            'auto_resolved_ids' => $result['auto_resolved_ids'] ?? [],
             'data' => $result['item'],
         ], $statusCode));
+    }
+
+    /**
+     * POST /api/system/ag-direct-inbox/{id}/resolve
+     * POST /api/funkenwerk/ag-inbox/{id}/resolve
+     */
+    public function resolve(Request $request, string $id): JsonResponse
+    {
+        $admin = $this->authorizeAdmin($request);
+
+        $validated = $request->validate([
+            'decision' => 'nullable|string|max:32',
+            'answer' => 'nullable|string|max:4000',
+            'answer_text' => 'nullable|string|max:4000',
+        ]);
+
+        $decision = trim((string) ($validated['decision'] ?? 'approved')) ?: 'approved';
+        $answer = trim((string) ($validated['answer_text'] ?? $validated['answer'] ?? ''));
+
+        try {
+            $resolution = $this->inboxService->resolveBlockadeItem(
+                id: $id,
+                decision: $decision,
+                answerText: $answer,
+                actor: $admin->first_name ?: 'Alina'
+            );
+        } catch (InvalidArgumentException $e) {
+            throw ValidationException::withMessages([
+                'decision' => [$e->getMessage()],
+            ]);
+        }
+
+        if ($resolution === null) {
+            return $this->withSecurityHeaders(response()->json([
+                'success' => false,
+                'message' => 'Blockade-Eintrag nicht gefunden.',
+            ], 404));
+        }
+
+        $snapshot = $this->inboxService->listInbox(1);
+
+        return $this->withSecurityHeaders(response()->json([
+            'success' => true,
+            'decision' => $resolution['decision'],
+            'resolved_item' => $resolution['resolved_item'],
+            'followup_item' => $resolution['followup_item'],
+            'counts' => $snapshot['counts'],
+        ], 200));
     }
 
     /**

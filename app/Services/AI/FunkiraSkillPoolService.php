@@ -51,6 +51,8 @@ class FunkiraSkillPoolService
             'system_get_error_sentinel',
             'system_search_web',
             'system_read_web_url',
+            'ag_list_pending_blockades',
+            'ag_resolve_pending_blockade',
             'system_prepare_antigravity_handoff',
             'system_open_nav_item',
             'system_open_zentrum',

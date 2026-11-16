@@ -115,6 +115,34 @@ class FunkenwerkFilesRoutinePrinterFinanceApiTest extends TestCase
         $this->assertStringNotContainsString('GeheimesKameraPasswort99', $storedRaw);
         $this->assertStringNotContainsString('adminUser', $storedRaw);
 
+        // 1b. Tapo credentials encryption in smarthome-sync & alarm-sync
+        $this->withHeaders($headers)
+            ->postJson('/api/funki/routine/smarthome-sync', [
+                'tapo_email' => 'tapo-test@mein-seelenfunke.de',
+                'tapo_password' => 'StrengGeheimesTapoPasswort!2026',
+            ])
+            ->assertStatus(200)
+            ->assertJsonPath('data.tapo_email', 'tapo-test@mein-seelenfunke.de')
+            ->assertJsonPath('data.tapo_password', 'StrengGeheimesTapoPasswort!2026');
+
+        $storedSmartRaw = (string) SystemSetting::where('key', 'funki_smarthome_config')->value('value');
+        $this->assertStringNotContainsString('StrengGeheimesTapoPasswort!2026', $storedSmartRaw);
+        $this->assertStringContainsString('tapo_password_encrypted', $storedSmartRaw);
+
+        // GET smarthome-sync delivers decrypted credentials
+        $this->withHeaders($headers)
+            ->getJson('/api/funki/routine/smarthome-sync')
+            ->assertStatus(200)
+            ->assertJsonPath('data.tapo_email', 'tapo-test@mein-seelenfunke.de')
+            ->assertJsonPath('data.tapo_password', 'StrengGeheimesTapoPasswort!2026');
+
+        // GET alarm-sync also receives synchronized Tapo credentials
+        $this->withHeaders($headers)
+            ->getJson('/api/funki/routine/alarm-sync')
+            ->assertStatus(200)
+            ->assertJsonPath('data.tapo_email', 'tapo-test@mein-seelenfunke.de')
+            ->assertJsonPath('data.tapo_password', 'StrengGeheimesTapoPasswort!2026');
+
         // 2. morning-briefing-tts rejects GET (405) and rejects text > 1200 chars (422)
         $this->withHeaders($headers)
             ->getJson('/api/funki/routine/morning-briefing-tts')

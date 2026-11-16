@@ -24,19 +24,43 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ExitToApp
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.HourglassEmpty
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.PushPin
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
 import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
 import android.util.Base64
+import android.widget.Toast
+import de.meinseelenfunke.app.ui.components.formatAgTimestamp
+import de.meinseelenfunke.app.util.AgDirectDisplayItem
+import de.meinseelenfunke.app.util.AgDirectInboxManager
+import de.meinseelenfunke.app.util.AgDirectStatus
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import java.io.InputStream
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -52,6 +76,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -101,6 +126,15 @@ fun ChatScreen(
 
     val activeAgentName = selectedAgent?.name ?: "Funkira"
     val activeAgentColor = parseAgentColor(selectedAgent?.color)
+
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    val agItems by AgDirectInboxManager.itemsFlow.collectAsState()
+
+    LaunchedEffect(Unit) {
+        AgDirectInboxManager.hydrateLocalState(context)
+        AgDirectInboxManager.refreshAsync(context)
+    }
 
     // Auto-scroll to the bottom when new messages arrive
     LaunchedEffect(messages.size) {
@@ -200,6 +234,43 @@ fun ChatScreen(
                 }
             }
 
+            // Echtzeit-Statusleiste / Karte für Antigravity-Tickets
+            AgLiveTicketStatusBar(
+                items = agItems,
+                onGrantGo = { item ->
+                    coroutineScope.launch {
+                        val ok = AgDirectInboxManager.resolveBlockade(
+                            context = context,
+                            itemId = item.id,
+                            decision = "approved",
+                            answerText = "Go erteilt"
+                        )
+                        Toast.makeText(
+                            context,
+                            if (ok) "✓ Go an Falcone übermittelt!" else "Offline als Direktauftrag gespeichert",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        AgDirectInboxManager.refreshFromServer(context)
+                    }
+                },
+                onReplyAndApprove = { item, answer ->
+                    coroutineScope.launch {
+                        val ok = AgDirectInboxManager.resolveBlockade(
+                            context = context,
+                            itemId = item.id,
+                            decision = "info_provided",
+                            answerText = answer
+                        )
+                        Toast.makeText(
+                            context,
+                            if (ok) "✓ Antwort & Freigabe übermittelt!" else "Offline als Antwort gespeichert",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        AgDirectInboxManager.refreshFromServer(context)
+                    }
+                }
+            )
+
             // Chat message list
             LazyColumn(
                 state = listState,
@@ -248,6 +319,7 @@ fun ChatScreen(
             // Attachment Preview Banner
             val selectedFile by viewModel.selectedFile.collectAsState()
             selectedFile?.let { file ->
+                val isImage = file.mimeType?.startsWith("image/") == true
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -263,8 +335,8 @@ fun ChatScreen(
                         modifier = Modifier.weight(1f)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.PushPin,
-                            contentDescription = "Datei angehängt",
+                            imageVector = if (isImage) Icons.Default.Image else Icons.Default.PushPin,
+                            contentDescription = if (isImage) "Bild angehängt" else "Datei angehängt",
                             tint = activeAgentColor,
                             modifier = Modifier.size(20.dp)
                         )
@@ -317,13 +389,32 @@ fun ChatScreen(
                     }
                 }
 
+                val imagePickerLauncher = rememberLauncherForActivityResult(
+                    contract = ActivityResultContracts.GetContent()
+                ) { uri ->
+                    uri?.let {
+                        val file = getSelectedFileFromUri(context, it)
+                        viewModel.selectFile(file)
+                    }
+                }
+
+                IconButton(
+                    onClick = { imagePickerLauncher.launch("image/*") }
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Image,
+                        contentDescription = "Bild anhängen",
+                        tint = activeAgentColor
+                    )
+                }
+
                 IconButton(
                     onClick = { filePickerLauncher.launch("*/*") }
                 ) {
                     Icon(
                         imageVector = Icons.Default.PushPin,
                         contentDescription = "Datei anhängen",
-                        tint = activeAgentColor
+                        tint = activeAgentColor.copy(alpha = 0.85f)
                     )
                 }
 
@@ -362,6 +453,474 @@ fun ChatScreen(
                         contentDescription = "Senden",
                         tint = SpaceBlack
                     )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun AgLiveTicketStatusBar(
+    items: List<AgDirectDisplayItem>,
+    onGrantGo: (AgDirectDisplayItem) -> Unit,
+    onReplyAndApprove: (AgDirectDisplayItem, String) -> Unit = { item, _ -> onGrantGo(item) },
+    modifier: Modifier = Modifier
+) {
+    val goItems = remember(items) {
+        items.filter {
+            it.status == AgDirectStatus.AWAITING_GO ||
+                (it.status != AgDirectStatus.COMPLETED && it.executionMode == "concept")
+        }
+    }
+    val inProgressItems = remember(items) {
+        items.filter {
+            it.status != AgDirectStatus.COMPLETED &&
+                it.status != AgDirectStatus.AWAITING_GO &&
+                it.executionMode != "concept"
+        }
+    }
+    val completedItems = remember(items) {
+        items.filter { it.status == AgDirectStatus.COMPLETED }
+    }
+
+    if (goItems.isEmpty() && inProgressItems.isEmpty() && completedItems.isEmpty()) {
+        return
+    }
+
+    var isExpanded by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(AppTheme.colors.cardBackground)
+            .border(
+                width = 1.dp,
+                color = if (goItems.isNotEmpty()) Gold.copy(alpha = 0.65f) else AppTheme.colors.cardBorder,
+                shape = RoundedCornerShape(12.dp)
+            )
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        // Kompakte Status-Zeile mit 3 Pills
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { isExpanded = !isExpanded },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                modifier = Modifier.weight(1f, fill = false),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                // Pill 1: Go benötigt
+                if (goItems.isNotEmpty()) {
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(50))
+                            .background(Gold.copy(alpha = 0.16f))
+                            .border(1.dp, Gold.copy(alpha = 0.85f), RoundedCornerShape(50))
+                            .padding(horizontal = 8.dp, vertical = 3.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Bolt,
+                            contentDescription = null,
+                            tint = Gold,
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Text(
+                            text = "${goItems.size} Go benötigt",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Gold
+                        )
+                    }
+                }
+
+                // Pill 2: In Arbeit (bei Falcone)
+                if (inProgressItems.isNotEmpty()) {
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(50))
+                            .background(AppTheme.colors.glassSurface)
+                            .border(1.dp, Color(0xFF818CF8).copy(alpha = 0.65f), RoundedCornerShape(50))
+                            .padding(horizontal = 8.dp, vertical = 3.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.HourglassEmpty,
+                            contentDescription = null,
+                            tint = Color(0xFFA5B4FC),
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Text(
+                            text = "${inProgressItems.size} in Arbeit",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFFE0E7FF)
+                        )
+                    }
+                }
+
+                // Pill 3: Kürzlich erledigt
+                if (completedItems.isNotEmpty()) {
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(50))
+                            .background(Emerald500.copy(alpha = 0.14f))
+                            .border(1.dp, Emerald500.copy(alpha = 0.55f), RoundedCornerShape(50))
+                            .padding(horizontal = 8.dp, vertical = 3.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = null,
+                            tint = Emerald500,
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Text(
+                            text = "${completedItems.size} erledigt",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Emerald500
+                        )
+                    }
+                }
+            }
+
+            Icon(
+                imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                contentDescription = if (isExpanded) "Schließen" else "Öffnen",
+                tint = if (isExpanded) Gold else AppTheme.colors.textMuted,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+
+        // Schlanke Übersichtskarte beim Aufklappen
+        AnimatedVisibility(visible = isExpanded) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 260.dp)
+                    .verticalScroll(rememberScrollState())
+                    .padding(top = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                // Gruppe 1: Go benötigt
+                if (goItems.isNotEmpty()) {
+                    Text(
+                        text = "Go benötigt (${goItems.size})",
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Gold
+                    )
+                    goItems.forEach { item ->
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = AppTheme.colors.glassSurface),
+                            border = BorderStroke(1.dp, Gold.copy(alpha = 0.40f)),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(9.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    val channelBadgeLabel = AgDirectInboxManager.resolveChannelEnum(item.channel).chipLabel
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(AppTheme.colors.cardBackground)
+                                            .border(1.dp, Gold.copy(alpha = 0.40f), RoundedCornerShape(6.dp))
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            text = channelBadgeLabel,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = AppTheme.colors.textPrimary
+                                        )
+                                    }
+                                    formatAgTimestamp(item.createdAt)?.let { ts ->
+                                        Text(
+                                            text = ts,
+                                            fontSize = 10.5.sp,
+                                            color = AppTheme.colors.textMuted
+                                        )
+                                    }
+                                }
+
+                                Text(
+                                    text = item.title,
+                                    fontSize = 12.5.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = AppTheme.colors.textPrimary,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+
+                                val questionOrBody = item.pendingQuestion?.takeIf { it.isNotBlank() }
+                                    ?: item.agResponseSummary?.takeIf { it.isNotBlank() }
+                                    ?: item.body.takeIf { it.isNotBlank() && it != item.title }
+                                var inlineReply by remember(item.id) { mutableStateOf("") }
+
+                                if (!questionOrBody.isNullOrBlank()) {
+                                    Text(
+                                        text = questionOrBody,
+                                        fontSize = 11.5.sp,
+                                        color = AppTheme.colors.textSecondary,
+                                        maxLines = 3,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+
+                                OutlinedTextField(
+                                    value = inlineReply,
+                                    onValueChange = { inlineReply = it },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    placeholder = {
+                                        Text(
+                                            text = "Kurze Antwort...",
+                                            fontSize = 11.5.sp,
+                                            color = AppTheme.colors.textMuted
+                                        )
+                                    },
+                                    maxLines = 2,
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = Gold,
+                                        unfocusedBorderColor = AppTheme.colors.inputBorder,
+                                        cursorColor = Gold,
+                                        focusedContainerColor = AppTheme.colors.inputBackground,
+                                        unfocusedContainerColor = AppTheme.colors.inputBackground
+                                    )
+                                )
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Button(
+                                        onClick = { onGrantGo(item) },
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(32.dp),
+                                        shape = RoundedCornerShape(8.dp),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = Gold,
+                                            contentColor = SpaceBlack
+                                        ),
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            text = "⚡ Go",
+                                            fontSize = 11.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = SpaceBlack
+                                        )
+                                    }
+
+                                    Button(
+                                        onClick = {
+                                            val clean = inlineReply.trim()
+                                            if (clean.isNotEmpty()) {
+                                                inlineReply = ""
+                                                onReplyAndApprove(item, clean)
+                                            } else {
+                                                onGrantGo(item)
+                                            }
+                                        },
+                                        modifier = Modifier
+                                            .weight(1.45f)
+                                            .height(32.dp),
+                                        shape = RoundedCornerShape(8.dp),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = Emerald500,
+                                            contentColor = Color.White
+                                        ),
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            text = "✓ Absenden & Freigeben",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Gruppe 2: In Arbeit
+                if (inProgressItems.isNotEmpty()) {
+                    Text(
+                        text = "In Arbeit (${inProgressItems.size})",
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFE0E7FF)
+                    )
+                    inProgressItems.forEach { item ->
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = AppTheme.colors.glassSurface),
+                            border = BorderStroke(1.dp, AppTheme.colors.cardBorder),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(9.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    val channelBadgeLabel = AgDirectInboxManager.resolveChannelEnum(item.channel).chipLabel
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(AppTheme.colors.cardBackground)
+                                            .border(1.dp, Gold.copy(alpha = 0.35f), RoundedCornerShape(6.dp))
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            text = channelBadgeLabel,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = AppTheme.colors.textPrimary
+                                        )
+                                    }
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(50))
+                                            .background(Gold.copy(alpha = 0.14f))
+                                            .border(1.dp, Gold.copy(alpha = 0.50f), RoundedCornerShape(50))
+                                            .padding(horizontal = 7.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            text = item.status.badgeLabel,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Gold
+                                        )
+                                    }
+                                }
+                                Text(
+                                    text = item.title,
+                                    fontSize = 12.5.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = AppTheme.colors.textPrimary,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Gruppe 3: Kürzlich erledigt
+                if (completedItems.isNotEmpty()) {
+                    Text(
+                        text = "Kürzlich erledigt (${completedItems.size})",
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Emerald500
+                    )
+                    completedItems.take(5).forEach { item ->
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = AppTheme.colors.glassSurface),
+                            border = BorderStroke(1.dp, Emerald500.copy(alpha = 0.30f)),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(9.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    val channelBadgeLabel = AgDirectInboxManager.resolveChannelEnum(item.channel).chipLabel
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(AppTheme.colors.cardBackground)
+                                            .border(1.dp, Emerald500.copy(alpha = 0.35f), RoundedCornerShape(6.dp))
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            text = channelBadgeLabel,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = AppTheme.colors.textPrimary
+                                        )
+                                    }
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(50))
+                                            .background(Emerald500.copy(alpha = 0.14f))
+                                            .border(1.dp, Emerald500.copy(alpha = 0.50f), RoundedCornerShape(50))
+                                            .padding(horizontal = 7.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            text = item.status.badgeLabel,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Emerald500
+                                        )
+                                    }
+                                }
+                                Text(
+                                    text = item.title,
+                                    fontSize = 12.5.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = AppTheme.colors.textPrimary,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                if (!item.agResponseSummary.isNullOrBlank()) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(Gold.copy(alpha = 0.08f))
+                                            .border(1.dp, Gold.copy(alpha = 0.35f), RoundedCornerShape(6.dp))
+                                            .padding(6.dp)
+                                    ) {
+                                        Text(
+                                            text = item.agResponseSummary,
+                                            fontSize = 11.5.sp,
+                                            color = AppTheme.colors.textPrimary,
+                                            lineHeight = 15.sp
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -423,7 +982,7 @@ fun ChatMessageRow(message: ChatMessage, activeAgentName: String, activeAgentCol
 
 fun getSelectedFileFromUri(context: Context, uri: Uri): SelectedFile? {
     val contentResolver = context.contentResolver
-    val mimeType = contentResolver.getType(uri) ?: "application/octet-stream"
+    val rawMimeType = contentResolver.getType(uri) ?: "application/octet-stream"
     var name = "attachment"
     var size = 0L
 
@@ -440,19 +999,46 @@ fun getSelectedFileFromUri(context: Context, uri: Uri): SelectedFile? {
         }
     }
 
+    val isImage = rawMimeType.startsWith("image/") ||
+        name.endsWith(".jpg", ignoreCase = true) ||
+        name.endsWith(".jpeg", ignoreCase = true) ||
+        name.endsWith(".png", ignoreCase = true) ||
+        name.endsWith(".webp", ignoreCase = true)
+
+    if (isImage) {
+        val prepared = try {
+            runBlocking(Dispatchers.IO) {
+                AgDirectInboxManager.prepareAttachmentFromUri(context, uri)
+            }
+        } catch (_: Throwable) {
+            null
+        }
+
+        if (prepared != null) {
+            return SelectedFile(
+                uriString = uri.toString(),
+                name = prepared.fileName.takeIf { it.isNotBlank() && it != "screenshot.jpg" } ?: name,
+                mimeType = prepared.mimeType,
+                sizeBytes = prepared.base64Jpeg.length.toLong(),
+                base64Content = prepared.base64Jpeg,
+                textContent = null
+            )
+        }
+    }
+
     return try {
         val inputStream: InputStream? = contentResolver.openInputStream(uri)
         if (inputStream != null) {
             val bytes = inputStream.readBytes()
             inputStream.close()
             
-            val base64Content = if (mimeType.startsWith("image/")) {
+            val base64Content = if (rawMimeType.startsWith("image/")) {
                 Base64.encodeToString(bytes, Base64.NO_WRAP)
             } else {
                 null
             }
 
-            val textContent = if (!mimeType.startsWith("image/") && (mimeType.startsWith("text/") || name.endsWith(".txt") || name.endsWith(".json") || name.endsWith(".csv") || name.endsWith(".xml") || name.endsWith(".md") || name.endsWith(".log") || name.endsWith(".js") || name.endsWith(".ts") || name.endsWith(".html") || name.endsWith(".css") || name.endsWith(".yaml") || name.endsWith(".yml"))) {
+            val textContent = if (!rawMimeType.startsWith("image/") && (rawMimeType.startsWith("text/") || name.endsWith(".txt") || name.endsWith(".json") || name.endsWith(".csv") || name.endsWith(".xml") || name.endsWith(".md") || name.endsWith(".log") || name.endsWith(".js") || name.endsWith(".ts") || name.endsWith(".html") || name.endsWith(".css") || name.endsWith(".yaml") || name.endsWith(".yml"))) {
                 String(bytes, Charsets.UTF_8)
             } else {
                 null
@@ -461,8 +1047,8 @@ fun getSelectedFileFromUri(context: Context, uri: Uri): SelectedFile? {
             SelectedFile(
                 uriString = uri.toString(),
                 name = name,
-                mimeType = mimeType,
-                sizeBytes = size,
+                mimeType = rawMimeType,
+                sizeBytes = size.takeIf { it > 0 } ?: bytes.size.toLong(),
                 base64Content = base64Content,
                 textContent = textContent
             )

@@ -113,7 +113,9 @@ data class AlarmSyncPackagePayload(
     val timers: List<TimerPresetItem>? = null,
     @SerializedName("smart_plugs") val smartPlugs: List<SmartPlugDevice>? = null,
     @SerializedName("wake_up_logs") val wakeUpLogs: Map<String, WakeUpLogEntry>? = null,
-    @SerializedName("funkira_voice") val funkiraVoice: String? = "Aoede"
+    @SerializedName("funkira_voice") val funkiraVoice: String? = "Aoede",
+    @SerializedName("tapo_email") val tapoEmail: String? = null,
+    @SerializedName("tapo_password") val tapoPassword: String? = null
 )
 
 data class AlarmSyncPackageResponse(
@@ -355,7 +357,9 @@ interface OrganizerApi {
         @Field("smart_plugs_json") smartPlugsJson: String,
         @Field("wake_up_logs_json") wakeUpLogsJson: String,
         @Field("active_alarm_time") activeAlarmTime: String,
-        @Field("device_name") deviceName: String
+        @Field("device_name") deviceName: String,
+        @Field("tapo_email") tapoEmail: String? = null,
+        @Field("tapo_password") tapoPassword: String? = null
     ): AlarmSyncPackageResponse
 
     // --- Shopping ---

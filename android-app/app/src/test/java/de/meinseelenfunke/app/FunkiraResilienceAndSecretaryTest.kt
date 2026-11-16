@@ -1,6 +1,7 @@
 package de.meinseelenfunke.app
 
 import android.content.pm.ServiceInfo
+import android.media.AudioDeviceInfo
 import de.meinseelenfunke.app.services.FunkiraPhoneConciergeService
 import de.meinseelenfunke.app.services.StandalonePhoneSecretaryEngine
 import de.meinseelenfunke.app.ui.screens.FunkiraLiveViewModel
@@ -459,5 +460,52 @@ class FunkiraResilienceAndSecretaryTest {
         )
         assertEquals("Verbindungsfehler: Pinning mismatch", tlsFail)
         assertFalse(tlsFail.contains(" \u2013 "))
+    }
+
+    @Test
+    fun selectPreferredCommunicationDeviceType_prioritizesBluetoothScoAndBleOverSpeakerAndWired() {
+        // Soundcore P30i Bluetooth Headset scenario: SCO preferred over speaker & earpiece
+        val btAndSpeaker = listOf(
+            AudioDeviceInfo.TYPE_BUILTIN_EARPIECE,
+            AudioDeviceInfo.TYPE_BUILTIN_SPEAKER,
+            AudioDeviceInfo.TYPE_BLUETOOTH_SCO
+        )
+        assertEquals(
+            AudioDeviceInfo.TYPE_BLUETOOTH_SCO,
+            FunkiraLiveViewModel.selectPreferredCommunicationDeviceType(btAndSpeaker)
+        )
+
+        // BLE Headset preferred over built-in speaker
+        val bleAndSpeaker = listOf(
+            AudioDeviceInfo.TYPE_BUILTIN_SPEAKER,
+            AudioDeviceInfo.TYPE_BLE_HEADSET
+        )
+        assertEquals(
+            AudioDeviceInfo.TYPE_BLE_HEADSET,
+            FunkiraLiveViewModel.selectPreferredCommunicationDeviceType(bleAndSpeaker)
+        )
+
+        // Wired Headset preferred over built-in speaker if no Bluetooth
+        val wiredAndSpeaker = listOf(
+            AudioDeviceInfo.TYPE_BUILTIN_SPEAKER,
+            AudioDeviceInfo.TYPE_WIRED_HEADSET
+        )
+        assertEquals(
+            AudioDeviceInfo.TYPE_WIRED_HEADSET,
+            FunkiraLiveViewModel.selectPreferredCommunicationDeviceType(wiredAndSpeaker)
+        )
+
+        // Fallback to speaker when no headset connected
+        val speakerOnly = listOf(AudioDeviceInfo.TYPE_BUILTIN_SPEAKER)
+        assertEquals(
+            AudioDeviceInfo.TYPE_BUILTIN_SPEAKER,
+            FunkiraLiveViewModel.selectPreferredCommunicationDeviceType(speakerOnly)
+        )
+
+        // Empty list fallback
+        assertEquals(
+            AudioDeviceInfo.TYPE_UNKNOWN,
+            FunkiraLiveViewModel.selectPreferredCommunicationDeviceType(emptyList())
+        )
     }
 }

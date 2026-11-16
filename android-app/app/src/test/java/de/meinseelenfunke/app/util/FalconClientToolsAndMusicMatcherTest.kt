@@ -15,6 +15,8 @@ import de.meinseelenfunke.app.data.api.AgDirectCreateResponse
 import de.meinseelenfunke.app.data.api.AgDirectDeleteResponse
 import de.meinseelenfunke.app.data.api.AgDirectInboxItemDto
 import de.meinseelenfunke.app.data.api.AgDirectInboxListResponse
+import de.meinseelenfunke.app.data.api.AgDirectResolveRequest
+import de.meinseelenfunke.app.data.api.AgDirectResolveResponse
 import de.meinseelenfunke.app.di.ServiceLocator
 import de.meinseelenfunke.app.ui.screens.isAllowedFalconAssetUrl
 import kotlinx.coroutines.runBlocking
@@ -130,7 +132,7 @@ class FalconClientToolsAndMusicMatcherTest {
         val names = (0 until decls.size()).map {
             decls.get(it).asJsonObject.get("name").asString
         }
-        assertEquals(8, names.size)
+        assertEquals(FalconClientTools.LOCAL_TOOL_NAMES.size + 1, names.size)
         for (expected in FalconClientTools.LOCAL_TOOL_NAMES) {
             assertTrue("Expected local Falcone tool $expected to be injected", expected in names)
         }
@@ -171,6 +173,10 @@ class FalconClientToolsAndMusicMatcherTest {
                         attachment_mime = request.attachment_mime
                     )
                 )
+            }
+
+            override suspend fun resolveBlockade(id: String, request: AgDirectResolveRequest): AgDirectResolveResponse {
+                return AgDirectResolveResponse(success = true, decision = request.decision)
             }
 
             override suspend fun deleteItem(id: String): AgDirectDeleteResponse {
@@ -561,10 +567,10 @@ class FalconClientToolsAndMusicMatcherTest {
             )
         )
 
-        // 2. Strict Gemini 3.1 Live schema hygiene across all 7 local Falcone tools
+        // 2. Strict Gemini 3.1 Live schema hygiene across all local Falcone tools
         val decls = JsonArray()
         FalconClientTools.appendFalconToolDeclarations(decls)
-        assertEquals(7, decls.size())
+        assertEquals(FalconClientTools.LOCAL_TOOL_NAMES.size, decls.size())
         for (i in 0 until decls.size()) {
             val fn = decls.get(i).asJsonObject
             val params = fn.getAsJsonObject("parameters")
@@ -674,5 +680,155 @@ class FalconClientToolsAndMusicMatcherTest {
             NavigationBridge.clearTrustedFastUnlock()
             NavigationBridge.elapsedRealtimeProvider = prevClock
         }
+    }
+
+    @Test
+    fun importPhotoFromUri_decodesResizesAndSetsLastCapturedPhotoCleanly() = runBlocking {
+        val testBitmap = Bitmap.createBitmap(400, 300, Bitmap.Config.ARGB_8888)
+        val file = File(context.cacheDir, "test_gallery_screenshot.png")
+        file.outputStream().use { out ->
+            testBitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+        }
+        val uri = android.net.Uri.fromFile(file)
+
+        val imported = FalconCameraController.importPhotoFromUri(context, uri)
+        assertNotNull(imported)
+        assertEquals("test_gallery_screenshot.jpg", imported!!.fileName)
+        assertEquals("image/jpeg", imported.mimeType)
+        assertFalse(imported.attachedToInbox)
+        assertNotNull(imported.previewBitmap)
+        assertEquals(imported, FalconCameraController.lastCapturedPhoto.value)
+
+        val prepared = imported.toPreparedAgAttachment()
+        assertEquals(imported.fileName, prepared.fileName)
+        assertEquals(imported.base64Jpeg, prepared.base64Jpeg)
+    }
+
+    @Test
+    fun photoAttachmentLifecycle_clearAndMarkAttachedFilterDockThumbnailCleanly() {
+        val testBitmap = Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888)
+        val photo = FalconCapturedPhoto(
+            base64Jpeg = "dummy_base64",
+            fileName = "dock_test.jpg",
+            previewBitmap = testBitmap.asImageBitmap(),
+            width = 64,
+            height = 64,
+            attachedToInbox = false
+        )
+
+        // 1. Initially set photo is present and visible
+        FalconCameraController.setLastCapturedPhotoForTest(photo)
+        assertEquals(photo, FalconCameraController.lastCapturedPhoto.value)
+        assertNotNull(FalconCameraController.lastCapturedPhoto.value?.takeIf { !it.attachedToInbox })
+
+        // 2. markLastPhotoAttached sets attachedToInbox = true and filters out of dock thumbnail
+        FalconCameraController.markLastPhotoAttached()
+        assertTrue(FalconCameraController.lastCapturedPhoto.value?.attachedToInbox == true)
+        assertEquals(null, FalconCameraController.lastCapturedPhoto.value?.takeIf { !it.attachedToInbox })
+
+        // 3. clearLastCapturedPhoto completely nulls out the state
+        FalconCameraController.clearLastCapturedPhoto()
+        assertEquals(null, FalconCameraController.lastCapturedPhoto.value)
+        assertEquals(null, FalconCameraController.lastCapturedPhoto.value?.takeIf { !it.attachedToInbox })
+    }
+
+    @Test
+    fun sendToAntigravity_respectsVoiceDirectExecutionSetting() = runBlocking {
+        val capturedRequests = mutableListOf<AgDirectCreateRequest>()
+        val fakeAgApi = object : AgDirectApi {
+            override suspend fun listInbox(limit: Int): AgDirectInboxListResponse {
+                return AgDirectInboxListResponse(
+                    success = true,
+                    counts = AgDirectCountsDto(pending = capturedRequests.size, delivered = 0, completed = 0),
+                    items = emptyList()
+                )
+            }
+
+            override suspend fun createItem(request: AgDirectCreateRequest): AgDirectCreateResponse {
+                capturedRequests.add(request)
+                return AgDirectCreateResponse(
+                    success = true,
+                    data = AgDirectInboxItemDto(
+                        id = "ag_test_${System.currentTimeMillis()}",
+                        client_uuid = request.client_uuid,
+                        title = request.title,
+                        body = request.body,
+                        checklist = request.checklist,
+                        execution_mode = request.execution_mode,
+                        channel = request.channel,
+                        status = "pending",
+                        has_attachment = false,
+                        attachment_name = null,
+                        attachment_mime = null
+                    )
+                )
+            }
+
+            override suspend fun resolveBlockade(id: String, request: AgDirectResolveRequest): AgDirectResolveResponse {
+                return AgDirectResolveResponse(success = true, decision = request.decision)
+            }
+
+            override suspend fun deleteItem(id: String): AgDirectDeleteResponse {
+                return AgDirectDeleteResponse(success = true)
+            }
+
+            override suspend fun getAttachment(id: String): ResponseBody {
+                return ByteArray(0).toResponseBody("image/jpeg".toMediaType())
+            }
+        }
+
+        // Case 1: Voice direct is enabled (default) -> Forces "direct" mode even if argument says "concept"
+        AgDirectInboxManager.setVoiceDirectExecutionEnabled(context, true)
+        val argsConcept = JsonObject().apply {
+            addProperty("title", "Sprachauftrag an Antigravity")
+            addProperty("body", "Bitte direkt ausführen")
+            addProperty("execution_mode", "concept")
+            addProperty("channel", "leitung")
+        }
+        val res1 = FalconClientTools.executeLocalFalconTool(
+            context = context,
+            toolName = "falcon_send_to_antigravity",
+            argsElement = argsConcept,
+            chatSessionId = "sess-voice-1",
+            onEmotionChanged = {},
+            onNavigate = {},
+            agApiOverride = fakeAgApi
+        )
+        assertEquals("success", res1.get("status").asString)
+        assertEquals("direct", res1.get("execution_mode").asString)
+        assertEquals("direct", capturedRequests.last().execution_mode)
+
+        // Case 2: Voice direct is disabled -> Passes through "concept" as requested
+        AgDirectInboxManager.setVoiceDirectExecutionEnabled(context, false)
+        val res2 = FalconClientTools.executeLocalFalconTool(
+            context = context,
+            toolName = "falcon_send_to_antigravity",
+            argsElement = argsConcept,
+            chatSessionId = "sess-voice-2",
+            onEmotionChanged = {},
+            onNavigate = {},
+            agApiOverride = fakeAgApi
+        )
+        assertEquals("success", res2.get("status").asString)
+        assertEquals("concept", res2.get("execution_mode").asString)
+        assertEquals("concept", capturedRequests.last().execution_mode)
+
+        // Case 3: Voice direct disabled, but argument explicitly requests "direct" -> Sets "direct"
+        val argsDirect = JsonObject().apply {
+            addProperty("title", "Expliziter Direktauftrag")
+            addProperty("execution_mode", "direct")
+        }
+        val res3 = FalconClientTools.executeLocalFalconTool(
+            context = context,
+            toolName = "falcon_send_to_antigravity",
+            argsElement = argsDirect,
+            chatSessionId = "sess-voice-3",
+            onEmotionChanged = {},
+            onNavigate = {},
+            agApiOverride = fakeAgApi
+        )
+        assertEquals("success", res3.get("status").asString)
+        assertEquals("direct", res3.get("execution_mode").asString)
+        assertEquals("direct", capturedRequests.last().execution_mode)
     }
 }

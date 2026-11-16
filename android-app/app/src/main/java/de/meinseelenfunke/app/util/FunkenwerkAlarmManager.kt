@@ -1001,10 +1001,19 @@ object FunkenwerkAlarmManager {
         timers: List<TimerPresetItem>?,
         plugs: List<SmartPlugDevice>?,
         wakeLogs: Map<String, WakeUpLogEntry>?,
-        lastSyncedAt: String?
+        lastSyncedAt: String?,
+        tapoEmail: String? = null,
+        tapoPassword: String? = null
     ) {
         ensureInitialized(context)
         val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+        if (!tapoEmail.isNullOrBlank() && ServiceLocator.getTapoEmail().isBlank()) {
+            ServiceLocator.saveTapoEmail(tapoEmail)
+        }
+        if (!tapoPassword.isNullOrBlank() && ServiceLocator.getTapoPassword().isBlank()) {
+            ServiceLocator.saveTapoPassword(tapoPassword)
+        }
 
         if (!alarms.isNullOrEmpty()) {
             val localById = _alarmsFlow.value.associateBy { it.id }
@@ -1050,7 +1059,7 @@ object FunkenwerkAlarmManager {
     fun exportSyncPayloadStrings(context: Context): Map<String, String> {
         ensureInitialized(context)
         val nextAlarm = getNextActiveAlarm(context)
-        return mapOf(
+        val map = mutableMapOf(
             "alarms_json" to gson.toJson(_alarmsFlow.value),
             "timers_json" to gson.toJson(_timersFlow.value),
             "smart_plugs_json" to gson.toJson(_smartPlugsFlow.value),
@@ -1058,6 +1067,15 @@ object FunkenwerkAlarmManager {
             "active_alarm_time" to (nextAlarm?.timeFormatted ?: "08:30"),
             "device_name" to "${Build.MANUFACTURER} ${Build.MODEL}".trim()
         )
+        val tapoEmail = ServiceLocator.getTapoEmail().trim()
+        val tapoPass = ServiceLocator.getTapoPassword()
+        if (tapoEmail.isNotBlank()) {
+            map["tapo_email"] = tapoEmail
+        }
+        if (tapoPass.isNotBlank()) {
+            map["tapo_password"] = tapoPass
+        }
+        return map
     }
 
     /**
@@ -1120,11 +1138,27 @@ object FunkenwerkAlarmManager {
             }
             conn.outputStream.use { it.write(bodyJson.toByteArray(Charsets.UTF_8)) }
             val code = conn.responseCode
-            conn.disconnect()
             if (code in 200..299) {
+                try {
+                    val rawResp = conn.inputStream.bufferedReader().use { it.readText() }
+                    val respObj = JSONObject(rawResp)
+                    if (respObj.optBoolean("success") && respObj.has("data")) {
+                        val d = respObj.getJSONObject("data")
+                        val te = d.optString("tapo_email", "")
+                        val tp = d.optString("tapo_password", "")
+                        if (te.isNotBlank() && ServiceLocator.getTapoEmail().isBlank()) {
+                            ServiceLocator.saveTapoEmail(te)
+                        }
+                        if (tp.isNotBlank() && ServiceLocator.getTapoPassword().isBlank()) {
+                            ServiceLocator.saveTapoPassword(tp)
+                        }
+                    }
+                } catch (_: Exception) {}
+                conn.disconnect()
                 markSyncCompleted(appCtx, SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.GERMANY).format(Date()))
                 return@withContext true
             }
+            conn.disconnect()
         } catch (e: Exception) {
             Log.w(TAG, "pushAlarmPackageToConfiguredEndpoint failed: ${e.message}")
         }

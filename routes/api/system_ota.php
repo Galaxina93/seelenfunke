@@ -8,6 +8,15 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('system/ag-direct-inbox')->middleware('throttle:120,1')->group(function () {
     Route::get('/', [AntigravityDirectInboxController::class, 'index']);
     Route::post('/', [AntigravityDirectInboxController::class, 'store']);
+    Route::post('/{id}/resolve', [AntigravityDirectInboxController::class, 'resolve']);
+    Route::get('/{id}/attachment', [AntigravityDirectInboxController::class, 'attachment']);
+    Route::delete('/{id}', [AntigravityDirectInboxController::class, 'destroy']);
+});
+
+Route::prefix('funkenwerk/ag-inbox')->middleware('throttle:120,1')->group(function () {
+    Route::get('/', [AntigravityDirectInboxController::class, 'index']);
+    Route::post('/', [AntigravityDirectInboxController::class, 'store']);
+    Route::post('/{id}/resolve', [AntigravityDirectInboxController::class, 'resolve']);
     Route::get('/{id}/attachment', [AntigravityDirectInboxController::class, 'attachment']);
     Route::delete('/{id}', [AntigravityDirectInboxController::class, 'destroy']);
 });

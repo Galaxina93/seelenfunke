@@ -331,7 +331,7 @@ class AntigravityDirectInboxTest extends TestCase
         $this->assertSame('delivered', $pullData['items'][0]['status'] ?? null);
         $this->assertNotEmpty($pullData['items'][0]['delivered_at'] ?? null);
 
-        // 4. --complete=<id1> --summary-b64=<base64> marks id1 completed with summary
+        // 4. --complete=<id1> on concept item sets awaiting_go; --complete=<id2> on direct item sets completed
         $summaryText = 'Konzept erstellt und im Leitstand bereitgestellt.';
         $exitComplete = Artisan::call('system:ag-inbox', [
             '--complete' => $id1,
@@ -340,9 +340,19 @@ class AntigravityDirectInboxTest extends TestCase
         $this->assertSame(0, $exitComplete);
         $completeData = json_decode(trim(Artisan::output()), true);
         $this->assertSame('success', $completeData['status'] ?? null);
-        $this->assertSame('completed', $completeData['item']['status'] ?? null);
+        $this->assertSame('awaiting_go', $completeData['item']['status'] ?? null);
         $this->assertSame($summaryText, $completeData['item']['ag_response_summary'] ?? null);
-        $this->assertNotEmpty($completeData['item']['completed_at'] ?? null);
+        $this->assertSame($summaryText, $completeData['item']['pending_question'] ?? null);
+        $this->assertNotEmpty($completeData['item']['awaiting_go_at'] ?? null);
+
+        $exitCompleteDirect = Artisan::call('system:ag-inbox', [
+            '--complete' => $id2,
+            '--summary-b64' => base64_encode('Direktauftrag umgesetzt.'),
+        ]);
+        $this->assertSame(0, $exitCompleteDirect);
+        $completeDirectData = json_decode(trim(Artisan::output()), true);
+        $this->assertSame('completed', $completeDirectData['item']['status'] ?? null);
+        $this->assertNotEmpty($completeDirectData['item']['completed_at'] ?? null);
 
         // 5. --import-b64 into a separate local inbox instance (idempotent merge + media file creation)
         $importRoot = storage_path('app/private/testing_ag_import_' . Str::lower(Str::random(8)));

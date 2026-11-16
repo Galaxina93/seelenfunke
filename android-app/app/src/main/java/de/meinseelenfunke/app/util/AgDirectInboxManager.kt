@@ -17,6 +17,7 @@ import de.meinseelenfunke.app.data.api.AgDirectApi
 import de.meinseelenfunke.app.data.api.AgDirectCountsDto
 import de.meinseelenfunke.app.data.api.AgDirectCreateRequest
 import de.meinseelenfunke.app.data.api.AgDirectInboxItemDto
+import de.meinseelenfunke.app.data.api.AgDirectResolveRequest
 import de.meinseelenfunke.app.di.ServiceLocator
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -41,6 +42,7 @@ enum class AgDirectStatus(val code: String, val badgeLabel: String) {
     QUEUED("queued", "Wartet"),
     PENDING("pending", "Gesendet"),
     DELIVERED("delivered", "Bei Falcone"),
+    AWAITING_GO("awaiting_go", "Go / Antwort fehlt"),
     COMPLETED("completed", "Erledigt ✓")
 }
 
@@ -92,11 +94,15 @@ data class AgDirectDisplayItem(
     val createdAt: String?,
     val deliveredAt: String?,
     val completedAt: String?,
-    val channel: String = AgDirectChannel.LEITUNG.code
+    val channel: String = AgDirectChannel.LEITUNG.code,
+    val pendingQuestion: String? = null,
+    val awaitingGoAt: String? = null
 )
 
 object AgDirectInboxManager {
     const val OUTBOX_FILE_NAME = "ag_direct_outbox.json"
+    const val PREFS_NAME = "seelenfunke_ag_direct_prefs"
+    const val KEY_VOICE_FORCE_DIRECT = "ag_voice_force_direct"
     const val MAX_IMAGE_EDGE_PX = 1440
     const val JPEG_QUALITY = 82
     private const val MAX_OUTBOX_ITEMS = 50
@@ -115,17 +121,45 @@ object AgDirectInboxManager {
     private val _itemsFlow = MutableStateFlow<List<AgDirectDisplayItem>>(emptyList())
     val itemsFlow: StateFlow<List<AgDirectDisplayItem>> = _itemsFlow.asStateFlow()
 
+    private val _pendingBlockadesFlow = MutableStateFlow<List<AgDirectDisplayItem>>(emptyList())
+    val pendingBlockadesFlow: StateFlow<List<AgDirectDisplayItem>> = _pendingBlockadesFlow.asStateFlow()
+
     private val _openCountFlow = MutableStateFlow(0)
     val openCountFlow: StateFlow<Int> = _openCountFlow.asStateFlow()
 
     private val _isSyncingFlow = MutableStateFlow(false)
     val isSyncingFlow: StateFlow<Boolean> = _isSyncingFlow.asStateFlow()
 
+    private val _voiceDirectExecutionFlow = MutableStateFlow(true)
+    val voiceDirectExecutionFlow: StateFlow<Boolean> = _voiceDirectExecutionFlow.asStateFlow()
+
+    fun isVoiceDirectExecutionEnabled(context: Context): Boolean {
+        return try {
+            val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val enabled = prefs.getBoolean(KEY_VOICE_FORCE_DIRECT, true)
+            _voiceDirectExecutionFlow.value = enabled
+            enabled
+        } catch (_: Throwable) {
+            true
+        }
+    }
+
+    fun setVoiceDirectExecutionEnabled(context: Context, enabled: Boolean) {
+        try {
+            val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            prefs.edit().putBoolean(KEY_VOICE_FORCE_DIRECT, enabled).apply()
+            _voiceDirectExecutionFlow.value = enabled
+        } catch (_: Throwable) {
+            _voiceDirectExecutionFlow.value = enabled
+        }
+    }
+
     fun mapStatus(rawStatus: String?, isLocalOutbox: Boolean = false): AgDirectStatus {
         if (isLocalOutbox) return AgDirectStatus.QUEUED
         return when (rawStatus?.trim()?.lowercase(Locale.ROOT)) {
             "queued", "outbox", "waiting" -> AgDirectStatus.QUEUED
             "delivered", "in_chat", "processing" -> AgDirectStatus.DELIVERED
+            "awaiting_go", "needs_go", "waiting_for_go" -> AgDirectStatus.AWAITING_GO
             "completed", "done", "resolved" -> AgDirectStatus.COMPLETED
             else -> AgDirectStatus.PENDING
         }
@@ -313,11 +347,22 @@ object AgDirectInboxManager {
                 createdAt = remote.created_at,
                 deliveredAt = remote.delivered_at,
                 completedAt = remote.completed_at,
-                channel = normalizeChannel(remote.channel)
+                channel = normalizeChannel(remote.channel),
+                pendingQuestion = remote.pending_question?.trim()?.takeIf { it.isNotEmpty() },
+                awaitingGoAt = remote.awaiting_go_at?.trim()?.takeIf { it.isNotEmpty() }
             )
         }
 
         return localDisplayItems + remoteDisplayItems
+    }
+
+    fun computePendingBlockades(mergedItems: List<AgDirectDisplayItem>): List<AgDirectDisplayItem> {
+        return mergedItems.filter { item ->
+            !item.isLocalOutbox && (
+                item.status == AgDirectStatus.AWAITING_GO ||
+                    (item.executionMode == "concept" && item.status != AgDirectStatus.COMPLETED)
+                )
+        }
     }
 
     fun computeOpenCount(
@@ -326,12 +371,13 @@ object AgDirectInboxManager {
     ): Int {
         val localQueued = mergedItems.count { it.isLocalOutbox }
         return if (counts != null) {
-            localQueued + max(0, counts.pending) + max(0, counts.delivered)
+            localQueued + max(0, counts.pending) + max(0, counts.delivered) + max(0, counts.awaiting_go)
         } else {
             mergedItems.count {
                 it.status == AgDirectStatus.QUEUED ||
                     it.status == AgDirectStatus.PENDING ||
-                    it.status == AgDirectStatus.DELIVERED
+                    it.status == AgDirectStatus.DELIVERED ||
+                    it.status == AgDirectStatus.AWAITING_GO
             }
         }
     }
@@ -344,12 +390,14 @@ object AgDirectInboxManager {
         val outbox = readOutboxFromFile(outboxFileFor(context))
         val merged = mergeOutboxAndServerItems(outbox, cachedServerItems)
         _itemsFlow.value = merged
+        _pendingBlockadesFlow.value = computePendingBlockades(merged)
         _openCountFlow.value = computeOpenCount(merged, cachedServerCounts)
     }
 
     fun hydrateLocalState(context: Context) {
         try {
             ServiceLocator.ensureInitialized(context.applicationContext)
+            isVoiceDirectExecutionEnabled(context.applicationContext)
             updateFlowsFromCache(context.applicationContext)
         } catch (_: Throwable) {
         }
@@ -360,6 +408,88 @@ object AgDirectInboxManager {
         managerScope.launch {
             syncAll(appCtx)
         }
+    }
+
+    fun refreshFromServer(context: Context) {
+        refreshAsync(context)
+    }
+
+    suspend fun resolveBlockade(
+        context: Context,
+        itemId: String,
+        decision: String,
+        answerText: String,
+        apiOverride: AgDirectApi? = null
+    ): Boolean = withContext(Dispatchers.IO) {
+        val appCtx = context.applicationContext
+        val cleanId = itemId.trim()
+        if (cleanId.isEmpty()) return@withContext false
+
+        val cleanDecision = decision.trim().lowercase(Locale.ROOT).ifBlank { "approved" }
+        val cleanAnswer = answerText.trim()
+
+        try {
+            if (apiOverride == null) {
+                ServiceLocator.ensureInitialized(appCtx)
+            }
+            val api = apiOverride ?: ServiceLocator.agDirectApi
+            val resp = api.resolveBlockade(
+                id = cleanId,
+                request = AgDirectResolveRequest(
+                    decision = cleanDecision,
+                    answer_text = cleanAnswer
+                )
+            )
+            if (resp.success) {
+                val updatedList = cachedServerItems.map { existing ->
+                    if (existing.id == cleanId && resp.resolved_item != null) {
+                        resp.resolved_item
+                    } else {
+                        existing
+                    }
+                }.toMutableList()
+
+                if (resp.followup_item != null && updatedList.none { it.id == resp.followup_item.id }) {
+                    updatedList.add(0, resp.followup_item)
+                }
+
+                cachedServerItems = updatedList
+                if (resp.counts != null) {
+                    cachedServerCounts = resp.counts
+                } else {
+                    cachedServerCounts = cachedServerCounts?.let { c ->
+                        c.copy(
+                            awaiting_go = max(0, c.awaiting_go - 1),
+                            pending = if (resp.followup_item != null) c.pending + 1 else c.pending,
+                            completed = if (cleanDecision != "deferred") c.completed + 1 else c.completed
+                        )
+                    }
+                }
+                updateFlowsFromCache(appCtx)
+                return@withContext true
+            }
+        } catch (_: Throwable) {
+        }
+
+        // Offline-Fallback bei Freigabe / Antwort: lokal in Outbox einreihen, damit keine Antwort verloren geht
+        if (cleanDecision == "approved" || cleanDecision == "info_provided") {
+            val orig = _itemsFlow.value.firstOrNull { it.id == cleanId }
+            val fallbackTitle = if (orig != null) "GO & Antwort zu: ${orig.title}" else "GO & Antwort zu: $cleanId"
+            val fallbackBody = buildString {
+                append("Referenz-Ticket: ").append(cleanId)
+                if (cleanAnswer.isNotEmpty()) {
+                    append("\nAntwort: ").append(cleanAnswer)
+                }
+            }
+            submitOutboxEntry(
+                context = appCtx,
+                title = fallbackTitle,
+                body = fallbackBody,
+                executionMode = "direct",
+                channel = orig?.channel ?: AgDirectChannel.LEITUNG.code
+            )
+        }
+        false
     }
 
     suspend fun flushOutbox(
@@ -466,6 +596,22 @@ object AgDirectInboxManager {
             _isSyncingFlow.value = false
         }
     }
+
+    suspend fun submitOutboxEntry(
+        context: Context,
+        title: String,
+        body: String = "",
+        checklist: List<String> = emptyList(),
+        executionMode: String = "direct",
+        channel: String = AgDirectChannel.LEITUNG.code
+    ): Boolean = submitMessage(
+        context = context,
+        rawText = if (body.isNotBlank()) "$title\n$body" else title,
+        checklist = checklist,
+        executionMode = executionMode,
+        attachment = null,
+        channel = channel
+    )
 
     suspend fun submitMessage(
         context: Context,
@@ -577,6 +723,7 @@ object AgDirectInboxManager {
                     when (item.status) {
                         AgDirectStatus.PENDING -> c.copy(pending = max(0, c.pending - 1))
                         AgDirectStatus.DELIVERED -> c.copy(delivered = max(0, c.delivered - 1))
+                        AgDirectStatus.AWAITING_GO -> c.copy(awaiting_go = max(0, c.awaiting_go - 1))
                         AgDirectStatus.COMPLETED -> c.copy(completed = max(0, c.completed - 1))
                         AgDirectStatus.QUEUED -> c
                     }
@@ -647,7 +794,9 @@ object AgDirectInboxManager {
     ): PreparedAgAttachment? = withContext(Dispatchers.IO) {
         try {
             val resolver = context.contentResolver
-            val rawName = queryDisplayName(context, uri)
+            val rawName = (queryDisplayName(context, uri) ?: uri.lastPathSegment ?: uri.path)
+                ?.substringAfterLast('/')
+                ?.substringAfterLast('\\')
             val baseName = rawName
                 ?.substringBeforeLast('.')
                 ?.replace(Regex("[^A-Za-z0-9._-]"), "_")
@@ -750,7 +899,9 @@ object AgDirectInboxManager {
         cachedServerItems = emptyList()
         cachedServerCounts = null
         _itemsFlow.value = emptyList()
+        _pendingBlockadesFlow.value = emptyList()
         _openCountFlow.value = 0
         _isSyncingFlow.value = false
+        _voiceDirectExecutionFlow.value = true
     }
 }

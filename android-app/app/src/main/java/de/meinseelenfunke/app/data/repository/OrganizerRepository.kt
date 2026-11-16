@@ -333,9 +333,21 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
                 smartPlugsJson = payload["smart_plugs_json"] ?: "[]",
                 wakeUpLogsJson = payload["wake_up_logs_json"] ?: "{}",
                 activeAlarmTime = payload["active_alarm_time"] ?: "08:30",
-                deviceName = payload["device_name"] ?: "Funkenwerk Android"
+                deviceName = payload["device_name"] ?: "Funkenwerk Android",
+                tapoEmail = payload["tapo_email"],
+                tapoPassword = payload["tapo_password"]
             )
             if (response.success) {
+                if (response.data != null) {
+                    val serverEmail = response.data.tapoEmail
+                    val serverPass = response.data.tapoPassword
+                    if (!serverEmail.isNullOrBlank() && serviceLocator.getTapoEmail().isBlank()) {
+                        serviceLocator.saveTapoEmail(serverEmail)
+                    }
+                    if (!serverPass.isNullOrBlank() && serviceLocator.getTapoPassword().isBlank()) {
+                        serviceLocator.saveTapoPassword(serverPass)
+                    }
+                }
                 val stamp = java.text.SimpleDateFormat("dd.MM.yyyy HH:mm", java.util.Locale.GERMANY).format(java.util.Date())
                 de.meinseelenfunke.app.util.FunkenwerkAlarmManager.markSyncCompleted(context, stamp)
                 Result.success(stamp)
@@ -358,7 +370,9 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
                     timers = pkg.timers,
                     plugs = pkg.smartPlugs,
                     wakeLogs = pkg.wakeUpLogs,
-                    lastSyncedAt = pkg.lastSyncedAt
+                    lastSyncedAt = pkg.lastSyncedAt,
+                    tapoEmail = pkg.tapoEmail,
+                    tapoPassword = pkg.tapoPassword
                 )
                 Result.success(Unit)
             } else {

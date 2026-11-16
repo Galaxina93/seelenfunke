@@ -1,14 +1,17 @@
 package de.meinseelenfunke.app.ui.screens
 
 import android.Manifest
+import android.content.Context
 import android.content.pm.PackageManager
 import android.media.AudioAttributes
+import android.media.AudioDeviceCallback
+import android.media.AudioDeviceInfo
 import android.media.AudioFormat
+import android.media.AudioManager
 import android.media.AudioRecord
 import android.media.AudioTrack
 import android.media.MediaRecorder
-import android.media.AudioManager
-import android.content.Context
+import android.os.Build
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -95,6 +98,7 @@ class FunkiraLiveViewModel : ViewModel() {
     private var turnCompleteSettleJob: Job? = null
     private var speechDecayJob: Job? = null
     private var audioTrack: AudioTrack? = null
+    private var audioDeviceCallback: AudioDeviceCallback? = null
     @Volatile private var isRecordingActive = false
     @Volatile private var isAiSpeaking = false
     @Volatile private var playbackActiveUntilUptimeMs = 0L
@@ -112,6 +116,7 @@ class FunkiraLiveViewModel : ViewModel() {
     private var activeSysInstruction: String = ""
     private var activeVoiceName: String = "Orus"
     private var activeToolsJson: String? = null
+    @Volatile private var pendingProactiveKickPrompt: String? = null
 
     @Volatile private var shouldEndCall = false
     private val _shouldCloseScreen = MutableStateFlow(false)
@@ -323,6 +328,31 @@ class FunkiraLiveViewModel : ViewModel() {
                         creds.voice_name.ifBlank { "Kore" }
                     }
                     activeToolsJson = creds.tools?.toString()
+                    pendingProactiveKickPrompt = if (!isMidCallReconnect) {
+                        val serverKick = creds.proactive_kick_prompt?.trim()?.takeIf { it.isNotEmpty() }
+                        val serverBlockades = creds.pending_ag_blockades.orEmpty()
+                        val localBlockades = de.meinseelenfunke.app.util.AgDirectInboxManager.pendingBlockadesFlow.value
+                        when {
+                            serverKick != null -> serverKick
+                            serverBlockades.isNotEmpty() -> {
+                                val first = serverBlockades.first()
+                                val q = first.pending_question ?: first.ag_response_summary ?: "Wartet auf deine Freigabe."
+                                "SYSTEM-STARTIMPULS FÜR FALCONE: Begrüße Alina kurz und sprich SOFORT von dir aus die offene Antigravity-Blockade an " +
+                                    "(${serverBlockades.size} wartende Freigabe(n), zuerst: \"${first.title}\", Frage: \"$q\"). " +
+                                    "Bestehe freundlich und beharrlich auf einer klaren Antwort oder einem Go, damit du sofort ag_resolve_pending_blockade aufrufen kannst."
+                            }
+                            isFalconSelected && localBlockades.isNotEmpty() -> {
+                                val first = localBlockades.first()
+                                val q = first.pendingQuestion ?: first.agResponseSummary ?: "Wartet auf deine Freigabe."
+                                "SYSTEM-STARTIMPULS FÜR FALCONE: Begrüße Alina kurz und sprich SOFORT von dir aus die offene Antigravity-Blockade an " +
+                                    "(${localBlockades.size} wartende Freigabe(n), zuerst: \"${first.title}\", Frage: \"$q\"). " +
+                                    "Bestehe freundlich und beharrlich auf einer klaren Antwort oder einem Go, damit du sofort ag_resolve_pending_blockade aufrufen kannst."
+                            }
+                            else -> null
+                        }
+                    } else {
+                        null
+                    }
 
                     if (!isTrustedLiveWebSocketHost(rawWsUrl, host)) {
                         val directCandidate = fallbackDirectUrl
@@ -748,6 +778,16 @@ class FunkiraLiveViewModel : ViewModel() {
                 if (!userMutedMic) {
                     startRecording()
                 }
+                val kickPrompt = pendingProactiveKickPrompt?.trim()?.takeIf { it.isNotEmpty() }
+                pendingProactiveKickPrompt = null
+                if (kickPrompt != null) {
+                    try {
+                        val kickPacket = de.meinseelenfunke.app.util.FalconClientTools.buildClientContentKickPacket(kickPrompt)
+                        webSocket?.send(gson.toJson(kickPacket))
+                        addLog("[Proaktiv]: Falcone spricht offene Antigravity-Freigabe ab Sekunde 0 an.")
+                    } catch (_: Throwable) {
+                    }
+                }
                 startVisionStreamLoop()
                 startInactivityWatchdog()
                 return
@@ -941,6 +981,12 @@ class FunkiraLiveViewModel : ViewModel() {
                                     )
                                     addLog("[Falcone-Tool]: '$name' lokal ausgeführt.")
                                     sendToolResponse(callId, name, resObj)
+                                    if (name == "falcon_send_to_antigravity" ||
+                                        name == "falcon_resolve_antigravity_blockade" ||
+                                        name == "falcon_check_antigravity_status"
+                                    ) {
+                                        de.meinseelenfunke.app.util.AgDirectInboxManager.refreshFromServer(ServiceLocator.context)
+                                    }
                                 } finally {
                                     activeToolCallCount.decrementAndGet()
                                     inactivityTracker.onToolActivity(android.os.SystemClock.uptimeMillis())
@@ -960,6 +1006,12 @@ class FunkiraLiveViewModel : ViewModel() {
                                         val resultObj = if (resultElement.isJsonObject) resultElement.asJsonObject else JsonObject()
                                         addLog("[Aktion-Ergebnis]: Tool '$name' ausgeführt.")
                                         sendToolResponse(callId, name, resultElement)
+                                        if (name == "ag_resolve_pending_blockade" ||
+                                            name == "ag_list_pending_blockades" ||
+                                            name == "system_prepare_antigravity_handoff"
+                                        ) {
+                                            de.meinseelenfunke.app.util.AgDirectInboxManager.refreshFromServer(ServiceLocator.context)
+                                        }
 
                                         // Process agent switching logic
                                         if (name == "system_switch_agent" && resultObj.has("agent_id")) {
@@ -1052,16 +1104,97 @@ class FunkiraLiveViewModel : ViewModel() {
         }
     }
 
+    fun refreshAudioRouting() {
+        if (_isConnected.value) {
+            setCommunicationMode(true)
+        }
+    }
+
     private fun setCommunicationMode(enable: Boolean) {
         try {
             val audioManager = ServiceLocator.context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
             if (enable) {
                 audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
-                audioManager.isSpeakerphoneOn = true
-                addLog("[Audio] Kommunikationsmodus aktiviert (Speakerphone = true)")
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    val devices = audioManager.availableCommunicationDevices
+                    val btHeadset = devices.firstOrNull {
+                        it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO || it.type == AudioDeviceInfo.TYPE_BLE_HEADSET
+                    }
+                    val wiredHeadset = devices.firstOrNull {
+                        it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET ||
+                            it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
+                            it.type == AudioDeviceInfo.TYPE_USB_HEADSET
+                    }
+                    val speaker = devices.firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER }
+
+                    val targetHeadset = btHeadset ?: wiredHeadset
+                    if (targetHeadset != null) {
+                        audioManager.setCommunicationDevice(targetHeadset)
+                        audioManager.isSpeakerphoneOn = false
+                        val devName = targetHeadset.productName?.toString()?.takeIf { it.isNotBlank() }
+                            ?: targetHeadset.type.toString()
+                        addLog("[Audio] Audio auf Headset geroutet: $devName")
+                    } else {
+                        speaker?.let { audioManager.setCommunicationDevice(it) }
+                        audioManager.isSpeakerphoneOn = true
+                        addLog("[Audio] Kein Headset gefunden. Lautsprecher aktiviert.")
+                    }
+                } else {
+                    val isBt = try {
+                        audioManager.isBluetoothScoAvailableOffCall && (audioManager.isBluetoothA2dpOn || audioManager.isBluetoothScoOn)
+                    } catch (_: Exception) { false }
+                    if (isBt) {
+                        audioManager.startBluetoothSco()
+                        audioManager.isBluetoothScoOn = true
+                        audioManager.isSpeakerphoneOn = false
+                        addLog("[Audio] Audio auf Bluetooth geroutet (Legacy SCO)")
+                    } else {
+                        audioManager.isSpeakerphoneOn = true
+                        addLog("[Audio] Kein Bluetooth Headset gefunden. Lautsprecher aktiviert.")
+                    }
+                }
+
+                if (audioDeviceCallback == null) {
+                    val callback = object : AudioDeviceCallback() {
+                        override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>?) {
+                            if (_isConnected.value) {
+                                refreshAudioRouting()
+                            }
+                        }
+
+                        override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>?) {
+                            if (_isConnected.value) {
+                                refreshAudioRouting()
+                            }
+                        }
+                    }
+                    audioManager.registerAudioDeviceCallback(callback, null)
+                    audioDeviceCallback = callback
+                }
             } else {
-                audioManager.mode = AudioManager.MODE_NORMAL
+                audioDeviceCallback?.let {
+                    try {
+                        audioManager.unregisterAudioDeviceCallback(it)
+                    } catch (_: Exception) {}
+                    audioDeviceCallback = null
+                }
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    try {
+                        audioManager.clearCommunicationDevice()
+                    } catch (_: Exception) {}
+                } else {
+                    try {
+                        if (audioManager.isBluetoothScoOn) {
+                            audioManager.stopBluetoothSco()
+                            audioManager.isBluetoothScoOn = false
+                        }
+                    } catch (_: Exception) {}
+                }
+
                 audioManager.isSpeakerphoneOn = false
+                audioManager.mode = AudioManager.MODE_NORMAL
                 addLog("[Audio] Normalmodus wiederhergestellt")
             }
         } catch (e: Exception) {
@@ -1435,6 +1568,7 @@ class FunkiraLiveViewModel : ViewModel() {
         _isConnected.value = false
         _isConnecting.value = false
         setupCompletedForCurrentSocket = false
+        pendingProactiveKickPrompt = null
         playbackActiveUntilUptimeMs = 0L
         activeToolCallCount.set(0)
         setAiSpeakingState(false)
@@ -1489,6 +1623,7 @@ class FunkiraLiveViewModel : ViewModel() {
     override fun onCleared() {
         super.onCleared()
         disconnectLiveChat()
+        setCommunicationMode(false)
     }
 
     private fun appendLocalClientDeclarations(decls: JsonArray) {
@@ -1651,6 +1786,16 @@ class FunkiraLiveViewModel : ViewModel() {
             } ?: t.message?.trim()?.takeIf {
                 it.isNotBlank() && !it.equals("null", ignoreCase = true)
             }
+        }
+
+        fun selectPreferredCommunicationDeviceType(deviceTypes: List<Int>): Int {
+            if (deviceTypes.contains(AudioDeviceInfo.TYPE_BLUETOOTH_SCO)) return AudioDeviceInfo.TYPE_BLUETOOTH_SCO
+            if (deviceTypes.contains(AudioDeviceInfo.TYPE_BLE_HEADSET)) return AudioDeviceInfo.TYPE_BLE_HEADSET
+            if (deviceTypes.contains(AudioDeviceInfo.TYPE_WIRED_HEADSET)) return AudioDeviceInfo.TYPE_WIRED_HEADSET
+            if (deviceTypes.contains(AudioDeviceInfo.TYPE_WIRED_HEADPHONES)) return AudioDeviceInfo.TYPE_WIRED_HEADPHONES
+            if (deviceTypes.contains(AudioDeviceInfo.TYPE_USB_HEADSET)) return AudioDeviceInfo.TYPE_USB_HEADSET
+            if (deviceTypes.contains(AudioDeviceInfo.TYPE_BUILTIN_SPEAKER)) return AudioDeviceInfo.TYPE_BUILTIN_SPEAKER
+            return deviceTypes.firstOrNull() ?: AudioDeviceInfo.TYPE_UNKNOWN
         }
 
         fun formatWebSocketFailureMessage(
