@@ -444,6 +444,28 @@ fun AgDirectInboxSheet(
                             fontSize = 14.sp
                         )
                     },
+                    trailingIcon = if (messageText.isNotEmpty()) {
+                        {
+                            Box(
+                                modifier = Modifier
+                                    .size(28.dp)
+                                    .clip(CircleShape)
+                                    .background(AppTheme.colors.glassSurface)
+                                    .border(1.dp, AppTheme.colors.glassBorder, CircleShape)
+                                    .clickable { messageText = "" },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Text löschen",
+                                    tint = AppTheme.colors.textSecondary,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                            }
+                        }
+                    } else {
+                        null
+                    },
                     minLines = 2,
                     maxLines = 6,
                     shape = RoundedCornerShape(12.dp),
