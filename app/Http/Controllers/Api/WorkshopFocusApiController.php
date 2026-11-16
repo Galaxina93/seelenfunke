@@ -491,27 +491,60 @@ class WorkshopFocusApiController extends Controller
         $engravePreviewDataUrl = '';
 
         try {
-            $designPayload = $this->exportService->buildLaserDesignPayload($item, $effectiveSide, true);
-            $blankWidthMm = (float) $designPayload['widthMm'];
-            $blankHeightMm = (float) $designPayload['heightMm'];
-            $contourDPath = (string) $designPayload['ghostContourDPath'];
-            $engravePreviewDataUrl = (string) $designPayload['previewDataUrl'];
-            $engravePreviewUrl = $engravePreviewDataUrl;
+            $itemConf = is_array($item->configuration) ? $item->configuration : [];
+            $productCfg = is_string($item->product?->configurator_settings)
+                ? (json_decode($item->product->configurator_settings, true) ?: [])
+                : ($item->product?->configurator_settings ?? []);
+            $calibration = $this->exportService->resolvePhysicalBlankCalibration($item->product, $productCfg, $itemConf, false);
 
-            if (!empty($designPayload['stageEngravePngBytes'])) {
-                $cacheHash = sha1(
-                    $item->id . '|'
-                    . $effectiveSide . '|'
-                    . ($item->updated_at?->timestamp ?? 0) . '|'
-                    . ($item->product?->updated_at?->timestamp ?? 0) . '|'
-                    . json_encode($item->configuration ?? [])
-                );
-                $relPng = "bestellungen/xtool/previews/{$cacheHash}.png";
-                $publicDisk = Storage::disk('public');
-                if (!$publicDisk->exists($relPng)) {
-                    $publicDisk->put($relPng, $designPayload['stageEngravePngBytes']);
+            $cacheHash = sha1(
+                'v5-crystal-82pct|'
+                . $item->id . '|'
+                . $effectiveSide . '|'
+                . ($item->updated_at?->timestamp ?? 0) . '|'
+                . ($item->product?->updated_at?->timestamp ?? 0) . '|'
+                . json_encode($calibration) . '|'
+                . json_encode($itemConf)
+            );
+            $publicDisk = Storage::disk('public');
+            $relPng = "bestellungen/xtool/previews/{$cacheHash}.png";
+            $relMeta = "bestellungen/xtool/previews/{$cacheHash}.json";
+
+            $loadedFromCache = false;
+            if (!app()->runningUnitTests() && $publicDisk->exists($relPng) && $publicDisk->exists($relMeta)) {
+                $cachedMeta = json_decode((string) $publicDisk->get($relMeta), true);
+                $cachedPngBytes = (string) $publicDisk->get($relPng);
+                if (
+                    is_array($cachedMeta)
+                    && isset($cachedMeta['widthMm'], $cachedMeta['heightMm'], $cachedMeta['ghostContourDPath'])
+                    && $cachedPngBytes !== ''
+                ) {
+                    $blankWidthMm = (float) $cachedMeta['widthMm'];
+                    $blankHeightMm = (float) $cachedMeta['heightMm'];
+                    $contourDPath = (string) $cachedMeta['ghostContourDPath'];
+                    $engravePreviewUrl = asset('storage/' . $relPng);
+                    $engravePreviewDataUrl = 'data:image/png;base64,' . base64_encode($cachedPngBytes);
+                    $loadedFromCache = true;
                 }
-                $engravePreviewUrl = asset('storage/' . $relPng);
+            }
+
+            if (!$loadedFromCache) {
+                $designPayload = $this->exportService->buildLaserDesignPayload($item, $effectiveSide, true);
+                $blankWidthMm = (float) $designPayload['widthMm'];
+                $blankHeightMm = (float) $designPayload['heightMm'];
+                $contourDPath = (string) $designPayload['ghostContourDPath'];
+                $engravePreviewDataUrl = (string) $designPayload['previewDataUrl'];
+                $engravePreviewUrl = $engravePreviewDataUrl;
+
+                if (!empty($designPayload['stageEngravePngBytes'])) {
+                    $publicDisk->put($relPng, $designPayload['stageEngravePngBytes']);
+                    $publicDisk->put($relMeta, (string) json_encode([
+                        'widthMm'           => $blankWidthMm,
+                        'heightMm'          => $blankHeightMm,
+                        'ghostContourDPath' => $contourDPath,
+                    ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+                    $engravePreviewUrl = asset('storage/' . $relPng);
+                }
             }
         } catch (\Throwable) {
             // Fallback fuer unpersonalisierte Lagerartikel ohne Laserflaeche
