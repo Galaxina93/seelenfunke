@@ -111,3 +111,15 @@ Zu jeder vollen Stunde (`CRON_TZ=Europe/Berlin 0 * * * *`) startet [sidecar.json
   - Manufaktur Mini-PC (`/home/alina/.local/share/FunkenwerkOS/sentinel_history.json`): **`0 Bytes`** (kein Handoff, keine Queue)
   - Windows Funkenwerk (`%LOCALAPPDATA%\FunkenwerkTresor\funkenwerk_tresor_boot.log`): **`0 Bytes`** (keine Queue)
   - Android Stage-OTA `manifest.json`: **`v1.8.2` (`version_code = 26`)**, `open_pool_count = 0`.
+
+### 16.11.2026, 18:55 Uhr (Stündlicher Selbstheilungs-Wächter: `VARCHAR(191)`-Spaltenschutz in `SystemLog` & Stage-Pool-Bereinigung)
+* **Erfasste & dauerhaft im Code geheilte Befunde (`2 Stage-Dossiers` + `1 lokaler Sync-Folgefehler`):**
+  1. `Portal / Sentinel-Sync` (`app/Models/System/SystemLog.php`, `app/Services/System/SentinelTriageService.php`): Beim Import überlanger `[STAGE]`-Dossier-Titel (`> 190` Zeichen) erzeugte `Str::limit($prefixedTitle, 190)` inklusive `'...'`-Suffix `193` Zeichen und überschritt damit `system_logs.title` (`VARCHAR(191)` -> `SQLSTATE[22001]: Data too long for column 'title'`). Zentral über `SystemLog::clampColumnValue()` und einen `booted()`-`saving`-Hook im Model `SystemLog` (`title <= 191`, `action_id <= 191`, `type <= 64`, `status <= 64`, `message <= 16000`) sowie in allen Schreibpfaden von `SentinelTriageService` (inkl. Nullsafe-Schutz `!empty($top['culprit_file'])` in `writeInboxSnapshotFile()`) dauerhaft abgesichert.
+  2. `Stage / Einmaliger CLI-Stdin-Aufruf` (`stage_log_id: 3449` & `3450`, `route_or_command: Standard input code`): Repo-weiter Code-Scan (`app/`, `routes/`, `resources/`, `funkenwerk-mcp/`, `funkenwerk/`, `funkenwerk-os-linux/`, `android-app/`, `scripts/`) bestätigte `0` Code-Stellen mit `category`/`action` auf `system_logs`; Ursache war ein einmaliger interaktiver CLI-Stdin-Befehl auf Stage, der sauber über `--sentinel-sync --resolve-all` ins Archiv überführt wurde.
+* **Testnachweis (`100 % Grün`):**
+  - **Portal / System (PHPUnit in `mein_php_server`)**: `9/9` Tests in `SentinelSelfHealingAndInboxTest` + `5/5` Tests in `SystemLogHardeningTest` (`14/14 Tests, 124 Assertions`) inkl. neuem Grenz- und Überlängen-Test (`> 340` Zeichen) bestanden.
+* **Verifizierter Endstatus (Zero-Log-Baseline = 0 Bytes):**
+  - Stage & Lokal `storage/logs/laravel.log`: **`0 Bytes`**
+  - `storage/app/private/antigravity_inbox.json`: `open_pool_count = 0`, `items: []`
+  - Bestätigung durch `FunkenwerkMcp.exe --sentinel-hourly-guard`: **`0` offene Dossiers, `0 Bytes` Fehler-Logs**.
+

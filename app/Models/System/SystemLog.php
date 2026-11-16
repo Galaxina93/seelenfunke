@@ -73,7 +73,13 @@ class SystemLog extends Model implements HasSystemBlueprint
         );
     }
 
-protected $table = 'system_logs';
+    protected $table = 'system_logs';
+
+    public const MAX_TYPE_LENGTH = 64;
+    public const MAX_ACTION_ID_LENGTH = 191;
+    public const MAX_TITLE_LENGTH = 191;
+    public const MAX_STATUS_LENGTH = 64;
+    public const MAX_MESSAGE_LENGTH = 16000;
 
     protected $fillable = [
         'ai_agent_id',
@@ -92,6 +98,50 @@ protected $table = 'system_logs';
         'finished_at' => 'datetime',
         'payload' => 'array',
     ];
+
+    /**
+     * Begrenzt einen String deterministisch inklusive Suffix strikt auf maximal $maxLength Zeichen
+     * (verhindert z. B. den Str::limit(..., 190)-Überlauf von 190 + 3 = 193 > VARCHAR(191)).
+     */
+    public static function clampColumnValue(?string $value, int $maxLength, string $suffix = '...'): string
+    {
+        $str = (string) ($value ?? '');
+        if ($maxLength <= 0) {
+            return '';
+        }
+
+        if (mb_strlen($str, 'UTF-8') <= $maxLength) {
+            return $str;
+        }
+
+        $suffixLen = mb_strlen($suffix, 'UTF-8');
+        if ($suffixLen === 0 || $maxLength <= $suffixLen) {
+            return mb_substr($str, 0, $maxLength, 'UTF-8');
+        }
+
+        return rtrim(mb_substr($str, 0, $maxLength - $suffixLen, 'UTF-8')) . $suffix;
+    }
+
+    protected static function booted(): void
+    {
+        static::saving(function (self $model): void {
+            $rawType = trim((string) ($model->attributes['type'] ?? 'system'));
+            $model->attributes['type'] = self::clampColumnValue($rawType !== '' ? $rawType : 'system', self::MAX_TYPE_LENGTH, '');
+
+            $rawActionId = (string) ($model->attributes['action_id'] ?? '');
+            $model->attributes['action_id'] = self::clampColumnValue($rawActionId, self::MAX_ACTION_ID_LENGTH, '');
+
+            $rawTitle = (string) ($model->attributes['title'] ?? '');
+            $model->attributes['title'] = self::clampColumnValue($rawTitle, self::MAX_TITLE_LENGTH, '...');
+
+            $rawStatus = trim((string) ($model->attributes['status'] ?? 'info'));
+            $model->attributes['status'] = self::clampColumnValue($rawStatus !== '' ? $rawStatus : 'info', self::MAX_STATUS_LENGTH, '');
+
+            if (array_key_exists('message', $model->attributes) && $model->attributes['message'] !== null) {
+                $model->attributes['message'] = self::clampColumnValue((string) $model->attributes['message'], self::MAX_MESSAGE_LENGTH, '...');
+            }
+        });
+    }
 
     /**
      * Relation zum ausführenden KI-Agenten
@@ -317,11 +367,23 @@ protected $table = 'system_logs';
             ? $rawPayload
             : (is_string($rawPayload) ? (json_decode($rawPayload, true) ?: []) : []);
 
-        $type = (string) ($attributes['type'] ?? 'system');
-        $actionId = (string) ($attributes['action_id'] ?? '');
-        $title = (string) ($attributes['title'] ?? '');
-        $message = (string) ($attributes['message'] ?? '');
-        $status = (string) ($attributes['status'] ?? 'info');
+        $rawType = trim((string) ($attributes['type'] ?? 'system'));
+        $type = self::clampColumnValue($rawType !== '' ? $rawType : 'system', self::MAX_TYPE_LENGTH, '');
+        $actionId = self::clampColumnValue((string) ($attributes['action_id'] ?? ''), self::MAX_ACTION_ID_LENGTH, '');
+        $title = self::clampColumnValue((string) ($attributes['title'] ?? ''), self::MAX_TITLE_LENGTH, '...');
+        $message = array_key_exists('message', $attributes) && $attributes['message'] !== null
+            ? self::clampColumnValue((string) $attributes['message'], self::MAX_MESSAGE_LENGTH, '...')
+            : '';
+        $rawStatus = trim((string) ($attributes['status'] ?? 'info'));
+        $status = self::clampColumnValue($rawStatus !== '' ? $rawStatus : 'info', self::MAX_STATUS_LENGTH, '');
+
+        $attributes['type'] = $type;
+        $attributes['action_id'] = $actionId;
+        $attributes['title'] = $title;
+        $attributes['status'] = $status;
+        if (array_key_exists('message', $attributes) && $attributes['message'] !== null) {
+            $attributes['message'] = $message;
+        }
 
         $platformKey = self::detectPlatformKey($type, $actionId, $payload);
         $payload['platform'] = $payload['platform'] ?? $platformKey;

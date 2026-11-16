@@ -4,12 +4,14 @@ namespace App\Services\System;
 
 use App\Models\System\SystemLog;
 use App\Models\System\SystemNeuralNode;
+use App\Services\AI\Mails\AiAgentMessageMail;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
@@ -32,15 +34,32 @@ class SentinelTriageService
     public const HANDOFF_FILE = 'app/private/antigravity_error_handoff.json';
     public const OPPORTUNISTIC_LOCK_KEY = 'sentinel:opportunistic_triage:last_run';
     public const PUSH_COOLDOWN_KEY = 'sentinel:critical_push:last_sent';
+    public const BRIDGE_ALERT_COOLDOWN_PREFIX = 'sentinel:bridge_alert_sent:';
+    public const BRIDGE_ALERT_COOLDOWN_MINUTES = 30;
+    public const BRIDGE_ALERT_EMAIL = 'kontakt@mein-seelenfunke.de';
 
     public const BRIDGE_HEALTH_TARGETS = [
-        'reverb_twilio' => [
-            'label' => 'Reverb Twilio-Bridge (ws.mein-seelenfunke.de)',
+        'twilio_reverb' => [
+            'key' => 'twilio_reverb',
+            'action_id' => 'sentinel:bridge_down:twilio_reverb',
+            'legacy_action_ids' => ['sentinel:bridge_unhealthy:reverb_twilio', 'sentinel:bridge_unhealthy:twilio_reverb'],
+            'label' => 'Primäre Telefonie- & Reverb-Bridge (a-iurgq8)',
+            'short_label' => 'Telefonie & Reverb (a-iurgq8)',
+            'container_id' => 'a-iurgq8',
             'url' => 'https://ws.mein-seelenfunke.de/twilio-health',
+            'health_path' => '/twilio-health',
+            'ssh_restart_cmd' => 'ssh kontakt@mein-seelenfunke.de@a-iurgq8@ssh.altgemeinde.project.host "mittnitectl job restart"',
         ],
-        'live_bridge' => [
-            'label' => 'Node.js Gemini Live-Bridge (api-live-bridge.mein-seelenfunke.de)',
+        'gemini_live' => [
+            'key' => 'gemini_live',
+            'action_id' => 'sentinel:bridge_down:gemini_live',
+            'legacy_action_ids' => ['sentinel:bridge_unhealthy:live_bridge', 'sentinel:bridge_unhealthy:gemini_live'],
+            'label' => 'Node.js Gemini-Live-Audio-Bridge (a-yeq7el)',
+            'short_label' => 'Gemini Live-Bridge (a-yeq7el)',
+            'container_id' => 'a-yeq7el',
             'url' => 'https://api-live-bridge.mein-seelenfunke.de/health',
+            'health_path' => '/health',
+            'ssh_restart_cmd' => 'ssh kontakt@mein-seelenfunke.de@a-yeq7el@ssh.altgemeinde.project.host "mittnitectl job restart"',
         ],
     ];
 
@@ -206,8 +225,8 @@ class SentinelTriageService
             }
 
             try {
-                $type = Str::limit((string) ($decoded['type'] ?? 'system'), 40, '');
-                $actionId = Str::limit((string) ($decoded['action_id'] ?? 'system:deadletter'), 190, '');
+                $type = SystemLog::clampColumnValue((string) ($decoded['type'] ?? 'system'), SystemLog::MAX_TYPE_LENGTH, '');
+                $actionId = SystemLog::clampColumnValue((string) ($decoded['action_id'] ?? 'system:deadletter'), SystemLog::MAX_ACTION_ID_LENGTH, '');
                 $payload = is_array($decoded['payload'] ?? null)
                     ? SystemErrorLogger::sanitizeArrayRecursive($decoded['payload'])
                     : [];
@@ -240,7 +259,7 @@ class SentinelTriageService
                 SystemLog::create([
                     'type' => $type ?: 'system',
                     'action_id' => $actionId ?: 'system:deadletter',
-                    'title' => Str::limit(SystemErrorLogger::sanitizeSensitiveText((string) ($decoded['title'] ?? 'System-Fehler (Spool)')), 190),
+                    'title' => SystemLog::clampColumnValue(SystemErrorLogger::sanitizeSensitiveText((string) ($decoded['title'] ?? 'System-Fehler (Spool)')), SystemLog::MAX_TITLE_LENGTH, '...'),
                     'message' => Str::limit(SystemErrorLogger::sanitizeSensitiveText((string) ($decoded['message'] ?? 'Nachgespülter Fehler aus Notfall-Spool')), 2000),
                     'status' => in_array(($decoded['status'] ?? 'error'), ['error', 'warning', 'success'], true) ? $decoded['status'] : 'error',
                     'payload' => $payload,
@@ -285,7 +304,7 @@ class SentinelTriageService
 
                 foreach ($recentFailedJobs as $job) {
                     $jobUuid = trim((string) ($job->uuid ?? $job->id));
-                    $actionId = Str::limit('queue:failed_job:' . $jobUuid, 190, '');
+                    $actionId = SystemLog::clampColumnValue('queue:failed_job:' . $jobUuid, SystemLog::MAX_ACTION_ID_LENGTH, '');
 
                     if (SystemLog::where('action_id', $actionId)->exists()) {
                         continue;
@@ -311,7 +330,7 @@ class SentinelTriageService
                     SystemLog::create([
                         'type' => 'system',
                         'action_id' => $actionId,
-                        'title' => Str::limit('Queue-Job fehlgeschlagen (' . class_basename($displayName) . ')', 190),
+                        'title' => SystemLog::clampColumnValue('Queue-Job fehlgeschlagen (' . class_basename($displayName) . ')', SystemLog::MAX_TITLE_LENGTH, '...'),
                         'message' => Str::limit($firstLine, 2000),
                         'status' => 'error',
                         'payload' => [
@@ -342,85 +361,9 @@ class SentinelTriageService
         }
 
         if ($includeExternalBridges) {
-            foreach (self::BRIDGE_HEALTH_TARGETS as $bridgeKey => $meta) {
-                $probedBridges++;
-                $actionId = 'sentinel:bridge_unhealthy:' . $bridgeKey;
-                $healthy = false;
-                $httpStatus = null;
-                $errorDetail = '';
-
-                try {
-                    $response = Http::withOptions([
-                        'force_ip_resolve' => 'v4',
-                        'connect_timeout' => 4,
-                        'timeout' => 6,
-                    ])->get($meta['url']);
-
-                    $httpStatus = $response->status();
-                    $healthy = $response->successful();
-                    if (!$healthy) {
-                        $errorDetail = 'HTTP ' . $httpStatus . ' von ' . $meta['url'];
-                    }
-                } catch (\Throwable $e) {
-                    $healthy = false;
-                    $errorDetail = SystemErrorLogger::sanitizeSensitiveText($e->getMessage());
-                }
-
-                if ($healthy) {
-                    $openBridgeLogs = SystemLog::openIssues()
-                        ->where('action_id', $actionId)
-                        ->get();
-
-                    foreach ($openBridgeLogs as $openBridgeLog) {
-                        $this->markAsAutoHealed(
-                            $openBridgeLog,
-                            'bridge_recovered_http_200',
-                            $meta['label'] . ' antwortet wieder regulär mit HTTP ' . ($httpStatus ?? 200) . '.'
-                        );
-                        $autoHealedBridges++;
-                    }
-                } else {
-                    $fingerprint = hash('sha256', 'sentinel|bridge|' . $bridgeKey);
-                    $existing = SystemLog::openIssues()
-                        ->where('action_id', $actionId)
-                        ->latest('id')
-                        ->first();
-
-                    if ($existing) {
-                        $p = is_array($existing->payload) ? $existing->payload : [];
-                        $p['occurrences_count'] = ((int) ($p['occurrences_count'] ?? 1)) + 1;
-                        $p['last_seen_at'] = now()->toIso8601String();
-                        $p['last_http_status'] = $httpStatus;
-                        $p['last_probe_error'] = Str::limit($errorDetail, 500);
-                        $existing->payload = $p;
-                        $existing->finished_at = now();
-                        $existing->save();
-                    } else {
-                        SystemLog::create([
-                            'type' => 'system',
-                            'action_id' => $actionId,
-                            'title' => Str::limit('Brücken-Wächter: ' . $meta['label'] . ' gestört', 190),
-                            'message' => Str::limit('Gesundheits-Puls fehlgeschlagen: ' . ($errorDetail ?: 'Keine Antwort'), 2000),
-                            'status' => 'error',
-                            'payload' => [
-                                'platform' => 'portal',
-                                'platform_label' => 'Webportal',
-                                'component' => 'realtime_bridge_' . $bridgeKey,
-                                'bridge_key' => $bridgeKey,
-                                'bridge_url' => $meta['url'],
-                                'last_http_status' => $httpStatus,
-                                'fingerprint' => $fingerprint,
-                                'occurrences_count' => 1,
-                                'first_seen_at' => now()->toIso8601String(),
-                                'last_seen_at' => now()->toIso8601String(),
-                                'diagnosis' => SystemErrorLogger::diagnose('bridge_unhealthy ' . $meta['url']),
-                            ],
-                            'started_at' => now(),
-                            'finished_at' => now(),
-                        ]);
-                    }
-                }
-            }
+            $bridgeReport = $this->probeGeminiBridges(retryOnBlip: true, persistAndAlert: true);
+            $probedBridges = (int) ($bridgeReport['probed_count'] ?? 0);
+            $autoHealedBridges = (int) ($bridgeReport['auto_healed_count'] ?? 0);
         }
 
         $watchtowerSynced = ['logged' => 0, 'healed' => 0];
@@ -430,9 +373,9 @@ class SentinelTriageService
                     source: 'cli_scheduler',
                     strict: false,
                     recordSample: true,
-                    syncLogs: false
+                    syncLogs: true
                 );
-                $watchtowerSynced = app(SystemHealthPulseService::class)->syncWithSystemLogs($pulse['pillars'] ?? []);
+                $watchtowerSynced = $pulse['log_sync'] ?? ['logged' => 0, 'healed' => 0];
             } catch (\Throwable $ignore) {
             }
         }
@@ -673,13 +616,37 @@ class SentinelTriageService
             }
         }
 
-        // Playbook 9: Infrastruktur-Check Telephony Audio-Bridge: Überholt nach Dienstneustart / im Normalbetrieb
-        if (str_contains($actionId, 'health_fail') && (str_contains($msgLower, 'telephony') || str_contains($titleLower, 'telephony') || str_contains($msgLower, 'telefonie')) && $occurrences < 10) {
-            if ($this->verifyCoreConnectivityHealthy()) {
+        // Playbook 9: Infrastruktur-Check Gemini / Telephony Audio-Bridge: NUR heilen, wenn die echte Audio-Bridge live gesund antwortet!
+        $isAudioBridgeHealthFail = str_contains($actionId, 'health_fail') && (
+            str_contains($actionId, 'gemini_bridge')
+            || str_contains($msgLower, 'gemini audio bridge')
+            || str_contains($msgLower, 'gemini live audio-bridge')
+            || str_contains($titleLower, 'gemini audio bridge')
+            || str_contains($msgLower, 'telephony')
+            || str_contains($titleLower, 'telephony')
+            || str_contains($msgLower, 'telefonie')
+        );
+        if ($isAudioBridgeHealthFail) {
+            $hasOpenBridgeOutage = SystemLog::openIssues()
+                ->where(function ($q) {
+                    $q->where('action_id', 'like', 'sentinel:bridge_down:%')
+                        ->orWhere('action_id', 'like', 'sentinel:bridge_unhealthy:%');
+                })
+                ->exists();
+
+            if ($hasOpenBridgeOutage || !$this->verifyGeminiBridgeHealthy()) {
+                return ['healed' => false];
+            }
+
+            if ($occurrences < 10) {
+                if (class_exists(SystemHealthPulseService::class)) {
+                    app(SystemHealthPulseService::class)->resolveGeminiBridgeOutage();
+                }
+
                 return [
                     'healed' => true,
                     'playbook' => 'health_telephony_worker_recovered',
-                    'summary' => 'Telephony Audio-Bridge Dienstbereitschaft nach Container-Neustart wiederhergestellt.',
+                    'summary' => 'Gemini Audio-Bridge Dienstbereitschaft per Live-Health-Check verifiziert und wiederhergestellt.',
                 ];
             }
         }
@@ -729,7 +696,7 @@ class SentinelTriageService
 
         $title = (string) $log->title;
         if (!str_starts_with($title, '[AUTO-GEHEILT]')) {
-            $title = Str::limit('[AUTO-GEHEILT] ' . $title, 190);
+            $title = SystemLog::clampColumnValue('[AUTO-GEHEILT] ' . $title, SystemLog::MAX_TITLE_LENGTH, '...');
         }
 
         $log->title = $title;
@@ -976,7 +943,7 @@ class SentinelTriageService
                 'status' => 'ready_for_antigravity',
                 'open_pool_count' => count($items),
                 'fingerprint' => $top['fingerprint'] ?? null,
-                'item_key' => $top['culprit_file'] ? ('core:' . $top['culprit_file']) : ('log:' . ($top['log_id'] ?? '0')),
+                'item_key' => !empty($top['culprit_file']) ? ('core:' . $top['culprit_file']) : ('log:' . ($top['log_id'] ?? '0')),
                 'platform' => $top['platform'] ?? 'portal',
                 'platform_label' => $top['platform_label'] ?? 'Webportal',
                 'severity' => $top['severity'] ?? 'error',
@@ -1100,9 +1067,9 @@ class SentinelTriageService
                 : ($badge . ' ' . $rawTitle);
 
             SystemLog::create([
-                'type' => Str::limit((string) ($item['type'] ?? 'system'), 40, ''),
-                'action_id' => Str::limit((string) ($item['action_id'] ?? ($itemOrigin . ':pool:' . substr($fp, 0, 16))), 190, ''),
-                'title' => Str::limit($prefixedTitle, 190),
+                'type' => SystemLog::clampColumnValue((string) ($item['type'] ?? 'system'), SystemLog::MAX_TYPE_LENGTH, ''),
+                'action_id' => SystemLog::clampColumnValue((string) ($item['action_id'] ?? ($itemOrigin . ':pool:' . substr($fp, 0, 16))), SystemLog::MAX_ACTION_ID_LENGTH, ''),
+                'title' => SystemLog::clampColumnValue($prefixedTitle, SystemLog::MAX_TITLE_LENGTH, '...'),
                 'message' => Str::limit(SystemErrorLogger::sanitizeSensitiveText((string) ($item['message'] ?? '')), 2000),
                 'status' => ($item['severity'] ?? 'error') === 'warning' ? 'warning' : 'error',
                 'payload' => SystemErrorLogger::sanitizeArrayRecursive([
@@ -1229,12 +1196,479 @@ class SentinelTriageService
     }
 
     /**
+     * Kanonische Gesundheitsprüfung beider Mittwald Echtzeit- & Gemini-Audio-Bridges
+     * (mit 400ms Sofort-Retry gegen Mikro-Netzwerkblips, strenger HTTP-200 + status=ok Verifikation,
+     * SystemLog + Antigravity-Dossier, 30-Min-Rate-Limit Push/Mail-Alarm und automatischem [AUTO-GEHEILT]).
+     */
+    public function probeGeminiBridges(bool $retryOnBlip = true, bool $persistAndAlert = true): array
+    {
+        $bridgesResult = [];
+        $probedCount = 0;
+        $autoHealedCount = 0;
+        $newlyLoggedCount = 0;
+        $alertsSentCount = 0;
+        $maxLatencyMs = 0;
+        $downSummaries = [];
+        $stateChanged = false;
+        $hasLogsTable = Schema::hasTable('system_logs');
+
+        foreach (self::BRIDGE_HEALTH_TARGETS as $bridgeKey => $meta) {
+            $probedCount++;
+            $targetUrl = $this->resolveBridgeHealthUrl($bridgeKey, (string) $meta['url'], (string) ($meta['health_path'] ?? '/health'));
+            $probe = $this->executeSingleBridgeProbe($targetUrl, $retryOnBlip);
+
+            $healthy = (bool) $probe['healthy'];
+            $httpStatus = $probe['http_status'];
+            $latencyMs = (int) $probe['latency_ms'];
+            $errorDetail = (string) $probe['error_detail'];
+            $maxLatencyMs = max($maxLatencyMs, $latencyMs);
+
+            if ($persistAndAlert && $hasLogsTable) {
+                $syncStats = $this->syncBridgeProbeResult(
+                    bridgeKey: $bridgeKey,
+                    healthy: $healthy,
+                    targetUrl: $targetUrl,
+                    httpStatus: $httpStatus,
+                    errorDetail: $errorDetail,
+                    flushSnapshot: false
+                );
+                $autoHealedCount += (int) ($syncStats['auto_healed_count'] ?? 0);
+                $newlyLoggedCount += (int) ($syncStats['newly_logged_count'] ?? 0);
+                $alertsSentCount += (int) ($syncStats['alerts_sent_count'] ?? 0);
+                if (!empty($syncStats['state_changed'])) {
+                    $stateChanged = true;
+                }
+            }
+
+            if (!$healthy) {
+                $downSummaries[] = $meta['short_label'] . ' (' . ($httpStatus ? "HTTP {$httpStatus}" : 'Offline') . ')';
+            }
+
+            $bridgesResult[$bridgeKey] = [
+                'key' => $bridgeKey,
+                'action_id' => $meta['action_id'],
+                'label' => $meta['label'],
+                'short_label' => $meta['short_label'],
+                'container_id' => $meta['container_id'],
+                'url' => $targetUrl,
+                'ssh_restart_cmd' => $meta['ssh_restart_cmd'],
+                'healthy' => $healthy,
+                'http_status' => $httpStatus,
+                'reported_status' => $probe['reported_status'],
+                'latency_ms' => $latencyMs,
+                'attempts' => $probe['attempts'],
+                'error' => $healthy ? null : $errorDetail,
+            ];
+        }
+
+        $allHealthy = empty($downSummaries);
+
+        if ($persistAndAlert && $hasLogsTable) {
+            if ($allHealthy) {
+                $legacyTelLogs = SystemLog::openIssues()
+                    ->where('type', 'system')
+                    ->where('action_id', 'system:health_fail')
+                    ->where('title', 'Infrastruktur-Ausfall: Telephony')
+                    ->get();
+
+                foreach ($legacyTelLogs as $legacyLog) {
+                    $this->markAsAutoHealed(
+                        $legacyLog,
+                        'bridge_recovered_http_200',
+                        'Beide Echtzeit- & Gemini-Bridges melden HTTP 200 (status: ok).'
+                    );
+                    $autoHealedCount++;
+                    $stateChanged = true;
+                }
+            }
+
+            if ($stateChanged) {
+                try {
+                    $this->writeInboxSnapshotFile();
+                } catch (\Throwable $ignore) {
+                }
+                Cache::forget('master_analytics_system_health_cache');
+                Cache::forget('master_analytics_system_health_fresh');
+            }
+        }
+
+        return [
+            'all_healthy' => $allHealthy,
+            'probed_count' => $probedCount,
+            'down_count' => count($downSummaries),
+            'auto_healed_count' => $autoHealedCount,
+            'newly_logged_count' => $newlyLoggedCount,
+            'alerts_sent_count' => $alertsSentCount,
+            'max_latency_ms' => $maxLatencyMs,
+            'summary_error' => $allHealthy ? null : ('Bridge gestört: ' . implode(', ', $downSummaries)),
+            'bridges' => $bridgesResult,
+        ];
+    }
+
+    /**
+     * Synchronisiert das Prüfergebnis einer einzelnen Echtzeit-Bridge idempotent ins SystemLog,
+     * erstellt das Antigravity-Dossier, löst einmalig pro Episode die Warnung aus und heilt bei HTTP 200 ok automatisch.
+     */
+    public function syncBridgeProbeResult(
+        string $bridgeKey,
+        bool $healthy,
+        string $targetUrl,
+        ?int $httpStatus,
+        string $errorDetail = '',
+        bool $flushSnapshot = false
+    ): array {
+        $normalizedKey = match ($bridgeKey) {
+            'live_bridge', 'gemini_live' => 'gemini_live',
+            'twilio_bridge', 'reverb_twilio', 'twilio_reverb' => 'twilio_reverb',
+            default => $bridgeKey,
+        };
+
+        $meta = self::BRIDGE_HEALTH_TARGETS[$normalizedKey] ?? null;
+        if ($meta === null || !Schema::hasTable('system_logs')) {
+            return [
+                'auto_healed_count' => 0,
+                'newly_logged_count' => 0,
+                'alerts_sent_count' => 0,
+                'state_changed' => false,
+            ];
+        }
+
+        $autoHealedCount = 0;
+        $newlyLoggedCount = 0;
+        $alertsSentCount = 0;
+        $stateChanged = false;
+
+        $allActionIds = array_values(array_unique(array_merge(
+            [(string) $meta['action_id']],
+            is_array($meta['legacy_action_ids'] ?? null) ? $meta['legacy_action_ids'] : []
+        )));
+
+        if ($healthy) {
+            $openBridgeLogs = SystemLog::openIssues()
+                ->whereIn('action_id', $allActionIds)
+                ->get();
+
+            foreach ($openBridgeLogs as $openBridgeLog) {
+                $this->markAsAutoHealed(
+                    $openBridgeLog,
+                    'bridge_recovered_http_200',
+                    $meta['label'] . ' antwortet wieder regulär mit HTTP 200 (status: ok).'
+                );
+                $autoHealedCount++;
+                $stateChanged = true;
+            }
+
+            Cache::forget(self::BRIDGE_ALERT_COOLDOWN_PREFIX . $normalizedKey);
+        } else {
+            $actionId = (string) $meta['action_id'];
+            $fingerprint = hash('sha256', 'sentinel|bridge_down|' . $normalizedKey);
+            $existing = SystemLog::openIssues()
+                ->whereIn('action_id', $allActionIds)
+                ->latest('id')
+                ->first();
+
+            $diagnosis = SystemErrorLogger::diagnose('bridge_unhealthy ' . $targetUrl);
+            $diagnosis['recommended_action'] = 'Mittwald-Container neu starten via: ' . $meta['ssh_restart_cmd'];
+
+            if ($existing) {
+                $p = is_array($existing->payload) ? $existing->payload : [];
+                $p['platform'] = 'portal';
+                $p['platform_label'] = 'Webportal';
+                $p['bridge_key'] = $normalizedKey;
+                $p['container_id'] = $meta['container_id'];
+                $p['bridge_url'] = $targetUrl;
+                $p['ssh_restart_cmd'] = $meta['ssh_restart_cmd'];
+                $p['fingerprint'] = $p['fingerprint'] ?? $fingerprint;
+                $p['occurrences_count'] = ((int) ($p['occurrences_count'] ?? 1)) + 1;
+                $p['last_seen_at'] = now()->toIso8601String();
+                $p['last_http_status'] = $httpStatus;
+                $p['last_probe_error'] = Str::limit($errorDetail, 500);
+                $p['diagnosis'] = $diagnosis;
+
+                if (empty($p['antigravity_dossier'])) {
+                    $dummyAiCalls = 0;
+                    $existing->payload = $p;
+                    $dossier = $this->buildAntigravityDossier($existing, (string) $p['fingerprint'], false, $dummyAiCalls);
+                    $dossier['criticality'] = 'critical';
+                    $p['triage'] = [
+                        'state' => 'queued_for_antigravity',
+                        'triaged_at' => now()->toIso8601String(),
+                        'triaged_by' => 'Funkira Sentinel',
+                        'criticality' => 'critical',
+                    ];
+                    $p['antigravity_dossier'] = $dossier;
+                } else {
+                    $p['antigravity_dossier']['occurrences_count'] = $p['occurrences_count'];
+                    $p['antigravity_dossier']['last_seen_at'] = $p['last_seen_at'];
+                }
+
+                $existing->action_id = SystemLog::clampColumnValue($actionId, SystemLog::MAX_ACTION_ID_LENGTH, '');
+                $existing->status = 'error';
+                $existing->message = Str::limit('Gesundheits-Puls fehlgeschlagen: ' . ($errorDetail ?: 'Keine Antwort') . ' | Notfallbefehl: ' . $meta['ssh_restart_cmd'], 2000);
+                $existing->payload = $p;
+                $existing->finished_at = now();
+                $existing->save();
+                $targetLog = $existing;
+            } else {
+                $targetLog = SystemLog::create([
+                    'type' => 'system',
+                    'action_id' => SystemLog::clampColumnValue($actionId, SystemLog::MAX_ACTION_ID_LENGTH, ''),
+                    'title' => SystemLog::clampColumnValue('Gemini-Bridge ausgefallen: ' . $meta['short_label'], SystemLog::MAX_TITLE_LENGTH, '...'),
+                    'message' => Str::limit('Gesundheits-Puls fehlgeschlagen: ' . ($errorDetail ?: 'Keine Antwort') . ' | Notfallbefehl: ' . $meta['ssh_restart_cmd'], 2000),
+                    'status' => 'error',
+                    'payload' => [
+                        'platform' => 'portal',
+                        'platform_label' => 'Webportal',
+                        'component' => 'realtime_bridge_' . $normalizedKey,
+                        'bridge_key' => $normalizedKey,
+                        'container_id' => $meta['container_id'],
+                        'bridge_url' => $targetUrl,
+                        'ssh_restart_cmd' => $meta['ssh_restart_cmd'],
+                        'last_http_status' => $httpStatus,
+                        'last_probe_error' => Str::limit($errorDetail, 500),
+                        'fingerprint' => $fingerprint,
+                        'occurrences_count' => 1,
+                        'first_seen_at' => now()->toIso8601String(),
+                        'last_seen_at' => now()->toIso8601String(),
+                        'diagnosis' => $diagnosis,
+                    ],
+                    'started_at' => now(),
+                    'finished_at' => now(),
+                ]);
+
+                $dummyAiCalls = 0;
+                $dossier = $this->buildAntigravityDossier($targetLog, $fingerprint, false, $dummyAiCalls);
+                $dossier['criticality'] = 'critical';
+                $p = is_array($targetLog->payload) ? $targetLog->payload : [];
+                $p['triage'] = [
+                    'state' => 'queued_for_antigravity',
+                    'triaged_at' => now()->toIso8601String(),
+                    'triaged_by' => 'Funkira Sentinel',
+                    'criticality' => 'critical',
+                ];
+                $p['antigravity_dossier'] = $dossier;
+                $targetLog->payload = $p;
+                $targetLog->save();
+
+                $newlyLoggedCount++;
+                $stateChanged = true;
+            }
+
+            if ($this->sendBridgeOutageAlertOncePerEpisode($normalizedKey, $meta, $targetUrl, $httpStatus, $errorDetail, $targetLog)) {
+                $alertsSentCount++;
+            }
+        }
+
+        if ($flushSnapshot && $stateChanged) {
+            try {
+                $this->writeInboxSnapshotFile();
+            } catch (\Throwable $ignore) {
+            }
+        }
+
+        return [
+            'auto_healed_count' => $autoHealedCount,
+            'newly_logged_count' => $newlyLoggedCount,
+            'alerts_sent_count' => $alertsSentCount,
+            'state_changed' => $stateChanged,
+        ];
+    }
+
+    /**
+     * Löst die echte HTTPS-Health-URL einer Bridge auf und verhindert strikt,
+     * dass versehentlich reine WebSocket-Stream-Pfade wie /twilio-stream angepingt werden.
+     */
+    public function resolveBridgeHealthUrl(string $bridgeKey, string $defaultUrl, string $healthPath = '/health'): string
+    {
+        $configuredRaw = match ($bridgeKey) {
+            'twilio_reverb' => (string) config('services.twilio.wss_url', ''),
+            'gemini_live' => (string) config('services.gemini.proxy_ws_url', ''),
+            default => '',
+        };
+
+        $configuredRaw = trim($configuredRaw);
+        if ($configuredRaw === '') {
+            return $defaultUrl;
+        }
+
+        $httpCandidate = str_replace(['wss://', 'ws://'], ['https://', 'http://'], $configuredRaw);
+        $host = strtolower((string) parse_url($httpCandidate, PHP_URL_HOST));
+        $scheme = strtolower((string) parse_url($httpCandidate, PHP_URL_SCHEME)) ?: 'https';
+        $port = parse_url($httpCandidate, PHP_URL_PORT);
+
+        if ($bridgeKey === 'twilio_reverb' && !str_contains($host, 'ws.mein-seelenfunke.de')) {
+            return $defaultUrl;
+        }
+
+        if ($host === '' || in_array($host, ['localhost', '127.0.0.1', '::1'], true)) {
+            if (app()->environment('local') && $host !== '') {
+                $portPart = $port ? ':' . $port : '';
+                return "{$scheme}://{$host}{$portPart}/" . ltrim($healthPath, '/');
+            }
+
+            return $defaultUrl;
+        }
+
+        if ($bridgeKey === 'twilio_reverb' && !str_starts_with($host, 'ws.')) {
+            return $defaultUrl;
+        }
+        if ($bridgeKey === 'gemini_live' && !str_starts_with($host, 'api-live-bridge.')) {
+            return $defaultUrl;
+        }
+
+        $portPart = ($port && !in_array((int) $port, [80, 443], true)) ? ':' . $port : '';
+        return "https://{$host}{$portPart}/" . ltrim($healthPath, '/');
+    }
+
+    /**
+     * Führt den HTTP-Health-Check gegen eine Bridge aus (erfordert HTTP 200 UND JSON status === "ok")
+     * inkl. 1 kurzem Sofort-Retry nach 400 ms gegen Mikro-Netzwerkblips.
+     */
+    protected function executeSingleBridgeProbe(string $url, bool $retryOnBlip = true): array
+    {
+        $maxAttempts = $retryOnBlip ? 2 : 1;
+        $httpStatus = null;
+        $reportedStatus = null;
+        $errorDetail = '';
+        $latencyMs = 0;
+
+        for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
+            if ($attempt > 1) {
+                usleep(400_000);
+            }
+
+            $t0 = microtime(true);
+            try {
+                $response = Http::withOptions([
+                    'force_ip_resolve' => 'v4',
+                    'connect_timeout' => 3,
+                    'timeout' => 5,
+                ])->acceptJson()->get($url);
+
+                $latencyMs = (int) round((microtime(true) - $t0) * 1000);
+                $httpStatus = $response->status();
+                $json = $response->json();
+                $reportedStatus = is_array($json) && isset($json['status'])
+                    ? strtolower(trim((string) $json['status']))
+                    : null;
+
+                if ($httpStatus === 200 && $reportedStatus === 'ok') {
+                    return [
+                        'healthy' => true,
+                        'http_status' => 200,
+                        'reported_status' => 'ok',
+                        'latency_ms' => $latencyMs,
+                        'attempts' => $attempt,
+                        'error_detail' => '',
+                    ];
+                }
+
+                if ($httpStatus !== 200) {
+                    $errorDetail = "HTTP {$httpStatus} von {$url}";
+                } else {
+                    $errorDetail = 'Ungültiger Health-Status (' . ($reportedStatus ?: 'kein status=ok') . ') von ' . $url;
+                }
+            } catch (\Throwable $e) {
+                $latencyMs = (int) round((microtime(true) - $t0) * 1000);
+                $httpStatus = null;
+                $reportedStatus = null;
+                $errorDetail = SystemErrorLogger::sanitizeSensitiveText($e->getMessage());
+            }
+        }
+
+        return [
+            'healthy' => false,
+            'http_status' => $httpStatus,
+            'reported_status' => $reportedStatus,
+            'latency_ms' => $latencyMs,
+            'attempts' => $maxAttempts,
+            'error_detail' => $errorDetail,
+        ];
+    }
+
+    /**
+     * Sendet bei einem echten Bridge-Ausfall sofort, aber streng gedrosselt (max. 1x pro 30 Min je Bridge-Episode),
+     * eine Warn-Mail an kontakt@mein-seelenfunke.de sowie optional einen FCM-Push an Alinas Admin-Geräte.
+     */
+    protected function sendBridgeOutageAlertOncePerEpisode(
+        string $bridgeKey,
+        array $meta,
+        string $targetUrl,
+        ?int $httpStatus,
+        string $errorDetail,
+        SystemLog $log
+    ): bool {
+        $lockKey = self::BRIDGE_ALERT_COOLDOWN_PREFIX . $bridgeKey;
+        if (Cache::has($lockKey)) {
+            return false;
+        }
+
+        Cache::put($lockKey, now()->toIso8601String(), now()->addMinutes(self::BRIDGE_ALERT_COOLDOWN_MINUTES));
+
+        $payload = is_array($log->payload) ? $log->payload : [];
+        $payload['bridge_alert_notified_at'] = now()->toIso8601String();
+        $log->payload = $payload;
+        $log->save();
+
+        $subject = 'WARNUNG: ' . $meta['short_label'] . ' ausgefallen';
+        $statusLabel = $httpStatus !== null ? "HTTP {$httpStatus}" : 'Timeout / Verbindungsfehler';
+        $bodyLines = [
+            'Funkira Sentinel hat nach erneutem Prüfversuch (400ms Retry) einen Ausfall einer Echtzeit-Bridge festgestellt:',
+            '',
+            'Dienst: ' . $meta['label'],
+            'Container: ' . $meta['container_id'],
+            'Health-URL: ' . $targetUrl,
+            'Befund: ' . $statusLabel . ($errorDetail !== '' ? ' (' . $errorDetail . ')' : ''),
+            'Zeitpunkt: ' . now()->format('d.m.Y H:i:s') . ' Uhr',
+            '',
+            'Mittwald Notfallbefehl zum sofortigen Container-Neustart:',
+            $meta['ssh_restart_cmd'],
+            '',
+            'Sobald der Health-Endpunkt wieder HTTP 200 (status: ok) meldet, schließt der Sentinel den Vorgang automatisch als [AUTO-GEHEILT].',
+        ];
+
+        try {
+            Mail::to(self::BRIDGE_ALERT_EMAIL)->send(new AiAgentMessageMail(
+                $subject,
+                implode("\n", $bodyLines),
+                'Funkira Sentinel',
+                [],
+                'generic'
+            ));
+        } catch (\Throwable $ignoreMailError) {
+        }
+
+        try {
+            $credentialsPath = (string) config('services.firebase.credentials_file', storage_path('app/firebase-service-account.json'));
+            if ($credentialsPath !== '' && is_file($credentialsPath) && Schema::hasTable('system_user_devices')) {
+                app(\App\Services\FirebaseService::class)->sendToAdmins(
+                    'Gemini-Bridge ausgefallen',
+                    Str::limit($meta['short_label'] . ': ' . $statusLabel, 120),
+                    [
+                        'type' => 'sentinel_bridge_down',
+                        'bridge_key' => $bridgeKey,
+                        'log_id' => (string) $log->id,
+                    ]
+                );
+            }
+        } catch (\Throwable $ignorePushError) {
+        }
+
+        return true;
+    }
+
+    /**
      * Kritischer Push-Alarm ans Smartphone (streng gedrosselt auf max. 1x pro 6h und NUR bei echtem kritischen Befund
      * sowie vorhandener firebase-service-account.json, damit auf Stage niemals Fehl-Logs entstehen!).
      */
     protected function maybeSendCriticalOwnerAlert(SystemLog $log, array $dossier): void
     {
         if (($dossier['criticality'] ?? 'standard') !== 'critical') {
+            return;
+        }
+
+        $payload = is_array($log->payload) ? $log->payload : [];
+        if (!empty($payload['bridge_alert_notified_at'])) {
             return;
         }
 
@@ -1252,33 +1686,57 @@ class SentinelTriageService
                 return;
             }
 
-            $tokens = DB::table('system_user_devices')
-                ->whereNotNull('fcm_token')
-                ->where('fcm_token', '!=', '')
-                ->pluck('fcm_token')
-                ->unique()
-                ->take(5)
-                ->all();
+            $sentCount = app(\App\Services\FirebaseService::class)->sendToAdmins(
+                'Funkira Wächter: Kritischer Befund',
+                Str::limit((string) ($dossier['title'] ?? $log->title), 120),
+                [
+                    'type' => 'sentinel_critical_alert',
+                    'log_id' => (string) $log->id,
+                ]
+            );
 
-            if (empty($tokens)) {
-                return;
-            }
-
-            Cache::put(self::PUSH_COOLDOWN_KEY, now()->toIso8601String(), now()->addHours(6));
-
-            $firebase = app(\App\Services\FirebaseService::class);
-            foreach ($tokens as $token) {
-                $firebase->sendNotification(
-                    (string) $token,
-                    'Funkira Wächter: Kritischer Befund',
-                    Str::limit((string) ($dossier['title'] ?? $log->title), 120),
-                    [
-                        'type' => 'sentinel_critical_alert',
-                        'log_id' => (string) $log->id,
-                    ]
-                );
+            if ($sentCount > 0) {
+                Cache::put(self::PUSH_COOLDOWN_KEY, now()->toIso8601String(), now()->addHours(6));
             }
         } catch (\Throwable $ignore) {
+        }
+    }
+
+    /**
+     * Echte Live-Verifikation der Gemini Audio Bridge (Node.js Live-Bridge + optionale Twilio-Reverb-Bridge).
+     * Verhindert strikt, dass Playbook 9 einen echten Bridge-Ausfall blind als geheilt verschluckt.
+     */
+    public function verifyGeminiBridgeHealthy(): bool
+    {
+        try {
+            if (class_exists(SystemHealthPulseService::class)) {
+                $pulse = app(SystemHealthPulseService::class);
+                if ($pulse->hasCustomGeminiBridgeProbeResolver() || !app()->runningUnitTests() || $this->hasActiveHttpStubs()) {
+                    $report = $pulse->probeAndEvaluateGeminiBridgeFresh();
+
+                    return ($report['status'] ?? 'error') === 'ok';
+                }
+            }
+
+            return $this->verifyCoreConnectivityHealthy();
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
+    protected function hasActiveHttpStubs(): bool
+    {
+        try {
+            $factory = Http::getFacadeRoot();
+            if (!is_object($factory)) {
+                return false;
+            }
+            $prop = new \ReflectionProperty($factory, 'stubCallbacks');
+            $callbacks = $prop->getValue($factory);
+
+            return $callbacks instanceof \Illuminate\Support\Collection && $callbacks->isNotEmpty();
+        } catch (\Throwable $ignore) {
+            return false;
         }
     }
 
@@ -1513,6 +1971,9 @@ class SentinelTriageService
             || str_contains($haystack, 'stripe')
             || str_contains($haystack, 'fatalshutdownerror')
             || str_contains($haystack, 'out of memory')
+            || str_contains($haystack, 'gemini_bridge')
+            || str_contains($haystack, 'gemini audio bridge')
+            || str_contains($haystack, 'bridge_down')
             || str_contains($haystack, 'bridge_unhealthy')) {
             return 'critical';
         }

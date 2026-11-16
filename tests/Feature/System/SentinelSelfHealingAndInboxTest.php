@@ -202,13 +202,25 @@ class SentinelSelfHealingAndInboxTest extends TestCase
 
     public function test_bridge_health_probe_logs_outage_and_auto_heals_when_bridge_recovers(): void
     {
+        \Illuminate\Support\Facades\Mail::fake();
+        $backupDisk = config('backup.backup.destination.disks.0', 'local');
+        $backupName = config('backup.backup.name', config('app.name') . '-db-backup');
+        \Illuminate\Support\Facades\Storage::fake($backupDisk);
+        \Illuminate\Support\Facades\Storage::disk($backupDisk)->put("{$backupName}/bridge_test_fresh.zip", 'PK-ZIP');
+        Cache::put('scheduler_last_run', now()->timestamp, 600);
+        config([
+            'queue.default' => 'sync',
+            'services.twilio.wss_url' => '',
+            'services.gemini.proxy_ws_url' => '',
+        ]);
         SystemLog::openIssues()->update(['status' => 'success']);
 
-        // Lauf 1: Reverb-Bridge antwortet mit 503, Lauf 2: Reverb-Bridge antwortet wieder mit 200 OK
+        // Lauf 1: Reverb-Bridge antwortet inkl. 400ms-Blip-Retry zweimal mit 503 -> echter Ausfall; Lauf 2+: wieder 200 OK
         Http::fake([
             'ws.mein-seelenfunke.de/*' => Http::sequence()
                 ->push('Service Unavailable', 503)
-                ->push(['status' => 'ok'], 200),
+                ->push('Service Unavailable', 503)
+                ->whenEmpty(Http::response(['status' => 'ok'], 200)),
             'api-live-bridge.mein-seelenfunke.de/*' => Http::response(['status' => 'ok'], 200),
         ]);
 
@@ -216,7 +228,7 @@ class SentinelSelfHealingAndInboxTest extends TestCase
         $sentinel->runTriageCycle(probeBridges: true, allowAiEnrichment: false);
 
         $bridgeError = SystemLog::openIssues()
-            ->where('action_id', 'sentinel:bridge_unhealthy:reverb_twilio')
+            ->whereIn('action_id', ['sentinel:bridge_down:twilio_reverb', 'sentinel:bridge_unhealthy:reverb_twilio'])
             ->first();
 
         $this->assertNotNull($bridgeError);
@@ -608,5 +620,88 @@ class SentinelSelfHealingAndInboxTest extends TestCase
 
         $this->assertSame('auto_healed', $agInboxExit1->triageState());
         $this->assertSame('interactive_ag_inbox_reconciled', $agInboxExit1->payload['triage']['playbook'] ?? null);
+    }
+
+    public function test_overlong_stage_dossier_titles_and_system_log_writes_clamp_cleanly_to_varchar_191(): void
+    {
+        $service = app(SentinelTriageService::class);
+
+        $fpBoundary = hash('sha256', 'stage_boundary_191_' . uniqid());
+        $fpHuge = hash('sha256', 'stage_huge_360_' . uniqid());
+
+        // Fall A: Exakte 183-Zeichen-Grenze aus LogArchiveService + '[STAGE] ' = 191+ Zeichen (löste zuvor 190+3=193 > VARCHAR(191) aus)
+        $boundaryTitle = '[laravel.log] SQLSTATE[42S22]: Column not found: 1054 Unknown column \'category\' in \'field list\' (Connection: mysql, Host: mysql-nkzzsf.pg-s-pis5pf.db.project.host, Port: 3306, Data...';
+        // Fall B: Überlanger Titel > 340 Zeichen + überlange action_id > 260 Zeichen + überlanger type > 100 Zeichen
+        $hugeTitle = '[laravel.log] ' . str_repeat('ÜberlangerStageFehlerTitelMitUmlautenÄÖÜß_', 9);
+
+        $importStats = $service->importRemoteStageInbox([
+            'inbox_version' => 1,
+            'source_environment' => 'production',
+            'items' => [
+                [
+                    'fingerprint' => $fpBoundary,
+                    'log_id' => 9001,
+                    'origin_environment' => 'production',
+                    'platform' => 'portal',
+                    'type' => 'system',
+                    'action_id' => 'logfile:laravel.log:' . substr($fpBoundary, 0, 12),
+                    'severity' => 'error',
+                    'title' => $boundaryTitle,
+                    'message' => 'Boundary test message',
+                    'occurrences_count' => 1,
+                ],
+                [
+                    'fingerprint' => $fpHuge,
+                    'log_id' => 9002,
+                    'origin_environment' => 'production',
+                    'platform' => 'portal',
+                    'type' => str_repeat('custom_system_type_', 6),
+                    'action_id' => 'stage:overlong:action:' . str_repeat('abcdef0123456789_', 18),
+                    'severity' => 'error',
+                    'title' => $hugeTitle,
+                    'message' => 'Overlong title > 300 chars import test',
+                    'occurrences_count' => 2,
+                ],
+            ],
+        ]);
+
+        $this->assertSame('success', $importStats['status']);
+        $this->assertSame(2, $importStats['imported_new']);
+
+        $logBoundary = SystemLog::where('payload->fingerprint', $fpBoundary)->firstOrFail();
+        $logHuge = SystemLog::where('payload->fingerprint', $fpHuge)->firstOrFail();
+
+        $this->assertLessThanOrEqual(SystemLog::MAX_TITLE_LENGTH, mb_strlen($logBoundary->title, 'UTF-8'));
+        $this->assertStringStartsWith('[STAGE] ', $logBoundary->title);
+
+        $this->assertSame(SystemLog::MAX_TITLE_LENGTH, mb_strlen($logHuge->title, 'UTF-8'));
+        $this->assertStringStartsWith('[STAGE] ', $logHuge->title);
+        $this->assertStringEndsWith('...', $logHuge->title);
+        $this->assertSame(SystemLog::MAX_ACTION_ID_LENGTH, mb_strlen($logHuge->action_id, 'UTF-8'));
+        $this->assertSame(SystemLog::MAX_TYPE_LENGTH, mb_strlen($logHuge->type, 'UTF-8'));
+
+        // Fall C: Zentraler Model-Schutz (SystemLog::create + $model->update saving-Hook) bei direkten Aufrufen > 350 Zeichen
+        $directLog = SystemLog::create([
+            'type' => str_repeat('direct_type_', 10),
+            'action_id' => 'direct:' . str_repeat('action_segment_', 20),
+            'title' => str_repeat('DirekterÜberlangerSystemLogTitel_', 12),
+            'message' => str_repeat('M', 18000),
+            'status' => 'error',
+            'payload' => ['fingerprint' => hash('sha256', 'direct_clamp_' . uniqid())],
+            'started_at' => now(),
+            'finished_at' => now(),
+        ]);
+
+        $this->assertSame(SystemLog::MAX_TITLE_LENGTH, mb_strlen($directLog->title, 'UTF-8'));
+        $this->assertSame(SystemLog::MAX_ACTION_ID_LENGTH, mb_strlen($directLog->action_id, 'UTF-8'));
+        $this->assertSame(SystemLog::MAX_TYPE_LENGTH, mb_strlen($directLog->type, 'UTF-8'));
+        $this->assertSame(SystemLog::MAX_MESSAGE_LENGTH, mb_strlen((string) $directLog->message, 'UTF-8'));
+
+        $directLog->update([
+            'title' => '[AUTO-GEHEILT] ' . str_repeat('UpdateTitelÜberlang_', 15),
+        ]);
+        $directLog->refresh();
+        $this->assertSame(SystemLog::MAX_TITLE_LENGTH, mb_strlen($directLog->title, 'UTF-8'));
+        $this->assertStringStartsWith('[AUTO-GEHEILT] ', $directLog->title);
     }
 }
