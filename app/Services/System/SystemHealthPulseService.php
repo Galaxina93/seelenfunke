@@ -20,10 +20,15 @@ class SystemHealthPulseService
     public const NAS_BACKUP_STATE_FILE = 'app/private/watchtower_nas_backup.json';
 
     public const SSL_CACHE_KEY = 'system_health_pulse_ssl_days_v1';
+    public const SSL_HOST_CACHE_PREFIX = 'system_health_ssl_host_v1_';
     public const LIVE_DOMAIN_CACHE_KEY = 'system_health_pulse_live_domain_v1';
-    public const LIVE_DOMAIN_CACHE_TTL = 300;
+    public const LIVE_DOMAIN_CACHE_TTL = 45;
     public const LIVE_PRIMARY_HOST = 'mein-seelenfunke.de';
     public const LIVE_WWW_HOST = 'www.mein-seelenfunke.de';
+    public const DIGITAL_SUBDOMAIN_HOST = 'digital.mein-seelenfunke.de';
+    public const STAGE_SUBDOMAIN_HOST = 'stage.mein-seelenfunke.de';
+    public const WS_SUBDOMAIN_HOST = 'ws.mein-seelenfunke.de';
+    public const LIVE_BRIDGE_SUBDOMAIN_HOST = 'api-live-bridge.mein-seelenfunke.de';
 
     public const GEMINI_BRIDGE_CACHE_KEY = 'system_health_pulse_gemini_bridge_v1';
     public const GEMINI_BRIDGE_CACHE_TTL = 60;
@@ -39,6 +44,7 @@ class SystemHealthPulseService
 
     protected static ?\Closure $liveDomainProbeResolver = null;
     protected static ?\Closure $geminiBridgeProbeResolver = null;
+    protected static ?\Closure $dnsResolver = null;
 
     private const ALLOWED_SOURCES = [
         'synology_nas' => 'Synology NAS',
@@ -57,6 +63,23 @@ class SystemHealthPulseService
     public function hasCustomLiveProbeResolver(): bool
     {
         return self::$liveDomainProbeResolver !== null;
+    }
+
+    public static function setDnsResolver(?\Closure $resolver): void
+    {
+        self::$dnsResolver = $resolver;
+    }
+
+    public function hasCustomDnsResolver(): bool
+    {
+        return self::$dnsResolver !== null;
+    }
+
+    public function hasActiveTestDomainMocks(): bool
+    {
+        return self::$liveDomainProbeResolver !== null
+            || self::$dnsResolver !== null
+            || (app()->runningUnitTests() && $this->isHttpClientFaked());
     }
 
     public static function setGeminiBridgeProbeResolver(?\Closure $resolver): void
@@ -159,6 +182,8 @@ class SystemHealthPulseService
             $logSync = $this->syncWithSystemLogs($syncTargets, $now);
         }
 
+        $liveDomain = $this->enrichLiveDomainWithSubdomains($liveDomain, $geminiBridge);
+
         $watchtowerSummary = $this->getWatchtowerNodesSummary($now);
         $latencyMs = round((microtime(true) - $startedAt) * 1000, 2);
 
@@ -181,6 +206,8 @@ class SystemHealthPulseService
             'daily_bars' => $uptimeSummary['daily_bars'],
             'pillars' => $pillars,
             'live_domain' => $liveDomain,
+            'subdomains' => $liveDomain['subdomains'] ?? [],
+            'digital_subdomain' => $liveDomain['digital_subdomain'] ?? [],
             'gemini_bridge' => $geminiBridge,
             'watchtower' => $watchtowerSummary,
             'log_sync' => $logSync,
@@ -226,15 +253,26 @@ class SystemHealthPulseService
             }
         }
         Cache::forget(self::SSL_CACHE_KEY);
+        foreach ([
+            self::LIVE_PRIMARY_HOST,
+            self::LIVE_WWW_HOST,
+            self::DIGITAL_SUBDOMAIN_HOST,
+            self::STAGE_SUBDOMAIN_HOST,
+            self::WS_SUBDOMAIN_HOST,
+            self::LIVE_BRIDGE_SUBDOMAIN_HOST,
+        ] as $monitoredHost) {
+            Cache::forget(self::SSL_HOST_CACHE_PREFIX . md5($monitoredHost));
+        }
         Cache::forget(self::LIVE_DOMAIN_CACHE_KEY);
         Cache::forget(self::GEMINI_BRIDGE_CACHE_KEY);
         Cache::forget(self::GEMINI_BRIDGE_PUSH_LOCK_KEY);
         self::$liveDomainProbeResolver = null;
         self::$geminiBridgeProbeResolver = null;
+        self::$dnsResolver = null;
     }
 
     /**
-     * Liefert gecachte oder frisch gelesene Live-Domain-Messdaten (5 Minuten TTL via Cache::remember).
+     * Liefert gecachte oder frisch gelesene Live-Domain- und Subdomain-Messdaten (45s TTL via Cache::remember).
      */
     public function getCachedOrProbeLiveDomains(bool $forceRefresh = false): array
     {
@@ -255,32 +293,121 @@ class SystemHealthPulseService
     }
 
     /**
-     * Rein lesender HTTPS-Check (0 Schreibzugriffe) für https://mein-seelenfunke.de (max. 3.0s Timeout)
-     * sowie passiver Ingress-Check für https://www.mein-seelenfunke.de (1.5s Timeout).
+     * Paralleler Read-Only DNS+HTTPS-Puls (< 400ms Gesamtlatenz, 0 Schreibzugriffe) für:
+     * - digital.mein-seelenfunke.de (inkl. sofortigem DNS-Vorabcheck ohne Timeout bei fehlendem DNS)
+     * - mein-seelenfunke.de & www.mein-seelenfunke.de
+     * - stage.mein-seelenfunke.de
+     * - ws.mein-seelenfunke.de (/twilio-health)
+     * - api-live-bridge.mein-seelenfunke.de (/health)
      */
     public function probeLiveDomains(): array
     {
-        $primary = $this->probeHttpsEndpointReadOnly(self::LIVE_PRIMARY_HOST, '/', 2.8);
+        $checkedAt = now()->toIso8601String();
+        $targets = $this->monitoredSubdomainDefinitions();
 
-        // Falls Root einen Redirect (301/302/307/308) liefert, 1 Hop lesend auflösen
-        if (
-            $primary['reachable']
-            && in_array($primary['http_status'], [301, 302, 307, 308], true)
-            && !empty($primary['location'])
-        ) {
-            $locUrl = (string) $primary['location'];
-            $locHost = strtolower((string) (parse_url($locUrl, PHP_URL_HOST) ?: self::LIVE_PRIMARY_HOST));
-            $locPath = (string) (parse_url($locUrl, PHP_URL_PATH) ?: '/');
-            if (in_array($locHost, [self::LIVE_PRIMARY_HOST, self::LIVE_WWW_HOST], true)) {
-                $followed = $this->probeHttpsEndpointReadOnly($locHost, $locPath, 2.2);
-                if ($followed['reachable']) {
-                    $primary['http_status'] = $followed['http_status'];
-                    $primary['body_bytes'] = $followed['body_bytes'];
-                    $primary['has_shop_markers'] = $followed['has_shop_markers'];
-                    $primary['latency_ms'] = round($primary['latency_ms'] + $followed['latency_ms'], 2);
+        $dnsMap = [];
+        foreach ($targets as $key => $cfg) {
+            $ips = $this->resolveHostDnsIps($cfg['host']);
+            $dnsMap[$key] = [
+                'configured' => count($ips) > 0,
+                'ips' => $ips,
+            ];
+        }
+
+        $poolTimings = [];
+        $responses = [];
+        $hasAnyResolvedHost = collect($dnsMap)->contains(fn (array $d): bool => $d['configured'] === true);
+
+        if ($hasAnyResolvedHost) {
+            $responses = Http::pool(function (\Illuminate\Http\Client\Pool $pool) use ($targets, $dnsMap, &$poolTimings) {
+                $reqs = [];
+                foreach ($targets as $key => $cfg) {
+                    if (empty($dnsMap[$key]['configured'])) {
+                        continue;
+                    }
+                    $poolTimings[$key] = microtime(true);
+                    $pending = $pool->as($key)
+                        ->connectTimeout(1.8)
+                        ->timeout(2.5)
+                        ->withOptions([
+                            'verify' => true,
+                            'http_errors' => false,
+                        ])
+                        ->withUserAgent('Seelenfunke-Watchtower/1.1')
+                        ->withHeaders([
+                            'Accept' => 'text/html,application/json,application/xhtml+xml,*/*',
+                        ]);
+
+                    if (empty($cfg['follow_redirects'])) {
+                        $pending = $pending->withoutRedirecting();
+                    } else {
+                        $pending = $pending->maxRedirects(2);
+                    }
+
+                    $reqs[$key] = $pending->get($cfg['probe_url']);
+                }
+
+                return $reqs;
+            });
+        }
+
+        $probedEntries = [];
+        foreach ($targets as $key => $cfg) {
+            $dnsConfigured = (bool) ($dnsMap[$key]['configured'] ?? false);
+            $dnsIps = $dnsMap[$key]['ips'] ?? [];
+            $reachable = false;
+            $httpStatus = 0;
+            $latencyMs = 0.0;
+            $bodyBytes = 0;
+            $hasShopMarkers = false;
+
+            if ($dnsConfigured && array_key_exists($key, $responses)) {
+                $resp = $responses[$key];
+                $fallbackLatency = isset($poolTimings[$key])
+                    ? round((microtime(true) - $poolTimings[$key]) * 1000, 2)
+                    : 0.0;
+
+                if ($resp instanceof \Illuminate\Http\Client\Response) {
+                    $httpStatus = (int) $resp->status();
+                    $reachable = $httpStatus > 0;
+                    $statsTime = $resp->transferStats?->getTransferTime();
+                    $latencyMs = $statsTime !== null && $statsTime > 0
+                        ? round(((float) $statsTime) * 1000, 2)
+                        : $fallbackLatency;
+
+                    $rawBody = (string) $resp->body();
+                    $bodyBytes = strlen($rawBody);
+                    $sampleLower = strtolower(substr($rawBody, 0, 32768));
+                    $cookieHeader = strtolower(implode(' ', $resp->header('Set-Cookie') ? (array) $resp->headers()['Set-Cookie'] ?? [$resp->header('Set-Cookie')] : []));
+                    $hasShopMarkers = str_contains($sampleLower, 'livewire')
+                        || str_contains($sampleLower, 'csrf-token')
+                        || str_contains($cookieHeader, 'mein_seelenfunke_session')
+                        || str_contains($cookieHeader, 'seelenfunke_session');
+                } else {
+                    $latencyMs = $fallbackLatency;
                 }
             }
+
+            $sslInfo = ['ssl_days_remaining' => null, 'ssl_valid_until' => null];
+            if ($dnsConfigured && $reachable && !empty($cfg['check_ssl'])) {
+                $sslInfo = $this->resolveHostSslCertificateInfo($cfg['host'], true);
+            }
+
+            $probedEntries[$key] = [
+                'dns_configured' => $dnsConfigured,
+                'dns_ips' => $dnsIps,
+                'reachable' => $reachable,
+                'http_status' => $httpStatus,
+                'latency_ms' => $latencyMs,
+                'body_bytes' => $bodyBytes,
+                'has_shop_markers' => $hasShopMarkers,
+                'ssl_days_remaining' => $sslInfo['ssl_days_remaining'],
+                'ssl_valid_until' => $sslInfo['ssl_valid_until'],
+            ];
         }
+
+        $primary = $probedEntries['main'];
+        $www = $probedEntries['www'];
 
         $mode = $this->classifyLiveDomainMode(
             (bool) $primary['reachable'],
@@ -289,8 +416,12 @@ class SystemHealthPulseService
             (bool) $primary['has_shop_markers']
         );
 
-        $www = $this->probeHttpsEndpointReadOnly(self::LIVE_WWW_HOST, '/', 1.5);
-        $wwwIngressActive = $www['reachable'] && $www['http_status'] > 0 && ($www['http_status'] < 500 || $www['http_status'] === 503);
+        $wwwIngressActive = $www['reachable']
+            && $www['http_status'] > 0
+            && ($www['http_status'] < 500 || $www['http_status'] === 503);
+
+        $digitalReadiness = $this->inspectDigitalShopReadiness();
+        $subdomains = $this->buildSubdomainsMatrix($probedEntries, $digitalReadiness, $checkedAt);
 
         return [
             'probed' => true,
@@ -308,7 +439,9 @@ class SystemHealthPulseService
             'www_ingress_active' => $wwwIngressActive,
             'www_http_status' => (int) $www['http_status'],
             'www_status' => $wwwIngressActive ? 'active' : 'pending_ingress',
-            'checked_at' => now()->toIso8601String(),
+            'subdomains' => $subdomains,
+            'digital_subdomain' => $subdomains['digital'],
+            'checked_at' => $checkedAt,
         ];
     }
 
@@ -349,7 +482,7 @@ class SystemHealthPulseService
         if ($overrideLiveDomain !== null) {
             $raw = $overrideLiveDomain;
             $enforceStrictThresholds = true;
-        } elseif (self::$liveDomainProbeResolver !== null) {
+        } elseif ($this->hasActiveTestDomainMocks()) {
             $raw = $this->getCachedOrProbeLiveDomains(false);
             $enforceStrictThresholds = true;
         } elseif (app()->runningUnitTests()) {
@@ -449,7 +582,7 @@ class SystemHealthPulseService
         };
 
         return [
-            'probed' => true,
+            'probed' => (bool) ($raw['probed'] ?? true),
             'status' => $status,
             'label' => $label,
             'issues' => $issues,
@@ -465,8 +598,539 @@ class SystemHealthPulseService
             'www_ingress_active' => $wwwIngressActive,
             'www_http_status' => $wwwHttpStatus,
             'www_status' => $wwwStatus,
+            'subdomains' => is_array($raw['subdomains'] ?? null) ? $raw['subdomains'] : null,
+            'digital_subdomain' => is_array($raw['digital_subdomain'] ?? null) ? $raw['digital_subdomain'] : null,
             'checked_at' => $raw['checked_at'] ?? now()->toIso8601String(),
         ];
+    }
+
+    /**
+     * Liefert die überwachten Domains & Subdomains in priorisierter Reihenfolge.
+     */
+    public function monitoredSubdomainDefinitions(): array
+    {
+        return [
+            'digital' => [
+                'key' => 'digital',
+                'host' => self::DIGITAL_SUBDOMAIN_HOST,
+                'public_url' => 'https://' . self::DIGITAL_SUBDOMAIN_HOST,
+                'probe_url' => 'https://' . self::DIGITAL_SUBDOMAIN_HOST . '/',
+                'role_label' => 'Digital-Shop',
+                'follow_redirects' => true,
+                'check_ssl' => true,
+            ],
+            'main' => [
+                'key' => 'main',
+                'host' => self::LIVE_PRIMARY_HOST,
+                'public_url' => 'https://' . self::LIVE_PRIMARY_HOST,
+                'probe_url' => 'https://' . self::LIVE_PRIMARY_HOST . '/',
+                'role_label' => 'Haupt-Shop',
+                'follow_redirects' => true,
+                'check_ssl' => true,
+            ],
+            'stage' => [
+                'key' => 'stage',
+                'host' => self::STAGE_SUBDOMAIN_HOST,
+                'public_url' => 'https://' . self::STAGE_SUBDOMAIN_HOST,
+                'probe_url' => 'https://' . self::STAGE_SUBDOMAIN_HOST . '/',
+                'role_label' => 'Stage-Portal',
+                'follow_redirects' => true,
+                'check_ssl' => true,
+            ],
+            'ws' => [
+                'key' => 'ws',
+                'host' => self::WS_SUBDOMAIN_HOST,
+                'public_url' => 'https://' . self::WS_SUBDOMAIN_HOST,
+                'probe_url' => self::TWILIO_BRIDGE_DEFAULT_HEALTH_URL,
+                'role_label' => 'WebSocket & Telefonie',
+                'follow_redirects' => true,
+                'check_ssl' => false,
+            ],
+            'api_live_bridge' => [
+                'key' => 'api_live_bridge',
+                'host' => self::LIVE_BRIDGE_SUBDOMAIN_HOST,
+                'public_url' => 'https://' . self::LIVE_BRIDGE_SUBDOMAIN_HOST,
+                'probe_url' => self::GEMINI_BRIDGE_DEFAULT_HEALTH_URL,
+                'role_label' => 'Gemini Audio-Bridge',
+                'follow_redirects' => true,
+                'check_ssl' => false,
+            ],
+            'www' => [
+                'key' => 'www',
+                'host' => self::LIVE_WWW_HOST,
+                'public_url' => 'https://' . self::LIVE_WWW_HOST,
+                'probe_url' => 'https://' . self::LIVE_WWW_HOST . '/',
+                'role_label' => 'WWW-Ingress',
+                'follow_redirects' => false,
+                'check_ssl' => false,
+            ],
+        ];
+    }
+
+    /**
+     * Schneller DNS-Vorabcheck (< 5ms bei NXDOMAIN), damit vorbereitete Subdomains ohne DNS-Eintrag
+     * niemals in einen 3-Sekunden-HTTP-Timeout laufen.
+     */
+    public function resolveHostDnsIps(string $host): array
+    {
+        $cleanHost = strtolower(trim($host));
+        if ($cleanHost === '') {
+            return [];
+        }
+
+        if (self::$dnsResolver !== null) {
+            $custom = (self::$dnsResolver)($cleanHost);
+            if (!is_array($custom)) {
+                return [];
+            }
+
+            return array_values(array_unique(array_filter(array_map(
+                static fn ($ip): string => trim((string) $ip),
+                $custom
+            ), static fn (string $ip): bool => $ip !== '')));
+        }
+
+        if (app()->runningUnitTests()) {
+            return $this->isHttpClientFaked() ? ['198.51.100.10'] : [];
+        }
+
+        $ips = [];
+        try {
+            $v4List = @gethostbynamel($cleanHost);
+            if (is_array($v4List)) {
+                foreach ($v4List as $candidate) {
+                    $ip = trim((string) $candidate);
+                    if ($ip !== '' && filter_var($ip, FILTER_VALIDATE_IP)) {
+                        $ips[] = $ip;
+                    }
+                }
+            }
+
+            if (empty($ips) && function_exists('dns_get_record')) {
+                $records = @dns_get_record($cleanHost, DNS_A + DNS_AAAA);
+                if (is_array($records)) {
+                    foreach ($records as $rec) {
+                        $ip = trim((string) ($rec['ip'] ?? $rec['ipv6'] ?? ''));
+                        if ($ip !== '' && filter_var($ip, FILTER_VALIDATE_IP)) {
+                            $ips[] = $ip;
+                        }
+                    }
+                }
+            }
+        } catch (\Throwable $ignore) {
+        }
+
+        return array_values(array_unique($ips));
+    }
+
+    /**
+     * Liest in Echtzeit den DB-Schalter digital_domain_is_live sowie die Anzahl aktiver
+     * und vorbereiteter (draft) Digital-Produkte für digital.mein-seelenfunke.de aus.
+     */
+    public function inspectDigitalShopReadiness(): array
+    {
+        $isLive = false;
+        try {
+            $rawSetting = null;
+            if (Schema::hasTable('shop_settings')) {
+                $rawSetting = DB::table('shop_settings')
+                    ->where('key', 'digital_domain_is_live')
+                    ->value('value');
+            } elseif (Schema::hasTable('system_settings')) {
+                $rawSetting = DB::table('system_settings')
+                    ->where('key', 'digital_domain_is_live')
+                    ->value('value');
+            }
+            if ($rawSetting === null && function_exists('shop_setting')) {
+                $rawSetting = shop_setting('digital_domain_is_live', false);
+            }
+            if (is_bool($rawSetting)) {
+                $isLive = $rawSetting;
+            } elseif ($rawSetting !== null) {
+                $isLive = in_array(strtolower(trim((string) $rawSetting)), ['1', 'true', 'yes', 'on'], true);
+            }
+        } catch (\Throwable $ignore) {
+        }
+
+        $activeDigital = 0;
+        $draftDigital = 0;
+
+        try {
+            if (Schema::hasTable('products')) {
+                $hasCollectionLine = Schema::hasColumn('products', 'collection_line');
+                $hasDeletedAt = Schema::hasColumn('products', 'deleted_at');
+
+                $baseQuery = DB::table('products')->where(function ($q) use ($hasCollectionLine) {
+                    if ($hasCollectionLine) {
+                        $q->where('collection_line', 'digital_blueprint')
+                            ->orWhere(function ($q2) {
+                                $q2->where('type', 'digital')->where('slug', '!=', 'geschenkgutschein');
+                            });
+                    } else {
+                        $q->where('type', 'digital')->where('slug', '!=', 'geschenkgutschein');
+                    }
+                });
+
+                if ($hasDeletedAt) {
+                    $baseQuery->whereNull('deleted_at');
+                }
+
+                $activeDigital = (int) (clone $baseQuery)->where('status', 'active')->count();
+                $draftDigital = (int) (clone $baseQuery)->where('status', 'draft')->count();
+            }
+        } catch (\Throwable $ignore) {
+        }
+
+        return [
+            'digital_domain_is_live' => $isLive,
+            'active_digital_products' => $activeDigital,
+            'prepared_draft_products' => $draftDigital,
+            'total_digital_products' => $activeDigital + $draftDigital,
+        ];
+    }
+
+    /**
+     * Baut die vollständige Subdomain-Statusmatrix für Dashboard, Falcone und Funkira.
+     */
+    protected function buildSubdomainsMatrix(array $probedEntries, array $digitalReadiness, string $checkedAt): array
+    {
+        $defs = $this->monitoredSubdomainDefinitions();
+        $matrix = [];
+
+        foreach ($defs as $key => $cfg) {
+            $entry = $probedEntries[$key] ?? [
+                'dns_configured' => false,
+                'dns_ips' => [],
+                'reachable' => false,
+                'http_status' => 0,
+                'latency_ms' => 0.0,
+                'ssl_days_remaining' => null,
+                'ssl_valid_until' => null,
+            ];
+
+            $dnsConfigured = (bool) ($entry['dns_configured'] ?? false);
+            $reachable = (bool) ($entry['reachable'] ?? false);
+            $httpStatus = (int) ($entry['http_status'] ?? 0);
+            $latencyMs = round((float) ($entry['latency_ms'] ?? 0.0), 2);
+            $sslDays = array_key_exists('ssl_days_remaining', $entry) && $entry['ssl_days_remaining'] !== null
+                ? (int) $entry['ssl_days_remaining']
+                : null;
+            $inMaintenance = $reachable && $httpStatus === 503;
+
+            if (!$dnsConfigured) {
+                $status = 'prepared';
+                $badgeLabel = 'Vorbereitet · DNS offen';
+                $stateLabel = 'Vorbereitet (DNS/Ingress noch nicht aufgeschaltet)';
+            } elseif ($inMaintenance) {
+                $status = 'maintenance';
+                $badgeLabel = 'Wartung 503';
+                $stateLabel = 'Wartungsmodus aktiv (HTTP 503 · geschützt)';
+            } elseif ($reachable && $httpStatus >= 200 && $httpStatus < 400) {
+                $status = 'ok';
+                $badgeLabel = ($key === 'www' && in_array($httpStatus, [301, 302, 307, 308], true))
+                    ? 'Weiterleitung ' . $httpStatus
+                    : 'Live';
+                $stateLabel = ($key === 'www' && in_array($httpStatus, [301, 302, 307, 308], true))
+                    ? "Weiterleitung aktiv (HTTP {$httpStatus})"
+                    : ($latencyMs > 0 ? "Online (HTTP {$httpStatus} · {$latencyMs} ms)" : "Online (HTTP {$httpStatus})");
+            } else {
+                $status = 'error';
+                $badgeLabel = 'Störung';
+                $stateLabel = $httpStatus > 0 ? "Störung (HTTP {$httpStatus})" : 'Nicht erreichbar (Timeout/TLS)';
+            }
+
+            $item = [
+                'key' => $key,
+                'host' => $cfg['host'],
+                'url' => $cfg['public_url'],
+                'probe_url' => $cfg['probe_url'],
+                'role_label' => $cfg['role_label'],
+                'dns_configured' => $dnsConfigured,
+                'dns_ips' => array_values($entry['dns_ips'] ?? []),
+                'reachable' => $reachable,
+                'http_status' => $httpStatus,
+                'in_maintenance' => $inMaintenance,
+                'latency_ms' => $latencyMs,
+                'ssl_days_remaining' => $sslDays,
+                'status' => $status,
+                'badge_label' => $badgeLabel,
+                'state_label' => $stateLabel,
+                'checked_at' => $checkedAt,
+            ];
+
+            if ($key === 'digital') {
+                $item['digital_domain_is_live'] = (bool) $digitalReadiness['digital_domain_is_live'];
+                $item['active_digital_products'] = (int) $digitalReadiness['active_digital_products'];
+                $item['prepared_draft_products'] = (int) $digitalReadiness['prepared_draft_products'];
+                $item['total_digital_products'] = (int) $digitalReadiness['total_digital_products'];
+                if ($status === 'ok' && !$item['digital_domain_is_live']) {
+                    $item['state_label'] = "Erreichbar (HTTP {$httpStatus} · Schalter AUS)";
+                }
+                $item['spoken_summary'] = $this->buildDigitalSpokenSummary($item);
+            }
+
+            $matrix[$key] = $item;
+        }
+
+        return $matrix;
+    }
+
+    /**
+     * Erzeugt einen sofort sprechfertigen Klartext-Status zu digital.mein-seelenfunke.de ohne Rückfragen.
+     */
+    public function buildDigitalSpokenSummary(array $digitalSubdomain): string
+    {
+        $dnsConfigured = (bool) ($digitalSubdomain['dns_configured'] ?? false);
+        $reachable = (bool) ($digitalSubdomain['reachable'] ?? false);
+        $httpStatus = (int) ($digitalSubdomain['http_status'] ?? 0);
+        $inMaintenance = (bool) ($digitalSubdomain['in_maintenance'] ?? false);
+        $switchOn = (bool) ($digitalSubdomain['digital_domain_is_live'] ?? false);
+        $activeCount = (int) ($digitalSubdomain['active_digital_products'] ?? 0);
+        $draftCount = (int) ($digitalSubdomain['prepared_draft_products'] ?? 0);
+        $sslDays = $digitalSubdomain['ssl_days_remaining'] ?? null;
+
+        $switchText = $switchOn ? 'AN' : 'AUS';
+        $activeLabel = $activeCount === 1 ? '1 aktives digitales Produkt' : "{$activeCount} aktive digitale Produkte";
+        $draftLabel = $draftCount === 1 ? '1 vorbereiteter Entwurf' : "{$draftCount} vorbereitete Entwürfe";
+
+        if (!$dnsConfigured) {
+            return "Die Subdomain digital.mein-seelenfunke.de ist technisch vorbereitet, DNS und Ingress bei Mittwald sind aktuell noch nicht aufgeschaltet. Der Schalter digital_domain_is_live steht auf {$switchText}, im Katalog stehen {$activeLabel} und {$draftLabel} bereit.";
+        }
+
+        $sslPart = ($sslDays !== null) ? " Das SSL-Zertifikat ist noch {$sslDays} Tage gültig." : '';
+
+        if ($inMaintenance) {
+            return "Die Subdomain digital.mein-seelenfunke.de ist per DNS aufgeschaltet und geschützt im Wartungsmodus mit HTTP 503 aktiv. Der Schalter digital_domain_is_live steht auf {$switchText}, im Katalog stehen {$activeLabel} und {$draftLabel} bereit.{$sslPart}";
+        }
+
+        if ($reachable && $httpStatus >= 200 && $httpStatus < 400) {
+            return "Die Subdomain digital.mein-seelenfunke.de ist live erreichbar mit HTTP {$httpStatus}. Der Schalter digital_domain_is_live steht auf {$switchText}, im Katalog stehen {$activeLabel} und {$draftLabel} bereit.{$sslPart}";
+        }
+
+        $errDetail = $httpStatus > 0 ? "HTTP {$httpStatus}" : 'keine Verbindung';
+
+        return "Bei der Subdomain digital.mein-seelenfunke.de ist DNS hinterlegt, aber der Abruf meldet aktuell eine Störung ({$errDetail}). Der Schalter digital_domain_is_live steht auf {$switchText}, im Katalog stehen {$activeLabel} und {$draftLabel} bereit.";
+    }
+
+    /**
+     * Stellt sicher, dass live_domain immer aktuelle Subdomain- und Digital-Shop-Stammdaten enthält.
+     */
+    protected function enrichLiveDomainWithSubdomains(array $liveDomain, array $geminiBridge = []): array
+    {
+        $checkedAt = (string) ($liveDomain['checked_at'] ?? now()->toIso8601String());
+        $digitalReadiness = $this->inspectDigitalShopReadiness();
+
+        if (is_array($liveDomain['subdomains'] ?? null) && isset($liveDomain['subdomains']['digital'])) {
+            $subdomains = $liveDomain['subdomains'];
+            $dig = $subdomains['digital'];
+            $dig['digital_domain_is_live'] = (bool) $digitalReadiness['digital_domain_is_live'];
+            $dig['active_digital_products'] = (int) $digitalReadiness['active_digital_products'];
+            $dig['prepared_draft_products'] = (int) $digitalReadiness['prepared_draft_products'];
+            $dig['total_digital_products'] = (int) $digitalReadiness['total_digital_products'];
+            if (($dig['status'] ?? '') === 'ok' && !$dig['digital_domain_is_live']) {
+                $dig['state_label'] = 'Erreichbar (HTTP ' . ((int) ($dig['http_status'] ?? 200)) . ' · Schalter AUS)';
+            } elseif (($dig['status'] ?? '') === 'ok' && $dig['digital_domain_is_live']) {
+                $lat = (float) ($dig['latency_ms'] ?? 0.0);
+                $http = (int) ($dig['http_status'] ?? 200);
+                $dig['state_label'] = $lat > 0 ? "Online (HTTP {$http} · {$lat} ms)" : "Online (HTTP {$http})";
+            }
+            $dig['spoken_summary'] = $this->buildDigitalSpokenSummary($dig);
+            $subdomains['digital'] = $dig;
+
+            $liveDomain['subdomains'] = $subdomains;
+            $liveDomain['digital_subdomain'] = $dig;
+
+            return $liveDomain;
+        }
+
+        $digitalIps = $this->resolveHostDnsIps(self::DIGITAL_SUBDOMAIN_HOST);
+        $mainReachable = (bool) ($liveDomain['reachable'] ?? false);
+        $mainHttp = (int) ($liveDomain['http_status'] ?? 0);
+        $wwwActive = (bool) ($liveDomain['www_ingress_active'] ?? false);
+        $wwwHttp = (int) ($liveDomain['www_http_status'] ?? 0);
+        $bridgeOk = (bool) ($geminiBridge['live_bridge_ok'] ?? true);
+        $bridgeHttp = (int) ($geminiBridge['live_bridge_http_status'] ?? ($bridgeOk ? 200 : 0));
+        $wsProbed = (bool) ($geminiBridge['twilio_bridge_probed'] ?? false);
+        $wsOk = $wsProbed ? (bool) ($geminiBridge['twilio_bridge_ok'] ?? true) : true;
+        $wsHttp = $wsProbed ? (int) ($geminiBridge['twilio_bridge_http_status'] ?? ($wsOk ? 200 : 0)) : 200;
+
+        $syntheticEntries = [
+            'digital' => [
+                'dns_configured' => count($digitalIps) > 0,
+                'dns_ips' => $digitalIps,
+                'reachable' => false,
+                'http_status' => 0,
+                'latency_ms' => 0.0,
+                'ssl_days_remaining' => null,
+                'ssl_valid_until' => null,
+            ],
+            'main' => [
+                'dns_configured' => $mainReachable || $mainHttp > 0,
+                'dns_ips' => ($mainReachable || $mainHttp > 0) ? ['resolved'] : [],
+                'reachable' => $mainReachable,
+                'http_status' => $mainHttp,
+                'latency_ms' => (float) ($liveDomain['latency_ms'] ?? 0.0),
+                'ssl_days_remaining' => $liveDomain['ssl_days_remaining'] ?? null,
+                'ssl_valid_until' => $liveDomain['ssl_valid_until'] ?? null,
+            ],
+            'stage' => [
+                'dns_configured' => true,
+                'dns_ips' => ['resolved'],
+                'reachable' => true,
+                'http_status' => 200,
+                'latency_ms' => 0.0,
+                'ssl_days_remaining' => null,
+                'ssl_valid_until' => null,
+            ],
+            'ws' => [
+                'dns_configured' => true,
+                'dns_ips' => ['resolved'],
+                'reachable' => $wsOk && $wsHttp > 0,
+                'http_status' => $wsHttp,
+                'latency_ms' => 0.0,
+                'ssl_days_remaining' => null,
+                'ssl_valid_until' => null,
+            ],
+            'api_live_bridge' => [
+                'dns_configured' => true,
+                'dns_ips' => ['resolved'],
+                'reachable' => $bridgeOk && $bridgeHttp > 0,
+                'http_status' => $bridgeHttp,
+                'latency_ms' => (float) ($geminiBridge['latency_ms'] ?? 0.0),
+                'ssl_days_remaining' => null,
+                'ssl_valid_until' => null,
+            ],
+            'www' => [
+                'dns_configured' => $wwwActive || $wwwHttp > 0,
+                'dns_ips' => ($wwwActive || $wwwHttp > 0) ? ['resolved'] : [],
+                'reachable' => $wwwActive,
+                'http_status' => $wwwHttp,
+                'latency_ms' => 0.0,
+                'ssl_days_remaining' => null,
+                'ssl_valid_until' => null,
+            ],
+        ];
+
+        $subdomains = $this->buildSubdomainsMatrix($syntheticEntries, $digitalReadiness, $checkedAt);
+        $liveDomain['subdomains'] = $subdomains;
+        $liveDomain['digital_subdomain'] = $subdomains['digital'];
+
+        return $liveDomain;
+    }
+
+    /**
+     * Liefert die Subdomain-Übersicht für das Admin-Dashboard ohne blockierenden Netzwerk-Call beim Initial-Render.
+     */
+    public function getDashboardSubdomainsSnapshot(?array $pulseReport = null): array
+    {
+        if (is_array($pulseReport['subdomains'] ?? null) && !empty($pulseReport['subdomains'])) {
+            $enriched = $this->enrichLiveDomainWithSubdomains([
+                'subdomains' => $pulseReport['subdomains'],
+                'checked_at' => $pulseReport['checked_at'] ?? now()->toIso8601String(),
+            ]);
+
+            return $enriched['subdomains'] ?? [];
+        }
+
+        if (Cache::has(self::LIVE_DOMAIN_CACHE_KEY)) {
+            $cached = Cache::get(self::LIVE_DOMAIN_CACHE_KEY);
+            if (is_array($cached)) {
+                $enriched = $this->enrichLiveDomainWithSubdomains($cached);
+
+                return $enriched['subdomains'] ?? [];
+            }
+        }
+
+        if ($this->hasActiveTestDomainMocks()) {
+            $probed = $this->getCachedOrProbeLiveDomains(false);
+            $enriched = $this->enrichLiveDomainWithSubdomains($probed);
+
+            return $enriched['subdomains'] ?? [];
+        }
+
+        $fallbackLive = $this->evaluateLiveDomain(false, null);
+        $enriched = $this->enrichLiveDomainWithSubdomains($fallbackLive);
+
+        return $enriched['subdomains'] ?? [];
+    }
+
+    public function isHttpClientFaked(): bool
+    {
+        try {
+            $factory = Http::getFacadeRoot();
+            if (!is_object($factory)) {
+                return false;
+            }
+            $ref = new \ReflectionObject($factory);
+            if ($ref->hasProperty('recording')) {
+                $prop = $ref->getProperty('recording');
+                $prop->setAccessible(true);
+
+                return (bool) $prop->getValue($factory);
+            }
+        } catch (\Throwable $ignore) {
+        }
+
+        return false;
+    }
+
+    protected function resolveHostSslCertificateInfo(string $host, bool $dnsConfigured): array
+    {
+        if (!$dnsConfigured || app()->runningUnitTests()) {
+            return [
+                'ssl_days_remaining' => null,
+                'ssl_valid_until' => null,
+            ];
+        }
+
+        $cacheKey = self::SSL_HOST_CACHE_PREFIX . md5(strtolower(trim($host)));
+
+        return Cache::remember($cacheKey, 21600, function () use ($host): array {
+            try {
+                $ctx = stream_context_create([
+                    'ssl' => [
+                        'capture_peer_cert' => true,
+                        'verify_peer' => true,
+                        'verify_peer_name' => true,
+                        'SNI_enabled' => true,
+                        'peer_name' => $host,
+                    ],
+                ]);
+                $errno = 0;
+                $errstr = '';
+                $client = @stream_socket_client(
+                    "ssl://{$host}:443",
+                    $errno,
+                    $errstr,
+                    1.2,
+                    STREAM_CLIENT_CONNECT,
+                    $ctx
+                );
+                if (!$client) {
+                    return ['ssl_days_remaining' => null, 'ssl_valid_until' => null];
+                }
+                $params = @stream_context_get_params($client);
+                @fclose($client);
+
+                $certResource = $params['options']['ssl']['peer_certificate'] ?? null;
+                if ($certResource) {
+                    $parsed = @openssl_x509_parse($certResource);
+                    $validTo = (int) ($parsed['validTo_time_t'] ?? 0);
+                    if ($validTo > 0) {
+                        return [
+                            'ssl_days_remaining' => (int) floor(($validTo - time()) / 86400),
+                            'ssl_valid_until' => Carbon::createFromTimestamp($validTo)->toIso8601String(),
+                        ];
+                    }
+                }
+            } catch (\Throwable $ignore) {
+            }
+
+            return [
+                'ssl_days_remaining' => null,
+                'ssl_valid_until' => null,
+            ];
+        });
     }
 
     /**

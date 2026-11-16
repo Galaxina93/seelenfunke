@@ -23,13 +23,13 @@ trait AiSystemFuncs
         $schema = [
             [
                 'name' => 'system_get_server_status',
-                'description' => 'Prüft in Echtzeit den Gesundheits-, SSL-, Antwortzeit- und Betriebsstatus des Mittwald Live-Servers (mein-seelenfunke.de & www) sowie des Stage-Servers (stage.mein-seelenfunke.de inkl. Cronjobs, Queue-Workern, Backups und 90-Tage-Uptime).',
+                'description' => 'Prüft in Echtzeit den Gesundheits-, DNS-, SSL-, Antwortzeit- und Betriebsstatus aller Seelenfunke-Domains und Subdomains: digital.mein-seelenfunke.de (inkl. DNS/Ingress, Schalter digital_domain_is_live sowie aktiven und vorbereiteten Digital-Produkten), mein-seelenfunke.de & www.mein-seelenfunke.de, stage.mein-seelenfunke.de, ws.mein-seelenfunke.de sowie api-live-bridge.mein-seelenfunke.de inkl. 4-Säulen-Status und 90-Tage-Uptime. Nutze dieses Werkzeug sofort ohne Rückfragen bei jeder Frage zu digital.mein-seelenfunke.de oder anderen Subdomains.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
                         'force_refresh' => [
                             'type' => 'boolean',
-                            'description' => 'Optional. Wenn true, wird der 5-Minuten-Cache der Live-Domain geleert und sofort frisch gegen mein-seelenfunke.de & www geprüft.'
+                            'description' => 'Optional. Wenn true, wird der 45-Sekunden-Cache geleert und sofort frisch gegen alle Domains und Subdomains geprüft.'
                         ]
                     ],
                 ],
@@ -419,13 +419,13 @@ trait AiSystemFuncs
             ],
             [
                 'name' => 'system_get_health',
-                'description' => 'Prüft in Echtzeit den technischen Gesundheitszustand des Stage-/Portal-Systems (Datenbank, Cache, Festplatte, SSL, Cronjobs, Queue-Worker, Backups, 90-Tage-Uptime) sowie des Mittwald Live-Servers (mein-seelenfunke.de & www). Stichworte: Ist das System gesund, Systemüberprüfung, Check Systemstatus, Live-Server Status, Gibt es IT-Fehler.',
+                'description' => 'Prüft in Echtzeit den technischen Gesundheitszustand des gesamten Seelenfunke-Ökosystems: Stage-/Portal-System (Datenbank, Cache, SSL, Cronjobs, Queue-Worker, Backups, 90-Tage-Uptime), Mittwald Live-Server (mein-seelenfunke.de & www) sowie alle Subdomains inklusive digital.mein-seelenfunke.de (DNS/Ingress, Schalter digital_domain_is_live, aktive/vorbereitete Digital-Produkte), ws.mein-seelenfunke.de und api-live-bridge.mein-seelenfunke.de.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
                         'force_refresh' => [
                             'type' => 'boolean',
-                            'description' => 'Optional. Wenn true, wird der 5-Minuten-Cache der Live-Domain geleert und sofort frisch gegen mein-seelenfunke.de & www geprüft.'
+                            'description' => 'Optional. Wenn true, wird der 45-Sekunden-Cache der Domains und Subdomains geleert und sofort frisch geprüft.'
                         ]
                     ],
                 ],
@@ -2255,6 +2255,8 @@ trait AiSystemFuncs
                     : ('Systemhinweis: ' . $report['headline']),
                 'live_domains' => $report['live_domain'],
                 'live_server' => $report['live_domain'],
+                'subdomains' => $report['subdomains'] ?? ($report['live_domain']['subdomains'] ?? []),
+                'digital_subdomain' => $report['digital_subdomain'] ?? ($report['live_domain']['digital_subdomain'] ?? []),
                 'stage_and_portal' => [
                     'environment' => $report['environment'],
                     'uptime_90d_percent' => $report['uptime_90d_percent'],
@@ -4731,11 +4733,11 @@ trait AiSystemFuncs
             }
         }
 
-        if ($pulseService->hasCustomLiveProbeResolver() || !app()->runningUnitTests()) {
+        if ($pulseService->hasActiveTestDomainMocks() || !app()->runningUnitTests()) {
             try {
                 return $pulseService->getCachedOrProbeLiveDomains(false);
             } catch (\Throwable $cacheOrProbeErr) {
-                if (!$pulseService->hasCustomLiveProbeResolver() && !app()->runningUnitTests()) {
+                if (!$pulseService->hasActiveTestDomainMocks() && !app()->runningUnitTests()) {
                     try {
                         return $pulseService->probeLiveDomains();
                     } catch (\Throwable $ignore) {
@@ -4811,6 +4813,8 @@ trait AiSystemFuncs
                 'checked_at' => $report['checked_at'],
                 'live_server' => $report['live_domain'],
                 'live_domains' => $report['live_domain'],
+                'subdomains' => $report['subdomains'] ?? ($report['live_domain']['subdomains'] ?? []),
+                'digital_subdomain' => $report['digital_subdomain'] ?? ($report['live_domain']['digital_subdomain'] ?? []),
                 'stage_and_portal' => [
                     'environment' => $report['environment'],
                     'uptime_90d_percent' => $report['uptime_90d_percent'],

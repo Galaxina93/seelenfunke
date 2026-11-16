@@ -102,6 +102,18 @@ class GenerateAiMap extends Command
         if (File::exists($globalGeminiPath)) {
             $this->syncEmbeddedAiMap($globalGeminiPath, $markdown);
         }
+
+        // Synchronisiere fehlertolerant alle Abschlussberichte/ in AiKnowledgeBase, sofern Tabelle & Sync-Spalte existieren
+        try {
+            if (
+                \Illuminate\Support\Facades\Schema::hasTable('ai_knowledge_bases')
+                && \Illuminate\Support\Facades\Schema::hasColumn('ai_knowledge_bases', 'source_path')
+            ) {
+                $this->call('ai:sync-knowledge-reports');
+            }
+        } catch (\Throwable $e) {
+            $this->warn('Wissensdatenbank-Sync der Abschlussberichte übersprungen: ' . $e->getMessage());
+        }
     }
 
     /**

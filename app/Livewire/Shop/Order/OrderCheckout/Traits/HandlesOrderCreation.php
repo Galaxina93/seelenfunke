@@ -369,6 +369,10 @@ trait HandlesOrderCreation
                 'total_price' => $totals['total'],
             ];
 
+            if (!empty($this->digital_waiver_accepted) && \Illuminate\Support\Facades\Schema::hasColumn('order_orders', 'digital_waiver_accepted_at')) {
+                $orderData['digital_waiver_accepted_at'] = now();
+            }
+
             // UTM-, Referral- und Influencer-Tracking an der Bestellung festhalten
             $referrer = session('seelenfunke_referrer') ?: request()->cookie('seelenfunke_referrer');
             if ($referrer) {

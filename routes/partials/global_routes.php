@@ -163,6 +163,15 @@ Route::get('/shop', ProductFrontendFilterArea::class)->name('shop');
 Route::get('/shop/showroom-data', [\App\Http\Controllers\Frontend\ShopShowroomController::class, 'index'])
     ->middleware('throttle:60,1')
     ->name('shop.showroom.data');
+Route::post('/shop/showroom-sync', [\App\Http\Controllers\Frontend\ShopShowroomController::class, 'sync'])
+    ->middleware('throttle:360,1')
+    ->name('shop.showroom.sync');
+Route::post('/shop/showroom-chat', [\App\Http\Controllers\Frontend\ShopShowroomController::class, 'chat'])
+    ->middleware('throttle:30,1')
+    ->name('shop.showroom.chat');
+Route::post('/shop/showroom-report', [\App\Http\Controllers\Frontend\ShopShowroomController::class, 'report'])
+    ->middleware('throttle:20,1')
+    ->name('shop.showroom.report');
 Route::redirect('/gutscheine', '/produkt/geschenkgutschein', 301)->name('vouchers');
 
 // Marketing Landing Page

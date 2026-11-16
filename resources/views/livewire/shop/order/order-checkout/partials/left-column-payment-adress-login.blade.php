@@ -254,7 +254,7 @@
                     <div class="sm:col-span-2">
                         <label for="country" class="block text-sm font-medium text-gray-700">Land <span class="text-red-500">*</span></label>
                         <select wire:model.live="country" id="country" class="mt-1 block w-full rounded-lg bg-gray-50 border border-gray-300 text-gray-900 cursor-pointer shadow-sm hover:border-primary/60 hover:bg-white focus:bg-white focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none sm:text-sm px-4 py-3 transition-all">
-                            @foreach(shop_setting('active_countries', ['DE' => 'Deutschland']) as $code => $name)
+                            @foreach(($countries ?? shop_setting('active_countries', ['DE' => 'Deutschland'])) as $code => $name)
                                 <option value="{{ $code }}">{{ $name }}</option>
                             @endforeach
                         </select>
@@ -262,6 +262,7 @@
                         @php
                             $targetCountry = ($has_separate_shipping && !empty($shipping_country)) ? $shipping_country : $country;
                         @endphp
+                        @if(empty($isOnlyDigital))
                         <div class="mt-2 text-xs text-gray-500 animate-fade-in">
                             @if($targetCountry === 'DE')
                                 <span class="text-green-600 font-bold">Tipp:</span> Versandkostenfrei ab {{ number_format(shop_setting('shipping_free_threshold', 5000) / 100, 2, ',', '.') }} € Warenwert. Sonst {{ number_format(shop_setting('shipping_cost', 490) / 100, 2, ',', '.') }} €.
@@ -271,11 +272,13 @@
                                 <span class="text-blue-600 font-bold">Hinweis:</span> Internationale Versandkosten werden nach Gewicht & Zone berechnet.
                             @endif
                         </div>
+                        @endif
 
                         @error('country') <span class="text-red-500 text-xs mt-1 block font-medium">{{ $message }}</span> @enderror
                     </div>
                 </div>
 
+                @if(empty($isOnlyDigital))
                 {{-- ERWEITERUNG ABWEICHENDE LIEFERADRESSE --}}
                 <div class="mt-8 pt-6 border-t border-gray-100">
                     <div class="flex items-center gap-3 bg-gray-50 p-4 rounded-xl border border-gray-200 cursor-pointer hover:bg-gray-100 transition-colors" x-on:click="$wire.set('has_separate_shipping', !@js($has_separate_shipping))">
@@ -332,6 +335,7 @@
                     </div>
                 </div>
                 {{-- ENDE: ERWEITERUNG ABWEICHENDE LIEFERADRESSE --}}
+                @endif
             </div>
         </div>
     </div>

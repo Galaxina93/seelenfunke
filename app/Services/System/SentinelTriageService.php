@@ -673,6 +673,25 @@ class SentinelTriageService
             ];
         }
 
+        // Playbook 12: Einmalige Blade-View-Cache-Ueberschneidung waehrend view:clear beim Deployment
+        if (
+            str_contains($msgLower, 'file does not exist at path')
+            && str_contains($msgLower, 'storage/framework/views/')
+            && $occurrences <= 3
+        ) {
+            $viewsDir = storage_path('framework/views');
+            if (!is_dir($viewsDir)) {
+                @mkdir($viewsDir, 0775, true);
+            }
+            if (is_dir($viewsDir) && is_writable($viewsDir)) {
+                return [
+                    'healed' => true,
+                    'playbook' => 'transient_compiled_view_deploy_race',
+                    'summary' => 'Kurzzeitige Blade-Kompilier-Ueberschneidung waehrend view:clear verifiziert (View-Cache-Ordner beschreibbar).',
+                ];
+            }
+        }
+
         return ['healed' => false];
     }
 

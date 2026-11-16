@@ -88,6 +88,7 @@ use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
         'expires_at',
         'token',
         'is_small_business',
+        'digital_waiver_accepted_at',
         'utm_source_first',
         'utm_campaign_first',
         'utm_medium_first',
@@ -114,6 +115,7 @@ use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
         'workshop_checkin_paused' => 'boolean',
         'is_express' => 'boolean',
         'is_small_business' => 'boolean',
+        'digital_waiver_accepted_at' => 'datetime',
         'cancellation_reason' => 'string',
     ];
 

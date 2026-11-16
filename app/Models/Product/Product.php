@@ -215,6 +215,9 @@ use HasFactory, HasUuids, SoftDeletes;
 
     public function resolveCollectionWorld(): string
     {
+        if (($this->collection_line ?? '') === 'digital_blueprint') {
+            return 'digital_blueprint';
+        }
         if ($this->slug === 'geschenkgutschein' || $this->type === 'digital') {
             return 'voucher';
         }
@@ -226,6 +229,9 @@ use HasFactory, HasUuids, SoftDeletes;
 
     public function getCollectionLineLabelAttribute(): string
     {
+        if (($this->collection_line ?? '') === 'digital_blueprint') {
+            return 'Digital-Domain Blueprint';
+        }
         if ($this->type === 'digital') {
             return 'Geschenkgutscheine & Digital';
         }

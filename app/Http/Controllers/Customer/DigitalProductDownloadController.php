@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Customer;
 use App\Http\Controllers\Controller;
 use App\Models\Order\OrderOrderItem;
 use App\Services\AI\AiAuthHelper;
+use App\Services\Export\DigitalLicenseStampingService;
+use App\Services\System\SystemSecurityService;
 use Illuminate\Support\Facades\Storage;
 
 class DigitalProductDownloadController extends Controller
@@ -89,29 +91,59 @@ class DigitalProductDownloadController extends Controller
             $downloadPath === ''
             || str_contains($downloadPath, '..')
             || str_contains($downloadPath, "\0")
-            || (!str_starts_with($downloadPath, 'produkte/products-secure/') && !str_starts_with($downloadPath, 'products-secure/'))
+            || (
+                !str_starts_with($downloadPath, 'produkte/products-secure/')
+                && !str_starts_with($downloadPath, 'products-secure/')
+                && !str_starts_with($downloadPath, 'private/products-secure/')
+            )
         ) {
             abort(403, 'Ungültiger Dateipfad.');
         }
 
         // 5. File existence & symlink check
+        $masterFullPath = Storage::disk('local')->path($downloadPath);
         if (
             !Storage::disk('local')->exists($downloadPath)
-            || is_link(Storage::disk('local')->path($downloadPath))
+            || is_link($masterFullPath)
         ) {
             abort(404, 'Die angeforderte Datei wurde auf dem Server nicht gefunden.');
         }
 
-        // 6. Trigger download with hardened headers
+        // 6. Trigger download with hardened headers (on-the-fly Zero-Leak scan & buyer license stamping for .zip archives)
         $safeFilename = preg_replace('/[^A-Za-z0-9._-]/', '_', basename($rawFilename)) ?: 'Download.pdf';
+        $responseHeaders = [
+            'X-Content-Type-Options' => 'nosniff',
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+        ];
+
+        if (strtolower(pathinfo($downloadPath, PATHINFO_EXTENSION)) === 'zip') {
+            try {
+                $stampedTempZip = app(DigitalLicenseStampingService::class)
+                    ->createStampedZipCopy($item, $masterFullPath);
+            } catch (\Throwable $e) {
+                SystemSecurityService::logEvent(
+                    'security:blueprint_zero_leak_blocked',
+                    'Digitaler ZIP-Download durch Zero-Leak-Scanner blockiert',
+                    $e->getMessage(),
+                    'error',
+                    ['order_item_id' => $item->id, 'download_path' => $downloadPath]
+                );
+                abort(403, 'Sicherheitsfreigabe für dieses Archiv verweigert.');
+            }
+
+            if (!str_ends_with(strtolower($safeFilename), '.zip')) {
+                $safeFilename .= '.zip';
+            }
+
+            return response()
+                ->download($stampedTempZip, $safeFilename, $responseHeaders)
+                ->deleteFileAfterSend(true);
+        }
 
         return Storage::disk('local')->download(
             $downloadPath,
             $safeFilename,
-            [
-                'X-Content-Type-Options' => 'nosniff',
-                'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
-            ]
+            $responseHeaders
         );
     }
 

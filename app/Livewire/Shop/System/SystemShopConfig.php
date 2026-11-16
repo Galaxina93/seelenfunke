@@ -20,6 +20,7 @@ class SystemShopConfig extends Component
     public string $themingDepartment = 'System';
     public $settings = [];
     public bool $shop_is_live = false;
+    public bool $digital_domain_is_live = false;
     
     // Updates/Reports System-Info
     public $uploads = [];
@@ -84,7 +85,10 @@ class SystemShopConfig extends Component
         'stripe_fee_fixed_cents',
         'shop_is_live',
         'shop_live_unlocked',
+        'digital_domain_is_live',
+        'digital_domain_host',
         'maintenance_mode',
+        'showroom_multiplayer_enabled',
         'inventory_low_stock_threshold',
         'skip_shipping_for_digital',
         'send_order_email_to_admin',
@@ -149,7 +153,9 @@ class SystemShopConfig extends Component
         'stripe_fee_fixed_cents' => 'Kalkulatorische Fixgebühr pro Transaktion in der Produkt-Margenberechnung (Eingabe in Euro, z.B. 0.30).',
         'shop_is_live' => 'Zweiter Hauptschalter vor Verkaufsstart: Solange Live gehen deaktiviert ist, bleibt die gesamte Live-Domain selbst für eingeloggte Admins hinter der Wartungsseite verborgen. Erst wenn Live gehen aktiv und der Wartungsmodus aus ist, ist der Shop öffentlich sichtbar.',
         'shop_live_unlocked' => 'Zweiter Hauptschalter vor Verkaufsstart: Solange Live gehen deaktiviert ist, bleibt die gesamte Live-Domain selbst für eingeloggte Admins hinter der Wartungsseite verborgen. Erst wenn Live gehen aktiv und der Wartungsmodus aus ist, ist der Shop öffentlich sichtbar.',
+        'digital_domain_is_live' => 'Unabhängiger Hauptschalter für digital.mein-seelenfunke.de: Solange deaktiviert, erhalten öffentliche Besucher HTTP 503, während eingeloggte Administratoren die Digital-Domain vorab prüfen können.',
         'maintenance_mode' => 'Schaltet das öffentliche Shop-Frontend in den Wartungsmodus (HTTP 503). Admin-Portal, Login, Funkenwerk-Apps und APIs bleiben erreichbar.',
+        'showroom_multiplayer_enabled' => 'Steuert den Live-Mehrspielermodus (12er-Räume, Gamification-Waffen-Funken und moderierter Raum-Chat) für eingeloggte Kunden im 3D-Louvre-Showroom. Gäste erkunden den Showroom immer im Einzelmodus.',
         'inventory_low_stock_threshold' => 'Ab dieser Stückzahl wird ein Produkt im Dashboard als "niedriger Bestand" markiert.',
         'skip_shipping_for_digital' => 'Wenn aktiviert, werden keine Versandkosten berechnet, sobald der Warenkorb NUR digitale Produkte enthält.',
         'send_order_email_to_admin' => 'Bestimmt, ob der Admin bei Bestelleingang eine E-Mail erhalten soll.',
@@ -231,10 +237,19 @@ class SystemShopConfig extends Component
             $this->settings[$key] = $value;
         }
 
-        $boolKeys = ['is_small_business', 'prices_entered_gross', 'shop_is_live', 'shop_live_unlocked', 'maintenance_mode', 'skip_shipping_for_digital', 'send_order_email_to_admin', 'season_auto_mode'];
+        $boolKeys = ['is_small_business', 'prices_entered_gross', 'shop_is_live', 'shop_live_unlocked', 'digital_domain_is_live', 'maintenance_mode', 'showroom_multiplayer_enabled', 'skip_shipping_for_digital', 'send_order_email_to_admin', 'season_auto_mode'];
         foreach($boolKeys as $key) {
             $this->settings[$key] = filter_var($this->settings[$key], FILTER_VALIDATE_BOOLEAN);
         }
+
+        $hasExplicitDigitalLive = array_key_exists('digital_domain_is_live', $dbSettings)
+            && $dbSettings['digital_domain_is_live'] !== null
+            && $dbSettings['digital_domain_is_live'] !== '';
+        $resolvedDigitalLive = $hasExplicitDigitalLive
+            ? filter_var($dbSettings['digital_domain_is_live'], FILTER_VALIDATE_BOOLEAN)
+            : false;
+        $this->digital_domain_is_live = $resolvedDigitalLive;
+        $this->settings['digital_domain_is_live'] = $resolvedDigitalLive;
 
         $hasExplicitShopIsLive = array_key_exists('shop_is_live', $dbSettings)
             && $dbSettings['shop_is_live'] !== null
@@ -318,7 +333,10 @@ class SystemShopConfig extends Component
             'stripe_fee_fixed_cents' => 30,
             'shop_is_live' => !\App\Http\Middleware\EnforceShopMaintenanceMode::isLiveHost(request()),
             'shop_live_unlocked' => !\App\Http\Middleware\EnforceShopMaintenanceMode::isLiveHost(request()),
+            'digital_domain_is_live' => false,
+            'digital_domain_host' => 'digital.mein-seelenfunke.de',
             'maintenance_mode' => false,
+            'showroom_multiplayer_enabled' => true,
             'inventory_low_stock_threshold' => 5,
             'skip_shipping_for_digital' => false,
             'send_order_email_to_admin' => true,
@@ -400,6 +418,53 @@ class SystemShopConfig extends Component
         $this->saved = true;
     }
 
+    public function toggleDigitalDomainIsLive(): void
+    {
+        if (!Auth::guard('admin')->check()) {
+            abort(403);
+        }
+
+        $this->persistDigitalDomainIsLive(!$this->digital_domain_is_live);
+    }
+
+    public function updatedDigitalDomainIsLive($value): void
+    {
+        if (!Auth::guard('admin')->check()) {
+            abort(403);
+        }
+
+        $this->persistDigitalDomainIsLive(filter_var($value, FILTER_VALIDATE_BOOLEAN));
+    }
+
+    public function updatedSettingsDigitalDomainIsLive($value): void
+    {
+        if (!Auth::guard('admin')->check()) {
+            abort(403);
+        }
+
+        $this->persistDigitalDomainIsLive(filter_var($value, FILTER_VALIDATE_BOOLEAN));
+    }
+
+    protected function persistDigitalDomainIsLive(bool $isLive): void
+    {
+        $this->digital_domain_is_live = $isLive;
+        $this->settings['digital_domain_is_live'] = $isLive;
+
+        SystemSetting::updateOrCreate(
+            ['key' => 'digital_domain_is_live'],
+            ['value' => $isLive ? 'true' : 'false']
+        );
+
+        Cache::forget('global_shop_settings');
+        try {
+            $freshSettings = SystemSetting::pluck('value', 'key');
+            Cache::put('global_shop_settings', $freshSettings, 60);
+        } catch (\Throwable $e) {
+        }
+
+        $this->saved = true;
+    }
+
     public function toggleMaintenanceMode(): void
     {
         if (!Auth::guard('admin')->check()) {
@@ -427,6 +492,45 @@ class SystemShopConfig extends Component
         SystemSetting::updateOrCreate(
             ['key' => 'maintenance_mode'],
             ['value' => $enabled ? 'true' : 'false']
+        );
+
+        Cache::forget('global_shop_settings');
+        try {
+            $freshSettings = SystemSetting::pluck('value', 'key');
+            Cache::put('global_shop_settings', $freshSettings, 60);
+        } catch (\Throwable $e) {
+        }
+
+        $this->saved = true;
+    }
+
+    public function toggleShowroomMultiplayer(): void
+    {
+        if (!Auth::guard('admin')->check()) {
+            abort(403);
+        }
+
+        $newState = !filter_var($this->settings['showroom_multiplayer_enabled'] ?? true, FILTER_VALIDATE_BOOLEAN);
+        $this->settings['showroom_multiplayer_enabled'] = $newState;
+        $this->persistShowroomMultiplayer($newState);
+    }
+
+    public function updatedSettingsShowroomMultiplayerEnabled($value): void
+    {
+        if (!Auth::guard('admin')->check()) {
+            abort(403);
+        }
+
+        $boolState = filter_var($value, FILTER_VALIDATE_BOOLEAN);
+        $this->settings['showroom_multiplayer_enabled'] = $boolState;
+        $this->persistShowroomMultiplayer($boolState);
+    }
+
+    protected function persistShowroomMultiplayer(bool $enabled): void
+    {
+        SystemSetting::updateOrCreate(
+            ['key' => 'showroom_multiplayer_enabled'],
+            ['value' => $enabled ? '1' : '0']
         );
 
         Cache::forget('global_shop_settings');
@@ -602,6 +706,7 @@ class SystemShopConfig extends Component
 
         $this->settings['shop_is_live'] = $this->shop_is_live;
         $this->settings['shop_live_unlocked'] = $this->shop_is_live;
+        $this->settings['digital_domain_is_live'] = $this->digital_domain_is_live;
 
         $protectedTaxTransitionKeys = [
             'is_small_business',

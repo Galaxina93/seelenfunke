@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\Admin\Admin;
+use App\Support\DigitalDomainContext;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -57,6 +58,54 @@ class EnforceShopMaintenanceMode
      */
     public function handle(Request $request, Closure $next): Response
     {
+        // Eigenständige Steuerung für die Digital-Domain (digital.mein-seelenfunke.de / ?domain=digital)
+        if (DigitalDomainContext::isDigitalDomain($request)) {
+            DigitalDomainContext::resolveLocale($request);
+
+            $digitalIsLive = DigitalDomainContext::isDigitalDomainLive();
+            $maintenanceMode = filter_var(shop_setting('maintenance_mode', false), FILTER_VALIDATE_BOOLEAN);
+
+            if ($digitalIsLive && !$maintenanceMode) {
+                return $next($request);
+            }
+
+            if (Auth::guard('admin')->check() || $request->user('admin') instanceof Admin) {
+                if ($request->is('login') && $request->isMethod('GET')) {
+                    return redirect('/admin/dashboard');
+                }
+
+                return $next($request);
+            }
+
+            if ($request->is(
+                'login',
+                'login/*',
+                'logout',
+                'password/*',
+                'admin',
+                'admin/*',
+                'livewire',
+                'livewire/*',
+                'api',
+                'api/*',
+                'stripe',
+                'stripe/*',
+                'up',
+                'system/cronjob/*',
+                'system/cache/clear/*',
+                'notfall',
+                'notfall/*',
+                'impressum',
+                'datenschutz',
+                'datenschutzerklaerung',
+                'barrierefreiheit'
+            )) {
+                return $next($request);
+            }
+
+            return $this->maintenanceResponse($request);
+        }
+
         $shopIsLive = self::isShopLive($request);
         $maintenanceMode = filter_var(shop_setting('maintenance_mode', false), FILTER_VALIDATE_BOOLEAN);
 

@@ -1460,12 +1460,69 @@ Zusätzlich erhältst du das vollständige ZIP-Archiv mit allen 200 einsatzberei
         $catIds5 = ProductCategory::whereIn('name', ['Gutscheine', 'Geschenksets', 'Bestseller'])->pluck('id');
         $p5->categories()->sync($catIds5);
 
+        // --- DIGITAL-DOMAIN HIGH-TICKET BLUEPRINTS (Entwurf / status = 'draft' / 100 % Clean-Room) ---
+        $blueprintBuilder = app(\App\Services\System\CleanRoomBlueprintBuilderService::class);
+        $builtZipPaths = $blueprintBuilder->buildAllPackages();
+        $digitalCatIds = ProductCategory::whereIn('name', ['E-Books & Guides', 'Design-Vorlagen'])->pluck('id');
+
+        foreach (\App\Services\System\CleanRoomBlueprintBuilderService::getBlueprintDefinitions() as $bp) {
+            $bpProduct = Product::updateOrCreate(['slug' => $bp['slug']], [
+                'name' => $bp['name'],
+                'type' => 'digital',
+                'collection_line' => 'digital_blueprint',
+                'description' => $bp['description_de'],
+                'short_description' => $bp['short_de'],
+                'is_personalizable' => false,
+                'three_d_active' => false,
+                'status' => 'draft',
+                'price' => (int) $bp['price_cents'],
+                'tax_class' => 'standard',
+                'compare_at_price' => null,
+                'sku' => $bp['sku'],
+                'barcode' => '',
+                'brand' => 'NexusCore Architecture',
+                'track_quantity' => false,
+                'quantity' => 0,
+                'continue_selling_when_out_of_stock' => true,
+                'weight' => null,
+                'packaging_weight' => null,
+                'height' => null,
+                'width' => null,
+                'length' => null,
+                'shipping_class' => null,
+                'digital_download_path' => $builtZipPaths[$bp['slug']] ?? (\App\Services\System\CleanRoomBlueprintBuilderService::STORAGE_REL_DIR . '/' . $bp['filename']),
+                'digital_filename' => $bp['filename'],
+                'preview_image_path' => null,
+                'media_gallery' => [],
+                'configurator_settings' => [
+                    'allow_text_pos' => false,
+                    'allow_logo' => false,
+                    'origin_badge' => 'none',
+                ],
+                'attributes' => [
+                    'name_en' => $bp['name_en'],
+                    'short_description_en' => $bp['short_en'],
+                    'Format' => 'ZIP Referenz-Architektur (DE & EN)',
+                    'Lizenz' => 'Single-Entity Commercial Reference Architecture',
+                    'Auslieferung' => 'Sofort-Download mit Lizenz-Stempel',
+                ],
+                'tier_pricing' => [],
+                'seo_title' => $bp['name'] . ' | Software Architecture Blueprint',
+                'seo_description' => $bp['short_de'],
+                'completion_step' => 4,
+            ]);
+
+            if ($digitalCatIds->isNotEmpty()) {
+                $bpProduct->categories()->sync($digitalCatIds);
+            }
+        }
+
         // Sicherstellen, dass bei allen bestehenden Produkten & Vorlagen jedes Bild als KI-generiert markiert ist
         // UND nur physische Produkte die einheitlichen Schwarz-Gold-Geschenkverpackungs-Optionen besitzen
         foreach (Product::withTrashed()->get() as $existingProduct) {
             $gallery = is_array($existingProduct->media_gallery) ? $existingProduct->media_gallery : [];
             $changed = false;
-            if ($existingProduct->type === 'digital' && $existingProduct->collection_line !== 'voucher') {
+            if ($existingProduct->type === 'digital' && !in_array($existingProduct->collection_line, ['voucher', 'digital_blueprint'], true)) {
                 $existingProduct->collection_line = 'voucher';
                 $changed = true;
             } elseif ($existingProduct->type === 'service' && $existingProduct->collection_line !== 'service') {

@@ -10,6 +10,7 @@ use App\Models\Delivery\DeliverySetting;
 use App\Models\Product\Product;
 use App\Models\Product\ProductTemplate;
 use App\Services\Gamification\GameConfig;
+use App\Services\Shop\ShowroomMultiplayerService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -24,7 +25,137 @@ class ShopShowroomController extends Controller
      * Liefert aktive Produkte inkl. komprimierter .glb-Modelle, Galerie (inkl. Maßbild),
      * exakt 3 Vorteilen sowie das Funki-3D-Modell des Besuchers (Kunde Lv. 1..10, Gast Lv. 2).
      */
-    public function index(Request $request): JsonResponse
+    public function index(Request $request, ShowroomMultiplayerService $multiplayer): JsonResponse
+    {
+        if ($maintenanceResp = $this->checkMaintenanceOrLock($request)) {
+            return $maintenanceResp;
+        }
+
+        /** @var Customer|null $customer */
+        $customer = Auth::guard('customer')->user();
+
+        $products = $this->resolveCachedShowroomProducts();
+        $multiplayerPayload = $multiplayer->buildBootstrapPayload($customer);
+        $playerFunki = $this->resolvePlayerFunki($multiplayerPayload);
+
+        return response()->json([
+            'success' => true,
+            'showroom_style' => 'louvre_black_gold',
+            'total_products' => count($products),
+            'player_funki' => $playerFunki,
+            'multiplayer' => $multiplayerPayload,
+            'products' => $products,
+        ], 200, $this->noStoreHeaders());
+    }
+
+    /**
+     * 5-Hz Multi-User State-Sync für eingeloggte Kunden im 12er-Louvre-Raum (Gäste strikt 403 Solo).
+     */
+    public function sync(Request $request, ShowroomMultiplayerService $multiplayer): JsonResponse
+    {
+        if ($maintenanceResp = $this->checkMaintenanceOrLock($request)) {
+            return $maintenanceResp;
+        }
+
+        /** @var Customer|null $customer */
+        $customer = Auth::guard('customer')->user();
+        if ($customer === null) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gäste erkunden den Showroom im Einzelmodus.',
+            ], 403, $this->noStoreHeaders());
+        }
+
+        if (!$multiplayer->isMultiplayerEnabled()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Der Mehrspielermodus ist aktuell deaktiviert.',
+            ], 403, $this->noStoreHeaders());
+        }
+
+        $payload = $multiplayer->syncPlayerState($customer, $request->all());
+
+        return response()->json($payload, 200, $this->noStoreHeaders());
+    }
+
+    /**
+     * Moderierter Raum-Chat mit 4-stufigem TikTok-Basis-Wort-, Link- & PII-Filter (Gäste strikt 403).
+     */
+    public function chat(Request $request, ShowroomMultiplayerService $multiplayer): JsonResponse
+    {
+        if ($maintenanceResp = $this->checkMaintenanceOrLock($request)) {
+            return $maintenanceResp;
+        }
+
+        /** @var Customer|null $customer */
+        $customer = Auth::guard('customer')->user();
+        if ($customer === null) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Nur eingeloggte Kunden können den Showroom-Chat nutzen.',
+            ], 403, $this->noStoreHeaders());
+        }
+
+        if (!$multiplayer->isMultiplayerEnabled()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Der Showroom-Chat ist aktuell deaktiviert.',
+            ], 403, $this->noStoreHeaders());
+        }
+
+        $result = $multiplayer->postChatMessage($customer, (string) $request->input('message', ''));
+
+        if (!$result['success']) {
+            return response()->json([
+                'success' => false,
+                'code' => $result['code'] ?? 'blocked',
+                'message' => $result['message'] ?? 'Nachricht blockiert.',
+            ], (int) ($result['status'] ?? 422), $this->noStoreHeaders());
+        }
+
+        return response()->json([
+            'success' => true,
+            'room_id' => $result['room_id'],
+            'entry' => $result['entry'],
+        ], 200, $this->noStoreHeaders());
+    }
+
+    /**
+     * 1-Klick Spieler-Meldung im Raum-Chat (2 Meldungen -> 24h Shadow-Mute).
+     */
+    public function report(Request $request, ShowroomMultiplayerService $multiplayer): JsonResponse
+    {
+        if ($maintenanceResp = $this->checkMaintenanceOrLock($request)) {
+            return $maintenanceResp;
+        }
+
+        /** @var Customer|null $customer */
+        $customer = Auth::guard('customer')->user();
+        if ($customer === null) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Nur eingeloggte Kunden können Meldungen absenden.',
+            ], 403, $this->noStoreHeaders());
+        }
+
+        if (!$multiplayer->isMultiplayerEnabled()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Der Mehrspielermodus ist aktuell deaktiviert.',
+            ], 403, $this->noStoreHeaders());
+        }
+
+        $result = $multiplayer->reportPlayerByPublicId($customer, (string) $request->input('target_player_id', ''));
+
+        return response()->json([
+            'success' => $result['success'],
+            'reports_count' => $result['reports_count'] ?? 0,
+            'shadow_muted' => $result['shadow_muted'] ?? false,
+            'message' => $result['message'] ?? 'Meldung verarbeitet.',
+        ], (int) ($result['status'] ?? 200), $this->noStoreHeaders());
+    }
+
+    private function checkMaintenanceOrLock(Request $request): ?JsonResponse
     {
         $isMaintenance = filter_var(shop_setting('maintenance_mode', false), FILTER_VALIDATE_BOOLEAN)
             || filter_var(shop_setting('shop_maintenance_mode', false), FILTER_VALIDATE_BOOLEAN);
@@ -41,20 +172,19 @@ class ShopShowroomController extends Controller
             ]);
         }
 
-        $products = $this->resolveCachedShowroomProducts();
-        $playerFunki = $this->resolvePlayerFunki();
+        return null;
+    }
 
-        return response()->json([
-            'success' => true,
-            'showroom_style' => 'louvre_black_gold',
-            'total_products' => count($products),
-            'player_funki' => $playerFunki,
-            'products' => $products,
-        ], 200, [
+    /**
+     * @return array<string, string>
+     */
+    private function noStoreHeaders(): array
+    {
+        return [
             'Cache-Control' => 'private, no-store, no-cache, must-revalidate',
             'X-Robots-Tag' => 'noindex, nofollow',
             'X-Content-Type-Options' => 'nosniff',
-        ]);
+        ];
     }
 
     /**
@@ -403,11 +533,12 @@ class ShopShowroomController extends Controller
     }
 
     /**
-     * Ermittelt das Funki-3D-Modell des Besuchers (eingeloggter Kunde: Lv. 1..10, Gast: Lv. 2).
+     * Ermittelt das Funki-3D-Modell des Besuchers (eingeloggter Kunde: Lv. 1..10 inkl. Waffe, Gast: Lv. 2).
      *
-     * @return array{is_guest: bool, level: int, name: string, glb_url: string}
+     * @param array<string, mixed> $multiplayerPayload
+     * @return array<string, mixed>
      */
-    private function resolvePlayerFunki(): array
+    private function resolvePlayerFunki(array $multiplayerPayload = []): array
     {
         /** @var Customer|null $customer */
         $customer = Auth::guard('customer')->user();
@@ -431,6 +562,9 @@ class ShopShowroomController extends Controller
                 'is_guest' => false,
                 'level' => $resolvedLevel,
                 'name' => $this->cleanText((string) ($cfg['name'] ?? ('Funki · Stufe ' . $resolvedLevel))),
+                'display_name' => $multiplayerPayload['display_name'] ?? null,
+                'player_id' => $multiplayerPayload['player_id'] ?? null,
+                'weapon' => $multiplayerPayload['weapon'] ?? null,
                 'glb_url' => '/' . $modelRel,
             ];
         }
@@ -443,6 +577,9 @@ class ShopShowroomController extends Controller
             'is_guest' => true,
             'level' => $guestLevel,
             'name' => 'Gast-Funki · Stufe 2',
+            'display_name' => null,
+            'player_id' => null,
+            'weapon' => null,
             'glb_url' => '/' . $guestModelRel,
         ];
     }

@@ -6,7 +6,46 @@
     @endpush
     <div class="bg-gray-50 min-h-screen pb-20">
 
-        {{-- Header / Hero Section mit saisonalem & Feiertags-Hintergrund --}}
+        {{-- Header / Hero Section: Light-Mode Engineering Header auf Digital-Domain, sonst saisonaler Hauptshop-Header --}}
+        @if(!empty($isDigitalDomain))
+            <div class="bg-white border-b border-[#E6DAC3] py-14 md:py-18 text-center relative overflow-hidden">
+                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+                    <div class="flex justify-end mb-4">
+                        <div class="inline-flex items-center rounded-xl border border-[#D8C9A8] bg-[#FAF7F0] p-1 shadow-xs" role="group" aria-label="Language switcher">
+                            <a href="{{ request()->fullUrlWithQuery(['lang' => 'de']) }}"
+                               wire:click.prevent="setDigitalLocale('de')"
+                               class="px-3 py-1 rounded-lg text-xs font-black tracking-wider transition-all {{ ($digitalLocale ?? 'de') === 'de' ? 'bg-[#C5A059] text-white shadow-xs' : 'text-gray-700 hover:text-gray-900' }}">
+                                DE
+                            </a>
+                            <span class="px-1 text-xs font-bold text-[#C5A059]/60 select-none">|</span>
+                            <a href="{{ request()->fullUrlWithQuery(['lang' => 'en']) }}"
+                               wire:click.prevent="setDigitalLocale('en')"
+                               class="px-3 py-1 rounded-lg text-xs font-black tracking-wider transition-all {{ ($digitalLocale ?? 'de') === 'en' ? 'bg-[#C5A059] text-white shadow-xs' : 'text-gray-700 hover:text-gray-900' }}">
+                                EN
+                            </a>
+                        </div>
+                    </div>
+
+                    @if(($digitalLocale ?? 'de') === 'en')
+                        <span class="text-[#C5A059] font-bold uppercase tracking-[0.22em] text-xs mb-3 block">AI Architecture &amp; Autonomous Systems</span>
+                        <h1 class="text-3xl md:text-5xl font-serif font-bold text-gray-900 mb-4">
+                            Autonomous AI Architecture Blueprints
+                        </h1>
+                        <p class="text-gray-600 max-w-2xl mx-auto text-base md:text-lg leading-relaxed">
+                            Production-grade reference code, multi-agent orchestration engines, self-healing sentinels, and zero-secret vault brokers for instant deployment.
+                        </p>
+                    @else
+                        <span class="text-[#C5A059] font-bold uppercase tracking-[0.22em] text-xs mb-3 block">AI Architecture &amp; Autonomous Systems</span>
+                        <h1 class="text-3xl md:text-5xl font-serif font-bold text-gray-900 mb-4">
+                            Software- &amp; KI-Architektur-Blueprints
+                        </h1>
+                        <p class="text-gray-600 max-w-2xl mx-auto text-base md:text-lg leading-relaxed">
+                            Produktionsreife Referenz-Systeme für autonome Selbstheilung, Multi-Agenten-Orchestrierung und Zero-Secret-Security als direkter Sofort-Download.
+                        </p>
+                    @endif
+                </div>
+            </div>
+        @else
         <div class="bg-gray-950 border-b border-gray-800 py-16 md:py-20 text-center relative overflow-hidden">
             @if(!empty($heroBanner['url']))
                 <img src="{{ $heroBanner['url'] }}"
@@ -45,12 +84,14 @@
                 @endif
             </div>
         </div>
+        @endif
 
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-8 relative z-20">
 
             {{-- Filter & Search Bar --}}
             <div class="bg-white rounded-2xl shadow-xl shadow-gray-200/50 border border-gray-100 p-4 md:p-5 mb-12">
 
+                @if(empty($isDigitalDomain))
                 {{-- Kopfleiste: 3-Welten-Kollektions-Weiche + Begehbarer 3D-Showroom Button (0 Subtexte) --}}
                 <div class="flex flex-col lg:flex-row items-stretch lg:items-center gap-2.5 mb-4">
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 p-1.5 bg-gray-50 rounded-2xl border border-gray-100 flex-1">
@@ -95,11 +136,12 @@
                         <span>3D shoppen</span>
                     </button>
                 </div>
+                @endif
                 
                 {{-- Suchleiste Volle Breite Oben --}}
-                <div class="w-full mb-4">
+                <div class="w-full {{ empty($isDigitalDomain) ? 'mb-4' : '' }}">
                     <div class="relative w-full group">
-                        <input wire:model.live.debounce.300ms="search" type="text" placeholder="Suche nach Name oder Eigenschaft..." class="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-900 focus:bg-white focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] transition-all placeholder-gray-400">
+                        <input wire:model.live.debounce.300ms="search" type="text" placeholder="{{ !empty($isDigitalDomain) ? (($digitalLocale ?? 'de') === 'en' ? 'Search architecture blueprints...' : 'Architektur-Blueprint suchen...') : 'Suche nach Name oder Eigenschaft...' }}" class="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-900 focus:bg-white focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] transition-all placeholder-gray-400">
                         <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400 group-focus-within:text-[var(--theme-color)] transition-colors">
                             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                         </div>
@@ -112,7 +154,7 @@
                 </div>
 
                 {{-- Untere Ebene: Pills & Dropdowns (Kompakt auf Desktop, damit nichts abschneidet) --}}
-                @if($collectionWorld !== 'voucher')
+                @if(empty($isDigitalDomain) && $collectionWorld !== 'voucher')
                 <div class="flex flex-col xl:flex-row gap-3 justify-between items-stretch xl:items-center">
 
                     {{-- Personalizable & Sale Pills --}}
@@ -490,8 +532,8 @@
                                             @endif
                                             @if($product->type === 'digital')
                                                 <div class="bg-[#F5F1E8]/95 backdrop-blur-sm text-gray-900 border border-[#D8C9A8] text-[9px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest shadow-sm flex items-center gap-1.5">
-                                                    <svg class="w-3 h-3 text-gray-900" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" /></svg>
-                                                    Gutschein
+                                                    <svg class="w-3 h-3 text-[#C5A059]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" /></svg>
+                                                    {{ !empty($isDigitalDomain) ? (($digitalLocale ?? 'de') === 'en' ? 'ZIP Blueprint' : 'ZIP-Paket') : 'Gutschein' }}
                                                 </div>
                                             @endif
                                             @if($product->type === 'service')
@@ -638,9 +680,14 @@
                                         </div>
                                     @endif
 
+                                    @php
+                                        $cardTitle = (!empty($isDigitalDomain) && ($digitalLocale ?? 'de') === 'en' && !empty($product->attributes['name_en']))
+                                            ? $product->attributes['name_en']
+                                            : $product->name;
+                                    @endphp
                                     <h3 class="text-lg font-serif font-bold {{ $isSoldOut ? 'text-gray-400' : 'text-gray-900 group-hover:text-[var(--theme-color)] transition-colors' }} mb-1.5 leading-tight line-clamp-2">
                                         <a href="{{ $productUrl }}">
-                                            {{ $product->name }}
+                                            {{ $cardTitle }}
                                         </a>
                                     </h3>
 
@@ -725,7 +772,13 @@
 
                                             {{-- NEU: RECHTLICHE PAngV ANGABE (Sehr wichtig) --}}
                                             <span class="text-[10px] sm:text-[11px] text-gray-500 font-medium leading-tight mt-1">
-                                                @if(shop_setting('is_small_business', false))
+                                                @if(!empty($isDigitalDomain) || $product->type === 'digital')
+                                                    @if(shop_setting('is_small_business', false))
+                                                        {{ ($digitalLocale ?? 'de') === 'en' ? 'No VAT (§ 19 UStG) · Instant Download' : 'Keine MwSt. gem. § 19 UStG · Sofort-Download' }}
+                                                    @else
+                                                        {{ ($digitalLocale ?? 'de') === 'en' ? 'incl. VAT · Instant Download' : (($product->tax_included ? 'inkl. MwSt.' : 'zzgl. MwSt.') . ' · Sofort-Download') }}
+                                                    @endif
+                                                @elseif(shop_setting('is_small_business', false))
                                                     Keine MwSt. gem. § 19 UStG · <a href="{{ route('versand') }}" target="_blank" class="hover:text-gray-600 underline">zzgl. Versand</a>
                                                 @else
                                                     {{ $product->tax_included ? 'inkl. MwSt.' : 'zzgl. MwSt.' }} <a href="{{ route('versand') }}" target="_blank" class="hover:text-gray-600 underline">zzgl. Versand</a>
@@ -756,8 +809,10 @@
         </div>
     </div>
 
+    @if(empty($isDigitalDomain))
     {{-- Begehbarer 3D-Showroom im Louvre-Stil (0 KB Initial-Last, On-Demand via Klick auf "3D shoppen") --}}
-    <div wire:ignore
+    <div id="sf-louvre-showroom-modal"
+         wire:ignore
          x-data="window.sfLouvreShowroomModal()"
          @open-louvre-showroom.window="openShowroom()"
          @keydown.escape.window="handleEscape()">
@@ -768,11 +823,11 @@
              role="dialog"
              aria-modal="true"
              aria-label="Mein Seelenfunke Louvre Showroom"
-             class="fixed inset-0 z-[2147483500] bg-[#0A0C10] overflow-hidden select-none flex flex-col">
+             class="fixed inset-0 z-[2147483500] bg-[#0B0E14] overflow-hidden select-none flex flex-col">
 
-            {{-- Schlichter Schwarz-Gold Museums-Header --}}
-            <div class="relative z-30 h-14 px-3 sm:px-6 bg-[#0A0C10]/95 border-b border-[#C5A059]/35 flex items-center justify-between gap-3 shrink-0">
-                <div class="flex items-center gap-2.5 min-w-0">
+            {{-- Schlichter Schwarz-Gold Museums-Header inkl. Live/Solo-Schalter & Fokus-Schutz --}}
+            <div class="relative z-30 h-14 px-3 sm:px-6 bg-[#0B0E14]/95 border-b border-[#C5A059]/35 flex items-center justify-between gap-2 sm:gap-3 shrink-0">
+                <div class="flex items-center gap-2 sm:gap-2.5 min-w-0">
                     <span class="w-7 h-7 rounded-lg bg-[#C5A059]/15 border border-[#C5A059]/45 flex items-center justify-center text-[#C5A059] shrink-0">
                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 3l9 15H3L12 3z" />
@@ -786,23 +841,46 @@
                           class="hidden md:inline-flex items-center px-2.5 py-0.5 rounded-full bg-[#141821] border border-[#C5A059]/40 text-[10px] font-bold uppercase tracking-wider text-[#E6C687] shrink-0"
                           x-text="'Funki Lv. ' + funkiInfo.level">
                     </span>
+                    <span x-show="!funkiInfo.is_guest && funkiInfo.weapon"
+                          class="hidden xl:inline-flex items-center px-2.5 py-0.5 rounded-full bg-[#141821] border border-[#C5A059]/35 text-[10px] font-bold uppercase tracking-wider text-[#FAF8F5] shrink-0"
+                          x-text="funkiInfo.weapon ? (funkiInfo.weapon.name + ' · ' + funkiInfo.weapon.class_label) : ''">
+                    </span>
                 </div>
 
-                <button type="button"
-                        @click="closeShowroom()"
-                        class="px-3.5 py-2 rounded-xl bg-[#141821] hover:bg-[#1E2430] text-[#FAF8F5] border border-[#C5A059]/50 text-xs font-bold tracking-wide transition-colors cursor-pointer shrink-0">
-                    &times; Zurück zum Shop
-                </button>
+                <div class="flex items-center gap-2 shrink-0">
+                    <span x-show="multiplayer.is_authenticated && multiplayer.enabled && !soloMode && focusedProduct !== null"
+                          class="hidden lg:inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-[#FAF8F5] text-[#111827] border border-[#C5A059]/60 text-[10px] font-bold uppercase tracking-wider">
+                        <span class="text-[#C5A059]">&#10003;</span>
+                        <span>Fokus-Schutz</span>
+                    </span>
+
+                    <button type="button"
+                            x-show="multiplayer.is_authenticated && multiplayer.enabled"
+                            data-testid="louvre-live-solo-toggle"
+                            @click="toggleSoloMode()"
+                            :class="soloMode ? 'bg-[#141821] text-[#FAF8F5] border-[#C5A059]/45' : 'bg-[#FAF8F5] text-[#111827] border-[#C5A059]'"
+                            class="px-2.5 sm:px-3 py-1.5 rounded-xl border text-[11px] font-bold tracking-wide transition-colors cursor-pointer inline-flex items-center gap-1.5"
+                            :title="soloMode ? 'In den gemeinsamen 12er-Raum wechseln' : 'Ungestört alleine umschauen (Solo)'">
+                        <span class="w-2 h-2 rounded-full" :class="soloMode ? 'bg-gray-400' : 'bg-emerald-500'"></span>
+                        <span x-text="soloMode ? 'Solo' : ('Live · ' + roomLabel() + ' (' + onlineCount() + ')')"></span>
+                    </button>
+
+                    <button type="button"
+                            @click="closeShowroom()"
+                            class="px-3 sm:px-3.5 py-2 rounded-xl bg-[#141821] hover:bg-[#1E2430] text-[#FAF8F5] border border-[#C5A059]/50 text-xs font-bold tracking-wide transition-colors cursor-pointer shrink-0">
+                        &times; <span class="hidden sm:inline">Zurück zum Shop</span><span class="sm:hidden">Shop</span>
+                    </button>
+                </div>
             </div>
 
-            {{-- 3D-Louvre Buehne + Overlays --}}
+            {{-- 3D-Louvre Buehne + Räumliche Light-Mode Schwebetafel --}}
             <div class="relative flex-1 min-h-0 w-full overflow-hidden">
                 <canvas x-ref="louvreCanvas"
                         class="absolute inset-0 w-full h-full block touch-none cursor-grab"></canvas>
 
                 {{-- Lade- & Fehlerstatus --}}
                 <div x-show="isLoading || loadError !== ''"
-                     class="absolute inset-0 z-20 bg-[#0A0C10]/90 flex flex-col items-center justify-center p-6 text-center">
+                     class="absolute inset-0 z-30 bg-[#0B0E14]/90 flex flex-col items-center justify-center p-6 text-center">
                     <template x-if="isLoading">
                         <div class="flex flex-col items-center gap-3">
                             <div class="w-10 h-10 rounded-full border-2 border-[#C5A059]/30 border-t-[#C5A059] animate-spin"></div>
@@ -810,15 +888,125 @@
                         </div>
                     </template>
                     <template x-if="!isLoading && loadError !== ''">
-                        <div class="bg-white text-gray-900 rounded-2xl p-6 max-w-sm border border-gray-200 shadow-xl space-y-4">
-                            <p class="text-sm font-semibold text-gray-800" x-text="loadError"></p>
+                        <div class="bg-white text-[#111827] rounded-2xl p-6 max-w-sm border border-gray-200 shadow-xl space-y-4">
+                            <p class="text-sm font-semibold text-[#111827]" x-text="loadError"></p>
                             <button type="button"
                                     @click="closeShowroom()"
-                                    class="px-5 py-2.5 rounded-xl bg-gray-900 text-white text-xs font-bold uppercase tracking-wider cursor-pointer">
+                                    class="px-5 py-2.5 rounded-xl bg-[#111827] text-white text-xs font-bold uppercase tracking-wider cursor-pointer">
                                 Zurück zum Shop
                             </button>
                         </div>
                     </template>
+                </div>
+
+                {{-- Stufe 2: Schwebendes World-Space Info-Schild am fokussierten Podest (100 % Seelenfunke Light-Mode, kein blockierendes Popup!) --}}
+                <div x-ref="floatingCard"
+                     data-testid="louvre-floating-space-card"
+                     style="opacity: 0; visibility: hidden; pointer-events: none; transform: translate3d(-9999px, -9999px, 0);"
+                     class="absolute top-0 left-0 z-20 will-change-transform transition-opacity duration-200 pointer-events-none">
+                    <div @pointerdown.stop
+                         class="pointer-events-auto w-[252px] sm:w-[280px] rounded-2xl bg-[#FAF8F5]/95 backdrop-blur-md text-[#111827] border border-[#C5A059]/65 shadow-xl p-3.5">
+                        <div class="flex items-start gap-2.5">
+                            <template x-if="focusedProduct && focusedProduct.preview_image_url">
+                                <img :src="focusedProduct.preview_image_url"
+                                     :alt="focusedProduct ? focusedProduct.name : ''"
+                                     class="w-11 h-11 rounded-xl object-cover bg-white border border-[#C5A059]/35 shrink-0">
+                            </template>
+                            <div class="min-w-0 flex-1">
+                                <span class="block text-[10px] font-bold uppercase tracking-[0.16em] text-[#9A7738] truncate"
+                                      x-text="focusedProduct ? (focusedProduct.category_name || 'Kollektion') : ''"></span>
+                                <h3 class="text-sm sm:text-[15px] font-serif font-bold text-[#111827] leading-snug line-clamp-2"
+                                    x-text="focusedProduct ? focusedProduct.name : ''"></h3>
+                                <span class="inline-block mt-0.5 text-sm font-bold text-[#111827]"
+                                      x-text="focusedPriceLabel()"></span>
+                            </div>
+                        </div>
+
+                        {{-- Maximal 3 kurze Vorteile mit goldenem Haken (#C5A059) --}}
+                        <div x-show="focusedBenefits().length > 0"
+                             class="mt-2.5 pt-2.5 border-t border-[#C5A059]/25 space-y-1.5">
+                            <template x-for="(benefit, bIdx) in focusedBenefits()" :key="bIdx">
+                                <div class="flex items-start gap-2 text-[11px] font-semibold text-[#111827]">
+                                    <span class="text-[#C5A059] font-black leading-4 shrink-0">&#10003;</span>
+                                    <span class="leading-4 line-clamp-1" x-text="benefit"></span>
+                                </div>
+                            </template>
+                        </div>
+
+                        {{-- 1 direkter Gold-Button zur Produktseite --}}
+                        <a :href="focusedProduct ? focusedProduct.product_url : '#'"
+                           class="mt-3 w-full py-2.5 px-4 rounded-xl bg-[#C5A059] hover:bg-[#B38E46] text-[#111827] font-bold text-xs tracking-wide shadow-sm flex items-center justify-center gap-1.5 transition-colors">
+                            <span x-text="focusedProduct && focusedProduct.is_personalizable ? 'Jetzt gestalten' : 'Zum Produkt'"></span>
+                            <span>&rarr;</span>
+                        </a>
+                    </div>
+                    <div class="w-3 h-3 rotate-45 bg-[#FAF8F5] border-r border-b border-[#C5A059]/65 mx-auto -mt-1.5 pointer-events-none"></div>
+                </div>
+
+                {{-- Ein-/ausklappbarer Light-Mode Raum-Chat (pausiert automatisch bei aktivem Exponat-Fokus / Kauf-Ruheschutz) --}}
+                <div x-show="!isLoading && loadError === '' && chatOpen && multiplayer.is_authenticated && multiplayer.enabled && !soloMode && focusedProduct === null"
+                     @pointerdown.stop
+                     data-testid="louvre-room-chat-panel"
+                     class="absolute bottom-36 right-3 sm:bottom-24 sm:right-6 z-20 w-[284px] sm:w-[316px] rounded-2xl bg-[#FAF8F5]/95 backdrop-blur-md text-[#111827] border border-[#C5A059]/65 shadow-2xl p-3 flex flex-col gap-2">
+                    <div class="flex items-center justify-between gap-2 pb-1.5 border-b border-[#C5A059]/25">
+                        <div class="flex items-center gap-1.5 min-w-0">
+                            <span class="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
+                            <span class="text-[11px] font-bold uppercase tracking-wider text-[#111827] truncate"
+                                  x-text="roomLabel() + ' · Chat'"></span>
+                        </div>
+                        <button type="button"
+                                @click="chatOpen = false"
+                                class="w-6 h-6 rounded-lg hover:bg-black/5 text-gray-600 font-bold text-sm leading-none flex items-center justify-center cursor-pointer"
+                                aria-label="Chat minimieren">&times;</button>
+                    </div>
+
+                    <div x-ref="chatScrollBox"
+                         class="max-h-40 overflow-y-auto space-y-1.5 pr-1 text-xs">
+                        <template x-if="visibleChatMessages().length === 0">
+                            <div class="py-3 text-center text-[11px] font-semibold text-gray-500">
+                                Noch keine Nachrichten im Raum.
+                            </div>
+                        </template>
+                        <template x-for="msg in visibleChatMessages()" :key="msg.id">
+                            <div class="rounded-xl bg-white/90 border border-[#C5A059]/25 px-2.5 py-1.5">
+                                <div class="flex items-center justify-between gap-1.5">
+                                    <div class="flex items-center gap-1 min-w-0">
+                                        <span class="font-bold text-[11px] text-[#111827] truncate" x-text="msg.display_name"></span>
+                                        <span class="px-1.5 py-0.5 rounded bg-[#F5F1E8] border border-[#D8C9A8] text-[9px] font-black text-[#9A7738] shrink-0"
+                                              x-text="msg.class_label || 'KLASSE C'"></span>
+                                    </div>
+                                    <div x-show="msg.player_id !== multiplayer.player_id" class="flex items-center gap-1 shrink-0">
+                                        <button type="button"
+                                                @click="mutePeer(msg.player_id)"
+                                                class="text-[10px] font-bold text-gray-500 hover:text-gray-900 px-1 cursor-pointer"
+                                                title="Spieler lokal stummschalten">Stumm</button>
+                                        <button type="button"
+                                                @click="reportPeer(msg.player_id)"
+                                                class="text-[10px] font-bold text-red-600 hover:text-red-700 px-1 cursor-pointer"
+                                                title="Unangemessene Nachricht melden">Melden</button>
+                                    </div>
+                                </div>
+                                <p class="mt-0.5 text-[11px] text-gray-800 leading-snug break-words" x-text="msg.text"></p>
+                            </div>
+                        </template>
+                    </div>
+
+                    <div x-show="chatFeedback !== ''"
+                         class="px-2.5 py-1.5 rounded-xl bg-white border border-[#C5A059]/45 text-[11px] font-semibold text-[#111827]"
+                         x-text="chatFeedback"></div>
+
+                    <form @submit.prevent="sendChatMessage()" class="flex items-center gap-1.5 pt-0.5">
+                        <input type="text"
+                               x-model="chatDraft"
+                               maxlength="100"
+                               placeholder="Nachricht..."
+                               class="flex-1 min-w-0 px-2.5 py-1.5 rounded-xl bg-white border border-[#C5A059]/45 text-xs font-medium text-[#111827] placeholder-gray-400 focus:outline-none focus:border-[#C5A059]">
+                        <button type="submit"
+                                :disabled="chatSending"
+                                class="px-3 py-1.5 rounded-xl bg-[#C5A059] hover:bg-[#B38E46] disabled:opacity-50 text-[#111827] text-xs font-bold transition-colors cursor-pointer shrink-0">
+                            Senden
+                        </button>
+                    </form>
                 </div>
 
                 {{-- Virtueller Mobile-Stick unten links (1-Hand & Smartphone Steuerung) --}}
@@ -829,7 +1017,7 @@
                          @pointermove.stop.prevent="moveStick($event)"
                          @pointerup.stop.prevent="endStick()"
                          @pointercancel.stop.prevent="endStick()"
-                         class="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-[#0A0C10]/75 border border-[#C5A059]/45 backdrop-blur-sm flex items-center justify-center relative touch-none cursor-pointer shadow-lg"
+                         class="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-[#0B0E14]/75 border border-[#C5A059]/45 backdrop-blur-sm flex items-center justify-center relative touch-none cursor-pointer shadow-lg"
                          aria-label="Bewegungssteuerung">
                         <div class="w-2 h-2 rounded-full bg-[#C5A059]/30"></div>
                         <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#C5A059] border border-[#FFF8E1]/60 shadow-md pointer-events-none transition-transform duration-75"
@@ -837,10 +1025,48 @@
                     </div>
                 </div>
 
+                {{-- Kompakte Action-Leiste unten rechts: Springen (alle), Gamification-Waffe & Raum-Chat (eingeloggte Kunden) --}}
+                <div x-show="!isLoading && loadError === '' && products.length > 0"
+                     @pointerdown.stop
+                     class="absolute bottom-20 right-4 sm:bottom-6 sm:right-6 z-20 flex items-center gap-2">
+                    <button type="button"
+                            data-testid="louvre-jump-btn"
+                            @click="triggerJump()"
+                            class="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-[#0B0E14]/85 hover:bg-[#141821] text-[#FAF8F5] border border-[#C5A059]/55 shadow-lg backdrop-blur-sm flex items-center justify-center text-base font-bold transition-colors cursor-pointer"
+                            title="Springen (Leertaste)"
+                            aria-label="Springen">
+                        &#10514;
+                    </button>
+
+                    <button type="button"
+                            x-show="!funkiInfo.is_guest && funkiInfo.weapon"
+                            data-testid="louvre-weapon-btn"
+                            @click="triggerWeapon()"
+                            class="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-[#0B0E14]/85 hover:bg-[#141821] text-[#C5A059] border border-[#C5A059]/65 shadow-lg backdrop-blur-sm flex items-center justify-center text-base font-bold transition-colors cursor-pointer"
+                            :title="funkiInfo.weapon ? (funkiInfo.weapon.name + ' aktivieren (Taste F)') : 'Waffen-Effekt'"
+                            aria-label="Waffen-Effekt">
+                        &#10022;
+                    </button>
+
+                    <button type="button"
+                            x-show="multiplayer.is_authenticated && multiplayer.enabled && !soloMode"
+                            data-testid="louvre-chat-toggle-btn"
+                            @click="toggleChatPanel()"
+                            :class="chatOpen ? 'bg-[#FAF8F5] text-[#111827] border-[#C5A059]' : 'bg-[#0B0E14]/85 text-[#FAF8F5] border-[#C5A059]/55'"
+                            class="relative h-11 sm:h-12 px-3.5 rounded-2xl border shadow-lg backdrop-blur-sm flex items-center justify-center gap-1.5 text-xs font-bold transition-colors cursor-pointer"
+                            title="Raum-Chat öffnen"
+                            aria-label="Raum-Chat">
+                        <span>Chat</span>
+                        <span x-show="unreadChatCount > 0 && !chatOpen"
+                              class="px-1.5 py-0.5 rounded-full bg-[#C5A059] text-[#111827] text-[10px] font-black leading-none"
+                              x-text="unreadChatCount"></span>
+                    </button>
+                </div>
+
                 {{-- Kompakte Schwarz-Gold Museums-Leiste (Vorheriges | Exponat X/N | Naechstes) --}}
                 <div x-show="!isLoading && loadError === '' && products.length > 0"
                      class="absolute bottom-4 inset-x-3 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 z-20 flex justify-center pointer-events-none">
-                    <div class="pointer-events-auto inline-flex items-center gap-1.5 sm:gap-2 px-2.5 py-2 rounded-2xl bg-[#0A0C10]/90 border border-[#C5A059]/50 shadow-2xl backdrop-blur-md max-w-full">
+                    <div class="pointer-events-auto inline-flex items-center gap-1.5 sm:gap-2 px-2.5 py-2 rounded-2xl bg-[#0B0E14]/90 border border-[#C5A059]/50 shadow-2xl backdrop-blur-md max-w-full">
                         <button type="button"
                                 @click="prevExhibit()"
                                 class="px-3 py-2 rounded-xl bg-[#141821] hover:bg-[#1E2430] text-[#FAF8F5] border border-[#C5A059]/35 text-xs font-bold transition-colors cursor-pointer shrink-0">
@@ -848,9 +1074,9 @@
                         </button>
 
                         <button type="button"
-                                @click="openCurrentExhibitDrawer()"
+                                @click="focusCurrentExhibit()"
                                 class="px-3.5 py-2 rounded-xl bg-[#141821]/80 hover:bg-[#1E2430] border border-[#C5A059]/30 text-xs font-bold text-[#E6C687] truncate max-w-[180px] sm:max-w-[260px] cursor-pointer"
-                                title="Produktdetails anzeigen">
+                                title="Zum Podest gehen">
                             <span x-text="'Exponat ' + (activeIndex + 1) + '/' + products.length"></span>
                             <span class="hidden md:inline text-[#FAF8F5]" x-show="activeExhibitName() !== ''" x-text="' · ' + activeExhibitName()"></span>
                         </button>
@@ -860,222 +1086,6 @@
                                 class="px-3 py-2 rounded-xl bg-[#141821] hover:bg-[#1E2430] text-[#FAF8F5] border border-[#C5A059]/35 text-xs font-bold transition-colors cursor-pointer shrink-0">
                             <span class="hidden sm:inline">Nächstes</span> &rsaquo;
                         </button>
-                    </div>
-                </div>
-
-                {{-- Freundlicher, heller Seelenfunke Light-Mode Produkt-Drawer (Baustein 1 & 2: Immer bg-white text-gray-900!) --}}
-                <div x-show="selectedProduct !== null"
-                     x-cloak
-                     x-transition:enter="transition ease-out duration-250"
-                     x-transition:enter-start="opacity-0 translate-y-6 sm:translate-y-0 sm:translate-x-8"
-                     x-transition:enter-end="opacity-100 translate-y-0 sm:translate-x-0"
-                     x-transition:leave="transition ease-in duration-180"
-                     x-transition:leave-start="opacity-100 translate-y-0 sm:translate-x-0"
-                     x-transition:leave-end="opacity-0 translate-y-6 sm:translate-y-0 sm:translate-x-8"
-                     class="absolute inset-x-0 bottom-0 max-h-[82dvh] sm:max-h-none sm:inset-y-0 sm:left-auto sm:right-0 sm:w-[420px] md:w-[440px] z-30 bg-white text-gray-900 rounded-t-3xl sm:rounded-none border-t sm:border-t-0 sm:border-l border-gray-200 shadow-2xl flex flex-col overflow-hidden">
-
-                    {{-- Drawer Kopfleiste --}}
-                    <div class="px-5 py-3.5 bg-white border-b border-gray-100 flex items-center justify-between gap-3 shrink-0">
-                        <span class="text-[11px] font-bold uppercase tracking-widest text-[#9A7738] truncate"
-                              x-text="selectedProduct ? selectedProduct.category_name : ''"></span>
-                        <button type="button"
-                                @click="closeDrawer()"
-                                aria-label="Produktansicht schließen"
-                                class="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 flex items-center justify-center font-bold text-base transition-colors cursor-pointer shrink-0">
-                            &times;
-                        </button>
-                    </div>
-
-                    {{-- Drawer Inhalt (Light-Mode) --}}
-                    <div class="flex-1 overflow-y-auto p-5 space-y-4 bg-white text-gray-900">
-                        {{-- Interaktiver Bild-Slider + Lightbox-Grossansicht im selben Fenster --}}
-                        <div class="space-y-2.5">
-                            <div class="aspect-square bg-gray-50 rounded-2xl border border-gray-100 overflow-hidden relative group">
-                                <template x-if="currentGalleryImage()">
-                                    <img :src="currentGalleryImage().url"
-                                         :alt="currentGalleryImage().alt || (selectedProduct ? selectedProduct.name : '')"
-                                         @click="openLightbox(activeImageIndex)"
-                                         class="w-full h-full object-cover cursor-zoom-in transition-transform duration-500 group-hover:scale-[1.03]">
-                                </template>
-
-                                <button type="button"
-                                        @click="openLightbox(activeImageIndex)"
-                                        aria-label="Bild vergrößern"
-                                        class="absolute top-3 right-3 w-9 h-9 rounded-full bg-white/90 hover:bg-white text-gray-800 border border-gray-200 shadow-sm flex items-center justify-center transition-all cursor-pointer">
-                                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M11 18a7 7 0 100-14 7 7 0 000 14zM11 8v6M8 11h6" />
-                                    </svg>
-                                </button>
-
-                                <span x-show="currentGalleryImage() && currentGalleryImage().is_dimension_sheet"
-                                      class="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-white/95 text-gray-900 border border-gray-200 text-[10px] font-bold uppercase tracking-wider shadow-sm">
-                                    Maßbild
-                                </span>
-
-                                <span x-show="currentGalleryImage() && currentGalleryImage().is_ai_generated"
-                                      style="font-size: 7px; line-height: 1; padding: 2px 5px; background: rgba(0,0,0,0.36); color: rgba(255,255,255,0.68);"
-                                      class="pointer-events-none select-none absolute bottom-2.5 right-2.5 backdrop-blur-sm rounded border border-white/10">
-                                    KI-generiert
-                                </span>
-
-                                <template x-if="galleryCount() > 1">
-                                    <div>
-                                        <button type="button"
-                                                @click.stop="prevImage()"
-                                                aria-label="Vorheriges Produktbild"
-                                                class="absolute left-2.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/90 hover:bg-white text-gray-800 border border-gray-200 shadow-sm flex items-center justify-center cursor-pointer">
-                                            &lsaquo;
-                                        </button>
-                                        <button type="button"
-                                                @click.stop="nextImage()"
-                                                aria-label="Nächstes Produktbild"
-                                                class="absolute right-2.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/90 hover:bg-white text-gray-800 border border-gray-200 shadow-sm flex items-center justify-center cursor-pointer">
-                                            &rsaquo;
-                                        </button>
-                                    </div>
-                                </template>
-                            </div>
-
-                            {{-- Thumbnails inkl. Massbild auf letzter Position --}}
-                            <template x-if="galleryCount() > 1">
-                                <div class="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-                                    <template x-for="(img, idx) in (selectedProduct ? selectedProduct.gallery_images : [])" :key="idx">
-                                        <button type="button"
-                                                @click="activeImageIndex = idx"
-                                                class="w-14 h-14 rounded-xl overflow-hidden border-2 shrink-0 transition-all cursor-pointer bg-gray-50"
-                                                :class="activeImageIndex === idx ? 'border-[#C5A059] shadow-sm' : 'border-gray-100 hover:border-gray-300'">
-                                            <img :src="img.url" :alt="img.alt || ''" class="w-full h-full object-cover">
-                                        </button>
-                                    </template>
-                                </div>
-                            </template>
-                        </div>
-
-                        {{-- Titel, Preis & Lieferzeit --}}
-                        <div class="space-y-2">
-                            <h3 class="text-2xl font-serif font-bold text-gray-900 leading-snug"
-                                x-text="selectedProduct ? selectedProduct.name : ''"></h3>
-
-                            <div class="flex flex-col">
-                                <span class="text-2xl font-serif font-bold text-gray-900"
-                                      x-text="selectedProduct ? selectedProduct.price_formatted : ''"></span>
-                                <span class="text-xs text-gray-500 mt-0.5"
-                                      x-text="selectedProduct ? selectedProduct.tax_shipping_label : ''"></span>
-                            </div>
-
-                            <div class="pt-1">
-                                <span class="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-stone-50 border border-stone-200 text-xs font-semibold text-stone-800">
-                                    <span class="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
-                                    <span x-text="selectedProduct ? selectedProduct.delivery_label : ''"></span>
-                                </span>
-                            </div>
-                        </div>
-
-                        <p x-show="selectedProduct && selectedProduct.short_description"
-                           class="text-sm text-gray-600 leading-relaxed"
-                           x-text="selectedProduct ? selectedProduct.short_description : ''"></p>
-
-                        {{-- Exakt 3 kurze Vorteile mit goldenem Haken (#C5A059) auf cleanem Hintergrund --}}
-                        <div class="bg-gray-50/80 border border-gray-100 rounded-2xl p-3.5 space-y-2">
-                            <template x-for="(benefit, bIdx) in (selectedProduct ? selectedProduct.benefits : [])" :key="bIdx">
-                                <div class="flex items-start gap-2.5 text-xs font-semibold text-gray-800">
-                                    <span class="text-[#C5A059] font-black leading-4 shrink-0">&#10003;</span>
-                                    <span class="leading-4" x-text="benefit"></span>
-                                </div>
-                            </template>
-                        </div>
-                    </div>
-
-                    {{-- Frei bedienbarer CTA-Footer (auch mobil vor der Android-Leiste geschuetzt) --}}
-                    <div class="px-5 pt-3.5 pb-[max(1rem,env(safe-area-inset-bottom))] bg-white border-t border-gray-100 shrink-0">
-                        <template x-if="selectedProduct && selectedProduct.is_personalizable">
-                            <a :href="selectedProduct.product_url"
-                               class="w-full py-3.5 px-5 rounded-xl bg-gray-900 hover:bg-black text-white font-bold text-sm tracking-wide border border-[#C5A059]/60 shadow-md flex items-center justify-center gap-2 transition-all">
-                                <span>Jetzt personalisieren</span>
-                                <span>&rarr;</span>
-                            </a>
-                        </template>
-
-                        <template x-if="selectedProduct && !selectedProduct.is_personalizable && selectedProduct.can_direct_add_to_cart">
-                            <div class="flex flex-col sm:flex-row gap-2">
-                                <button type="button"
-                                        @click="addProductToCart(selectedProduct)"
-                                        :disabled="isAddingToCart"
-                                        class="flex-1 py-3.5 px-4 rounded-xl bg-gray-900 hover:bg-black text-white font-bold text-sm border border-[#C5A059]/60 shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer">
-                                    <span x-text="addedProductId === selectedProduct.id ? '✓ Im Warenkorb' : 'In den Warenkorb'"></span>
-                                </button>
-                                <a :href="selectedProduct.product_url"
-                                   class="py-3.5 px-4 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-900 font-bold text-sm flex items-center justify-center transition-all">
-                                    Zum Produkt
-                                </a>
-                            </div>
-                        </template>
-
-                        <template x-if="selectedProduct && !selectedProduct.is_personalizable && !selectedProduct.can_direct_add_to_cart">
-                            <a :href="selectedProduct.product_url"
-                               class="w-full py-3.5 px-5 rounded-xl bg-gray-900 hover:bg-black text-white font-bold text-sm tracking-wide border border-[#C5A059]/60 shadow-md flex items-center justify-center gap-2 transition-all">
-                                <span>Zum Produkt</span>
-                                <span>&rarr;</span>
-                            </a>
-                        </template>
-                    </div>
-                </div>
-
-                {{-- Light-Mode Lightbox-Slider im selben Fenster (kein neuer Tab!) --}}
-                <div x-show="lightboxOpen && selectedProduct !== null"
-                     x-cloak
-                     x-transition.opacity.duration.200ms
-                     @click.self="lightboxOpen = false"
-                     class="absolute inset-0 z-50 bg-white/95 backdrop-blur-md text-gray-900 flex flex-col justify-between p-4 sm:p-6">
-
-                    <div class="flex items-center justify-between gap-4">
-                        <div class="min-w-0">
-                            <span class="text-xs font-bold text-[#9A7738] uppercase tracking-wider"
-                                  x-text="(activeImageIndex + 1) + ' / ' + galleryCount()"></span>
-                            <h4 class="text-sm sm:text-base font-serif font-bold text-gray-900 truncate"
-                                x-text="currentGalleryImage() ? currentGalleryImage().alt : ''"></h4>
-                        </div>
-                        <button type="button"
-                                @click="lightboxOpen = false"
-                                class="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-900 text-xs font-bold cursor-pointer shrink-0">
-                            &times; Schließen
-                        </button>
-                    </div>
-
-                    <div class="relative flex-1 min-h-0 flex items-center justify-center my-3">
-                        <template x-if="currentGalleryImage()">
-                            <img :src="currentGalleryImage().url"
-                                 :alt="currentGalleryImage().alt || ''"
-                                 class="max-h-full max-w-full object-contain rounded-2xl border border-gray-200 bg-white shadow-xl">
-                        </template>
-
-                        <template x-if="galleryCount() > 1">
-                            <div>
-                                <button type="button"
-                                        @click="prevImage()"
-                                        aria-label="Vorheriges Bild"
-                                        class="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white hover:bg-gray-50 text-gray-900 border border-gray-200 shadow-md flex items-center justify-center text-lg font-bold cursor-pointer">
-                                    &lsaquo;
-                                </button>
-                                <button type="button"
-                                        @click="nextImage()"
-                                        aria-label="Nächstes Bild"
-                                        class="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white hover:bg-gray-50 text-gray-900 border border-gray-200 shadow-md flex items-center justify-center text-lg font-bold cursor-pointer">
-                                    &rsaquo;
-                                </button>
-                            </div>
-                        </template>
-                    </div>
-
-                    <div class="flex items-center justify-center gap-2 overflow-x-auto pb-1">
-                        <template x-for="(img, lIdx) in (selectedProduct ? selectedProduct.gallery_images : [])" :key="lIdx">
-                            <button type="button"
-                                    @click="activeImageIndex = lIdx"
-                                    class="w-12 h-12 rounded-xl overflow-hidden border-2 shrink-0 cursor-pointer bg-gray-50"
-                                    :class="activeImageIndex === lIdx ? 'border-[#C5A059]' : 'border-gray-200 opacity-70 hover:opacity-100'">
-                                <img :src="img.url" :alt="img.alt || ''" class="w-full h-full object-cover">
-                            </button>
-                        </template>
                     </div>
                 </div>
             </div>
@@ -1089,26 +1099,65 @@
                 isLoading: false,
                 loadError: '',
                 products: [],
-                funkiInfo: { is_guest: true, level: 2, name: '' },
+                funkiInfo: { is_guest: true, level: 2, name: '', weapon: null, player_id: null },
+                multiplayer: {
+                    enabled: false,
+                    is_authenticated: false,
+                    solo_only: true,
+                    room_id: null,
+                    sync_interval_ms: 0,
+                    player_id: null,
+                    display_name: null,
+                    weapon: null
+                },
+                soloMode: false,
+                peers: [],
+                chatOpen: false,
+                chatDraft: '',
+                chatSending: false,
+                chatFeedback: '',
+                chatMessages: [],
+                unreadChatCount: 0,
+                mutedPlayerIds: [],
                 activeIndex: 0,
-                selectedProduct: null,
-                activeImageIndex: 0,
-                lightboxOpen: false,
-                isAddingToCart: false,
-                addedProductId: '',
+                focusedProduct: null,
                 stickActive: false,
                 stickUiX: 0,
                 stickUiY: 0,
                 prevOverflow: '',
                 _engine: null,
+                _syncTimer: null,
+                _syncInFlight: false,
+                _feedbackTimer: null,
+                _seenMessageIds: null,
+
+                csrfToken() {
+                    const el = document.querySelector('meta[name="csrf-token"]');
+                    return el ? (el.getAttribute('content') || '') : '';
+                },
+
+                roomLabel() {
+                    const raw = String(this.multiplayer.room_id || '');
+                    const m = raw.match(/(\d+)$/);
+                    return m ? ('Raum ' + m[1]) : 'Raum 1';
+                },
+
+                onlineCount() {
+                    if (this.soloMode || !this.multiplayer.enabled) return 1;
+                    return 1 + (Array.isArray(this.peers) ? this.peers.length : 0);
+                },
 
                 openShowroom() {
                     if (this.isOpen) return;
                     this.isOpen = true;
                     this.isLoading = true;
                     this.loadError = '';
-                    this.selectedProduct = null;
-                    this.lightboxOpen = false;
+                    this.focusedProduct = null;
+                    this.peers = [];
+                    this.chatMessages = [];
+                    this.unreadChatCount = 0;
+                    this.chatFeedback = '';
+                    this._seenMessageIds = new Set();
                     this.prevOverflow = document.body.style.overflow || '';
                     document.body.style.overflow = 'hidden';
 
@@ -1123,13 +1172,22 @@
                         return res.json();
                     });
 
-                    const modulePromise = import('/js/seelenfunke-louvre-showroom-3d.js');
+                    const modulePromise = import('/js/seelenfunke-louvre-showroom-3d.js?v=20261116v2');
 
                     Promise.all([dataPromise, modulePromise])
                         .then(([payload, mod]) => {
                             if (!this.isOpen) return;
                             this.products = Array.isArray(payload.products) ? payload.products : [];
-                            this.funkiInfo = payload.player_funki || { is_guest: true, level: 2, name: '' };
+                            this.funkiInfo = payload.player_funki || { is_guest: true, level: 2, name: '', weapon: null, player_id: null };
+                            this.multiplayer = payload.multiplayer || {
+                                enabled: false,
+                                is_authenticated: false,
+                                solo_only: true,
+                                room_id: null,
+                                sync_interval_ms: 0,
+                                player_id: null
+                            };
+                            this.soloMode = !this.multiplayer.enabled;
                             this.activeIndex = 0;
                             this.isLoading = false;
 
@@ -1146,18 +1204,34 @@
                                 }
                                 this._engine = mod.createLouvreShowroom({
                                     canvas: this.$refs.louvreCanvas,
+                                    floatingCardEl: this.$refs.floatingCard || null,
                                     products: this.products,
                                     playerFunki: this.funkiInfo,
-                                    onSelectProduct: (prod, idx) => {
-                                        this.activeIndex = idx;
-                                        this.selectedProduct = prod;
-                                        this.activeImageIndex = 0;
-                                        this.lightboxOpen = false;
+                                    soloMode: this.soloMode,
+                                    onFocusProductChange: (prod, idx) => {
+                                        this.focusedProduct = prod || null;
+                                        if (this._engine) {
+                                            this._engine.setFocusProtected(Boolean(prod));
+                                        }
+                                        if (typeof idx === 'number' && idx >= 0) {
+                                            this.activeIndex = idx;
+                                        }
                                     },
                                     onActiveExhibitChange: (idx) => {
                                         this.activeIndex = idx;
+                                    },
+                                    onSelectProduct: (prod) => {
+                                        if (prod && prod.product_url) {
+                                            window.location.href = prod.product_url;
+                                        }
                                     }
                                 });
+
+                                if (this.mutedPlayerIds.length > 0 && this._engine) {
+                                    this._engine.setMutedPlayers(this.mutedPlayerIds);
+                                }
+
+                                this.startMultiplayerLoop();
                             });
                         })
                         .catch(() => {
@@ -1166,11 +1240,221 @@
                         });
                 },
 
+                startMultiplayerLoop() {
+                    this.stopMultiplayerLoop();
+                    if (!this.isOpen || !this.multiplayer.is_authenticated || !this.multiplayer.enabled) {
+                        return;
+                    }
+                    const intervalMs = Math.max(200, Number(this.multiplayer.sync_interval_ms) || 220);
+                    this.runMultiplayerSync(true);
+                    this._syncTimer = setInterval(() => {
+                        this.runMultiplayerSync(false);
+                    }, intervalMs);
+                },
+
+                stopMultiplayerLoop() {
+                    if (this._syncTimer) {
+                        clearInterval(this._syncTimer);
+                        this._syncTimer = null;
+                    }
+                    this._syncInFlight = false;
+                },
+
+                runMultiplayerSync(isInitialTick) {
+                    if (!this.isOpen || !this._engine || this._syncInFlight) return;
+                    if (!this.multiplayer.is_authenticated || !this.multiplayer.enabled) return;
+
+                    this._syncInFlight = true;
+                    const localState = this._engine.getLocalSyncState();
+                    localState.soloMode = this.soloMode;
+
+                    fetch('/shop/showroom-sync', {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': this.csrfToken()
+                        },
+                        body: JSON.stringify(localState)
+                    })
+                        .then((res) => (res.ok ? res.json() : null))
+                        .then((data) => {
+                            if (!data || !data.success || !this.isOpen || !this._engine) return;
+                            if (data.room_id) {
+                                this.multiplayer.room_id = data.room_id;
+                            }
+                            this.peers = Array.isArray(data.peers) ? data.peers : [];
+                            this._engine.updatePeers(this.peers);
+                            this.ingestRoomMessages(Array.isArray(data.messages) ? data.messages : [], isInitialTick);
+                        })
+                        .catch(() => {})
+                        .finally(() => {
+                            this._syncInFlight = false;
+                        });
+                },
+
+                ingestRoomMessages(incoming, isInitialTick) {
+                    if (!this._seenMessageIds) {
+                        this._seenMessageIds = new Set();
+                    }
+                    const nowMs = Date.now();
+                    let addedUnread = 0;
+
+                    for (let i = 0; i < incoming.length; i++) {
+                        const m = incoming[i];
+                        if (!m || !m.id) continue;
+                        if (!this._seenMessageIds.has(m.id)) {
+                            this._seenMessageIds.add(m.id);
+                            const isMuted = this.mutedPlayerIds.indexOf(m.player_id) !== -1;
+                            const isRecent = Math.abs(nowMs - (Number(m.created_at_ms) || nowMs)) < 7500;
+                            if (!isMuted && (!isInitialTick || isRecent) && this._engine) {
+                                this._engine.showChatBubble(m.player_id, m.text);
+                            }
+                            if (!isInitialTick && !isMuted && m.player_id !== this.multiplayer.player_id && !this.chatOpen) {
+                                addedUnread += 1;
+                            }
+                        }
+                    }
+
+                    this.chatMessages = incoming;
+                    if (addedUnread > 0) {
+                        this.unreadChatCount += addedUnread;
+                    }
+                },
+
+                toggleSoloMode() {
+                    if (!this.multiplayer.is_authenticated || !this.multiplayer.enabled) return;
+                    this.soloMode = !this.soloMode;
+                    if (this.soloMode) {
+                        this.chatOpen = false;
+                        this.peers = [];
+                    }
+                    if (this._engine) {
+                        this._engine.setSoloMode(this.soloMode);
+                    }
+                    this.runMultiplayerSync(false);
+                },
+
+                toggleChatPanel() {
+                    this.chatOpen = !this.chatOpen;
+                    if (this.chatOpen) {
+                        this.unreadChatCount = 0;
+                    }
+                },
+
+                visibleChatMessages() {
+                    if (!Array.isArray(this.chatMessages)) return [];
+                    return this.chatMessages.filter((m) => m && this.mutedPlayerIds.indexOf(m.player_id) === -1);
+                },
+
+                showFeedback(text) {
+                    this.chatFeedback = text;
+                    if (this._feedbackTimer) {
+                        clearTimeout(this._feedbackTimer);
+                    }
+                    this._feedbackTimer = setTimeout(() => {
+                        this.chatFeedback = '';
+                    }, 4000);
+                },
+
+                sendChatMessage() {
+                    const text = String(this.chatDraft || '').trim();
+                    if (text === '' || this.chatSending) return;
+                    if (!this.multiplayer.is_authenticated || !this.multiplayer.enabled || this.soloMode) return;
+
+                    this.chatSending = true;
+                    fetch('/shop/showroom-chat', {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': this.csrfToken()
+                        },
+                        body: JSON.stringify({ message: text })
+                    })
+                        .then((res) => res.json().then((body) => ({ ok: res.ok, body })))
+                        .then(({ ok, body }) => {
+                            if (!ok || !body || !body.success) {
+                                this.showFeedback((body && body.message) ? body.message : 'Nachricht konnte nicht gesendet werden.');
+                                return;
+                            }
+                            this.chatDraft = '';
+                            this.chatFeedback = '';
+                            if (body.entry) {
+                                if (!this._seenMessageIds) this._seenMessageIds = new Set();
+                                this._seenMessageIds.add(body.entry.id);
+                                this.chatMessages = this.chatMessages.concat([body.entry]).slice(-15);
+                                if (this._engine) {
+                                    this._engine.showChatBubble(body.entry.player_id, body.entry.text);
+                                }
+                            }
+                        })
+                        .catch(() => {
+                            this.showFeedback('Verbindung zum Raum-Chat fehlgeschlagen.');
+                        })
+                        .finally(() => {
+                            this.chatSending = false;
+                        });
+                },
+
+                mutePeer(playerId) {
+                    if (!playerId || playerId === this.multiplayer.player_id) return;
+                    if (this.mutedPlayerIds.indexOf(playerId) === -1) {
+                        this.mutedPlayerIds = this.mutedPlayerIds.concat([playerId]);
+                        if (this._engine) {
+                            this._engine.setMutedPlayers(this.mutedPlayerIds);
+                        }
+                        this.showFeedback('Spieler für diese Sitzung stummgeschaltet.');
+                    }
+                },
+
+                reportPeer(playerId) {
+                    if (!playerId || playerId === this.multiplayer.player_id) return;
+                    this.mutePeer(playerId);
+
+                    fetch('/shop/showroom-report', {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': this.csrfToken()
+                        },
+                        body: JSON.stringify({ target_player_id: playerId })
+                    })
+                        .then((res) => res.json())
+                        .then((body) => {
+                            if (body && body.success) {
+                                this.showFeedback('Meldung übermittelt und Spieler stummgeschaltet.');
+                            }
+                        })
+                        .catch(() => {});
+                },
+
+                triggerJump() {
+                    if (this._engine) {
+                        this._engine.triggerJump();
+                    }
+                },
+
+                triggerWeapon() {
+                    if (this._engine) {
+                        this._engine.triggerWeaponAction();
+                    }
+                },
+
                 closeShowroom() {
                     this.isOpen = false;
                     this.isLoading = false;
-                    this.lightboxOpen = false;
-                    this.selectedProduct = null;
+                    this.focusedProduct = null;
+                    this.chatOpen = false;
+                    this.stopMultiplayerLoop();
+                    if (this._feedbackTimer) {
+                        clearTimeout(this._feedbackTimer);
+                        this._feedbackTimer = null;
+                    }
                     this.endStick();
                     if (this._engine) {
                         this._engine.destroy();
@@ -1179,20 +1463,9 @@
                     document.body.style.overflow = this.prevOverflow;
                 },
 
-                closeDrawer() {
-                    this.lightboxOpen = false;
-                    this.selectedProduct = null;
-                },
-
                 handleEscape() {
                     if (!this.isOpen) return;
-                    if (this.lightboxOpen) {
-                        this.lightboxOpen = false;
-                    } else if (this.selectedProduct !== null) {
-                        this.selectedProduct = null;
-                    } else {
-                        this.closeShowroom();
-                    }
+                    this.closeShowroom();
                 },
 
                 activeExhibitName() {
@@ -1200,76 +1473,37 @@
                     return p ? p.name : '';
                 },
 
+                focusedBenefits() {
+                    if (!this.focusedProduct || !Array.isArray(this.focusedProduct.benefits)) {
+                        return [];
+                    }
+                    return this.focusedProduct.benefits.slice(0, 3);
+                },
+
+                focusedPriceLabel() {
+                    if (!this.focusedProduct) return '';
+                    const raw = String(this.focusedProduct.price_formatted || '').trim();
+                    if (this.focusedProduct.is_personalizable && raw !== '' && !/^ab\s/i.test(raw)) {
+                        return 'ab ' + raw;
+                    }
+                    return raw;
+                },
+
                 prevExhibit() {
                     if (!this._engine || this.products.length === 0) return;
                     const nextIdx = (this.activeIndex - 1 + this.products.length) % this.products.length;
-                    this._engine.goToExhibit(nextIdx, this.selectedProduct !== null);
+                    this._engine.goToExhibit(nextIdx, false);
                 },
 
                 nextExhibit() {
                     if (!this._engine || this.products.length === 0) return;
                     const nextIdx = (this.activeIndex + 1) % this.products.length;
-                    this._engine.goToExhibit(nextIdx, this.selectedProduct !== null);
+                    this._engine.goToExhibit(nextIdx, false);
                 },
 
-                openCurrentExhibitDrawer() {
-                    const p = this.products[this.activeIndex];
-                    if (!p) return;
-                    if (this._engine) {
-                        this._engine.goToExhibit(this.activeIndex, true);
-                    } else {
-                        this.selectedProduct = p;
-                        this.activeImageIndex = 0;
-                    }
-                },
-
-                galleryCount() {
-                    if (!this.selectedProduct || !Array.isArray(this.selectedProduct.gallery_images)) return 0;
-                    return this.selectedProduct.gallery_images.length;
-                },
-
-                currentGalleryImage() {
-                    const total = this.galleryCount();
-                    if (total === 0) return null;
-                    const safe = Math.max(0, Math.min(total - 1, this.activeImageIndex));
-                    return this.selectedProduct.gallery_images[safe] || null;
-                },
-
-                prevImage() {
-                    const total = this.galleryCount();
-                    if (total <= 1) return;
-                    this.activeImageIndex = (this.activeImageIndex - 1 + total) % total;
-                },
-
-                nextImage() {
-                    const total = this.galleryCount();
-                    if (total <= 1) return;
-                    this.activeImageIndex = (this.activeImageIndex + 1) % total;
-                },
-
-                openLightbox(idx) {
-                    this.activeImageIndex = typeof idx === 'number' ? idx : 0;
-                    this.lightboxOpen = true;
-                },
-
-                addProductToCart(product) {
-                    if (!product || !product.id || this.isAddingToCart || !this.$wire) return;
-                    this.isAddingToCart = true;
-                    this.$wire.addToCart(product.id)
-                        .then((ok) => {
-                            this.isAddingToCart = false;
-                            if (ok) {
-                                this.addedProductId = product.id;
-                                setTimeout(() => {
-                                    if (this.addedProductId === product.id) {
-                                        this.addedProductId = '';
-                                    }
-                                }, 2200);
-                            }
-                        })
-                        .catch(() => {
-                            this.isAddingToCart = false;
-                        });
+                focusCurrentExhibit() {
+                    if (!this._engine || this.products.length === 0) return;
+                    this._engine.goToExhibit(this.activeIndex, false);
                 },
 
                 startStick(e) {
@@ -1312,4 +1546,5 @@
             };
         };
     </script>
+    @endif
 </div>

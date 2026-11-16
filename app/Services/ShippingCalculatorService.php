@@ -29,9 +29,8 @@ class ShippingCalculatorService
             }
         }
 
-        // 2. Einstellung "Versand für Digitales überspringen" laden
-        // Wir nutzen shop_setting() Helper falls vorhanden, sonst DB direkt
-        $skipForNonPhysical = filter_var(shop_setting('skip_shipping_for_digital', false), FILTER_VALIDATE_BOOLEAN);
+        // 2. Einstellung "Versand für Digitales überspringen" laden (Standard: true für digitale Sofort-Downloads)
+        $skipForNonPhysical = filter_var(shop_setting('skip_shipping_for_digital', true), FILTER_VALIDATE_BOOLEAN);
 
         // Wenn die Einstellung AUS ist, berechnen wir IMMER Versand (sofern Items da sind)
         if (!$skipForNonPhysical) {

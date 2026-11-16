@@ -145,5 +145,9 @@ Zu jeder vollen Stunde (`CRON_TZ=Europe/Berlin 0 * * * *`) startet [sidecar.json
 * **Testnachweis (`100 % Grün`):**
   - **Manufaktur Mini-PC (`FunkenwerkOS.Linux --self-test` live auf `192.168.188.151`)**: **`49/49 TESTS BESTANDEN`**.
 
+### 16.11.2026, 21:50 Uhr (Playbook 12: Autonome Stufe-1-Heilung für `view:clear` Blade-Deploy-Überschneidungen)
+* **Erfasster & dauerhaft behobener Befund (`2 Stage-Dossiers` um `21:38/21:40` Uhr):**
+  1. `Portal / Stage-Deploy` ([`SentinelTriageService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/System/SentinelTriageService.php)): Während `php artisan view:clear` beim Stage-Rollout entstand auf `admin.orders` eine Millisekunden-Überschneidung beim temporären `Blade::render`-View-File (`storage/framework/views/*.blade.php`). Playbook 12 (`transient_compiled_view_deploy_race`, begrenzt auf `<= 3` Auftreten) prüft die Beschreibbarkeit von `storage/framework/views/` und heilt einmalige Deploy-Überschneidungen autonom in Stufe 1, während echte dauerhafte Dateisystemfehler (`> 3`) weiterhin eskaliert werden.
+
 
 

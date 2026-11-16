@@ -28,7 +28,7 @@ class Louvre3DShowroomTest extends TestCase
         SystemSetting::updateOrCreate(['key' => 'shop_maintenance_mode'], ['value' => 'false']);
     }
 
-    public function test_shop_page_renders_3d_shoppen_button_without_inline_3d_bloat_or_ki_dashes(): void
+    public function test_shop_page_renders_floating_space_card_cache_buster_and_zero_inline_3d_bloat(): void
     {
         $active = Product::create([
             'id' => (string) Str::uuid(),
@@ -61,9 +61,19 @@ class Louvre3DShowroomTest extends TestCase
 
         $this->assertNotFalse($html);
         $this->assertStringContainsString('3D shoppen', $html);
+        $this->assertStringContainsString('id="sf-louvre-showroom-modal"', $html);
         $this->assertStringContainsString('MEIN SEELENFUNKE · LOUVRE SHOWROOM', $html);
         $this->assertStringContainsString('Zurück zum Shop', $html);
         $this->assertStringContainsString($active->name, $html);
+
+        // Schwebendes Light-Mode Raum-Schild statt blockierender Produkt-Popups
+        $this->assertStringContainsString('data-testid="louvre-floating-space-card"', $html);
+        $this->assertStringContainsString('bg-[#FAF8F5]/95', $html);
+        $this->assertStringContainsString('Jetzt gestalten', $html);
+        $this->assertStringContainsString('Zum Produkt', $html);
+        $this->assertStringContainsString("import('/js/seelenfunke-louvre-showroom-3d.js?v=20261116v2')", $html);
+        $this->assertStringNotContainsString('openCurrentExhibitDrawer', $html);
+        $this->assertStringNotContainsString('lightboxOpen', $html);
 
         // 0 KB Inline-3D-Ballast beim regulären Seitenaufruf von /shop
         $this->assertStringNotContainsString('<script src="/vendor/three/three.min.js"', $html);
@@ -73,6 +83,55 @@ class Louvre3DShowroomTest extends TestCase
         // 0 KI-Gedankenstriche auf /shop
         $this->assertStringNotContainsString(' ' . "\u{2013}" . ' ', $html);
         $this->assertStringNotContainsString(' ' . "\u{2014}" . ' ', $html);
+    }
+
+    public function test_louvre_3d_engine_js_contains_60fps_optimizations_articulated_rig_and_spatial_projection(): void
+    {
+        $jsPath = public_path('js/seelenfunke-louvre-showroom-3d.js');
+        $this->assertFileExists($jsPath);
+
+        $js = (string) file_get_contents($jsPath);
+        $this->assertNotEmpty($js);
+
+        // 1. 60-FPS Performance-Guards: PixelRatio <= 1.5, keine Shadow-Maps, keine PointLights/SpotLights, InstancedMesh & Staggered Queue
+        $this->assertStringContainsString('Math.min(window.devicePixelRatio || 1, 1.5)', $js);
+        $this->assertStringContainsString('this.renderer.shadowMap.enabled = false', $js);
+        $this->assertStringNotContainsString('new THREE.PointLight', $js);
+        $this->assertStringNotContainsString('new THREE.SpotLight', $js);
+        $this->assertStringContainsString('new THREE.InstancedMesh(', $js);
+        $this->assertStringContainsString('exhibitLoadQueue', $js);
+
+        // 2. Voll artikuliertes Gelenk-Rig (Hüfte, Knie, Knöchel/Schuh, Schulter, Ellbogen, Handgelenk, Finger)
+        foreach ([
+            'hipPivotL',
+            'hipPivotR',
+            'kneePivotL',
+            'kneePivotR',
+            'anklePivotL',
+            'anklePivotR',
+            'shoulderPivotL',
+            'shoulderPivotR',
+            'elbowPivotL',
+            'elbowPivotR',
+            'wristPivotL',
+            'wristPivotR',
+            'fingerCurlL',
+            'fingerCurlR',
+        ] as $jointName) {
+            $this->assertStringContainsString($jointName, $js);
+        }
+
+        // Distanzgekoppelte Schrittphase (0 % Foot-Sliding) & sanftes Gehen<->Stehen-Blending
+        $this->assertStringContainsString('stepDist * strideFrequency', $js);
+        $this->assertStringContainsString('Math.exp(-dt * 10.0)', $js);
+        $this->assertStringContainsString('Math.cos(2.0 * phaseL)', $js);
+
+        // 3. Physisches Podest-Schild (Stufe 1) & GPU World-Space Schwebetafel (Stufe 2) ohne KI-Gedankenstriche
+        $this->assertStringContainsString('buildStelePlaqueTexture', $js);
+        $this->assertStringContainsString('.project(this.camera)', $js);
+        $this->assertStringContainsString('translate3d(', $js);
+        $this->assertStringNotContainsString(' ' . "\u{2013}" . ' ', $js);
+        $this->assertStringNotContainsString(' ' . "\u{2014}" . ' ', $js);
     }
 
     public function test_showroom_data_returns_active_products_gallery_three_benefits_and_guest_funki_level_2(): void
@@ -167,7 +226,7 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertTrue($data['success']);
         $this->assertSame(2, $data['total_products']);
 
-        // Gast erhält Funki Level 2 (funki_lvl_2_basic.glb)
+        // Gast erhält Funki Level 2
         $this->assertTrue($data['player_funki']['is_guest']);
         $this->assertSame(2, $data['player_funki']['level']);
         $this->assertSame('/shop/customer/gamification/models/funki_lvl_2_basic.glb', $data['player_funki']['glb_url']);
@@ -227,11 +286,9 @@ class Louvre3DShowroomTest extends TestCase
 
     public function test_showroom_data_is_protected_by_maintenance_mode_for_guests(): void
     {
-        // 1. Schutz über shop_maintenance_mode -> 503 für Gäste
         SystemSetting::updateOrCreate(['key' => 'shop_maintenance_mode'], ['value' => 'true']);
         $this->getJson('/shop/showroom-data')->assertStatus(503);
 
-        // 2. Schutz über globalen maintenance_mode (EnforceShopMaintenanceMode) -> 503 für Gäste, 200 für Admin
         SystemSetting::updateOrCreate(['key' => 'shop_maintenance_mode'], ['value' => 'false']);
         SystemSetting::updateOrCreate(['key' => 'maintenance_mode'], ['value' => 'true']);
         $this->getJson('/shop/showroom-data')->assertStatus(503);
@@ -246,7 +303,7 @@ class Louvre3DShowroomTest extends TestCase
         $this->actingAs($admin, 'admin')->getJson('/shop/showroom-data')->assertStatus(200);
     }
 
-    public function test_light_mode_drawer_direct_add_to_cart_works_for_standard_products_only(): void
+    public function test_product_frontend_filter_area_direct_add_to_cart_works_for_standard_products_only(): void
     {
         $standardProduct = Product::create([
             'id' => (string) Str::uuid(),

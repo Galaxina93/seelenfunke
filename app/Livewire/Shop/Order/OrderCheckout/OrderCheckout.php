@@ -60,6 +60,48 @@ class OrderCheckout extends Component
         });
     }
 
+    /**
+     * Prüft, ob der Warenkorb ausschließlich rein digitale Download-/E-Mail-Artikel enthält
+     * (keine physischen Manufaktur-Rohlinge und keine postalischen Gutschein-Umschläge).
+     */
+    public function isOnlyDigitalCart(?Cart $cart = null): bool
+    {
+        $cart = $cart ?? app(CartService::class)->getCart(false);
+        if (!$cart || $cart->items->isEmpty()) {
+            return false;
+        }
+
+        return $cart->items->every(function ($item) {
+            if (!$item->product || ($item->product->type ?? 'physical') !== 'digital') {
+                return false;
+            }
+            $conf = is_array($item->configuration) ? $item->configuration : [];
+            if (!empty($conf['is_gift_voucher']) && ($conf['delivery_method'] ?? 'email') === 'post') {
+                return false;
+            }
+
+            return true;
+        });
+    }
+
+    /**
+     * Liefert die zulässigen Checkout-Länder:
+     * - Physischer Versand: strikt an aktive Lieferzonen (LogisticsShippingZone / active_countries) gekoppelt.
+     * - Rein digitale Downloads: keine physische Lieferzonen-Blockade für internationale B2B-/Developer-Rechnungen.
+     */
+    public function resolveAllowedCheckoutCountries(?Cart $cart = null): array
+    {
+        if ($this->isOnlyDigitalCart($cart)) {
+            $all = \App\Livewire\Shop\System\SystemShipping::getAllCountries();
+            if (is_array($all) && !empty($all)) {
+                return $all;
+            }
+        }
+
+        $active = shop_setting('active_countries', ['DE' => 'Deutschland']);
+        return is_array($active) && !empty($active) ? $active : ['DE' => 'Deutschland'];
+    }
+
     // --- LOGIN ---
     public $loginEmail = '';
     public $loginPassword = '';
@@ -114,8 +156,9 @@ class OrderCheckout extends Component
     // --- REGELN ---
     protected function rules()
     {
-        // Wir holen die erlaubten Länder dynamisch aus der Config, falls vorhanden
-        $allowedCountries = implode(',', array_keys(shop_setting('active_countries', ['DE' => 'Deutschland'])));
+        $onlyDigital = $this->isOnlyDigitalCart();
+        $allowedCountriesMap = $this->resolveAllowedCheckoutCountries();
+        $allowedCountries = implode(',', array_keys($allowedCountriesMap));
 
         $rules = [
             'email' => 'required|email',
@@ -132,14 +175,15 @@ class OrderCheckout extends Component
             $rules['digital_waiver_accepted'] = 'accepted';
         }
 
-        // Falls abweichende Lieferadresse aktiv ist, diese Felder validieren
-        if ($this->has_separate_shipping) {
+        // Falls abweichende Lieferadresse bei physischem Versand aktiv ist, diese Felder validieren
+        if ($this->has_separate_shipping && !$onlyDigital) {
+            $physicalCountries = implode(',', array_keys(shop_setting('active_countries', ['DE' => 'Deutschland'])));
             $rules['shipping_first_name'] = 'required|string|min:2';
             $rules['shipping_last_name'] = 'required|string|min:2';
             $rules['shipping_address'] = ['required', 'string', 'min:5', 'regex:/\d+/'];
             $rules['shipping_city'] = 'required|string|min:2';
             $rules['shipping_postal_code'] = 'required|string|min:4';
-            $rules['shipping_country'] = 'required|in:' . $allowedCountries;
+            $rules['shipping_country'] = 'required|in:' . $physicalCountries;
         }
 
         return $rules;
@@ -449,7 +493,8 @@ class OrderCheckout extends Component
         return view('livewire.shop.order.order-checkout.order-checkout', [
             'cart' => $cart,
             'totals' => $totals,
-            'countries' => $this->isFinished ? [] : shop_setting('active_countries', ['DE' => 'Deutschland'])
+            'isOnlyDigital' => $cart ? $this->isOnlyDigitalCart($cart) : false,
+            'countries' => $this->isFinished ? [] : $this->resolveAllowedCheckoutCountries($cart)
         ])->layout('components.layouts.frontend_layout');
     }
 }

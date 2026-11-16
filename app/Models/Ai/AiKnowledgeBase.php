@@ -16,6 +16,7 @@ use App\Support\Blueprint\Enums\SystemDepartment;
 use App\Support\Blueprint\ModelBlueprint;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Cache;
 
 class AiKnowledgeBase extends Model implements HasSystemBlueprint
 {
@@ -48,18 +49,54 @@ class AiKnowledgeBase extends Model implements HasSystemBlueprint
         );
     }
 
-use HasUuids;
+    use HasUuids;
+
+    public const VISIBILITY_ADMIN_EXECUTIVE = 'admin_executive';
+    public const VISIBILITY_INTERNAL_STAFF = 'internal_staff';
+
     protected $fillable = [
         'title',
         'slug',
+        'source_path',
+        'content_sha256',
         'ai_knowledge_base_category_id',
         'content',
         'is_published',
+        'visibility_scope',
     ];
 
     protected $casts = [
         'is_published' => 'boolean',
     ];
+
+    /**
+     * Cache bei Änderungen am Wissensbestand automatisch invalidieren.
+     */
+    protected static function booted(): void
+    {
+        static::saved(function () {
+            static::flushBrainCache();
+        });
+
+        static::deleted(function () {
+            static::flushBrainCache();
+        });
+    }
+
+    /**
+     * Invalidiert alle RAG- und Wissensdatenbank-Caches.
+     */
+    public static function flushBrainCache(): void
+    {
+        Cache::forget('ai_kb_published_support');
+        $ver = (int) Cache::get('ai_brain_search_version', 1);
+        Cache::forever('ai_brain_search_version', $ver + 1);
+    }
+
+    public function isSyncedReport(): bool
+    {
+        return !empty($this->source_path);
+    }
 
     public function category()
     {

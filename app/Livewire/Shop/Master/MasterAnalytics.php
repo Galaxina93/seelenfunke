@@ -1291,13 +1291,23 @@ class MasterAnalytics extends Component
             $this->logSystemFailure('api_pool', 'Der asynchrone API-HTTP-Pool ist komplett abgestürzt: ' . $e->getMessage());
         }
 
-        // 12. Zentraler 24/7 Watchtower & 90-Tage Uptime Puls
+        // 12. Zentraler 24/7 Watchtower & 90-Tage Uptime Puls inkl. Subdomain-Statusmatrix
         try {
-            $pulseReport = app(\App\Services\System\SystemHealthPulseService::class)->evaluate(
+            $wtPulseSvc = app(\App\Services\System\SystemHealthPulseService::class);
+            $wtOverrideDomains = null;
+            if (!app()->runningUnitTests() || $wtPulseSvc->hasActiveTestDomainMocks()) {
+                try {
+                    $wtOverrideDomains = $wtPulseSvc->getCachedOrProbeLiveDomains(false);
+                } catch (\Throwable $ignoreDomainProbe) {
+                }
+            }
+            $pulseReport = $wtPulseSvc->evaluate(
                 source: 'dashboard',
                 strict: false,
                 recordSample: true,
-                syncLogs: false
+                syncLogs: false,
+                overrideSslDays: null,
+                overrideLiveDomain: $wtOverrideDomains
             );
             $wtStatus = match ($pulseReport['status'] ?? 'ok') {
                 'critical' => 'error',
