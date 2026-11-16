@@ -389,6 +389,7 @@ function safeSend(ws, message) {
     }
 }
 
+const IS_LARAVEL_PROJECT_ROOT = fs.existsSync(join(__dirname, 'artisan'));
 const ROOT_LOG_PATH = join(__dirname, 'bridge.log');
 const STORAGE_LOG_DIR = join(__dirname, 'storage', 'logs');
 const TWILIO_BRIDGE_LOG_PATH = join(STORAGE_LOG_DIR, 'twilio_bridge.log');
@@ -399,6 +400,9 @@ try {
     }
     if (!fs.existsSync(TWILIO_BRIDGE_LOG_PATH)) {
         fs.writeFileSync(TWILIO_BRIDGE_LOG_PATH, '', 'utf8');
+    }
+    if (IS_LARAVEL_PROJECT_ROOT && fs.existsSync(ROOT_LOG_PATH)) {
+        fs.unlinkSync(ROOT_LOG_PATH);
     }
 } catch (e) {
     console.error('Initialisierung von storage/logs/twilio_bridge.log fehlgeschlagen:', e.message);
@@ -419,11 +423,13 @@ function debugLog(msg, err) {
     
     const logLine = `[${timestamp}] ${formattedMsg}\n`;
 
-    // In beide Log-Dateien schreiben (Root bridge.log & storage/logs/twilio_bridge.log)
-    try {
-        fs.appendFileSync(ROOT_LOG_PATH, logLine);
-    } catch (e) {
-        console.error('Logging to bridge.log failed:', e.message);
+    // Im Laravel-Projektroot ausschliesslich in storage/logs/twilio_bridge.log schreiben (kein verwaistes Root-bridge.log)
+    if (!IS_LARAVEL_PROJECT_ROOT) {
+        try {
+            fs.appendFileSync(ROOT_LOG_PATH, logLine);
+        } catch (e) {
+            console.error('Logging to bridge.log failed:', e.message);
+        }
     }
 
     try {
@@ -440,7 +446,8 @@ function debugLog(msg, err) {
 
 // Log-Rotation beim Start
 try {
-    for (const logPath of [ROOT_LOG_PATH, TWILIO_BRIDGE_LOG_PATH]) {
+    const rotationTargets = IS_LARAVEL_PROJECT_ROOT ? [TWILIO_BRIDGE_LOG_PATH] : [ROOT_LOG_PATH, TWILIO_BRIDGE_LOG_PATH];
+    for (const logPath of rotationTargets) {
         if (fs.existsSync(logPath)) {
             const stats = fs.statSync(logPath);
             if (stats.size > 5 * 1024 * 1024) { // 5MB limit

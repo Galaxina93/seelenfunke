@@ -18,6 +18,9 @@ class SystemHealthPulseService
     public const UPTIME_LEDGER_FILE = 'app/private/system_uptime_90d.json';
     public const WATCHTOWER_NODES_FILE = 'app/private/watchtower_nodes.json';
     public const NAS_BACKUP_STATE_FILE = 'app/private/watchtower_nas_backup.json';
+    public const SCHEDULER_HEARTBEAT_REL_FILE = 'framework/scheduler_heartbeat.json';
+    public const SENTINEL_LAST_TRIAGE_REL_FILE = 'framework/sentinel_last_triage.json';
+    public const SENTINEL_AUDIT_STATE_REL_FILE = 'framework/sentinel_audit_state.json';
 
     public const SSL_CACHE_KEY = 'system_health_pulse_ssl_days_v1';
     public const SSL_HOST_CACHE_PREFIX = 'system_health_ssl_host_v1_';
@@ -186,6 +189,7 @@ class SystemHealthPulseService
         $liveDomain = $this->enrichLiveDomainWithSubdomains($liveDomain, $geminiBridge);
 
         $watchtowerSummary = $this->getWatchtowerNodesSummary($now);
+        $sentinelAudit = $this->getSentinelSelfHealingSnapshot($now);
         $latencyMs = round((microtime(true) - $startedAt) * 1000, 2);
 
         $headline = match ($overallStatus) {
@@ -211,6 +215,7 @@ class SystemHealthPulseService
             'digital_subdomain' => $liveDomain['digital_subdomain'] ?? [],
             'gemini_bridge' => $geminiBridge,
             'watchtower' => $watchtowerSummary,
+            'sentinel_audit' => $sentinelAudit,
             'log_sync' => $logSync,
         ];
     }
@@ -253,7 +258,21 @@ class SystemHealthPulseService
                 @unlink($path);
             }
         }
+        foreach ([
+            self::resolveSchedulerHeartbeatFilePath(),
+            self::resolveSentinelLastTriageFilePath(),
+            self::resolveSentinelAuditStateFilePath(),
+        ] as $fwPath) {
+            if (is_file($fwPath)) {
+                @unlink($fwPath);
+            }
+        }
         Cache::forget(self::SSL_CACHE_KEY);
+        Cache::forget('scheduler_last_run');
+        Cache::forget('scheduler_last_run_iso');
+        Cache::forget('scheduler_bootstrap_last_run');
+        Cache::forget('sentinel:last_triage_cycle_at');
+        Cache::forget('sentinel:last_audit_summary');
         foreach ([
             self::LIVE_PRIMARY_HOST,
             self::LIVE_WWW_HOST,
@@ -1397,8 +1416,8 @@ class SystemHealthPulseService
 
         for ($attempt = 1; $attempt <= 2; $attempt++) {
             $attemptsUsed = $attempt;
-            if ($attempt === 2 && !app()->runningUnitTests()) {
-                usleep(300_000);
+            if ($attempt > 1 && !app()->runningUnitTests()) {
+                usleep(1_500_000);
             }
 
             try {
@@ -1842,19 +1861,208 @@ class SystemHealthPulseService
         ];
     }
 
+    public static function resolveSchedulerHeartbeatFilePath(): string
+    {
+        return storage_path(app()->runningUnitTests()
+            ? 'framework/testing/scheduler_heartbeat.json'
+            : self::SCHEDULER_HEARTBEAT_REL_FILE);
+    }
+
+    public static function resolveSentinelLastTriageFilePath(): string
+    {
+        return storage_path(app()->runningUnitTests()
+            ? 'framework/testing/sentinel_last_triage.json'
+            : self::SENTINEL_LAST_TRIAGE_REL_FILE);
+    }
+
+    public static function resolveSentinelAuditStateFilePath(): string
+    {
+        return storage_path(app()->runningUnitTests()
+            ? 'framework/testing/sentinel_audit_state.json'
+            : self::SENTINEL_AUDIT_STATE_REL_FILE);
+    }
+
+    /**
+     * Schreibt den Scheduler-Herzschlag sowohl in den Cache als auch persistent nach
+     * storage/framework/scheduler_heartbeat.json, damit optimize:clear / cache:clear
+     * niemals zu einem falschen "Kein Scheduler-Herzschlag vorhanden"-Alarm führt.
+     */
+    public static function recordSchedulerHeartbeat(?Carbon $now = null): void
+    {
+        $tsNow = $now ?? now();
+        $ts = $tsNow->timestamp;
+        $iso = $tsNow->toIso8601String();
+
+        try {
+            Cache::put('scheduler_last_run', $ts);
+            Cache::put('scheduler_last_run_iso', $iso);
+            Cache::put('scheduler_bootstrap_last_run', $ts);
+        } catch (\Throwable $ignore) {
+        }
+
+        try {
+            $filePath = self::resolveSchedulerHeartbeatFilePath();
+            $dir = dirname($filePath);
+            if (!is_dir($dir)) {
+                @mkdir($dir, 0775, true);
+            }
+            $tmp = $filePath . '.tmp.' . getmypid() . '.' . mt_rand(1000, 9999);
+            $encoded = json_encode(['timestamp' => $ts, 'iso' => $iso], JSON_UNESCAPED_SLASHES);
+            if ($encoded !== false && @file_put_contents($tmp, $encoded, LOCK_EX) !== false) {
+                @chmod($tmp, app()->environment('local', 'testing') ? 0666 : 0664);
+                if (!@rename($tmp, $filePath)) {
+                    @copy($tmp, $filePath);
+                    @unlink($tmp);
+                }
+                @chmod($filePath, app()->environment('local', 'testing') ? 0666 : 0664);
+            } else {
+                @unlink($tmp);
+            }
+        } catch (\Throwable $ignore) {
+        }
+    }
+
+    /**
+     * Liest den letzten Scheduler-Herzschlag aus dem Cache und hydriert ihn nach einem
+     * Cache-Clear nahtlos aus storage/framework/scheduler_heartbeat.json bzw. SystemSchedulerLog.
+     */
+    public function resolveSchedulerLastRunTimestamp(): ?int
+    {
+        $lastRunRaw = null;
+        try {
+            $lastRunRaw = Cache::get('scheduler_last_run');
+        } catch (\Throwable $ignore) {
+        }
+
+        if ($lastRunRaw !== null && $lastRunRaw !== '') {
+            try {
+                return is_numeric($lastRunRaw)
+                    ? (int) $lastRunRaw
+                    : Carbon::parse((string) $lastRunRaw)->timestamp;
+            } catch (\Throwable $ignore) {
+            }
+        }
+
+        // Fallback 1: Persistente Datei storage/framework/scheduler_heartbeat.json
+        $hbFile = self::resolveSchedulerHeartbeatFilePath();
+        if (is_file($hbFile) && is_readable($hbFile)) {
+            $decoded = $this->readJsonSafe($hbFile);
+            $fileTs = isset($decoded['timestamp']) && is_numeric($decoded['timestamp'])
+                ? (int) $decoded['timestamp']
+                : (!empty($decoded['iso']) ? rescue(fn () => Carbon::parse((string) $decoded['iso'])->timestamp, 0, false) : 0);
+
+            if ($fileTs > 0) {
+                $iso = Carbon::createFromTimestamp($fileTs)->toIso8601String();
+                try {
+                    Cache::put('scheduler_last_run', $fileTs);
+                    Cache::put('scheduler_last_run_iso', $iso);
+                } catch (\Throwable $ignore) {
+                }
+
+                return $fileTs;
+            }
+        }
+
+        // Fallback 2: Jüngster DB-Eintrag in system_scheduler_logs (oder system_cronjobs außerhalb isolierter Unit-Tests)
+        try {
+            if (Schema::hasTable('system_scheduler_logs')) {
+                $maxCreated = DB::table('system_scheduler_logs')->max('created_at');
+                if (!empty($maxCreated)) {
+                    $dbTs = Carbon::parse((string) $maxCreated)->timestamp;
+                    if ($dbTs > 0) {
+                        self::recordSchedulerHeartbeat(Carbon::createFromTimestamp($dbTs));
+
+                        return $dbTs;
+                    }
+                }
+            }
+
+            if (!app()->runningUnitTests() && Schema::hasTable('system_cronjobs') && Schema::hasColumn('system_cronjobs', 'last_run_at')) {
+                $maxCronRun = DB::table('system_cronjobs')->whereNotNull('last_run_at')->max('last_run_at');
+                if (!empty($maxCronRun)) {
+                    $cronTs = Carbon::parse((string) $maxCronRun)->timestamp;
+                    if ($cronTs > 0) {
+                        self::recordSchedulerHeartbeat(Carbon::createFromTimestamp($cronTs));
+
+                        return $cronTs;
+                    }
+                }
+            }
+        } catch (\Throwable $ignore) {
+        }
+
+        return null;
+    }
+
+    /**
+     * Liefert die kompakten Selbstheilungs- & Log-Hygiene-Kennzahlen für Health-Pulse und system_get_health.
+     */
+    public function getSentinelSelfHealingSnapshot(?Carbon $now = null): array
+    {
+        $now = $now ?? now();
+        $activeRelapses = 0;
+        $untriagedStaleErrors = 0;
+
+        try {
+            if (Schema::hasTable('system_logs')) {
+                $activeRelapses = (int) SystemLog::openIssues()
+                    ->where('started_at', '>=', $now->copy()->subHours(24))
+                    ->where('payload->triage->relapse_detected', true)
+                    ->count();
+
+                $staleCutoff = $now->copy()->subMinutes(20);
+                $untriagedStaleErrors = (int) SystemLog::openIssues()
+                    ->where(function ($q) use ($staleCutoff) {
+                        $q->where('started_at', '<=', $staleCutoff)
+                            ->orWhere(function ($sq) use ($staleCutoff) {
+                                $sq->whereNull('started_at')->where('created_at', '<=', $staleCutoff);
+                            });
+                    })
+                    ->whereNull('payload->triage->state')
+                    ->count();
+            }
+        } catch (\Throwable $ignore) {
+        }
+
+        $lastTriageAt = null;
+        try {
+            $lastTriageAt = Cache::get('sentinel:last_triage_cycle_at');
+        } catch (\Throwable $ignore) {
+        }
+        if (empty($lastTriageAt)) {
+            $triageState = $this->readJsonSafe(self::resolveSentinelLastTriageFilePath());
+            $lastTriageAt = $triageState['ran_at'] ?? null;
+        }
+
+        $auditState = $this->readJsonSafe(self::resolveSentinelAuditStateFilePath());
+        $lastAuditAt = $auditState['checked_at'] ?? null;
+
+        $laravelLogPath = storage_path('logs/laravel.log');
+        $laravelLogBytes = is_file($laravelLogPath) ? ((int) (@filesize($laravelLogPath) ?: 0)) : 0;
+
+        $status = ($activeRelapses > 0 || $untriagedStaleErrors > 0) ? 'warning' : 'ok';
+
+        return [
+            'status' => $status,
+            'active_relapses_24h_count' => $activeRelapses,
+            'untriaged_stale_errors_count' => $untriagedStaleErrors,
+            'laravel_log_bytes' => $laravelLogBytes,
+            'last_triage_at' => $lastTriageAt,
+            'last_audit_at' => $lastAuditAt,
+        ];
+    }
+
     protected function evaluateCronjobsPillar(bool $strict, Carbon $now): array
     {
         $status = 'ok';
         $issues = [];
-        $lastRunRaw = Cache::get('scheduler_last_run');
+        $resolvedTs = $this->resolveSchedulerLastRunTimestamp();
         $lastRunAt = null;
         $secondsAgo = null;
 
-        if ($lastRunRaw !== null && $lastRunRaw !== '') {
+        if ($resolvedTs !== null && $resolvedTs > 0) {
             try {
-                $lastRun = is_numeric($lastRunRaw)
-                    ? Carbon::createFromTimestamp((int) $lastRunRaw)
-                    : Carbon::parse((string) $lastRunRaw);
+                $lastRun = Carbon::createFromTimestamp($resolvedTs);
                 $lastRunAt = $lastRun->toIso8601String();
                 $secondsAgo = max(0, (int) $lastRun->diffInSeconds($now, false));
             } catch (\Throwable $ignore) {
@@ -2464,6 +2672,9 @@ class SystemHealthPulseService
 
                 foreach ($openLogs as $openLog) {
                     $p = is_array($openLog->payload) ? $openLog->payload : [];
+                    if (!empty($p['triage']['relapse_detected'])) {
+                        continue;
+                    }
                     $p['auto_healed'] = true;
                     $p['auto_healed_at'] = $now->toIso8601String();
                     $p['auto_heal_playbook'] = 'watchtower_pillar_recovered';

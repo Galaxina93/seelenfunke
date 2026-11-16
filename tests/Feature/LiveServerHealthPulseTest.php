@@ -13,7 +13,7 @@ use App\Models\System\SystemSetting;
 use App\Services\AI\FunkiraSkillPoolService;
 use App\Services\System\SystemHealthPulseService;
 use Database\Seeders\AiAgentSeeder;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Http\Client\Request as HttpClientRequest;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
@@ -27,7 +27,7 @@ use Tests\TestCase;
 
 class LiveServerHealthPulseTest extends TestCase
 {
-    use RefreshDatabase;
+    use DatabaseTransactions;
 
     protected function setUp(): void
     {
@@ -290,6 +290,7 @@ class LiveServerHealthPulseTest extends TestCase
         $this->seed(AiAgentSeeder::class);
         [, $bearerToken] = $this->createSanctumAdmin();
 
+        Product::withTrashed()->forceDelete();
         SystemSetting::updateOrCreate(['key' => 'digital_domain_is_live'], ['value' => 'false']);
 
         Product::create([
@@ -393,6 +394,7 @@ class LiveServerHealthPulseTest extends TestCase
         $falcone = AiAgent::where('name', 'Falcone')->firstOrFail();
         [, $bearerToken] = $this->createSanctumAdmin();
 
+        Product::withTrashed()->forceDelete();
         SystemSetting::updateOrCreate(['key' => 'digital_domain_is_live'], ['value' => 'false']);
         Product::create([
             'name' => 'Digital-Blueprint Aktiv 1',
@@ -511,6 +513,7 @@ class LiveServerHealthPulseTest extends TestCase
     {
         [$admin] = $this->createSanctumAdmin();
 
+        Product::withTrashed()->forceDelete();
         SystemSetting::updateOrCreate(['key' => 'digital_domain_is_live'], ['value' => 'false']);
         Product::create([
             'name' => 'Digitaler Planer Aktiv',

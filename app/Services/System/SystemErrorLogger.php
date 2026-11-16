@@ -491,6 +491,61 @@ class SystemErrorLogger
     }
 
     /**
+     * Erkennt kurzzeitige SQLSTATE[42S02]-Meldungen ("Base table or view not found") auf Basis-Tabellen
+     * während eines lokalen migrate:fresh-Laufs (ausschließlich im local-Environment aktiv, niemals auf Stage/Live!).
+     */
+    public static function isTransientLocalMigrationTableMissing(\Throwable $e): bool
+    {
+        try {
+            if (!app()->environment('local')) {
+                return false;
+            }
+        } catch (\Throwable $ignore) {
+            return false;
+        }
+
+        $bootstrapTables = [
+            'personal_access_tokens',
+            'jobs',
+            'failed_jobs',
+            'job_batches',
+            'sessions',
+            'cache',
+            'cache_locks',
+            'system_logs',
+            'shop_settings',
+            'migrations',
+        ];
+
+        $cursor = $e;
+        $depth = 0;
+        while ($cursor !== null && $depth < 4) {
+            $msgLower = strtolower($cursor->getMessage());
+            $codeStr = strtolower((string) $cursor->getCode());
+            $isMissingTableError = $codeStr === '42s02'
+                || str_contains($msgLower, 'sqlstate[42s02]')
+                || str_contains($msgLower, 'base table or view not found: 1146');
+
+            if ($isMissingTableError) {
+                foreach ($bootstrapTables as $tbl) {
+                    if (
+                        str_contains($msgLower, ".{$tbl}'")
+                        || str_contains($msgLower, "`{$tbl}`")
+                        || str_contains($msgLower, "'{$tbl}'")
+                    ) {
+                        return true;
+                    }
+                }
+            }
+
+            $cursor = $cursor->getPrevious();
+            $depth++;
+        }
+
+        return false;
+    }
+
+    /**
      * Protokolliert eine unbehandelte oder abgefangene Exception sicher in system_logs.
      */
     public static function recordException(
@@ -500,7 +555,7 @@ class SystemErrorLogger
         ?string $titlePrefix = 'System-Fehler',
         array $extraPayload = []
     ): ?SystemLog {
-        if (self::$isRecording || !class_exists(SystemLog::class)) {
+        if (self::$isRecording || !class_exists(SystemLog::class) || self::isTransientLocalMigrationTableMissing($e)) {
             return null;
         }
 

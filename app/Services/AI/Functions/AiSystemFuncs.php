@@ -2264,7 +2264,9 @@ trait AiSystemFuncs
                     'latency_ms' => $report['latency_ms'],
                     'pillars' => $report['pillars'],
                     'watchtower' => $report['watchtower'],
+                    'sentinel_audit' => $report['sentinel_audit'] ?? null,
                 ],
+                'self_healing_audit' => $report['sentinel_audit'] ?? null,
                 'active_sessions' => $activeSessions,
                 'avg_profit' => 0,
                 'total_orders' => $totalOrders,
@@ -4822,7 +4824,9 @@ trait AiSystemFuncs
                     'latency_ms' => $report['latency_ms'],
                     'pillars' => $report['pillars'],
                     'watchtower' => $report['watchtower'],
+                    'sentinel_audit' => $report['sentinel_audit'] ?? null,
                 ],
+                'self_healing_audit' => $report['sentinel_audit'] ?? null,
             ];
         } catch (\Throwable $e) {
             return [

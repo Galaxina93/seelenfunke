@@ -79,7 +79,7 @@ class DigitalDomainAndBlueprintSecurityTest extends TestCase
         Livewire::actingAs($admin, 'admin')
             ->test(SystemShopConfig::class)
             ->assertSet('digital_domain_is_live', false)
-            ->assertSee('Digital-Domain Live-Freigabe')
+            ->assertSee('Digitaler Shop (Live-Freigabe)')
             ->call('toggleDigitalDomainIsLive')
             ->assertSet('digital_domain_is_live', true);
 

@@ -523,6 +523,9 @@ class MasterAnalytics extends Component
 
             foreach ($openLogs as $log) {
                 $p = is_array($log->payload) ? $log->payload : [];
+                if (!empty($p['triage']['relapse_detected'])) {
+                    continue;
+                }
                 $p['auto_healed'] = true;
                 $p['resolved_at'] = now()->toIso8601String();
                 $log->status = 'success';
@@ -752,9 +755,12 @@ class MasterAnalytics extends Component
             $health['queue'] = ['status' => 'error', 'value' => 'Fehler', 'error' => 'Job-Tabelle nicht erreichbar.', 'pending' => 0, 'failed' => 0];
         }
 
-        // 7. NEU: Scheduler Check (Lebenszeichen vom Cronjob & CLI Diagnose)
+        // 7. NEU: Scheduler Check (Lebenszeichen vom Cronjob & CLI Diagnose inkl. persistentem Heartbeat-Fallback)
         try {
             $lastRunRaw = \Illuminate\Support\Facades\Cache::get('scheduler_last_run');
+            if (!$lastRunRaw && class_exists(\App\Services\System\SystemHealthPulseService::class)) {
+                $lastRunRaw = app(\App\Services\System\SystemHealthPulseService::class)->resolveSchedulerLastRunTimestamp();
+            }
             $diffMinutes = null;
             if ($lastRunRaw) {
                 $lastRun = is_numeric($lastRunRaw) ? \Carbon\Carbon::createFromTimestamp((int)$lastRunRaw) : \Carbon\Carbon::parse($lastRunRaw);
@@ -1062,8 +1068,8 @@ class MasterAnalytics extends Component
                 $probeErrorMsg = '';
 
                 for ($attempt = 1; $attempt <= 2; $attempt++) {
-                    if ($attempt > 1) {
-                        usleep(400_000);
+                    if ($attempt > 1 && !app()->runningUnitTests()) {
+                        usleep(1_500_000);
                     }
 
                     try {

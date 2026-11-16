@@ -130,17 +130,27 @@ class CleanRoomBlueprintBuilderService
         $relZipPath = self::STORAGE_REL_DIR . '/' . $slug . '.zip';
         $fullZipPath = $disk->path($relZipPath);
         $parentDir = dirname($fullZipPath);
-        if (!is_dir($parentDir)) {
-            @mkdir($parentDir, 0775, true);
-        }
+        $dirMode = app()->environment('local', 'testing') ? 0777 : 0775;
+        $fileMode = app()->environment('local', 'testing') ? 0666 : 0664;
 
-        if (file_exists($fullZipPath)) {
-            @unlink($fullZipPath);
+        if (!is_dir($parentDir)) {
+            @mkdir($parentDir, $dirMode, true);
         }
+        @chmod(dirname($parentDir), $dirMode);
+        @chmod($parentDir, $dirMode);
+
+        $tmpBase = @tempnam(sys_get_temp_dir(), 'bp_');
+        if ($tmpBase === false || $tmpBase === '') {
+            $tmpBase = sys_get_temp_dir() . '/bp_' . bin2hex(random_bytes(8));
+        } else {
+            @unlink($tmpBase);
+        }
+        $tmpZipPath = $tmpBase . '.zip';
 
         $zip = new ZipArchive();
-        if ($zip->open($fullZipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
-            throw new RuntimeException("Clean-Room ZIP konnte nicht angelegt werden: {$fullZipPath}");
+        if ($zip->open($tmpZipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+            @unlink($tmpZipPath);
+            throw new RuntimeException("Clean-Room Temp-ZIP konnte nicht angelegt werden: {$tmpZipPath}");
         }
 
         $module = $meta['module_class'];
@@ -155,13 +165,31 @@ class CleanRoomBlueprintBuilderService
         $zip->addFromString("tests/{$module}VerificationTest.php", $this->renderVerificationTest($module));
 
         $zip->close();
+        @chmod($tmpZipPath, $fileMode);
 
         try {
-            $this->zeroLeakScanner->assertZipIsClean($fullZipPath);
+            $this->zeroLeakScanner->assertZipIsClean($tmpZipPath);
         } catch (\Throwable $leakEx) {
-            @unlink($fullZipPath);
+            @unlink($tmpZipPath);
             throw $leakEx;
         }
+
+        if (file_exists($fullZipPath)) {
+            @chmod($fullZipPath, 0666);
+            @unlink($fullZipPath);
+        }
+
+        $published = @rename($tmpZipPath, $fullZipPath);
+        if (!$published) {
+            $published = @copy($tmpZipPath, $fullZipPath);
+            @unlink($tmpZipPath);
+        }
+
+        if (!$published || !is_file($fullZipPath)) {
+            throw new RuntimeException("Clean-Room ZIP konnte nicht ans Ziel verschoben werden: {$fullZipPath}");
+        }
+
+        @chmod($fullZipPath, $fileMode);
 
         return $relZipPath;
     }

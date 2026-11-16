@@ -179,7 +179,7 @@ class GeminiAgent implements AiProviderInterface
                                      "Wenn Alina dich fragt 'Was muss ich jetzt tun?', 'Was steht an?' oder nach Aufgaben fragt, antworte IMMER als strategische CEO-KI in diesem 3-Säulen-Prinzip:\n" .
                                      "1. OPERATIV ANPACKEN (Hands-on Chefin): Nenne ihr sofort und glasklar die konkrete operative Prio 1 für heute. WICHTIG: Wenn Bestellungen zur Fertigung anstehen, nenne AUSSCHLIESSLICH die realen Bestellnummern und echten Produkte aus der Datenbank (z.B. Seelen Kristall, Seelenanhänger). Erfinde NIEMALS Phantasieprodukte oder ausgedachte Musteraufträge! Wenn keine Bestellungen offen sind, nenne die nächste reale Aufgabe aus ManagementTask.\n" .
                                      "2. STRATEGISCHE EINORDNUNG INS 10-JAHRES-ZIEL: Verknüpfe diese Tagesaufgabe mit dem großen Bild: Zeige ihr auf, wie die heutige Arbeit direkt auf die Garagenhof-Expansion (nach dem 20k-Tore-Umbau) und das 15-Mio.-Firmengebäude bis Alter 43 einzahlt.\n" .
-                                     "3. ECHTE SYSTEM-FINANZEN: Nutze die oben vorberechneten Finanz- und Kostenzahlen transparent. Keine erfundenen Pauschalvermögen – das System fängt bei 0 an und bildet die reale Kosten- und Einnahmensituation ab.\n";
+                                     "3. ECHTE SYSTEM-FINANZEN: Nutze die oben vorberechneten Finanz- und Kostenzahlen transparent. Keine erfundenen Pauschalvermögen, das System fängt bei 0 an und bildet die reale Kosten- und Einnahmensituation ab.\n";
             }
         }
 
@@ -548,6 +548,7 @@ class GeminiAgent implements AiProviderInterface
                     'Authorization: Bearer ' . $this->apiKey,
                     'Accept: text/event-stream'
                 ]);
+                $this->syncDebugPayloadDump($payload);
                 curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload, JSON_INVALID_UTF8_SUBSTITUTE));
                 // Wir gewähren der LLM volle 120 Sekunden, um die Werkzeuge (Tools) zu lesen und zu entscheiden
                 curl_setopt($ch, CURLOPT_TIMEOUT, 120 + ($retryCount * 30));
@@ -1323,6 +1324,29 @@ class GeminiAgent implements AiProviderInterface
 
         } catch (\Exception $e) {
             return "Fehler bei der KI-Bildanalyse: " . $e->getMessage();
+        }
+    }
+
+    public static function shouldDumpDebugPayloads(): bool
+    {
+        return (bool) config('app.debug', false) && (bool) env('AI_DEBUG_DUMP_PAYLOADS', false);
+    }
+
+    protected function syncDebugPayloadDump(array $payload): void
+    {
+        $dumpPath = storage_path('logs/gemini_payload_dump.json');
+        if (!self::shouldDumpDebugPayloads()) {
+            if (is_file($dumpPath)) {
+                @unlink($dumpPath);
+            }
+            return;
+        }
+
+        try {
+            $sanitized = \App\Services\System\SystemErrorLogger::sanitizeArrayRecursive($payload);
+            @file_put_contents($dumpPath, json_encode($sanitized, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE));
+            @chmod($dumpPath, 0600);
+        } catch (\Throwable $ignore) {
         }
     }
 }

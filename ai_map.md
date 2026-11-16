@@ -1,5 +1,5 @@
 # Seelenfunke System-Architektur & AI Map (`ai_map.md`)
-> Generiert via `php artisan ai:generate-map` (2026-11-16 22:17)
+> Generiert via `php artisan ai:generate-map` (2026-11-16 23:35)
 
 ## 1. Ökosystem-Pfade & Umgebungen
 - **Hauptportal (`Mein-Seelenfunke`)**: Win-UNC `\\wsl.localhost\Ubuntu\home\ubuntuxina\meine-projekte\seelenfunke` | WSL `/home/ubuntuxina/meine-projekte/seelenfunke` (Docker PHP: `mein_php_server`) | Lokal `http://127.0.0.1` (`http://seelenfunke.test`) | Stage `https://stage.mein-seelenfunke.de` | Live `https://mein-seelenfunke.de`
@@ -89,7 +89,7 @@
 
 ## 6. HTTP-Controller (`app/Http/Controllers/*.php`)
 - **Accounting**: `InvoiceDownloadController`
-- **Api**: `AgenticCommerceController, AntigravityDirectInboxController, FunkenwerkHeroesController, TelegramAgentController, TwilioCallController, WorkshopFocusApiController`
+- **Api**: `AgenticCommerceController, AntigravityDirectInboxController, CustomerLobbyController, FunkenwerkHeroesController, TelegramAgentController, TwilioCallController, WorkshopFocusApiController`
 - **Customer**: `CustomerVerificationController, DigitalProductDownloadController, GiftVoucherDownloadController`
 - **Frontend**: `ShopShowroomController`
 - **Root**: `AIController, CartReminderUnsubscribeController, Controller, GoogleAuthController, NewsletterController, RevocationFileController, RevocationPdfController, SeoController, StripeWebhookController`
@@ -103,7 +103,7 @@
 - **Accounting**: `ContractDocumentService`
 - **Employee**: `EmployeeHrService`
 - **Export**: `DigitalLicenseStampingService, FileDownloadService`
-- **Gamification**: `GameConfig, GamificationService, PlayerNameValidator`
+- **Gamification**: `GameConfig, GamificationService, LobbyInstanceService, PlayerNameValidator`
 - **Laser**: `XtoolLaserCockpitService`
 - **Management**: `MailAiSortService`
 - **Marketing**: `HolidayOfferAutopilotService, InfluencerService`

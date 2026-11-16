@@ -704,4 +704,204 @@ class SentinelSelfHealingAndInboxTest extends TestCase
         $this->assertSame(SystemLog::MAX_TITLE_LENGTH, mb_strlen($directLog->title, 'UTF-8'));
         $this->assertStringStartsWith('[AUTO-GEHEILT] ', $directLog->title);
     }
+
+    public function test_chronic_relapse_guard_blocks_auto_heal_on_third_occurrence_within_24h_and_escalates_to_antigravity(): void
+    {
+        SystemLog::openIssues()->update(['status' => 'success']);
+        $sentinel = app(SentinelTriageService::class);
+        $sharedFp = hash('sha256', 'relapse_csrf_test_' . uniqid());
+
+        // 1. & 2. Auftreten in 24h -> dürfen regulär in Stufe 1 auto-geheilt werden
+        for ($i = 1; $i <= 2; $i++) {
+            $entry = SystemLog::create([
+                'type' => 'system',
+                'action_id' => 'system:http_419_csrf',
+                'title' => "CSRF Ablauf #{$i}",
+                'message' => 'CSRF token mismatch.',
+                'status' => 'warning',
+                'payload' => ['fingerprint' => $sharedFp, 'occurrences_count' => 1],
+                'started_at' => now()->subMinutes(30 - $i),
+                'finished_at' => now()->subMinutes(30 - $i),
+            ]);
+
+            $sentinel->runTriageCycle(probeBridges: false, allowAiEnrichment: false);
+            $entry->refresh();
+            $this->assertSame('auto_healed', $entry->triageState());
+        }
+
+        // 3. Auftreten in 24h (>= 2 vorangegangene Auto-Heals -> Rezidiv #3) -> Auto-Heal MUSS gesperrt und nach Stufe 2 eskaliert werden!
+        $thirdEntry = SystemLog::create([
+            'type' => 'system',
+            'action_id' => 'system:http_419_csrf',
+            'title' => 'CSRF Ablauf #3',
+            'message' => 'CSRF token mismatch.',
+            'status' => 'warning',
+            'payload' => ['fingerprint' => $sharedFp, 'occurrences_count' => 1],
+            'started_at' => now()->subMinute(),
+            'finished_at' => now()->subMinute(),
+        ]);
+
+        $stats = $sentinel->runTriageCycle(probeBridges: false, allowAiEnrichment: false);
+        $this->assertGreaterThanOrEqual(1, (int) ($stats['relapse_escalated_count'] ?? 0));
+
+        $thirdEntry->refresh();
+        $this->assertSame('error', $thirdEntry->status);
+        $this->assertSame('queued_for_antigravity', $thirdEntry->triageState());
+        $this->assertTrue((bool) ($thirdEntry->payload['triage']['relapse_detected'] ?? false));
+        $this->assertSame(3, (int) ($thirdEntry->payload['triage']['relapse_count_24h'] ?? 0));
+        $this->assertSame('elevated', $thirdEntry->payload['triage']['criticality'] ?? null);
+        $this->assertSame('elevated', $thirdEntry->payload['antigravity_dossier']['criticality'] ?? null);
+        $this->assertStringContainsString(
+            'Wiederkehrender Fehler trotz Selbstheilung (Rezidiv #3 in 24h) - Dauerhafte Ursachenbehebung erforderlich',
+            (string) ($thirdEntry->payload['antigravity_dossier']['probable_cause'] ?? '')
+        );
+
+        // Ein weiterer Triage-Lauf darf das gesperrte Rezidiv-Dossier NICHT nachträglich wieder auto-heilen!
+        $sentinel->runTriageCycle(probeBridges: false, allowAiEnrichment: false);
+        $thirdEntry->refresh();
+        $this->assertSame('error', $thirdEntry->status);
+        $this->assertSame('queued_for_antigravity', $thirdEntry->triageState());
+    }
+
+    public function test_scheduler_heartbeat_persists_across_cache_flush_without_false_watchtower_alarm(): void
+    {
+        $pulseService = app(\App\Services\System\SystemHealthPulseService::class);
+        $pulseService->resetStateForTesting();
+
+        try {
+            Artisan::call('system:heartbeat');
+            $hbFile = \App\Services\System\SystemHealthPulseService::resolveSchedulerHeartbeatFilePath();
+            $this->assertFileExists($hbFile);
+
+            // Simuliere php artisan optimize:clear / cache:clear waehrend eines Stage-Deploys
+            Cache::flush();
+            $this->assertNull(Cache::get('scheduler_last_run'));
+
+            $report = $pulseService->evaluate(
+                source: 'cli_scheduler',
+                strict: true,
+                recordSample: false,
+                syncLogs: false,
+                overrideSslDays: 60
+            );
+
+            $this->assertSame('ok', $report['pillars']['cronjobs']['status']);
+            $this->assertSame([], $report['pillars']['cronjobs']['issues']);
+            $this->assertNotNull(Cache::get('scheduler_last_run'));
+        } finally {
+            $pulseService->resetStateForTesting();
+        }
+    }
+
+    public function test_playbook_13_heals_benign_wpftask_aborted_io_and_local_42s02_guard_stays_strictly_local(): void
+    {
+        SystemLog::openIssues()->update(['status' => 'success']);
+        $sentinel = app(SentinelTriageService::class);
+
+        $benignWpf = SystemLog::create([
+            'type' => 'windows_desktop',
+            'action_id' => 'windows_desktop:wpftask:a1b2c3d4',
+            'title' => '[Funkenwerk Windows] Hintergrund-Task-Ausnahme in Funkenwerk Suite: AggregateException',
+            'message' => 'One or more errors occurred. (Der E/A-Vorgang wurde wegen eines Threadendes oder einer Anwendungsanforderung abgebrochen.)',
+            'status' => 'error',
+            'payload' => ['platform' => 'windows_desktop', 'occurrences_count' => 2],
+            'started_at' => now()->subMinutes(2),
+            'finished_at' => now()->subMinutes(2),
+        ]);
+
+        $realWpfBug = SystemLog::create([
+            'type' => 'windows_desktop',
+            'action_id' => 'windows_desktop:wpftask:deadbeef',
+            'title' => '[Funkenwerk Windows] Hintergrund-Task-Ausnahme in Funkenwerk Suite: AggregateException',
+            'message' => 'One or more errors occurred. (System.NullReferenceException: Object reference not set to an instance of an object.)',
+            'status' => 'error',
+            'payload' => ['platform' => 'windows_desktop', 'occurrences_count' => 1],
+            'started_at' => now()->subMinute(),
+            'finished_at' => now()->subMinute(),
+        ]);
+
+        $sentinel->runTriageCycle(probeBridges: false, allowAiEnrichment: false);
+
+        $benignWpf->refresh();
+        $realWpfBug->refresh();
+
+        $this->assertSame('auto_healed', $benignWpf->triageState());
+        $this->assertSame('benign_windows_wpftask_aborted_io', $benignWpf->payload['triage']['playbook'] ?? null);
+        $this->assertSame('queued_for_antigravity', $realWpfBug->triageState());
+
+        // Pruefe strikte Umgebungs-Isolation des 42S02-Migrations-Schutzes (nur local, niemals testing/production!)
+        $missingPatEx = new \PDOException("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'seelenfunke.personal_access_tokens' doesn't exist");
+        $missingOrderEx = new \PDOException("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'seelenfunke.order_orders' doesn't exist");
+
+        $this->assertFalse(SystemErrorLogger::isTransientLocalMigrationTableMissing($missingPatEx));
+
+        $origEnv = $this->app['env'];
+        try {
+            $this->app['env'] = 'local';
+            $this->assertTrue(SystemErrorLogger::isTransientLocalMigrationTableMissing($missingPatEx));
+            $this->assertFalse(SystemErrorLogger::isTransientLocalMigrationTableMissing($missingOrderEx));
+
+            $this->app['env'] = 'production';
+            $this->assertFalse(SystemErrorLogger::isTransientLocalMigrationTableMissing($missingPatEx));
+        } finally {
+            $this->app['env'] = $origEnv;
+        }
+    }
+
+    public function test_system_sentinel_audit_command_remediates_overdue_triage_and_orphaned_dumps(): void
+    {
+        SystemLog::openIssues()->update(['status' => 'success']);
+        $pulseService = app(\App\Services\System\SystemHealthPulseService::class);
+        $pulseService->resetStateForTesting();
+
+        $dumpPath = storage_path('logs/gemini_payload_dump.json');
+        $publicCliLog = public_path('scheduler_cli.log');
+
+        try {
+            File::ensureDirectoryExists(dirname($dumpPath));
+            file_put_contents($dumpPath, '{"debug":"orphan"}');
+            file_put_contents($publicCliLog, 'orphan public cli log');
+
+            $staleLog = SystemLog::create([
+                'type' => 'system',
+                'action_id' => 'system:exception:stale_audit_test',
+                'title' => 'Ungetriagierter Alt-Fehler',
+                'message' => 'Division by zero in DemoService.php',
+                'status' => 'error',
+                'payload' => [
+                    'fingerprint' => hash('sha256', 'stale_audit_' . uniqid()),
+                    'occurrences_count' => 1,
+                ],
+                'started_at' => now()->subMinutes(35),
+                'finished_at' => now()->subMinutes(35),
+            ]);
+
+            Cache::forget('sentinel:last_triage_cycle_at');
+
+            $exitCode = Artisan::call('system:sentinel-audit', ['--json' => true]);
+            $this->assertSame(0, $exitCode);
+
+            $decoded = json_decode(trim(Artisan::output()), true);
+            $this->assertIsArray($decoded);
+            $this->assertTrue((bool) ($decoded['triage_catchup_triggered'] ?? false));
+            $this->assertSame(0, (int) ($decoded['untriaged_stale_errors_count'] ?? -1));
+            $this->assertGreaterThanOrEqual(2, (int) ($decoded['orphaned_files_removed'] ?? 0));
+
+            $this->assertFileDoesNotExist($dumpPath);
+            $this->assertFileDoesNotExist($publicCliLog);
+
+            $staleLog->refresh();
+            $this->assertSame('queued_for_antigravity', $staleLog->triageState());
+
+            $this->assertTrue(\App\Models\System\SystemCronjob::where('command', 'system:sentinel-audit')->exists());
+
+            $pulse = $pulseService->evaluate(source: 'dashboard', strict: false, recordSample: false, syncLogs: false);
+            $this->assertArrayHasKey('sentinel_audit', $pulse);
+            $this->assertSame(0, (int) ($pulse['sentinel_audit']['untriaged_stale_errors_count'] ?? -1));
+        } finally {
+            @unlink($dumpPath);
+            @unlink($publicCliLog);
+            $pulseService->resetStateForTesting();
+        }
+    }
 }

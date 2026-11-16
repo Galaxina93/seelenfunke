@@ -27,6 +27,12 @@ migrations.txt
 *.sql
 bridge.log
 crash.log
+twilio.log
+/public/*.log
+/storage/logs/*.json
+/storage/framework/scheduler_heartbeat.json
+/storage/framework/sentinel_last_triage.json
+/storage/framework/sentinel_audit_state.json
 /funkenwerk/bin/
 /funkenwerk/obj/
 /funkenwerk-*/bin/

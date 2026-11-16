@@ -121,6 +121,13 @@ class SystemCronjobSeeder extends Seeder
                 'is_active' => true,
             ],
             [
+                'name' => 'Selbstheilungs- & Log-Hygiene-Audit',
+                'description' => 'Prüft alle 15 Minuten die Lebendigkeit der Funkira-Selbstheilung, aktive Rezidiv-Sperren, ungetriagierte Alt-Fehler (>20 Min) und verwaiste Dump-/Logdateien',
+                'command' => 'system:sentinel-audit',
+                'schedule' => '*/15 * * * *',
+                'is_active' => true,
+            ],
+            [
                 'name' => 'System-Log Selbstbereinigung (7-Tage-Archiv)',
                 'description' => 'Bereinigt täglich um 04:15 Uhr gelöste Archiv-Logs (>7 Tage), DSGVO-Altlasten (>30 Tage), Zombie-Tasks und führt Duplikate zusammen',
                 'command' => 'system:logs-cleanup',

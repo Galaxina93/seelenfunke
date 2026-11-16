@@ -1,10 +1,13 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Net.Sockets;
+using System.Net.WebSockets;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
@@ -299,6 +302,12 @@ namespace Funkenwerk
             {
                 try
                 {
+                    if (IsBenignUnobservedTaskCancellation(args.Exception))
+                    {
+                        args.SetObserved();
+                        return;
+                    }
+
                     WindowsErrorSentinel.RecordException("wpf.task", "Hintergrund-Task-Ausnahme in Funkenwerk Suite", args.Exception);
                     args.SetObserved();
                 }
@@ -374,6 +383,65 @@ namespace Funkenwerk
                     }
                 });
             }
+        }
+
+        public static bool IsBenignUnobservedTaskCancellation(AggregateException? aggEx)
+        {
+            if (aggEx == null)
+                return false;
+
+            var flat = aggEx.Flatten();
+            if (flat.InnerExceptions == null || flat.InnerExceptions.Count == 0)
+                return false;
+
+            foreach (var inner in flat.InnerExceptions)
+            {
+                if (!IsSingleExceptionBenignAbort(inner))
+                    return false;
+            }
+
+            return true;
+        }
+
+        private static bool IsSingleExceptionBenignAbort(Exception? ex)
+        {
+            if (ex == null)
+                return false;
+
+            if (ex is OperationCanceledException || ex is TaskCanceledException || ex is ObjectDisposedException)
+                return true;
+
+            if (ex is SocketException sockEx)
+            {
+                if (sockEx.SocketErrorCode is SocketError.OperationAborted or SocketError.ConnectionAborted or SocketError.Interrupted
+                    || sockEx.ErrorCode is 995 or 10004 or 10053
+                    || sockEx.NativeErrorCode is 995 or 10004 or 10053)
+                {
+                    return true;
+                }
+            }
+
+            const int ErrorOperationAbortedHResult = unchecked((int)0x800703E3);
+            if ((ex is IOException || ex is Win32Exception) && ex.HResult == ErrorOperationAbortedHResult)
+                return true;
+
+            string msg = ex.Message ?? string.Empty;
+            if ((ex is IOException || ex is Win32Exception || ex is SocketException)
+                && (msg.IndexOf("wegen eines Threadendes oder einer Anwendungsanforderung abgebrochen", StringComparison.OrdinalIgnoreCase) >= 0
+                    || msg.IndexOf("operation was aborted", StringComparison.OrdinalIgnoreCase) >= 0
+                    || msg.IndexOf("The I/O operation has been aborted", StringComparison.OrdinalIgnoreCase) >= 0))
+            {
+                return true;
+            }
+
+            if ((ex is IOException || ex is HttpRequestException || ex is WebSocketException)
+                && ex.InnerException != null
+                && IsSingleExceptionBenignAbort(ex.InnerException))
+            {
+                return true;
+            }
+
+            return false;
         }
     }
 }

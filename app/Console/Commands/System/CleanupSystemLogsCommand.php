@@ -40,7 +40,7 @@ class CleanupSystemLogsCommand extends Command
         if ($doPrune) {
             $stats = self::executePrune($days, $auditDays, $clearSolved);
             $this->info(sprintf(
-                '🧹 Log-Selbstbereinigung abgeschlossen: %d Duplikate zusammengeführt | %d Transienten bereinigt | %d Zombies geschlossen | %d Archiv-Logs (>%dd) gelöscht | %d Altlasten (>%dd) gelöscht | %d Scheduler-Logs gelöscht.',
+                '🧹 Log-Selbstbereinigung abgeschlossen: %d Duplikate zusammengeführt | %d Transienten bereinigt | %d Zombies geschlossen | %d Archiv-Logs (>%dd) gelöscht | %d Altlasten (>%dd) gelöscht | %d Scheduler-Logs gelöscht | %d verwaiste Dump-/Logdateien entfernt.',
                 $stats['deduplicated_open'],
                 $stats['transient_deleted'],
                 $stats['zombies_closed'],
@@ -48,7 +48,8 @@ class CleanupSystemLogsCommand extends Command
                 $days,
                 $stats['expired_audit_deleted'],
                 $auditDays,
-                $stats['scheduler_deleted']
+                $stats['scheduler_deleted'],
+                $stats['orphaned_files_removed']
             ));
         }
 
@@ -101,7 +102,11 @@ class CleanupSystemLogsCommand extends Command
             'archived_deleted' => 0,
             'expired_audit_deleted' => 0,
             'scheduler_deleted' => 0,
+            'orphaned_files_removed' => 0,
         ];
+
+        $orphanCleanup = self::cleanupOrphanedLogAndDumpFiles();
+        $stats['orphaned_files_removed'] = (int) ($orphanCleanup['removed_files_count'] ?? 0);
 
         if (!Schema::hasTable('system_logs')) {
             return $stats;
@@ -149,7 +154,9 @@ class CleanupSystemLogsCommand extends Command
             ->get()
             ->each(function (SystemLog $log) {
                 $t = (string) $log->title;
-                $log->title = str_starts_with($t, '[GELÖST]') ? $t : mb_substr('[GELÖST] ' . $t, 0, 250);
+                $log->title = str_starts_with($t, '[GELÖST]')
+                    ? SystemLog::clampColumnValue($t, SystemLog::MAX_TITLE_LENGTH, '...')
+                    : SystemLog::clampColumnValue('[GELÖST] ' . $t, SystemLog::MAX_TITLE_LENGTH, '...');
                 $log->status = 'success';
                 $log->finished_at = $log->finished_at ?? now();
                 $log->saveQuietly();
@@ -169,7 +176,9 @@ class CleanupSystemLogsCommand extends Command
                 ->get()
                 ->each(function (SystemLog $log) {
                     $t = (string) $log->title;
-                    $log->title = str_starts_with($t, '[GELÖST]') ? $t : mb_substr('[GELÖST] ' . $t, 0, 250);
+                    $log->title = str_starts_with($t, '[GELÖST]')
+                        ? SystemLog::clampColumnValue($t, SystemLog::MAX_TITLE_LENGTH, '...')
+                        : SystemLog::clampColumnValue('[GELÖST] ' . $t, SystemLog::MAX_TITLE_LENGTH, '...');
                     $log->status = 'success';
                     $log->finished_at = $log->finished_at ?? now();
                     $log->saveQuietly();
@@ -306,6 +315,54 @@ class CleanupSystemLogsCommand extends Command
     }
 
     /**
+     * Bereinigt verwaiste Debug-Payload-Dumps (z. B. storage/logs/gemini_payload_dump.json)
+     * sowie Altlast-Logs außerhalb von storage/logs/ (public/scheduler_cli.log, Root bridge.log/twilio.log/crash.log).
+     *
+     * @return array{removed_files_count: int, removed_bytes: int, removed_paths: array<int, string>}
+     */
+    public static function cleanupOrphanedLogAndDumpFiles(): array
+    {
+        $removedPaths = [];
+        $removedBytes = 0;
+
+        $candidates = [
+            public_path('scheduler_cli.log'),
+            base_path('bridge.log'),
+            base_path('twilio.log'),
+            base_path('crash.log'),
+            storage_path('logs/admin_test_error.txt'),
+            storage_path('logs/twilio.log'),
+        ];
+
+        $allowDebugDump = (bool) config('app.debug', false) && (bool) env('AI_DEBUG_DUMP_PAYLOADS', false);
+        if (!$allowDebugDump) {
+            $candidates[] = storage_path('logs/gemini_payload_dump.json');
+        }
+
+        foreach (glob(storage_path('logs/cmd_*.log')) ?: [] as $cmdLog) {
+            $candidates[] = $cmdLog;
+        }
+
+        foreach (array_unique($candidates) as $filePath) {
+            if (!is_string($filePath) || $filePath === '' || !is_file($filePath) || is_link($filePath)) {
+                continue;
+            }
+            clearstatcache(true, $filePath);
+            $sz = (int) (@filesize($filePath) ?: 0);
+            if (@unlink($filePath)) {
+                $removedBytes += $sz;
+                $removedPaths[] = ltrim(str_replace(base_path(), '', $filePath), '/\\');
+            }
+        }
+
+        return [
+            'removed_files_count' => count($removedPaths),
+            'removed_bytes' => $removedBytes,
+            'removed_paths' => $removedPaths,
+        ];
+    }
+
+    /**
      * Verschiebt alle aktuell offenen Fehler/Warnungen nach erfolgtem Bugfix sauber als [GELÖST] ins 7-Tage-Archiv.
      */
     public static function archiveAllOpenIssues(): int
@@ -325,7 +382,7 @@ class CleanupSystemLogsCommand extends Command
                 $payload['resolved_at'] = now()->toIso8601String();
 
                 $log->status = 'success';
-                $log->title = mb_substr($title, 0, 250);
+                $log->title = SystemLog::clampColumnValue($title, SystemLog::MAX_TITLE_LENGTH, '...');
                 $log->finished_at = $log->finished_at ?? now();
                 $log->payload = $payload;
                 $log->saveQuietly();

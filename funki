@@ -253,8 +253,12 @@ case "$1" in
         ;;
     migrate)
         if [ "$2" = "fresh" ]; then
-            echo "🗄️ Setze Datenbank komplett zurück (migrate:fresh --seed)..."
+            echo "🗄️ Schalte lokalen Wartungsmodus ein & setze Datenbank komplett zurück (migrate:fresh --seed)..."
+            $PREFIX_DEFAULT php artisan down --retry=5 &>/dev/null || true
+            trap '$PREFIX_DEFAULT php artisan up &>/dev/null || true' EXIT
             $PREFIX_DEFAULT php artisan migrate:fresh --seed
+            $PREFIX_DEFAULT php artisan up &>/dev/null || true
+            trap - EXIT
         else
             echo "🗄️ Führe inkrementelle Migrationen aus (php artisan migrate)..."
             $PREFIX_DEFAULT php artisan migrate
@@ -506,7 +510,6 @@ case "$1" in
 
             echo "🧠 Erneuere Caches & Projekt-Gehirn auf Stage..."
             php artisan optimize:clear
-            php artisan view:clear
             php artisan system:brain:generate
             git checkout -- Abschlussberichte/System/Verzeichnis_Verarbeitungstaetigkeiten_Art30_DSGVO.md 2>/dev/null || true
             chmod -R 775 storage/ bootstrap/cache/ 2>/dev/null || true
@@ -529,10 +532,6 @@ case "$1" in
     cache)
         echo "🧹 Leere alle Framework-Caches restlos aus..."
         $PREFIX_DEFAULT php artisan optimize:clear
-        $PREFIX_DEFAULT php artisan view:clear
-        $PREFIX_DEFAULT php artisan config:clear
-        $PREFIX_DEFAULT php artisan route:clear
-        $PREFIX_DEFAULT php artisan cache:clear
         echo "✅ Alle Caches für Views, Routen, Configs und App-Daten wurden geflusht!"
         ;;
     security)

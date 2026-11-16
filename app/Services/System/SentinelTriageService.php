@@ -115,6 +115,7 @@ class SentinelTriageService
             $healedCount = (int) ($probeStats['auto_healed_bridges'] ?? 0);
             $newlyQueuedCount = 0;
             $alreadyQueuedCount = 0;
+            $relapseEscalatedCount = 0;
             $aiCallsUsed = 0;
 
             $openLogs = SystemLog::openIssues()
@@ -123,25 +124,44 @@ class SentinelTriageService
                 ->get();
 
             foreach ($openLogs as $log) {
-                $healDecision = $this->attemptAutonomousHeal($log);
-
-                if (!empty($healDecision['healed'])) {
-                    $this->markAsAutoHealed(
-                        $log,
-                        (string) ($healDecision['playbook'] ?? 'autonomous_heal'),
-                        (string) ($healDecision['summary'] ?? 'Automatisch durch Funkira-Wächter bereinigt.')
-                    );
-                    $healedCount++;
-                    continue;
-                }
-
                 $payload = is_array($log->payload) ? $log->payload : [];
                 $fingerprint = $this->resolveLogFingerprint($log, $payload);
                 $existingTriageState = $payload['triage']['state'] ?? null;
                 $existingDossierFp = $payload['antigravity_dossier']['fingerprint'] ?? null;
+                $alreadyRelapseLocked = !empty($payload['triage']['relapse_detected']) && $existingTriageState === 'queued_for_antigravity';
+
+                $relapseTriggeredCount = null;
+                $blockedPlaybook = null;
+
+                if (!$alreadyRelapseLocked) {
+                    $healDecision = $this->attemptAutonomousHeal($log);
+
+                    if (!empty($healDecision['healed'])) {
+                        $candidatePlaybook = (string) ($healDecision['playbook'] ?? 'autonomous_heal');
+                        $priorAutoHeals24h = $candidatePlaybook === 'gemini_live_session_rollover'
+                            ? 0
+                            : $this->countPriorAutoHealsLast24h($log, $fingerprint, $payload);
+
+                        if ($priorAutoHeals24h < 2) {
+                            $payload['fingerprint'] = $fingerprint;
+                            $log->payload = $payload;
+                            $this->markAsAutoHealed(
+                                $log,
+                                $candidatePlaybook,
+                                (string) ($healDecision['summary'] ?? 'Automatisch durch Funkira-Wächter bereinigt.')
+                            );
+                            $healedCount++;
+                            continue;
+                        }
+
+                        // Rezidiv-Sperre (Chronic Relapse Guard): >= 2 vorangegangene Auto-Heilungen in 24h -> 3.+ Auftreten eskalieren!
+                        $relapseTriggeredCount = $priorAutoHeals24h + 1;
+                        $blockedPlaybook = $candidatePlaybook;
+                    }
+                }
 
                 // Strikte 1x-pro-Fingerprint-Idempotenz (0 Token-Schleifen bei Wiederholungsfehlern)
-                if ($existingTriageState === 'queued_for_antigravity' && $existingDossierFp === $fingerprint) {
+                if ($existingTriageState === 'queued_for_antigravity' && $existingDossierFp === $fingerprint && $relapseTriggeredCount === null) {
                     $occurrences = max(1, (int) ($payload['occurrences_count'] ?? 1));
                     $dossierOccurrences = (int) ($payload['antigravity_dossier']['occurrences_count'] ?? 1);
                     if ($occurrences !== $dossierOccurrences) {
@@ -156,6 +176,38 @@ class SentinelTriageService
 
                 $canCallAi = $allowAiEnrichment && $aiCallsUsed < 3;
                 $dossier = $this->buildAntigravityDossier($log, $fingerprint, $canCallAi, $aiCallsUsed);
+
+                if ($relapseTriggeredCount !== null) {
+                    $relapseDiagnosis = "Wiederkehrender Fehler trotz Selbstheilung (Rezidiv #{$relapseTriggeredCount} in 24h) - Dauerhafte Ursachenbehebung erforderlich";
+                    $dossier['criticality'] = 'elevated';
+                    $dossier['severity'] = 'error';
+                    $dossier['relapse_detected'] = true;
+                    $dossier['relapse_count_24h'] = $relapseTriggeredCount;
+                    $dossier['blocked_playbook'] = $blockedPlaybook;
+                    $dossier['probable_cause'] = $relapseDiagnosis . '. ' . ($dossier['probable_cause'] ?? '');
+
+                    $payload['diagnosis'] = is_array($payload['diagnosis'] ?? null) ? $payload['diagnosis'] : [];
+                    $payload['diagnosis']['probable_cause'] = $relapseDiagnosis;
+                    $payload['fingerprint'] = $fingerprint;
+                    $payload['triage'] = [
+                        'state' => 'queued_for_antigravity',
+                        'triaged_at' => now()->toIso8601String(),
+                        'triaged_by' => 'Funkira Sentinel',
+                        'criticality' => 'elevated',
+                        'relapse_detected' => true,
+                        'relapse_count_24h' => $relapseTriggeredCount,
+                        'blocked_playbook' => $blockedPlaybook,
+                    ];
+                    $payload['antigravity_dossier'] = $dossier;
+
+                    $log->status = 'error';
+                    $log->payload = $payload;
+                    $log->save();
+
+                    $relapseEscalatedCount++;
+                    $newlyQueuedCount++;
+                    continue;
+                }
 
                 $payload['fingerprint'] = $fingerprint;
                 $payload['triage'] = [
@@ -174,6 +226,7 @@ class SentinelTriageService
             }
 
             $snapshot = $this->writeInboxSnapshotFile();
+            $this->recordLastTriageHeartbeat();
 
             // Zero-Log-Baseline: Sobald 0 offene Fehler vorliegen, wandern verbleibende Roh-Logs verlustfrei ins Archiv (Haupt-Log = 0 Bytes)
             if (!app()->runningUnitTests() && ((int) ($snapshot['open_pool_count'] ?? 0)) === 0 && SystemLog::openIssues()->count() === 0) {
@@ -186,6 +239,7 @@ class SentinelTriageService
                 'failed_jobs_imported' => (int) ($probeStats['failed_jobs_imported'] ?? 0),
                 'probed_bridges' => (int) ($probeStats['probed_bridges'] ?? 0),
                 'auto_healed_count' => $healedCount,
+                'relapse_escalated_count' => $relapseEscalatedCount,
                 'newly_queued_count' => $newlyQueuedCount,
                 'already_queued_count' => $alreadyQueuedCount,
                 'ai_calls_used' => $aiCallsUsed,
@@ -692,7 +746,99 @@ class SentinelTriageService
             }
         }
 
+        // Playbook 13: Harmloser Hintergrund-Stream-/Socket-Abbruch beim Schließen in Funkenwerk Windows (wpf.task)
+        if (
+            $log->resolvePlatformKey() === 'windows_desktop'
+            && (str_contains($actionId, 'wpftask') || str_contains($actionId, 'wpf_task') || str_contains($titleLower, 'hintergrund-task-ausnahme'))
+            && (
+                str_contains($msgLower, 'wegen eines threadendes oder einer anwendungsanforderung abgebrochen')
+                || str_contains($msgLower, 'operation was aborted')
+                || str_contains($msgLower, 'the i/o operation has been aborted')
+                || str_contains($msgLower, 'operationcanceledexception')
+                || str_contains($msgLower, 'taskcanceledexception')
+            )
+            && !str_contains($msgLower, 'nullreferenceexception')
+            && !str_contains($msgLower, 'invalidoperationexception')
+            && $occurrences < 25
+        ) {
+            return [
+                'healed' => true,
+                'playbook' => 'benign_windows_wpftask_aborted_io',
+                'summary' => 'Regulärer Hintergrund-Stream-Abbruch (ERROR_OPERATION_ABORTED / TaskCanceled) beim Schließen einer Verbindung in der Funkenwerk Suite bereinigt.',
+            ];
+        }
+
         return ['healed' => false];
+    }
+
+    /**
+     * Zählt, wie oft derselbe Fehler (gleicher Fingerprint oder gleiche action_id + Komponente
+     * bei watchtower:* / system:health_fail) in den letzten 24h bereits per Auto-Heal geschlossen wurde.
+     */
+    public function countPriorAutoHealsLast24h(SystemLog $log, string $fingerprint, array $payload): int
+    {
+        if (!Schema::hasTable('system_logs')) {
+            return 0;
+        }
+
+        $cutoff = now()->subHours(24);
+        $actionIdLower = strtolower(trim((string) $log->action_id));
+        $isHealthOrWatchtower = str_starts_with($actionIdLower, 'watchtower:')
+            || str_contains($actionIdLower, 'health_fail');
+        $targetComponent = strtolower(trim((string) ($payload['component'] ?? $payload['service'] ?? $payload['pillar'] ?? '')));
+
+        $candidates = SystemLog::autoHealedEntries()
+            ->where('id', '!=', $log->id)
+            ->where(function ($q) use ($cutoff) {
+                $q->where('finished_at', '>=', $cutoff)
+                    ->orWhere('started_at', '>=', $cutoff)
+                    ->orWhere('created_at', '>=', $cutoff);
+            })
+            ->where(function ($q) use ($fingerprint, $log, $isHealthOrWatchtower) {
+                $q->where('payload->fingerprint', $fingerprint);
+                if ($isHealthOrWatchtower && !empty($log->action_id)) {
+                    $q->orWhere('action_id', $log->action_id);
+                }
+            })
+            ->get(['id', 'type', 'action_id', 'message', 'payload']);
+
+        $matchedCount = 0;
+        foreach ($candidates as $cand) {
+            $cp = is_array($cand->payload) ? $cand->payload : [];
+            $candFp = $this->resolveLogFingerprint($cand, $cp);
+            if ($candFp === $fingerprint || (($cp['fingerprint'] ?? '') === $fingerprint)) {
+                $matchedCount++;
+                continue;
+            }
+
+            if ($isHealthOrWatchtower && strtolower(trim((string) $cand->action_id)) === $actionIdLower) {
+                $candComp = strtolower(trim((string) ($cp['component'] ?? $cp['service'] ?? $cp['pillar'] ?? '')));
+                if ($targetComponent === '' || $candComp === $targetComponent) {
+                    $matchedCount++;
+                }
+            }
+        }
+
+        return $matchedCount;
+    }
+
+    protected function recordLastTriageHeartbeat(): void
+    {
+        $iso = now()->toIso8601String();
+        try {
+            Cache::put('sentinel:last_triage_cycle_at', $iso, now()->addHours(24));
+        } catch (\Throwable $ignore) {
+        }
+
+        try {
+            if (class_exists(SystemHealthPulseService::class)) {
+                $path = SystemHealthPulseService::resolveSentinelLastTriageFilePath();
+                File::ensureDirectoryExists(dirname($path));
+                @file_put_contents($path, json_encode(['ran_at' => $iso, 'timestamp' => now()->timestamp], JSON_UNESCAPED_SLASHES), LOCK_EX);
+                @chmod($path, app()->environment('local', 'testing') ? 0666 : 0664);
+            }
+        } catch (\Throwable $ignore) {
+        }
     }
 
     /**
@@ -871,9 +1017,9 @@ class SentinelTriageService
             }
 
             $clean = [
-                'root_cause_de' => str_replace(' – ', ', ', SystemErrorLogger::sanitizeSensitiveText(trim((string) $parsed['root_cause_de']))),
-                'fix_plan_de' => str_replace(' – ', ', ', SystemErrorLogger::sanitizeSensitiveText(trim((string) $parsed['fix_plan_de']))),
-                'criticality' => in_array(($parsed['criticality'] ?? ''), ['critical', 'high', 'standard'], true)
+                'root_cause_de' => str_replace(" \u{2013} ", ', ', SystemErrorLogger::sanitizeSensitiveText(trim((string) $parsed['root_cause_de']))),
+                'fix_plan_de' => str_replace(" \u{2013} ", ', ', SystemErrorLogger::sanitizeSensitiveText(trim((string) $parsed['fix_plan_de']))),
+                'criticality' => in_array(($parsed['criticality'] ?? ''), ['critical', 'high', 'elevated', 'standard'], true)
                     ? $parsed['criticality']
                     : 'standard',
             ];
@@ -917,9 +1063,9 @@ class SentinelTriageService
             $items[] = $dossier;
         }
 
-        // Kritische und häufige Fehler zuerst sortieren
+        // Kritische, Rezidiv- und häufige Fehler zuerst sortieren
         usort($items, function (array $a, array $b): int {
-            $prio = ['critical' => 3, 'high' => 2, 'standard' => 1];
+            $prio = ['critical' => 4, 'high' => 3, 'elevated' => 2, 'standard' => 1];
             $pa = $prio[$a['criticality'] ?? 'standard'] ?? 1;
             $pb = $prio[$b['criticality'] ?? 'standard'] ?? 1;
             if ($pa !== $pb) {
@@ -1291,6 +1437,9 @@ class SentinelTriageService
                     ->get();
 
                 foreach ($legacyTelLogs as $legacyLog) {
+                    if (!empty($legacyLog->payload['triage']['relapse_detected'])) {
+                        continue;
+                    }
                     $this->markAsAutoHealed(
                         $legacyLog,
                         'bridge_recovered_http_200',
@@ -1552,8 +1701,8 @@ class SentinelTriageService
         $latencyMs = 0;
 
         for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
-            if ($attempt > 1) {
-                usleep(400_000);
+            if ($attempt > 1 && !app()->runningUnitTests()) {
+                usleep(1_500_000);
             }
 
             $t0 = microtime(true);
@@ -1632,7 +1781,7 @@ class SentinelTriageService
         $subject = 'WARNUNG: ' . $meta['short_label'] . ' ausgefallen';
         $statusLabel = $httpStatus !== null ? "HTTP {$httpStatus}" : 'Timeout / Verbindungsfehler';
         $bodyLines = [
-            'Funkira Sentinel hat nach erneutem Prüfversuch (400ms Retry) einen Ausfall einer Echtzeit-Bridge festgestellt:',
+            'Funkira Sentinel hat nach erneutem Prüfversuch (1500ms Retry) einen Ausfall einer Echtzeit-Bridge festgestellt:',
             '',
             'Dienst: ' . $meta['label'],
             'Container: ' . $meta['container_id'],

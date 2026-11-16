@@ -33,6 +33,13 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withExceptions(function (Exceptions $exceptions) {
         $exceptions->reportable(function (\Throwable $e) {
+            if (
+                class_exists(\App\Services\System\SystemErrorLogger::class)
+                && \App\Services\System\SystemErrorLogger::isTransientLocalMigrationTableMissing($e)
+            ) {
+                return false;
+            }
+
             try {
                 // Fange echte System-Fehler ab und schiebe sie inkl. automatischer Ursachen-Diagnose ins SystemLog (/admin/global-logs)
                 if (class_exists(\App\Services\System\SystemErrorLogger::class)) {
@@ -65,6 +72,20 @@ return Application::configure(basePath: dirname(__DIR__))
         });
 
         $exceptions->renderable(function (\Throwable $e, $request) {
+            if (
+                class_exists(\App\Services\System\SystemErrorLogger::class)
+                && \App\Services\System\SystemErrorLogger::isTransientLocalMigrationTableMissing($e)
+            ) {
+                if ($request->expectsJson() || $request->is('api/*')) {
+                    return response()->json([
+                        'status' => 'maintenance',
+                        'message' => 'Lokale Datenbank-Migration aktiv. Bitte in wenigen Sekunden erneut versuchen.',
+                    ], 503, ['Retry-After' => '5']);
+                }
+
+                return response('Lokale Datenbank-Migration aktiv. Bitte in wenigen Sekunden neu laden.', 503, ['Retry-After' => '5']);
+            }
+
             try {
                 // Erfasse auch kritische HTTP-Ausnahmen (500+, 419 CSRF TokenMismatch, SuspiciousOperation),
                 // die von Laravels interner $dontReport-Liste standardmäßig übersprungen werden.

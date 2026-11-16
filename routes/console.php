@@ -27,6 +27,9 @@ $argv = $_SERVER['argv'] ?? [];
 if (in_array('schedule:run', $argv)) {
     try {
         \Illuminate\Support\Facades\Cache::put('scheduler_bootstrap_last_run', now()->timestamp);
+        if (class_exists(\App\Services\System\SystemHealthPulseService::class)) {
+            \App\Services\System\SystemHealthPulseService::recordSchedulerHeartbeat();
+        }
     } catch (\Throwable $e) {
         // Ignorieren bei Cache-Fehlern während des Bootstraps
     }
@@ -133,6 +136,9 @@ try {
                     }
                     if ($commandBase === 'system:sentinel-triage') {
                         $sentinelTriageRegistered = true;
+                    }
+                    if ($commandBase === 'system:sentinel-audit') {
+                        $sentinelAuditRegistered = true;
                     }
                     $event->withoutOverlapping();
                     if (!isset($_GET['sync_schedule']) && getenv('SYNC_SCHEDULE') !== '1') {
@@ -270,6 +276,14 @@ try {
         && (!Schema::hasTable('system_cronjobs') || !SystemCronjob::where('command', 'system:sentinel-triage')->exists())) {
         Schedule::command('system:sentinel-triage', ['--probe-bridges'])
             ->everyFiveMinutes()
+            ->withoutOverlapping();
+    }
+
+    // Ausfallsicherer Fallback für das regelmäßige Selbstheilungs- & Log-Hygiene-Audit
+    if ((!isset($sentinelAuditRegistered) || !$sentinelAuditRegistered)
+        && (!Schema::hasTable('system_cronjobs') || !SystemCronjob::where('command', 'system:sentinel-audit')->exists())) {
+        Schedule::command('system:sentinel-audit')
+            ->everyFifteenMinutes()
             ->withoutOverlapping();
     }
 } catch (\Throwable $e) {
