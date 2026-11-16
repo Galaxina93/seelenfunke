@@ -51,7 +51,9 @@
                 this.scene.background = null;
             }
 
-            const aspect = this.container.offsetWidth / this.container.offsetHeight;
+            const initW = Math.max(1, this.container.offsetWidth || 600);
+            const initH = Math.max(1, this.container.offsetHeight || 600);
+            const aspect = initW / initH;
             this.camera = new window.THREE.PerspectiveCamera(45, aspect, 0.1, 1000);
 
             // FIX: 'lowp' entfernt! PBR Materialien brauchen zwingend 'highp' (auch auf dem Handy), sonst werden sie schwarz.
@@ -70,7 +72,7 @@
                 this.renderer.debug.checkShaderErrors = false;
             }
 
-            this.renderer.setSize(this.container.offsetWidth, this.container.offsetHeight);
+            this.renderer.setSize(initW, initH);
             this.renderer.setPixelRatio(isMobile ? 1 : Math.min(window.devicePixelRatio, 2));
             this.renderer.toneMapping = window.THREE.ACESFilmicToneMapping;
             this.renderer.toneMappingExposure = 1.0;
@@ -1066,10 +1068,13 @@
         }
 
         resize() {
-            if(!this.camera || !this.renderer) return;
-            this.camera.aspect = this.container.offsetWidth / this.container.offsetHeight;
+            if(!this.camera || !this.renderer || !this.container) return;
+            const w = this.container.offsetWidth;
+            const h = this.container.offsetHeight;
+            if (!w || !h || w <= 0 || h <= 0) return;
+            this.camera.aspect = w / h;
             this.camera.updateProjectionMatrix();
-            this.renderer.setSize(this.container.offsetWidth, this.container.offsetHeight);
+            this.renderer.setSize(w, h);
         }
 
         animate() {

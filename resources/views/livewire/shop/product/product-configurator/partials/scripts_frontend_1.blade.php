@@ -989,7 +989,7 @@
                 const lines = textLines.length || 1;
 
                 let canvasWidth = 60;
-                let canvasHeight = Math.ceil(lines * fontSizePx * 1.32);
+                let canvasHeight = Math.ceil(lines * fontSizePx * 1.28) + 20;
                 try {
                     if (!this._measureCanvas) {
                         this._measureCanvas = document.createElement('canvas');
@@ -1011,7 +1011,7 @@
                     widthPx = Math.min(widthPx, this.getMaxEmptyTextWidthPx());
                 }
                 const finalWidth = widthPx + 'px';
-                const finalHeight = Math.max(32, canvasHeight + 14) + 'px';
+                const finalHeight = Math.max(32, canvasHeight) + 'px';
                 const computed = {
                     width: finalWidth,
                     height: finalHeight,
@@ -2793,7 +2793,7 @@
                 el.style.fontSize = fontSizePx + 'px';
                 el.style.fontFamily = fontFamily;
                 el.style.lineHeight = '1.28';
-                el.style.padding = '4px 10px';
+                el.style.padding = '10px 10px';
 
                 const rawText = hasText
                     ? el.value
@@ -2804,7 +2804,7 @@
 
                 // Canvas-Fallback-Messung (z.B. wenn 2D-Container in der 3D-Ansicht auf display:none steht oder Text leer ist)
                 let canvasWidth = 60;
-                let canvasHeight = Math.ceil(lines * fontSizePx * 1.32);
+                let canvasHeight = Math.ceil(lines * fontSizePx * 1.28) + 20;
                 try {
                     if (!this._measureCanvas) {
                         this._measureCanvas = document.createElement('canvas');
@@ -2844,10 +2844,10 @@
                     }
                 }
 
-                // Großzügiger Puffer links/rechts (+24px) und oben/unten (+14px), damit geschwungene Schreibschriften
-                // (z. B. Lobster Two, Great Vibes, Alex Brush) an den Rändern des Textfelds niemals abgeschnitten werden
+                // Symmetrischer Puffer links/rechts (+24px) sowie oben/unten (je 10px Padding = 20px gesamt in scrollHeight enthalten),
+                // damit geschwungene Schreibschriften niemals abgeschnitten werden UND der Text exakt vertikal mittig auf item.y sitzt
                 let widthPx = Math.max(60, newWidth + 24);
-                let heightPx = Math.max(32, newHeight + 14);
+                let heightPx = Math.max(32, newHeight);
                 if (!hasText) {
                     widthPx = Math.min(widthPx, this.getMaxEmptyTextWidthPx());
                 } else if (isCurved) {

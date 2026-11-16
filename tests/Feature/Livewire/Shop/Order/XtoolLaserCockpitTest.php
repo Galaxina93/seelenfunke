@@ -748,4 +748,31 @@ class XtoolLaserCockpitTest extends TestCase
             ->call('openDetail', $order->id)
             ->assertSee('Abweichend von Rechnung');
     }
+
+    #[Test]
+    public function configurator_2d_preview_eliminates_curved_text_style_collision_and_centers_textarea_symmetrically(): void
+    {
+        $admin = $this->createAdmin();
+        $product = $this->createPersonalizableLaserProduct();
+        [$order, $item] = $this->createSampleOrderWithItem($product);
+
+        $html = Livewire::actingAs($admin, 'admin')
+            ->test(\App\Livewire\Shop\Product\ProductConfigurator\ProductConfigurator::class, [
+                'product'     => $product->id,
+                'initialData' => $item->configuration,
+                'qty'         => 1,
+                'context'     => 'preview',
+            ])
+            ->html();
+
+        // Kein x-show + :style String-Konflikt auf den geraden/gebogenen Text-Containern (verhindert 24px Versatz nach oben)
+        $this->assertStringContainsString('<template x-if="!isTextCurved(currentTexts[index], index)">', $html);
+        $this->assertStringContainsString('<template x-if="isTextCurved(currentTexts[index], index)">', $html);
+        $this->assertStringNotContainsString('x-show="isTextCurved(', $html);
+        $this->assertStringNotContainsString('x-show="!isTextCurved(', $html);
+        $this->assertStringContainsString('padding: 10px 10px;', $html);
+
+        $scriptSource = (string) file_get_contents(resource_path('views/livewire/shop/product/product-configurator/partials/scripts_frontend_1.blade.php'));
+        $this->assertStringContainsString("el.style.padding = '10px 10px';", $scriptSource);
+    }
 }

@@ -342,7 +342,7 @@
              @contextmenu.prevent
              class="absolute inset-0 w-full h-full cursor-move transition-opacity duration-500 select-none"
              :class="showDrawingBoard ? 'opacity-0 invisible pointer-events-none z-0' : 'opacity-100 visible z-10'"
-             :style="showDrawingBoard ? 'visibility: hidden; z-index: 0;' : 'visibility: visible; z-index: 10;'"></div>
+             :style="(config.modelPath ? '' : 'display: none; ') + (showDrawingBoard ? 'visibility: hidden; z-index: 0;' : 'visibility: visible; z-index: 10;')"></div>
 
         {{-- Lade-Overlay für 3D --}}
         <div x-show="config.modelPath && !modelLoaded && !showDrawingBoard" x-transition.opacity.duration.300ms class="absolute inset-0 z-30 flex flex-col items-center justify-center backdrop-blur-md pointer-events-none {{ $isDark ? 'bg-gray-950/70' : 'bg-white/80' }}">
@@ -364,9 +364,9 @@
              x-show="showDrawingBoard || !config.modelPath"
              @contextmenu.prevent
              class="absolute inset-0 w-full h-full z-20 pointer-events-auto"
-             :style="isCapturing
+             :style="((showDrawingBoard || !config.modelPath) ? '' : 'display: none; ') + (isCapturing
                  ? 'isolation: isolate; transform: none; -webkit-transform: none;'
-                 : `isolation: isolate; transform-origin: 50% 50%; transform: translate3d(${stagePanX}%, ${stagePanY}%, 0) scale(${stageZoom}); -webkit-transform: translate3d(${stagePanX}%, ${stagePanY}%, 0) scale(${stageZoom});`">
+                 : `isolation: isolate; transform-origin: 50% 50%; transform: translate3d(${stagePanX}%, ${stagePanY}%, 0) scale(${stageZoom}); -webkit-transform: translate3d(${stagePanX}%, ${stagePanY}%, 0) scale(${stageZoom});`)">
 
             <template x-if="activeBgImage && stageZoom > 1.001 && !isCapturing">
                 <img :src="activeBgImage"
@@ -380,13 +380,13 @@
                  x-on:error="if (config.fallbackImg && $el.src !== config.fallbackImg) { $el.src = config.fallbackImg; }"
                  loading="eager"
                  decoding="sync"
-                 :style="hasTransparentOverlay
+                 :style="(Boolean(activeOverlayImg || config.fallbackImg) ? '' : 'display: none; ') + (hasTransparentOverlay
                      ? 'transform: translate3d(0,0,0); -webkit-transform: translate3d(0,0,0); backface-visibility: hidden; -webkit-backface-visibility: hidden; will-change: transform; filter: drop-shadow(0 12px 24px rgba(0,0,0,0.45));'
-                     : 'transform: translate3d(0,0,0); -webkit-transform: translate3d(0,0,0); backface-visibility: hidden; -webkit-backface-visibility: hidden; will-change: transform;'"
+                     : 'transform: translate3d(0,0,0); -webkit-transform: translate3d(0,0,0); backface-visibility: hidden; -webkit-backface-visibility: hidden; will-change: transform;')"
                  class="absolute inset-0 w-full h-full z-[15] object-contain pointer-events-none transition-opacity duration-500 {{ $isDark ? 'opacity-95 group-hover:opacity-100' : 'opacity-100' }}">
 
             <div x-show="config.area_shape !== 'custom'" data-snapshot-ignore="true" class="absolute z-[22] border-2 border-emerald-500 bg-emerald-500/5 pointer-events-none transition-all duration-500"
-                 :style="`
+                 :style="config.area_shape === 'custom' ? 'display: none;' : `
                     top: ${config.area_top || 0}%;
                     left: ${config.area_left || 0}%;
                     width: ${config.area_width || 100}%;
@@ -410,8 +410,8 @@
             </svg>
 
             {{-- Hilfslinien fürs Snapping --}}
-            <div x-show="showGuideX" data-snapshot-ignore="true" class="absolute top-0 bottom-0 border-l border-primary/60 border-dashed pointer-events-none transition-opacity" :style="'left: ' + areaCenterX + '%; z-index: 23;'"></div>
-            <div x-show="showGuideY" data-snapshot-ignore="true" class="absolute left-0 right-0 border-t border-primary/60 border-dashed pointer-events-none transition-opacity" :style="'top: ' + areaCenterY + '%; z-index: 23;'"></div>
+            <div x-show="showGuideX" data-snapshot-ignore="true" class="absolute top-0 bottom-0 border-l border-primary/60 border-dashed pointer-events-none transition-opacity" :style="(showGuideX ? '' : 'display: none; ') + 'left: ' + areaCenterX + '%; z-index: 23;'"></div>
+            <div x-show="showGuideY" data-snapshot-ignore="true" class="absolute left-0 right-0 border-t border-primary/60 border-dashed pointer-events-none transition-opacity" :style="(showGuideY ? '' : 'display: none; ') + 'top: ' + areaCenterY + '%; z-index: 23;'"></div>
 
             {{-- CLIP-CONTAINER FÜR ELEMENTE --}}
             <div class="absolute z-[25] overflow-hidden pointer-events-none"
@@ -580,7 +580,7 @@
                 <template x-for="(textItem,index) in currentTexts" :key="'content-text-' + activeSide + '-' + (textItem.id || index)">
                     <div x-show="currentTexts[index] !== undefined && ((context !== 'preview' && !config.isBeginnerMode && !isCapturing) || (currentTexts[index]?.text && String(currentTexts[index].text).trim() !== ''))"
                          :class="(context === 'preview' || config.isBeginnerMode) ? 'absolute pointer-events-none select-none' : 'absolute touch-none pointer-events-auto group/item'"
-                         :style="currentTexts[index] ? `
+                         :style="(currentTexts[index] !== undefined && ((context !== 'preview' && !config.isBeginnerMode && !isCapturing) || (currentTexts[index]?.text && String(currentTexts[index].text).trim() !== ''))) ? `
                             left: ${config.area_shape === 'custom' ? (currentTexts[index].x ?? areaCenterX) : ((currentTexts[index].x ?? areaCenterX)-(config.area_left ?? 0))/(config.area_width || 100)* 100}%;
                             top: ${config.area_shape === 'custom' ? (currentTexts[index].y ?? areaCenterY) : ((currentTexts[index].y ?? areaCenterY)-(config.area_top ?? 0))/(config.area_height || 100)* 100}%;
                             transform-origin: ${currentTexts[index].align==='left'?'0% 50%':(currentTexts[index].align==='right'?'100% 50%':'50% 50%')};
@@ -643,76 +643,79 @@
 
                             <template x-if="currentTexts[index] !== undefined && (context === 'preview' || config.isBeginnerMode)">
                                 <div>
-                                    <div x-show="!isTextCurved(currentTexts[index], index)"
-                                         class="bg-transparent font-bold block whitespace-pre m-0 border-0 outline-none shadow-none select-none pointer-events-none"
-                                         :class="alignMap[currentTexts[index]?.align || 'center']"
-                                         :style="`
-                                             padding: 2px 6px;
-                                             font-size: ${(20 * (currentTexts[index]?.size || 1)) * scaleFactor}px;
-                                             font-family: ${fontMap[currentTexts[index]?.font] || 'Arial'};
-                                             line-height: 1.15;
-                                             color: ${isDarkSurface ? 'rgba(248, 250, 252, 0.98)' : 'rgba(17, 24, 39, 0.96)'};
-                                             -webkit-text-fill-color: ${isDarkSurface ? '#f8fafc' : '#111827'};
-                                             text-shadow: ${isDarkSurface
-                                                 ? '0px 1px 2px rgba(0,0,0,0.98), 0px 0px 4px rgba(0,0,0,0.92), 0px 0px 8px rgba(0,0,0,0.75)'
-                                                 : '0px 0px 3px rgba(255,255,255,0.95), 0px 0px 6px rgba(255,255,255,0.85), 0px 1px 2px rgba(0,0,0,0.35)'};
-                                             white-space: pre !important;
-                                         `"
-                                         x-text="currentTexts[index]?.text || ''"></div>
+                                    <template x-if="!isTextCurved(currentTexts[index], index)">
+                                        <div class="bg-transparent font-bold block whitespace-pre m-0 border-0 outline-none shadow-none select-none pointer-events-none"
+                                             :class="alignMap[currentTexts[index]?.align || 'center']"
+                                             :style="`
+                                                 padding: 2px 6px;
+                                                 font-size: ${(20 * (currentTexts[index]?.size || 1)) * scaleFactor}px;
+                                                 font-family: ${fontMap[currentTexts[index]?.font] || 'Arial'};
+                                                 line-height: 1.15;
+                                                 color: ${isDarkSurface ? 'rgba(248, 250, 252, 0.98)' : 'rgba(17, 24, 39, 0.96)'};
+                                                 -webkit-text-fill-color: ${isDarkSurface ? '#f8fafc' : '#111827'};
+                                                 text-shadow: ${isDarkSurface
+                                                     ? '0px 1px 2px rgba(0,0,0,0.98), 0px 0px 4px rgba(0,0,0,0.92), 0px 0px 8px rgba(0,0,0,0.75)'
+                                                     : '0px 0px 3px rgba(255,255,255,0.95), 0px 0px 6px rgba(255,255,255,0.85), 0px 1px 2px rgba(0,0,0,0.35)'};
+                                                 white-space: pre !important;
+                                             `"
+                                             x-text="currentTexts[index]?.text || ''"></div>
+                                    </template>
 
-                                    <div x-show="isTextCurved(currentTexts[index], index)"
-                                         class="relative pointer-events-none select-none overflow-visible"
-                                         :style="`
-                                             width: ${ensureTextDims(currentTexts[index]).width};
-                                             height: ${ensureTextDims(currentTexts[index]).height};
-                                             color: ${isDarkSurface ? 'rgba(248, 250, 252, 0.98)' : 'rgba(17, 24, 39, 0.96)'};
-                                             -webkit-text-fill-color: ${isDarkSurface ? '#f8fafc' : '#111827'};
-                                             text-shadow: ${isDarkSurface
-                                                 ? '0px 1px 2px rgba(0,0,0,0.98), 0px 0px 4px rgba(0,0,0,0.92), 0px 0px 8px rgba(0,0,0,0.75)'
-                                                 : '0px 0px 3px rgba(255,255,255,0.95), 0px 0px 6px rgba(255,255,255,0.85), 0px 1px 2px rgba(0,0,0,0.35)'};
-                                         `">
-                                        <template x-for="(ch, chIdx) in getCurvedTextChars(currentTexts[index], index)" :key="chIdx">
-                                            <span class="absolute font-bold whitespace-pre leading-none select-none pointer-events-none"
-                                                  :style="`
-                                                      left: 50%;
-                                                      top: 50%;
-                                                      font-size: ${ch.fontSizePx}px;
-                                                      font-family: ${fontMap[currentTexts[index]?.font] || 'Arial'};
-                                                      transform-origin: 50% 50%;
-                                                      will-change: transform;
-                                                      transform: translate3d(calc(-50% + ${ch.x}px), calc(-50% + ${ch.y}px), 0) rotate(${ch.deg}deg);
-                                                  `"
-                                                  x-text="ch.char"></span>
-                                        </template>
-                                    </div>
+                                    <template x-if="isTextCurved(currentTexts[index], index)">
+                                        <div class="relative pointer-events-none select-none overflow-visible"
+                                             :style="`
+                                                 width: ${ensureTextDims(currentTexts[index]).width};
+                                                 height: ${ensureTextDims(currentTexts[index]).height};
+                                                 color: ${isDarkSurface ? 'rgba(248, 250, 252, 0.98)' : 'rgba(17, 24, 39, 0.96)'};
+                                                 -webkit-text-fill-color: ${isDarkSurface ? '#f8fafc' : '#111827'};
+                                                 text-shadow: ${isDarkSurface
+                                                     ? '0px 1px 2px rgba(0,0,0,0.98), 0px 0px 4px rgba(0,0,0,0.92), 0px 0px 8px rgba(0,0,0,0.75)'
+                                                     : '0px 0px 3px rgba(255,255,255,0.95), 0px 0px 6px rgba(255,255,255,0.85), 0px 1px 2px rgba(0,0,0,0.35)'};
+                                             `">
+                                            <template x-for="(ch, chIdx) in getCurvedTextChars(currentTexts[index], index)" :key="chIdx">
+                                                <span class="absolute font-bold whitespace-pre leading-none select-none pointer-events-none"
+                                                      :style="`
+                                                          left: 50%;
+                                                          top: 50%;
+                                                          font-size: ${ch.fontSizePx}px;
+                                                          font-family: ${fontMap[currentTexts[index]?.font] || 'Arial'};
+                                                          transform-origin: 50% 50%;
+                                                          will-change: transform;
+                                                          transform: translate3d(calc(-50% + ${ch.x}px), calc(-50% + ${ch.y}px), 0) rotate(${ch.deg}deg);
+                                                      `"
+                                                      x-text="ch.char"></span>
+                                            </template>
+                                        </div>
+                                    </template>
                                 </div>
                             </template>
 
                             <template x-if="currentTexts[index] !== undefined && context !== 'preview' && !config.isBeginnerMode">
                                 <div class="relative">
-                                    <div x-show="isTextCurved(currentTexts[index], index)"
-                                         class="absolute inset-0 pointer-events-none select-none overflow-visible"
-                                         :style="`
-                                             color: ${isDarkSurface ? 'rgba(248, 250, 252, 0.98)' : 'rgba(17, 24, 39, 0.96)'};
-                                             -webkit-text-fill-color: ${isDarkSurface ? '#f8fafc' : '#111827'};
-                                             text-shadow: ${isDarkSurface
-                                                 ? '0px 1px 2px rgba(0,0,0,0.98), 0px 0px 4px rgba(0,0,0,0.92), 0px 0px 8px rgba(0,0,0,0.75)'
-                                                 : '0px 0px 3px rgba(255,255,255,0.95), 0px 0px 6px rgba(255,255,255,0.85), 0px 1px 2px rgba(0,0,0,0.35)'};
-                                         `">
-                                        <template x-for="(ch, chIdx) in getCurvedTextChars(currentTexts[index], index)" :key="chIdx">
-                                            <span class="absolute font-bold whitespace-pre leading-none select-none pointer-events-none"
-                                                  :style="`
-                                                      left: 50%;
-                                                      top: 50%;
-                                                      font-size: ${ch.fontSizePx}px;
-                                                      font-family: ${fontMap[currentTexts[index]?.font] || 'Arial'};
-                                                      transform-origin: 50% 50%;
-                                                      will-change: transform;
-                                                      transform: translate3d(calc(-50% + ${ch.x}px), calc(-50% + ${ch.y}px), 0) rotate(${ch.deg}deg);
-                                                  `"
-                                                  x-text="ch.char"></span>
-                                        </template>
-                                    </div>
+                                    <template x-if="isTextCurved(currentTexts[index], index)">
+                                        <div class="absolute inset-0 pointer-events-none select-none overflow-visible"
+                                             :style="`
+                                                 color: ${isDarkSurface ? 'rgba(248, 250, 252, 0.98)' : 'rgba(17, 24, 39, 0.96)'};
+                                                 -webkit-text-fill-color: ${isDarkSurface ? '#f8fafc' : '#111827'};
+                                                 text-shadow: ${isDarkSurface
+                                                     ? '0px 1px 2px rgba(0,0,0,0.98), 0px 0px 4px rgba(0,0,0,0.92), 0px 0px 8px rgba(0,0,0,0.75)'
+                                                     : '0px 0px 3px rgba(255,255,255,0.95), 0px 0px 6px rgba(255,255,255,0.85), 0px 1px 2px rgba(0,0,0,0.35)'};
+                                             `">
+                                            <template x-for="(ch, chIdx) in getCurvedTextChars(currentTexts[index], index)" :key="chIdx">
+                                                <span class="absolute font-bold whitespace-pre leading-none select-none pointer-events-none"
+                                                      :style="`
+                                                          left: 50%;
+                                                          top: 50%;
+                                                          font-size: ${ch.fontSizePx}px;
+                                                          font-family: ${fontMap[currentTexts[index]?.font] || 'Arial'};
+                                                          transform-origin: 50% 50%;
+                                                          will-change: transform;
+                                                          transform: translate3d(calc(-50% + ${ch.x}px), calc(-50% + ${ch.y}px), 0) rotate(${ch.deg}deg);
+                                                      `"
+                                                      x-text="ch.char"></span>
+                                            </template>
+                                        </div>
+                                    </template>
 
                                     <textarea x-model="currentTexts[index].text"
                                               :data-id="currentTexts[index].id"
@@ -736,10 +739,10 @@
                                               :style="`
                                                     width: ${ensureTextDims(currentTexts[index]).width};
                                                     height: ${ensureTextDims(currentTexts[index]).height};
-                                                    padding: 2px 6px;
+                                                    padding: 10px 10px;
                                                     font-size: ${getEffectiveTextareaFontSizePx(currentTexts[index])}px;
                                                     font-family: ${fontMap[currentTexts[index]?.font] || 'Arial'};
-                                                    line-height: 1.15;
+                                                    line-height: 1.28;
                                                     color: ${isTextCurved(currentTexts[index], index) ? 'transparent' : (isDarkSurface ? 'rgba(248, 250, 252, 0.98)' : 'rgba(17, 24, 39, 0.96)')};
                                                     -webkit-text-fill-color: ${isTextCurved(currentTexts[index], index) ? 'transparent' : (isDarkSurface ? '#f8fafc' : '#111827')};
                                                     caret-color: ${(isTextCurved(currentTexts[index], index) || (focusedTextId === currentTexts[index]?.id && (!currentTexts[index]?.text || currentTexts[index]?.text.length === 0))) ? 'transparent' : '#C5A059'};
