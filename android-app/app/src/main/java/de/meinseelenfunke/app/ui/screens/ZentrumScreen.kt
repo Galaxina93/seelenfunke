@@ -568,7 +568,7 @@ fun DashboardContent(
                     ) {
                         Image(
                             painter = painterResource(id = R.drawable.falcon_avatar),
-                            contentDescription = "Falcon 3D Fokus",
+                            contentDescription = "Falcone 3D Fokus",
                             contentScale = ContentScale.Fit,
                             modifier = Modifier.fillMaxSize()
                         )
@@ -594,7 +594,7 @@ fun DashboardContent(
                                 .padding(horizontal = 8.dp, vertical = 2.dp)
                         ) {
                             Text(
-                                text = "Falcon",
+                                text = "Falcone",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Gold

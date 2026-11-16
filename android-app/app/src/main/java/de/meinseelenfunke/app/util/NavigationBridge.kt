@@ -52,6 +52,13 @@ object NavigationBridge {
     @Volatile
     var pendingWakeWordTrigger: Boolean = false
 
+    private const val DEFAULT_FAST_UNLOCK_WINDOW_MS = 15_000L
+
+    @Volatile
+    private var trustedFastUnlockGrantedAtMs: Long = 0L
+
+    internal var elapsedRealtimeProvider: () -> Long = { android.os.SystemClock.elapsedRealtime() }
+
     private val _navigationTrigger = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val navigationTrigger: SharedFlow<Unit> = _navigationTrigger.asSharedFlow()
 
@@ -60,6 +67,9 @@ object NavigationBridge {
 
     private val _wakeWordTrigger = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val wakeWordTrigger: SharedFlow<Unit> = _wakeWordTrigger.asSharedFlow()
+
+    private val _trustedFastUnlockTrigger = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val trustedFastUnlockTrigger: SharedFlow<Unit> = _trustedFastUnlockTrigger.asSharedFlow()
 
     private val _logoutTrigger = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val logoutTrigger: SharedFlow<Unit> = _logoutTrigger.asSharedFlow()
@@ -152,7 +162,25 @@ object NavigationBridge {
         _wakeWordTrigger.tryEmit(Unit)
     }
 
+    fun grantTrustedFastUnlock() {
+        val now = elapsedRealtimeProvider().coerceAtLeast(1L)
+        trustedFastUnlockGrantedAtMs = now
+        _trustedFastUnlockTrigger.tryEmit(Unit)
+    }
+
+    fun hasRecentTrustedFastUnlock(windowMs: Long = DEFAULT_FAST_UNLOCK_WINDOW_MS): Boolean {
+        val grantedAt = trustedFastUnlockGrantedAtMs
+        if (grantedAt <= 0L) return false
+        val elapsed = elapsedRealtimeProvider() - grantedAt
+        return elapsed in 0L..windowMs
+    }
+
+    fun clearTrustedFastUnlock() {
+        trustedFastUnlockGrantedAtMs = 0L
+    }
+
     fun triggerLogout() {
+        clearTrustedFastUnlock()
         _logoutTrigger.tryEmit(Unit)
     }
 }

@@ -16,6 +16,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -95,6 +96,7 @@ import de.meinseelenfunke.app.ui.theme.Emerald500
 import de.meinseelenfunke.app.ui.theme.Gold
 import de.meinseelenfunke.app.ui.theme.Rose500
 import de.meinseelenfunke.app.ui.theme.SpaceBlack
+import de.meinseelenfunke.app.util.AgDirectChannel
 import de.meinseelenfunke.app.util.AgDirectDisplayItem
 import de.meinseelenfunke.app.util.AgDirectInboxManager
 import de.meinseelenfunke.app.util.AgDirectStatus
@@ -127,6 +129,7 @@ fun AgDirectInboxSheet(
     var messageText by remember { mutableStateOf("") }
     val checklistItems = remember { mutableStateListOf<String>() }
     var executionMode by remember { mutableStateOf("concept") }
+    var selectedChannel by remember { mutableStateOf(AgDirectChannel.LEITUNG.code) }
     var selectedAttachment by remember { mutableStateOf(initialAttachment) }
     var isPreparingImage by remember { mutableStateOf(false) }
     var expandedItemId by remember { mutableStateOf<String?>(null) }
@@ -218,13 +221,13 @@ fun AgDirectInboxSheet(
                     ) {
                         Image(
                             painter = painterResource(id = R.drawable.falcon_avatar),
-                            contentDescription = "Falcon",
+                            contentDescription = "Falcone",
                             contentScale = ContentScale.Fit,
                             modifier = Modifier.fillMaxSize()
                         )
                     }
                     Text(
-                        text = "Direktnachricht · Falcon",
+                        text = "Direktnachricht · Falcone",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
                         color = AppTheme.colors.textPrimary
@@ -278,6 +281,23 @@ fun AgDirectInboxSheet(
                             modifier = Modifier.size(16.dp)
                         )
                     }
+                }
+            }
+
+            // 1-zeilige Abteilungs-Kanal-Leiste (ohne Subtext)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                AgDirectChannel.entries.forEach { channelEntry ->
+                    AgChannelChip(
+                        label = channelEntry.chipLabel,
+                        selected = selectedChannel == channelEntry.code,
+                        onClick = { selectedChannel = channelEntry.code }
+                    )
                 }
             }
 
@@ -595,6 +615,7 @@ fun AgDirectInboxSheet(
                     val rawSnapshot = messageText
                     val checklistSnapshot = checklistItems.map { it.trim() }.filter { it.isNotEmpty() }
                     val modeSnapshot = executionMode
+                    val channelSnapshot = selectedChannel
                     val attachmentSnapshot = selectedAttachment
 
                     // Formular sofort leeren für den nächsten Gedanken
@@ -602,17 +623,19 @@ fun AgDirectInboxSheet(
                     checklistItems.clear()
                     selectedAttachment = null
                     executionMode = "concept"
+                    selectedChannel = AgDirectChannel.LEITUNG.code
                     if (attachmentSnapshot != null) {
                         onAttachmentSubmitted()
                     }
 
                     scope.launch {
-                        val sentLive = AgDirectInboxManager.submitNewEntry(
+                        val sentLive = AgDirectInboxManager.submitMessage(
                             context = context,
                             rawText = rawSnapshot,
                             checklist = checklistSnapshot,
                             executionMode = modeSnapshot,
-                            attachment = attachmentSnapshot
+                            attachment = attachmentSnapshot,
+                            channel = channelSnapshot
                         )
                         if (!sentLive) {
                             Toast.makeText(
@@ -637,7 +660,7 @@ fun AgDirectInboxSheet(
                 contentPadding = PaddingValues(horizontal = 16.dp)
             ) {
                 Text(
-                    text = "An Falcon senden",
+                    text = "An Falcone senden",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -692,6 +715,36 @@ fun AgDirectInboxSheet(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun AgChannelChip(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    val bgColor = if (selected) Gold.copy(alpha = 0.16f) else AppTheme.colors.glassSurface
+    val borderColor = if (selected) Gold else AppTheme.colors.cardBorder
+    val textColor = if (selected) Gold else AppTheme.colors.textSecondary
+
+    Box(
+        modifier = Modifier
+            .height(34.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(bgColor)
+            .border(1.dp, borderColor, RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 11.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            fontSize = 12.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            color = textColor,
+            maxLines = 1
+        )
     }
 }
 
@@ -775,38 +828,30 @@ private fun AgHistoryItemCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
+            val channelBadgeLabel = AgDirectInboxManager.resolveChannelEnum(item.channel).chipLabel
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier.weight(1f)
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(AppTheme.colors.cardBackground)
+                        .border(1.dp, Gold.copy(alpha = 0.42f), RoundedCornerShape(6.dp))
+                        .padding(horizontal = 7.dp, vertical = 2.dp)
                 ) {
                     Text(
-                        text = item.title,
-                        fontSize = 13.5.sp,
+                        text = channelBadgeLabel,
+                        fontSize = 10.5.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = AppTheme.colors.textPrimary,
-                        maxLines = if (expanded) 4 else 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false)
+                        maxLines = 1
                     )
-                    if (item.hasAttachment) {
-                        Icon(
-                            imageVector = Icons.Default.Image,
-                            contentDescription = "Bild vorhanden",
-                            tint = Gold,
-                            modifier = Modifier.size(14.dp)
-                        )
-                    }
                 }
-
-                Spacer(modifier = Modifier.width(8.dp))
 
                 Box(
                     modifier = Modifier
@@ -820,6 +865,30 @@ private fun AgHistoryItemCard(
                         fontSize = 10.5.sp,
                         fontWeight = FontWeight.Bold,
                         color = badgeText
+                    )
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(
+                    text = item.title,
+                    fontSize = 13.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = AppTheme.colors.textPrimary,
+                    maxLines = if (expanded) 4 else 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+                if (item.hasAttachment) {
+                    Icon(
+                        imageVector = Icons.Default.Image,
+                        contentDescription = "Bild vorhanden",
+                        tint = Gold,
+                        modifier = Modifier.size(14.dp)
                     )
                 }
             }

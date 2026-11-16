@@ -181,6 +181,7 @@ class CalendarAppWidgetProvider : AppWidgetProvider() {
             val appIntent = Intent(appContext, MainActivity::class.java).apply {
                 putExtra("open_tab", 2)
                 putExtra("open_subtab", 1)
+                putExtra(de.meinseelenfunke.app.util.SecurityIntentHelper.EXTRA_FROM_WIDGET, true)
                 data = Uri.parse("funkenwerk://calendar/open_app/$appWidgetId")
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
                 de.meinseelenfunke.app.util.SecurityIntentHelper.signIntent(appContext, this)
@@ -198,6 +199,7 @@ class CalendarAppWidgetProvider : AppWidgetProvider() {
                 putExtra("open_tab", 2)
                 putExtra("open_subtab", 1)
                 putExtra("create_event", true)
+                putExtra(de.meinseelenfunke.app.util.SecurityIntentHelper.EXTRA_FROM_WIDGET, true)
                 data = Uri.parse("funkenwerk://calendar/add_event/$appWidgetId")
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
                 de.meinseelenfunke.app.util.SecurityIntentHelper.signIntent(appContext, this)
@@ -213,6 +215,7 @@ class CalendarAppWidgetProvider : AppWidgetProvider() {
             // Setup Mutable PendingIntent template for ListView item clicks (Android 14-17 compliant)
             val clickIntent = Intent(appContext, MainActivity::class.java).apply {
                 action = Intent.ACTION_VIEW
+                putExtra(de.meinseelenfunke.app.util.SecurityIntentHelper.EXTRA_FROM_WIDGET, true)
                 data = Uri.parse("funkenwerk://calendar/item_click/$appWidgetId")
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
                 de.meinseelenfunke.app.util.SecurityIntentHelper.signIntent(appContext, this)

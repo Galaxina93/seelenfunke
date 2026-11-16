@@ -153,11 +153,21 @@ fun FalconFocusScreen(
     var pendingCameraAction by remember { mutableStateOf<PendingCameraAction?>(null) }
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
     var pageLoaded by remember { mutableStateOf(false) }
+    var hasPromptedWakeWordMic by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+
+    val wakeWordMicLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            de.meinseelenfunke.app.services.WakeWordService.syncServiceState(context)
+        }
+    }
 
     val micPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted) {
+            de.meinseelenfunke.app.services.WakeWordService.syncServiceState(context)
             SoundManager.playSound(R.raw.open_project_brain)
             viewModel.startLiveChat()
         } else {
@@ -187,6 +197,21 @@ fun FalconFocusScreen(
         AgDirectInboxManager.hydrateLocalState(context)
         AgDirectInboxManager.refreshAsync(context)
         MusicPlayerManager.ensureCatalogLoadedFast(context)
+        if (de.meinseelenfunke.app.di.ServiceLocator.isWakeWordEnabled()) {
+            val hasMic = ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.RECORD_AUDIO
+            ) == PackageManager.PERMISSION_GRANTED
+            if (hasMic) {
+                de.meinseelenfunke.app.services.WakeWordService.syncServiceState(context)
+            } else if (!autoStartVoice &&
+                !hasPromptedWakeWordMic &&
+                !de.meinseelenfunke.app.util.PhoneConciergeManager.isEnabled(context)
+            ) {
+                hasPromptedWakeWordMic = true
+                wakeWordMicLauncher.launch(Manifest.permission.RECORD_AUDIO)
+            }
+        }
     }
 
     LaunchedEffect(Unit) {
@@ -454,7 +479,7 @@ fun FalconFocusScreen(
                         )
                 )
                 Text(
-                    text = "Falcon · Mitgründer",
+                    text = "Falcone · Mitgründer",
                     fontSize = 12.5.sp,
                     fontWeight = FontWeight.Bold,
                     color = stageHudText,
@@ -596,7 +621,7 @@ fun FalconFocusScreen(
                     if (previewBitmap != null) {
                         Image(
                             bitmap = previewBitmap!!,
-                            contentDescription = "Falcon Live-Kamera",
+                            contentDescription = "Falcone Live-Kamera",
                             contentScale = ContentScale.Crop,
                             modifier = Modifier.fillMaxSize()
                         )
@@ -836,7 +861,7 @@ fun FalconFocusScreen(
                         } else {
                             Icon(
                                 imageVector = if (isConnected) Icons.Default.CallEnd else Icons.Default.Mic,
-                                contentDescription = if (isConnected) "Gespräch beenden" else "Mit Falcon sprechen",
+                                contentDescription = if (isConnected) "Gespräch beenden" else "Mit Falcone sprechen",
                                 tint = if (isConnected) Color.White else SpaceBlack,
                                 modifier = Modifier.size(27.dp)
                             )

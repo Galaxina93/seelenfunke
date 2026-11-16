@@ -713,6 +713,16 @@ fun SettingsScreen(
             }
 
             // Background Wake Word Card
+            val wakeWordMicLauncher = rememberLauncherForActivityResult(
+                contract = ActivityResultContracts.RequestPermission()
+            ) { granted ->
+                if (granted) {
+                    de.meinseelenfunke.app.services.WakeWordService.syncServiceState(context)
+                } else {
+                    Toast.makeText(context, "Mikrofon-Berechtigung benötigt.", Toast.LENGTH_SHORT).show()
+                }
+            }
+
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = AppTheme.colors.cardBackground),
@@ -727,14 +737,23 @@ fun SettingsScreen(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = "Wake Word (Hey Funkira)",
+                        text = "Wake Word (Hey Falcone)",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = AppTheme.colors.textPrimary
                     )
                     Switch(
                         checked = wakeWordEnabled,
-                        onCheckedChange = { viewModel.setWakeWordEnabled(it) },
+                        onCheckedChange = { enabled ->
+                            viewModel.setWakeWordEnabled(enabled)
+                            if (enabled && androidx.core.content.ContextCompat.checkSelfPermission(
+                                    context,
+                                    Manifest.permission.RECORD_AUDIO
+                                ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+                            ) {
+                                wakeWordMicLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                            }
+                        },
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = Emerald500,
                             checkedTrackColor = Emerald500.copy(alpha = 0.5f)

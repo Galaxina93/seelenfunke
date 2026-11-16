@@ -22,6 +22,7 @@ data class AgDirectInboxItemDto(
     @SerializedName("body") val body: String? = "",
     @SerializedName("checklist") val checklist: List<String>? = emptyList(),
     @SerializedName("execution_mode") val execution_mode: String? = "concept",
+    @SerializedName("channel") val channel: String? = "leitung",
     @SerializedName("status") val status: String? = "pending",
     @SerializedName("has_attachment") val has_attachment: Boolean = false,
     @SerializedName("attachment_name") val attachment_name: String? = null,
@@ -44,6 +45,7 @@ data class AgDirectCreateRequest(
     @SerializedName("body") val body: String = "",
     @SerializedName("checklist") val checklist: List<String> = emptyList(),
     @SerializedName("execution_mode") val execution_mode: String = "concept",
+    @SerializedName("channel") val channel: String = "leitung",
     @SerializedName("attachment_base64") val attachment_base64: String? = null,
     @SerializedName("attachment_mime") val attachment_mime: String? = null,
     @SerializedName("attachment_name") val attachment_name: String? = null

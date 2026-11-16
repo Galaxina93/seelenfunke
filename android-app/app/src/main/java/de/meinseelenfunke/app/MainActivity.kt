@@ -45,6 +45,9 @@ class MainActivity : FragmentActivity() {
         de.meinseelenfunke.app.util.ErrorSentinelReporter.install(this)
         FunkenwerkAlarmManager.ensureInitialized(this)
 
+        // Evaluate signed Voice / Widget Intent BEFORE setContent so cold-start Fast-Unlock is immediately active!
+        handleIntent(intent)
+
         SoundManager.playSound(R.raw.open_project_brain)
 
         setContent {
@@ -72,8 +75,6 @@ class MainActivity : FragmentActivity() {
                 }
             }
         }
-
-        handleIntent(intent)
     }
 
     override fun onStop() {
@@ -94,6 +95,7 @@ class MainActivity : FragmentActivity() {
 
         val hasInternalActionExtras = try {
             intent.getBooleanExtra("start_voice_call", false)
+                || intent.getBooleanExtra(SecurityIntentHelper.EXTRA_FROM_WIDGET, false)
                 || intent.hasExtra("navigate_to")
                 || intent.hasExtra("open_tab")
         } catch (_: Exception) {
@@ -105,6 +107,11 @@ class MainActivity : FragmentActivity() {
         // Block untrusted third-party apps from spoofing deep navigation or auto-starting live microphone voice calls
         if (!SecurityIntentHelper.isTrustedInternalIntent(this, intent)) {
             return
+        }
+
+        // Grant trusted fast-unlock when Android OS keyguard is already unlocked and Intent is cryptographically signed
+        if (SecurityIntentHelper.canGrantTrustedFastUnlock(this, intent)) {
+            NavigationBridge.grantTrustedFastUnlock()
         }
 
         if (intent.getBooleanExtra("start_voice_call", false)) {

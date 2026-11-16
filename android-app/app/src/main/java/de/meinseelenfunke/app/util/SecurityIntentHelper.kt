@@ -11,6 +11,7 @@ import java.security.MessageDigest
 
 object SecurityIntentHelper {
     const val EXTRA_SECURITY_TOKEN = "_fw_sec_token"
+    const val EXTRA_FROM_WIDGET = "from_widget"
 
     /**
      * Attaches the app-private 256-bit security token (stored in AndroidKeyStore)
@@ -56,6 +57,36 @@ object SecurityIntentHelper {
     fun isDeviceLocked(context: Context): Boolean {
         val keyguardManager = context.getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
         return keyguardManager?.isDeviceLocked == true
+    }
+
+    /**
+     * Grants trusted biometric fast-unlock ONLY when all 4 zero-trust conditions hold:
+     * 1. User has an active authenticated session (`isLoggedIn() == true`)
+     * 2. Android OS Keyguard is already unlocked (`!isDeviceLocked(context)`)
+     * 3. Intent carries a valid constant-time verified 256-bit AndroidKeyStore `_fw_sec_token`
+     * 4. Intent originates from Voice ("Hey Falcone") or a signed Homescreen Widget action
+     */
+    fun canGrantTrustedFastUnlock(
+        context: Context,
+        intent: Intent?,
+        isDeviceLockedOverride: Boolean? = null
+    ): Boolean {
+        if (intent == null) return false
+        val appCtx = context.applicationContext
+        ServiceLocator.ensureInitialized(appCtx)
+        if (!ServiceLocator.authRepository.isLoggedIn()) return false
+        val locked = isDeviceLockedOverride ?: isDeviceLocked(context)
+        if (locked) return false
+        if (!isTrustedInternalIntent(context, intent)) return false
+
+        return try {
+            intent.getBooleanExtra("start_voice_call", false) ||
+                intent.getBooleanExtra(EXTRA_FROM_WIDGET, false) ||
+                intent.hasExtra("open_tab") ||
+                intent.hasExtra("navigate_to")
+        } catch (_: Exception) {
+            false
+        }
     }
 
     /**

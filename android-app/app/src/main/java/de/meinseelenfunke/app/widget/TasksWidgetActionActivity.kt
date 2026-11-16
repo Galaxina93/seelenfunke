@@ -91,6 +91,7 @@ class TasksWidgetActionActivity : Activity() {
                     Intent(this, MainActivity::class.java).apply {
                         putExtra("open_tab", 2)
                         putExtra("open_subtab", 1)
+                        putExtra(de.meinseelenfunke.app.util.SecurityIntentHelper.EXTRA_FROM_WIDGET, true)
                         if (!selectedDate.isNullOrBlank()) {
                             putExtra("selected_date", selectedDate)
                         }

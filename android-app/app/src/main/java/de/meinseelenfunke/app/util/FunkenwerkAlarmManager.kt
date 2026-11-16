@@ -3547,6 +3547,8 @@ object FunkenwerkAlarmManager {
     // =========================================================================
     // LOCAL WI-FI SMART-HOME PLUG CONTROL (TAPO P100/P110 KLAP v2 PROTOCOL)
     // =========================================================================
+    private val lastKnownPlugStateByIp = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
+
     suspend fun triggerSmartPlugsSuspend(
         context: Context,
         ips: List<String>,
@@ -3575,6 +3577,97 @@ object FunkenwerkAlarmManager {
         }
         return Pair(anySuccess, results.joinToString(" · "))
     }
+
+    suspend fun toggleSmartPlugsSuspend(
+        context: Context,
+        ips: List<String>
+    ): Pair<Boolean, String> {
+        if (ips.isEmpty()) {
+            return Pair(false, "Keine Smart-Home Steckdose ausgewählt.")
+        }
+        val appCtx = context.applicationContext
+        ensureInitialized(appCtx)
+        val (email, pass) = getTapoCredentials(appCtx)
+        val normalizedIps = ips.map { ip ->
+            val clean = ip.trim()
+            if (clean == "192.168.188.106") "192.168.188.110" else clean
+        }.distinct()
+        val plugNamesByIp = _smartPlugsFlow.value.associate { it.ip to it.name }
+
+        acquireAlarmWakeLock(appCtx, 30_000L)
+        val results = mutableListOf<String>()
+        var anySuccess = false
+        for (ip in normalizedIps) {
+            val currentOn = readPlugStateKlapV2(ip, email, pass)
+                ?: lastKnownPlugStateByIp[ip]
+                ?: false
+            val targetOn = !currentOn
+            val (ok, msg) = setPlugStateKlapV2(ip, email, pass, targetOn)
+            if (ok) anySuccess = true
+            val label = plugNamesByIp[ip] ?: ip
+            results.add("$label: $msg")
+        }
+        return Pair(anySuccess, results.joinToString(" · "))
+    }
+
+    suspend fun readPlugStateKlapV2(ip: String, email: String, password: String): Boolean? =
+        withContext(Dispatchers.IO) {
+            val cleanIp = ip.trim()
+            if (!isValidPrivateLanIpv4(cleanIp)) return@withContext null
+            val effEmail = email.trim()
+            if (effEmail.isBlank() || password.isBlank()) return@withContext null
+            try {
+                val localSeed = ByteArray(16)
+                SecureRandom().nextBytes(localSeed)
+                val (hs1Bytes, sessionCookie) = postRawBytesWithCookie("http://$cleanIp/app/handshake1", localSeed, "application/octet-stream", null)
+                if (hs1Bytes == null || hs1Bytes.size < 48) return@withContext null
+
+                val remoteSeed = hs1Bytes.copyOfRange(0, 16)
+                val serverHash = hs1Bytes.copyOfRange(16, 48)
+                val userSha1 = sha1(effEmail.toByteArray(Charsets.UTF_8))
+                val passSha1 = sha1(password.toByteArray(Charsets.UTF_8))
+                val authHash = sha256(combine(userSha1, passSha1))
+
+                val expectedServerHash = sha256(combine(localSeed, remoteSeed, authHash))
+                if (!MessageDigest.isEqual(expectedServerHash, serverHash)) return@withContext null
+
+                val clientHash = sha256(combine(remoteSeed, localSeed, authHash))
+                val (hs2Bytes, hs2Cookie) = postRawBytesWithCookie("http://$cleanIp/app/handshake2", clientHash, "application/octet-stream", sessionCookie)
+                if (hs2Bytes == null) return@withContext null
+                val activeCookie = hs2Cookie ?: sessionCookie
+
+                val key = sha256(combine("lsk".toByteArray(Charsets.UTF_8), localSeed, remoteSeed, authHash)).copyOfRange(0, 16)
+                val ivFull = sha256(combine("iv".toByteArray(Charsets.UTF_8), localSeed, remoteSeed, authHash))
+                val ivPrefix = ivFull.copyOfRange(0, 12)
+                val seq = ByteBuffer.wrap(ivFull.copyOfRange(ivFull.size - 4, ivFull.size)).int + 1
+                val sigKey = sha256(combine("ldk".toByteArray(Charsets.UTF_8), localSeed, remoteSeed, authHash)).copyOfRange(0, 28)
+
+                val seqBytes = ByteBuffer.allocate(4).putInt(seq).array()
+                val iv = combine(ivPrefix, seqBytes)
+
+                val payloadJson = """{"method":"get_device_info","requestTimeMils":${System.currentTimeMillis()}}"""
+                val encCipher = Cipher.getInstance("AES/CBC/PKCS5Padding")
+                encCipher.init(Cipher.ENCRYPT_MODE, SecretKeySpec(key, "AES"), IvParameterSpec(iv))
+                val cipherBytes = encCipher.doFinal(payloadJson.toByteArray(Charsets.UTF_8))
+                val sig = sha256(combine(sigKey, seqBytes, cipherBytes))
+                val reqBody = combine(sig, cipherBytes)
+
+                val (resp, _) = postRawBytesWithCookie("http://$cleanIp/app/request?seq=$seq", reqBody, "application/octet-stream", activeCookie)
+                if (resp == null || resp.size <= 32) return@withContext null
+
+                val decCipher = Cipher.getInstance("AES/CBC/PKCS5Padding")
+                decCipher.init(Cipher.DECRYPT_MODE, SecretKeySpec(key, "AES"), IvParameterSpec(iv))
+                val plainBytes = decCipher.doFinal(resp.copyOfRange(32, resp.size))
+                val rootObj = JSONObject(String(plainBytes, Charsets.UTF_8))
+                val resultObj = rootObj.optJSONObject("result") ?: return@withContext null
+                if (!resultObj.has("device_on")) return@withContext null
+                val isOn = resultObj.optBoolean("device_on", false)
+                lastKnownPlugStateByIp[cleanIp] = isOn
+                isOn
+            } catch (_: Exception) {
+                null
+            }
+        }
 
     fun triggerSmartPlugsAsync(
         context: Context,
@@ -3661,6 +3754,7 @@ object FunkenwerkAlarmManager {
 
                 val (resp, _) = postRawBytesWithCookie("http://$cleanIp/app/request?seq=$seq", reqBody, "application/octet-stream", activeCookie)
                 if (resp != null) {
+                    lastKnownPlugStateByIp[cleanIp] = turnOn
                     Pair(true, if (turnOn) "EIN geschaltet" else "AUS geschaltet")
                 } else {
                     Pair(false, "Befehl fehlgeschlagen")

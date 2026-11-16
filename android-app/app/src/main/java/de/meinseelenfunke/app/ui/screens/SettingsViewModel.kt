@@ -85,20 +85,6 @@ class SettingsViewModel : ViewModel() {
     fun setWakeWordEnabled(enabled: Boolean) {
         _wakeWordEnabled.value = enabled
         ServiceLocator.setWakeWordEnabled(enabled)
-        val context = ServiceLocator.context
-        val intent = android.content.Intent(context, de.meinseelenfunke.app.services.WakeWordService::class.java)
-        try {
-            if (enabled) {
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                    context.startForegroundService(intent)
-                } else {
-                    context.startService(intent)
-                }
-            } else {
-                context.stopService(intent)
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
+        de.meinseelenfunke.app.services.WakeWordService.syncServiceState(ServiceLocator.context)
     }
 }

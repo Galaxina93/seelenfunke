@@ -272,6 +272,7 @@ class CalendarMonthWidgetProvider : AppWidgetProvider() {
             val openAppIntent = Intent(appContext, MainActivity::class.java).apply {
                 putExtra("open_tab", 2)
                 putExtra("open_subtab", 1)
+                putExtra(de.meinseelenfunke.app.util.SecurityIntentHelper.EXTRA_FROM_WIDGET, true)
                 data = Uri.parse("funkenwerk://calendar_month/open_app/$appWidgetId")
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
                 de.meinseelenfunke.app.util.SecurityIntentHelper.signIntent(appContext, this)
@@ -347,6 +348,7 @@ class CalendarMonthWidgetProvider : AppWidgetProvider() {
                 putExtra("open_subtab", 1)
                 putExtra("create_event", true)
                 putExtra("selected_date", targetDateStr)
+                putExtra(de.meinseelenfunke.app.util.SecurityIntentHelper.EXTRA_FROM_WIDGET, true)
                 data = Uri.parse("funkenwerk://calendar_month/add_event/$appWidgetId/$targetDateStr")
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
                 de.meinseelenfunke.app.util.SecurityIntentHelper.signIntent(appContext, this)
@@ -494,6 +496,7 @@ class CalendarMonthWidgetProvider : AppWidgetProvider() {
                             putExtra("open_tab", 2)
                             putExtra("open_subtab", 1)
                             putExtra("selected_date", targetDateStr)
+                            putExtra(de.meinseelenfunke.app.util.SecurityIntentHelper.EXTRA_FROM_WIDGET, true)
                             data = Uri.parse("funkenwerk://calendar_month/event/$appWidgetId/$i/$targetDateStr")
                             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
                             de.meinseelenfunke.app.util.SecurityIntentHelper.signIntent(appContext, this)

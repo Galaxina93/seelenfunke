@@ -116,7 +116,7 @@ class FalconClientToolsAndMusicMatcherTest {
     }
 
     @Test
-    fun toolSchemaInjection_registersAllSixFalconLocalToolsWithoutDuplicates() {
+    fun toolSchemaInjection_registersAllSevenFalconLocalToolsWithoutDuplicates() {
         val decls = JsonArray().apply {
             add(JsonObject().apply {
                 addProperty("name", "master_get_dashboard")
@@ -130,10 +130,15 @@ class FalconClientToolsAndMusicMatcherTest {
         val names = (0 until decls.size()).map {
             decls.get(it).asJsonObject.get("name").asString
         }
-        assertEquals(7, names.size)
+        assertEquals(8, names.size)
         for (expected in FalconClientTools.LOCAL_TOOL_NAMES) {
-            assertTrue("Expected local Falcon tool $expected to be injected", expected in names)
+            assertTrue("Expected local Falcone tool $expected to be injected", expected in names)
         }
+        val agDecl = (0 until decls.size())
+            .map { decls.get(it).asJsonObject }
+            .first { it.get("name").asString == "falcon_send_to_antigravity" }
+        val agProps = agDecl.getAsJsonObject("parameters").getAsJsonObject("properties")
+        assertTrue("Expected channel schema property on falcon_send_to_antigravity", agProps.has("channel"))
     }
 
     @Test
@@ -159,6 +164,7 @@ class FalconClientToolsAndMusicMatcherTest {
                         body = request.body,
                         checklist = request.checklist,
                         execution_mode = request.execution_mode,
+                        channel = request.channel,
                         status = "pending",
                         has_attachment = !request.attachment_base64.isNullOrBlank(),
                         attachment_name = request.attachment_name,
@@ -199,6 +205,7 @@ class FalconClientToolsAndMusicMatcherTest {
             addProperty("body", "Siehe Foto direkt aus der Werkstatt")
             add("checklist", JsonArray().apply { add("Maße prüfen") })
             addProperty("execution_mode", "direct")
+            addProperty("channel", "minipc")
         }
 
         val res1 = FalconClientTools.executeLocalFalconTool(
@@ -213,14 +220,17 @@ class FalconClientToolsAndMusicMatcherTest {
 
         assertEquals("success", res1.get("status").asString)
         assertTrue(res1.get("photo_attached").asBoolean)
+        assertEquals("minipc", res1.get("channel").asString)
+        assertEquals("🖥️ Mini-PC", res1.get("channel_label").asString)
         assertEquals(1, capturedRequests.size)
         assertEquals("Laser-Halterung anpassen", capturedRequests[0].title)
         assertEquals("direct", capturedRequests[0].execution_mode)
+        assertEquals("minipc", capturedRequests[0].channel)
         assertEquals("falcon_test_shot.jpg", capturedRequests[0].attachment_name)
         assertEquals(b64, capturedRequests[0].attachment_base64)
         assertTrue(FalconCameraController.lastCapturedPhoto.value?.attachedToInbox == true)
 
-        // Second message without explicit attach_captured_photo=true must NOT re-attach the already-sent photo
+        // Second message without explicit attach_captured_photo=true or channel defaults to "leitung" and no photo
         val args2 = JsonObject().apply {
             addProperty("title", "Zweiter Gedanke ohne Foto")
         }
@@ -234,6 +244,8 @@ class FalconClientToolsAndMusicMatcherTest {
             agApiOverride = fakeAgApi
         )
         assertFalse(res2.get("photo_attached").asBoolean)
+        assertEquals("leitung", res2.get("channel").asString)
+        assertEquals("leitung", capturedRequests[1].channel)
         assertEquals(null, capturedRequests[1].attachment_base64)
     }
 
@@ -312,5 +324,355 @@ class FalconClientToolsAndMusicMatcherTest {
         val phoneDest = FalconClientTools.resolveFalconAppDestination("phone")
         assertEquals(NavigationBridge.NavTarget.ORGANIZER, phoneDest.target)
         assertEquals(7, phoneDest.organizerSubTab)
+    }
+
+    @Test
+    fun smartHomeFuzzyMatcherAndTool_resolvesGermanPlugsAndSwitchesViaExecutor() = runBlocking {
+        val savedPlugs = FunkenwerkAlarmManager.defaultSmartPlugs()
+        // Canonical saved plugs: "Lichterkette Fußleiste", "Packtisch Warm Licht", "Lichterkette Spiegel"
+
+        // 1. Reversed word order + plural + umlaut/ß variants -> exact single plug
+        val fuss1 = FalconClientTools.matchSmartHomeDevices(savedPlugs, "Fußleisten Lichterkette")
+        assertEquals(listOf("Lichterkette Fußleiste"), fuss1.map { it.name })
+
+        val fuss2 = FalconClientTools.matchSmartHomeDevices(savedPlugs, "Mach bitte die fussleiste an")
+        assertEquals(listOf("Lichterkette Fußleiste"), fuss2.map { it.name })
+
+        val spiegel = FalconClientTools.matchSmartHomeDevices(savedPlugs, "Spiegel Lichterkette")
+        assertEquals(listOf("Lichterkette Spiegel"), spiegel.map { it.name })
+
+        val spiegelShort = FalconClientTools.matchSmartHomeDevices(savedPlugs, "Spiegel")
+        assertEquals(listOf("Lichterkette Spiegel"), spiegelShort.map { it.name })
+
+        val packtisch = FalconClientTools.matchSmartHomeDevices(savedPlugs, "Packtisch")
+        assertEquals(listOf("Packtisch Warm Licht"), packtisch.map { it.name })
+
+        // 2. Generic category query "Lichterkette" -> matches both string lights
+        val bothLights = FalconClientTools.matchSmartHomeDevices(savedPlugs, "Lichterkette")
+        assertEquals(
+            listOf("Lichterkette Fußleiste", "Lichterkette Spiegel"),
+            bothLights.map { it.name }
+        )
+
+        // 3. End-to-end tool execution with custom executor
+        val calls = mutableListOf<Pair<String, List<String>>>()
+        val resOn = FalconClientTools.executeLocalFalconTool(
+            context = context,
+            toolName = "falcon_smarthome_control",
+            argsElement = JsonObject().apply {
+                addProperty("action", "turn_on")
+                addProperty("device_name", "Fußleisten Lichterkette")
+            },
+            chatSessionId = "s_home",
+            onEmotionChanged = {},
+            onNavigate = {},
+            smartHomeExecutorOverride = { act, ips ->
+                calls.add(act to ips)
+                true to "Lichterkette Fußleiste: EIN geschaltet"
+            }
+        )
+        assertEquals("success", resOn.get("status").asString)
+        assertEquals("on", resOn.get("new_state").asString)
+        assertEquals(1, calls.size)
+        assertEquals("turn_on", calls[0].first)
+        assertEquals(listOf("192.168.188.109"), calls[0].second)
+
+        // 4. Unknown device returns clear not_found + available_devices list
+        val resUnknown = FalconClientTools.executeLocalFalconTool(
+            context = context,
+            toolName = "falcon_smarthome_control",
+            argsElement = JsonObject().apply {
+                addProperty("action", "turn_on")
+                addProperty("device_name", "Gartenbrunnen")
+            },
+            chatSessionId = "s_home",
+            onEmotionChanged = {},
+            onNavigate = {},
+            smartHomeExecutorOverride = { _, _ -> true to "ok" }
+        )
+        assertEquals("not_found", resUnknown.get("status").asString)
+        assertEquals(3, resUnknown.getAsJsonArray("available_devices").size())
+    }
+
+    @Test
+    fun heyFalconeWakeWordMatcher_acceptsBothFalconeAndFalconSpellingsAndDefaultMigrationIsActive() {
+        val validPhrases = listOf(
+            "Hey Falcone",
+            "hey falcone!",
+            "Hi Falcone",
+            "Hallo Falcone",
+            "OK Falcone",
+            "Okay Falcone",
+            "Hey Falcon",
+            "Hey Falkon, hörst du mich?",
+            "Hi Falcon",
+            "Hallo Falkon",
+            "OK Falcon",
+            "Okay Falkone",
+            "Hey Falco",
+            "Hey Falken",
+            "Hey Fall Cone"
+        )
+        for (phrase in validPhrases) {
+            assertTrue(
+                "Expected wake phrase '$phrase' to match",
+                de.meinseelenfunke.app.services.WakeWordService.matchesHeyFalconePhrase(phrase)
+            )
+        }
+
+        val invalidPhrases = listOf(
+            "",
+            "   ",
+            "Guten Morgen Alina",
+            "Wie wird das Wetter heute in Gifhorn?",
+            "Ich trinke noch kurz meinen Kaffee"
+        )
+        for (phrase in invalidPhrases) {
+            assertFalse(
+                "Expected unrelated phrase '$phrase' NOT to match",
+                de.meinseelenfunke.app.services.WakeWordService.matchesHeyFalconePhrase(phrase)
+            )
+        }
+
+        // Verify v1.8.2 migration turns Wake Word ON by default even on upgraded legacy installs
+        val prefs = context.getSharedPreferences("seelenfunke_prefs", Context.MODE_PRIVATE)
+        prefs.edit()
+            .putBoolean("wake_word_enabled", false)
+            .remove("hey_falcon_default_migrated_v182")
+            .commit()
+        ServiceLocator.init(context)
+        assertTrue("Wake Word must be migrated to ON by default in v1.8.2", ServiceLocator.isWakeWordEnabled())
+
+        // User can still explicitly turn it off afterwards and have that choice respected
+        ServiceLocator.setWakeWordEnabled(false)
+        ServiceLocator.init(context)
+        assertFalse(ServiceLocator.isWakeWordEnabled())
+    }
+
+    @Test
+    fun inactivityTracker_twoStageCheckResetOnSpeechAndHardAutoDisconnect() {
+        val tracker = FalconInactivityTracker()
+        tracker.onSessionStarted(1_000L)
+
+        // Before 120s: no action
+        assertEquals(FalconInactivityAction.NONE, tracker.evaluate(120_999L, isAiSpeaking = false))
+        assertFalse(tracker.inactivityCheckSent)
+
+        // Exactly at 120s of silence: Stage 1 check prompt sent
+        assertEquals(FalconInactivityAction.SEND_STAGE1_CHECK, tracker.evaluate(121_000L, isAiSpeaking = false))
+        assertTrue(tracker.inactivityCheckSent)
+
+        // Falcone speaks his Stage 1 follow-up question (must NOT reset inactivityCheckSent!)
+        tracker.onAiActivity(121_400L)
+        assertEquals(FalconInactivityAction.NONE, tracker.evaluate(122_000L, isAiSpeaking = true))
+        tracker.onAiSpeechFinished(123_500L)
+        assertTrue(tracker.inactivityCheckSent)
+        assertEquals(FalconInactivityStage.CHECK_SENT_WAITING_USER_REPLY, tracker.stage)
+
+        // User replies 10s later -> resets back to ACTIVE and fresh 120s timer!
+        tracker.onUserSpeech(133_500L)
+        assertFalse(tracker.inactivityCheckSent)
+        assertEquals(FalconInactivityStage.ACTIVE, tracker.stage)
+        assertEquals(FalconInactivityAction.NONE, tracker.evaluate(250_000L, isAiSpeaking = false))
+
+        // Another full 120s of silence from 133_500 -> triggers Stage 1 again at 253_500
+        assertEquals(FalconInactivityAction.SEND_STAGE1_CHECK, tracker.evaluate(253_500L, isAiSpeaking = false))
+        tracker.onAiActivity(254_000L)
+        tracker.onAiSpeechFinished(256_000L)
+
+        // 24.9s silence after question finished -> still waiting
+        assertEquals(FalconInactivityAction.NONE, tracker.evaluate(280_900L, isAiSpeaking = false))
+
+        // 25.0s silence after question finished -> Stage 2 farewell triggered!
+        assertEquals(FalconInactivityAction.SEND_STAGE2_FAREWELL, tracker.evaluate(281_000L, isAiSpeaking = false))
+        assertEquals(FalconInactivityStage.FAREWELL_CLOSING, tracker.stage)
+
+        // Falcone speaks farewell from 281_400 to 283_400, then +1.2s post-speech buffer -> FORCE_DISCONNECT at 284_600
+        tracker.onAiActivity(281_400L)
+        tracker.onAiSpeechFinished(283_400L)
+        assertEquals(FalconInactivityAction.NONE, tracker.evaluate(284_500L, isAiSpeaking = false))
+        assertEquals(FalconInactivityAction.FORCE_DISCONNECT, tracker.evaluate(284_600L, isAiSpeaking = false))
+
+        // Also verify hard 7s safety ceiling if model never emits audio or end_call
+        val ceilingTracker = FalconInactivityTracker()
+        ceilingTracker.onSessionStarted(0L)
+        assertEquals(FalconInactivityAction.SEND_STAGE1_CHECK, ceilingTracker.evaluate(120_000L, isAiSpeaking = false))
+        ceilingTracker.onAiSpeechFinished(122_000L)
+        assertEquals(FalconInactivityAction.SEND_STAGE2_FAREWELL, ceilingTracker.evaluate(147_000L, isAiSpeaking = false))
+        assertEquals(FalconInactivityAction.NONE, ceilingTracker.evaluate(153_900L, isAiSpeaking = false))
+        assertEquals(FalconInactivityAction.FORCE_DISCONNECT, ceilingTracker.evaluate(154_000L, isAiSpeaking = false))
+
+        // Verify Gemini 3.1 realtimeInput.text schema & zero AI en-dashes
+        val p1 = FalconClientTools.buildRealtimeTextPromptPacket(FalconClientTools.STAGE1_INACTIVITY_PROMPT)
+        val p2 = FalconClientTools.buildRealtimeTextPromptPacket(FalconClientTools.STAGE2_AUTO_END_PROMPT)
+        assertTrue(p1.has("realtimeInput"))
+        assertTrue(p2.getAsJsonObject("realtimeInput").get("text").asString.contains("Hey Falcone"))
+        assertFalse(FalconClientTools.STAGE1_INACTIVITY_PROMPT.contains(" \u2013 "))
+        assertFalse(FalconClientTools.STAGE2_AUTO_END_PROMPT.contains(" \u2013 "))
+    }
+
+    @Test
+    fun midCallAutoReconnectPolicyAnd3dArmClamp_enforceSeamlessRecoveryAndSafeGentlemanPosture() {
+        // 1. Mid-call auto-reconnect decision matrix (attempts 0..3 allowed, 4 blocked)
+        assertEquals(
+            listOf(350L, 800L, 1500L, 2500L),
+            de.meinseelenfunke.app.ui.screens.FunkiraLiveViewModel.RECONNECT_BACKOFF_MS.toList()
+        )
+        for (attempt in 0..3) {
+            assertTrue(
+                de.meinseelenfunke.app.ui.screens.FunkiraLiveViewModel.shouldAutoReconnectMidCall(
+                    wasSetupComplete = true,
+                    userInitiatedHangup = false,
+                    shouldEndCall = false,
+                    reconnectAttemptCount = attempt
+                )
+            )
+        }
+        assertFalse(
+            de.meinseelenfunke.app.ui.screens.FunkiraLiveViewModel.shouldAutoReconnectMidCall(
+                wasSetupComplete = true,
+                userInitiatedHangup = false,
+                shouldEndCall = false,
+                reconnectAttemptCount = 4
+            )
+        )
+        assertFalse(
+            de.meinseelenfunke.app.ui.screens.FunkiraLiveViewModel.shouldAutoReconnectMidCall(
+                wasSetupComplete = true,
+                userInitiatedHangup = true,
+                shouldEndCall = false,
+                reconnectAttemptCount = 0
+            )
+        )
+        assertFalse(
+            de.meinseelenfunke.app.ui.screens.FunkiraLiveViewModel.shouldAutoReconnectMidCall(
+                wasSetupComplete = true,
+                userInitiatedHangup = false,
+                shouldEndCall = true,
+                reconnectAttemptCount = 0
+            )
+        )
+        assertFalse(
+            de.meinseelenfunke.app.ui.screens.FunkiraLiveViewModel.shouldAutoReconnectMidCall(
+                wasSetupComplete = false,
+                userInitiatedHangup = false,
+                shouldEndCall = false,
+                reconnectAttemptCount = 0
+            )
+        )
+
+        // 2. Strict Gemini 3.1 Live schema hygiene across all 7 local Falcone tools
+        val decls = JsonArray()
+        FalconClientTools.appendFalconToolDeclarations(decls)
+        assertEquals(7, decls.size())
+        for (i in 0 until decls.size()) {
+            val fn = decls.get(i).asJsonObject
+            val params = fn.getAsJsonObject("parameters")
+            assertEquals("OBJECT", params.get("type").asString)
+            assertTrue(params.has("properties") && params.get("properties").isJsonObject)
+            assertFalse(params.has("additionalProperties"))
+        }
+
+        // 3. Hard mathematical upper-arm safety clamp in falcon3d.js
+        val jsCandidates = listOf(
+            File("src/main/assets/falcon3d/falcon3d.js"),
+            File("app/src/main/assets/falcon3d/falcon3d.js")
+        )
+        val jsFile = jsCandidates.firstOrNull { it.exists() }
+        assertNotNull("Expected assets/falcon3d/falcon3d.js to exist", jsFile)
+        val jsContent = jsFile!!.readText(Charsets.UTF_8)
+        assertTrue(jsContent.contains("rArmX = clamp(rArmX, -0.18, 0.12);"))
+        assertTrue(jsContent.contains("lArmX = clamp(lArmX, -0.18, 0.12);"))
+        assertFalse(jsContent.contains("-1.04"))
+        assertFalse(jsContent.contains("-0.92"))
+    }
+
+    @Test
+    fun trustedFastUnlock_allowsSignedVoiceOrWidgetOnUnlockedDeviceAndRejectsLockedOrSpoofedIntents() {
+        var fakeClockMs = 50_000L
+        val prevClock = NavigationBridge.elapsedRealtimeProvider
+        NavigationBridge.elapsedRealtimeProvider = { fakeClockMs }
+        NavigationBridge.clearTrustedFastUnlock()
+
+        try {
+            // 1. NavigationBridge 15s fast-unlock window & logout clear
+            assertFalse(NavigationBridge.hasRecentTrustedFastUnlock())
+            NavigationBridge.grantTrustedFastUnlock()
+            assertTrue(NavigationBridge.hasRecentTrustedFastUnlock())
+            fakeClockMs = 64_999L
+            assertTrue(NavigationBridge.hasRecentTrustedFastUnlock())
+            fakeClockMs = 65_001L
+            assertFalse("Fast-unlock grant must expire after 15s window", NavigationBridge.hasRecentTrustedFastUnlock())
+
+            fakeClockMs = 80_000L
+            NavigationBridge.grantTrustedFastUnlock()
+            assertTrue(NavigationBridge.hasRecentTrustedFastUnlock())
+            NavigationBridge.triggerLogout()
+            assertFalse("Logout must immediately revoke fast-unlock", NavigationBridge.hasRecentTrustedFastUnlock())
+
+            // 2. SecurityIntentHelper 4-factor verification
+            ServiceLocator.saveAuthToken("sanctum_valid_test_token_184")
+
+            val signedVoiceIntent = android.content.Intent(context, de.meinseelenfunke.app.MainActivity::class.java).apply {
+                putExtra("start_voice_call", true)
+                putExtra(SecurityIntentHelper.EXTRA_FROM_WIDGET, true)
+                SecurityIntentHelper.signIntent(context, this)
+            }
+            assertTrue(
+                SecurityIntentHelper.canGrantTrustedFastUnlock(
+                    context = context,
+                    intent = signedVoiceIntent,
+                    isDeviceLockedOverride = false
+                )
+            )
+
+            // Locked phone MUST block fast-unlock even with valid signature!
+            assertFalse(
+                SecurityIntentHelper.canGrantTrustedFastUnlock(
+                    context = context,
+                    intent = signedVoiceIntent,
+                    isDeviceLockedOverride = true
+                )
+            )
+
+            // Unsigned or forged third-party intent MUST be rejected!
+            val spoofedWidgetIntent = android.content.Intent(context, de.meinseelenfunke.app.MainActivity::class.java).apply {
+                putExtra("start_voice_call", true)
+                putExtra(SecurityIntentHelper.EXTRA_FROM_WIDGET, true)
+                putExtra(SecurityIntentHelper.EXTRA_SECURITY_TOKEN, "forged_3rd_party_token")
+            }
+            assertFalse(
+                SecurityIntentHelper.canGrantTrustedFastUnlock(
+                    context = context,
+                    intent = spoofedWidgetIntent,
+                    isDeviceLockedOverride = false
+                )
+            )
+
+            // Signed plain intent without voice/widget/tab action MUST NOT bypass normal app icon biometric lock
+            val plainSignedIntent = android.content.Intent(context, de.meinseelenfunke.app.MainActivity::class.java).apply {
+                SecurityIntentHelper.signIntent(context, this)
+            }
+            assertFalse(
+                SecurityIntentHelper.canGrantTrustedFastUnlock(
+                    context = context,
+                    intent = plainSignedIntent,
+                    isDeviceLockedOverride = false
+                )
+            )
+
+            // Logged-out session MUST reject fast-unlock
+            ServiceLocator.clearAuthToken()
+            assertFalse(
+                SecurityIntentHelper.canGrantTrustedFastUnlock(
+                    context = context,
+                    intent = signedVoiceIntent,
+                    isDeviceLockedOverride = false
+                )
+            )
+        } finally {
+            NavigationBridge.clearTrustedFastUnlock()
+            NavigationBridge.elapsedRealtimeProvider = prevClock
+        }
     }
 }

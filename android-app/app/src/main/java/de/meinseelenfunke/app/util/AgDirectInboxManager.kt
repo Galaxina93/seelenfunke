@@ -40,8 +40,17 @@ import kotlin.math.roundToInt
 enum class AgDirectStatus(val code: String, val badgeLabel: String) {
     QUEUED("queued", "Wartet"),
     PENDING("pending", "Gesendet"),
-    DELIVERED("delivered", "Bei Falcon"),
+    DELIVERED("delivered", "Bei Falcone"),
     COMPLETED("completed", "Erledigt ✓")
+}
+
+enum class AgDirectChannel(val code: String, val chipLabel: String) {
+    LEITUNG("leitung", "👑 Leitung"),
+    SHOP("shop", "🛍️ Shop"),
+    ANDROID("android", "📱 Android"),
+    MINIPC("minipc", "🖥️ Mini-PC"),
+    BUCHHALTUNG("buchhaltung", "💶 Buchhaltung"),
+    NEW("new", "➕ Neu")
 }
 
 data class AgDirectOutboxEntry(
@@ -50,6 +59,7 @@ data class AgDirectOutboxEntry(
     @SerializedName("body") val body: String = "",
     @SerializedName("checklist") val checklist: List<String> = emptyList(),
     @SerializedName("execution_mode") val execution_mode: String = "concept",
+    @SerializedName("channel") val channel: String? = "leitung",
     @SerializedName("attachment_base64") val attachment_base64: String? = null,
     @SerializedName("attachment_mime") val attachment_mime: String? = null,
     @SerializedName("attachment_name") val attachment_name: String? = null,
@@ -81,7 +91,8 @@ data class AgDirectDisplayItem(
     val agResponseSummary: String?,
     val createdAt: String?,
     val deliveredAt: String?,
-    val completedAt: String?
+    val completedAt: String?,
+    val channel: String = AgDirectChannel.LEITUNG.code
 )
 
 object AgDirectInboxManager {
@@ -122,6 +133,21 @@ object AgDirectInboxManager {
 
     fun normalizeExecutionMode(rawMode: String?): String {
         return if (rawMode?.trim()?.lowercase(Locale.ROOT) == "direct") "direct" else "concept"
+    }
+
+    fun resolveChannelEnum(rawChannel: String?): AgDirectChannel {
+        return when (rawChannel?.trim()?.lowercase(Locale.ROOT)) {
+            "shop", "laravel", "konfigurator", "produkte" -> AgDirectChannel.SHOP
+            "android", "app", "mobile", "widget", "widgets" -> AgDirectChannel.ANDROID
+            "minipc", "mini-pc", "mini_pc", "funkenwerk", "laser", "werkstatt" -> AgDirectChannel.MINIPC
+            "buchhaltung", "accounting", "finanzen", "belege", "marketing" -> AgDirectChannel.BUCHHALTUNG
+            "new", "neu" -> AgDirectChannel.NEW
+            else -> AgDirectChannel.LEITUNG
+        }
+    }
+
+    fun normalizeChannel(rawChannel: String?): String {
+        return resolveChannelEnum(rawChannel).code
     }
 
     fun splitTitleAndBody(
@@ -254,7 +280,8 @@ object AgDirectInboxManager {
                 agResponseSummary = null,
                 createdAt = local.created_at,
                 deliveredAt = null,
-                completedAt = null
+                completedAt = null,
+                channel = normalizeChannel(local.channel)
             )
         }
 
@@ -285,7 +312,8 @@ object AgDirectInboxManager {
                 agResponseSummary = remote.ag_response_summary?.trim()?.takeIf { it.isNotEmpty() },
                 createdAt = remote.created_at,
                 deliveredAt = remote.delivered_at,
-                completedAt = remote.completed_at
+                completedAt = remote.completed_at,
+                channel = normalizeChannel(remote.channel)
             )
         }
 
@@ -367,6 +395,7 @@ object AgDirectInboxManager {
                             body = entry.body,
                             checklist = entry.checklist,
                             execution_mode = normalizeExecutionMode(entry.execution_mode),
+                            channel = normalizeChannel(entry.channel),
                             attachment_base64 = entry.attachment_base64,
                             attachment_mime = entry.attachment_mime,
                             attachment_name = entry.attachment_name
@@ -438,12 +467,33 @@ object AgDirectInboxManager {
         }
     }
 
+    suspend fun submitMessage(
+        context: Context,
+        rawText: String,
+        checklist: List<String> = emptyList(),
+        executionMode: String = "concept",
+        attachment: PreparedAgAttachment? = null,
+        channel: String = AgDirectChannel.LEITUNG.code,
+        clientUuid: String = UUID.randomUUID().toString(),
+        apiOverride: AgDirectApi? = null
+    ): Boolean = submitNewEntry(
+        context = context,
+        rawText = rawText,
+        checklist = checklist,
+        executionMode = executionMode,
+        attachment = attachment,
+        channel = channel,
+        clientUuid = clientUuid,
+        apiOverride = apiOverride
+    )
+
     suspend fun submitNewEntry(
         context: Context,
         rawText: String,
         checklist: List<String>,
         executionMode: String,
         attachment: PreparedAgAttachment?,
+        channel: String = AgDirectChannel.LEITUNG.code,
         clientUuid: String = UUID.randomUUID().toString(),
         apiOverride: AgDirectApi? = null
     ): Boolean = withContext(Dispatchers.IO) {
@@ -457,12 +507,14 @@ object AgDirectInboxManager {
         if (title.isBlank()) return@withContext false
 
         val normalizedMode = normalizeExecutionMode(executionMode)
+        val normalizedChannel = normalizeChannel(channel)
         val entry = AgDirectOutboxEntry(
             client_uuid = clientUuid,
             title = title,
             body = body,
             checklist = cleanChecklist,
             execution_mode = normalizedMode,
+            channel = normalizedChannel,
             attachment_base64 = attachment?.base64Jpeg,
             attachment_mime = attachment?.mimeType,
             attachment_name = attachment?.fileName,

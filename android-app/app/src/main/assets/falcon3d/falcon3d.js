@@ -140,8 +140,8 @@
         ctx.shadowOffsetY = 3;
 
         ctx.fillStyle = goldGrad;
-        ctx.font = '900 80px sans-serif';
-        ctx.fillText('FALCON', 384, 148);
+        ctx.font = '900 72px sans-serif';
+        ctx.fillText('FALCONE', 384, 148);
 
         ctx.font = '700 44px Georgia, serif';
         ctx.fillStyle = '#EDD08A';
@@ -338,12 +338,12 @@
 
     var EMOTION_PRESETS = {
         idle:      { lidTop: 0.02, lidBot: 0.02, browTilt: -0.04, browY: 0.0,  mouthCurve: 0.34, mouthOpen: 0.04, pupilScale: 1.02, mustacheLift: 0.10, headPitch: 0.00,  headRoll: 0.00  },
-        listening: { lidTop: 0.00, lidBot: 0.05, browTilt: -0.11, browY: -3.5, mouthCurve: 0.28, mouthOpen: 0.06, pupilScale: 1.08, mustacheLift: 0.15, headPitch: 0.04,  headRoll: 0.03  },
-        thinking:  { lidTop: 0.15, lidBot: 0.12, browTilt: 0.18,  browY: 1.5,  mouthCurve: 0.10, mouthOpen: 0.02, pupilScale: 0.95, mustacheLift: 0.04, headPitch: -0.03, headRoll: -0.05 },
+        listening: { lidTop: 0.00, lidBot: 0.05, browTilt: -0.11, browY: -3.5, mouthCurve: 0.28, mouthOpen: 0.06, pupilScale: 1.08, mustacheLift: 0.15, headPitch: 0.05,  headRoll: 0.03  },
+        thinking:  { lidTop: 0.10, lidBot: 0.10, browTilt: 0.08,  browY: -1.0, mouthCurve: 0.22, mouthOpen: 0.03, pupilScale: 1.00, mustacheLift: 0.12, headPitch: 0.07,  headRoll: 0.02  },
         speaking:  { lidTop: 0.02, lidBot: 0.06, browTilt: -0.07, browY: -2.0, mouthCurve: 0.42, mouthOpen: 0.30, pupilScale: 1.04, mustacheLift: 0.22, headPitch: -0.01, headRoll: 0.02  },
-        happy:     { lidTop: 0.06, lidBot: 0.24, browTilt: -0.14, browY: -3.8, mouthCurve: 0.80, mouthOpen: 0.24, pupilScale: 1.08, mustacheLift: 0.38, headPitch: -0.03, headRoll: 0.05  },
-        proud:     { lidTop: 0.10, lidBot: 0.20, browTilt: -0.08, browY: -2.5, mouthCurve: 0.68, mouthOpen: 0.14, pupilScale: 1.04, mustacheLift: 0.34, headPitch: -0.06, headRoll: -0.04 },
-        focused:   { lidTop: 0.16, lidBot: 0.14, browTilt: 0.24,  browY: 3.2,  mouthCurve: 0.12, mouthOpen: 0.04, pupilScale: 0.93, mustacheLift: 0.02, headPitch: 0.03,  headRoll: 0.00  }
+        happy:     { lidTop: 0.06, lidBot: 0.24, browTilt: -0.14, browY: -3.8, mouthCurve: 0.80, mouthOpen: 0.24, pupilScale: 1.08, mustacheLift: 0.38, headPitch: -0.02, headRoll: 0.04  },
+        proud:     { lidTop: 0.10, lidBot: 0.20, browTilt: -0.08, browY: -2.5, mouthCurve: 0.68, mouthOpen: 0.14, pupilScale: 1.04, mustacheLift: 0.34, headPitch: -0.04, headRoll: -0.03 },
+        focused:   { lidTop: 0.14, lidBot: 0.12, browTilt: 0.16,  browY: 1.8,  mouthCurve: 0.16, mouthOpen: 0.04, pupilScale: 0.96, mustacheLift: 0.08, headPitch: 0.05,  headRoll: 0.00  }
     };
 
     var state = {
@@ -1078,8 +1078,8 @@
                 lookTarget.x = (Math.random() - 0.5) * 0.24;
                 lookTarget.y = (Math.random() - 0.5) * 0.16;
             } else if (emoKey === 'thinking') {
-                lookTarget.x = 0.30;
-                lookTarget.y = -0.24;
+                lookTarget.x = 0.12;
+                lookTarget.y = 0.05;
             } else {
                 lookTarget.x = (Math.random() - 0.5) * 0.36;
                 lookTarget.y = (Math.random() - 0.5) * 0.20;
@@ -1231,8 +1231,8 @@
     // ========================================================================
     function updateCameraFraming() {
         var tanHalfFov = Math.tan((camera.fov * 0.5) * Math.PI / 180.0);
-        // Horizontal half-span 0.91m -> 1.82m total width gives generous symmetrical margin around both gold ears & shoulders
-        var distW = 0.91 / Math.max(0.12, tanHalfFov * camera.aspect);
+        // Horizontal half-span 0.96m -> generous symmetrical margin around both gold ears & shoulders on 412x915
+        var distW = 0.96 / Math.max(0.12, tanHalfFov * camera.aspect);
         // Vertical half-span 1.06m centered around Y=1.18 -> full figure + hair + clear headroom below Top-Bar & above Bottom-Dock
         var distH = 1.06 / tanHalfFov;
         var camDist = Math.max(distW, distH) * userZoom;
@@ -1399,12 +1399,29 @@
 
     var lastFrameMs = performance.now();
     var smoothAmp = 0.0;
+    var prevMode = 'idle';
+    var bowPhase = 0.0;
 
     function animate(nowMs) {
         requestAnimationFrame(animate);
+        stepScene(nowMs);
+    }
+
+    function stepScene(nowMs) {
         var dt = clamp((nowMs - lastFrameMs) * 0.001, 0.001, 0.05);
         lastFrameMs = nowMs;
         var tSec = nowMs * 0.001;
+
+        if (state.mode !== prevMode) {
+            if (state.mode === 'connecting' || (prevMode === 'idle' && state.mode === 'listening')) {
+                bowPhase = 1.0;
+            }
+            prevMode = state.mode;
+        }
+        if (bowPhase > 0.0) {
+            bowPhase = Math.max(0.0, bowPhase - dt * 0.85);
+        }
+        var gentlemanBow = bowPhase > 0.001 ? Math.sin(bowPhase * Math.PI) * 0.14 : 0.0;
 
         if (!dragActive) {
             userYaw = lerp(userYaw, 0.0, 1.0 - Math.exp(-dt * 4.8));
@@ -1416,17 +1433,20 @@
 
         var breath = Math.sin(tSec * 1.9) * 0.012;
         pelvis.position.y = 0.56 + breath;
-        root.rotation.y = userYaw + Math.sin(tSec * 0.65) * 0.035;
-        torso.rotation.x = userPitch * 0.45 + (state.mode === 'listening' ? 0.05 : 0.0);
+        root.rotation.y = userYaw + Math.sin(tSec * 0.65) * 0.030;
+        torso.rotation.x = userPitch * 0.45 + (state.mode === 'listening' ? 0.04 : 0.0) + gentlemanBow * 0.28;
 
         var speakNod = (state.mode === 'speaking')
-            ? (Math.sin(tSec * 6.8) * 0.036 * (0.3 + smoothAmp))
+            ? (Math.sin(tSec * 6.8) * 0.034 * (0.3 + smoothAmp))
             : 0.0;
-        var totalPitch = (faceCur.headPitch || 0) + userPitch * 0.65 + speakNod;
-        var totalRoll = (faceCur.headRoll || 0) + Math.sin(tSec * 0.9) * 0.022;
-        var totalYaw = (emoKey === 'thinking' ? 0.09 : 0.0) + Math.sin(tSec * 0.75) * 0.05 + userYaw * 0.18;
+        var connectNod = (state.mode === 'connecting')
+            ? (0.04 + 0.03 * Math.sin(tSec * 2.6))
+            : 0.0;
+        var totalPitch = (faceCur.headPitch || 0) + userPitch * 0.65 + speakNod + connectNod + gentlemanBow;
+        var totalRoll = (faceCur.headRoll || 0) + Math.sin(tSec * 0.9) * 0.020;
+        var totalYaw = (emoKey === 'thinking' ? 0.04 : 0.0) + Math.sin(tSec * 0.75) * 0.045 + userYaw * 0.18;
 
-        var neckBreathPitch = Math.sin(tSec * 1.9 + 0.5) * 0.016 + (state.mode === 'listening' ? 0.04 : 0.0);
+        var neckBreathPitch = Math.sin(tSec * 1.9 + 0.5) * 0.016 + (state.mode === 'listening' ? 0.035 : 0.0);
         var neckBlend = 1.0 - Math.exp(-dt * 6.8);
         var headBlend = 1.0 - Math.exp(-dt * 8.2);
 
@@ -1439,44 +1459,86 @@
         headPivot.rotation.z = lerp(headPivot.rotation.z, totalRoll * 0.60, headBlend);
         headPivot.rotation.y = lerp(headPivot.rotation.y, totalYaw * 0.58, headBlend);
 
-        var earPulse = (state.mode === 'listening' || state.cameraActive)
-            ? (0.76 + 0.24 * Math.sin(tSec * 5.5))
+        var isActivating = (state.mode === 'connecting' || emoKey === 'thinking');
+        var earPulse = (state.mode === 'listening' || state.cameraActive || isActivating)
+            ? (0.78 + 0.22 * Math.sin(tSec * 5.2))
             : (state.mode === 'speaking' ? (0.68 + 0.32 * smoothAmp) : 0.58);
-        mats.earGlow.color.setRGB(0.92 * earPulse, 0.76 * earPulse, 0.40 * earPulse);
+        mats.earGlow.color.setRGB(0.94 * earPulse, 0.78 * earPulse, 0.42 * earPulse);
+        mats.monocleLens.opacity = isActivating
+            ? (0.74 + 0.22 * Math.abs(Math.sin(tSec * 3.6)))
+            : 0.72;
+        floorDisc.material.opacity = isActivating
+            ? (0.86 + 0.14 * Math.sin(tSec * 3.4))
+            : 0.94;
 
-        var rArmX = 0.08, rArmZ = -0.14, rElbX = -0.34, rElbZ = 0.08;
-        var lArmX = 0.08, lArmZ = 0.14, lElbX = -0.30, lElbZ = -0.06;
+        // ====================================================================
+        // SYMMETRICAL GENTLEMAN / CEO WAIST-LEVEL ARM POSTURES
+        // Both upper arms stay strictly low along the sides of the torso;
+        // forearms fold symmetrically toward the golden belt buckle.
+        // ====================================================================
+        var rArmX = 0.04, rArmZ = 0.04, rElbX = -0.32, rElbZ = -0.18;
+        var lArmX = 0.04, lArmZ = -0.04, lElbX = -0.32, lElbZ = 0.18;
 
-        if (emoKey === 'thinking') {
-            rArmX = -1.04;
-            rArmZ = -0.28;
-            rElbX = -1.42;
-            rElbZ = 0.45;
-        } else if (state.mode === 'speaking') {
-            var gWave = Math.sin(tSec * 4.4) * (0.16 + smoothAmp * 0.28);
-            var gWave2 = Math.cos(tSec * 3.6) * (0.12 + smoothAmp * 0.22);
-            rArmX = -0.32 - gWave;
-            rArmZ = -0.18;
-            rElbX = -0.82 - Math.abs(gWave) * 0.4;
-            lArmX = -0.24 + gWave2 * 0.6;
-            lArmZ = 0.18;
-            lElbX = -0.68 - Math.abs(gWave2) * 0.35;
+        if (state.mode === 'connecting' || emoKey === 'thinking' || emoKey === 'focused') {
+            // Symmetrical Gentleman Belt-Clasp: both hands folded calmly at waist/belt level
+            var subtlePulse = Math.sin(tSec * 2.2) * 0.025;
+            rArmX = -0.10;
+            lArmX = -0.10;
+            rArmZ = 0.06;
+            lArmZ = -0.06;
+            rElbX = -0.96 + subtlePulse;
+            lElbX = -0.96 + subtlePulse;
+            rElbZ = -0.78;
+            lElbZ = 0.78;
         } else if (state.mode === 'listening') {
-            rArmX = -0.18;
-            rElbX = -0.52;
-            lArmX = -0.18;
-            lElbX = -0.52;
+            // Attentive symmetrical open-belt posture
+            rArmX = -0.08;
+            lArmX = -0.08;
+            rArmZ = 0.05;
+            lArmZ = -0.05;
+            rElbX = -0.74;
+            lElbX = -0.74;
+            rElbZ = -0.52;
+            lElbZ = 0.52;
+        } else if (state.mode === 'speaking') {
+            // Low, symmetrical waist-level micro-gestures while speaking
+            var sBeatR = Math.sin(tSec * 4.2) * (0.04 + smoothAmp * 0.08);
+            var sBeatL = Math.sin(tSec * 4.2 + 0.9) * (0.04 + smoothAmp * 0.08);
+            rArmX = -0.09 - Math.abs(sBeatR) * 0.35;
+            lArmX = -0.09 - Math.abs(sBeatL) * 0.35;
+            rArmZ = 0.06;
+            lArmZ = -0.06;
+            rElbX = -0.76 - Math.abs(sBeatR) * 1.1;
+            lElbX = -0.76 - Math.abs(sBeatL) * 1.1;
+            rElbZ = -0.50;
+            lElbZ = 0.50;
         } else if (emoKey === 'proud' || emoKey === 'happy') {
-            rArmX = -0.36;
-            rArmZ = -0.22;
-            rElbX = -0.95;
-            lArmX = -0.20;
-            lArmZ = 0.20;
-            lElbX = -0.55;
+            rArmX = -0.08;
+            lArmX = -0.08;
+            rArmZ = 0.06;
+            lArmZ = -0.06;
+            rElbX = -0.68;
+            lElbX = -0.68;
+            rElbZ = -0.46;
+            lElbZ = 0.46;
         } else {
-            rArmX = 0.06 + breath * 1.4;
-            lArmX = 0.06 + breath * 1.4;
+            rArmX = 0.04 + breath * 1.1;
+            lArmX = 0.04 + breath * 1.1;
+            rArmZ = 0.04;
+            lArmZ = -0.04;
+            rElbX = -0.32;
+            lElbX = -0.32;
+            rElbZ = -0.18;
+            lElbZ = 0.18;
         }
+
+        // Hard mathematical safety clamp: no upper arm can EVER lift forward/upward!
+        rArmX = clamp(rArmX, -0.18, 0.12);
+        lArmX = clamp(lArmX, -0.18, 0.12);
+        rArmZ = clamp(rArmZ, -0.14, 0.14);
+        lArmZ = clamp(lArmZ, -0.14, 0.14);
+        rElbX = clamp(rElbX, -1.10, -0.20);
+        lElbX = clamp(lElbX, -1.10, -0.20);
 
         var armBlend = 1.0 - Math.exp(-dt * 6.5);
         rig.armR.armPivot.rotation.x = lerp(rig.armR.armPivot.rotation.x, rArmX, armBlend);
@@ -1507,6 +1569,15 @@
             if (typeof next.emotion === 'string') state.emotion = next.emotion;
             if (typeof next.isDark === 'boolean') state.isDark = next.isDark;
             if (typeof next.cameraActive === 'boolean') state.cameraActive = next.cameraActive;
+        },
+        stepForPreview: function (frames, stepMs) {
+            var n = frames || 60;
+            var ms = stepMs || 16.67;
+            var simNow = lastFrameMs;
+            for (var i = 0; i < n; i++) {
+                simNow += ms;
+                stepScene(simNow);
+            }
         },
         getState: function () {
             return {

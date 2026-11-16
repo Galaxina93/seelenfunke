@@ -399,7 +399,25 @@ class MasterWidgetProvider : AppWidgetProvider() {
                 buildTabSwitchPendingIntent(appContext, appWidgetId, TAB_MUSIC)
             )
 
-            // 2. Receipt Scanner & Quick Entry Button ("Beleg erfassen & Schnelleintrag")
+            // 2a. 1-Tap Falcone Direct Live-Call Button (Signed Fast-Unlock!)
+            val falconeIntent = Intent(appContext, MainActivity::class.java).apply {
+                putExtra("start_voice_call", true)
+                putExtra(de.meinseelenfunke.app.util.SecurityIntentHelper.EXTRA_FROM_WIDGET, true)
+                data = Uri.parse("funkenwerk://master/falcone/$appWidgetId")
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                de.meinseelenfunke.app.util.SecurityIntentHelper.signIntent(appContext, this)
+            }
+            views.setOnClickPendingIntent(
+                R.id.btn_master_falcone,
+                PendingIntent.getActivity(
+                    appContext,
+                    appWidgetId * 100 + 9,
+                    falconeIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+            )
+
+            // 2b. Receipt Scanner & Quick Entry Button ("Beleg erfassen & Schnelleintrag")
             val receiptIntent = Intent(appContext, QuickEntryWidgetActivity::class.java).apply {
                 data = Uri.parse("funkenwerk://master/receipt/$appWidgetId")
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -523,6 +541,7 @@ class MasterWidgetProvider : AppWidgetProvider() {
                         putExtra("open_tab", 2)
                         putExtra("open_subtab", 1)
                         putExtra("create_event", true)
+                        putExtra(de.meinseelenfunke.app.util.SecurityIntentHelper.EXTRA_FROM_WIDGET, true)
                         data = Uri.parse("funkenwerk://master/add_event/$appWidgetId")
                         flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
                         de.meinseelenfunke.app.util.SecurityIntentHelper.signIntent(appContext, this)
@@ -692,6 +711,7 @@ class MasterWidgetProvider : AppWidgetProvider() {
             val intent = Intent(context, MainActivity::class.java).apply {
                 putExtra("open_tab", openTab)
                 putExtra("open_subtab", openSubTab)
+                putExtra(de.meinseelenfunke.app.util.SecurityIntentHelper.EXTRA_FROM_WIDGET, true)
                 data = Uri.parse("funkenwerk://master/open_app/$appWidgetId/$openTab/$openSubTab")
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
                 de.meinseelenfunke.app.util.SecurityIntentHelper.signIntent(context, this)

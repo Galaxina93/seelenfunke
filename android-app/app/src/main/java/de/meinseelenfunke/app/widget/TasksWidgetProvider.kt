@@ -395,6 +395,7 @@ class TasksWidgetProvider : AppWidgetProvider() {
                 val openAppIntent = Intent(appContext, MainActivity::class.java).apply {
                     putExtra("open_tab", 2)
                     putExtra("open_subtab", 0)
+                    putExtra(de.meinseelenfunke.app.util.SecurityIntentHelper.EXTRA_FROM_WIDGET, true)
                     data = Uri.parse("funkenwerk://tasks/open_app/$appWidgetId")
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
                     de.meinseelenfunke.app.util.SecurityIntentHelper.signIntent(appContext, this)

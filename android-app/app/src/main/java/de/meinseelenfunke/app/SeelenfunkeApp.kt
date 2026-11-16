@@ -25,19 +25,8 @@ class SeelenfunkeApp : Application() {
         de.meinseelenfunke.app.util.ShopWatchtowerManager.ensureNotificationChannel(this)
         de.meinseelenfunke.app.util.ShopWatchtowerManager.schedulePeriodicWatchtower(this)
 
-        // Auto-start background wake-word listening service if enabled
-        if (ServiceLocator.isWakeWordEnabled()) {
-            val intent = android.content.Intent(this, de.meinseelenfunke.app.services.WakeWordService::class.java)
-            try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    startForegroundService(intent)
-                } else {
-                    startService(intent)
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
+        // Auto-start background "Hey Falcone" wake-word listening service if enabled and permitted
+        de.meinseelenfunke.app.services.WakeWordService.syncServiceState(this)
     }
 
     private fun createNotificationChannels() {

@@ -2,6 +2,8 @@ package de.meinseelenfunke.app.util
 
 import android.app.Application
 import android.content.Context
+import android.graphics.Bitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.test.core.app.ApplicationProvider
 import com.google.gson.Gson
 import de.meinseelenfunke.app.data.api.AgDirectApi
@@ -54,7 +56,7 @@ class AgDirectInboxManagerTest {
         assertEquals(AgDirectStatus.PENDING, AgDirectInboxManager.mapStatus("pending"))
         assertEquals("Gesendet", AgDirectInboxManager.mapStatus("pending").badgeLabel)
         assertEquals(AgDirectStatus.DELIVERED, AgDirectInboxManager.mapStatus("delivered"))
-        assertEquals("Bei Falcon", AgDirectInboxManager.mapStatus("delivered").badgeLabel)
+        assertEquals("Bei Falcone", AgDirectInboxManager.mapStatus("delivered").badgeLabel)
         assertEquals(AgDirectStatus.COMPLETED, AgDirectInboxManager.mapStatus("completed"))
         assertEquals("Erledigt ✓", AgDirectInboxManager.mapStatus("completed").badgeLabel)
     }
@@ -87,6 +89,7 @@ class AgDirectInboxManagerTest {
                     body = request.body,
                     checklist = request.checklist,
                     execution_mode = request.execution_mode,
+                    channel = request.channel,
                     status = "pending",
                     has_attachment = !request.attachment_base64.isNullOrBlank(),
                     attachment_name = request.attachment_name,
@@ -247,5 +250,122 @@ class AgDirectInboxManagerTest {
         assertTrue(title.length <= 180)
         assertTrue(title.endsWith("…"))
         assertEquals(longDictation, body)
+    }
+
+    @Test
+    fun `routes all department channels persists offline with attachment and handles legacy json`() = runBlocking {
+        assertEquals(
+            listOf("leitung", "shop", "android", "minipc", "buchhaltung", "new"),
+            AgDirectChannel.entries.map { it.code }
+        )
+        assertEquals("👑 Leitung", AgDirectInboxManager.resolveChannelEnum("leitung").chipLabel)
+        assertEquals("🛍️ Shop", AgDirectInboxManager.resolveChannelEnum("shop").chipLabel)
+        assertEquals("📱 Android", AgDirectInboxManager.resolveChannelEnum("android").chipLabel)
+        assertEquals("🖥️ Mini-PC", AgDirectInboxManager.resolveChannelEnum("minipc").chipLabel)
+        assertEquals("💶 Buchhaltung", AgDirectInboxManager.resolveChannelEnum("buchhaltung").chipLabel)
+        assertEquals("➕ Neu", AgDirectInboxManager.resolveChannelEnum("new").chipLabel)
+
+        // Alias & fallback normalization
+        assertEquals("minipc", AgDirectInboxManager.normalizeChannel("Mini-PC"))
+        assertEquals("new", AgDirectInboxManager.normalizeChannel("neu"))
+        assertEquals("leitung", AgDirectInboxManager.normalizeChannel(null))
+        assertEquals("leitung", AgDirectInboxManager.normalizeChannel(""))
+        assertEquals("leitung", AgDirectInboxManager.normalizeChannel("unbekannt"))
+
+        // Legacy v1.8.4 outbox JSON without "channel" field must default safely to "leitung"
+        val legacyUnencryptedJson = """[{"client_uuid":"legacy-uuid-1","title":"Alter Entwurf","body":"","checklist":[],"execution_mode":"concept"}]"""
+        val legacyEntries = AgDirectInboxManager.deserializeOutboxEntries(legacyUnencryptedJson)
+        assertEquals(1, legacyEntries.size)
+        val legacyMerged = AgDirectInboxManager.mergeOutboxAndServerItems(legacyEntries, emptyList())
+        assertEquals("leitung", legacyMerged.first().channel)
+
+        // Offline submission with channel="buchhaltung" + image attachment
+        var networkOnline = false
+        val capturedRequests = mutableListOf<AgDirectCreateRequest>()
+        val fakeApi = object : AgDirectApi {
+            override suspend fun listInbox(limit: Int): AgDirectInboxListResponse {
+                if (!networkOnline) throw IOException("Offline")
+                return AgDirectInboxListResponse(
+                    success = true,
+                    counts = AgDirectCountsDto(pending = capturedRequests.size, delivered = 0, completed = 0),
+                    items = capturedRequests.mapIndexed { idx, req ->
+                        AgDirectInboxItemDto(
+                            id = "ag_20261116_150000_ch$idx",
+                            client_uuid = req.client_uuid,
+                            title = req.title,
+                            body = req.body,
+                            checklist = req.checklist,
+                            execution_mode = req.execution_mode,
+                            channel = req.channel,
+                            status = "delivered",
+                            has_attachment = !req.attachment_base64.isNullOrBlank(),
+                            attachment_name = req.attachment_name,
+                            attachment_mime = req.attachment_mime
+                        )
+                    }
+                )
+            }
+
+            override suspend fun createItem(request: AgDirectCreateRequest): AgDirectCreateResponse {
+                if (!networkOnline) throw IOException("Offline")
+                capturedRequests.add(request)
+                return AgDirectCreateResponse(
+                    success = true,
+                    data = AgDirectInboxItemDto(
+                        id = "ag_20261116_150000_ch0",
+                        client_uuid = request.client_uuid,
+                        title = request.title,
+                        body = request.body,
+                        checklist = request.checklist,
+                        execution_mode = request.execution_mode,
+                        channel = request.channel,
+                        status = "delivered",
+                        has_attachment = !request.attachment_base64.isNullOrBlank(),
+                        attachment_name = request.attachment_name,
+                        attachment_mime = request.attachment_mime
+                    )
+                )
+            }
+
+            override suspend fun deleteItem(id: String): AgDirectDeleteResponse = AgDirectDeleteResponse(true)
+
+            override suspend fun getAttachment(id: String): ResponseBody =
+                ByteArray(0).toResponseBody("image/jpeg".toMediaType())
+        }
+
+        val bmp = Bitmap.createBitmap(16, 16, Bitmap.Config.ARGB_8888)
+        val attachment = PreparedAgAttachment(
+            base64Jpeg = "R0lGODlhAQABAIAAAAUEBA==",
+            mimeType = "image/jpeg",
+            fileName = "westpack_rechnung.jpg",
+            previewBitmap = bmp.asImageBitmap(),
+            width = 16,
+            height = 16
+        )
+
+        val sentOffline = AgDirectInboxManager.submitMessage(
+            context = context,
+            rawText = "Westpack Beleg verbuchen",
+            checklist = listOf("Cent-Betrag prüfen"),
+            executionMode = "direct",
+            attachment = attachment,
+            channel = "buchhaltung",
+            clientUuid = "uuid-buchhaltung-1",
+            apiOverride = fakeApi
+        )
+        assertFalse(sentOffline)
+        assertEquals("buchhaltung", AgDirectInboxManager.itemsFlow.value.first().channel)
+
+        networkOnline = true
+        val flushed = AgDirectInboxManager.flushOutbox(context, apiOverride = fakeApi)
+        assertEquals(1, flushed)
+        assertEquals(1, capturedRequests.size)
+        assertEquals("buchhaltung", capturedRequests[0].channel)
+        assertEquals("direct", capturedRequests[0].execution_mode)
+        assertEquals("westpack_rechnung.jpg", capturedRequests[0].attachment_name)
+        assertEquals("R0lGODlhAQABAIAAAAUEBA==", capturedRequests[0].attachment_base64)
+
+        AgDirectInboxManager.syncAll(context, apiOverride = fakeApi)
+        assertEquals("buchhaltung", AgDirectInboxManager.itemsFlow.value.first().channel)
     }
 }

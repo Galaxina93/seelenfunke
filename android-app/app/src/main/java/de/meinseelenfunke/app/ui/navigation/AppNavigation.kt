@@ -119,9 +119,9 @@ fun AppNavigation(
     val isBiometricAvailable = remember(context) { BiometricHelper.isBiometricAvailable(context) }
     val requiresBiometricUnlock = isLoggedIn && isBiometricEnabled && isBiometricAvailable
 
-    // On cold app restart, if user has an active session and biometric is enabled, require fingerprint unlock!
+    // On cold app restart, require fingerprint unlock UNLESS launched via a cryptographically signed Voice/Widget fast-unlock on an unlocked phone!
     var isBiometricUnlocked by rememberSaveable {
-        mutableStateOf(!requiresBiometricUnlock)
+        mutableStateOf(!requiresBiometricUnlock || de.meinseelenfunke.app.util.NavigationBridge.hasRecentTrustedFastUnlock())
     }
 
     val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
@@ -135,6 +135,7 @@ fun AppNavigation(
     val navPhonePermLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) {
+        de.meinseelenfunke.app.services.WakeWordService.syncServiceState(context)
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q && !PhoneConciergeManager.hasCallScreeningRole(context)) {
             val rm = context.getSystemService(android.app.role.RoleManager::class.java)
             if (rm != null && rm.isRoleAvailable(android.app.role.RoleManager.ROLE_CALL_SCREENING)) {
@@ -160,6 +161,7 @@ fun AppNavigation(
                         && wasInBackgroundMs >= 180_000L
                         && !de.meinseelenfunke.app.util.FunkenwerkAlarmManager.isAlarmRingingFlow.value
                         && !de.meinseelenfunke.app.util.NavigationBridge.isLiveCallActive
+                        && !de.meinseelenfunke.app.util.NavigationBridge.hasRecentTrustedFastUnlock()
                     if (shouldRelock) {
                         isBiometricUnlocked = false
                     } else {
@@ -196,6 +198,7 @@ fun AppNavigation(
         } else {
             activity?.window?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
             if (isLoggedIn && isBiometricUnlocked) {
+                de.meinseelenfunke.app.services.WakeWordService.syncServiceState(context)
                 AppUpdateManager.onAppStartCheck(context)
                 launch {
                     withContext(Dispatchers.IO) {
@@ -235,6 +238,42 @@ fun AppNavigation(
 
     var wakeWordAutoStart by remember { mutableStateOf(false) }
 
+    LaunchedEffect(Unit) {
+        de.meinseelenfunke.app.util.NavigationBridge.trustedFastUnlockTrigger.collect {
+            if (ServiceLocator.authRepository.isLoggedIn() &&
+                !de.meinseelenfunke.app.util.SecurityIntentHelper.isDeviceLocked(context)
+            ) {
+                isBiometricUnlocked = true
+            }
+        }
+    }
+
+    LaunchedEffect(navController, isBiometricUnlocked) {
+        if (isBiometricUnlocked && ServiceLocator.authRepository.isLoggedIn()) {
+            try {
+                val currentRoute = navController.currentDestination?.route
+                if (currentRoute != null) {
+                    if (de.meinseelenfunke.app.util.NavigationBridge.pendingWakeWordTrigger) {
+                        val isAdminNow = ServiceLocator.getUserType() == "admin" || ServiceLocator.userTypeState.value == "admin"
+                        val targetRoute = if (isAdminNow) Screen.FalconFocus.route else Screen.LiveVoice.route
+                        de.meinseelenfunke.app.util.NavigationBridge.pendingWakeWordTrigger = false
+                        if (isAdminNow) wakeWordAutoStart = true
+                        if (currentRoute != targetRoute) {
+                            navController.navigate(targetRoute) { launchSingleTop = true }
+                        }
+                    } else if ((de.meinseelenfunke.app.util.NavigationBridge.pendingTarget != null ||
+                            de.meinseelenfunke.app.util.NavigationBridge.pendingTab != null) &&
+                        currentRoute == Screen.FalconFocus.route
+                    ) {
+                        navController.navigate("main") { launchSingleTop = true }
+                    }
+                }
+            } catch (_: IllegalStateException) {
+                // Graph not yet attached; currentBackStackEntryFlow collector below will consume it immediately once attached.
+            }
+        }
+    }
+
     LaunchedEffect(navController) {
         de.meinseelenfunke.app.util.NavigationBridge.wakeWordTrigger.collect {
             if (ServiceLocator.authRepository.isLoggedIn() && isBiometricUnlocked) {
@@ -256,8 +295,8 @@ fun AppNavigation(
 
     LaunchedEffect(navController) {
         navController.currentBackStackEntryFlow.collect { backStackEntry ->
-            if (de.meinseelenfunke.app.util.NavigationBridge.pendingWakeWordTrigger) {
-                if (ServiceLocator.authRepository.isLoggedIn() && isBiometricUnlocked) {
+            if (ServiceLocator.authRepository.isLoggedIn() && isBiometricUnlocked) {
+                if (de.meinseelenfunke.app.util.NavigationBridge.pendingWakeWordTrigger) {
                     val isAdminNow = ServiceLocator.getUserType() == "admin" || ServiceLocator.userTypeState.value == "admin"
                     val targetRoute = if (isAdminNow) Screen.FalconFocus.route else Screen.LiveVoice.route
                     de.meinseelenfunke.app.util.NavigationBridge.pendingWakeWordTrigger = false
@@ -265,6 +304,11 @@ fun AppNavigation(
                     if (backStackEntry.destination.route != targetRoute) {
                         navController.navigate(targetRoute) { launchSingleTop = true }
                     }
+                } else if ((de.meinseelenfunke.app.util.NavigationBridge.pendingTarget != null ||
+                        de.meinseelenfunke.app.util.NavigationBridge.pendingTab != null) &&
+                    backStackEntry.destination.route == Screen.FalconFocus.route
+                ) {
+                    navController.navigate("main") { launchSingleTop = true }
                 }
             }
         }
@@ -301,8 +345,10 @@ fun AppNavigation(
         val performLogout: () -> Unit = {
             sharedLiveViewModel.disconnectLiveChat()
             de.meinseelenfunke.app.util.FalconCameraController.stopCamera()
+            de.meinseelenfunke.app.util.NavigationBridge.clearTrustedFastUnlock()
             AppUpdateManager.resetOnLogout(context)
             ServiceLocator.authRepository.logout()
+            de.meinseelenfunke.app.services.WakeWordService.syncServiceState(context)
             isLoggedIn = false
             isBiometricUnlocked = false
             navController.navigate(Screen.Login.route) {

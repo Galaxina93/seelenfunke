@@ -98,6 +98,7 @@ object ServiceLocator {
     private const val KEY_TAPO_PASS = "tapo_encrypted_password"
     private const val KEY_INTERNAL_INTENT_TOKEN = "internal_intent_token_v1"
     private const val KEY_TLS_URL_MIGRATED_V1 = "tls_url_migrated_v1"
+    private const val KEY_HEY_FALCON_DEFAULT_MIGRATED_V182 = "hey_falcon_default_migrated_v182"
     private const val KEYSTORE_ALIAS = "seelenfunke_master_key_v1"
     private const val ENC_PREFIX = "enc_v1:"
 
@@ -455,6 +456,14 @@ object ServiceLocator {
             sharedPreferences.edit().putBoolean(KEY_TLS_URL_MIGRATED_V1, true).apply()
         }
 
+        // One-time v1.8.2 migration: enable "Hey Falcone" wake word by default on existing installs
+        if (!sharedPreferences.getBoolean(KEY_HEY_FALCON_DEFAULT_MIGRATED_V182, false)) {
+            sharedPreferences.edit()
+                .putBoolean(KEY_WAKE_WORD_ENABLED, true)
+                .putBoolean(KEY_HEY_FALCON_DEFAULT_MIGRATED_V182, true)
+                .apply()
+        }
+
         // Ensure internal PendingIntent security token exists
         getOrCreateInternalIntentToken()
 
@@ -505,7 +514,7 @@ object ServiceLocator {
     }
 
     fun isWakeWordEnabled(): Boolean {
-        return sharedPreferences.getBoolean(KEY_WAKE_WORD_ENABLED, false)
+        return sharedPreferences.getBoolean(KEY_WAKE_WORD_ENABLED, true)
     }
 
     fun setWakeWordEnabled(enabled: Boolean) {

@@ -26,8 +26,227 @@ data class FalconResolvedDestination(
     val label: String
 )
 
+enum class FalconInactivityStage {
+    ACTIVE,
+    CHECK_SENT_WAITING_QUESTION,
+    CHECK_SENT_WAITING_USER_REPLY,
+    FAREWELL_CLOSING,
+    DISCONNECTED
+}
+
+enum class FalconInactivityAction {
+    NONE,
+    SEND_STAGE1_CHECK,
+    SEND_STAGE2_FAREWELL,
+    FORCE_DISCONNECT
+}
+
+class FalconInactivityTracker(
+    val stage1SilenceMs: Long = STAGE1_SILENCE_MS,
+    val stage1QuestionMaxWaitMs: Long = STAGE1_QUESTION_MAX_WAIT_MS,
+    val stage2FollowupSilenceMs: Long = STAGE2_FOLLOWUP_SILENCE_MS,
+    val farewellPostSpeechBufferMs: Long = FAREWELL_POST_SPEECH_BUFFER_MS,
+    val farewellHardCeilingMs: Long = FAREWELL_HARD_CEILING_MS
+) {
+    companion object {
+        const val STAGE1_SILENCE_MS = 120_000L
+        const val STAGE1_QUESTION_MAX_WAIT_MS = 6_000L
+        const val STAGE2_FOLLOWUP_SILENCE_MS = 25_000L
+        const val FAREWELL_POST_SPEECH_BUFFER_MS = 1_200L
+        const val FAREWELL_HARD_CEILING_MS = 7_000L
+    }
+
+    @get:Synchronized
+    var stage: FalconInactivityStage = FalconInactivityStage.ACTIVE
+        private set
+
+    @get:Synchronized
+    var lastInteractionMs: Long = 0L
+        private set
+
+    @get:Synchronized
+    var inactivityCheckSent: Boolean = false
+        private set
+
+    @get:Synchronized
+    var inactivityFollowupStartedMs: Long = 0L
+        private set
+
+    private var initialized: Boolean = false
+    private var stage1SpeechObserved: Boolean = false
+    private var stage1QuestionFinishedMs: Long = 0L
+    private var farewellSentAtMs: Long = 0L
+    private var farewellSpeechObserved: Boolean = false
+    private var farewellSpeechEndedMs: Long = 0L
+
+    @Synchronized
+    fun onSessionStarted(nowMs: Long) {
+        initialized = true
+        stage = FalconInactivityStage.ACTIVE
+        lastInteractionMs = nowMs
+        inactivityCheckSent = false
+        inactivityFollowupStartedMs = 0L
+        stage1SpeechObserved = false
+        stage1QuestionFinishedMs = 0L
+        farewellSentAtMs = 0L
+        farewellSpeechObserved = false
+        farewellSpeechEndedMs = 0L
+    }
+
+    @Synchronized
+    fun onUserSpeech(nowMs: Long) {
+        if (stage == FalconInactivityStage.FAREWELL_CLOSING || stage == FalconInactivityStage.DISCONNECTED) {
+            return
+        }
+        stage = FalconInactivityStage.ACTIVE
+        inactivityCheckSent = false
+        inactivityFollowupStartedMs = 0L
+        stage1SpeechObserved = false
+        stage1QuestionFinishedMs = 0L
+        lastInteractionMs = nowMs
+    }
+
+    @Synchronized
+    fun onAiActivity(nowMs: Long) {
+        when (stage) {
+            FalconInactivityStage.ACTIVE -> {
+                lastInteractionMs = nowMs
+            }
+            FalconInactivityStage.CHECK_SENT_WAITING_QUESTION -> {
+                stage1SpeechObserved = true
+            }
+            FalconInactivityStage.CHECK_SENT_WAITING_USER_REPLY -> {
+                stage1QuestionFinishedMs = nowMs
+            }
+            FalconInactivityStage.FAREWELL_CLOSING -> {
+                farewellSpeechObserved = true
+                farewellSpeechEndedMs = 0L
+            }
+            FalconInactivityStage.DISCONNECTED -> {}
+        }
+    }
+
+    @Synchronized
+    fun onAiSpeechFinished(nowMs: Long) {
+        when (stage) {
+            FalconInactivityStage.ACTIVE -> {
+                lastInteractionMs = nowMs
+            }
+            FalconInactivityStage.CHECK_SENT_WAITING_QUESTION -> {
+                stage = FalconInactivityStage.CHECK_SENT_WAITING_USER_REPLY
+                stage1QuestionFinishedMs = nowMs
+            }
+            FalconInactivityStage.CHECK_SENT_WAITING_USER_REPLY -> {
+                if (stage1QuestionFinishedMs < nowMs) {
+                    stage1QuestionFinishedMs = nowMs
+                }
+            }
+            FalconInactivityStage.FAREWELL_CLOSING -> {
+                if (farewellSpeechObserved && farewellSpeechEndedMs == 0L) {
+                    farewellSpeechEndedMs = nowMs
+                }
+            }
+            FalconInactivityStage.DISCONNECTED -> {}
+        }
+    }
+
+    @Synchronized
+    fun onToolActivity(nowMs: Long) {
+        if (stage == FalconInactivityStage.ACTIVE) {
+            lastInteractionMs = nowMs
+        }
+    }
+
+    @Synchronized
+    fun evaluate(
+        nowMs: Long,
+        isAiSpeaking: Boolean,
+        activeToolCalls: Int = 0
+    ): FalconInactivityAction {
+        if (!initialized) {
+            initialized = true
+            lastInteractionMs = nowMs
+        }
+        return when (stage) {
+            FalconInactivityStage.DISCONNECTED -> FalconInactivityAction.NONE
+
+            FalconInactivityStage.ACTIVE -> {
+                if (isAiSpeaking || activeToolCalls > 0) {
+                    lastInteractionMs = nowMs
+                    FalconInactivityAction.NONE
+                } else if (nowMs - lastInteractionMs >= stage1SilenceMs) {
+                    stage = FalconInactivityStage.CHECK_SENT_WAITING_QUESTION
+                    inactivityCheckSent = true
+                    inactivityFollowupStartedMs = nowMs
+                    stage1SpeechObserved = false
+                    stage1QuestionFinishedMs = 0L
+                    FalconInactivityAction.SEND_STAGE1_CHECK
+                } else {
+                    FalconInactivityAction.NONE
+                }
+            }
+
+            FalconInactivityStage.CHECK_SENT_WAITING_QUESTION -> {
+                if (isAiSpeaking) {
+                    stage1SpeechObserved = true
+                    FalconInactivityAction.NONE
+                } else if (stage1SpeechObserved || (nowMs - inactivityFollowupStartedMs >= stage1QuestionMaxWaitMs)) {
+                    stage = FalconInactivityStage.CHECK_SENT_WAITING_USER_REPLY
+                    stage1QuestionFinishedMs = nowMs
+                    FalconInactivityAction.NONE
+                } else {
+                    FalconInactivityAction.NONE
+                }
+            }
+
+            FalconInactivityStage.CHECK_SENT_WAITING_USER_REPLY -> {
+                if (isAiSpeaking) {
+                    stage1QuestionFinishedMs = nowMs
+                    FalconInactivityAction.NONE
+                } else if (nowMs - stage1QuestionFinishedMs >= stage2FollowupSilenceMs) {
+                    stage = FalconInactivityStage.FAREWELL_CLOSING
+                    farewellSentAtMs = nowMs
+                    farewellSpeechObserved = false
+                    farewellSpeechEndedMs = 0L
+                    FalconInactivityAction.SEND_STAGE2_FAREWELL
+                } else {
+                    FalconInactivityAction.NONE
+                }
+            }
+
+            FalconInactivityStage.FAREWELL_CLOSING -> {
+                if (isAiSpeaking) {
+                    farewellSpeechObserved = true
+                    farewellSpeechEndedMs = 0L
+                } else if (farewellSpeechObserved && farewellSpeechEndedMs == 0L) {
+                    farewellSpeechEndedMs = nowMs
+                }
+
+                val finishedSpeechWithBuffer = farewellSpeechObserved &&
+                    !isAiSpeaking &&
+                    farewellSpeechEndedMs > 0L &&
+                    (nowMs - farewellSpeechEndedMs >= farewellPostSpeechBufferMs)
+                val hitHardCeiling = (nowMs - farewellSentAtMs >= farewellHardCeilingMs)
+
+                if (finishedSpeechWithBuffer || hitHardCeiling) {
+                    stage = FalconInactivityStage.DISCONNECTED
+                    FalconInactivityAction.FORCE_DISCONNECT
+                } else {
+                    FalconInactivityAction.NONE
+                }
+            }
+        }
+    }
+}
+
 object FalconClientTools {
     private val gson = Gson()
+
+    const val STAGE1_INACTIVITY_PROMPT =
+        "[SYSTEM-INAKTIVITÄT 2 MINUTEN: Alina hat seit 2 Minuten nichts gesagt. Frage sie jetzt in 1 kurzen, freundlichen Satz auf Deutsch, ob sie gerade noch etwas braucht oder ob du die Verbindung schließen sollst.]"
+
+    const val STAGE2_AUTO_END_PROMPT =
+        "[SYSTEM-AUTO-ENDE: Keine Antwort erhalten. Verabschiede dich jetzt in 1 kurzen Satz freundlich auf Deutsch (z. B. dass du die Verbindung schließt und auf 'Hey Falcone' wartest) und rufe end_call auf.]"
 
     val SPORT_KEYWORDS = listOf(
         "sport", "workout", "fitness", "gym", "power",
@@ -41,10 +260,21 @@ object FalconClientTools {
     val LOCAL_TOOL_NAMES = setOf(
         "falcon_music_control",
         "falcon_camera_control",
+        "falcon_smarthome_control",
         "falcon_send_to_antigravity",
         "falcon_check_antigravity_status",
         "falcon_app_navigate",
         "falcon_set_emotion"
+    )
+
+    private val SMARTHOME_STOP_WORDS = setOf(
+        "mach", "mache", "machen", "schalte", "schalt", "schalten",
+        "bitte", "mal", "jetzt", "sofort", "kurz",
+        "die", "der", "das", "den", "dem", "des", "ein", "eine", "einen", "einem",
+        "meine", "mein", "meinen", "unser", "unsere",
+        "an", "aus", "auf", "zu", "im", "in", "am", "bei", "beim", "unter", "neben",
+        "alle", "alles", "beide", "beiden",
+        "steckdose", "steckdosen", "smart", "smarthome", "home", "plug", "plugs", "geraet", "geraete", "lampe", "lampen", "leuchte"
     )
 
     fun isLocalFalconTool(name: String?): Boolean {
@@ -105,6 +335,116 @@ object FalconClientTools {
                 })
             })
         }
+    }
+
+    fun buildRealtimeTextPromptPacket(prompt: String): JsonObject {
+        return JsonObject().apply {
+            add("realtimeInput", JsonObject().apply {
+                addProperty("text", prompt)
+            })
+        }
+    }
+
+    fun normalizeGermanSmartHomeText(raw: String?): String {
+        if (raw.isNullOrBlank()) return ""
+        return raw
+            .lowercase(Locale.GERMAN)
+            .replace("ß", "ss")
+            .replace("ä", "ae")
+            .replace("ö", "oe")
+            .replace("ü", "ue")
+            .replace(Regex("[^a-z0-9]+"), " ")
+            .trim()
+            .replace(Regex("\\s+"), " ")
+    }
+
+    fun stemGermanSmartHomeToken(token: String): String {
+        var s = token.trim()
+        if (s.length >= 6) {
+            when {
+                s.endsWith("en") -> s = s.dropLast(2)
+                s.endsWith("e") -> s = s.dropLast(1)
+                s.endsWith("n") && !s.endsWith("in") -> s = s.dropLast(1)
+            }
+        }
+        return s
+    }
+
+    fun matchSmartHomeDevices(
+        devices: List<SmartPlugDevice>,
+        query: String?
+    ): List<SmartPlugDevice> {
+        if (devices.isEmpty()) return emptyList()
+        val normalizedQuery = normalizeGermanSmartHomeText(query)
+        if (normalizedQuery.isEmpty()) return emptyList()
+
+        val rawTokens = normalizedQuery.split(" ").filter { it.length >= 2 }
+        if (rawTokens.all { it in setOf("alle", "alles", "beide", "beiden") }) {
+            return devices
+        }
+
+        val meaningfulTokens = rawTokens
+            .filterNot { it in SMARTHOME_STOP_WORDS }
+            .ifEmpty { rawTokens }
+        val queryStems = meaningfulTokens.map { stemGermanSmartHomeToken(it) }
+        val compactQuery = queryStems.joinToString("")
+
+        data class ScoredDevice(
+            val device: SmartPlugDevice,
+            val matchedTokens: Int,
+            val totalQueryTokens: Int,
+            val exactCompactMatch: Boolean
+        )
+
+        val scored = devices.map { dev ->
+            val normName = normalizeGermanSmartHomeText(dev.name)
+            val devTokens = normName.split(" ").filter { it.isNotEmpty() }
+            val devStems = devTokens.map { stemGermanSmartHomeToken(it) }
+            val compactDev = devStems.joinToString("")
+            val ipDirectMatch = query?.trim() == dev.ip.trim()
+
+            var matchedCount = 0
+            for (i in meaningfulTokens.indices) {
+                val qt = meaningfulTokens[i]
+                val qs = queryStems[i]
+                val tokenHit = devTokens.indices.any { j ->
+                    val dt = devTokens[j]
+                    val ds = devStems[j]
+                    dt == qt ||
+                        ds == qs ||
+                        (qs.length >= 4 && (dt.startsWith(qs) || ds.startsWith(qs)) && (ds.length - qs.length) <= 4) ||
+                        (ds.length >= 4 && (qt.startsWith(ds) || qs.startsWith(ds)) && (qs.length - ds.length) <= 2)
+                } || (qs.length >= 5 && compactDev.contains(qs))
+                if (tokenHit) matchedCount++
+            }
+
+            val exactCompact = ipDirectMatch ||
+                (compactQuery.length >= 5 && (compactDev.contains(compactQuery) || compactQuery.contains(compactDev)))
+
+            ScoredDevice(
+                device = dev,
+                matchedTokens = if (ipDirectMatch) meaningfulTokens.size else matchedCount,
+                totalQueryTokens = meaningfulTokens.size,
+                exactCompactMatch = exactCompact
+            )
+        }
+
+        val fullMatches = scored.filter {
+            it.totalQueryTokens > 0 && (it.matchedTokens == it.totalQueryTokens || it.exactCompactMatch)
+        }
+        if (fullMatches.isNotEmpty()) {
+            return fullMatches.map { it.device }
+        }
+
+        val maxMatched = scored.maxOfOrNull { it.matchedTokens } ?: 0
+        if (maxMatched > 0) {
+            val top = scored.filter { it.matchedTokens == maxMatched }
+            // Avoid matching every device on a generic word when a distinguishing word failed
+            if (top.size < devices.size || devices.size == 1) {
+                return top.map { it.device }
+            }
+        }
+        return emptyList()
     }
 
     fun shouldAttachCapturedPhoto(
@@ -337,7 +677,7 @@ object FalconClientTools {
                 addProperty("name", "falcon_camera_control")
                 addProperty(
                     "description",
-                    "Steuert Falcons Kamera-Augen auf dem Smartphone (Live-Sicht ein-/ausschalten, Kamera wechseln oder scharfes hochauflösendes Foto schießen)."
+                    "Steuert Falcones Kamera-Augen auf dem Smartphone (Live-Sicht ein-/ausschalten, Kamera wechseln oder scharfes hochauflösendes Foto schießen)."
                 )
                 add("parameters", JsonObject().apply {
                     addProperty("type", "OBJECT")
@@ -356,12 +696,42 @@ object FalconClientTools {
             })
         }
 
+        if ("falcon_smarthome_control" !in existing) {
+            decls.add(JsonObject().apply {
+                addProperty("name", "falcon_smarthome_control")
+                addProperty(
+                    "description",
+                    "Steuert sofort Alinas lokale Smart-Home-Steckdosen und Lichterketten im Heim-WLAN per KLAP v2 (z. B. Fußleisten Lichterkette, Spiegel Lichterkette, Packtisch Warm Licht)."
+                )
+                add("parameters", JsonObject().apply {
+                    addProperty("type", "OBJECT")
+                    add("properties", JsonObject().apply {
+                        add("action", JsonObject().apply {
+                            addProperty("type", "STRING")
+                            addProperty(
+                                "description",
+                                "Aktion: turn_on, turn_off, toggle, turn_all_on, turn_all_off, list_devices"
+                            )
+                        })
+                        add("device_name", JsonObject().apply {
+                            addProperty("type", "STRING")
+                            addProperty(
+                                "description",
+                                "Optionaler Gerätename wie Fußleisten Lichterkette, Spiegel Lichterkette, Packtisch oder Lichterkette."
+                            )
+                        })
+                    })
+                    add("required", JsonArray().apply { add("action") })
+                })
+            })
+        }
+
         if ("falcon_send_to_antigravity" !in existing) {
             decls.add(JsonObject().apply {
                 addProperty("name", "falcon_send_to_antigravity")
                 addProperty(
                     "description",
-                    "Sendet einen Entwicklungsauftrag, eine Idee oder einen Bug-Bericht (optional inklusive des gerade geschossenen Kamera-Fotos) direkt in den Antigravity Master-Chat."
+                    "Sendet einen Entwicklungsauftrag, eine Idee oder einen Bug-Bericht (optional inklusive des gerade geschossenen Kamera-Fotos) direkt in den passenden Abteilungs-Kanal im Antigravity-Orchester."
                 )
                 add("parameters", JsonObject().apply {
                     addProperty("type", "OBJECT")
@@ -383,6 +753,13 @@ object FalconClientTools {
                             addProperty("type", "STRING")
                             addProperty("description", "Modus: concept (Erst Konzept) oder direct (Direkt umsetzen).")
                         })
+                        add("channel", JsonObject().apply {
+                            addProperty("type", "STRING")
+                            addProperty(
+                                "description",
+                                "Optionaler Ziel-Kanal: 'leitung' für abteilungsübergreifende Themen (Standard), 'shop' für Shop/Produkte/Konfigurator, 'android' für Android-App/Widgets, 'minipc' für Mini-PC/Laser/3D-Stadt Funkenwerk, 'buchhaltung' für Buchhaltung/Belege/Marketing, 'new' wenn Alina explizit einen ganz neuen Einzel-Chat wünscht."
+                            )
+                        })
                         add("attach_captured_photo", JsonObject().apply {
                             addProperty("type", "BOOLEAN")
                             addProperty("description", "True, wenn das zuletzt mit take_photo aufgenommene Foto angehängt werden soll.")
@@ -391,6 +768,22 @@ object FalconClientTools {
                     add("required", JsonArray().apply { add("title") })
                 })
             })
+        } else {
+            for (i in 0 until decls.size()) {
+                val obj = decls.get(i)?.takeIf { it.isJsonObject }?.asJsonObject ?: continue
+                if (obj.get("name")?.asString == "falcon_send_to_antigravity") {
+                    val props = obj.getAsJsonObject("parameters")?.getAsJsonObject("properties")
+                    if (props != null && !props.has("channel")) {
+                        props.add("channel", JsonObject().apply {
+                            addProperty("type", "STRING")
+                            addProperty(
+                                "description",
+                                "Optionaler Ziel-Kanal: 'leitung' für abteilungsübergreifende Themen (Standard), 'shop' für Shop/Produkte/Konfigurator, 'android' für Android-App/Widgets, 'minipc' für Mini-PC/Laser/3D-Stadt Funkenwerk, 'buchhaltung' für Buchhaltung/Belege/Marketing, 'new' wenn Alina explizit einen ganz neuen Einzel-Chat wünscht."
+                            )
+                        })
+                    }
+                }
+            }
         }
 
         if ("falcon_check_antigravity_status" !in existing) {
@@ -435,7 +828,7 @@ object FalconClientTools {
                 addProperty("name", "falcon_set_emotion")
                 addProperty(
                     "description",
-                    "Setzt Falcons 3D-Gesichtsausdruck und Körperhaltung passend zur Gesprächssituation."
+                    "Setzt Falcones 3D-Gesichtsausdruck und Körperhaltung passend zur Gesprächssituation."
                 )
                 add("parameters", JsonObject().apply {
                     addProperty("type", "OBJECT")
@@ -458,7 +851,8 @@ object FalconClientTools {
         chatSessionId: String,
         onEmotionChanged: (String) -> Unit,
         onNavigate: (FalconResolvedDestination) -> Unit,
-        agApiOverride: AgDirectApi? = null
+        agApiOverride: AgDirectApi? = null,
+        smartHomeExecutorOverride: (suspend (action: String, ips: List<String>) -> Pair<Boolean, String>)? = null
     ): JsonObject {
         val appCtx = context.applicationContext
         val args = if (argsElement != null && argsElement.isJsonObject) argsElement.asJsonObject else JsonObject()
@@ -697,6 +1091,7 @@ object FalconClientTools {
                 val body = args.optString("body").trim()
                 val checklist = args.optStringList("checklist")
                 val mode = AgDirectInboxManager.normalizeExecutionMode(args.optString("execution_mode"))
+                val channel = AgDirectInboxManager.normalizeChannel(args.optString("channel"))
                 val explicitAttach = args.optNullableBoolean("attach_captured_photo")
 
                 val currentPhoto = FalconCameraController.lastCapturedPhoto.value
@@ -717,30 +1112,34 @@ object FalconClientTools {
                     else -> body
                 }
 
-                val sentLive = AgDirectInboxManager.submitNewEntry(
+                val sentLive = AgDirectInboxManager.submitMessage(
                     context = appCtx,
                     rawText = combinedText,
                     checklist = checklist,
                     executionMode = mode,
                     attachment = preparedAttachment,
+                    channel = channel,
                     apiOverride = agApiOverride
                 )
                 if (preparedAttachment != null) {
                     FalconCameraController.markLastPhotoAttached()
                 }
 
+                val channelLabel = AgDirectInboxManager.resolveChannelEnum(channel).chipLabel
                 JsonObject().apply {
                     addProperty("status", "success")
                     addProperty("sent_live", sentLive)
                     addProperty("queued_offline", !sentLive)
                     addProperty("execution_mode", mode)
+                    addProperty("channel", channel)
+                    addProperty("channel_label", channelLabel)
                     addProperty("photo_attached", preparedAttachment != null)
                     addProperty(
                         "message",
                         if (sentLive) {
-                            "Auftrag erfolgreich live an den Antigravity-Leitstand übermittelt."
+                            "Auftrag erfolgreich live in Kanal $channelLabel übermittelt."
                         } else {
-                            "Auftrag verschlüsselt in der Offline-Warteschlange gesichert."
+                            "Auftrag für Kanal $channelLabel verschlüsselt in der Offline-Warteschlange gesichert."
                         }
                     )
                 }
@@ -759,6 +1158,8 @@ object FalconClientTools {
                         addProperty("title", item.title)
                         addProperty("status", item.status.badgeLabel)
                         addProperty("execution_mode", item.executionMode)
+                        addProperty("channel", item.channel)
+                        addProperty("channel_label", AgDirectInboxManager.resolveChannelEnum(item.channel).chipLabel)
                         addProperty("has_attachment", item.hasAttachment)
                         addProperty("ag_response_summary", item.agResponseSummary ?: "")
                     })
@@ -767,6 +1168,101 @@ object FalconClientTools {
                     addProperty("status", "success")
                     addProperty("open_count", AgDirectInboxManager.openCountFlow.value)
                     add("items", itemsArr)
+                }
+            }
+
+            "falcon_smarthome_control" -> {
+                val rawAction = args.optString("action").trim().lowercase(Locale.ROOT)
+                val deviceQuery = args.optString("device_name").trim()
+
+                FunkenwerkAlarmManager.ensureInitialized(appCtx)
+                val savedDevices = FunkenwerkAlarmManager.smartPlugsFlow.value
+                    .ifEmpty { FunkenwerkAlarmManager.defaultSmartPlugs() }
+                val availableArr = JsonArray().apply {
+                    savedDevices.forEach { add(it.name) }
+                }
+
+                val normalizedAction = when (rawAction) {
+                    "on", "ein", "einschalten", "turn_on" -> "turn_on"
+                    "off", "aus", "ausschalten", "turn_off" -> "turn_off"
+                    "toggle", "umschalten", "wechseln" -> "toggle"
+                    "all_on", "alle_an", "turn_all_on" -> "turn_all_on"
+                    "all_off", "alle_aus", "turn_all_off" -> "turn_all_off"
+                    "list", "status", "devices", "list_devices" -> "list_devices"
+                    else -> if (rawAction.isBlank()) "list_devices" else rawAction
+                }
+
+                if (normalizedAction == "list_devices") {
+                    val detailArr = JsonArray()
+                    savedDevices.forEach { d ->
+                        detailArr.add(JsonObject().apply {
+                            addProperty("name", d.name)
+                            addProperty("ip", d.ip)
+                            addProperty("room", d.room)
+                            addProperty("model", d.model)
+                        })
+                    }
+                    val (tapoEmail, tapoPass) = FunkenwerkAlarmManager.getTapoCredentials(appCtx)
+                    return JsonObject().apply {
+                        addProperty("status", "success")
+                        addProperty("action", "list_devices")
+                        addProperty("credentials_configured", tapoEmail.isNotBlank() && tapoPass.isNotBlank())
+                        add("available_devices", availableArr)
+                        add("devices", detailArr)
+                    }
+                }
+
+                val targetDevices = when (normalizedAction) {
+                    "turn_all_on", "turn_all_off" -> savedDevices
+                    else -> matchSmartHomeDevices(savedDevices, deviceQuery)
+                }
+
+                if (targetDevices.isEmpty()) {
+                    return JsonObject().apply {
+                        addProperty("status", "not_found")
+                        addProperty("action", normalizedAction)
+                        addProperty("requested_device", deviceQuery)
+                        add("available_devices", availableArr)
+                        addProperty(
+                            "message",
+                            "Kein Smart-Home-Gerät passend zu '$deviceQuery' gefunden. Verfügbare Geräte: ${savedDevices.joinToString(", ") { it.name }}."
+                        )
+                    }
+                }
+
+                val targetIps = targetDevices.map { it.ip }
+                val switchedNames = JsonArray().apply {
+                    targetDevices.forEach { add(it.name) }
+                }
+
+                val (anySuccess, summary) = if (smartHomeExecutorOverride != null) {
+                    smartHomeExecutorOverride(normalizedAction, targetIps)
+                } else {
+                    when (normalizedAction) {
+                        "turn_on", "turn_all_on" ->
+                            FunkenwerkAlarmManager.triggerSmartPlugsSuspend(appCtx, targetIps, turnOn = true)
+                        "turn_off", "turn_all_off" ->
+                            FunkenwerkAlarmManager.triggerSmartPlugsSuspend(appCtx, targetIps, turnOn = false)
+                        "toggle" ->
+                            FunkenwerkAlarmManager.toggleSmartPlugsSuspend(appCtx, targetIps)
+                        else ->
+                            Pair(false, "Unbekannte Smart-Home-Aktion: $normalizedAction")
+                    }
+                }
+
+                val desiredStateLabel = when (normalizedAction) {
+                    "turn_on", "turn_all_on" -> "on"
+                    "turn_off", "turn_all_off" -> "off"
+                    else -> "toggled"
+                }
+
+                JsonObject().apply {
+                    addProperty("status", if (anySuccess) "success" else "error")
+                    addProperty("action", normalizedAction)
+                    addProperty("new_state", desiredStateLabel)
+                    add("switched_devices", switchedNames)
+                    add("available_devices", availableArr)
+                    addProperty("message", summary)
                 }
             }
 
