@@ -122,8 +122,16 @@ class SystemSettingSeeder extends Seeder
             'active_countries'          => json_encode($countries),
         ];
 
-        // 3. Daten in die Datenbank schreiben
+        // 3. Daten in die Datenbank schreiben (maintenance_mode per firstOrCreate schützen, damit ein aktiver Live-Wartungsmodus niemals überschrieben wird)
         foreach ($settings as $key => $value) {
+            if ($key === 'maintenance_mode') {
+                SystemSetting::firstOrCreate(
+                    ['key' => $key],
+                    ['value' => $value]
+                );
+                continue;
+            }
+
             SystemSetting::updateOrCreate(
                 ['key' => $key],
                 ['value' => $value]

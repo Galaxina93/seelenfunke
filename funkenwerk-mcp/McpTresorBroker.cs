@@ -1700,6 +1700,10 @@ function(mode, userVal, passVal, totpVal, doSubmit) {
             if (s.Contains("seelenfunke-live", StringComparison.OrdinalIgnoreCase)
                 || s.Contains("steinhauer-invest", StringComparison.OrdinalIgnoreCase)
                 || s.Contains("a-bycqrf", StringComparison.OrdinalIgnoreCase)
+                || s.Contains("a-s4sdym", StringComparison.OrdinalIgnoreCase)
+                || s.Contains("93f33f15-d27c-4d15-9f85-155eb9adace8", StringComparison.OrdinalIgnoreCase)
+                || s.Contains("2be54dff-9651-416e-8aba-79a5b63749ff", StringComparison.OrdinalIgnoreCase)
+                || s.Contains("mysql_fg9zlg", StringComparison.OrdinalIgnoreCase)
                 || s.Contains("production", StringComparison.OrdinalIgnoreCase))
             {
                 return true;
@@ -1765,7 +1769,9 @@ function(mode, userVal, passVal, totpVal, doSubmit) {
             HttpMethod method,
             string v2Path,
             ReadOnlyMemory<byte> apiTokenUtf8,
-            CancellationToken ct)
+            CancellationToken ct,
+            ReadOnlyMemory<byte>? jsonBodyUtf8 = null,
+            ReadOnlyMemory<char>? extraSecretCharsToScrub = null)
         {
             string currentPath = v2Path;
             char[] tokenChars = new char[Encoding.UTF8.GetCharCount(apiTokenUtf8.Span)];
@@ -1782,56 +1788,86 @@ function(mode, userVal, passVal, totpVal, doSubmit) {
                     req.Headers.TryAddWithoutValidation("x-access-token", tokenStr);
                     req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
-                    using var resp = await client.SendAsync(req, ct);
-                    int code = (int)resp.StatusCode;
-
-                    // Follow Mittwald shortId -> UUID 301/302/307/308 redirects ONLY if strictly on https://api.mittwald.de:443/v2/...
-                    if (code is 301 or 302 or 307 or 308 && resp.Headers.Location != null && hop < 3)
+                    byte[]? reqBodyCopy = null;
+                    try
                     {
-                        Uri loc = resp.Headers.Location;
-                        string nextRelPath;
-                        if (!loc.IsAbsoluteUri)
+                        if (jsonBodyUtf8.HasValue)
                         {
-                            string rawRel = loc.OriginalString;
-                            nextRelPath = rawRel.StartsWith("/", StringComparison.Ordinal) ? rawRel : "/" + rawRel;
+                            reqBodyCopy = jsonBodyUtf8.Value.ToArray();
+                            var content = new ByteArrayContent(reqBodyCopy);
+                            content.Headers.ContentType = new MediaTypeHeaderValue("application/json") { CharSet = "utf-8" };
+                            req.Content = content;
                         }
-                        else
+
+                        using var resp = await client.SendAsync(req, ct);
+                        int code = (int)resp.StatusCode;
+
+                        // Follow Mittwald shortId -> UUID 301/302/307/308 redirects ONLY if strictly on https://api.mittwald.de:443/v2/...
+                        if (code is 301 or 302 or 307 or 308 && resp.Headers.Location != null && hop < 3)
                         {
-                            if (!string.Equals(loc.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
-                                || !string.Equals(loc.Host, "api.mittwald.de", StringComparison.OrdinalIgnoreCase)
-                                || !string.IsNullOrEmpty(loc.UserInfo)
-                                || loc.Port != 443)
+                            Uri loc = resp.Headers.Location;
+                            string nextRelPath;
+                            if (!loc.IsAbsoluteUri)
                             {
-                                throw new UnauthorizedAccessException("SSRF-Schutz: Mittwald API-Redirect auf fremden Host blockiert.");
+                                string rawRel = loc.OriginalString;
+                                nextRelPath = rawRel.StartsWith("/", StringComparison.Ordinal) ? rawRel : "/" + rawRel;
                             }
-                            nextRelPath = loc.PathAndQuery;
+                            else
+                            {
+                                if (!string.Equals(loc.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
+                                    || !string.Equals(loc.Host, "api.mittwald.de", StringComparison.OrdinalIgnoreCase)
+                                    || !string.IsNullOrEmpty(loc.UserInfo)
+                                    || loc.Port != 443)
+                                {
+                                    throw new UnauthorizedAccessException("SSRF-Schutz: Mittwald API-Redirect auf fremden Host blockiert.");
+                                }
+                                nextRelPath = loc.PathAndQuery;
+                            }
+
+                            BuildPinnedMittwaldUri(nextRelPath);
+                            currentPath = nextRelPath;
+                            continue;
                         }
 
-                        BuildPinnedMittwaldUri(nextRelPath);
-                        currentPath = nextRelPath;
-                        continue;
+                        string rawBody = resp.Content != null ? await resp.Content.ReadAsStringAsync(ct) : "";
+
+                        if (!string.IsNullOrEmpty(tokenStr) && rawBody.Contains(tokenStr, StringComparison.Ordinal))
+                            rawBody = rawBody.Replace(tokenStr, "[REDACTED-BY-FUNKENWERK-DLP]", StringComparison.Ordinal);
+
+                        if (extraSecretCharsToScrub.HasValue && extraSecretCharsToScrub.Value.Length > 0 && rawBody.Length > 0)
+                        {
+                            int idx = rawBody.AsSpan().IndexOf(extraSecretCharsToScrub.Value.Span, StringComparison.Ordinal);
+                            while (idx >= 0)
+                            {
+                                rawBody = string.Concat(
+                                    rawBody.AsSpan(0, idx),
+                                    "[REDACTED-BY-FUNKENWERK-DLP]",
+                                    rawBody.AsSpan(idx + extraSecretCharsToScrub.Value.Length));
+                                idx = rawBody.AsSpan().IndexOf(extraSecretCharsToScrub.Value.Span, StringComparison.Ordinal);
+                            }
+                        }
+
+                        string cleanBody = McpSecurityGuard.ScrubSecrets(rawBody);
+                        JsonNode? parsed = null;
+                        if (!string.IsNullOrWhiteSpace(cleanBody))
+                        {
+                            try
+                            {
+                                parsed = JsonNode.Parse(cleanBody, documentOptions: new JsonDocumentOptions { MaxDepth = 24 });
+                            }
+                            catch
+                            {
+                                parsed = JsonValue.Create(cleanBody);
+                            }
+                        }
+
+                        return (code, cleanBody, parsed);
                     }
-
-                    string rawBody = resp.Content != null ? await resp.Content.ReadAsStringAsync(ct) : "";
-
-                    if (!string.IsNullOrEmpty(tokenStr) && rawBody.Contains(tokenStr, StringComparison.Ordinal))
-                        rawBody = rawBody.Replace(tokenStr, "[REDACTED-BY-FUNKENWERK-DLP]", StringComparison.Ordinal);
-
-                    string cleanBody = McpSecurityGuard.ScrubSecrets(rawBody);
-                    JsonNode? parsed = null;
-                    if (!string.IsNullOrWhiteSpace(cleanBody))
+                    finally
                     {
-                        try
-                        {
-                            parsed = JsonNode.Parse(cleanBody, documentOptions: new JsonDocumentOptions { MaxDepth = 24 });
-                        }
-                        catch
-                        {
-                            parsed = JsonValue.Create(cleanBody);
-                        }
+                        if (reqBodyCopy != null)
+                            CryptographicOperations.ZeroMemory(reqBodyCopy);
                     }
-
-                    return (code, cleanBody, parsed);
                 }
 
                 throw new InvalidOperationException("Zu viele HTTP-Weiterleitungen bei Mittwald API v2.");
@@ -2196,6 +2232,1079 @@ function(mode, userVal, passVal, totpVal, doSubmit) {
                     EntryTitle = lease.Title,
                     Data = parsedNode ?? new JsonObject { ["accepted"] = true }
                 };
+            }
+            finally
+            {
+                if (ownsClient)
+                    client.Dispose();
+            }
+        }
+
+        // =====================================================================
+        // 5. PINNED SEELENFUNKE-LIVE CLI PREPARATION ENGINE (CLI-ONLY, ZERO-SECRET)
+        // =====================================================================
+        internal static Func<string, string, Task<byte[]?>>? TestReadContainerEnvOverride { get; set; }
+        internal static Func<Task<(bool Connected, string StatusToken)>>? TestProbeLiveMysqlPdoOverride { get; set; }
+        internal static Func<ReadOnlyMemory<byte>, Task<string>>? TestWriteLiveEnvOverride { get; set; }
+        internal static int TestPdoRetryDelayMs { get; set; } = 1500;
+
+        public static void GenerateMittwaldCompliantPasswordChars(Span<char> dest)
+        {
+            if (dest.Length != 28)
+                throw new ArgumentException("Live-MySQL-Passwort muss exakt 28 Zeichen lang sein.", nameof(dest));
+
+            const string upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+            const string lower = "abcdefghijkmnopqrstuvwxyz";
+            const string digits = "0123456789";
+            // Intersection of .env/JSON-safe chars and Mittwald OpenAPI v2 allowed specials (#!~%^*_+-=?{}()<>|.,;$:/)
+            const string special = "!%^*_-+=";
+            const string firstPool = upper + lower;
+            const string allPool = upper + lower + digits + special;
+
+            // Index 0 strictly ASCII letter -> never starts with '-', '_' or ';'
+            dest[0] = firstPool[RandomNumberGenerator.GetInt32(firstPool.Length)];
+            dest[1] = upper[RandomNumberGenerator.GetInt32(upper.Length)];
+            dest[2] = lower[RandomNumberGenerator.GetInt32(lower.Length)];
+            dest[3] = digits[RandomNumberGenerator.GetInt32(digits.Length)];
+            dest[4] = special[RandomNumberGenerator.GetInt32(special.Length)];
+
+            for (int i = 5; i < dest.Length; i++)
+            {
+                dest[i] = allPool[RandomNumberGenerator.GetInt32(allPool.Length)];
+            }
+
+            // Fisher-Yates shuffle on positions 1..27
+            for (int i = 1; i < dest.Length - 1; i++)
+            {
+                int j = RandomNumberGenerator.GetInt32(i, dest.Length);
+                (dest[i], dest[j]) = (dest[j], dest[i]);
+            }
+        }
+
+        private static byte[] BuildJsonPasswordPatchBytesZeroSecret(ReadOnlySpan<char> passwordChars)
+        {
+            ReadOnlySpan<byte> prefix = "{\"password\":\""u8;
+            ReadOnlySpan<byte> suffix = "\"}"u8;
+            int pwdByteCount = Encoding.UTF8.GetByteCount(passwordChars);
+            byte[] buf = new byte[prefix.Length + pwdByteCount + suffix.Length];
+            prefix.CopyTo(buf.AsSpan(0, prefix.Length));
+            Encoding.UTF8.GetBytes(passwordChars, buf.AsSpan(prefix.Length, pwdByteCount));
+            suffix.CopyTo(buf.AsSpan(prefix.Length + pwdByteCount));
+            return buf;
+        }
+
+        private static ReadOnlySpan<byte> StripUtf8Bom(ReadOnlySpan<byte> data)
+        {
+            if (data.Length >= 3 && data[0] == 0xEF && data[1] == 0xBB && data[2] == 0xBF)
+                return data.Slice(3);
+            return data;
+        }
+
+        private static ReadOnlySpan<byte> UnquoteEnvValueSpan(ReadOnlySpan<byte> rawVal)
+        {
+            ReadOnlySpan<byte> trimmed = TrimAsciiWhitespace(rawVal);
+            if (trimmed.Length >= 2 &&
+                ((trimmed[0] == (byte)'"' && trimmed[^1] == (byte)'"') ||
+                 (trimmed[0] == (byte)'\'' && trimmed[^1] == (byte)'\'')))
+            {
+                return trimmed.Slice(1, trimmed.Length - 2);
+            }
+            return trimmed;
+        }
+
+        private static ReadOnlySpan<byte> TrimAsciiWhitespace(ReadOnlySpan<byte> span)
+        {
+            int start = 0;
+            while (start < span.Length && (span[start] == (byte)' ' || span[start] == (byte)'\t' || span[start] == (byte)'\r'))
+                start++;
+            int end = span.Length - 1;
+            while (end >= start && (span[end] == (byte)' ' || span[end] == (byte)'\t' || span[end] == (byte)'\r'))
+                end--;
+            return start > end ? ReadOnlySpan<byte>.Empty : span.Slice(start, end - start + 1);
+        }
+
+        private static bool AsciiContainsIgnoreCase(ReadOnlySpan<byte> haystack, ReadOnlySpan<byte> needleLowerAscii)
+        {
+            if (needleLowerAscii.Length == 0 || haystack.Length < needleLowerAscii.Length)
+                return false;
+
+            for (int i = 0; i <= haystack.Length - needleLowerAscii.Length; i++)
+            {
+                bool match = true;
+                for (int j = 0; j < needleLowerAscii.Length; j++)
+                {
+                    byte b = haystack[i + j];
+                    if (b is >= (byte)'A' and <= (byte)'Z')
+                        b = (byte)(b + 32);
+                    if (b != needleLowerAscii[j])
+                    {
+                        match = false;
+                        break;
+                    }
+                }
+                if (match) return true;
+            }
+            return false;
+        }
+
+        private static List<(string? Key, byte[] RawLineOrValue)> ParseEnvLinesZeroSecret(
+            ReadOnlySpan<byte> envUtf8,
+            List<byte[]> scratchTracker,
+            out Dictionary<string, byte[]> keyMap)
+        {
+            keyMap = new Dictionary<string, byte[]>(StringComparer.Ordinal);
+            var lines = new List<(string? Key, byte[] RawLineOrValue)>();
+            ReadOnlySpan<byte> clean = StripUtf8Bom(envUtf8);
+            if (clean.IsEmpty)
+                return lines;
+
+            int pos = 0;
+            while (pos < clean.Length)
+            {
+                int nl = clean.Slice(pos).IndexOf((byte)'\n');
+                ReadOnlySpan<byte> rawLine = nl >= 0 ? clean.Slice(pos, nl) : clean.Slice(pos);
+                pos = nl >= 0 ? pos + nl + 1 : clean.Length;
+
+                if (!rawLine.IsEmpty && rawLine[^1] == (byte)'\r')
+                    rawLine = rawLine.Slice(0, rawLine.Length - 1);
+
+                ReadOnlySpan<byte> trimmed = TrimAsciiWhitespace(rawLine);
+                if (trimmed.IsEmpty || trimmed[0] == (byte)'#')
+                {
+                    byte[] copy = rawLine.ToArray();
+                    scratchTracker.Add(copy);
+                    lines.Add((null, copy));
+                    continue;
+                }
+
+                ReadOnlySpan<byte> working = trimmed;
+                if (working.Length > 7 && working.Slice(0, 7).SequenceEqual("export "u8))
+                    working = TrimAsciiWhitespace(working.Slice(7));
+
+                int eq = working.IndexOf((byte)'=');
+                if (eq <= 0)
+                {
+                    byte[] copy = rawLine.ToArray();
+                    scratchTracker.Add(copy);
+                    lines.Add((null, copy));
+                    continue;
+                }
+
+                ReadOnlySpan<byte> keySpan = TrimAsciiWhitespace(working.Slice(0, eq));
+                bool validKey = !keySpan.IsEmpty;
+                for (int i = 0; i < keySpan.Length; i++)
+                {
+                    byte c = keySpan[i];
+                    bool ok = (c is >= (byte)'A' and <= (byte)'Z')
+                           || (c is >= (byte)'a' and <= (byte)'z')
+                           || (c is >= (byte)'0' and <= (byte)'9')
+                           || c == (byte)'_';
+                    if (!ok) { validKey = false; break; }
+                }
+
+                if (!validKey)
+                {
+                    byte[] copy = rawLine.ToArray();
+                    scratchTracker.Add(copy);
+                    lines.Add((null, copy));
+                    continue;
+                }
+
+                string keyName = Encoding.ASCII.GetString(keySpan);
+                byte[] valBytes = working.Slice(eq + 1).ToArray();
+                scratchTracker.Add(valBytes);
+                keyMap[keyName] = valBytes;
+                lines.Add((keyName, valBytes));
+            }
+
+            return lines;
+        }
+
+        internal static (byte[] FinalEnvUtf8, bool ReusedExistingAppKey, bool ReusedExistingDbPassword, int PreservedServiceKeyCount)
+            BuildIsolatedSeelenfunkeLiveEnvZeroSecret(
+                ReadOnlySpan<byte> stageEnvUtf8,
+                ReadOnlySpan<byte> existingLiveEnvUtf8,
+                bool preserveExistingLiveDbPassword,
+                ReadOnlySpan<char> newDbPasswordChars)
+        {
+            var scratch = new List<byte[]>();
+            Span<byte> csprngAppKey32 = stackalloc byte[32];
+            char[] b64AppKeyChars = new char[44];
+
+            try
+            {
+                var stageLines = ParseEnvLinesZeroSecret(stageEnvUtf8, scratch, out var stageMap);
+                var liveLines = ParseEnvLinesZeroSecret(existingLiveEnvUtf8, scratch, out var liveMap);
+
+                // 1. Determine APP_KEY (reuse Live APP_KEY ONLY if already set and distinct from Stage APP_KEY)
+                bool reusedAppKey = false;
+                byte[] appKeyValUtf8;
+                ReadOnlySpan<byte> stageAppKeyUnquoted = stageMap.TryGetValue("APP_KEY", out var stAk) ? UnquoteEnvValueSpan(stAk) : ReadOnlySpan<byte>.Empty;
+                ReadOnlySpan<byte> liveAppKeyUnquoted = liveMap.TryGetValue("APP_KEY", out var lvAk) ? UnquoteEnvValueSpan(lvAk) : ReadOnlySpan<byte>.Empty;
+
+                if (liveAppKeyUnquoted.Length >= 40
+                    && liveAppKeyUnquoted.StartsWith("base64:"u8)
+                    && (stageAppKeyUnquoted.IsEmpty || !liveAppKeyUnquoted.SequenceEqual(stageAppKeyUnquoted)))
+                {
+                    appKeyValUtf8 = liveMap["APP_KEY"].ToArray();
+                    scratch.Add(appKeyValUtf8);
+                    reusedAppKey = true;
+                }
+                else
+                {
+                    RandomNumberGenerator.Fill(csprngAppKey32);
+                    if (!Convert.TryToBase64Chars(csprngAppKey32, b64AppKeyChars, out int written) || written != 44)
+                        throw new InvalidOperationException("CSPRNG APP_KEY Base64-Erzeugung fehlgeschlagen.");
+
+                    ReadOnlySpan<byte> akPre = "\"base64:"u8;
+                    int akMidLen = Encoding.ASCII.GetByteCount(b64AppKeyChars);
+                    appKeyValUtf8 = new byte[akPre.Length + akMidLen + 1];
+                    scratch.Add(appKeyValUtf8);
+                    akPre.CopyTo(appKeyValUtf8);
+                    Encoding.ASCII.GetBytes(b64AppKeyChars, appKeyValUtf8.AsSpan(akPre.Length, akMidLen));
+                    appKeyValUtf8[^1] = (byte)'"';
+                }
+
+                // 2. Determine DB_PASSWORD
+                bool reusedDbPassword = false;
+                byte[] dbPasswordValUtf8;
+                if (preserveExistingLiveDbPassword
+                    && liveMap.TryGetValue("DB_PASSWORD", out var existingDbPw)
+                    && UnquoteEnvValueSpan(existingDbPw).Length > 0)
+                {
+                    dbPasswordValUtf8 = existingDbPw.ToArray();
+                    scratch.Add(dbPasswordValUtf8);
+                    reusedDbPassword = true;
+                }
+                else
+                {
+                    if (newDbPasswordChars.IsEmpty)
+                        throw new ArgumentException("Neues Live-DB-Passwort fehlt bei Neu-Provisionierung.");
+
+                    int pwByteLen = Encoding.UTF8.GetByteCount(newDbPasswordChars);
+                    dbPasswordValUtf8 = new byte[pwByteLen + 2];
+                    scratch.Add(dbPasswordValUtf8);
+                    dbPasswordValUtf8[0] = (byte)'"';
+                    Encoding.UTF8.GetBytes(newDbPasswordChars, dbPasswordValUtf8.AsSpan(1, pwByteLen));
+                    dbPasswordValUtf8[^1] = (byte)'"';
+                }
+
+                // 3. Strict Live-Isolation Overrides (guaranteed zero sharing with Stage DB / Redis / Queue!)
+                var forcedOverrides = new Dictionary<string, byte[]>(StringComparer.Ordinal)
+                {
+                    ["APP_NAME"] = "\"Mein Seelenfunke\""u8.ToArray(),
+                    ["APP_ENV"] = "production"u8.ToArray(),
+                    ["APP_DEBUG"] = "false"u8.ToArray(),
+                    ["APP_KEY"] = appKeyValUtf8,
+                    ["APP_URL"] = "https://www.mein-seelenfunke.de"u8.ToArray(),
+                    ["DB_CONNECTION"] = "mysql"u8.ToArray(),
+                    ["DB_HOST"] = Encoding.ASCII.GetBytes(McpSecurityGuard.PinnedLiveMysqlHost),
+                    ["DB_PORT"] = "3306"u8.ToArray(),
+                    ["DB_DATABASE"] = Encoding.ASCII.GetBytes(McpSecurityGuard.PinnedLiveMysqlDatabase),
+                    ["DB_USERNAME"] = Encoding.ASCII.GetBytes(McpSecurityGuard.PinnedLiveMysqlUser),
+                    ["DB_PASSWORD"] = dbPasswordValUtf8,
+                    ["CACHE_STORE"] = "database"u8.ToArray(),
+                    ["CACHE_DRIVER"] = "database"u8.ToArray(),
+                    ["CACHE_PREFIX"] = "seelenfunke_live_cache_"u8.ToArray(),
+                    ["SESSION_DRIVER"] = "database"u8.ToArray(),
+                    ["QUEUE_CONNECTION"] = "sync"u8.ToArray(),
+                    ["BROADCAST_CONNECTION"] = "log"u8.ToArray(),
+                    ["BROADCAST_DRIVER"] = "log"u8.ToArray(),
+                    ["REDIS_HOST"] = "127.0.0.1"u8.ToArray(),
+                    ["REDIS_PASSWORD"] = "null"u8.ToArray(),
+                    ["REDIS_PORT"] = "6379"u8.ToArray(),
+                    ["GOOGLE_REDIRECT_URL"] = "https://www.mein-seelenfunke.de/auth/google/callback"u8.ToArray()
+                };
+
+                var primaryLines = (preserveExistingLiveDbPassword && liveLines.Count > 0) ? liveLines : stageLines;
+                var secondaryLines = (preserveExistingLiveDbPassword && liveLines.Count > 0) ? stageLines : liveLines;
+
+                // Neutralize Stage-specific cookie/asset domains if inherited from Stage .env
+                foreach (var map in new[] { stageMap, liveMap })
+                {
+                    if (map.TryGetValue("SESSION_DOMAIN", out var sdVal) && AsciiContainsIgnoreCase(sdVal, "stage"u8))
+                        forcedOverrides["SESSION_DOMAIN"] = "null"u8.ToArray();
+                    if (map.TryGetValue("ASSET_URL", out var auVal) && AsciiContainsIgnoreCase(auVal, "stage.mein-seelenfunke.de"u8))
+                        forcedOverrides["ASSET_URL"] = "https://www.mein-seelenfunke.de"u8.ToArray();
+                    if (map.TryGetValue("SANCTUM_STATEFUL_DOMAINS", out var ssdVal) && AsciiContainsIgnoreCase(ssdVal, "stage.mein-seelenfunke.de"u8))
+                        forcedOverrides["SANCTUM_STATEFUL_DOMAINS"] = "www.mein-seelenfunke.de,mein-seelenfunke.de"u8.ToArray();
+                }
+
+                var emittedKeys = new HashSet<string>(StringComparer.Ordinal);
+                int preservedServiceKeys = 0;
+
+                using var ms = new MemoryStream(8192);
+                try
+                {
+                    void WriteKeyVal(string key, ReadOnlySpan<byte> val)
+                    {
+                        byte[] kBytes = Encoding.ASCII.GetBytes(key);
+                        ms.Write(kBytes, 0, kBytes.Length);
+                        ms.WriteByte((byte)'=');
+                        ms.Write(val);
+                        ms.WriteByte((byte)'\n');
+                    }
+
+                    foreach (var (key, rawOrVal) in primaryLines)
+                    {
+                        if (key == null)
+                        {
+                            ms.Write(rawOrVal, 0, rawOrVal.Length);
+                            ms.WriteByte((byte)'\n');
+                            continue;
+                        }
+
+                        if (!emittedKeys.Add(key))
+                            continue;
+
+                        if (forcedOverrides.TryGetValue(key, out var forcedVal))
+                        {
+                            WriteKeyVal(key, forcedVal);
+                        }
+                        else
+                        {
+                            WriteKeyVal(key, rawOrVal);
+                            preservedServiceKeys++;
+                        }
+                    }
+
+                    // Merge any missing service keys from secondary template (e.g. newly added MAIL_*/STRIPE_* on Stage)
+                    foreach (var (key, rawOrVal) in secondaryLines)
+                    {
+                        if (key == null || !emittedKeys.Add(key))
+                            continue;
+
+                        if (forcedOverrides.TryGetValue(key, out var forcedVal))
+                        {
+                            WriteKeyVal(key, forcedVal);
+                        }
+                        else
+                        {
+                            WriteKeyVal(key, rawOrVal);
+                            preservedServiceKeys++;
+                        }
+                    }
+
+                    // Append any forced isolation keys that were not present in the base template at all
+                    foreach (var kv in forcedOverrides)
+                    {
+                        if (emittedKeys.Add(kv.Key))
+                        {
+                            WriteKeyVal(kv.Key, kv.Value);
+                        }
+                    }
+
+                    byte[] finalExact = new byte[ms.Length];
+                    Buffer.BlockCopy(ms.GetBuffer(), 0, finalExact, 0, finalExact.Length);
+                    return (finalExact, reusedAppKey, reusedDbPassword, preservedServiceKeys);
+                }
+                finally
+                {
+                    CryptographicOperations.ZeroMemory(ms.GetBuffer());
+                }
+            }
+            finally
+            {
+                CryptographicOperations.ZeroMemory(csprngAppKey32);
+                Array.Clear(b64AppKeyChars, 0, b64AppKeyChars.Length);
+                foreach (var buf in scratch)
+                {
+                    CryptographicOperations.ZeroMemory(buf);
+                }
+            }
+        }
+
+        public static async Task<JsonObject> ExecutePinnedSeelenfunkeLivePrepareAsync(
+            string step = "all",
+            string? entryTitleOrId = null,
+            CancellationToken ct = default)
+        {
+            string normStep = string.IsNullOrWhiteSpace(step) ? "all" : step.Trim().ToLowerInvariant();
+            if (normStep is not ("all" or "infra" or "env" or "cron" or "check"))
+                throw new ArgumentException($"Ungültiger --step='{McpSecurityGuard.ScrubSecrets(step)}'. Erlaubt: all, infra, env, cron, check.");
+
+            if (!string.IsNullOrWhiteSpace(entryTitleOrId)
+                && (entryTitleOrId.Contains("steinhauer-invest", StringComparison.OrdinalIgnoreCase)
+                    || entryTitleOrId.Contains("a-s4sdym", StringComparison.OrdinalIgnoreCase)
+                    || entryTitleOrId.Contains("2be54dff-9651-416e-8aba-79a5b63749ff", StringComparison.OrdinalIgnoreCase)
+                    || entryTitleOrId.Contains("mysql_fg9zlg", StringComparison.OrdinalIgnoreCase)))
+            {
+                McpSecurityGuard.AppendAuditLog("mittwald_prepare_live", McpSecurityGuard.ScrubSecrets(entryTitleOrId), "DENY:steinhauer_invest_blocked");
+                throw new UnauthorizedAccessException("HARTE SICHERHEITSSPERRE: Zugriff auf 'steinhauer-invest' ist zu 100 % technisch gesperrt!");
+            }
+
+            // Hard pin verification on all target constants
+            McpSecurityGuard.ValidatePinnedSeelenfunkeLiveTarget(
+                McpSecurityGuard.PinnedLiveProjectId,
+                McpSecurityGuard.PinnedLiveAppUuid,
+                McpSecurityGuard.PinnedLiveRemoteDir,
+                McpSecurityGuard.PinnedLiveSshUser,
+                McpSecurityGuard.PinnedLiveMysqlDatabase,
+                McpSecurityGuard.PinnedLiveMysqlUserUuid);
+
+            string lookupQuery = string.IsNullOrWhiteSpace(entryTitleOrId) ? "Mittwald" : entryTitleOrId!.Trim();
+            using var lease = ResolveEntrySecretLease(lookupQuery, requireApiToken: true);
+
+            bool ownsClient = TestMittwaldHttpClientOverride == null;
+            HttpClient client = TestMittwaldHttpClientOverride ?? McpSecurityGuard.CreateHardenedApiClient(TimeSpan.FromSeconds(30));
+
+            var summary = new JsonObject
+            {
+                ["status"] = "ok",
+                ["step"] = normStep,
+                ["pinned_project_id"] = McpSecurityGuard.PinnedLiveProjectId,
+                ["pinned_app_id"] = McpSecurityGuard.PinnedLiveAppUuid,
+                ["pinned_app_short_id"] = McpSecurityGuard.PinnedLiveAppShortId
+            };
+
+            try
+            {
+                if (normStep == "check")
+                {
+                    var checkObj = new JsonObject { ["tresor_entry_title"] = lease.Title };
+
+                    var (cAppSt, _, cAppNode) = await SendMittwaldRequestAsync(
+                        client, HttpMethod.Get, $"/v2/app-installations/{McpSecurityGuard.PinnedLiveAppUuid}", lease.ApiTokenUtf8, ct);
+                    checkObj["live_app_http"] = cAppSt;
+                    checkObj["custom_document_root"] = (cAppNode as JsonObject)?["customDocumentRoot"]?.GetValue<string>() ?? "";
+
+                    var (cIngSt, _, cIngNode) = await SendMittwaldRequestAsync(
+                        client, HttpMethod.Get, $"/v2/ingresses?projectId={Uri.EscapeDataString(McpSecurityGuard.PinnedLiveProjectId)}", lease.ApiTokenUtf8, ct);
+                    bool hasWww = (cIngNode as JsonArray)?.Any(x => string.Equals(x?["hostname"]?.GetValue<string>(), McpSecurityGuard.PinnedLiveWwwHostname, StringComparison.OrdinalIgnoreCase)) == true;
+                    checkObj["ingresses_http"] = cIngSt;
+                    checkObj["www_ingress_exists"] = hasWww;
+
+                    var (cCronSt, _, cCronNode) = await SendMittwaldRequestAsync(
+                        client, HttpMethod.Get, $"/v2/projects/{McpSecurityGuard.PinnedLiveProjectId}/cronjobs", lease.ApiTokenUtf8, ct);
+                    bool hasLiveCron = (cCronNode as JsonArray)?.Any(x =>
+                        string.Equals(x?["appInstallationId"]?.GetValue<string>(), McpSecurityGuard.PinnedLiveAppUuid, StringComparison.Ordinal) ||
+                        string.Equals(x?["target"]?["appInstallationId"]?.GetValue<string>(), McpSecurityGuard.PinnedLiveAppUuid, StringComparison.Ordinal)) == true;
+                    checkObj["cronjobs_http"] = cCronSt;
+                    checkObj["live_cronjob_exists"] = hasLiveCron;
+
+                    byte[]? chkLiveEnv = null;
+                    byte[]? chkStageEnv = null;
+                    try
+                    {
+                        var readFn = TestReadContainerEnvOverride ?? McpSecurityGuard.ReadPinnedContainerEnvBytesZeroSecretAsync;
+                        var probeFn = TestProbeLiveMysqlPdoOverride ?? McpSecurityGuard.ProbePinnedLiveMysqlPdoZeroSecretAsync;
+
+                        chkLiveEnv = await readFn(McpSecurityGuard.PinnedLiveSshUser, McpSecurityGuard.PinnedLiveEnvRemotePath);
+                        checkObj["live_ssh_sftp_ok"] = true;
+                        checkObj["live_env_exists"] = chkLiveEnv != null && chkLiveEnv.Length > 0;
+
+                        chkStageEnv = await readFn(McpSecurityGuard.PinnedLiveSshUser, McpSecurityGuard.PinnedStageEnvRemotePath)
+                                   ?? await readFn(McpSecurityGuard.PinnedStageWebSshUser, McpSecurityGuard.PinnedStageEnvRemotePath);
+                        checkObj["stage_env_readable_in_ram"] = chkStageEnv != null && chkStageEnv.Length > 0;
+
+                        var (pdoOk, pdoToken) = await probeFn();
+                        checkObj["live_pdo_ok"] = pdoOk;
+                        checkObj["live_pdo_status"] = pdoToken;
+                    }
+                    catch (Exception sshEx)
+                    {
+                        checkObj["live_ssh_sftp_ok"] = false;
+                        checkObj["live_ssh_error"] = McpSecurityGuard.ScrubSecrets(sshEx.Message);
+                    }
+                    finally
+                    {
+                        if (chkLiveEnv != null) CryptographicOperations.ZeroMemory(chkLiveEnv);
+                        if (chkStageEnv != null) CryptographicOperations.ZeroMemory(chkStageEnv);
+                    }
+
+                    summary["check"] = checkObj;
+                    return summary;
+                }
+
+                // =============================================================
+                // STEP 1 & 2: INFRA (DocumentRoot /public + Ingress + ACME + DNS)
+                // =============================================================
+                if (normStep is "all" or "infra")
+                {
+                    var infraObj = new JsonObject();
+                    var infraErrors = new List<string>();
+
+                    // 1) DocumentRoot /public on 93f33f15-d27c-4d15-9f85-155eb9adace8
+                    var (appSt, appBody, appNode) = await SendMittwaldRequestAsync(
+                        client,
+                        HttpMethod.Get,
+                        $"/v2/app-installations/{McpSecurityGuard.PinnedLiveAppUuid}",
+                        lease.ApiTokenUtf8,
+                        ct);
+                    if (appSt is < 200 or >= 300 || appNode is not JsonObject appJson)
+                        throw new InvalidOperationException($"GET /v2/app-installations/{McpSecurityGuard.PinnedLiveAppUuid} fehlgeschlagen (HTTP {appSt}): {appBody}");
+
+                    string fetchedId = appJson["id"]?.GetValue<string>() ?? "";
+                    string fetchedProj = appJson["projectId"]?.GetValue<string>() ?? "";
+                    string fetchedShort = appJson["shortId"]?.GetValue<string>() ?? "";
+                    string fetchedDesc = appJson["description"]?.GetValue<string>() ?? "";
+
+                    if (!string.Equals(fetchedId, McpSecurityGuard.PinnedLiveAppUuid, StringComparison.Ordinal)
+                        || !string.Equals(fetchedProj, McpSecurityGuard.PinnedLiveProjectId, StringComparison.Ordinal)
+                        || !string.Equals(fetchedShort, McpSecurityGuard.PinnedLiveAppShortId, StringComparison.Ordinal)
+                        || fetchedDesc.Contains("steinhauer-invest", StringComparison.OrdinalIgnoreCase))
+                    {
+                        throw new UnauthorizedAccessException("PINNING-SPERRE: Mittwald AppInstallation entspricht nicht exakt 'seelenfunke-live' (a-bycqrf).");
+                    }
+
+                    string docRootBefore = appJson["customDocumentRoot"]?.GetValue<string>() ?? "";
+                    bool docRootPatched = false;
+                    string docRootAfter = docRootBefore;
+
+                    if (!string.Equals(docRootBefore, "/public", StringComparison.Ordinal))
+                    {
+                        byte[] patchDocRootBytes = Encoding.UTF8.GetBytes("{\"customDocumentRoot\":\"/public\"}");
+                        var (patchSt, patchBody, _) = await SendMittwaldRequestAsync(
+                            client,
+                            HttpMethod.Patch,
+                            $"/v2/app-installations/{McpSecurityGuard.PinnedLiveAppUuid}",
+                            lease.ApiTokenUtf8,
+                            ct,
+                            jsonBodyUtf8: patchDocRootBytes);
+                        if (patchSt is < 200 or >= 300)
+                        {
+                            string hint = patchSt == 403 ? $" [Tresor-Token '{lease.Title}' hat nur api_read; benötigt api_write]" : "";
+                            infraErrors.Add($"PATCH /v2/app-installations/{McpSecurityGuard.PinnedLiveAppUuid} -> HTTP {patchSt}{hint}: {patchBody}");
+                        }
+                        else
+                        {
+                            docRootPatched = true;
+                            var (reSt, _, reNode) = await SendMittwaldRequestAsync(
+                                client,
+                                HttpMethod.Get,
+                                $"/v2/app-installations/{McpSecurityGuard.PinnedLiveAppUuid}",
+                                lease.ApiTokenUtf8,
+                                ct);
+                            if (reSt is >= 200 and < 300 && reNode is JsonObject reJson)
+                                docRootAfter = reJson["customDocumentRoot"]?.GetValue<string>() ?? "/public";
+                            else
+                                docRootAfter = "/public";
+                        }
+                    }
+
+                    infraObj["document_root_before"] = docRootBefore;
+                    infraObj["document_root_after"] = docRootAfter;
+                    infraObj["document_root_patched"] = docRootPatched;
+
+                    // 2) Ingress www.mein-seelenfunke.de -> 93f33f15-d27c-4d15-9f85-155eb9adace8 (/) + ACME TLS + DNS Zone
+                    var (ingListSt, ingListBody, ingListNode) = await SendMittwaldRequestAsync(
+                        client,
+                        HttpMethod.Get,
+                        $"/v2/ingresses?projectId={Uri.EscapeDataString(McpSecurityGuard.PinnedLiveProjectId)}",
+                        lease.ApiTokenUtf8,
+                        ct);
+                    if (ingListSt is < 200 or >= 300 || ingListNode is not JsonArray ingArr)
+                        throw new InvalidOperationException($"GET /v2/ingresses fehlgeschlagen (HTTP {ingListSt}): {ingListBody}");
+
+                    JsonObject? wwwIngressObj = null;
+                    foreach (var item in ingArr)
+                    {
+                        if (item is JsonObject io &&
+                            string.Equals(io["hostname"]?.GetValue<string>(), McpSecurityGuard.PinnedLiveWwwHostname, StringComparison.OrdinalIgnoreCase))
+                        {
+                            wwwIngressObj = io;
+                            break;
+                        }
+                    }
+
+                    bool ingressCreated = false;
+                    string wwwIngressId = "";
+
+                    if (wwwIngressObj == null)
+                    {
+                        var createIngPayload = new JsonObject
+                        {
+                            ["projectId"] = McpSecurityGuard.PinnedLiveProjectId,
+                            ["hostname"] = McpSecurityGuard.PinnedLiveWwwHostname,
+                            ["paths"] = new JsonArray
+                            {
+                                new JsonObject
+                                {
+                                    ["path"] = "/",
+                                    ["target"] = new JsonObject
+                                    {
+                                        ["installationId"] = McpSecurityGuard.PinnedLiveAppUuid
+                                    }
+                                }
+                            }
+                        };
+                        byte[] createIngBytes = Encoding.UTF8.GetBytes(createIngPayload.ToJsonString());
+                        var (crSt, crBody, crNode) = await SendMittwaldRequestAsync(
+                            client,
+                            HttpMethod.Post,
+                            "/v2/ingresses",
+                            lease.ApiTokenUtf8,
+                            ct,
+                            jsonBodyUtf8: createIngBytes);
+                        if (crSt is < 200 or >= 300 || crNode is not JsonObject crObj)
+                        {
+                            string hint = crSt == 403 ? $" [Tresor-Token '{lease.Title}' hat nur api_read; benötigt api_write]" : "";
+                            infraErrors.Add($"POST /v2/ingresses ({McpSecurityGuard.PinnedLiveWwwHostname}) -> HTTP {crSt}{hint}: {crBody}");
+                        }
+                        else
+                        {
+                            wwwIngressId = ValidateSafeMittwaldId(crObj["id"]?.GetValue<string>(), "ingressId");
+                            ingressCreated = true;
+
+                            var (gSt, _, gNode) = await SendMittwaldRequestAsync(
+                                client,
+                                HttpMethod.Get,
+                                $"/v2/ingresses/{wwwIngressId}",
+                                lease.ApiTokenUtf8,
+                                ct);
+                            if (gSt is >= 200 and < 300 && gNode is JsonObject gObj)
+                                wwwIngressObj = gObj;
+                        }
+                    }
+                    else
+                    {
+                        wwwIngressId = ValidateSafeMittwaldId(wwwIngressObj["id"]?.GetValue<string>(), "ingressId");
+
+                        bool rootPointsToLive = false;
+                        if (wwwIngressObj["paths"] is JsonArray pathsArr)
+                        {
+                            foreach (var pNode in pathsArr)
+                            {
+                                if (pNode is JsonObject po
+                                    && string.Equals(po["path"]?.GetValue<string>(), "/", StringComparison.Ordinal)
+                                    && string.Equals(po["target"]?["installationId"]?.GetValue<string>(), McpSecurityGuard.PinnedLiveAppUuid, StringComparison.Ordinal))
+                                {
+                                    rootPointsToLive = true;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (!rootPointsToLive)
+                        {
+                            var patchPathsArr = new JsonArray
+                            {
+                                new JsonObject
+                                {
+                                    ["path"] = "/",
+                                    ["target"] = new JsonObject
+                                    {
+                                        ["installationId"] = McpSecurityGuard.PinnedLiveAppUuid
+                                    }
+                                }
+                            };
+                            byte[] patchPathsBytes = Encoding.UTF8.GetBytes(patchPathsArr.ToJsonString());
+                            var (ppSt, ppBody, _) = await SendMittwaldRequestAsync(
+                                client,
+                                HttpMethod.Patch,
+                                $"/v2/ingresses/{wwwIngressId}/paths",
+                                lease.ApiTokenUtf8,
+                                ct,
+                                jsonBodyUtf8: patchPathsBytes);
+                            if (ppSt is < 200 or >= 300)
+                                infraErrors.Add($"PATCH /v2/ingresses/{wwwIngressId}/paths -> HTTP {ppSt}: {ppBody}");
+                        }
+                    }
+
+                    if (infraErrors.Count > 0 && string.IsNullOrEmpty(wwwIngressId))
+                        throw new InvalidOperationException(string.Join(" || ", infraErrors));
+
+                    // Ensure TLS ACME is enabled on www ingress
+                    bool tlsAcmeEnabled = wwwIngressObj?["tls"]?["acme"]?.GetValue<bool>() == true;
+                    if (!tlsAcmeEnabled)
+                    {
+                        byte[] patchTlsBytes = Encoding.UTF8.GetBytes("{\"acme\":true}");
+                        var (tlsSt, tlsBody, _) = await SendMittwaldRequestAsync(
+                            client,
+                            HttpMethod.Patch,
+                            $"/v2/ingresses/{wwwIngressId}/tls",
+                            lease.ApiTokenUtf8,
+                            ct,
+                            jsonBodyUtf8: patchTlsBytes);
+                        if (tlsSt is < 200 or >= 300)
+                            throw new InvalidOperationException($"PATCH /v2/ingresses/{wwwIngressId}/tls fehlgeschlagen (HTTP {tlsSt}): {tlsBody}");
+                        tlsAcmeEnabled = true;
+                    }
+
+                    // Check & link DNS Zone for www.mein-seelenfunke.de (managedBy.ingressId)
+                    var (zListSt, zListBody, zListNode) = await SendMittwaldRequestAsync(
+                        client,
+                        HttpMethod.Get,
+                        $"/v2/projects/{McpSecurityGuard.PinnedLiveProjectId}/dns-zones",
+                        lease.ApiTokenUtf8,
+                        ct);
+                    if (zListSt is < 200 or >= 300 || zListNode is not JsonArray zonesArr)
+                        throw new InvalidOperationException($"GET /v2/projects/{McpSecurityGuard.PinnedLiveProjectId}/dns-zones fehlgeschlagen (HTTP {zListSt}): {zListBody}");
+
+                    JsonObject? wwwZoneObj = null;
+                    foreach (var z in zonesArr)
+                    {
+                        if (z is JsonObject zo &&
+                            string.Equals(zo["domain"]?.GetValue<string>(), McpSecurityGuard.PinnedLiveWwwHostname, StringComparison.OrdinalIgnoreCase))
+                        {
+                            wwwZoneObj = zo;
+                            break;
+                        }
+                    }
+
+                    bool dnsZoneCreated = false;
+                    bool dnsSetManagedCalled = false;
+                    string wwwZoneId = "";
+
+                    if (wwwZoneObj == null)
+                    {
+                        byte[] createZoneBytes = Encoding.UTF8.GetBytes($"{{\"name\":\"{McpSecurityGuard.PinnedLiveWwwHostname}\"}}");
+                        var (czSt, czBody, czNode) = await SendMittwaldRequestAsync(
+                            client,
+                            HttpMethod.Post,
+                            $"/v2/projects/{McpSecurityGuard.PinnedLiveProjectId}/dns-zones",
+                            lease.ApiTokenUtf8,
+                            ct,
+                            jsonBodyUtf8: createZoneBytes);
+
+                        if (czSt is < 200 or >= 300)
+                        {
+                            // Fallback to parentZoneId subzone creation if project endpoint rejected
+                            byte[] fallbackZoneBytes = Encoding.UTF8.GetBytes($"{{\"name\":\"www\",\"parentZoneId\":\"{McpSecurityGuard.PinnedLiveRootZoneUuid}\"}}");
+                            var (fbSt, fbBody, fbNode) = await SendMittwaldRequestAsync(
+                                client,
+                                HttpMethod.Post,
+                                "/v2/dns-zones",
+                                lease.ApiTokenUtf8,
+                                ct,
+                                jsonBodyUtf8: fallbackZoneBytes);
+                            if (fbSt is < 200 or >= 300 || fbNode is not JsonObject fbObj)
+                                throw new InvalidOperationException($"Anlegen der DNS-Subzone {McpSecurityGuard.PinnedLiveWwwHostname} fehlgeschlagen (HTTP {czSt}/{fbSt}): {czBody} | {fbBody}");
+
+                            wwwZoneId = ValidateSafeMittwaldId(fbObj["id"]?.GetValue<string>(), "dnsZoneId");
+                        }
+                        else if (czNode is JsonObject czObj)
+                        {
+                            wwwZoneId = ValidateSafeMittwaldId(czObj["id"]?.GetValue<string>(), "dnsZoneId");
+                        }
+
+                        dnsZoneCreated = true;
+                        if (!string.IsNullOrEmpty(wwwZoneId))
+                        {
+                            var (gzSt, _, gzNode) = await SendMittwaldRequestAsync(
+                                client,
+                                HttpMethod.Get,
+                                $"/v2/dns-zones/{wwwZoneId}",
+                                lease.ApiTokenUtf8,
+                                ct);
+                            if (gzSt is >= 200 and < 300 && gzNode is JsonObject gzObj)
+                                wwwZoneObj = gzObj;
+                        }
+                    }
+                    else
+                    {
+                        wwwZoneId = ValidateSafeMittwaldId(wwwZoneObj["id"]?.GetValue<string>(), "dnsZoneId");
+                    }
+
+                    string managedByIngressId = wwwZoneObj?["recordSet"]?["combinedARecords"]?["managedBy"]?["ingressId"]?.GetValue<string>() ?? "";
+                    if (!string.IsNullOrEmpty(wwwZoneId) && !string.Equals(managedByIngressId, wwwIngressId, StringComparison.Ordinal))
+                    {
+                        byte[] emptyJsonObj = Encoding.UTF8.GetBytes("{}");
+                        var (smSt, smBody, _) = await SendMittwaldRequestAsync(
+                            client,
+                            HttpMethod.Post,
+                            $"/v2/dns-zones/{wwwZoneId}/record-sets/a/actions/set-managed",
+                            lease.ApiTokenUtf8,
+                            ct,
+                            jsonBodyUtf8: emptyJsonObj);
+                        if (smSt is < 200 or >= 300)
+                            throw new InvalidOperationException($"POST /v2/dns-zones/{wwwZoneId}/record-sets/a/actions/set-managed fehlgeschlagen (HTTP {smSt}): {smBody}");
+
+                        dnsSetManagedCalled = true;
+                        var (gz2St, _, gz2Node) = await SendMittwaldRequestAsync(
+                            client,
+                            HttpMethod.Get,
+                            $"/v2/dns-zones/{wwwZoneId}",
+                            lease.ApiTokenUtf8,
+                            ct);
+                        if (gz2St is >= 200 and < 300 && gz2Node is JsonObject gz2Obj)
+                            managedByIngressId = gz2Obj["recordSet"]?["combinedARecords"]?["managedBy"]?["ingressId"]?.GetValue<string>() ?? wwwIngressId;
+                    }
+
+                    // Trigger ownership verification & ACME issuance if not yet marked created
+                    var (finIngSt, _, finIngNode) = await SendMittwaldRequestAsync(
+                        client,
+                        HttpMethod.Get,
+                        $"/v2/ingresses/{wwwIngressId}",
+                        lease.ApiTokenUtf8,
+                        ct);
+                    if (finIngSt is >= 200 and < 300 && finIngNode is JsonObject finIngObj)
+                        wwwIngressObj = finIngObj;
+
+                    bool ownershipVerified = wwwIngressObj?["ownership"]?["verified"]?.GetValue<bool>() == true;
+                    if (!ownershipVerified)
+                    {
+                        await SendMittwaldRequestAsync(
+                            client,
+                            HttpMethod.Post,
+                            $"/v2/ingresses/{wwwIngressId}/actions/verify-ownership",
+                            lease.ApiTokenUtf8,
+                            ct);
+                    }
+
+                    bool tlsIsCreated = wwwIngressObj?["tls"]?["isCreated"]?.GetValue<bool>() == true;
+                    if (!tlsIsCreated)
+                    {
+                        await SendMittwaldRequestAsync(
+                            client,
+                            HttpMethod.Post,
+                            $"/v2/ingresses/{wwwIngressId}/actions/request-acme-certificate-issuance",
+                            lease.ApiTokenUtf8,
+                            ct);
+                    }
+
+                    var (afterAcmeSt, _, afterAcmeNode) = await SendMittwaldRequestAsync(
+                        client,
+                        HttpMethod.Get,
+                        $"/v2/ingresses/{wwwIngressId}",
+                        lease.ApiTokenUtf8,
+                        ct);
+                    if (afterAcmeSt is >= 200 and < 300 && afterAcmeNode is JsonObject afterAcmeObj)
+                        wwwIngressObj = afterAcmeObj;
+
+                    infraObj["www_hostname"] = McpSecurityGuard.PinnedLiveWwwHostname;
+                    infraObj["www_ingress_id"] = wwwIngressId;
+                    infraObj["www_ingress_created"] = ingressCreated;
+                    infraObj["tls_acme"] = wwwIngressObj?["tls"]?["acme"]?.GetValue<bool>() ?? tlsAcmeEnabled;
+                    infraObj["tls_is_created"] = wwwIngressObj?["tls"]?["isCreated"]?.GetValue<bool>() ?? false;
+                    infraObj["ownership_verified"] = wwwIngressObj?["ownership"]?["verified"]?.GetValue<bool>() ?? false;
+                    infraObj["dns_zone_id"] = wwwZoneId;
+                    infraObj["dns_zone_created"] = dnsZoneCreated;
+                    infraObj["dns_set_managed_called"] = dnsSetManagedCalled;
+                    infraObj["dns_managed_by_ingress_id"] = managedByIngressId;
+                    summary["infra"] = infraObj;
+                    if (infraErrors.Count > 0)
+                        throw new InvalidOperationException(string.Join(" || ", infraErrors));
+
+                    McpSecurityGuard.AppendAuditLog("mittwald_prepare_live", $"infra:ingress={wwwIngressId}:zone={wwwZoneId}", "ALLOW");
+                }
+
+                // =============================================================
+                // STEP 3: ENV (Zero-Secret Live-.env + MySQL Password Provisioning)
+                // =============================================================
+                if (normStep is "all" or "env")
+                {
+                    byte[]? existingLiveEnv = null;
+                    byte[]? stageEnv = null;
+                    byte[]? builtLiveEnv = null;
+                    char[] newPwdChars = new char[28];
+                    byte[]? jsonPatchPwdBytes = null;
+
+                    try
+                    {
+                        var readEnvFn = TestReadContainerEnvOverride ?? McpSecurityGuard.ReadPinnedContainerEnvBytesZeroSecretAsync;
+                        var probePdoFn = TestProbeLiveMysqlPdoOverride ?? McpSecurityGuard.ProbePinnedLiveMysqlPdoZeroSecretAsync;
+                        var writeEnvFn = TestWriteLiveEnvOverride ?? McpSecurityGuard.WritePinnedLiveEnvBytesZeroSecretAsync;
+
+                        existingLiveEnv = await readEnvFn(McpSecurityGuard.PinnedLiveSshUser, McpSecurityGuard.PinnedLiveEnvRemotePath);
+                        stageEnv = await readEnvFn(McpSecurityGuard.PinnedLiveSshUser, McpSecurityGuard.PinnedStageEnvRemotePath)
+                                ?? await readEnvFn(McpSecurityGuard.PinnedStageWebSshUser, McpSecurityGuard.PinnedStageEnvRemotePath);
+
+                        if ((stageEnv == null || stageEnv.Length == 0) && (existingLiveEnv == null || existingLiveEnv.Length == 0))
+                            throw new InvalidOperationException("Weder Stage-.env noch bestehende Live-.env konnten im Container gelesen werden.");
+
+                        bool preExistingPdoOk = false;
+                        string initialPdoToken = "NO_ENV";
+                        if (existingLiveEnv != null && existingLiveEnv.Length > 0)
+                        {
+                            (preExistingPdoOk, initialPdoToken) = await probePdoFn();
+                        }
+
+                        bool mysqlPasswordRotated = false;
+                        if (!preExistingPdoOk)
+                        {
+                            GenerateMittwaldCompliantPasswordChars(newPwdChars);
+                            jsonPatchPwdBytes = BuildJsonPasswordPatchBytesZeroSecret(newPwdChars);
+
+                            var (pwSt, pwBody, _) = await SendMittwaldRequestAsync(
+                                client,
+                                HttpMethod.Patch,
+                                $"/v2/mysql-users/{McpSecurityGuard.PinnedLiveMysqlUserUuid}/password",
+                                lease.ApiTokenUtf8,
+                                ct,
+                                jsonBodyUtf8: jsonPatchPwdBytes,
+                                extraSecretCharsToScrub: newPwdChars);
+
+                            if (pwSt == 404)
+                            {
+                                (pwSt, pwBody, _) = await SendMittwaldRequestAsync(
+                                    client,
+                                    HttpMethod.Patch,
+                                    $"/v2/mysql-users/{McpSecurityGuard.PinnedLiveMysqlUserUuid}",
+                                    lease.ApiTokenUtf8,
+                                    ct,
+                                    jsonBodyUtf8: jsonPatchPwdBytes,
+                                    extraSecretCharsToScrub: newPwdChars);
+                            }
+
+                            if (pwSt is < 200 or >= 300)
+                                throw new InvalidOperationException($"PATCH MySQL-Passwort für {McpSecurityGuard.PinnedLiveMysqlUser} fehlgeschlagen (HTTP {pwSt}): {pwBody}");
+
+                            mysqlPasswordRotated = true;
+                        }
+
+                        var (finalBytes, reusedAppKey, reusedDbPwd, serviceKeysCount) = BuildIsolatedSeelenfunkeLiveEnvZeroSecret(
+                            stageEnv ?? Array.Empty<byte>(),
+                            existingLiveEnv ?? Array.Empty<byte>(),
+                            preserveExistingLiveDbPassword: preExistingPdoOk,
+                            newDbPasswordChars: preExistingPdoOk ? ReadOnlySpan<char>.Empty : newPwdChars);
+                        builtLiveEnv = finalBytes;
+
+                        string fileMode = await writeEnvFn(builtLiveEnv);
+
+                        // Verify PDO connection against mysql_gv2avu (up to 15s propagation retry loop)
+                        bool finalPdoOk = false;
+                        string finalPdoToken = "";
+                        int attempts = 0;
+                        int maxAttempts = mysqlPasswordRotated ? 10 : 2;
+                        for (int attempt = 1; attempt <= maxAttempts; attempt++)
+                        {
+                            attempts = attempt;
+                            (finalPdoOk, finalPdoToken) = await probePdoFn();
+                            if (finalPdoOk)
+                                break;
+                            if (attempt < maxAttempts)
+                                await Task.Delay(TestPdoRetryDelayMs, ct);
+                        }
+
+                        if (!finalPdoOk)
+                            throw new InvalidOperationException($"PDO-Verbindungstest auf {McpSecurityGuard.PinnedLiveMysqlDatabase} nach {attempts} Versuchen fehlgeschlagen (Status={finalPdoToken}).");
+
+                        summary["env"] = new JsonObject
+                        {
+                            ["live_env_path"] = McpSecurityGuard.PinnedLiveEnvRemotePath,
+                            ["file_mode"] = fileMode,
+                            ["mysql_database"] = McpSecurityGuard.PinnedLiveMysqlDatabase,
+                            ["mysql_host"] = McpSecurityGuard.PinnedLiveMysqlHost,
+                            ["mysql_user"] = McpSecurityGuard.PinnedLiveMysqlUser,
+                            ["mysql_password_rotated"] = mysqlPasswordRotated,
+                            ["reused_existing_app_key"] = reusedAppKey,
+                            ["reused_existing_db_password"] = reusedDbPwd,
+                            ["preserved_service_keys_count"] = serviceKeysCount,
+                            ["initial_pdo_status"] = initialPdoToken,
+                            ["final_pdo_status"] = finalPdoToken,
+                            ["pdo_verify_attempts"] = attempts,
+                            ["isolation_enforced"] = new JsonObject
+                            {
+                                ["APP_ENV"] = "production",
+                                ["APP_DEBUG"] = false,
+                                ["APP_URL"] = "https://www.mein-seelenfunke.de",
+                                ["CACHE_STORE"] = "database",
+                                ["SESSION_DRIVER"] = "database",
+                                ["QUEUE_CONNECTION"] = "sync",
+                                ["BROADCAST_CONNECTION"] = "log",
+                                ["REDIS_ISOLATED"] = true
+                            }
+                        };
+
+                        McpSecurityGuard.AppendAuditLog("mittwald_prepare_live", $"env:pdo={finalPdoToken}:pwRotated={mysqlPasswordRotated}", "ALLOW");
+                    }
+                    finally
+                    {
+                        Array.Clear(newPwdChars, 0, newPwdChars.Length);
+                        if (jsonPatchPwdBytes != null) CryptographicOperations.ZeroMemory(jsonPatchPwdBytes);
+                        if (existingLiveEnv != null) CryptographicOperations.ZeroMemory(existingLiveEnv);
+                        if (stageEnv != null) CryptographicOperations.ZeroMemory(stageEnv);
+                        if (builtLiveEnv != null) CryptographicOperations.ZeroMemory(builtLiveEnv);
+                    }
+                }
+
+                // =============================================================
+                // STEP 4: CRON (Seelenfunke Live - Scheduler)
+                // =============================================================
+                if (normStep is "all" or "cron")
+                {
+                    var (cListSt, cListBody, cListNode) = await SendMittwaldRequestAsync(
+                        client,
+                        HttpMethod.Get,
+                        $"/v2/projects/{McpSecurityGuard.PinnedLiveProjectId}/cronjobs",
+                        lease.ApiTokenUtf8,
+                        ct);
+                    if (cListSt is < 200 or >= 300 || cListNode is not JsonArray cronArr)
+                        throw new InvalidOperationException($"GET /v2/projects/{McpSecurityGuard.PinnedLiveProjectId}/cronjobs fehlgeschlagen (HTTP {cListSt}): {cListBody}");
+
+                    JsonObject? existingLiveCron = null;
+                    foreach (var cItem in cronArr)
+                    {
+                        if (cItem is not JsonObject co) continue;
+                        string cApp1 = co["appInstallationId"]?.GetValue<string>() ?? "";
+                        string cApp2 = co["appId"]?.GetValue<string>() ?? "";
+                        string cApp3 = co["target"]?["appInstallationId"]?.GetValue<string>() ?? "";
+
+                        if (string.Equals(cApp1, McpSecurityGuard.PinnedLiveAppUuid, StringComparison.Ordinal)
+                            || string.Equals(cApp2, McpSecurityGuard.PinnedLiveAppUuid, StringComparison.Ordinal)
+                            || string.Equals(cApp3, McpSecurityGuard.PinnedLiveAppUuid, StringComparison.Ordinal))
+                        {
+                            existingLiveCron = co;
+                            break;
+                        }
+                    }
+
+                    bool cronCreated = false;
+                    string cronId;
+                    string cronShortId = "";
+
+                    if (existingLiveCron != null)
+                    {
+                        cronId = existingLiveCron["id"]?.GetValue<string>() ?? "";
+                        cronShortId = existingLiveCron["shortId"]?.GetValue<string>() ?? "";
+                    }
+                    else
+                    {
+                        var createCronPayload = new JsonObject
+                        {
+                            ["description"] = "Seelenfunke Live - Scheduler",
+                            ["interval"] = "* * * * *",
+                            ["active"] = true,
+                            ["timeout"] = 3600,
+                            ["timeZone"] = "Europe/Berlin",
+                            ["concurrencyPolicy"] = "forbid",
+                            ["failedExecutionAlertThreshold"] = 1,
+                            ["target"] = new JsonObject
+                            {
+                                ["appInstallationId"] = McpSecurityGuard.PinnedLiveAppUuid,
+                                ["destination"] = new JsonObject
+                                {
+                                    ["interpreter"] = "/usr/bin/php",
+                                    ["path"] = "/html/seelenfunke-live/artisan",
+                                    ["parameters"] = "schedule:run"
+                                }
+                            }
+                        };
+                        byte[] createCronBytes = Encoding.UTF8.GetBytes(createCronPayload.ToJsonString());
+                        var (ccSt, ccBody, ccNode) = await SendMittwaldRequestAsync(
+                            client,
+                            HttpMethod.Post,
+                            $"/v2/projects/{McpSecurityGuard.PinnedLiveProjectId}/cronjobs",
+                            lease.ApiTokenUtf8,
+                            ct,
+                            jsonBodyUtf8: createCronBytes);
+                        if (ccSt is < 200 or >= 300 || ccNode is not JsonObject ccObj)
+                            throw new InvalidOperationException($"POST /v2/projects/{McpSecurityGuard.PinnedLiveProjectId}/cronjobs fehlgeschlagen (HTTP {ccSt}): {ccBody}");
+
+                        cronId = ValidateSafeMittwaldId(ccObj["id"]?.GetValue<string>(), "cronjobId");
+                        cronCreated = true;
+                    }
+
+                    summary["cron"] = new JsonObject
+                    {
+                        ["cronjob_id"] = cronId,
+                        ["cronjob_short_id"] = cronShortId,
+                        ["cronjob_created"] = cronCreated,
+                        ["description"] = "Seelenfunke Live - Scheduler",
+                        ["interval"] = "* * * * *",
+                        ["path"] = "/html/seelenfunke-live/artisan",
+                        ["parameters"] = "schedule:run",
+                        ["time_zone"] = "Europe/Berlin",
+                        ["concurrency_policy"] = "forbid",
+                        ["timeout"] = 3600,
+                        ["active"] = true
+                    };
+
+                    McpSecurityGuard.AppendAuditLog("mittwald_prepare_live", $"cron:id={cronId}:created={cronCreated}", "ALLOW");
+                }
+
+                return summary;
             }
             finally
             {

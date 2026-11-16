@@ -18,6 +18,17 @@
     RewriteCond %{HTTP_HOST} ^ws\.mein-seelenfunke\.de$ [NC]
     RewriteRule ^(.*)$ http://a-iurgq8:6001/$1 [P,L]
 
+    # -----------------------------------------------------
+    # CANONICAL LIVE-DOMAIN REDIRECT (APEX -> WWW)
+    # Leitet Browser-GET/HEAD-Aufrufe von mein-seelenfunke.de per 301 auf
+    # https://www.mein-seelenfunke.de weiter (Subdomains wie stage/ws/api-live-bridge,
+    # lokale Hosts, POST/API/Webhook-Aufrufe und ACME-Challenges bleiben unberuehrt).
+    # -----------------------------------------------------
+    RewriteCond %{HTTP_HOST} ^mein-seelenfunke\.de$ [NC]
+    RewriteCond %{REQUEST_METHOD} ^(GET|HEAD)$ [NC]
+    RewriteCond %{REQUEST_URI} !^/(api(/|$)|stripe(/|$)|twilio|up($|/)|\.well-known(/|$)) [NC]
+    RewriteRule ^ https://www.mein-seelenfunke.de%{REQUEST_URI} [R=301,L]
+
     # Handle Authorization Header
     RewriteCond %{HTTP:Authorization} .
     RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]

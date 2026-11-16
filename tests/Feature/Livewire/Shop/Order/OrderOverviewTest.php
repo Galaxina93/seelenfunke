@@ -356,6 +356,95 @@ class OrderOverviewTest extends TestCase
 
         $this->assertNotNull(OrderOrder::find($invoicedOrder->id));
     }
+
+    public function test_detail_header_renders_clean_two_row_architecture_with_segmented_toolbar_and_status_dropdowns()
+    {
+        $order = $this->createOrder('SF-HDR-2026');
+        $order->update([
+            'status' => 'processing',
+            'payment_status' => 'paid',
+            'shipping_address' => [
+                'first_name' => 'Erika',
+                'last_name' => 'Abweichend',
+                'address' => 'Geschenkweg 7',
+                'postal_code' => '38518',
+                'city' => 'Gifhorn',
+                'country' => 'DE',
+            ],
+        ]);
+
+        $product = \App\Models\Product\Product::create([
+            'id' => \Illuminate\Support\Str::uuid()->toString(),
+            'name' => 'Der Seelenanhänger',
+            'slug' => 'seelen-anhaenger-hdr-test',
+            'description' => 'Edelstahl.',
+            'price' => 2990,
+            'status' => 'active',
+            'type' => 'physical',
+        ]);
+
+        $order->items()->create([
+            'product_id' => $product->id,
+            'product_name' => $product->name,
+            'quantity' => 1,
+            'unit_price' => 2990,
+            'total_price' => 2990,
+            'configuration' => [
+                'photo_issue' => [
+                    'reason' => 'Auflösung zu niedrig',
+                    'resolved' => false,
+                ],
+            ],
+        ]);
+
+        AccountingInvoice::create([
+            'order_id' => $order->id,
+            'invoice_number' => 'RE-2026-4711',
+            'type' => 'invoice',
+            'status' => 'paid',
+            'invoice_date' => now(),
+            'delivery_date' => now(),
+            'due_date' => now(),
+            'due_days' => 7,
+            'subtotal' => 2990,
+            'tax_amount' => 477,
+            'total' => 2990,
+            'billing_address' => ['first_name' => 'Max', 'last_name' => 'Mustermann'],
+        ]);
+
+        $component = Livewire::test(Orders::class)
+            ->call('openDetail', $order->id)
+            ->assertSet('selectedOrderId', $order->id)
+            // Ebene 1: Identität, beide h-9 Status-Selects und Schließen-Button
+            ->assertSee('#SF-HDR-2026')
+            ->assertSee('Max Mustermann')
+            ->assertSeeHtml('aria-label="Bestellstatus"')
+            ->assertSeeHtml('aria-label="Zahlungsstatus"')
+            ->assertSeeHtml('aria-label="Bestelldetails schließen"')
+            ->assertSee('Zahlung: Bezahlt')
+            ->assertSee('In Bearbeitung')
+            // Ebene 2: 4er Segmented-Toolbar + 0ms Alpine Toggles + Indikatoren + Rechnung im Kosten-Modal
+            ->assertSeeHtml('aria-label="Bestelldetails Schnellzugriff"')
+            ->assertSeeHtml("openHeaderModalClient('files')")
+            ->assertSeeHtml("openHeaderModalClient('costs')")
+            ->assertSeeHtml("openHeaderModalClient('customer')")
+            ->assertSeeHtml("openHeaderModalClient('shipping')")
+            ->assertSee('Dateien')
+            ->assertSee('Kosten')
+            ->assertSee('Kunde')
+            ->assertSee('Adresse')
+            ->assertSeeHtml('title="Abweichende Lieferadresse"')
+            ->assertSeeHtml('title="Foto-Nachbesserung offen"')
+            ->assertSee('RE-2026-4711 (PDF)');
+
+        // Status-Wechsel und Schließen funktionieren verlustfrei
+        $component->call('updateStatus', $order->id, 'completed')
+            ->assertSet('status', 'completed');
+        $this->assertSame('completed', $order->fresh()->status);
+
+        $component->call('closeDetail')
+            ->assertSet('selectedOrderId', null);
+    }
 }
 
 

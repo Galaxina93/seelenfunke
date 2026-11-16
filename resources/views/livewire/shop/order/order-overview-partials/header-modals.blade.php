@@ -45,7 +45,7 @@
                 <div class="flex items-center gap-3 min-w-0">
                     <div class="w-10 h-10 rounded-xl bg-[var(--theme-color-10)] border border-[var(--theme-color-30)] text-[var(--theme-color)] flex items-center justify-center shrink-0">
                         <svg x-show="headerModal === 'files'" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>
-                        <span x-show="headerModal === 'costs'" class="text-base font-black">&euro;</span>
+                        <svg x-show="headerModal === 'costs'" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14.25 7.756a4.5 4.5 0 100 8.488M7.5 10.5h5.25m-5.25 3h5.25M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                         <svg x-show="headerModal === 'customer'" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
                         <svg x-show="headerModal === 'shipping'" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                     </div>
@@ -285,8 +285,24 @@
             </div>
 
             {{-- 2. KOSTENÜBERSICHT MODAL --}}
-            <div x-show="headerModal === 'costs'">
-                <x-shop.cost-summary :model="$selectedOrder" design="adaptive" />
+            <div x-show="headerModal === 'costs'" class="space-y-4">
+                <x-shop.cost-summary :model="$selectedOrder" :showTitle="false" design="adaptive" containerOverride="p-4 sm:p-5 rounded-2xl bg-gray-50 dark:bg-gray-950 border border-gray-200/80 dark:border-gray-800" />
+
+                @if($selectedOrder->invoices && $selectedOrder->invoices->isNotEmpty())
+                    <div class="space-y-2">
+                        <div class="text-[10px] font-black uppercase tracking-widest text-gray-400">Rechnungen &amp; Belege</div>
+                        <div class="flex flex-wrap gap-2">
+                            @foreach($selectedOrder->invoices as $invoice)
+                                <a href="{{ route('invoice.download', $invoice->id) }}"
+                                   target="_blank"
+                                   class="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200/80 dark:border-gray-800 hover:border-[var(--theme-color)] text-xs font-bold text-gray-800 dark:text-gray-200 hover:text-[var(--theme-color)] transition-colors">
+                                    <svg class="w-4 h-4 text-[var(--theme-color)] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                                    <span>{{ $invoice->invoice_number }} (PDF)</span>
+                                </a>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
             </div>
 
             {{-- 3. KUNDEN INFOS MODAL --}}

@@ -3491,6 +3491,357 @@ try {
             });
         }
 
+        // =====================================================================
+        // PINNED SEELENFUNKE-LIVE CLI PROVISIONING HELPERS (ZERO-SECRET, CLI-ONLY)
+        // =====================================================================
+        public const string PinnedLiveProjectId = "a7a6fd9f-3844-4bdd-8fe0-c7d1c0827cc5";
+        public const string PinnedLiveProjectShortId = "p-g27wim";
+        public const string PinnedLiveAppUuid = "93f33f15-d27c-4d15-9f85-155eb9adace8";
+        public const string PinnedLiveAppShortId = "a-bycqrf";
+        public const string PinnedLiveSshUser = "kontakt@mein-seelenfunke.de@a-bycqrf";
+        public const string PinnedStageWebSshUser = "kontakt@mein-seelenfunke.de@a-lc6tkm";
+        public const string PinnedLiveRemoteDir = "/home/p-g27wim/html/seelenfunke-live";
+        public const string PinnedLiveEnvRemotePath = "/home/p-g27wim/html/seelenfunke-live/.env";
+        public const string PinnedStageEnvRemotePath = "/home/p-g27wim/html/seelenfunke-stage/.env";
+        public const string PinnedLiveMysqlDbUuid = "e57a404b-b9b4-477f-878a-d0a53fe3dc06";
+        public const string PinnedLiveMysqlHost = "mysql-gv2avu.pg-s-pis5pf.db.project.host";
+        public const int PinnedLiveMysqlPort = 3306;
+        public const string PinnedLiveMysqlDatabase = "mysql_gv2avu";
+        public const string PinnedLiveMysqlUser = "dbu_gv2avu";
+        public const string PinnedLiveMysqlUserUuid = "86a83822-c63e-44e0-8c81-0ce0d6a119e8";
+        public const string PinnedLiveApexIngressUuid = "713ea3f6-bf74-4176-82df-4b495e6d6952";
+        public const string PinnedLiveRootZoneUuid = "4fbe5480-bc45-4edc-8a38-6c9648c00f4e";
+        public const string PinnedLiveWwwHostname = "www.mein-seelenfunke.de";
+
+        public static void ValidatePinnedSeelenfunkeLiveTarget(
+            string? projectId,
+            string? appUuid,
+            string? remoteDir,
+            string? sshUser,
+            string? mysqlDatabase,
+            string? mysqlUserUuid)
+        {
+            string combined = $"{projectId} | {appUuid} | {remoteDir} | {sshUser} | {mysqlDatabase} | {mysqlUserUuid}";
+            if (combined.Contains("steinhauer-invest", StringComparison.OrdinalIgnoreCase)
+                || combined.Contains("a-s4sdym", StringComparison.OrdinalIgnoreCase)
+                || combined.Contains("2be54dff-9651-416e-8aba-79a5b63749ff", StringComparison.OrdinalIgnoreCase)
+                || combined.Contains("mysql_fg9zlg", StringComparison.OrdinalIgnoreCase))
+            {
+                AppendAuditLog("mittwald_prepare_live", ScrubSecrets(combined), "DENY:steinhauer_invest_blocked");
+                throw new UnauthorizedAccessException(
+                    "HARTE SICHERHEITSSPERRE: Zugriff auf Fremd-App 'steinhauer-invest' (a-s4sdym / mysql_fg9zlg) ist zu 100 % technisch gesperrt!");
+            }
+
+            if (!string.Equals(projectId, PinnedLiveProjectId, StringComparison.Ordinal)
+                || !string.Equals(appUuid, PinnedLiveAppUuid, StringComparison.Ordinal)
+                || !string.Equals(remoteDir, PinnedLiveRemoteDir, StringComparison.Ordinal)
+                || !string.Equals(sshUser, PinnedLiveSshUser, StringComparison.Ordinal)
+                || !string.Equals(mysqlDatabase, PinnedLiveMysqlDatabase, StringComparison.Ordinal)
+                || !string.Equals(mysqlUserUuid, PinnedLiveMysqlUserUuid, StringComparison.Ordinal))
+            {
+                AppendAuditLog("mittwald_prepare_live", ScrubSecrets(combined), "DENY:unpinned_live_target");
+                throw new UnauthorizedAccessException(
+                    "PINNING-SPERRE: --mittwald-prepare-live akzeptiert ausschließlich die hart gepinnten Seelenfunke-Live-UUIDs.");
+            }
+        }
+
+        internal static string ResolveMittwaldEd25519KeyPath()
+        {
+            using var creds = ResolveProfileInternal("Mittwald", StageWebRemoteDir, forceKeyOnlyNoPasswordDecrypt: true);
+            if (creds != null && !string.IsNullOrWhiteSpace(creds.PrivateKeyPath) && File.Exists(creds.PrivateKeyPath))
+                return creds.PrivateKeyPath;
+
+            string fallback = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".ssh", "id_ed25519");
+            if (File.Exists(fallback))
+                return fallback;
+
+            throw new FileNotFoundException("Ed25519-SSH-Schlüssel (id_ed25519) für Mittwald wurde nicht gefunden.");
+        }
+
+        private static bool VerifyPinnedHostKeyBytes(
+            string host,
+            int port,
+            byte[] hostKeyBytes,
+            string hostKeyName,
+            Dictionary<string, string> fwPinned)
+        {
+            string actualFp = "SHA256:" + Convert.ToBase64String(SHA256.HashData(hostKeyBytes)).TrimEnd('=');
+            byte[] actualBytes = Encoding.ASCII.GetBytes(actualFp);
+
+            var allowedFps = new List<string>();
+            string exactKey = $"{host.ToLowerInvariant()}:{port}:{hostKeyName}";
+            if (fwPinned.TryGetValue(exactKey, out string? fwExact)) allowedFps.Add(fwExact);
+            if (fwPinned.TryGetValue($"{host}:{port}", out string? fwHostPort)) allowedFps.Add(fwHostPort);
+            allowedFps.AddRange(FindOpenSshPinnedFingerprintsForHost(host, port, hostKeyName));
+
+            foreach (string candidateFp in allowedFps)
+            {
+                byte[] expectedBytes = Encoding.ASCII.GetBytes(candidateFp.Trim());
+                if (actualBytes.Length == expectedBytes.Length &&
+                    CryptographicOperations.FixedTimeEquals(actualBytes, expectedBytes))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        internal static async Task<byte[]?> ReadPinnedContainerEnvBytesZeroSecretAsync(string sshUser, string exactRemotePath)
+        {
+            bool allowedCombo =
+                (string.Equals(sshUser, PinnedLiveSshUser, StringComparison.Ordinal) &&
+                 (string.Equals(exactRemotePath, PinnedLiveEnvRemotePath, StringComparison.Ordinal) ||
+                  string.Equals(exactRemotePath, PinnedStageEnvRemotePath, StringComparison.Ordinal)))
+                || (string.Equals(sshUser, PinnedStageWebSshUser, StringComparison.Ordinal) &&
+                    string.Equals(exactRemotePath, PinnedStageEnvRemotePath, StringComparison.Ordinal));
+
+            if (!allowedCombo)
+                throw new UnauthorizedAccessException("PINNING-SPERRE: Unzulässige SSH-User/Pfad-Kombination beim Zero-Secret .env-Read.");
+
+            if (!HasAnySha256PinForHost(StageAllowedHost, 22))
+                throw new UnauthorizedAccessException($"Host '{StageAllowedHost}:22' ist nicht per SHA-256 gepinnt.");
+
+            string keyPath = ResolveMittwaldEd25519KeyPath();
+            var fwPinned = LoadFunkenwerkPinnedHostKeysSha256();
+
+            return await Task.Run(() =>
+            {
+                using var keyFile = new PrivateKeyFile(keyPath);
+                var connInfo = new ConnectionInfo(StageAllowedHost, 22, sshUser, new PrivateKeyAuthenticationMethod(sshUser, keyFile))
+                {
+                    Timeout = TimeSpan.FromSeconds(15)
+                };
+
+                using var sftp = new SftpClient(connInfo);
+                bool pinned = false;
+                sftp.HostKeyReceived += (s, e) => { pinned = VerifyPinnedHostKeyBytes(StageAllowedHost, 22, e.HostKey, e.HostKeyName, fwPinned); e.CanTrust = pinned; };
+                sftp.Connect();
+                if (!pinned || !sftp.IsConnected)
+                    throw new UnauthorizedAccessException("SFTP Host-Key-Prüfung fehlgeschlagen.");
+
+                if (!sftp.Exists(exactRemotePath))
+                {
+                    sftp.Disconnect();
+                    return null;
+                }
+
+                var attr = sftp.GetAttributes(exactRemotePath);
+                if (attr.IsSymbolicLink)
+                    throw new UnauthorizedAccessException($"Symlink auf '{exactRemotePath}' aus Sicherheitsgründen blockiert.");
+                if (attr.Size < 0 || attr.Size > 256 * 1024)
+                    throw new InvalidOperationException($"Unerwartete .env Dateigröße ({attr.Size} Bytes) auf '{exactRemotePath}'.");
+
+                using var ms = new MemoryStream((int)Math.Max(attr.Size, 4096));
+                try
+                {
+                    sftp.DownloadFile(exactRemotePath, ms);
+                    sftp.Disconnect();
+                    byte[] exact = new byte[ms.Length];
+                    Buffer.BlockCopy(ms.GetBuffer(), 0, exact, 0, exact.Length);
+                    return exact;
+                }
+                finally
+                {
+                    byte[] internalBuf = ms.GetBuffer();
+                    CryptographicOperations.ZeroMemory(internalBuf);
+                }
+            });
+        }
+
+        internal static async Task<(bool Connected, string StatusToken)> ProbePinnedLiveMysqlPdoZeroSecretAsync()
+        {
+            ValidatePinnedSeelenfunkeLiveTarget(
+                PinnedLiveProjectId,
+                PinnedLiveAppUuid,
+                PinnedLiveRemoteDir,
+                PinnedLiveSshUser,
+                PinnedLiveMysqlDatabase,
+                PinnedLiveMysqlUserUuid);
+
+            if (!HasAnySha256PinForHost(StageAllowedHost, 22))
+                throw new UnauthorizedAccessException($"Host '{StageAllowedHost}:22' ist nicht per SHA-256 gepinnt.");
+
+            string keyPath = ResolveMittwaldEd25519KeyPath();
+            var fwPinned = LoadFunkenwerkPinnedHostKeysSha256();
+
+            // Static Zero-Secret PHP script: reads /home/p-g27wim/html/seelenfunke-live/.env locally inside container a-bycqrf,
+            // verifies exact pinned Live DB host/name/user, tests PDO connection, and emits ONLY a sanitized status token.
+            const string staticPhpProbe = """
+                $f = '/home/p-g27wim/html/seelenfunke-live/.env';
+                if (!is_file($f) || is_link($f)) { echo 'NO_ENV'; exit(2); }
+                $vars = [];
+                foreach (file($f, FILE_IGNORE_NEW_LINES) as $line) {
+                    $t = trim($line);
+                    if ($t === '' || $t[0] === '#') continue;
+                    if (str_starts_with($t, 'export ')) $t = trim(substr($t, 7));
+                    $eq = strpos($t, '=');
+                    if ($eq === false) continue;
+                    $k = trim(substr($t, 0, $eq));
+                    $v = trim(substr($t, $eq + 1));
+                    if (strlen($v) >= 2 && (($v[0] === '"' && substr($v, -1) === '"') || ($v[0] === "'" && substr($v, -1) === "'"))) {
+                        $v = substr($v, 1, -1);
+                    }
+                    $vars[$k] = $v;
+                }
+                $h = $vars['DB_HOST'] ?? '';
+                $p = $vars['DB_PORT'] ?? '3306';
+                $d = $vars['DB_DATABASE'] ?? '';
+                $u = $vars['DB_USERNAME'] ?? '';
+                $pw = $vars['DB_PASSWORD'] ?? '';
+                if ($h !== 'mysql-gv2avu.pg-s-pis5pf.db.project.host' || $d !== 'mysql_gv2avu' || $u !== 'dbu_gv2avu' || $pw === '') {
+                    echo 'MISMATCH_DB_TARGET';
+                    exit(3);
+                }
+                try {
+                    $pdo = new PDO("mysql:host={$h};port={$p};dbname={$d};charset=utf8mb4", $u, $pw, [
+                        PDO::ATTR_TIMEOUT => 5,
+                        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                    ]);
+                    $row = $pdo->query('SELECT DATABASE() AS db')->fetch(PDO::FETCH_ASSOC);
+                    if (($row['db'] ?? '') === 'mysql_gv2avu') {
+                        echo 'PDO_OK';
+                        exit(0);
+                    }
+                    echo 'PDO_WRONG_DB';
+                    exit(4);
+                } catch (Throwable $e) {
+                    echo 'PDO_ERR:' . preg_replace('/[^A-Za-z0-9_\-]/', '', (string)$e->getCode());
+                    exit(1);
+                }
+                """;
+
+            string b64Php = Convert.ToBase64String(Encoding.UTF8.GetBytes(staticPhpProbe.Replace("\r\n", "\n")));
+            string remoteCmd = $"php -r \"eval(base64_decode('{b64Php}'));\"";
+
+            return await Task.Run(() =>
+            {
+                using var keyFile = new PrivateKeyFile(keyPath);
+                var connInfo = new ConnectionInfo(StageAllowedHost, 22, PinnedLiveSshUser, new PrivateKeyAuthenticationMethod(PinnedLiveSshUser, keyFile))
+                {
+                    Timeout = TimeSpan.FromSeconds(15)
+                };
+
+                using var ssh = new SshClient(connInfo);
+                bool pinned = false;
+                ssh.HostKeyReceived += (s, e) => { pinned = VerifyPinnedHostKeyBytes(StageAllowedHost, 22, e.HostKey, e.HostKeyName, fwPinned); e.CanTrust = pinned; };
+                ssh.Connect();
+                if (!pinned || !ssh.IsConnected)
+                    throw new UnauthorizedAccessException("SSH Host-Key-Prüfung fehlgeschlagen.");
+
+                using var cmd = ssh.CreateCommand(remoteCmd);
+                cmd.CommandTimeout = TimeSpan.FromSeconds(12);
+                string stdout = (cmd.Execute() ?? "").Trim();
+                int exit = cmd.ExitStatus ?? -1;
+                ssh.Disconnect();
+
+                string safeToken = Regex.Replace(stdout, @"[^A-Za-z0-9_:\-]", "");
+                if (safeToken.Length > 48) safeToken = safeToken.Substring(0, 48);
+                bool ok = exit == 0 && string.Equals(safeToken, "PDO_OK", StringComparison.Ordinal);
+                return (ok, string.IsNullOrEmpty(safeToken) ? $"EXIT_{exit}" : safeToken);
+            });
+        }
+
+        internal static async Task<string> WritePinnedLiveEnvBytesZeroSecretAsync(ReadOnlyMemory<byte> envUtf8)
+        {
+            ValidatePinnedSeelenfunkeLiveTarget(
+                PinnedLiveProjectId,
+                PinnedLiveAppUuid,
+                PinnedLiveRemoteDir,
+                PinnedLiveSshUser,
+                PinnedLiveMysqlDatabase,
+                PinnedLiveMysqlUserUuid);
+
+            if (envUtf8.Length == 0 || envUtf8.Length > 256 * 1024)
+                throw new ArgumentException("Ungültige Live-.env Puffergröße.");
+
+            if (!HasAnySha256PinForHost(StageAllowedHost, 22))
+                throw new UnauthorizedAccessException($"Host '{StageAllowedHost}:22' ist nicht per SHA-256 gepinnt.");
+
+            string keyPath = ResolveMittwaldEd25519KeyPath();
+            var fwPinned = LoadFunkenwerkPinnedHostKeysSha256();
+            string tmpRemotePath = $"{PinnedLiveEnvRemotePath}.tmp.{Guid.NewGuid():N}";
+
+            return await Task.Run(() =>
+            {
+                using var keyFile = new PrivateKeyFile(keyPath);
+                var connInfo = new ConnectionInfo(StageAllowedHost, 22, PinnedLiveSshUser, new PrivateKeyAuthenticationMethod(PinnedLiveSshUser, keyFile))
+                {
+                    Timeout = TimeSpan.FromSeconds(15)
+                };
+
+                using var ssh = new SshClient(connInfo);
+                bool sshPinned = false;
+                ssh.HostKeyReceived += (s, e) => { sshPinned = VerifyPinnedHostKeyBytes(StageAllowedHost, 22, e.HostKey, e.HostKeyName, fwPinned); e.CanTrust = sshPinned; };
+                ssh.Connect();
+                if (!sshPinned || !ssh.IsConnected)
+                    throw new UnauthorizedAccessException("SSH Host-Key-Prüfung für Live-.env Write fehlgeschlagen.");
+
+                // 1. Pre-create 0600 file before writing a single secret byte
+                string prepCmd =
+                    $"if [ -L '{PinnedLiveRemoteDir}' ] || [ -L '{PinnedLiveEnvRemotePath}' ]; then echo SYMLINK_BLOCKED; exit 9; fi && " +
+                    $"mkdir -p -m 750 '{PinnedLiveRemoteDir}' && " +
+                    $"install -m 600 /dev/null '{tmpRemotePath}'";
+                using (var cPrep = ssh.CreateCommand(prepCmd))
+                {
+                    cPrep.CommandTimeout = TimeSpan.FromSeconds(10);
+                    string prepOut = (cPrep.Execute() ?? "").Trim();
+                    if ((cPrep.ExitStatus ?? -1) != 0)
+                        throw new InvalidOperationException($"Vorbereitung der 0600-Temp-Datei fehlgeschlagen ({ScrubSecrets(prepOut)}).");
+                }
+
+                byte[] writeBuf = envUtf8.ToArray();
+                try
+                {
+                    using var sftp = new SftpClient(connInfo);
+                    bool sftpPinned = false;
+                    sftp.HostKeyReceived += (s, e) => { sftpPinned = VerifyPinnedHostKeyBytes(StageAllowedHost, 22, e.HostKey, e.HostKeyName, fwPinned); e.CanTrust = sftpPinned; };
+                    sftp.Connect();
+                    if (!sftpPinned || !sftp.IsConnected)
+                        throw new UnauthorizedAccessException("SFTP Host-Key-Prüfung für Live-.env Write fehlgeschlagen.");
+
+                    using (var remoteStream = sftp.Open(tmpRemotePath, FileMode.Truncate, FileAccess.Write))
+                    {
+                        remoteStream.Write(writeBuf, 0, writeBuf.Length);
+                        remoteStream.Flush();
+                    }
+                    sftp.Disconnect();
+
+                    // 2. Atomic rename + strict 0600 verification
+                    string finalizeCmd =
+                        $"chmod 600 '{tmpRemotePath}' && " +
+                        $"mv -f '{tmpRemotePath}' '{PinnedLiveEnvRemotePath}' && " +
+                        $"chmod 600 '{PinnedLiveEnvRemotePath}' && " +
+                        $"stat -c '%a' '{PinnedLiveEnvRemotePath}'";
+                    using var cFin = ssh.CreateCommand(finalizeCmd);
+                    cFin.CommandTimeout = TimeSpan.FromSeconds(10);
+                    string modeOut = (cFin.Execute() ?? "").Trim();
+                    if ((cFin.ExitStatus ?? -1) != 0 || !string.Equals(modeOut, "600", StringComparison.Ordinal))
+                        throw new InvalidOperationException($"Atomares Setzen von Modus 0600 auf Live-.env fehlgeschlagen (Modus='{ScrubSecrets(modeOut)}').");
+
+                    ssh.Disconnect();
+                    AppendAuditLog("mittwald_prepare_live", "write_live_env_0600", "ALLOW");
+                    return modeOut;
+                }
+                catch
+                {
+                    try
+                    {
+                        if (ssh.IsConnected)
+                        {
+                            using var cClean = ssh.CreateCommand($"rm -f '{tmpRemotePath}'");
+                            cClean.Execute();
+                        }
+                    }
+                    catch { }
+                    throw;
+                }
+                finally
+                {
+                    CryptographicOperations.ZeroMemory(writeBuf);
+                }
+            });
+        }
+
         public static SecurityAuditStatusDto RunSecuritySelfAudit()
         {
             bool dirAclOk = LockDownDirectoryAcl(McpDataDir);
