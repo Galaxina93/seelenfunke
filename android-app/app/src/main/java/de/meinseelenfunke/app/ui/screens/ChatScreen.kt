@@ -26,6 +26,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -512,7 +513,10 @@ fun AgLiveTicketStatusBar(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Row(
-                modifier = Modifier.weight(1f, fill = false),
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(end = 6.dp)
+                    .horizontalScroll(rememberScrollState()),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
@@ -537,7 +541,9 @@ fun AgLiveTicketStatusBar(
                             text = "${goItems.size} Go benötigt",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Gold
+                            color = Gold,
+                            maxLines = 1,
+                            softWrap = false
                         )
                     }
                 }
@@ -563,7 +569,9 @@ fun AgLiveTicketStatusBar(
                             text = "${inProgressItems.size} in Arbeit",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFFE0E7FF)
+                            color = Color(0xFFE0E7FF),
+                            maxLines = 1,
+                            softWrap = false
                         )
                     }
                 }
@@ -589,7 +597,9 @@ fun AgLiveTicketStatusBar(
                             text = "${completedItems.size} erledigt",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = Emerald500
+                            color = Emerald500,
+                            maxLines = 1,
+                            softWrap = false
                         )
                     }
                 }

@@ -56,15 +56,16 @@
   * Neuer Status `awaiting_go` inklusive `pending_question` und `awaiting_go_at`. `completeMessage` / `completeItem` schützt alle `concept`-Tickets sowie Antworten mit Rückfrage-Markern automatisch vor versehentlichem Schließen auf `completed`.
   * Atomare Auflösung über `POST /api/funkenwerk/ag-inbox/{id}/resolve` sowie die neuen Executive-Tools `ag_resolve_pending_blockade` und `ag_list_pending_blockades` (legt bei `approved` / `info_provided` sofort den Direkt-Folgeauftrag im selben Kanal an).
   * `GET /api/ai/live-credentials` injiziert bei aktivem Stau die beharrliche Falcone-Direktive in `system_instruction` und liefert `pending_ag_blockades` + `proactive_kick_prompt`.
-* **Android-App (`FalconFocusScreen.kt`, `FunkiraLiveViewModel.kt`, `AgDirectInboxManager.kt`, `AgDirectBottomSheets.kt`, `ChatScreen.kt`, v1.8.6 / Code 30):**
-  * **Beharrliche Schwarz-Gold Blockade-Karte & Warn-Chip:** Pulsierender Header-Chip `⚠️ X Antwort offen` und kompakte Blockade-Karte über dem unteren Dock mit `✓ Go geben` und Inline-Antwortfeld (`Antworten` + Spracheingabe). Selbst nach Tippen auf `Später` blendet ein `LaunchedEffect` die Karte nach `90` Sekunden sowie bei jedem `ON_RESUME` automatisch wieder ein, bis die Blockade gelöst ist.
+* **Android-App (`FalconFocusScreen.kt`, `FunkiraLiveViewModel.kt`, `AgDirectInboxManager.kt`, `AgDirectBottomSheets.kt`, `ChatScreen.kt`, v1.8.7 / Code 31):**
+  * **Mobilfester Top-Header (`ag_20261116_205204_8829a569`):** Der linke Header-Bereich auf `FalconFocusScreen` nutzt `Column(Modifier.weight(1f).padding(end = 8.dp))` mit `Alignment.Top` und einheitlicher `36.dp`-Zeilenhöhe. Der pulsierende Gold-Warn-Chip (`⚠️ X Antwort(en) offen`) sitzt sauber als kompakte zweite Zeile unter `Falcone · Mitgründer`, sodass die rechte Aktionsleiste (`Kamera`, `Musik-Mini`, `Dashboard`-Button mit `softWrap = false`) auf allen Smartphone-Breiten (`320dp .. 430dp`) keinen einzigen Pixel verschoben oder gestaucht wird. In `ChatScreen` (`AgLiveTicketStatusBar`) scrollt die 3-Pills-Zeile bei schmalen Displays horizontal ohne Zeilenumbruch.
+  * **Beharrliche Schwarz-Gold Blockade-Karte:** Kompakte Blockade-Karte über dem unteren Dock mit `✓ Go geben` und Inline-Antwortfeld (`Antworten` + Spracheingabe). Selbst nach Tippen auf `Später` blendet ein `LaunchedEffect` die Karte nach `90` Sekunden sowie bei jedem `ON_RESUME` automatisch wieder ein, bis die Blockade gelöst ist.
   * **Sekunde-0 Sprach-Anstoß:** Sobald der Gemini-Live-WebSocket `setupComplete` meldet, sendet `FunkiraLiveViewModel` bei aktiven Blockaden sofort ein `clientContent`-Startpaket, sodass Falcone von sich aus das Gespräch eröffnet und beharrlich auf eine Entscheidung besteht. Nach Ausführung von `ag_resolve_pending_blockade` oder `falcon_resolve_antigravity_blockade` aktualisiert `refreshFromServer()` die Ansicht in Echtzeit.
 
 ---
 
 ## 3. Verifikation & Qualitätssicherung
 
-* **Unit-Tests (Android):** `./gradlew testDebugUnitTest` & `./gradlew assembleRelease` (v1.8.6 / versionCode 30) 100 % grün.
+* **Unit-Tests (Android):** `./gradlew testDebugUnitTest` & `./gradlew assembleRelease` (v1.8.7 / versionCode 31) 100 % grün.
 * **Backend-Tests (PHPUnit):** `FunkenwerkFilesRoutinePrinterFinanceApiTest.php` (5/5), `FalconeApprovalBlockadeGuardTest.php` (4/4), `AntigravityDirectInboxTest.php` (4/4) & `WebSearchQuotaResilienceTest.php` (4/4) 100 % grün.
 * **WPF-Build:** `dotnet build Funkenwerk.csproj` mit 0 Fehlern abgeschlossen.
 * **Mirror-Sync:** 1:1 Abgleich nach `C:\Users\konta\AndroidStudioProjects\seelenfunke-android` per Robocopy vollzogen.

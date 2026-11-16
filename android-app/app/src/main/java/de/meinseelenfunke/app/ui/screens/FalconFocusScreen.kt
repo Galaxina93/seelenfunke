@@ -44,6 +44,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
@@ -627,23 +628,28 @@ fun FalconFocusScreen(
             }
         )
 
-        // 2. Top Header Bar (Status Pill Left | Camera, Music Mini, Dashboard Right)
+        // 2. Top Header Bar (Mobilfest 320dp..430dp: Gewichtete linke Spalte | Feste rechte Aktions-Leiste)
+        val chipPulseFactor = ((pulseScale - 1f) / 0.13f).coerceIn(0f, 1f)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .statusBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .padding(horizontal = 14.dp, vertical = 12.dp)
                 .align(Alignment.TopCenter),
             horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.Top
         ) {
-            // Status Pill: Falcon · Mitgründer + Go Indikator
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            // Linke Spalte mit weight(1f): Drückt die rechten Buttons (Dashboard!) NIEMALS weg
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(end = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalAlignment = Alignment.Start
             ) {
                 Row(
                     modifier = Modifier
+                        .height(36.dp)
                         .clip(RoundedCornerShape(50))
                         .background(stageHudBg)
                         .border(
@@ -651,13 +657,13 @@ fun FalconFocusScreen(
                             if (isConnected) Emerald500.copy(alpha = 0.65f) else Gold.copy(alpha = 0.55f),
                             RoundedCornerShape(50)
                         )
-                        .padding(horizontal = 12.dp, vertical = 7.dp),
+                        .padding(horizontal = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(7.dp)
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(8.dp)
+                            .requiredSize(8.dp)
                             .clip(CircleShape)
                             .background(
                                 when {
@@ -672,17 +678,27 @@ fun FalconFocusScreen(
                         fontSize = 12.5.sp,
                         fontWeight = FontWeight.Bold,
                         color = stageHudText,
-                        maxLines = 1
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
 
-                if (pendingBlockades.isNotEmpty()) {
+                AnimatedVisibility(
+                    visible = pendingBlockades.isNotEmpty(),
+                    enter = fadeIn(),
+                    exit = fadeOut()
+                ) {
+                    val count = pendingBlockades.size
+                    val chipLabel = if (count == 1) "⚠️ 1 Antwort offen" else "⚠️ $count Antworten offen"
                     Row(
                         modifier = Modifier
-                            .scale(pulseScale.coerceIn(1f, 1.06f))
                             .clip(RoundedCornerShape(50))
-                            .background(Gold.copy(alpha = 0.22f))
-                            .border(1.2.dp, Gold, RoundedCornerShape(50))
+                            .background(Gold.copy(alpha = 0.16f + 0.10f * chipPulseFactor))
+                            .border(
+                                1.2.dp,
+                                Gold.copy(alpha = 0.72f + 0.28f * chipPulseFactor),
+                                RoundedCornerShape(50)
+                            )
                             .clickable {
                                 if (blockadeCardSnoozed) {
                                     blockadeCardSnoozed = false
@@ -691,30 +707,31 @@ fun FalconFocusScreen(
                                     showDirectInboxSheet = true
                                 }
                             }
-                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                            .padding(horizontal = 10.dp, vertical = 5.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Text(
-                            text = "⚠️ ${pendingBlockades.size} Antwort offen",
-                            fontSize = 11.5.sp,
+                            text = chipLabel,
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = Gold,
-                            maxLines = 1
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
             }
 
-            // Right Controls: Camera Eyes, Music Mini Indicator, Dashboard
+            // Rechte Aktions-Leiste: Fester Platz oben rechts (Kamera, Musik-Mini, Dashboard)
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 // Kamera-Augen Toggle
                 Box(
                     modifier = Modifier
-                        .size(36.dp)
+                        .requiredSize(36.dp)
                         .clip(CircleShape)
                         .background(
                             if (isVisionActive) Gold else stageHudBg
@@ -748,16 +765,17 @@ fun FalconFocusScreen(
                 AnimatedVisibility(visible = isMusicPlaying, enter = fadeIn(), exit = fadeOut()) {
                     Row(
                         modifier = Modifier
+                            .height(36.dp)
                             .clip(RoundedCornerShape(50))
                             .background(stageHudBg)
                             .border(1.dp, Gold.copy(alpha = 0.55f), RoundedCornerShape(50))
-                            .padding(horizontal = 6.dp, vertical = 4.dp),
+                            .padding(horizontal = 5.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(28.dp)
+                                .requiredSize(26.dp)
                                 .clip(CircleShape)
                                 .background(Gold.copy(alpha = 0.16f))
                                 .clickable { MusicPlayerManager.togglePlayPause(context) },
@@ -767,12 +785,12 @@ fun FalconFocusScreen(
                                 imageVector = Icons.Default.Pause,
                                 contentDescription = "Musik pausieren",
                                 tint = Gold,
-                                modifier = Modifier.size(15.dp)
+                                modifier = Modifier.size(14.dp)
                             )
                         }
                         Box(
                             modifier = Modifier
-                                .size(28.dp)
+                                .requiredSize(26.dp)
                                 .clip(CircleShape)
                                 .background(Gold.copy(alpha = 0.16f))
                                 .clickable { MusicPlayerManager.playNext(context) },
@@ -782,15 +800,16 @@ fun FalconFocusScreen(
                                 imageVector = Icons.Default.SkipNext,
                                 contentDescription = "Nächster Titel",
                                 tint = Gold,
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(15.dp)
                             )
                         }
                     }
                 }
 
-                // Dashboard Switch Button
+                // Dashboard Switch Button (immer 100 % fest & einzeilig oben rechts)
                 Row(
                     modifier = Modifier
+                        .height(36.dp)
                         .clip(RoundedCornerShape(50))
                         .background(stageHudBg)
                         .border(1.dp, Gold.copy(alpha = 0.60f), RoundedCornerShape(50))
@@ -798,21 +817,23 @@ fun FalconFocusScreen(
                             FalconCameraController.stopCamera()
                             onOpenDashboard()
                         }
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                        .padding(horizontal = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.GridView,
                         contentDescription = null,
                         tint = Gold,
-                        modifier = Modifier.size(15.dp)
+                        modifier = Modifier.requiredSize(15.dp)
                     )
                     Text(
                         text = "Dashboard",
                         fontSize = 12.5.sp,
                         fontWeight = FontWeight.Bold,
-                        color = stageHudText
+                        color = stageHudText,
+                        maxLines = 1,
+                        softWrap = false
                     )
                 }
             }
