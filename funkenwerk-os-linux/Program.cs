@@ -115,6 +115,7 @@ DocumentArchiveAndNasEngine.EnsureDaemonStarted();
 DocumentArchiveAndNasEngine.EnsureLoopbackSmbServerStarted();
 ErrorSentinelAndWatchdog.EnsureStarted();
 FunkiraLiveAndMcpEngine.EnsurePhoneConciergePollerStarted();
+StageLaserRelayDaemon.EnsureStarted();
 
 // Auto-connect Teufel Bluetooth stereo receiver & route Logitech USB C920 mic at boot
 _ = Task.Run(async () =>
@@ -3778,6 +3779,90 @@ async Task<int> RunLinuxSelfTestsAsync()
                     !jsApp.Contains(" \u2013 ", StringComparison.Ordinal);
 
                 return httpControlOk && voiceAndMcpOk && inscriptionsAnd3dOk && zeroKiEnDashOk;
+            }).ConfigureAwait(false);
+
+            await AssertCheckAsync(45, "StageLaserRelayDaemon (LAN-IP SSRF-Sperre, JSON-Deserialisierung, JPEG-SOF0-Check, Border-GCode & Offline-Rückmeldung)", async () =>
+            {
+                // 1. Strict RFC1918 LAN-IP validation & SSRF rejection
+                bool ssrfOk =
+                    StageLaserRelayDaemon.TryValidateRelayLaserIp(null, out string defIp, out _) && defIp == "192.168.188.150" &&
+                    StageLaserRelayDaemon.TryValidateRelayLaserIp("192.168.188.150", out string lan1, out _) && lan1 == "192.168.188.150" &&
+                    StageLaserRelayDaemon.TryValidateRelayLaserIp("10.0.5.42", out string lan2, out _) && lan2 == "10.0.5.42" &&
+                    StageLaserRelayDaemon.TryValidateRelayLaserIp("172.20.1.9", out string lan3, out _) && lan3 == "172.20.1.9" &&
+                    !StageLaserRelayDaemon.TryValidateRelayLaserIp("203.0.113.10", out _, out _) &&
+                    !StageLaserRelayDaemon.TryValidateRelayLaserIp("127.0.0.1", out _, out _) &&
+                    !StageLaserRelayDaemon.TryValidateRelayLaserIp("169.254.169.254", out _, out _) &&
+                    !StageLaserRelayDaemon.TryValidateRelayLaserIp("http://192.168.188.150", out _, out _) &&
+                    !StageLaserRelayDaemon.TryValidateRelayLaserIp("192.168.01.150", out _, out _) &&
+                    !StageLaserRelayDaemon.TryValidateRelayLaserIp("stage.mein-seelenfunke.de", out _, out _);
+
+                // 2. Poll JSON deserialization across null job, wrapped job & framing/xf fields
+                bool nullJobOk = StageLaserRelayDaemon.TryDeserializePollResponse("{\"ok\":true,\"job\":null}") == null &&
+                                 StageLaserRelayDaemon.TryDeserializePollResponse("{}") == null &&
+                                 StageLaserRelayDaemon.TryDeserializePollResponse("not_json") == null;
+
+                string samplePollJson = """
+                {
+                  "job": {
+                    "job_id": "lrel_20261116_abc",
+                    "action": "frame_border",
+                    "laser_ip": "192.168.188.150",
+                    "xf_base64": "R0NPREU=",
+                    "gcode": "G0X10Y10",
+                    "center_x_mm": 96.5,
+                    "center_y_mm": 102.25,
+                    "width_mm": 64.0,
+                    "height_mm": 48.0,
+                    "angle_deg": -15.0
+                  }
+                }
+                """;
+                var parsedJob = StageLaserRelayDaemon.TryDeserializePollResponse(samplePollJson);
+                bool deserializeOk = parsedJob != null &&
+                                     parsedJob.JobId == "lrel_20261116_abc" &&
+                                     parsedJob.Action == "frame_border" &&
+                                     parsedJob.LaserIp == "192.168.188.150" &&
+                                     parsedJob.XfBase64 == "R0NPREU=" &&
+                                     parsedJob.Gcode == "G0X10Y10" &&
+                                     Math.Abs(parsedJob.CenterXMm - 96.5) < 0.001 &&
+                                     Math.Abs(parsedJob.CenterYMm - 102.25) < 0.001 &&
+                                     Math.Abs(parsedJob.WidthMm - 64.0) < 0.001 &&
+                                     Math.Abs(parsedJob.HeightMm - 48.0) < 0.001 &&
+                                     Math.Abs(parsedJob.AngleDeg - (-15.0)) < 0.001;
+
+                // 3. ExecuteRelayJobAsync MUST reject SSRF public IP immediately without touching network
+                var ssrfJob = new LaserRelayJobDto
+                {
+                    JobId = "lrel_ssrf_block",
+                    Action = "capture_camera",
+                    LaserIp = "8.8.8.8"
+                };
+                var ssrfCompletion = await StageLaserRelayDaemon.ExecuteRelayJobAsync(ssrfJob).ConfigureAwait(false);
+                var ssrfNode = ssrfCompletion.ToJsonObject();
+                bool execBlockOk = ssrfNode["job_id"]?.GetValue<string>() == "lrel_ssrf_block" &&
+                                   ssrfNode["ok"]?.GetValue<bool>() == false &&
+                                   ssrfNode["laser_online"]?.GetValue<bool>() == false &&
+                                   ssrfNode["state"]?.GetValue<string>() == "OFFLINE" &&
+                                   !(ssrfNode["error"]?.GetValue<string>() ?? "").Contains(" \u2013 ", StringComparison.Ordinal);
+
+                // 4. JPEG SOF0 dimension parser (2000x2000 vs 4000x3000) & GS009-4 Border G-code generator
+                byte[] fakeSof0Jpeg = new byte[]
+                {
+                    0xFF, 0xD8,
+                    0xFF, 0xE0, 0x00, 0x04, 0x00, 0x00,
+                    0xFF, 0xC0, 0x00, 0x0B, 0x08, 0x07, 0xD0, 0x07, 0xD0, 0x01, 0x01, 0x11, 0x00,
+                    0xFF, 0xD9, 0x00, 0x00
+                };
+                bool jpegDimOk = XtoolLocalLanBridge.TryReadJpegDimensions(fakeSof0Jpeg, out int jw, out int jh) &&
+                                 jw == 2000 && jh == 2000;
+
+                string borderGcode = XtoolLocalLanBridge.GenerateBorderGcode(100.0, 100.0, 80.0, 60.0, 0.0);
+                bool gcodeOk = borderGcode.Contains("# GS009-4 HEAD", StringComparison.Ordinal) &&
+                               borderGcode.Contains("G0X60.000Y70.000F1440000", StringComparison.Ordinal) &&
+                               borderGcode.Contains("G1X140.000Y70.000S133F1440000", StringComparison.Ordinal) &&
+                               borderGcode.Contains("M6 P1", StringComparison.Ordinal);
+
+                return ssrfOk && nullJobOk && deserializeOk && execBlockOk && jpegDimOk && gcodeOk;
             }).ConfigureAwait(false);
         }
         finally

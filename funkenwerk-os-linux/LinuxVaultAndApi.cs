@@ -3896,79 +3896,547 @@ namespace FunkenwerkOSLinux
             }
         }
 
-        public static async Task<byte[]?> CaptureLiveCameraLocalV2Async(string ip = DefaultLaserIp)
+        public sealed class LaserCameraCaptureResult
         {
-            string safeIp = LinuxVaultAndStorage.IsValidPrivateLanIpv4(ip) ? ip.Trim() : DefaultLaserIp;
-            if (!await ProbeLaserReachableAsync(safeIp, DefaultV2Port, 250).ConfigureAwait(false))
+            public bool Ok { get; set; }
+            public bool LaserOnline { get; set; }
+            public byte[]? WarpedJpeg { get; set; }
+            public byte[]? RawJpeg { get; set; }
+            public string Source { get; set; } = "";
+            public string? Error { get; set; }
+        }
+
+        private static readonly HttpClient LanCameraHttp = new(new SocketsHttpHandler
+        {
+            AllowAutoRedirect = false,
+            UseProxy = false,
+            ConnectTimeout = TimeSpan.FromMilliseconds(900),
+            PooledConnectionLifetime = TimeSpan.FromSeconds(30)
+        })
+        {
+            Timeout = TimeSpan.FromMilliseconds(2800),
+            MaxResponseContentBufferSize = 20L * 1024L * 1024L
+        };
+
+        public static async Task<bool> ProbeAnyLaserPortAsync(string ip = DefaultLaserIp, int timeoutMs = 400)
+        {
+            if (!LinuxVaultAndStorage.IsValidPrivateLanIpv4(ip))
+                return false;
+
+            if (await ProbeLaserReachableAsync(ip, DefaultV2Port, timeoutMs).ConfigureAwait(false))
+                return true;
+
+            if (await ProbeLaserReachableAsync(ip, 8080, Math.Min(timeoutMs, 260)).ConfigureAwait(false))
+                return true;
+
+            return false;
+        }
+
+        public static bool TryReadJpegDimensions(ReadOnlySpan<byte> jpeg, out int width, out int height)
+        {
+            width = 0;
+            height = 0;
+            if (jpeg.Length < 24 || jpeg[0] != 0xFF || jpeg[1] != 0xD8)
+                return false;
+
+            int i = 2;
+            while (i + 8 < jpeg.Length)
+            {
+                if (jpeg[i] != 0xFF)
+                {
+                    i++;
+                    continue;
+                }
+                while (i < jpeg.Length && jpeg[i] == 0xFF) i++;
+                if (i >= jpeg.Length) break;
+
+                byte marker = jpeg[i++];
+                if (marker is 0xD8 or 0xD9 or 0x00 || (marker >= 0xD0 && marker <= 0xD7))
+                    continue;
+
+                if (i + 1 >= jpeg.Length) break;
+                int segLen = (jpeg[i] << 8) | jpeg[i + 1];
+                if (segLen < 2 || i + segLen > jpeg.Length) break;
+
+                // SOF0, SOF1, SOF2 markers
+                if (marker is 0xC0 or 0xC1 or 0xC2)
+                {
+                    if (segLen >= 7 && i + 6 < jpeg.Length)
+                    {
+                        height = (jpeg[i + 3] << 8) | jpeg[i + 4];
+                        width = (jpeg[i + 5] << 8) | jpeg[i + 6];
+                        return width > 0 && height > 0;
+                    }
+                    return false;
+                }
+
+                i += segLen;
+            }
+            return false;
+        }
+
+        private static async Task<byte[]?> FetchHttpCameraSnapshotFallbackAsync(string safeIp)
+        {
+            if (!LinuxVaultAndStorage.IsValidPrivateLanIpv4(safeIp))
                 return null;
 
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(14));
+            (int Port, string Path)[] endpoints =
+            {
+                (8080, "/camera/snapshot"),
+                (8080, "/snapshot.jpg"),
+                (8329, "/camera/snapshot"),
+                (8080, "/frame.jpg")
+            };
+
+            bool port8080Checked = false, port8080Open = false;
+            bool port8329Checked = false, port8329Open = false;
+
+            foreach (var (port, path) in endpoints)
+            {
+                if (port == 8080)
+                {
+                    if (!port8080Checked)
+                    {
+                        port8080Checked = true;
+                        port8080Open = await ProbeLaserReachableAsync(safeIp, 8080, 260).ConfigureAwait(false);
+                    }
+                    if (!port8080Open) continue;
+                }
+                else if (port == 8329)
+                {
+                    if (!port8329Checked)
+                    {
+                        port8329Checked = true;
+                        port8329Open = await ProbeLaserReachableAsync(safeIp, 8329, 260).ConfigureAwait(false);
+                    }
+                    if (!port8329Open) continue;
+                }
+
+                try
+                {
+                    using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(2400));
+                    using var resp = await LanCameraHttp.GetAsync($"http://{safeIp}:{port}{path}", cts.Token).ConfigureAwait(false);
+                    if (!resp.IsSuccessStatusCode) continue;
+
+                    byte[] bytes = await resp.Content.ReadAsByteArrayAsync(cts.Token).ConfigureAwait(false);
+                    if (bytes.Length >= 8192 && bytes[0] == 0xFF && bytes[1] == 0xD8)
+                        return bytes;
+                }
+                catch { }
+            }
+
+            return null;
+        }
+
+        public static async Task<LaserCameraCaptureResult> CaptureLiveCameraDetailedAsync(string ip = DefaultLaserIp)
+        {
+            if (!LinuxVaultAndStorage.IsValidPrivateLanIpv4(ip))
+            {
+                return new LaserCameraCaptureResult
+                {
+                    Ok = false,
+                    LaserOnline = false,
+                    Error = "Ungültige Laser-IP blockiert (nur private RFC1918 LAN-IPv4 erlaubt)."
+                };
+            }
+
+            string safeIp = ip.Trim();
+            bool v2Open = await ProbeLaserReachableAsync(safeIp, DefaultV2Port, 400).ConfigureAwait(false);
+            byte[]? rawJpeg = null;
+            string calibJson = "";
+            string source = "";
+
+            string calibCachePath = Path.Combine(LinuxVaultAndStorage.DataDir, "xtool_global_calib.json");
+            if (File.Exists(calibCachePath))
+            {
+                try { calibJson = File.ReadAllText(calibCachePath, Encoding.UTF8); } catch { }
+            }
+
+            // 1. Primary Path: Native xTool V2 TLS-WebSocket (wss://{safeIp}:28900)
+            if (v2Open)
+            {
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(14));
+                string uuid = Guid.NewGuid().ToString("D");
+                using var mainWs = await ConnectV2WsAsync(safeIp, DefaultV2Port, $"/websocket?id={uuid}&function=instruction", cts.Token).ConfigureAwait(false);
+                using var fileWs = mainWs != null
+                    ? await ConnectV2WsAsync(safeIp, DefaultV2Port, $"/websocket?id={uuid}&function=file_stream", cts.Token).ConfigureAwait(false)
+                    : null;
+
+                if (mainWs != null && fileWs != null)
+                {
+                    try
+                    {
+                        var mainBuf = new List<byte>(4096);
+                        var fileBuf = new List<byte>(65536);
+                        var txId = new RefInt();
+
+                        string sessionToken = await AuthenticateParityAsync(mainWs, mainBuf, txId, cts.Token).ConfigureAwait(false);
+                        if (!string.IsNullOrWhiteSpace(sessionToken))
+                        {
+                            if (string.IsNullOrWhiteSpace(calibJson) || !calibJson.Contains("data0", StringComparison.Ordinal))
+                            {
+                                byte[]? calibBytes = await DownloadFileFromLaserV2Async(mainWs, mainBuf, fileWs, fileBuf, txId, sessionToken, "global_calib.json", 3, 2, cts.Token).ConfigureAwait(false);
+                                if (calibBytes != null && calibBytes.Length > 500)
+                                {
+                                    string fetchedCalib = Encoding.UTF8.GetString(calibBytes);
+                                    if (fetchedCalib.Contains("data0", StringComparison.Ordinal))
+                                    {
+                                        calibJson = fetchedCalib;
+                                        try { LinuxVaultAndStorage.WriteFileAtomically0600(calibCachePath, calibBytes); } catch { }
+                                    }
+                                }
+                            }
+
+                            _ = await SendV2JsonCmdAsync(mainWs, mainBuf, txId, sessionToken, "PUT", "/v1/peripheral/param", new JsonObject { ["type"] = "ir_led" }, new JsonObject { ["action"] = "off", ["index"] = 0 }, null, cts.Token).ConfigureAwait(false);
+                            _ = await SendV2JsonCmdAsync(mainWs, mainBuf, txId, sessionToken, "PUT", "/v1/laser-head/parameter", new JsonObject(), new JsonObject { ["action"] = "power", ["ctrl"] = "set", ["value"] = 0 }, null, cts.Token).ConfigureAwait(false);
+
+                            _ = await SendV2JsonCmdAsync(mainWs, mainBuf, txId, sessionToken, "POST", "/v1/camera", new JsonObject { ["exp"] = 0, ["stream"] = "0" }, new JsonObject(), null, cts.Token).ConfigureAwait(false);
+                            var snap = await SendV2JsonCmdAsync(mainWs, mainBuf, txId, sessionToken, "GET", "/v1/camera/snap", new JsonObject { ["name"] = "main", ["timeOut"] = 30000 }, new JsonObject(), null, cts.Token).ConfigureAwait(false);
+                            string remoteFile = snap?["data"]?["filename"]?.GetValue<string>()
+                                             ?? snap?["data"]?["params"]?["filename"]?.GetValue<string>()
+                                             ?? "";
+
+                            if (!string.IsNullOrWhiteSpace(remoteFile))
+                            {
+                                rawJpeg = await DownloadFileFromLaserV2Async(mainWs, mainBuf, fileWs, fileBuf, txId, sessionToken, remoteFile, 5, 9, cts.Token).ConfigureAwait(false);
+                                if (rawJpeg != null && rawJpeg.Length >= 10000)
+                                    source = "v2_wss_28900";
+                            }
+
+                            _ = await SendV2JsonCmdAsync(mainWs, mainBuf, txId, sessionToken, "PUT", "/v1/peripheral/param", new JsonObject { ["type"] = "ir_led" }, new JsonObject { ["action"] = "on", ["index"] = 0 }, null, cts.Token).ConfigureAwait(false);
+                            _ = await SendV2JsonCmdAsync(mainWs, mainBuf, txId, sessionToken, "PUT", "/v1/laser-head/parameter", new JsonObject(), new JsonObject { ["action"] = "power", ["ctrl"] = "set", ["value"] = 128 }, null, cts.Token).ConfigureAwait(false);
+                        }
+                    }
+                    catch { }
+                    finally
+                    {
+                        try { if (fileWs.State == WebSocketState.Open) await fileWs.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "", CancellationToken.None).ConfigureAwait(false); } catch { }
+                        try { if (mainWs.State == WebSocketState.Open) await mainWs.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "", CancellationToken.None).ConfigureAwait(false); } catch { }
+                    }
+                }
+            }
+
+            // 2. Secondary Path: Direct HTTP Camera Snapshot (:8080 / :8329)
+            if (rawJpeg == null || rawJpeg.Length < 10000)
+            {
+                byte[]? httpSnap = await FetchHttpCameraSnapshotFallbackAsync(safeIp).ConfigureAwait(false);
+                if (httpSnap != null && httpSnap.Length >= 8192)
+                {
+                    rawJpeg = httpSnap;
+                    source = "http_snapshot";
+                }
+            }
+
+            if (rawJpeg == null || rawJpeg.Length < 8192)
+            {
+                if (!v2Open)
+                {
+                    return new LaserCameraCaptureResult
+                    {
+                        Ok = false,
+                        LaserOnline = false,
+                        Error = $"xTool F2 Ultra UV ({safeIp}) im Werkstatt-LAN nicht erreichbar (bitte prüfen, ob der Laser eingeschaltet ist)."
+                    };
+                }
+
+                return new LaserCameraCaptureResult
+                {
+                    Ok = false,
+                    LaserOnline = true,
+                    Error = $"xTool F2 Ultra UV ({safeIp}) ist verbunden, lieferte aber kein gültiges Kamerabild."
+                };
+            }
+
+            // 3. Dewarp via local Python /xtool-warp (or keep pre-warped 2000x2000 directly)
+            if (TryReadJpegDimensions(rawJpeg, out int jw, out int jh) && jw == 2000 && jh == 2000)
+            {
+                StoreCachedCameraJpeg(rawJpeg);
+                return new LaserCameraCaptureResult
+                {
+                    Ok = true,
+                    LaserOnline = true,
+                    WarpedJpeg = rawJpeg,
+                    RawJpeg = null,
+                    Source = source
+                };
+            }
+
+            byte[]? warped = await LocalSenseBridge.WarpXtoolCameraAsync(rawJpeg, calibJson).ConfigureAwait(false);
+            if (warped != null && warped.Length > 10000)
+            {
+                StoreCachedCameraJpeg(warped);
+                return new LaserCameraCaptureResult
+                {
+                    Ok = true,
+                    LaserOnline = true,
+                    WarpedJpeg = warped,
+                    RawJpeg = null,
+                    Source = source + "+warped"
+                };
+            }
+
+            StoreCachedCameraJpeg(rawJpeg);
+            return new LaserCameraCaptureResult
+            {
+                Ok = true,
+                LaserOnline = true,
+                WarpedJpeg = null,
+                RawJpeg = rawJpeg,
+                Source = source + "+raw"
+            };
+        }
+
+        public static async Task<byte[]?> CaptureLiveCameraLocalV2Async(string ip = DefaultLaserIp)
+        {
+            var res = await CaptureLiveCameraDetailedAsync(ip).ConfigureAwait(false);
+            return res.Ok ? (res.WarpedJpeg ?? res.RawJpeg) : null;
+        }
+
+        public static string GenerateBorderGcode(
+            double centerXMm,
+            double centerYMm,
+            double widthMm,
+            double heightMm,
+            double angleDeg = 0.0)
+        {
+            double halfW = Math.Max(1.0, widthMm / 2.0);
+            double halfH = Math.Max(1.0, heightMm / 2.0);
+            double rad = angleDeg * (Math.PI / 180.0);
+            double cos = Math.Cos(rad);
+            double sin = Math.Sin(rad);
+
+            (double Lx, double Ly)[] localCorners =
+            {
+                (-halfW, -halfH),
+                ( halfW, -halfH),
+                ( halfW,  halfH),
+                (-halfW,  halfH)
+            };
+
+            var pts = new (string X, string Y)[4];
+            for (int i = 0; i < 4; i++)
+            {
+                double rx = centerXMm + (localCorners[i].Lx * cos) - (localCorners[i].Ly * sin);
+                double ry = centerYMm + (localCorners[i].Lx * sin) + (localCorners[i].Ly * cos);
+                pts[i] = (
+                    Math.Clamp(rx, 0.0, 200.0).ToString("0.000", CultureInfo.InvariantCulture),
+                    Math.Clamp(ry, 0.0, 200.0).ToString("0.000", CultureInfo.InvariantCulture)
+                );
+            }
+
+            return string.Join("\n", new[]
+            {
+                "# GS009-4 HEAD",
+                "G0 F180000",
+                "M4 S0",
+                "G1 F180000",
+                "M114 S1",
+                "",
+                "# GS009-4 VECTOR HEAD",
+                "# motion_start",
+                "G21",
+                "G90",
+                "# blockConfig={\"powerFactor\":0.133,\"isVector\":true,\"crossDot\":false}",
+                $"G0X{pts[0].X}Y{pts[0].Y}F1440000",
+                $"G1X{pts[1].X}Y{pts[1].Y}S133F1440000",
+                $"G1X{pts[2].X}Y{pts[2].Y}",
+                $"G1X{pts[3].X}Y{pts[3].Y}",
+                $"G1X{pts[0].X}Y{pts[0].Y}",
+                "# GS009-4 VECTOR TAIL",
+                "# motion_end",
+                "# END",
+                "# GS009-4 TAIL",
+                "G90",
+                "G0 S0",
+                "G0 F180000",
+                "G1 F180000",
+                "M536 U0",
+                "M6 P1",
+                ""
+            });
+        }
+
+        public static byte[]? TryExtractTarEntry(ReadOnlySpan<byte> tarBytes, string targetEntryName)
+        {
+            int pos = 0;
+            while (pos + 512 <= tarBytes.Length)
+            {
+                ReadOnlySpan<byte> hdr = tarBytes.Slice(pos, 512);
+                bool allZero = true;
+                for (int z = 0; z < 512; z++)
+                {
+                    if (hdr[z] != 0) { allZero = false; break; }
+                }
+                if (allZero) break;
+
+                int nameLen = 0;
+                while (nameLen < 100 && hdr[nameLen] != 0) nameLen++;
+                string entryName = Encoding.ASCII.GetString(hdr.Slice(0, nameLen)).Trim();
+
+                string sizeOctal = Encoding.ASCII.GetString(hdr.Slice(124, 12)).Trim('\0', ' ');
+                long entrySize = 0;
+                if (!string.IsNullOrEmpty(sizeOctal))
+                {
+                    try { entrySize = Convert.ToInt64(sizeOctal, 8); }
+                    catch { return null; }
+                }
+                if (entrySize < 0 || pos + 512 + entrySize > tarBytes.Length)
+                    return null;
+
+                if (string.Equals(entryName, targetEntryName, StringComparison.OrdinalIgnoreCase) ||
+                    entryName.EndsWith("/" + targetEntryName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return tarBytes.Slice(pos + 512, (int)entrySize).ToArray();
+                }
+
+                long blocks = (entrySize + 511) / 512;
+                pos += 512 + (int)(blocks * 512);
+            }
+            return null;
+        }
+
+        public static async Task<(bool Ok, bool LaserOnline, string TaskId, string Error)> UploadFramingLocalV2Async(
+            byte[] payloadBytes,
+            bool isXfArchive,
+            string ip = DefaultLaserIp)
+        {
+            if (payloadBytes == null || payloadBytes.Length == 0)
+                return (false, false, "", "Leere Rahmen-Vorschau.");
+
+            if (!LinuxVaultAndStorage.IsValidPrivateLanIpv4(ip))
+                return (false, false, "", "Ungültige Laser-IP blockiert (nur private RFC1918 LAN-IPv4 erlaubt).");
+
+            string safeIp = ip.Trim();
+            if (!await ProbeLaserReachableAsync(safeIp, DefaultV2Port, 400).ConfigureAwait(false))
+            {
+                return (false, false, "", $"xTool F2 Ultra UV ({safeIp}) im Werkstatt-LAN nicht erreichbar (bitte prüfen, ob der Laser eingeschaltet ist).");
+            }
+
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(16));
             string uuid = Guid.NewGuid().ToString("D");
             using var mainWs = await ConnectV2WsAsync(safeIp, DefaultV2Port, $"/websocket?id={uuid}&function=instruction", cts.Token).ConfigureAwait(false);
-            if (mainWs == null) return null;
+            if (mainWs == null)
+                return (false, false, "", $"V2-Steuerkanal zu {safeIp}:{DefaultV2Port} konnte nicht geöffnet werden.");
 
             using var fileWs = await ConnectV2WsAsync(safeIp, DefaultV2Port, $"/websocket?id={uuid}&function=file_stream", cts.Token).ConfigureAwait(false);
-            if (fileWs == null) return null;
+            if (fileWs == null)
+                return (false, true, "", "V2-Dateikanal zum Laser konnte nicht geöffnet werden.");
 
             try
             {
                 var mainBuf = new List<byte>(4096);
-                var fileBuf = new List<byte>(65536);
+                var fileBuf = new List<byte>(8192);
                 var txId = new RefInt();
 
                 string sessionToken = await AuthenticateParityAsync(mainWs, mainBuf, txId, cts.Token).ConfigureAwait(false);
                 if (string.IsNullOrWhiteSpace(sessionToken))
-                    return null;
+                    return (false, true, "", "Authentifizierung am xTool F2 Ultra UV fehlgeschlagen.");
 
-                string calibCachePath = Path.Combine(LinuxVaultAndStorage.DataDir, "xtool_global_calib.json");
-                string calibJson = "";
-                if (File.Exists(calibCachePath))
-                {
-                    try { calibJson = File.ReadAllText(calibCachePath, Encoding.UTF8); } catch { }
-                }
-                if (string.IsNullOrWhiteSpace(calibJson) || !calibJson.Contains("data0", StringComparison.Ordinal))
-                {
-                    byte[]? calibBytes = await DownloadFileFromLaserV2Async(mainWs, mainBuf, fileWs, fileBuf, txId, sessionToken, "global_calib.json", 3, 2, cts.Token).ConfigureAwait(false);
-                    if (calibBytes != null && calibBytes.Length > 500)
+                int channel = isXfArchive ? 62 : 61;
+                string remoteFilename = isXfArchive ? "tmp.xf" : "tmpFrame.gcode";
+                string md5Hex = Convert.ToHexStringLower(MD5.HashData(payloadBytes));
+
+                var upInit = await SendV2JsonCmdAsync(
+                    mainWs,
+                    mainBuf,
+                    txId,
+                    sessionToken,
+                    "PUT",
+                    "/v1/filetransfer/upload",
+                    new JsonObject(),
+                    new JsonObject
                     {
-                        string fetchedCalib = Encoding.UTF8.GetString(calibBytes);
-                        if (fetchedCalib.Contains("data0", StringComparison.Ordinal))
+                        ["channel"] = channel,
+                        ["digestdata"] = md5Hex,
+                        ["digesttype"] = 1,
+                        ["filename"] = remoteFilename,
+                        ["filesize"] = payloadBytes.Length,
+                        ["filetype"] = 1,
+                        ["packetsize"] = 1048576
+                    },
+                    null,
+                    cts.Token).ConfigureAwait(false);
+
+                if (upInit == null || (upInit["code"]?.GetValue<int>() ?? -1) != 0)
+                    return (false, true, "", "Rahmen-Dateiübertragung wurde vom Laser abgelehnt.");
+
+                int negotiatedMax = Math.Clamp(upInit["data"]?["packetsize"]?.GetValue<int>() ?? 131072, 16384, 131072);
+                long sentTotal = 0;
+                bool uploadAcked = false;
+                var sw = Stopwatch.StartNew();
+
+                while (sw.ElapsedMilliseconds < 10000 && !uploadAcked && !cts.Token.IsCancellationRequested)
+                {
+                    if (!await ReceiveIntoBufferAsync(fileWs, fileBuf, 2800, cts.Token).ConfigureAwait(false))
+                        break;
+
+                    var frames = ExtractV2Frames(fileBuf);
+                    foreach (var (proto, body) in frames)
+                    {
+                        if (proto == 33 && TryParseFileRequest(body, channel, out long offset, out int windowSize))
                         {
-                            calibJson = fetchedCalib;
-                            try { LinuxVaultAndStorage.WriteFileAtomically0600(calibCachePath, calibBytes); } catch { }
+                            if (offset >= payloadBytes.Length) continue;
+                            long endOffset = Math.Min(payloadBytes.Length, offset + windowSize);
+                            long cursor = offset;
+                            while (cursor < endOffset)
+                            {
+                                int chunkLen = (int)Math.Min(Math.Min(negotiatedMax, 65536), endOffset - cursor);
+                                byte[] frameBytes = BuildFileDataFrame(channel, cursor, payloadBytes.AsSpan((int)cursor, chunkLen));
+                                await fileWs.SendAsync(frameBytes.AsMemory(), WebSocketMessageType.Binary, endOfMessage: true, cts.Token).ConfigureAwait(false);
+                                cursor += chunkLen;
+                                sentTotal += chunkLen;
+                            }
+                        }
+                        else if (proto == 4 && body.Length > 0)
+                        {
+                            try
+                            {
+                                if (JsonNode.Parse(Encoding.UTF8.GetString(body)) is JsonObject ack &&
+                                    (ack["channel"]?.GetValue<int>() ?? -1) == channel)
+                                {
+                                    uploadAcked = (ack["code"]?.GetValue<int>() ?? -1) == 0;
+                                    if (!uploadAcked)
+                                        return (false, true, "", $"Laser meldete Übertragungsfehler auf Kanal {channel}.");
+                                    break;
+                                }
+                            }
+                            catch { }
                         }
                     }
                 }
 
-                _ = await SendV2JsonCmdAsync(mainWs, mainBuf, txId, sessionToken, "PUT", "/v1/peripheral/param", new JsonObject { ["type"] = "ir_led" }, new JsonObject { ["action"] = "off", ["index"] = 0 }, null, cts.Token).ConfigureAwait(false);
-                _ = await SendV2JsonCmdAsync(mainWs, mainBuf, txId, sessionToken, "PUT", "/v1/laser-head/parameter", new JsonObject(), new JsonObject { ["action"] = "power", ["ctrl"] = "set", ["value"] = 0 }, null, cts.Token).ConfigureAwait(false);
+                if (!uploadAcked && sentTotal < payloadBytes.Length)
+                    return (false, true, "", "Rahmen-Übertragung an den Laser unvollständig.");
 
-                _ = await SendV2JsonCmdAsync(mainWs, mainBuf, txId, sessionToken, "POST", "/v1/camera", new JsonObject { ["exp"] = 0, ["stream"] = "0" }, new JsonObject(), null, cts.Token).ConfigureAwait(false);
-                var snap = await SendV2JsonCmdAsync(mainWs, mainBuf, txId, sessionToken, "GET", "/v1/camera/snap", new JsonObject { ["name"] = "main", ["timeOut"] = 30000 }, new JsonObject(), null, cts.Token).ConfigureAwait(false);
-                string remoteFile = snap?["data"]?["filename"]?.GetValue<string>()
-                                 ?? snap?["data"]?["params"]?["filename"]?.GetValue<string>()
-                                 ?? "";
+                string taskId = Guid.NewGuid().ToString("D");
+                JsonObject cfgParams = isXfArchive
+                    ? new JsonObject { ["autoStart"] = 1, ["taskId"] = taskId }
+                    : new JsonObject { ["loopPrint"] = 1, ["gcodeType"] = "frame" };
+                JsonObject cfgData = isXfArchive
+                    ? new JsonObject { ["autoStart"] = 1, ["fileType"] = "xf", ["taskId"] = taskId }
+                    : new JsonObject { ["fileType"] = "txt", ["autoStart"] = 1, ["loopPrint"] = 1, ["gcodeType"] = "frame" };
 
-                byte[]? rawJpeg = null;
-                if (!string.IsNullOrWhiteSpace(remoteFile))
-                {
-                    rawJpeg = await DownloadFileFromLaserV2Async(mainWs, mainBuf, fileWs, fileBuf, txId, sessionToken, remoteFile, 5, 9, cts.Token).ConfigureAwait(false);
-                }
+                var cfgResp = await SendV2JsonCmdAsync(
+                    mainWs,
+                    mainBuf,
+                    txId,
+                    sessionToken,
+                    "PUT",
+                    "/v1/processing/upload/config",
+                    cfgParams,
+                    cfgData,
+                    null,
+                    cts.Token).ConfigureAwait(false);
 
-                _ = await SendV2JsonCmdAsync(mainWs, mainBuf, txId, sessionToken, "PUT", "/v1/peripheral/param", new JsonObject { ["type"] = "ir_led" }, new JsonObject { ["action"] = "on", ["index"] = 0 }, null, cts.Token).ConfigureAwait(false);
-                _ = await SendV2JsonCmdAsync(mainWs, mainBuf, txId, sessionToken, "PUT", "/v1/laser-head/parameter", new JsonObject(), new JsonObject { ["action"] = "power", ["ctrl"] = "set", ["value"] = 128 }, null, cts.Token).ConfigureAwait(false);
+                int cfgCode = cfgResp?["code"]?.GetValue<int>() ?? 0;
+                if (cfgResp == null || cfgCode != 0)
+                    return (false, true, taskId, "Rahmen-Aktivierung am Laser fehlgeschlagen.");
 
-                if (rawJpeg == null || rawJpeg.Length < 10000)
-                    return null;
-
-                byte[]? warped = await LocalSenseBridge.WarpXtoolCameraAsync(rawJpeg, calibJson).ConfigureAwait(false);
-                byte[] finalJpeg = (warped != null && warped.Length > 10000) ? warped : rawJpeg;
-                StoreCachedCameraJpeg(finalJpeg);
-                return finalJpeg;
+                return (true, true, taskId, "");
             }
-            catch
+            catch (Exception ex)
             {
-                return null;
+                return (false, true, "", ex.Message);
             }
             finally
             {
@@ -5003,6 +5471,566 @@ namespace FunkenwerkOSLinux
                 ["toast"] = toast,
                 ["next_focus"] = nextNormalized
             };
+        }
+    }
+
+    // =========================================================================
+    // STAGE <-> WERKSTATT MINI-PC LASER RELAY DAEMON (1.2s POLL, ZERO LOG-SPAM)
+    // Bridges https://stage.mein-seelenfunke.de/api/shop/workshop-focus/laser-relay/*
+    // directly to the local xTool F2 Ultra UV (192.168.188.150) on the Gifhorn LAN.
+    // =========================================================================
+    public sealed class LaserRelayJobDto
+    {
+        public string JobId { get; set; } = "";
+        public string Action { get; set; } = "";
+        public string LaserIp { get; set; } = XtoolLocalLanBridge.DefaultLaserIp;
+        public string? XfBase64 { get; set; }
+        public string? Gcode { get; set; }
+        public double CenterXMm { get; set; } = 100.0;
+        public double CenterYMm { get; set; } = 100.0;
+        public double WidthMm { get; set; } = 80.0;
+        public double HeightMm { get; set; } = 80.0;
+        public double AngleDeg { get; set; } = 0.0;
+    }
+
+    public sealed class LaserRelayCompletionPayload
+    {
+        public string JobId { get; set; } = "";
+        public bool Ok { get; set; }
+        public bool LaserOnline { get; set; }
+        public string State { get; set; } = "OFFLINE";
+        public string? Error { get; set; }
+        public string? WarpedJpegBase64 { get; set; }
+        public string? RawJpegBase64 { get; set; }
+
+        public JsonObject ToJsonObject()
+        {
+            return new JsonObject
+            {
+                ["job_id"] = JobId,
+                ["ok"] = Ok,
+                ["laser_online"] = LaserOnline,
+                ["state"] = State,
+                ["error"] = string.IsNullOrWhiteSpace(Error) ? null : WorkshopFocusCoordinator.CleanTextNoEnDash(Error),
+                ["warped_jpeg_base64"] = WarpedJpegBase64,
+                ["raw_jpeg_base64"] = RawJpegBase64
+            };
+        }
+    }
+
+    public static class StageLaserRelayDaemon
+    {
+        private static int s_started;
+        private static readonly HttpClient RelayHttp = new(SeelenfunkeLinuxApiClient.CreateHardenedSocketsHandler())
+        {
+            Timeout = TimeSpan.FromSeconds(24),
+            MaxResponseContentBufferSize = 36L * 1024L * 1024L
+        };
+
+        private static readonly object s_probeCacheLock = new();
+        private static bool s_cachedLaserOnline;
+        private static DateTime s_cachedLaserCheckedAtUtc = DateTime.MinValue;
+        private static readonly ConcurrentDictionary<string, DateTime> s_recentlyHandledJobs = new(StringComparer.Ordinal);
+
+        public static bool TryValidateRelayLaserIp(string? rawLaserIp, out string safeIp, out string? error)
+        {
+            if (string.IsNullOrWhiteSpace(rawLaserIp))
+            {
+                safeIp = XtoolLocalLanBridge.DefaultLaserIp;
+                error = null;
+                return true;
+            }
+
+            string trimmed = rawLaserIp.Trim();
+            if (!LinuxVaultAndStorage.IsValidPrivateLanIpv4(trimmed))
+            {
+                safeIp = "";
+                error = "Ungültige Laser-IP blockiert (SSRF-Schutz: nur private RFC1918 LAN-IPv4 erlaubt).";
+                return false;
+            }
+
+            safeIp = trimmed;
+            error = null;
+            return true;
+        }
+
+        public static LaserRelayJobDto? TryDeserializePollResponse(string? rawJson)
+        {
+            if (string.IsNullOrWhiteSpace(rawJson))
+                return null;
+
+            try
+            {
+                using var doc = JsonDocument.Parse(rawJson);
+                var root = doc.RootElement;
+                if (root.ValueKind != JsonValueKind.Object)
+                    return null;
+
+                JsonElement jobEl = default;
+                bool found = false;
+
+                if (root.TryGetProperty("job", out var directJob))
+                {
+                    if (directJob.ValueKind == JsonValueKind.Null || directJob.ValueKind == JsonValueKind.Undefined)
+                        return null;
+                    if (directJob.ValueKind == JsonValueKind.Object)
+                    {
+                        jobEl = directJob;
+                        found = true;
+                    }
+                }
+                else if (root.TryGetProperty("data", out var dataEl) && dataEl.ValueKind == JsonValueKind.Object)
+                {
+                    if (dataEl.TryGetProperty("job", out var nestedJob))
+                    {
+                        if (nestedJob.ValueKind != JsonValueKind.Object)
+                            return null;
+                        jobEl = nestedJob;
+                        found = true;
+                    }
+                    else if (dataEl.TryGetProperty("job_id", out _))
+                    {
+                        jobEl = dataEl;
+                        found = true;
+                    }
+                }
+                else if (root.TryGetProperty("job_id", out _))
+                {
+                    jobEl = root;
+                    found = true;
+                }
+
+                if (!found)
+                    return null;
+
+                string jobId = ReadJsonString(jobEl, "job_id", "id");
+                string action = ReadJsonString(jobEl, "action", "type").Trim().ToLowerInvariant();
+                if (string.IsNullOrWhiteSpace(jobId) || string.IsNullOrWhiteSpace(action))
+                    return null;
+
+                string rawIp = ReadJsonString(jobEl, "laser_ip", "ip");
+                string? xfB64 = ReadJsonNullableString(jobEl, "xf_base64", "xfBase64");
+                string? gcode = ReadJsonNullableString(jobEl, "gcode", "border_gcode");
+
+                return new LaserRelayJobDto
+                {
+                    JobId = jobId.Trim(),
+                    Action = action,
+                    LaserIp = rawIp,
+                    XfBase64 = xfB64,
+                    Gcode = gcode,
+                    CenterXMm = ReadJsonDouble(jobEl, 100.0, "center_x_mm", "centerXMm"),
+                    CenterYMm = ReadJsonDouble(jobEl, 100.0, "center_y_mm", "centerYMm"),
+                    WidthMm = ReadJsonDouble(jobEl, 80.0, "width_mm", "widthMm"),
+                    HeightMm = ReadJsonDouble(jobEl, 80.0, "height_mm", "heightMm"),
+                    AngleDeg = ReadJsonDouble(jobEl, 0.0, "angle_deg", "angleDeg")
+                };
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static string ReadJsonString(JsonElement obj, params string[] keys)
+        {
+            foreach (string k in keys)
+            {
+                if (obj.TryGetProperty(k, out var el))
+                {
+                    if (el.ValueKind == JsonValueKind.String)
+                        return el.GetString() ?? "";
+                    if (el.ValueKind is JsonValueKind.Number or JsonValueKind.True or JsonValueKind.False)
+                        return el.GetRawText();
+                }
+            }
+            return "";
+        }
+
+        private static string? ReadJsonNullableString(JsonElement obj, params string[] keys)
+        {
+            foreach (string k in keys)
+            {
+                if (obj.TryGetProperty(k, out var el) && el.ValueKind == JsonValueKind.String)
+                {
+                    string? s = el.GetString();
+                    if (!string.IsNullOrEmpty(s))
+                        return s;
+                }
+            }
+            return null;
+        }
+
+        private static double ReadJsonDouble(JsonElement obj, double fallback, params string[] keys)
+        {
+            foreach (string k in keys)
+            {
+                if (obj.TryGetProperty(k, out var el))
+                {
+                    if (el.ValueKind == JsonValueKind.Number && el.TryGetDouble(out double dv) && double.IsFinite(dv))
+                        return dv;
+                    if (el.ValueKind == JsonValueKind.String &&
+                        double.TryParse(el.GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out double sv) &&
+                        double.IsFinite(sv))
+                    {
+                        return sv;
+                    }
+                }
+            }
+            return fallback;
+        }
+
+        public static async Task<bool> GetCachedLaserOnlineAsync(bool forceRefresh = false)
+        {
+            DateTime now = DateTime.UtcNow;
+            if (!forceRefresh)
+            {
+                lock (s_probeCacheLock)
+                {
+                    if ((now - s_cachedLaserCheckedAtUtc).TotalSeconds < 8.0)
+                        return s_cachedLaserOnline;
+                }
+            }
+
+            bool online = await XtoolLocalLanBridge.ProbeAnyLaserPortAsync(XtoolLocalLanBridge.DefaultLaserIp, 400).ConfigureAwait(false);
+            lock (s_probeCacheLock)
+            {
+                s_cachedLaserOnline = online;
+                s_cachedLaserCheckedAtUtc = DateTime.UtcNow;
+            }
+            return online;
+        }
+
+        public static async Task<LaserRelayCompletionPayload> ExecuteRelayJobAsync(LaserRelayJobDto job)
+        {
+            if (!TryValidateRelayLaserIp(job.LaserIp, out string safeIp, out string? ipErr))
+            {
+                return new LaserRelayCompletionPayload
+                {
+                    JobId = job.JobId,
+                    Ok = false,
+                    LaserOnline = false,
+                    State = "OFFLINE",
+                    Error = ipErr
+                };
+            }
+
+            string offlineMsg = $"xTool F2 Ultra UV ({safeIp}) im Werkstatt-LAN nicht erreichbar (bitte prüfen, ob der Laser eingeschaltet ist).";
+
+            if (string.Equals(job.Action, "capture_camera", StringComparison.OrdinalIgnoreCase))
+            {
+                var camRes = await XtoolLocalLanBridge.CaptureLiveCameraDetailedAsync(safeIp).ConfigureAwait(false);
+                lock (s_probeCacheLock)
+                {
+                    s_cachedLaserOnline = camRes.LaserOnline;
+                    s_cachedLaserCheckedAtUtc = DateTime.UtcNow;
+                }
+
+                if (!camRes.Ok)
+                {
+                    return new LaserRelayCompletionPayload
+                    {
+                        JobId = job.JobId,
+                        Ok = false,
+                        LaserOnline = camRes.LaserOnline,
+                        State = "OFFLINE",
+                        Error = string.IsNullOrWhiteSpace(camRes.Error) ? offlineMsg : camRes.Error
+                    };
+                }
+
+                return new LaserRelayCompletionPayload
+                {
+                    JobId = job.JobId,
+                    Ok = true,
+                    LaserOnline = true,
+                    State = "CAMERA_OK",
+                    Error = null,
+                    WarpedJpegBase64 = camRes.WarpedJpeg != null ? Convert.ToBase64String(camRes.WarpedJpeg) : null,
+                    RawJpegBase64 = camRes.RawJpeg != null ? Convert.ToBase64String(camRes.RawJpeg) : null
+                };
+            }
+
+            if (string.Equals(job.Action, "send_xf", StringComparison.OrdinalIgnoreCase))
+            {
+                string rawB64 = job.XfBase64 ?? "";
+                if (rawB64.Contains(',')) rawB64 = rawB64.Substring(rawB64.IndexOf(',') + 1);
+                if (string.IsNullOrWhiteSpace(rawB64))
+                {
+                    return new LaserRelayCompletionPayload
+                    {
+                        JobId = job.JobId,
+                        Ok = false,
+                        LaserOnline = await XtoolLocalLanBridge.ProbeAnyLaserPortAsync(safeIp, 400).ConfigureAwait(false),
+                        State = "OFFLINE",
+                        Error = "Kein .xf Laser-Paket (xf_base64) im Auftrag enthalten."
+                    };
+                }
+
+                byte[] xfBytes;
+                try { xfBytes = Convert.FromBase64String(rawB64.Trim()); }
+                catch
+                {
+                    return new LaserRelayCompletionPayload
+                    {
+                        JobId = job.JobId,
+                        Ok = false,
+                        LaserOnline = await XtoolLocalLanBridge.ProbeAnyLaserPortAsync(safeIp, 400).ConfigureAwait(false),
+                        State = "OFFLINE",
+                        Error = "Ungültiges Base64-Format für xf_base64."
+                    };
+                }
+
+                if (!await XtoolLocalLanBridge.ProbeLaserReachableAsync(safeIp, XtoolLocalLanBridge.DefaultV2Port, 400).ConfigureAwait(false))
+                {
+                    lock (s_probeCacheLock) { s_cachedLaserOnline = false; s_cachedLaserCheckedAtUtc = DateTime.UtcNow; }
+                    return new LaserRelayCompletionPayload
+                    {
+                        JobId = job.JobId,
+                        Ok = false,
+                        LaserOnline = false,
+                        State = "OFFLINE",
+                        Error = offlineMsg
+                    };
+                }
+
+                var (upOk, _, upErr) = await XtoolLocalLanBridge.UploadXfPackageLocalV2Async(xfBytes, safeIp).ConfigureAwait(false);
+                lock (s_probeCacheLock) { s_cachedLaserOnline = true; s_cachedLaserCheckedAtUtc = DateTime.UtcNow; }
+
+                return new LaserRelayCompletionPayload
+                {
+                    JobId = job.JobId,
+                    Ok = upOk,
+                    LaserOnline = true,
+                    State = upOk ? "WORK_PREPARED" : "OFFLINE",
+                    Error = upOk ? null : (string.IsNullOrWhiteSpace(upErr) ? "Übertragung an den Laser fehlgeschlagen." : upErr)
+                };
+            }
+
+            if (string.Equals(job.Action, "frame_border", StringComparison.OrdinalIgnoreCase))
+            {
+                byte[]? framingPayload = null;
+                bool sendAsXfArchive = false;
+
+                if (!string.IsNullOrWhiteSpace(job.Gcode))
+                {
+                    framingPayload = Encoding.UTF8.GetBytes(job.Gcode);
+                    sendAsXfArchive = false;
+                }
+                else if (!string.IsNullOrWhiteSpace(job.XfBase64))
+                {
+                    string cleanB64 = job.XfBase64;
+                    if (cleanB64.Contains(',')) cleanB64 = cleanB64.Substring(cleanB64.IndexOf(',') + 1);
+                    try
+                    {
+                        byte[] decoded = Convert.FromBase64String(cleanB64.Trim());
+                        byte[]? extractedBorder = XtoolLocalLanBridge.TryExtractTarEntry(decoded, "border.gcode");
+                        if (extractedBorder != null && extractedBorder.Length > 16)
+                        {
+                            framingPayload = extractedBorder;
+                            sendAsXfArchive = false;
+                        }
+                        else if (decoded.Length > 512 && decoded[257] == (byte)'u' && decoded[258] == (byte)'s' && decoded[259] == (byte)'t')
+                        {
+                            framingPayload = decoded;
+                            sendAsXfArchive = true;
+                        }
+                        else
+                        {
+                            framingPayload = decoded;
+                            sendAsXfArchive = false;
+                        }
+                    }
+                    catch
+                    {
+                        return new LaserRelayCompletionPayload
+                        {
+                            JobId = job.JobId,
+                            Ok = false,
+                            LaserOnline = await XtoolLocalLanBridge.ProbeAnyLaserPortAsync(safeIp, 400).ConfigureAwait(false),
+                            State = "OFFLINE",
+                            Error = "Ungültige Rahmendaten im Relay-Auftrag."
+                        };
+                    }
+                }
+                else
+                {
+                    string synthesizedGcode = XtoolLocalLanBridge.GenerateBorderGcode(
+                        job.CenterXMm,
+                        job.CenterYMm,
+                        job.WidthMm,
+                        job.HeightMm,
+                        job.AngleDeg);
+                    framingPayload = Encoding.UTF8.GetBytes(synthesizedGcode);
+                    sendAsXfArchive = false;
+                }
+
+                var (frOk, frOnline, _, frErr) = await XtoolLocalLanBridge.UploadFramingLocalV2Async(framingPayload, sendAsXfArchive, safeIp).ConfigureAwait(false);
+                lock (s_probeCacheLock) { s_cachedLaserOnline = frOnline; s_cachedLaserCheckedAtUtc = DateTime.UtcNow; }
+
+                return new LaserRelayCompletionPayload
+                {
+                    JobId = job.JobId,
+                    Ok = frOk,
+                    LaserOnline = frOnline,
+                    State = frOk ? "FRAMING_STARTED" : "OFFLINE",
+                    Error = frOk ? null : (string.IsNullOrWhiteSpace(frErr) ? offlineMsg : frErr)
+                };
+            }
+
+            return new LaserRelayCompletionPayload
+            {
+                JobId = job.JobId,
+                Ok = false,
+                LaserOnline = await GetCachedLaserOnlineAsync().ConfigureAwait(false),
+                State = "OFFLINE",
+                Error = $"Unbekannte Laser-Relay-Aktion '{job.Action}'."
+            };
+        }
+
+        private static List<(string BaseApiUrl, string Bearer)> ResolveActivePortalTargets(LinuxOsSettings settings)
+        {
+            var list = new List<(string BaseApiUrl, string Bearer)>(2);
+            string primaryEnv = (settings.ApiEnvironment ?? "live").Trim().ToLowerInvariant() == "stage" ? "stage" : "live";
+            string secondaryEnv = primaryEnv == "stage" ? "live" : "stage";
+
+            foreach (string env in new[] { primaryEnv, secondaryEnv })
+            {
+                string tok = LinuxVaultAndStorage.GetToken(settings, env);
+                if (string.IsNullOrWhiteSpace(tok)) continue;
+                string baseUrl = SeelenfunkeLinuxApiClient.ResolveBaseApiUrl(env);
+                if (SeelenfunkeLinuxApiClient.ValidateHttpsUrl(baseUrl))
+                {
+                    list.Add((baseUrl, tok));
+                }
+            }
+            return list;
+        }
+
+        private static async Task<bool> PostCompletionAsync(string baseApiUrl, string bearer, LaserRelayCompletionPayload result)
+        {
+            string url = $"{baseApiUrl}/shop/workshop-focus/laser-relay/complete";
+            if (!SeelenfunkeLinuxApiClient.ValidateHttpsUrl(url))
+                return false;
+
+            string jsonBody = result.ToJsonObject().ToJsonString();
+            int[] delaysMs = { 0, 650 };
+
+            for (int attempt = 0; attempt < delaysMs.Length; attempt++)
+            {
+                if (delaysMs[attempt] > 0)
+                    await Task.Delay(delaysMs[attempt]).ConfigureAwait(false);
+
+                try
+                {
+                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(16));
+                    using var req = new HttpRequestMessage(HttpMethod.Post, url);
+                    req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearer);
+                    req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                    req.Content = new StringContent(jsonBody, new UTF8Encoding(false), "application/json");
+
+                    using var resp = await RelayHttp.SendAsync(req, cts.Token).ConfigureAwait(false);
+                    if (resp.IsSuccessStatusCode || (int)resp.StatusCode is 400 or 404 or 409 or 422)
+                        return resp.IsSuccessStatusCode;
+                }
+                catch { }
+            }
+            return false;
+        }
+
+        public static void EnsureStarted()
+        {
+            if (Interlocked.CompareExchange(ref s_started, 1, 0) != 0)
+                return;
+
+            _ = Task.Run(async () =>
+            {
+                int nextDelayMs = 1200;
+
+                while (true)
+                {
+                    try
+                    {
+                        await Task.Delay(nextDelayMs).ConfigureAwait(false);
+
+                        var settings = LinuxVaultAndStorage.LoadSettings();
+                        var targets = ResolveActivePortalTargets(settings);
+                        if (targets.Count == 0)
+                        {
+                            nextDelayMs = 2500;
+                            continue;
+                        }
+
+                        // Prune stale deduplication keys older than 2 minutes
+                        DateTime pruneBefore = DateTime.UtcNow.AddMinutes(-2);
+                        foreach (var kv in s_recentlyHandledJobs)
+                        {
+                            if (kv.Value < pruneBefore)
+                                s_recentlyHandledJobs.TryRemove(kv.Key, out _);
+                        }
+
+                        bool laserOnline = await GetCachedLaserOnlineAsync().ConfigureAwait(false);
+                        int onlineFlag = laserOnline ? 1 : 0;
+                        bool anyError = false;
+                        bool handledJobNow = false;
+
+                        foreach (var (baseApiUrl, bearer) in targets)
+                        {
+                            string pollUrl = $"{baseApiUrl}/shop/workshop-focus/laser-relay/poll?laser_online={onlineFlag}";
+                            if (!SeelenfunkeLinuxApiClient.ValidateHttpsUrl(pollUrl))
+                                continue;
+
+                            try
+                            {
+                                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+                                using var req = new HttpRequestMessage(HttpMethod.Get, pollUrl);
+                                req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearer);
+                                req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+                                using var resp = await RelayHttp.SendAsync(req, cts.Token).ConfigureAwait(false);
+                                int code = (int)resp.StatusCode;
+
+                                if (code == 404 || code == 204)
+                                {
+                                    // Endpoint not yet deployed or empty -> quiet wait without error backoff
+                                    continue;
+                                }
+
+                                if (code == 401 || code == 403 || code == 429 || code >= 500)
+                                {
+                                    anyError = true;
+                                    continue;
+                                }
+
+                                if (!resp.IsSuccessStatusCode)
+                                    continue;
+
+                                string rawBody = await resp.Content.ReadAsStringAsync(cts.Token).ConfigureAwait(false);
+                                var job = TryDeserializePollResponse(rawBody);
+                                if (job == null)
+                                    continue;
+
+                                if (!s_recentlyHandledJobs.TryAdd(job.JobId, DateTime.UtcNow))
+                                    continue;
+
+                                var completion = await ExecuteRelayJobAsync(job).ConfigureAwait(false);
+                                await PostCompletionAsync(baseApiUrl, bearer, completion).ConfigureAwait(false);
+                                handledJobNow = true;
+                                break;
+                            }
+                            catch
+                            {
+                                anyError = true;
+                            }
+                        }
+
+                        nextDelayMs = handledJobNow ? 180 : (anyError ? 5000 : 1200);
+                    }
+                    catch
+                    {
+                        nextDelayMs = 5000;
+                    }
+                }
+            });
         }
     }
 }
