@@ -3,7 +3,7 @@
 **Datum:** 16.11.2026  
 **Autor:** Falcone (Technischer Mitgründer & Chef-Architekt)  
 **System:** Mein-Seelenfunke Live-Infrastruktur (`seelenfunke-live` auf Mittwald mStudio, Server `s-pis5pf`, Projekt `p-g27wim`)  
-**Status:** Technische Umsetzung zu 95 % auf `seelenfunke-live` (`a-bycqrf`) ausgerollt & `mein-seelenfunke.de` live auf HTTP 503 Wartungsseite geschaltet (finaler mStudio-Schreibschritt wartet auf `api_write`-Token im Funkenwerk Tresor)
+**Status:** 100 % Live umgesetzt, abgenommen & verifiziert (`https://www.mein-seelenfunke.de` & `https://mein-seelenfunke.de` aktiv im geschützten Wartungsmodus HTTP 503; `0` offene SystemLog-Fehler)
 
 ---
 
@@ -155,22 +155,21 @@ Sobald Alina das Startsignal („Go“) erteilt, wird die Bereitstellung in 6 sa
 
 ---
 
-## 6. Aktueller Umsetzungsstand (16.11.2026) & Letzter 1-Minuten-Schritt
+## 6. Live-Abnahmeprotokoll (16.11.2026: 100 % Vollzug)
 
-### Bereits vollständig erledigt & live verifiziert:
-1. **Produktions-Initialisierung ([`SystemPrepareLiveCommand.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Console/Commands/SystemPrepareLiveCommand.php)):** Idempotentes Artisan-Command `php artisan system:prepare-live` inkl. Schutz in [`SystemSettingSeeder.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/database/seeders/SystemSettingSeeder.php) (`maintenance_mode` per `firstOrCreate`) und PHPUnit-Suite [`LivePreparationMaintenanceTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/System/LivePreparationMaintenanceTest.php) (**11/11 Tests, 2.051 Assertions Grün**).
-2. **Zero-Secret Mittwald-Live-Provisioner ([`McpTresorBroker.cs`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/funkenwerk-mcp/McpTresorBroker.cs)):** Lokales CLI-Kommando `FunkenwerkMcp.exe --mittwald-prepare-live --step=all|infra|env|cron|check` (**61/61 Selbsttests Grün**; Stage-Air-Gap und `steinhauer-invest`-Sperre zu 100 % erhalten).
-3. **Codebase, Composer & Shop-Assets auf `seelenfunke-live` (`a-bycqrf`) übertragen:**
-   - Vollständiger Produktions-Code + `135/135` Composer-Pakete (`--no-dev`) + kompiliertes `npm run prod` Bundle in `/home/p-g27wim/html/seelenfunke-live` installiert.
-   - Reine Shop-Medien (**315 Manifest-Assets / 363 Dateien inkl. Presets**, `0 Byte` Musik/Buchhaltung/Privatdaten) synchronisiert und `public/storage` verknüpft.
-4. **Live-Schutzschild auf `https://mein-seelenfunke.de` scharf geschaltet:**
-   - Liefert ab sofort **`HTTP 503 Service Unavailable`** (`X-Robots-Tag: noindex, noarchive`, `Retry-After: 3600`) mit der Seelenfunke-Gifhorn-Wartungsseite aus.
-   - Alle Systempfade außerhalb von `public/` (`composer.json`, `.git/HEAD`, `app/*`) sind hart mit **`HTTP 403 Forbidden`** verriegelt.
-
-### Offener 1-Minuten-Handgriff für den finalen mStudio-Schreibzugriff:
-- Das aktuell im **Funkenwerk Tresor** unter `Mittwald - AI Agent Hosting` gespeicherte API-Token besitzt bei Mittwald ausschließlich Lese-Rechte (`api_read` -> `HTTP 403 PermissionDenied` bei `PATCH /v2/app-installations` und `POST /v2/ingresses`).
-- **Sobald Alina im Mittwald mStudio unter Profil -> API-Tokens ein Token mit Lese- & Schreibrechten erzeugt und im Funkenwerk Tresor bei `Mittwald - AI Agent Hosting` speichert**, erledigt ein einziger Aufruf (`FunkenwerkMcp.exe --mittwald-prepare-live --step=all` + `php artisan migrate --force && php artisan system:prepare-live`) vollautomatisch in 15 Sekunden:
-  1. Umstellung des Document-Root von `a-bycqrf` auf `/public`
-  2. Anlage von Ingress + DNS + Let's-Encrypt-Zertifikat für `www.mein-seelenfunke.de`
-  3. Zero-Secret Provisionierung von `mysql_gv2avu` (`dbu_gv2avu`) + isolierter `.env` (`CACHE_STORE=database`, `SESSION_DRIVER=database`, `QUEUE_CONNECTION=sync`) + Übernahme von Alinas Admin-Zugang und allen 28 Produktions-Seedern bei aktivem Wartungsmodus (`maintenance_mode = 'true'`)
-  4. Aktivierung des minütlichen System-Cronjobs `Seelenfunke Live - Scheduler`
+1. **Mittwald mStudio Live-Infrastruktur (`--step=infra`):**
+   - `seelenfunke-live` (`a-bycqrf`, UUID `93f33f15-d27c-4d15-9f85-155eb9adace8`) steht auf **`customDocumentRoot: "/public"`**.
+   - Neuer Ingress **`www.mein-seelenfunke.de`** (`3cc5333c-5b83-46f8-8e6c-72ed843bee8a`) mit DNS-Zone (`c24e2c43-db7b-4386-8811-d1df5b3042e5`, Dual-Stack `185.215.158.114` / `2a03:2a01:a330:a::2`) und aktivem **Let's Encrypt ACME-TLS (`isCreated: true`)** eingerichtet.
+   - `https://mein-seelenfunke.de` leitet Browser-Aufrufe sauber per **`HTTP 301`** auf `https://www.mein-seelenfunke.de` weiter.
+2. **Isolierte Live-Datenbank & Katalog (`--step=env` + `system:prepare-live`):**
+   - Dedizierte MySQL-8.4-Datenbank **`mysql_gv2avu`** (`dbu_gv2avu`) Zero-Secret im RAM provisioniert; Live-`.env` (`0600`) strikt von Stage isoliert (`CACHE_STORE=file`, `SESSION_DRIVER=file`, `QUEUE_CONNECTION=sync`, `REDIS_HOST=127.0.0.1`).
+   - Alle 148 Tabellen migriert, alle **28 echten Produktions-Seeder** eingespielt (`9 Produkte`, `16 Kategorien`, `56 Vorlagen`, `1 aktive Lieferzone`, `29 Steuersätze`), Alinas Stage-Admin-Passwort-Hash synchronisiert, **`0` Test-Kunden/Test-Mitarbeiter/Test-Gutscheine** und **`maintenance_mode = true`** fest verankert.
+   - Reines Shop-Asset-Manifest (**315 Shop-Assets**, `0 Byte` Musik/Buchhaltung/Privatdaten) vollständig in `storage/app/` vorhanden; erstes Live-DB-Backup (`1,1 MB`) erstellt.
+3. **Live-Cronjob & Pre-Launch-Schutz (`--step=cron`):**
+   - System-Cronjob **`Seelenfunke Live - Scheduler`** (`e41d0deb-e8ba-4fda-825b-c1437f440b78`, `* * * * *`, `/usr/bin/php /html/seelenfunke-live/artisan schedule:run`) aktiv.
+   - `crm:fetch-mails` in `system_cronjobs` auf Live während der Vorbereitungsphase pausiert, damit Stage weiterhin ungestört das Postfach `kontakt@mein-seelenfunke.de` synchronisiert.
+4. **End-to-End Live-Verifikation:**
+   - `GET https://www.mein-seelenfunke.de/` & `/shop/` & `/produkt/seelen-kristall` -> **`HTTP 503 Service Unavailable`** (`X-Robots-Tag: noindex, noarchive`, Seelenfunke-Gifhorn-Wartungsseite inkl. USt-IdNr. `DE359662265`).
+   - `GET https://www.mein-seelenfunke.de/login`, `/impressum`, `/datenschutz`, `/up` -> **`HTTP 200 OK`**.
+   - `system:security-audit` (**6/6 System-Schranken Grün, 0 CVEs**) & `system:logs-cleanup --audit` (**0 offene Fehler, 0 Warnungen**).
+   - **Go-Live am Starttag:** Einloggen unter `https://www.mein-seelenfunke.de/login` -> `/admin/settings` -> Schalter **„Wartungsmodus“** umlegen (und `crm:fetch-mails` aktivieren).
