@@ -194,9 +194,9 @@ class XtoolLaserCockpitTest extends TestCase
 
         $this->assertNotNull($bitmapDisplay);
         $this->assertNotNull($ghostDisplay);
-        // 96.5 - (40 / 2) = 76.5 mm, 98.5 - (40 / 2) = 78.5 mm
-        $this->assertEquals(76.5, $bitmapDisplay['x']);
-        $this->assertEquals(78.5, $bitmapDisplay['y']);
+        // Gravurfläche workingArea = 70 % von 40 mm = 28,0 x 28,0 mm -> 96.5 - (28 / 2) = 82.5 mm, 98.5 - (28 / 2) = 84.5 mm
+        $this->assertEquals(82.5, $bitmapDisplay['x']);
+        $this->assertEquals(84.5, $bitmapDisplay['y']);
         $this->assertEquals(2.5, $bitmapDisplay['angle']);
         $this->assertEquals('#00bcd4', $ghostDisplay['lineColor']);
 
@@ -232,8 +232,8 @@ class XtoolLaserCockpitTest extends TestCase
 
         $this->assertStringEndsWith('.xf', $xf['filename']);
         $this->assertStringContainsString('# GS009-4 HEAD', $xf['border_gcode']);
-        $this->assertStringContainsString('G0X80.000Y80.000F1440000', $xf['border_gcode']);
-        $this->assertStringContainsString('G1X120.000Y80.000S133F1440000', $xf['border_gcode']);
+        $this->assertStringContainsString('G0X86.000Y86.000F1440000', $xf['border_gcode']);
+        $this->assertStringContainsString('G1X114.000Y86.000S133F1440000', $xf['border_gcode']);
         $this->assertStringContainsString('# GS009-4 BITMAP HEAD', $xf['motion_gcode']);
         $this->assertStringContainsString('M9064 B3', $xf['motion_gcode']);
         $this->assertStringContainsString('G22', $xf['motion_gcode']);
@@ -638,33 +638,44 @@ class XtoolLaserCockpitTest extends TestCase
             ]);
 
             $payload = $exportService->buildLaserDesignPayload($item, 'front', true);
-            $this->assertEqualsWithDelta($expectedW, $payload['widthMm'], 0.01, "Payload widthMm mismatch for {$slug}");
-            $this->assertEqualsWithDelta($expectedH, $payload['heightMm'], 0.01, "Payload heightMm mismatch for {$slug}");
+            $this->assertEqualsWithDelta($expectedW, $payload['blankWidthMm'], 0.01, "Blank widthMm mismatch for {$slug}");
+            $this->assertEqualsWithDelta($expectedH, $payload['blankHeightMm'], 0.01, "Blank heightMm mismatch for {$slug}");
 
-            // Zwingend NUR EIN geschlossener Außenrahmen (kein doppelter Rahmen!)
+            $productCfg = is_array($product->configurator_settings) ? $product->configurator_settings : [];
+            $waCal = $exportService->resolveEngravingWorkingAreaCalibration($product, $productCfg, $item->configuration ?? [], false);
+            $expectedEngraveW = (float) $waCal['engraveWidthMm'];
+            $expectedEngraveH = (float) $waCal['engraveHeightMm'];
+
+            $this->assertEqualsWithDelta($expectedEngraveW, $payload['widthMm'], 0.02, "Working-area widthMm mismatch for {$slug}");
+            $this->assertEqualsWithDelta($expectedEngraveH, $payload['heightMm'], 0.02, "Working-area heightMm mismatch for {$slug}");
+
+            // Zwingend NUR EIN geschlossener Rahmen, bündig auf 0..widthMm x 0..heightMm (0,0 mm Lücke!)
             $ghostDPath = $payload['ghostContourDPath'];
             $this->assertSame(1, substr_count($ghostDPath, 'M '), "Expected single contour path for {$slug}, got multiple M commands");
             $this->assertSame(1, substr_count($ghostDPath, ' Z'), "Expected single closed contour for {$slug}");
 
-            // Prüfe exakte Millimeter-Spannweite der Außenkontur (0.000 .. expectedW / expectedH)
             preg_match_all('/[ML]\s*(-?\d+\.\d+)\s+(-?\d+\.\d+)/', $ghostDPath, $m);
             $xs = array_map('floatval', $m[1]);
             $ys = array_map('floatval', $m[2]);
             $this->assertEqualsWithDelta(0.0, min($xs), 0.15, "Min X of contour for {$slug} must start at 0 mm");
-            $this->assertEqualsWithDelta($expectedW, max($xs), 0.15, "Max X of contour for {$slug} must match {$expectedW} mm");
+            $this->assertEqualsWithDelta($expectedEngraveW, max($xs), 0.15, "Max X of contour for {$slug} must match {$expectedEngraveW} mm");
             $this->assertEqualsWithDelta(0.0, min($ys), 0.15, "Min Y of contour for {$slug} must start at 0 mm");
-            $this->assertEqualsWithDelta($expectedH, max($ys), 0.15, "Max Y of contour for {$slug} must match {$expectedH} mm");
+            $this->assertEqualsWithDelta($expectedEngraveH, max($ys), 0.15, "Max Y of contour for {$slug} must match {$expectedEngraveH} mm");
+
+            $polyXs = array_column($payload['workingAreaPolygonPct'], 'x');
+            $polyYs = array_column($payload['workingAreaPolygonPct'], 'y');
+            $this->assertEqualsWithDelta(0.0, min($polyXs), 0.3, "Working-area polygon min X must be 0 % for {$slug}");
+            $this->assertEqualsWithDelta(100.0, max($polyXs), 0.3, "Working-area polygon max X must be 100 % for {$slug}");
+            $this->assertEqualsWithDelta(0.0, min($polyYs), 0.3, "Working-area polygon min Y must be 0 % for {$slug}");
+            $this->assertEqualsWithDelta(100.0, max($polyYs), 0.3, "Working-area polygon max Y must be 100 % for {$slug}");
 
             if ($slug === 'seelen-kristall') {
-                // Beim Seelenkristall muss die 2D-Scheibenmitte (50.0 %, 45.6 %) exakt auf (50 %, 50 %) = (90 mm, 90 mm) liegen
-                $polyXs = array_column($payload['workingAreaPolygonPct'], 'x');
-                $polyYs = array_column($payload['workingAreaPolygonPct'], 'y');
-                $this->assertEqualsWithDelta(50.0, (min($polyXs) + max($polyXs)) * 0.5, 0.2);
-                $this->assertEqualsWithDelta(50.0, (min($polyYs) + max($polyYs)) * 0.5, 0.2);
+                $this->assertEqualsWithDelta(133.927, $payload['widthMm'], 0.02);
+                $this->assertEqualsWithDelta(133.927, $payload['heightMm'], 0.02);
             }
         }
 
-        // Prüfe zudem 0,1-mm-Synchronität zwischen HUD & Input im Livewire-Cockpit
+        // Prüfe zudem 0,1-mm-Synchronität zwischen HUD & Input im Livewire-Cockpit (Seelen-Kristall zeigt exakt 133,9 × 133,9 mm)
         $admin = $this->createAdmin();
         $kristallItem = $order->items()->first();
         Livewire::actingAs($admin, 'admin')
@@ -676,10 +687,12 @@ class XtoolLaserCockpitTest extends TestCase
             ->assertSet('laserCenterXMm', 103.8)
             ->assertSet('laserCenterYMm', 99.0)
             ->assertSet('laserAngleDeg', 0.0)
+            ->assertSet('laserWidthMm', 133.9)
+            ->assertSet('laserHeightMm', 133.9)
             ->assertSee('step="0.1"', false)
             ->assertSee('x-model.number="xMm"', false)
             ->assertSee('@laser-cockpit-sync.window', false)
-            ->assertSee('161,5 × 161,5 mm');
+            ->assertSee('133,9 × 133,9 mm');
     }
 
     #[Test]
@@ -977,5 +990,163 @@ class XtoolLaserCockpitTest extends TestCase
                 return ($params['type'] ?? null) === 'success'
                     && ($params['title'] ?? null) === 'Live-Kamerabild & KI-Ausrichtung aktiv';
             });
+    }
+
+    #[Test]
+    public function cockpit_resize_handles_persist_scaled_dimensions_and_propagate_to_laser_framing_and_xf_gcode(): void
+    {
+        Storage::fake('local');
+        $admin = $this->createAdmin();
+
+        $darkImg = imagecreatetruecolor(80, 80);
+        imagealphablending($darkImg, false);
+        imagesavealpha($darkImg, true);
+        imagefill($darkImg, 0, 0, imagecolorallocatealpha($darkImg, 0, 0, 0, 0));
+        ob_start();
+        imagepng($darkImg);
+        $darkPng = (string) ob_get_clean();
+        imagedestroy($darkImg);
+
+        $crystal = Product::create([
+            'name'        => 'Der Seelen Kristall',
+            'slug'        => 'seelen-kristall-resize-' . Str::lower(Str::random(5)),
+            'type'        => 'physical',
+            'status'      => 'active',
+            'price'       => 6990,
+            'width'       => 180,
+            'height'      => 200,
+            'length'      => 40,
+            'weight'      => 920,
+            'configurator_settings' => [
+                'allow_personalization' => true,
+                'overlay_type'          => 'plane',
+                'area_shape'            => 'circle',
+                'area_left'             => 16.0,
+                'area_top'              => 11.6,
+                'area_width'            => 68.0,
+                'area_height'           => 68.0,
+                'material_type'         => 'glass',
+                'template_package'      => 'seelen-kristall',
+                'xtool_plane_width'     => 161.5,
+                'xtool_plane_height'    => 161.5,
+                'xtool_plate_box_pct'   => ['left' => 9.0, 'top' => 4.6, 'width' => 82.0, 'height' => 82.0],
+                'xtool_contour_shape'   => 'circle',
+                'xtool_material'        => 'K9 Kristallglas',
+                'xtool_dpi'             => 100,
+            ],
+        ]);
+
+        $relUpload = 'bestellungen/cart-uploads/test_resize_dark_' . Str::lower(Str::random(6)) . '.png';
+        Storage::disk('public')->put($relUpload, $darkPng);
+
+        try {
+            [$order, $item] = $this->createSampleOrderWithItem($crystal);
+            $item->update([
+                'configuration' => [
+                    'logos' => [[
+                        'x'        => 50.0,
+                        'y'        => 45.6,
+                        'value'    => $relUpload,
+                        'url'      => '/storage/' . $relUpload,
+                        'size'     => 500.0,
+                        'type'     => 'saved',
+                        'rotation' => 0,
+                    ]],
+                    'texts' => [[
+                        'text' => 'WYSIWYG Resize',
+                        'font' => 'Georgia',
+                        'x'    => 50.0,
+                        'y'    => 58.0,
+                        'size' => 1.1,
+                    ]],
+                ],
+            ]);
+
+            // 1. Initiales Öffnen lädt exakt die innere Gravurfläche (133,9 x 133,9 mm) und rendert alle 4 Resize-Anfasser
+            $component = Livewire::actingAs($admin, 'admin')
+                ->test(OrderOverview::class)
+                ->call('openDetail', $order->id)
+                ->assertSet('laserWidthMm', 133.9)
+                ->assertSet('laserHeightMm', 133.9)
+                ->assertSee('data-resize-handle="nw"', false)
+                ->assertSee('data-resize-handle="ne"', false)
+                ->assertSee('data-resize-handle="se"', false)
+                ->assertSee('data-resize-handle="sw"', false)
+                ->assertSee('cursor-nwse-resize', false)
+                ->assertSee('cursor-nesw-resize', false)
+                ->assertSee("startDrag(\$event, 'resize')", false);
+
+            // 2. Skalierung per Maus-Drag auf 118,0 x 118,0 mm um Mittelpunkt (102,0 / 98,0 mm) persistieren
+            $component->call('updateLaserCoordinates', $item->id, 102.0, 98.0, 0.0, 118.0, 118.0)
+                ->assertSet('laserCenterXMm', 102.0)
+                ->assertSet('laserCenterYMm', 98.0)
+                ->assertSet('laserWidthMm', 118.0)
+                ->assertSet('laserHeightMm', 118.0);
+
+            $savedCoords = $item->fresh()->configuration['laser_cockpit_coordinates']['front'] ?? null;
+            $this->assertIsArray($savedCoords);
+            $this->assertSame(102.0, (float) $savedCoords['x_mm']);
+            $this->assertSame(98.0, (float) $savedCoords['y_mm']);
+            $this->assertSame(118.0, (float) $savedCoords['w_mm']);
+            $this->assertSame(118.0, (float) $savedCoords['h_mm']);
+
+            // 3. Sicherheits-Clamp (< 10 mm wird auf min. 10 mm gehalten, Abwärtskompatibilität 3-Arg lässt wMm/hMm bestehen)
+            $component->call('updateLaserCoordinates', $item->id, 102.0, 98.0, 0.0, 3.0, 3.0)
+                ->assertSet('laserWidthMm', 10.0)
+                ->assertSet('laserHeightMm', 10.0);
+
+            $component->call('updateLaserCoordinates', $item->id, 102.0, 98.0, 0.0, 118.0, 118.0);
+            $component->call('updateLaserCoordinates', 100.0, 100.0, 0.0)
+                ->assertSet('laserCenterXMm', 100.0)
+                ->assertSet('laserCenterYMm', 100.0)
+                ->assertSet('laserWidthMm', 118.0)
+                ->assertSet('laserHeightMm', 118.0);
+
+            // 4. Erneutes Öffnen der Bestellung stellt die gespeicherte Größe (118,0 x 118,0 mm) wieder her
+            $reopened = Livewire::actingAs($admin, 'admin')
+                ->test(OrderOverview::class)
+                ->call('openDetail', $order->id)
+                ->assertSet('laserCenterXMm', 100.0)
+                ->assertSet('laserCenterYMm', 100.0)
+                ->assertSet('laserWidthMm', 118.0)
+                ->assertSet('laserHeightMm', 118.0);
+
+            // 5. "2 AN LASER SENDEN" übergibt exakt das skalierte 118,0 x 118,0 mm Maß an border.gcode & motion.gcode!
+            $reopened->call('sendJobDirectlyToLaser', $item->id, 'front')
+                ->assertSet('laserWorkflowStep', 3);
+
+            $queueState = app(XtoolLaserCockpitService::class)->getQueueState(false);
+            $this->assertSame(118.0, (float) $queueState['pending_jobs'][0]['width_mm']);
+            $this->assertSame(118.0, (float) $queueState['pending_jobs'][0]['height_mm']);
+            // 100.0 - (118.0 / 2) = 41.000 mm bis 159.000 mm
+            $this->assertStringContainsString('G0X41.000Y41.000', $queueState['pending_jobs'][0]['border_gcode']);
+            $this->assertStringContainsString('G1X159.000Y41.000', $queueState['pending_jobs'][0]['border_gcode']);
+
+            $xfScaled = app(XtoolLaserCockpitService::class)->generateXfPackageBytes($item->fresh(), 'front');
+            $maxRadius = 0.0;
+            $curX = 100.0;
+            $curY = 100.0;
+            foreach (explode("\n", $xfScaled['motion_gcode']) as $line) {
+                if (preg_match('/^G([01])(?:X([0-9.]+))?(?:Y([0-9.]+))?(?:S(\d+))?/', trim($line), $m)) {
+                    $nx = isset($m[2]) && $m[2] !== '' ? (float) $m[2] : $curX;
+                    $ny = isset($m[3]) && $m[3] !== '' ? (float) $m[3] : $curY;
+                    $ps = isset($m[4]) && $m[4] !== '' ? (int) $m[4] : 0;
+                    if ($m[1] === '1' && $ps > 0) {
+                        $maxRadius = max($maxRadius, hypot($curX - 100.0, $curY - 100.0), hypot($nx - 100.0, $ny - 100.0));
+                    }
+                    $curX = $nx;
+                    $curY = $ny;
+                }
+            }
+            $this->assertGreaterThan(57.5, $maxRadius, 'Skalierter Laser-Job muss den 59,0-mm-Radius ausfüllen');
+            $this->assertLessThanOrEqual(59.6, $maxRadius, 'Skalierter Laser-Job darf den 118,0-mm-Kreis (r = 59,0 mm) nicht überschreiten');
+
+            // 6. "1 KAMERA & KI-AUSRICHTEN" setzt wMm x hMm proportional wieder auf die innere Gravurfläche (133,9 mm)
+            $reopened->call('refreshLaserCameraAndAlign')
+                ->assertSet('laserWidthMm', 133.9)
+                ->assertSet('laserHeightMm', 133.9);
+        } finally {
+            Storage::disk('public')->delete($relUpload);
+        }
     }
 }

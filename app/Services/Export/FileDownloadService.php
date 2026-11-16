@@ -1203,12 +1203,14 @@ class FileDownloadService
         $side = 'front',
         ?float $centerXMm = null,
         ?float $centerYMm = null,
-        float $angleDeg = 0.0
+        float $angleDeg = 0.0,
+        ?float $widthMm = null,
+        ?float $heightMm = null
     ) {
         $this->authorizeLaserExportAccess($itemId);
 
         $cockpit = app(\App\Services\Laser\XtoolLaserCockpitService::class);
-        $xcsData = $cockpit->generateXcsProjectBytes($itemId, (string) $side, $centerXMm, $centerYMm, $angleDeg);
+        $xcsData = $cockpit->generateXcsProjectBytes($itemId, (string) $side, $centerXMm, $centerYMm, $angleDeg, $widthMm, $heightMm);
 
         return response()->streamDownload(function () use ($xcsData) {
             echo $xcsData['bytes'];
@@ -1226,12 +1228,14 @@ class FileDownloadService
         $side = 'front',
         ?float $centerXMm = null,
         ?float $centerYMm = null,
-        float $angleDeg = 0.0
+        float $angleDeg = 0.0,
+        ?float $widthMm = null,
+        ?float $heightMm = null
     ) {
         $this->authorizeLaserExportAccess($itemId);
 
         $cockpit = app(\App\Services\Laser\XtoolLaserCockpitService::class);
-        $xfData = $cockpit->generateXfPackageBytes($itemId, (string) $side, $centerXMm, $centerYMm, $angleDeg);
+        $xfData = $cockpit->generateXfPackageBytes($itemId, (string) $side, $centerXMm, $centerYMm, $angleDeg, $widthMm, $heightMm);
 
         return response()->streamDownload(function () use ($xfData) {
             echo $xfData['bytes'];
@@ -1496,43 +1500,229 @@ class FileDownloadService
             }
         }
 
-        $calibration = $this->resolvePhysicalBlankCalibration($product, $productConfig, $config, $overlayType === 'cylinder');
-        $widthMm = (float) $calibration['widthMm'];
-        $heightMm = (float) $calibration['heightMm'];
+        $workingAreaCal = $this->resolveEngravingWorkingAreaCalibration(
+            $product,
+            $productConfig,
+            $config,
+            $overlayType === 'cylinder'
+        );
 
         $workingAreaPolygonPct = $this->buildWorkingAreaPolygonPercent($productConfig);
-        if (!empty($calibration['plateBoxPct'])) {
+        if (!empty($workingAreaCal['plateBoxPct'])) {
             [$workingAreaPolygonPct, $logos, $texts] = $this->mapShopConfigOntoPhysicalBlank(
-                $calibration['plateBoxPct'],
+                $workingAreaCal['plateBoxPct'],
                 $workingAreaPolygonPct,
                 $logos,
                 $texts
             );
         }
 
-        // Exakt EINE 1:1 Außenkontur des physischen Rohlings in Millimetern (kein doppelter Rahmen!)
+        // Bündige 1:1 Projektion auf die echte Gravurfläche (workingArea = 0..100 % => 0,0 mm Lücke zum blauen Rahmen)
+        [$workingAreaPolygonPct, $logos, $texts] = $this->mapShopConfigOntoPhysicalBlank(
+            $workingAreaCal['areaBoxInBlankPct'],
+            $workingAreaPolygonPct,
+            $logos,
+            $texts
+        );
+
+        $widthMm = (float) $workingAreaCal['engraveWidthMm'];
+        $heightMm = (float) $workingAreaCal['engraveHeightMm'];
+        $contourShape = (string) $workingAreaCal['contourShape'];
+        $isDarkSurface = $this->isFrostedLightEngravingSurface($product, $productConfig);
+
+        // Exakt EINE bündige 1:1 Kontur der Gravurfläche in Millimetern (0..widthMm x 0..heightMm)
         $ghostContourDPath = $this->buildSingleOuterBlankContourDPath(
-            (string) ($calibration['contourShape'] ?? 'auto'),
+            $contourShape,
             $widthMm,
             $heightMm,
             $workingAreaPolygonPct,
             $productConfig
         );
 
-        $rendered = $this->renderFullStageLaserPng($widthMm, $heightMm, $workingAreaPolygonPct, $logos, $texts, $item);
+        $rendered = $this->renderFullStageLaserPng(
+            $widthMm,
+            $heightMm,
+            $workingAreaPolygonPct,
+            $logos,
+            $texts,
+            $item,
+            $isDarkSurface
+        );
 
         return [
-            'item'                  => $item,
-            'product'               => $product,
-            'side'                  => $side,
-            'widthMm'               => round($widthMm, 3),
-            'heightMm'              => round($heightMm, 3),
-            'workingAreaPolygonPct' => $workingAreaPolygonPct,
-            'ghostContourDPath'     => $ghostContourDPath,
-            'stageEngravePngBytes'  => $rendered['pngBytes'],
-            'stagePixelWidth'       => $rendered['pixelWidth'],
-            'stagePixelHeight'      => $rendered['pixelHeight'],
-            'previewDataUrl'        => 'data:image/png;base64,' . base64_encode($rendered['pngBytes']),
+            'item'                   => $item,
+            'product'                => $product,
+            'side'                   => $side,
+            'widthMm'                => round($widthMm, 3),
+            'heightMm'               => round($heightMm, 3),
+            'blankWidthMm'           => round((float) $workingAreaCal['blankWidthMm'], 3),
+            'blankHeightMm'          => round((float) $workingAreaCal['blankHeightMm'], 3),
+            'centerOffsetXMm'        => round((float) $workingAreaCal['centerOffsetXMm'], 3),
+            'centerOffsetYMm'        => round((float) $workingAreaCal['centerOffsetYMm'], 3),
+            'contourShape'           => $contourShape,
+            'isDarkSurface'          => $isDarkSurface,
+            'workingAreaPolygonPct'  => $workingAreaPolygonPct,
+            'ghostContourDPath'      => $ghostContourDPath,
+            'stageEngravePngBytes'   => $rendered['pngBytes'],
+            'cockpitPreviewPngBytes' => $rendered['previewPngBytes'],
+            'stagePixelWidth'        => $rendered['pixelWidth'],
+            'stagePixelHeight'       => $rendered['pixelHeight'],
+            'previewDataUrl'         => 'data:image/png;base64,' . base64_encode($rendered['previewPngBytes']),
+        ];
+    }
+
+    /**
+     * Prüft, ob die Lasergravur auf dem Medium visuell hell/milchig-weiß erscheint (true: Glas, K9-Kristall,
+     * Schiefer, schwarz eloxiertes Aluminium) oder als dunkle Anlass-/Einbrandgravur auf hellem Grund (false:
+     * vergoldeter Edelstahl, Silber, Gold-Vermeil, Messing, Holz).
+     */
+    public function isFrostedLightEngravingSurface($product = null, array $productConfig = []): bool
+    {
+        $explicitStyle = strtolower(trim((string) ($productConfig['engraving_style'] ?? $productConfig['engraving_Style'] ?? '')));
+        if ($explicitStyle === 'dark') {
+            return false;
+        }
+        if (in_array($explicitStyle, ['light', 'frosted', 'white'], true)) {
+            return true;
+        }
+
+        $materialType = strtolower(trim((string) ($productConfig['material_type'] ?? '')));
+        if (in_array($materialType, ['glass', 'crystal', 'slate', 'black_aluminum'], true)) {
+            return true;
+        }
+        if (in_array($materialType, ['silver', 'gold', 'wood', 'brass', 'stainless_steel'], true)) {
+            return false;
+        }
+
+        $slug = strtolower(trim((string) ($product->slug ?? '')));
+        $pkg = strtolower(trim((string) ($productConfig['template_package'] ?? '')));
+        foreach ([$pkg, $slug] as $key) {
+            if ($key === '') {
+                continue;
+            }
+            if (
+                str_starts_with($key, 'seelen-talisman')
+                || str_starts_with($key, 'seelen-pfote')
+                || str_starts_with($key, 'goldenes-seelen-herz')
+                || str_starts_with($key, 'echtgold-seelen-herz')
+                || str_starts_with($key, 'id-armband-')
+            ) {
+                return false;
+            }
+            if (
+                str_starts_with($key, 'seelen-kristall')
+                || str_starts_with($key, 'der-seelen-kristall')
+                || str_starts_with($key, 'weizenglas')
+                || str_starts_with($key, 'seelen-anhaenger')
+                || str_starts_with($key, 'geschenkgutschein')
+            ) {
+                return true;
+            }
+        }
+
+        $xtoolMat = mb_strtolower(trim((string) ($productConfig['xtool_material'] ?? '') . ' ' . (string) ($product->name ?? '')));
+        if (preg_match('/(glas|kristall|k9|schiefer|aluminium)/u', $xtoolMat)) {
+            return true;
+        }
+        if (preg_match('/(edelstahl|silber|gold|messing|holz)/u', $xtoolMat)) {
+            return false;
+        }
+
+        $analysis = app(\App\Services\ConfiguratorService::class)->analyzeOverlayImage(
+            $product->preview_image_path ?? null,
+            $productConfig
+        );
+
+        return (bool) ($analysis['is_dark_surface'] ?? false);
+    }
+
+    /**
+     * Ermittelt neben den physischen Rohlings-Außenmaßen (blankWidthMm x blankHeightMm) die exakte innere
+     * Gravurfläche (engraveWidthMm x engraveHeightMm) inklusive Versatz (centerOffsetXMm / centerOffsetYMm)
+     * relativ zur Rohlingsmitte, damit der blaue Cockpit-Rahmen zu 100 % bündig an der Gravurfläche anliegt.
+     *
+     * @return array{
+     *   blankWidthMm: float,
+     *   blankHeightMm: float,
+     *   engraveWidthMm: float,
+     *   engraveHeightMm: float,
+     *   centerOffsetXMm: float,
+     *   centerOffsetYMm: float,
+     *   areaBoxInBlankPct: array{left: float, top: float, width: float, height: float},
+     *   plateBoxPct: ?array{left: float, top: float, width: float, height: float},
+     *   contourShape: string,
+     *   blankContourShape: string
+     * }
+     */
+    public function resolveEngravingWorkingAreaCalibration(
+        $product = null,
+        array $productConfig = [],
+        array $itemConfig = [],
+        bool $unrollCylinder = false
+    ): array {
+        $calibration = $this->resolvePhysicalBlankCalibration($product, $productConfig, $itemConfig, $unrollCylinder);
+        $blankWidthMm = (float) $calibration['widthMm'];
+        $blankHeightMm = (float) $calibration['heightMm'];
+        $plateBoxPct = $calibration['plateBoxPct'] ?? null;
+        $blankContourShape = (string) ($calibration['contourShape'] ?? 'rect');
+
+        $polyInBlank = $this->buildWorkingAreaPolygonPercent($productConfig);
+        if (!empty($plateBoxPct)) {
+            [$polyInBlank] = $this->mapShopConfigOntoPhysicalBlank($plateBoxPct, $polyInBlank, [], []);
+        }
+
+        if (!empty($polyInBlank)) {
+            $xs = array_column($polyInBlank, 'x');
+            $ys = array_column($polyInBlank, 'y');
+            $minXPct = max(0.0, min($xs));
+            $maxXPct = min(100.0, max($xs));
+            $minYPct = max(0.0, min($ys));
+            $maxYPct = min(100.0, max($ys));
+        } else {
+            $minXPct = 0.0;
+            $maxXPct = 100.0;
+            $minYPct = 0.0;
+            $maxYPct = 100.0;
+        }
+
+        $spanXPct = max(1.0, $maxXPct - $minXPct);
+        $spanYPct = max(1.0, $maxYPct - $minYPct);
+
+        $engraveWidthMm = max(1.0, ($spanXPct / 100.0) * $blankWidthMm);
+        $engraveHeightMm = max(1.0, ($spanYPct / 100.0) * $blankHeightMm);
+
+        $centerXPct = ($minXPct + $maxXPct) * 0.5;
+        $centerYPct = ($minYPct + $maxYPct) * 0.5;
+        $centerOffsetXMm = (($centerXPct - 50.0) / 100.0) * $blankWidthMm;
+        $centerOffsetYMm = (($centerYPct - 50.0) / 100.0) * $blankHeightMm;
+
+        $areaShape = (string) ($productConfig['area_shape'] ?? 'rect');
+        if ($areaShape === 'circle' || $blankContourShape === 'circle') {
+            $contourShape = 'circle';
+        } elseif ($areaShape === 'custom') {
+            $contourShape = 'custom_polygon';
+        } elseif (in_array($blankContourShape, ['rounded_card', 'rounded_bar'], true) && $spanXPct >= 98.0 && $spanYPct >= 98.0) {
+            $contourShape = $blankContourShape;
+        } else {
+            $contourShape = 'rect';
+        }
+
+        return [
+            'blankWidthMm'      => $blankWidthMm,
+            'blankHeightMm'     => $blankHeightMm,
+            'engraveWidthMm'    => $engraveWidthMm,
+            'engraveHeightMm'   => $engraveHeightMm,
+            'centerOffsetXMm'   => $centerOffsetXMm,
+            'centerOffsetYMm'   => $centerOffsetYMm,
+            'areaBoxInBlankPct' => [
+                'left'   => $minXPct,
+                'top'    => $minYPct,
+                'width'  => $spanXPct,
+                'height' => $spanYPct,
+            ],
+            'plateBoxPct'       => $plateBoxPct,
+            'contourShape'      => $contourShape,
+            'blankContourShape' => $blankContourShape,
         ];
     }
 
@@ -2103,9 +2293,11 @@ class FileDownloadService
 
     /**
      * Rendert die komplette Gravur-Bühne (Fotos + Vektor-Symbole + TTF-Schriften)
-     * maßstabsgetreu auf ein transparentes Stage-PNG (widthMm x heightMm).
+     * maßstabsgetreu sowohl als physische Laser-Bitmap (pngBytes: Schwarz = Laser feuert)
+     * als auch als visuelles WYSIWYG-Kamera-Overlay (previewPngBytes: positiv milchig-weiß auf
+     * dunklen/transparenten Medien bzw. dunkel auf echt transparentem Hintergrund bei hellen Medien).
      *
-     * @return array{pngBytes: string, pixelWidth: int, pixelHeight: int}
+     * @return array{pngBytes: string, previewPngBytes: string, pixelWidth: int, pixelHeight: int}
      */
     protected function renderFullStageLaserPng(
         float $widthMm,
@@ -2113,7 +2305,8 @@ class FileDownloadService
         array $workingAreaPolygonPct,
         array $logos,
         array $texts,
-        $item = null
+        $item = null,
+        bool $isDarkSurface = false
     ): array {
         $minDimMm = max(1.0, min($widthMm, $heightMm));
         $maxDimMm = max(1.0, max($widthMm, $heightMm));
@@ -2126,6 +2319,10 @@ class FileDownloadService
         imagesavealpha($canvas, true);
         $trans = imagecolorallocatealpha($canvas, 255, 255, 255, 127);
         imagefill($canvas, 0, 0, $trans);
+
+        $overlayTrackImg = imagecreatetruecolor($stageW, $stageH);
+        $trackZero = imagecolorallocate($overlayTrackImg, 0, 0, 0);
+        imagefill($overlayTrackImg, 0, 0, $trackZero);
 
         $maskImg = imagecreatetruecolor($stageW, $stageH);
         $maskBlack = imagecolorallocate($maskImg, 0, 0, 0);
@@ -2161,7 +2358,7 @@ class FileDownloadService
                 }
 
                 if ($ext === 'svg') {
-                    $this->drawSvgLogoOntoStageCanvas($canvas, $rawBytes, $logo, $widthMm, $heightMm, $stageW, $stageH, true);
+                    $this->drawSvgLogoOntoStageCanvas($canvas, $rawBytes, $logo, $widthMm, $heightMm, $stageW, $stageH, true, $overlayTrackImg);
                 } else {
                     $clipped = $this->clipAndNormalizeRasterLogoForLaser(
                         $rawBytes,
@@ -2182,34 +2379,122 @@ class FileDownloadService
                             imagealphablending($canvas, true);
                             imagecopyresampled($canvas, $partImg, $dstX, $dstY, 0, 0, $dstW, $dstH, imagesx($partImg), imagesy($partImg));
                             imagealphablending($canvas, false);
+
+                            // Falls ein Foto per höherem zIndex über einer älteren Vektor-/Textebene liegt, Track dort zurücksetzen
+                            $clX0 = max(0, $dstX);
+                            $clX1 = min($stageW - 1, $dstX + $dstW - 1);
+                            $clY0 = max(0, $dstY);
+                            $clY1 = min($stageH - 1, $dstY + $dstH - 1);
+                            $pw = max(1, imagesx($partImg));
+                            $ph = max(1, imagesy($partImg));
+                            for ($py = $clY0; $py <= $clY1; $py++) {
+                                $sy = min($ph - 1, max(0, (int) floor((($py - $dstY) / max(1, $dstH)) * $ph)));
+                                for ($px = $clX0; $px <= $clX1; $px++) {
+                                    $sx = min($pw - 1, max(0, (int) floor((($px - $dstX) / max(1, $dstW)) * $pw)));
+                                    if (((imagecolorat($partImg, $sx, $sy) >> 24) & 0x7F) < 120) {
+                                        imagesetpixel($overlayTrackImg, $px, $py, $trackZero);
+                                    }
+                                }
+                            }
+
                             imagedestroy($partImg);
                         }
                     }
                 }
             } elseif ($entry['kind'] === 'text') {
-                $this->drawTextItemOntoStageCanvas($canvas, $entry['data'], $widthMm, $stageW, $stageH);
+                $this->drawTextItemOntoStageCanvas($canvas, $entry['data'], $widthMm, $stageW, $stageH, $overlayTrackImg);
             }
         }
 
-        // Hart an der Arbeitsbereich-Maske (workingAreaPolygonPct) clippen
+        $previewCanvas = imagecreatetruecolor($stageW, $stageH);
+        imagealphablending($previewCanvas, false);
+        imagesavealpha($previewCanvas, true);
+        $previewTrans = imagecolorallocatealpha($previewCanvas, 255, 255, 255, 127);
+        imagefill($previewCanvas, 0, 0, $previewTrans);
+
+        $frostedWhiteLut = [];
+        $darkHaloLut = [];
+        $darkEngraveLut = [];
+        for ($a = 0; $a <= 127; $a++) {
+            $frostedWhiteLut[$a] = imagecolorallocatealpha($previewCanvas, 248, 250, 253, $a);
+            $darkHaloLut[$a] = imagecolorallocatealpha($previewCanvas, 15, 23, 42, $a);
+            $darkEngraveLut[$a] = imagecolorallocatealpha($previewCanvas, 22, 19, 15, $a);
+        }
+
+        // Hart an der Arbeitsbereich-Maske (workingAreaPolygonPct) clippen & visuelles WYSIWYG-Overlay ableiten
         for ($y = 0; $y < $stageH; $y++) {
             for ($x = 0; $x < $stageW; $x++) {
                 if ((imagecolorat($maskImg, $x, $y) & 0xFF) === 0) {
                     imagesetpixel($canvas, $x, $y, $trans);
+                    continue;
+                }
+
+                $c = imagecolorat($canvas, $x, $y);
+                $gdAlpha = ($c >> 24) & 0x7F;
+                $gray = ($c >> 16) & 0xFF;
+
+                $ov = imagecolorat($overlayTrackImg, $x, $y);
+                $glyphCov = ($ov >> 16) & 0xFF;
+                $haloCov = ($ov >> 8) & 0xFF;
+
+                $rawStrength = 0.0;
+                if ($gdAlpha < 126 && $gray < 244) {
+                    $opacity = (127 - $gdAlpha) / 127.0;
+                    $rawStrength = max(0.0, min(1.0, ((244.0 - $gray) / 222.0) * $opacity));
+                }
+
+                if ($isDarkSurface) {
+                    if ($glyphCov > 20) {
+                        $visOpacity = min(0.97, max($rawStrength * 0.90, ($glyphCov / 235.0) * 0.97));
+                        $pAlpha = max(0, min(127, (int) round(127.0 * (1.0 - $visOpacity))));
+                        imagesetpixel($previewCanvas, $x, $y, $frostedWhiteLut[$pAlpha]);
+                    } elseif ($haloCov > 20) {
+                        $haloWeight = ($haloCov / 255.0) * ($rawStrength > 0.02 ? 0.72 : 0.50);
+                        $pAlpha = max(0, min(127, (int) round(127.0 * (1.0 - $haloWeight))));
+                        imagesetpixel($previewCanvas, $x, $y, $darkHaloLut[$pAlpha]);
+                    } elseif ($rawStrength > 0.008) {
+                        $visOpacity = min(0.92, pow($rawStrength, 0.90) * 0.90);
+                        $pAlpha = max(0, min(126, (int) round(127.0 * (1.0 - $visOpacity))));
+                        imagesetpixel($previewCanvas, $x, $y, $frostedWhiteLut[$pAlpha]);
+                    }
+                } else {
+                    if ($glyphCov > 20) {
+                        $visOpacity = min(0.95, max($rawStrength * 0.92, ($glyphCov / 235.0) * 0.95));
+                        $pAlpha = max(0, min(127, (int) round(127.0 * (1.0 - $visOpacity))));
+                        imagesetpixel($previewCanvas, $x, $y, $darkEngraveLut[$pAlpha]);
+                    } elseif ($haloCov > 20 && $rawStrength > 0.03) {
+                        // Auf hellem Metall/Holz reduziert der Halo darunterliegende dunkle Foto-Gravur sanft
+                        $reduced = $rawStrength * max(0.0, 1.0 - (($haloCov / 255.0) * 0.85));
+                        if ($reduced > 0.01) {
+                            $pAlpha = max(0, min(126, (int) round(127.0 * (1.0 - ($reduced * 0.90)))));
+                            imagesetpixel($previewCanvas, $x, $y, $darkEngraveLut[$pAlpha]);
+                        }
+                    } elseif ($rawStrength > 0.008) {
+                        $visOpacity = min(0.93, pow($rawStrength, 0.95) * 0.92);
+                        $pAlpha = max(0, min(126, (int) round(127.0 * (1.0 - $visOpacity))));
+                        imagesetpixel($previewCanvas, $x, $y, $darkEngraveLut[$pAlpha]);
+                    }
                 }
             }
         }
         imagedestroy($maskImg);
+        imagedestroy($overlayTrackImg);
 
         ob_start();
         imagepng($canvas, null, 6);
         $pngBytes = (string) ob_get_clean();
         imagedestroy($canvas);
 
+        ob_start();
+        imagepng($previewCanvas, null, 6);
+        $previewPngBytes = (string) ob_get_clean();
+        imagedestroy($previewCanvas);
+
         return [
-            'pngBytes'    => $pngBytes,
-            'pixelWidth'  => $stageW,
-            'pixelHeight' => $stageH,
+            'pngBytes'        => $pngBytes,
+            'previewPngBytes' => $previewPngBytes,
+            'pixelWidth'      => $stageW,
+            'pixelHeight'     => $stageH,
         ];
     }
 
@@ -2283,7 +2568,7 @@ class FileDownloadService
      * Zeichnet ein einzelnes Text-Element (gerade oder gebogen) an seiner exakten zIndex-Position auf das Stage-Canvas,
      * inklusive lokalem weißen Kontrast-Halo auf darunterliegenden opaken Foto-Pixeln.
      */
-    protected function drawTextItemOntoStageCanvas($canvas, array $textItem, float $widthMm, int $stageW, int $stageH): void
+    protected function drawTextItemOntoStageCanvas($canvas, array $textItem, float $widthMm, int $stageW, int $stageH, $overlayTrackImg = null): void
     {
         if (!function_exists('imagettftext')) {
             return;
@@ -2294,7 +2579,10 @@ class FileDownloadService
             return;
         }
 
-        $ttfPath = $this->resolveTtfFontPath((string) ($textItem['font'] ?? 'Montserrat'));
+        $preferBold = !empty($textItem['bold'])
+            || strtolower(trim((string) ($textItem['weight'] ?? $textItem['fontWeight'] ?? ''))) === 'bold'
+            || (int) ($textItem['fontWeight'] ?? 400) >= 600;
+        $ttfPath = $this->resolveTtfFontPath((string) ($textItem['font'] ?? 'Montserrat'), $preferBold);
         if (!$ttfPath || !is_file($ttfPath)) {
             return;
         }
@@ -2471,12 +2759,28 @@ class FileDownloadService
                             $gdAlpha = max(0, min(127, (int) round(127.0 * (1.0 - min(1.0, $gVal / 240.0)))));
                             imagesetpixel($canvas, $x, $y, imagecolorallocatealpha($canvas, 0, 0, 0, $gdAlpha));
                         }
-                    } elseif ($hVal > 20 && $exAlpha < 126) {
-                        // Kontrast-Halo ausschließlich auf darunterliegenden opaken Pixeln (z. B. Porträtfoto)
-                        $exGray = $existing & 0xFF;
-                        $haloStrength = min(0.90, ($hVal / 255.0) * 0.90);
-                        $blendedGray = max(0, min(255, (int) round(($exGray * (1.0 - $haloStrength)) + (255.0 * $haloStrength))));
-                        imagesetpixel($canvas, $x, $y, $grayLut[$blendedGray]);
+                        if ($overlayTrackImg) {
+                            $prevGlyph = (imagecolorat($overlayTrackImg, $x, $y) >> 16) & 0xFF;
+                            $newGlyph = max($prevGlyph, $gVal);
+                            imagesetpixel($overlayTrackImg, $x, $y, ($newGlyph << 16));
+                        }
+                    } elseif ($hVal > 20) {
+                        if ($exAlpha < 126) {
+                            // Kontrast-Halo in der physischen Laser-Bitmap ausschließlich auf darunterliegenden opaken Pixeln (z. B. Porträtfoto)
+                            $exGray = $existing & 0xFF;
+                            $haloStrength = min(0.90, ($hVal / 255.0) * 0.90);
+                            $blendedGray = max(0, min(255, (int) round(($exGray * (1.0 - $haloStrength)) + (255.0 * $haloStrength))));
+                            imagesetpixel($canvas, $x, $y, $grayLut[$blendedGray]);
+                        }
+                        if ($overlayTrackImg) {
+                            $prevTrack = imagecolorat($overlayTrackImg, $x, $y);
+                            $prevGlyph = ($prevTrack >> 16) & 0xFF;
+                            if ($prevGlyph <= 20) {
+                                $prevHalo = ($prevTrack >> 8) & 0xFF;
+                                $newHalo = max($prevHalo, $hVal);
+                                imagesetpixel($overlayTrackImg, $x, $y, ($prevGlyph << 16) | ($newHalo << 8));
+                            }
+                        }
                     }
                 }
             }
@@ -2580,7 +2884,8 @@ class FileDownloadService
         float $heightMm,
         int $stageW,
         int $stageH,
-        bool $withContrastHaloOverOpaque = true
+        bool $withContrastHaloOverOpaque = true,
+        $overlayTrackImg = null
     ): void {
         $cleanSvg = \App\Support\SafeHtmlAndSvgSanitizer::sanitizeSvg($svgRaw);
         if ($cleanSvg === '') {
@@ -2851,15 +3156,28 @@ class FileDownloadService
                 $gx = $bMinX + $lx;
                 if ($d === 0) {
                     imagesetpixel($canvas, $gx, $gy, $blackOpaque);
+                    if ($overlayTrackImg) {
+                        imagesetpixel($overlayTrackImg, $gx, $gy, (255 << 16));
+                    }
                 } elseif ($haloRadius > 0) {
                     $existing = imagecolorat($canvas, $gx, $gy);
                     $exAlpha = ($existing >> 24) & 0x7F;
+                    $falloff = 1.0 - (($d - 1.0) / max(1.0, (float) $maxHaloDist));
+                    $haloStrength = max(0.0, min(0.92, 0.45 + ($falloff * 0.50)));
                     if ($exAlpha < 126) {
                         $exGray = $existing & 0xFF;
-                        $falloff = 1.0 - (($d - 1.0) / max(1.0, (float) $maxHaloDist));
-                        $haloStrength = max(0.0, min(0.92, 0.45 + ($falloff * 0.50)));
                         $blended = max(0, min(255, (int) round(($exGray * (1.0 - $haloStrength)) + (255.0 * $haloStrength))));
                         imagesetpixel($canvas, $gx, $gy, $grayLut[$blended]);
+                    }
+                    if ($overlayTrackImg) {
+                        $prevTrack = imagecolorat($overlayTrackImg, $gx, $gy);
+                        $prevGlyph = ($prevTrack >> 16) & 0xFF;
+                        if ($prevGlyph <= 20) {
+                            $prevHalo = ($prevTrack >> 8) & 0xFF;
+                            $hVal = max(0, min(255, (int) round($haloStrength * 255.0)));
+                            $newHalo = max($prevHalo, $hVal);
+                            imagesetpixel($overlayTrackImg, $gx, $gy, ($prevGlyph << 16) | ($newHalo << 8));
+                        }
                     }
                 }
             }
@@ -3332,37 +3650,104 @@ class FileDownloadService
     }
 
     /**
-     * Löst einen Konfigurator-Schriftnamen (z. B. "Dancing Script", "Playfair Display")
-     * auf die lokale .ttf-Schriftdatei in public/fonts/ttf/ auf.
+     * Löst einen Konfigurator-Schriftnamen (inkl. aller 5 System-Fonts Arial, Times New Roman,
+     * Verdana, Courier New, Georgia sowie Google-Fonts wie Dancing Script / Playfair Display)
+     * auf die lokale .ttf-Schriftdatei in public/fonts/ttf/ auf (Standard-Gewicht 400).
      */
-    protected function resolveTtfFontPath(string $fontFamily): ?string
+    public function resolveTtfFontPath(string $fontFamily, bool $preferBold = false): ?string
     {
-        $slug = \Illuminate\Support\Str::slug($fontFamily);
+        $primaryName = trim((string) explode(',', $fontFamily)[0], " \t\n\r\0\x0B\"'");
+        $lowerRaw = strtolower($fontFamily);
+        $isBold = $preferBold
+            || str_contains($lowerRaw, 'bold')
+            || (bool) preg_match('/\b(700|800|900)\b/', $lowerRaw);
+        $wantsItalic = str_contains($lowerRaw, 'italic');
+
+        $slug = \Illuminate\Support\Str::slug($primaryName);
         $ttfDir = public_path('fonts/ttf');
+
+        $systemFontMap = [
+            'arial'           => ['regular' => 'arial-liberation-regular.ttf', 'bold' => 'arial-liberation-700.ttf'],
+            'helvetica'       => ['regular' => 'arial-liberation-regular.ttf', 'bold' => 'arial-liberation-700.ttf'],
+            'sans-serif'      => ['regular' => 'arial-liberation-regular.ttf', 'bold' => 'arial-liberation-700.ttf'],
+            'times-new-roman' => ['regular' => 'times-new-roman-liberation-regular.ttf', 'bold' => 'times-new-roman-liberation-700.ttf'],
+            'times'           => ['regular' => 'times-new-roman-liberation-regular.ttf', 'bold' => 'times-new-roman-liberation-700.ttf'],
+            'serif'           => ['regular' => 'times-new-roman-liberation-regular.ttf', 'bold' => 'times-new-roman-liberation-700.ttf'],
+            'verdana'         => ['regular' => 'verdana-dejavu-regular.ttf', 'bold' => 'verdana-dejavu-700.ttf'],
+            'courier-new'     => ['regular' => 'courier-new-liberation-regular.ttf', 'bold' => 'courier-new-liberation-700.ttf'],
+            'courier'         => ['regular' => 'courier-new-liberation-regular.ttf', 'bold' => 'courier-new-liberation-700.ttf'],
+            'monospace'       => ['regular' => 'courier-new-liberation-regular.ttf', 'bold' => 'courier-new-liberation-700.ttf'],
+            'georgia'         => ['regular' => 'georgia-dejavu-regular.ttf', 'bold' => 'georgia-dejavu-700.ttf'],
+        ];
+
+        if ($slug !== '' && isset($systemFontMap[$slug])) {
+            $preferredKey = $isBold ? 'bold' : 'regular';
+            $secondaryKey = $isBold ? 'regular' : 'bold';
+            foreach ([$systemFontMap[$slug][$preferredKey], $systemFontMap[$slug][$secondaryKey]] as $sysFile) {
+                $candidate = $ttfDir . '/' . $sysFile;
+                if (is_file($candidate)) {
+                    return $candidate;
+                }
+            }
+        }
 
         if ($slug !== '' && is_dir($ttfDir)) {
             $matches = glob($ttfDir . '/' . $slug . '-*.ttf') ?: [];
             if (!empty($matches)) {
-                foreach ($matches as $m) {
-                    if (str_contains(basename($m), '-700.ttf') || str_contains(basename($m), '-bold.ttf')) {
-                        return $m;
+                $filtered = array_values(array_filter($matches, static function (string $path) use ($wantsItalic): bool {
+                    $base = strtolower(basename($path));
+                    $isItalicFile = str_contains($base, 'italic');
+                    return $wantsItalic ? true : !$isItalicFile;
+                }));
+                if (empty($filtered)) {
+                    $filtered = $matches;
+                }
+
+                if ($isBold) {
+                    foreach ($filtered as $m) {
+                        $b = strtolower(basename($m));
+                        if (str_contains($b, '-700.ttf') || str_contains($b, '-bold.ttf')) {
+                            return $m;
+                        }
+                    }
+                    foreach ($filtered as $m) {
+                        $b = strtolower(basename($m));
+                        if (str_contains($b, '-regular.ttf') || str_contains($b, '-400.ttf')) {
+                            return $m;
+                        }
+                    }
+                } else {
+                    foreach ($filtered as $m) {
+                        $b = strtolower(basename($m));
+                        if (str_contains($b, '-regular.ttf') || str_contains($b, '-400.ttf')) {
+                            return $m;
+                        }
+                    }
+                    foreach ($filtered as $m) {
+                        $b = strtolower(basename($m));
+                        if (str_contains($b, '-700.ttf') || str_contains($b, '-bold.ttf')) {
+                            return $m;
+                        }
                     }
                 }
-                foreach ($matches as $m) {
-                    if (str_contains(basename($m), '-regular.ttf')) {
-                        return $m;
-                    }
-                }
-                return $matches[0];
+
+                return $filtered[0];
             }
         }
 
-        $fallbacks = [
-            public_path('fonts/ttf/montserrat-v31-latin-700.ttf'),
-            public_path('fonts/ttf/montserrat-v31-latin-regular.ttf'),
-            '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
-            '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
-        ];
+        $fallbacks = $isBold
+            ? [
+                public_path('fonts/ttf/montserrat-v31-latin-700.ttf'),
+                public_path('fonts/ttf/montserrat-v31-latin-regular.ttf'),
+                '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+                '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+            ]
+            : [
+                public_path('fonts/ttf/montserrat-v31-latin-regular.ttf'),
+                public_path('fonts/ttf/montserrat-v31-latin-700.ttf'),
+                '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+                '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+            ];
 
         foreach ($fallbacks as $fb) {
             if (is_file($fb)) {

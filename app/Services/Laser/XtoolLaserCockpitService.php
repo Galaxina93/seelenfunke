@@ -1083,12 +1083,30 @@ class XtoolLaserCockpitService
         $camInfo = $this->syncCameraFromHostOrLaser(null, $forceCameraSync);
         [$blankWidthMm, $blankHeightMm] = $this->resolvePhysicalBlankDimensionsMm($product, $itemConfig);
 
+        $productConfig = $product
+            ? (is_string($product->configurator_settings) ? (json_decode($product->configurator_settings, true) ?: []) : ($product->configurator_settings ?? []))
+            : [];
+        $workingAreaCal = app(FileDownloadService::class)->resolveEngravingWorkingAreaCalibration(
+            $product,
+            $productConfig,
+            $itemConfig,
+            false
+        );
+        $engraveWidthMm = round(max(3.0, min(195.0, (float) ($workingAreaCal['engraveWidthMm'] ?? $blankWidthMm))), 2);
+        $engraveHeightMm = round(max(3.0, min(195.0, (float) ($workingAreaCal['engraveHeightMm'] ?? $blankHeightMm))), 2);
+        $offsetXMm = ($side === 'back')
+            ? -(float) ($workingAreaCal['centerOffsetXMm'] ?? 0.0)
+            : (float) ($workingAreaCal['centerOffsetXMm'] ?? 0.0);
+        $offsetYMm = (float) ($workingAreaCal['centerOffsetYMm'] ?? 0.0);
+
         $defaultResult = [
-            'center_x_mm'       => 100.0,
-            'center_y_mm'       => 100.0,
+            'center_x_mm'       => round(max(5.0, min(195.0, 100.0 + $offsetXMm)), 1),
+            'center_y_mm'       => round(max(5.0, min(195.0, 100.0 + $offsetYMm)), 1),
             'angle_deg'         => 0.0,
             'blank_width_mm'    => round($blankWidthMm, 2),
             'blank_height_mm'   => round($blankHeightMm, 2),
+            'engrave_width_mm'  => $engraveWidthMm,
+            'engrave_height_mm' => $engraveHeightMm,
             'confidence'        => 50,
             'detected'          => false,
             'camera_url'        => $camInfo['camera_url'],
@@ -1405,8 +1423,12 @@ class XtoolLaserCockpitService
             }
         }
 
-        $centerXMm = round(max(15.0, min(185.0, $finalCxCell * 0.5)), 1);
-        $centerYMm = round(max(15.0, min(185.0, $finalCyCell * 0.5)), 1);
+        $radOffset = deg2rad($angleDeg);
+        $rotOffX = ($offsetXMm * cos($radOffset)) - ($offsetYMm * sin($radOffset));
+        $rotOffY = ($offsetXMm * sin($radOffset)) + ($offsetYMm * cos($radOffset));
+
+        $centerXMm = round(max(15.0, min(185.0, ($finalCxCell * 0.5) + $rotOffX)), 1);
+        $centerYMm = round(max(15.0, min(185.0, ($finalCyCell * 0.5) + $rotOffY)), 1);
         $confidence = (int) round(max(55.0, min(99.0, 74.0 + ($bestRatio * 28.0))));
 
         return [
@@ -1415,6 +1437,8 @@ class XtoolLaserCockpitService
             'angle_deg'         => $angleDeg,
             'blank_width_mm'    => round($blankWidthMm, 2),
             'blank_height_mm'   => round($blankHeightMm, 2),
+            'engrave_width_mm'  => $engraveWidthMm,
+            'engrave_height_mm' => $engraveHeightMm,
             'confidence'        => $confidence,
             'detected'          => $bestRatio > 0.12,
             'camera_url'        => $camInfo['camera_url'],
@@ -1423,6 +1447,45 @@ class XtoolLaserCockpitService
             'laser_online'      => $camInfo['laser_online'],
             'laser_ip'          => $camInfo['laser_ip'],
             'relay_error'       => $camInfo['relay_error'] ?? null,
+        ];
+    }
+
+    /**
+     * Löst die effektiven Gravurmaße (wMm x hMm) unter Berücksichtigung manueller Cockpit-Skalierung auf.
+     *
+     * @return array{0: float, 1: float}
+     */
+    protected function resolveEffectiveJobDimensionsMm(
+        $item,
+        string $side,
+        float $defaultWidthMm,
+        float $defaultHeightMm,
+        ?float $overrideWidthMm = null,
+        ?float $overrideHeightMm = null
+    ): array {
+        $savedSide = [];
+        if (is_object($item) && isset($item->configuration) && is_array($item->configuration)) {
+            $savedSide = $item->configuration['laser_cockpit_coordinates'][$side] ?? [];
+            if (!is_array($savedSide)) {
+                $savedSide = [];
+            }
+        }
+
+        $w = ($overrideWidthMm !== null && $overrideWidthMm > 0.5)
+            ? $overrideWidthMm
+            : (isset($savedSide['w_mm']) && is_numeric($savedSide['w_mm']) && (float) $savedSide['w_mm'] > 0.5
+                ? (float) $savedSide['w_mm']
+                : $defaultWidthMm);
+
+        $h = ($overrideHeightMm !== null && $overrideHeightMm > 0.5)
+            ? $overrideHeightMm
+            : (isset($savedSide['h_mm']) && is_numeric($savedSide['h_mm']) && (float) $savedSide['h_mm'] > 0.5
+                ? (float) $savedSide['h_mm']
+                : $defaultHeightMm);
+
+        return [
+            round(max(3.0, min(195.0, $w)), 3),
+            round(max(3.0, min(195.0, $h)), 3),
         ];
     }
 
@@ -1575,7 +1638,9 @@ class XtoolLaserCockpitService
         string $side = 'front',
         ?float $centerXMm = null,
         ?float $centerYMm = null,
-        float $angleDeg = 0.0
+        float $angleDeg = 0.0,
+        ?float $widthMm = null,
+        ?float $heightMm = null
     ): array {
         $exportService = app(FileDownloadService::class);
         $payload = $exportService->buildLaserDesignPayload($itemId, $side, true);
@@ -1583,6 +1648,19 @@ class XtoolLaserCockpitService
         $item = $payload['item'];
         $product = $payload['product'];
         $laserSummary = $product ? $product->getLaserInstructionSummary() : Product::evaluateLaserInstructionSettings([], false);
+
+        $savedCoords = (is_object($item) && is_array($item->configuration ?? null))
+            ? ($item->configuration['laser_cockpit_coordinates'][$side] ?? [])
+            : [];
+        if ($centerXMm === null && isset($savedCoords['x_mm']) && is_numeric($savedCoords['x_mm'])) {
+            $centerXMm = (float) $savedCoords['x_mm'];
+        }
+        if ($centerYMm === null && isset($savedCoords['y_mm']) && is_numeric($savedCoords['y_mm'])) {
+            $centerYMm = (float) $savedCoords['y_mm'];
+        }
+        if (abs($angleDeg) < 0.01 && isset($savedCoords['angle_deg']) && is_numeric($savedCoords['angle_deg'])) {
+            $angleDeg = (float) $savedCoords['angle_deg'];
+        }
 
         if ($centerXMm === null || $centerYMm === null) {
             $detected = $this->detectBlankPositionOnBed($product, $item->configuration ?? [], $side);
@@ -1593,8 +1671,14 @@ class XtoolLaserCockpitService
             }
         }
 
-        $widthMm = (float) $payload['widthMm'];
-        $heightMm = (float) $payload['heightMm'];
+        [$widthMm, $heightMm] = $this->resolveEffectiveJobDimensionsMm(
+            $item,
+            $side,
+            (float) $payload['widthMm'],
+            (float) $payload['heightMm'],
+            $widthMm,
+            $heightMm
+        );
         $topLeftX = round($centerXMm - ($widthMm / 2.0), 4);
         $topLeftY = round($centerYMm - ($heightMm / 2.0), 4);
 
@@ -1714,7 +1798,10 @@ class XtoolLaserCockpitService
                     'x'               => $topLeftX,
                     'y'               => $topLeftY,
                     'angle'           => round($angleDeg, 2),
-                    'scale'           => ['x' => 1, 'y' => 1],
+                    'scale'           => [
+                        'x' => round($widthMm / max(0.001, (float) $payload['widthMm']), 6),
+                        'y' => round($heightMm / max(0.001, (float) $payload['heightMm']), 6),
+                    ],
                     'skew'            => ['x' => 0, 'y' => 0],
                     'pivot'           => ['x' => 0, 'y' => 0],
                     'localSkew'       => ['x' => 0, 'y' => 0],
@@ -1959,7 +2046,9 @@ class XtoolLaserCockpitService
         string $side = 'front',
         ?float $centerXMm = null,
         ?float $centerYMm = null,
-        float $angleDeg = 0.0
+        float $angleDeg = 0.0,
+        ?float $widthMm = null,
+        ?float $heightMm = null
     ): array {
         $exportService = app(FileDownloadService::class);
         $payload = $exportService->buildLaserDesignPayload($itemId, $side, true);
@@ -1967,6 +2056,19 @@ class XtoolLaserCockpitService
         $item = $payload['item'];
         $product = $payload['product'];
         $laserSummary = $product ? $product->getLaserInstructionSummary() : Product::evaluateLaserInstructionSettings([], false);
+
+        $savedCoords = (is_object($item) && is_array($item->configuration ?? null))
+            ? ($item->configuration['laser_cockpit_coordinates'][$side] ?? [])
+            : [];
+        if ($centerXMm === null && isset($savedCoords['x_mm']) && is_numeric($savedCoords['x_mm'])) {
+            $centerXMm = (float) $savedCoords['x_mm'];
+        }
+        if ($centerYMm === null && isset($savedCoords['y_mm']) && is_numeric($savedCoords['y_mm'])) {
+            $centerYMm = (float) $savedCoords['y_mm'];
+        }
+        if (abs($angleDeg) < 0.01 && isset($savedCoords['angle_deg']) && is_numeric($savedCoords['angle_deg'])) {
+            $angleDeg = (float) $savedCoords['angle_deg'];
+        }
 
         if ($centerXMm === null || $centerYMm === null) {
             $detected = $this->detectBlankPositionOnBed($product, $item->configuration ?? [], $side);
@@ -1977,8 +2079,14 @@ class XtoolLaserCockpitService
             }
         }
 
-        $widthMm = (float) $payload['widthMm'];
-        $heightMm = (float) $payload['heightMm'];
+        [$widthMm, $heightMm] = $this->resolveEffectiveJobDimensionsMm(
+            $item,
+            $side,
+            (float) $payload['widthMm'],
+            (float) $payload['heightMm'],
+            $widthMm,
+            $heightMm
+        );
         $borderGcode = $this->generateBorderGcode($centerXMm, $centerYMm, $widthMm, $heightMm, $angleDeg);
 
         $activeMode = self::resolveXtoolActiveMode(
@@ -2067,6 +2175,8 @@ class XtoolLaserCockpitService
             'center_x_mm'  => $centerXMm,
             'center_y_mm'  => $centerYMm,
             'angle_deg'    => $angleDeg,
+            'width_mm'     => $widthMm,
+            'height_mm'    => $heightMm,
         ];
     }
 
@@ -2081,12 +2191,22 @@ class XtoolLaserCockpitService
         ?float $centerXMm = null,
         ?float $centerYMm = null,
         float $angleDeg = 0.0,
-        string $laserIp = self::DEFAULT_LASER_IP
+        string $laserIp = self::DEFAULT_LASER_IP,
+        ?float $widthMm = null,
+        ?float $heightMm = null
     ): array {
         $safeIp = FunkenwerkPrintService::sanitizePrivateLanIp($laserIp, self::DEFAULT_LASER_IP);
         $effectiveType = in_array($jobType, ['framing', 'engrave'], true) ? $jobType : 'engrave';
-        $xfData = $this->generateXfPackageBytes($itemId, $side, $centerXMm, $centerYMm, $angleDeg);
-        $xcsData = $this->generateXcsProjectBytes($itemId, $side, $xfData['center_x_mm'], $xfData['center_y_mm'], $xfData['angle_deg']);
+        $xfData = $this->generateXfPackageBytes($itemId, $side, $centerXMm, $centerYMm, $angleDeg, $widthMm, $heightMm);
+        $xcsData = $this->generateXcsProjectBytes(
+            $itemId,
+            $side,
+            $xfData['center_x_mm'],
+            $xfData['center_y_mm'],
+            $xfData['angle_deg'],
+            $xfData['width_mm'],
+            $xfData['height_mm']
+        );
 
         $publicDisk = Storage::disk('public');
         $publicDisk->put('bestellungen/xtool/latest_job.xf', $xfData['bytes']);

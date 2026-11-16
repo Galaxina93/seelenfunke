@@ -12,8 +12,15 @@
                 : number_format($v, 1, ',', '.');
         };
         $wfStep = (int) ($cockpitData['workflow_step'] ?? 1);
+        $isCircleContour = (($cockpitData['contour_shape'] ?? 'rect') === 'circle');
+        $hPosMin = $isCircleContour ? '14.64%' : '0%';
+        $hPosMax = $isCircleContour ? '85.36%' : '100%';
+        $baseViewW = max(0.1, (float) ($cockpitData['base_width_mm'] ?? $cockpitData['width_mm'] ?? 40.0));
+        $baseViewH = max(0.1, (float) ($cockpitData['base_height_mm'] ?? $cockpitData['height_mm'] ?? 40.0));
+        $isDarkSurfaceOverlay = !empty($cockpitData['is_dark_surface']);
     @endphp
     <div x-data="{
+            itemId: '{{ $previewItem->id }}',
             dragging: false,
             dragMode: 'move',
             startClientX: 0,
@@ -21,22 +28,43 @@
             startXMm: 0,
             startYMm: 0,
             startAngleDeg: 0,
+            startWMm: {{ (float) $cockpitData['width_mm'] }},
+            startHMm: {{ (float) $cockpitData['height_mm'] }},
+            startResizeDistPx: 40,
             xMm: {{ (float) $cockpitData['center_x_mm'] }},
             yMm: {{ (float) $cockpitData['center_y_mm'] }},
             angleDeg: {{ (float) $cockpitData['angle_deg'] }},
             wMm: {{ (float) $cockpitData['width_mm'] }},
             hMm: {{ (float) $cockpitData['height_mm'] }},
+            fmtMm(v) {
+                const n = Number(v) || 0;
+                return Math.abs(n - Math.round(n)) < 0.05
+                    ? Math.round(n).toString()
+                    : n.toFixed(1).replace('.', ',');
+            },
             syncCoordsFromServer(detail) {
                 const p = Array.isArray(detail) ? (detail[0] || {}) : (detail || {});
                 if (p.x !== undefined) this.xMm = Number(p.x);
                 if (p.y !== undefined) this.yMm = Number(p.y);
                 if (p.angle !== undefined) this.angleDeg = Number(p.angle);
+                if (p.w !== undefined) this.wMm = Number(p.w);
+                if (p.h !== undefined) this.hMm = Number(p.h);
+            },
+            persistCoords() {
+                $wire.updateLaserCoordinates(
+                    this.itemId,
+                    Number(this.xMm) || 100,
+                    Number(this.yMm) || 100,
+                    Number(this.angleDeg) || 0,
+                    Number(this.wMm) || {{ (float) $cockpitData['width_mm'] }},
+                    Number(this.hMm) || {{ (float) $cockpitData['height_mm'] }}
+                );
             },
             nudge(dx, dy, da) {
                 this.xMm = Math.round(Math.max(5, Math.min(195, (Number(this.xMm) || 100) + dx)) * 10) / 10;
                 this.yMm = Math.round(Math.max(5, Math.min(195, (Number(this.yMm) || 100) + dy)) * 10) / 10;
                 this.angleDeg = Math.round(Math.max(-45, Math.min(45, (Number(this.angleDeg) || 0) + da)) * 10) / 10;
-                $wire.updateLaserCoordinates(this.xMm, this.yMm, this.angleDeg);
+                this.persistCoords();
             },
             startDrag(e, mode = 'move') {
                 if (e.button !== undefined && e.button !== 0) return;
@@ -49,6 +77,16 @@
                 this.startXMm = Number(this.xMm) || 100;
                 this.startYMm = Number(this.yMm) || 100;
                 this.startAngleDeg = Number(this.angleDeg) || 0;
+                this.startWMm = Math.max(2.5, Number(this.wMm) || {{ (float) $cockpitData['width_mm'] }});
+                this.startHMm = Math.max(2.5, Number(this.hMm) || {{ (float) $cockpitData['height_mm'] }});
+                if (mode === 'resize' && this.$refs.bedStage) {
+                    const rect = this.$refs.bedStage.getBoundingClientRect();
+                    if (rect.width && rect.height) {
+                        const centerX = rect.left + (this.startXMm / 200) * rect.width;
+                        const centerY = rect.top + (this.startYMm / 200) * rect.height;
+                        this.startResizeDistPx = Math.max(8, Math.hypot(clientX - centerX, clientY - centerY));
+                    }
+                }
             },
             moveDrag(e) {
                 if (!this.dragging) return;
@@ -70,6 +108,28 @@
                     return;
                 }
 
+                if (this.dragMode === 'resize') {
+                    const centerX = rect.left + ((Number(this.xMm) || 100) / 200) * rect.width;
+                    const centerY = rect.top + ((Number(this.yMm) || 100) / 200) * rect.height;
+                    const currDistPx = Math.max(4, Math.hypot(clientX - centerX, clientY - centerY));
+                    const ratio = currDistPx / Math.max(8, this.startResizeDistPx);
+                    let nextW = this.startWMm * ratio;
+                    let nextH = this.startHMm * ratio;
+                    const major = Math.max(nextW, nextH);
+                    if (major < 10) {
+                        const f = 10 / Math.max(0.01, major);
+                        nextW *= f;
+                        nextH *= f;
+                    } else if (major > 195) {
+                        const f = 195 / major;
+                        nextW *= f;
+                        nextH *= f;
+                    }
+                    this.wMm = Math.round(Math.max(2.5, Math.min(195, nextW)) * 10) / 10;
+                    this.hMm = Math.round(Math.max(2.5, Math.min(195, nextH)) * 10) / 10;
+                    return;
+                }
+
                 const dxMm = ((clientX - this.startClientX) / rect.width) * 200;
                 const dyMm = ((clientY - this.startClientY) / rect.height) * 200;
                 const nextX = Math.max(5, Math.min(195, this.startXMm + dxMm));
@@ -80,7 +140,7 @@
             stopDrag() {
                 if (!this.dragging) return;
                 this.dragging = false;
-                $wire.updateLaserCoordinates(Number(this.xMm) || 100, Number(this.yMm) || 100, Number(this.angleDeg) || 0);
+                this.persistCoords();
             }
          }"
          @laser-cockpit-sync.window="syncCoordsFromServer($event.detail)"
@@ -105,7 +165,7 @@
                         <div class="font-black uppercase tracking-wider text-gray-900 dark:text-white border-b border-gray-100 dark:border-gray-800 pb-1.5">
                             xTool F2 Ultra UV ({{ $cockpitData['device_sn'] }})
                         </div>
-                        <p>200 × 200 mm entzerrtes Live-Kamerabild (10 px = 1,0 mm). Die cyanfarbene 1:1 Außenkontur entspricht millimetergenau der realen Rohlingskante.</p>
+                        <p>200 × 200 mm entzerrtes Live-Kamerabild (10 px = 1,0 mm). Die cyanfarbene 1:1 Kontur umschließt bündig die Gravurfläche und lässt sich per Maus verschieben, drehen und skalieren.</p>
                     </div>
                 </div>
             </div>
@@ -175,7 +235,8 @@
                         <span class="px-2.5 py-1 rounded-lg bg-gray-950/85 border border-gray-700 text-white font-mono text-[10px] font-black">
                             X: <span x-text="(Number(xMm) || 0).toFixed(1)"></span> mm · Y: <span x-text="(Number(yMm) || 0).toFixed(1)"></span> mm · <span x-text="(Number(angleDeg) || 0).toFixed(1)"></span>°
                         </span>
-                        <span class="px-2 py-1 rounded-lg bg-cyan-950/85 border border-cyan-500/40 text-cyan-300 font-mono text-[10px] font-bold">
+                        <span class="px-2 py-1 rounded-lg bg-cyan-950/85 border border-cyan-500/40 text-cyan-300 font-mono text-[10px] font-bold"
+                              x-text="fmtMm(wMm) + ' × ' + fmtMm(hMm) + ' mm'">
                             {{ $fmtDim((float) $cockpitData['width_mm']) }} × {{ $fmtDim((float) $cockpitData['height_mm']) }} mm
                         </span>
                     </div>
@@ -192,20 +253,22 @@
                     </div>
                 @endif
 
-                {{-- 1:1 Rohling Geister-Kontur (#00bcd4) + Kunden-Gravurmotiv + Drehgriff --}}
+                {{-- Bündige 1:1 Gravurflächen-Kontur (#00bcd4) + WYSIWYG-Motiv + Drehgriff + 4 Resize-Handles --}}
                 <div class="absolute z-10 pointer-events-none"
                      :style="`left: ${(xMm / 200) * 100}%; top: ${(yMm / 200) * 100}%; width: ${(wMm / 200) * 100}%; height: ${(hMm / 200) * 100}%; transform: translate(-50%, -50%) rotate(${angleDeg}deg);`">
-                    <svg viewBox="0 0 {{ $cockpitData['width_mm'] }} {{ $cockpitData['height_mm'] }}"
+                    <svg viewBox="0 0 {{ $baseViewW }} {{ $baseViewH }}"
+                         preserveAspectRatio="none"
                          class="w-full h-full overflow-visible">
                         <path d="{{ $cockpitData['ghost_d_path'] }}"
-                              fill="rgba(0, 188, 212, 0.08)"
+                              fill="rgba(0, 188, 212, 0.06)"
                               stroke="#00bcd4"
-                              stroke-width="0.95"
-                              stroke-dasharray="2.2,1.4" />
+                              stroke-width="1.8"
+                              stroke-dasharray="5,3.5"
+                              vector-effect="non-scaling-stroke" />
                     </svg>
                     <img src="{{ $cockpitData['preview_data_url'] }}"
                          alt="Gravur-Overlay"
-                         class="absolute inset-0 w-full h-full object-contain drop-shadow-[0_0_2px_rgba(255,255,255,0.95)]"
+                         class="absolute inset-0 w-full h-full object-fill {{ $isDarkSurfaceOverlay ? 'drop-shadow-[0_1px_2px_rgba(0,0,0,0.45)]' : 'drop-shadow-[0_0_1.5px_rgba(255,255,255,0.55)]' }}"
                          draggable="false">
 
                     {{-- Dreh-Griff (oben mittig an der Kontur) --}}
@@ -216,6 +279,36 @@
                             class="pointer-events-auto absolute -top-3 left-1/2 -translate-x-1/2 w-5 h-5 rounded-full bg-cyan-400 hover:bg-cyan-300 text-gray-950 border border-gray-950 shadow-md flex items-center justify-center text-[10px] font-black cursor-grab active:cursor-grabbing">
                         &#8635;
                     </button>
+
+                    {{-- 4 Proportionale Resize-Handles (NW, NE, SE, SW) direkt auf der blauen Kontur --}}
+                    <button type="button"
+                            data-resize-handle="nw"
+                            @mousedown.stop.prevent="startDrag($event, 'resize')"
+                            @touchstart.stop.passive="startDrag($event, 'resize')"
+                            title="Größe ändern"
+                            style="left: {{ $hPosMin }}; top: {{ $hPosMin }};"
+                            class="pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-cyan-400 hover:bg-cyan-300 border border-gray-950 shadow-md cursor-nwse-resize"></button>
+                    <button type="button"
+                            data-resize-handle="ne"
+                            @mousedown.stop.prevent="startDrag($event, 'resize')"
+                            @touchstart.stop.passive="startDrag($event, 'resize')"
+                            title="Größe ändern"
+                            style="left: {{ $hPosMax }}; top: {{ $hPosMin }};"
+                            class="pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-cyan-400 hover:bg-cyan-300 border border-gray-950 shadow-md cursor-nesw-resize"></button>
+                    <button type="button"
+                            data-resize-handle="se"
+                            @mousedown.stop.prevent="startDrag($event, 'resize')"
+                            @touchstart.stop.passive="startDrag($event, 'resize')"
+                            title="Größe ändern"
+                            style="left: {{ $hPosMax }}; top: {{ $hPosMax }};"
+                            class="pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-cyan-400 hover:bg-cyan-300 border border-gray-950 shadow-md cursor-nwse-resize"></button>
+                    <button type="button"
+                            data-resize-handle="sw"
+                            @mousedown.stop.prevent="startDrag($event, 'resize')"
+                            @touchstart.stop.passive="startDrag($event, 'resize')"
+                            title="Größe ändern"
+                            style="left: {{ $hPosMin }}; top: {{ $hPosMax }};"
+                            class="pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-cyan-400 hover:bg-cyan-300 border border-gray-950 shadow-md cursor-nesw-resize"></button>
 
                     {{-- Mittelpunkt-Fadenkreuz --}}
                     <div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-cyan-400 border border-gray-950 shadow-sm"></div>
@@ -234,7 +327,7 @@
                            min="5"
                            max="195"
                            x-model.number="xMm"
-                           @change="$wire.updateLaserCoordinates(Number(xMm) || 100, Number(yMm) || 100, Number(angleDeg) || 0)"
+                           @change="persistCoords()"
                            class="w-16 text-right font-mono text-xs font-black bg-transparent text-gray-900 dark:text-white focus:outline-none">
                 </div>
                 <div class="flex items-center justify-between gap-2 bg-white dark:bg-gray-900 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-800">
@@ -244,7 +337,7 @@
                            min="5"
                            max="195"
                            x-model.number="yMm"
-                           @change="$wire.updateLaserCoordinates(Number(xMm) || 100, Number(yMm) || 100, Number(angleDeg) || 0)"
+                           @change="persistCoords()"
                            class="w-16 text-right font-mono text-xs font-black bg-transparent text-gray-900 dark:text-white focus:outline-none">
                 </div>
                 <div class="flex items-center justify-between gap-2 bg-white dark:bg-gray-900 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-800">
@@ -254,7 +347,7 @@
                            min="-45"
                            max="45"
                            x-model.number="angleDeg"
-                           @change="$wire.updateLaserCoordinates(Number(xMm) || 100, Number(yMm) || 100, Number(angleDeg) || 0)"
+                           @change="persistCoords()"
                            class="w-16 text-right font-mono text-xs font-black bg-transparent text-gray-900 dark:text-white focus:outline-none">
                 </div>
                 <div class="flex items-center justify-center gap-1">

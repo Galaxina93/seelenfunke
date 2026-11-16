@@ -98,6 +98,8 @@ class OrderOverview extends Component
     public float $laserCenterXMm = 100.0;
     public float $laserCenterYMm = 100.0;
     public float $laserAngleDeg = 0.0;
+    public float $laserWidthMm = 40.0;
+    public float $laserHeightMm = 40.0;
     public int $laserConfidence = 0;
     public bool $laserAutoAligned = false;
     public int $laserWorkflowStep = 1;
@@ -1618,7 +1620,9 @@ class OrderOverview extends Component
             $side,
             $this->laserCenterXMm,
             $this->laserCenterYMm,
-            $this->laserAngleDeg
+            $this->laserAngleDeg,
+            $this->laserWidthMm > 0.5 ? $this->laserWidthMm : null,
+            $this->laserHeightMm > 0.5 ? $this->laserHeightMm : null
         );
     }
 
@@ -1630,11 +1634,51 @@ class OrderOverview extends Component
             $side,
             $this->laserCenterXMm,
             $this->laserCenterYMm,
-            $this->laserAngleDeg
+            $this->laserAngleDeg,
+            $this->laserWidthMm > 0.5 ? $this->laserWidthMm : null,
+            $this->laserHeightMm > 0.5 ? $this->laserHeightMm : null
         );
     }
 
     // --- XTOOL F2 ULTRA UV LIVE-LASER-COCKPIT ACTIONS ---
+
+    protected function persistLaserCoordinatesOnItem(
+        ?OrderOrderItem $item,
+        string $side,
+        float $xMm,
+        float $yMm,
+        float $angleDeg,
+        float $wMm,
+        float $hMm
+    ): void {
+        if (!$item) {
+            return;
+        }
+
+        $effectiveSide = $side === 'back' ? 'back' : 'front';
+        $conf = is_array($item->configuration) ? $item->configuration : [];
+        if (!isset($conf['laser_cockpit_coordinates']) || !is_array($conf['laser_cockpit_coordinates'])) {
+            $conf['laser_cockpit_coordinates'] = [];
+        }
+        $conf['laser_cockpit_coordinates'][$effectiveSide] = [
+            'x_mm'       => round($xMm, 1),
+            'y_mm'       => round($yMm, 1),
+            'angle_deg'  => round($angleDeg, 1),
+            'w_mm'       => round($wMm, 1),
+            'h_mm'       => round($hMm, 1),
+            'updated_at' => now()->toIso8601String(),
+        ];
+
+        $item->configuration = $conf;
+        $item->saveQuietly();
+
+        if ($this->selectedOrder && $this->selectedOrder->relationLoaded('items')) {
+            $loaded = $this->selectedOrder->items->firstWhere('id', $item->id);
+            if ($loaded && $loaded !== $item) {
+                $loaded->configuration = $conf;
+            }
+        }
+    }
 
     protected function initializeLaserCockpitForPreviewItem(bool $forceCameraSync = false): void
     {
@@ -1646,23 +1690,55 @@ class OrderOverview extends Component
             return;
         }
 
+        $effectiveSide = $this->laserCockpitSide === 'back' ? 'back' : 'front';
+        $conf = is_array($item->configuration) ? $item->configuration : [];
+        $savedSide = $conf['laser_cockpit_coordinates'][$effectiveSide] ?? null;
+
         try {
             $cockpit = app(\App\Services\Laser\XtoolLaserCockpitService::class);
             $detected = $cockpit->detectBlankPositionOnBed(
                 $item->product,
-                $item->configuration ?? [],
-                $this->laserCockpitSide,
+                $conf,
+                $effectiveSide,
                 $forceCameraSync
             );
-            $this->laserCenterXMm = (float) $detected['center_x_mm'];
-            $this->laserCenterYMm = (float) $detected['center_y_mm'];
-            $this->laserAngleDeg = (float) $detected['angle_deg'];
+            $defaultW = round((float) ($detected['engrave_width_mm'] ?? $detected['blank_width_mm'] ?? 40.0), 1);
+            $defaultH = round((float) ($detected['engrave_height_mm'] ?? $detected['blank_height_mm'] ?? 40.0), 1);
+
+            if (
+                !$forceCameraSync
+                && is_array($savedSide)
+                && isset($savedSide['x_mm'], $savedSide['y_mm'])
+                && is_numeric($savedSide['x_mm'])
+                && is_numeric($savedSide['y_mm'])
+            ) {
+                $this->laserCenterXMm = round(max(5.0, min(195.0, (float) $savedSide['x_mm'])), 1);
+                $this->laserCenterYMm = round(max(5.0, min(195.0, (float) $savedSide['y_mm'])), 1);
+                $this->laserAngleDeg = isset($savedSide['angle_deg']) && is_numeric($savedSide['angle_deg'])
+                    ? round(max(-45.0, min(45.0, (float) $savedSide['angle_deg'])), 1)
+                    : 0.0;
+                $this->laserWidthMm = isset($savedSide['w_mm']) && is_numeric($savedSide['w_mm']) && (float) $savedSide['w_mm'] > 0.5
+                    ? round(max(2.5, min(195.0, (float) $savedSide['w_mm'])), 1)
+                    : $defaultW;
+                $this->laserHeightMm = isset($savedSide['h_mm']) && is_numeric($savedSide['h_mm']) && (float) $savedSide['h_mm'] > 0.5
+                    ? round(max(2.5, min(195.0, (float) $savedSide['h_mm'])), 1)
+                    : $defaultH;
+            } else {
+                $this->laserCenterXMm = (float) $detected['center_x_mm'];
+                $this->laserCenterYMm = (float) $detected['center_y_mm'];
+                $this->laserAngleDeg = (float) $detected['angle_deg'];
+                $this->laserWidthMm = $defaultW;
+                $this->laserHeightMm = $defaultH;
+            }
+
             $this->laserConfidence = (int) $detected['confidence'];
             $this->laserAutoAligned = (bool) $detected['detected'];
         } catch (\Throwable) {
             $this->laserCenterXMm = 100.0;
             $this->laserCenterYMm = 100.0;
             $this->laserAngleDeg = 0.0;
+            $this->laserWidthMm = 40.0;
+            $this->laserHeightMm = 40.0;
             $this->laserConfidence = 50;
             $this->laserAutoAligned = false;
         }
@@ -1671,7 +1747,9 @@ class OrderOverview extends Component
             'laser-cockpit-sync',
             x: $this->laserCenterXMm,
             y: $this->laserCenterYMm,
-            angle: $this->laserAngleDeg
+            angle: $this->laserAngleDeg,
+            w: $this->laserWidthMm,
+            h: $this->laserHeightMm
         );
     }
 
@@ -1707,15 +1785,29 @@ class OrderOverview extends Component
             $this->laserCenterXMm = (float) $detected['center_x_mm'];
             $this->laserCenterYMm = (float) $detected['center_y_mm'];
             $this->laserAngleDeg = (float) $detected['angle_deg'];
+            $this->laserWidthMm = round((float) ($detected['engrave_width_mm'] ?? $detected['blank_width_mm'] ?? 40.0), 1);
+            $this->laserHeightMm = round((float) ($detected['engrave_height_mm'] ?? $detected['blank_height_mm'] ?? 40.0), 1);
             $this->laserConfidence = (int) $detected['confidence'];
             $this->laserAutoAligned = true;
             $this->laserWorkflowStep = 2;
+
+            $this->persistLaserCoordinatesOnItem(
+                $item,
+                $this->laserCockpitSide,
+                $this->laserCenterXMm,
+                $this->laserCenterYMm,
+                $this->laserAngleDeg,
+                $this->laserWidthMm,
+                $this->laserHeightMm
+            );
 
             $this->dispatch(
                 'laser-cockpit-sync',
                 x: $this->laserCenterXMm,
                 y: $this->laserCenterYMm,
-                angle: $this->laserAngleDeg
+                angle: $this->laserAngleDeg,
+                w: $this->laserWidthMm,
+                h: $this->laserHeightMm
             );
 
             $xFmt = number_format($this->laserCenterXMm, 1, ',', '.');
@@ -1750,16 +1842,110 @@ class OrderOverview extends Component
         }
     }
 
-    public function updateLaserCoordinates($xMm, $yMm, $angleDeg = null): void
-    {
-        if (is_numeric($xMm)) {
-            $this->laserCenterXMm = round(max(5.0, min(195.0, (float) $xMm)), 1);
+    /**
+     * Aktualisiert und persistiert die Laser-Koordinaten (X, Y, Winkel sowie optional skalierte Breite/Höhe wMm x hMm).
+     * Abwärtskompatibel zu bisherigen Aufrufen updateLaserCoordinates($xMm, $yMm, $angleDeg).
+     */
+    public function updateLaserCoordinates(
+        $itemId,
+        $xMm = null,
+        $yMm = null,
+        $angleDeg = null,
+        $wMm = null,
+        $hMm = null
+    ): void {
+        $matchesOrderItem = $this->selectedOrder
+            && $this->selectedOrder->items->contains(fn ($it) => (string) $it->id === (string) $itemId);
+        $isItemIdFirst = (is_string($itemId) && !is_numeric($itemId))
+            || $matchesOrderItem
+            || $hMm !== null;
+
+        if ($isItemIdFirst) {
+            $targetItemId = (string) $itemId;
+            $rawX = $xMm;
+            $rawY = $yMm;
+            $rawAngle = $angleDeg;
+            $rawW = $wMm;
+            $rawH = $hMm;
+        } else {
+            $targetItemId = (string) ($this->previewItem->id ?? '');
+            $rawX = $itemId;
+            $rawY = $xMm;
+            $rawAngle = $yMm;
+            $rawW = $angleDeg;
+            $rawH = $wMm;
         }
-        if (is_numeric($yMm)) {
-            $this->laserCenterYMm = round(max(5.0, min(195.0, (float) $yMm)), 1);
+
+        if ($rawX !== null && is_numeric($rawX)) {
+            $this->laserCenterXMm = round(max(5.0, min(195.0, (float) $rawX)), 1);
         }
-        if ($angleDeg !== null && is_numeric($angleDeg)) {
-            $this->laserAngleDeg = round(max(-45.0, min(45.0, (float) $angleDeg)), 1);
+        if ($rawY !== null && is_numeric($rawY)) {
+            $this->laserCenterYMm = round(max(5.0, min(195.0, (float) $rawY)), 1);
+        }
+        if ($rawAngle !== null && is_numeric($rawAngle)) {
+            $this->laserAngleDeg = round(max(-45.0, min(45.0, (float) $rawAngle)), 1);
+        }
+
+        if (($rawW !== null && is_numeric($rawW)) || ($rawH !== null && is_numeric($rawH))) {
+            $baseAspect = ($this->laserWidthMm > 0.5 && $this->laserHeightMm > 0.5)
+                ? ($this->laserWidthMm / $this->laserHeightMm)
+                : 1.0;
+
+            $nextW = ($rawW !== null && is_numeric($rawW))
+                ? (float) $rawW
+                : ((float) $rawH * $baseAspect);
+            $nextH = ($rawH !== null && is_numeric($rawH))
+                ? (float) $rawH
+                : ($nextW / max(0.05, $baseAspect));
+
+            $major = max($nextW, $nextH);
+            if ($major < 10.0 && $major > 0.01) {
+                $factor = 10.0 / $major;
+                $nextW *= $factor;
+                $nextH *= $factor;
+            } elseif ($major > 195.0) {
+                $factor = 195.0 / $major;
+                $nextW *= $factor;
+                $nextH *= $factor;
+            }
+
+            $this->laserWidthMm = round(max(2.5, min(195.0, $nextW)), 1);
+            $this->laserHeightMm = round(max(2.5, min(195.0, $nextH)), 1);
+        }
+
+        $targetItem = null;
+        if ($targetItemId !== '' && $this->selectedOrderId) {
+            $targetItem = OrderOrderItem::where('order_id', $this->selectedOrderId)
+                ->with('product')
+                ->find($targetItemId);
+        } elseif ($this->previewItem) {
+            $targetItem = $this->previewItem;
+        }
+
+        if ($targetItem) {
+            if ($this->laserWidthMm <= 0.5 || $this->laserHeightMm <= 0.5) {
+                $productCfg = is_string($targetItem->product?->configurator_settings)
+                    ? (json_decode($targetItem->product->configurator_settings, true) ?: [])
+                    : ($targetItem->product?->configurator_settings ?? []);
+                $wa = app(\App\Services\Export\FileDownloadService::class)->resolveEngravingWorkingAreaCalibration(
+                    $targetItem->product,
+                    $productCfg,
+                    $targetItem->configuration ?? [],
+                    false
+                );
+                $this->laserWidthMm = round((float) $wa['engraveWidthMm'], 1);
+                $this->laserHeightMm = round((float) $wa['engraveHeightMm'], 1);
+            }
+
+            $this->persistLaserCoordinatesOnItem(
+                $targetItem,
+                $this->laserCockpitSide,
+                $this->laserCenterXMm,
+                $this->laserCenterYMm,
+                $this->laserAngleDeg,
+                $this->laserWidthMm,
+                $this->laserHeightMm
+            );
         }
     }
 
@@ -1769,11 +1955,23 @@ class OrderOverview extends Component
         $this->laserCenterYMm = round(max(5.0, min(195.0, $this->laserCenterYMm + $dyMm)), 1);
         $this->laserAngleDeg = round(max(-45.0, min(45.0, $this->laserAngleDeg + $dAngleDeg)), 1);
 
+        $this->persistLaserCoordinatesOnItem(
+            $this->previewItem,
+            $this->laserCockpitSide,
+            $this->laserCenterXMm,
+            $this->laserCenterYMm,
+            $this->laserAngleDeg,
+            $this->laserWidthMm,
+            $this->laserHeightMm
+        );
+
         $this->dispatch(
             'laser-cockpit-sync',
             x: $this->laserCenterXMm,
             y: $this->laserCenterYMm,
-            angle: $this->laserAngleDeg
+            angle: $this->laserAngleDeg,
+            w: $this->laserWidthMm,
+            h: $this->laserHeightMm
         );
     }
 
@@ -1793,7 +1991,10 @@ class OrderOverview extends Component
                 'framing',
                 $this->laserCenterXMm,
                 $this->laserCenterYMm,
-                $this->laserAngleDeg
+                $this->laserAngleDeg,
+                \App\Services\Laser\XtoolLaserCockpitService::DEFAULT_LASER_IP,
+                $this->laserWidthMm > 0.5 ? $this->laserWidthMm : null,
+                $this->laserHeightMm > 0.5 ? $this->laserHeightMm : null
             );
 
             $xFmt = number_format((float) $job['center_x_mm'], 1, ',', '.');
@@ -1838,7 +2039,10 @@ class OrderOverview extends Component
                 'engrave',
                 $this->laserCenterXMm,
                 $this->laserCenterYMm,
-                $this->laserAngleDeg
+                $this->laserAngleDeg,
+                \App\Services\Laser\XtoolLaserCockpitService::DEFAULT_LASER_IP,
+                $this->laserWidthMm > 0.5 ? $this->laserWidthMm : null,
+                $this->laserHeightMm > 0.5 ? $this->laserHeightMm : null
             );
 
             $xFmt = number_format((float) $job['center_x_mm'], 1, ',', '.');
@@ -1893,50 +2097,61 @@ class OrderOverview extends Component
             $productCfg = is_string($item->product?->configurator_settings)
                 ? (json_decode($item->product->configurator_settings, true) ?: [])
                 : ($item->product?->configurator_settings ?? []);
-            $calibration = $downloadService->resolvePhysicalBlankCalibration($item->product, $productCfg, $conf, false);
+            $calibration = $downloadService->resolveEngravingWorkingAreaCalibration($item->product, $productCfg, $conf, false);
 
-            // Schneller Disk-Cache für das hochauflösende Gravur-Overlay (spart ~800ms GD-Render + MB-große Base64-Strings bei jedem Klick)
+            $confForCache = $conf;
+            unset($confForCache['laser_cockpit_coordinates'], $confForCache['manufacturing_checklist']);
+
+            // Schneller Disk-Cache für das hochauflösende WYSIWYG-Gravur-Overlay (spart ~800ms GD-Render + MB-große Base64-Strings bei jedem Klick)
             $cacheHash = sha1(
-                'v5-crystal-82pct|'
+                'v6-cockpit-wysiwyg|'
                 . $item->id . '|'
                 . $effectiveSide . '|'
                 . ($item->updated_at?->timestamp ?? 0) . '|'
                 . ($item->product?->updated_at?->timestamp ?? 0) . '|'
                 . json_encode($calibration) . '|'
-                . json_encode($conf)
+                . json_encode($confForCache)
             );
             $publicDisk = \Illuminate\Support\Facades\Storage::disk('public');
             $relPng = "bestellungen/xtool/previews/{$cacheHash}.png";
             $relMeta = "bestellungen/xtool/previews/{$cacheHash}.json";
 
-            $widthMm = null;
-            $heightMm = null;
+            $baseWidthMm = null;
+            $baseHeightMm = null;
+            $contourShape = (string) ($calibration['contourShape'] ?? 'rect');
+            $isDarkSurface = $downloadService->isFrostedLightEngravingSurface($item->product, $productCfg);
             $ghostDPath = null;
             $previewUrl = null;
 
             if (!app()->runningUnitTests() && $publicDisk->exists($relPng) && $publicDisk->exists($relMeta)) {
                 $cachedMeta = json_decode((string) $publicDisk->get($relMeta), true);
                 if (is_array($cachedMeta) && isset($cachedMeta['widthMm'], $cachedMeta['heightMm'], $cachedMeta['ghostContourDPath'])) {
-                    $widthMm = (float) $cachedMeta['widthMm'];
-                    $heightMm = (float) $cachedMeta['heightMm'];
+                    $baseWidthMm = (float) $cachedMeta['widthMm'];
+                    $baseHeightMm = (float) $cachedMeta['heightMm'];
+                    $contourShape = (string) ($cachedMeta['contourShape'] ?? $contourShape);
+                    $isDarkSurface = array_key_exists('isDarkSurface', $cachedMeta) ? (bool) $cachedMeta['isDarkSurface'] : $isDarkSurface;
                     $ghostDPath = (string) $cachedMeta['ghostContourDPath'];
                     $previewUrl = asset('storage/' . $relPng);
                 }
             }
 
             if ($previewUrl === null) {
-                $payload = app(\App\Services\Export\FileDownloadService::class)->buildLaserDesignPayload($item, $effectiveSide, true);
-                $widthMm = (float) $payload['widthMm'];
-                $heightMm = (float) $payload['heightMm'];
+                $payload = $downloadService->buildLaserDesignPayload($item, $effectiveSide, true);
+                $baseWidthMm = (float) $payload['widthMm'];
+                $baseHeightMm = (float) $payload['heightMm'];
+                $contourShape = (string) ($payload['contourShape'] ?? $contourShape);
+                $isDarkSurface = (bool) ($payload['isDarkSurface'] ?? $isDarkSurface);
                 $ghostDPath = (string) $payload['ghostContourDPath'];
                 $previewUrl = (string) $payload['previewDataUrl'];
 
-                if (!app()->runningUnitTests() && !empty($payload['stageEngravePngBytes'])) {
+                if (!app()->runningUnitTests() && !empty($payload['cockpitPreviewPngBytes'])) {
                     try {
-                        $publicDisk->put($relPng, $payload['stageEngravePngBytes']);
+                        $publicDisk->put($relPng, $payload['cockpitPreviewPngBytes']);
                         $publicDisk->put($relMeta, (string) json_encode([
-                            'widthMm'           => $widthMm,
-                            'heightMm'          => $heightMm,
+                            'widthMm'           => $baseWidthMm,
+                            'heightMm'          => $baseHeightMm,
+                            'contourShape'      => $contourShape,
+                            'isDarkSurface'     => $isDarkSurface,
                             'ghostContourDPath' => $ghostDPath,
                         ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
                         $previewUrl = asset('storage/' . $relPng);
@@ -1945,6 +2160,18 @@ class OrderOverview extends Component
                     }
                 }
             }
+
+            $savedSide = $conf['laser_cockpit_coordinates'][$effectiveSide] ?? null;
+            $activeWidthMm = ($this->laserWidthMm > 0.5)
+                ? $this->laserWidthMm
+                : (is_array($savedSide) && isset($savedSide['w_mm']) && is_numeric($savedSide['w_mm']) && (float) $savedSide['w_mm'] > 0.5
+                    ? (float) $savedSide['w_mm']
+                    : (float) $baseWidthMm);
+            $activeHeightMm = ($this->laserHeightMm > 0.5)
+                ? $this->laserHeightMm
+                : (is_array($savedSide) && isset($savedSide['h_mm']) && is_numeric($savedSide['h_mm']) && (float) $savedSide['h_mm'] > 0.5
+                    ? (float) $savedSide['h_mm']
+                    : (float) $baseHeightMm);
 
             return [
                 'camera_url'        => $camInfo['camera_url'] . '&r=' . $this->laserCameraRefreshToken,
@@ -1957,8 +2184,12 @@ class OrderOverview extends Component
                 'side'              => $effectiveSide,
                 'has_front'         => $hasFront,
                 'has_back'          => $hasBack,
-                'width_mm'          => $widthMm,
-                'height_mm'         => $heightMm,
+                'width_mm'          => $activeWidthMm,
+                'height_mm'         => $activeHeightMm,
+                'base_width_mm'     => (float) $baseWidthMm,
+                'base_height_mm'    => (float) $baseHeightMm,
+                'contour_shape'     => $contourShape,
+                'is_dark_surface'   => $isDarkSurface,
                 'center_x_mm'       => $this->laserCenterXMm,
                 'center_y_mm'       => $this->laserCenterYMm,
                 'angle_deg'         => $this->laserAngleDeg,

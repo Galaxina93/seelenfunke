@@ -495,16 +495,19 @@ class WorkshopFocusApiController extends Controller
             $productCfg = is_string($item->product?->configurator_settings)
                 ? (json_decode($item->product->configurator_settings, true) ?: [])
                 : ($item->product?->configurator_settings ?? []);
-            $calibration = $this->exportService->resolvePhysicalBlankCalibration($item->product, $productCfg, $itemConf, false);
+            $calibration = $this->exportService->resolveEngravingWorkingAreaCalibration($item->product, $productCfg, $itemConf, false);
+
+            $confForCache = $itemConf;
+            unset($confForCache['laser_cockpit_coordinates'], $confForCache['manufacturing_checklist']);
 
             $cacheHash = sha1(
-                'v5-crystal-82pct|'
+                'v6-cockpit-wysiwyg|'
                 . $item->id . '|'
                 . $effectiveSide . '|'
                 . ($item->updated_at?->timestamp ?? 0) . '|'
                 . ($item->product?->updated_at?->timestamp ?? 0) . '|'
                 . json_encode($calibration) . '|'
-                . json_encode($itemConf)
+                . json_encode($confForCache)
             );
             $publicDisk = Storage::disk('public');
             $relPng = "bestellungen/xtool/previews/{$cacheHash}.png";
@@ -536,14 +539,26 @@ class WorkshopFocusApiController extends Controller
                 $engravePreviewDataUrl = (string) $designPayload['previewDataUrl'];
                 $engravePreviewUrl = $engravePreviewDataUrl;
 
-                if (!empty($designPayload['stageEngravePngBytes'])) {
-                    $publicDisk->put($relPng, $designPayload['stageEngravePngBytes']);
+                if (!empty($designPayload['cockpitPreviewPngBytes'])) {
+                    $publicDisk->put($relPng, $designPayload['cockpitPreviewPngBytes']);
                     $publicDisk->put($relMeta, (string) json_encode([
                         'widthMm'           => $blankWidthMm,
                         'heightMm'          => $blankHeightMm,
+                        'contourShape'      => $designPayload['contourShape'] ?? 'rect',
+                        'isDarkSurface'     => $designPayload['isDarkSurface'] ?? false,
                         'ghostContourDPath' => $contourDPath,
                     ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
                     $engravePreviewUrl = asset('storage/' . $relPng);
+                }
+            }
+
+            $savedSide = $itemConf['laser_cockpit_coordinates'][$effectiveSide] ?? null;
+            if (is_array($savedSide)) {
+                if (isset($savedSide['w_mm']) && is_numeric($savedSide['w_mm']) && (float) $savedSide['w_mm'] > 0.5) {
+                    $blankWidthMm = (float) $savedSide['w_mm'];
+                }
+                if (isset($savedSide['h_mm']) && is_numeric($savedSide['h_mm']) && (float) $savedSide['h_mm'] > 0.5) {
+                    $blankHeightMm = (float) $savedSide['h_mm'];
                 }
             }
         } catch (\Throwable) {

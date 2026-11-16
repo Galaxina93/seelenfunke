@@ -160,20 +160,21 @@ class LaserDesignParityTest extends TestCase
         $svc = app(FileDownloadService::class);
         $payload = $svc->buildLaserDesignPayload($item, 'front', true);
 
-        $this->assertEqualsWithDelta(161.5, $payload['widthMm'], 0.01);
-        $this->assertEqualsWithDelta(161.5, $payload['heightMm'], 0.01);
+        // Bündige 1:1 Gravurfläche (workingArea) beim Seelen-Kristall:
+        // 68.0 / 82.00 * 161.5 mm = Ø 133,927 mm Innenkreis (0,0 mm Lücke zum blauen gestrichelten Cockpit-Kreis),
+        // während die physische Rohlings-Außenkante weiterhin exakt Ø 161,5 mm beträgt.
+        $this->assertEqualsWithDelta(161.5, $payload['blankWidthMm'], 0.01);
+        $this->assertEqualsWithDelta(161.5, $payload['blankHeightMm'], 0.01);
+        $this->assertEqualsWithDelta(133.927, $payload['widthMm'], 0.02);
+        $this->assertEqualsWithDelta(133.927, $payload['heightMm'], 0.02);
         $this->assertSame(1, substr_count($payload['ghostContourDPath'], 'M '));
 
-        // Kalibrierte Innenfläche vor dem ~11,0 mm breiten Kristall-Facettenkranz:
-        // 68.0 / 82.00 = 82.93 % (= Ø 133,93 mm Arbeitskreis konzentrisch im Ø 161,5 mm Außenrahmen -> 13,79 mm Randabstand je Seite)
         $polyXs = array_column($payload['workingAreaPolygonPct'], 'x');
         $polyYs = array_column($payload['workingAreaPolygonPct'], 'y');
-        $spanPct = max($polyXs) - min($polyXs);
-        $this->assertEqualsWithDelta(82.93, $spanPct, 0.35);
-        $this->assertEqualsWithDelta(13.79, (min($polyXs) / 100.0) * 161.5, 0.20);
-        $this->assertEqualsWithDelta(13.79, ((100.0 - max($polyXs)) / 100.0) * 161.5, 0.20);
-        $this->assertEqualsWithDelta(13.79, (min($polyYs) / 100.0) * 161.5, 0.20);
-        $this->assertEqualsWithDelta(13.79, ((100.0 - max($polyYs)) / 100.0) * 161.5, 0.20);
+        $this->assertEqualsWithDelta(0.0, min($polyXs), 0.25);
+        $this->assertEqualsWithDelta(100.0, max($polyXs), 0.25);
+        $this->assertEqualsWithDelta(0.0, min($polyYs), 0.25);
+        $this->assertEqualsWithDelta(100.0, max($polyYs), 0.25);
 
         $gd = imagecreatefromstring($payload['stageEngravePngBytes']);
         $this->assertNotFalse($gd);
@@ -181,14 +182,14 @@ class LaserDesignParityTest extends TestCase
         $h = imagesy($gd);
 
         // 1. Weihnachtsbaum (zIndex=31) liegt ÜBER dem Porträtfoto (Default zIndex=11):
-        // Im oberen Baum-Bereich (x=50 %, y=10..28 %) müssen tiefschwarze Baum-Pixel (R=0) UND helle Kontrast-Halo-Pixel (R>220) existieren
+        // Im oberen Baum-Bereich (x=50 %, y=4..26 %) müssen tiefschwarze Baum-Pixel (R=0) UND helle Kontrast-Halo-Pixel (R>220) existieren
         $foundBlackTree = false;
         $foundTreeHalo = false;
         $foundBaubleHole = false;
         $cx = (int) round($w * 0.50);
 
-        for ($y = (int) round($h * 0.10); $y <= (int) round($h * 0.28); $y++) {
-            for ($x = (int) round($w * 0.42); $x <= (int) round($w * 0.58); $x++) {
+        for ($y = (int) round($h * 0.04); $y <= (int) round($h * 0.26); $y++) {
+            for ($x = (int) round($w * 0.40); $x <= (int) round($w * 0.60); $x++) {
                 $c = imagecolorat($gd, $x, $y);
                 $a = ($c >> 24) & 0x7F;
                 if ($a === 0) {
@@ -204,8 +205,8 @@ class LaserDesignParityTest extends TestCase
 
         // Oberste Christbaumkugel (viewBox 512: Kugelmitte (256, 196) -> relativ zu (256, 256) = -60 Einheiten):
         // Muss als ausgestanztes Loch (R > 40 statt 0) innerhalb des schwarzen Baums erhalten bleiben!
-        $mappedTreeY = ((20.6684 - 4.60) / 82.00) * $h;
-        $mappedTreeW = (((80.0 * (100.0 / 82.00)) / 500.0) * $w);
+        $mappedTreeY = ((20.6684 - 11.60) / 68.00) * $h;
+        $mappedTreeW = (((80.0 * (100.0 / 68.00)) / 500.0) * $w);
         $baubleCenterY = (int) round($mappedTreeY + ((-60.0 / 512.0) * $mappedTreeW));
         $baubleColor = imagecolorat($gd, $cx, $baubleCenterY);
         if ((($baubleColor >> 16) & 0xFF) > 40) {
@@ -377,8 +378,8 @@ class LaserDesignParityTest extends TestCase
 
         // Prüfe Kopf des Bräutigams (<circle cx="32.5" cy="13.5" r="10.1"/> in viewBox 0 0 128 128)
         $mappedX = 0.50 * $w;
-        $mappedY = (((34.0 - 4.60) / 82.00)) * $h;
-        $logoWidthPx = (((120.0 * (100.0 / 82.00)) / 500.0)) * $w;
+        $mappedY = (((34.0 - 11.60) / 68.00)) * $h;
+        $logoWidthPx = (((120.0 * (100.0 / 68.00)) / 500.0)) * $w;
         $scale = $logoWidthPx / 128.0;
 
         $groomHeadX = (int) round($mappedX + ((32.5 - 64.0) * $scale));
@@ -396,9 +397,9 @@ class LaserDesignParityTest extends TestCase
         $this->assertSame(0, ($headPixel >> 16) & 0xFF, 'Kopf des Bräutigams (<circle>) muss tiefschwarz sein');
         $this->assertSame(127, $dressInnerAlpha, 'Innenfläche des Brautkleids (nonzero Gegenpfad) muss transparent ausgestanzt bleiben');
 
-        // Cache-Salt v5-crystal-82pct + Kalibrierungs-Hash in OrderOverview verifizieren
+        // Cache-Salt v6-cockpit-wysiwyg + Kalibrierungs-Hash in OrderOverview verifizieren
         $overviewSource = (string) file_get_contents(app_path('Livewire/Shop/Order/OrderOverview.php'));
-        $this->assertStringContainsString("'v5-crystal-82pct|'", $overviewSource);
+        $this->assertStringContainsString("'v6-cockpit-wysiwyg|'", $overviewSource);
         $this->assertStringContainsString('json_encode($calibration)', $overviewSource);
     }
 
@@ -427,6 +428,10 @@ class LaserDesignParityTest extends TestCase
             $this->assertEqualsWithDelta(82.00, $cal['plateBoxPct']['width'], 0.01);
             $this->assertEqualsWithDelta(9.00, $cal['plateBoxPct']['left'], 0.01);
             $this->assertEqualsWithDelta(4.60, $cal['plateBoxPct']['top'], 0.01);
+
+            $waCal = $svc->resolveEngravingWorkingAreaCalibration($crystal, $cfg, [], false);
+            $this->assertEqualsWithDelta(133.927, $waCal['engraveWidthMm'], 0.02);
+            $this->assertEqualsWithDelta(133.927, $waCal['engraveHeightMm'], 0.02);
         }
 
         // Vollflächiges dunkles Testbild auf Seelen-Kristall -> prüfen, dass AUCH im echten Laser-Job (motion.gcode)
@@ -463,9 +468,9 @@ class LaserDesignParityTest extends TestCase
         $centerYMm = 100.0;
         $xf = $cockpit->generateXfPackageBytes($crystalItem, 'front', $centerXMm, $centerYMm, 0.0);
 
-        // Blauer Rahmen / Framing-Border liegt auf der 161,5 mm Außenkante (100 - 80,75 = 19,25 mm bis 180,75 mm)
-        $this->assertStringContainsString('G0X19.250Y19.250', $xf['border_gcode']);
-        $this->assertStringContainsString('G1X180.750Y19.250', $xf['border_gcode']);
+        // Blauer Rahmen / Framing-Border umschließt bündig die 133,927 mm Gravurfläche (100 - 66,9635 = 33,037 mm bis 166,964 mm)
+        $this->assertStringContainsString('G0X33.03', $xf['border_gcode']);
+        $this->assertStringContainsString('G1X166.96', $xf['border_gcode']);
 
         // Laser-Gravurpulse (G1 ... S>0) müssen exakt im inneren Arbeitskreis (Radius <= 67,3 mm statt 80,75 mm) bleiben!
         $maxEngraveRadiusMm = 0.0;
@@ -488,10 +493,10 @@ class LaserDesignParityTest extends TestCase
             }
         }
 
-        $this->assertGreaterThan(65.5, $maxEngraveRadiusMm, 'Gravurkreis muss den inneren Arbeitsbereich (~66,96 mm Radius) ausfüllen');
+        $this->assertGreaterThan(65.5, $maxEngraveRadiusMm, 'Gravurkreis muss den inneren Arbeitsbereich (~66,96 mm Radius) bündig ausfüllen');
         $this->assertLessThanOrEqual(67.5, $maxEngraveRadiusMm, 'Kein Laserpuls darf in den geschliffenen Facettenkranz (ab ~69,75 mm Radius) ragen');
 
-        // 2. Rechteckiger Rohling (60 x 40 mm) mit 10 % / 15 % Sicherheitsrand
+        // 2. Rechteckiger Rohling (60 x 40 mm Außenmaß, 80 % x 70 % Arbeitsfläche = bündig 48,0 x 28,0 mm im Cockpit)
         $rectProduct = Product::create([
             'name'   => 'Schiefer Rechteck',
             'slug'   => 'schiefer-rechteck-test',
@@ -514,15 +519,17 @@ class LaserDesignParityTest extends TestCase
         $rectPayload = $svc->buildLaserDesignPayload($this->createSampleOrder($rectProduct, [
             'logos' => [['x' => 50, 'y' => 50, 'url' => 'data:image/png;base64,' . base64_encode($darkPng), 'size' => 500, 'rotation' => 0]],
         ]), 'front', true);
-        $this->assertEqualsWithDelta(60.0, $rectPayload['widthMm'], 0.01);
-        $this->assertEqualsWithDelta(40.0, $rectPayload['heightMm'], 0.01);
-        $this->assertStringContainsString('L 60.000 40.000', $rectPayload['ghostContourDPath']);
+        $this->assertEqualsWithDelta(60.0, $rectPayload['blankWidthMm'], 0.01);
+        $this->assertEqualsWithDelta(40.0, $rectPayload['blankHeightMm'], 0.01);
+        $this->assertEqualsWithDelta(48.0, $rectPayload['widthMm'], 0.01);
+        $this->assertEqualsWithDelta(28.0, $rectPayload['heightMm'], 0.01);
+        $this->assertStringContainsString('L 48.000 28.000', $rectPayload['ghostContourDPath']);
         $rectGd = imagecreatefromstring($rectPayload['stageEngravePngBytes']);
-        $this->assertSame(127, (imagecolorat($rectGd, 2, (int) (imagesy($rectGd) * 0.5)) >> 24) & 0x7F, 'Linker Sicherheitsrand muss transparent bleiben');
-        $this->assertSame(0, (imagecolorat($rectGd, (int) (imagesx($rectGd) * 0.5), (int) (imagesy($rectGd) * 0.5)) >> 24) & 0x7F, 'Innenfläche muss graviert werden');
+        $this->assertSame(0, (imagecolorat($rectGd, 1, (int) (imagesy($rectGd) * 0.5)) >> 24) & 0x7F, 'Gravurbild liegt 100 % bündig an der linken blauen Konturkante an');
+        $this->assertSame(0, (imagecolorat($rectGd, imagesx($rectGd) - 2, (int) (imagesy($rectGd) * 0.5)) >> 24) & 0x7F, 'Gravurbild liegt 100 % bündig an der rechten blauen Konturkante an');
         imagedestroy($rectGd);
 
-        // 3. Generischer Custom/Herz-Rohling (50 x 40 mm, nicht-quadratisch!) mit freigestelltem transparentem overlay.png
+        // 3. Generischer Custom/Herz-Rohling (50 x 40 mm Außenmaß, 80 % x 78,57 % Arbeitsfläche = bündig 40,0 x 31,43 mm)
         $overlayPath = 'produkte/test-custom-heart-overlay-' . Str::lower(Str::random(5)) . '.png';
         $ov = imagecreatetruecolor(400, 400);
         imagealphablending($ov, false);
@@ -566,15 +573,14 @@ class LaserDesignParityTest extends TestCase
                 'logos' => [['x' => 50, 'y' => 50, 'url' => 'data:image/png;base64,' . base64_encode($darkPng), 'size' => 500, 'rotation' => 0]],
             ]), 'front', true);
 
-            // Nicht-quadratische Rohlingsmaße (50 x 40 mm) bleiben exakt erhalten
-            $this->assertEqualsWithDelta(50.0, $customPayload['widthMm'], 0.01);
-            $this->assertEqualsWithDelta(40.0, $customPayload['heightMm'], 0.01);
-            // Blauer Außenrahmen umspannt volle 0..50 x 0..40 mm, während der innere Gravurbereich exakt 10 % Rand lässt ((22-15)/70 = 10 %)
-            $this->assertStringContainsString('50.000', $customPayload['ghostContourDPath']);
+            $this->assertEqualsWithDelta(50.0, $customPayload['blankWidthMm'], 0.01);
+            $this->assertEqualsWithDelta(40.0, $customPayload['blankHeightMm'], 0.01);
+            $this->assertEqualsWithDelta(40.0, $customPayload['widthMm'], 0.05);
+            $this->assertEqualsWithDelta(31.429, $customPayload['heightMm'], 0.15);
             $this->assertStringContainsString('40.000', $customPayload['ghostContourDPath']);
             $cPolyXs = array_column($customPayload['workingAreaPolygonPct'], 'x');
-            $this->assertEqualsWithDelta(10.0, min($cPolyXs), 0.6);
-            $this->assertEqualsWithDelta(90.0, max($cPolyXs), 0.6);
+            $this->assertEqualsWithDelta(0.0, min($cPolyXs), 0.25);
+            $this->assertEqualsWithDelta(100.0, max($cPolyXs), 0.25);
         } finally {
             \Illuminate\Support\Facades\Storage::disk('public')->delete($overlayPath);
         }
@@ -628,31 +634,31 @@ class LaserDesignParityTest extends TestCase
         $h = imagesy($gd);
         $cx = ($w - 1) * 0.5;
         $cy = ($h - 1) * 0.5;
-        $pxPerMm = $w / 161.5;
-        // Innerer Arbeitskreis hat Radius ~66,96 mm (Ø 133,93 mm); ab Radius >= 68,2 mm liegt der geschliffene Facettenkranz!
-        $bevelStartRadiusPx = 68.2 * $pxPerMm;
-        $innerTestRadiusPx = 63.0 * $pxPerMm;
+        $pxPerMm = $w / $payload['widthMm'];
+        // Stage umspannt bündig den Ø 133,927 mm Arbeitskreis (Radius 66,9635 mm): außerhalb des Kreises (in den Quadrat-Ecken ab 67,5 mm) 100 % transparent!
+        $outsideCircleRadiusPx = 67.5 * $pxPerMm;
+        $flushRimRadiusPx = 65.5 * $pxPerMm;
 
-        $opaquePixelsOnBevel = 0;
+        $opaquePixelsOutsideCircle = 0;
         for ($y = 0; $y < $h; $y += 3) {
             for ($x = 0; $x < $w; $x += 3) {
-                if (hypot($x - $cx, $y - $cy) >= $bevelStartRadiusPx) {
+                if (hypot($x - $cx, $y - $cy) >= $outsideCircleRadiusPx) {
                     $alpha = (imagecolorat($gd, $x, $y) >> 24) & 0x7F;
                     if ($alpha < 127) {
-                        $opaquePixelsOnBevel++;
+                        $opaquePixelsOutsideCircle++;
                     }
                 }
             }
         }
-        $this->assertSame(0, $opaquePixelsOnBevel, 'Außerhalb der inneren Gravurzone (auf dem Facettenrand) müssen 100 % aller Pixel transparent sein');
+        $this->assertSame(0, $opaquePixelsOutsideCircle, 'Außerhalb des runden Arbeitsbereichs müssen 100 % aller Eck-Pixel transparent sein');
 
-        // In allen 8 Himmelsrichtungen knapp innerhalb des Arbeitskreises (r = 63 mm) ist das kreisfüllende Porträt lückenlos opak (keine senkrechte Schnittkante)
+        // In allen 8 Himmelsrichtungen direkt am blauen Kreisrand (r = 65,5 mm von 66,96 mm) ist das Porträt bündig opak
         for ($dir = 0; $dir < 8; $dir++) {
             $ang = ($dir * M_PI) / 4.0;
-            $px = (int) round($cx + $innerTestRadiusPx * cos($ang));
-            $py = (int) round($cy + $innerTestRadiusPx * sin($ang));
+            $px = (int) round($cx + $flushRimRadiusPx * cos($ang));
+            $py = (int) round($cy + $flushRimRadiusPx * sin($ang));
             $alpha = (imagecolorat($gd, $px, $py) >> 24) & 0x7F;
-            $this->assertSame(0, $alpha, "Kreisfüllendes Hochkant-Porträt muss in Richtung {$dir} sauber bis an den Innenkreis reichen");
+            $this->assertSame(0, $alpha, "Kreisfüllendes Hochkant-Porträt muss in Richtung {$dir} bündig bis direkt an den blauen Kreis reichen");
         }
         imagedestroy($gd);
 
@@ -663,9 +669,182 @@ class LaserDesignParityTest extends TestCase
         $svgXml = (string) ob_get_clean();
         $this->assertStringContainsString('<g clip-path="url(#workingAreaClip)">', $svgXml);
 
-        // Mini-PC WorkshopFocusApiController nutzt exakt denselben v5-crystal-82pct + Kalibrierungs-Cache-Salt wie OrderOverview
+        // Mini-PC WorkshopFocusApiController nutzt exakt denselben v6-cockpit-wysiwyg + Kalibrierungs-Cache-Salt wie OrderOverview
         $focusSource = (string) file_get_contents(app_path('Http/Controllers/Api/WorkshopFocusApiController.php'));
-        $this->assertStringContainsString("'v5-crystal-82pct|'", $focusSource);
+        $this->assertStringContainsString("'v6-cockpit-wysiwyg|'", $focusSource);
         $this->assertStringContainsString('json_encode($calibration)', $focusSource);
+    }
+
+    #[Test]
+    public function it_resolves_all_five_system_fonts_to_distinct_regular_ttf_files_without_montserrat_bold_fallback(): void
+    {
+        $svc = app(FileDownloadService::class);
+        $systemFonts = [
+            'Arial'           => 'arial-liberation-regular.ttf',
+            'Times New Roman' => 'times-new-roman-liberation-regular.ttf',
+            'Verdana'         => 'verdana-dejavu-regular.ttf',
+            'Courier New'     => 'courier-new-liberation-regular.ttf',
+            'Georgia'         => 'georgia-dejavu-regular.ttf',
+        ];
+
+        $resolvedPaths = [];
+        foreach ($systemFonts as $family => $expectedBasename) {
+            $path = $svc->resolveTtfFontPath($family);
+            $this->assertNotNull($path, "Systemfont {$family} muss auf eine .ttf-Datei aufgelöst werden");
+            $this->assertFileExists($path);
+            $this->assertSame($expectedBasename, basename($path), "{$family} muss auf {$expectedBasename} (Gewicht 400) zeigen");
+            $this->assertStringNotContainsString('montserrat-v31-latin-700', basename($path));
+            $resolvedPaths[$family] = $path;
+
+            $boldPath = $svc->resolveTtfFontPath($family, true);
+            $this->assertNotNull($boldPath);
+            $this->assertFileExists($boldPath);
+            $this->assertStringEndsWith('-700.ttf', basename($boldPath));
+        }
+
+        $this->assertCount(5, array_unique(array_values($resolvedPaths)), 'Alle 5 System-Fonts müssen auf eigene, unterschiedliche .ttf-Dateien zeigen');
+        $this->assertSame('arial-liberation-regular.ttf', basename((string) $svc->resolveTtfFontPath('Arial, sans-serif')));
+        $this->assertSame('courier-new-liberation-regular.ttf', basename((string) $svc->resolveTtfFontPath("'Courier New', monospace")));
+    }
+
+    #[Test]
+    public function it_separates_positive_frosted_cockpit_preview_from_physical_laser_polarity_across_dark_and_light_surfaces(): void
+    {
+        $this->actingAs($this->createAdmin(), 'admin');
+        $svc = app(FileDownloadService::class);
+        $crystal = $this->createSeelenKristallProductWithLegacyBox();
+
+        // Synthetisches Porträtfoto im Konfigurator-Alpha-Masken-Format:
+        // Obere Hälfte = helle Gesichtspartie / Zähne (gdAlpha = 22 -> stark mattiert),
+        // Untere Hälfte = ungravierter dunkler Schattenbereich (gdAlpha = 123 -> keine Gravur)
+        $portrait = imagecreatetruecolor(160, 160);
+        imagealphablending($portrait, false);
+        imagesavealpha($portrait, true);
+        $brightFaceMask = imagecolorallocatealpha($portrait, 0, 0, 0, 22);
+        $unengravedShadowMask = imagecolorallocatealpha($portrait, 0, 0, 0, 123);
+        imagefilledrectangle($portrait, 0, 0, 159, 79, $brightFaceMask);
+        imagefilledrectangle($portrait, 0, 80, 159, 159, $unengravedShadowMask);
+        ob_start();
+        imagepng($portrait);
+        $portraitPng = (string) ob_get_clean();
+        imagedestroy($portrait);
+
+        $crystalItem = $this->createSampleOrder($crystal, [
+            'logos' => [[
+                'x'        => 50.0,
+                'y'        => 45.6,
+                'url'      => 'data:image/png;base64,' . base64_encode($portraitPng),
+                'size'     => 320.0,
+                'type'     => 'saved',
+                'rotation' => 0,
+            ]],
+            'texts' => [[
+                'x'        => 50.0,
+                'y'        => 34.0,
+                'font'     => 'Times New Roman',
+                'size'     => 1.6,
+                'text'     => 'MUSTERMANN',
+                'align'    => 'center',
+                'rotation' => 0,
+            ]],
+        ]);
+
+        $payload = $svc->buildLaserDesignPayload($crystalItem, 'front', true);
+        $this->assertTrue($payload['isDarkSurface']);
+        $this->assertSame('data:image/png;base64,' . base64_encode($payload['cockpitPreviewPngBytes']), $payload['previewDataUrl']);
+        $this->assertNotSame($payload['stageEngravePngBytes'], $payload['cockpitPreviewPngBytes']);
+
+        $laserGd = imagecreatefromstring($payload['stageEngravePngBytes']);
+        $previewGd = imagecreatefromstring($payload['cockpitPreviewPngBytes']);
+        $this->assertNotFalse($laserGd);
+        $this->assertNotFalse($previewGd);
+
+        $w = imagesx($laserGd);
+        $h = imagesy($laserGd);
+        $faceSampleX = (int) round($w * 0.50);
+        $faceSampleY = (int) round($h * 0.42);
+        $shadowSampleX = (int) round($w * 0.50);
+        $shadowSampleY = (int) round($h * 0.65);
+
+        // 1. Physische Laser-Bitmap (stageEngravePngBytes): Helle Gesichtspartie ist dunkel (Laser feuert!), Schatten ist hell (> 235)
+        $laserFacePx = imagecolorat($laserGd, $faceSampleX, $faceSampleY);
+        $laserShadowPx = imagecolorat($laserGd, $shadowSampleX, $shadowSampleY);
+        $this->assertLessThan(95, ($laserFacePx >> 16) & 0xFF, 'Physisches Laser-PNG muss auf hellen Gesichtspartien dunkel sein (Laser feuert)');
+        $this->assertGreaterThan(235, ($laserShadowPx >> 16) & 0xFF, 'Physisches Laser-PNG darf in ungravierten Schatten nicht feuern');
+
+        // 2. Visuelles Kamera-Overlay (cockpitPreviewPngBytes): Milchglas-Weiß (R>=245) auf Gesicht, echt transparent (gdAlpha>=120) im Schatten!
+        $prevFacePx = imagecolorat($previewGd, $faceSampleX, $faceSampleY);
+        $prevShadowPx = imagecolorat($previewGd, $shadowSampleX, $shadowSampleY);
+        $this->assertGreaterThanOrEqual(245, ($prevFacePx >> 16) & 0xFF, 'Cockpit-Vorschau muss Gesichtspartien positiv milchig-weiß darstellen');
+        $this->assertLessThan(55, ($prevFacePx >> 24) & 0x7F, 'Milchglas-Gesichtspartie muss klar sichtbar deckend sein');
+        $this->assertGreaterThanOrEqual(120, ($prevShadowPx >> 24) & 0x7F, 'Ungravierte Schattenbereiche müssen im Kamera-Overlay echt transparent durchscheinen');
+
+        // 3. Weiße Schrift + feiner dunkler Kontrast-Halo im Textband (y = 26..39 %)
+        $foundWhiteText = false;
+        $foundDarkHalo = false;
+        for ($y = (int) round($h * 0.26); $y <= (int) round($h * 0.39); $y++) {
+            for ($x = (int) round($w * 0.30); $x <= (int) round($w * 0.70); $x++) {
+                $pc = imagecolorat($previewGd, $x, $y);
+                $pa = ($pc >> 24) & 0x7F;
+                $pr = ($pc >> 16) & 0xFF;
+                if ($pa < 15 && $pr >= 245) {
+                    $foundWhiteText = true;
+                } elseif ($pa < 100 && $pr <= 25) {
+                    $foundDarkHalo = true;
+                }
+            }
+        }
+        $this->assertTrue($foundWhiteText, 'Schrift auf Kristall muss im Kamera-Cockpit leuchtend milchig-weiß erscheinen');
+        $this->assertTrue($foundDarkHalo, 'Weiße Schrift über hellem Milchglas-Porträt benötigt einen feinen dunklen Kontrast-Halo');
+
+        imagedestroy($laserGd);
+        imagedestroy($previewGd);
+
+        // 4. Helles Medium (Gold-Edelstahl -> isDarkSurface === false): Dunkle Gravur auf echt transparentem Grund (kein weißer Vollflächen-Kasten!)
+        $goldProduct = Product::create([
+            'name'        => 'Goldenes Seelen-Herz Polarity',
+            'slug'        => 'goldenes-seelen-herz-pol-' . Str::lower(Str::random(4)),
+            'type'        => 'physical',
+            'status'      => 'active',
+            'price'       => 4990,
+            'width'       => 25,
+            'height'      => 22,
+            'configurator_settings' => [
+                'overlay_type'       => 'plane',
+                'area_shape'         => 'rect',
+                'area_left'          => 19.45,
+                'area_top'           => 36.96,
+                'area_width'         => 61.10,
+                'area_height'        => 55.01,
+                'material_type'      => 'metal',
+                'template_package'   => 'goldenes-seelen-herz',
+                'xtool_material'     => 'Edelstahl 14K vergoldet',
+                'xtool_plane_width'  => 25.0,
+                'xtool_plane_height' => 22.0,
+            ],
+        ]);
+        $goldItem = $this->createSampleOrder($goldProduct, [
+            'logos' => [[
+                'x'        => 50.0,
+                'y'        => 64.7,
+                'url'      => 'data:image/png;base64,' . base64_encode($portraitPng),
+                'size'     => 260.0,
+                'type'     => 'saved',
+                'rotation' => 0,
+            ]],
+        ]);
+        $goldPayload = $svc->buildLaserDesignPayload($goldItem, 'front', true);
+        $this->assertFalse($goldPayload['isDarkSurface']);
+
+        $goldPrevGd = imagecreatefromstring($goldPayload['cockpitPreviewPngBytes']);
+        $this->assertNotFalse($goldPrevGd);
+        $gw = imagesx($goldPrevGd);
+        $gh = imagesy($goldPrevGd);
+        $goldEngravedPx = imagecolorat($goldPrevGd, (int) round($gw * 0.50), (int) round($gh * 0.30));
+        $goldUnengravedPx = imagecolorat($goldPrevGd, (int) round($gw * 0.50), (int) round($gh * 0.72));
+        imagedestroy($goldPrevGd);
+
+        $this->assertLessThan(35, ($goldEngravedPx >> 16) & 0xFF, 'Auf hellem Gold-Edelstahl muss die Gravur im Cockpit dunkel erscheinen');
+        $this->assertGreaterThanOrEqual(125, ($goldUnengravedPx >> 24) & 0x7F, 'Auf hellem Metall darf kein weißer Vollflächen-Kasten im ungravierten Fotobereich erscheinen');
     }
 }
