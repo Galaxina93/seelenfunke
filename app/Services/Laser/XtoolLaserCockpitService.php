@@ -31,11 +31,28 @@ class XtoolLaserCockpitService
     private const LOCK_FILE = 'system/xtool_queue/jobs.lock';
     private const MAX_HISTORY = 25;
 
+    private ?string $relayRootOverride = null;
+    private bool $allowRelayInTests = false;
+    private float $relayCameraWaitSeconds = 9.0;
+    private float $relayJobWaitSeconds = 10.0;
+
+    public function setRelayTestingOptions(
+        ?string $relayRootOverride = null,
+        bool $allowRelayInTests = false,
+        float $cameraWaitSeconds = 9.0,
+        float $jobWaitSeconds = 10.0
+    ): void {
+        $this->relayRootOverride = $relayRootOverride;
+        $this->allowRelayInTests = $allowRelayInTests;
+        $this->relayCameraWaitSeconds = max(0.05, $cameraWaitSeconds);
+        $this->relayJobWaitSeconds = max(0.05, $jobWaitSeconds);
+    }
+
     /**
      * Synchronisiert das entzerrte 2000x2000 px (200x200 mm) Kamerabild (background.jpg)
-     * aus dem lokalen xTool Studio AppData-Verzeichnis oder direkt vom Laser.
+     * aus dem lokalen xTool Studio AppData-Verzeichnis, direkt vom Laser oder über das Mini-PC Stage-Relay.
      *
-     * @return array{camera_path: string, camera_url: string, updated_at: string, source: string, laser_online: bool, laser_ip: string}
+     * @return array{camera_path: string, camera_url: string, updated_at: string, source: string, laser_online: bool, laser_ip: string, relay_error: ?string}
      */
     public function syncCameraFromHostOrLaser(?float $focusMm = null, bool $forceCheck = false, string $laserIp = self::DEFAULT_LASER_IP): array
     {
@@ -51,23 +68,27 @@ class XtoolLaserCockpitService
         $source = 'cached';
         $hasLocalFile = @is_file($targetFullPath) && (int) @filesize($targetFullPath) > 10000;
         $laserOnline = false;
+        $relayError = null;
+        $isUnitTestRestricted = app()->runningUnitTests() && !$this->allowRelayInTests;
 
-        if ((!$hasLocalFile || $forceCheck) && !app()->runningUnitTests()) {
+        if ((!$hasLocalFile || $forceCheck) && !$isUnitTestRestricted) {
+            $isCloud = $this->isCloudEnvironment();
+
             // 1. Direkter Live-Kamera-Abruf vom xTool F2 Ultra UV über das native V2-WebSocket-Protokoll (TLS Port 28900)
-            if ($forceCheck) {
-                if ($this->captureAndCalibrateLiveCameraFromLaserV2($safeIp, $targetFullPath)) {
+            if ($forceCheck && !$isCloud && !app()->runningUnitTests()) {
+                if ($this->captureAndCalibrateLiveCameraFromLaserV2($safeIp, $targetFullPath, true)) {
                     $source = 'laser_live_v2_ws';
                     $hasLocalFile = true;
                     $laserOnline = true;
                 }
             }
 
-            if (!$laserOnline) {
-                $laserOnline = $this->probeLaserReachability($safeIp);
+            if (!$laserOnline && !$isCloud && !app()->runningUnitTests()) {
+                $laserOnline = $this->probeDirectLaserSocket($safeIp, false);
             }
 
-            // 2. Fallback: HTTP-Kamera-Snapshot versuchen (ältere Firmware / Bridge)
-            if ($forceCheck && $laserOnline && $source !== 'laser_live_v2_ws') {
+            // 2. Fallback: HTTP-Kamera-Snapshot versuchen (ältere Firmware / Bridge im lokalen LAN)
+            if ($forceCheck && $laserOnline && !$isCloud && !app()->runningUnitTests() && $source !== 'laser_live_v2_ws') {
                 foreach ([
                     "http://{$safeIp}:8080/camera/snapshot",
                     "http://{$safeIp}:8080/snapshot.jpg",
@@ -93,8 +114,41 @@ class XtoolLaserCockpitService
                 }
             }
 
+            // 2b. Stage <-> Werkstatt Mini-PC (192.168.188.151) Echtzeit-LAN-Relay
+            if ($forceCheck && !in_array($source, ['laser_live_v2_ws', 'laser_live_http'], true)) {
+                $heartbeat = $this->getMiniPcRelayHeartbeat();
+                if ($heartbeat !== null && $heartbeat['age_seconds'] <= 20.0) {
+                    $relayJob = $this->enqueueRelayJob('capture_camera', [
+                        'laser_ip' => $safeIp,
+                    ]);
+                    $relayResult = $this->waitForRelayJobCompletion($relayJob['job_id'], $this->relayCameraWaitSeconds);
+                    clearstatcache(true, $targetFullPath);
+
+                    if (
+                        is_array($relayResult)
+                        && ($relayResult['ok'] ?? false) === true
+                        && @is_file($targetFullPath)
+                        && (int) @filesize($targetFullPath) > 5120
+                    ) {
+                        $source = 'minipc_lan_relay';
+                        $hasLocalFile = true;
+                        $laserOnline = true;
+                        $relayError = null;
+                    } else {
+                        $laserOnline = (bool) ($relayResult['laser_online'] ?? false);
+                        $relayError = (string) ($relayResult['error'] ?? 'Laser antwortet im Werkstatt-LAN nicht.');
+                    }
+                } else {
+                    $relayError = 'Werkstatt-Brücke (Mini-PC 192.168.188.151) nicht verbunden oder Laser im lokalen Netzwerk nicht erreichbar.';
+                }
+            }
+
+            if (!$laserOnline) {
+                $laserOnline = $this->probeLaserReachability($safeIp);
+            }
+
             // 3. Fallback: Host xTool Studio AppData-Verzeichnis & Docker-Bridge-Spiegel prüfen (falls Laser im Standby)
-            if (!in_array($source, ['laser_live_v2_ws', 'laser_live_http'], true)) {
+            if (!in_array($source, ['laser_live_v2_ws', 'laser_live_http', 'minipc_lan_relay'], true)) {
                 $rawCaptureCandidate = $publicDisk->path('bestellungen/xtool/host_appdata/capture.jpg');
                 if ($forceCheck && @is_file($rawCaptureCandidate) && (int) @filesize($rawCaptureCandidate) > 15000) {
                     $rawCaptureBytes = @file_get_contents($rawCaptureCandidate);
@@ -130,20 +184,20 @@ class XtoolLaserCockpitService
             }
 
             // 4. Bei explizitem Refresh ($forceCheck) Datei-Zeitstempel aktualisieren, damit Browser & Livewire garantiert neu laden
-            if ($forceCheck && @is_file($targetFullPath) && !in_array($source, ['laser_live_v2_ws', 'xtool_calib_warped'], true)) {
+            if ($forceCheck && @is_file($targetFullPath) && !in_array($source, ['laser_live_v2_ws', 'minipc_lan_relay', 'xtool_calib_warped'], true)) {
                 $existingBytes = @file_get_contents($targetFullPath);
                 if (is_string($existingBytes) && strlen($existingBytes) > 1024) {
                     @file_put_contents($targetFullPath, $existingBytes);
                 }
             }
-        } elseif (!app()->runningUnitTests()) {
+        } elseif (!$isUnitTestRestricted) {
             $laserOnline = $this->probeLaserReachability($safeIp);
         }
 
         if (!@is_file($targetFullPath) || (int) @filesize($targetFullPath) < 1024) {
             $this->createSyntheticSlatBedImage($targetFullPath);
             $source = 'synthetic_slat_bed';
-        } elseif ($forceCheck && app()->runningUnitTests()) {
+        } elseif ($forceCheck && $isUnitTestRestricted) {
             $existingBytes = @file_get_contents($targetFullPath);
             if (is_string($existingBytes) && strlen($existingBytes) > 1024) {
                 @file_put_contents($targetFullPath, $existingBytes);
@@ -163,6 +217,7 @@ class XtoolLaserCockpitService
             'source'       => $source,
             'laser_online' => $laserOnline,
             'laser_ip'     => $safeIp,
+            'relay_error'  => $relayError,
         ];
     }
 
@@ -200,23 +255,21 @@ class XtoolLaserCockpitService
         return $this->syncCameraFromHostOrLaser(null, false);
     }
 
-    /**
-     * Prüft per schnellem Socket-Connect (max. 220 ms), ob der xTool F2 Ultra UV im lokalen WLAN erreichbar ist.
-     * Port 28900 ist der native V2-TLS-WebSocket-Port des xTool F2 Ultra UV (GS009-CLASS-4).
-     * Auf Cloud-Umgebungen (Stage/Live) wird sofort false geliefert und im LAN für 15 Sekunden gecacht,
-     * damit UI-Interaktionen niemals durch Netzwerk-Timeouts ausgebremst werden.
-     */
-    public function probeLaserReachability(string $ip = self::DEFAULT_LASER_IP, bool $force = false): bool
+    public function isCloudEnvironment(): bool
     {
-        if (app()->runningUnitTests()) {
+        if (env('XTOOL_FORCE_LAN_PROBE', false)) {
             return false;
         }
 
         $appHost = strtolower((string) parse_url((string) config('app.url'), PHP_URL_HOST));
-        if (
-            !env('XTOOL_FORCE_LAN_PROBE', false)
-            && (app()->environment('staging', 'production') || ($appHost !== '' && str_ends_with($appHost, 'mein-seelenfunke.de')))
-        ) {
+
+        return app()->environment('staging', 'production')
+            || ($appHost !== '' && str_ends_with($appHost, 'mein-seelenfunke.de'));
+    }
+
+    private function probeDirectLaserSocket(string $ip = self::DEFAULT_LASER_IP, bool $force = false): bool
+    {
+        if (app()->runningUnitTests() || $this->isCloudEnvironment()) {
             return false;
         }
 
@@ -245,6 +298,28 @@ class XtoolLaserCockpitService
     }
 
     /**
+     * Prüft per schnellem Socket-Connect (max. 220 ms) oder über den Live-Heartbeat der Werkstatt-Brücke (Mini-PC),
+     * ob der xTool F2 Ultra UV im lokalen WLAN erreichbar ist.
+     */
+    public function probeLaserReachability(string $ip = self::DEFAULT_LASER_IP, bool $force = false): bool
+    {
+        if (app()->runningUnitTests() && !$this->allowRelayInTests) {
+            return false;
+        }
+
+        if ($this->probeDirectLaserSocket($ip, $force)) {
+            return true;
+        }
+
+        $heartbeat = $this->getMiniPcRelayHeartbeat();
+        if ($heartbeat !== null && $heartbeat['age_seconds'] < 15.0 && $heartbeat['laser_online'] === true) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
      * Löst direkt auf dem xTool F2 Ultra UV (TLS/WSS Port 28900, V2 Binary Frame Protocol 0xBABE)
      * einen physischen Kamera-Snapshot (/v1/camera/snap -> 4000x3000 JPEG) aus, lädt ihn über den
      * file_stream-Kanal herunter und entzerrt ihn anhand des 21x21 Werkskalibrierungs-Rasters (global_calib.json)
@@ -253,14 +328,18 @@ class XtoolLaserCockpitService
      */
     public function captureAndCalibrateLiveCameraFromLaserV2(
         string $ip = self::DEFAULT_LASER_IP,
-        ?string $targetBackgroundPath = null
+        ?string $targetBackgroundPath = null,
+        bool $directSocketOnly = false
     ): bool {
         if (!function_exists('imagecreatefromstring') || !function_exists('imagecreatetruecolor')) {
             return false;
         }
 
         $safeIp = FunkenwerkPrintService::sanitizePrivateLanIp($ip, self::DEFAULT_LASER_IP);
-        if (!$this->probeLaserReachability($safeIp, true)) {
+        $canConnectDirectly = $directSocketOnly
+            ? $this->probeDirectLaserSocket($safeIp, true)
+            : $this->probeDirectLaserSocket($safeIp, true);
+        if (!$canConnectDirectly) {
             return false;
         }
         $publicDisk = Storage::disk('public');
@@ -1014,7 +1093,10 @@ class XtoolLaserCockpitService
             'detected'          => false,
             'camera_url'        => $camInfo['camera_url'],
             'camera_updated_at' => $camInfo['updated_at'],
+            'source'            => $camInfo['source'],
             'laser_online'      => $camInfo['laser_online'],
+            'laser_ip'          => $camInfo['laser_ip'],
+            'relay_error'       => $camInfo['relay_error'] ?? null,
         ];
 
         $bgPath = $camInfo['camera_path'];
@@ -1337,7 +1419,10 @@ class XtoolLaserCockpitService
             'detected'          => $bestRatio > 0.12,
             'camera_url'        => $camInfo['camera_url'],
             'camera_updated_at' => $camInfo['updated_at'],
+            'source'            => $camInfo['source'],
             'laser_online'      => $camInfo['laser_online'],
+            'laser_ip'          => $camInfo['laser_ip'],
+            'relay_error'       => $camInfo['relay_error'] ?? null,
         ];
     }
 
@@ -2024,11 +2109,49 @@ class XtoolLaserCockpitService
         $payload = $exportService->buildLaserDesignPayload($itemId, $side, true);
         $item = $payload['item'];
 
-        // Direkte V2-TLS-WebSocket-Übertragung an den xTool F2 Ultra UV (außerhalb von Unit-Tests)
+        // Direkte V2-TLS-WebSocket-Übertragung an den xTool F2 Ultra UV bzw. Stage <-> Mini-PC Echtzeit-Relay
         $sendResult = ['ok' => false, 'task_id' => null, 'error' => null];
-        if (!app()->runningUnitTests()) {
-            $sendPayload = ($effectiveType === 'framing') ? $xfData['border_gcode'] : $xfData['bytes'];
-            $sendResult = $this->sendJobToLaserV2($effectiveType, $sendPayload, $safeIp);
+        $isUnitTestRestricted = app()->runningUnitTests() && !$this->allowRelayInTests;
+
+        if (!$isUnitTestRestricted) {
+            if (!$this->isCloudEnvironment() && !app()->runningUnitTests()) {
+                $sendPayload = ($effectiveType === 'framing') ? $xfData['border_gcode'] : $xfData['bytes'];
+                $sendResult = $this->sendJobToLaserV2($effectiveType, $sendPayload, $safeIp);
+            }
+
+            if (!($sendResult['ok'] ?? false)) {
+                $heartbeat = $this->getMiniPcRelayHeartbeat();
+                if ($heartbeat !== null && $heartbeat['age_seconds'] <= 20.0) {
+                    $relayAction = ($effectiveType === 'framing') ? 'frame_border' : 'send_xf';
+                    $relayJob = $this->enqueueRelayJob($relayAction, [
+                        'laser_ip'    => $safeIp,
+                        'xf_base64'   => ($effectiveType === 'engrave') ? base64_encode($xfData['bytes']) : null,
+                        'gcode'       => $xfData['border_gcode'],
+                        'center_x_mm' => (float) $xfData['center_x_mm'],
+                        'center_y_mm' => (float) $xfData['center_y_mm'],
+                        'width_mm'    => (float) $xcsData['width_mm'],
+                        'height_mm'   => (float) $xcsData['height_mm'],
+                        'angle_deg'   => (float) $xfData['angle_deg'],
+                    ]);
+
+                    $relayRes = $this->waitForRelayJobCompletion($relayJob['job_id'], $this->relayJobWaitSeconds);
+                    if (is_array($relayRes) && ($relayRes['ok'] ?? false) === true) {
+                        $sendResult = [
+                            'ok'      => true,
+                            'task_id' => $relayJob['job_id'],
+                            'error'   => null,
+                        ];
+                    } else {
+                        $sendResult = [
+                            'ok'      => false,
+                            'task_id' => null,
+                            'error'   => (string) ($relayRes['error'] ?? 'Übertragung über Werkstatt-Brücke fehlgeschlagen.'),
+                        ];
+                    }
+                } elseif ($sendResult['error'] === null) {
+                    $sendResult['error'] = 'Werkstatt-Brücke (Mini-PC 192.168.188.151) nicht verbunden oder Laser im lokalen Netzwerk nicht erreichbar.';
+                }
+            }
         }
 
         $sentDirect = (bool) ($sendResult['ok'] ?? false);
@@ -2473,6 +2596,431 @@ class XtoolLaserCockpitService
             $callback();
             return;
         }
+
+        @flock($fp, LOCK_EX);
+        try {
+            $callback();
+        } finally {
+            @flock($fp, LOCK_UN);
+            @fclose($fp);
+        }
+    }
+
+    // =========================================================================
+    // STAGE <-> WERKSTATT MINI-PC (192.168.188.151) ECHTZEIT-LASER-RELAY
+    // =========================================================================
+
+    public function relayDirectory(): string
+    {
+        $dir = $this->relayRootOverride ?: storage_path('app/private/xtool_stage_relay');
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0700, true);
+        }
+
+        return rtrim($dir, '/\\');
+    }
+
+    public function relayJobsDirectory(): string
+    {
+        $dir = $this->relayDirectory() . DIRECTORY_SEPARATOR . 'jobs';
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0700, true);
+        }
+
+        return $dir;
+    }
+
+    public function relayHeartbeatPath(): string
+    {
+        return $this->relayDirectory() . DIRECTORY_SEPARATOR . 'minipc_heartbeat.json';
+    }
+
+    private function relayLockPath(): string
+    {
+        return $this->relayDirectory() . DIRECTORY_SEPARATOR . 'relay.lock';
+    }
+
+    public static function isValidRelayJobId(string $jobId): bool
+    {
+        return (bool) preg_match('/^[A-Za-z0-9_-]{6,80}$/', $jobId);
+    }
+
+    public function recordMiniPcRelayHeartbeat(?bool $laserOnline = null, ?string $laserIp = null): array
+    {
+        $hbPath = $this->relayHeartbeatPath();
+        $resolvedOnline = $laserOnline;
+
+        if ($resolvedOnline === null && @is_file($hbPath)) {
+            $existing = json_decode((string) @file_get_contents($hbPath), true);
+            if (is_array($existing) && isset($existing['laser_online'])) {
+                $resolvedOnline = (bool) $existing['laser_online'];
+            }
+        }
+
+        $safeIp = FunkenwerkPrintService::sanitizePrivateLanIp($laserIp ?? self::DEFAULT_LASER_IP, self::DEFAULT_LASER_IP);
+        $nowEpoch = microtime(true);
+        $nowIso = now('Europe/Berlin')->toIso8601String();
+
+        $data = [
+            'last_seen_at'    => $nowIso,
+            'last_seen_epoch' => $nowEpoch,
+            'laser_online'    => (bool) ($resolvedOnline ?? false),
+            'laser_ip'        => $safeIp,
+        ];
+
+        $this->atomicWriteJsonFile($hbPath, $data);
+
+        return $data;
+    }
+
+    /**
+     * @return array{age_seconds: float, laser_online: bool, last_seen_at: string, laser_ip: string}|null
+     */
+    public function getMiniPcRelayHeartbeat(): ?array
+    {
+        $hbPath = $this->relayHeartbeatPath();
+        if (is_link($hbPath) || !@is_file($hbPath)) {
+            return null;
+        }
+
+        $raw = @file_get_contents($hbPath);
+        if (!is_string($raw) || trim($raw) === '') {
+            return null;
+        }
+
+        $decoded = json_decode($raw, true);
+        if (!is_array($decoded)) {
+            return null;
+        }
+
+        $epoch = null;
+        if (isset($decoded['last_seen_epoch']) && is_numeric($decoded['last_seen_epoch'])) {
+            $epoch = (float) $decoded['last_seen_epoch'];
+        } elseif (isset($decoded['last_seen_at'])) {
+            if (is_numeric($decoded['last_seen_at'])) {
+                $epoch = (float) $decoded['last_seen_at'];
+            } elseif (is_string($decoded['last_seen_at'])) {
+                $parsed = strtotime($decoded['last_seen_at']);
+                if ($parsed !== false) {
+                    $epoch = (float) $parsed;
+                }
+            }
+        }
+
+        if ($epoch === null || $epoch <= 0.0) {
+            return null;
+        }
+
+        return [
+            'age_seconds'  => max(0.0, microtime(true) - $epoch),
+            'laser_online' => (bool) ($decoded['laser_online'] ?? false),
+            'last_seen_at' => (string) ($decoded['last_seen_at'] ?? ''),
+            'laser_ip'     => (string) ($decoded['laser_ip'] ?? self::DEFAULT_LASER_IP),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $params
+     * @return array<string, mixed>
+     */
+    public function enqueueRelayJob(string $action, array $params = []): array
+    {
+        if (!in_array($action, ['capture_camera', 'send_xf', 'frame_border'], true)) {
+            throw new \InvalidArgumentException('Ungültige Relay-Aktion: ' . $action);
+        }
+
+        $jobId = 'lrel_' . now('Europe/Berlin')->format('Ymd_His') . '_' . bin2hex(random_bytes(4));
+        $safeIp = FunkenwerkPrintService::sanitizePrivateLanIp(
+            (string) ($params['laser_ip'] ?? self::DEFAULT_LASER_IP),
+            self::DEFAULT_LASER_IP
+        );
+
+        $jobRecord = [
+            'job_id'        => $jobId,
+            'status'        => 'pending',
+            'created_epoch' => microtime(true),
+            'created_at'    => now('Europe/Berlin')->toIso8601String(),
+            'claimed_at'    => null,
+            'completed_at'  => null,
+            'action'        => $action,
+            'laser_ip'      => $safeIp,
+            'xf_base64'     => isset($params['xf_base64']) && is_string($params['xf_base64']) ? $params['xf_base64'] : null,
+            'gcode'         => isset($params['gcode']) && is_string($params['gcode']) ? $params['gcode'] : null,
+            'center_x_mm'   => isset($params['center_x_mm']) ? round((float) $params['center_x_mm'], 2) : 100.0,
+            'center_y_mm'   => isset($params['center_y_mm']) ? round((float) $params['center_y_mm'], 2) : 100.0,
+            'width_mm'      => isset($params['width_mm']) ? round((float) $params['width_mm'], 2) : 80.0,
+            'height_mm'     => isset($params['height_mm']) ? round((float) $params['height_mm'], 2) : 80.0,
+            'angle_deg'     => isset($params['angle_deg']) ? round((float) $params['angle_deg'], 2) : 0.0,
+            'result'        => null,
+        ];
+
+        $this->withRelayLock(function () use ($jobRecord): void {
+            $this->purgeExpiredRelayJobsUnlocked(60.0);
+            $jobPath = $this->relayJobsDirectory() . DIRECTORY_SEPARATOR . $jobRecord['job_id'] . '.json';
+            $this->atomicWriteJsonFile($jobPath, $jobRecord);
+        });
+
+        return $jobRecord;
+    }
+
+    /**
+     * Vom Mini-PC gepollt: aktualisiert den Heartbeat, räumt Alt-Jobs (> 60s) auf
+     * und reserviert atomar den ältesten pending-Job (max. 25s alt).
+     *
+     * @return array<string, mixed>|null
+     */
+    public function claimNextPendingRelayJob(?bool $laserOnline = null, ?string $laserIp = null): ?array
+    {
+        $this->recordMiniPcRelayHeartbeat($laserOnline, $laserIp);
+
+        $claimedWireJob = null;
+
+        $this->withRelayLock(function () use (&$claimedWireJob): void {
+            $this->purgeExpiredRelayJobsUnlocked(60.0);
+
+            $jobsDir = $this->relayJobsDirectory();
+            $files = glob($jobsDir . DIRECTORY_SEPARATOR . '*.json') ?: [];
+            $now = microtime(true);
+            $candidates = [];
+
+            foreach ($files as $file) {
+                if (is_link($file) || !@is_file($file)) {
+                    continue;
+                }
+                $raw = @file_get_contents($file);
+                if (!is_string($raw) || $raw === '') {
+                    continue;
+                }
+                $decoded = json_decode($raw, true);
+                if (!is_array($decoded) || ($decoded['status'] ?? '') !== 'pending') {
+                    continue;
+                }
+                $jobId = (string) ($decoded['job_id'] ?? '');
+                if (!self::isValidRelayJobId($jobId)) {
+                    continue;
+                }
+                $createdEpoch = isset($decoded['created_epoch']) && is_numeric($decoded['created_epoch'])
+                    ? (float) $decoded['created_epoch']
+                    : (float) (@filemtime($file) ?: 0);
+                $ageSec = max(0.0, $now - $createdEpoch);
+                if ($ageSec > 25.0) {
+                    continue;
+                }
+
+                $candidates[] = [
+                    'epoch' => $createdEpoch,
+                    'path'  => $file,
+                    'data'  => $decoded,
+                ];
+            }
+
+            if ($candidates === []) {
+                return;
+            }
+
+            usort($candidates, static fn (array $a, array $b): int => $a['epoch'] <=> $b['epoch']);
+            $chosen = $candidates[0];
+            $record = $chosen['data'];
+            $record['status'] = 'claimed';
+            $record['claimed_at'] = now('Europe/Berlin')->toIso8601String();
+
+            $this->atomicWriteJsonFile($chosen['path'], $record);
+
+            $claimedWireJob = [
+                'job_id'      => (string) $record['job_id'],
+                'action'      => (string) $record['action'],
+                'laser_ip'    => (string) ($record['laser_ip'] ?? self::DEFAULT_LASER_IP),
+                'xf_base64'   => $record['xf_base64'] ?? null,
+                'gcode'       => $record['gcode'] ?? null,
+                'center_x_mm' => (float) ($record['center_x_mm'] ?? 100.0),
+                'center_y_mm' => (float) ($record['center_y_mm'] ?? 100.0),
+                'width_mm'    => (float) ($record['width_mm'] ?? 80.0),
+                'height_mm'   => (float) ($record['height_mm'] ?? 80.0),
+                'angle_deg'   => (float) ($record['angle_deg'] ?? 0.0),
+            ];
+        });
+
+        return $claimedWireJob;
+    }
+
+    /**
+     * Nimmt die Ausführungs-Quittung (inkl. optionalem Live-Kamerabild) vom Werkstatt Mini-PC entgegen.
+     *
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>|null
+     */
+    public function completeRelayJob(string $jobId, array $payload): ?array
+    {
+        if (!self::isValidRelayJobId($jobId)) {
+            return null;
+        }
+
+        if (array_key_exists('laser_online', $payload) && $payload['laser_online'] !== null) {
+            $this->recordMiniPcRelayHeartbeat((bool) $payload['laser_online']);
+        }
+
+        $targetFullPath = Storage::disk('public')->path('bestellungen/xtool/background.jpg');
+        if (!is_dir(dirname($targetFullPath))) {
+            @mkdir(dirname($targetFullPath), 0775, true);
+        }
+
+        $cameraSaved = false;
+        if (!empty($payload['warped_jpeg_base64']) && is_string($payload['warped_jpeg_base64'])) {
+            $warpedBytes = base64_decode(preg_replace('/\s+/', '', $payload['warped_jpeg_base64']) ?? '', true);
+            if (is_string($warpedBytes) && strlen($warpedBytes) > 5120) {
+                $imgInfo = @getimagesizefromstring($warpedBytes);
+                if (is_array($imgInfo) && ($imgInfo[2] ?? 0) === IMAGETYPE_JPEG) {
+                    $tmpImg = $targetFullPath . '.tmp.' . getmypid() . '.' . bin2hex(random_bytes(4));
+                    if (@file_put_contents($tmpImg, $warpedBytes, LOCK_EX) !== false) {
+                        @chmod($tmpImg, 0664);
+                        $cameraSaved = @rename($tmpImg, $targetFullPath);
+                        if (!$cameraSaved) {
+                            @unlink($tmpImg);
+                        }
+                    }
+                }
+            }
+        } elseif (!empty($payload['raw_jpeg_base64']) && is_string($payload['raw_jpeg_base64'])) {
+            $rawBytes = base64_decode(preg_replace('/\s+/', '', $payload['raw_jpeg_base64']) ?? '', true);
+            if (is_string($rawBytes) && strlen($rawBytes) > 5120) {
+                $cameraSaved = $this->warpRawCameraImageWithCalib($rawBytes, $targetFullPath);
+            }
+        }
+
+        $completedRecord = null;
+
+        $this->withRelayLock(function () use ($jobId, $payload, $cameraSaved, &$completedRecord): void {
+            $jobPath = $this->relayJobsDirectory() . DIRECTORY_SEPARATOR . $jobId . '.json';
+            if (is_link($jobPath) || !@is_file($jobPath)) {
+                return;
+            }
+
+            $decoded = json_decode((string) @file_get_contents($jobPath), true);
+            if (!is_array($decoded)) {
+                return;
+            }
+
+            $decoded['status'] = 'completed';
+            $decoded['completed_at'] = now('Europe/Berlin')->toIso8601String();
+            // Große Nutzlast nach Ausführung freigeben
+            $decoded['xf_base64'] = null;
+            $decoded['result'] = [
+                'ok'           => (bool) ($payload['ok'] ?? false),
+                'laser_online' => (bool) ($payload['laser_online'] ?? false),
+                'state'        => isset($payload['state']) && $payload['state'] !== null
+                    ? mb_substr((string) $payload['state'], 0, 80)
+                    : null,
+                'error'        => isset($payload['error']) && $payload['error'] !== null && trim((string) $payload['error']) !== ''
+                    ? mb_substr(trim((string) $payload['error']), 0, 500)
+                    : null,
+                'camera_saved' => $cameraSaved,
+            ];
+
+            $this->atomicWriteJsonFile($jobPath, $decoded);
+            $completedRecord = $decoded;
+        });
+
+        return $completedRecord;
+    }
+
+    /**
+     * Wartet synchron (in 150-ms-Schritten) auf die Fertigstellung eines Relay-Jobs durch den Mini-PC.
+     *
+     * @return array<string, mixed>
+     */
+    public function waitForRelayJobCompletion(string $jobId, float $timeoutSeconds = 9.0): array
+    {
+        if (!self::isValidRelayJobId($jobId)) {
+            return [
+                'ok'           => false,
+                'laser_online' => false,
+                'state'        => 'INVALID_JOB_ID',
+                'error'        => 'Ungültige Relay-Job-ID.',
+            ];
+        }
+
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            @session_write_close();
+        }
+
+        $jobPath = $this->relayJobsDirectory() . DIRECTORY_SEPARATOR . $jobId . '.json';
+        $deadline = microtime(true) + max(0.05, $timeoutSeconds);
+
+        while (microtime(true) < $deadline) {
+            clearstatcache(true, $jobPath);
+            if (@is_file($jobPath) && !is_link($jobPath)) {
+                $raw = @file_get_contents($jobPath);
+                if (is_string($raw) && $raw !== '') {
+                    $decoded = json_decode($raw, true);
+                    if (is_array($decoded) && ($decoded['status'] ?? '') === 'completed') {
+                        @unlink($jobPath);
+                        return is_array($decoded['result'] ?? null)
+                            ? $decoded['result']
+                            : ['ok' => true, 'laser_online' => true, 'state' => 'COMPLETED', 'error' => null];
+                    }
+                }
+            }
+
+            usleep(150000);
+        }
+
+        @unlink($jobPath);
+
+        return [
+            'ok'           => false,
+            'laser_online' => false,
+            'state'        => 'RELAY_TIMEOUT',
+            'error'        => 'Zeitüberschreitung der Werkstatt-Brücke (Mini-PC hat den Laser-Befehl nicht rechtzeitig quittiert).',
+        ];
+    }
+
+    private function purgeExpiredRelayJobsUnlocked(float $maxAgeSeconds = 60.0): void
+    {
+        $jobsDir = $this->relayJobsDirectory();
+        $now = microtime(true);
+
+        foreach (glob($jobsDir . DIRECTORY_SEPARATOR . '*.json') ?: [] as $file) {
+            if (is_link($file) || !@is_file($file)) {
+                continue;
+            }
+            $mtime = (int) (@filemtime($file) ?: 0);
+            if ($mtime > 0 && ($now - $mtime) > $maxAgeSeconds) {
+                @unlink($file);
+            }
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function atomicWriteJsonFile(string $targetPath, array $data): void
+    {
+        $dir = dirname($targetPath);
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0700, true);
+        }
+
+        $json = (string) json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+        $tmpPath = $targetPath . '.tmp.' . getmypid() . '.' . bin2hex(random_bytes(4));
+        if (@file_put_contents($tmpPath, $json, LOCK_EX) === false) {
+            @unlink($tmpPath);
+            return;
+        }
+        @chmod($tmpPath, 0600);
+        if (!@rename($tmpPath, $targetPath)) {
+            @unlink($tmpPath);
+        }
+    }
+
+    private function withRelayLock(callable $callback): void
+    {
+        $lockPath = $this->relayLockPath();
+        $fp = @fopen($lockPath, 'c+');
+        if (!is_resource($fp)) {
+            $callback();
+            return;
+        }
+        @chmod($lockPath, 0600);
 
         @flock($fp, LOCK_EX);
         try {

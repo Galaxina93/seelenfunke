@@ -780,4 +780,202 @@ class XtoolLaserCockpitTest extends TestCase
         $scriptSource = (string) file_get_contents(resource_path('views/livewire/shop/product/product-configurator/partials/scripts_frontend_1.blade.php'));
         $this->assertStringContainsString("el.style.padding = '10px 10px';", $scriptSource);
     }
+
+    #[Test]
+    public function minipc_laser_relay_poll_and_complete_cycle_works_with_monitor_pulse_token_and_blocks_non_admins(): void
+    {
+        $isolatedRelayDir = storage_path('app/private/testing_xtool_relay_' . Str::lower(Str::random(8)));
+        $cockpit = new XtoolLaserCockpitService();
+        $cockpit->setRelayTestingOptions($isolatedRelayDir, true, 0.25, 0.25);
+        $this->app->instance(XtoolLaserCockpitService::class, $cockpit);
+
+        try {
+            // 1. Auth-Matrix: Gast -> 401, Kunde & Mitarbeiter/Influencer/Steuerberater -> 403
+            $this->getJson('/api/shop/workshop-focus/laser-relay/poll')->assertStatus(401);
+            $this->postJson('/api/shop/workshop-focus/laser-relay/complete', [])->assertStatus(401);
+
+            $customer = \App\Models\Customer\Customer::factory()->create();
+            \Laravel\Sanctum\Sanctum::actingAs($customer, ['*']);
+            $this->getJson('/api/shop/workshop-focus/laser-relay/poll')->assertStatus(403);
+
+            foreach (['internal', 'influencer', 'tax_advisor'] as $role) {
+                $emp = \App\Models\Employee\Employee::create([
+                    'first_name' => ucfirst($role),
+                    'last_name'  => 'RelayBlock',
+                    'email'      => $role . '-relay-' . Str::lower(Str::random(5)) . '@mein-seelenfunke.de',
+                    'role'       => $role,
+                    'password'   => bcrypt('Secret123!'),
+                ]);
+                \Laravel\Sanctum\Sanctum::actingAs($emp, ['*']);
+                $this->getJson('/api/shop/workshop-focus/laser-relay/poll')->assertStatus(403);
+            }
+
+            // 2. Heruntergestuftes Admin monitor:pulse Token des Werkstatt Mini-PCs darf pollen & quittieren!
+            $this->app['auth']->forgetGuards();
+            $admin = $this->createAdmin();
+            $miniPcToken = $admin->createToken('MiniPcWorkshopRelay', ['monitor:pulse'])->plainTextToken;
+
+            $emptyPoll = $this->withHeader('Authorization', 'Bearer ' . $miniPcToken)
+                ->getJson('/api/shop/workshop-focus/laser-relay/poll?laser_online=1');
+
+            $emptyPoll->assertStatus(200)
+                ->assertJson([
+                    'success' => true,
+                    'job'     => null,
+                ]);
+
+            // Heartbeat mit laser_online=1 schaltet probeLaserReachability() in 0 ms auf true!
+            $this->assertTrue($cockpit->probeLaserReachability());
+
+            // 3. capture_camera Relay-Zyklus inkl. warped_jpeg_base64 Speicherung nach background.jpg
+            $camJob = $cockpit->enqueueRelayJob('capture_camera', [
+                'laser_ip' => '192.168.188.150',
+            ]);
+
+            $claimResp = $this->withHeader('Authorization', 'Bearer ' . $miniPcToken)
+                ->getJson('/api/shop/workshop-focus/laser-relay/poll?laser_online=1');
+
+            $claimResp->assertStatus(200)
+                ->assertJsonPath('success', true)
+                ->assertJsonPath('job.job_id', $camJob['job_id'])
+                ->assertJsonPath('job.action', 'capture_camera')
+                ->assertJsonPath('job.laser_ip', '192.168.188.150');
+
+            // Zweiter Poll während laufender Bearbeitung liefert null (LOCK_EX Single-Claim)
+            $this->withHeader('Authorization', 'Bearer ' . $miniPcToken)
+                ->getJson('/api/shop/workshop-focus/laser-relay/poll?laser_online=1')
+                ->assertStatus(200)
+                ->assertJsonPath('job', null);
+
+            // Erzeuge echtes > 5 KB JPEG (600x600 mit Rauschmuster, damit Dateigröße > 5 KB garantiert ist)
+            $img = imagecreatetruecolor(600, 600);
+            for ($y = 0; $y < 600; $y += 4) {
+                for ($x = 0; $x < 600; $x += 4) {
+                    $col = imagecolorallocate($img, ($x * 37 + $y * 13) & 255, ($x * 19 + $y * 53) & 255, ($x + $y) & 255);
+                    imagefilledrectangle($img, $x, $y, $x + 3, $y + 3, $col);
+                }
+            }
+            ob_start();
+            imagejpeg($img, null, 95);
+            $jpegBytes = (string) ob_get_clean();
+            imagedestroy($img);
+            $this->assertGreaterThan(5120, strlen($jpegBytes));
+
+            $completeResp = $this->withHeader('Authorization', 'Bearer ' . $miniPcToken)
+                ->postJson('/api/shop/workshop-focus/laser-relay/complete', [
+                    'job_id'             => $camJob['job_id'],
+                    'ok'                 => true,
+                    'laser_online'       => true,
+                    'state'              => 'CAMERA_OK',
+                    'error'              => null,
+                    'warped_jpeg_base64' => base64_encode($jpegBytes),
+                ]);
+
+            $completeResp->assertStatus(200)
+                ->assertJsonPath('success', true)
+                ->assertJsonPath('camera_saved', true);
+
+            $waitedCam = $cockpit->waitForRelayJobCompletion($camJob['job_id'], 0.5);
+            $this->assertTrue($waitedCam['ok'] ?? false);
+            $this->assertSame($jpegBytes, file_get_contents(Storage::disk('public')->path('bestellungen/xtool/background.jpg')));
+
+            // 4. send_xf Relay-Zyklus
+            $xfPayload = base64_encode('MOCK_TAR_XF_STREAM_PAYLOAD');
+            $xfJob = $cockpit->enqueueRelayJob('send_xf', [
+                'laser_ip'    => '192.168.188.150',
+                'xf_base64'   => $xfPayload,
+                'gcode'       => 'G0X100Y100',
+                'center_x_mm' => 98.5,
+                'center_y_mm' => 102.0,
+                'width_mm'    => 40.0,
+                'height_mm'   => 40.0,
+                'angle_deg'   => -2.5,
+            ]);
+
+            $xfPoll = $this->withHeader('Authorization', 'Bearer ' . $miniPcToken)
+                ->getJson('/api/shop/workshop-focus/laser-relay/poll?laser_online=1');
+
+            $xfPoll->assertStatus(200)
+                ->assertJsonPath('job.job_id', $xfJob['job_id'])
+                ->assertJsonPath('job.action', 'send_xf')
+                ->assertJsonPath('job.xf_base64', $xfPayload)
+                ->assertJsonPath('job.center_x_mm', 98.5)
+                ->assertJsonPath('job.center_y_mm', 102);
+
+            $this->withHeader('Authorization', 'Bearer ' . $miniPcToken)
+                ->postJson('/api/shop/workshop-focus/laser-relay/complete', [
+                    'job_id'       => $xfJob['job_id'],
+                    'ok'           => true,
+                    'laser_online' => true,
+                    'state'        => 'WORK_PREPARED',
+                ])->assertStatus(200);
+
+            $waitedXf = $cockpit->waitForRelayJobCompletion($xfJob['job_id'], 0.5);
+            $this->assertTrue($waitedXf['ok'] ?? false);
+            $this->assertSame('WORK_PREPARED', $waitedXf['state'] ?? null);
+        } finally {
+            if (is_dir($isolatedRelayDir)) {
+                \Illuminate\Support\Facades\File::deleteDirectory($isolatedRelayDir);
+            }
+        }
+    }
+
+    #[Test]
+    public function refresh_laser_camera_and_align_emits_honest_warning_when_offline_and_success_only_on_live_frame(): void
+    {
+        $admin = $this->createAdmin();
+        $product = $this->createPersonalizableLaserProduct();
+        [$order] = $this->createSampleOrderWithItem($product);
+
+        // 1. Offline / kein Live-Frame (Stage ohne aktive Mini-PC-Brücke oder Laser ausgeschaltet) -> ZWINGEND warning statt Fake-Success!
+        $isolatedRelayDir = storage_path('app/private/testing_xtool_offline_' . Str::lower(Str::random(8)));
+        $offlineCockpit = new XtoolLaserCockpitService();
+        $offlineCockpit->setRelayTestingOptions($isolatedRelayDir, true, 0.1, 0.1);
+        $this->app->instance(XtoolLaserCockpitService::class, $offlineCockpit);
+
+        try {
+            Livewire::actingAs($admin, 'admin')
+                ->test(OrderOverview::class)
+                ->call('openDetail', $order->id)
+                ->call('refreshLaserCameraAndAlign')
+                ->assertDispatched('order-feedback', function (string $name, array $params): bool {
+                    return ($params['type'] ?? null) === 'warning'
+                        && ($params['title'] ?? null) === 'Kein Live-Bild vom Laser empfangen'
+                        && str_contains((string) ($params['message'] ?? ''), '192.168.188.151');
+                });
+        } finally {
+            if (is_dir($isolatedRelayDir)) {
+                \Illuminate\Support\Facades\File::deleteDirectory($isolatedRelayDir);
+            }
+        }
+
+        // 2. Echtes Live-Bild via minipc_lan_relay -> grüne Erfolgsmeldung!
+        $liveMock = \Mockery::mock(XtoolLaserCockpitService::class)->makePartial();
+        $liveMock->shouldReceive('detectBlankPositionOnBed')
+            ->andReturn([
+                'center_x_mm'       => 97.5,
+                'center_y_mm'       => 101.0,
+                'angle_deg'         => 0.0,
+                'blank_width_mm'    => 40.0,
+                'blank_height_mm'   => 40.0,
+                'confidence'        => 94,
+                'detected'          => true,
+                'camera_url'        => asset('storage/bestellungen/xtool/background.jpg') . '?v=' . time(),
+                'camera_updated_at' => now()->format('d.m.Y H:i:s'),
+                'source'            => 'minipc_lan_relay',
+                'laser_online'      => true,
+                'laser_ip'          => '192.168.188.150',
+                'relay_error'       => null,
+            ]);
+        $this->app->instance(XtoolLaserCockpitService::class, $liveMock);
+
+        Livewire::actingAs($admin, 'admin')
+            ->test(OrderOverview::class)
+            ->call('openDetail', $order->id)
+            ->call('refreshLaserCameraAndAlign')
+            ->assertDispatched('order-feedback', function (string $name, array $params): bool {
+                return ($params['type'] ?? null) === 'success'
+                    && ($params['title'] ?? null) === 'Live-Kamerabild & KI-Ausrichtung aktiv';
+            });
+    }
 }

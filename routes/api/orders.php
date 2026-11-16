@@ -470,6 +470,16 @@ Route::group(['middleware' => [function ($request, $next) {
             }
         })->whereUuid('id');
 
+        // --- WERKSTATT MINI-PC <-> STAGE ECHTZEIT-LASER-RELAY (erlaubt Admin mit *, ai:funkira, monitor:pulse) ---
+        $relayRoutes = [
+            Route::get('/shop/workshop-focus/laser-relay/poll', [\App\Http\Controllers\Api\WorkshopFocusApiController::class, 'pollLaserRelay']),
+            Route::post('/shop/workshop-focus/laser-relay/complete', [\App\Http\Controllers\Api\WorkshopFocusApiController::class, 'completeLaserRelay']),
+            Route::post('/shop/workshop-focus/laser-relay/heartbeat', [\App\Http\Controllers\Api\WorkshopFocusApiController::class, 'heartbeatLaserRelay']),
+        ];
+        foreach ($relayRoutes as $relayRoute) {
+            $relayRoute->action['middleware'] = ['api', 'auth:sanctum', 'throttle:240,1'];
+        }
+
         // --- WERKSTATT MINI-PC 1-AUFTRAG FOKUS-LEITSTAND API ---
         Route::group([
             'prefix' => 'shop/workshop-focus',
@@ -482,6 +492,7 @@ Route::group(['middleware' => [function ($request, $next) {
                     method_exists($user, 'currentAccessToken')
                     && $user->currentAccessToken()
                     && !$user->tokenCan('*')
+                    && !$user->tokenCan('ai:funkira')
                     && !$user->tokenCan('orders:manage')
                 ) {
                     abort(403, 'Unzureichende Token-Berechtigung.');

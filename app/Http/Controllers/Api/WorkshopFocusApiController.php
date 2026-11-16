@@ -601,6 +601,138 @@ class WorkshopFocusApiController extends Controller
         ];
     }
 
+    /**
+     * GET /api/shop/workshop-focus/laser-relay/poll?laser_online=1|0
+     */
+    public function pollLaserRelay(Request $request): JsonResponse
+    {
+        $this->authorizeLaserRelay($request);
+
+        $laserOnline = $request->has('laser_online')
+            ? $request->boolean('laser_online')
+            : null;
+        $laserIp = $request->query('laser_ip');
+
+        $job = $this->laserService->claimNextPendingRelayJob(
+            $laserOnline,
+            is_string($laserIp) ? $laserIp : null
+        );
+
+        return response()->json([
+            'success' => true,
+            'job' => $job,
+        ])->withHeaders([
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, private',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    }
+
+    /**
+     * POST /api/shop/workshop-focus/laser-relay/complete
+     */
+    public function completeLaserRelay(Request $request): JsonResponse
+    {
+        $this->authorizeLaserRelay($request);
+
+        $data = $request->validate([
+            'job_id' => ['required', 'string', 'regex:/^[A-Za-z0-9_-]{6,80}$/'],
+            'ok' => 'required|boolean',
+            'laser_online' => 'nullable|boolean',
+            'state' => 'nullable|string|max:80',
+            'error' => 'nullable|string|max:500',
+            'warped_jpeg_base64' => 'nullable|string|max:16000000',
+            'raw_jpeg_base64' => 'nullable|string|max:24000000',
+        ]);
+
+        $completed = $this->laserService->completeRelayJob((string) $data['job_id'], $data);
+        if ($completed === null) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Relay-Job nicht gefunden oder bereits abgelaufen.',
+            ], 404)->withHeaders([
+                'Cache-Control' => 'no-store, no-cache, must-revalidate, private',
+                'X-Content-Type-Options' => 'nosniff',
+            ]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'job_id' => (string) $completed['job_id'],
+            'status' => 'completed',
+            'camera_saved' => (bool) ($completed['result']['camera_saved'] ?? false),
+        ])->withHeaders([
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, private',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    }
+
+    /**
+     * POST /api/shop/workshop-focus/laser-relay/heartbeat
+     */
+    public function heartbeatLaserRelay(Request $request): JsonResponse
+    {
+        $this->authorizeLaserRelay($request);
+
+        $data = $request->validate([
+            'laser_online' => 'nullable|boolean',
+            'laser_ip' => 'nullable|string|max:45',
+        ]);
+
+        $hb = $this->laserService->recordMiniPcRelayHeartbeat(
+            $request->has('laser_online') ? $request->boolean('laser_online') : null,
+            $data['laser_ip'] ?? null
+        );
+
+        return response()->json([
+            'success' => true,
+            'heartbeat' => $hb,
+        ])->withHeaders([
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, private',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    }
+
+    protected function authorizeLaserRelay(Request $request): void
+    {
+        $user = $request->user();
+        if (!$user) {
+            abort(401, 'Nicht authentifiziert.');
+        }
+
+        if (!$user instanceof Admin) {
+            abort(403, 'Nur Administratoren duerfen die Werkstatt-Laser-Bruecke bedienen.');
+        }
+
+        if ($request->bearerToken()) {
+            $pat = \Laravel\Sanctum\PersonalAccessToken::findToken((string) $request->bearerToken());
+            if ($pat) {
+                if ($pat->expires_at && $pat->expires_at->isPast()) {
+                    abort(401, 'Token abgelaufen.');
+                }
+
+                if (
+                    !$pat->can('*')
+                    && !$pat->can('ai:funkira')
+                    && !$pat->can('monitor:pulse')
+                    && !$pat->can('orders:manage')
+                ) {
+                    abort(403, 'Unzureichende Token-Berechtigung fuer die Werkstatt-Laser-Bruecke.');
+                }
+            }
+        }
+
+        if (
+            method_exists($user, 'currentAccessToken')
+            && $user->currentAccessToken()
+            && !$user->tokenCan('*')
+            && !$user->tokenCan('ai:funkira')
+            && !$user->tokenCan('monitor:pulse')
+            && !$user->tokenCan('orders:manage')
+        ) {
+            abort(403, 'Unzureichende Token-Berechtigung fuer die Werkstatt-Laser-Bruecke.');
+        }
+    }
+
     protected function authorizeAdmin(Request $request): void
     {
         $user = $request->user();

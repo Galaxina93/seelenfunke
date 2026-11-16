@@ -1721,17 +1721,30 @@ class OrderOverview extends Component
             $xFmt = number_format($this->laserCenterXMm, 1, ',', '.');
             $yFmt = number_format($this->laserCenterYMm, 1, ',', '.');
             $aFmt = number_format($this->laserAngleDeg, 1, ',', '.');
-            $isOnline = !empty($detected['laser_online']);
             $camTime = (string) ($detected['camera_updated_at'] ?? now()->format('d.m.Y H:i:s'));
+            $liveSource = (string) ($detected['source'] ?? '');
+            $isRealLiveCapture = in_array($liveSource, ['laser_live_v2_ws', 'laser_live_http', 'minipc_lan_relay'], true);
 
-            $this->laserLastActionStatus = "Kamera & KI: X {$xFmt} mm · Y {$yFmt} mm · {$aFmt}°";
-            $this->notifyOrderFeedback(
-                'success',
-                $isOnline
-                    ? 'Live-Kamerabild & KI-Ausrichtung aktiv'
-                    : 'Kamerabild neu ausgewertet & KI-Ausrichtung aktiv',
-                ($isOnline ? "Live-Frame vom Laser ({$camTime})" : "Studio-Kameraframe ({$camTime}, Laser im Standby)") . " ausgewertet: X = {$xFmt} mm, Y = {$yFmt} mm, {$aFmt}°. Jetzt „An Laser senden“ klicken."
-            );
+            if ($isRealLiveCapture) {
+                $this->laserLastActionStatus = "Live-Kamera & KI: X {$xFmt} mm · Y {$yFmt} mm · {$aFmt}°";
+                $this->notifyOrderFeedback(
+                    'success',
+                    'Live-Kamerabild & KI-Ausrichtung aktiv',
+                    "Live-Frame vom Laser ({$camTime}) ausgewertet: X = {$xFmt} mm, Y = {$yFmt} mm, {$aFmt}°. Jetzt „An Laser senden“ klicken."
+                );
+            } else {
+                $laserIp = (string) ($detected['laser_ip'] ?? \App\Services\Laser\XtoolLaserCockpitService::DEFAULT_LASER_IP);
+                $reason = !empty($detected['relay_error'])
+                    ? (string) $detected['relay_error']
+                    : "xTool F2 Ultra UV ({$laserIp}) ist ausgeschaltet oder im Netzwerk nicht erreichbar. Es wird das letzte gespeicherte Bild angezeigt.";
+
+                $this->laserLastActionStatus = "Kein Live-Bild ({$laserIp} offline) · Vorschau X {$xFmt} · Y {$yFmt} mm";
+                $this->notifyOrderFeedback(
+                    'warning',
+                    'Kein Live-Bild vom Laser empfangen',
+                    $reason
+                );
+            }
         } catch (\Throwable $e) {
             $this->notifyOrderFeedback('error', 'Kamera-Abgleich fehlgeschlagen', $e->getMessage());
         }

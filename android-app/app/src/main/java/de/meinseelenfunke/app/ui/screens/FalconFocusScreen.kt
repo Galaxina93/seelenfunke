@@ -317,10 +317,15 @@ fun FalconFocusScreen(
         label = "falconPulseScale"
     )
 
+    val stageBg = Color(0xFF080A10)
+    val stageHudBg = Color(0xDE10141E)
+    val stageHudText = Color(0xFFF8FAFC)
+    val stageHudMuted = Color(0xFF94A3B8)
+
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(if (isDark) Color(0xFF090B10) else Color(0xFFF8F6F1))
+            .background(stageBg)
     ) {
         // 1. Fullscreen 60-FPS 3D Falcon Scene (Zero-Trust Hardened Local Asset WebView)
         AndroidView(
@@ -331,7 +336,7 @@ fun FalconFocusScreen(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.MATCH_PARENT
                     )
-                    setBackgroundColor(if (isDark) 0xFF090B10.toInt() else 0xFFF8F6F1.toInt())
+                    setBackgroundColor(android.graphics.Color.parseColor("#080A10"))
                     isVerticalScrollBarEnabled = false
                     isHorizontalScrollBarEnabled = false
 
@@ -426,7 +431,7 @@ fun FalconFocusScreen(
             Row(
                 modifier = Modifier
                     .clip(RoundedCornerShape(50))
-                    .background(AppTheme.colors.cardBackground.copy(alpha = 0.88f))
+                    .background(stageHudBg)
                     .border(
                         1.dp,
                         if (isConnected) Emerald500.copy(alpha = 0.65f) else Gold.copy(alpha = 0.55f),
@@ -452,7 +457,7 @@ fun FalconFocusScreen(
                     text = "Falcon · Mitgründer",
                     fontSize = 12.5.sp,
                     fontWeight = FontWeight.Bold,
-                    color = AppTheme.colors.textPrimary,
+                    color = stageHudText,
                     maxLines = 1
                 )
             }
@@ -468,7 +473,7 @@ fun FalconFocusScreen(
                         .size(36.dp)
                         .clip(CircleShape)
                         .background(
-                            if (isVisionActive) Gold else AppTheme.colors.cardBackground.copy(alpha = 0.88f)
+                            if (isVisionActive) Gold else stageHudBg
                         )
                         .border(
                             1.dp,
@@ -500,7 +505,7 @@ fun FalconFocusScreen(
                     Row(
                         modifier = Modifier
                             .clip(RoundedCornerShape(50))
-                            .background(AppTheme.colors.cardBackground.copy(alpha = 0.88f))
+                            .background(stageHudBg)
                             .border(1.dp, Gold.copy(alpha = 0.55f), RoundedCornerShape(50))
                             .padding(horizontal = 6.dp, vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
@@ -543,7 +548,7 @@ fun FalconFocusScreen(
                 Row(
                     modifier = Modifier
                         .clip(RoundedCornerShape(50))
-                        .background(AppTheme.colors.cardBackground.copy(alpha = 0.88f))
+                        .background(stageHudBg)
                         .border(1.dp, Gold.copy(alpha = 0.60f), RoundedCornerShape(50))
                         .clickable {
                             FalconCameraController.stopCamera()
@@ -563,7 +568,7 @@ fun FalconFocusScreen(
                         text = "Dashboard",
                         fontSize = 12.5.sp,
                         fontWeight = FontWeight.Bold,
-                        color = AppTheme.colors.textPrimary
+                        color = stageHudText
                     )
                 }
             }
@@ -664,7 +669,7 @@ fun FalconFocusScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(14.dp))
-                        .background(AppTheme.colors.cardBackground.copy(alpha = 0.90f))
+                        .background(stageHudBg)
                         .border(1.dp, Gold.copy(alpha = 0.45f), RoundedCornerShape(14.dp))
                         .padding(horizontal = 14.dp, vertical = 9.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -674,7 +679,7 @@ fun FalconFocusScreen(
                         text = currentSub,
                         fontSize = 13.sp,
                         lineHeight = 18.sp,
-                        color = AppTheme.colors.textPrimary,
+                        color = stageHudText,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
@@ -690,7 +695,7 @@ fun FalconFocusScreen(
                         Icon(
                             imageVector = Icons.Default.Close,
                             contentDescription = "Untertitel ausblenden",
-                            tint = AppTheme.colors.textMuted,
+                            tint = stageHudMuted,
                             modifier = Modifier.size(14.dp)
                         )
                     }
@@ -713,7 +718,7 @@ fun FalconFocusScreen(
                         modifier = Modifier
                             .size(48.dp)
                             .clip(CircleShape)
-                            .background(AppTheme.colors.cardBackground.copy(alpha = 0.90f))
+                            .background(stageHudBg)
                             .border(1.dp, Gold.copy(alpha = 0.60f), CircleShape)
                             .clickable(enabled = !isCapturingPhoto) {
                                 if (FalconCameraController.hasCameraPermission(context)) {
@@ -850,7 +855,7 @@ fun FalconFocusScreen(
                                 .size(48.dp)
                                 .align(Alignment.BottomStart)
                                 .clip(CircleShape)
-                                .background(AppTheme.colors.cardBackground.copy(alpha = 0.90f))
+                                .background(stageHudBg)
                                 .border(1.dp, Gold.copy(alpha = 0.60f), CircleShape)
                                 .clickable { showDirectInboxSheet = true },
                             contentAlignment = Alignment.Center
