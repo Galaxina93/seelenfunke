@@ -43,6 +43,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Refresh
@@ -137,6 +138,7 @@ fun AgDirectInboxSheet(
     var selectedChannel by remember { mutableStateOf(AgDirectChannel.LEITUNG.code) }
     var selectedAttachment by remember { mutableStateOf(initialAttachment) }
     var isPreparingImage by remember { mutableStateOf(false) }
+    var isPreparingAudio by remember { mutableStateOf(false) }
     var expandedItemId by remember(initialExpandedItemId) { mutableStateOf(initialExpandedItemId) }
     var lightboxTarget by remember { mutableStateOf<LightboxTarget?>(null) }
 
@@ -175,6 +177,23 @@ fun AgDirectInboxSheet(
                     selectedAttachment = prepared
                 } else {
                     Toast.makeText(context, "Bild konnte nicht geladen werden.", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    val audioPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            isPreparingAudio = true
+            scope.launch {
+                val prepared = AgDirectInboxManager.prepareAttachmentFromUri(context, uri)
+                isPreparingAudio = false
+                if (prepared != null) {
+                    selectedAttachment = prepared
+                } else {
+                    Toast.makeText(context, "Audiodatei konnte nicht geladen werden.", Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -466,68 +485,121 @@ fun AgDirectInboxSheet(
                 }
             }
 
-            // Bild-Vorschau
+            // Anhang-Vorschau (Bild oder Audio)
             selectedAttachment?.let { att ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(AppTheme.colors.glassSurface)
-                        .border(1.dp, Gold.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
-                        .padding(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Image(
-                        bitmap = att.previewBitmap,
-                        contentDescription = att.fileName,
-                        contentScale = ContentScale.Crop,
+                if (att.isAudio) {
+                    Row(
                         modifier = Modifier
-                            .size(46.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .border(1.dp, AppTheme.colors.cardBorder, RoundedCornerShape(8.dp))
-                            .clickable {
-                                lightboxTarget = LightboxTarget.DirectBitmap(
-                                    bitmap = att.previewBitmap,
-                                    title = att.fileName
-                                )
-                            }
-                    )
-                    Text(
-                        text = att.fileName,
-                        fontSize = 12.5.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = AppTheme.colors.textPrimary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier
-                            .weight(1f)
-                            .clickable {
-                                lightboxTarget = LightboxTarget.DirectBitmap(
-                                    bitmap = att.previewBitmap,
-                                    title = att.fileName
-                                )
-                            }
-                    )
-                    Box(
-                        modifier = Modifier
-                            .size(28.dp)
-                            .clip(CircleShape)
-                            .background(AppTheme.colors.cardBackground)
-                            .clickable { selectedAttachment = null },
-                        contentAlignment = Alignment.Center
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(AppTheme.colors.glassSurface)
+                            .border(1.dp, Gold.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Bild entfernen",
-                            tint = Rose500,
-                            modifier = Modifier.size(15.dp)
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Gold.copy(alpha = 0.16f))
+                                .border(1.dp, Gold.copy(alpha = 0.65f), RoundedCornerShape(8.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.GraphicEq,
+                                contentDescription = "Audio",
+                                tint = Gold,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Text(
+                            text = att.fileName,
+                            fontSize = 12.5.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = AppTheme.colors.textPrimary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
                         )
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .background(AppTheme.colors.cardBackground)
+                                .clickable { selectedAttachment = null },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Audio entfernen",
+                                tint = Rose500,
+                                modifier = Modifier.size(15.dp)
+                            )
+                        }
+                    }
+                } else if (att.previewBitmap != null) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(AppTheme.colors.glassSurface)
+                            .border(1.dp, Gold.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                            .padding(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Image(
+                            bitmap = att.previewBitmap,
+                            contentDescription = att.fileName,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .size(46.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .border(1.dp, AppTheme.colors.cardBorder, RoundedCornerShape(8.dp))
+                                .clickable {
+                                    lightboxTarget = LightboxTarget.DirectBitmap(
+                                        bitmap = att.previewBitmap,
+                                        title = att.fileName
+                                    )
+                                }
+                        )
+                        Text(
+                            text = att.fileName,
+                            fontSize = 12.5.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = AppTheme.colors.textPrimary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable {
+                                    lightboxTarget = LightboxTarget.DirectBitmap(
+                                        bitmap = att.previewBitmap,
+                                        title = att.fileName
+                                    )
+                                }
+                        )
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .background(AppTheme.colors.cardBackground)
+                                .clickable { selectedAttachment = null },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Bild entfernen",
+                                tint = Rose500,
+                                modifier = Modifier.size(15.dp)
+                            )
+                        }
                     }
                 }
             }
 
-            // Aktionszeile: + Punkt & + Bild
+            // Aktionszeile: + Punkt & + Bild & + Audio
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -589,6 +661,40 @@ fun AgDirectInboxSheet(
                         color = AppTheme.colors.textPrimary
                     )
                 }
+
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(AppTheme.colors.glassSurface)
+                        .border(1.dp, AppTheme.colors.glassBorder, RoundedCornerShape(10.dp))
+                        .clickable(enabled = !isPreparingAudio) {
+                            audioPickerLauncher.launch("audio/*")
+                        }
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                ) {
+                    if (isPreparingAudio) {
+                        CircularProgressIndicator(
+                            color = Gold,
+                            strokeWidth = 2.dp,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.GraphicEq,
+                            contentDescription = null,
+                            tint = Gold,
+                            modifier = Modifier.size(15.dp)
+                        )
+                    }
+                    Text(
+                        text = "+ Audio",
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = AppTheme.colors.textPrimary
+                    )
+                }
             }
 
             // Modus-Wahl (2 cleane Chips nebeneinander, ohne Subtext)
@@ -613,7 +719,7 @@ fun AgDirectInboxSheet(
             // Senden-Button
             val canSend = (messageText.isNotBlank() ||
                 checklistItems.any { it.isNotBlank() } ||
-                selectedAttachment != null) && !isPreparingImage
+                selectedAttachment != null) && !isPreparingImage && !isPreparingAudio
 
             Button(
                 onClick = {
@@ -1009,9 +1115,17 @@ private fun AgHistoryItemCard(
                     modifier = Modifier.weight(1f, fill = false)
                 )
                 if (item.hasAttachment) {
+                    val isAudioAttachment = item.attachmentMime?.startsWith("audio/") == true ||
+                        item.attachmentName?.let { name ->
+                            name.endsWith(".m4a", true) || name.endsWith(".mp3", true) ||
+                            name.endsWith(".wav", true) || name.endsWith(".ogg", true) ||
+                            name.endsWith(".aac", true) || name.endsWith(".opus", true) ||
+                            name.endsWith(".webm", true)
+                        } == true
+
                     Icon(
-                        imageVector = Icons.Default.Image,
-                        contentDescription = "Bild vorhanden",
+                        imageVector = if (isAudioAttachment) Icons.Default.GraphicEq else Icons.Default.Image,
+                        contentDescription = if (isAudioAttachment) "Audio vorhanden" else "Bild vorhanden",
                         tint = Gold,
                         modifier = Modifier.size(14.dp)
                     )
@@ -1211,6 +1325,14 @@ private fun AgHistoryItemCard(
                     ) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             if (item.hasAttachment) {
+                                val isAudioAttachment = item.attachmentMime?.startsWith("audio/") == true ||
+                                    item.attachmentName?.let { name ->
+                                        name.endsWith(".m4a", true) || name.endsWith(".mp3", true) ||
+                                        name.endsWith(".wav", true) || name.endsWith(".ogg", true) ||
+                                        name.endsWith(".aac", true) || name.endsWith(".opus", true) ||
+                                        name.endsWith(".webm", true)
+                                    } == true
+
                                 Row(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(8.dp))
@@ -1222,13 +1344,13 @@ private fun AgHistoryItemCard(
                                     horizontalArrangement = Arrangement.spacedBy(5.dp)
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Default.Image,
+                                        imageVector = if (isAudioAttachment) Icons.Default.GraphicEq else Icons.Default.Image,
                                         contentDescription = null,
                                         tint = Gold,
                                         modifier = Modifier.size(14.dp)
                                     )
                                     Text(
-                                        text = "Bild",
+                                        text = if (isAudioAttachment) "Audio" else "Bild",
                                         fontSize = 11.5.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         color = AppTheme.colors.textPrimary
@@ -1314,17 +1436,32 @@ private fun AgImageLightboxDialog(
     }
     var loadError by remember(target) { mutableStateOf(false) }
 
+    val isAudioTarget = (target as? LightboxTarget.InboxItem)?.let {
+        it.item.attachmentMime?.startsWith("audio/") == true ||
+            it.item.attachmentName?.let { name ->
+                name.endsWith(".m4a", true) || name.endsWith(".mp3", true) ||
+                name.endsWith(".wav", true) || name.endsWith(".ogg", true) ||
+                name.endsWith(".aac", true) || name.endsWith(".opus", true) ||
+                name.endsWith(".webm", true)
+            } == true
+    } == true
+
     var scale by remember(target) { mutableFloatStateOf(1f) }
     var offset by remember(target) { mutableStateOf(Offset.Zero) }
 
     LaunchedEffect(target) {
         if (target is LightboxTarget.InboxItem) {
-            isLoading = true
-            loadError = false
-            val loaded = AgDirectInboxManager.loadAttachmentBitmap(target.item)
-            bitmap = loaded
-            loadError = loaded == null
-            isLoading = false
+            if (isAudioTarget) {
+                isLoading = false
+                loadError = false
+            } else {
+                isLoading = true
+                loadError = false
+                val loaded = AgDirectInboxManager.loadAttachmentBitmap(target.item)
+                bitmap = loaded
+                loadError = loaded == null
+                isLoading = false
+            }
         }
     }
 
@@ -1353,6 +1490,35 @@ private fun AgImageLightboxDialog(
                         color = Gold,
                         modifier = Modifier.align(Alignment.Center)
                     )
+                }
+                isAudioTarget -> {
+                    Column(
+                        modifier = Modifier.align(Alignment.Center),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(72.dp)
+                                .clip(CircleShape)
+                                .background(Gold.copy(alpha = 0.16f))
+                                .border(1.dp, Gold, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.GraphicEq,
+                                contentDescription = "Audio",
+                                tint = Gold,
+                                modifier = Modifier.size(36.dp)
+                            )
+                        }
+                        Text(
+                            text = headerTitle,
+                            color = Color.White,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
                 }
                 bitmap != null -> {
                     Image(

@@ -56,7 +56,7 @@ class AntigravityDirectInboxController extends Controller
             'body' => 'nullable|string|max:5000',
             'execution_mode' => 'nullable|string|in:concept,direct',
             'source' => 'nullable|string|max:40',
-            'attachment' => 'nullable|file|mimes:png,jpg,jpeg,webp|max:8192',
+            'attachment' => 'nullable|file|mimes:png,jpg,jpeg,webp,m4a,mp3,wav,ogg,aac,opus,webm|max:8192',
             'attachment_base64' => 'nullable|string|max:12000000',
             'attachment_mime' => 'nullable|string|max:64',
             'attachment_name' => 'nullable|string|max:180',
@@ -184,7 +184,7 @@ class AntigravityDirectInboxController extends Controller
         if ($resolved === null) {
             return $this->withSecurityHeaders(response()->json([
                 'success' => false,
-                'message' => 'Bildanhang nicht gefunden.',
+                'message' => 'Anhang nicht gefunden.',
             ], 404));
         }
 
@@ -192,7 +192,7 @@ class AntigravityDirectInboxController extends Controller
         if (!is_string($bytes) || $bytes === '') {
             return $this->withSecurityHeaders(response()->json([
                 'success' => false,
-                'message' => 'Bildanhang konnte nicht gelesen werden.',
+                'message' => 'Anhang konnte nicht gelesen werden.',
             ], 404));
         }
 

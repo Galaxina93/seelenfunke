@@ -9,10 +9,20 @@ using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace FunkenwerkOSLinux
 {
+    public sealed class NightSleepResultDto
+    {
+        public bool Success { get; init; }
+        public bool Deferred { get; init; }
+        public bool Forced { get; init; }
+        public bool LaserOnline { get; init; }
+        public bool RecentRelayActive { get; init; }
+        public string Message { get; init; } = "";
+    }
     public sealed class AudioSinkDto
     {
         public string Id { get; set; } = "";
@@ -1341,8 +1351,308 @@ namespace FunkenwerkOSLinux
         }
 
         // =====================================================================
-        // POWER, WORKDAY 08:00 AM RTC WAKE (WEEKEND-FREE!) & CHROME LAUNCHER
+        // POWER, LASER KEEP-AWAKE GUARD, WORKDAY 08:00 AM RTC WAKE & CHROME
         // =====================================================================
+        public static readonly TimeSpan LaserRelayKeepAwakeWindow = TimeSpan.FromMinutes(5);
+        public static readonly TimeSpan AutoNightSleepBootWakeGrace = TimeSpan.FromMinutes(10);
+        public const int DefaultLaserSleepProbeTimeoutMs = 800;
+
+        private static int s_autoNightSleepGuardianStarted;
+        private static readonly object s_nightSleepGuardLock = new();
+        private static bool s_nightSleepCurrentlyDeferred;
+        private static string s_lastNightSleepDeferReason = "";
+        private static DateTime? s_lastNightSleepDeferAtUtc;
+        private static Process? s_systemdInhibitProc;
+
+        internal static Func<string, int, int, Task<bool>>? TestOverrideLaserProbeAsync { get; set; }
+        internal static Func<long, Task<(int ExitCode, string StdOut, string StdErr)>>? TestOverrideFwPowerSleepAsync { get; set; }
+
+        public static void ResetNightSleepGuardForSelfTest()
+        {
+            TestOverrideLaserProbeAsync = null;
+            TestOverrideFwPowerSleepAsync = null;
+            lock (s_nightSleepGuardLock)
+            {
+                s_nightSleepCurrentlyDeferred = false;
+                s_lastNightSleepDeferReason = "";
+                s_lastNightSleepDeferAtUtc = null;
+            }
+            ReleaseLaserWakeInhibitor();
+        }
+
+        public static object GetNightSleepGuardSnapshot()
+        {
+            bool deferred;
+            string reason;
+            string lastDeferUtc;
+            lock (s_nightSleepGuardLock)
+            {
+                deferred = s_nightSleepCurrentlyDeferred;
+                reason = s_lastNightSleepDeferReason;
+                lastDeferUtc = s_lastNightSleepDeferAtUtc.HasValue ? s_lastNightSleepDeferAtUtc.Value.ToString("O") : "";
+            }
+            return new
+            {
+                deferred,
+                reason,
+                lastDeferAtUtc = lastDeferUtc
+            };
+        }
+
+        public static bool ShouldDeferAutomaticNightSleep(
+            bool laserOnline,
+            DateTime? lastRelayJobUtc,
+            DateTime nowUtc,
+            out string deferReason,
+            bool hasActiveWatcher = false)
+        {
+            DateTime normNow = nowUtc.Kind == DateTimeKind.Utc ? nowUtc : nowUtc.ToUniversalTime();
+            bool recentRelayJob = false;
+            double relayAgeSec = 0.0;
+
+            if (lastRelayJobUtc.HasValue && lastRelayJobUtc.Value > DateTime.MinValue)
+            {
+                DateTime normLast = lastRelayJobUtc.Value.Kind == DateTimeKind.Utc
+                    ? lastRelayJobUtc.Value
+                    : lastRelayJobUtc.Value.ToUniversalTime();
+                TimeSpan elapsed = normNow - normLast;
+                if (elapsed < LaserRelayKeepAwakeWindow && elapsed >= TimeSpan.FromMinutes(-5))
+                {
+                    recentRelayJob = true;
+                    relayAgeSec = Math.Max(0.0, elapsed.TotalSeconds);
+                }
+            }
+
+            if (laserOnline && recentRelayJob)
+            {
+                deferReason = $"Automatische Nachtruhe aufgeschoben: xTool F2 Ultra UV ({XtoolLocalLanBridge.DefaultLaserIp}:{XtoolLocalLanBridge.DefaultV2Port}) ist eingeschaltet und vor {(int)Math.Round(relayAgeSec)} s lief ein Relay-Job.";
+                return true;
+            }
+
+            if (laserOnline)
+            {
+                deferReason = $"Automatische Nachtruhe aufgeschoben: xTool F2 Ultra UV ({XtoolLocalLanBridge.DefaultLaserIp}:{XtoolLocalLanBridge.DefaultV2Port}) ist noch eingeschaltet.";
+                return true;
+            }
+
+            if (recentRelayJob)
+            {
+                deferReason = $"Automatische Nachtruhe aufgeschoben: Stage-Laser-Relay war vor {(int)Math.Round(relayAgeSec)} s aktiv (< 5 min Schutzfenster).";
+                return true;
+            }
+
+            if (hasActiveWatcher)
+            {
+                deferReason = "Automatische Nachtruhe aufgeschoben: Vorbereiteter Laser-Auftrag wartet noch am xTool F2 Ultra UV.";
+                return true;
+            }
+
+            deferReason = "";
+            return false;
+        }
+
+        public static bool ShouldDeferAutomaticNightSleep(
+            bool laserOnline,
+            DateTime? lastRelayJobUtc = null,
+            DateTime? nowUtc = null,
+            bool hasActiveWatcher = false)
+        {
+            return ShouldDeferAutomaticNightSleep(
+                laserOnline,
+                lastRelayJobUtc,
+                nowUtc ?? DateTime.UtcNow,
+                out _,
+                hasActiveWatcher);
+        }
+
+        public static async Task<(bool Defer, bool LaserOnline, bool RecentRelayActive, string Reason)> ShouldDeferAutomaticNightSleepAsync(
+            int probeTimeoutMs = DefaultLaserSleepProbeTimeoutMs,
+            DateTime? nowUtcOverride = null)
+        {
+            int clampedTimeout = Math.Clamp(probeTimeoutMs, 100, 2000);
+            string laserIp = XtoolLocalLanBridge.DefaultLaserIp;
+            int laserPort = XtoolLocalLanBridge.DefaultV2Port;
+
+            bool laserOnline;
+            var probeOverride = TestOverrideLaserProbeAsync;
+            if (probeOverride != null)
+            {
+                laserOnline = await probeOverride(laserIp, laserPort, clampedTimeout).ConfigureAwait(false);
+            }
+            else
+            {
+                laserOnline = await XtoolLocalLanBridge.ProbeLaserReachableAsync(laserIp, laserPort, clampedTimeout).ConfigureAwait(false);
+                StageLaserRelayDaemon.UpdateCachedLaserOnlineState(laserOnline);
+            }
+
+            DateTime nowUtc = (nowUtcOverride ?? DateTime.UtcNow).ToUniversalTime();
+            DateTime? lastRelayUtc = StageLaserRelayDaemon.GetLastRelayActivityUtc();
+            bool hasWatcher = XtoolLocalLanBridge.HasActiveLaserJobWatcher();
+
+            bool recentRelay = false;
+            if (lastRelayUtc.HasValue && lastRelayUtc.Value > DateTime.MinValue)
+            {
+                TimeSpan elapsed = nowUtc - lastRelayUtc.Value.ToUniversalTime();
+                recentRelay = elapsed < LaserRelayKeepAwakeWindow && elapsed >= TimeSpan.FromMinutes(-5);
+            }
+
+            bool defer = ShouldDeferAutomaticNightSleep(laserOnline, lastRelayUtc, nowUtc, out string reason, hasWatcher);
+
+            lock (s_nightSleepGuardLock)
+            {
+                s_nightSleepCurrentlyDeferred = defer;
+                if (defer)
+                {
+                    s_lastNightSleepDeferReason = reason;
+                    s_lastNightSleepDeferAtUtc = nowUtc;
+                }
+                else
+                {
+                    s_lastNightSleepDeferReason = "";
+                }
+            }
+
+            return (defer, laserOnline, recentRelay, reason);
+        }
+
+        public static bool IsWithinAutoNightSleepWindow(DateTime nowBerlin, int startHour = 23, int startMinute = 0)
+        {
+            int clampedHour = Math.Clamp(startHour, 20, 23);
+            int clampedMin = Math.Clamp(startMinute, 0, 59);
+            int curTotalMin = nowBerlin.Hour * 60 + nowBerlin.Minute;
+            int startTotalMin = clampedHour * 60 + clampedMin;
+            return curTotalMin >= startTotalMin || curTotalMin < 5 * 60;
+        }
+
+        private static void SyncLaserWakeInhibitor(bool keepAwake)
+        {
+            if (!OperatingSystem.IsLinux() || TestOverrideFwPowerSleepAsync != null)
+                return;
+
+            lock (s_nightSleepGuardLock)
+            {
+                if (!keepAwake)
+                {
+                    ReleaseLaserWakeInhibitorUnsafe();
+                    return;
+                }
+
+                try
+                {
+                    if (s_systemdInhibitProc != null && !s_systemdInhibitProc.HasExited)
+                        return;
+                }
+                catch
+                {
+                    ReleaseLaserWakeInhibitorUnsafe();
+                }
+
+                try
+                {
+                    var psi = new ProcessStartInfo
+                    {
+                        FileName = "systemd-inhibit",
+                        UseShellExecute = false,
+                        CreateNoWindow = true,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true
+                    };
+                    psi.ArgumentList.Add("--what=idle:sleep");
+                    psi.ArgumentList.Add("--who=FunkenwerkOS");
+                    psi.ArgumentList.Add("--why=xTool F2 Ultra UV (192.168.188.150) aktiv");
+                    psi.ArgumentList.Add("sleep");
+                    psi.ArgumentList.Add("3600");
+                    s_systemdInhibitProc = Process.Start(psi);
+                }
+                catch
+                {
+                    s_systemdInhibitProc = null;
+                }
+            }
+        }
+
+        public static void ReleaseLaserWakeInhibitor()
+        {
+            lock (s_nightSleepGuardLock)
+            {
+                ReleaseLaserWakeInhibitorUnsafe();
+            }
+        }
+
+        private static void ReleaseLaserWakeInhibitorUnsafe()
+        {
+            var proc = s_systemdInhibitProc;
+            s_systemdInhibitProc = null;
+            if (proc == null)
+                return;
+
+            try
+            {
+                if (!proc.HasExited)
+                    proc.Kill(entireProcessTree: true);
+            }
+            catch { }
+            try { proc.Dispose(); } catch { }
+        }
+
+        public static void EnsureAutoNightSleepGuardianStarted()
+        {
+            if (Interlocked.CompareExchange(ref s_autoNightSleepGuardianStarted, 1, 0) != 0)
+                return;
+
+            _ = Task.Run(async () =>
+            {
+                DateTime lastBootOrResumeUtc = DateTime.UtcNow;
+                DateTime lastTickUtc = DateTime.UtcNow;
+
+                while (true)
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(60)).ConfigureAwait(false);
+                    try
+                    {
+                        DateTime nowUtc = DateTime.UtcNow;
+                        if ((nowUtc - lastTickUtc) > TimeSpan.FromMinutes(3))
+                        {
+                            // System resumed from suspend/sleep -> grant fresh 10-min wake grace
+                            lastBootOrResumeUtc = nowUtc;
+                        }
+                        lastTickUtc = nowUtc;
+
+                        var guard = await ShouldDeferAutomaticNightSleepAsync(DefaultLaserSleepProbeTimeoutMs, nowUtc).ConfigureAwait(false);
+                        SyncLaserWakeInhibitor(guard.Defer);
+
+                        var settings = LinuxVaultAndStorage.LoadSettings();
+                        if (!settings.AutoNightSleepEnabled)
+                            continue;
+
+                        TimeZoneInfo berlinTz;
+                        try { berlinTz = TimeZoneInfo.FindSystemTimeZoneById("Europe/Berlin"); }
+                        catch { berlinTz = TimeZoneInfo.Local; }
+
+                        DateTime nowBerlin = TimeZoneInfo.ConvertTimeFromUtc(nowUtc, berlinTz);
+                        if (!IsWithinAutoNightSleepWindow(nowBerlin, settings.AutoNightSleepHourBerlin, settings.AutoNightSleepMinuteBerlin))
+                            continue;
+
+                        if ((nowUtc - lastBootOrResumeUtc) < AutoNightSleepBootWakeGrace)
+                            continue;
+
+                        if (guard.Defer)
+                        {
+                            // Laser 192.168.188.150:28900 is switched on or relay job ran < 5 min ago -> defer sleep and re-check next minute!
+                            continue;
+                        }
+
+                        var sleepRes = await EnterNightSleepUntil0800DetailedAsync(force: false).ConfigureAwait(false);
+                        if (sleepRes.Success)
+                        {
+                            lastBootOrResumeUtc = DateTime.UtcNow;
+                        }
+                    }
+                    catch { }
+                }
+            });
+        }
+
         public static DateTime ComputeNextWorkdayWakeupLocal(DateTime nowLocal)
         {
             DateTime target = new DateTime(nowLocal.Year, nowLocal.Month, nowLocal.Day, 8, 0, 0, DateTimeKind.Unspecified);
@@ -1357,20 +1667,60 @@ namespace FunkenwerkOSLinux
             return target;
         }
 
-        public static async Task<(bool Success, string Message)> EnterNightSleepUntil0800Async()
+        public static async Task<(bool Success, string Message)> EnterNightSleepUntil0800Async(bool force = false)
+        {
+            var res = await EnterNightSleepUntil0800DetailedAsync(force).ConfigureAwait(false);
+            return (res.Success, res.Message);
+        }
+
+        public static async Task<NightSleepResultDto> EnterNightSleepUntil0800DetailedAsync(bool force = false)
         {
             try
             {
+                var guard = await ShouldDeferAutomaticNightSleepAsync(DefaultLaserSleepProbeTimeoutMs).ConfigureAwait(false);
+                if (!force && guard.Defer)
+                {
+                    return new NightSleepResultDto
+                    {
+                        Success = false,
+                        Deferred = true,
+                        Forced = false,
+                        LaserOnline = guard.LaserOnline,
+                        RecentRelayActive = guard.RecentRelayActive,
+                        Message = guard.Reason
+                    };
+                }
+
                 // 1. Pre-Sleep Delta NAS Backup: Secure all daily work to //192.168.188.33/Backups/Unterlagen/Meine_Daten_Backup BEFORE sleeping!
                 string backupNote = "";
-                try
+                if (TestOverrideFwPowerSleepAsync == null)
                 {
-                    var (bkOk, bkSummary, copied, _) = await DocumentArchiveAndNasEngine
-                        .RunDeltaNasBackupAsync("Vor Energiesparmodus", connectTimeoutMs: 5000)
-                        .ConfigureAwait(false);
-                    backupNote = bkOk ? $" · NAS-Backup: {copied} geändert" : $" · {bkSummary}";
+                    try
+                    {
+                        var (bkOk, bkSummary, copied, _) = await DocumentArchiveAndNasEngine
+                            .RunDeltaNasBackupAsync("Vor Energiesparmodus", connectTimeoutMs: 5000)
+                            .ConfigureAwait(false);
+                        backupNote = bkOk ? $" · NAS-Backup: {copied} geändert" : $" · {bkSummary}";
+                    }
+                    catch { }
+
+                    if (!force)
+                    {
+                        var postBackupGuard = await ShouldDeferAutomaticNightSleepAsync(DefaultLaserSleepProbeTimeoutMs).ConfigureAwait(false);
+                        if (postBackupGuard.Defer)
+                        {
+                            return new NightSleepResultDto
+                            {
+                                Success = false,
+                                Deferred = true,
+                                Forced = false,
+                                LaserOnline = postBackupGuard.LaserOnline,
+                                RecentRelayActive = postBackupGuard.RecentRelayActive,
+                                Message = postBackupGuard.Reason
+                            };
+                        }
+                    }
                 }
-                catch { }
 
                 TimeZoneInfo berlinTz;
                 try { berlinTz = TimeZoneInfo.FindSystemTimeZoneById("Europe/Berlin"); }
@@ -1383,18 +1733,42 @@ namespace FunkenwerkOSLinux
                 DateTime targetUtc = TimeZoneInfo.ConvertTimeToUtc(targetBerlin, berlinTz);
                 long unixEpoch = new DateTimeOffset(targetUtc).ToUnixTimeSeconds();
 
-                _ = Task.Run(async () =>
+                ReleaseLaserWakeInhibitor();
+
+                var sleepOverride = TestOverrideFwPowerSleepAsync;
+                if (sleepOverride != null)
                 {
-                    await Task.Delay(600).ConfigureAwait(false);
-                    await RunProcessAsync("sudo", new[] { "-n", "/usr/local/bin/fw-power", "sleep", unixEpoch.ToString(CultureInfo.InvariantCulture) }, 10000).ConfigureAwait(false);
-                });
+                    await sleepOverride(unixEpoch).ConfigureAwait(false);
+                }
+                else
+                {
+                    _ = Task.Run(async () =>
+                    {
+                        await Task.Delay(600).ConfigureAwait(false);
+                        await RunProcessAsync("sudo", new[] { "-n", "/usr/local/bin/fw-power", "sleep", unixEpoch.ToString(CultureInfo.InvariantCulture) }, 10000).ConfigureAwait(false);
+                    });
+                }
 
                 string dayNote = skippedWeekend ? " (Wochenende frei)" : "";
-                return (true, $"Energiesparmodus aktiv · Aufwachen am {targetBerlin:dd.MM. HH:mm} Uhr{dayNote}{backupNote}");
+                return new NightSleepResultDto
+                {
+                    Success = true,
+                    Deferred = false,
+                    Forced = force,
+                    LaserOnline = guard.LaserOnline,
+                    RecentRelayActive = guard.RecentRelayActive,
+                    Message = $"Energiesparmodus aktiv · Aufwachen am {targetBerlin:dd.MM. HH:mm} Uhr{dayNote}{backupNote}"
+                };
             }
             catch (Exception ex)
             {
-                return (false, ex.Message);
+                return new NightSleepResultDto
+                {
+                    Success = false,
+                    Deferred = false,
+                    Forced = force,
+                    Message = ex.Message
+                };
             }
         }
 

@@ -3031,10 +3031,8 @@
       triggerOrderCelebration();
     } else if (act === 'open_funkenwerk_city') {
       openFunkenwerkCity('orbit');
-    } else if (act === 'open_funkenwerk_city_overview') {
+    } else if (act === 'open_funkenwerk_city_overview' || act === 'open_hall_of_heroes') {
       openFunkenwerkCity('city');
-    } else if (act === 'open_hall_of_heroes') {
-      openFunkenwerkCity('heroes');
     } else if (act === 'open_throne_room') {
       openFunkenwerkCity('throne');
     } else if (act.startsWith('open_department:')) {
@@ -3453,8 +3451,7 @@
         }
         if (d && d.cityVoiceCommand) {
           if (d.cityVoiceCommand === 'open_throne_room') openFunkenwerkCity('throne');
-          else if (d.cityVoiceCommand === 'open_hall_of_heroes') openFunkenwerkCity('heroes');
-          else if (d.cityVoiceCommand === 'open_funkenwerk_city_overview') openFunkenwerkCity('city');
+          else if (d.cityVoiceCommand === 'open_funkenwerk_city_overview' || d.cityVoiceCommand === 'open_hall_of_heroes') openFunkenwerkCity('city');
           else if (d.cityVoiceCommand.startsWith('open_department:')) {
             openFunkenwerkCity(`department:${d.cityVoiceCommand.slice('open_department:'.length).trim() || 'orders'}`);
           }
@@ -5516,10 +5513,8 @@
         openFunkenwerkCity(data.pendingCityAction);
       } else if (data.pendingCityAction === 'orbit') {
         openFunkenwerkCity('orbit');
-      } else if (data.pendingCityAction === 'city') {
+      } else if (data.pendingCityAction === 'city' || data.pendingCityAction === 'heroes') {
         openFunkenwerkCity('city');
-      } else if (data.pendingCityAction === 'heroes') {
-        openFunkenwerkCity('heroes');
       } else if (data.pendingCityAction === 'throne') {
         openFunkenwerkCity('throne');
       } else if (data.pendingCityAction === 'close' && funkenwerkCityOpen) {
@@ -5686,7 +5681,21 @@
       ? 'Mini-PC jetzt in den Energiesparmodus versetzen? Am Wochenende bleibt er aus und wacht erst am Montag um 08:00 Uhr auf.'
       : 'Mini-PC jetzt in die Nachtruhe versetzen und um Punkt 08:00 Uhr automatisch aufwecken?';
     if (!confirm(msg)) return;
-    await fetch('/api/power/night-sleep', { method: 'POST' });
+    const resp = await fetch('/api/power/night-sleep', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ force: false, source: 'btn-night-sleep' })
+    });
+    const out = await resp.json().catch(() => null);
+    if (out && out.deferred) {
+      const overrideMsg = `${out.message || 'Der xTool F2 Ultra UV (192.168.188.150) ist noch eingeschaltet.'}\n\nMini-PC trotzdem manuell in den Energiesparmodus versetzen?`;
+      if (!confirm(overrideMsg)) return;
+      await fetch('/api/power/night-sleep', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ force: true, source: 'btn-night-sleep' })
+      });
+    }
   });
 
   document.getElementById('btn-open-browser-quick').addEventListener('click', () => {
@@ -6827,10 +6836,8 @@
     if (wasAlreadyRunning && window.FunkenwerkCity3D) {
       if (modeStr.startsWith('department:')) {
         window.FunkenwerkCity3D.flyToDepartment(modeStr.slice('department:'.length).trim() || 'orders', false);
-      } else if (modeStr === 'city') {
+      } else if (modeStr === 'city' || modeStr === 'heroes') {
         window.FunkenwerkCity3D.flyToCityOverview(false);
-      } else if (modeStr === 'heroes') {
-        window.FunkenwerkCity3D.flyToHallOfHeroes(false);
       } else if (modeStr === 'throne') {
         window.FunkenwerkCity3D.flyToThroneRoom(false);
       } else {

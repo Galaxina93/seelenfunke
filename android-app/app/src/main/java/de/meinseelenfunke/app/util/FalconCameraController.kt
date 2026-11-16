@@ -312,11 +312,12 @@ object FalconCameraController {
         try {
             val appCtx = context.applicationContext
             val prepared = AgDirectInboxManager.prepareAttachmentFromUri(appCtx, uri) ?: return@withContext null
+            val preview = prepared.previewBitmap ?: return@withContext null
             val photo = FalconCapturedPhoto(
                 base64Jpeg = prepared.base64Jpeg,
                 mimeType = prepared.mimeType,
                 fileName = prepared.fileName,
-                previewBitmap = prepared.previewBitmap,
+                previewBitmap = preview,
                 width = prepared.width,
                 height = prepared.height,
                 capturedAtMs = System.currentTimeMillis(),

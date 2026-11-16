@@ -181,375 +181,252 @@ function paintWoodPlankDetail(ctx, px, py, pw, ph, grainRgbDark, grainRgbLight, 
 }
 
 // ============================================================================
-// ARCHITECTURAL HD FLOOR TEXTURES (1536x2304: 9x PIXEL CLARITY + WOOD GRAIN + AO)
+// PHOTOREALISTIC ATELIER PBR ARCHITECTURE HELPERS (60-FPS INTEL UHD 605 EDITION)
+// Real 2K/1K Architectural Assets (/assets/atelier_*.jpg) + Instant Zero-Flicker
+// Fallbacks + UV1 Baked Ambient Occlusion + Zero Dynamic Lights (PMREM IBL Only)
 // ============================================================================
-function makeEgFloorTexture() {
-    const W = 1536, H = 2304;
+const ATELIER_ASSET_VER = '20261116v25';
+const PARQUET_TILE_M = 1.70;
+const BOISERIE_TILE_M = 3.00;
+
+function makeFallbackEquirectEnvTexture() {
     const c = document.createElement('canvas');
-    c.width = W;
-    c.height = H;
+    c.width = 128;
+    c.height = 64;
     const ctx = c.getContext('2d');
-
-    // Deep oak joint bed
-    ctx.fillStyle = '#826b4f';
-    ctx.fillRect(0, 0, W, H);
-
-    const plankRows = 64;
-    const rowH = H / plankRows;
-    const plankW = 216;
-    for (let r = 0; r < plankRows; r++) {
-        const y = r * rowH;
-        const off = (r % 3) * 76 + ((r % 5) * 19);
-        for (let col = -2; col < 9; col++) {
-            const x = col * plankW + off;
-            const seed = Math.abs(r * 17 + col * 23);
-            const v = (seed % 16) - 8;
-            ctx.fillStyle = `rgb(${198 + v}, ${172 + Math.round(v * 0.82)}, ${139 + Math.round(v * 0.62)})`;
-            ctx.fillRect(x + 1.6, y + 1.6, plankW - 3.2, rowH - 3.0);
-            paintWoodPlankDetail(
-                ctx,
-                x + 1.6,
-                y + 1.6,
-                plankW - 3.2,
-                rowH - 3.0,
-                'rgba(112, 84, 52, 0.19)',
-                'rgba(255, 247, 232, 0.16)',
-                seed
-            );
-        }
+    const g = ctx.createLinearGradient(0, 0, 0, 64);
+    g.addColorStop(0.00, '#fffaf0');
+    g.addColorStop(0.32, '#f6e7c8');
+    g.addColorStop(0.54, '#dfc496');
+    g.addColorStop(0.76, '#b89668');
+    g.addColorStop(1.00, '#7d6242');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 128, 64);
+    ctx.fillStyle = 'rgba(255, 252, 240, 0.55)';
+    for (let x = 8; x < 128; x += 24) {
+        ctx.fillRect(x, 4, 14, 18);
     }
-
-    const xToPx = (wx) => ((wx + 4.25) / 8.50) * W;
-    const zToPy = (wz) => ((wz + 7.00) / 14.00) * H;
-
-    // Großes Badezimmer (x = +1.19 .. +4.16, z = -4.48 .. -2.05) -> HD Carrara-Porcelain Fliesen!
-    const bx0 = xToPx(1.19), bx1 = xToPx(4.20);
-    const bz0 = zToPy(-4.48), bz1 = zToPy(-2.05);
-    ctx.fillStyle = '#d7dce2';
-    ctx.fillRect(bx0, bz0, bx1 - bx0, bz1 - bz0);
-    const tileStep = 54;
-    for (let ty = bz0; ty < bz1; ty += tileStep) {
-        for (let tx = bx0; tx < bx1; tx += tileStep) {
-            const tw = Math.min(tileStep - 2.4, bx1 - tx);
-            const th = Math.min(tileStep - 2.4, bz1 - ty);
-            if (tw <= 2 || th <= 2) continue;
-            ctx.fillStyle = (((Math.round(tx + ty)) % 3 === 0) ? '#dde2e7' : '#d3d8df');
-            ctx.fillRect(tx + 1.2, ty + 1.2, tw, th);
-            ctx.strokeStyle = 'rgba(162, 170, 182, 0.28)';
-            ctx.lineWidth = 1.2;
-            ctx.beginPath();
-            ctx.moveTo(tx + 5, ty + th * 0.28);
-            ctx.quadraticCurveTo(tx + tw * 0.52, ty + th * 0.58, tx + tw - 4, ty + th * 0.76);
-            ctx.stroke();
-        }
-    }
-    ctx.strokeStyle = '#C5A059';
-    ctx.lineWidth = 4;
-    ctx.strokeRect(bx0, bz0, bx1 - bx0, bz1 - bz0);
-
-    // Subtle Perimeter Wall Contact Shadow
-    ctx.strokeStyle = 'rgba(34, 24, 16, 0.24)';
-    ctx.lineWidth = 18;
-    ctx.strokeRect(9, 9, W - 18, H - 18);
-
-    // Soft Multi-Layer Ambient Occlusion shadows under EG furniture
-    const paintAO = (wx, wz, rx, rz, alpha = 0.32) => {
-        const cx = xToPx(wx), cy = zToPy(wz);
-        const prx = (rx / 8.50) * W;
-        const pry = (rz / 14.00) * H;
-        ctx.save();
-        ctx.translate(cx, cy);
-        ctx.scale(1, pry / Math.max(1, prx));
-        const g = ctx.createRadialGradient(0, 0, prx * 0.18, 0, 0, prx);
-        g.addColorStop(0, `rgba(24, 17, 11, ${alpha})`);
-        g.addColorStop(0.55, `rgba(24, 17, 11, ${alpha * 0.45})`);
-        g.addColorStop(1, 'rgba(24, 17, 11, 0)');
-        ctx.fillStyle = g;
-        ctx.beginPath(); ctx.arc(0, 0, prx, 0, Math.PI * 2); ctx.fill();
-        ctx.restore();
-    };
-    paintAO(-3.00, -4.75, 1.28, 1.18, 0.36); // Schlafzimmer Bett
-    paintAO(-2.36, -2.94, 1.24, 0.42, 0.28); // Kleiderschrank
-    paintAO( 2.48, -5.72, 1.18, 0.68, 0.30); // Hantelbank
-    paintAO(-2.25, -1.30, 1.08, 1.08, 0.30); // Büro Schreibtische
-    paintAO(-2.55,  2.55, 1.58, 1.48, 0.34); // Wohnzimmer Ecksofa
-    paintAO(-2.42,  5.35, 1.38, 0.88, 0.32); // Esstisch
-    paintAO( 0.86,  4.45, 0.76, 1.24, 0.34); // Kücheninsel
-    paintAO( 3.70,  4.92, 0.52, 2.02, 0.28); // Küchenzeile
-
-    return configureHdTexture(new THREE.CanvasTexture(c), 4);
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.mapping = THREE.EquirectangularReflectionMapping;
+    return tex;
 }
 
-function makeOgFloorTexture() {
-    const W = 1536, H = 2304;
-    const c = document.createElement('canvas');
-    c.width = W;
-    c.height = H;
-    const ctx = c.getContext('2d');
-
-    const xToPx = (wx) => ((wx + 4.25) / 8.50) * W;
-    const zToPy = (wz) => ((wz + 7.00) / 14.00) * H;
-
-    // Center 6.00m warm Vinylboden (North Studio & Gallery)
-    ctx.fillStyle = '#8b7457';
-    ctx.fillRect(0, 0, W, H);
-    const plankRows = 64;
-    const rowH = H / plankRows;
-    const plankW = 216;
-    for (let r = 0; r < plankRows; r++) {
-        const y = r * rowH;
-        const off = (r % 3) * 74 + ((r % 4) * 23);
-        for (let col = -2; col < 9; col++) {
-            const x = col * plankW + off;
-            const seed = Math.abs(r * 13 + col * 19);
-            const v = (seed % 14) - 7;
-            ctx.fillStyle = `rgb(${206 + v}, ${181 + Math.round(v * 0.78)}, ${149 + Math.round(v * 0.58)})`;
-            ctx.fillRect(x + 1.5, y + 1.5, plankW - 3.0, rowH - 2.8);
-            paintWoodPlankDetail(
-                ctx,
-                x + 1.5,
-                y + 1.5,
-                plankW - 3.0,
-                rowH - 2.8,
-                'rgba(122, 95, 62, 0.16)',
-                'rgba(255, 248, 236, 0.15)',
-                seed
-            );
-        }
-    }
-
-    // South Seelenfunken Atelier Zone (z = +2.28 .. +7.00, x = -3.00 .. +3.00): HD Luxury Smoked Walnut Boutique Parquet!
-    const ax0 = xToPx(-3.00), ax1 = xToPx(3.00);
-    const az0 = zToPy(2.28),  az1 = H;
-    ctx.fillStyle = '#180f0a';
-    ctx.fillRect(ax0, az0, ax1 - ax0, az1 - az0);
-    const walPlankW = 168;
-    for (let r = Math.floor(az0 / rowH); r < plankRows; r++) {
-        const y = r * rowH;
-        const off = (r % 3) * 62 + ((r % 2) * 28);
-        for (let col = -1; col < 9; col++) {
-            const x = ax0 + col * walPlankW + off;
-            if (x >= ax1) continue;
-            const drawX = Math.max(ax0, x + 1.5);
-            const drawW = Math.min(ax1, x + walPlankW - 1.5) - drawX;
-            if (drawW <= 3) continue;
-            const seed = Math.abs(r * 19 + col * 29);
-            const v = (seed % 16) - 8;
-            ctx.fillStyle = `rgb(${60 + v}, ${41 + Math.round(v * 0.68)}, ${27 + Math.round(v * 0.48)})`;
-            ctx.fillRect(drawX, y + 1.4, drawW, rowH - 2.8);
-            paintWoodPlankDetail(
-                ctx,
-                drawX,
-                y + 1.4,
-                drawW,
-                rowH - 2.8,
-                'rgba(20, 12, 7, 0.42)',
-                'rgba(197, 160, 89, 0.09)',
-                seed
-            );
-        }
-    }
-
-    // Brushed 24K Gold transition threshold strip between OG Gallery & Seelenfunken Atelier
-    const thGrad = ctx.createLinearGradient(ax0, az0 - 6, ax1, az0 + 6);
-    thGrad.addColorStop(0, '#9c7834');
-    thGrad.addColorStop(0.5, '#f5dc98');
-    thGrad.addColorStop(1, '#9c7834');
-    ctx.fillStyle = thGrad;
-    ctx.fillRect(ax0, az0 - 5, ax1 - ax0, 10);
-
-    // Soft Ambient Occlusion under Atelier Workbench, Laser, Vitrine & Knee-Walls
-    const paintOgAO = (wx, wz, rx, rz, alpha = 0.40) => {
-        const cx = xToPx(wx), cy = zToPy(wz);
-        const prx = (rx / 8.50) * W;
-        const pry = (rz / 14.00) * H;
-        ctx.save();
-        ctx.translate(cx, cy);
-        ctx.scale(1, pry / Math.max(1, prx));
-        const g = ctx.createRadialGradient(0, 0, prx * 0.2, 0, 0, prx);
-        g.addColorStop(0, `rgba(8, 5, 4, ${alpha})`);
-        g.addColorStop(1, 'rgba(8, 5, 4, 0)');
-        ctx.fillStyle = g;
-        ctx.beginPath(); ctx.arc(0, 0, prx, 0, Math.PI * 2); ctx.fill();
-        ctx.restore();
-    };
-    paintOgAO(-1.68, 5.72, 1.15, 0.62, 0.46); // Atelier Werkbank
-    paintOgAO( 1.96, 5.72, 0.72, 0.58, 0.46); // xTool Laser
-    paintOgAO( 1.04, 5.96, 0.48, 0.42, 0.42); // Boutique Vitrine
-    paintOgAO(-2.48, 4.45, 0.36, 0.36, 0.38); // Monstera Goldtopf
-
-    // OG-Bad (x = -0.06 .. +3.00, z = -4.21 .. -0.10) -> HD Marble-Porcelain Fliesen!
-    const bx0 = xToPx(-0.06), bx1 = xToPx(3.00);
-    const bz0 = zToPy(-4.21), bz1 = zToPy(-0.10);
-    ctx.fillStyle = '#d6dbe1';
-    ctx.fillRect(bx0, bz0, bx1 - bx0, bz1 - bz0);
-    const tileStep = 54;
-    for (let ty = bz0; ty < bz1; ty += tileStep) {
-        for (let tx = bx0; tx < bx1; tx += tileStep) {
-            const tw = Math.min(tileStep - 2.4, bx1 - tx);
-            const th = Math.min(tileStep - 2.4, bz1 - ty);
-            if (tw <= 2 || th <= 2) continue;
-            ctx.fillStyle = (((Math.round(tx + ty)) % 2 === 0) ? '#dce1e6' : '#d2d7de');
-            ctx.fillRect(tx + 1.2, ty + 1.2, tw, th);
-        }
-    }
-
-    // 1.25m Left & Right Dachschrägen Eaves Strips
-    const eaveLeftW = xToPx(-3.00);
-    const eaveRightX = xToPx(3.00);
-    ctx.fillStyle = '#9e886d';
-    ctx.fillRect(0, 0, eaveLeftW, H);
-    ctx.fillRect(eaveRightX, 0, W - eaveRightX, H);
-    ctx.strokeStyle = 'rgba(65, 48, 32, 0.26)';
-    ctx.lineWidth = 2;
-    for (let y = 0; y < H; y += 28) {
-        ctx.beginPath();
-        ctx.moveTo(0, y); ctx.lineTo(eaveLeftW, y + 16);
-        ctx.moveTo(eaveRightX, y); ctx.lineTo(W, y + 16);
-        ctx.stroke();
-    }
-
-    return configureHdTexture(new THREE.CanvasTexture(c), 4);
-}
-
-// HD 1024x1024 Obsidian & 24K Gold Paneled Boutique Atelier Gable Wall Texture
-function makeBakedWallTexture() {
-    const S = 1024;
+function makeFallbackParquetTexture() {
+    const S = 128;
     const c = document.createElement('canvas');
     c.width = S;
     c.height = S;
     const ctx = c.getContext('2d');
+    ctx.fillStyle = '#c89f6d';
+    ctx.fillRect(0, 0, S, S);
+    ctx.strokeStyle = 'rgba(116, 82, 46, 0.28)';
+    ctx.lineWidth = 1.2;
+    for (let i = -S; i < S * 2; i += 16) {
+        ctx.beginPath();
+        ctx.moveTo(i, 0);
+        ctx.lineTo(i + S * 0.5, S * 0.5);
+        ctx.lineTo(i, S);
+        ctx.stroke();
+    }
+    const tex = configureHdTexture(new THREE.CanvasTexture(c), MAX_GPU_ANISOTROPY);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    return tex;
+}
 
+function makeFallbackBoiserieTexture() {
+    const S = 128;
+    const c = document.createElement('canvas');
+    c.width = S;
+    c.height = S;
+    const ctx = c.getContext('2d');
     const vg = ctx.createLinearGradient(0, 0, 0, S);
-    vg.addColorStop(0, '#110f17');
-    vg.addColorStop(0.725, '#1d1925');
-    vg.addColorStop(0.750, '#2b1e15');
-    vg.addColorStop(1, '#1c130d');
+    vg.addColorStop(0.00, '#d8cebe');
+    vg.addColorStop(0.05, '#e5dccf');
+    vg.addColorStop(0.95, '#dcd2c2');
+    vg.addColorStop(0.955, '#1b1817');
+    vg.addColorStop(1.00, '#121010');
     ctx.fillStyle = vg;
     ctx.fillRect(0, 0, S, S);
-
-    // Subtle warm ceiling crown ambient glow & fine velvet wall weave
-    const crownGlow = ctx.createRadialGradient(S * 0.5, S * 0.34, 40, S * 0.5, S * 0.38, S * 0.58);
-    crownGlow.addColorStop(0, 'rgba(255, 222, 148, 0.08)');
-    crownGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
-    ctx.fillStyle = crownGlow;
-    ctx.fillRect(0, 0, S, S);
-
-    const panelCount = 5;
-    const pw = S / panelCount;
-    for (let i = 0; i < panelCount; i++) {
-        const px = i * pw;
-        // Upper obsidian boiserie double-frame with corner accents
-        ctx.strokeStyle = 'rgba(218, 180, 104, 0.36)';
-        ctx.lineWidth = 3.2;
-        ctx.strokeRect(px + 22, 46, pw - 44, S * 0.645);
-        ctx.strokeStyle = 'rgba(247, 222, 156, 0.18)';
-        ctx.lineWidth = 1.5;
-        ctx.strokeRect(px + 30, 54, pw - 60, S * 0.645 - 16);
-
-        // Lower smoked walnut wainscoting with vertical wood grain
-        ctx.fillStyle = 'rgba(64, 42, 26, 0.52)';
-        ctx.fillRect(px + 18, S * 0.775, pw - 36, S * 0.185);
-        ctx.strokeStyle = 'rgba(28, 17, 10, 0.36)';
-        ctx.lineWidth = 1.2;
-        for (let gx = px + 26; gx < px + pw - 24; gx += 12) {
-            ctx.beginPath();
-            ctx.moveTo(gx, S * 0.78);
-            ctx.lineTo(gx, S * 0.955);
-            ctx.stroke();
-        }
-        ctx.strokeStyle = 'rgba(218, 180, 104, 0.42)';
-        ctx.lineWidth = 3.0;
-        ctx.strokeRect(px + 22, S * 0.785, pw - 44, S * 0.165);
+    ctx.strokeStyle = 'rgba(148, 134, 114, 0.42)';
+    ctx.lineWidth = 1.5;
+    for (let i = 0; i < 3; i++) {
+        const px = i * (S / 3);
+        ctx.strokeRect(px + 6, 20, S / 3 - 12, 72);
+        ctx.strokeRect(px + 6, 102, S / 3 - 12, 16);
     }
-
-    const dado = ctx.createLinearGradient(0, S * 0.738, 0, S * 0.762);
-    dado.addColorStop(0, '#7d5e28');
-    dado.addColorStop(0.5, '#f7df9c');
-    dado.addColorStop(1, '#684c1d');
-    ctx.fillStyle = dado;
-    ctx.fillRect(0, S * 0.742, S, 14);
-
-    const tex = configureHdTexture(new THREE.CanvasTexture(c), 4);
+    const tex = configureHdTexture(new THREE.CanvasTexture(c), MAX_GPU_ANISOTROPY);
     tex.wrapS = THREE.RepeatWrapping;
     tex.wrapT = THREE.ClampToEdgeWrapping;
     return tex;
 }
 
-function makeBakedRugTexture() {
-    const S = 1024;
+function makeFallbackNeroTexture() {
+    const S = 64;
     const c = document.createElement('canvas');
     c.width = S;
     c.height = S;
     const ctx = c.getContext('2d');
-    ctx.clearRect(0, 0, S, S);
-
-    const cx = S * 0.5, cy = S * 0.5;
-    const sh = ctx.createRadialGradient(cx, cy, S * 0.42, cx, cy, S * 0.496);
-    sh.addColorStop(0, 'rgba(0,0,0,0.56)');
-    sh.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = sh;
-    ctx.beginPath(); ctx.arc(cx, cy, S * 0.496, 0, Math.PI * 2); ctx.fill();
-
-    // Outer 24K Gold Fringe Ticks
-    ctx.strokeStyle = 'rgba(232, 198, 122, 0.58)';
-    ctx.lineWidth = 2.0;
-    for (let f = 0; f < 144; f++) {
-        const a = (f / 144) * Math.PI * 2;
-        ctx.beginPath();
-        ctx.moveTo(cx + Math.cos(a) * (S * 0.460), cy + Math.sin(a) * (S * 0.460));
-        ctx.lineTo(cx + Math.cos(a) * (S * 0.474), cy + Math.sin(a) * (S * 0.474));
-        ctx.stroke();
-    }
-
-    const rg = ctx.createRadialGradient(cx, cy, 24, cx, cy, S * 0.464);
-    rg.addColorStop(0, '#272030');
-    rg.addColorStop(0.66, '#18141f');
-    rg.addColorStop(0.85, '#131019');
-    rg.addColorStop(0.885, '#9f7c3a');
-    rg.addColorStop(0.925, '#f7dd98');
-    rg.addColorStop(0.958, '#b58e46');
-    rg.addColorStop(0.990, '#6e5322');
-    rg.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = rg;
-    ctx.beginPath(); ctx.arc(cx, cy, S * 0.464, 0, Math.PI * 2); ctx.fill();
-
-    // Ornamental Concentric Filigree Rings
-    ctx.strokeStyle = 'rgba(242, 212, 143, 0.52)';
-    ctx.lineWidth = 4.0;
-    ctx.beginPath(); ctx.arc(cx, cy, S * 0.378, 0, Math.PI * 2); ctx.stroke();
-    ctx.strokeStyle = 'rgba(197, 160, 89, 0.32)';
-    ctx.lineWidth = 2.0;
-    ctx.beginPath(); ctx.arc(cx, cy, S * 0.352, 0, Math.PI * 2); ctx.stroke();
-    ctx.beginPath(); ctx.arc(cx, cy, S * 0.215, 0, Math.PI * 2); ctx.stroke();
-
-    // Scalloped Petal Medallion Ring
-    ctx.strokeStyle = 'rgba(235, 202, 130, 0.34)';
-    ctx.lineWidth = 2.4;
-    for (let p = 0; p < 24; p++) {
-        const a = (p / 24) * Math.PI * 2;
-        ctx.beginPath();
-        ctx.arc(cx + Math.cos(a) * (S * 0.29), cy + Math.sin(a) * (S * 0.29), S * 0.036, a - 1.1, a + 1.1);
-        ctx.stroke();
-    }
-
-    // Central 16-Point Seelenfunke Star Compass
-    ctx.strokeStyle = 'rgba(247, 222, 156, 0.48)';
-    ctx.fillStyle = 'rgba(197, 160, 89, 0.14)';
-    ctx.lineWidth = 3.2;
+    ctx.fillStyle = '#19181b';
+    ctx.fillRect(0, 0, S, S);
+    ctx.strokeStyle = 'rgba(197, 160, 89, 0.34)';
+    ctx.lineWidth = 1.1;
     ctx.beginPath();
-    for (let i = 0; i < 16; i++) {
-        const a = (i / 16) * Math.PI * 2;
-        const rad = (i % 2 === 0) ? S * 0.168 : S * 0.068;
-        const px = cx + Math.cos(a) * rad;
-        const py = cy + Math.sin(a) * rad;
-        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-    }
-    ctx.closePath();
-    ctx.fill();
+    ctx.moveTo(4, 10);
+    ctx.quadraticCurveTo(30, 28, 58, 54);
+    ctx.moveTo(14, 58);
+    ctx.quadraticCurveTo(36, 34, 56, 12);
     ctx.stroke();
+    const tex = configureHdTexture(new THREE.CanvasTexture(c), MAX_GPU_ANISOTROPY);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    return tex;
+}
 
-    return configureHdTexture(new THREE.CanvasTexture(c), 4);
+function makeFloorAoTexture(isOg = false) {
+    const W = 512, H = 768;
+    const c = document.createElement('canvas');
+    c.width = W;
+    c.height = H;
+    const ctx = c.getContext('2d');
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, W, H);
+
+    const xToPx = (wx) => ((wx + 4.25) / HOUSE_W) * W;
+    const zToPy = (wz) => ((wz + 7.00) / HOUSE_L) * H;
+
+    // Subtle perimeter wall contact AO
+    ctx.strokeStyle = 'rgba(56, 42, 28, 0.34)';
+    ctx.lineWidth = 12;
+    ctx.strokeRect(6, 6, W - 12, H - 12);
+
+    const paintAO = (wx, wz, rx, rz, alpha = 0.42) => {
+        const cx = xToPx(wx), cy = zToPy(wz);
+        const prx = (rx / HOUSE_W) * W;
+        const pry = (rz / HOUSE_L) * H;
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.scale(1, pry / Math.max(1, prx));
+        const g = ctx.createRadialGradient(0, 0, prx * 0.16, 0, 0, prx);
+        g.addColorStop(0, `rgba(42, 30, 18, ${alpha})`);
+        g.addColorStop(0.58, `rgba(42, 30, 18, ${alpha * 0.44})`);
+        g.addColorStop(1, 'rgba(42, 30, 18, 0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(0, 0, prx, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    };
+
+    if (!isOg) {
+        paintAO(-3.00, -4.75, 1.28, 1.18, 0.44); // Schlafzimmer Bett
+        paintAO(-2.36, -2.94, 1.24, 0.42, 0.36); // Kleiderschrank
+        paintAO( 2.48, -5.72, 1.18, 0.68, 0.38); // Hantelbank
+        paintAO(-2.25, -1.30, 1.08, 1.08, 0.38); // Buero Schreibtische
+        paintAO(-2.55,  2.55, 1.58, 1.48, 0.42); // Wohnzimmer Ecksofa
+        paintAO(-2.42,  5.35, 1.38, 0.88, 0.40); // Esstisch
+        paintAO( 0.86,  4.45, 0.76, 1.24, 0.44); // Kuecheninsel
+        paintAO( 3.70,  4.92, 0.52, 2.02, 0.36); // Kuechenzeile
+    } else {
+        // Knee-wall contact strips along x = -3.00 and x = +3.00
+        const klX = xToPx(-3.00), krX = xToPx(3.00);
+        for (const kx of [klX, krX]) {
+            const kg = ctx.createLinearGradient(kx - 14, 0, kx + 14, 0);
+            kg.addColorStop(0, 'rgba(42, 30, 18, 0)');
+            kg.addColorStop(0.5, 'rgba(42, 30, 18, 0.34)');
+            kg.addColorStop(1, 'rgba(42, 30, 18, 0)');
+            ctx.fillStyle = kg;
+            ctx.fillRect(kx - 14, 0, 28, H);
+        }
+        // South gable wall contact strip
+        const sg = ctx.createLinearGradient(0, H - 22, 0, H);
+        sg.addColorStop(0, 'rgba(42, 30, 18, 0)');
+        sg.addColorStop(1, 'rgba(42, 30, 18, 0.38)');
+        ctx.fillStyle = sg;
+        ctx.fillRect(klX, H - 22, krX - klX, 22);
+
+        paintAO(-1.68,  5.72, 1.18, 0.64, 0.50); // Atelier Werkbank
+        paintAO( 1.96,  5.72, 0.76, 0.60, 0.50); // xTool Laser
+        paintAO( 1.04,  5.96, 0.50, 0.44, 0.46); // Boutique Vitrine
+        paintAO(-2.48,  4.45, 0.38, 0.38, 0.42); // Monstera Goldtopf
+        paintAO(-1.48, -6.34, 0.96, 0.52, 0.38); // Nord-Studio Desk W
+        paintAO( 1.22, -6.34, 0.96, 0.52, 0.38); // Nord-Studio Desk E
+        paintAO( 2.70, -5.52, 0.38, 1.32, 0.36); // Schranksystem
+    }
+
+    const tex = new THREE.CanvasTexture(c);
+    tex.generateMipmaps = true;
+    tex.minFilter = THREE.LinearMipmapLinearFilter;
+    tex.magFilter = THREE.LinearFilter;
+    tex.channel = 1;
+    return tex;
+}
+
+function makeMarbleBathTileTexture() {
+    const S = 512;
+    const c = document.createElement('canvas');
+    c.width = S;
+    c.height = S;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#cfc9c0';
+    ctx.fillRect(0, 0, S, S);
+    const step = S / 4;
+    for (let r = 0; r < 4; r++) {
+        for (let col = 0; col < 4; col++) {
+            const tx = col * step, ty = r * step;
+            ctx.fillStyle = ((r + col) % 2 === 0) ? '#ece8e1' : '#e5e0d7';
+            ctx.fillRect(tx + 1.5, ty + 1.5, step - 3, step - 3);
+            ctx.strokeStyle = 'rgba(176, 162, 138, 0.28)';
+            ctx.lineWidth = 1.3;
+            ctx.beginPath();
+            ctx.moveTo(tx + 8, ty + step * 0.24 + (r * 7) % 14);
+            ctx.bezierCurveTo(tx + step * 0.42, ty + step * 0.52, tx + step * 0.68, ty + step * 0.44, tx + step - 8, ty + step * 0.78);
+            ctx.stroke();
+        }
+    }
+    const tex = configureHdTexture(new THREE.CanvasTexture(c), MAX_GPU_ANISOTROPY);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    return tex;
+}
+
+function makeGalleryFrameShadowTexture() {
+    const W = 256, H = 192;
+    const c = document.createElement('canvas');
+    c.width = W;
+    c.height = H;
+    const ctx = c.getContext('2d');
+    ctx.clearRect(0, 0, W, H);
+    ctx.save();
+    ctx.shadowColor = 'rgba(26, 20, 14, 0.46)';
+    ctx.shadowBlur = 22;
+    ctx.shadowOffsetY = 7;
+    ctx.fillStyle = 'rgba(26, 20, 14, 0.42)';
+    ctx.fillRect(36, 30, W - 72, H - 64);
+    ctx.restore();
+    return configureHdTexture(new THREE.CanvasTexture(c), 2);
+}
+
+function createBoiserieWallBoxGeo(sx, height, sz) {
+    const geo = new THREE.BoxGeometry(sx, height, sz);
+    const pos = geo.attributes.position;
+    const nrm = geo.attributes.normal;
+    const uv = geo.attributes.uv;
+    const vMax = height >= 1.95 ? 1.0 : clamp(height / 2.25, 0.24, 0.82);
+    for (let i = 0; i < pos.count; i++) {
+        const nx = Math.abs(nrm.getX(i));
+        const ny = Math.abs(nrm.getY(i));
+        if (ny > 0.5) {
+            uv.setXY(i, (pos.getX(i) + sx * 0.5) / BOISERIE_TILE_M, 0.52);
+        } else {
+            const horiz = nx > 0.5 ? (pos.getZ(i) + sz * 0.5) : (pos.getX(i) + sx * 0.5);
+            const vNorm = (pos.getY(i) + height * 0.5) / Math.max(0.05, height);
+            uv.setXY(i, horiz / BOISERIE_TILE_M, clamp(vNorm * vMax, 0.0, 1.0));
+        }
+    }
+    return geo;
 }
 
 function paintScenicWindowCanvas(canvas, season, isLateNight, occasion = 'none') {
@@ -1580,6 +1457,7 @@ class FunkiraAtelierEngine {
 
         this._bakeVisorSprites();
         this._initSharedMatcaps();
+        this._initAtelierPhotorealPbr();
         this._buildTwoStoryHouse();
         this._buildSecretCellar();
         this._buildFunkiraRig();
@@ -1808,6 +1686,174 @@ class FunkiraAtelierEngine {
         this.mats.petalRose    = new THREE.MeshBasicMaterial({ color: 0xD92B5A, side: THREE.DoubleSide, transparent: true, opacity: 0.92 });
         this.mats.petalGold    = new THREE.MeshBasicMaterial({ color: 0xE6C275, side: THREE.DoubleSide, transparent: true, opacity: 0.92 });
         this.mats.petalGeo     = new THREE.PlaneGeometry(0.065, 0.085);
+    }
+
+    _initAtelierPhotorealPbr() {
+        // 1. Instant synchronous Studio-Atrium PMREM environment (0ms flicker-free start, 0 dynamic lights!)
+        this.pmremGenerator = new THREE.PMREMGenerator(this.renderer);
+        this.pmremGenerator.compileEquirectangularShader();
+        const fallbackEnvTex = makeFallbackEquirectEnvTexture();
+        this.atelierPmremTarget = this.pmremGenerator.fromEquirectangular(fallbackEnvTex);
+        fallbackEnvTex.dispose();
+        this.scene.environment = this.atelierPmremTarget.texture;
+
+        // 2. Instant synchronous fallback maps (identical shader defines = 0 runtime shader recompiles on Intel UHD 605!)
+        const fbParquet  = makeFallbackParquetTexture();
+        const fbBoiserie = makeFallbackBoiserieTexture();
+        const fbNero     = makeFallbackNeroTexture();
+        const egAoTex    = makeFloorAoTexture(false);
+        const ogAoTex    = makeFloorAoTexture(true);
+        const bathTex    = makeMarbleBathTileTexture();
+
+        this.mats.atelierFloorEgPbr = new THREE.MeshStandardMaterial({
+            map: fbParquet,
+            bumpMap: fbParquet,
+            bumpScale: 0.008,
+            roughness: 0.36,
+            metalness: 0.02,
+            envMapIntensity: 0.65,
+            aoMap: egAoTex,
+            aoMapIntensity: 0.68,
+            emissive: new THREE.Color(0xfffaf2),
+            emissiveMap: fbParquet,
+            emissiveIntensity: 0.28
+        });
+
+        this.mats.atelierFloorOgPbr = new THREE.MeshStandardMaterial({
+            map: fbParquet,
+            bumpMap: fbParquet,
+            bumpScale: 0.008,
+            roughness: 0.36,
+            metalness: 0.02,
+            envMapIntensity: 0.65,
+            aoMap: ogAoTex,
+            aoMapIntensity: 0.72,
+            emissive: new THREE.Color(0xfffaf2),
+            emissiveMap: fbParquet,
+            emissiveIntensity: 0.28
+        });
+
+        this.mats.atelierBoiseriePbr = new THREE.MeshStandardMaterial({
+            map: fbBoiserie,
+            bumpMap: fbBoiserie,
+            bumpScale: 0.012,
+            roughness: 0.68,
+            metalness: 0.02,
+            envMapIntensity: 0.58,
+            emissive: new THREE.Color(0xfffcf6),
+            emissiveMap: fbBoiserie,
+            emissiveIntensity: 0.34,
+            side: THREE.DoubleSide
+        });
+
+        this.mats.atelierNeroStonePbr = new THREE.MeshStandardMaterial({
+            map: fbNero,
+            bumpMap: fbNero,
+            bumpScale: 0.006,
+            roughness: 0.24,
+            metalness: 0.06,
+            envMapIntensity: 0.90,
+            emissive: new THREE.Color(0xffffff),
+            emissiveMap: fbNero,
+            emissiveIntensity: 0.14
+        });
+
+        this.mats.atelierGoldPbr = new THREE.MeshStandardMaterial({
+            color: 0xC5A059,
+            metalness: 0.86,
+            roughness: 0.22,
+            envMapIntensity: 1.25,
+            emissive: new THREE.Color(0x261b08),
+            emissiveIntensity: 0.20
+        });
+
+        this.mats.atelierCeilingPbr = new THREE.MeshStandardMaterial({
+            color: 0xebe3d5,
+            roughness: 0.64,
+            metalness: 0.01,
+            envMapIntensity: 0.55,
+            emissive: new THREE.Color(0xf5efe4),
+            emissiveIntensity: 0.36
+        });
+
+        this.mats.atelierBathStonePbr = new THREE.MeshStandardMaterial({
+            map: bathTex,
+            bumpMap: bathTex,
+            bumpScale: 0.004,
+            roughness: 0.22,
+            metalness: 0.03,
+            envMapIntensity: 0.72,
+            emissive: new THREE.Color(0xffffff),
+            emissiveMap: bathTex,
+            emissiveIntensity: 0.30,
+            polygonOffset: true,
+            polygonOffsetFactor: -1,
+            polygonOffsetUnits: -2
+        });
+
+        this.mats.atelierGlassPbr = new THREE.MeshStandardMaterial({
+            color: 0xf6fbff,
+            metalness: 0.12,
+            roughness: 0.06,
+            envMapIntensity: 1.35,
+            transparent: true,
+            opacity: 0.26,
+            depthWrite: false
+        });
+
+        // 3. Asynchronous HD Photorealistic Asset Streaming (< 80ms local loopback HTTP)
+        const texLoader = new THREE.TextureLoader();
+
+        texLoader.load(`/assets/atelier_golden_env.jpg?v=${ATELIER_ASSET_VER}`, (envTex) => {
+            envTex.colorSpace = THREE.SRGBColorSpace;
+            envTex.mapping = THREE.EquirectangularReflectionMapping;
+            if (this.pmremGenerator && this.scene) {
+                const nextPmrem = this.pmremGenerator.fromEquirectangular(envTex);
+                const prevPmrem = this.atelierPmremTarget;
+                this.atelierPmremTarget = nextPmrem;
+                this.scene.environment = nextPmrem.texture;
+                if (prevPmrem) prevPmrem.dispose();
+            }
+            envTex.dispose();
+        });
+
+        texLoader.load(`/assets/atelier_herringbone_oak.jpg?v=${ATELIER_ASSET_VER}`, (oakTex) => {
+            oakTex.colorSpace = THREE.SRGBColorSpace;
+            oakTex.wrapS = THREE.RepeatWrapping;
+            oakTex.wrapT = THREE.RepeatWrapping;
+            configureHdTexture(oakTex, MAX_GPU_ANISOTROPY);
+            for (const fMat of [this.mats.atelierFloorEgPbr, this.mats.atelierFloorOgPbr]) {
+                fMat.map = oakTex;
+                fMat.bumpMap = oakTex;
+                fMat.emissiveMap = oakTex;
+                fMat.needsUpdate = true;
+            }
+            fbParquet.dispose();
+        });
+
+        texLoader.load(`/assets/atelier_boiserie_wall.jpg?v=${ATELIER_ASSET_VER}`, (wallTex) => {
+            wallTex.colorSpace = THREE.SRGBColorSpace;
+            wallTex.wrapS = THREE.RepeatWrapping;
+            wallTex.wrapT = THREE.ClampToEdgeWrapping;
+            configureHdTexture(wallTex, MAX_GPU_ANISOTROPY);
+            this.mats.atelierBoiseriePbr.map = wallTex;
+            this.mats.atelierBoiseriePbr.bumpMap = wallTex;
+            this.mats.atelierBoiseriePbr.emissiveMap = wallTex;
+            this.mats.atelierBoiseriePbr.needsUpdate = true;
+            fbBoiserie.dispose();
+        });
+
+        texLoader.load(`/assets/atelier_nero_stone.jpg?v=${ATELIER_ASSET_VER}`, (stoneTex) => {
+            stoneTex.colorSpace = THREE.SRGBColorSpace;
+            stoneTex.wrapS = THREE.RepeatWrapping;
+            stoneTex.wrapT = THREE.RepeatWrapping;
+            configureHdTexture(stoneTex, MAX_GPU_ANISOTROPY);
+            this.mats.atelierNeroStonePbr.map = stoneTex;
+            this.mats.atelierNeroStonePbr.bumpMap = stoneTex;
+            this.mats.atelierNeroStonePbr.emissiveMap = stoneTex;
+            this.mats.atelierNeroStonePbr.needsUpdate = true;
+            fbNero.dispose();
+        });
     }
 
     resize() {
@@ -3431,15 +3477,21 @@ class FunkiraAtelierEngine {
         this.upstairsFxGroup.matrixAutoUpdate = true;
         this.scene.add(this.upstairsFxGroup);
 
-        const goldMat = this.mats.gold24k;
+        const goldMat = this.mats.atelierGoldPbr || this.mats.gold24k;
+        const neroStoneMat = this.mats.atelierNeroStonePbr || this.mats.obsidian;
+        const boiserieMat = this.mats.atelierBoiseriePbr || this.mats.wallPlaster;
+        const bathStoneMat = this.mats.atelierBathStonePbr || this.mats.marbleCream;
+        const glassPbrMat = this.mats.atelierGlassPbr || this.mats.crystalGlass;
         const woodDarkMat = this.mats.woodDark;
         const oakMat = this.mats.oakWarm;
         const cognacMat = this.mats.cognacLeather;
-        const plasterMat = this.mats.wallPlaster;
-        const extWallMat = this.mats.wallExterior;
         const obsidianMat = this.mats.obsidian;
         const whiteMat = this.mats.ceramicWhite;
-        const glowWallTex = makeWallGlowTexture();
+        const frameShadowMat = new THREE.MeshBasicMaterial({
+            map: makeGalleryFrameShadowTexture(),
+            transparent: true,
+            depthWrite: false
+        });
 
         paintScenicWindowCanvas(this.windowCanvas, this.worldState.season, this.worldState.isLateNight, this.worldState.occasion);
         this.windowTexture = configureHdTexture(new THREE.CanvasTexture(this.windowCanvas), 4);
@@ -3474,7 +3526,7 @@ class FunkiraAtelierEngine {
         this.ogSouthWeatherGroup = new THREE.Group();
         this.scene.add(this.egWeatherGroup, this.ogWeatherGroup, this.ogSouthWeatherGroup);
 
-        // Helper: Build framed architectural window + synchronized weather particles
+        // Helper: Build framed architectural window (24K Gold PBR mullions + Nero-Marquina sill + PBR glass reflection)
         const addFramedWindow = (parentGrp, weatherGrp, x, y, z, w, h, rotY) => {
             const wg = new THREE.Group();
             wg.position.set(x, y, z);
@@ -3482,14 +3534,18 @@ class FunkiraAtelierEngine {
 
             const frame = new THREE.Mesh(new RoundedBoxGeometry(w + 0.12, h + 0.12, 0.08, 2, 0.015), goldMat);
             const pane = new THREE.Mesh(new THREE.PlaneGeometry(w, h), skyMat);
-            pane.position.z = 0.045;
-            const mullV = new THREE.Mesh(new RoundedBoxGeometry(0.032, h, 0.03, 1, 0.006), goldMat);
-            mullV.position.z = 0.055;
-            const mullH = new THREE.Mesh(new RoundedBoxGeometry(w, 0.032, 0.03, 1, 0.006), goldMat);
-            mullH.position.set(0, -h * 0.08, 0.055);
-            const sill = new THREE.Mesh(new RoundedBoxGeometry(w + 0.20, 0.055, 0.16, 1, 0.01), woodDarkMat);
-            sill.position.set(0, -h * 0.5 - 0.04, 0.05);
-            wg.add(frame, pane, mullV, mullH, sill);
+            pane.position.z = 0.044;
+            const glassSheen = new THREE.Mesh(new THREE.PlaneGeometry(w, h), glassPbrMat);
+            glassSheen.position.z = 0.048;
+            const mullV = new THREE.Mesh(new RoundedBoxGeometry(0.030, h, 0.03, 1, 0.006), goldMat);
+            mullV.position.z = 0.056;
+            const mullH = new THREE.Mesh(new RoundedBoxGeometry(w, 0.030, 0.03, 1, 0.006), goldMat);
+            mullH.position.set(0, -h * 0.08, 0.056);
+            const sill = new THREE.Mesh(new RoundedBoxGeometry(w + 0.22, 0.048, 0.17, 1, 0.008), neroStoneMat);
+            sill.position.set(0, -h * 0.5 - 0.038, 0.052);
+            const sillGoldLip = new THREE.Mesh(new RoundedBoxGeometry(w + 0.23, 0.014, 0.176, 1, 0.004), goldMat);
+            sillGoldLip.position.set(0, -h * 0.5 - 0.064, 0.052);
+            wg.add(frame, pane, glassSheen, mullV, mullH, sill, sillGoldLip);
             parentGrp.add(wg);
 
             // Spawn 6 synchronized weather particles in front of glass pane
@@ -3529,20 +3585,25 @@ class FunkiraAtelierEngine {
             }
         };
 
-        // Helper: Build interior architectural cutaway wall segment with warm walnut/gold cap
-        const addWallBox = (grp, x1, z1, x2, z2, yBase, height, thickness = 0.12, mat = plasterMat, capMat = woodDarkMat) => {
+        // Helper: Build architectural Parisian Boiserie wall segment with Nero-Marquina & 24K Gold crown
+        const addWallBox = (grp, x1, z1, x2, z2, yBase, height, thickness = 0.12, mat = boiserieMat, capMat = neroStoneMat) => {
             const cx = (x1 + x2) * 0.5;
             const cz = (z1 + z2) * 0.5;
             const sx = Math.max(thickness, Math.abs(x2 - x1));
             const sz = Math.max(thickness, Math.abs(z2 - z1));
-            const wall = new THREE.Mesh(new RoundedBoxGeometry(sx, height, sz, 1, 0.01), mat);
+            const wallGeo = (mat === boiserieMat)
+                ? createBoiserieWallBoxGeo(sx, height, sz)
+                : new RoundedBoxGeometry(sx, height, sz, 1, 0.01);
+            const wall = new THREE.Mesh(wallGeo, mat);
             wall.position.set(cx, yBase + height * 0.5, cz);
-            const cap = new THREE.Mesh(new RoundedBoxGeometry(sx + 0.02, 0.035, sz + 0.02, 1, 0.006), capMat);
-            cap.position.set(cx, yBase + height + 0.015, cz);
-            grp.add(wall, cap);
+            const cap = new THREE.Mesh(new RoundedBoxGeometry(sx + 0.022, 0.028, sz + 0.022, 1, 0.005), capMat);
+            cap.position.set(cx, yBase + height + 0.014, cz);
+            const goldBead = new THREE.Mesh(new THREE.BoxGeometry(sx + 0.026, 0.010, sz + 0.026), goldMat);
+            goldBead.position.set(cx, yBase + height + 0.002, cz);
+            grp.add(wall, cap, goldBead);
         };
 
-        // Helper: White ribbed Heizkörper radiator (Screenshot 2)
+        // Helper: White ribbed Heizkoerper radiator
         const addRadiator = (grp, x, yBase, z, length, alongZ = true) => {
             const sx = alongZ ? 0.11 : length;
             const sz = alongZ ? length : 0.11;
@@ -3570,8 +3631,10 @@ class FunkiraAtelierEngine {
             const ag = new THREE.Group();
             ag.position.set(x, y, z);
             ag.rotation.y = rotY;
+            const shad = new THREE.Mesh(new THREE.PlaneGeometry(w + 0.28, h + 0.28), frameShadowMat);
+            shad.position.set(0, -0.02, -0.016);
             const outer = new THREE.Mesh(new RoundedBoxGeometry(w + 0.09, h + 0.09, 0.042, 2, 0.014), goldMat);
-            const matte = new THREE.Mesh(new RoundedBoxGeometry(w + 0.02, h + 0.02, 0.046, 1, 0.008), obsidianMat);
+            const matte = new THREE.Mesh(new RoundedBoxGeometry(w + 0.02, h + 0.02, 0.046, 1, 0.008), neroStoneMat);
             const canvasMesh = new THREE.Mesh(
                 new THREE.PlaneGeometry(w, h),
                 new THREE.MeshBasicMaterial({ map: makeSeelenfunkeArtCanvasTexture(motif, subLabel) })
@@ -3579,37 +3642,48 @@ class FunkiraAtelierEngine {
             canvasMesh.position.z = 0.026;
             const namePlate = new THREE.Mesh(new THREE.PlaneGeometry(Math.min(w * 0.56, 0.44), 0.075), this.plaqueMats.obsidianMain);
             namePlate.position.set(0, -h * 0.5 - 0.022, 0.028);
-            ag.add(outer, matte, canvasMesh, namePlate);
+            ag.add(shad, outer, matte, canvasMesh, namePlate);
             parentGrp.add(ag);
         };
 
         // ====================================================================
-        // 1. ERDGESCHOSS (y = 0.00m, 8.50m x 14.00m — Screenshot 1)
+        // 1. ERDGESCHOSS (y = 0.00m, 8.50m x 14.00m)
         // ====================================================================
         const eg = new THREE.Group();
         this.egGroup = eg;
 
         // Split EG Floor & Slab around the Hydraulic Vault Lift Shaft Opening (x = 2.39 .. 3.33, z = -1.20 .. -0.26)
-        // so Funkira & the Nero-Marquina Lift Platform glide vertically with 0% floor/ceiling clipping!
-        const egFloorTex = makeEgFloorTexture();
-        const egFloorMat = new THREE.MeshBasicMaterial({ map: egFloorTex });
+        // Seamless world-space French Herringbone Oak Parquet (/assets/atelier_herringbone_oak.jpg) + UV1 Baked AO!
+        const egFloorMat = this.mats.atelierFloorEgPbr;
         const addEgFloorPatch = (x0, z0, x1, z1) => {
             const pw = x1 - x0;
             const pd = z1 - z0;
             const geo = new THREE.PlaneGeometry(pw, pd);
             const uv = geo.attributes.uv;
-            const u0 = (x0 + 4.25) / HOUSE_W;
-            const u1 = (x1 + 4.25) / HOUSE_W;
-            const vTop = 1.0 - (z0 + 7.00) / HOUSE_L;
-            const vBot = 1.0 - (z1 + 7.00) / HOUSE_L;
+            const u0 = (x0 + 4.25) / PARQUET_TILE_M;
+            const u1 = (x1 + 4.25) / PARQUET_TILE_M;
+            const vTop = (7.00 - z0) / PARQUET_TILE_M;
+            const vBot = (7.00 - z1) / PARQUET_TILE_M;
             uv.setXY(0, u0, vTop);
             uv.setXY(1, u1, vTop);
             uv.setXY(2, u0, vBot);
             uv.setXY(3, u1, vBot);
+
+            const uv1Arr = new Float32Array(8);
+            const au0 = (x0 + 4.25) / HOUSE_W;
+            const au1 = (x1 + 4.25) / HOUSE_W;
+            const avTop = 1.0 - (z0 + 7.00) / HOUSE_L;
+            const avBot = 1.0 - (z1 + 7.00) / HOUSE_L;
+            uv1Arr[0] = au0; uv1Arr[1] = avTop;
+            uv1Arr[2] = au1; uv1Arr[3] = avTop;
+            uv1Arr[4] = au0; uv1Arr[5] = avBot;
+            uv1Arr[6] = au1; uv1Arr[7] = avBot;
+            geo.setAttribute('uv1', new THREE.BufferAttribute(uv1Arr, 2));
+
             const m = new THREE.Mesh(geo, egFloorMat);
             m.rotation.x = -Math.PI / 2;
             m.position.set((x0 + x1) * 0.5, 0.0, (z0 + z1) * 0.5);
-            const under = new THREE.Mesh(new THREE.BoxGeometry(pw, 0.16, pd), obsidianMat);
+            const under = new THREE.Mesh(new THREE.BoxGeometry(pw, 0.16, pd), neroStoneMat);
             under.position.set((x0 + x1) * 0.5, -0.085, (z0 + z1) * 0.5);
             eg.add(m, under);
         };
@@ -3618,14 +3692,27 @@ class FunkiraAtelierEngine {
         addEgFloorPatch( 3.33, -1.20,  4.25, -0.26); // East section beside Hydraulic Vault Lift
         addEgFloorPatch(-4.25, -0.26,  4.25,  7.00); // South half below Hydraulic Vault Lift
 
-        // EG Exterior Walls (North, West, East full 2.75m height; South low 0.36m cutaway plinth)
+        // EG Grosses Badezimmer Calacatta Marble Floor Inlay + 24K Gold Threshold
+        const egBathGeo = new THREE.PlaneGeometry(2.97, 2.43);
+        egBathGeo.attributes.uv.setXY(0, 0, 1.52);
+        egBathGeo.attributes.uv.setXY(1, 1.86, 1.52);
+        egBathGeo.attributes.uv.setXY(2, 0, 0);
+        egBathGeo.attributes.uv.setXY(3, 1.86, 0);
+        const egBathFloor = new THREE.Mesh(egBathGeo, bathStoneMat);
+        egBathFloor.rotation.x = -Math.PI / 2;
+        egBathFloor.position.set(2.675, 0.003, -3.265);
+        const egBathThresh = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.008, 1.02), goldMat);
+        egBathThresh.position.set(1.19, 0.004, -3.15);
+        eg.add(egBathFloor, egBathThresh);
+
+        // EG Exterior Walls (North, West, East full 2.75m Parisian Boiserie; South low 0.34m cutaway plinth)
         const egExtH = 2.75;
-        addWallBox(eg, -4.24, -6.94,  4.24, -6.94, 0, egExtH, 0.14, extWallMat, goldMat); // North
-        addWallBox(eg, -4.18, -6.94, -4.18,  6.94, 0, egExtH, 0.14, extWallMat, goldMat); // West
-        addWallBox(eg,  4.18, -6.94,  4.18,  0.22, 0, egExtH, 0.14, extWallMat, goldMat); // East upper
-        addWallBox(eg,  4.18,  1.42,  4.18,  6.94, 0, egExtH, 0.14, extWallMat, goldMat); // East lower
-        addWallBox(eg, -4.24,  6.94, -1.24,  6.94, 0, 0.34,   0.14, extWallMat, goldMat); // South cutaway sill West of Terrassentür
-        addWallBox(eg, -0.20,  6.94,  4.24,  6.94, 0, 0.34,   0.14, extWallMat, goldMat); // South cutaway sill East of Terrassentür
+        addWallBox(eg, -4.24, -6.94,  4.24, -6.94, 0, egExtH, 0.14, boiserieMat, neroStoneMat); // North
+        addWallBox(eg, -4.18, -6.94, -4.18,  6.94, 0, egExtH, 0.14, boiserieMat, neroStoneMat); // West
+        addWallBox(eg,  4.18, -6.94,  4.18,  0.22, 0, egExtH, 0.14, boiserieMat, neroStoneMat); // East upper
+        addWallBox(eg,  4.18,  1.42,  4.18,  6.94, 0, egExtH, 0.14, boiserieMat, neroStoneMat); // East lower
+        addWallBox(eg, -4.24,  6.94, -1.24,  6.94, 0, 0.34,   0.14, boiserieMat, neroStoneMat); // South cutaway sill West
+        addWallBox(eg, -0.20,  6.94,  4.24,  6.94, 0, 0.34,   0.14, boiserieMat, neroStoneMat); // South cutaway sill East
 
         // Offene Terrassentür (x = -1.24 .. -0.20, z = +6.94) vom Wohn-/Esszimmer auf die Terrasse
         const patioThreshold = new THREE.Mesh(new RoundedBoxGeometry(1.06, 0.024, 0.22, 1, 0.006), goldMat);
@@ -3878,15 +3965,17 @@ class FunkiraAtelierEngine {
             eg.add(cush);
         }
 
-        // Large Esstisch + 6 Stühle (Screenshot 1 bottom-left)
-        const dineTop = new THREE.Mesh(new RoundedBoxGeometry(2.08, 0.065, 0.96, 2, 0.02), whiteMat);
+        // Large Esstisch (Nero-Marquina Stone Top + 24K Gold Bezel) + 6 Stuehle
+        const dineTop = new THREE.Mesh(new RoundedBoxGeometry(2.08, 0.065, 0.96, 2, 0.02), neroStoneMat);
         dineTop.position.set(-2.42, 0.76, 5.35);
+        const dineTrim = new THREE.Mesh(new RoundedBoxGeometry(2.10, 0.018, 0.98, 1, 0.006), goldMat);
+        dineTrim.position.set(-2.42, 0.742, 5.35);
         const dineRunner = new THREE.Mesh(new RoundedBoxGeometry(0.88, 0.015, 0.30, 1, 0.005), goldMat);
         dineRunner.position.set(-2.42, 0.80, 5.35);
-        eg.add(dineTop, dineRunner);
+        eg.add(dineTop, dineTrim, dineRunner);
         const dLegGeo = new THREE.CylinderGeometry(0.03, 0.022, 0.74, 10);
         for (const [lx, lz] of [[-3.34, 4.96], [-1.50, 4.96], [-3.34, 5.74], [-1.50, 5.74]]) {
-            const dl = new THREE.Mesh(dLegGeo, oakMat);
+            const dl = new THREE.Mesh(dLegGeo, goldMat);
             dl.position.set(lx, 0.37, lz);
             eg.add(dl);
         }
@@ -3902,16 +3991,20 @@ class FunkiraAtelierEngine {
             }
         }
 
-        // --- EG Room 8: Küche (14.97 m² — L-Zeile Ost/Süd, Kühlschrank & Nord-Süd-Kücheninsel) ---
+        // --- EG Room 8: Kueche (14.97 m2: L-Zeile Ost/Sued, Kuehlschrank & Nord-Sued-Kuecheninsel mit Nero-Marquina Steinplatten) ---
         const kEastBase = new THREE.Mesh(new RoundedBoxGeometry(0.70, 0.88, 3.82, 2, 0.025), oakMat);
         kEastBase.position.set(3.72, 0.44, 4.92);
-        const kEastTop = new THREE.Mesh(new RoundedBoxGeometry(0.74, 0.055, 3.86, 2, 0.02), this.mats.marbleCream);
+        const kEastTop = new THREE.Mesh(new RoundedBoxGeometry(0.74, 0.055, 3.86, 2, 0.02), neroStoneMat);
         kEastTop.position.set(3.72, 0.90, 4.92);
+        const kEastTrim = new THREE.Mesh(new RoundedBoxGeometry(0.75, 0.016, 3.87, 1, 0.005), goldMat);
+        kEastTrim.position.set(3.72, 0.875, 4.92);
         const kSouthBase = new THREE.Mesh(new RoundedBoxGeometry(2.15, 0.88, 0.70, 2, 0.025), oakMat);
         kSouthBase.position.set(2.32, 0.44, 6.48);
-        const kSouthTop = new THREE.Mesh(new RoundedBoxGeometry(2.19, 0.055, 0.74, 2, 0.02), this.mats.marbleCream);
+        const kSouthTop = new THREE.Mesh(new RoundedBoxGeometry(2.19, 0.055, 0.74, 2, 0.02), neroStoneMat);
         kSouthTop.position.set(2.32, 0.90, 6.48);
-        const kFridge = new THREE.Mesh(new RoundedBoxGeometry(0.96, 2.02, 0.74, 2, 0.035), obsidianMat);
+        const kSouthTrim = new THREE.Mesh(new RoundedBoxGeometry(2.20, 0.016, 0.75, 1, 0.005), goldMat);
+        kSouthTrim.position.set(2.32, 0.875, 6.48);
+        const kFridge = new THREE.Mesh(new RoundedBoxGeometry(0.96, 2.02, 0.74, 2, 0.035), neroStoneMat);
         kFridge.position.set(0.68, 1.01, 6.46);
         const kFridgeHandle = new THREE.Mesh(new RoundedBoxGeometry(0.03, 0.68, 0.04, 1, 0.008), goldMat);
         kFridgeHandle.position.set(1.06, 1.15, 6.07);
@@ -3923,7 +4016,7 @@ class FunkiraAtelierEngine {
         espBody.position.set(3.68, 1.11, 3.45);
         const espTop = new THREE.Mesh(new RoundedBoxGeometry(0.38, 0.03, 0.42, 1, 0.008), goldMat);
         espTop.position.set(3.68, 1.31, 3.45);
-        eg.add(kEastBase, kEastTop, kSouthBase, kSouthTop, kFridge, kFridgeHandle, kSink, kFaucet, espBody, espTop);
+        eg.add(kEastBase, kEastTop, kEastTrim, kSouthBase, kSouthTop, kSouthTrim, kFridge, kFridgeHandle, kSink, kFaucet, espBody, espTop);
         for (const ez of [3.82, 3.96]) {
             const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.022, 0.052, 10), obsidianMat);
             cup.position.set(3.56, 0.955, ez);
@@ -3932,14 +4025,16 @@ class FunkiraAtelierEngine {
             eg.add(cup, saucer);
         }
 
-        // Freestanding Vertical (North-South) Kücheninsel + Stools (Screenshot 1)
-        const islBase = new THREE.Mesh(new RoundedBoxGeometry(0.88, 0.86, 1.86, 2, 0.03), woodDarkMat);
+        // Freestanding Vertical (North-South) Kuecheninsel (Nero-Marquina Stone Slab + 24K Gold Trim) + Stools
+        const islBase = new THREE.Mesh(new RoundedBoxGeometry(0.88, 0.86, 1.86, 2, 0.03), neroStoneMat);
         islBase.position.set(0.86, 0.43, 4.45);
-        const islTop = new THREE.Mesh(new RoundedBoxGeometry(0.98, 0.065, 1.96, 2, 0.025), whiteMat);
+        const islTop = new THREE.Mesh(new RoundedBoxGeometry(0.98, 0.065, 1.96, 2, 0.025), neroStoneMat);
         islTop.position.set(0.86, 0.89, 4.45);
+        const islTrim = new THREE.Mesh(new RoundedBoxGeometry(0.995, 0.020, 1.975, 1, 0.006), goldMat);
+        islTrim.position.set(0.86, 0.862, 4.45);
         const islBowl = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.09, 0.08, 16), goldMat);
         islBowl.position.set(0.86, 0.96, 4.45);
-        eg.add(islBase, islTop, islBowl);
+        eg.add(islBase, islTop, islTrim, islBowl);
         for (const [fx, fy, fz, fMat] of [
             [0.82, 1.015, 4.42, this.mats.scarfRed],
             [0.91, 1.015, 4.44, this.mats.sunflowerYellow],
@@ -3959,11 +4054,11 @@ class FunkiraAtelierEngine {
 
         // --- EG Signed 24K Gold "MEIN SEELENFUNKE" Gallery Wall Paintings across All Rooms ---
         addGoldenSignedWallArt(eg, -4.08, 1.70, -4.78, 1.26, 0.84,  Math.PI / 2, 'moon_sparks',      'STERNENFUNKE · MANUFAKTUR'); // Schlafzimmer
-        addGoldenSignedWallArt(eg, -4.08, 1.64, -2.28, 0.78, 0.60,  Math.PI / 2, 'crest_manufaktur', 'ATELIER GIFHORN');           // Büro
+        addGoldenSignedWallArt(eg, -4.08, 1.64, -2.28, 0.78, 0.60,  Math.PI / 2, 'crest_manufaktur', 'ATELIER GIFHORN');           // Buero
         addGoldenSignedWallArt(eg, -4.08, 1.70,  2.40, 1.54, 0.94,  Math.PI / 2, 'spark_mandala',    'MEIN SEELENFUNKE EDITION');  // Wohnzimmer
         addGoldenSignedWallArt(eg, -4.08, 1.68,  5.35, 1.22, 0.82,  Math.PI / 2, 'botanical_gold',   'GOLDENE BLÜTE · 24K');       // Esszimmer
         addGoldenSignedWallArt(eg,  2.52, 1.70, -6.84, 1.28, 0.84,  0.0,         'crest_manufaktur', 'FUNKIRA POWER · 24K');       // Trainingsraum
-        addGoldenSignedWallArt(eg,  4.08, 1.66,  4.73, 0.68, 0.76, -Math.PI / 2, 'golden_heart',     'HERZENSFUNKE');              // Küche
+        addGoldenSignedWallArt(eg,  4.08, 1.66,  4.73, 0.68, 0.76, -Math.PI / 2, 'golden_heart',     'HERZENSFUNKE');              // Kueche
 
         this.scene.add(eg);
         freezeStaticTree(eg);
@@ -3983,7 +4078,7 @@ class FunkiraAtelierEngine {
             const frac = (s + 0.5) / stepCount;
             const sx = lerp(2.78, 0.76, frac);
             const sy = (s + 1) * (OG_Y / stepCount);
-            const tread = new THREE.Mesh(new RoundedBoxGeometry(0.22, 0.055, 0.88, 1, 0.01), woodDarkMat);
+            const tread = new THREE.Mesh(new RoundedBoxGeometry(0.22, 0.055, 0.88, 1, 0.01), neroStoneMat);
             tread.position.set(sx, sy - 0.028, 1.06);
             const nose = new THREE.Mesh(new RoundedBoxGeometry(0.025, 0.058, 0.89, 1, 0.005), goldMat);
             nose.position.set(sx + 0.10, sy - 0.026, 1.06);
@@ -3992,7 +4087,7 @@ class FunkiraAtelierEngine {
         const stairLen = Math.hypot(2.02, OG_Y);
         const stairPitch = Math.atan2(OG_Y, 2.02);
         for (const sz of [0.60, 1.52]) {
-            const stringer = new THREE.Mesh(new RoundedBoxGeometry(stairLen, 0.16, 0.06, 1, 0.01), obsidianMat);
+            const stringer = new THREE.Mesh(new RoundedBoxGeometry(stairLen, 0.16, 0.06, 1, 0.01), neroStoneMat);
             stringer.position.set(1.77, OG_Y * 0.5 - 0.10, sz);
             stringer.rotation.z = -stairPitch;
             stairs.add(stringer);
@@ -4001,49 +4096,81 @@ class FunkiraAtelierEngine {
         freezeStaticTree(stairs);
 
         // ====================================================================
-        // 3. OBERGESCHOSS (y = 3.10m, 1.25m Dachschrägen + Seelenfunken Atelier)
+        // 3. OBERGESCHOSS (y = 3.10m, 1.25m Dachschraegen + Seelenfunken Atelier)
         // ====================================================================
         const og = new THREE.Group();
         this.ogGroup = og;
 
         // Split OG Floor around the Stairwell Opening (x = +0.74 .. +2.88, z = +0.58 .. +1.54)
-        // so you can genuinely look down the 3D Treppe into the Erdgeschoss!
-        const ogFloorTex = makeOgFloorTexture();
+        // Seamless French Herringbone Oak Parquet (/assets/atelier_herringbone_oak.jpg) + Satin PBR + UV1 AO!
+        const ogFloorMat = this.mats.atelierFloorOgPbr;
         const addOgFloorPatch = (x0, z0, x1, z1) => {
             const pw = x1 - x0;
             const pd = z1 - z0;
             const geo = new THREE.PlaneGeometry(pw, pd);
             const uv = geo.attributes.uv;
-            const u0 = (x0 + 4.25) / HOUSE_W;
-            const u1 = (x1 + 4.25) / HOUSE_W;
-            // PlaneGeometry rotated -PI/2 around X maps v=1 -> -Z (top) and v=0 -> +Z (bottom)
-            const vTop = 1.0 - (z0 + 7.00) / HOUSE_L;
-            const vBot = 1.0 - (z1 + 7.00) / HOUSE_L;
+            const u0 = (x0 + 4.25) / PARQUET_TILE_M;
+            const u1 = (x1 + 4.25) / PARQUET_TILE_M;
+            const vTop = (7.00 - z0) / PARQUET_TILE_M;
+            const vBot = (7.00 - z1) / PARQUET_TILE_M;
             uv.setXY(0, u0, vTop);
             uv.setXY(1, u1, vTop);
             uv.setXY(2, u0, vBot);
             uv.setXY(3, u1, vBot);
-            const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: ogFloorTex }));
+
+            const uv1Arr = new Float32Array(8);
+            const au0 = (x0 + 4.25) / HOUSE_W;
+            const au1 = (x1 + 4.25) / HOUSE_W;
+            const avTop = 1.0 - (z0 + 7.00) / HOUSE_L;
+            const avBot = 1.0 - (z1 + 7.00) / HOUSE_L;
+            uv1Arr[0] = au0; uv1Arr[1] = avTop;
+            uv1Arr[2] = au1; uv1Arr[3] = avTop;
+            uv1Arr[4] = au0; uv1Arr[5] = avBot;
+            uv1Arr[6] = au1; uv1Arr[7] = avBot;
+            geo.setAttribute('uv1', new THREE.BufferAttribute(uv1Arr, 2));
+
+            const m = new THREE.Mesh(geo, ogFloorMat);
             m.rotation.x = -Math.PI / 2;
             m.position.set((x0 + x1) * 0.5, OG_Y, (z0 + z1) * 0.5);
-            const under = new THREE.Mesh(new THREE.BoxGeometry(pw, 0.10, pd), obsidianMat);
+            const under = new THREE.Mesh(new THREE.BoxGeometry(pw, 0.10, pd), neroStoneMat);
             under.position.set((x0 + x1) * 0.5, OG_Y - 0.055, (z0 + z1) * 0.5);
             og.add(m, under);
         };
         addOgFloorPatch(-4.25, -7.00,  4.25,  0.58); // North half above stairwell
         addOgFloorPatch(-4.25,  0.58,  0.74,  1.54); // West gallery beside stairwell
         addOgFloorPatch( 2.88,  0.58,  4.25,  1.54); // East eaves beside stairwell
-        addOgFloorPatch(-4.25,  1.54,  4.25,  7.00); // South half (Geländer + Seelenfunken Atelier!)
+        addOgFloorPatch(-4.25,  1.54,  4.25,  7.00); // South half (Gelaender + Seelenfunken Atelier!)
 
-        // --- DACHSCHRÄGEN ARCHITECTURE (Raised Kniestock 2.12m + Peak 4.10m for generous Atelier Window Clearance!) ---
-        // Left & Right Kniestock (Knee-Walls at x = -3.00 and x = +3.00, height = 2.08m + gold cap flush under 2.12m slope)
+        // OG-Bad Calacatta Marble Floor Inlay + 24K Gold Doorway Threshold
+        const ogBathGeo = new THREE.PlaneGeometry(3.06, 4.11);
+        ogBathGeo.attributes.uv.setXY(0, 0, 2.56);
+        ogBathGeo.attributes.uv.setXY(1, 1.91, 2.56);
+        ogBathGeo.attributes.uv.setXY(2, 0, 0);
+        ogBathGeo.attributes.uv.setXY(3, 1.91, 0);
+        const ogBathFloor = new THREE.Mesh(ogBathGeo, bathStoneMat);
+        ogBathFloor.rotation.x = -Math.PI / 2;
+        ogBathFloor.position.set(1.47, OG_Y + 0.003, -2.155);
+        const ogBathThresh = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.008, 1.02), goldMat);
+        ogBathThresh.position.set(-0.06, OG_Y + 0.004, -1.37);
+        og.add(ogBathFloor, ogBathThresh);
+
+        // Flush Nero-Marquina & 24K Gold Threshold Strip between OG Gallery and Seelenfunken Atelier (z = 2.28)
+        const atelierThreshStone = new THREE.Mesh(new THREE.BoxGeometry(5.88, 0.006, 0.14), neroStoneMat);
+        atelierThreshStone.position.set(0, OG_Y + 0.003, 2.28);
+        const atelierThreshGoldN = new THREE.Mesh(new THREE.BoxGeometry(5.90, 0.008, 0.018), goldMat);
+        atelierThreshGoldN.position.set(0, OG_Y + 0.004, 2.205);
+        const atelierThreshGoldS = new THREE.Mesh(new THREE.BoxGeometry(5.90, 0.008, 0.018), goldMat);
+        atelierThreshGoldS.position.set(0, OG_Y + 0.004, 2.355);
+        og.add(atelierThreshStone, atelierThreshGoldN, atelierThreshGoldS);
+
+        // --- DACHSCHRAEGEN ARCHITECTURE (Parisian Boiserie Knee-Walls 2.08m + Peak 4.10m!) ---
         const knieWallH = 2.08;
         const knieH = 1.68;
-        addWallBox(og, -3.00, -6.92, -3.00,  6.90, OG_Y, knieWallH, 0.10, obsidianMat, goldMat);
-        addWallBox(og,  3.00, -6.92,  3.00,  6.90, OG_Y, knieWallH, 0.10, obsidianMat, goldMat);
+        addWallBox(og, -3.00, -6.92, -3.00,  6.90, OG_Y, knieWallH, 0.10, boiserieMat, neroStoneMat);
+        addWallBox(og,  3.00, -6.92,  3.00,  6.90, OG_Y, knieWallH, 0.10, boiserieMat, neroStoneMat);
 
-        // Sloped Eaves Roof Aprons (x = ±4.25 @ OG_Y+1.295 -> x = ±3.00 @ OG_Y+2.12) + Exposed Walnut Dachsparren (/ \)
-        const roofAngle = Math.atan2(4.10 - 2.12, 3.00); // ~33.4° pitched roof slope with full window headroom!
+        // Sloped Eaves Roof Aprons (x = +-4.25 @ OG_Y+1.295 -> x = +-3.00 @ OG_Y+2.12) + Exposed Walnut & Gold Dachsparren
+        const roofAngle = Math.atan2(4.10 - 2.12, 3.00);
         const eaveLen = Math.hypot(1.25, 0.825);
         for (const sx of [-1, 1]) {
             const eaveApron = new THREE.Mesh(new RoundedBoxGeometry(eaveLen, 0.08, 13.88, 1, 0.01), woodDarkMat);
@@ -4052,7 +4179,7 @@ class FunkiraAtelierEngine {
             og.add(eaveApron);
         }
 
-        // Exposed Walnut & Gold Dachsparren Rafters (/ \) + Central Firstbalken Ridge Beam
+        // Exposed Walnut & 24K Gold Dachsparren Rafters (/ \) + Central Firstbalken Ridge Beam
         const rafterLen = Math.hypot(3.02, 1.993);
         const ridgeBeam = new THREE.Mesh(new RoundedBoxGeometry(0.16, 0.18, 13.88, 2, 0.02), woodDarkMat);
         ridgeBeam.position.set(0, OG_Y + 4.08, 0);
@@ -4065,7 +4192,10 @@ class FunkiraAtelierEngine {
                 const rafter = new THREE.Mesh(new RoundedBoxGeometry(rafterLen, 0.11, 0.11, 1, 0.015), woodDarkMat);
                 rafter.position.set(sx * 1.50, OG_Y + 3.09, rz);
                 rafter.rotation.z = -sx * roofAngle;
-                og.add(rafter);
+                const rafterGold = new THREE.Mesh(new THREE.BoxGeometry(rafterLen, 0.016, 0.116), goldMat);
+                rafterGold.position.set(sx * 1.50, OG_Y + 3.035, rz);
+                rafterGold.rotation.z = -sx * roofAngle;
+                og.add(rafter, rafterGold);
             }
         }
 
@@ -4076,20 +4206,37 @@ class FunkiraAtelierEngine {
             og.add(post);
         }
 
-        // North Gable Wall (z = -6.90) + 2 North Windows + 2 White Desks + Cognac Chairs + Schranksystem
-        const northGable = new THREE.Mesh(
-            new THREE.ShapeGeometry(createGableWallShape()),
-            extWallMat
-        );
+        // Shared UV-calibrated Parisian Boiserie Gable Geometry (wrapS = Repeat, wrapT = ClampToEdge so black marble baseboard sits flush at y = 0!)
+        const buildBoiserieGableGeo = () => {
+            const gGeo = new THREE.ShapeGeometry(createGableWallShape());
+            gGeo.computeBoundingBox();
+            const gbb = gGeo.boundingBox;
+            const gp = gGeo.attributes.position;
+            const guv = gGeo.attributes.uv;
+            const spanY = Math.max(0.1, gbb.max.y - gbb.min.y);
+            for (let i = 0; i < gp.count; i++) {
+                guv.setXY(
+                    i,
+                    (gp.getX(i) + 3.00) / BOISERIE_TILE_M,
+                    clamp((gp.getY(i) - gbb.min.y) / spanY, 0.0, 1.0)
+                );
+            }
+            return gGeo;
+        };
+
+        // North Gable Wall (z = -6.90) + 2 North Windows + 2 Nero-Marquina Desks + Cognac Chairs + Schranksystem
+        const northGable = new THREE.Mesh(buildBoiserieGableGeo(), boiserieMat);
         northGable.position.set(0, OG_Y, -6.90);
         og.add(northGable);
         addFramedWindow(og, this.ogWeatherGroup, -1.48, OG_Y + 1.36, -6.82, 1.24, 1.08, 0);
         addFramedWindow(og, this.ogWeatherGroup,  1.22, OG_Y + 1.36, -6.82, 1.24, 1.08, 0);
 
         for (const dx of [-1.48, 1.22]) {
-            const ndTop = new THREE.Mesh(new RoundedBoxGeometry(1.68, 0.055, 0.76, 2, 0.015), whiteMat);
+            const ndTop = new THREE.Mesh(new RoundedBoxGeometry(1.68, 0.055, 0.76, 2, 0.015), neroStoneMat);
             ndTop.position.set(dx, OG_Y + 0.75, -6.34);
-            const ndLegL = new THREE.Mesh(new RoundedBoxGeometry(0.05, 0.73, 0.70, 1, 0.01), this.mats.silverSteel);
+            const ndTrim = new THREE.Mesh(new RoundedBoxGeometry(1.70, 0.016, 0.78, 1, 0.005), goldMat);
+            ndTrim.position.set(dx, OG_Y + 0.728, -6.34);
+            const ndLegL = new THREE.Mesh(new RoundedBoxGeometry(0.05, 0.73, 0.70, 1, 0.01), goldMat);
             ndLegL.position.set(dx - 0.78, OG_Y + 0.365, -6.34);
             const ndLegR = ndLegL.clone();
             ndLegR.position.set(dx + 0.78, OG_Y + 0.365, -6.34);
@@ -4101,14 +4248,14 @@ class FunkiraAtelierEngine {
             chBack.rotation.y = 0.35;
             const chStem = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.46, 8), obsidianMat);
             chStem.position.set(dx, OG_Y + 0.23, -5.68);
-            og.add(ndTop, ndLegL, ndLegR, chSeat, chBack, chStem);
+            og.add(ndTop, ndTrim, ndLegL, ndLegR, chSeat, chBack, chStem);
             addDeskMonitor(og, dx + (dx < 0 ? 0.36 : 0.0), OG_Y + 0.778, -6.54, 0.0);
         }
         const schrankSys = new THREE.Mesh(new RoundedBoxGeometry(0.52, 1.28, 2.48, 2, 0.02), woodDarkMat);
         schrankSys.position.set(2.70, OG_Y + 0.64, -5.52);
         og.add(schrankSys);
 
-        // --- OG-Bad (4.11m long, z = -4.21 .. -0.10, Fliesen + Badewanne + Waschbecken + WC + Heizkörper + Dachfenster) ---
+        // --- OG-Bad (4.11m long, z = -4.21 .. -0.10, Fliesen + Badewanne + Waschbecken + WC + Heizkoerper + Dachfenster) ---
         addWallBox(og, -0.06, -4.21,  3.00, -4.21, OG_Y, knieH);
         addWallBox(og, -0.06, -0.10,  3.00, -0.10, OG_Y, knieH);
         addWallBox(og, -0.06, -4.21, -0.06, -1.88, OG_Y, knieH);
@@ -4118,16 +4265,16 @@ class FunkiraAtelierEngine {
         ogTubDeck.position.set(1.48, OG_Y + 0.29, -3.72);
         const ogTubWater = new THREE.Mesh(new RoundedBoxGeometry(2.15, 0.05, 0.58, 2, 0.04), this.mats.showerGlass);
         ogTubWater.position.set(1.48, OG_Y + 0.56, -3.72);
-        const ogVanity = new THREE.Mesh(new RoundedBoxGeometry(0.48, 0.54, 0.92, 2, 0.02), whiteMat);
+        const ogVanity = new THREE.Mesh(new RoundedBoxGeometry(0.48, 0.54, 0.92, 2, 0.02), neroStoneMat);
         ogVanity.position.set(0.26, OG_Y + 0.44, -2.35);
         const ogBasin = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.17, 0.12, 16), whiteMat);
         ogBasin.position.set(0.28, OG_Y + 0.76, -2.35);
         const ogWc = new THREE.Mesh(new RoundedBoxGeometry(0.54, 0.42, 0.38, 3, 0.07), whiteMat);
         ogWc.position.set(2.58, OG_Y + 0.21, -2.35);
         og.add(ogTubDeck, ogTubWater, ogVanity, ogBasin, ogWc);
-        addRadiator(og, 1.68, OG_Y, -0.22, 1.45, false); // OG-Bad Heizkörper
+        addRadiator(og, 1.68, OG_Y, -0.22, 1.45, false); // OG-Bad Heizkoerper
 
-        // Sloped Dachfenster (Velux Skylight in East Dachschräge above OG-Bad WC!)
+        // Sloped Dachfenster (Velux Skylight in East Dachschraege above OG-Bad WC!)
         const veluxGroup = new THREE.Group();
         veluxGroup.position.set(3.48, OG_Y + 1.82, -2.35);
         veluxGroup.rotation.z = -roofAngle;
@@ -4165,38 +4312,43 @@ class FunkiraAtelierEngine {
             });
         }
 
-        // 2 West Knee-Wall Heizkörper (Screenshot 2 left side)
+        // 2 West Knee-Wall Heizkoerper
         addRadiator(og, -2.88, OG_Y, -2.85, 1.82, true);
         addRadiator(og, -2.88, OG_Y,  1.05, 1.82, true);
 
-        // Matte Black Geländer ("Das ist ein Geländer" at z = +1.92, x = +0.48 .. +2.98)
-        const gelTop = new THREE.Mesh(new RoundedBoxGeometry(2.52, 0.055, 0.065, 2, 0.015), obsidianMat);
+        // Nero-Marquina & 24K Gold Boutique Balustrade ("Das ist ein Gelaender" at z = +1.92, x = +0.48 .. +2.98)
+        const gelTop = new THREE.Mesh(new RoundedBoxGeometry(2.52, 0.055, 0.068, 2, 0.015), neroStoneMat);
         gelTop.position.set(1.74, OG_Y + 1.00, 1.92);
-        const gelBot = new THREE.Mesh(new RoundedBoxGeometry(2.52, 0.04, 0.05, 1, 0.01), obsidianMat);
+        const gelGoldCap = new THREE.Mesh(new THREE.BoxGeometry(2.53, 0.014, 0.072), goldMat);
+        gelGoldCap.position.set(1.74, OG_Y + 1.032, 1.92);
+        const gelBot = new THREE.Mesh(new RoundedBoxGeometry(2.52, 0.04, 0.05, 1, 0.01), neroStoneMat);
         gelBot.position.set(1.74, OG_Y + 0.08, 1.92);
-        og.add(gelTop, gelBot);
+        og.add(gelTop, gelGoldCap, gelBot);
         for (let b = 0; b <= 10; b++) {
             const bx = 0.50 + b * 0.246;
-            const bar = new THREE.Mesh(new RoundedBoxGeometry(0.032, 0.94, 0.032, 1, 0.005), obsidianMat);
+            const bar = new THREE.Mesh(
+                new RoundedBoxGeometry(0.030, 0.94, 0.030, 1, 0.005),
+                (b % 5 === 0) ? goldMat : neroStoneMat
+            );
             bar.position.set(bx, OG_Y + 0.53, 1.92);
             og.add(bar);
         }
         // Safety side-rail on North edge of stairwell opening
-        const stairBackGuard = new THREE.Mesh(new RoundedBoxGeometry(2.22, 0.96, 0.05, 1, 0.01), obsidianMat);
+        const stairBackGuard = new THREE.Mesh(new RoundedBoxGeometry(2.22, 0.96, 0.05, 1, 0.01), neroStoneMat);
         stairBackGuard.position.set(1.85, OG_Y + 0.48, 0.56);
-        og.add(stairBackGuard);
+        const stairBackGold = new THREE.Mesh(new THREE.BoxGeometry(2.23, 0.016, 0.055), goldMat);
+        stairBackGold.position.set(1.85, OG_Y + 0.965, 0.56);
+        og.add(stairBackGuard, stairBackGold);
 
         // ====================================================================
-        // 4. SEELENFUNKEN ATELIER ENCLOSED GABLE & DACHSCHRÄGEN CEILING
+        // 4. SEELENFUNKEN ATELIER ENCLOSED GABLE & DACHSCHRAEGEN CEILING
         // (Visible in front_active Atelier view; cutaway in Dollhouse Pause Mode!)
         // ====================================================================
         const atelierClosed = new THREE.Group();
         this.ogRoofClosedGroup = atelierClosed;
 
-        // Sloped Dachschrägen Ceiling Panels over Seelenfunken Atelier (z = +1.85 .. +6.90)
-        const slopeCeilingMat = new THREE.MeshMatcapMaterial({
-            matcap: makeStudioMatcapTexture('#231b17', '#6e5645', '#C5A059', 12, 0.16)
-        });
+        // Sloped Parisian Plaster Ceiling Panels over Seelenfunken Atelier (z = +1.85 .. +6.90)
+        const slopeCeilingMat = this.mats.atelierCeilingPbr;
         for (const sx of [-1, 1]) {
             const ceilSlope = new THREE.Mesh(new RoundedBoxGeometry(rafterLen, 0.06, 5.10, 1, 0.01), slopeCeilingMat);
             ceilSlope.position.set(sx * 1.50, OG_Y + 3.13, 4.38);
@@ -4205,36 +4357,24 @@ class FunkiraAtelierEngine {
         }
 
         // Pentagonal South Atelier Gable Wall (z = +6.84, facing -Z toward camera!)
-        const gableGeo = new THREE.ShapeGeometry(createGableWallShape());
-        gableGeo.computeBoundingBox();
-        const gbb = gableGeo.boundingBox;
-        const gp = gableGeo.attributes.position;
-        const guv = gableGeo.attributes.uv;
-        for (let i = 0; i < gp.count; i++) {
-            guv.setXY(
-                i,
-                ((gp.getX(i) - gbb.min.x) / (gbb.max.x - gbb.min.x)) * 1.8,
-                (gp.getY(i) - gbb.min.y) / (gbb.max.y - gbb.min.y)
-            );
-        }
-        const southGableWall = new THREE.Mesh(
-            gableGeo,
-            new THREE.MeshBasicMaterial({ map: makeBakedWallTexture(), side: THREE.DoubleSide })
-        );
+        // Uses /assets/atelier_boiserie_wall.jpg with ClampToEdge Y so cornice sits on top & black marble baseboard sits on floor!
+        const southGableWall = new THREE.Mesh(buildBoiserieGableGeo(), boiserieMat);
         southGableWall.position.set(0, OG_Y, 6.84);
         southGableWall.rotation.y = Math.PI;
-        const southBaseboard = new THREE.Mesh(new RoundedBoxGeometry(5.96, 0.10, 0.06, 2, 0.015), goldMat);
-        southBaseboard.position.set(0, OG_Y + 0.05, 6.80);
-        atelierClosed.add(southGableWall, southBaseboard);
+        // Delicate 24K Gold bead crowning the black marble baseboard (keeps the photorealistic marble plinth 100% visible!)
+        const southBaseboardBead = new THREE.Mesh(new THREE.BoxGeometry(5.98, 0.016, 0.024), goldMat);
+        southBaseboardBead.position.set(0, OG_Y + 0.148, 6.826);
+        atelierClosed.add(southGableWall, southBaseboardBead);
 
         // 2 South Atelier Gable Windows (generous +35cm roof clearance at both outer upper corners!)
         addFramedWindow(atelierClosed, this.ogSouthWeatherGroup,  2.24, OG_Y + 1.18, 6.79, 1.06, 1.14, Math.PI);
         addFramedWindow(atelierClosed, this.ogSouthWeatherGroup, -2.24, OG_Y + 1.18, 6.79, 1.06, 1.14, Math.PI);
 
-        // Volumetric Golden Sunbeams from South Atelier Windows
+        // Subtle Volumetric Golden Sunbeams from South Atelier Windows
         const sunbeamMat = new THREE.MeshBasicMaterial({
             map: makeSunbeamTexture(),
             transparent: true,
+            opacity: 0.52,
             depthWrite: false,
             blending: THREE.AdditiveBlending,
             side: THREE.DoubleSide
@@ -4258,12 +4398,12 @@ class FunkiraAtelierEngine {
         photoGroup.rotation.y = Math.PI;
 
         const photoWallHalo = new THREE.Mesh(
-            new THREE.PlaneGeometry(2.15, 1.42),
-            new THREE.MeshBasicMaterial({ map: glowWallTex, transparent: true, depthWrite: false })
+            new THREE.PlaneGeometry(1.76, 1.18),
+            frameShadowMat
         );
-        photoWallHalo.position.set(0, 0.05, -0.02);
+        photoWallHalo.position.set(0, -0.02, -0.022);
         const frameOuterMesh = new THREE.Mesh(new RoundedBoxGeometry(1.48, 0.92, 0.06, 2, 0.022), goldMat);
-        const frameInnerMatte = new THREE.Mesh(new RoundedBoxGeometry(1.35, 0.79, 0.065, 1, 0.01), obsidianMat);
+        const frameInnerMatte = new THREE.Mesh(new RoundedBoxGeometry(1.35, 0.79, 0.065, 1, 0.01), neroStoneMat);
         photoGroup.add(photoWallHalo, frameOuterMesh, frameInnerMatte);
 
         const placeholderCanvas = document.createElement('canvas');
@@ -4315,7 +4455,7 @@ class FunkiraAtelierEngine {
         chanInnerGlow.rotation.x = Math.PI / 2;
         chanInnerGlow.position.set(0, -0.12, 0);
         chanInnerGlow.rotation.z = 0.10;
-        const chanCoreGem = new THREE.Mesh(new THREE.OctahedronGeometry(0.055, 0), this.mats.crystalRim);
+        const chanCoreGem = new THREE.Mesh(new THREE.OctahedronGeometry(0.055, 0), glassPbrMat);
         chanCoreGem.position.set(0, -0.12, 0);
         chandelierGrp.add(chanCanopy, chanOuterGold, chanOuterGlow, chanInnerGold, chanInnerGlow, chanCoreGem);
         for (let w = 0; w < 3; w++) {
@@ -4326,16 +4466,19 @@ class FunkiraAtelierEngine {
         }
         atelierClosed.add(chandelierGrp);
 
-        // Warm 24K Gold Kniestock Sconce Uplights on Left & Right Atelier Knee-Walls
+        // Warm 24K Gold & Nero-Marquina Kniestock Sconce Uplights on Left & Right Atelier Knee-Walls
         for (const [sx, sz, sRotY] of [[-2.93, 4.95, Math.PI / 2], [2.93, 4.95, -Math.PI / 2]]) {
-            const sconcePlate = new THREE.Mesh(new RoundedBoxGeometry(0.12, 0.24, 0.025, 1, 0.006), obsidianMat);
+            const sconcePlate = new THREE.Mesh(new RoundedBoxGeometry(0.12, 0.24, 0.025, 1, 0.006), neroStoneMat);
             sconcePlate.position.set(sx, OG_Y + 1.18, sz);
             sconcePlate.rotation.y = sRotY;
+            const sconceTrim = new THREE.Mesh(new RoundedBoxGeometry(0.132, 0.252, 0.014, 1, 0.004), goldMat);
+            sconceTrim.position.set(sx, OG_Y + 1.18, sz);
+            sconceTrim.rotation.y = sRotY;
             const sconceBar = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.20, 10), goldMat);
             sconceBar.position.set(sx + (sx < 0 ? 0.026 : -0.026), OG_Y + 1.18, sz);
             const sconceBulb = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.16, 10), this.mats.warmBulb);
             sconceBulb.position.set(sx + (sx < 0 ? 0.042 : -0.042), OG_Y + 1.18, sz);
-            atelierClosed.add(sconcePlate, sconceBar, sconceBulb);
+            atelierClosed.add(sconcePlate, sconceTrim, sconceBar, sconceBulb);
         }
 
         // OG Signed 24K Gold "MEIN SEELENFUNKE" Gallery Frames on West Knee-Wall
@@ -4348,10 +4491,10 @@ class FunkiraAtelierEngine {
         brandSignGroup.rotation.y = Math.PI;
 
         const signWallHalo = new THREE.Mesh(
-            new THREE.PlaneGeometry(1.94, 1.16),
-            new THREE.MeshBasicMaterial({ map: glowWallTex, transparent: true, depthWrite: false })
+            new THREE.PlaneGeometry(1.56, 0.84),
+            frameShadowMat
         );
-        signWallHalo.position.set(0, 0, -0.02);
+        signWallHalo.position.set(0, -0.02, -0.016);
         const signBacklitRim = new THREE.Mesh(new RoundedBoxGeometry(1.34, 0.62, 0.024, 2, 0.018), this.mats.warmBulb);
         signBacklitRim.position.z = 0.004;
         const signGoldCasing = new THREE.Mesh(new RoundedBoxGeometry(1.29, 0.57, 0.045, 2, 0.02), goldMat);
@@ -4366,25 +4509,27 @@ class FunkiraAtelierEngine {
 
         og.add(atelierClosed);
 
-        // ---- LEVEL 1: Bevelled Walnut Manufaktur-Werkbank + 3D GLAS-TROPHÄEN + 14K Jar + Rosen-Vase ----
+        // ---- LEVEL 1: Polished Nero-Marquina Manufaktur-Werkbank + 24K Gold Bezel + 3D GLAS-TROPHAEEN ----
         // Placed at Screen-Right (x = -1.68, z = +5.72) facing -Z toward camera!
         const lvl1 = new THREE.Group();
         lvl1.position.set(-1.68, OG_Y, 5.72);
         lvl1.rotation.y = Math.PI;
 
-        const benchTop = new THREE.Mesh(new RoundedBoxGeometry(1.94, 0.095, 0.84, 2, 0.026), woodDarkMat);
+        const benchTop = new THREE.Mesh(new RoundedBoxGeometry(1.94, 0.095, 0.84, 2, 0.026), neroStoneMat);
         benchTop.position.set(0, 0.87, 0);
-        const benchTrim = new THREE.Mesh(new RoundedBoxGeometry(1.96, 0.028, 0.86, 1, 0.01), goldMat);
+        const benchTrim = new THREE.Mesh(new RoundedBoxGeometry(1.965, 0.028, 0.865, 1, 0.01), goldMat);
         benchTrim.position.set(0, 0.845, 0);
-        const drawerApron = new THREE.Mesh(new RoundedBoxGeometry(1.76, 0.15, 0.72, 2, 0.02), obsidianMat);
+        const drawerApron = new THREE.Mesh(new RoundedBoxGeometry(1.76, 0.15, 0.72, 2, 0.02), neroStoneMat);
         drawerApron.position.set(0, 0.74, 0);
+        const drawerGoldBase = new THREE.Mesh(new RoundedBoxGeometry(1.77, 0.016, 0.73, 1, 0.005), goldMat);
+        drawerGoldBase.position.set(0, 0.665, 0);
         const pullL = new THREE.Mesh(new RoundedBoxGeometry(0.16, 0.022, 0.03, 1, 0.008), goldMat);
         pullL.position.set(-0.42, 0.74, 0.37);
         const pullR = new THREE.Mesh(new RoundedBoxGeometry(0.16, 0.022, 0.03, 1, 0.008), goldMat);
         pullR.position.set(0.42, 0.74, 0.37);
         const benchCrest = new THREE.Mesh(new THREE.PlaneGeometry(0.36, 0.088), this.plaqueMats.obsidianMain);
         benchCrest.position.set(0, 0.74, 0.364);
-        lvl1.add(benchTop, benchTrim, drawerApron, pullL, pullR, benchCrest);
+        lvl1.add(benchTop, benchTrim, drawerApron, drawerGoldBase, pullL, pullR, benchCrest);
 
         const legGeo = new THREE.CylinderGeometry(0.040, 0.025, 0.84, 12);
         for (const [lx, lz] of [[-0.86, 0.32], [0.86, 0.32], [-0.86, -0.32], [0.86, -0.32]]) {
@@ -4393,9 +4538,9 @@ class FunkiraAtelierEngine {
             lvl1.add(leg);
         }
 
-        // 3D GLAS-TROPHÄEN (Signed "MEIN SEELENFUNKE" Optical K9 Seelen-Kristall Awards!)
+        // 3D GLAS-TROPHAEEN (Signed "MEIN SEELENFUNKE" Optical K9 Seelen-Kristall Awards on Nero-Marquina Plinths!)
         const trophiesGroup = new THREE.Group();
-        const t1Base = new THREE.Mesh(new RoundedBoxGeometry(0.20, 0.048, 0.20, 2, 0.012), obsidianMat);
+        const t1Base = new THREE.Mesh(new RoundedBoxGeometry(0.20, 0.048, 0.20, 2, 0.012), neroStoneMat);
         t1Base.position.set(0.0, 0.94, 0.18);
         const t1GoldCollar = new THREE.Mesh(new RoundedBoxGeometry(0.16, 0.024, 0.16, 1, 0.008), goldMat);
         t1GoldCollar.position.set(0.0, 0.972, 0.18);
@@ -4403,7 +4548,7 @@ class FunkiraAtelierEngine {
         t1Plaque.position.set(0.0, 0.942, 0.282);
         const t1CoreStar = new THREE.Mesh(new THREE.OctahedronGeometry(0.042, 0), this.mats.warmBulb);
         t1CoreStar.position.set(0.0, 1.15, 0.18);
-        const t1Obelisk = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.082, 0.34, 6), this.mats.crystalGlass);
+        const t1Obelisk = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.082, 0.34, 6), glassPbrMat);
         t1Obelisk.position.set(0.0, 1.15, 0.18);
         const t1Apex = new THREE.Mesh(new THREE.ConeGeometry(0.042, 0.08, 6), this.mats.crystalRim);
         t1Apex.position.set(0.0, 1.36, 0.18);
@@ -4411,13 +4556,13 @@ class FunkiraAtelierEngine {
 
         const t2Base = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.088, 0.048, 12), goldMat);
         t2Base.position.set(-0.32, 0.94, 0.15);
-        const t2Plinth = new THREE.Mesh(new RoundedBoxGeometry(0.138, 0.034, 0.024, 1, 0.005), obsidianMat);
+        const t2Plinth = new THREE.Mesh(new RoundedBoxGeometry(0.138, 0.034, 0.024, 1, 0.005), neroStoneMat);
         t2Plinth.position.set(-0.32, 0.942, 0.232);
         const t2Plaque = new THREE.Mesh(new THREE.PlaneGeometry(0.128, 0.030), this.plaqueMats.trophy);
         t2Plaque.position.set(-0.32, 0.942, 0.246);
         const t2Core = new THREE.Mesh(new THREE.OctahedronGeometry(0.032, 0), goldMat);
         t2Core.position.set(-0.32, 1.10, 0.15);
-        const t2Diamond = new THREE.Mesh(new THREE.OctahedronGeometry(0.105, 0), this.mats.crystalGlass);
+        const t2Diamond = new THREE.Mesh(new THREE.OctahedronGeometry(0.105, 0), glassPbrMat);
         t2Diamond.scale.set(1.0, 1.35, 0.58);
         t2Diamond.position.set(-0.32, 1.10, 0.15);
         const t2Sheen = new THREE.Mesh(new THREE.OctahedronGeometry(0.108, 0), this.mats.crystalRim);
@@ -4425,7 +4570,7 @@ class FunkiraAtelierEngine {
         t2Sheen.position.set(-0.32, 1.10, 0.15);
         trophiesGroup.add(t2Base, t2Plinth, t2Plaque, t2Core, t2Diamond, t2Sheen);
 
-        const t3Base = new THREE.Mesh(new RoundedBoxGeometry(0.18, 0.044, 0.12, 2, 0.01), obsidianMat);
+        const t3Base = new THREE.Mesh(new RoundedBoxGeometry(0.18, 0.044, 0.12, 2, 0.01), neroStoneMat);
         t3Base.position.set(0.32, 0.94, 0.15);
         const t3GoldTrim = new THREE.Mesh(new RoundedBoxGeometry(0.15, 0.020, 0.095, 1, 0.006), goldMat);
         t3GoldTrim.position.set(0.32, 0.968, 0.15);
@@ -4433,12 +4578,12 @@ class FunkiraAtelierEngine {
         t3Plaque.position.set(0.32, 0.942, 0.212);
         const t3InnerCrest = new THREE.Mesh(new RoundedBoxGeometry(0.065, 0.12, 0.012, 1, 0.004), this.mats.warmBulb);
         t3InnerCrest.position.set(0.32, 1.09, 0.15);
-        const t3Block = new THREE.Mesh(new RoundedBoxGeometry(0.138, 0.25, 0.062, 2, 0.016), this.mats.crystalGlass);
+        const t3Block = new THREE.Mesh(new RoundedBoxGeometry(0.138, 0.25, 0.062, 2, 0.016), glassPbrMat);
         t3Block.position.set(0.32, 1.10, 0.15);
         trophiesGroup.add(t3Base, t3GoldTrim, t3Plaque, t3InnerCrest, t3Block);
         lvl1.add(trophiesGroup);
 
-        // Signed 14K Körper-Kasse Savings Jar & Signed TikTok Rose Amphora Vase
+        // Signed 14K Koerper-Kasse Savings Jar & Signed TikTok Rose Amphora Vase
         const jarPoints = [
             new THREE.Vector2(0.00, 0.00), new THREE.Vector2(0.090, 0.00),
             new THREE.Vector2(0.118, 0.07), new THREE.Vector2(0.112, 0.18),
@@ -4482,20 +4627,31 @@ class FunkiraAtelierEngine {
         og.add(lvl1);
         this.levelGroups[1] = lvl1;
 
-        // ---- LEVEL 2: Ornate Schwarz-Gold Medallion Rug, Signed Westpack Boxes & Signed Boutique Monstera ----
+        // ---- LEVEL 2: Flush Parisian 24K Gold & Nero-Marquina Parquet Inlay Border, Westpack Boxes & Monstera ----
+        // Keeps 95% of the photorealistic Herringbone Oak Parquet completely open and gleaming!
         const lvl2 = new THREE.Group();
-        const rug = new THREE.Mesh(
-            new THREE.PlaneGeometry(3.05, 3.05),
-            new THREE.MeshBasicMaterial({ map: makeBakedRugTexture(), transparent: true, depthWrite: false })
-        );
-        rug.rotation.x = -Math.PI / 2;
-        rug.position.set(0, OG_Y + 0.006, 4.55);
-        lvl2.add(rug);
+        const inlayGroup = new THREE.Group();
+        inlayGroup.position.set(0, OG_Y + 0.003, 4.55);
+        const inlayNeroBand = new THREE.Mesh(new THREE.RingGeometry(1.36, 1.48, 64), neroStoneMat);
+        inlayNeroBand.rotation.x = -Math.PI / 2;
+        const inlayOuterBrass = new THREE.Mesh(new THREE.RingGeometry(1.48, 1.502, 64), goldMat);
+        inlayOuterBrass.rotation.x = -Math.PI / 2;
+        inlayOuterBrass.position.y = 0.001;
+        const inlayInnerBrass = new THREE.Mesh(new THREE.RingGeometry(1.338, 1.36, 64), goldMat);
+        inlayInnerBrass.rotation.x = -Math.PI / 2;
+        inlayInnerBrass.position.y = 0.001;
+        const inlayCenterDisc = new THREE.Mesh(new THREE.CircleGeometry(0.18, 32), neroStoneMat);
+        inlayCenterDisc.rotation.x = -Math.PI / 2;
+        const inlayCenterRing = new THREE.Mesh(new THREE.RingGeometry(0.175, 0.195, 32), goldMat);
+        inlayCenterRing.rotation.x = -Math.PI / 2;
+        inlayCenterRing.position.y = 0.001;
+        inlayGroup.add(inlayNeroBand, inlayOuterBrass, inlayInnerBrass, inlayCenterDisc, inlayCenterRing);
+        lvl2.add(inlayGroup);
 
         for (let b = 0; b < 3; b++) {
             const bw = 0.29 - b * 0.030;
             const bd = 0.23 - b * 0.020;
-            const box = new THREE.Mesh(new RoundedBoxGeometry(bw, 0.10, bd, 2, 0.018), obsidianMat);
+            const box = new THREE.Mesh(new RoundedBoxGeometry(bw, 0.10, bd, 2, 0.018), neroStoneMat);
             box.position.set(-1.38, OG_Y + 0.97 + b * 0.102, 5.92);
             const ribbon = new THREE.Mesh(new RoundedBoxGeometry(bw + 0.012, 0.020, bd + 0.012, 1, 0.006), goldMat);
             ribbon.position.copy(box.position);
@@ -4532,17 +4688,19 @@ class FunkiraAtelierEngine {
         og.add(lvl2);
         this.levelGroups[2] = lvl2;
 
-        // ---- LEVEL 3: xTool F2 Ultra UV + Conveyor + SafetyPro IF2 2.0 & Signed Boutique Vitrine ----
-        // Placed at Screen-Left (x = +1.92, z = +5.72) facing -Z toward camera!
+        // ---- LEVEL 3: xTool F2 Ultra UV on Nero-Marquina Plinth + Signed Boutique Vitrine ----
+        // Placed at Screen-Left (x = +1.96, z = +5.72) facing -Z toward camera!
         const lvl3 = new THREE.Group();
         const laserGrp = new THREE.Group();
         laserGrp.position.set(1.96, OG_Y, 5.72);
         laserGrp.rotation.y = Math.PI;
 
-        const laserStand = new THREE.Mesh(new RoundedBoxGeometry(0.94, 0.78, 0.74, 2, 0.03), obsidianMat);
+        const laserStand = new THREE.Mesh(new RoundedBoxGeometry(0.94, 0.78, 0.74, 2, 0.03), neroStoneMat);
         laserStand.position.y = 0.39;
-        const standTrim = new THREE.Mesh(new RoundedBoxGeometry(0.96, 0.026, 0.76, 1, 0.008), goldMat);
+        const standTrim = new THREE.Mesh(new RoundedBoxGeometry(0.965, 0.026, 0.765, 1, 0.008), goldMat);
         standTrim.position.y = 0.77;
+        const standBaseGold = new THREE.Mesh(new RoundedBoxGeometry(0.96, 0.022, 0.76, 1, 0.006), goldMat);
+        standBaseGold.position.y = 0.012;
         const laserPlaque = new THREE.Mesh(new THREE.PlaneGeometry(0.46, 0.12), this.plaqueMats.obsidianMain);
         laserPlaque.position.set(0, 0.48, 0.375);
         const laserBody = new THREE.Mesh(new RoundedBoxGeometry(0.56, 0.56, 0.50, 2, 0.035), this.mats.darkArmor);
@@ -4564,18 +4722,20 @@ class FunkiraAtelierEngine {
         const ra3Rotary = new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.038, 0.16, 12), this.mats.silverSteel);
         ra3Rotary.rotation.z = Math.PI / 2;
         ra3Rotary.position.set(-0.04, 0.855, 0.04);
-        const exhaustUnit = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.14, 0.45, 16), this.mats.darkArmor);
+        const exhaustUnit = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.14, 0.45, 16), neroStoneMat);
         exhaustUnit.position.set(0.58, 0.225, -0.08);
         const exhaustCap = new THREE.Mesh(new THREE.CylinderGeometry(0.134, 0.134, 0.028, 16), goldMat);
         exhaustCap.position.set(0.58, 0.455, -0.08);
         laserGrp.add(
-            laserStand, standTrim, laserPlaque, laserBody, conveyorRail,
+            laserStand, standTrim, standBaseGold, laserPlaque, laserBody, conveyorRail,
             laserHood, laserTopCrown, laserDial, laserStatusRing, ra3Rotary, exhaustUnit, exhaustCap
         );
         lvl3.add(laserGrp);
 
-        const vitBase = new THREE.Mesh(new RoundedBoxGeometry(0.62, 0.86, 0.46, 2, 0.026), obsidianMat);
+        const vitBase = new THREE.Mesh(new RoundedBoxGeometry(0.62, 0.86, 0.46, 2, 0.026), neroStoneMat);
         vitBase.position.set(1.04, OG_Y + 0.43, 5.96);
+        const vitBaseGold = new THREE.Mesh(new RoundedBoxGeometry(0.64, 0.022, 0.48, 1, 0.006), goldMat);
+        vitBaseGold.position.set(1.04, OG_Y + 0.012, 5.96);
         const vitCap = new THREE.Mesh(new RoundedBoxGeometry(0.65, 0.032, 0.49, 1, 0.01), goldMat);
         vitCap.position.set(1.04, OG_Y + 0.87, 5.96);
         const vitPlaque = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 0.115), this.plaqueMats.trophy);
@@ -4583,19 +4743,21 @@ class FunkiraAtelierEngine {
         vitPlaque.rotation.y = Math.PI;
         const vitGlass = new THREE.Mesh(
             new RoundedBoxGeometry(0.58, 0.74, 0.42, 2, 0.02),
-            new THREE.MeshBasicMaterial({ color: 0xfff5dc, transparent: true, opacity: 0.13, depthWrite: false })
+            glassPbrMat
         );
         vitGlass.position.set(1.04, OG_Y + 1.25, 5.96);
+        const vitTopRim = new THREE.Mesh(new RoundedBoxGeometry(0.60, 0.020, 0.44, 1, 0.006), goldMat);
+        vitTopRim.position.set(1.04, OG_Y + 1.622, 5.96);
         const vitItem = new THREE.Mesh(new THREE.OctahedronGeometry(0.125, 0), goldMat);
         vitItem.position.set(1.04, OG_Y + 1.22, 5.96);
-        lvl3.add(vitBase, vitCap, vitPlaque, vitGlass, vitItem);
+        lvl3.add(vitBase, vitBaseGold, vitCap, vitPlaque, vitGlass, vitTopRim, vitItem);
         this.rig.vitrineGem = vitItem;
         og.add(lvl3);
         this.levelGroups[3] = lvl3;
 
-        // ---- LEVEL 4: Signed Sculpted Goblet Trophy ----
+        // ---- LEVEL 4: Signed Sculpted Goblet Trophy on Nero-Marquina Plinth ----
         const lvl4 = new THREE.Group();
-        const gobBase = new THREE.Mesh(new RoundedBoxGeometry(0.22, 0.048, 0.22, 2, 0.012), obsidianMat);
+        const gobBase = new THREE.Mesh(new RoundedBoxGeometry(0.22, 0.048, 0.22, 2, 0.012), neroStoneMat);
         gobBase.position.set(1.04, OG_Y + 1.644, 5.96);
         const gobPlaque = new THREE.Mesh(new THREE.PlaneGeometry(0.18, 0.038), this.plaqueMats.trophy);
         gobPlaque.position.set(1.04, OG_Y + 1.646, 5.847);
@@ -4613,20 +4775,29 @@ class FunkiraAtelierEngine {
 
         // ---- LEVEL 5: MEIN SEELENFUNKE Crest on Gable Peak & 14K Chassis Blueprint ----
         const lvl5 = new THREE.Group();
+        const crestShad = new THREE.Mesh(new THREE.PlaneGeometry(1.98, 0.62), frameShadowMat);
+        crestShad.position.set(-0.22, OG_Y + 2.50, 6.792);
+        crestShad.rotation.y = Math.PI;
+        const crestBacking = new THREE.Mesh(new RoundedBoxGeometry(1.83, 0.47, 0.026, 2, 0.012), goldMat);
+        crestBacking.position.set(-0.22, OG_Y + 2.52, 6.784);
+        crestBacking.rotation.y = Math.PI;
         const crestMesh = new THREE.Mesh(
             new THREE.PlaneGeometry(1.78, 0.42),
             new THREE.MeshBasicMaterial({ map: makeWallCrestTexture('MEIN SEELENFUNKE', 'MANUFAKTUR GIFHORN · EXZELLENZ-STUFE V') })
         );
-        crestMesh.position.set(-0.22, OG_Y + 2.52, 6.77);
+        crestMesh.position.set(-0.22, OG_Y + 2.52, 6.768);
         crestMesh.rotation.y = Math.PI;
+        const blueprintBacking = new THREE.Mesh(new RoundedBoxGeometry(1.19, 0.40, 0.022, 1, 0.008), goldMat);
+        blueprintBacking.position.set(-2.932, OG_Y + 0.92, 3.55);
+        blueprintBacking.rotation.y = Math.PI / 2;
         const blueprintMesh = new THREE.Mesh(
             new THREE.PlaneGeometry(1.15, 0.36),
             new THREE.MeshBasicMaterial({ map: makeWallCrestTexture('PROJEKT: EIGENER KÖRPER', '14K CHASSIS-BLAUPAUSE · FUNKIRA MK-II') })
         );
-        blueprintMesh.position.set(-2.92, OG_Y + 0.92, 3.55);
+        blueprintMesh.position.set(-2.918, OG_Y + 0.92, 3.55);
         blueprintMesh.rotation.y = Math.PI / 2;
-        lvl5.add(blueprintMesh);
-        atelierClosed.add(crestMesh);
+        lvl5.add(blueprintBacking, blueprintMesh);
+        atelierClosed.add(crestShad, crestBacking, crestMesh);
         og.add(lvl5);
         this.levelGroups[5] = lvl5;
 

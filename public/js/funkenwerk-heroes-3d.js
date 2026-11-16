@@ -5,7 +5,7 @@
         return;
     }
 
-    var MODULE_URL = '/js/seelenfunke-louvre-showroom-3d.js?v=20261116v3';
+    var MODULE_URL = '/js/seelenfunke-louvre-showroom-3d.js?v=20261116v4';
 
     var STANDALONE_SCOPED_CSS = [
         '@keyframes sfLobbySpin { to { transform: rotate(360deg); } }',
@@ -303,6 +303,7 @@
             '  </div>',
             '  <div class="sf-lobby-quick-actions">',
             '    <button type="button" data-lobby-jump class="sf-lobby-icon-btn" title="Springen (Leertaste)" aria-label="Springen">⤒</button>',
+            '    <button type="button" data-lobby-strike class="sf-lobby-icon-btn" style="color:#9A7738;" title="Aktion (Rechtsklick / Taste G)" aria-label="Aktion">✦</button>',
             '  </div>',
             '  <div class="sf-lobby-bottom-stack">',
             '    <div data-lobby-bottom-gallery class="sf-lobby-bottom-pill">',
@@ -421,6 +422,15 @@
 
         root.querySelector('[data-lobby-jump]').addEventListener('click', function () {
             if (self._engine) self._engine.triggerJump();
+        });
+
+        root.querySelector('[data-lobby-strike]').addEventListener('click', function () {
+            if (!self._engine) return;
+            if (typeof self._engine.triggerStrikeAction === 'function') {
+                self._engine.triggerStrikeAction();
+            } else if (typeof self._engine.triggerWeaponAction === 'function') {
+                self._engine.triggerWeaponAction();
+            }
         });
 
         root.querySelector('[data-lobby-prev]').addEventListener('click', function () {

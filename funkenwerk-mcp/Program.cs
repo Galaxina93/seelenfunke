@@ -331,6 +331,11 @@ namespace FunkenwerkMcp
                 return await RunAgSidecarDaemonCliAsync(args);
             }
 
+            if (args.Any(a => string.Equals(a, "--stage-laser-relay-once", StringComparison.OrdinalIgnoreCase)))
+            {
+                return await RunStageLaserRelayOnceCliAsync(args);
+            }
+
             if (args.Any(a => string.Equals(a, "--tresor-list", StringComparison.OrdinalIgnoreCase)))
             {
                 return RunTresorListCli();
@@ -1718,6 +1723,9 @@ namespace FunkenwerkMcp
                 try { cts.Cancel(); } catch { }
             };
 
+            // Automatic Windows Stage-Laser Failover Relay (~2.5s background loop; 100% passive when Mini-PC 192.168.188.151:22 is awake)
+            Task laserFailoverRelayTask = McpStageLaserFailoverRelay.RunDaemonLoopAsync(cts.Token);
+
             while (!cts.IsCancellationRequested)
             {
                 int pollSeconds = McpSecurityGuard.DefaultAgPollIntervalSeconds;
@@ -1939,7 +1947,29 @@ namespace FunkenwerkMcp
                 }
             }
 
+            try { await laserFailoverRelayTask; } catch { }
             return 0;
+        }
+
+        private static async Task<int> RunStageLaserRelayOnceCliAsync(string[] args)
+        {
+            try
+            {
+                McpSecurityGuard.LockDownDirectoryAcl(McpSecurityGuard.VaultDirectory);
+                bool captureCamera = args.Any(a => string.Equals(a, "--capture-camera", StringComparison.OrdinalIgnoreCase));
+                var report = await McpStageLaserFailoverRelay.RunSingleFailoverCycleAsync(
+                    sendExplicitHeartbeat: true,
+                    runDiagnosticCameraTest: captureCamera,
+                    forceRefreshProbes: true);
+
+                Console.WriteLine(McpSecurityGuard.ScrubSecrets(JsonSerializer.Serialize(report, JsonPretty)));
+                return string.Equals(report.Status, "ok", StringComparison.OrdinalIgnoreCase) ? 0 : 1;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"❌ Stage-Laser-Failover-Relay Fehler: {McpSecurityGuard.ScrubSecrets(ex.Message)}");
+                return 1;
+            }
         }
 
         private static async Task<(bool Success, int ExitCode, string ErrorSummary, string? ExtractedUuid)> StartNewAgentConversationSafeAsync(
@@ -5082,7 +5112,7 @@ namespace FunkenwerkMcp
                 McpOrganizerClient.TestHttpClientOverride = mockClient;
                 McpOrganizerClient.TestBaseUrlOverride = "https://stage.mein-seelenfunke.de/api";
 
-                Console.WriteLine("=== FUNKENWERK MCP v1.8 HARDENED ZERO-TRUST & E2E SELF-TEST (61 CHECKS) ===");
+                Console.WriteLine("=== FUNKENWERK MCP v1.8 HARDENED ZERO-TRUST & E2E SELF-TEST (63 CHECKS) ===");
 
                 // 01. Path Traversal Defense
                 AssertThrowsSecurity("01. Block Path Traversal (..\\..\\Windows\\System32)", () =>
@@ -6758,11 +6788,246 @@ namespace FunkenwerkMcp
                         && badPresetBlocked);
                 }
 
+                // 63. Stage-Laser Windows Failover Relay (RFC1918 SSRF Guard, Mini-PC Online Passive Priority, 21x21 Dewarp & Failover Activation)
+                {
+                    McpStageLaserFailoverRelay.ResetCachesForTests();
+
+                    // a) MCP JSON-RPC catalog untouched (CLI/Daemon-only feature)
+                    string? toolsJson63 = await Program.ProcessJsonRpcMessageAsync(new JsonObject
+                    {
+                        ["jsonrpc"] = "2.0",
+                        ["id"] = 6301,
+                        ["method"] = "tools/list"
+                    }.ToJsonString());
+                    bool mcpCatalogUntouched = toolsJson63 != null
+                        && !toolsJson63.Contains("stage-laser-relay", StringComparison.OrdinalIgnoreCase)
+                        && !toolsJson63.Contains("laser_relay", StringComparison.OrdinalIgnoreCase);
+
+                    // b) Strict RFC1918 Private LAN SSRF Guard (1:1 with Linux Check 45)
+                    bool ssrfAllowOk =
+                        McpStageLaserFailoverRelay.TryValidateRelayLaserIp(null, out string defIp, out _) && defIp == "192.168.188.150"
+                        && McpStageLaserFailoverRelay.TryValidateRelayLaserIp("192.168.188.150", out string lanIp1, out _) && lanIp1 == "192.168.188.150"
+                        && McpStageLaserFailoverRelay.TryValidateRelayLaserIp("10.0.4.12", out _, out _)
+                        && McpStageLaserFailoverRelay.TryValidateRelayLaserIp("172.16.1.5", out _, out _)
+                        && McpStageLaserFailoverRelay.TryValidateRelayLaserIp("172.31.255.254", out _, out _);
+
+                    bool ssrfDenyOk =
+                        !McpStageLaserFailoverRelay.TryValidateRelayLaserIp("127.0.0.1", out _, out _)
+                        && !McpStageLaserFailoverRelay.TryValidateRelayLaserIp("169.254.169.254", out _, out _)
+                        && !McpStageLaserFailoverRelay.TryValidateRelayLaserIp("100.64.0.1", out _, out _)
+                        && !McpStageLaserFailoverRelay.TryValidateRelayLaserIp("172.32.0.1", out _, out _)
+                        && !McpStageLaserFailoverRelay.TryValidateRelayLaserIp("8.8.8.8", out _, out _)
+                        && !McpStageLaserFailoverRelay.TryValidateRelayLaserIp("192.168.01.5", out _, out _)
+                        && !McpStageLaserFailoverRelay.TryValidateRelayLaserIp("localhost", out _, out _)
+                        && !McpStageLaserFailoverRelay.TryValidateRelayLaserIp("192.168.188.150:28900", out _, out _)
+                        && !McpStageLaserFailoverRelay.TryValidateRelayLaserIp("::1", out _, out _);
+
+                    var blockedJobRes = await McpStageLaserFailoverRelay.ExecuteRelayJobAsync(new McpStageLaserFailoverRelay.LaserRelayJobDto
+                    {
+                        JobId = "lrel_ssrf_block_01",
+                        Action = "capture_camera",
+                        LaserIp = "169.254.169.254"
+                    });
+                    bool ssrfJobBlocked = !blockedJobRes.Ok
+                        && blockedJobRes.State == "OFFLINE"
+                        && (blockedJobRes.Error?.Contains("SSRF-Schutz", StringComparison.Ordinal) ?? false);
+
+                    // c) Poll response deserialization & 21x21 perspective warp + G-code generation
+                    var emptyPoll = McpStageLaserFailoverRelay.TryDeserializePollResponse("""{"success":true,"job":null}""");
+                    var parsedCamJob = McpStageLaserFailoverRelay.TryDeserializePollResponse("""
+                    {
+                      "success": true,
+                      "job": {
+                        "job_id": "lrel_20261117_001500_a1b2c3d4",
+                        "action": "capture_camera",
+                        "laser_ip": "192.168.188.150"
+                      }
+                    }
+                    """);
+                    var parsedFrameJob = McpStageLaserFailoverRelay.TryDeserializePollResponse("""
+                    {
+                      "success": true,
+                      "job": {
+                        "job_id": "lrel_frame_02",
+                        "action": "frame_border",
+                        "center_x_mm": 100.0,
+                        "center_y_mm": 95.0,
+                        "width_mm": 60.0,
+                        "height_mm": 40.0,
+                        "angle_deg": 15.0
+                      }
+                    }
+                    """);
+                    string borderGcode = McpStageLaserFailoverRelay.GenerateBorderGcode(100.0, 95.0, 60.0, 40.0, 15.0);
+                    bool deserOk = emptyPoll == null
+                        && parsedCamJob != null
+                        && parsedCamJob.JobId == "lrel_20261117_001500_a1b2c3d4"
+                        && parsedCamJob.Action == "capture_camera"
+                        && parsedCamJob.LaserIp == "192.168.188.150"
+                        && parsedFrameJob != null
+                        && parsedFrameJob.Action == "frame_border"
+                        && Math.Abs(parsedFrameJob.CenterYMm - 95.0) < 0.01
+                        && borderGcode.Contains("# GS009-4 HEAD", StringComparison.Ordinal);
+
+                    // Synthetic 21x21 dewarp verification (160x120 synthetic JPEG -> 2000x2000 calibrated JPEG)
+                    byte[] synthPixels = new byte[160 * 120 * 4];
+                    for (int p = 0; p < synthPixels.Length; p += 4)
+                    {
+                        synthPixels[p] = 40;
+                        synthPixels[p + 1] = 120;
+                        synthPixels[p + 2] = 197;
+                        synthPixels[p + 3] = 255;
+                    }
+                    var synthBmp = System.Windows.Media.Imaging.BitmapSource.Create(
+                        160, 120, 96.0, 96.0, System.Windows.Media.PixelFormats.Bgra32, null, synthPixels, 160 * 4);
+                    synthBmp.Freeze();
+                    var synthEnc = new System.Windows.Media.Imaging.JpegBitmapEncoder { QualityLevel = 85 };
+                    synthEnc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(synthBmp));
+                    byte[] synthRawJpeg;
+                    using (var msSynth = new MemoryStream())
+                    {
+                        synthEnc.Save(msSynth);
+                        synthRawJpeg = msSynth.ToArray();
+                    }
+                    var calibPts = new StringBuilder();
+                    for (int r = 0; r < 21; r++)
+                    {
+                        for (int c = 0; c < 21; c++)
+                        {
+                            calibPts.Append($"[{c * 7},{r * 5}],");
+                        }
+                    }
+                    string synthCalibJson = new JsonObject { ["data0"] = calibPts.ToString() }.ToJsonString();
+                    var (warpedTestBytes, usedGridTest) = McpStageLaserFailoverRelay.TryWarpRawCameraJpeg2000x2000(synthRawJpeg, synthCalibJson);
+                    bool warpOk = warpedTestBytes != null
+                        && usedGridTest
+                        && McpStageLaserFailoverRelay.TryReadJpegDimensions(warpedTestBytes, out int ww, out int wh)
+                        && ww == 2000 && wh == 2000;
+
+                    // d) Vault roundtrip + Mini-PC Awake Priority (0 Stage HTTP requests when Mini-PC 192.168.188.151:22 is online!)
+                    string encVaultTok = McpSecurityGuard.ProtectFunkenwerkMainVaultSecret("99|MockStageFailoverTokenAbCdEf12345678901234567890");
+                    string decVaultTok = McpSecurityGuard.UnprotectFunkenwerkMainVaultSecret(encVaultTok);
+                    bool vaultRoundtripOk = encVaultTok.StartsWith("FWAES256GCM1:", StringComparison.Ordinal)
+                        && decVaultTok == "99|MockStageFailoverTokenAbCdEf12345678901234567890";
+
+                    var stageCapturedRequests = new List<(HttpMethod Method, Uri Uri, string Body)>();
+                    using var mockStageRelayHandler = new AsyncDelegatingMockHandler(async req =>
+                    {
+                        string reqBody = req.Content != null ? await req.Content.ReadAsStringAsync() : "";
+                        stageCapturedRequests.Add((req.Method, req.RequestUri!, reqBody));
+
+                        if (req.Method == HttpMethod.Get && req.RequestUri!.AbsolutePath.EndsWith("/laser-relay/poll", StringComparison.Ordinal))
+                        {
+                            string pollReply = """
+                            {
+                              "success": true,
+                              "job": {
+                                "job_id": "lrel_failover_win_01",
+                                "action": "capture_camera",
+                                "laser_ip": "192.168.188.150"
+                              }
+                            }
+                            """;
+                            return new HttpResponseMessage(HttpStatusCode.OK)
+                            {
+                                Content = new StringContent(pollReply, Encoding.UTF8, "application/json")
+                            };
+                        }
+
+                        if (req.Method == HttpMethod.Post && req.RequestUri!.AbsolutePath.EndsWith("/laser-relay/complete", StringComparison.Ordinal))
+                        {
+                            return new HttpResponseMessage(HttpStatusCode.OK)
+                            {
+                                Content = new StringContent("""{"success":true,"status":"completed","camera_saved":true}""", Encoding.UTF8, "application/json")
+                            };
+                        }
+
+                        return new HttpResponseMessage(HttpStatusCode.OK)
+                        {
+                            Content = new StringContent("""{"success":true}""", Encoding.UTF8, "application/json")
+                        };
+                    });
+                    using var mockStageRelayClient = new HttpClient(mockStageRelayHandler);
+
+                    McpStageLaserFailoverRelay.TestStageHttpClientOverride = mockStageRelayClient;
+                    McpStageLaserFailoverRelay.TestStageBearerTokenOverride = "99|MockStageFailoverTokenAbCdEf12345678901234567890";
+                    McpStageLaserFailoverRelay.TestMiniPcProbeOverride = () => Task.FromResult(true);
+                    McpStageLaserFailoverRelay.TestLaserPortProbeOverride = (_, port, _) => Task.FromResult(port == 28900);
+
+                    var passiveReport = await McpStageLaserFailoverRelay.RunSingleFailoverCycleAsync(
+                        sendExplicitHeartbeat: true,
+                        runDiagnosticCameraTest: false,
+                        forceRefreshProbes: true);
+                    int requestsWhileMiniPcAwake = stageCapturedRequests.Count;
+
+                    // e) Mini-PC Sleeping -> Automatic Windows Failover Activation
+                    McpStageLaserFailoverRelay.ResetCachesForTests();
+                    McpStageLaserFailoverRelay.TestMiniPcProbeOverride = () => Task.FromResult(false);
+                    McpStageLaserFailoverRelay.TestJobExecutorOverride = job => Task.FromResult(new McpStageLaserFailoverRelay.LaserRelayCompletionPayload
+                    {
+                        JobId = job.JobId,
+                        Ok = true,
+                        LaserOnline = true,
+                        State = "CAMERA_OK",
+                        WarpedJpegBase64 = Convert.ToBase64String(warpedTestBytes!)
+                    });
+
+                    var activeReport = await McpStageLaserFailoverRelay.RunSingleFailoverCycleAsync(
+                        sendExplicitHeartbeat: false,
+                        runDiagnosticCameraTest: false,
+                        forceRefreshProbes: true);
+                    string scrubbedReportJson = McpSecurityGuard.ScrubSecrets(JsonSerializer.Serialize(activeReport));
+
+                    bool failoverFlowOk = passiveReport.Mode == "passive_minipc_online"
+                        && passiveReport.MiniPcOnline
+                        && !passiveReport.PolledStage
+                        && !passiveReport.HeartbeatSent
+                        && requestsWhileMiniPcAwake == 0
+                        && activeReport.Mode == "active_windows_failover"
+                        && !activeReport.MiniPcOnline
+                        && activeReport.LaserOnline
+                        && activeReport.PolledStage
+                        && activeReport.HeartbeatSent
+                        && activeReport.ClaimedJobId == "lrel_failover_win_01"
+                        && activeReport.JobCompletedOk == true
+                        && activeReport.JobResultState == "CAMERA_OK"
+                        && stageCapturedRequests.Count == 2
+                        && stageCapturedRequests[0].Method == HttpMethod.Get
+                        && stageCapturedRequests[0].Uri.Host == "stage.mein-seelenfunke.de"
+                        && stageCapturedRequests[0].Uri.Query.Contains("laser_online=1", StringComparison.Ordinal)
+                        && stageCapturedRequests[1].Method == HttpMethod.Post
+                        && stageCapturedRequests[1].Body.Contains("\"CAMERA_OK\"", StringComparison.Ordinal)
+                        && !scrubbedReportJson.Contains("MockStageFailoverToken", StringComparison.Ordinal);
+
+                    McpStageLaserFailoverRelay.TestMiniPcProbeOverride = null;
+                    McpStageLaserFailoverRelay.TestLaserPortProbeOverride = null;
+                    McpStageLaserFailoverRelay.TestJobExecutorOverride = null;
+                    McpStageLaserFailoverRelay.TestStageHttpClientOverride = null;
+                    McpStageLaserFailoverRelay.TestStageBearerTokenOverride = null;
+                    McpStageLaserFailoverRelay.ResetCachesForTests();
+
+                    AssertTest("63. Stage-Laser Windows Failover Relay (RFC1918 SSRF Guard, Mini-PC Priority 0-Poll Mode, 21x21 Dewarp & Auto-Failover)",
+                        mcpCatalogUntouched
+                        && ssrfAllowOk
+                        && ssrfDenyOk
+                        && ssrfJobBlocked
+                        && deserOk
+                        && warpOk
+                        && vaultRoundtripOk
+                        && failoverFlowOk);
+                }
+
                 Console.WriteLine($"=== RESULT: {passed} PASSED, {failed} FAILED ===");
                 return failed == 0 ? 0 : 1;
             }
             finally
             {
+                McpStageLaserFailoverRelay.TestMiniPcProbeOverride = null;
+                McpStageLaserFailoverRelay.TestLaserPortProbeOverride = null;
+                McpStageLaserFailoverRelay.TestJobExecutorOverride = null;
+                McpStageLaserFailoverRelay.TestStageHttpClientOverride = null;
+                McpStageLaserFailoverRelay.TestStageBearerTokenOverride = null;
+                McpStageLaserFailoverRelay.ResetCachesForTests();
                 McpOrganizerClient.TestHttpClientOverride = null;
                 McpOrganizerClient.TestBaseUrlOverride = null;
                 McpTresorBroker.TestBrokerVaultFileOverride = null;
@@ -6791,6 +7056,14 @@ namespace FunkenwerkMcp
             public DelegatingMockStripeHandler(Func<HttpRequestMessage, HttpResponseMessage> responder) => _responder = responder;
             protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
                 => Task.FromResult(_responder(request));
+        }
+
+        private sealed class AsyncDelegatingMockHandler : HttpMessageHandler
+        {
+            private readonly Func<HttpRequestMessage, Task<HttpResponseMessage>> _responder;
+            public AsyncDelegatingMockHandler(Func<HttpRequestMessage, Task<HttpResponseMessage>> responder) => _responder = responder;
+            protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+                => _responder(request);
         }
     }
 }

@@ -14816,7 +14816,9 @@ namespace Funkenwerk
                     grid_layout_count = _smartHomeData.GridLayoutCount,
                     selected_camera_name = _smartHomeData.SelectedCameraName,
                     plugs = sanitizedPlugs,
-                    cameras = sanitizedCams
+                    cameras = sanitizedCams,
+                    tapo_email = _smartHomeData.TapoLocalEmail,
+                    tapo_password = _smartHomeData.TapoLocalPassword
                 });
 
                 foreach (var (baseUrl, token) in endpoints)
@@ -14835,8 +14837,40 @@ namespace Funkenwerk
                             req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
                             using var resp = await _http.SendAsync(req, cts.Token).ConfigureAwait(false);
 
-                            // Fallback for endpoints that have /alarm-sync before git deploy: also update smart_plugs in alarm-sync package!
-                            if (!resp.IsSuccessStatusCode)
+                            if (resp.IsSuccessStatusCode)
+                            {
+                                string rawResp = await resp.Content.ReadAsStringAsync(cts.Token).ConfigureAwait(false);
+                                using var doc = JsonDocument.Parse(rawResp);
+                                if (doc.RootElement.TryGetProperty("data", out var dataEl) && dataEl.ValueKind == JsonValueKind.Object)
+                                {
+                                    bool needSave = false;
+                                    if (dataEl.TryGetProperty("tapo_email", out var te) && te.ValueKind == JsonValueKind.String)
+                                    {
+                                        string sEmail = te.GetString() ?? "";
+                                        if (!string.IsNullOrWhiteSpace(sEmail) && string.IsNullOrWhiteSpace(_smartHomeData.TapoLocalEmail))
+                                        {
+                                            _smartHomeData.TapoLocalEmail = sEmail;
+                                            needSave = true;
+                                        }
+                                    }
+                                    if (dataEl.TryGetProperty("tapo_password", out var tp) && tp.ValueKind == JsonValueKind.String)
+                                    {
+                                        string sPass = tp.GetString() ?? "";
+                                        if (!string.IsNullOrWhiteSpace(sPass) && string.IsNullOrWhiteSpace(_smartHomeData.TapoLocalPassword))
+                                        {
+                                            _smartHomeData.TapoLocalPassword = sPass;
+                                            needSave = true;
+                                        }
+                                    }
+                                    if (needSave)
+                                    {
+                                        var diskCopy = CloneSmartHomeForDisk(_smartHomeData, encryptSecrets: true);
+                                        var json = JsonSerializer.Serialize(diskCopy, new JsonSerializerOptions { WriteIndented = true });
+                                        FunkenwerkSecurityVault.WriteSecureFileText(GetSmartHomeConfigPath(), json);
+                                    }
+                                }
+                            }
+                            else
                             {
                                 using var getReq = new HttpRequestMessage(HttpMethod.Get, $"{baseUrl}/funki/routine/alarm-sync");
                                 getReq.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
@@ -14848,6 +14882,32 @@ namespace Funkenwerk
                                     using var doc = JsonDocument.Parse(raw);
                                     if (doc.RootElement.TryGetProperty("data", out var dataEl) && dataEl.ValueKind == JsonValueKind.Object)
                                     {
+                                        bool needSave = false;
+                                        if (dataEl.TryGetProperty("tapo_email", out var te) && te.ValueKind == JsonValueKind.String)
+                                        {
+                                            string sEmail = te.GetString() ?? "";
+                                            if (!string.IsNullOrWhiteSpace(sEmail) && string.IsNullOrWhiteSpace(_smartHomeData.TapoLocalEmail))
+                                            {
+                                                _smartHomeData.TapoLocalEmail = sEmail;
+                                                needSave = true;
+                                            }
+                                        }
+                                        if (dataEl.TryGetProperty("tapo_password", out var tp) && tp.ValueKind == JsonValueKind.String)
+                                        {
+                                            string sPass = tp.GetString() ?? "";
+                                            if (!string.IsNullOrWhiteSpace(sPass) && string.IsNullOrWhiteSpace(_smartHomeData.TapoLocalPassword))
+                                            {
+                                                _smartHomeData.TapoLocalPassword = sPass;
+                                                needSave = true;
+                                            }
+                                        }
+                                        if (needSave)
+                                        {
+                                            var diskCopy = CloneSmartHomeForDisk(_smartHomeData, encryptSecrets: true);
+                                            var json = JsonSerializer.Serialize(diskCopy, new JsonSerializerOptions { WriteIndented = true });
+                                            FunkenwerkSecurityVault.WriteSecureFileText(GetSmartHomeConfigPath(), json);
+                                        }
+
                                         var dict = JsonSerializer.Deserialize<Dictionary<string, object?>>(dataEl.GetRawText()) ?? new();
                                         dict["smart_plugs"] = sanitizedPlugs.Select(sp => new
                                         {

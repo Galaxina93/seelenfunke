@@ -72,6 +72,26 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringContainsString('Zurück zum Shop', $html);
         $this->assertStringContainsString($active->name, $html);
 
+        // Eigenständiges Scoped CSS + x-teleport="body" + z-index: 2147483000 + Fullscreen API + Capture-Escape-Close (0 unkompilierte Tailwind-Klassen!)
+        $this->assertStringContainsString('<template x-teleport="body">', $html);
+        $this->assertStringContainsString('id="sf-3d-lobby-scoped-css"', $html);
+        $this->assertStringContainsString('z-index: 2147483000 !important', $html);
+        $this->assertStringContainsString('width: 100vw !important', $html);
+        $this->assertStringContainsString('height: 100dvh !important', $html);
+        $this->assertStringContainsString('background: #FAF8F5 !important', $html);
+        $this->assertStringContainsString('.sf-lobby-topbar', $html);
+        $this->assertStringContainsString('.sf-lobby-floating-card', $html);
+        $this->assertStringContainsString('data-testid="lobby-fullscreen-btn"', $html);
+        $this->assertStringContainsString('data-testid="lobby-close-btn"', $html);
+        $this->assertStringContainsString('toggleFullscreen()', $html);
+        $this->assertStringContainsString('requestFullscreen', $html);
+        $this->assertStringContainsString('exitFullscreen', $html);
+        $this->assertStringContainsString('fullscreenchange', $html);
+        $this->assertStringContainsString("window.addEventListener('keydown', this._captureKeydownBound, true)", $html);
+        $this->assertStringContainsString('WASD / Pfeiltasten · Maus ziehen · ⛶ Vollbild · Esc Schließen', $html);
+        $this->assertStringNotContainsString('z-[2147483500]', $html);
+        $this->assertStringNotContainsString('bg-[#FAF8F5]/95', $html);
+
         // Schwebende Light-Mode Raum-Schilder (Produkte, Top-5-Helden & Gast-Ehrenportal) statt blockierender Popups
         $this->assertStringContainsString('data-testid="louvre-floating-space-card"', $html);
         $this->assertStringContainsString('data-testid="lobby-floating-hero-card"', $html);
@@ -86,10 +106,21 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringContainsString('/funkenwerk-welt/lobby/sync', $html);
         $this->assertStringContainsString('/funkenwerk-welt/lobby/switch', $html);
         $this->assertStringContainsString('/funkenwerk-welt/lobby/leave', $html);
-        $this->assertStringContainsString('bg-[#FAF8F5]/95', $html);
         $this->assertStringContainsString('Jetzt gestalten', $html);
         $this->assertStringContainsString('Zum Produkt', $html);
-        $this->assertStringContainsString("import('/js/seelenfunke-louvre-showroom-3d.js?v=20261116v3')", $html);
+
+        // Spezialfähigkeiten Schnellwahl-Dock (Tasten 1-4) & Raum-Chat mit Slash-Befehlen und Freundesystem
+        $this->assertStringContainsString('data-testid="louvre-abilities-dock"', $html);
+        $this->assertStringContainsString('data-testid="ability-slot-1-btn"', $html);
+        $this->assertStringContainsString('data-testid="ability-slot-2-btn"', $html);
+        $this->assertStringContainsString('data-testid="ability-slot-3-btn"', $html);
+        $this->assertStringContainsString('data-testid="ability-slot-4-btn"', $html);
+        $this->assertStringContainsString('data-testid="louvre-chat-toggle-btn"', $html);
+        $this->assertStringContainsString('data-testid="louvre-room-chat-panel"', $html);
+        $this->assertStringContainsString('/dance', $html);
+        $this->assertStringContainsString('/wave', $html);
+        $this->assertStringContainsString('friendsList', $html);
+        $this->assertStringContainsString("import('/js/seelenfunke-louvre-showroom-3d.js?v=20261116v4')", $html);
         $this->assertStringNotContainsString('openCurrentExhibitDrawer', $html);
         $this->assertStringNotContainsString('lightboxOpen', $html);
 
@@ -172,6 +203,54 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringContainsString('triggerStrikeAction', $js);
         $this->assertStringContainsString('_spawnDoubleJumpBurst', $js);
         $this->assertStringContainsString('_spawnUnarmedPunchBurst', $js);
+
+        // 5b. Spezialfähigkeiten Tasten 1-4, Kugel-Morph Salto, Schutzschild, Emotes & Nero-Marquina Marmor
+        $this->assertStringContainsString('buildHallOfHeroesMarbleMaps', $js);
+        $this->assertStringContainsString('triggerAbility', $js);
+        $this->assertStringContainsString('triggerEmote', $js);
+        $this->assertStringContainsString('getAbilityState', $js);
+        $this->assertStringContainsString('_spawnAbilityBurst', $js);
+        $this->assertStringContainsString('shieldMesh', $js);
+
+        // 6. Eigenständiges Scoped CSS, Fullscreen API & Capture-Escape im Engine-Modul + Standalone-Host
+        $this->assertStringContainsString('sf-3d-lobby-scoped-css', $js);
+        $this->assertStringContainsString('z-index: 2147483000 !important', $js);
+        $this->assertStringContainsString('requestLobbyFullscreen', $js);
+        $this->assertStringContainsString('fullscreenchange', $js);
+
+        $hostJsPath = public_path('js/funkenwerk-heroes-3d.js');
+        $this->assertFileExists($hostJsPath);
+        $hostJs = (string) file_get_contents($hostJsPath);
+        $this->assertStringContainsString('sf-3d-lobby-scoped-css', $hostJs);
+        $this->assertStringContainsString('z-index:2147483000 !important', $hostJs);
+        $this->assertStringContainsString('document.body.appendChild(root)', $hostJs);
+        $this->assertStringContainsString('toggleFullscreen', $hostJs);
+        $this->assertStringContainsString('requestFullscreen', $hostJs);
+        $this->assertStringContainsString('exitFullscreen', $hostJs);
+        $this->assertStringContainsString("window.addEventListener('keydown', this._boundKeydown, true)", $hostJs);
+        $this->assertStringContainsString('/js/seelenfunke-louvre-showroom-3d.js?v=20261116v4', $hostJs);
+        $this->assertStringNotContainsString(' ' . "\u{2013}" . ' ', $hostJs);
+        $this->assertStringNotContainsString(' ' . "\u{2014}" . ' ', $hostJs);
+
+        // 7. Fotorealistische Architektur-Texturen (Calacatta, Boiserie, Nero Marquina, Golden-Hour PMREM, Pantheon Boden & Kuppel)
+        $this->assertStringContainsString('PMREMGenerator', $js);
+        $this->assertStringContainsString('fromEquirectangular', $js);
+        $this->assertStringContainsString('TextureLoader', $js);
+        $this->assertStringContainsString('bumpMap', $js);
+
+        foreach ([
+            '/shop/showroom/textures/calacatta_gold_floor.jpg',
+            '/shop/showroom/textures/louvre_boiserie_wall.jpg',
+            '/shop/showroom/textures/nero_marquina_pedestal.jpg',
+            '/shop/showroom/textures/museum_golden_hour_env.jpg',
+            '/shop/showroom/textures/pantheon_carrara_gold_floor.jpg',
+            '/shop/showroom/textures/pantheon_coffered_dome.jpg',
+        ] as $texUrl) {
+            $this->assertStringContainsString($texUrl, $js);
+            $absTexPath = public_path(ltrim($texUrl, '/'));
+            $this->assertFileExists($absTexPath);
+            $this->assertGreaterThan(50 * 1024, (int) filesize($absTexPath));
+        }
     }
 
     public function test_showroom_data_returns_active_products_gallery_three_benefits_and_guest_funki_level_2(): void

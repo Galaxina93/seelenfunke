@@ -25,6 +25,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.BrightnessAuto
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DarkMode
@@ -105,6 +106,13 @@ fun SettingsScreen(
     var biometricEnabled by remember { mutableStateOf(ServiceLocator.isBiometricEnabled()) }
     val currentThemeMode by ServiceLocator.themeModeState.collectAsState()
     val wakeWordEnabled by viewModel.wakeWordEnabled.collectAsState()
+
+    val tapoEmail by viewModel.tapoEmail.collectAsState()
+    val tapoPassword by viewModel.tapoPassword.collectAsState()
+    var inputTapoEmail by remember(tapoEmail) { mutableStateOf(tapoEmail) }
+    var inputTapoPass by remember(tapoPassword) { mutableStateOf(tapoPassword) }
+    var tapoPassVisible by remember { mutableStateOf(false) }
+    var showTapoInfoDialog by remember { mutableStateOf(false) }
 
     val phoneConciergeEnabled by viewModel.phoneConciergeEnabled.collectAsState()
     val phoneRingDelaySec by viewModel.phoneRingDelaySec.collectAsState()
@@ -255,6 +263,32 @@ fun SettingsScreen(
             },
             confirmButton = {
                 TextButton(onClick = { showOtaInfoDialog = false }) {
+                    Text("Verstanden", color = Gold, fontWeight = FontWeight.Bold)
+                }
+            }
+        )
+    }
+
+    if (showTapoInfoDialog) {
+        AlertDialog(
+            onDismissRequest = { showTapoInfoDialog = false },
+            containerColor = AppTheme.colors.cardBackground,
+            title = {
+                Text(
+                    text = "Smart-Home (Tapo KLAP v2)",
+                    fontWeight = FontWeight.Bold,
+                    color = Gold
+                )
+            },
+            text = {
+                Text(
+                    text = "Ermöglicht die direkte Steuerung von Tapo P100/P110 Steckdosen und Lichterketten im Heimnetzwerk ohne Cloud-Umweg über das sichere KLAP-v2-Protokoll.",
+                    fontSize = 13.sp,
+                    color = AppTheme.colors.textPrimary
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { showTapoInfoDialog = false }) {
                     Text("Verstanden", color = Gold, fontWeight = FontWeight.Bold)
                 }
             }
@@ -654,6 +688,143 @@ fun SettingsScreen(
                             checkedTrackColor = Gold.copy(alpha = 0.45f)
                         )
                     )
+                }
+            }
+
+            // Smart-Home (Tapo) Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = AppTheme.colors.cardBackground),
+                border = BorderStroke(1.dp, AppTheme.colors.cardBorder),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Bolt,
+                                contentDescription = null,
+                                tint = Gold,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Smart-Home (Tapo)",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = AppTheme.colors.textPrimary
+                            )
+                            IconButton(
+                                onClick = { showTapoInfoDialog = true },
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Info,
+                                    contentDescription = "Info",
+                                    tint = AppTheme.colors.textMuted,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+
+                        if (tapoEmail.isNotBlank() && tapoPassword.isNotBlank()) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(Emerald500.copy(alpha = 0.15f))
+                                    .padding(horizontal = 7.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = "Aktiv",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Emerald500
+                                )
+                            }
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(AppTheme.colors.cardBorder.copy(alpha = 0.3f))
+                                    .padding(horizontal = 7.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = "Nicht hinterlegt",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = AppTheme.colors.textMuted
+                                )
+                            }
+                        }
+                    }
+
+                    OutlinedTextField(
+                        value = inputTapoEmail,
+                        onValueChange = { inputTapoEmail = it },
+                        label = { Text("Tapo E-Mail") },
+                        placeholder = { Text("tapo@mein-seelenfunke.de") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Gold,
+                            unfocusedBorderColor = AppTheme.colors.inputBorder,
+                            focusedTextColor = AppTheme.colors.textPrimary,
+                            unfocusedTextColor = AppTheme.colors.textPrimary,
+                            focusedContainerColor = AppTheme.colors.inputBackground,
+                            unfocusedContainerColor = AppTheme.colors.inputBackground
+                        )
+                    )
+
+                    OutlinedTextField(
+                        value = inputTapoPass,
+                        onValueChange = { inputTapoPass = it },
+                        label = { Text("Tapo Passwort") },
+                        singleLine = true,
+                        visualTransformation = if (tapoPassVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            IconButton(onClick = { tapoPassVisible = !tapoPassVisible }) {
+                                Icon(
+                                    imageVector = if (tapoPassVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                    contentDescription = if (tapoPassVisible) "Verbergen" else "Anzeigen",
+                                    tint = AppTheme.colors.textSecondary
+                                )
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Gold,
+                            unfocusedBorderColor = AppTheme.colors.inputBorder,
+                            focusedTextColor = AppTheme.colors.textPrimary,
+                            unfocusedTextColor = AppTheme.colors.textPrimary,
+                            focusedContainerColor = AppTheme.colors.inputBackground,
+                            unfocusedContainerColor = AppTheme.colors.inputBackground
+                        )
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        Button(
+                            onClick = {
+                                viewModel.saveTapoCredentials(inputTapoEmail, inputTapoPass)
+                                tapoPassVisible = false
+                                Toast.makeText(context, "Tapo-Zugangsdaten gespeichert.", Toast.LENGTH_SHORT).show()
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = SpaceBlack)
+                        ) {
+                            Text("Speichern", fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
             }
 

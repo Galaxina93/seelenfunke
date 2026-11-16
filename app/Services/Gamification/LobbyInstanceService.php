@@ -506,13 +506,17 @@ class LobbyInstanceService
     /**
      * @param array<string, mixed>|null $previous
      * @param array<string, mixed> $input
-     * @return array{x: float, z: float, rot_y: float, speed: float, zone: string}
+     * @return array{x: float, y: float, z: float, rot_y: float, speed: float, zone: string, combo_seq: int, combo_stage: int}
      */
     private function sanitizeState(array $input, ?array $previous = null): array
     {
         $rawX = array_key_exists('x', $input) && is_numeric($input['x'])
             ? (float) $input['x']
             : (float) ($previous['x'] ?? 0.0);
+
+        $rawY = array_key_exists('y', $input) && is_numeric($input['y'])
+            ? (float) $input['y']
+            : (float) ($previous['y'] ?? 0.0);
 
         $rawZ = array_key_exists('z', $input) && is_numeric($input['z'])
             ? (float) $input['z']
@@ -532,20 +536,37 @@ class LobbyInstanceService
             ? trim($input['zone'])
             : (string) ($previous['zone'] ?? 'gallery');
 
-        $zone = in_array($rawZone, ['gallery', 'heroes'], true) ? $rawZone : 'gallery';
+        $zone = in_array($rawZone, ['gallery', 'heroes', 'lava'], true) ? $rawZone : 'gallery';
+
+        $rawComboSeq = (array_key_exists('combo_seq', $input) && is_numeric($input['combo_seq']))
+            ? (int) $input['combo_seq']
+            : ((array_key_exists('comboSeq', $input) && is_numeric($input['comboSeq']))
+                ? (int) $input['comboSeq']
+                : (int) ($previous['combo_seq'] ?? 0));
+
+        $rawComboStage = (array_key_exists('combo_stage', $input) && is_numeric($input['combo_stage']))
+            ? (int) $input['combo_stage']
+            : ((array_key_exists('comboStage', $input) && is_numeric($input['comboStage']))
+                ? (int) $input['comboStage']
+                : (int) ($previous['combo_stage'] ?? 0));
+
+        $maxX = ($zone === 'lava') ? 85.0 : 45.0;
 
         return [
-            'x' => round(max(-45.0, min(45.0, $rawX)), 3),
+            'x' => round(max(-45.0, min($maxX, $rawX)), 3),
+            'y' => round(max(-2.0, min(12.0, $rawY)), 3),
             'z' => round(max(-110.0, min(45.0, $rawZ)), 3),
             'rot_y' => round(max(-6.3, min(6.3, $rawRot)), 4),
             'speed' => round(max(0.0, min(10.0, $rawSpeed)), 3),
             'zone' => $zone,
+            'combo_seq' => max(0, min(10000000, $rawComboSeq)),
+            'combo_stage' => max(0, min(4, $rawComboStage)),
         ];
     }
 
     /**
      * @param array<string, mixed> $actor
-     * @param array{x: float, z: float, rot_y: float, speed: float, zone: string} $state
+     * @param array{x: float, y: float, z: float, rot_y: float, speed: float, zone: string, combo_seq: int, combo_stage: int} $state
      * @return array<string, mixed>
      */
     private function buildRosterEntry(array $actor, array $state, int $now): array
@@ -556,10 +577,13 @@ class LobbyInstanceService
             'level' => (int) $actor['level'],
             'ship_class' => (string) $actor['ship_class'],
             'x' => $state['x'],
+            'y' => $state['y'],
             'z' => $state['z'],
             'rot_y' => $state['rot_y'],
             'speed' => $state['speed'],
             'zone' => $state['zone'],
+            'combo_seq' => $state['combo_seq'],
+            'combo_stage' => $state['combo_stage'],
             'expires_at' => $now + self::HEARTBEAT_TTL_SECONDS,
         ];
     }
@@ -598,10 +622,13 @@ class LobbyInstanceService
                 'level' => (int) $entry['level'],
                 'ship_class' => (string) ($entry['ship_class'] ?? 'KLASSE C'),
                 'x' => (float) $entry['x'],
+                'y' => (float) ($entry['y'] ?? 0.0),
                 'z' => (float) $entry['z'],
                 'rot_y' => (float) $entry['rot_y'],
                 'speed' => (float) $entry['speed'],
                 'zone' => (string) $entry['zone'],
+                'combo_seq' => (int) ($entry['combo_seq'] ?? 0),
+                'combo_stage' => (int) ($entry['combo_stage'] ?? 0),
             ];
         }
 

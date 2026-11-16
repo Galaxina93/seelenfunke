@@ -46,6 +46,9 @@ namespace FunkenwerkOSLinux
         public string LastNasBackupAt { get; set; } = "";
         public string LastNasBackupResult { get; set; } = "";
         public bool NasBackupPendingCatchUp { get; set; } = false;
+        public bool AutoNightSleepEnabled { get; set; } = true;
+        public int AutoNightSleepHourBerlin { get; set; } = 23;
+        public int AutoNightSleepMinuteBerlin { get; set; } = 0;
         public string WorldItemPlacementsJson { get; set; } = "";
         public List<NoteItemDto> Notes { get; set; } = new();
     }
@@ -4453,6 +4456,17 @@ namespace FunkenwerkOSLinux
             }
         }
 
+        public static bool HasActiveLaserJobWatcher()
+        {
+            lock (s_watchLock)
+            {
+                return s_watchCts != null &&
+                       !s_watchCts.IsCancellationRequested &&
+                       (string.Equals(s_watchPhase, "prepared", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(s_watchPhase, "working", StringComparison.OrdinalIgnoreCase));
+            }
+        }
+
         public static void DisarmPreparedJobWatcher()
         {
             lock (s_watchLock)
@@ -5155,6 +5169,7 @@ namespace FunkenwerkOSLinux
 
             if (TestOverrideHandler == null)
             {
+                StageLaserRelayDaemon.RecordRelayActivity();
                 XtoolLocalLanBridge.ArmPreparedJobWatcher(orderId, itemId, side, taskId);
             }
 
@@ -5530,7 +5545,39 @@ namespace FunkenwerkOSLinux
         private static readonly object s_probeCacheLock = new();
         private static bool s_cachedLaserOnline;
         private static DateTime s_cachedLaserCheckedAtUtc = DateTime.MinValue;
+        private static long s_lastRelayActivityUtcTicks;
+        internal static DateTime? TestOverrideLastRelayActivityUtc { get; set; }
         private static readonly ConcurrentDictionary<string, DateTime> s_recentlyHandledJobs = new(StringComparer.Ordinal);
+
+        public static void RecordRelayActivity(DateTime? utcNow = null)
+        {
+            DateTime ts = (utcNow ?? DateTime.UtcNow).ToUniversalTime();
+            Interlocked.Exchange(ref s_lastRelayActivityUtcTicks, ts.Ticks);
+        }
+
+        public static DateTime? GetLastRelayActivityUtc()
+        {
+            if (TestOverrideLastRelayActivityUtc.HasValue)
+                return TestOverrideLastRelayActivityUtc.Value;
+
+            long ticks = Interlocked.Read(ref s_lastRelayActivityUtcTicks);
+            return ticks > 0 ? new DateTime(ticks, DateTimeKind.Utc) : null;
+        }
+
+        public static void ResetRelayActivityForSelfTest()
+        {
+            TestOverrideLastRelayActivityUtc = null;
+            Interlocked.Exchange(ref s_lastRelayActivityUtcTicks, 0L);
+        }
+
+        public static void UpdateCachedLaserOnlineState(bool online)
+        {
+            lock (s_probeCacheLock)
+            {
+                s_cachedLaserOnline = online;
+                s_cachedLaserCheckedAtUtc = DateTime.UtcNow;
+            }
+        }
 
         public static bool TryValidateRelayLaserIp(string? rawLaserIp, out string safeIp, out string? error)
         {
@@ -5713,6 +5760,13 @@ namespace FunkenwerkOSLinux
                     State = "OFFLINE",
                     Error = ipErr
                 };
+            }
+
+            if (string.Equals(job.Action, "capture_camera", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(job.Action, "send_xf", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(job.Action, "frame_border", StringComparison.OrdinalIgnoreCase))
+            {
+                RecordRelayActivity();
             }
 
             string offlineMsg = $"xTool F2 Ultra UV ({safeIp}) im Werkstatt-LAN nicht erreichbar (bitte prüfen, ob der Laser eingeschaltet ist).";
@@ -6012,6 +6066,7 @@ namespace FunkenwerkOSLinux
                                 if (!s_recentlyHandledJobs.TryAdd(job.JobId, DateTime.UtcNow))
                                     continue;
 
+                                RecordRelayActivity();
                                 var completion = await ExecuteRelayJobAsync(job).ConfigureAwait(false);
                                 await PostCompletionAsync(baseApiUrl, bearer, completion).ConfigureAwait(false);
                                 handledJobNow = true;

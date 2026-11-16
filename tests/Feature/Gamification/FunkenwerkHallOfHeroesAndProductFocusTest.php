@@ -346,7 +346,7 @@ class FunkenwerkHallOfHeroesAndProductFocusTest extends TestCase
         $this->assertStringNotContainsString('https://', $loaderJs);
         $this->assertStringNotContainsString('_buildWaterMetropolis', $loaderJs);
         $this->assertStringNotContainsString('startOrbitalFlyIn', $loaderJs);
-        $this->assertStringContainsString('/js/seelenfunke-louvre-showroom-3d.js?v=20261116v3', $loaderJs);
+        $this->assertStringContainsString('/js/seelenfunke-louvre-showroom-3d.js?v=20261116v4', $loaderJs);
         $this->assertStringContainsString('sf-lobby-instance-btn', $loaderJs);
         $this->assertStringContainsString('sf-lobby-instance-menu', $loaderJs);
         $this->assertStringContainsString('/funkenwerk-welt/lobby/join', $loaderJs);

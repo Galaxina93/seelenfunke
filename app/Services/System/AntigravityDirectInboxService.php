@@ -26,6 +26,45 @@ class AntigravityDirectInboxService
     public const ALLOWED_DECISIONS = ['approved', 'info_provided', 'dismissed', 'deferred'];
     public const ALLOWED_IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp'];
     public const ALLOWED_IMAGE_MIMES = ['image/png', 'image/jpeg', 'image/webp'];
+    public const ALLOWED_AUDIO_EXTENSIONS = ['m4a', 'mp3', 'wav', 'ogg', 'aac', 'opus', 'webm'];
+    public const ALLOWED_AUDIO_MIMES = [
+        'audio/mp4',
+        'audio/x-m4a',
+        'audio/m4a',
+        'audio/mpeg',
+        'audio/mp3',
+        'audio/wav',
+        'audio/x-wav',
+        'audio/ogg',
+        'application/ogg',
+        'audio/aac',
+        'audio/x-aac',
+        'audio/opus',
+        'audio/webm',
+        'video/webm',
+        'video/mp4',
+    ];
+    public const ALLOWED_ATTACHMENT_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'm4a', 'mp3', 'wav', 'ogg', 'aac', 'opus', 'webm'];
+    public const ALLOWED_ATTACHMENT_MIMES = [
+        'image/png',
+        'image/jpeg',
+        'image/webp',
+        'audio/mp4',
+        'audio/x-m4a',
+        'audio/m4a',
+        'audio/mpeg',
+        'audio/mp3',
+        'audio/wav',
+        'audio/x-wav',
+        'audio/ogg',
+        'application/ogg',
+        'audio/aac',
+        'audio/x-aac',
+        'audio/opus',
+        'audio/webm',
+        'video/webm',
+        'video/mp4',
+    ];
 
     public function __construct(
         private readonly ?string $privateRootOverride = null
@@ -139,7 +178,7 @@ class AntigravityDirectInboxService
     }
 
     /**
-     * Validiert einen Multipart-Upload als echtes Bild (PNG, JPG/JPEG, WEBP, max. 8 MB).
+     * Validiert einen Multipart-Upload (Bild oder Audiodatei, max. 8 MB).
      *
      * @return array{bytes: string, mime: string, ext: string, name: string}
      */
@@ -151,7 +190,7 @@ class AntigravityDirectInboxService
 
         $size = (int) $file->getSize();
         if ($size <= 0 || $size > self::MAX_ATTACHMENT_BYTES) {
-            throw new InvalidArgumentException('Der Bildanhang darf maximal 8 MB groß sein.');
+            throw new InvalidArgumentException('Der Anhang darf maximal 8 MB groß sein.');
         }
 
         $realPath = $file->getRealPath();
@@ -161,10 +200,10 @@ class AntigravityDirectInboxService
 
         $rawBytes = @file_get_contents($realPath);
         if (!is_string($rawBytes) || $rawBytes === '') {
-            throw new InvalidArgumentException('Hochgeladener Bildanhang konnte nicht gelesen werden.');
+            throw new InvalidArgumentException('Hochgeladener Anhang konnte nicht gelesen werden.');
         }
 
-        return $this->validateAndNormalizeImageBytes(
+        return $this->validateAndNormalizeAttachmentBytes(
             rawBytes: $rawBytes,
             originalName: $file->getClientOriginalName(),
             declaredMime: $file->getClientMimeType()
@@ -172,7 +211,7 @@ class AntigravityDirectInboxService
     }
 
     /**
-     * Validiert einen Base64-codierten Bildanhang.
+     * Validiert einen Base64-codierten Anhang (Bild oder Audiodatei).
      *
      * @return array{bytes: string, mime: string, ext: string, name: string}
      */
@@ -183,7 +222,7 @@ class AntigravityDirectInboxService
     ): array {
         $cleaned = trim($base64Payload);
         if ($cleaned === '') {
-            throw new InvalidArgumentException('Leerer Base64-Bildanhang übergeben.');
+            throw new InvalidArgumentException('Leerer Base64-Anhang übergeben.');
         }
 
         if (preg_match('/^data:([a-zA-Z0-9.+\/-]+);base64,(.*)$/s', $cleaned, $matches)) {
@@ -196,10 +235,10 @@ class AntigravityDirectInboxService
         $cleaned = preg_replace('/\s+/', '', $cleaned) ?? '';
         $rawBytes = base64_decode($cleaned, true);
         if (!is_string($rawBytes) || $rawBytes === '') {
-            throw new InvalidArgumentException('Ungültige Base64-Daten für den Bildanhang.');
+            throw new InvalidArgumentException('Ungültige Base64-Daten für den Anhang.');
         }
 
-        return $this->validateAndNormalizeImageBytes(
+        return $this->validateAndNormalizeAttachmentBytes(
             rawBytes: $rawBytes,
             originalName: $originalName,
             declaredMime: $declaredMime
@@ -207,7 +246,7 @@ class AntigravityDirectInboxService
     }
 
     /**
-     * Echte Binär- & MIME-Prüfung gegen Polyglot- und PHP-Uploads.
+     * Alias für validateAndNormalizeAttachmentBytes zur Wahrung der Abwärtskompatibilität.
      *
      * @return array{bytes: string, mime: string, ext: string, name: string}
      */
@@ -216,18 +255,32 @@ class AntigravityDirectInboxService
         ?string $originalName = null,
         ?string $declaredMime = null
     ): array {
+        return $this->validateAndNormalizeAttachmentBytes($rawBytes, $originalName, $declaredMime);
+    }
+
+    /**
+     * Echte Binär- & MIME-Prüfung für Bilder und Audiodateien gegen Polyglot- und PHP-Uploads.
+     *
+     * @return array{bytes: string, mime: string, ext: string, name: string}
+     */
+    public function validateAndNormalizeAttachmentBytes(
+        string $rawBytes,
+        ?string $originalName = null,
+        ?string $declaredMime = null
+    ): array {
         $byteLength = strlen($rawBytes);
         if ($byteLength <= 0 || $byteLength > self::MAX_ATTACHMENT_BYTES) {
-            throw new InvalidArgumentException('Der Bildanhang muss zwischen 1 Byte und 8 MB groß sein.');
+            throw new InvalidArgumentException('Der Anhang muss zwischen 1 Byte und 8 MB groß sein.');
         }
 
         $origBase = $originalName !== null ? basename(str_replace('\\', '/', trim($originalName))) : '';
         $origExt = $origBase !== '' ? strtolower((string) pathinfo($origBase, PATHINFO_EXTENSION)) : '';
 
-        if ($origExt !== '' && !in_array($origExt, self::ALLOWED_IMAGE_EXTENSIONS, true)) {
-            throw new InvalidArgumentException('Dateiendung nicht erlaubt. Zulässig sind nur PNG, JPG, JPEG und WEBP.');
+        if ($origExt !== '' && !in_array($origExt, self::ALLOWED_ATTACHMENT_EXTENSIONS, true)) {
+            throw new InvalidArgumentException('Dateiendung nicht erlaubt. Zulässig sind nur PNG, JPG, JPEG, WEBP, M4A, MP3, WAV, OGG, AAC, OPUS und WEBM.');
         }
 
+        $normDeclared = null;
         if ($declaredMime !== null && trim($declaredMime) !== '') {
             $normDeclared = strtolower(trim($declaredMime));
             if ($normDeclared === 'image/jpg') {
@@ -235,7 +288,7 @@ class AntigravityDirectInboxService
             }
             if (
                 $normDeclared !== 'application/octet-stream'
-                && !in_array($normDeclared, self::ALLOWED_IMAGE_MIMES, true)
+                && !in_array($normDeclared, self::ALLOWED_ATTACHMENT_MIMES, true)
             ) {
                 throw new InvalidArgumentException('Deklarierter MIME-Typ ist nicht zulässig.');
             }
@@ -247,38 +300,65 @@ class AntigravityDirectInboxService
 
         $finfo = new \finfo(FILEINFO_MIME_TYPE);
         $realMime = strtolower((string) $finfo->buffer($rawBytes));
-        if (!in_array($realMime, self::ALLOWED_IMAGE_MIMES, true)) {
-            throw new InvalidArgumentException('Echte MIME-Prüfung fehlgeschlagen: Datei ist kein gültiges PNG-, JPEG- oder WEBP-Bild.');
+
+        if ($realMime === 'application/octet-stream' && $normDeclared !== null && in_array($normDeclared, self::ALLOWED_AUDIO_MIMES, true)) {
+            $realMime = $normDeclared;
         }
 
-        $imageInfo = @getimagesizefromstring($rawBytes);
-        if (!is_array($imageInfo) || ($imageInfo[0] ?? 0) < 1 || ($imageInfo[1] ?? 0) < 1) {
-            throw new InvalidArgumentException('Bildstruktur ungültig oder beschädigt.');
+        $isImage = in_array($realMime, self::ALLOWED_IMAGE_MIMES, true);
+        $isAudio = in_array($realMime, self::ALLOWED_AUDIO_MIMES, true);
+
+        if (!$isImage && !$isAudio) {
+            throw new InvalidArgumentException('Echte MIME-Prüfung fehlgeschlagen: Datei ist weder ein gültiges Bild noch eine unterstützte Audiodatei.');
         }
 
-        $imageType = (int) ($imageInfo[2] ?? 0);
-        $canonicalExt = match ($imageType) {
-            IMAGETYPE_PNG => 'png',
-            IMAGETYPE_JPEG => $origExt === 'jpeg' ? 'jpeg' : 'jpg',
-            IMAGETYPE_WEBP => 'webp',
-            default => throw new InvalidArgumentException('Nicht unterstützter Bildtyp.'),
-        };
+        if ($isImage) {
+            $imageInfo = @getimagesizefromstring($rawBytes);
+            if (!is_array($imageInfo) || ($imageInfo[0] ?? 0) < 1 || ($imageInfo[1] ?? 0) < 1) {
+                throw new InvalidArgumentException('Bildstruktur ungültig oder beschädigt.');
+            }
 
-        $expectedMimeForType = match ($imageType) {
-            IMAGETYPE_PNG => 'image/png',
-            IMAGETYPE_JPEG => 'image/jpeg',
-            IMAGETYPE_WEBP => 'image/webp',
-        };
+            $imageType = (int) ($imageInfo[2] ?? 0);
+            $canonicalExt = match ($imageType) {
+                IMAGETYPE_PNG => 'png',
+                IMAGETYPE_JPEG => $origExt === 'jpeg' ? 'jpeg' : 'jpg',
+                IMAGETYPE_WEBP => 'webp',
+                default => throw new InvalidArgumentException('Nicht unterstützter Bildtyp.'),
+            };
 
-        if ($realMime !== $expectedMimeForType) {
-            throw new InvalidArgumentException('Abweichung zwischen MIME-Header und Bild-Container erkannt.');
+            $expectedMimeForType = match ($imageType) {
+                IMAGETYPE_PNG => 'image/png',
+                IMAGETYPE_JPEG => 'image/jpeg',
+                IMAGETYPE_WEBP => 'image/webp',
+            };
+
+            if ($realMime !== $expectedMimeForType) {
+                throw new InvalidArgumentException('Abweichung zwischen MIME-Header und Bild-Container erkannt.');
+            }
+        } else {
+            // Audio-Validierung: kein getimagesizefromstring aufrufen
+            $canonicalExt = match ($realMime) {
+                'audio/mpeg', 'audio/mp3' => 'mp3',
+                'audio/wav', 'audio/x-wav' => 'wav',
+                'audio/ogg', 'application/ogg' => ($origExt === 'opus' ? 'opus' : 'ogg'),
+                'audio/opus' => 'opus',
+                'audio/webm', 'video/webm' => 'webm',
+                'audio/aac', 'audio/x-aac' => 'aac',
+                'audio/mp4', 'audio/x-m4a', 'audio/m4a', 'video/mp4' => 'm4a',
+                default => in_array($origExt, self::ALLOWED_AUDIO_EXTENSIONS, true) ? $origExt : 'm4a',
+            };
+
+            if ($origExt !== '' && in_array($origExt, self::ALLOWED_AUDIO_EXTENSIONS, true)) {
+                $canonicalExt = $origExt;
+            }
         }
 
         $rawStem = $origBase !== '' ? (string) pathinfo($origBase, PATHINFO_FILENAME) : '';
         $cleanStem = preg_replace('/[^A-Za-z0-9ÄÖÜäöüß._-]/u', '_', $rawStem) ?? '';
         $cleanStem = trim(preg_replace('/_+/', '_', $cleanStem) ?? '', '._- ');
         if ($cleanStem === '') {
-            $cleanStem = 'ag_screenshot_' . now('Europe/Berlin')->format('Ymd_His');
+            $prefix = $isAudio ? 'ag_audio_' : 'ag_screenshot_';
+            $cleanStem = $prefix . now('Europe/Berlin')->format('Ymd_His');
         }
         $cleanStem = mb_substr($cleanStem, 0, 80);
         $safeDisplayName = $cleanStem . '.' . $canonicalExt;
@@ -458,8 +538,8 @@ class AntigravityDirectInboxService
                     return null;
                 }
 
-                $mime = (string) ($item['attachment_mime'] ?? 'image/png');
-                if (!in_array($mime, self::ALLOWED_IMAGE_MIMES, true)) {
+                $mime = (string) ($item['attachment_mime'] ?? 'application/octet-stream');
+                if (!in_array($mime, self::ALLOWED_ATTACHMENT_MIMES, true)) {
                     $mime = 'application/octet-stream';
                 }
 
@@ -1219,7 +1299,7 @@ class AntigravityDirectInboxService
         }
 
         $ext = $validatedAttachment['ext'];
-        if (!in_array($ext, self::ALLOWED_IMAGE_EXTENSIONS, true)) {
+        if (!in_array($ext, self::ALLOWED_ATTACHMENT_EXTENSIONS, true)) {
             throw new RuntimeException('Ungültige Dateiendung für Medienablage.');
         }
 
@@ -1231,13 +1311,13 @@ class AntigravityDirectInboxService
         $written = @file_put_contents($tmpPath, $validatedAttachment['bytes'], LOCK_EX);
         if ($written === false || $written !== strlen($validatedAttachment['bytes'])) {
             @unlink($tmpPath);
-            throw new RuntimeException('Privater Bildanhang konnte nicht gespeichert werden.');
+            throw new RuntimeException('Privater Anhang konnte nicht gespeichert werden.');
         }
 
         @chmod($tmpPath, 0600);
         if (!@rename($tmpPath, $absPath)) {
             @unlink($tmpPath);
-            throw new RuntimeException('Privater Bildanhang konnte nicht finalisiert werden.');
+            throw new RuntimeException('Privater Anhang konnte nicht finalisiert werden.');
         }
         @chmod($absPath, 0600);
 
@@ -1251,7 +1331,7 @@ class AntigravityDirectInboxService
     private function resolveVerifiedMediaFilePath(string $relPath): ?string
     {
         $normalized = str_replace('\\', '/', trim($relPath));
-        if (!preg_match('/^ag_direct_media\/[A-Za-z0-9_-]+\.(png|jpg|jpeg|webp)$/', $normalized)) {
+        if (!preg_match('/^ag_direct_media\/[A-Za-z0-9_-]+\.(png|jpg|jpeg|webp|m4a|mp3|wav|ogg|aac|opus|webm)$/', $normalized)) {
             return null;
         }
 

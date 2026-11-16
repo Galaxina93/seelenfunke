@@ -1319,6 +1319,109 @@
                 font-size: 11px;
                 color: #111827;
             }
+            .sf-lobby-chat-panel.is-expanded {
+                width: 440px;
+            }
+            .sf-lobby-chat-panel.is-expanded .sf-lobby-chat-scroll {
+                max-height: 280px;
+            }
+            .sf-lobby-friends-scroll {
+                max-height: 156px;
+                overflow-y: auto;
+                display: flex;
+                flex-direction: column;
+                gap: 5px;
+                padding-right: 2px;
+            }
+            .sf-lobby-chat-panel.is-expanded .sf-lobby-friends-scroll {
+                max-height: 280px;
+            }
+            .sf-emote-chip {
+                appearance: none;
+                border-radius: 6px;
+                background: #FAF8F5;
+                border: 1px solid rgba(197, 160, 89, 0.35);
+                padding: 2px 6px;
+                font-size: 10px;
+                font-weight: 700;
+                color: #4B5563;
+                cursor: pointer;
+                white-space: nowrap;
+                flex-shrink: 0;
+            }
+            .sf-emote-chip:hover {
+                border-color: #C5A059;
+                color: #111827;
+                background: #FFFFFF;
+            }
+            .sf-lobby-abilities-dock {
+                position: absolute;
+                bottom: 24px;
+                left: 50%;
+                transform: translateX(-50%);
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                z-index: 23;
+                pointer-events: auto;
+            }
+            .sf-ability-btn {
+                position: relative;
+                width: 44px;
+                height: 44px;
+                border-radius: 12px;
+                background: rgba(11, 14, 20, 0.90);
+                border: 1px solid rgba(197, 160, 89, 0.45);
+                color: #FAF8F5;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                cursor: pointer;
+                box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
+                transition: transform 0.12s ease, border-color 0.15s ease, background 0.15s ease;
+                user-select: none;
+            }
+            .sf-ability-btn:hover {
+                border-color: #C5A059;
+                transform: translateY(-2px);
+                background: rgba(18, 22, 32, 0.96);
+            }
+            .sf-ability-btn.is-active {
+                border-color: #D4AF37;
+                box-shadow: 0 0 14px rgba(197, 160, 89, 0.65);
+                background: rgba(197, 160, 89, 0.25);
+            }
+            .sf-ability-btn.is-cooldown {
+                opacity: 0.58;
+                border-color: rgba(148, 163, 184, 0.3);
+            }
+            .sf-ability-icon {
+                font-size: 15px;
+                line-height: 1;
+                color: #C5A059;
+            }
+            .sf-ability-key {
+                position: absolute;
+                top: 2px;
+                left: 4px;
+                font-size: 9px;
+                font-weight: 800;
+                color: rgba(255, 255, 255, 0.45);
+                line-height: 1;
+            }
+            .sf-ability-cd {
+                position: absolute;
+                bottom: 2px;
+                right: 3px;
+                font-size: 9px;
+                font-weight: 800;
+                color: #FFFFFF;
+                background: rgba(0, 0, 0, 0.75);
+                padding: 1px 3px;
+                border-radius: 4px;
+                line-height: 1;
+            }
             .sf-lobby-stick-wrap { position: absolute; bottom: 22px; left: 20px; z-index: 22; }
             .sf-lobby-stick {
                 width: 84px;
@@ -1448,6 +1551,9 @@
                 .sf-lobby-stick { width: 74px; height: 74px; }
                 .sf-lobby-quick-actions { bottom: 72px; right: 12px; }
                 .sf-lobby-chat-panel { bottom: 132px; right: 12px; }
+                .sf-lobby-chat-panel.is-expanded { width: calc(100vw - 24px); }
+                .sf-lobby-abilities-dock { bottom: 78px; gap: 6px; }
+                .sf-ability-btn { width: 38px; height: 38px; border-radius: 10px; }
                 .sf-lobby-exhibit-btn { max-width: 175px; }
             }
         </style>
@@ -1673,68 +1779,162 @@
                     </div>
 
                     {{-- Ein-/ausklappbarer Light-Mode Raum-Chat --}}
-                    <div x-show="!isLoading && loadError === '' && chatOpen && isCustomerAuthenticated() && !soloMode && focusedProduct === null"
+                    <div x-show="!isLoading && loadError === '' && chatOpen && focusedProduct === null"
                          @pointerdown.stop
                          data-testid="louvre-room-chat-panel"
-                         class="sf-lobby-chat-panel">
+                         class="sf-lobby-chat-panel"
+                         :class="{ 'is-expanded': chatExpanded }">
                         <div class="sf-lobby-chat-head">
                             <div style="display:flex;align-items:center;gap:6px;min-width:0;">
                                 <span class="sf-lobby-dot is-live"></span>
                                 <span style="font-size:11px;font-weight:800;letter-spacing:0.05em;text-transform:uppercase;color:#111827;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
-                                      x-text="'Instanz #' + lobbyInstanceId + ' · Chat'"></span>
+                                      x-text="'Instanz #' + lobbyInstanceId + ' · ' + (chatTab === 'friends' ? 'Freunde' : 'Chat')"></span>
                             </div>
+                            <div style="display:flex;align-items:center;gap:4px;">
+                                <button type="button"
+                                        @click="chatExpanded = !chatExpanded"
+                                        style="appearance:none;width:24px;height:24px;border-radius:8px;border:none;background:transparent;color:#4B5563;font-size:12px;font-weight:800;cursor:pointer;"
+                                        :title="chatExpanded ? 'Fenster verkleinern' : 'Fenster vergrößern'"
+                                        x-text="chatExpanded ? '🗗' : '⛶'"></button>
+                                <button type="button"
+                                        @click="chatOpen = false"
+                                        style="appearance:none;width:24px;height:24px;border-radius:8px;border:none;background:transparent;color:#4B5563;font-size:15px;font-weight:800;cursor:pointer;"
+                                        aria-label="Chat minimieren">&times;</button>
+                            </div>
+                        </div>
+
+                        {{-- Tab-Umschalter für Chat & Freundesystem --}}
+                        <div style="display:flex;align-items:center;gap:4px;padding:2px 0 6px;border-bottom:1px solid rgba(197, 160, 89, 0.2);">
                             <button type="button"
-                                    @click="chatOpen = false"
-                                    style="appearance:none;width:24px;height:24px;border-radius:8px;border:none;background:transparent;color:#4B5563;font-size:15px;font-weight:800;cursor:pointer;"
-                                    aria-label="Chat minimieren">&times;</button>
-                        </div>
-
-                        <div x-ref="chatScrollBox" class="sf-lobby-chat-scroll">
-                            <template x-if="visibleChatMessages().length === 0">
-                                <div style="padding:12px 0;text-align:center;font-size:11px;font-weight:600;color:#6B7280;">
-                                    Noch keine Nachrichten im Raum.
-                                </div>
-                            </template>
-                            <template x-for="msg in visibleChatMessages()" :key="msg.id">
-                                <div class="sf-lobby-chat-msg">
-                                    <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
-                                        <div style="display:flex;align-items:center;gap:5px;min-width:0;">
-                                            <span style="font-weight:800;font-size:11px;color:#111827;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" x-text="msg.display_name"></span>
-                                            <span style="padding:1px 6px;border-radius:5px;background:#FFFFFF;border:1px solid rgba(197,160,89,0.45);font-size:9px;font-weight:900;color:#9A7738;flex-shrink:0;"
-                                                  x-text="msg.class_label || 'KLASSE C'"></span>
-                                        </div>
-                                        <div x-show="msg.player_id !== multiplayer.player_id" style="display:flex;align-items:center;gap:4px;flex-shrink:0;">
-                                            <button type="button"
-                                                    @click="mutePeer(msg.player_id)"
-                                                    style="appearance:none;border:none;background:transparent;font-size:10px;font-weight:800;color:#6B7280;cursor:pointer;padding:0 3px;"
-                                                    title="Spieler lokal stummschalten">Stumm</button>
-                                            <button type="button"
-                                                    @click="reportPeer(msg.player_id)"
-                                                    style="appearance:none;border:none;background:transparent;font-size:10px;font-weight:800;color:#DC2626;cursor:pointer;padding:0 3px;"
-                                                    title="Unangemessene Nachricht melden">Melden</button>
-                                        </div>
-                                    </div>
-                                    <p style="margin:3px 0 0;font-size:11px;color:#1F2937;line-height:1.35;word-break:break-word;" x-text="msg.text"></p>
-                                </div>
-                            </template>
-                        </div>
-
-                        <div x-show="chatFeedback !== ''"
-                             style="padding:6px 9px;border-radius:10px;background:#FAF8F5;border:1px solid rgba(197,160,89,0.45);font-size:11px;font-weight:700;color:#111827;"
-                             x-text="chatFeedback"></div>
-
-                        <form @submit.prevent="sendChatMessage()" style="display:flex;align-items:center;gap:6px;padding-top:2px;">
-                            <input type="text"
-                                   x-model="chatDraft"
-                                   maxlength="100"
-                                   placeholder="Nachricht..."
-                                   style="flex:1;min-width:0;padding:7px 10px;border-radius:10px;background:#FAF8F5;border:1px solid rgba(197,160,89,0.5);font-size:12px;font-weight:600;color:#111827;outline:none;">
-                            <button type="submit"
-                                    :disabled="chatSending"
-                                    style="appearance:none;padding:7px 12px;border-radius:10px;border:none;background:#C5A059;color:#FFFFFF;font-size:12px;font-weight:800;cursor:pointer;flex-shrink:0;">
-                                Senden
+                                    @click="chatTab = 'chat'"
+                                    :style="chatTab === 'chat' ? 'background:#C5A059;color:#FFF;border-color:#C5A059;' : 'background:#FAF8F5;color:#4B5563;border-color:rgba(197,160,89,0.3);'"
+                                    style="appearance:none;border-radius:7px;border-width:1px;border-style:solid;padding:3px 9px;font-size:10px;font-weight:800;cursor:pointer;">
+                                Chat
                             </button>
-                        </form>
+                            <button type="button"
+                                    @click="chatTab = 'friends'"
+                                    :style="chatTab === 'friends' ? 'background:#C5A059;color:#FFF;border-color:#C5A059;' : 'background:#FAF8F5;color:#4B5563;border-color:rgba(197,160,89,0.3);'"
+                                    style="appearance:none;border-radius:7px;border-width:1px;border-style:solid;padding:3px 9px;font-size:10px;font-weight:800;cursor:pointer;">
+                                Freunde <span x-show="friendsList.length > 0" x-text="'(' + friendsList.length + ')'"></span>
+                            </button>
+                        </div>
+
+                        {{-- Fall A: Nicht angemeldete Gäste erhalten eine saubere Anmeldekarte --}}
+                        <template x-if="!isCustomerAuthenticated()">
+                            <div style="padding:16px 12px;text-align:center;background:#FAF8F5;border-radius:12px;border:1px solid rgba(197,160,89,0.35);margin:6px 0;">
+                                <div style="font-size:22px;margin-bottom:6px;">✨</div>
+                                <div style="font-weight:800;font-size:13px;color:#111827;margin-bottom:4px;">Mitglieder-Raum-Chat</div>
+                                <p style="font-size:11px;color:#4B5563;line-height:1.4;margin:0 0 12px 0;">
+                                    Melde dich an, um mit anderen Besuchern im 3D-Showroom live zu chatten, Animationen (/dance) auszuführen und Freunde hinzuzufügen.
+                                </p>
+                                <a href="/login"
+                                   style="display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:9px;background:#C5A059;color:#FFFFFF;font-size:11px;font-weight:800;text-decoration:none;">
+                                    <span>Jetzt anmelden</span>
+                                    <span>&rarr;</span>
+                                </a>
+                            </div>
+                        </template>
+
+                        {{-- Fall B: Angemeldete Kunden sehen den echten Chat --}}
+                        <template x-if="isCustomerAuthenticated() && chatTab === 'chat'">
+                            <div style="display:flex;flex-direction:column;gap:8px;">
+                                <div x-ref="chatScrollBox" class="sf-lobby-chat-scroll">
+                                    <template x-if="visibleChatMessages().length === 0">
+                                        <div style="padding:12px 0;text-align:center;font-size:11px;font-weight:600;color:#6B7280;">
+                                            Noch keine Nachrichten im Raum.
+                                        </div>
+                                    </template>
+                                    <template x-for="msg in visibleChatMessages()" :key="msg.id">
+                                        <div class="sf-lobby-chat-msg">
+                                            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
+                                                <div style="display:flex;align-items:center;gap:5px;min-width:0;">
+                                                    <span style="font-weight:800;font-size:11px;color:#111827;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" x-text="msg.display_name"></span>
+                                                    <span style="padding:1px 6px;border-radius:5px;background:#FFFFFF;border:1px solid rgba(197,160,89,0.45);font-size:9px;font-weight:900;color:#9A7738;flex-shrink:0;"
+                                                          x-text="msg.class_label || 'KLASSE C'"></span>
+                                                </div>
+                                                <div x-show="msg.player_id !== multiplayer.player_id" style="display:flex;align-items:center;gap:4px;flex-shrink:0;">
+                                                    <button type="button"
+                                                            @click="toggleFriend(msg.player_id, msg.display_name)"
+                                                            style="appearance:none;border:none;background:transparent;font-size:10px;font-weight:800;cursor:pointer;padding:0 3px;"
+                                                            :style="isFriend(msg.player_id) ? 'color:#C5A059;' : 'color:#4B5563;'"
+                                                            :title="isFriend(msg.player_id) ? 'Freund entfernen' : 'Als Freund hinzufügen'"
+                                                            x-text="isFriend(msg.player_id) ? '★ Freund' : '+ Freund'"></button>
+                                                    <button type="button"
+                                                            @click="mutePeer(msg.player_id)"
+                                                            style="appearance:none;border:none;background:transparent;font-size:10px;font-weight:800;color:#6B7280;cursor:pointer;padding:0 3px;"
+                                                            title="Spieler lokal stummschalten">Stumm</button>
+                                                    <button type="button"
+                                                            @click="reportPeer(msg.player_id)"
+                                                            style="appearance:none;border:none;background:transparent;font-size:10px;font-weight:800;color:#DC2626;cursor:pointer;padding:0 3px;"
+                                                            title="Unangemessene Nachricht melden">Melden</button>
+                                                </div>
+                                            </div>
+                                            <p style="margin:3px 0 0;font-size:11px;color:#1F2937;line-height:1.35;word-break:break-word;" x-text="msg.text"></p>
+                                        </div>
+                                    </template>
+                                </div>
+
+                                <div x-show="chatFeedback !== ''"
+                                     style="padding:6px 9px;border-radius:10px;background:#FAF8F5;border:1px solid rgba(197,160,89,0.45);font-size:11px;font-weight:700;color:#111827;"
+                                     x-text="chatFeedback"></div>
+
+                                {{-- Schnellwahl für Animationen/Slash-Befehle --}}
+                                <div style="display:flex;align-items:center;gap:4px;overflow-x:auto;padding-bottom:2px;">
+                                    <button type="button" @click="sendChatMessage('/dance')" class="sf-emote-chip" title="Tanzen (/dance)">💃 /dance</button>
+                                    <button type="button" @click="sendChatMessage('/wave')" class="sf-emote-chip" title="Winken (/wave)">👋 /wave</button>
+                                    <button type="button" @click="sendChatMessage('/bow')" class="sf-emote-chip" title="Verbeugen (/bow)">🙇 /bow</button>
+                                    <button type="button" @click="sendChatMessage('/cheer')" class="sf-emote-chip" title="Jubeln (/cheer)">🙌 /cheer</button>
+                                    <button type="button" @click="sendChatMessage('/sit')" class="sf-emote-chip" title="Hinsetzen (/sit)">🧘 /sit</button>
+                                    <button type="button" @click="sendChatMessage('/clap')" class="sf-emote-chip" title="Klatschen (/clap)">👏 /clap</button>
+                                </div>
+
+                                <form @submit.prevent="sendChatMessage()" style="display:flex;align-items:center;gap:6px;padding-top:2px;">
+                                    <input type="text"
+                                           x-model="chatDraft"
+                                           maxlength="100"
+                                           placeholder="Nachricht oder /dance..."
+                                           style="flex:1;min-width:0;padding:7px 10px;border-radius:10px;background:#FAF8F5;border:1px solid rgba(197,160,89,0.5);font-size:12px;font-weight:600;color:#111827;outline:none;">
+                                    <button type="submit"
+                                            :disabled="chatSending"
+                                            style="appearance:none;padding:7px 12px;border-radius:10px;border:none;background:#C5A059;color:#FFFFFF;font-size:12px;font-weight:800;cursor:pointer;flex-shrink:0;">
+                                        Senden
+                                    </button>
+                                </form>
+                            </div>
+                        </template>
+
+                        {{-- Fall C: Freundesliste Tab --}}
+                        <template x-if="isCustomerAuthenticated() && chatTab === 'friends'">
+                            <div style="display:flex;flex-direction:column;gap:8px;">
+                                <div class="sf-lobby-friends-scroll">
+                                    <template x-if="friendsList.length === 0">
+                                        <div style="padding:16px 8px;text-align:center;font-size:11px;font-weight:600;color:#6B7280;">
+                                            Noch keine Freunde hinzugefügt.<br>
+                                            <span style="font-size:10px;color:#9CA3AF;">Klicke im Chat auf <strong>+ Freund</strong> neben einem Spieler!</span>
+                                        </div>
+                                    </template>
+                                    <template x-for="f in friendsList" :key="f.player_id">
+                                        <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 8px;background:#FAF8F5;border:1px solid rgba(197,160,89,0.25);border-radius:10px;">
+                                            <div style="display:flex;align-items:center;gap:6px;min-width:0;">
+                                                <span class="sf-lobby-dot" :class="isPeerOnline(f.player_id) ? 'is-live' : ''" :title="isPeerOnline(f.player_id) ? 'Online im Raum' : 'Offline'"></span>
+                                                <span style="font-size:11px;font-weight:800;color:#111827;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" x-text="f.display_name"></span>
+                                                <span x-show="isPeerOnline(f.player_id)" style="font-size:9px;font-weight:800;color:#16A34A;background:#DCFCE7;padding:1px 5px;border-radius:4px;">Im Raum</span>
+                                            </div>
+                                            <div style="display:flex;align-items:center;gap:4px;">
+                                                <button type="button"
+                                                        @click="waveToFriend(f.player_id, f.display_name)"
+                                                        style="appearance:none;border:none;background:transparent;cursor:pointer;font-size:12px;padding:2px;"
+                                                        title="Freund zuwinken">👋</button>
+                                                <button type="button"
+                                                        @click="toggleFriend(f.player_id, f.display_name)"
+                                                        style="appearance:none;border:none;background:transparent;cursor:pointer;font-size:12px;color:#9CA3AF;padding:2px;"
+                                                        title="Freund entfernen">&times;</button>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
                     </div>
 
                     {{-- Virtueller Mobile-Stick unten links --}}
@@ -1775,7 +1975,6 @@
                         </button>
 
                         <button type="button"
-                                x-show="multiplayer.is_authenticated && multiplayer.enabled && !soloMode"
                                 data-testid="louvre-chat-toggle-btn"
                                 @click="toggleChatPanel()"
                                 class="sf-lobby-icon-btn"
@@ -1785,6 +1984,53 @@
                             <span x-show="unreadChatCount > 0 && !chatOpen"
                                   style="padding:2px 6px;border-radius:999px;background:#C5A059;color:#FFFFFF;font-size:10px;font-weight:900;line-height:1;"
                                   x-text="unreadChatCount"></span>
+                        </button>
+                    </div>
+
+                    {{-- Spezialfähigkeiten Schnellwahl-Dock (Tasten 1-4) --}}
+                    <div x-show="!isLoading && loadError === '' && focusedProduct === null"
+                         @pointerdown.stop
+                         data-testid="louvre-abilities-dock"
+                         class="sf-lobby-abilities-dock">
+                        <button type="button"
+                                @click="triggerAbility(1)"
+                                data-testid="ability-slot-1-btn"
+                                class="sf-ability-btn"
+                                :class="{ 'is-active': abilityState.sprint.active, 'is-cooldown': abilityState.sprint.cooldown > 0 }"
+                                title="Funken-Sprint (Taste 1): +50% Tempo">
+                            <span class="sf-ability-icon">⚡</span>
+                            <span class="sf-ability-key">1</span>
+                            <span x-show="abilityState.sprint.cooldown > 0" class="sf-ability-cd" x-text="Math.ceil(abilityState.sprint.cooldown) + 's'"></span>
+                        </button>
+                        <button type="button"
+                                @click="triggerAbility(2)"
+                                data-testid="ability-slot-2-btn"
+                                class="sf-ability-btn"
+                                :class="{ 'is-cooldown': abilityState.titanJump.cooldown > 0 }"
+                                title="Titan-Sprung (Taste 2): 2.5x Sprunghöhe">
+                            <span class="sf-ability-icon">▲</span>
+                            <span class="sf-ability-key">2</span>
+                            <span x-show="abilityState.titanJump.cooldown > 0" class="sf-ability-cd" x-text="Math.ceil(abilityState.titanJump.cooldown) + 's'"></span>
+                        </button>
+                        <button type="button"
+                                @click="triggerAbility(3)"
+                                data-testid="ability-slot-3-btn"
+                                class="sf-ability-btn"
+                                :class="{ 'is-active': abilityState.shield.active, 'is-cooldown': abilityState.shield.cooldown > 0 }"
+                                title="Goldener Schutzschild (Taste 3): 6s Schutz">
+                            <span class="sf-ability-icon">🛡</span>
+                            <span class="sf-ability-key">3</span>
+                            <span x-show="abilityState.shield.cooldown > 0" class="sf-ability-cd" x-text="Math.ceil(abilityState.shield.cooldown) + 's'"></span>
+                        </button>
+                        <button type="button"
+                                @click="triggerAbility(4)"
+                                data-testid="ability-slot-4-btn"
+                                class="sf-ability-btn"
+                                :class="{ 'is-cooldown': abilityState.burst.cooldown > 0 }"
+                                title="Radialer Funkenstoß (Taste 4): Druckwelle 3.8m">
+                            <span class="sf-ability-icon">✦</span>
+                            <span class="sf-ability-key">4</span>
+                            <span x-show="abilityState.burst.cooldown > 0" class="sf-ability-cd" x-text="Math.ceil(abilityState.burst.cooldown) + 's'"></span>
                         </button>
                     </div>
 
@@ -1877,6 +2123,16 @@
                 chatMessages: [],
                 unreadChatCount: 0,
                 mutedPlayerIds: [],
+                chatExpanded: false,
+                chatTab: 'chat',
+                friendsList: [],
+                abilityState: {
+                    sprint: { active: false, timer: 0, cooldown: 0 },
+                    titanJump: { cooldown: 0 },
+                    shield: { active: false, timer: 0, cooldown: 0 },
+                    burst: { cooldown: 0 },
+                },
+                _abilityPollTimer: null,
                 activeIndex: 0,
                 focusedProduct: null,
                 focusedHero: null,
@@ -1911,11 +2167,6 @@
 
                             const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
                             if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
-
-                            if ((code === 'KeyF' || key === 'f' || key === 'F') && !e.ctrlKey && !e.metaKey && !e.altKey) {
-                                e.preventDefault();
-                                this.toggleFullscreen();
-                            }
                         };
                         window.addEventListener('keydown', this._captureKeydownBound, true);
                     }
@@ -2056,6 +2307,10 @@
                     this.unreadChatCount = 0;
                     this.chatFeedback = '';
                     this._seenMessageIds = new Set();
+                    this.loadFriendsList();
+                    if (!this._abilityPollTimer) {
+                        this._abilityPollTimer = setInterval(() => this.syncAbilityState(), 120);
+                    }
                     this.prevHtmlOverflow = document.documentElement.style.overflow || '';
                     this.prevOverflow = document.body.style.overflow || '';
                     document.documentElement.style.overflow = 'hidden';
@@ -2090,7 +2345,7 @@
                         .then((res) => (res.ok ? res.json() : null))
                         .catch(() => null);
 
-                    const modulePromise = import('/js/seelenfunke-louvre-showroom-3d.js?v=20261116v3');
+                    const modulePromise = import('/js/seelenfunke-louvre-showroom-3d.js?v=20261116v4');
 
                     Promise.all([dataPromise, heroesPromise, modulePromise])
                         .then(([payload, heroesJson, mod]) => {
@@ -2383,11 +2638,52 @@
                     }, 4000);
                 },
 
-                sendChatMessage() {
-                    const text = String(this.chatDraft || '').trim();
+                sendChatMessage(overrideText) {
+                    const raw = overrideText !== undefined ? overrideText : this.chatDraft;
+                    const text = String(raw || '').trim();
                     if (text === '' || this.chatSending) return;
                     if (!this.isCustomerAuthenticated() || this.soloMode) return;
 
+                    if (text.startsWith('/')) {
+                        const parts = text.split(' ');
+                        const cmd = parts[0].toLowerCase();
+                        const validEmotes = {
+                            '/dance': { emote: 'dance', text: '* tanzt ausgelassen durch die Halle *' },
+                            '/wave': { emote: 'wave', text: '* winkt freundlich in die Runde *' },
+                            '/bow': { emote: 'bow', text: '* verbeugt sich respektvoll *' },
+                            '/cheer': { emote: 'cheer', text: '* jubelt begeistert *' },
+                            '/sit': { emote: 'sit', text: '* setzt sich gemütlich hin *' },
+                            '/clap': { emote: 'clap', text: '* klatscht Beifall *' },
+                        };
+
+                        if (validEmotes[cmd]) {
+                            const eInfo = validEmotes[cmd];
+                            if (this._engine && typeof this._engine.triggerEmote === 'function') {
+                                this._engine.triggerEmote(eInfo.emote);
+                            }
+                            this._sendActualChatMessage(eInfo.text);
+                            this.chatDraft = '';
+                            return;
+                        }
+
+                        if (cmd === '/help') {
+                            this.showFeedback('Befehle: /dance, /wave, /bow, /cheer, /sit, /clap, /jump, /help');
+                            this.chatDraft = '';
+                            return;
+                        }
+
+                        if (cmd === '/jump') {
+                            this.triggerJump();
+                            this.chatDraft = '';
+                            return;
+                        }
+                    }
+
+                    this._sendActualChatMessage(text);
+                    this.chatDraft = '';
+                },
+
+                _sendActualChatMessage(text) {
                     this.chatSending = true;
                     fetch('/shop/showroom-chat', {
                         method: 'POST',
@@ -2405,7 +2701,6 @@
                                 this.showFeedback((body && body.message) ? body.message : 'Nachricht konnte nicht gesendet werden.');
                                 return;
                             }
-                            this.chatDraft = '';
                             this.chatFeedback = '';
                             if (body.entry) {
                                 if (!this._seenMessageIds) this._seenMessageIds = new Set();
@@ -2422,6 +2717,67 @@
                         .finally(() => {
                             this.chatSending = false;
                         });
+                },
+
+                loadFriendsList() {
+                    try {
+                        const raw = localStorage.getItem('sf_louvre_friends');
+                        this.friendsList = raw ? JSON.parse(raw) : [];
+                        if (!Array.isArray(this.friendsList)) this.friendsList = [];
+                    } catch (e) {
+                        this.friendsList = [];
+                    }
+                },
+
+                saveFriendsList() {
+                    try {
+                        localStorage.setItem('sf_louvre_friends', JSON.stringify(this.friendsList));
+                    } catch (e) {}
+                },
+
+                isFriend(playerId) {
+                    return this.friendsList.some((f) => f && f.player_id === playerId);
+                },
+
+                isPeerOnline(playerId) {
+                    if (!playerId || !Array.isArray(this.peers)) return false;
+                    return this.peers.some((p) => p && p.player_id === playerId);
+                },
+
+                toggleFriend(playerId, displayName) {
+                    if (!playerId) return;
+                    if (this.isFriend(playerId)) {
+                        this.friendsList = this.friendsList.filter((f) => f && f.player_id !== playerId);
+                        this.saveFriendsList();
+                        this.showFeedback((displayName || 'Spieler') + ' aus Freunden entfernt.');
+                    } else {
+                        this.friendsList.push({
+                            player_id: playerId,
+                            display_name: displayName || 'Mitspieler',
+                            added_at: Date.now()
+                        });
+                        this.saveFriendsList();
+                        this.showFeedback((displayName || 'Spieler') + ' zu Freunden hinzugefügt!');
+                    }
+                },
+
+                waveToFriend(playerId, displayName) {
+                    if (this._engine && typeof this._engine.triggerEmote === 'function') {
+                        this._engine.triggerEmote('wave');
+                    }
+                    this.sendChatMessage('/wave');
+                },
+
+                triggerAbility(slot) {
+                    if (!this._engine || typeof this._engine.triggerAbility !== 'function') return;
+                    this._engine.triggerAbility(slot);
+                    this.syncAbilityState();
+                },
+
+                syncAbilityState() {
+                    if (this._engine && typeof this._engine.getAbilityState === 'function') {
+                        this.abilityState = this._engine.getAbilityState();
+                    }
                 },
 
                 mutePeer(playerId) {
@@ -2499,6 +2855,10 @@
                         clearTimeout(this._fsResizeTimer);
                         this._fsResizeTimer = null;
                     }
+                    if (this._abilityPollTimer) {
+                        clearInterval(this._abilityPollTimer);
+                        this._abilityPollTimer = null;
+                    }
                     this.endStick();
                     if (this._engine) {
                         this._engine.destroy();
@@ -2510,6 +2870,11 @@
 
                 handleEscape() {
                     if (!this.isOpen) return;
+                    const fsEl = document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement || null;
+                    if (fsEl) {
+                        this.toggleFullscreen();
+                        return;
+                    }
                     if (this.instanceMenuOpen) {
                         this.instanceMenuOpen = false;
                         return;

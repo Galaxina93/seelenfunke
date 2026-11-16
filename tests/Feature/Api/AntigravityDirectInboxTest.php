@@ -271,6 +271,53 @@ class AntigravityDirectInboxTest extends TestCase
             'attachment_mime' => 'image/png',
             'attachment_name' => 'fake.png',
         ])->assertStatus(422);
+
+        // 6. Audio Attachment Support: WAV and M4A uploads
+        $wavHeader = "RIFF\x24\x00\x00\x00WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00\x44\xac\x00\x00\x88\x58\x01\x00\x02\x00\x10\x00data\x00\x00\x00\x00";
+        $audioFile = UploadedFile::fake()->createWithContent('sprachnotiz.wav', $wavHeader);
+
+        $audioResp = $this->post('/api/system/ag-direct-inbox', [
+            'title' => 'Sprachnotiz von Alina zur Konfigurator-Schleife',
+            'channel' => 'shop',
+            'attachment' => $audioFile,
+        ], ['Accept' => 'application/json']);
+
+        $audioResp->assertStatus(201)
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.channel', 'shop')
+            ->assertJsonPath('data.has_attachment', true)
+            ->assertJsonPath('data.attachment_name', 'sprachnotiz.wav');
+
+        $audioId = (string) $audioResp->json('data.id');
+        $audioMime = (string) $audioResp->json('data.attachment_mime');
+        $this->assertContains($audioMime, ['audio/wav', 'audio/x-wav']);
+
+        // Stream audio attachment
+        $audioStreamResp = $this->get("/api/system/ag-direct-inbox/{$audioId}/attachment");
+        $audioStreamResp->assertStatus(200)
+            ->assertHeader('Content-Type', $audioMime)
+            ->assertHeader('X-Content-Type-Options', 'nosniff');
+        $this->assertSame($wavHeader, $audioStreamResp->getContent());
+
+        // Audio Base64 upload with M4A
+        $m4aHeader = "\x00\x00\x00\x20ftypM4A \x00\x00\x00\x00M4A mp42isom\x00\x00\x00\x08free";
+        $b64AudioResp = $this->postJson('/api/system/ag-direct-inbox', [
+            'title' => 'M4A Sprachaufnahme via Base64',
+            'attachment_base64' => base64_encode($m4aHeader),
+            'attachment_mime' => 'audio/mp4',
+            'attachment_name' => 'falcone_voice.m4a',
+        ]);
+        $b64AudioResp->assertStatus(201)
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.has_attachment', true)
+            ->assertJsonPath('data.attachment_name', 'falcone_voice.m4a');
+
+        // Audio with PHP code must be rejected
+        $evilAudio = UploadedFile::fake()->createWithContent('evil_audio.wav', $wavHeader . "<?php echo 'hack'; ?>");
+        $this->post('/api/system/ag-direct-inbox', [
+            'title' => 'Evil Audio',
+            'attachment' => $evilAudio,
+        ], ['Accept' => 'application/json'])->assertStatus(422);
     }
 
     public function test_cli_lifecycle_peek_mark_delivered_pull_complete_import_delete_and_rotation(): void

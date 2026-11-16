@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import de.meinseelenfunke.app.data.api.PhoneSecretaryCallSummaryDto
 import de.meinseelenfunke.app.di.ServiceLocator
 import de.meinseelenfunke.app.util.CachedWhitelistContact
+import de.meinseelenfunke.app.util.FunkenwerkAlarmManager
 import de.meinseelenfunke.app.util.PhoneConciergeManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,6 +17,12 @@ class SettingsViewModel : ViewModel() {
 
     private val _apiKey = MutableStateFlow(ServiceLocator.getGeminiApiKey())
     val apiKey: StateFlow<String> = _apiKey.asStateFlow()
+
+    private val _tapoEmail = MutableStateFlow(ServiceLocator.getTapoEmail())
+    val tapoEmail: StateFlow<String> = _tapoEmail.asStateFlow()
+
+    private val _tapoPassword = MutableStateFlow(ServiceLocator.getTapoPassword())
+    val tapoPassword: StateFlow<String> = _tapoPassword.asStateFlow()
 
     private val _wakeWordEnabled = MutableStateFlow(ServiceLocator.isWakeWordEnabled())
     val wakeWordEnabled: StateFlow<Boolean> = _wakeWordEnabled.asStateFlow()
@@ -80,6 +87,19 @@ class SettingsViewModel : ViewModel() {
     fun saveApiKey(key: String) {
         _apiKey.value = key
         ServiceLocator.saveGeminiApiKey(key)
+    }
+
+    fun saveTapoCredentials(email: String, pass: String) {
+        val cleanEmail = email.trim()
+        _tapoEmail.value = cleanEmail
+        _tapoPassword.value = pass
+        FunkenwerkAlarmManager.saveTapoCredentials(ServiceLocator.context, cleanEmail, pass)
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                ServiceLocator.organizerRepository.syncAlarmPackageToPortal(ServiceLocator.context)
+            } catch (_: Exception) {
+            }
+        }
     }
 
     fun setWakeWordEnabled(enabled: Boolean) {

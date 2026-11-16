@@ -262,18 +262,23 @@ trait HandlesStripePayment
         }
 
         // --- VERKNÜPFUNG ZUM ANGEBOT (QUOTE) ---
-        if (Session::has('checkout_from_quote_id')) {
+        if (empty($isAsyncProcessing) && $order->payment_status === 'paid' && Session::has('checkout_from_quote_id')) {
             $quoteId = Session::get('checkout_from_quote_id');
             $quote = OrderQuoteRequest::find($quoteId);
 
-            if ($quote && $quote->status !== 'converted' && empty($quote->converted_order_id)) {
+            if (
+                $quote
+                && $quote->status !== 'converted'
+                && empty($quote->converted_order_id)
+                && ((int) $order->total_price + (int) ($order->discount_amount ?? 0)) >= (int) $quote->gross_total
+            ) {
                 $quote->update([
                     'status' => 'converted',
                     'converted_order_id' => $order->id
                 ]);
-
-                Session::forget('checkout_from_quote_id');
             }
+
+            Session::forget('checkout_from_quote_id');
         }
 
         // 3. UI umschalten & Cleanup

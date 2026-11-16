@@ -61,6 +61,25 @@
   * **Beharrliche Schwarz-Gold Blockade-Karte:** Kompakte Blockade-Karte über dem unteren Dock mit `✓ Go geben` und Inline-Antwortfeld (`Antworten` + Spracheingabe). Selbst nach Tippen auf `Später` blendet ein `LaunchedEffect` die Karte nach `90` Sekunden sowie bei jedem `ON_RESUME` automatisch wieder ein, bis die Blockade gelöst ist.
   * **Sekunde-0 Sprach-Anstoß:** Sobald der Gemini-Live-WebSocket `setupComplete` meldet, sendet `FunkiraLiveViewModel` bei aktiven Blockaden sofort ein `clientContent`-Startpaket, sodass Falcone von sich aus das Gespräch eröffnet und beharrlich auf eine Entscheidung besteht. Nach Ausführung von `ag_resolve_pending_blockade` oder `falcon_resolve_antigravity_blockade` aktualisiert `refreshFromServer()` die Ansicht in Echtzeit.
 
+### 2.8 Audio-Upload in Antigravity-Tickets (`ag_20261116_205645_34e6d0c0`)
+* **Backend (`AntigravityDirectInboxService.php`, `AntigravityDirectInboxController.php`):**
+  * Freischaltung gängiger Audio-Formate (`m4a`, `mp3`, `wav`, `ogg`, `aac`, `opus`, `webm`) mit strikter Größenprüfung (bis 8 MB) und PHP-Exploit-Schutz.
+  * MIME-Validierung über `finfo` unter Umgehung von `getimagesizefromstring` bei verifizierten Audio-Streams sowie geschützte Speicherung und Auslieferung.
+* **Android-App (`AgDirectInboxManager.kt`, `AgDirectBottomSheets.kt`):**
+  * `PreparedAgAttachment` um `isAudio` und Audio-MIME-Typen erweitert; `prepareAttachmentFromUri` liest Audio-URIs ressourcenschonend ohne Bitmap-Skalierung als Base64 ein.
+  * In `AgDirectInboxSheet` steht neben `+ Bild` der Button `+ Audio` (`Icons.Default.GraphicEq`, Gold, Clean Design) bereit.
+  * Gewählte Audiodateien werden in einer kompakten Audio-Pille mit Dateinamen und Entfern-Button (`X`) visualisiert; Verlaufskarten zeigen für Audio-Anhänge das `GraphicEq`-Icon.
+
+### 2.9 Zentrale Tapo Smart-Home Zugangsdaten-Eingabe in App-Einstellungen (`ag_20261116_220234_c92ba96c`)
+* **Dateien:** `SettingsScreen.kt`, `SettingsViewModel.kt`, `SettingsViewModelTest.kt`
+* **Card-Position:** Direkt nach der Biometrischen App-Sperre in den zentralen App-Einstellungen platziert.
+* **Features & Clean Design:**
+  * Goldenes Bolt-Icon und dynamisches Status-Badge (`Aktiv` in Grün bei hinterlegten Daten, sonst `Nicht hinterlegt` in Text-Muted).
+  * Info-Dialog (`Smart-Home (Tapo KLAP v2)`) zur Erklärung der lokalen Netzwerksteuerung ohne störende Subtext-Banner im Layout.
+  * `tapoEmail` und `tapoPassword` Eingabefelder mit Auge-Icon (`Visibility`/`VisibilityOff`) am Passwortfeld.
+  * Speichern über `SettingsViewModel.saveTapoCredentials` mit AES-256-GCM-Verschlüsselung in `FunkenwerkAlarmManager` und automatischem Hintergrund-Sync zum Portal via `ServiceLocator.organizerRepository.syncAlarmPackageToPortal`.
+  * Unit-Tests in `SettingsViewModelTest.kt` mit 82/82 Tests zu 100 % grün.
+
 ---
 
 ## 3. Verifikation & Qualitätssicherung

@@ -605,4 +605,34 @@ class AgDirectInboxManagerTest {
         assertTrue(updatedItems.any { it.id == "ag_20261116_203000_follow01" && it.executionMode == "direct" })
         assertTrue(updatedItems.any { it.id == "ag_20261116_191644_b4360f58" && it.status == AgDirectStatus.COMPLETED })
     }
+
+    @Test
+    fun `supports audio attachments like m4a mp3 and wav with isAudio flag`() = runBlocking {
+        val audioAtt = PreparedAgAttachment(
+            base64Jpeg = "AAAA",
+            mimeType = "audio/mp4",
+            fileName = "memo.m4a"
+        )
+        assertTrue("Attachment must be detected as audio", audioAtt.isAudio)
+        assertEquals("audio/mp4", audioAtt.mimeType)
+        assertEquals("memo.m4a", audioAtt.fileName)
+
+        val imageAtt = PreparedAgAttachment(
+            base64Jpeg = "BBBB",
+            mimeType = "image/jpeg",
+            fileName = "screenshot.jpg"
+        )
+        assertFalse("Image attachment must not be detected as audio", imageAtt.isAudio)
+
+        val tempAudioFile = File(context.cacheDir, "alina_voice.m4a")
+        tempAudioFile.writeBytes(byteArrayOf(0x00, 0x00, 0x00, 0x20, 0x66, 0x74, 0x79, 0x70))
+        val audioUri = android.net.Uri.fromFile(tempAudioFile)
+
+        val prepared = AgDirectInboxManager.prepareAttachmentFromUri(context, audioUri)
+        assertNotNull("Prepared audio attachment must not be null", prepared)
+        assertTrue("Prepared audio attachment must have isAudio true", prepared!!.isAudio)
+        assertTrue("Prepared audio attachment file name must end with m4a", prepared.fileName.endsWith(".m4a"))
+        assertEquals("audio/mp4", prepared.mimeType)
+        assertFalse("Base64 payload must not be blank", prepared.base64Jpeg.isBlank())
+    }
 }

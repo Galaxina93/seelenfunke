@@ -1003,6 +1003,196 @@ namespace FunkenwerkMcp
             }
         }
 
+        internal static string ProtectFunkenwerkMainVaultSecret(string plainSecret)
+        {
+            if (string.IsNullOrWhiteSpace(plainSecret))
+                throw new ArgumentException("Geheimnis darf nicht leer sein.", nameof(plainSecret));
+
+            byte[]? plainBytes = null;
+            byte[]? pwdBytes = null;
+            byte[]? key = null;
+            byte[]? envelope = null;
+            try
+            {
+                plainBytes = Encoding.UTF8.GetBytes(plainSecret.Trim());
+                byte[] salt = RandomNumberGenerator.GetBytes(16);
+                byte[] nonce = RandomNumberGenerator.GetBytes(12);
+                byte[] tag = new byte[16];
+                byte[] cipher = new byte[plainBytes.Length];
+
+                string identity = $"{Environment.MachineName}|{Environment.UserName}|Funkenwerk_AES256GCM_KeyDerivation_v2";
+                pwdBytes = Encoding.UTF8.GetBytes(identity);
+                key = Rfc2898DeriveBytes.Pbkdf2(pwdBytes, salt, 100_000, HashAlgorithmName.SHA512, 32);
+
+                using (var aesGcm = new AesGcm(key, 16))
+                {
+                    aesGcm.Encrypt(nonce, plainBytes, cipher, tag, FunkenwerkMainAad);
+                }
+
+                envelope = new byte[45 + cipher.Length];
+                envelope[0] = 0x02;
+                Buffer.BlockCopy(salt, 0, envelope, 1, 16);
+                Buffer.BlockCopy(nonce, 0, envelope, 17, 12);
+                Buffer.BlockCopy(tag, 0, envelope, 29, 16);
+                Buffer.BlockCopy(cipher, 0, envelope, 45, cipher.Length);
+
+                byte[] dpapiCipher = ProtectedData.Protect(envelope, FunkenwerkMainEntropy, DataProtectionScope.CurrentUser);
+                return "FWAES256GCM1:" + Convert.ToBase64String(dpapiCipher);
+            }
+            finally
+            {
+                if (plainBytes != null) CryptographicOperations.ZeroMemory(plainBytes);
+                if (pwdBytes != null) CryptographicOperations.ZeroMemory(pwdBytes);
+                if (key != null) CryptographicOperations.ZeroMemory(key);
+                if (envelope != null) CryptographicOperations.ZeroMemory(envelope);
+            }
+        }
+
+        public static string StageLaserRelayVaultPath => Path.Combine(McpDataDir, "stage_laser_relay.dpapi");
+
+        internal static string ResolveStageLaserRelayTokenFromVault()
+        {
+            try
+            {
+                string dedicatedPath = StageLaserRelayVaultPath;
+                if (File.Exists(dedicatedPath) && !HasReparsePointInAncestry(dedicatedPath))
+                {
+                    string stored = File.ReadAllText(dedicatedPath, Encoding.UTF8).Trim();
+                    string dec = UnprotectFunkenwerkMainVaultSecret(stored);
+                    if (!string.IsNullOrWhiteSpace(dec))
+                        return dec.Trim();
+                }
+            }
+            catch { }
+
+            return ResolveFunkenwerkBearerTokenInternal("https://stage.mein-seelenfunke.de/api");
+        }
+
+        internal static async Task<string> BootstrapStageLaserRelayScopedTokenZeroSecretAsync(string profileName = "Mittwald")
+        {
+            ValidateStageOnlyTarget(StageAllowedHost, StageWebRemoteDir, allowWorkerStage: false);
+
+            using var creds = ResolveProfileInternal(profileName, StageWebRemoteDir, forceKeyOnlyNoPasswordDecrypt: true)
+                ?? throw new InvalidOperationException($"Profil '{profileName}' wurde nicht gefunden.");
+
+            ValidateStageOnlyTarget(creds.Host, creds.RemoteDirectory, allowWorkerStage: false);
+
+            if (!HasAnySha256PinForHost(creds.Host, creds.Port))
+            {
+                AppendAuditLog("stage_laser_relay_bootstrap", $"{creds.Host}:{creds.Port}", "DENY:unpinned_host_key");
+                throw new UnauthorizedAccessException($"Host '{creds.Host}:{creds.Port}' ist nicht per SHA-256 gepinnt.");
+            }
+
+            const string staticPhpTokenIssuer = """
+                require 'vendor/autoload.php';
+                $app = require_once 'bootstrap/app.php';
+                $app->make(\Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+                $appUrl = rtrim((string) config('app.url'), '/');
+                if ($appUrl !== 'https://stage.mein-seelenfunke.de') {
+                    fwrite(STDERR, 'LIVE-AIR-GAP SPERRE');
+                    exit(2);
+                }
+                $admin = \App\Models\Admin\Admin::query()->orderBy('id')->first();
+                if (!$admin) {
+                    fwrite(STDERR, 'NO_STAGE_ADMIN');
+                    exit(3);
+                }
+                $tokenName = 'FunkenwerkWinFailoverRelay-Desktop-admin';
+                $admin->tokens()->where('name', $tokenName)->delete();
+                $plain = $admin->createToken($tokenName, ['monitor:pulse'])->plainTextToken;
+                echo 'FW_STAGE_RELAY_TOKEN:' . $plain;
+                """;
+
+            string b64Php = Convert.ToBase64String(Encoding.UTF8.GetBytes(staticPhpTokenIssuer.Replace("\r\n", "\n")));
+            string remoteCmd = $"cd -- '{StageWebRemoteDir}' && php -r \"eval(base64_decode('{b64Php}'));\"";
+            var fwPinned = LoadFunkenwerkPinnedHostKeysSha256();
+
+            return await Task.Run(() =>
+            {
+                PrivateKeyFile? keyFile = null;
+                try
+                {
+                    if (!string.IsNullOrWhiteSpace(creds.PrivateKeyPath) && File.Exists(creds.PrivateKeyPath))
+                    {
+                        keyFile = new PrivateKeyFile(creds.PrivateKeyPath);
+                    }
+                    if (keyFile == null)
+                    {
+                        AppendAuditLog("stage_laser_relay_bootstrap", creds.Name, "DENY:stage_requires_ed25519_key");
+                        throw new UnauthorizedAccessException("Stage-Laser-Relay-Bootstrap erzwingt Ed25519-SSH-Key-Authentifizierung.");
+                    }
+
+                    var connInfo = new ConnectionInfo(creds.Host, creds.Port, creds.Username, new PrivateKeyAuthenticationMethod(creds.Username, keyFile))
+                    {
+                        Timeout = TimeSpan.FromSeconds(12)
+                    };
+
+                    using var ssh = new SshClient(connInfo);
+                    bool hostVerified = false;
+                    ssh.HostKeyReceived += (s, e) =>
+                    {
+                        hostVerified = VerifyPinnedHostKeyBytes(creds.Host, creds.Port, e.HostKey, e.HostKeyName, fwPinned);
+                        e.CanTrust = hostVerified;
+                    };
+
+                    ssh.Connect();
+                    if (!hostVerified || !ssh.IsConnected)
+                        throw new UnauthorizedAccessException("SSH Host-Key-Prüfung für Stage-Laser-Relay-Bootstrap fehlgeschlagen.");
+
+                    using var cmd = ssh.CreateCommand(remoteCmd);
+                    cmd.CommandTimeout = TimeSpan.FromSeconds(20);
+                    string stdout = cmd.Execute() ?? "";
+                    int exitCode = cmd.ExitStatus ?? -1;
+                    ssh.Disconnect();
+
+                    if (exitCode != 0)
+                    {
+                        AppendAuditLog("stage_laser_relay_bootstrap", $"exit={exitCode}", "ERROR");
+                        throw new InvalidOperationException($"Stage-Token-Ausstellung meldete Exit-Code {exitCode}.");
+                    }
+
+                    const string marker = "FW_STAGE_RELAY_TOKEN:";
+                    int idx = stdout.IndexOf(marker, StringComparison.Ordinal);
+                    if (idx < 0)
+                        throw new InvalidOperationException("Stage-Token-Ausstellung lieferte kein gültiges Token-Präfix.");
+
+                    string tokenCandidate = stdout.Substring(idx + marker.Length).Trim();
+                    int nl = tokenCandidate.IndexOfAny(new[] { '\r', '\n', ' ', '\t' });
+                    if (nl >= 0) tokenCandidate = tokenCandidate.Substring(0, nl).Trim();
+
+                    if (!Regex.IsMatch(tokenCandidate, @"^\d+\|[A-Za-z0-9]{32,128}$"))
+                        throw new InvalidOperationException("Ausgestelltes Stage-Relay-Token entspricht nicht dem Sanctum-Format.");
+
+                    string encrypted = ProtectFunkenwerkMainVaultSecret(tokenCandidate);
+                    string vaultPath = StageLaserRelayVaultPath;
+                    string vaultDir = Path.GetDirectoryName(vaultPath) ?? McpDataDir;
+                    Directory.CreateDirectory(vaultDir);
+                    LockDownDirectoryAcl(vaultDir);
+                    RejectReparsePointsInHierarchy(vaultPath);
+
+                    string tmpPath = Path.Combine(vaultDir, $".srel_{Convert.ToHexString(RandomNumberGenerator.GetBytes(8)).ToLowerInvariant()}.tmp");
+                    try
+                    {
+                        File.WriteAllText(tmpPath, encrypted, new UTF8Encoding(false));
+                        RejectReparsePointsInHierarchy(vaultPath);
+                        File.Move(tmpPath, vaultPath, overwrite: true);
+                        LockDownFileAcl(vaultPath);
+                    }
+                    finally
+                    {
+                        try { if (File.Exists(tmpPath)) File.Delete(tmpPath); } catch { }
+                    }
+
+                    AppendAuditLog("stage_laser_relay_bootstrap", "FunkenwerkWinFailoverRelay-Desktop-admin(monitor:pulse)", "ALLOW");
+                    return tokenCandidate;
+                }
+                finally
+                {
+                    keyFile?.Dispose();
+                }
+            });
+        }
+
         private static byte[]? DpapiUnprotectWin32(byte[] cipherBytes, byte[] entropy)
         {
             IntPtr cipherPtr = IntPtr.Zero;

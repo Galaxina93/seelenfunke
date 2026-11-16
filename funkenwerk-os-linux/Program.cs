@@ -116,6 +116,7 @@ DocumentArchiveAndNasEngine.EnsureLoopbackSmbServerStarted();
 ErrorSentinelAndWatchdog.EnsureStarted();
 FunkiraLiveAndMcpEngine.EnsurePhoneConciergePollerStarted();
 StageLaserRelayDaemon.EnsureStarted();
+LinuxHardwareEngine.EnsureAutoNightSleepGuardianStarted();
 
 // Auto-connect Teufel Bluetooth stereo receiver & route Logitech USB C920 mic at boot
 _ = Task.Run(async () =>
@@ -503,6 +504,7 @@ static void ConfigureKioskApp(
             pendingCityAction = consumeCityAction,
             systemStats = sysStats,
             uptimeLabel = uptimeLbl,
+            nightSleepGuard = LinuxHardwareEngine.GetNightSleepGuardSnapshot(),
             workshopTimer = new
             {
                 active = tmr.Active,
@@ -896,8 +898,7 @@ static void ConfigureKioskApp(
 
         string act = trimmedAct.ToLowerInvariant() switch
         {
-            "city" or "overview" => "city",
-            "heroes" or "halle_der_helden" or "helden" => "heroes",
+            "city" or "overview" or "heroes" or "halle_der_helden" or "helden" => "city",
             "throne" or "thronsaal" => "throne",
             "close" => "close",
             _ => "orbit"
@@ -907,13 +908,6 @@ static void ConfigureKioskApp(
             pendingCityAction = act;
         }
         return Results.Json(new { ok = true, queuedCityAction = act });
-    });
-
-    app.MapGet("/api/funkenwerk-city/heroes", async () =>
-    {
-        var s = LinuxVaultAndStorage.LoadSettings();
-        var res = await FunkenwerkCityHeroesBridge.FetchHeroesAsync(s).ConfigureAwait(false);
-        return Results.Content(res.ToJsonString(), "application/json; charset=utf-8");
     });
 
     app.MapPost("/api/funkira/stage-report", async (HttpContext ctx) =>
@@ -1404,10 +1398,52 @@ static void ConfigureKioskApp(
         return Results.Json(new { ok, message = msg });
     });
 
-    app.MapPost("/api/power/night-sleep", async () =>
+    app.MapGet("/api/power/night-sleep-guard", async () =>
     {
-        var (ok, msg) = await LinuxHardwareEngine.EnterNightSleepUntil0800Async().ConfigureAwait(false);
-        return Results.Json(new { ok, message = msg });
+        var guard = await LinuxHardwareEngine.ShouldDeferAutomaticNightSleepAsync().ConfigureAwait(false);
+        return Results.Json(new
+        {
+            ok = true,
+            defer = guard.Defer,
+            laserOnline = guard.LaserOnline,
+            recentRelayActive = guard.RecentRelayActive,
+            reason = guard.Reason
+        });
+    });
+
+    app.MapPost("/api/power/night-sleep", async (HttpContext ctx) =>
+    {
+        bool force = string.Equals(ctx.Request.Query["force"], "1", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(ctx.Request.Query["force"], "true", StringComparison.OrdinalIgnoreCase);
+
+        if (!force && ctx.Request.ContentLength is > 0 and < 4096)
+        {
+            try
+            {
+                using var doc = await JsonDocument.ParseAsync(ctx.Request.Body).ConfigureAwait(false);
+                if (doc.RootElement.ValueKind == JsonValueKind.Object &&
+                    doc.RootElement.TryGetProperty("force", out var fEl))
+                {
+                    force = fEl.ValueKind == JsonValueKind.True ||
+                            (fEl.ValueKind == JsonValueKind.Number && fEl.TryGetInt32(out int fi) && fi == 1) ||
+                            (fEl.ValueKind == JsonValueKind.String &&
+                             (string.Equals(fEl.GetString(), "true", StringComparison.OrdinalIgnoreCase) ||
+                              string.Equals(fEl.GetString(), "1", StringComparison.OrdinalIgnoreCase)));
+                }
+            }
+            catch { }
+        }
+
+        var res = await LinuxHardwareEngine.EnterNightSleepUntil0800DetailedAsync(force: force).ConfigureAwait(false);
+        return Results.Json(new
+        {
+            ok = res.Success,
+            deferred = res.Deferred,
+            forced = res.Forced,
+            laserOnline = res.LaserOnline,
+            recentRelayActive = res.RecentRelayActive,
+            message = res.Message
+        });
     });
 
     app.MapPost("/api/power/action", async (HttpContext ctx) =>
@@ -2989,15 +3025,47 @@ async Task<int> RunLinuxSelfTestsAsync()
                 return sandboxOk && promptChecks;
             }).ConfigureAwait(false);
 
-            await AssertCheckAsync(36, "HD Boutique 3D-Engine (Native 1.00 Scale, 4x Anisotropie, 1536x2304 Böden, 768x480 Retina-Visier & Couture-Rig)", async () =>
+            await AssertCheckAsync(36, "HD Photoreal Boutique 3D-Engine (PMREM Atrium IBL, Herringbone Oak, Parisian Boiserie, Nero-Marquina, 768x480 Retina-Visier & Couture-Rig)", async () =>
             {
                 await Task.CompletedTask.ConfigureAwait(false);
                 string js3d = File.ReadAllText(Path.Combine(resolvedWebRoot, "funkira3d.js"), Encoding.UTF8);
                 string htmlIdx = File.ReadAllText(Path.Combine(resolvedWebRoot, "index.html"), Encoding.UTF8);
 
+                string[] requiredAtelierAssets =
+                {
+                    "atelier_herringbone_oak.jpg",
+                    "atelier_boiserie_wall.jpg",
+                    "atelier_nero_stone.jpg",
+                    "atelier_golden_env.jpg"
+                };
+                bool atelierAssetsOnDisk = requiredAtelierAssets.All(a =>
+                    File.Exists(Path.Combine(resolvedWebRoot, "assets", a)));
+
+                bool atelierHttpOk = true;
+                foreach (string assetName in requiredAtelierAssets)
+                {
+                    using var assetResp = await rawHttp.GetAsync($"/assets/{assetName}").ConfigureAwait(false);
+                    if (!assetResp.IsSuccessStatusCode)
+                    {
+                        atelierHttpOk = false;
+                        break;
+                    }
+                }
+
                 bool hdEngineOk =
+                    atelierAssetsOnDisk &&
+                    atelierHttpOk &&
                     js3d.Contains("configureHdTexture", StringComparison.Ordinal) &&
                     js3d.Contains("MAX_GPU_ANISOTROPY", StringComparison.Ordinal) &&
+                    js3d.Contains("_initAtelierPhotorealPbr", StringComparison.Ordinal) &&
+                    js3d.Contains("/assets/atelier_herringbone_oak.jpg", StringComparison.Ordinal) &&
+                    js3d.Contains("/assets/atelier_boiserie_wall.jpg", StringComparison.Ordinal) &&
+                    js3d.Contains("/assets/atelier_nero_stone.jpg", StringComparison.Ordinal) &&
+                    js3d.Contains("/assets/atelier_golden_env.jpg", StringComparison.Ordinal) &&
+                    js3d.Contains("bumpScale: 0.008", StringComparison.Ordinal) &&
+                    js3d.Contains("bumpScale: 0.012", StringComparison.Ordinal) &&
+                    js3d.Contains("THREE.EquirectangularReflectionMapping", StringComparison.Ordinal) &&
+                    js3d.Contains("this.scene.environment = nextPmrem.texture", StringComparison.Ordinal) &&
                     js3d.Contains("this.visorCanvas.width = 768", StringComparison.Ordinal) &&
                     js3d.Contains("ic.width = 192", StringComparison.Ordinal) &&
                     js3d.Contains("makeDeskMonitorScreenTexture", StringComparison.Ordinal) &&
@@ -3008,7 +3076,7 @@ async Task<int> RunLinuxSelfTestsAsync()
                     js3d.Contains("s.lineTo( 0.00, 4.10)", StringComparison.Ordinal) &&
                     js3d.Contains("sirenCrystalBell", StringComparison.Ordinal) &&
                     js3d.Contains("this.renderScale < 1.00", StringComparison.Ordinal) &&
-                    htmlIdx.Contains("/funkira3d.js?v=20261115v24", StringComparison.Ordinal);
+                    htmlIdx.Contains("/funkira3d.js?v=20261116v25", StringComparison.Ordinal);
 
                 return hdEngineOk;
             }).ConfigureAwait(false);
@@ -3144,7 +3212,7 @@ async Task<int> RunLinuxSelfTestsAsync()
                     jsApp.Contains("isCannedRefusalClientText", StringComparison.Ordinal) &&
                     jsApp.Contains("projectRawVideoBoxToPip", StringComparison.Ordinal) &&
                     !jsApp.Contains("safetySettings", StringComparison.Ordinal) &&
-                    htmlIdx.Contains("/app.js?v=20261116v29", StringComparison.Ordinal);
+                    htmlIdx.Contains("/app.js?v=20261116v30", StringComparison.Ordinal);
 
                 return detectOk && diagAndLoginOk && historyCleanOk && promptHygieneOk && jsOk;
             }).ConfigureAwait(false);
@@ -3829,7 +3897,7 @@ async Task<int> RunLinuxSelfTestsAsync()
                     htmlIdx.Contains("id=\"btn-fw-city-overview\"", StringComparison.Ordinal) &&
                     htmlIdx.Contains("id=\"btn-fw-city-throne\"", StringComparison.Ordinal) &&
                     htmlIdx.Contains("id=\"btn-fw-city-close\"", StringComparison.Ordinal) &&
-                    htmlIdx.Contains("/funkenwerk_city_3d.js?v=20261116v30", StringComparison.Ordinal) &&
+                    htmlIdx.Contains("/funkenwerk_city_3d.js?v=20261116v31", StringComparison.Ordinal) &&
                     cityJs.Contains("MEIN SEELENFUNKE", StringComparison.Ordinal) &&
                     cityJs.Contains("'ALINA'", StringComparison.Ordinal) &&
                     cityJs.Contains("Herrscherin über das Seelenfunken-Universum", StringComparison.Ordinal) &&
@@ -3941,141 +4009,76 @@ async Task<int> RunLinuxSelfTestsAsync()
                 return ssrfOk && nullJobOk && deserializeOk && execBlockOk && jpegDimOk && gcodeOk;
             }).ConfigureAwait(false);
 
-            await AssertCheckAsync(46, "Halle der Helden (Carrara-Marmorboden, unverbauter Schriftzug, Funki 3D-Evolution Level 1..10, /api/funkenwerk-city/heroes & 0 KI-Gedankenstriche)", async () =>
+            await AssertCheckAsync(46, "Funkenwerk 3D-Firmenmetropole Entkopplung (Halle der Helden sauber herausgelöst, Pier 1 Produkte-Zitadelle rein, Orbit/Stadt/7 Abteilungen/Thronsaal aktiv, Legacy-Fallback & 0 KI-Gedankenstriche)", async () =>
             {
-                // 1. Unauthenticated /api/funkenwerk-city/heroes MUST return 401
-                using var unauthHeroes = await rawHttp.GetAsync("/api/funkenwerk-city/heroes").ConfigureAwait(false);
-                if (unauthHeroes.StatusCode != HttpStatusCode.Unauthorized)
-                    return false;
+                // 1. Legacy HTTP control {"action":"heroes"} falls back gracefully to "city" without crashing; /api/funkenwerk-city/heroes is detached
+                using var legacyHeroesRouteResp = await authedHttp.GetAsync("/api/funkenwerk-city/heroes").ConfigureAwait(false);
+                bool heroesRouteDetachedOk = legacyHeroesRouteResp.StatusCode == HttpStatusCode.NotFound;
 
-                // 2. Founding-phase fallback when Portal returns empty/offline -> ok:true, founding_phase:true, heroes:[]
-                FunkenwerkCityHeroesBridge.TestOverrideRawJson = "{\"heroes\":[]}";
-                FunkenwerkCityHeroesBridge.ResetCacheForSelfTest();
-                using var emptyResp = await authedHttp.GetAsync("/api/funkenwerk-city/heroes").ConfigureAwait(false);
-                var emptyJson = JsonNode.Parse(await emptyResp.Content.ReadAsStringAsync().ConfigureAwait(false)) as JsonObject;
-                bool foundingOk = emptyResp.IsSuccessStatusCode &&
-                                  emptyJson?["ok"]?.GetValue<bool>() == true &&
-                                  emptyJson["founding_phase"]?.GetValue<bool>() == true &&
-                                  (emptyJson["heroes"] as JsonArray)?.Count == 0;
+                using var ctrlLegacyHeroes = await authedHttp.PostAsync("/api/funkenwerk-city/control", new StringContent("{\"action\":\"heroes\"}", Encoding.UTF8, "application/json")).ConfigureAwait(false);
+                var ctrlLegacyJson = JsonNode.Parse(await ctrlLegacyHeroes.Content.ReadAsStringAsync().ConfigureAwait(false)) as JsonObject;
+                using var pulseLegacy = await authedHttp.GetAsync("/api/pulse").ConfigureAwait(false);
+                var pulseLegacyJson = JsonNode.Parse(await pulseLegacy.Content.ReadAsStringAsync().ConfigureAwait(false)) as JsonObject;
 
-                // 3. Mocked Portal heroes response -> normalizes slot, display_name (scrubs en-dash), level, rank_class, aura & is_placeholder
-                FunkenwerkCityHeroesBridge.TestOverrideRawJson = """
-                {
-                  "heroes": [
-                    { "slot": 1, "display_name": "Luna \u2013 Stern", "level": 10, "rank_class": "S", "aura": "gold", "is_placeholder": false },
-                    { "slot": 2, "display_name": "Max M.", "level": 7, "rank_class": "KLASSE A", "aura": "cyan" }
-                  ]
-                }
-                """;
-                FunkenwerkCityHeroesBridge.ResetCacheForSelfTest();
-                using var liveResp = await authedHttp.GetAsync("/api/funkenwerk-city/heroes").ConfigureAwait(false);
-                string liveRaw = await liveResp.Content.ReadAsStringAsync().ConfigureAwait(false);
-                var liveJson = JsonNode.Parse(liveRaw) as JsonObject;
-                var heroesArr = liveJson?["heroes"] as JsonArray;
-                FunkenwerkCityHeroesBridge.TestOverrideRawJson = null;
-                FunkenwerkCityHeroesBridge.ResetCacheForSelfTest();
+                bool gracefulFallbackOk =
+                    heroesRouteDetachedOk &&
+                    ctrlLegacyHeroes.IsSuccessStatusCode &&
+                    ctrlLegacyJson?["queuedCityAction"]?.GetValue<string>() == "city" &&
+                    pulseLegacyJson?["pendingCityAction"]?.GetValue<string>() == "city";
 
-                bool liveParseOk = liveResp.IsSuccessStatusCode &&
-                                   liveJson?["founding_phase"]?.GetValue<bool>() == false &&
-                                   heroesArr != null && heroesArr.Count == 2 &&
-                                   heroesArr[0]?["slot"]?.GetValue<int>() == 1 &&
-                                   heroesArr[0]?["display_name"]?.GetValue<string>() == "Luna · Stern" &&
-                                   heroesArr[0]?["level"]?.GetValue<int>() == 10 &&
-                                   heroesArr[0]?["rank_class"]?.GetValue<string>() == "KLASSE S" &&
-                                   heroesArr[0]?["aura"]?.GetValue<string>() == "gold" &&
-                                   heroesArr[0]?["is_placeholder"]?.GetValue<bool>() == false &&
-                                   !liveRaw.Contains(" \u2013 ", StringComparison.Ordinal);
+                // 2. Spoken command & MCP minipc_ui_control decoupled from Hall of Heroes (with soft legacy fallback to city overview)
+                string toolDeclsRaw = FunkiraLiveAndMcpEngine.BuildLocalMcpToolDeclarations().ToJsonString();
+                using var mcpLegacyDoc = JsonDocument.Parse("{\"action\":\"open_hall_of_heroes\"}");
+                var (mcpLegacyRes, mcpLegacyEvt) = await FunkiraLiveAndMcpEngine.ExecuteLocalMiniPcToolAsync("minipc_ui_control", mcpLegacyDoc.RootElement).ConfigureAwait(false);
 
-                // 4. HTTP control, spoken command ("halle der helden") & MCP minipc_ui_control ("open_hall_of_heroes")
-                using var ctrlHeroes = await authedHttp.PostAsync("/api/funkenwerk-city/control", new StringContent("{\"action\":\"heroes\"}", Encoding.UTF8, "application/json")).ConfigureAwait(false);
-                using var pulseHeroes = await authedHttp.GetAsync("/api/pulse").ConfigureAwait(false);
-                var pulseJson = JsonNode.Parse(await pulseHeroes.Content.ReadAsStringAsync().ConfigureAwait(false)) as JsonObject;
+                bool voiceAndMcpDecoupledOk =
+                    !toolDeclsRaw.Contains("open_hall_of_heroes", StringComparison.Ordinal) &&
+                    FunkiraLiveAndMcpEngine.TryMatchSpokenFunkenwerkCityCommand("Bring mich in die Halle der Helden") == "" &&
+                    mcpLegacyRes["status"]?.GetValue<string>() == "success" &&
+                    mcpLegacyEvt?["action"]?.GetValue<string>() == "open_funkenwerk_city_overview";
 
-                using var mcpDoc = JsonDocument.Parse("{\"action\":\"open_hall_of_heroes\"}");
-                var (mcpRes, mcpEvt) = await FunkiraLiveAndMcpEngine.ExecuteLocalMiniPcToolAsync("minipc_ui_control", mcpDoc.RootElement).ConfigureAwait(false);
-
-                bool ctrlAndVoiceOk =
-                    ctrlHeroes.IsSuccessStatusCode &&
-                    pulseJson?["pendingCityAction"]?.GetValue<string>() == "heroes" &&
-                    FunkiraLiveAndMcpEngine.TryMatchSpokenFunkenwerkCityCommand("Bring mich in die Halle der Helden") == "open_hall_of_heroes" &&
-                    mcpRes["status"]?.GetValue<string>() == "success" &&
-                    mcpEvt?["action"]?.GetValue<string>() == "open_hall_of_heroes";
-
-                // 5. Frontend 3D Pantheon, Carrara Marble, ALL 10 Real Compressed Tripo .glb Models + parseGlbBinary & 0 KI en-dashes
-                string[] expectedGlbFiles =
-                {
-                    "funki_lvl_1_rags.glb",
-                    "funki_lvl_2_basic.glb",
-                    "funki_lvl_3_helper.glb",
-                    "funki_lvl_4_novice.glb",
-                    "funki_lvl_5_apprentice.glb",
-                    "funki_lvl_6_craftsman.glb",
-                    "funki_lvl_7_artisan.glb",
-                    "funki_lvl_8_master.glb",
-                    "funki_lvl_9_lightbringer.glb",
-                    "funki_lvl_10_god_of_soul.glb"
-                };
-                string glbDir = Path.Combine(resolvedWebRoot, "assets", "funki_models");
-                bool allTenGlbsOnDiskOk = expectedGlbFiles.All(fn =>
-                {
-                    string fp = Path.Combine(glbDir, fn);
-                    if (!File.Exists(fp)) return false;
-                    var fi = new FileInfo(fp);
-                    if (fi.Length < 400_000 || fi.Length > 5_000_000) return false;
-                    using var fs = File.OpenRead(fp);
-                    Span<byte> hdr = stackalloc byte[8];
-                    if (fs.Read(hdr) != 8) return false;
-                    uint magic = BitConverter.ToUInt32(hdr.Slice(0, 4));
-                    uint ver = BitConverter.ToUInt32(hdr.Slice(4, 4));
-                    return magic == 0x46546C67u && ver == 2u;
-                });
-
-                using var glbHttpResp = await rawHttp.GetAsync("/assets/funki_models/funki_lvl_10_god_of_soul.glb").ConfigureAwait(false);
-                byte[] glbHttpBytes = glbHttpResp.IsSuccessStatusCode ? await glbHttpResp.Content.ReadAsByteArrayAsync().ConfigureAwait(false) : Array.Empty<byte>();
-                bool glbHttpOk = glbHttpResp.IsSuccessStatusCode &&
-                                 glbHttpBytes.Length > 400_000 &&
-                                 BitConverter.ToUInt32(glbHttpBytes, 0) == 0x46546C67u &&
-                                 BitConverter.ToUInt32(glbHttpBytes, 4) == 2u;
-
+                // 3. Frontend 3D City is 100% decoupled from Hall of Heroes (Pier 1 = pure Produkte Citadel; Orbit, Stadt, 7 Piers & Thronsaal intact)
                 string htmlIdx = File.ReadAllText(Path.Combine(resolvedWebRoot, "index.html"), Encoding.UTF8);
+                string cssRaw = File.ReadAllText(Path.Combine(resolvedWebRoot, "styles.css"), Encoding.UTF8);
+                string jsApp = File.ReadAllText(Path.Combine(resolvedWebRoot, "app.js"), Encoding.UTF8);
                 string cityJs = File.ReadAllText(Path.Combine(resolvedWebRoot, "funkenwerk_city_3d.js"), Encoding.UTF8);
-                string[] allTenTitles =
-                {
-                    "Ursprung", "Lehrling", "Helfer", "Kristall-Novize", "Funken-Geselle",
-                    "Gravur-Handwerker", "Kunsthandwerker", "Meister", "Lichtbringer", "Gott des Seelenfunkens"
-                };
-                bool allTenLevelsOk = allTenTitles.All(t => cityJs.Contains(t, StringComparison.Ordinal)) &&
-                                      expectedGlbFiles.All(fn => cityJs.Contains($"/assets/funki_models/{fn}", StringComparison.Ordinal));
+                string funkira3dJs = File.ReadAllText(Path.Combine(resolvedWebRoot, "funkira3d.js"), Encoding.UTF8);
 
-                bool uiAnd3dOk =
-                    allTenGlbsOnDiskOk &&
-                    glbHttpOk &&
-                    allTenLevelsOk &&
-                    htmlIdx.Contains("id=\"btn-fw-city-heroes\"", StringComparison.Ordinal) &&
-                    htmlIdx.Contains("🏛️ Helden", StringComparison.Ordinal) &&
-                    htmlIdx.Contains("id=\"btn-fw-city-hero-levels\"", StringComparison.Ordinal) &&
-                    htmlIdx.Contains("✨ Stufen", StringComparison.Ordinal) &&
-                    cityJs.Contains("HALLE DER HELDEN", StringComparison.Ordinal) &&
-                    cityJs.Contains("Freier Ehrenplatz", StringComparison.Ordinal) &&
-                    cityJs.Contains("_buildHallOfHeroes", StringComparison.Ordinal) &&
-                    cityJs.Contains("_buildPantheonLighting", StringComparison.Ordinal) &&
-                    cityJs.Contains("parseGlbBinary", StringComparison.Ordinal) &&
-                    cityJs.Contains("FUNKI_GLB_FRONT_ROTATION_Y = -Math.PI * 0.5", StringComparison.Ordinal) &&
-                    cityJs.Contains("glbTemplateCache", StringComparison.Ordinal) &&
-                    cityJs.Contains("makeHallOfHeroesMarbleTexture", StringComparison.Ordinal) &&
-                    cityJs.Contains("#ECEAE4", StringComparison.Ordinal) &&
-                    cityJs.Contains("#133B5C", StringComparison.Ordinal) &&
-                    cityJs.Contains("const domeBaseY = entY + 5.35;", StringComparison.Ordinal) &&
-                    cityJs.Contains("((r + 0.5) / 6) * Math.PI", StringComparison.Ordinal) &&
-                    cityJs.Contains("FUNKI_LEVEL_SPECS", StringComparison.Ordinal) &&
-                    cityJs.Contains("buildFunki3DByLevel", StringComparison.Ordinal) &&
-                    cityJs.Contains("cyclePreviewHeroLevel", StringComparison.Ordinal) &&
-                    cityJs.Contains("flyToHallOfHeroes", StringComparison.Ordinal) &&
-                    cityJs.Contains("/api/funkenwerk-city/heroes", StringComparison.Ordinal) &&
+                bool hallRemovedOk =
+                    !htmlIdx.Contains("id=\"btn-fw-city-heroes\"", StringComparison.Ordinal) &&
+                    !htmlIdx.Contains("id=\"btn-fw-city-hero-levels\"", StringComparison.Ordinal) &&
+                    !cityJs.Contains("_buildHallOfHeroes", StringComparison.Ordinal) &&
+                    !cityJs.Contains("heroesClickTargets", StringComparison.Ordinal) &&
+                    !cityJs.Contains("flyToHallOfHeroes", StringComparison.Ordinal) &&
+                    !cityJs.Contains("refreshHeroesFromServer", StringComparison.Ordinal) &&
+                    !cityJs.Contains("cyclePreviewHeroLevel", StringComparison.Ordinal) &&
+                    !cityJs.Contains("promBridge", StringComparison.Ordinal) &&
+                    !cityJs.Contains("HALLE DER HELDEN", StringComparison.Ordinal) &&
+                    !cityJs.Contains("/api/funkenwerk-city/heroes", StringComparison.Ordinal) &&
+                    !jsApp.Contains("flyToHallOfHeroes", StringComparison.Ordinal);
+
+                bool pureMetropolisIntactOk =
+                    htmlIdx.Contains("id=\"btn-fw-city-orbit\"", StringComparison.Ordinal) &&
+                    htmlIdx.Contains("id=\"btn-fw-city-overview\"", StringComparison.Ordinal) &&
+                    htmlIdx.Contains("id=\"btn-fw-city-departments\"", StringComparison.Ordinal) &&
+                    htmlIdx.Contains("id=\"btn-fw-city-throne\"", StringComparison.Ordinal) &&
+                    htmlIdx.Contains("id=\"fw-city-department-drawer\"", StringComparison.Ordinal) &&
+                    htmlIdx.Contains("data-dept-key=\"products\"", StringComparison.Ordinal) &&
+                    cityJs.Contains("startOrbitalFlyIn", StringComparison.Ordinal) &&
+                    cityJs.Contains("flyToCityOverview", StringComparison.Ordinal) &&
+                    cityJs.Contains("flyToDepartment", StringComparison.Ordinal) &&
+                    cityJs.Contains("flyToThroneRoom", StringComparison.Ordinal) &&
+                    cityJs.Contains("departmentClickTargets", StringComparison.Ordinal) &&
+                    cityJs.Contains("k9_crystal_prism", StringComparison.Ordinal);
+
+                bool zeroKiEnDashOk =
                     !cityJs.Contains(" \u2013 ", StringComparison.Ordinal) &&
-                    !htmlIdx.Contains(" \u2013 ", StringComparison.Ordinal);
+                    !htmlIdx.Contains(" \u2013 ", StringComparison.Ordinal) &&
+                    !cssRaw.Contains(" \u2013 ", StringComparison.Ordinal) &&
+                    !jsApp.Contains(" \u2013 ", StringComparison.Ordinal) &&
+                    !funkira3dJs.Contains(" \u2013 ", StringComparison.Ordinal);
 
-                return foundingOk && liveParseOk && ctrlAndVoiceOk && uiAnd3dOk;
+                return gracefulFallbackOk && voiceAndMcpDecoupledOk && hallRemovedOk && pureMetropolisIntactOk && zeroKiEnDashOk;
             }).ConfigureAwait(false);
 
             await AssertCheckAsync(47, "Funkenwerk 3D-Stadt Klickbare Abteilungen (7 Raycast-Piers, glide_department Tiefflug, Clean-Design Department-HUD, 1-Klick-Aktionen, Sprach-/API-Routing & 0 KI-Gedankenstriche)", async () =>
@@ -4130,7 +4133,7 @@ async Task<int> RunLinuxSelfTestsAsync()
                     FunkiraLiveAndMcpEngine.TryMatchSpokenFunkenwerkCityCommand("Abteilung Marketing") == "open_department:marketing" &&
                     FunkiraLiveAndMcpEngine.TryMatchSpokenFunkenwerkCityCommand("Abteilung Agenten") == "open_department:agents" &&
                     FunkiraLiveAndMcpEngine.TryMatchSpokenFunkenwerkCityCommand("Bring mich in den Thronsaal") == "open_throne_room" &&
-                    FunkiraLiveAndMcpEngine.TryMatchSpokenFunkenwerkCityCommand("Bring mich in die Halle der Helden") == "open_hall_of_heroes" &&
+                    FunkiraLiveAndMcpEngine.TryMatchSpokenFunkenwerkCityCommand("Bring mich in die Halle der Helden") == "" &&
                     FunkiraLiveAndMcpEngine.TryMatchSpokenFunkenwerkCityCommand("Funkenwerk schließen") == "close_funkenwerk_city" &&
                     FunkiraLiveAndMcpEngine.TryMatchSpokenFunkenwerkCityCommand("Zeig mir bitte die Funkenwerk Stadt") == "open_funkenwerk_city" &&
                     FunkiraLiveAndMcpEngine.TryMatchSpokenFunkenwerkCityCommand("DHL Label drucken und Auftrag abschließen") == "";
@@ -4318,10 +4321,154 @@ async Task<int> RunLinuxSelfTestsAsync()
 
                 return markersOk && maintNoAlertOk && maintClosesAlertOk && realOutageAlertsOk && criticalTwoStrikeOk;
             });
+
+            await AssertCheckAsync(50, "Wachbleibe-Schutz bei aktivem Laser xTool F2 Ultra UV (192.168.188.150:28900, < 5 min Relay-Schutzfenster, Auto-Standby-Aufschub & manueller Force-Override)", async () =>
+            {
+                DateTime refNowUtc = new DateTime(2026, 11, 16, 22, 30, 0, DateTimeKind.Utc);
+
+                try
+                {
+                    // 1. Pure ShouldDeferAutomaticNightSleep truth table
+                    bool pureDeferWhenLaserOn = LinuxHardwareEngine.ShouldDeferAutomaticNightSleep(
+                        laserOnline: true, lastRelayJobUtc: null, nowUtc: refNowUtc, out string reasonLaserOn) &&
+                        reasonLaserOn.Contains("192.168.188.150:28900", StringComparison.Ordinal) &&
+                        !reasonLaserOn.Contains(" \u2013 ", StringComparison.Ordinal);
+
+                    bool pureDeferWhenRelayRecent = LinuxHardwareEngine.ShouldDeferAutomaticNightSleep(
+                        laserOnline: false, lastRelayJobUtc: refNowUtc.AddMinutes(-2), nowUtc: refNowUtc, out string reasonRelay) &&
+                        LinuxHardwareEngine.ShouldDeferAutomaticNightSleep(
+                            laserOnline: false, lastRelayJobUtc: refNowUtc.AddSeconds(-299), nowUtc: refNowUtc) &&
+                        !reasonRelay.Contains(" \u2013 ", StringComparison.Ordinal);
+
+                    bool pureDeferWhenWatcherArmed = LinuxHardwareEngine.ShouldDeferAutomaticNightSleep(
+                        laserOnline: false, lastRelayJobUtc: null, nowUtc: refNowUtc, out string reasonWatcher, hasActiveWatcher: true) &&
+                        !reasonWatcher.Contains(" \u2013 ", StringComparison.Ordinal);
+
+                    bool pureAllowWhenIdleAndOff =
+                        !LinuxHardwareEngine.ShouldDeferAutomaticNightSleep(laserOnline: false, lastRelayJobUtc: null, nowUtc: refNowUtc) &&
+                        !LinuxHardwareEngine.ShouldDeferAutomaticNightSleep(laserOnline: false, lastRelayJobUtc: refNowUtc.AddSeconds(-301), nowUtc: refNowUtc) &&
+                        !LinuxHardwareEngine.ShouldDeferAutomaticNightSleep(laserOnline: false, lastRelayJobUtc: refNowUtc.AddMinutes(-12), nowUtc: refNowUtc);
+
+                    bool pureOk = pureDeferWhenLaserOn && pureDeferWhenRelayRecent && pureDeferWhenWatcherArmed && pureAllowWhenIdleAndOff;
+
+                    // 2. Async LAN probe (192.168.188.150:28900, 800 ms) + StageLaserRelayDaemon < 5 min integration
+                    bool mockLaserOnline = true;
+                    string observedProbeIp = "";
+                    int observedProbePort = 0;
+                    int observedProbeTimeoutMs = 0;
+                    int fwPowerSleepCalls = 0;
+                    long lastSleepEpoch = 0;
+
+                    LinuxHardwareEngine.TestOverrideLaserProbeAsync = (ip, port, timeoutMs) =>
+                    {
+                        observedProbeIp = ip;
+                        observedProbePort = port;
+                        observedProbeTimeoutMs = timeoutMs;
+                        return Task.FromResult(mockLaserOnline);
+                    };
+
+                    LinuxHardwareEngine.TestOverrideFwPowerSleepAsync = epoch =>
+                    {
+                        fwPowerSleepCalls++;
+                        lastSleepEpoch = epoch;
+                        return Task.FromResult((0, "ok", ""));
+                    };
+
+                    StageLaserRelayDaemon.ResetRelayActivityForSelfTest();
+                    XtoolLocalLanBridge.DisarmPreparedJobWatcher();
+
+                    // 2a. Laser ONLINE -> automatic night-sleep MUST defer (0 fw-power calls)
+                    var gOnline = await LinuxHardwareEngine.ShouldDeferAutomaticNightSleepAsync(nowUtcOverride: refNowUtc).ConfigureAwait(false);
+                    using var autoOnlineResp = await authedHttp.PostAsync(
+                        "/api/power/night-sleep",
+                        new StringContent("{\"force\":false}", Encoding.UTF8, "application/json")).ConfigureAwait(false);
+                    var autoOnlineJson = JsonNode.Parse(await autoOnlineResp.Content.ReadAsStringAsync().ConfigureAwait(false)) as JsonObject;
+
+                    bool deferOnlineOk =
+                        gOnline.Defer &&
+                        gOnline.LaserOnline &&
+                        observedProbeIp == "192.168.188.150" &&
+                        observedProbePort == 28900 &&
+                        observedProbeTimeoutMs == 800 &&
+                        autoOnlineResp.IsSuccessStatusCode &&
+                        autoOnlineJson?["ok"]?.GetValue<bool>() == false &&
+                        autoOnlineJson["deferred"]?.GetValue<bool>() == true &&
+                        fwPowerSleepCalls == 0;
+
+                    // 2b. Laser OFFLINE, but Stage-Laser-Relay job ran 90s (< 5 min) ago -> automatic & MCP night-sleep MUST defer
+                    mockLaserOnline = false;
+                    StageLaserRelayDaemon.RecordRelayActivity(DateTime.UtcNow.AddSeconds(-90));
+
+                    var gRelay = await LinuxHardwareEngine.ShouldDeferAutomaticNightSleepAsync().ConfigureAwait(false);
+                    using var mcpSleepDoc = JsonDocument.Parse("{\"action\":\"night_sleep_0800\"}");
+                    var (mcpSleepRes, _) = await FunkiraLiveAndMcpEngine.ExecuteLocalMiniPcToolAsync("minipc_workshop_helper", mcpSleepDoc.RootElement).ConfigureAwait(false);
+
+                    bool deferRelayOk =
+                        gRelay.Defer &&
+                        !gRelay.LaserOnline &&
+                        gRelay.RecentRelayActive &&
+                        mcpSleepRes["status"]?.GetValue<string>() == "deferred" &&
+                        mcpSleepRes["deferred"]?.GetValue<bool>() == true &&
+                        fwPowerSleepCalls == 0;
+
+                    // 2c. Laser OFFLINE and last Relay job > 5 min ago (6 min) -> automatic night-sleep MUST succeed (1 fw-power call)
+                    StageLaserRelayDaemon.TestOverrideLastRelayActivityUtc = DateTime.UtcNow.AddMinutes(-6);
+                    var gOff = await LinuxHardwareEngine.ShouldDeferAutomaticNightSleepAsync().ConfigureAwait(false);
+
+                    using var autoOffResp = await authedHttp.PostAsync(
+                        "/api/power/night-sleep",
+                        new StringContent("{\"force\":false}", Encoding.UTF8, "application/json")).ConfigureAwait(false);
+                    var autoOffJson = JsonNode.Parse(await autoOffResp.Content.ReadAsStringAsync().ConfigureAwait(false)) as JsonObject;
+
+                    bool allowWhenOffOk =
+                        !gOff.Defer &&
+                        autoOffResp.IsSuccessStatusCode &&
+                        autoOffJson?["ok"]?.GetValue<bool>() == true &&
+                        autoOffJson["deferred"]?.GetValue<bool>() == false &&
+                        fwPowerSleepCalls == 1 &&
+                        lastSleepEpoch > 1700000000L;
+
+                    // 2d. Conscious manual click override (force = true) even when Laser is ONLINE -> succeeds (2nd fw-power call)
+                    mockLaserOnline = true;
+                    using var manualForceResp = await authedHttp.PostAsync(
+                        "/api/power/night-sleep",
+                        new StringContent("{\"force\":true,\"source\":\"btn-night-sleep\"}", Encoding.UTF8, "application/json")).ConfigureAwait(false);
+                    var manualForceJson = JsonNode.Parse(await manualForceResp.Content.ReadAsStringAsync().ConfigureAwait(false)) as JsonObject;
+
+                    bool manualForceOk =
+                        manualForceResp.IsSuccessStatusCode &&
+                        manualForceJson?["ok"]?.GetValue<bool>() == true &&
+                        manualForceJson["forced"]?.GetValue<bool>() == true &&
+                        manualForceJson["deferred"]?.GetValue<bool>() == false &&
+                        fwPowerSleepCalls == 2;
+
+                    // 3. Auto-Standby evening window & Clean-Design app.js check
+                    bool windowOk =
+                        !LinuxHardwareEngine.IsWithinAutoNightSleepWindow(new DateTime(2026, 11, 16, 22, 45, 0)) &&
+                        LinuxHardwareEngine.IsWithinAutoNightSleepWindow(new DateTime(2026, 11, 16, 23, 0, 0)) &&
+                        LinuxHardwareEngine.IsWithinAutoNightSleepWindow(new DateTime(2026, 11, 17, 0, 35, 0)) &&
+                        !LinuxHardwareEngine.IsWithinAutoNightSleepWindow(new DateTime(2026, 11, 17, 8, 5, 0));
+
+                    string jsApp = File.ReadAllText(Path.Combine(resolvedWebRoot, "app.js"), Encoding.UTF8);
+                    bool frontendOk =
+                        jsApp.Contains("force: true", StringComparison.Ordinal) &&
+                        jsApp.Contains("out.deferred", StringComparison.Ordinal) &&
+                        !jsApp.Contains(" \u2013 ", StringComparison.Ordinal);
+
+                    return pureOk && deferOnlineOk && deferRelayOk && allowWhenOffOk && manualForceOk && windowOk && frontendOk;
+                }
+                finally
+                {
+                    LinuxHardwareEngine.ResetNightSleepGuardForSelfTest();
+                    StageLaserRelayDaemon.ResetRelayActivityForSelfTest();
+                }
+            }).ConfigureAwait(false);
         }
         finally
         {
             WorkshopFocusCoordinator.TestOverrideHandler = null;
+            LinuxHardwareEngine.ResetNightSleepGuardForSelfTest();
+            StageLaserRelayDaemon.ResetRelayActivityForSelfTest();
             await testApp.StopAsync().ConfigureAwait(false);
         }
     }
@@ -4342,224 +4489,4 @@ async Task<int> RunLinuxSelfTestsAsync()
 
     Console.WriteLine($"FUNKENWERK OS LINUX SELF-TEST: {passed}/{total} TESTS BESTANDEN.");
     return passed == total ? 0 : 1;
-}
-
-internal static class FunkenwerkCityHeroesBridge
-{
-    internal static string? TestOverrideRawJson { get; set; }
-
-    private static readonly object s_cacheLock = new();
-    private static JsonObject? s_cachedPayload;
-    private static DateTime s_cachedAtUtc = DateTime.MinValue;
-
-    public static void ResetCacheForSelfTest()
-    {
-        lock (s_cacheLock)
-        {
-            s_cachedPayload = null;
-            s_cachedAtUtc = DateTime.MinValue;
-        }
-    }
-
-    public static JsonObject NormalizeHeroesPayload(string? rawJson, string sourceLabel = "portal")
-    {
-        var heroesOut = new JsonArray();
-        int realHeroCount = 0;
-        if (!string.IsNullOrWhiteSpace(rawJson))
-        {
-            try
-            {
-                using var doc = JsonDocument.Parse(rawJson);
-                var root = doc.RootElement;
-                JsonElement arrEl = default;
-                bool hasArr = false;
-
-                if (root.ValueKind == JsonValueKind.Array)
-                {
-                    arrEl = root;
-                    hasArr = true;
-                }
-                else if (root.ValueKind == JsonValueKind.Object)
-                {
-                    if (root.TryGetProperty("heroes", out var hEl) && hEl.ValueKind == JsonValueKind.Array)
-                    {
-                        arrEl = hEl;
-                        hasArr = true;
-                    }
-                    else if (root.TryGetProperty("data", out var dEl))
-                    {
-                        if (dEl.ValueKind == JsonValueKind.Array)
-                        {
-                            arrEl = dEl;
-                            hasArr = true;
-                        }
-                        else if (dEl.ValueKind == JsonValueKind.Object &&
-                                 dEl.TryGetProperty("heroes", out var dhEl) &&
-                                 dhEl.ValueKind == JsonValueKind.Array)
-                        {
-                            arrEl = dhEl;
-                            hasArr = true;
-                        }
-                    }
-                }
-
-                if (hasArr)
-                {
-                    int idx = 0;
-                    foreach (var item in arrEl.EnumerateArray())
-                    {
-                        if (idx >= 64) break;
-                        if (item.ValueKind != JsonValueKind.Object) continue;
-                        idx++;
-
-                        int slot = idx;
-                        if (item.TryGetProperty("slot", out var sEl) && sEl.TryGetInt32(out int sv) && sv > 0) slot = sv;
-                        else if (item.TryGetProperty("rank", out var rEl) && rEl.TryGetInt32(out int rv) && rv > 0) slot = rv;
-
-                        bool isPlaceholder = item.TryGetProperty("is_placeholder", out var phEl) && phEl.ValueKind == JsonValueKind.True;
-
-                        string rawName = "";
-                        foreach (string nk in new[] { "display_name", "name", "player_name", "username" })
-                        {
-                            if (item.TryGetProperty(nk, out var nEl) && nEl.ValueKind == JsonValueKind.String)
-                            {
-                                rawName = nEl.GetString() ?? "";
-                                if (!string.IsNullOrWhiteSpace(rawName)) break;
-                            }
-                        }
-                        string displayName = WorkshopFocusCoordinator.CleanTextNoEnDash(rawName);
-                        if (string.IsNullOrWhiteSpace(displayName))
-                            continue;
-                        if (displayName.Length > 28)
-                            displayName = displayName.Substring(0, 28).Trim();
-
-                        if (!isPlaceholder && !string.Equals(displayName, "Freier Ehrenplatz", StringComparison.OrdinalIgnoreCase))
-                            realHeroCount++;
-
-                        int level = 1;
-                        foreach (string lk in new[] { "level", "lvl" })
-                        {
-                            if (item.TryGetProperty(lk, out var lEl))
-                            {
-                                if (lEl.ValueKind == JsonValueKind.Number && lEl.TryGetInt32(out int lv)) { level = Math.Clamp(lv, 1, 999); break; }
-                                if (lEl.ValueKind == JsonValueKind.String && int.TryParse(lEl.GetString(), out int lsv)) { level = Math.Clamp(lsv, 1, 999); break; }
-                            }
-                        }
-
-                        string rawClass = "";
-                        foreach (string ck in new[] { "rank_class", "class", "tier" })
-                        {
-                            if (item.TryGetProperty(ck, out var cEl) && cEl.ValueKind == JsonValueKind.String)
-                            {
-                                rawClass = cEl.GetString() ?? "";
-                                if (!string.IsNullOrWhiteSpace(rawClass)) break;
-                            }
-                        }
-                        string rankClass = WorkshopFocusCoordinator.CleanTextNoEnDash(rawClass).ToUpperInvariant();
-                        if (string.IsNullOrWhiteSpace(rankClass))
-                            rankClass = level >= 9 ? "KLASSE S" : (level >= 6 ? "KLASSE A" : (level >= 3 ? "KLASSE B" : "KLASSE C"));
-                        else if (!rankClass.StartsWith("KLASSE", StringComparison.Ordinal))
-                            rankClass = $"KLASSE {rankClass}";
-
-                        string aura = "gold";
-                        foreach (string ak in new[] { "aura", "aura_color" })
-                        {
-                            if (item.TryGetProperty(ak, out var aEl) && aEl.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(aEl.GetString()))
-                            {
-                                aura = WorkshopFocusCoordinator.CleanTextNoEnDash(aEl.GetString()!).ToLowerInvariant();
-                                break;
-                            }
-                        }
-
-                        heroesOut.Add(new JsonObject
-                        {
-                            ["slot"] = slot,
-                            ["display_name"] = displayName,
-                            ["level"] = level,
-                            ["rank_class"] = rankClass,
-                            ["aura"] = aura,
-                            ["is_placeholder"] = isPlaceholder
-                        });
-                    }
-                }
-            }
-            catch { }
-        }
-
-        return new JsonObject
-        {
-            ["ok"] = true,
-            ["source"] = realHeroCount > 0 ? sourceLabel : "founding_fallback",
-            ["founding_phase"] = realHeroCount == 0,
-            ["heroes"] = heroesOut
-        };
-    }
-
-    public static async Task<JsonObject> FetchHeroesAsync(LinuxOsSettings settings)
-    {
-        if (TestOverrideRawJson != null)
-        {
-            return NormalizeHeroesPayload(TestOverrideRawJson, "test_mock");
-        }
-
-        lock (s_cacheLock)
-        {
-            if (s_cachedPayload != null && (DateTime.UtcNow - s_cachedAtUtc).TotalSeconds < 25.0)
-            {
-                return JsonNode.Parse(s_cachedPayload.ToJsonString()) as JsonObject ?? s_cachedPayload;
-            }
-        }
-
-        string normEnv = (settings.ApiEnvironment ?? "live").Trim().ToLowerInvariant() == "stage" ? "stage" : "live";
-        string originUrl = SeelenfunkeLinuxApiClient.ResolveOriginUrl(normEnv);
-        string bearer = LinuxVaultAndStorage.GetToken(settings, normEnv);
-
-        string[] candidateUrls =
-        {
-            $"{originUrl}/funkenwerk-welt/heroes-data",
-            $"{originUrl}/api/gamification/funkenwerk-heroes"
-        };
-
-        foreach (string url in candidateUrls)
-        {
-            if (!SeelenfunkeLinuxApiClient.ValidateHttpsUrl(url))
-                continue;
-
-            try
-            {
-                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3.0));
-                using var req = new HttpRequestMessage(HttpMethod.Get, url);
-                req.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
-                if (!string.IsNullOrWhiteSpace(bearer))
-                {
-                    req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", bearer);
-                }
-
-                using var resp = await SeelenfunkeLinuxApiClient.SharedHttp.SendAsync(req, cts.Token).ConfigureAwait(false);
-                if (!resp.IsSuccessStatusCode)
-                    continue;
-
-                string body = await resp.Content.ReadAsStringAsync(cts.Token).ConfigureAwait(false);
-                if (string.IsNullOrWhiteSpace(body))
-                    continue;
-
-                var normalized = NormalizeHeroesPayload(body, "portal");
-                lock (s_cacheLock)
-                {
-                    s_cachedPayload = normalized;
-                    s_cachedAtUtc = DateTime.UtcNow;
-                }
-                return JsonNode.Parse(normalized.ToJsonString()) as JsonObject ?? normalized;
-            }
-            catch { }
-        }
-
-        var fallback = NormalizeHeroesPayload(null, "founding_fallback");
-        lock (s_cacheLock)
-        {
-            s_cachedPayload = fallback;
-            s_cachedAtUtc = DateTime.UtcNow;
-        }
-        return fallback;
-    }
 }

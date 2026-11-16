@@ -38,6 +38,26 @@ export const FUNKI_LEVEL_TITLES = {
     10: 'Gott des Seelenfunkens',
 };
 
+export const SHOWROOM_TEXTURE_URLS = {
+    calacattaGoldFloor: '/shop/showroom/textures/calacatta_gold_floor.jpg',
+    louvreBoiserieWall: '/shop/showroom/textures/louvre_boiserie_wall.jpg',
+    neroMarquinaPedestal: '/shop/showroom/textures/nero_marquina_pedestal.jpg',
+    museumGoldenHourEnv: '/shop/showroom/textures/museum_golden_hour_env.jpg',
+    pantheonCarraraGoldFloor: '/shop/showroom/textures/pantheon_carrara_gold_floor.jpg',
+    pantheonCofferedDome: '/shop/showroom/textures/pantheon_coffered_dome.jpg',
+};
+
+function createBoiserieWallPlaneGeo(THREE, widthMeters, heightMeters, panelRepeatUnit = 7.8) {
+    const geo = new THREE.PlaneGeometry(widthMeters, heightMeters);
+    const uvAttr = geo.attributes.uv;
+    const repU = Math.max(0.45, widthMeters / panelRepeatUnit);
+    for (let i = 0; i < uvAttr.count; i++) {
+        uvAttr.setX(i, uvAttr.getX(i) * repU);
+    }
+    uvAttr.needsUpdate = true;
+    return geo;
+}
+
 const TOTAL_HERO_DISPLAY_SLOTS = 29;
 
 export const SF_LOBBY_SCOPED_CSS = `
@@ -1344,7 +1364,7 @@ function buildLouvreStudioEnvironment(THREE, renderer, disposables) {
     }
 
     const envScene = new THREE.Scene();
-    envScene.background = new THREE.Color(0x12151e);
+    envScene.background = new THREE.Color(0xf6efe2);
 
     const tempMeshes = [];
     const addLightPanel = (w, h, colorHex, x, y, z, rx, ry, rz) => {
@@ -1357,17 +1377,17 @@ function buildLouvreStudioEnvironment(THREE, renderer, disposables) {
         tempMeshes.push(g, m);
     };
 
-    addLightPanel(20, 20, 0xfffdf5, 0, 14, 0, Math.PI * 0.5, 0, 0);
-    addLightPanel(16, 6.2, 0xfff5dc, 0, 9.5, -11, 0.52, 0, 0);
-    addLightPanel(16, 6.2, 0xfff5dc, 0, 9.5, 11, -0.52, 0, 0);
-    addLightPanel(15, 5.8, 0xfaf6ec, -11, 9.0, 0, 0, Math.PI * 0.5, -0.45);
-    addLightPanel(15, 5.8, 0xfaf6ec, 11, 9.0, 0, 0, -Math.PI * 0.5, 0.45);
+    addLightPanel(22, 22, 0xfffdf8, 0, 14, 0, Math.PI * 0.5, 0, 0);
+    addLightPanel(18, 6.8, 0xfff4d8, 0, 9.5, -11, 0.52, 0, 0);
+    addLightPanel(18, 6.8, 0xfff4d8, 0, 9.5, 11, -0.52, 0, 0);
+    addLightPanel(16, 6.2, 0xfcf7eb, -11, 9.0, 0, 0, Math.PI * 0.5, -0.45);
+    addLightPanel(16, 6.2, 0xfcf7eb, 11, 9.0, 0, 0, -Math.PI * 0.5, 0.45);
 
-    addLightPanel(22, 1.8, 0xfde68a, -13, 3.0, 0, 0, Math.PI * 0.5, 0);
-    addLightPanel(22, 1.8, 0xfde68a, 13, 3.0, 0, 0, -Math.PI * 0.5, 0);
-    addLightPanel(18, 1.6, 0xd4af37, 0, 3.4, -13, 0, 0, 0);
-    addLightPanel(18, 1.4, 0xfff1c9, 0, 3.6, 13, 0, Math.PI, 0);
-    addLightPanel(30, 30, 0x161922, 0, -6, 0, -Math.PI * 0.5, 0, 0);
+    addLightPanel(22, 2.4, 0xfde69a, -13, 3.2, 0, 0, Math.PI * 0.5, 0);
+    addLightPanel(22, 2.4, 0xfde69a, 13, 3.2, 0, 0, -Math.PI * 0.5, 0);
+    addLightPanel(18, 2.0, 0xe4bf62, 0, 3.4, -13, 0, 0, 0);
+    addLightPanel(18, 1.8, 0xfff3d1, 0, 3.6, 13, 0, Math.PI, 0);
+    addLightPanel(32, 32, 0xe5dac7, 0, -6, 0, -Math.PI * 0.5, 0, 0);
 
     const envRT = pmrem.fromScene(envScene, 0.03);
     tempMeshes.forEach((d) => d.dispose());
@@ -1513,42 +1533,58 @@ function buildNeroMarquinaFloorMaps(THREE, maxAniso, isMobile, repeatX, repeatZ,
 }
 
 /**
- * 1:1 Carrara-Alabaster & Atlantis-Saphir Pantheon-Marmorboden (#ECEAE4 / #E2DFD7, #94A3B8 Adern, #133B5C Saphir & 24K-Gold-Ringe).
+ * 1:1 Polierter Nero-Marquina-Marmorboden (#0B0E14 / #121620) fuer die Halle der Helden
+ * mit MeshStandardMaterial, 24K-Goldadern (#C5A059 / #D4AF37), Carrara-Nuancen (#ECEAE4),
+ * Saphir-Einfassung (#133B5C), Sonnenmedaillon und spiegelnder Roughness-Map!
  */
-function buildHallOfHeroesMarbleTexture(THREE, maxAniso, disposables) {
+function buildHallOfHeroesMarbleMaps(THREE, maxAniso, disposables) {
     const S = 1024;
-    const c = document.createElement('canvas');
-    c.width = S;
-    c.height = S;
-    const ctx = c.getContext('2d');
+    const cAlbedo = document.createElement('canvas');
+    cAlbedo.width = S;
+    cAlbedo.height = S;
+    const ctx = cAlbedo.getContext('2d');
+
+    const cRough = document.createElement('canvas');
+    cRough.width = S;
+    cRough.height = S;
+    const ctxR = cRough.getContext('2d');
+
     const cx = S * 0.5;
     const cy = S * 0.5;
 
+    // Albedo Basis: Tiefer polierter Nero-Marquina Marmor (#0B0E14 bis #121620)
     const rg = ctx.createRadialGradient(cx, cy, 40, cx, cy, S * 0.68);
-    rg.addColorStop(0.0, '#ECEAE4');
-    rg.addColorStop(0.62, '#E2DFD7');
-    rg.addColorStop(1.0, '#DAD5C9');
+    rg.addColorStop(0.0, '#0E1118');
+    rg.addColorStop(0.55, '#0B0E14');
+    rg.addColorStop(1.0, '#07090D');
     ctx.fillStyle = rg;
     ctx.fillRect(0, 0, S, S);
+
+    // Roughness Basis: Glatter polierter Marmor (~0.15 - 0.20 Roughness = dunkles Grau #262626)
+    ctxR.fillStyle = '#262626';
+    ctxR.fillRect(0, 0, S, S);
 
     const slabs = 8;
     const step = S / slabs;
     const rng = mulberry32(20261445);
     for (let r = 0; r < slabs; r++) {
         for (let col = 0; col < slabs; col++) {
-            const shade = Math.round((rng() - 0.5) * 10);
-            ctx.fillStyle = `rgba(${234 + shade}, ${231 + shade}, ${223 + shade}, 0.46)`;
+            const shade = Math.round((rng() - 0.5) * 14);
+            ctx.fillStyle = `rgba(${16 + shade}, ${19 + shade}, ${27 + shade}, 0.52)`;
             ctx.fillRect(col * step + 1.5, r * step + 1.5, step - 3, step - 3);
+
+            ctxR.fillStyle = `rgb(${36 + shade}, ${36 + shade}, ${36 + shade})`;
+            ctxR.fillRect(col * step + 1.5, r * step + 1.5, step - 3, step - 3);
         }
     }
 
-    // Feine Carrara-Adern (#94A3B8) + dezente 24K-Gold-Marmoradern (#C5A059)
-    for (let i = 0; i < 62; i++) {
-        const isGoldVein = (i % 5 === 0);
+    // Feine Carrara-Adern (#ECEAE4 / #94A3B8) + glaenzende 24K-Gold-Marmoradern (#C5A059 / #D4AF37)
+    for (let i = 0; i < 68; i++) {
+        const isGoldVein = (i % 3 === 0);
         ctx.strokeStyle = isGoldVein
-            ? 'rgba(197, 160, 89, 0.30)'
-            : (i % 3 === 0 ? 'rgba(148, 163, 184, 0.28)' : 'rgba(100, 116, 139, 0.20)');
-        ctx.lineWidth = isGoldVein ? 2.2 : (i % 4 === 0 ? 2.0 : 1.2);
+            ? (i % 6 === 0 ? 'rgba(212, 175, 55, 0.48)' : 'rgba(197, 160, 89, 0.40)')
+            : (i % 2 === 0 ? 'rgba(236, 234, 228, 0.25)' : 'rgba(148, 163, 184, 0.20)');
+        ctx.lineWidth = isGoldVein ? (i % 6 === 0 ? 2.8 : 1.8) : (i % 4 === 0 ? 1.6 : 1.0);
         ctx.beginPath();
         let x = rng() * S;
         let y = rng() * S;
@@ -1559,10 +1595,24 @@ function buildHallOfHeroesMarbleTexture(THREE, maxAniso, disposables) {
             ctx.lineTo(x, y);
         }
         ctx.stroke();
+
+        ctxR.strokeStyle = isGoldVein ? '#1E1E1E' : '#323232';
+        ctxR.lineWidth = ctx.lineWidth;
+        ctxR.beginPath();
+        ctxR.moveTo(x, y);
+        for (let s = 0; s < 6; s++) {
+            x += (rng() - 0.42) * 185;
+            y += (rng() - 0.48) * 145;
+            ctxR.lineTo(x, y);
+        }
+        ctxR.stroke();
     }
 
-    ctx.strokeStyle = 'rgba(197, 160, 89, 0.34)';
+    // Marmorfugen in edlem Gold
+    ctx.strokeStyle = 'rgba(197, 160, 89, 0.38)';
     ctx.lineWidth = 1.6;
+    ctxR.strokeStyle = '#6E6E6E';
+    ctxR.lineWidth = 2.0;
     for (let g = 1; g < slabs; g++) {
         const p = g * step;
         ctx.beginPath();
@@ -1573,9 +1623,18 @@ function buildHallOfHeroesMarbleTexture(THREE, maxAniso, disposables) {
         ctx.moveTo(0, p);
         ctx.lineTo(S, p);
         ctx.stroke();
+
+        ctxR.beginPath();
+        ctxR.moveTo(p, 0);
+        ctxR.lineTo(p, S);
+        ctxR.stroke();
+        ctxR.beginPath();
+        ctxR.moveTo(0, p);
+        ctxR.lineTo(S, p);
+        ctxR.stroke();
     }
 
-    // Aeussere Saphir-Einfassung (#133B5C) flankiert von 24K-Gold-Baendern (#C5A059 / #D4AF37)
+    // Aeussere Atlantis-Saphir-Einfassung (#133B5C) flankiert von 24K-Gold-Baendern (#C5A059 / #D4AF37)
     ctx.strokeStyle = '#133B5C';
     ctx.lineWidth = 42;
     ctx.strokeRect(42, 42, S - 84, S - 84);
@@ -1586,7 +1645,7 @@ function buildHallOfHeroesMarbleTexture(THREE, maxAniso, disposables) {
     ctx.strokeRect(65, 65, S - 130, S - 130);
 
     // Ehrenlaeufer auf der Mittelachse
-    ctx.fillStyle = 'rgba(19, 59, 92, 0.12)';
+    ctx.fillStyle = 'rgba(19, 59, 92, 0.18)';
     ctx.fillRect(cx - 88, 68, 176, S - 136);
     ctx.strokeStyle = '#C5A059';
     ctx.lineWidth = 5;
@@ -1605,7 +1664,7 @@ function buildHallOfHeroesMarbleTexture(THREE, maxAniso, disposables) {
     ctx.arc(cx, medY, 206, 0, TWO_PI);
     ctx.stroke();
 
-    ctx.fillStyle = '#ECEAE4';
+    ctx.fillStyle = '#0F131C';
     ctx.beginPath();
     ctx.arc(cx, medY, 168, 0, TWO_PI);
     ctx.fill();
@@ -1637,15 +1696,29 @@ function buildHallOfHeroesMarbleTexture(THREE, maxAniso, disposables) {
     ctx.arc(cx, medY, 26, 0, TWO_PI);
     ctx.fill();
 
-    const tex = new THREE.CanvasTexture(c);
-    tex.generateMipmaps = true;
-    tex.minFilter = THREE.LinearMipmapLinearFilter;
-    tex.magFilter = THREE.LinearFilter;
-    tex.anisotropy = Math.min(maxAniso || 4, 8);
-    applySrgbColorSpace(THREE, tex);
-    tex.needsUpdate = true;
-    if (disposables) disposables.push(tex);
-    return tex;
+    const albedoTex = new THREE.CanvasTexture(cAlbedo);
+    albedoTex.generateMipmaps = true;
+    albedoTex.minFilter = THREE.LinearMipmapLinearFilter;
+    albedoTex.magFilter = THREE.LinearFilter;
+    albedoTex.anisotropy = Math.min(maxAniso || 4, 8);
+    applySrgbColorSpace(THREE, albedoTex);
+    albedoTex.needsUpdate = true;
+    if (disposables) disposables.push(albedoTex);
+
+    const roughTex = new THREE.CanvasTexture(cRough);
+    roughTex.generateMipmaps = true;
+    roughTex.minFilter = THREE.LinearMipmapLinearFilter;
+    roughTex.magFilter = THREE.LinearFilter;
+    roughTex.anisotropy = Math.min(maxAniso || 4, 8);
+    roughTex.needsUpdate = true;
+    if (disposables) disposables.push(roughTex);
+
+    return { map: albedoTex, roughnessMap: roughTex };
+}
+
+function buildHallOfHeroesMarbleTexture(THREE, maxAniso, disposables) {
+    const maps = buildHallOfHeroesMarbleMaps(THREE, maxAniso, disposables);
+    return maps.map;
 }
 
 function buildContactShadowTexture(THREE, disposables) {
@@ -1656,10 +1729,10 @@ function buildContactShadowTexture(THREE, disposables) {
     const ctx = c.getContext('2d');
 
     const g = ctx.createRadialGradient(S * 0.5, S * 0.5, S * 0.08, S * 0.5, S * 0.5, S * 0.49);
-    g.addColorStop(0.0, 'rgba(0, 0, 0, 0.84)');
-    g.addColorStop(0.48, 'rgba(0, 0, 0, 0.52)');
-    g.addColorStop(0.78, 'rgba(0, 0, 0, 0.16)');
-    g.addColorStop(1.0, 'rgba(0, 0, 0, 0.0)');
+    g.addColorStop(0.0, 'rgba(34, 26, 16, 0.36)');
+    g.addColorStop(0.48, 'rgba(34, 26, 16, 0.17)');
+    g.addColorStop(0.78, 'rgba(34, 26, 16, 0.05)');
+    g.addColorStop(1.0, 'rgba(34, 26, 16, 0.0)');
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, S, S);
 
@@ -2432,6 +2505,15 @@ export class SeelenfunkeLouvreShowroom3D {
             bubbleTex: null,
             bubbleMat: null,
             bubbleExpiresAt: 0,
+            sprintTimer: 0,
+            sprintCooldown: 0,
+            titanJumpCooldown: 0,
+            shieldTimer: 0,
+            shieldCooldown: 0,
+            shieldMesh: null,
+            burstCooldown: 0,
+            emote: null,
+            emoteTimer: 0,
         };
 
         this._avatarShared = null;
@@ -2542,22 +2624,27 @@ export class SeelenfunkeLouvreShowroom3D {
             this.renderer.outputEncoding = THREE.sRGBEncoding;
         }
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        this.renderer.toneMappingExposure = 1.14;
+        this.renderer.toneMappingExposure = 1.05;
         this.maxAniso = this.renderer.capabilities ? this.renderer.capabilities.getMaxAnisotropy() : 4;
 
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0x0b0e15);
-        this.scene.fog = new THREE.FogExp2(0x0d1018, 0.0032);
+        this.scene.background = new THREE.Color(0xf5efe4);
+        this.scene.fog = new THREE.FogExp2(0xf5efe4, 0.0020);
 
         this.envTexture = buildLouvreStudioEnvironment(THREE, this.renderer, this.disposables);
         if (this.envTexture) {
             this.scene.environment = this.envTexture;
         }
 
+        const totalGalleryLength = (this.hallSouthZ - this.hallNorthZ) + 4.0;
+        const promWidth = this.portalHalfW * 2 + 1.2;
+        const promTotalLen = this.promenadeLength + 2.4;
+
         this._buildLighting();
         this._buildLouvreArchitecture(isMobile);
         this._buildGoldenHonorPortalAndPromenade();
         this._buildHallOfHeroes();
+        this._loadPhotorealisticTextures(24.0, totalGalleryLength, promWidth, promTotalLen);
         this._populateHeroesMonuments();
         this._buildExhibitSteles(baySpacing);
         this._buildPlayerCharacter();
@@ -2597,26 +2684,167 @@ export class SeelenfunkeLouvreShowroom3D {
     }
 
     /**
-     * Zero Dynamic Light Overload: HemisphereLight + DirectionalLights ohne Shadow-Maps (0 PointLight, 0 SpotLight).
+     * Zero Dynamic Light Overload: Warmes Pariser Museums-Tageslicht & Champagnergold (0 Shadow-Maps, 0 PointLight, 0 SpotLight).
      */
     _buildLighting() {
         const THREE = this.THREE;
 
-        const hemi = new THREE.HemisphereLight(0xfffaf0, 0x1e2433, 1.24);
-        hemi.position.set(0, 22, this.hallNorthZ);
+        const hemi = new THREE.HemisphereLight(0xfffdf8, 0xd8cbb4, 1.32);
+        hemi.position.set(0, 26, this.hallNorthZ);
         this.scene.add(hemi);
 
-        const dirMain = new THREE.DirectionalLight(0xfff6e0, 1.62);
-        dirMain.position.set(8, 24, 12);
+        const dirMain = new THREE.DirectionalLight(0xffecc8, 1.48);
+        dirMain.position.set(11, 28, 14);
         dirMain.castShadow = false;
         this.scene.add(dirMain);
 
-        const dirPantheon = new THREE.DirectionalLight(0xffe9b8, 0.92);
-        dirPantheon.position.set(-8, 26, this.pantheonCenterZ + 18);
+        const dirPantheon = new THREE.DirectionalLight(0xfff8ea, 0.74);
+        dirPantheon.position.set(-10, 25, this.pantheonCenterZ + 18);
         dirPantheon.target.position.set(0, 2, this.pantheonCenterZ - 5);
         dirPantheon.castShadow = false;
         this.scene.add(dirPantheon);
         this.scene.add(dirPantheon.target);
+    }
+
+    /**
+     * Asynchroner High-Anisotropy PBR-Texturlader fuer alle 6 echten Museums-Fototexturen + Golden-Hour PMREM.
+     */
+    _loadPhotorealisticTextures(galleryWidth, galleryLength, promWidth, promLength) {
+        const THREE = this.THREE;
+        if (!THREE || !THREE.TextureLoader || !this.mats) return;
+
+        const loader = new THREE.TextureLoader();
+        const aniso = Math.max(4, this.maxAniso || 8);
+
+        const configureStoneTex = (tex, wrapS, wrapT, repX, repY) => {
+            applySrgbColorSpace(THREE, tex);
+            tex.wrapS = wrapS;
+            tex.wrapT = wrapT;
+            tex.repeat.set(repX, repY);
+            tex.generateMipmaps = true;
+            tex.minFilter = THREE.LinearMipmapLinearFilter;
+            tex.magFilter = THREE.LinearFilter;
+            tex.anisotropy = aniso;
+            tex.needsUpdate = true;
+            this._trackDisposable(tex);
+            return tex;
+        };
+
+        // 1. Echte 360-Grad Beaux-Arts Golden-Hour Glasatrium-Umgebung -> PMREMGenerator.fromEquirectangular
+        loader.load(SHOWROOM_TEXTURE_URLS.museumGoldenHourEnv, (equirectTex) => {
+            if (this.destroyed || !this.renderer || !this.scene || !THREE.PMREMGenerator) {
+                if (equirectTex && equirectTex.dispose) equirectTex.dispose();
+                return;
+            }
+            applySrgbColorSpace(THREE, equirectTex);
+            equirectTex.mapping = THREE.EquirectangularReflectionMapping;
+
+            const pmremGen = new THREE.PMREMGenerator(this.renderer);
+            if (typeof pmremGen.compileEquirectangularShader === 'function') {
+                pmremGen.compileEquirectangularShader();
+            }
+            const realEnvRT = pmremGen.fromEquirectangular(equirectTex);
+            equirectTex.dispose();
+            pmremGen.dispose();
+
+            if (realEnvRT && realEnvRT.texture) {
+                this._trackDisposable(realEnvRT);
+                this.envTexture = realEnvRT.texture;
+                this.scene.environment = realEnvRT.texture;
+            }
+        }, undefined, () => {});
+
+        // 2. Polierter italienischer Calacatta-Gold-Marmorboden (Eingangshalle + Ehrenpromenade)
+        loader.load(SHOWROOM_TEXTURE_URLS.calacattaGoldFloor, (tex) => {
+            if (this.destroyed || !this.mats) {
+                if (tex && tex.dispose) tex.dispose();
+                return;
+            }
+            configureStoneTex(tex, THREE.RepeatWrapping, THREE.RepeatWrapping, galleryWidth / 5.4, galleryLength / 5.4);
+            if (this.mats.galleryFloor) {
+                this.mats.galleryFloor.color.setHex(0xffffff);
+                this.mats.galleryFloor.map = tex;
+                this.mats.galleryFloor.bumpMap = tex;
+                this.mats.galleryFloor.bumpScale = 0.006;
+                this.mats.galleryFloor.roughnessMap = null;
+                this.mats.galleryFloor.needsUpdate = true;
+            }
+
+            if (this.mats.promenadeFloor && tex.image) {
+                const promTex = new THREE.Texture(tex.image);
+                configureStoneTex(promTex, THREE.RepeatWrapping, THREE.RepeatWrapping, promWidth / 5.4, promLength / 5.4);
+                this.mats.promenadeFloor.color.setHex(0xffffff);
+                this.mats.promenadeFloor.map = promTex;
+                this.mats.promenadeFloor.bumpMap = promTex;
+                this.mats.promenadeFloor.bumpScale = 0.006;
+                this.mats.promenadeFloor.needsUpdate = true;
+            }
+        }, undefined, () => {});
+
+        // 3. Pariser Louvre-Kalksteinwand mit plastischer Haussmann-Boiserie, Kranzgesims & Nero-Marquina-Sockel
+        loader.load(SHOWROOM_TEXTURE_URLS.louvreBoiserieWall, (tex) => {
+            if (this.destroyed || !this.mats) {
+                if (tex && tex.dispose) tex.dispose();
+                return;
+            }
+            configureStoneTex(tex, THREE.RepeatWrapping, THREE.ClampToEdgeWrapping, 1.0, 1.0);
+            if (this.mats.boiserieWall) {
+                this.mats.boiserieWall.color.setHex(0xffffff);
+                this.mats.boiserieWall.map = tex;
+                this.mats.boiserieWall.bumpMap = tex;
+                this.mats.boiserieWall.bumpScale = 0.014;
+                this.mats.boiserieWall.needsUpdate = true;
+            }
+        }, undefined, () => {});
+
+        // 4. Satinierter Nero-Marquina-Naturstein mit feinen Bronze-/Gold-Mineraladern (Podeste & Ehrenstelen)
+        loader.load(SHOWROOM_TEXTURE_URLS.neroMarquinaPedestal, (tex) => {
+            if (this.destroyed || !this.mats) {
+                if (tex && tex.dispose) tex.dispose();
+                return;
+            }
+            configureStoneTex(tex, THREE.RepeatWrapping, THREE.RepeatWrapping, 1.25, 1.25);
+            if (this.mats.neroPedestal) {
+                this.mats.neroPedestal.color.setHex(0xffffff);
+                this.mats.neroPedestal.map = tex;
+                this.mats.neroPedestal.bumpMap = tex;
+                this.mats.neroPedestal.bumpScale = 0.012;
+                this.mats.neroPedestal.needsUpdate = true;
+            }
+        }, undefined, () => {});
+
+        // 5. Originaler roemischer Pantheon-Opus-Sectile-Marmorboden (Carrara, Saphir & 24K-Messing)
+        loader.load(SHOWROOM_TEXTURE_URLS.pantheonCarraraGoldFloor, (tex) => {
+            if (this.destroyed || !this.mats) {
+                if (tex && tex.dispose) tex.dispose();
+                return;
+            }
+            configureStoneTex(tex, THREE.RepeatWrapping, THREE.RepeatWrapping, 3.5, 3.5);
+            if (this.mats.pantheonFloor) {
+                this.mats.pantheonFloor.color.setHex(0xffffff);
+                this.mats.pantheonFloor.map = tex;
+                this.mats.pantheonFloor.bumpMap = tex;
+                this.mats.pantheonFloor.bumpScale = 0.008;
+                this.mats.pantheonFloor.roughnessMap = null;
+                this.mats.pantheonFloor.needsUpdate = true;
+            }
+        }, undefined, () => {});
+
+        // 6. Klassische Pantheon-Travertin-Kassettendecke mit 24K-Gold-Rosetten & Sonnenlicht-Oculus
+        loader.load(SHOWROOM_TEXTURE_URLS.pantheonCofferedDome, (tex) => {
+            if (this.destroyed || !this.mats) {
+                if (tex && tex.dispose) tex.dispose();
+                return;
+            }
+            configureStoneTex(tex, THREE.ClampToEdgeWrapping, THREE.ClampToEdgeWrapping, 1.0, 1.0);
+            if (this.mats.pantheonDome) {
+                this.mats.pantheonDome.color.setHex(0xffffff);
+                this.mats.pantheonDome.map = tex;
+                this.mats.pantheonDome.bumpMap = tex;
+                this.mats.pantheonDome.bumpScale = 0.016;
+                this.mats.pantheonDome.needsUpdate = true;
+            }
+        }, undefined, () => {});
     }
 
     _buildLouvreArchitecture(isMobile) {
@@ -2625,87 +2853,147 @@ export class SeelenfunkeLouvreShowroom3D {
         const centerZ = (this.hallSouthZ + this.hallNorthZ) * 0.5;
         const hallW = 24.0;
         const wallH = 7.4;
-        const pyramidApexY = 14.8;
-
-        const mcGold24k = buildStudioMatcapTexture(THREE, '#D4AF37', '#FFFDF2', '#FDE68A', 38, 0.54, this.disposables);
-        const mcGoldBrushed = buildStudioMatcapTexture(THREE, '#C5A059', '#FFF5D6', '#E6C687', 26, 0.40, this.disposables);
-        const mcObsidian = buildStudioMatcapTexture(THREE, '#111520', '#647087', '#C5A059', 28, 0.24, this.disposables);
+        const vaultRadius = hallW * 0.5;
+        const vaultApexY = wallH + vaultRadius * 0.62;
 
         this.mats = {
+            boiserieWall: this._trackDisposable(new THREE.MeshStandardMaterial({
+                color: 0xf4ecde,
+                roughness: 0.65,
+                metalness: 0.04,
+                envMapIntensity: 0.72,
+            })),
+            limestoneArch: this._trackDisposable(new THREE.MeshStandardMaterial({
+                color: 0xeee5d4,
+                roughness: 0.60,
+                metalness: 0.04,
+                envMapIntensity: 0.70,
+            })),
+            neroPedestal: this._trackDisposable(new THREE.MeshStandardMaterial({
+                color: 0x1b1917,
+                roughness: 0.28,
+                metalness: 0.08,
+                envMapIntensity: 1.05,
+            })),
             obsidianWall: this._trackDisposable(new THREE.MeshStandardMaterial({
-                color: 0x0c0f15,
-                roughness: 0.64,
-                metalness: 0.18,
-                envMapIntensity: 0.58,
+                color: 0xede3d1,
+                roughness: 0.62,
+                metalness: 0.04,
+                envMapIntensity: 0.70,
             })),
             cofferRecess: this._trackDisposable(new THREE.MeshStandardMaterial({
-                color: 0x07090d,
-                roughness: 0.78,
-                metalness: 0.12,
-                envMapIntensity: 0.35,
+                color: 0xf7f2e8,
+                roughness: 0.72,
+                metalness: 0.03,
+                envMapIntensity: 0.55,
             })),
             archSteel: this._trackDisposable(new THREE.MeshStandardMaterial({
-                color: 0x0d1016,
-                roughness: 0.38,
-                metalness: 0.72,
-                envMapIntensity: 0.9,
+                color: 0x3d3428,
+                roughness: 0.32,
+                metalness: 0.78,
+                envMapIntensity: 1.15,
             })),
             goldBrushed: this._trackDisposable(new THREE.MeshStandardMaterial({
                 color: 0xc5a059,
-                roughness: 0.24,
-                metalness: 0.88,
+                roughness: 0.23,
+                metalness: 0.90,
                 envMapIntensity: 1.32,
             })),
             goldChampagne: this._trackDisposable(new THREE.MeshStandardMaterial({
                 color: 0xe6c687,
                 roughness: 0.18,
+                metalness: 0.93,
+                envMapIntensity: 1.40,
+            })),
+            goldMatcapBright: this._trackDisposable(new THREE.MeshStandardMaterial({
+                color: 0xd4af37,
+                roughness: 0.19,
                 metalness: 0.92,
-                envMapIntensity: 1.42,
-            })),
-            goldMatcapBright: this._trackDisposable(new THREE.MeshMatcapMaterial({
-                matcap: mcGold24k,
+                envMapIntensity: 1.38,
                 polygonOffset: true,
                 polygonOffsetFactor: -1,
                 polygonOffsetUnits: -2,
             })),
-            goldMatcapBrushed: this._trackDisposable(new THREE.MeshMatcapMaterial({
-                matcap: mcGoldBrushed,
+            goldMatcapBrushed: this._trackDisposable(new THREE.MeshStandardMaterial({
+                color: 0xc5a059,
+                roughness: 0.24,
+                metalness: 0.90,
+                envMapIntensity: 1.30,
                 polygonOffset: true,
                 polygonOffsetFactor: -1,
                 polygonOffsetUnits: -2,
             })),
-            obsidianMatcap: this._trackDisposable(new THREE.MeshMatcapMaterial({
-                matcap: mcObsidian,
+            obsidianMatcap: this._trackDisposable(new THREE.MeshStandardMaterial({
+                color: 0x1b1917,
+                roughness: 0.28,
+                metalness: 0.08,
+                envMapIntensity: 1.05,
             })),
-            alabasterStep: this._trackDisposable(new THREE.MeshBasicMaterial({ color: 0xe6e3da })),
-            sapphireTrim: this._trackDisposable(new THREE.MeshBasicMaterial({ color: 0x133b5c })),
+            galleryFloor: this._trackDisposable(new THREE.MeshStandardMaterial({
+                color: 0xf7f2e7,
+                roughness: 0.16,
+                metalness: 0.04,
+                envMapIntensity: 0.85,
+            })),
+            promenadeFloor: this._trackDisposable(new THREE.MeshStandardMaterial({
+                color: 0xf7f2e7,
+                roughness: 0.16,
+                metalness: 0.04,
+                envMapIntensity: 0.85,
+            })),
+            pantheonFloor: null,
+            pantheonDome: this._trackDisposable(new THREE.MeshStandardMaterial({
+                color: 0xf5ebd8,
+                roughness: 0.58,
+                metalness: 0.14,
+                envMapIntensity: 0.85,
+                side: THREE.BackSide,
+            })),
+            alabasterStep: this._trackDisposable(new THREE.MeshStandardMaterial({
+                color: 0xf2ede2,
+                roughness: 0.26,
+                metalness: 0.05,
+                envMapIntensity: 0.80,
+            })),
+            sapphireTrim: this._trackDisposable(new THREE.MeshStandardMaterial({
+                color: 0x133b5c,
+                roughness: 0.22,
+                metalness: 0.16,
+                envMapIntensity: 0.95,
+            })),
+            coveWarmGlow: this._trackDisposable(new THREE.MeshBasicMaterial({
+                color: 0xfff5d8,
+            })),
             beaconGold: this._trackDisposable(new THREE.MeshBasicMaterial({ color: 0xffe89e })),
             mySlotGlow: this._trackDisposable(new THREE.MeshBasicMaterial({ color: 0xfde68a })),
             velvetPad: this._trackDisposable(new THREE.MeshStandardMaterial({
-                color: 0x11131a,
-                roughness: 0.94,
+                color: 0x171412,
+                roughness: 0.92,
                 metalness: 0.04,
             })),
-            pyramidGlass: this._trackDisposable(new THREE.MeshBasicMaterial({
-                color: 0xc8d8ec,
+            pyramidGlass: this._trackDisposable(new THREE.MeshStandardMaterial({
+                color: 0xfffdf7,
+                roughness: 0.08,
+                metalness: 0.10,
+                envMapIntensity: 1.15,
                 transparent: true,
-                opacity: 0.14,
+                opacity: 0.24,
                 depthWrite: false,
                 side: THREE.DoubleSide,
             })),
             vitrineGlass: this._trackDisposable(new THREE.MeshStandardMaterial({
-                color: 0xf4f8fc,
-                roughness: 0.06,
-                metalness: 0.12,
-                envMapIntensity: 1.2,
+                color: 0xffffff,
+                roughness: 0.05,
+                metalness: 0.10,
+                envMapIntensity: 1.42,
                 transparent: true,
-                opacity: 0.13,
+                opacity: 0.15,
                 depthWrite: false,
             })),
             spotlightCone: this._trackDisposable(new THREE.MeshBasicMaterial({
-                color: 0xfff3d6,
+                color: 0xfff4d8,
                 transparent: true,
-                opacity: 0.036,
+                opacity: 0.032,
                 depthWrite: false,
                 side: THREE.DoubleSide,
             })),
@@ -2716,21 +3004,21 @@ export class SeelenfunkeLouvreShowroom3D {
         this.mats.contactShadow = this._trackDisposable(new THREE.MeshBasicMaterial({
             map: this.contactShadowTex,
             transparent: true,
-            opacity: 0.78,
+            opacity: 0.72,
             depthWrite: false,
         }));
 
-        // Atmosphaerische Himmelskuppel ueber beiden Bereichen (Louvre + Pantheon)
-        const skyGeo = this._trackDisposable(new THREE.SphereGeometry(220, 24, 16));
+        // Sonnendurchflutete Pariser Golden-Hour Himmelskuppel ueber beiden Bereichen (Louvre + Pantheon)
+        const skyGeo = this._trackDisposable(new THREE.SphereGeometry(240, 24, 16));
         const skyCanvas = document.createElement('canvas');
         skyCanvas.width = 32;
         skyCanvas.height = 128;
         const skyCtx = skyCanvas.getContext('2d');
         const skyGrad = skyCtx.createLinearGradient(0, 0, 0, 128);
-        skyGrad.addColorStop(0.0, '#16233b');
-        skyGrad.addColorStop(0.36, '#2a3854');
-        skyGrad.addColorStop(0.56, '#4d412c');
-        skyGrad.addColorStop(1.0, '#0a0d14');
+        skyGrad.addColorStop(0.0, '#dce8f6');
+        skyGrad.addColorStop(0.32, '#f8f2e4');
+        skyGrad.addColorStop(0.62, '#f6e6c8');
+        skyGrad.addColorStop(1.0, '#ebe1cf');
         skyCtx.fillStyle = skyGrad;
         skyCtx.fillRect(0, 0, 32, 128);
         const skyTex = this._trackDisposable(new THREE.CanvasTexture(skyCanvas));
@@ -2740,34 +3028,23 @@ export class SeelenfunkeLouvreShowroom3D {
         skyDome.position.set(0, 0, (this.hallSouthZ + this.pantheonCenterZ) * 0.5);
         this.scene.add(skyDome);
 
-        // Polierter Nero-Marquina-Marmorboden in der Produkt-Eingangshalle
-        const repX = hallW / 6.0;
-        const repZ = totalLength / 6.0;
-        const marbleMaps = buildNeroMarquinaFloorMaps(THREE, this.maxAniso, isMobile, repX, repZ, this.disposables);
-        const floorMat = this._trackDisposable(new THREE.MeshStandardMaterial({
-            map: marbleMaps.map,
-            roughnessMap: marbleMaps.roughnessMap,
-            roughness: 0.19,
-            metalness: 0.08,
-            envMapIntensity: 1.1,
-        }));
-
+        // Polierter italienischer Calacatta-Gold-Marmorboden in der Produkt-Eingangshalle
         const floorGeo = this._trackDisposable(new THREE.PlaneGeometry(hallW, totalLength));
-        this.floorMesh = new THREE.Mesh(floorGeo, floorMat);
+        this.floorMesh = new THREE.Mesh(floorGeo, this.mats.galleryFloor);
         this.floorMesh.rotation.x = -Math.PI * 0.5;
         this.floorMesh.position.set(0, 0, centerZ);
         this.floorMesh.userData = { isFloor: true };
         this.scene.add(this.floorMesh);
         this.walkableFloorMeshes.push(this.floorMesh);
 
-        // Goldene Boden-Intarsien als gebuendeltes InstancedMesh
+        // Gebuerstete 24K-Gold-Bodenintarsien als gebuendeltes InstancedMesh
         const inlayLength = totalLength - 3.0;
-        const inlayStripGeo = this._trackDisposable(new THREE.PlaneGeometry(0.045, inlayLength));
-        const inlayPositions = [-2.25, -2.12, 2.12, 2.25];
+        const inlayStripGeo = this._trackDisposable(new THREE.PlaneGeometry(0.05, inlayLength));
+        const inlayPositions = [-2.35, -2.20, 2.20, 2.35];
         const inlayInst = new THREE.InstancedMesh(inlayStripGeo, this.mats.goldBrushed, inlayPositions.length);
         const dummy = new THREE.Object3D();
         for (let idx = 0; idx < inlayPositions.length; idx++) {
-            dummy.position.set(inlayPositions[idx], 0.0025, centerZ);
+            dummy.position.set(inlayPositions[idx], 0.003, centerZ);
             dummy.rotation.set(-Math.PI * 0.5, 0, 0);
             dummy.scale.set(1, 1, 1);
             dummy.updateMatrix();
@@ -2776,25 +3053,25 @@ export class SeelenfunkeLouvreShowroom3D {
         this.scene.add(inlayInst);
 
         const medOuter = new THREE.Mesh(
-            this._trackDisposable(new THREE.RingGeometry(1.18, 1.28, 4)),
+            this._trackDisposable(new THREE.RingGeometry(1.18, 1.30, 48)),
             this.mats.goldChampagne
         );
         medOuter.rotation.x = -Math.PI * 0.5;
-        medOuter.position.set(0, 0.003, centerZ);
+        medOuter.position.set(0, 0.004, centerZ);
         this.scene.add(medOuter);
 
         const medInner = new THREE.Mesh(
-            this._trackDisposable(new THREE.RingGeometry(0.62, 0.69, 4)),
+            this._trackDisposable(new THREE.RingGeometry(0.62, 0.70, 48)),
             this.mats.goldBrushed
         );
         medInner.rotation.x = -Math.PI * 0.5;
-        medInner.position.set(0, 0.003, centerZ);
+        medInner.position.set(0, 0.004, centerZ);
         this.scene.add(medInner);
 
         // Tap-to-Walk Zielring auf dem Marmorboden
         const targetRingGeo = this._trackDisposable(new THREE.RingGeometry(0.26, 0.34, 28));
         const targetRingMat = this._trackDisposable(new THREE.MeshBasicMaterial({
-            color: 0xe6c687,
+            color: 0xc5a059,
             transparent: true,
             opacity: 0.0,
             side: THREE.DoubleSide,
@@ -2805,103 +3082,180 @@ export class SeelenfunkeLouvreShowroom3D {
         this.walkTargetRing.position.set(0, 0.025, 0);
         this.scene.add(this.walkTargetRing);
 
-        // Seitenwaende & Gesimsleisten
-        const sideWallGeo = this._trackDisposable(new THREE.BoxGeometry(0.6, wallH, totalLength));
-        const trimGeo = this._trackDisposable(new THREE.BoxGeometry(0.72, 0.08, totalLength));
-        const corniceBlockGeo = this._trackDisposable(new THREE.BoxGeometry(0.95, 0.42, totalLength));
+        // Echte Pariser Haussmann-Boiserie-Kalksteinwaende + Kranzgesims & warme indirekte Lichtvouten
+        const sideWallBackGeo = this._trackDisposable(new THREE.BoxGeometry(0.55, wallH + 0.35, totalLength + 0.6));
+        const sideBoiserieGeo = this._trackDisposable(createBoiserieWallPlaneGeo(THREE, totalLength, wallH, 7.8));
+        const corniceUpperGeo = this._trackDisposable(new THREE.BoxGeometry(0.96, 0.38, totalLength + 0.4));
+        const goldCorniceTrimGeo = this._trackDisposable(new THREE.BoxGeometry(1.02, 0.075, totalLength + 0.4));
+        const coveLightStripGeo = this._trackDisposable(new THREE.PlaneGeometry(0.18, totalLength - 0.6));
 
-        [-hallW * 0.5, hallW * 0.5].forEach((wx) => {
-            const wall = new THREE.Mesh(sideWallGeo, this.mats.cofferRecess);
-            wall.position.set(wx, wallH * 0.5, centerZ);
-            this.scene.add(wall);
+        [-1, 1].forEach((sideSign) => {
+            const wx = sideSign * hallW * 0.5;
+            const backing = new THREE.Mesh(sideWallBackGeo, this.mats.limestoneArch);
+            backing.position.set(wx + sideSign * 0.28, (wallH + 0.35) * 0.5, centerZ);
+            this.scene.add(backing);
 
-            const baseTrim = new THREE.Mesh(trimGeo, this.mats.goldBrushed);
-            baseTrim.position.set(wx, 0.12, centerZ);
-            this.scene.add(baseTrim);
+            const boiserieFace = new THREE.Mesh(sideBoiserieGeo, this.mats.boiserieWall);
+            boiserieFace.position.set(wx - sideSign * 0.02, wallH * 0.5, centerZ);
+            boiserieFace.rotation.y = -sideSign * Math.PI * 0.5;
+            this.scene.add(boiserieFace);
 
-            const cornice = new THREE.Mesh(corniceBlockGeo, this.mats.obsidianWall);
-            cornice.position.set(wx, wallH, centerZ);
+            const cornice = new THREE.Mesh(corniceUpperGeo, this.mats.limestoneArch);
+            cornice.position.set(wx - sideSign * 0.14, wallH + 0.18, centerZ);
             this.scene.add(cornice);
 
-            const topGoldTrim = new THREE.Mesh(trimGeo, this.mats.goldBrushed);
-            topGoldTrim.position.set(wx, wallH - 0.22, centerZ);
+            const topGoldTrim = new THREE.Mesh(goldCorniceTrimGeo, this.mats.goldBrushed);
+            topGoldTrim.position.set(wx - sideSign * 0.18, wallH - 0.02, centerZ);
             this.scene.add(topGoldTrim);
+
+            const coveStrip = new THREE.Mesh(coveLightStripGeo, this.mats.coveWarmGlow);
+            coveStrip.rotation.x = -Math.PI * 0.5;
+            coveStrip.position.set(wx - sideSign * 0.42, wallH + 0.38, centerZ);
+            this.scene.add(coveStrip);
         });
 
-        // Kolonnaden-Pfeiler & Gold-Kapitelle der Produktgalerie via InstancedMesh
+        // Plastische franzoesische Kalkstein-Wandpilaster mit 24K-Gold-Kapitellen & Nero-Marquina-Sockeln via InstancedMesh
         const pierSpacing = 6.2;
         const pierCountSide = Math.max(3, Math.floor(totalLength / pierSpacing));
-        const pierGeo = this._trackDisposable(new THREE.BoxGeometry(0.75, wallH - 0.3, 0.75));
-        const capGeo = this._trackDisposable(new THREE.BoxGeometry(0.92, 0.12, 0.92));
+        const pierGeo = this._trackDisposable(new THREE.BoxGeometry(0.46, wallH - 0.42, 0.72));
+        const capGeo = this._trackDisposable(new THREE.BoxGeometry(0.62, 0.16, 0.90));
+        const plinthGeo = this._trackDisposable(new THREE.BoxGeometry(0.58, 0.34, 0.86));
 
         const totalPiers = pierCountSide * 2;
-        const pierInst = new THREE.InstancedMesh(pierGeo, this.mats.obsidianWall, totalPiers);
-        const capInst = new THREE.InstancedMesh(capGeo, this.mats.goldBrushed, totalPiers * 2);
+        const pierInst = new THREE.InstancedMesh(pierGeo, this.mats.limestoneArch, totalPiers);
+        const capInst = new THREE.InstancedMesh(capGeo, this.mats.goldMatcapBright, totalPiers);
+        const plinthInst = new THREE.InstancedMesh(plinthGeo, this.mats.neroPedestal, totalPiers);
+
+        const vaultRibCount = pierCountSide;
+        const vaultArcSpan = Math.PI * 0.72;
+        const vaultRibRadius = hallW * 0.555;
+        const vaultCenterY = wallH - Math.cos(vaultArcSpan * 0.5) * vaultRibRadius;
+        const vaultRibGeo = this._trackDisposable(new THREE.TorusGeometry(vaultRibRadius, 0.11, 8, 36, vaultArcSpan));
+        const vaultGoldFilletGeo = this._trackDisposable(new THREE.TorusGeometry(vaultRibRadius - 0.09, 0.045, 6, 36, vaultArcSpan));
+        const vaultRibInst = new THREE.InstancedMesh(vaultRibGeo, this.mats.archSteel, vaultRibCount);
+        const vaultGoldInst = new THREE.InstancedMesh(vaultGoldFilletGeo, this.mats.goldChampagne, vaultRibCount);
 
         let pIdx = 0;
-        let cIdx = 0;
         for (let i = 0; i < pierCountSide; i++) {
             const pz = this.hallNorthZ + 2.5 + i * ((totalLength - 5.0) / Math.max(1, pierCountSide - 1));
-            [-hallW * 0.5 + 0.42, hallW * 0.5 - 0.42].forEach((px) => {
-                dummy.position.set(px, (wallH - 0.3) * 0.5, pz);
+            [-hallW * 0.5 + 0.22, hallW * 0.5 - 0.22].forEach((px) => {
+                dummy.position.set(px, 0.34 + (wallH - 0.42) * 0.5, pz);
                 dummy.rotation.set(0, 0, 0);
                 dummy.scale.set(1, 1, 1);
                 dummy.updateMatrix();
-                pierInst.setMatrixAt(pIdx++, dummy.matrix);
+                pierInst.setMatrixAt(pIdx, dummy.matrix);
 
-                dummy.position.set(px, wallH - 0.32, pz);
+                dummy.position.set(px, wallH - 0.12, pz);
                 dummy.updateMatrix();
-                capInst.setMatrixAt(cIdx++, dummy.matrix);
+                capInst.setMatrixAt(pIdx, dummy.matrix);
 
-                dummy.position.set(px, 0.18, pz);
+                dummy.position.set(px, 0.17, pz);
                 dummy.updateMatrix();
-                capInst.setMatrixAt(cIdx++, dummy.matrix);
+                plinthInst.setMatrixAt(pIdx, dummy.matrix);
+                pIdx++;
             });
-        }
-        this.scene.add(pierInst);
-        this.scene.add(capInst);
 
-        // Sued-Stirnwand (Eingang) + Nord-Stirnwand GEÖFFNET fuer das monumentale 24K-Gold-Ehrenportal!
-        const southWallGeo = this._trackDisposable(new THREE.BoxGeometry(hallW + 0.6, wallH + 0.4, 0.7));
-        const southWall = new THREE.Mesh(southWallGeo, this.mats.obsidianWall);
-        southWall.position.set(0, (wallH + 0.4) * 0.5, this.hallSouthZ);
-        this.scene.add(southWall);
+            dummy.position.set(0, vaultCenterY, pz);
+            dummy.rotation.set(0, 0, (Math.PI - vaultArcSpan) * 0.5);
+            dummy.scale.set(1, 1, 1);
+            dummy.updateMatrix();
+            vaultRibInst.setMatrixAt(i, dummy.matrix);
+            vaultGoldInst.setMatrixAt(i, dummy.matrix);
+        }
+        pierInst.instanceMatrix.needsUpdate = true;
+        capInst.instanceMatrix.needsUpdate = true;
+        plinthInst.instanceMatrix.needsUpdate = true;
+        vaultRibInst.instanceMatrix.needsUpdate = true;
+        vaultGoldInst.instanceMatrix.needsUpdate = true;
+        this.scene.add(pierInst, capInst, plinthInst, vaultRibInst, vaultGoldInst);
+
+        // Sued-Stirnwand (Eingang) & Nord-Stirnwand in echter Louvre-Boiserie (geoeffnet fuer das 24K-Gold-Ehrenportal!)
+        const southWallBacking = new THREE.Mesh(
+            this._trackDisposable(new THREE.BoxGeometry(hallW + 0.8, wallH + 0.4, 0.6)),
+            this.mats.limestoneArch
+        );
+        southWallBacking.position.set(0, (wallH + 0.4) * 0.5, this.hallSouthZ + 0.32);
+        this.scene.add(southWallBacking);
+
+        const southBoiserie = new THREE.Mesh(
+            this._trackDisposable(createBoiserieWallPlaneGeo(THREE, hallW, wallH, 7.8)),
+            this.mats.boiserieWall
+        );
+        southBoiserie.rotation.y = Math.PI;
+        southBoiserie.position.set(0, wallH * 0.5, this.hallSouthZ - 0.01);
+        this.scene.add(southBoiserie);
 
         const wingSpan = (hallW * 0.5) - this.portalHalfW;
-        const wingWallGeo = this._trackDisposable(new THREE.BoxGeometry(wingSpan, wallH + 0.4, 0.75));
+        const wingWallGeo = this._trackDisposable(new THREE.BoxGeometry(wingSpan, wallH + 0.4, 0.65));
+        const wingBoiserieGeo = this._trackDisposable(createBoiserieWallPlaneGeo(THREE, wingSpan, wallH, 7.8));
         [-1, 1].forEach((sideSign) => {
-            const wingWall = new THREE.Mesh(wingWallGeo, this.mats.obsidianWall);
-            wingWall.position.set(
-                sideSign * (this.portalHalfW + wingSpan * 0.5),
-                (wallH + 0.4) * 0.5,
-                this.hallNorthZ
-            );
+            const wxCenter = sideSign * (this.portalHalfW + wingSpan * 0.5);
+            const wingWall = new THREE.Mesh(wingWallGeo, this.mats.limestoneArch);
+            wingWall.position.set(wxCenter, (wallH + 0.4) * 0.5, this.hallNorthZ - 0.30);
             this.scene.add(wingWall);
+
+            const wingFace = new THREE.Mesh(wingBoiserieGeo, this.mats.boiserieWall);
+            wingFace.position.set(wxCenter, wallH * 0.5, this.hallNorthZ + 0.04);
+            this.scene.add(wingFace);
         });
 
-        // Oberer Architrav ueber dem offenen Ehrenportal (ab y = 5.65 bis wallH + 0.4)
+        // Klassischer Kalkstein-Architrav ueber dem offenen Ehrenportal (ab y = 5.65 bis wallH + 0.4)
         const portalHeaderH = (wallH + 0.4) - 5.65;
         const portalHeader = new THREE.Mesh(
-            this._trackDisposable(new THREE.BoxGeometry(this.portalHalfW * 2 + 0.4, portalHeaderH, 0.85)),
-            this.mats.obsidianWall
+            this._trackDisposable(new THREE.BoxGeometry(this.portalHalfW * 2 + 0.4, portalHeaderH, 0.80)),
+            this.mats.limestoneArch
         );
-        portalHeader.position.set(0, 5.65 + portalHeaderH * 0.5, this.hallNorthZ);
+        portalHeader.position.set(0, 5.65 + portalHeaderH * 0.5, this.hallNorthZ - 0.12);
         this.scene.add(portalHeader);
 
-        const gableShape = new THREE.Shape();
-        gableShape.moveTo(-hallW * 0.5, wallH);
-        gableShape.lineTo(0, pyramidApexY);
-        gableShape.lineTo(hallW * 0.5, wallH);
-        gableShape.closePath();
-        const gableGeo = this._trackDisposable(new THREE.ShapeGeometry(gableShape));
+        // Luftiges Pariser Beaux-Arts Glas- & 24K-Gold-Tonnengewoelbe ueber der gesamten Eingangshalle
+        const barrelGlassGeo = this._trackDisposable(
+            new THREE.CylinderGeometry(vaultRibRadius + 0.04, vaultRibRadius + 0.04, totalLength, 32, 1, true, -vaultArcSpan * 0.5, vaultArcSpan)
+        );
+        const barrelGlass = new THREE.Mesh(barrelGlassGeo, this.mats.pyramidGlass);
+        barrelGlass.rotation.x = Math.PI * 0.5;
+        barrelGlass.rotation.z = Math.PI;
+        barrelGlass.position.set(0, vaultCenterY, centerZ);
+        this.scene.add(barrelGlass);
 
-        const northGableGlass = new THREE.Mesh(gableGeo, this.mats.pyramidGlass);
-        northGableGlass.position.set(0, 0, this.hallNorthZ);
-        this.scene.add(northGableGlass);
+        const purlinAngles = [-0.42, -0.21, 0.0, 0.21, 0.42];
+        const purlinGeo = this._trackDisposable(new THREE.BoxGeometry(0.09, 0.09, totalLength));
+        const purlinInst = new THREE.InstancedMesh(purlinGeo, this.mats.goldBrushed, purlinAngles.length);
+        for (let pi = 0; pi < purlinAngles.length; pi++) {
+            const ang = purlinAngles[pi];
+            dummy.position.set(
+                Math.sin(ang) * vaultRibRadius,
+                vaultCenterY + Math.cos(ang) * vaultRibRadius,
+                centerZ
+            );
+            dummy.rotation.set(0, 0, -ang);
+            dummy.scale.set(1, 1, 1);
+            dummy.updateMatrix();
+            purlinInst.setMatrixAt(pi, dummy.matrix);
+        }
+        purlinInst.instanceMatrix.needsUpdate = true;
+        this.scene.add(purlinInst);
 
-        const southGableGlass = new THREE.Mesh(gableGeo, this.mats.pyramidGlass);
-        southGableGlass.position.set(0, 0, this.hallSouthZ);
-        this.scene.add(southGableGlass);
+        // Verglaste Bogen-Lunetten an Nord- und Suedgiebel des Tonnengewoelbes
+        const lunetteShape = new THREE.Shape();
+        const lunetteSegs = 28;
+        for (let li = 0; li <= lunetteSegs; li++) {
+            const a = -vaultArcSpan * 0.5 + (li / lunetteSegs) * vaultArcSpan;
+            const lx = Math.sin(a) * vaultRibRadius;
+            const ly = vaultCenterY + Math.cos(a) * vaultRibRadius;
+            if (li === 0) lunetteShape.moveTo(lx, ly);
+            else lunetteShape.lineTo(lx, ly);
+        }
+        lunetteShape.closePath();
+        const lunetteGeo = this._trackDisposable(new THREE.ShapeGeometry(lunetteShape));
+
+        const northLunette = new THREE.Mesh(lunetteGeo, this.mats.pyramidGlass);
+        northLunette.position.set(0, 0, this.hallNorthZ);
+        this.scene.add(northLunette);
+
+        const southLunette = new THREE.Mesh(lunetteGeo, this.mats.pyramidGlass);
+        southLunette.position.set(0, 0, this.hallSouthZ);
+        this.scene.add(southLunette);
 
         // Stirnfries ueber dem goldenen Ehrenportal
         const friezeTex = buildLouvreFriezeTexture(
@@ -2916,14 +3270,14 @@ export class SeelenfunkeLouvreShowroom3D {
             this._trackDisposable(new THREE.BoxGeometry(10.6, 1.82, 0.24)),
             this.mats.goldMatcapBright
         );
-        friezeBacking.position.set(0, 6.58, this.hallNorthZ + 0.44);
+        friezeBacking.position.set(0, 6.58, this.hallNorthZ + 0.36);
         this.scene.add(friezeBacking);
 
         const friezePlane = new THREE.Mesh(
             this._trackDisposable(new THREE.PlaneGeometry(10.32, 1.62)),
             friezeMat
         );
-        friezePlane.position.set(0, 6.58, this.hallNorthZ + 0.57);
+        friezePlane.position.set(0, 6.58, this.hallNorthZ + 0.49);
         this.scene.add(friezePlane);
 
         const southFriezeTex = buildLouvreFriezeTexture(
@@ -2934,102 +3288,24 @@ export class SeelenfunkeLouvreShowroom3D {
             this.disposables
         );
         const southFriezeMat = this._trackDisposable(new THREE.MeshBasicMaterial({ map: southFriezeTex }));
+        const southFriezeBack = new THREE.Mesh(
+            this._trackDisposable(new THREE.BoxGeometry(9.88, 1.96, 0.20)),
+            this.mats.goldMatcapBright
+        );
+        southFriezeBack.position.set(0, 5.15, this.hallSouthZ - 0.14);
+        this.scene.add(southFriezeBack);
+
         const southFriezePlane = new THREE.Mesh(
             this._trackDisposable(new THREE.PlaneGeometry(9.6, 1.72)),
             southFriezeMat
         );
         southFriezePlane.rotation.y = Math.PI;
-        southFriezePlane.position.set(0, 4.95, this.hallSouthZ - 0.42);
+        southFriezePlane.position.set(0, 5.15, this.hallSouthZ - 0.25);
         this.scene.add(southFriezePlane);
-
-        // Louvre-Glaspyramiden-Dach
-        const halfSpanX = hallW * 0.5;
-        const riseY = pyramidApexY - wallH;
-        const slopeLen = Math.hypot(halfSpanX, riseY);
-        const slopeAngle = Math.atan2(riseY, halfSpanX);
-        const sharedSlopeGlassGeo = this._trackDisposable(new THREE.PlaneGeometry(slopeLen, totalLength));
-        const unitBeamGeo = this._trackDisposable(new THREE.BoxGeometry(1, 0.09, 1));
-        const nodeGeo = this._trackDisposable(new THREE.OctahedronGeometry(0.085, 0));
-
-        const uDivs = 6;
-        const vDivs = Math.max(8, Math.round(totalLength / 2.8));
-        const mapUVToSlope = (u, v) => ({
-            x: (u - 0.5) * slopeLen,
-            z: (v - 0.5) * totalLength,
-        });
-
-        const beamSegments = [];
-        const goldNodes = [];
-        for (let iu = 0; iu <= uDivs; iu++) {
-            const u = iu / uDivs;
-            const pA = mapUVToSlope(u, 0);
-            const pB = mapUVToSlope(u, 1);
-            beamSegments.push([pA.x, 0, pA.z, pB.x, 0, pB.z, 0.055]);
-        }
-        for (let iv = 0; iv < vDivs; iv++) {
-            const v0 = iv / vDivs;
-            const v1 = (iv + 1) / vDivs;
-            for (let iu = 0; iu < uDivs; iu++) {
-                const u0 = iu / uDivs;
-                const u1 = (iu + 1) / uDivs;
-                const c00 = mapUVToSlope(u0, v0);
-                const c10 = mapUVToSlope(u1, v0);
-                const c01 = mapUVToSlope(u0, v1);
-                const c11 = mapUVToSlope(u1, v1);
-                const mid = mapUVToSlope((u0 + u1) * 0.5, (v0 + v1) * 0.5);
-
-                beamSegments.push([c00.x, 0, c00.z, c11.x, 0, c11.z, 0.068]);
-                beamSegments.push([c10.x, 0, c10.z, c01.x, 0, c01.z, 0.068]);
-                goldNodes.push([c00.x, -0.02, c00.z]);
-                goldNodes.push([mid.x, -0.02, mid.z]);
-            }
-        }
-
-        [-1, 1].forEach((sideSign) => {
-            const slopeGroup = new THREE.Group();
-            slopeGroup.position.set(sideSign * halfSpanX * 0.5, wallH + riseY * 0.5, centerZ);
-            slopeGroup.rotation.z = -sideSign * slopeAngle;
-
-            const glassMesh = new THREE.Mesh(sharedSlopeGlassGeo, this.mats.pyramidGlass);
-            glassMesh.rotation.x = -Math.PI * 0.5;
-            slopeGroup.add(glassMesh);
-
-            const beamInst = new THREE.InstancedMesh(unitBeamGeo, this.mats.archSteel, beamSegments.length);
-            for (let b = 0; b < beamSegments.length; b++) {
-                const [x1, y1, z1, x2, y2, z2, thick] = beamSegments[b];
-                const dx = x2 - x1;
-                const dz = z2 - z1;
-                const len = Math.hypot(dx, dz);
-                dummy.position.set((x1 + x2) * 0.5, (y1 + y2) * 0.5, (z1 + z2) * 0.5);
-                dummy.rotation.set(0, -Math.atan2(dz, dx), 0);
-                dummy.scale.set(len, 1.0, thick);
-                dummy.updateMatrix();
-                beamInst.setMatrixAt(b, dummy.matrix);
-            }
-            slopeGroup.add(beamInst);
-
-            const nodeInst = new THREE.InstancedMesh(nodeGeo, this.mats.goldChampagne, goldNodes.length);
-            for (let n = 0; n < goldNodes.length; n++) {
-                dummy.position.set(goldNodes[n][0], goldNodes[n][1], goldNodes[n][2]);
-                dummy.rotation.set(0, Math.PI * 0.25, 0);
-                dummy.scale.set(1.0, 0.65, 1.0);
-                dummy.updateMatrix();
-                nodeInst.setMatrixAt(n, dummy.matrix);
-            }
-            slopeGroup.add(nodeInst);
-            this.scene.add(slopeGroup);
-        });
-
-        const ridgeBeam = new THREE.Mesh(
-            this._trackDisposable(new THREE.BoxGeometry(0.24, 0.24, totalLength)),
-            this.mats.goldBrushed
-        );
-        ridgeBeam.position.set(0, pyramidApexY, centerZ);
-        this.scene.add(ridgeBeam);
     }
 
     /**
-     * Monumentales 24K-Gold-Ehrenportal + Carrara-Marmor-Ehrenpromenade zwischen Produktgalerie und Halle der Helden.
+     * Monumentales 24K-Gold-Ehrenportal + Calacatta-Gold-Ehrenpromenade zwischen Produktgalerie und Halle der Helden.
      */
     _buildGoldenHonorPortalAndPromenade() {
         const THREE = this.THREE;
@@ -3037,7 +3313,7 @@ export class SeelenfunkeLouvreShowroom3D {
         const promW = this.portalHalfW * 2 + 1.2;
 
         // 1. Monumentale 24K-Gold-Portalsaeulen & goldener Portalrahmen an hallNorthZ
-        const portalPillarGeo = this._trackDisposable(new THREE.CylinderGeometry(0.42, 0.48, 5.65, 16));
+        const portalPillarGeo = this._trackDisposable(new THREE.CylinderGeometry(0.42, 0.48, 5.65, 20));
         const portalBaseGeo = this._trackDisposable(new THREE.BoxGeometry(1.18, 0.28, 1.18));
         const portalCapGeo = this._trackDisposable(new THREE.BoxGeometry(1.24, 0.36, 1.24));
 
@@ -3046,7 +3322,7 @@ export class SeelenfunkeLouvreShowroom3D {
             pillar.position.set(px, 2.825, this.hallNorthZ);
             this.scene.add(pillar);
 
-            const base = new THREE.Mesh(portalBaseGeo, this.mats.goldMatcapBright);
+            const base = new THREE.Mesh(portalBaseGeo, this.mats.neroPedestal);
             base.position.set(px, 0.14, this.hallNorthZ);
             this.scene.add(base);
 
@@ -3062,10 +3338,10 @@ export class SeelenfunkeLouvreShowroom3D {
         lintelGold.position.set(0, 5.62, this.hallNorthZ);
         this.scene.add(lintelGold);
 
-        // 2. Carrara-Alabaster & 24K-Gold Ehrenpromenade (fuehrt direkt in die Nord-Rotunde)
+        // 2. Polierte Calacatta-Gold & Saphir-24K-Gold Ehrenpromenade (fuehrt direkt in die Nord-Rotunde)
         const promFloor = new THREE.Mesh(
             this._trackDisposable(new THREE.PlaneGeometry(promW, this.promenadeLength + 2.4)),
-            this.mats.alabasterStep
+            this.mats.promenadeFloor
         );
         promFloor.rotation.x = -Math.PI * 0.5;
         promFloor.position.set(0, 0.012, promCenterZ);
@@ -3091,20 +3367,36 @@ export class SeelenfunkeLouvreShowroom3D {
             this.scene.add(gLine);
         });
 
-        // Seitliche goldene Balustraden & Ehren-Kolonnade entlang der Promenade
+        // Seitliche Nero-Marquina-Balustraden, Boiserie-Galeriewaende & 24K-Gold-Kolonnade entlang der Promenade
         const balustradeGeo = this._trackDisposable(new THREE.BoxGeometry(0.36, 1.02, this.promenadeLength));
         const balustradeCapGeo = this._trackDisposable(new THREE.BoxGeometry(0.50, 0.14, this.promenadeLength));
-        [-this.portalHalfW - 0.35, this.portalHalfW + 0.35].forEach((bx) => {
-            const bal = new THREE.Mesh(balustradeGeo, this.mats.obsidianMatcap);
+        const promWallGeo = this._trackDisposable(createBoiserieWallPlaneGeo(THREE, this.promenadeLength + 0.6, 6.2, 7.8));
+        [-1, 1].forEach((sideSign) => {
+            const bx = sideSign * (this.portalHalfW + 0.35);
+            const bal = new THREE.Mesh(balustradeGeo, this.mats.neroPedestal);
             bal.position.set(bx, 0.51, promCenterZ);
             this.scene.add(bal);
 
             const bCap = new THREE.Mesh(balustradeCapGeo, this.mats.goldMatcapBright);
             bCap.position.set(bx, 1.06, promCenterZ);
             this.scene.add(bCap);
+
+            const outerWall = new THREE.Mesh(promWallGeo, this.mats.boiserieWall);
+            outerWall.position.set(sideSign * (this.portalHalfW + 1.45), 3.1, promCenterZ);
+            outerWall.rotation.y = -sideSign * Math.PI * 0.5;
+            this.scene.add(outerWall);
         });
 
-        const promColGeo = this._trackDisposable(new THREE.CylinderGeometry(0.32, 0.38, 5.5, 14));
+        const promVaultGlass = new THREE.Mesh(
+            this._trackDisposable(new THREE.CylinderGeometry(this.portalHalfW + 1.45, this.portalHalfW + 1.45, this.promenadeLength + 1.0, 24, 1, true, -Math.PI * 0.5, Math.PI)),
+            this.mats.pyramidGlass
+        );
+        promVaultGlass.rotation.x = Math.PI * 0.5;
+        promVaultGlass.rotation.z = Math.PI;
+        promVaultGlass.position.set(0, 6.1, promCenterZ);
+        this.scene.add(promVaultGlass);
+
+        const promColGeo = this._trackDisposable(new THREE.CylinderGeometry(0.32, 0.38, 5.5, 16));
         const promArchGeo = this._trackDisposable(new THREE.TorusGeometry(this.portalHalfW + 0.35, 0.14, 8, 28, Math.PI));
         for (let s = 0; s < 3; s++) {
             const sz = lerp(this.hallNorthZ - 2.2, this.heroesEntryZ + 2.2, s / 2);
@@ -3159,7 +3451,7 @@ export class SeelenfunkeLouvreShowroom3D {
 
     /**
      * Bereich 2 (Nord-Rotunde, zone = 'heroes'):
-     * 1:1 EXAKTE Uebernahme & goldene Veredelung der Pantheon "Halle der Helden" aus funkenwerk-heroes-3d.js!
+     * Fotorealistische roemische Pantheon "Halle der Helden" mit Opus-Sectile-Marmorboden, 24K-Gold-Kolonnaden & Travertin-Kassettenkuppel!
      */
     _buildHallOfHeroes() {
         const THREE = this.THREE;
@@ -3169,9 +3461,9 @@ export class SeelenfunkeLouvreShowroom3D {
 
         const floorTopY = 0.02;
 
-        // 1. Abgestuftes Pantheon-Stylobat (Saphir #133B5C, Alabaster #E2DFD7 & 24K-Gold-Rahmen)
+        // 1. Abgestuftes Pantheon-Stylobat (Nero Marquina, Saphir #133B5C, Alabaster #ECEAE4 & 24K-Gold-Rahmen)
         const steps = [
-            { w: 53.0, d: 55.0, h: 0.90, y: -0.62, trimY: -0.22, mat: this.mats.obsidianMatcap, trimMat: this.mats.goldMatcapBright },
+            { w: 53.0, d: 55.0, h: 0.90, y: -0.62, trimY: -0.22, mat: this.mats.neroPedestal, trimMat: this.mats.goldMatcapBright },
             { w: 50.0, d: 52.0, h: 0.42, y: -0.24, trimY: -0.06, mat: this.mats.sapphireTrim, trimMat: this.mats.goldMatcapBright },
             { w: 47.6, d: 49.6, h: 0.24, y: -0.11, trimY: 0.00, mat: this.mats.alabasterStep, trimMat: this.mats.sapphireTrim },
         ];
@@ -3186,16 +3478,21 @@ export class SeelenfunkeLouvreShowroom3D {
             this.pantheonGroup.add(trim);
         }
 
-        // 2. Carrara-Alabaster-Marmorboden (#ECEAE4 / #E2DFD7) mit Saphir-Einfassung (#133B5C) & 24K-Gold-Intarsien
-        const marbleTex = buildHallOfHeroesMarbleTexture(THREE, this.maxAniso, this.disposables);
+        // 2. Originaler Pantheon-Opus-Sectile-Marmorboden (Carrara #ECEAE4, Saphir #133B5C & 24K-Gold-Intarsien)
+        const fallbackMarbleMaps = buildHallOfHeroesMarbleMaps(THREE, this.maxAniso, this.disposables);
+        this.mats.pantheonFloor = this._trackDisposable(new THREE.MeshStandardMaterial({
+            color: 0xffffff,
+            map: fallbackMarbleMaps.map,
+            roughness: 0.17,
+            metalness: 0.10,
+            envMapIntensity: 0.92,
+            polygonOffset: true,
+            polygonOffsetFactor: -1,
+            polygonOffsetUnits: -2,
+        }));
         const marbleFloor = new THREE.Mesh(
             this._trackDisposable(new THREE.PlaneGeometry(46.8, 48.8)),
-            this._trackDisposable(new THREE.MeshBasicMaterial({
-                map: marbleTex,
-                polygonOffset: true,
-                polygonOffsetFactor: -1,
-                polygonOffsetUnits: -2,
-            }))
+            this.mats.pantheonFloor
         );
         marbleFloor.rotation.x = -Math.PI * 0.5;
         marbleFloor.position.set(0, floorTopY, 0);
@@ -3214,6 +3511,32 @@ export class SeelenfunkeLouvreShowroom3D {
             this.pantheonGroup.add(gRing);
         });
 
+        // 2b. Geschlossene klassische Kalkstein-Boiserie-Rotundenwaende hinter der 24K-Gold-Kolonnade
+        const colHeight = 12.6;
+        const rotundaWallH = colHeight + 0.55;
+        const sideRotundaBoiserieGeo = this._trackDisposable(createBoiserieWallPlaneGeo(THREE, 46.8, rotundaWallH, 9.4));
+        const northRotundaBoiserieGeo = this._trackDisposable(createBoiserieWallPlaneGeo(THREE, 46.8, rotundaWallH, 9.4));
+        [-1, 1].forEach((sideSign) => {
+            const sidePlane = new THREE.Mesh(sideRotundaBoiserieGeo, this.mats.boiserieWall);
+            sidePlane.position.set(sideSign * 23.35, floorTopY + rotundaWallH * 0.5, 0);
+            sidePlane.rotation.y = -sideSign * Math.PI * 0.5;
+            this.pantheonGroup.add(sidePlane);
+        });
+
+        const northPlane = new THREE.Mesh(northRotundaBoiserieGeo, this.mats.boiserieWall);
+        northPlane.position.set(0, floorTopY + rotundaWallH * 0.5, -23.35);
+        this.pantheonGroup.add(northPlane);
+
+        // Suedwand der Rotunde links & rechts neben der Ehrenpromenade
+        const southWingW = (46.8 - (this.portalHalfW * 2 + 2.8)) * 0.5;
+        const southWingBoiserieGeo = this._trackDisposable(createBoiserieWallPlaneGeo(THREE, southWingW, rotundaWallH, 9.4));
+        [-1, 1].forEach((sideSign) => {
+            const swPlane = new THREE.Mesh(southWingBoiserieGeo, this.mats.boiserieWall);
+            swPlane.position.set(sideSign * (23.4 - southWingW * 0.5), floorTopY + rotundaWallH * 0.5, 23.35);
+            swPlane.rotation.y = Math.PI;
+            this.pantheonGroup.add(swPlane);
+        });
+
         // 3. 28 Monumentale 24K-Gold-Kolonnaden-Saeulen via InstancedMesh (18.4m freie Ehrenachse!)
         const colCoords = [];
         for (let ci = 0; ci < 8; ci++) {
@@ -3226,9 +3549,8 @@ export class SeelenfunkeLouvreShowroom3D {
         }
         colCoords.push([-14.8, -14.8], [14.8, -14.8], [-14.8, 14.8], [14.8, 14.8]);
 
-        const colHeight = 12.6;
         const shaftInst = new THREE.InstancedMesh(
-            this._trackDisposable(new THREE.CylinderGeometry(0.68, 0.80, colHeight, 16)),
+            this._trackDisposable(new THREE.CylinderGeometry(0.68, 0.80, colHeight, 20)),
             this.mats.goldMatcapBrushed,
             colCoords.length
         );
@@ -3238,8 +3560,8 @@ export class SeelenfunkeLouvreShowroom3D {
             colCoords.length
         );
         const baseInst = new THREE.InstancedMesh(
-            this._trackDisposable(new THREE.CylinderGeometry(0.94, 1.04, 0.44, 16)),
-            this.mats.goldMatcapBright,
+            this._trackDisposable(new THREE.CylinderGeometry(0.94, 1.04, 0.44, 20)),
+            this.mats.neroPedestal,
             colCoords.length
         );
         const aoPlaneGeo = this._trackDisposable(new THREE.PlaneGeometry(1, 1));
@@ -3282,12 +3604,12 @@ export class SeelenfunkeLouvreShowroom3D {
         colAoInst.instanceMatrix.needsUpdate = true;
         this.pantheonGroup.add(shaftInst, capInst, baseInst, colAoInst);
 
-        // 4. Architrav & 100 % unverdeckte goldene Inschrift "HALLE DER HELDEN"
+        // 4. Kalkstein-Architrav & 100 % unverdeckte goldene Inschrift "HALLE DER HELDEN"
         const entY = floorTopY + colHeight + 1.45;
-        const sideBeamGeo = this._trackDisposable(new THREE.BoxGeometry(2.4, 1.9, 45.0));
-        const sideGoldGeo = this._trackDisposable(new THREE.BoxGeometry(2.68, 0.38, 45.4));
-        [-21.5, 21.5].forEach((sx) => {
-            const b = new THREE.Mesh(sideBeamGeo, this.mats.obsidianMatcap);
+        const sideBeamGeo = this._trackDisposable(new THREE.BoxGeometry(3.4, 1.9, 47.0));
+        const sideGoldGeo = this._trackDisposable(new THREE.BoxGeometry(3.68, 0.38, 47.4));
+        [-22.1, 22.1].forEach((sx) => {
+            const b = new THREE.Mesh(sideBeamGeo, this.mats.limestoneArch);
             b.position.set(sx, entY, 0);
             this.pantheonGroup.add(b);
 
@@ -3296,10 +3618,10 @@ export class SeelenfunkeLouvreShowroom3D {
             this.pantheonGroup.add(g);
         });
 
-        const crossBeamGeo = this._trackDisposable(new THREE.BoxGeometry(45.6, 2.1, 2.5));
-        const crossGoldGeo = this._trackDisposable(new THREE.BoxGeometry(46.2, 0.42, 2.84));
-        [-21.5, 21.5].forEach((cz) => {
-            const cb = new THREE.Mesh(crossBeamGeo, this.mats.obsidianMatcap);
+        const crossBeamGeo = this._trackDisposable(new THREE.BoxGeometry(47.4, 2.1, 3.4));
+        const crossGoldGeo = this._trackDisposable(new THREE.BoxGeometry(47.8, 0.42, 3.74));
+        [-22.1, 22.1].forEach((cz) => {
+            const cb = new THREE.Mesh(crossBeamGeo, this.mats.limestoneArch);
             cb.position.set(0, entY, cz);
             this.pantheonGroup.add(cb);
 
@@ -3307,6 +3629,24 @@ export class SeelenfunkeLouvreShowroom3D {
             cg.position.set(0, entY + 1.25, cz);
             this.pantheonGroup.add(cg);
         });
+
+        // Decken-Zwickelring zwischen Kolonnaden-Quadrat und Kuppeltambour
+        const spandrelRingShape = new THREE.Shape();
+        spandrelRingShape.moveTo(-23.6, -23.6);
+        spandrelRingShape.lineTo(23.6, -23.6);
+        spandrelRingShape.lineTo(23.6, 23.6);
+        spandrelRingShape.lineTo(-23.6, 23.6);
+        spandrelRingShape.closePath();
+        const drumHole = new THREE.Path();
+        drumHole.absarc(0, 0, 17.55, 0, TWO_PI, true);
+        spandrelRingShape.holes.push(drumHole);
+        const spandrelCeiling = new THREE.Mesh(
+            this._trackDisposable(new THREE.ShapeGeometry(spandrelRingShape, 48)),
+            this.mats.limestoneArch
+        );
+        spandrelCeiling.rotation.x = Math.PI * 0.5;
+        spandrelCeiling.position.set(0, entY + 1.12, 0);
+        this.pantheonGroup.add(spandrelCeiling);
 
         const friezeTex = buildHallBannerPlaqueTexture(THREE, this.maxAniso, 'HALLE DER HELDEN', this.disposables);
         const friezeMat = this._trackDisposable(new THREE.MeshBasicMaterial({
@@ -3346,15 +3686,33 @@ export class SeelenfunkeLouvreShowroom3D {
         innerFrieze.position.set(0, entY + 2.15, -21.04);
         this.pantheonGroup.add(innerFrieze);
 
-        // 5. Goldene Kuppel sauber oberhalb des Frieses (domeBaseY = entY + 5.35)
+        // 5. Echte Travertin-Kassettenkuppel mit 24K-Gold-Rosetten oberhalb des Frieses (domeBaseY = entY + 5.35)
         //    + versetzte 24K-Gold-Kuppelrippen ((r + 0.5) / 6) * Math.PI + strahlender 24K-Gold-Oculus-Stern!
         const domeBaseY = entY + 5.35;
         const domeRadius = 17.5;
         const oculusRadius = 5.2;
         const ribArc = Math.acos(oculusRadius / domeRadius);
 
+        // Klassischer zylindrischer Pantheon-Tambour zwischen entY + 1.1 und domeBaseY
+        const drumHeight = domeBaseY - (entY + 1.08);
+        const tambourDrum = new THREE.Mesh(
+            this._trackDisposable(new THREE.CylinderGeometry(domeRadius + 0.12, domeRadius + 0.12, drumHeight, 56, 1, true)),
+            this.mats.limestoneArch
+        );
+        tambourDrum.material.side = THREE.DoubleSide;
+        tambourDrum.position.set(0, (entY + 1.08) + drumHeight * 0.5, 0);
+        this.pantheonGroup.add(tambourDrum);
+
+        const drumLowerGoldRing = new THREE.Mesh(
+            this._trackDisposable(new THREE.TorusGeometry(domeRadius + 0.02, 0.28, 10, 56)),
+            this.mats.goldMatcapBrushed
+        );
+        drumLowerGoldRing.rotation.x = Math.PI * 0.5;
+        drumLowerGoldRing.position.set(0, entY + 1.18, 0);
+        this.pantheonGroup.add(drumLowerGoldRing);
+
         const drumCorners = [[-14.8, -14.8], [14.8, -14.8], [-14.8, 14.8], [14.8, 14.8]];
-        const drumPostGeo = this._trackDisposable(new THREE.CylinderGeometry(0.62, 0.74, 4.6, 14));
+        const drumPostGeo = this._trackDisposable(new THREE.CylinderGeometry(0.62, 0.74, 4.6, 16));
         for (let dci = 0; dci < drumCorners.length; dci++) {
             const [dx, dz] = drumCorners[dci];
             const drumPost = new THREE.Mesh(drumPostGeo, this.mats.goldMatcapBright);
@@ -3362,21 +3720,27 @@ export class SeelenfunkeLouvreShowroom3D {
             this.pantheonGroup.add(drumPost);
         }
 
-        // Warme Champagner-Gold-Lichtschale hinter den goldenen Kuppelrippen (heller Seelenfunke-Stil, 0 lila Glow!)
-        const canopyShellMat = this._trackDisposable(new THREE.MeshBasicMaterial({
-            color: 0xfff3cf,
-            transparent: true,
-            opacity: 0.14,
-            side: THREE.BackSide,
-            depthWrite: false,
-            fog: false,
-        }));
-        const canopyShell = new THREE.Mesh(
-            this._trackDisposable(new THREE.SphereGeometry(domeRadius + 0.25, 32, 18, 0, TWO_PI, 0, Math.PI * 0.48)),
-            canopyShellMat
+        // Polare Radial-UV-Projektion fuer die echte Pantheon-Kassettendecke (pantheon_coffered_dome.jpg)
+        const domeShellGeo = this._trackDisposable(
+            new THREE.SphereGeometry(domeRadius + 0.22, 56, 28, 0, TWO_PI, 0, Math.PI * 0.5)
         );
-        canopyShell.position.set(0, domeBaseY, 0);
-        this.pantheonGroup.add(canopyShell);
+        const domePosAttr = domeShellGeo.attributes.position;
+        const domeUvAttr = domeShellGeo.attributes.uv;
+        for (let vi = 0; vi < domePosAttr.count; vi++) {
+            const vx = domePosAttr.getX(vi);
+            const vy = domePosAttr.getY(vi);
+            const vz = domePosAttr.getZ(vi);
+            const rLen = Math.max(0.0001, Math.hypot(vx, vy, vz));
+            const theta = Math.atan2(vz, vx);
+            const phi = Math.acos(clamp(vy / rLen, 0, 1));
+            const polarR = (phi / (Math.PI * 0.5)) * 0.492;
+            domeUvAttr.setXY(vi, 0.5 + Math.cos(theta) * polarR, 0.5 + Math.sin(theta) * polarR);
+        }
+        domeUvAttr.needsUpdate = true;
+
+        const cofferedDomeMesh = new THREE.Mesh(domeShellGeo, this.mats.pantheonDome);
+        cofferedDomeMesh.position.set(0, domeBaseY, 0);
+        this.pantheonGroup.add(cofferedDomeMesh);
 
         const domeBaseRing = new THREE.Mesh(
             this._trackDisposable(new THREE.TorusGeometry(domeRadius, 0.44, 10, 60)),
@@ -3396,7 +3760,7 @@ export class SeelenfunkeLouvreShowroom3D {
         midCofferRing.position.set(0, midCofferRingY, 0);
         this.pantheonGroup.add(midCofferRing);
 
-        const ribGeo = this._trackDisposable(new THREE.TorusGeometry(domeRadius, 0.26, 8, 34, ribArc));
+        const ribGeo = this._trackDisposable(new THREE.TorusGeometry(domeRadius, 0.24, 8, 34, ribArc));
         for (let r = 0; r < 12; r++) {
             const rib = new THREE.Mesh(ribGeo, this.mats.goldMatcapBright);
             rib.position.set(0, domeBaseY, 0);
@@ -3439,7 +3803,7 @@ export class SeelenfunkeLouvreShowroom3D {
             this._trackDisposable(new THREE.MeshBasicMaterial({
                 color: 0xfff5d6,
                 transparent: true,
-                opacity: 0.042,
+                opacity: 0.036,
                 side: THREE.DoubleSide,
                 depthWrite: false,
             }))
@@ -3907,13 +4271,13 @@ export class SeelenfunkeLouvreShowroom3D {
             pGrp.rotation.y = sp.rotY;
             this.pantheonDynamicGroup.add(pGrp);
 
-            const coreGeo = new THREE.CylinderGeometry(sp.w * 0.52, sp.w * 0.60, sp.h, 8);
-            const capGeo = new THREE.CylinderGeometry(sp.w * 0.57, sp.w * 0.55, 0.16, 8);
-            const baseGeo = new THREE.CylinderGeometry(sp.w * 0.63, sp.w * 0.66, 0.16, 8);
+            const coreGeo = new THREE.CylinderGeometry(sp.w * 0.52, sp.w * 0.60, sp.h, 16);
+            const capGeo = new THREE.CylinderGeometry(sp.w * 0.57, sp.w * 0.55, 0.16, 16);
+            const baseGeo = new THREE.CylinderGeometry(sp.w * 0.63, sp.w * 0.66, 0.16, 16);
             const aoGeo = new THREE.PlaneGeometry(sp.w * 1.75, sp.w * 1.75);
             this.heroDynamicDisposables.push(coreGeo, capGeo, baseGeo, aoGeo);
 
-            const pedCore = new THREE.Mesh(coreGeo, this.mats.obsidianMatcap);
+            const pedCore = new THREE.Mesh(coreGeo, this.mats.neroPedestal);
             pedCore.position.y = sp.h * 0.5;
             pGrp.add(pedCore);
 
@@ -4087,7 +4451,7 @@ export class SeelenfunkeLouvreShowroom3D {
             const steleProxyMat = new THREE.MeshBasicMaterial({ visible: false });
             this.heroDynamicDisposables.push(steleObsGeo, steleGoldGeo, steleFaceGeo, steleProxyGeo, steleProxyMat);
 
-            const steleObsInst = new THREE.InstancedMesh(steleObsGeo, this.mats.obsidianMatcap, steleCount);
+            const steleObsInst = new THREE.InstancedMesh(steleObsGeo, this.mats.neroPedestal, steleCount);
             const steleGoldInst = new THREE.InstancedMesh(steleGoldGeo, this.mats.goldMatcapBright, steleCount);
             steleObsInst.frustumCulled = false;
             steleGoldInst.frustumCulled = false;
@@ -4252,7 +4616,7 @@ export class SeelenfunkeLouvreShowroom3D {
 
         const aoInst = new THREE.InstancedMesh(shadowGeo, this.mats.contactShadow, count);
         const plinthBaseInst = new THREE.InstancedMesh(plinthBaseGeo, this.mats.goldBrushed, count);
-        const monolithInst = new THREE.InstancedMesh(monolithGeo, this.mats.obsidianWall, count);
+        const monolithInst = new THREE.InstancedMesh(monolithGeo, this.mats.neroPedestal, count);
         const goldCollarInst = new THREE.InstancedMesh(goldCollarGeo, this.mats.goldChampagne, count);
         const velvetPadInst = new THREE.InstancedMesh(velvetTopGeo, this.mats.velvetPad, count);
         const vitrineHoodInst = new THREE.InstancedMesh(vitrineBoxGeo, this.mats.vitrineGlass, count);
@@ -4627,29 +4991,53 @@ export class SeelenfunkeLouvreShowroom3D {
         const THREE = this.THREE;
 
         const mats = {
-            suitObsidian: this._trackDisposable(new THREE.MeshMatcapMaterial({
-                matcap: buildStudioMatcapTexture(THREE, '#121620', '#5E6882', '#D8B257', 28, 0.50, this.disposables),
+            suitObsidian: this._trackDisposable(new THREE.MeshStandardMaterial({
+                color: 0x14161b,
+                roughness: 0.30,
+                metalness: 0.22,
+                envMapIntensity: 1.18,
             })),
-            suitDark: this._trackDisposable(new THREE.MeshMatcapMaterial({
-                matcap: buildStudioMatcapTexture(THREE, '#0B0D14', '#40485C', '#C5A059', 24, 0.36, this.disposables),
+            suitDark: this._trackDisposable(new THREE.MeshStandardMaterial({
+                color: 0x0d0f13,
+                roughness: 0.36,
+                metalness: 0.18,
+                envMapIntensity: 1.05,
             })),
-            gold24k: this._trackDisposable(new THREE.MeshMatcapMaterial({
-                matcap: buildStudioMatcapTexture(THREE, '#C5A059', '#FFFFFF', '#FFF3CC', 34, 0.62, this.disposables),
+            gold24k: this._trackDisposable(new THREE.MeshStandardMaterial({
+                color: 0xd4af37,
+                roughness: 0.20,
+                metalness: 0.92,
+                envMapIntensity: 1.38,
             })),
-            goldBright: this._trackDisposable(new THREE.MeshMatcapMaterial({
-                matcap: buildStudioMatcapTexture(THREE, '#E8CA82', '#FFFFFF', '#FFFBE8', 38, 0.66, this.disposables),
+            goldBright: this._trackDisposable(new THREE.MeshStandardMaterial({
+                color: 0xe8ca82,
+                roughness: 0.16,
+                metalness: 0.94,
+                envMapIntensity: 1.44,
             })),
-            jointDark: this._trackDisposable(new THREE.MeshMatcapMaterial({
-                matcap: buildStudioMatcapTexture(THREE, '#0E1118', '#4A5064', '#9B7E45', 16, 0.25, this.disposables),
+            jointDark: this._trackDisposable(new THREE.MeshStandardMaterial({
+                color: 0x111318,
+                roughness: 0.42,
+                metalness: 0.24,
+                envMapIntensity: 0.95,
             })),
-            sapphireCrystal: this._trackDisposable(new THREE.MeshMatcapMaterial({
-                matcap: buildStudioMatcapTexture(THREE, '#1D8AC8', '#FFFFFF', '#A5F3FC', 36, 0.64, this.disposables),
+            sapphireCrystal: this._trackDisposable(new THREE.MeshStandardMaterial({
+                color: 0x1d8ac8,
+                roughness: 0.08,
+                metalness: 0.18,
+                envMapIntensity: 1.35,
             })),
-            emeraldCrystal: this._trackDisposable(new THREE.MeshMatcapMaterial({
-                matcap: buildStudioMatcapTexture(THREE, '#0D9468', '#FFFFFF', '#A7F3D0', 36, 0.64, this.disposables),
+            emeraldCrystal: this._trackDisposable(new THREE.MeshStandardMaterial({
+                color: 0x0d9468,
+                roughness: 0.08,
+                metalness: 0.18,
+                envMapIntensity: 1.35,
             })),
-            cosmosGold: this._trackDisposable(new THREE.MeshMatcapMaterial({
-                matcap: buildStudioMatcapTexture(THREE, '#F59E0B', '#FFFFFF', '#FEF3C7', 42, 0.72, this.disposables),
+            cosmosGold: this._trackDisposable(new THREE.MeshStandardMaterial({
+                color: 0xf59e0b,
+                roughness: 0.14,
+                metalness: 0.94,
+                envMapIntensity: 1.48,
             })),
         };
 
@@ -5063,6 +5451,23 @@ export class SeelenfunkeLouvreShowroom3D {
         this.player.visorMat = built.visorMat;
         this.player.visorTexOpen = built.visorTexOpen;
         this.player.visorTexBlink = built.visorTexBlink;
+
+        const shieldGeo = this._trackDisposable(new this.THREE.SphereGeometry(1.22, 18, 14));
+        const shieldMat = this._trackDisposable(new this.THREE.MeshStandardMaterial({
+            color: 0xC5A059,
+            emissive: 0x8A6D3B,
+            emissiveIntensity: 0.45,
+            transparent: true,
+            opacity: 0.38,
+            roughness: 0.12,
+            metalness: 0.65,
+            depthWrite: false
+        }));
+        const shieldMesh = new this.THREE.Mesh(shieldGeo, shieldMat);
+        shieldMesh.position.set(0, 0.95, 0);
+        shieldMesh.visible = false;
+        built.root.add(shieldMesh);
+        this.player.shieldMesh = shieldMesh;
     }
 
     _updatePlayerKinematics(dt, stepDist, turnRate, nearestForGaze) {
@@ -5128,11 +5533,13 @@ export class SeelenfunkeLouvreShowroom3D {
 
         if (this.player.isSomersault) {
             const tuck = Math.sin(clamp(this.player.somersaultProgress, 0, 1) * Math.PI);
-            j.kneePivotL.rotation.x += 1.35 * tuck;
-            j.kneePivotR.rotation.x += 1.35 * tuck;
-            j.hipPivotL.rotation.x -= 0.85 * tuck;
-            j.hipPivotR.rotation.x -= 0.85 * tuck;
-            j.torsoPivot.rotation.x += 0.38 * tuck;
+            j.kneePivotL.rotation.x += 2.25 * tuck;
+            j.kneePivotR.rotation.x += 2.25 * tuck;
+            j.hipPivotL.rotation.x -= 1.85 * tuck;
+            j.hipPivotR.rotation.x -= 1.85 * tuck;
+            j.torsoPivot.rotation.x += 1.35 * tuck;
+            j.anklePivotL.rotation.x -= 0.65 * tuck;
+            j.anklePivotR.rotation.x -= 0.65 * tuck;
         }
 
         const applyArmGait = (shoulderPivot, elbowPivot, wristPivot, fingerCurl, oppositeLegPhase, sideSign) => {
@@ -5185,6 +5592,70 @@ export class SeelenfunkeLouvreShowroom3D {
                 j.elbowPivotR.rotation.x = -0.16 * punchArc;
                 j.wristPivotR.rotation.x = 0.25 * punchArc;
                 j.fingerCurlR.rotation.z = 0.55 * punchArc;
+            }
+        }
+
+        if (this.player.isSomersault) {
+            const tuck = Math.sin(clamp(this.player.somersaultProgress, 0, 1) * Math.PI);
+            j.shoulderPivotL.rotation.x -= 1.35 * tuck;
+            j.shoulderPivotR.rotation.x -= 1.35 * tuck;
+            j.shoulderPivotL.rotation.z += 0.45 * tuck;
+            j.shoulderPivotR.rotation.z -= 0.45 * tuck;
+            j.elbowPivotL.rotation.x -= 1.85 * tuck;
+            j.elbowPivotR.rotation.x -= 1.85 * tuck;
+            j.fingerCurlL.rotation.z = -0.75 * tuck;
+            j.fingerCurlR.rotation.z = 0.75 * tuck;
+            j.headPivot.rotation.x += 0.95 * tuck;
+            this.player.root.position.y += (-0.32 * tuck);
+        } else if (this.player.emote) {
+            const em = this.player.emote;
+            if (em === 'dance') {
+                const dTime = this.elapsedTime * 7.5;
+                j.pelvisPivot.position.y += Math.abs(Math.sin(dTime)) * 0.06;
+                j.pelvisPivot.rotation.z += Math.sin(dTime * 0.5) * 0.14;
+                j.torsoPivot.rotation.z -= Math.sin(dTime * 0.5) * 0.12;
+                j.shoulderPivotL.rotation.x = -1.2 + Math.sin(dTime) * 0.5;
+                j.shoulderPivotR.rotation.x = -1.2 - Math.sin(dTime) * 0.5;
+                j.elbowPivotL.rotation.x = -0.8 + Math.cos(dTime) * 0.4;
+                j.elbowPivotR.rotation.x = -0.8 - Math.cos(dTime) * 0.4;
+                j.kneePivotL.rotation.x += Math.max(0, Math.sin(dTime)) * 0.4;
+                j.kneePivotR.rotation.x += Math.max(0, -Math.sin(dTime)) * 0.4;
+            } else if (em === 'wave') {
+                const wTime = this.elapsedTime * 12;
+                j.shoulderPivotR.rotation.x = -2.35;
+                j.shoulderPivotR.rotation.z = -0.35;
+                j.elbowPivotR.rotation.x = -0.35;
+                j.wristPivotR.rotation.z = Math.sin(wTime) * 0.45;
+            } else if (em === 'bow') {
+                const bP = Math.sin(clamp((2.4 - this.player.emoteTimer) / 2.4, 0, 1) * Math.PI);
+                j.torsoPivot.rotation.x += 0.85 * bP;
+                j.headPivot.rotation.x += 0.35 * bP;
+                j.shoulderPivotL.rotation.x = 0.2 * bP;
+                j.shoulderPivotR.rotation.x = 0.2 * bP;
+            } else if (em === 'cheer') {
+                const cTime = this.elapsedTime * 10;
+                const cJump = Math.abs(Math.sin(cTime * 0.5)) * 0.12;
+                j.pelvisPivot.position.y += cJump;
+                j.shoulderPivotL.rotation.x = -2.5 + Math.sin(cTime) * 0.25;
+                j.shoulderPivotR.rotation.x = -2.5 - Math.sin(cTime) * 0.25;
+                j.shoulderPivotL.rotation.z = 0.35;
+                j.shoulderPivotR.rotation.z = -0.35;
+            } else if (em === 'sit') {
+                j.pelvisPivot.position.y = 0.22;
+                j.hipPivotL.rotation.x = -1.55;
+                j.hipPivotR.rotation.x = -1.55;
+                j.kneePivotL.rotation.x = 1.65;
+                j.kneePivotR.rotation.x = 1.65;
+                j.shoulderPivotL.rotation.x = -0.4;
+                j.shoulderPivotR.rotation.x = -0.4;
+            } else if (em === 'clap') {
+                const clTime = this.elapsedTime * 14;
+                j.shoulderPivotL.rotation.x = -1.25;
+                j.shoulderPivotR.rotation.x = -1.25;
+                j.shoulderPivotL.rotation.z = 0.45 + Math.sin(clTime) * 0.18;
+                j.shoulderPivotR.rotation.z = -0.45 - Math.sin(clTime) * 0.18;
+                j.elbowPivotL.rotation.x = -0.7;
+                j.elbowPivotR.rotation.x = -0.7;
             }
         }
 
@@ -5560,6 +6031,152 @@ export class SeelenfunkeLouvreShowroom3D {
             duration: 0.36,
             isRemote: false,
         });
+    }
+
+    _spawnAbilityBurst(x, y, z, type) {
+        if (!this.scene || !this.THREE) return;
+        if (this.weaponBursts.length >= 16) {
+            const oldest = this.weaponBursts.shift();
+            if (oldest) this._disposeWeaponBurst(oldest);
+        }
+
+        const THREE = this.THREE;
+        const shared = this._ensureAvatarSharedPool();
+        const group = new THREE.Group();
+        group.position.set(x, y, z);
+
+        const colorHex = (type === 'shield' || type === 'burst') ? '#D4AF37' : '#C5A059';
+        const ringMat = new THREE.MeshBasicMaterial({
+            color: new THREE.Color(colorHex),
+            transparent: true,
+            opacity: 0.95,
+            side: THREE.DoubleSide,
+            depthWrite: false,
+        });
+        const ringMesh = new THREE.Mesh(shared.geos.baseRing, ringMat);
+        ringMesh.rotation.x = -Math.PI * 0.5;
+        ringMesh.scale.set(0.6, 0.6, 0.6);
+        group.add(ringMesh);
+
+        const sparks = [];
+        const sparkCount = (type === 'burst') ? 24 : 10;
+        const sparkMat = new THREE.MeshBasicMaterial({
+            color: new THREE.Color('#FFF6DB'),
+            transparent: true,
+            opacity: 0.95,
+            depthWrite: false,
+        });
+
+        for (let i = 0; i < sparkCount; i++) {
+            const sm = new THREE.Mesh(shared.geos.sparkDiamond, sparkMat);
+            const ang = (i / sparkCount) * TWO_PI + (Math.random() - 0.5) * 0.25;
+            const spd = (type === 'burst') ? (3.4 + Math.random() * 2.2) : (1.5 + Math.random() * 1.2);
+            const vy = (type === 'jump') ? (-0.6 - Math.random() * 1.2) : (0.5 + Math.random() * 1.5);
+            sm.position.set(0, 0.05, 0);
+            group.add(sm);
+            sparks.push({
+                mesh: sm,
+                vx: Math.cos(ang) * spd,
+                vy: vy,
+                vz: Math.sin(ang) * spd,
+            });
+        }
+
+        this.scene.add(group);
+        this.weaponBursts.push({
+            group,
+            slashMesh: ringMesh,
+            arcMat: ringMat,
+            sparkMat,
+            sparks,
+            age: 0,
+            duration: (type === 'burst') ? 0.65 : 0.48,
+            isRemote: false,
+        });
+    }
+
+    triggerAbility(slot) {
+        if (!this.running || this.destroyed) return false;
+        slot = parseInt(slot, 10);
+        if (slot === 1) {
+            // Funken-Sprint (+50% Speed fuer 4.5s)
+            if (this.player.sprintCooldown > 0) return false;
+            this.player.sprintTimer = 4.5;
+            this.player.sprintCooldown = 10.0;
+            this._spawnAbilityBurst(this.player.x, (this.player.y || 0) + 0.08, this.player.z, 'sprint');
+            return true;
+        }
+        if (slot === 2) {
+            // Titan-Sprung (2.5x Sprunghoehe, vy = 12.0)
+            if (this.player.titanJumpCooldown > 0) return false;
+            this.player.titanJumpCooldown = 8.0;
+            this.player.isJumping = true;
+            this.player.jumpCount = 1;
+            this.player.vy = 12.0;
+            this.player.isSomersault = false;
+            this.player.somersaultProgress = 0.0;
+            this._spawnAbilityBurst(this.player.x, (this.player.y || 0) + 0.08, this.player.z, 'jump');
+            return true;
+        }
+        if (slot === 3) {
+            // Goldener Schutzschild (6s transluzente Schutz-Sphaere)
+            if (this.player.shieldCooldown > 0) return false;
+            this.player.shieldTimer = 6.0;
+            this.player.shieldCooldown = 15.0;
+            if (this.player.shieldMesh) this.player.shieldMesh.visible = true;
+            this._spawnAbilityBurst(this.player.x, (this.player.y || 0) + 0.8, this.player.z, 'shield');
+            return true;
+        }
+        if (slot === 4) {
+            // Radialer Funkenstoss (Stoßwelle bis 3.8m)
+            if (this.player.burstCooldown > 0) return false;
+            this.player.burstCooldown = 20.0;
+            this._spawnAbilityBurst(this.player.x, (this.player.y || 0) + 0.35, this.player.z, 'burst');
+            return true;
+        }
+        return false;
+    }
+
+    triggerEmote(name) {
+        if (!this.running || this.destroyed || !name) return false;
+        const validEmotes = ['dance', 'wave', 'bow', 'cheer', 'sit', 'clap'];
+        if (validEmotes.indexOf(name) === -1) return false;
+        this.player.emote = name;
+        const durations = {
+            dance: 8.0,
+            wave: 2.8,
+            bow: 2.4,
+            cheer: 3.0,
+            sit: 999.0,
+            clap: 3.2,
+        };
+        this.player.emoteTimer = durations[name] || 3.0;
+        return true;
+    }
+
+    getAbilityState() {
+        return {
+            sprint: {
+                active: this.player.sprintTimer > 0,
+                timer: this.player.sprintTimer,
+                cooldown: this.player.sprintCooldown,
+                maxCd: 10.0,
+            },
+            titanJump: {
+                cooldown: this.player.titanJumpCooldown,
+                maxCd: 8.0,
+            },
+            shield: {
+                active: this.player.shieldTimer > 0,
+                timer: this.player.shieldTimer,
+                cooldown: this.player.shieldCooldown,
+                maxCd: 15.0,
+            },
+            burst: {
+                cooldown: this.player.burstCooldown,
+                maxCd: 20.0,
+            },
+        };
     }
 
     _spawnWeaponBurst(x, y, z, yaw, accentHex, effectType, isRemote) {
@@ -6175,8 +6792,25 @@ export class SeelenfunkeLouvreShowroom3D {
             return;
         }
 
-        if (code === 'KeyF') {
+        if (code === 'KeyG' || code === 'KeyQ' || code === 'KeyF') {
             this.triggerStrikeAction();
+            return;
+        }
+
+        if (code === 'Digit1' || code === 'Numpad1') {
+            this.triggerAbility(1);
+            return;
+        }
+        if (code === 'Digit2' || code === 'Numpad2') {
+            this.triggerAbility(2);
+            return;
+        }
+        if (code === 'Digit3' || code === 'Numpad3') {
+            this.triggerAbility(3);
+            return;
+        }
+        if (code === 'Digit4' || code === 'Numpad4') {
+            this.triggerAbility(4);
             return;
         }
 
@@ -6674,6 +7308,38 @@ export class SeelenfunkeLouvreShowroom3D {
         if (this.player.punchSwingTimer > 0) {
             this.player.punchSwingTimer = Math.max(0, this.player.punchSwingTimer - dt);
         }
+        if (this.player.sprintCooldown > 0) {
+            this.player.sprintCooldown = Math.max(0, this.player.sprintCooldown - dt);
+        }
+        if (this.player.sprintTimer > 0) {
+            this.player.sprintTimer = Math.max(0, this.player.sprintTimer - dt);
+        }
+        if (this.player.titanJumpCooldown > 0) {
+            this.player.titanJumpCooldown = Math.max(0, this.player.titanJumpCooldown - dt);
+        }
+        if (this.player.shieldCooldown > 0) {
+            this.player.shieldCooldown = Math.max(0, this.player.shieldCooldown - dt);
+        }
+        if (this.player.shieldTimer > 0) {
+            this.player.shieldTimer = Math.max(0, this.player.shieldTimer - dt);
+            if (this.player.shieldMesh) {
+                this.player.shieldMesh.visible = true;
+                this.player.shieldMesh.rotation.y += dt * 1.5;
+                const sPulse = 1.0 + Math.sin(this.elapsedTime * 6) * 0.04;
+                this.player.shieldMesh.scale.set(sPulse, sPulse, sPulse);
+            }
+        } else if (this.player.shieldMesh && this.player.shieldMesh.visible) {
+            this.player.shieldMesh.visible = false;
+        }
+        if (this.player.burstCooldown > 0) {
+            this.player.burstCooldown = Math.max(0, this.player.burstCooldown - dt);
+        }
+        if (this.player.emoteTimer > 0) {
+            this.player.emoteTimer = Math.max(0, this.player.emoteTimer - dt);
+            if (this.player.emoteTimer <= 0) {
+                this.player.emote = null;
+            }
+        }
         if (this.player.isJumping || this.player.y > 0) {
             this.player.vy -= 15.2 * dt;
             this.player.y += this.player.vy * dt;
@@ -6715,6 +7381,8 @@ export class SeelenfunkeLouvreShowroom3D {
 
         const hasManualInput = Math.hypot(inputForward, inputRight) > 0.05;
         if (hasManualInput) {
+            this.player.emote = null;
+            this.player.emoteTimer = 0;
             this.player.autoTarget = null;
             this.player.autoLookAt = null;
             this.pinnedSteleIndex = -1;
@@ -6722,7 +7390,7 @@ export class SeelenfunkeLouvreShowroom3D {
             this.pinnedPortalGate = false;
         }
 
-        const moveSpeed = 5.2;
+        const moveSpeed = (this.player.sprintTimer > 0) ? 7.8 : 5.2;
         let vx = 0;
         let vz = 0;
 
@@ -7027,13 +7695,6 @@ export class SeelenfunkeLouvreShowroom3D {
 
         if (this.renderer) {
             this.renderer.dispose();
-            if (typeof this.renderer.forceContextLoss === 'function') {
-                try {
-                    this.renderer.forceContextLoss();
-                } catch (err) {
-                    // Context bereits freigegeben
-                }
-            }
             this.renderer = null;
         }
         this.scene = null;

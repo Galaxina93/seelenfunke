@@ -36,6 +36,62 @@ class OrderCheckoutSuccess extends Component
     public function mount()
     {
         $intentId = request()->query('payment_intent');
+        $sessionId = request()->query('session_id');
+
+        // 0. Redirect aus Stripe Hosted Checkout Session (z. B. Zahlungslink aus Angebot)
+        if (!$intentId && is_string($sessionId) && str_starts_with(trim($sessionId), 'cs_')) {
+            $stripeSecret = config('services.stripe.secret') ?: shop_setting('stripe_secret_key');
+            if ($stripeSecret) {
+                try {
+                    Stripe::setApiKey($stripeSecret);
+                    $checkoutSession = \Stripe\Checkout\Session::retrieve(trim($sessionId));
+                    $resolvedOrderId = $checkoutSession->metadata->order_id ?? null;
+                    $resolvedPiId = is_object($checkoutSession->payment_intent ?? null)
+                        ? ($checkoutSession->payment_intent->id ?? null)
+                        : ($checkoutSession->payment_intent ?? null);
+
+                    $order = $resolvedOrderId
+                        ? OrderOrder::with('items.product')->find($resolvedOrderId)
+                        : ($resolvedPiId ? OrderOrder::with('items.product')->where('stripe_payment_intent_id', $resolvedPiId)->first() : null);
+
+                    if (
+                        $order
+                        && ($checkoutSession->payment_status ?? '') === 'paid'
+                        && strtolower((string) ($checkoutSession->currency ?? 'eur')) === 'eur'
+                        && (!isset($checkoutSession->amount_total) || (int) $checkoutSession->amount_total >= (int) $order->total_price)
+                        && !in_array($order->status, ['cancelled', 'refunded'], true)
+                        && $order->payment_status !== 'refunded'
+                    ) {
+                        if ($order->payment_status !== 'paid') {
+                            $order->completePayment($resolvedPiId);
+                            $order->refresh();
+                        }
+
+                        $this->finalOrderId = (string) $order->id;
+                        $this->finalOrderNumber = $order->order_number;
+                        $this->email = $order->email ?: ($order->billing_address['email'] ?? ($order->customer->email ?? ''));
+                        $this->instantDownloads = $order->getInstantDownloads();
+                        $this->resolveReferralCode($order);
+
+                        $quoteNumber = $checkoutSession->metadata->quote_number ?? null;
+                        if ($quoteNumber && $order->payment_status === 'paid') {
+                            $quote = OrderQuoteRequest::where('quote_number', $quoteNumber)->first();
+                            if (
+                                $quote
+                                && $quote->status !== 'converted'
+                                && empty($quote->converted_order_id)
+                                && ((int) $order->total_price + (int) ($order->discount_amount ?? 0)) >= (int) $quote->gross_total
+                            ) {
+                                $quote->update(['status' => 'converted', 'converted_order_id' => $order->id]);
+                            }
+                        }
+                    }
+                } catch (\Exception $e) {
+                    Log::error('Stripe Checkout Session Success Error: ' . $e->getMessage());
+                }
+                return;
+            }
+        }
 
         // Falls kein Intent in der URL ist, prüfen ob Customer eingeloggt ist für Fallback (ausschließlich bezahlte, aktive Bestellungen)
         if (!$intentId) {
@@ -134,7 +190,13 @@ class OrderCheckoutSuccess extends Component
                 // Clean Up (Falls via Redirect zurückgekommen)
                 if (Session::has('checkout_from_quote_id')) {
                     $quote = OrderQuoteRequest::find(Session::get('checkout_from_quote_id'));
-                    if ($quote && $quote->status !== 'converted' && empty($quote->converted_order_id) && $order->payment_status === 'paid') {
+                    if (
+                        $quote
+                        && $quote->status !== 'converted'
+                        && empty($quote->converted_order_id)
+                        && $order->payment_status === 'paid'
+                        && ((int) $order->total_price + (int) ($order->discount_amount ?? 0)) >= (int) $quote->gross_total
+                    ) {
                         $quote->update(['status' => 'converted', 'converted_order_id' => $order->id]);
                     }
                     Session::forget('checkout_from_quote_id');

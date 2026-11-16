@@ -1,10 +1,142 @@
 <div x-show="activeTab === 'general'" class="space-y-6 md:space-y-8 animate-fade-in">
+    {{-- KARTE 1: SHOP-DOMAINS & LIVEGANG-STATUS --}}
     <div class="bg-white dark:bg-gray-900/80 backdrop-blur-md rounded-[2.5rem] shadow-sm dark:shadow-2xl border border-gray-200 dark:border-gray-800 p-6 sm:p-8 relative overflow-hidden">
         <div class="hidden dark:block absolute top-0 right-0 w-64 h-64 bg-[var(--theme-color)]/5 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/3 pointer-events-none"></div>
 
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-100 dark:border-gray-800 pb-4 mb-8">
+            <h3 class="text-sm sm:text-base font-serif font-bold text-gray-900 dark:text-white flex items-center gap-3 tracking-wide">
+                <span class="w-8 h-8 rounded-xl bg-[var(--theme-color-10)] border border-[var(--theme-color-20)] text-[var(--theme-color)] shadow-inner flex items-center justify-center shrink-0">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" /></svg>
+                </span>
+                Shop-Domains &amp; Livegang-Status
+            </h3>
+            <div class="flex items-center gap-2">
+                <span class="text-[10px] uppercase font-bold tracking-wider px-2.5 py-1 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700">2-Kanal-Architektur</span>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 xl:gap-8">
+            {{-- 1. HAUPT-SHOP: PERSONALISIERTE MANUFAKTUR --}}
+            <div class="p-5 rounded-2xl bg-gray-50/60 dark:bg-gray-800/40 border border-gray-200/70 dark:border-gray-800 space-y-3">
+                <div class="flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-2">
+                        <span class="text-[10px] font-mono px-2 py-0.5 rounded-md bg-[var(--theme-color-10)] text-[var(--theme-color)] font-bold border border-[var(--theme-color-20)]">mein-seelenfunke.de</span>
+                        <div x-data="{ open: false }" class="relative inline-flex items-center" @mouseenter="open = true" @mouseleave="open = false">
+                            <button type="button" @click.prevent="open = !open" title="{{ $infoTexts['shop_is_live'] }}" class="w-4 h-4 rounded-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-500 dark:text-gray-300 text-[10px] font-black flex items-center justify-center hover:border-[var(--theme-color)] hover:text-[var(--theme-color)] transition-colors">!</button>
+                            <div x-show="open" x-cloak class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 w-72 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-3 text-[11px] leading-relaxed text-gray-700 dark:text-gray-200 shadow-xl pointer-events-none">
+                                {{ $infoTexts['shop_is_live'] }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <label class="{{ $labelClass }} !mb-1 !ml-0 font-bold">Personalisierter Shop (Live-Freigabe)</label>
+                    <button type="button" wire:click="toggleShopIsLive" role="switch" aria-checked="{{ $shop_is_live ? 'true' : 'false' }}" class="{{ $checkboxContainerClass }} w-full justify-between !py-3">
+                        <div class="flex items-center gap-2.5 min-w-0">
+                            <span class="font-bold text-gray-900 dark:text-white text-sm">Status</span>
+                            @if($shop_is_live)
+                                <span class="text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider border bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">Live (Öffentlich)</span>
+                            @else
+                                <span class="text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider border bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30">In Vorbereitung (Gesperrt)</span>
+                            @endif
+                        </div>
+                        <span class="relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out {{ $shop_is_live ? 'bg-emerald-500' : 'bg-gray-200 dark:bg-gray-800' }}">
+                            <span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {{ $shop_is_live ? 'translate-x-5' : 'translate-x-0' }}"></span>
+                        </span>
+                    </button>
+                </div>
+            </div>
+
+            {{-- 2. DIGITAL-SHOP: SOFORT-DOWNLOADS & E-BOOKS --}}
+            <div class="p-5 rounded-2xl bg-gray-50/60 dark:bg-gray-800/40 border border-gray-200/70 dark:border-gray-800 space-y-3">
+                <div class="flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-2">
+                        <span class="text-[10px] font-mono px-2 py-0.5 rounded-md bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 font-bold border border-cyan-500/20">digital.mein-seelenfunke.de</span>
+                        <div x-data="{ open: false }" class="relative inline-flex items-center" @mouseenter="open = true" @mouseleave="open = false">
+                            <button type="button" @click.prevent="open = !open" title="{{ $infoTexts['digital_domain_is_live'] }}" class="w-4 h-4 rounded-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-500 dark:text-gray-300 text-[10px] font-black flex items-center justify-center hover:border-[var(--theme-color)] hover:text-[var(--theme-color)] transition-colors">!</button>
+                            <div x-show="open" x-cloak class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 w-72 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-3 text-[11px] leading-relaxed text-gray-700 dark:text-gray-200 shadow-xl pointer-events-none">
+                                {{ $infoTexts['digital_domain_is_live'] }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <label class="{{ $labelClass }} !mb-1 !ml-0 font-bold">Digitaler Shop (Live-Freigabe)</label>
+                    <button type="button" wire:click="toggleDigitalDomainIsLive" role="switch" aria-checked="{{ $digital_domain_is_live ? 'true' : 'false' }}" class="{{ $checkboxContainerClass }} w-full justify-between !py-3">
+                        <div class="flex items-center gap-2.5 min-w-0">
+                            <span class="font-bold text-gray-900 dark:text-white text-sm">Status</span>
+                            @if($digital_domain_is_live)
+                                <span class="text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider border bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">Live (Öffentlich)</span>
+                            @else
+                                <span class="text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider border bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30">In Vorbereitung (Gesperrt)</span>
+                            @endif
+                        </div>
+                        <span class="relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out {{ $digital_domain_is_live ? 'bg-emerald-500' : 'bg-gray-200 dark:bg-gray-800' }}">
+                            <span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {{ $digital_domain_is_live ? 'translate-x-5' : 'translate-x-0' }}"></span>
+                        </span>
+                    </button>
+                </div>
+            </div>
+
+            {{-- 3. GLOBALER WARTUNGSMODUS (TEMPORÄRE WARTUNG) --}}
+            <div class="p-5 rounded-2xl bg-gray-50/60 dark:bg-gray-800/40 border border-gray-200/70 dark:border-gray-800 space-y-3">
+                <div class="flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-2">
+                        <span class="text-[10px] font-mono px-2 py-0.5 rounded-md bg-red-500/10 text-red-600 dark:text-red-400 font-bold border border-red-500/20">Alle Domains</span>
+                        @include('components.alerts.info-tooltip', ['key' => 'maintenance_mode'])
+                    </div>
+                </div>
+                <div>
+                    <label class="{{ $labelClass }} !mb-1 !ml-0 font-bold">Wartungsmodus (HTTP 503)</label>
+                    <button type="button" wire:click="toggleMaintenanceMode" role="switch" aria-checked="{{ !empty($settings['maintenance_mode']) ? 'true' : 'false' }}" class="{{ $checkboxContainerClass }} w-full justify-between !py-3">
+                        <div class="flex items-center gap-2.5 min-w-0">
+                            <span class="font-bold text-gray-900 dark:text-white text-sm">Modus</span>
+                            @if(!empty($settings['maintenance_mode']))
+                                <span class="text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider border bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/30">Aktiv (Wartungsseite)</span>
+                            @else
+                                <span class="text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider border bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">Inaktiv (Regulärer Betrieb)</span>
+                            @endif
+                        </div>
+                        <span class="relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out {{ !empty($settings['maintenance_mode']) ? 'bg-red-500' : 'bg-gray-200 dark:bg-gray-800' }}">
+                            <span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {{ !empty($settings['maintenance_mode']) ? 'translate-x-5' : 'translate-x-0' }}"></span>
+                        </span>
+                    </button>
+                </div>
+            </div>
+
+            {{-- 4. 3D-SHOWROOM MULTI-USER & RAUM-CHAT --}}
+            <div class="p-5 rounded-2xl bg-gray-50/60 dark:bg-gray-800/40 border border-gray-200/70 dark:border-gray-800 space-y-3">
+                <div class="flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-2">
+                        <span class="text-[10px] font-mono px-2 py-0.5 rounded-md bg-purple-500/10 text-purple-600 dark:text-purple-400 font-bold border border-purple-500/20">3D-Welt</span>
+                        @include('components.alerts.info-tooltip', ['key' => 'showroom_multiplayer_enabled'])
+                    </div>
+                </div>
+                <div>
+                    <label class="{{ $labelClass }} !mb-1 !ml-0 font-bold">3D-Multiplayer (12er-Räume &amp; Chat)</label>
+                    <button type="button" wire:click="toggleShowroomMultiplayer" role="switch" aria-checked="{{ !empty($settings['showroom_multiplayer_enabled']) ? 'true' : 'false' }}" class="{{ $checkboxContainerClass }} w-full justify-between !py-3">
+                        <div class="flex items-center gap-2.5 min-w-0">
+                            <span class="font-bold text-gray-900 dark:text-white text-sm">Showroom</span>
+                            @if(!empty($settings['showroom_multiplayer_enabled']))
+                                <span class="text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider border bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">Aktiv (12er-Räume)</span>
+                            @else
+                                <span class="text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider border bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-500/30">Solo-Modus</span>
+                            @endif
+                        </div>
+                        <span class="relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out {{ !empty($settings['showroom_multiplayer_enabled']) ? 'bg-emerald-500' : 'bg-gray-200 dark:bg-gray-800' }}">
+                            <span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {{ !empty($settings['showroom_multiplayer_enabled']) ? 'translate-x-5' : 'translate-x-0' }}"></span>
+                        </span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {{-- KARTE 2: STEUERN & FINANZEN (§ 19 UStG & MwSt-Sätze) --}}
+    <div class="bg-white dark:bg-gray-900/80 backdrop-blur-md rounded-[2.5rem] shadow-sm dark:shadow-2xl border border-gray-200 dark:border-gray-800 p-6 sm:p-8 relative overflow-hidden">
         <h3 class="text-sm sm:text-base font-serif font-bold text-gray-900 dark:text-white mb-8 flex items-center gap-3 tracking-wide border-b border-gray-100 dark:border-gray-800 pb-4">
             <span class="w-8 h-8 rounded-xl bg-[var(--theme-color-10)] border border-[var(--theme-color-20)] text-[var(--theme-color)] shadow-inner flex items-center justify-center italic font-serif shrink-0">%</span>
-            Steuer & Status
+            Steuern &amp; Finanzen (§ 19 UStG &amp; MwSt-Sätze)
         </h3>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 xl:gap-8">
@@ -31,96 +163,6 @@
                         </div>
                     </button>
                 </div>
-            </div>
-
-            <div>
-                <div class="flex items-center gap-2 mb-2 ml-1">
-                    <label class="{{ $labelClass }} !mb-0 !ml-0">Live gehen</label>
-                    <div x-data="{ open: false }" class="relative inline-flex items-center" @mouseenter="open = true" @mouseleave="open = false">
-                        <button type="button" @click.prevent="open = !open" title="Zweiter Hauptschalter vor Verkaufsstart: Solange Live gehen deaktiviert ist, bleibt die gesamte Live-Domain selbst für eingeloggte Admins hinter der Wartungsseite verborgen. Erst wenn Live gehen aktiv und der Wartungsmodus aus ist, ist der Shop öffentlich sichtbar." class="w-4 h-4 rounded-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-500 dark:text-gray-300 text-[10px] font-black flex items-center justify-center hover:border-[var(--theme-color)] hover:text-[var(--theme-color)] transition-colors">!</button>
-                        <div x-show="open" x-cloak class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 w-72 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-3 text-[11px] leading-relaxed text-gray-700 dark:text-gray-200 shadow-xl pointer-events-none">
-                            {{ $infoTexts['shop_is_live'] }}
-                        </div>
-                    </div>
-                </div>
-                <button type="button" wire:click="toggleShopIsLive" role="switch" aria-checked="{{ $shop_is_live ? 'true' : 'false' }}" class="{{ $checkboxContainerClass }} w-full justify-between">
-                    <div class="flex items-center gap-2.5 min-w-0">
-                        <span class="font-bold text-gray-900 dark:text-white text-sm">Live gehen</span>
-                        @if($shop_is_live)
-                            <span class="text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider border bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">Live</span>
-                        @else
-                            <span class="text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider border bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/30">Gesperrt</span>
-                        @endif
-                    </div>
-                    <span class="relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out {{ $shop_is_live ? 'bg-emerald-500' : 'bg-gray-200 dark:bg-gray-800' }}">
-                        <span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {{ $shop_is_live ? 'translate-x-5' : 'translate-x-0' }}"></span>
-                    </span>
-                </button>
-            </div>
-
-            <div>
-                <div class="flex items-center gap-2 mb-2 ml-1">
-                    <label class="{{ $labelClass }} !mb-0 !ml-0">Digital-Domain Live-Freigabe</label>
-                    <div x-data="{ open: false }" class="relative inline-flex items-center" @mouseenter="open = true" @mouseleave="open = false">
-                        <button type="button" @click.prevent="open = !open" title="{{ $infoTexts['digital_domain_is_live'] }}" class="w-4 h-4 rounded-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-500 dark:text-gray-300 text-[10px] font-black flex items-center justify-center hover:border-[var(--theme-color)] hover:text-[var(--theme-color)] transition-colors">!</button>
-                        <div x-show="open" x-cloak class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 w-72 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-3 text-[11px] leading-relaxed text-gray-700 dark:text-gray-200 shadow-xl pointer-events-none">
-                            {{ $infoTexts['digital_domain_is_live'] }}
-                        </div>
-                    </div>
-                </div>
-                <button type="button" wire:click="toggleDigitalDomainIsLive" role="switch" aria-checked="{{ $digital_domain_is_live ? 'true' : 'false' }}" class="{{ $checkboxContainerClass }} w-full justify-between">
-                    <div class="flex items-center gap-2.5 min-w-0">
-                        <span class="font-bold text-gray-900 dark:text-white text-sm">Digital-Domain Live-Freigabe</span>
-                        @if($digital_domain_is_live)
-                            <span class="text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider border bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">Live</span>
-                        @else
-                            <span class="text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider border bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/30">Gesperrt</span>
-                        @endif
-                    </div>
-                    <span class="relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out {{ $digital_domain_is_live ? 'bg-emerald-500' : 'bg-gray-200 dark:bg-gray-800' }}">
-                        <span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {{ $digital_domain_is_live ? 'translate-x-5' : 'translate-x-0' }}"></span>
-                    </span>
-                </button>
-            </div>
-
-            <div>
-                <div class="flex items-center gap-2 mb-2 ml-1">
-                    <label class="{{ $labelClass }} !mb-0 !ml-0">Wartungsmodus</label>
-                    @include('components.alerts.info-tooltip', ['key' => 'maintenance_mode'])
-                </div>
-                <button type="button" wire:click="toggleMaintenanceMode" role="switch" aria-checked="{{ !empty($settings['maintenance_mode']) ? 'true' : 'false' }}" class="{{ $checkboxContainerClass }} w-full justify-between">
-                    <div class="flex items-center gap-2.5 min-w-0">
-                        <span class="font-bold text-gray-900 dark:text-white text-sm">Wartungsmodus</span>
-                        @if(!empty($settings['maintenance_mode']))
-                            <span class="text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider border bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/30">Aktiv</span>
-                        @else
-                            <span class="text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider border bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">Inaktiv</span>
-                        @endif
-                    </div>
-                    <span class="relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out {{ !empty($settings['maintenance_mode']) ? 'bg-red-500' : 'bg-gray-200 dark:bg-gray-800' }}">
-                        <span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {{ !empty($settings['maintenance_mode']) ? 'translate-x-5' : 'translate-x-0' }}"></span>
-                    </span>
-                </button>
-            </div>
-
-            <div>
-                <div class="flex items-center gap-2 mb-2 ml-1">
-                    <label class="{{ $labelClass }} !mb-0 !ml-0">3D-Showroom Multi-User &amp; Chat</label>
-                    @include('components.alerts.info-tooltip', ['key' => 'showroom_multiplayer_enabled'])
-                </div>
-                <button type="button" wire:click="toggleShowroomMultiplayer" role="switch" aria-checked="{{ !empty($settings['showroom_multiplayer_enabled']) ? 'true' : 'false' }}" class="{{ $checkboxContainerClass }} w-full justify-between">
-                    <div class="flex items-center gap-2.5 min-w-0">
-                        <span class="font-bold text-gray-900 dark:text-white text-sm">3D-Showroom Multi-User &amp; Chat</span>
-                        @if(!empty($settings['showroom_multiplayer_enabled']))
-                            <span class="text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider border bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">Aktiv</span>
-                        @else
-                            <span class="text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider border bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-500/30">Solo</span>
-                        @endif
-                    </div>
-                    <span class="relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out {{ !empty($settings['showroom_multiplayer_enabled']) ? 'bg-emerald-500' : 'bg-gray-200 dark:bg-gray-800' }}">
-                        <span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {{ !empty($settings['showroom_multiplayer_enabled']) ? 'translate-x-5' : 'translate-x-0' }}"></span>
-                    </span>
-                </button>
             </div>
 
             <div>
@@ -164,6 +206,8 @@
                     </div>
                 </label>
             </div>
+        </div>
+    </div>
         </div>
     </div>
 

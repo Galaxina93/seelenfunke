@@ -72,10 +72,19 @@ data class PreparedAgAttachment(
     val base64Jpeg: String,
     val mimeType: String = "image/jpeg",
     val fileName: String = "screenshot.jpg",
-    val previewBitmap: ImageBitmap,
-    val width: Int,
-    val height: Int
-)
+    val previewBitmap: ImageBitmap? = null,
+    val width: Int = 0,
+    val height: Int = 0
+) {
+    val isAudio: Boolean get() = mimeType.startsWith("audio/") ||
+        fileName.endsWith(".m4a", true) ||
+        fileName.endsWith(".mp3", true) ||
+        fileName.endsWith(".wav", true) ||
+        fileName.endsWith(".ogg", true) ||
+        fileName.endsWith(".aac", true) ||
+        fileName.endsWith(".opus", true) ||
+        fileName.endsWith(".webm", true)
+}
 
 data class AgDirectDisplayItem(
     val id: String,
@@ -667,7 +676,7 @@ object AgDirectInboxManager {
             created_at = Instant.now().toString()
         )
 
-        if (attachment != null) {
+        if (attachment?.previewBitmap != null) {
             attachmentBitmapCache.put("uuid_$clientUuid", attachment.previewBitmap)
         }
 
@@ -797,6 +806,69 @@ object AgDirectInboxManager {
             val rawName = (queryDisplayName(context, uri) ?: uri.lastPathSegment ?: uri.path)
                 ?.substringAfterLast('/')
                 ?.substringAfterLast('\\')
+            val declaredMime = try { resolver.getType(uri)?.lowercase(Locale.ROOT) } catch (_: Throwable) { null }
+            val rawExt = rawName?.substringAfterLast('.', "")?.lowercase(Locale.ROOT) ?: ""
+
+            val isAudioCandidate = declaredMime?.startsWith("audio/") == true ||
+                rawExt in listOf("m4a", "mp3", "wav", "ogg", "aac", "opus", "webm")
+
+            if (isAudioCandidate) {
+                val maxAudioBytes = 8 * 1024 * 1024
+                val audioBytes = resolver.openInputStream(uri)?.use { stream ->
+                    val out = ByteArrayOutputStream()
+                    val buf = ByteArray(16384)
+                    var total = 0
+                    var r: Int
+                    while (stream.read(buf).also { r = it } != -1) {
+                        total += r
+                        if (total > maxAudioBytes) return@withContext null
+                        out.write(buf, 0, r)
+                    }
+                    out.toByteArray()
+                } ?: return@withContext null
+
+                if (audioBytes.isEmpty() || audioBytes.size > maxAudioBytes) {
+                    return@withContext null
+                }
+
+                val canonicalExt = when {
+                    rawExt.isNotBlank() -> rawExt
+                    declaredMime == "audio/mpeg" || declaredMime == "audio/mp3" -> "mp3"
+                    declaredMime == "audio/wav" || declaredMime == "audio/x-wav" -> "wav"
+                    declaredMime == "audio/ogg" -> "ogg"
+                    declaredMime == "audio/aac" -> "aac"
+                    else -> "m4a"
+                }
+
+                val resolvedMime = declaredMime?.takeIf { it.startsWith("audio/") } ?: when (canonicalExt) {
+                    "mp3" -> "audio/mpeg"
+                    "wav" -> "audio/wav"
+                    "ogg" -> "audio/ogg"
+                    "aac" -> "audio/aac"
+                    "opus" -> "audio/opus"
+                    "webm" -> "audio/webm"
+                    else -> "audio/mp4"
+                }
+
+                val baseName = rawName
+                    ?.substringBeforeLast('.')
+                    ?.replace(Regex("[^A-Za-z0-9._-]"), "_")
+                    ?.take(48)
+                    ?.takeIf { it.isNotBlank() }
+                    ?: "audio_${System.currentTimeMillis()}"
+                val finalFileName = "$baseName.$canonicalExt"
+                val b64 = Base64.getEncoder().encodeToString(audioBytes)
+
+                return@withContext PreparedAgAttachment(
+                    base64Jpeg = b64,
+                    mimeType = resolvedMime,
+                    fileName = finalFileName,
+                    previewBitmap = null,
+                    width = 0,
+                    height = 0
+                )
+            }
+
             val baseName = rawName
                 ?.substringBeforeLast('.')
                 ?.replace(Regex("[^A-Za-z0-9._-]"), "_")

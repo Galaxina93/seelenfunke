@@ -19,7 +19,20 @@ class CustomerLobbyController extends Controller
 
         $payload = $lobby->join(
             $actor,
-            $request->only(['preferred_instance', 'x', 'z', 'rot_y', 'rotY', 'speed', 'zone'])
+            $request->only([
+                'preferred_instance',
+                'x',
+                'y',
+                'z',
+                'rot_y',
+                'rotY',
+                'speed',
+                'zone',
+                'combo_seq',
+                'comboSeq',
+                'combo_stage',
+                'comboStage',
+            ])
         );
 
         return response()->json($payload, 200, $this->securityHeaders());
@@ -34,7 +47,19 @@ class CustomerLobbyController extends Controller
 
         $payload = $lobby->sync(
             $actor,
-            $request->only(['x', 'z', 'rot_y', 'rotY', 'speed', 'zone'])
+            $request->only([
+                'x',
+                'y',
+                'z',
+                'rot_y',
+                'rotY',
+                'speed',
+                'zone',
+                'combo_seq',
+                'comboSeq',
+                'combo_stage',
+                'comboStage',
+            ])
         );
 
         return response()->json($payload, 200, $this->securityHeaders());
@@ -65,7 +90,19 @@ class CustomerLobbyController extends Controller
         $result = $lobby->switchInstance(
             $actor,
             (int) $request->input('target_instance'),
-            $request->only(['x', 'z', 'rot_y', 'rotY', 'speed', 'zone'])
+            $request->only([
+                'x',
+                'y',
+                'z',
+                'rot_y',
+                'rotY',
+                'speed',
+                'zone',
+                'combo_seq',
+                'comboSeq',
+                'combo_stage',
+                'comboStage',
+            ])
         );
 
         if (empty($result['ok'])) {

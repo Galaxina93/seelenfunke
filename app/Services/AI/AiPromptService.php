@@ -10,6 +10,7 @@ use App\Models\Admin\Admin;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 
 class AiPromptService
@@ -126,33 +127,43 @@ class AiPromptService
                                  "- 🔧 WERKZEUG-DATEN VERARBEITEN: Wenn du ein Werkzeug wie `support_get_order_details` oder `support_get_gamification_stats` aufrufst, erhältst du tiefgreifende JSON-Daten. Präsentiere diese Daten im Chat übersichtlich und strukturiert (mit echtem Markdown).\n" .
                                  "- 🤖 DRAFT-APPROVAL: Bevor du destruktive Aktionen begehst (Tickets anlegen, Eskalation via `support_mark_needs_employee`), fragst du den Kunden immer um finale Erlaubnis: 'Soll ich dieses Anliegen so als offizielles Ticket einreichen?'. Erst beim 'Ja' löst du das Tool aus.\n\n";
                                  
-            // 3. RAG Knowledge Base (Nur kundenrelevante Support-Kategorien laden, keine internen Buchhaltungs-/Technik-Dokumente)
+            // 3. RAG Knowledge Base (Nur kundenrelevante Support-Kategorien laden, gecacht für Millisekunden-Performance)
             if (class_exists(AiKnowledgeBase::class)) {
-                $allowedCategories = [
-                    'Unternehmen & Kontakt',
-                    'Konto & Datenschutz',
-                    'Bestellung & Logistik',
-                    'Zahlung & Checkout',
-                    'Rückgabe & Garantie',
-                    'Produkte & B2B',
-                    'Rechtliches & AGB',
-                    'Bestell- & Produktionsprozess',
-                    'Support & Kundenservice',
-                    'Gamification & 3D-Welt'
-                ];
+                $cachedSupportSnippet = Cache::remember('ai_kb_published_support', 3600, function () {
+                    $allowedCategories = [
+                        'Unternehmen & Kontakt',
+                        'Konto & Datenschutz',
+                        'Bestellung & Logistik',
+                        'Zahlung & Checkout',
+                        'Rückgabe & Garantie',
+                        'Produkte & B2B',
+                        'Rechtliches & AGB',
+                        'Bestell- & Produktionsprozess',
+                        'Support & Kundenservice',
+                        'Gamification & 3D-Welt'
+                    ];
 
-                $knowledge = AiKnowledgeBase::where('is_published', true)
-                    ->whereHas('category', function($q) use ($allowedCategories) {
-                        $q->whereIn('name', $allowedCategories);
-                    })->get();
+                    $knowledge = AiKnowledgeBase::where('is_published', true)
+                        ->whereHas('category', function($q) use ($allowedCategories) {
+                            $q->whereIn('name', $allowedCategories);
+                        })->get();
 
-                if ($knowledge->count() > 0) {
-                    $systemPromptText .= "[OFFIZIELLES SHOP-WISSEN (NUR DIESE DATEN NUTZEN)]\n";
+                    if ($knowledge->isEmpty()) {
+                        return '';
+                    }
+
+                    $snippet = "[OFFIZIELLES SHOP-WISSEN (NUR DIESE DATEN NUTZEN)]\n";
                     foreach ($knowledge as $kb) {
                         $compactContent = trim(preg_replace('/\s+/', ' ', strip_tags((string) $kb->content)));
-                        $systemPromptText .= "• Thema: {$kb->title} | Info: " . mb_substr($compactContent, 0, 700) . "\n";
+                        $snippet .= "• Thema: {$kb->title} | Info: " . mb_substr($compactContent, 0, 700) . "\n";
                     }
-                    $systemPromptText .= "\n";
+                    $snippet .= "\n";
+
+                    return $snippet;
+                });
+
+                if (!empty($cachedSupportSnippet)) {
+                    $systemPromptText .= $cachedSupportSnippet;
                 }
             }
 

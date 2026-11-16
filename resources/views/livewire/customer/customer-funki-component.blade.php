@@ -952,7 +952,7 @@
                 <div class="flex items-center gap-2.5">
                     <button type="button"
                             data-testid="funki-open-hall-of-heroes-3d"
-                            onclick="(function(){ var e = window.SeelenfunkeHeroes3D; if (e) { if (e.modalEl && !document.body.contains(e.modalEl)) { document.body.appendChild(e.modalEl); } e.open('hall'); return; } var s = document.getElementById('sf-heroes-3d-script'); if (!s) { s = document.createElement('script'); s.id = 'sf-heroes-3d-script'; s.src = '{{ asset('js/funkenwerk-heroes-3d.js') }}'; s.onload = function(){ if (window.SeelenfunkeHeroes3D) window.SeelenfunkeHeroes3D.open('hall'); }; document.head.appendChild(s); } })()"
+                            onclick="(function(){ var e = window.SeelenfunkeHeroes3D; if (e) { if (e.modalEl && !document.body.contains(e.modalEl)) { document.body.appendChild(e.modalEl); } e.open('hall'); return; } var s = document.getElementById('sf-heroes-3d-script'); if (!s) { s = document.createElement('script'); s.id = 'sf-heroes-3d-script'; s.src = '{{ asset('js/funkenwerk-heroes-3d.js') }}?v=20261116v4'; s.onload = function(){ if (window.SeelenfunkeHeroes3D) window.SeelenfunkeHeroes3D.open('hall'); }; document.head.appendChild(s); } })()"
                             class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#C5A059] hover:bg-[#b58f48] text-gray-950 text-xs font-black tracking-wide transition cursor-pointer">
                         <span>🏛️</span>
                         <span>Halle der Helden 3D</span>

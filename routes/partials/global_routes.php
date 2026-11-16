@@ -216,6 +216,17 @@ Route::post('/funkenwerk-welt/lobby/leave', [\App\Http\Controllers\Api\CustomerL
     ->middleware('throttle:120,1')
     ->name('gamification.funkenwerk-lobby.leave');
 
+// Lava-Parkour Schatztruhe (Server-Authoritative Anti-Cheat, +5 Funken 1x pro Kalendertag)
+Route::post('/funkenwerk-welt/lava-parkour/start', [\App\Http\Controllers\Api\LavaParkourController::class, 'start'])
+    ->middleware('throttle:60,1')
+    ->name('gamification.lava-parkour.start');
+Route::post('/funkenwerk-welt/lava-parkour/checkpoint', [\App\Http\Controllers\Api\LavaParkourController::class, 'checkpoint'])
+    ->middleware('throttle:90,1')
+    ->name('gamification.lava-parkour.checkpoint');
+Route::post('/funkenwerk-welt/lava-parkour/claim', [\App\Http\Controllers\Api\LavaParkourController::class, 'claim'])
+    ->middleware('throttle:15,1')
+    ->name('gamification.lava-parkour.claim');
+
 // --- 4. Rechtliches & Weiteres ---
 Route::get('/impressum', function () {
     return view('frontend.pages.impressum');

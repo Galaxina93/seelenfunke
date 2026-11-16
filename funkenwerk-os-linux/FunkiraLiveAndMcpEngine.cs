@@ -1679,7 +1679,7 @@ namespace FunkenwerkOSLinux
                 new JsonObject
                 {
                     ["name"] = "minipc_ui_control",
-                    ["description"] = "Steuert die Bildschirmoberfläche auf dem Manufaktur-Mini-PC Monitor: Zurück zur Bestellansicht wechseln (show_orders), Portal-Anmeldefenster bei abgelaufenem Login öffnen (open_login), Fokus-Modus ein-/ausschalten (focus_on, focus_off), Funkenwerk Desktop öffnen (open_desktop), ein Desktop-Programm öffnen (open_app), die 3D-Wasserstadt Funkenwerk samt Planeten-Anflug, Halle der Helden, Thronsaal oder gezieltem Tiefflug zu einer der 7 Abteilungen öffnen/schließen (open_funkenwerk_city, open_funkenwerk_city_overview, open_funkenwerk_department, open_hall_of_heroes, open_throne_room, close_funkenwerk_city), Funkira schließen (close_funkira), Hintergrundvideo umschalten (wallpaper_video, wallpaper_kosmos) oder den Bestelleingangs-Effekt testen (test_order_celebration).",
+                    ["description"] = "Steuert die Bildschirmoberfläche auf dem Manufaktur-Mini-PC Monitor: Zurück zur Bestellansicht wechseln (show_orders), Portal-Anmeldefenster bei abgelaufenem Login öffnen (open_login), Fokus-Modus ein-/ausschalten (focus_on, focus_off), Funkenwerk Desktop öffnen (open_desktop), ein Desktop-Programm öffnen (open_app), die 3D-Wasserstadt Funkenwerk samt Planeten-Anflug, Stadt-Übersicht, Thronsaal oder gezieltem Tiefflug zu einer der 7 Abteilungen öffnen/schließen (open_funkenwerk_city, open_funkenwerk_city_overview, open_funkenwerk_department, open_throne_room, close_funkenwerk_city), Funkira schließen (close_funkira), Hintergrundvideo umschalten (wallpaper_video, wallpaper_kosmos) oder den Bestelleingangs-Effekt testen (test_order_celebration).",
                     ["parameters"] = new JsonObject
                     {
                         ["type"] = "OBJECT",
@@ -1689,7 +1689,7 @@ namespace FunkenwerkOSLinux
                             {
                                 ["type"] = "STRING",
                                 ["description"] = "Auszuführende Monitor-Aktion.",
-                                ["enum"] = new JsonArray("show_orders", "open_login", "focus_on", "focus_off", "open_desktop", "open_app", "open_funkenwerk_city", "open_funkenwerk_city_overview", "open_funkenwerk_department", "open_hall_of_heroes", "open_throne_room", "close_funkenwerk_city", "close_funkira", "wallpaper_video", "wallpaper_kosmos", "test_order_celebration")
+                                ["enum"] = new JsonArray("show_orders", "open_login", "focus_on", "focus_off", "open_desktop", "open_app", "open_funkenwerk_city", "open_funkenwerk_city_overview", "open_funkenwerk_department", "open_throne_room", "close_funkenwerk_city", "close_funkira", "wallpaper_video", "wallpaper_kosmos", "test_order_celebration")
                             },
                             ["department"] = new JsonObject
                             {
@@ -1842,6 +1842,11 @@ namespace FunkenwerkOSLinux
                             {
                                 ["type"] = "NUMBER",
                                 ["description"] = "Dauer des Timers in Minuten (z.B. 5 oder 12.5, bei start_timer)."
+                            },
+                            ["force"] = new JsonObject
+                            {
+                                ["type"] = "BOOLEAN",
+                                ["description"] = "Nur bei ausdrücklichem Benutzerwunsch true setzen, falls der Mini-PC trotz eingeschaltetem xTool F2 Ultra UV Laser manuell in die Nachtruhe versetzt werden soll."
                             }
                         },
                         ["required"] = new JsonArray("action")
@@ -2169,15 +2174,6 @@ namespace FunkenwerkOSLinux
                 norm.Contains("thronsaal schliessen", StringComparison.Ordinal))
             {
                 return "close_funkenwerk_city";
-            }
-
-            if (norm.Contains("halle der helden", StringComparison.Ordinal) ||
-                norm.Contains("heldenhalle", StringComparison.Ordinal) ||
-                norm.Contains("helden halle", StringComparison.Ordinal) ||
-                norm.Contains("zu den helden", StringComparison.Ordinal) ||
-                norm.Contains("zeig die helden", StringComparison.Ordinal))
-            {
-                return "open_hall_of_heroes";
             }
 
             if (norm.Contains("thronsaal", StringComparison.Ordinal) ||
@@ -2878,7 +2874,7 @@ namespace FunkenwerkOSLinux
             sb.AppendLine("     * minipc_bluetooth_control: WICHTIG! Du steuerst BlueZ & PipeWire direkt auf dem Mini-PC! Wenn Alina sagt 'Verbinde dich mit der Teufel-Anlage', 'Die Teufelanlage ist im Pairing-Modus' oder 'Koppel Bluetooth neu', rufe SOFORT minipc_bluetooth_control auf (bei Pairing-Modus/Neu-Koppeln mit action='pair_and_connect', sonst action='connect'). Behaupte NIEMALS, du könntest kein Bluetooth koppeln!");
             sb.AppendLine("     * minipc_audio_control: Stelle die Lautstärke exakt (0 bis 100) oder relativ lauter/leiser ('volume_up'/'volume_down'), schalte stumm/laut, wechsle zwischen Teufel und internem Lautsprecher ('switch_output') oder teste den Kassen-Sound ('test_chime').");
             sb.AppendLine("     * minipc_wifi_control: Prüfe, scanne oder verbinde das 5-GHz-Werkstatt-WLAN ('easy-AP').");
-            sb.AppendLine("     * minipc_ui_control: Wechsle zur Bestellansicht (action='show_orders'), öffne das Portal-Anmeldefenster auf dem Monitor (action='open_login', danach öffnest du dich automatisch wieder!), schalte Fokus ein/aus ('focus_on'/'focus_off'), öffne Desktop ('open_desktop') oder Programme ('open_app': files, music, notes, calc, tresor, settings, term), öffne die epische 3D-Wasserstadt Funkenwerk mit Planeten-Anflug ('open_funkenwerk_city'), Stadt-Übersicht ('open_funkenwerk_city_overview'), fliege gezielt eine der 7 Abteilungen am Pier an ('open_funkenwerk_department' mit department='orders'|'products'|'accounting'|'marketing'|'support'|'agents'|'system'), öffne die monumentale Halle der Helden am Pracht-Pier ('open_hall_of_heroes'), Alinas & Falcons Thronsaal an der Turmspitze ('open_throne_room') oder schließe sie ('close_funkenwerk_city'), schalte das Hintergrundvideo um ('wallpaper_video'/'wallpaper_kosmos') oder schalte dich ab ('close_funkira'). WICHTIG BEIM ABSCHALTEN ('Schalt dich ab', 'Funkira aus', 'Tschüss Funkira', 'Gute Nacht', 'Bis später'): Rufe SOFORT minipc_ui_control mit action='close_funkira' auf und sage herzlich 'Tschüss Alina...' (passend zur Tageszeit). Während du sprichst winkst du ihr zu, und erst wenn du komplett fertig gesprochen hast, löst sich deine Animation in einer kleinen Magie-Lichtanimation auf!");
+            sb.AppendLine("     * minipc_ui_control: Wechsle zur Bestellansicht (action='show_orders'), öffne das Portal-Anmeldefenster auf dem Monitor (action='open_login', danach öffnest du dich automatisch wieder!), schalte Fokus ein/aus ('focus_on'/'focus_off'), öffne Desktop ('open_desktop') oder Programme ('open_app': files, music, notes, calc, tresor, settings, term), öffne die epische 3D-Wasserstadt Funkenwerk mit Planeten-Anflug ('open_funkenwerk_city'), Stadt-Übersicht ('open_funkenwerk_city_overview'), fliege gezielt eine der 7 Abteilungen am Pier an ('open_funkenwerk_department' mit department='orders'|'products'|'accounting'|'marketing'|'support'|'agents'|'system'), Alinas & Falcones Thronsaal an der Turmspitze ('open_throne_room') oder schließe sie ('close_funkenwerk_city'), schalte das Hintergrundvideo um ('wallpaper_video'/'wallpaper_kosmos') oder schalte dich ab ('close_funkira'). WICHTIG BEIM ABSCHALTEN ('Schalt dich ab', 'Funkira aus', 'Tschüss Funkira', 'Gute Nacht', 'Bis später'): Rufe SOFORT minipc_ui_control mit action='close_funkira' auf und sage herzlich 'Tschüss Alina...' (passend zur Tageszeit). Während du sprichst winkst du ihr zu, und erst wenn du komplett fertig gesprochen hast, löst sich deine Animation in einer kleinen Magie-Lichtanimation auf!");
             sb.AppendLine("     * minipc_camera_capture: Nimm ein scharfes Foto mit der Logitech C920 auf, speichere es unter Meine_Daten und öffne es direkt als Lightbox auf dem Monitor.");
             sb.AppendLine("     * minipc_workshop_helper: Speichere/lies/lösche lokale Werkstatt-Notizen, starte/stoppe/prüfe einen sichtbaren Produktions- oder Laser-Timer auf dem Monitor, liste Dateien in Meine_Daten/Trichter/USB auf ('list_files') oder aktiviere die Nachtruhe bis 08:00 Uhr (vor der Nachtruhe sichert der Mini-PC automatisch alle neuen/geänderten Dateien per Snapshot-Delta auf das Synology-NAS!).");
             sb.AppendLine("     * minipc_document_search: WICHTIG! Dein ultraschnelles lokales Dokumenten-Gedächtnis (SQLite FTS5 Index über alle 3.600+ Unterlagen in 'Meine_Daten' / Windows-Laufwerk Z:\\ sowie alle über '00_Eingang_Trichter' oder per Android-App gescannten Briefe inkl. Offline-OCR)! Sobald Alina nach irgendeinem Brief, Vertrag, Versicherungsschein (z. B. Hiscox, Gebäudeversicherung, Haftpflicht), Haus-/Bauunterlagen, Steuerbescheid, Bank/Darlehen, Behördenschreiben, Gesundheitsdokument oder einem gescannten Trichter-Dokument fragt, rufe SOFORT 'minipc_document_search' (action='search' und bei Detailfragen direkt action='read_document' oder zum Anzeigen action='open_on_monitor') auf! Du kennst in unter 3 Millisekunden den genauen Ablageort UND den Inhalt. Mit action='backup_status' oder 'run_backup_now' prüfst oder startest du außerdem jederzeit das Snapshot-Delta-Backup auf das NAS (//nas/Backups/Unterlagen/Meine_Daten_Backup).");
@@ -2994,6 +2990,10 @@ namespace FunkenwerkOSLinux
                 case "minipc_ui_control":
                 {
                     string action = SeelenfunkeLinuxApiClient.GetStr(args, "action", "show_orders").Trim().ToLowerInvariant();
+                    if (action == "open_hall_of_heroes")
+                    {
+                        action = "open_funkenwerk_city_overview";
+                    }
                     string app = SeelenfunkeLinuxApiClient.GetStr(args, "app", "").Trim().ToLowerInvariant();
                     string rawDepartment = SeelenfunkeLinuxApiClient.GetStr(args, "department", "").Trim();
 
@@ -3528,8 +3528,17 @@ namespace FunkenwerkOSLinux
 
                     if (action == "night_sleep_0800")
                     {
-                        var (ok, msg) = await LinuxHardwareEngine.EnterNightSleepUntil0800Async().ConfigureAwait(false);
-                        return (new JsonObject { ["status"] = ok ? "success" : "error", ["message"] = msg }, null);
+                        bool forceSleep = args.ValueKind == JsonValueKind.Object &&
+                                          args.TryGetProperty("force", out var fEl) &&
+                                          fEl.ValueKind == JsonValueKind.True;
+                        var sleepRes = await LinuxHardwareEngine.EnterNightSleepUntil0800DetailedAsync(force: forceSleep).ConfigureAwait(false);
+                        return (new JsonObject
+                        {
+                            ["status"] = sleepRes.Success ? "success" : (sleepRes.Deferred ? "deferred" : "error"),
+                            ["deferred"] = sleepRes.Deferred,
+                            ["laser_online"] = sleepRes.LaserOnline,
+                            ["message"] = sleepRes.Message
+                        }, null);
                     }
 
                     return (new JsonObject { ["status"] = "error", ["message"] = "Unbekannte Werkstatt-Aktion." }, null);

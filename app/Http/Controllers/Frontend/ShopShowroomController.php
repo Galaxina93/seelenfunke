@@ -10,6 +10,7 @@ use App\Models\Delivery\DeliverySetting;
 use App\Models\Product\Product;
 use App\Models\Product\ProductTemplate;
 use App\Services\Gamification\GameConfig;
+use App\Services\Gamification\LavaParkourService;
 use App\Services\Shop\ShowroomMultiplayerService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -25,8 +26,11 @@ class ShopShowroomController extends Controller
      * Liefert aktive Produkte inkl. komprimierter .glb-Modelle, Galerie (inkl. Maßbild),
      * exakt 3 Vorteilen sowie das Funki-3D-Modell des Besuchers (Kunde Lv. 1..10, Gast Lv. 2).
      */
-    public function index(Request $request, ShowroomMultiplayerService $multiplayer): JsonResponse
-    {
+    public function index(
+        Request $request,
+        ShowroomMultiplayerService $multiplayer,
+        LavaParkourService $lavaParkour
+    ): JsonResponse {
         if ($maintenanceResp = $this->checkMaintenanceOrLock($request)) {
             return $maintenanceResp;
         }
@@ -37,6 +41,7 @@ class ShopShowroomController extends Controller
         $products = $this->resolveCachedShowroomProducts();
         $multiplayerPayload = $multiplayer->buildBootstrapPayload($customer);
         $playerFunki = $this->resolvePlayerFunki($multiplayerPayload);
+        $lavaParkourPayload = $lavaParkour->buildShowroomPayload($customer);
 
         return response()->json([
             'success' => true,
@@ -44,6 +49,7 @@ class ShopShowroomController extends Controller
             'total_products' => count($products),
             'player_funki' => $playerFunki,
             'multiplayer' => $multiplayerPayload,
+            'lava_parkour' => $lavaParkourPayload,
             'products' => $products,
         ], 200, $this->noStoreHeaders());
     }
@@ -540,6 +546,8 @@ class ShopShowroomController extends Controller
      */
     private function resolvePlayerFunki(array $multiplayerPayload = []): array
     {
+        $levelModels = $this->resolveFunkiLevelModelsMap();
+
         /** @var Customer|null $customer */
         $customer = Auth::guard('customer')->user();
 
@@ -557,6 +565,7 @@ class ShopShowroomController extends Controller
 
             $cfg = GameConfig::getLevelConfig($resolvedLevel);
             $modelRel = ltrim((string) ($cfg['model_path'] ?? 'shop/customer/gamification/models/funki_lvl_1_rags.glb'), '/');
+            $modelUrl = '/' . $modelRel;
 
             return [
                 'is_guest' => false,
@@ -565,13 +574,16 @@ class ShopShowroomController extends Controller
                 'display_name' => $multiplayerPayload['display_name'] ?? null,
                 'player_id' => $multiplayerPayload['player_id'] ?? null,
                 'weapon' => $multiplayerPayload['weapon'] ?? null,
-                'glb_url' => '/' . $modelRel,
+                'model_url' => $modelUrl,
+                'glb_url' => $modelUrl,
+                'level_models' => $levelModels,
             ];
         }
 
         $guestLevel = 2;
         $guestCfg = GameConfig::getLevelConfig($guestLevel);
         $guestModelRel = ltrim((string) ($guestCfg['model_path'] ?? 'shop/customer/gamification/models/funki_lvl_2_basic.glb'), '/');
+        $guestModelUrl = '/' . $guestModelRel;
 
         return [
             'is_guest' => true,
@@ -580,8 +592,26 @@ class ShopShowroomController extends Controller
             'display_name' => null,
             'player_id' => null,
             'weapon' => null,
-            'glb_url' => '/' . $guestModelRel,
+            'model_url' => $guestModelUrl,
+            'glb_url' => $guestModelUrl,
+            'level_models' => $levelModels,
         ];
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function resolveFunkiLevelModelsMap(): array
+    {
+        $allLevels = GameConfig::getFunkiLevels();
+        $map = [];
+        for ($lvl = 1; $lvl <= GameConfig::MAX_LEVEL; $lvl++) {
+            $cfg = $allLevels[$lvl] ?? [];
+            $rel = ltrim((string) ($cfg['model_path'] ?? ('shop/customer/gamification/models/funki_lvl_' . $lvl . '.glb')), '/');
+            $map[$lvl] = '/' . $rel;
+        }
+
+        return $map;
     }
 
     private function cleanText(string $value, string $dashReplacement = ' · '): string

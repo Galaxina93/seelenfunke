@@ -126,26 +126,124 @@
         var ctx = c.getContext('2d');
         ctx.clearRect(0, 0, c.width, c.height);
 
-        var goldGrad = ctx.createLinearGradient(180, 90, 588, 250);
+        var goldGrad = ctx.createLinearGradient(160, 60, 608, 260);
         goldGrad.addColorStop(0.0, '#E8CA82');
-        goldGrad.addColorStop(0.35, '#FFF5CC');
-        goldGrad.addColorStop(0.65, '#D4AF37');
+        goldGrad.addColorStop(0.25, '#FFF8E0');
+        goldGrad.addColorStop(0.55, '#D4A843');
+        goldGrad.addColorStop(0.85, '#FFF0C0');
         goldGrad.addColorStop(1.0, '#A88038');
 
+        var goldStroke = ctx.createLinearGradient(120, 40, 648, 280);
+        goldStroke.addColorStop(0.0, 'rgba(243, 213, 135, 0.85)');
+        goldStroke.addColorStop(0.5, 'rgba(255, 251, 232, 0.95)');
+        goldStroke.addColorStop(1.0, 'rgba(197, 160, 89, 0.80)');
+
+        // 1. Feiner goldener Wappenschild-Rahmen
+        ctx.save();
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.90)';
+        ctx.shadowBlur = 10;
+        ctx.shadowOffsetY = 4;
+
+        ctx.strokeStyle = goldStroke;
+        ctx.lineWidth = 3.5;
+        ctx.beginPath();
+        ctx.moveTo(110, 58);
+        ctx.quadraticCurveTo(384, 38, 658, 58);
+        ctx.lineTo(658, 210);
+        ctx.quadraticCurveTo(640, 272, 384, 296);
+        ctx.quadraticCurveTo(128, 272, 110, 210);
+        ctx.closePath();
+        ctx.stroke();
+
+        ctx.strokeStyle = 'rgba(212, 168, 67, 0.45)';
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.moveTo(122, 68);
+        ctx.quadraticCurveTo(384, 50, 646, 68);
+        ctx.lineTo(646, 204);
+        ctx.quadraticCurveTo(630, 260, 384, 282);
+        ctx.quadraticCurveTo(138, 260, 122, 204);
+        ctx.closePath();
+        ctx.stroke();
+        ctx.restore();
+
+        // 2. Glänzende Stern-Facetten
+        function drawFacetStar(cx, cy, rOuter, rInner) {
+            ctx.save();
+            ctx.translate(cx, cy);
+            var starGrad = ctx.createRadialGradient(0, 0, 1, 0, 0, rOuter);
+            starGrad.addColorStop(0.0, '#FFFFFF');
+            starGrad.addColorStop(0.35, '#FFF2C6');
+            starGrad.addColorStop(0.70, '#D4A843');
+            starGrad.addColorStop(1.0, '#8E6D2F');
+            ctx.fillStyle = starGrad;
+
+            ctx.beginPath();
+            for (var si = 0; si < 8; si++) {
+                var ang = (si * Math.PI) / 4;
+                var rad = (si % 2 === 0) ? rOuter : rInner;
+                var x = Math.cos(ang) * rad;
+                var y = Math.sin(ang) * rad;
+                if (si === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+            }
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(-rOuter * 1.35, 0);
+            ctx.lineTo(rOuter * 1.35, 0);
+            ctx.moveTo(0, -rOuter * 1.35);
+            ctx.lineTo(0, rOuter * 1.35);
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        drawFacetStar(384, 52, 14, 5.5);
+        drawFacetStar(175, 142, 11, 4.2);
+        drawFacetStar(593, 142, 11, 4.2);
+        drawFacetStar(232, 222, 8, 3.2);
+        drawFacetStar(536, 222, 8, 3.2);
+
+        // 3. Typografie FALCONE
         ctx.save();
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.80)';
-        ctx.shadowBlur = 8;
-        ctx.shadowOffsetY = 3;
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.95)';
+        ctx.shadowBlur = 12;
+        ctx.shadowOffsetY = 4;
 
         ctx.fillStyle = goldGrad;
-        ctx.font = '900 72px sans-serif';
-        ctx.fillText('FALCONE', 384, 148);
+        ctx.font = '900 68px sans-serif';
+        ctx.fillText('FALCONE', 384, 144);
 
-        ctx.font = '700 44px Georgia, serif';
-        ctx.fillStyle = '#EDD08A';
+        ctx.strokeStyle = 'rgba(255, 250, 228, 0.65)';
+        ctx.lineWidth = 1.8;
+        ctx.strokeText('FALCONE', 384, 144);
+
+        // 4. Typografie Mitgründer
+        ctx.font = '700 42px Georgia, serif';
+        ctx.fillStyle = '#F3D587';
         ctx.fillText('Mitgründer', 384, 222);
+
+        ctx.strokeStyle = 'rgba(255, 246, 210, 0.50)';
+        ctx.lineWidth = 1.2;
+        ctx.strokeText('Mitgründer', 384, 222);
+
+        var lineGrad = ctx.createLinearGradient(200, 182, 568, 182);
+        lineGrad.addColorStop(0.0, 'rgba(212, 168, 67, 0)');
+        lineGrad.addColorStop(0.2, 'rgba(243, 213, 135, 0.85)');
+        lineGrad.addColorStop(0.5, 'rgba(255, 251, 232, 1.0)');
+        lineGrad.addColorStop(0.8, 'rgba(243, 213, 135, 0.85)');
+        lineGrad.addColorStop(1.0, 'rgba(212, 168, 67, 0)');
+        ctx.strokeStyle = lineGrad;
+        ctx.lineWidth = 2.0;
+        ctx.beginPath();
+        ctx.moveTo(210, 182);
+        ctx.lineTo(558, 182);
+        ctx.stroke();
+
         ctx.restore();
 
         var tex = new THREE.CanvasTexture(c);
@@ -377,10 +475,10 @@
 
     // Materials with strong warm golden rim reflection so Falcon stands out against #080A10
     var mats = {
-        gold24k:      new THREE.MeshMatcapMaterial({ matcap: makeStudioMatcap('#CC9F48', '#FFFDF2', '#FFE08C', 32, 0.56) }),
-        goldBright:   new THREE.MeshMatcapMaterial({ matcap: makeStudioMatcap('#E4C570', '#FFFFFF', '#FFF0B5', 36, 0.60) }),
-        suitArmor:    new THREE.MeshMatcapMaterial({ matcap: makeStudioMatcap('#1D2230', '#6F7791', '#D4AF37', 22, 0.42) }),
-        obsidian:     new THREE.MeshMatcapMaterial({ matcap: makeStudioMatcap('#12151E', '#52586E', '#C5A059', 24, 0.34) }),
+        gold24k:      new THREE.MeshMatcapMaterial({ matcap: makeStudioMatcap('#D4A843', '#FFFFFF', '#FFF3CC', 36, 0.62) }),
+        goldBright:   new THREE.MeshMatcapMaterial({ matcap: makeStudioMatcap('#F3D587', '#FFFFFF', '#FFFBE8', 40, 0.68) }),
+        suitArmor:    new THREE.MeshMatcapMaterial({ matcap: makeStudioMatcap('#12151D', '#5A6278', '#D8B257', 28, 0.52) }),
+        obsidian:     new THREE.MeshMatcapMaterial({ matcap: makeStudioMatcap('#0A0C12', '#3D4456', '#C5A059', 26, 0.38) }),
         hairObsidian: new THREE.MeshMatcapMaterial({ matcap: makeStudioMatcap('#1E1813', '#80684D', '#E2BC6B', 26, 0.44) }),
         jointDark:    new THREE.MeshMatcapMaterial({ matcap: makeStudioMatcap('#0D1017', '#434859', '#9B7E45', 14, 0.24) }),
         earGlow:      new THREE.MeshBasicMaterial({ color: 0xECC56E }),
@@ -593,6 +691,68 @@
     hipMesh.scale.set(1.06, 1.0, 0.84);
     pelvis.add(hipMesh);
 
+    function buildHipTasset(sideSign) {
+        var tassetGroup = new THREE.Group();
+        var w = 0.078, h = 0.115;
+        var sh = new THREE.Shape();
+        sh.moveTo(-w * 0.5, 0);
+        sh.lineTo(w * 0.5, 0);
+        sh.lineTo(w * 0.5, -h * 0.65);
+        sh.quadraticCurveTo(w * 0.45, -h * 0.90, 0, -h);
+        sh.quadraticCurveTo(-w * 0.45, -h * 0.90, -w * 0.5, -h * 0.65);
+        sh.closePath();
+
+        var plateGeo = new THREE.ExtrudeGeometry(sh, {
+            depth: 0.012,
+            bevelEnabled: true,
+            bevelThickness: 0.003,
+            bevelSize: 0.003,
+            bevelSegments: 2
+        });
+        plateGeo.center();
+        var plate = new THREE.Mesh(plateGeo, mats.obsidian);
+
+        var rimOuter = new THREE.Shape();
+        var rw = w + 0.010, rh = h + 0.010;
+        rimOuter.moveTo(-rw * 0.5, 0);
+        rimOuter.lineTo(rw * 0.5, 0);
+        rimOuter.lineTo(rw * 0.5, -rh * 0.65);
+        rimOuter.quadraticCurveTo(rw * 0.45, -rh * 0.90, 0, -rh);
+        rimOuter.quadraticCurveTo(-rw * 0.45, -rh * 0.90, -rw * 0.5, -rh * 0.65);
+        rimOuter.closePath();
+
+        var rimHole = new THREE.Path();
+        rimHole.moveTo(-w * 0.40, -0.006);
+        rimHole.lineTo(w * 0.40, -0.006);
+        rimHole.lineTo(w * 0.40, -h * 0.60);
+        rimHole.quadraticCurveTo(w * 0.36, -h * 0.82, 0, -h * 0.88);
+        rimHole.quadraticCurveTo(-w * 0.36, -h * 0.82, -w * 0.40, -h * 0.60);
+        rimHole.closePath();
+        rimOuter.holes.push(rimHole);
+
+        var rimGeo = new THREE.ExtrudeGeometry(rimOuter, {
+            depth: 0.014,
+            bevelEnabled: true,
+            bevelThickness: 0.002,
+            bevelSize: 0.002,
+            bevelSegments: 2
+        });
+        rimGeo.center();
+        var rim = new THREE.Mesh(rimGeo, mats.gold24k);
+        rim.position.z = 0.002;
+
+        var crest = new THREE.Mesh(new THREE.OctahedronGeometry(0.013, 0), mats.goldBright);
+        crest.scale.set(1.0, 1.25, 0.4);
+        crest.position.set(0, 0.008, 0.010);
+
+        tassetGroup.add(plate, rim, crest);
+        tassetGroup.position.set(sideSign * 0.242, 0.025, 0.065);
+        tassetGroup.rotation.z = -sideSign * 0.20;
+        tassetGroup.rotation.y = sideSign * 0.30;
+        tassetGroup.rotation.x = -0.08;
+        return tassetGroup;
+    }
+
     var beltRing = new THREE.Mesh(new THREE.TorusGeometry(0.248, 0.024, 14, 34), mats.gold24k);
     beltRing.rotation.x = Math.PI / 2;
     beltRing.position.y = 0.075;
@@ -603,7 +763,7 @@
     var buckleGem = new THREE.Mesh(new THREE.OctahedronGeometry(0.018, 0), mats.goldBright);
     buckleGem.scale.set(1.0, 1.2, 0.45);
     buckleGem.position.set(0, 0.075, 0.233);
-    pelvis.add(beltRing, buckleFrame, buckleCore, buckleGem);
+    pelvis.add(beltRing, buckleFrame, buckleCore, buckleGem, buildHipTasset(-1), buildHipTasset(1));
 
     function buildLeg(sideSign) {
         var hipPivot = new THREE.Group();
@@ -659,6 +819,67 @@
     emblemMesh.scale.set(1.12, 1.0, 0.88);
     emblemMesh.position.y = 0.205;
     torso.add(emblemMesh);
+
+    // Stilisierte Brustplatten-Rüstungs-Flügel / Kontur-Rippen links und rechts neben dem Emblem
+    function buildChestArmorWing(sideSign) {
+        var wingGroup = new THREE.Group();
+
+        var shTop = new THREE.Shape();
+        shTop.moveTo(0, 0);
+        shTop.lineTo(sideSign * 0.052, 0.020);
+        shTop.lineTo(sideSign * 0.062, 0.085);
+        shTop.lineTo(sideSign * 0.012, 0.100);
+        shTop.lineTo(0, 0.046);
+        shTop.closePath();
+
+        var geoTop = new THREE.ExtrudeGeometry(shTop, {
+            depth: 0.016,
+            bevelEnabled: true,
+            bevelThickness: 0.004,
+            bevelSize: 0.003,
+            bevelSegments: 2
+        });
+        var plateTop = new THREE.Mesh(geoTop, mats.obsidian);
+
+        var goldEdgeTop = new THREE.Mesh(
+            new THREE.BoxGeometry(0.010, 0.082, 0.020),
+            mats.gold24k
+        );
+        goldEdgeTop.position.set(sideSign * 0.058, 0.054, 0.009);
+        goldEdgeTop.rotation.z = -sideSign * 0.14;
+
+        var shBot = new THREE.Shape();
+        shBot.moveTo(0, 0);
+        shBot.lineTo(sideSign * 0.046, 0.016);
+        shBot.lineTo(sideSign * 0.054, 0.068);
+        shBot.lineTo(sideSign * 0.010, 0.080);
+        shBot.lineTo(0, 0.038);
+        shBot.closePath();
+
+        var geoBot = new THREE.ExtrudeGeometry(shBot, {
+            depth: 0.014,
+            bevelEnabled: true,
+            bevelThickness: 0.004,
+            bevelSize: 0.003,
+            bevelSegments: 2
+        });
+        var plateBot = new THREE.Mesh(geoBot, mats.suitArmor);
+        plateBot.position.set(sideSign * 0.008, -0.068, -0.008);
+
+        var goldEdgeBot = new THREE.Mesh(
+            new THREE.BoxGeometry(0.009, 0.066, 0.018),
+            mats.goldBright
+        );
+        goldEdgeBot.position.set(sideSign * 0.056, -0.028, 0.0);
+        goldEdgeBot.rotation.z = -sideSign * 0.12;
+
+        wingGroup.add(plateTop, goldEdgeTop, plateBot, goldEdgeBot);
+        wingGroup.position.set(sideSign * 0.218, 0.178, 0.168);
+        wingGroup.rotation.y = sideSign * 0.62;
+        wingGroup.rotation.x = -0.10;
+        return wingGroup;
+    }
+    torso.add(buildChestArmorWing(-1), buildChestArmorWing(1));
 
     // 24K Gold V-Lapel Suit Collar (sits cleanly on front of tailored chest!)
     function buildLapelWing(sideSign) {
@@ -731,6 +952,7 @@
         shoulderMount.position.set(sideSign * 0.325, 0.39, 0.0);
         torso.add(shoulderMount);
 
+        // Primäre Haupt-Schulterkappe (Suit-Armor mit 24K Goldrand)
         var pauldron = new THREE.Mesh(
             new THREE.SphereGeometry(0.104, 20, 14, 0, Math.PI * 2, 0, Math.PI * 0.52),
             mats.suitArmor
@@ -740,7 +962,21 @@
         var shGoldRim = new THREE.Mesh(new THREE.TorusGeometry(0.102, 0.013, 12, 28), mats.gold24k);
         shGoldRim.rotation.x = Math.PI / 2;
         shGoldRim.rotation.y = -sideSign * 0.35;
-        shoulderMount.add(pauldron, shGoldRim);
+
+        // Mehrstufiger Schulterpanzer: Zweite, leicht nach unten/außen gestaffelte Rüstungslamelle
+        var pauldronTier2 = new THREE.Mesh(
+            new THREE.SphereGeometry(0.098, 18, 12, 0, Math.PI * 2, 0, Math.PI * 0.50),
+            mats.obsidian
+        );
+        pauldronTier2.position.set(sideSign * 0.022, -0.042, 0.0);
+        pauldronTier2.rotation.z = -sideSign * 0.44;
+
+        var shGoldRim2 = new THREE.Mesh(new THREE.TorusGeometry(0.096, 0.011, 10, 26), mats.gold24k);
+        shGoldRim2.position.set(sideSign * 0.022, -0.042, 0.0);
+        shGoldRim2.rotation.x = Math.PI / 2;
+        shGoldRim2.rotation.y = -sideSign * 0.44;
+
+        shoulderMount.add(pauldron, shGoldRim, pauldronTier2, shGoldRim2);
 
         var armPivot = new THREE.Group();
         shoulderMount.add(armPivot);
