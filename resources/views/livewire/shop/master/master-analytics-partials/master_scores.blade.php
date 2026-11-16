@@ -2151,8 +2151,8 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
          x-transition:leave-start="opacity-100 translate-y-0 scale-100"
          x-transition:leave-end="opacity-0 translate-y-4 scale-[0.98]"
          x-cloak>
-        <div :class="focusMode ? 'bg-transparent border-0 shadow-none p-0' : 'bg-white/95 dark:bg-gray-900/90 backdrop-blur-xl rounded-[2.5rem] p-6 lg:p-10 dark:shadow-2xl border border-gray-200 dark:border-gray-800'"
-             class="relative z-20 transition-all duration-300">
+        <div :class="focusMode ? 'bg-transparent border-0 shadow-none p-0' : 'bg-white/95 dark:bg-gray-900/90 backdrop-blur-xl rounded-3xl sm:rounded-[2.5rem] p-4 sm:p-6 lg:p-10 dark:shadow-2xl border border-gray-200 dark:border-gray-800'"
+             class="relative z-20 transition-all duration-300 min-w-0 max-w-full overflow-hidden">
 
             <!-- 1. SHOP DETAILS -->
             <div x-show="activeTab === 'shop'"
@@ -2160,34 +2160,34 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
                  x-transition:enter="transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
                  x-transition:enter-start="opacity-0 translate-y-4"
                  x-transition:enter-end="opacity-100 translate-y-0"
-                 class="space-y-6">
+                 class="space-y-6 min-w-0 max-w-full">
 
                 @if($opErrorCount > 0 || $opWarningCount > 0)
-                    <div class="bg-red-500/10 dark:bg-red-950/20 rounded-xl p-5 border border-red-500/20 relative">
-                         <div class="flex items-start gap-3">
+                    <div class="bg-red-500/10 dark:bg-red-950/20 rounded-xl p-4 sm:p-5 border border-red-500/20 relative min-w-0 overflow-hidden">
+                         <div class="flex items-start gap-3 min-w-0">
                              <x-heroicon-o-exclamation-triangle class="w-5 h-5 text-red-500 mt-0.5 shrink-0" />
-                             <div>
-                                 <h3 class="text-xs font-bold text-red-600 dark:text-red-400 uppercase tracking-widest mb-1.5">Operative Abzüge: -{{ ($opErrorCount * 5) + ($opWarningCount * 1) }} Punkte</h3>
-                                 <p class="text-[10px] text-red-600/90 dark:text-red-400/80 leading-relaxed font-semibold">Dein finanzieller Basis-Score wurde aufgrund operativer Störfälle aus den Fachbereichen (z.B. Fehlerhafte Bestellungen, offene Schadensmeldungen, liegengebliebene Todos) reduziert. Behebe diese Fehlstände im <span class="text-gray-900 dark:text-white underline cursor-pointer" @click="activeTab = 'operative'">Operativen Status</span>, um die 100 Punkte wieder zu erreichen.</p>
+                             <div class="min-w-0">
+                                 <h3 class="text-xs font-bold text-red-600 dark:text-red-400 uppercase tracking-widest mb-1.5 break-words">Operative Abzüge: -{{ ($opErrorCount * 5) + ($opWarningCount * 1) }} Punkte</h3>
+                                 <p class="text-[10px] text-red-600/90 dark:text-red-400/80 leading-relaxed font-semibold break-words">Dein finanzieller Basis-Score wurde aufgrund operativer Störfälle aus den Fachbereichen (z.B. Fehlerhafte Bestellungen, offene Schadensmeldungen, liegengebliebene Todos) reduziert. Behebe diese Fehlstände im <span class="text-gray-900 dark:text-white underline cursor-pointer" @click="activeTab = 'operative'">Operativen Status</span>, um die 100 Punkte wieder zu erreichen.</p>
                              </div>
                          </div>
                     </div>
                 @endif
 
-                <div class="flex flex-col gap-8 w-full">
+                <div class="flex flex-col gap-6 sm:gap-8 w-full min-w-0">
 
                     <!-- KACHEL 1: FINANZIELLE GESUNDHEIT -->
-                    <div :class="focusMode ? 'bg-transparent border-0 shadow-none p-0' : 'bg-white/80 dark:bg-gray-900/60 border border-gray-200 dark:border-gray-800 rounded-3xl p-6 lg:p-7 shadow-sm'"
-                         class="flex flex-col justify-between gap-6">
-                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-200 dark:border-gray-800 pb-5">
-                            <div>
-                                <h2 class="text-2xl font-serif font-bold text-gray-900 dark:text-white mb-1">Finanzielle Gesundheit</h2>
-                                <p class="text-xs font-bold text-gray-500 leading-relaxed max-w-md">Gesicherter Statuswert aus Liquiditätsreserven, Break-Even, Rentabilität und aktuellen Markttrends.</p>
+                    <div :class="focusMode ? 'bg-transparent border-0 shadow-none p-0' : 'bg-white/80 dark:bg-gray-900/60 border border-gray-200 dark:border-gray-800 rounded-3xl p-4 sm:p-6 lg:p-7 shadow-sm'"
+                         class="flex flex-col justify-between gap-6 min-w-0 max-w-full">
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-200 dark:border-gray-800 pb-5 min-w-0">
+                            <div class="min-w-0">
+                                <h2 class="text-xl sm:text-2xl font-serif font-bold text-gray-900 dark:text-white mb-1 break-words">Finanzielle Gesundheit</h2>
+                                <p class="text-xs font-bold text-gray-500 leading-relaxed max-w-md break-words">Gesicherter Statuswert aus Liquiditätsreserven, Break-Even, Rentabilität und aktuellen Markttrends.</p>
                             </div>
                             <div class="flex items-center gap-4 shrink-0">
-                                <div class="text-right">
+                                <div class="text-left sm:text-right">
                                     <span class="text-[10px] font-black uppercase tracking-widest text-gray-500 block mb-1">Monatsgewinn (Ø)</span>
-                                    <div class="flex items-center justify-end gap-2">
+                                    <div class="flex items-center sm:justify-end gap-2">
                                         <span class="text-2xl font-black text-gray-900 dark:text-white tracking-tighter">{{ number_format($stats['avg_profit'] ?? 0, 0, ',', '.') }} €</span>
                                         @include('livewire.shop.master.master-analytics-partials.profit-breakdown-popover', ['positionClass' => 'bottom-full right-0 mb-3'])
                                     </div>
@@ -2195,7 +2195,7 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
                             </div>
                         </div>
 
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 min-w-0">
                             <!-- Säule 1: WACHSTUM -->
                             <div class="bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800/80 rounded-[1.5rem] p-4 shadow-inner flex flex-col gap-4">
                                 <div class="flex items-center justify-between border-b border-gray-200 dark:border-gray-800/80 pb-2.5">
@@ -2313,8 +2313,8 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
                     </div>
 
                     <!-- KACHEL 2: 10-JAHRES FIRMENREISE & MEILENSTEINE (Gleiches Design!) -->
-                    <div :class="focusMode ? 'bg-transparent border-0 shadow-none p-0' : 'bg-white/80 dark:bg-gray-900/60 border border-gray-200 dark:border-gray-800 rounded-3xl p-6 lg:p-7 shadow-sm'"
-                         class="flex flex-col justify-between">
+                    <div :class="focusMode ? 'bg-transparent border-0 shadow-none p-0' : 'bg-white/80 dark:bg-gray-900/60 border border-gray-200 dark:border-gray-800 rounded-3xl p-4 sm:p-6 lg:p-7 shadow-sm'"
+                         class="flex flex-col justify-between min-w-0 max-w-full overflow-hidden">
                         @include('livewire.shop.master.master-analytics-partials.company-journey-tile')
                     </div>
 

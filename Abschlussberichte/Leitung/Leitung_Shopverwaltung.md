@@ -15,7 +15,7 @@ Die administrative Leitung und Shopverwaltung bildet das operative und strategis
 ## 2. Technische System-Architektur
 
 ### 2.1 Navigations-Service
-- **Klasse:** [`BackendNavigationService`](file:///wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/Navigation/BackendNavigationService.php)
+- **Klasse:** [`BackendNavigationService`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/Navigation/BackendNavigationService.php)
 - **Funktion:** Definiert die hierarchische Struktur des Backends. Jedes Element besitzt:
   - Eine eindeutige `id` und eine `route`.
   - Ein standardisiertes `icon`.
@@ -52,3 +52,18 @@ Die Shopverwaltung gliedert sich laut Navigation in folgende Hauptbereiche:
 ## 4. Berechtigungen & Sicherheit
 - Der Zugang zur administrativen Shopverwaltung ist über den Route-Prefix `/admin/*` geschützt.
 - Der Zugriff erfordert die Authentifizierung über das Admin-Guard-System mit entsprechenden Mitarbeiter-Rollen (siehe *System / Benutzer* Dokumentation).
+
+---
+
+## 5. Kommandozentrale & 10-Jahres-Firmenreise (`/admin/dashboard`)
+
+- **Komponente:** [`MasterAnalytics`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Master/MasterAnalytics.php)
+- **Views:** [`master_scores.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/master/master-analytics-partials/master_scores.blade.php) & [`company-journey-tile.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/master/master-analytics-partials/company-journey-tile.blade.php)
+- **Mobiler Layout-Schutz (360px bis 412px Viewport):**
+  - Alle Kachel-Container, Flex-Zeilen und Grid-Zellen besitzen durchgängig `min-w-0`, `max-w-full`, `overflow-hidden` und sauberes Wortumbruch-Verhalten (`break-words`, `[overflow-wrap:anywhere]`).
+  - Die Status-Überschrift (`Aktueller Status`), der Startdatum-/Visions-Block sowie die Karten-Header stapeln und umbrechen auf Smartphones mehrzeilig ohne Rechts-Überlauf.
+  - Der Sub-Tab-Switcher (`Umsatzplan`, `1-Laser-Etappen`, `Skalierung`, `Alle`) bricht auf Mobilgeräten in ein vollflächiges `grid-cols-1 sm:grid-cols-2 xl:flex` mit `whitespace-normal` um.
+  - Der schwebende Fortschritts-Indikator nutzt `clamp(80px, ..., calc(100% - 80px))` mit `max-w-[160px] sm:max-w-none`; die Rand-Pins (`0 €` und `1 Mio`) sind bündig ausgerichtet und Zwischen-Pins auf schmalen Viewports ausgeblendet (`hidden md:flex`).
+  - Die Maschinen-Kapazitätskarten, deren 3er-Kennzahlen-Zeilen (`grid-cols-1 sm:grid-cols-3`), die 10-Jahres-Roadmap (`grid-cols-1 lg:grid-cols-2`) und die Visions-Karten (`grid-cols-1 md:grid-cols-3`) rendern im Clean-Design (Light- & Dark-Mode, `var(--theme-color)`, ohne KI-Gedankenstriche) ausbruchsfrei.
+- **Automatisierter Regressionstest:** [`CompanyJourneyMobileLayoutTest`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Livewire/Shop/Master/CompanyJourneyMobileLayoutTest.php)
+
