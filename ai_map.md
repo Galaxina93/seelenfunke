@@ -89,7 +89,7 @@
 
 ## 6. HTTP-Controller (`app/Http/Controllers/*.php`)
 - **Accounting**: `InvoiceDownloadController`
-- **Api**: `TelegramAgentController, TwilioCallController, WorkshopFocusApiController`
+- **Api**: `AntigravityDirectInboxController, TelegramAgentController, TwilioCallController, WorkshopFocusApiController`
 - **Customer**: `CustomerVerificationController, DigitalProductDownloadController, GiftVoucherDownloadController`
 - **Root**: `AIController, CartReminderUnsubscribeController, Controller, GoogleAuthController, NewsletterController, RevocationFileController, RevocationPdfController, SeoController, StripeWebhookController`
 
@@ -110,6 +110,6 @@
 - **Order**: `OrderProductionBatchService`
 - **Root**: `AccountingEInvoiceParserService, AccountingXmlInvoiceService, AnalyticsService, BankApiService, CartFileCleanupService, CartService, ConfiguratorService, DhlService, ElsterEricService, FinancialService, FirebaseService, GoogleReviewsService, HerzensprojektService, InvoiceService, PriceCalcService, ProductConfiguratorService, ProductTrackingService, ReferralService, ShippingCalculatorService, StealthCrawlerService, WishlistService`
 - **Storage**: `GlbOptimizerService`
-- **System**: `AndroidReleaseService, AudioMulawCodec, FunkenwerkPrintService, FunkiraPhoneConciergeService, MiniPcTrichterRelayService, SentinelTriageService, SystemBlueprintService, SystemBrainDiagnosticsService, SystemErrorLogger, SystemSecurityService, TwilioGeminiLiveBridgeService, TwilioReverbServerFactory`
+- **System**: `AndroidReleaseService, AntigravityDirectInboxService, AudioMulawCodec, FunkenwerkPrintService, FunkiraPhoneConciergeService, MiniPcTrichterRelayService, SentinelTriageService, SystemBlueprintService, SystemBrainDiagnosticsService, SystemErrorLogger, SystemSecurityService, TwilioGeminiLiveBridgeService, TwilioReverbServerFactory`
 - **Tax**: `TaxSettingService`
 

@@ -87,10 +87,13 @@ import de.meinseelenfunke.app.ui.theme.AppTheme
 import de.meinseelenfunke.app.ui.theme.Copper
 import de.meinseelenfunke.app.ui.theme.Emerald500
 import de.meinseelenfunke.app.ui.theme.Gold
+import de.meinseelenfunke.app.ui.components.AgDirectInboxSheet
+import de.meinseelenfunke.app.ui.components.AgMicChoiceDialog
 import de.meinseelenfunke.app.ui.components.NewPhoneEntryHintBanner
 import de.meinseelenfunke.app.ui.theme.Rose500
 import de.meinseelenfunke.app.ui.theme.SpaceBlack
 import de.meinseelenfunke.app.ui.theme.SpaceBlue
+import de.meinseelenfunke.app.util.AgDirectInboxManager
 import de.meinseelenfunke.app.util.FunkenwerkAlarmManager
 import de.meinseelenfunke.app.util.SoundManager
 import java.util.Locale
@@ -116,11 +119,34 @@ fun ZentrumScreen(
     val totalOrdersCount by viewModel.totalOrdersCount.collectAsState()
     val userType by ServiceLocator.userTypeState.collectAsState()
     val isAdmin = userType == "admin" || ServiceLocator.getUserType() == "admin"
+    val topContext = androidx.compose.ui.platform.LocalContext.current
+    val agOpenCount by AgDirectInboxManager.openCountFlow.collectAsState()
+    var showAgMicChoiceDialog by remember { mutableStateOf(false) }
+    var showAgDirectInboxSheet by remember { mutableStateOf(false) }
 
-    LaunchedEffect(isPageVisible) {
+    LaunchedEffect(isPageVisible, isAdmin) {
         if (isPageVisible) {
             viewModel.loadDashboardData(showLoading = false)
+            if (isAdmin) {
+                AgDirectInboxManager.hydrateLocalState(topContext)
+                AgDirectInboxManager.refreshAsync(topContext)
+            }
         }
+    }
+
+    if (isAdmin && showAgMicChoiceDialog) {
+        AgMicChoiceDialog(
+            openCount = agOpenCount,
+            onDismiss = { showAgMicChoiceDialog = false },
+            onSpeakWithAgent = onNavigateToLiveChat,
+            onOpenAgDirect = { showAgDirectInboxSheet = true }
+        )
+    }
+
+    if (isAdmin && showAgDirectInboxSheet) {
+        AgDirectInboxSheet(
+            onDismiss = { showAgDirectInboxSheet = false }
+        )
     }
 
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
@@ -180,21 +206,38 @@ fun ZentrumScreen(
                         )
                     }
                     // Mic
-                    Box(
-                        modifier = Modifier
-                            .size(34.dp)
-                            .clip(CircleShape)
-                            .background(AppTheme.colors.glassSurface)
-                            .border(1.dp, AppTheme.colors.glassBorder, CircleShape)
-                            .clickable { onNavigateToLiveChat() },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Mic,
-                            contentDescription = "Sprachchat",
-                            tint = Gold,
-                            modifier = Modifier.size(17.dp)
-                        )
+                    Box(modifier = Modifier.size(34.dp)) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(CircleShape)
+                                .background(AppTheme.colors.glassSurface)
+                                .border(1.dp, AppTheme.colors.glassBorder, CircleShape)
+                                .clickable {
+                                    if (isAdmin) {
+                                        showAgMicChoiceDialog = true
+                                    } else {
+                                        onNavigateToLiveChat()
+                                    }
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Mic,
+                                contentDescription = "Sprachchat & Direktnachricht",
+                                tint = Gold,
+                                modifier = Modifier.size(17.dp)
+                            )
+                        }
+                        if (isAdmin && agOpenCount > 0) {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .align(Alignment.TopEnd)
+                                    .clip(CircleShape)
+                                    .background(Gold)
+                            )
+                        }
                     }
                     // Refresh
                     Box(
@@ -203,7 +246,12 @@ fun ZentrumScreen(
                             .clip(CircleShape)
                             .background(AppTheme.colors.glassSurface)
                             .border(1.dp, AppTheme.colors.glassBorder, CircleShape)
-                            .clickable { viewModel.loadDashboardData(showLoading = true) },
+                            .clickable {
+                                viewModel.loadDashboardData(showLoading = true)
+                                if (isAdmin) {
+                                    AgDirectInboxManager.refreshAsync(topContext)
+                                }
+                            },
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(

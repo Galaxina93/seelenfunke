@@ -7,6 +7,7 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyPermanentlyInvalidatedException
 import android.security.keystore.KeyProperties
 import de.meinseelenfunke.app.BuildConfig
+import de.meinseelenfunke.app.data.api.AgDirectApi
 import de.meinseelenfunke.app.data.api.AiApi
 import de.meinseelenfunke.app.data.api.AuthApi
 import de.meinseelenfunke.app.data.api.EmailApi
@@ -57,6 +58,15 @@ object ServiceLocator {
     private var organizerApi: OrganizerApi? = null
     private var emailApi: EmailApi? = null
     private var orderApi: OrderApi? = null
+    private var agDirectApiInstance: AgDirectApi? = null
+
+    val agDirectApi: AgDirectApi
+        get() {
+            if (agDirectApiInstance == null) {
+                agDirectApiInstance = getRetrofit().create(AgDirectApi::class.java)
+            }
+            return agDirectApiInstance!!
+        }
 
     // Repositories
     lateinit var authRepository: AuthRepository
@@ -567,6 +577,7 @@ object ServiceLocator {
         organizerApi = null
         emailApi = null
         orderApi = null
+        agDirectApiInstance = null
     }
 
     private fun getRetrofit(): Retrofit {

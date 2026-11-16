@@ -1,8 +1,16 @@
 <?php
 
+use App\Http\Controllers\Api\AntigravityDirectInboxController;
 use App\Services\System\AndroidReleaseService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+
+Route::prefix('system/ag-direct-inbox')->middleware('throttle:120,1')->group(function () {
+    Route::get('/', [AntigravityDirectInboxController::class, 'index']);
+    Route::post('/', [AntigravityDirectInboxController::class, 'store']);
+    Route::get('/{id}/attachment', [AntigravityDirectInboxController::class, 'attachment']);
+    Route::delete('/{id}', [AntigravityDirectInboxController::class, 'destroy']);
+});
 
 Route::prefix('funki/system/app-update')->group(function () {
 

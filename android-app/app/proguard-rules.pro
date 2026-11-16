@@ -42,6 +42,7 @@
 -keep class de.meinseelenfunke.app.util.CachedWhitelistContact { *; }
 -keep class de.meinseelenfunke.app.util.SentinelQueuedEvent { *; }
 -keep class de.meinseelenfunke.app.util.OtaReleaseManifest { *; }
+-keep class de.meinseelenfunke.app.util.AgDirectOutboxEntry { *; }
 -keep class de.meinseelenfunke.app.ui.screens.SelectedFile { *; }
 
 # Keep Android Manifest Components (Widgets, Services, Receivers, Activities)
