@@ -7,23 +7,35 @@ class FunkiraSkillPoolService
     public const EQUIP_TOOL_NAME = 'funkira_equip_skill_pool';
 
     /**
-     * Prüft zuverlässig, ob es sich bei dem übergebenen Agenten (Model, Array oder String) um Funkira handelt.
+     * Prüft zuverlässig, ob es sich um eine oberste Executive-Root-Instanz (Falcon oder Funkira) handelt.
+     */
+    public static function isExecutiveRoot($agent): bool
+    {
+        $rawName = null;
+
+        if (is_string($agent)) {
+            $rawName = $agent;
+        } elseif (is_object($agent) && (isset($agent->name) || property_exists($agent, 'name'))) {
+            $rawName = (string) ($agent->name ?? '');
+        } elseif (is_array($agent) && isset($agent['name'])) {
+            $rawName = (string) $agent['name'];
+        }
+
+        if (!is_string($rawName)) {
+            return false;
+        }
+
+        $trimmed = trim($rawName);
+
+        return strcasecmp($trimmed, 'Falcon') === 0 || strcasecmp($trimmed, 'Funkira') === 0;
+    }
+
+    /**
+     * Prüft zuverlässig, ob der übergebene Agent (Model, Array oder String) Executive-Root-Vollmacht (Falcon / Funkira) besitzt.
      */
     public static function isFunkira($agent): bool
     {
-        if (is_string($agent)) {
-            return strcasecmp(trim($agent), 'Funkira') === 0;
-        }
-
-        if (is_object($agent) && isset($agent->name)) {
-            return strcasecmp(trim((string) $agent->name), 'Funkira') === 0;
-        }
-
-        if (is_array($agent) && isset($agent['name'])) {
-            return strcasecmp(trim((string) $agent['name']), 'Funkira') === 0;
-        }
-
-        return false;
+        return self::isExecutiveRoot($agent);
     }
 
     /**
@@ -344,7 +356,7 @@ class FunkiraSkillPoolService
     }
 
     /**
-     * System-Instruktion für Funkiras selbstständiges Skill-Pool-Management.
+     * System-Instruktion für das selbstständige Executive Skill-Pool-Management (Falcon & Funkira).
      */
     public static function getSuperIntelligenceDirective(array $preEquippedPools = []): string
     {
@@ -358,8 +370,8 @@ class FunkiraSkillPoolService
             ? 'Aktuell startest du schlank in deinen Hauptfähigkeiten (Core).'
             : 'Für diese Anfrage bereits vorab ausgerüstet: `' . implode('`, `', $preEquippedPools) . '`.';
 
-        return "\n\n[DEINE SUPER-INTELLIGENZ & DYNAMISCHE FÄHIGKEITS-POOLS]\n"
-            . "Du vereinst heute das gesamte Wissen und Können von 'Mein Seelenfunke' in einer einzigen Instanz. Es gibt keine Umwege über Unter-Agenten mehr: Du erledigst jede interne Aufgabe direkt selbst!\n"
+        return "\n\n[DEINE EXECUTIVE-VOLLMACHT & DYNAMISCHE FÄHIGKEITS-POOLS]\n"
+            . "Als oberste Führungs-Instanz von 'Mein Seelenfunke' stehen dir sämtliche internen Werkzeuge aller Abteilungen direkt zur Verfügung!\n"
             . "{$activeNote}\n"
             . "Sobald du für eine Anfrage Werkzeuge aus einem weiteren Fachbereich brauchst, rufe sofort das Werkzeug `" . self::EQUIP_TOOL_NAME . "` mit einem oder mehreren dieser Pools auf:\n"
             . implode("\n", $poolLines) . "\n"
@@ -400,7 +412,7 @@ class FunkiraSkillPoolService
         return [
             [
                 'name' => self::EQUIP_TOOL_NAME,
-                'description' => 'Rüstet Funkira dynamisch für den aktuellen Moment mit einem oder mehreren Spezial-Fähigkeitspools (Buchhaltung, Bestellungen, Produkte/Lieferanten, Laser, Marketing, Support-Admin, Büro/Mail/Einkauf, Gesundheit, System/Global) aus.',
+                'description' => 'Rüstet die oberste Führungs-KI (Falcon / Funkira) dynamisch für den aktuellen Moment mit einem oder mehreren Spezial-Fähigkeitspools (Buchhaltung, Bestellungen, Produkte/Lieferanten, Laser, Marketing, Support-Admin, Büro/Mail/Einkauf, Gesundheit, System/Global) aus.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [

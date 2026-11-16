@@ -408,6 +408,7 @@ static void ConfigureKioskApp(
     object tresorLock = new();
     object stageStateLock = new();
     string? pendingStageAction = null;
+    string? pendingCityAction = null;
     bool lastReportedStageOpen = false;
     bool lastReportedIdleMode = false;
     DateTime lastStageReportAtUtc = DateTime.MinValue;
@@ -441,10 +442,13 @@ static void ConfigureKioskApp(
         if (tmr.Active && timerRemainSec <= 0) tmr.Active = false;
 
         string? consumeStageAction;
+        string? consumeCityAction;
         lock (stageStateLock)
         {
             consumeStageAction = pendingStageAction;
             pendingStageAction = null;
+            consumeCityAction = pendingCityAction;
+            pendingCityAction = null;
         }
 
         return Results.Json(new
@@ -466,6 +470,7 @@ static void ConfigureKioskApp(
             companionBadge = IsPrivacyRestrictedActive(s) ? "" : LocalSenseBridge.CurrentCompanionBadgeLabel,
             companionsCount = IsPrivacyRestrictedActive(s) ? 0 : LocalSenseBridge.CurrentCompanionsCount,
             pendingStageAction = consumeStageAction,
+            pendingCityAction = consumeCityAction,
             workshopTimer = new
             {
                 active = tmr.Active,
@@ -815,6 +820,24 @@ static void ConfigureKioskApp(
             pendingStageAction = act;
         }
         return Results.Json(new { ok = true, queuedAction = act });
+    });
+
+    app.MapPost("/api/funkenwerk-city/control", async (HttpContext ctx) =>
+    {
+        using var doc = await JsonDocument.ParseAsync(ctx.Request.Body).ConfigureAwait(false);
+        string rawAct = doc.RootElement.TryGetProperty("action", out var aEl) ? (aEl.GetString() ?? "orbit") : "orbit";
+        string act = rawAct.Trim().ToLowerInvariant() switch
+        {
+            "city" or "overview" => "city",
+            "throne" or "thronsaal" => "throne",
+            "close" => "close",
+            _ => "orbit"
+        };
+        lock (stageStateLock)
+        {
+            pendingCityAction = act;
+        }
+        return Results.Json(new { ok = true, queuedCityAction = act });
     });
 
     app.MapPost("/api/funkira/stage-report", async (HttpContext ctx) =>
@@ -3045,7 +3068,7 @@ async Task<int> RunLinuxSelfTestsAsync()
                     jsApp.Contains("isCannedRefusalClientText", StringComparison.Ordinal) &&
                     jsApp.Contains("projectRawVideoBoxToPip", StringComparison.Ordinal) &&
                     !jsApp.Contains("safetySettings", StringComparison.Ordinal) &&
-                    htmlIdx.Contains("/app.js?v=20261115v24", StringComparison.Ordinal);
+                    htmlIdx.Contains("/app.js?v=20261116v25", StringComparison.Ordinal);
 
                 return detectOk && diagAndLoginOk && historyCleanOk && promptHygieneOk && jsOk;
             }).ConfigureAwait(false);
@@ -3637,6 +3660,124 @@ async Task<int> RunLinuxSelfTestsAsync()
                 WorkshopFocusCoordinator.TestOverrideHandler = null;
                 LocalSenseBridge.SetIdentityForSelfTest("unenrolled");
                 return stateOk && sendOk && finOk && togOk && shipOk && voiceMatchOk && mcpOk && uiOk;
+            }).ConfigureAwait(false);
+
+            await AssertCheckAsync(43, "Portal-Pulse HTTP-429 Retry-After Backoff & Zero-Log-Baseline Auto-Heal (Status 429/502/503/504 -> 0 Bytes)", () =>
+            {
+                int z = 0, rl = 0, gw = 0;
+                bool first429Suppressed = !SeelenfunkeLinuxApiClient.ComputePulseBackoffDecision(429, 45, ref z, ref rl, ref gw, out int bo1) && bo1 == 45 && rl == 1;
+                bool default429Clamped = !SeelenfunkeLinuxApiClient.ComputePulseBackoffDecision(429, 0, ref z, ref rl, ref gw, out int bo2) && bo2 == 30 && rl == 2;
+                bool first503Suppressed = !SeelenfunkeLinuxApiClient.ComputePulseBackoffDecision(503, 0, ref z, ref rl, ref gw, out int bo3) && bo3 == 15 && gw == 1;
+
+                rl = 7;
+                bool eighth429Escalates = SeelenfunkeLinuxApiClient.ComputePulseBackoffDecision(429, 20, ref z, ref rl, ref gw, out _) && rl == 8;
+
+                ErrorSentinelAndWatchdog.ResetFingerprintsForSelfTest();
+                string histPath = Path.Combine(LinuxVaultAndStorage.DataDir, "sentinel_history.json");
+                string archDir = Path.Combine(LinuxVaultAndStorage.DataDir, "archive");
+                var seeded = new List<SentinelEventDto>
+                {
+                    new()
+                    {
+                        Component = "portal_pulse",
+                        Title = "Portal-Pulse nicht erreichbar (STAGE)",
+                        Message = "GET https://stage.mein-seelenfunke.de/api/shop/monitor-pulse lieferte Status 429.",
+                        Severity = "warning",
+                        AutoHealed = false
+                    },
+                    new()
+                    {
+                        Component = "portal_pulse",
+                        Title = "Portal-Pulse nicht erreichbar (STAGE)",
+                        Message = "GET https://stage.mein-seelenfunke.de/api/shop/monitor-pulse lieferte Status 503.",
+                        Severity = "error",
+                        AutoHealed = false
+                    }
+                };
+                File.WriteAllText(histPath, JsonSerializer.Serialize(seeded), new UTF8Encoding(false));
+
+                int healed = ErrorSentinelAndWatchdog.AutoHealRecoverableHistory(senseHealthy: false, cameraHealthy: false, onlineHealthy: true);
+                long remainingBytes = File.Exists(histPath) ? new FileInfo(histPath).Length : 0;
+                bool archiveWritten = Directory.Exists(archDir) && Directory.GetFiles(archDir, "sentinel_archive_*.jsonl").Any(f => new FileInfo(f).Length > 0);
+
+                return Task.FromResult(first429Suppressed && default429Clamped && first503Suppressed && eighth429Escalates &&
+                                       healed == 2 && remainingBytes == 0 && archiveWritten);
+            }).ConfigureAwait(false);
+
+            await AssertCheckAsync(44, "Funkenwerk 3D-Wasserstadt (Orbital-Planeten-Anflug, 7 Abteilungs-Piers, MEIN SEELENFUNKE Hauptturm, ALINA & FALCON Thronsaal, 0%-Idle-Pause, Sprach-/MCP-Steuerung & 0 KI-Gedankenstriche)", async () =>
+            {
+                // 1. Static asset /funkenwerk_city_3d.js served cleanly on Kestrel loopback
+                using var assetResp = await rawHttp.GetAsync("/funkenwerk_city_3d.js").ConfigureAwait(false);
+                if (!assetResp.IsSuccessStatusCode)
+                    return false;
+                string cityJs = await assetResp.Content.ReadAsStringAsync().ConfigureAwait(false);
+
+                // 2. Unauthenticated control endpoint MUST return 401; authenticated queues pendingCityAction in /api/pulse
+                using var unauthCtrl = await rawHttp.PostAsync("/api/funkenwerk-city/control", new StringContent("{\"action\":\"throne\"}", Encoding.UTF8, "application/json")).ConfigureAwait(false);
+                if (unauthCtrl.StatusCode != HttpStatusCode.Unauthorized)
+                    return false;
+
+                using var authCtrl = await authedHttp.PostAsync("/api/funkenwerk-city/control", new StringContent("{\"action\":\"throne\"}", Encoding.UTF8, "application/json")).ConfigureAwait(false);
+                using var pulseResp = await authedHttp.GetAsync("/api/pulse").ConfigureAwait(false);
+                var pulseJson = JsonNode.Parse(await pulseResp.Content.ReadAsStringAsync().ConfigureAwait(false)) as JsonObject;
+                bool httpControlOk = authCtrl.IsSuccessStatusCode &&
+                                     pulseJson?["pendingCityAction"]?.GetValue<string>() == "throne";
+
+                // 3. Offline voice matcher + MCP minipc_ui_control actions
+                bool voiceAndMcpOk =
+                    FunkiraLiveAndMcpEngine.TryMatchSpokenFunkenwerkCityCommand("Zeig mir bitte die Funkenwerk Stadt") == "open_funkenwerk_city" &&
+                    FunkiraLiveAndMcpEngine.TryMatchSpokenFunkenwerkCityCommand("Bring mich in den Thronsaal") == "open_throne_room" &&
+                    FunkiraLiveAndMcpEngine.TryMatchSpokenFunkenwerkCityCommand("Funkenwerk schließen") == "close_funkenwerk_city";
+
+                using var mcpCityDoc = JsonDocument.Parse("{\"action\":\"open_funkenwerk_city\"}");
+                var (mcpCityRes, mcpCityEvt) = await FunkiraLiveAndMcpEngine.ExecuteLocalMiniPcToolAsync("minipc_ui_control", mcpCityDoc.RootElement).ConfigureAwait(false);
+                using var mcpThroneDoc = JsonDocument.Parse("{\"action\":\"open_throne_room\"}");
+                var (mcpThroneRes, mcpThroneEvt) = await FunkiraLiveAndMcpEngine.ExecuteLocalMiniPcToolAsync("minipc_ui_control", mcpThroneDoc.RootElement).ConfigureAwait(false);
+
+                voiceAndMcpOk = voiceAndMcpOk &&
+                                mcpCityRes["status"]?.GetValue<string>() == "success" &&
+                                mcpCityEvt?["action"]?.GetValue<string>() == "open_funkenwerk_city" &&
+                                mcpThroneRes["status"]?.GetValue<string>() == "success" &&
+                                mcpThroneEvt?["action"]?.GetValue<string>() == "open_throne_room";
+
+                // 4. Verify HTML button bottom-right, HUD Clean-Design, 7 Department Colors, Inscriptions, InstancedMesh, rAF Pause & 0 En-Dashes
+                string htmlIdx = File.ReadAllText(Path.Combine(resolvedWebRoot, "index.html"), Encoding.UTF8);
+                string cssRaw = File.ReadAllText(Path.Combine(resolvedWebRoot, "styles.css"), Encoding.UTF8);
+                string jsApp = File.ReadAllText(Path.Combine(resolvedWebRoot, "app.js"), Encoding.UTF8);
+
+                bool inscriptionsAnd3dOk =
+                    htmlIdx.Contains("id=\"btn-open-funkenwerk-city\"", StringComparison.Ordinal) &&
+                    htmlIdx.Contains("<span>Funkenwerk</span>", StringComparison.Ordinal) &&
+                    htmlIdx.Contains("id=\"funkenwerk-city-stage\"", StringComparison.Ordinal) &&
+                    htmlIdx.Contains("id=\"btn-fw-city-orbit\"", StringComparison.Ordinal) &&
+                    htmlIdx.Contains("id=\"btn-fw-city-overview\"", StringComparison.Ordinal) &&
+                    htmlIdx.Contains("id=\"btn-fw-city-throne\"", StringComparison.Ordinal) &&
+                    htmlIdx.Contains("id=\"btn-fw-city-close\"", StringComparison.Ordinal) &&
+                    htmlIdx.Contains("/funkenwerk_city_3d.js?v=20261116v25", StringComparison.Ordinal) &&
+                    cityJs.Contains("MEIN SEELENFUNKE", StringComparison.Ordinal) &&
+                    cityJs.Contains("'ALINA'", StringComparison.Ordinal) &&
+                    cityJs.Contains("Herrscherin über das Seelenfunken-Universum", StringComparison.Ordinal) &&
+                    cityJs.Contains("FALCON · Rechte Hand & Mitgründer", StringComparison.Ordinal) &&
+                    cityJs.Contains("FALCON · Mitgründer", StringComparison.Ordinal) &&
+                    cityJs.Contains("#06B6D4", StringComparison.Ordinal) &&
+                    cityJs.Contains("#3B82F6", StringComparison.Ordinal) &&
+                    cityJs.Contains("#A855F7", StringComparison.Ordinal) &&
+                    cityJs.Contains("#F59E0B", StringComparison.Ordinal) &&
+                    cityJs.Contains("#10B981", StringComparison.Ordinal) &&
+                    cityJs.Contains("#6366F1", StringComparison.Ordinal) &&
+                    cityJs.Contains("#EF4444", StringComparison.Ordinal) &&
+                    cityJs.Contains("THREE.InstancedMesh", StringComparison.Ordinal) &&
+                    cityJs.Contains("cancelAnimationFrame(this.rafId)", StringComparison.Ordinal) &&
+                    jsApp.Contains("openFunkenwerkCity", StringComparison.Ordinal) &&
+                    jsApp.Contains("closeFunkenwerkCity", StringComparison.Ordinal);
+
+                bool zeroKiEnDashOk =
+                    !cityJs.Contains(" \u2013 ", StringComparison.Ordinal) &&
+                    !htmlIdx.Contains(" \u2013 ", StringComparison.Ordinal) &&
+                    !cssRaw.Contains(" \u2013 ", StringComparison.Ordinal) &&
+                    !jsApp.Contains(" \u2013 ", StringComparison.Ordinal);
+
+                return httpControlOk && voiceAndMcpOk && inscriptionsAnd3dOk && zeroKiEnDashOk;
             }).ConfigureAwait(false);
         }
         finally

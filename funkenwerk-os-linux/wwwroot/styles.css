@@ -387,7 +387,8 @@ body.focus-mode .gewerbe-footer-bar {
 }
 
 body.focus-mode.mouse-idle #btn-toggle-focus,
-body.focus-mode.mouse-idle #btn-open-funkira {
+body.focus-mode.mouse-idle #btn-open-funkira,
+body.focus-mode.mouse-idle #btn-open-funkenwerk-city {
   opacity: 0;
   pointer-events: none;
 }
@@ -1864,3 +1865,118 @@ body.focus-mode:not(.wf-has-order) .wf-idle-close {
   font-weight: 700;
   pointer-events: none;
 }
+
+/* =========================================================================
+   FUNKENWERK 3D WATER METROPOLIS (SCHWARZ-GOLD #C5A059 · CLEAN DESIGN)
+   ========================================================================= */
+body.funkenwerk-city-open #atelier-video-wrap {
+  display: none !important;
+}
+
+.pill-btn.fw-city-launch-btn {
+  background: #0B0C10;
+  border: 1px solid #C5A059;
+  color: #FDE68A;
+  font-weight: 700;
+  letter-spacing: 0.35px;
+}
+
+.pill-btn.fw-city-launch-btn:hover {
+  background: rgba(197, 160, 89, 0.18);
+  border-color: #FDE68A;
+  color: #FFFFFF;
+}
+
+.fw-city-svg-icon {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  display: block;
+}
+
+#funkenwerk-city-stage {
+  position: fixed;
+  inset: 0;
+  z-index: 68;
+  background: #02040A;
+  overflow: hidden;
+}
+
+#funkenwerk-city-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+  cursor: grab;
+}
+
+#funkenwerk-city-canvas:active {
+  cursor: grabbing;
+}
+
+#fw-city-cloud-veil {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(circle at 50% 48%, rgba(255, 246, 218, 0.85) 0%, rgba(186, 216, 242, 0.45) 55%, rgba(12, 26, 48, 0.15) 100%);
+  transition: opacity 0.12s linear;
+  z-index: 2;
+}
+
+.fw-city-hud-bar {
+  position: absolute;
+  top: 16px;
+  right: 20px;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 7px;
+  border-radius: 10px;
+  background: rgba(8, 9, 13, 0.86);
+  border: 1px solid rgba(197, 160, 89, 0.42);
+}
+
+.fw-city-hud-btn {
+  height: 32px;
+  padding: 0 11px;
+  border-radius: 7px;
+  border: 1px solid rgba(197, 160, 89, 0.24);
+  background: rgba(18, 19, 25, 0.92);
+  color: #F9FAFB;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.25px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+}
+
+.fw-city-hud-btn:hover {
+  background: rgba(197, 160, 89, 0.18);
+  border-color: #C5A059;
+  color: #FDE68A;
+}
+
+.fw-city-hud-btn.active {
+  background: #C5A059;
+  border-color: #C5A059;
+  color: #08080A;
+}
+
+.fw-city-hud-btn.fw-city-close {
+  padding: 0 10px;
+  border-color: rgba(197, 160, 89, 0.34);
+}
+
+.fw-city-hud-btn.fw-city-close:hover {
+  background: #EF4444;
+  border-color: #EF4444;
+  color: #FFFFFF;
+}
+

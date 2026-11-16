@@ -1,0 +1,888 @@
+package de.meinseelenfunke.app.ui.screens
+
+import android.Manifest
+import android.annotation.SuppressLint
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.view.ViewGroup
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
+import android.webkit.WebSettings
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.CallEnd
+import androidx.compose.material.icons.filled.Cameraswitch
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material.icons.filled.VideocamOff
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.viewmodel.compose.viewModel
+import de.meinseelenfunke.app.R
+import de.meinseelenfunke.app.ui.components.AgDirectInboxSheet
+import de.meinseelenfunke.app.ui.components.AgImageLightboxDialog
+import de.meinseelenfunke.app.ui.theme.AppTheme
+import de.meinseelenfunke.app.ui.theme.Emerald500
+import de.meinseelenfunke.app.ui.theme.Gold
+import de.meinseelenfunke.app.ui.theme.Rose500
+import de.meinseelenfunke.app.ui.theme.SpaceBlack
+import de.meinseelenfunke.app.util.AgDirectInboxManager
+import de.meinseelenfunke.app.util.FalconCameraController
+import de.meinseelenfunke.app.util.FalconClientTools
+import de.meinseelenfunke.app.util.MusicPlayerManager
+import de.meinseelenfunke.app.util.NavigationBridge
+import de.meinseelenfunke.app.util.PendingCameraAction
+import de.meinseelenfunke.app.util.SoundManager
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import java.io.ByteArrayInputStream
+
+private const val FALCON_ASSET_BASE = "file:///android_asset/falcon3d/"
+private const val FALCON_ASSET_INDEX = "file:///android_asset/falcon3d/index.html"
+
+fun isAllowedFalconAssetUrl(rawUrl: String?): Boolean {
+    if (rawUrl.isNullOrBlank()) return false
+    val trimmed = rawUrl.trim()
+    if (!trimmed.startsWith(FALCON_ASSET_BASE)) return false
+    val decoded = try { Uri.decode(trimmed) } catch (_: Throwable) { return false }
+    if (decoded.contains("..") || decoded.contains('\\')) return false
+    return decoded.startsWith(FALCON_ASSET_BASE)
+}
+
+@SuppressLint("SetJavaScriptEnabled")
+@Composable
+fun FalconFocusScreen(
+    onOpenDashboard: () -> Unit,
+    autoStartVoice: Boolean = false,
+    onConsumedAutoStartVoice: () -> Unit = {},
+    viewModel: FunkiraLiveViewModel = viewModel()
+) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val scope = rememberCoroutineScope()
+    val isDark = AppTheme.colors.isDark
+
+    val isConnecting by viewModel.isConnecting.collectAsState()
+    val isConnected by viewModel.isConnected.collectAsState()
+    val isRecording by viewModel.isRecording.collectAsState()
+    val isAiSpeaking by viewModel.isAiSpeakingFlow.collectAsState()
+    val aiSpeechAmp by viewModel.aiSpeechAmplitude.collectAsState()
+    val userVoiceAmp by viewModel.voiceAmplitude.collectAsState()
+    val falconEmotion by viewModel.falconEmotion.collectAsState()
+    val liveSubtitle by viewModel.liveSubtitle.collectAsState()
+    val errorText by viewModel.error.collectAsState()
+
+    val isVisionActive by FalconCameraController.isVisionActive.collectAsState()
+    val previewBitmap by FalconCameraController.previewBitmap.collectAsState()
+    val isCapturingPhoto by FalconCameraController.isCapturingPhoto.collectAsState()
+    val lastCapturedPhoto by FalconCameraController.lastCapturedPhoto.collectAsState()
+
+    val isMusicPlaying by MusicPlayerManager.isPlaying.collectAsState()
+    val agOpenCount by AgDirectInboxManager.openCountFlow.collectAsState()
+
+    var showDirectInboxSheet by remember { mutableStateOf(false) }
+    var showPhotoLightbox by remember { mutableStateOf(false) }
+    var dismissedSubtitleText by remember { mutableStateOf<String?>(null) }
+    var pendingCameraAction by remember { mutableStateOf<PendingCameraAction?>(null) }
+    var webViewRef by remember { mutableStateOf<WebView?>(null) }
+    var pageLoaded by remember { mutableStateOf(false) }
+
+    val micPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            SoundManager.playSound(R.raw.open_project_brain)
+            viewModel.startLiveChat()
+        } else {
+            Toast.makeText(context, "Mikrofon-Berechtigung benötigt.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        val actionToRun = pendingCameraAction
+        pendingCameraAction = null
+        if (granted && actionToRun != null) {
+            scope.launch {
+                when (actionToRun.action) {
+                    "take_photo" -> FalconCameraController.captureHighResPhoto(context, actionToRun.lens)
+                    "switch_camera" -> FalconCameraController.switchCameraAsync(context, actionToRun.lens)
+                    else -> FalconCameraController.startVision(context, actionToRun.lens ?: "back")
+                }
+            }
+        } else if (!granted) {
+            Toast.makeText(context, "Kamera-Berechtigung nicht erteilt.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        AgDirectInboxManager.hydrateLocalState(context)
+        AgDirectInboxManager.refreshAsync(context)
+        MusicPlayerManager.ensureCatalogLoadedFast(context)
+    }
+
+    LaunchedEffect(Unit) {
+        FalconCameraController.permissionRequestEvents.collect { req ->
+            pendingCameraAction = req
+            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        NavigationBridge.falconExitFocusTrigger.collect {
+            FalconCameraController.stopCamera()
+            onOpenDashboard()
+        }
+    }
+
+    LaunchedEffect(autoStartVoice) {
+        if (autoStartVoice) {
+            onConsumedAutoStartVoice()
+            val hasMic = ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.RECORD_AUDIO
+            ) == PackageManager.PERMISSION_GRANTED
+            if (hasMic) {
+                viewModel.startLiveChat()
+            } else {
+                micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+            }
+        }
+    }
+
+    LaunchedEffect(errorText) {
+        if (!errorText.isNullOrBlank()) {
+            Toast.makeText(context, errorText, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_PAUSE -> {
+                    webViewRef?.onPause()
+                    if (!isConnected) {
+                        FalconCameraController.stopCamera()
+                    }
+                }
+                Lifecycle.Event.ON_RESUME -> {
+                    webViewRef?.onResume()
+                }
+                else -> {}
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            FalconCameraController.stopCamera()
+            webViewRef?.let { wv ->
+                try {
+                    wv.stopLoading()
+                    wv.loadUrl("about:blank")
+                    wv.destroy()
+                } catch (_: Throwable) {
+                }
+            }
+            webViewRef = null
+        }
+    }
+
+    // Stream 3D state smoothly into Three.js scene
+    val mode3d = FalconClientTools.resolveFalcon3dMode(
+        isConnecting = isConnecting,
+        isConnected = isConnected,
+        isAiSpeaking = isAiSpeaking,
+        isRecording = isRecording
+    )
+    val effectiveAudioLevel = if (isAiSpeaking) {
+        aiSpeechAmp
+    } else if (isConnected && isRecording) {
+        (userVoiceAmp * 0.6f).coerceIn(0f, 1f)
+    } else {
+        0f
+    }
+
+    LaunchedEffect(pageLoaded, mode3d, effectiveAudioLevel, falconEmotion, isDark, isVisionActive) {
+        val wv = webViewRef ?: return@LaunchedEffect
+        if (!pageLoaded) return@LaunchedEffect
+        val json = FalconClientTools.buildFalconSceneStateJson(
+            mode = mode3d,
+            audioLevel = effectiveAudioLevel,
+            emotion = falconEmotion,
+            isDark = isDark,
+            cameraActive = isVisionActive
+        )
+        wv.evaluateJavascript("window.FalconScene && window.FalconScene.updateState($json);", null)
+        if (isAiSpeaking) {
+            delay(45L)
+        }
+    }
+
+    if (showPhotoLightbox && lastCapturedPhoto != null) {
+        val snap = lastCapturedPhoto!!
+        AgImageLightboxDialog(
+            bitmap = snap.previewBitmap,
+            title = snap.fileName,
+            onDismiss = { showPhotoLightbox = false }
+        )
+    }
+
+    if (showDirectInboxSheet) {
+        val autoAttach = lastCapturedPhoto?.takeIf { !it.attachedToInbox }?.toPreparedAgAttachment()
+        AgDirectInboxSheet(
+            onDismiss = { showDirectInboxSheet = false },
+            initialAttachment = autoAttach,
+            onAttachmentSubmitted = {
+                FalconCameraController.markLastPhotoAttached()
+            }
+        )
+    }
+
+    val pulseTransition = rememberInfiniteTransition(label = "falconPulse")
+    val pulseScale by pulseTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = if (isConnected || isConnecting) 1.13f else 1.05f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(if (isConnected) 900 else 1500, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "falconPulseScale"
+    )
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(if (isDark) Color(0xFF090B10) else Color(0xFFF8F6F1))
+    ) {
+        // 1. Fullscreen 60-FPS 3D Falcon Scene (Zero-Trust Hardened Local Asset WebView)
+        AndroidView(
+            modifier = Modifier.fillMaxSize(),
+            factory = { ctx ->
+                WebView(ctx).apply {
+                    layoutParams = ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT
+                    )
+                    setBackgroundColor(if (isDark) 0xFF090B10.toInt() else 0xFFF8F6F1.toInt())
+                    isVerticalScrollBarEnabled = false
+                    isHorizontalScrollBarEnabled = false
+
+                    settings.apply {
+                        javaScriptEnabled = true
+                        allowFileAccess = true
+                        allowContentAccess = false
+                        @Suppress("DEPRECATION")
+                        allowFileAccessFromFileURLs = false
+                        @Suppress("DEPRECATION")
+                        allowUniversalAccessFromFileURLs = false
+                        blockNetworkLoads = true
+                        blockNetworkImage = true
+                        domStorageEnabled = false
+                        @Suppress("DEPRECATION")
+                        databaseEnabled = false
+                        @Suppress("DEPRECATION")
+                        saveFormData = false
+                        mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+                        mediaPlaybackRequiresUserGesture = false
+                        setSupportZoom(false)
+                        builtInZoomControls = false
+                        displayZoomControls = false
+                    }
+
+                    webViewClient = object : WebViewClient() {
+                        override fun shouldOverrideUrlLoading(
+                            view: WebView?,
+                            request: WebResourceRequest?
+                        ): Boolean {
+                            val targetUrl = request?.url?.toString()
+                            return !isAllowedFalconAssetUrl(targetUrl)
+                        }
+
+                        @Deprecated("Deprecated in Java")
+                        override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+                            return !isAllowedFalconAssetUrl(url)
+                        }
+
+                        override fun shouldInterceptRequest(
+                            view: WebView?,
+                            request: WebResourceRequest?
+                        ): WebResourceResponse? {
+                            val reqUrl = request?.url?.toString()
+                            if (!isAllowedFalconAssetUrl(reqUrl)) {
+                                return WebResourceResponse(
+                                    "text/plain",
+                                    "UTF-8",
+                                    403,
+                                    "Forbidden",
+                                    emptyMap(),
+                                    ByteArrayInputStream(ByteArray(0))
+                                )
+                            }
+                            return super.shouldInterceptRequest(view, request)
+                        }
+
+                        override fun onPageFinished(view: WebView?, url: String?) {
+                            super.onPageFinished(view, url)
+                            pageLoaded = true
+                            val initJson = FalconClientTools.buildFalconSceneStateJson(
+                                mode = mode3d,
+                                audioLevel = effectiveAudioLevel,
+                                emotion = falconEmotion,
+                                isDark = isDark,
+                                cameraActive = isVisionActive
+                            )
+                            view?.evaluateJavascript(
+                                "window.FalconScene && window.FalconScene.updateState($initJson);",
+                                null
+                            )
+                        }
+                    }
+
+                    loadUrl(FALCON_ASSET_INDEX)
+                    webViewRef = this
+                }
+            }
+        )
+
+        // 2. Top Header Bar (Status Pill Left | Camera, Music Mini, Dashboard Right)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .align(Alignment.TopCenter),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Status Pill: Falcon · Mitgründer
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(AppTheme.colors.cardBackground.copy(alpha = 0.88f))
+                    .border(
+                        1.dp,
+                        if (isConnected) Emerald500.copy(alpha = 0.65f) else Gold.copy(alpha = 0.55f),
+                        RoundedCornerShape(50)
+                    )
+                    .padding(horizontal = 12.dp, vertical = 7.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(7.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(
+                            when {
+                                isConnected -> Emerald500
+                                isConnecting -> Gold
+                                else -> Gold.copy(alpha = 0.55f)
+                            }
+                        )
+                )
+                Text(
+                    text = "Falcon · Mitgründer",
+                    fontSize = 12.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = AppTheme.colors.textPrimary,
+                    maxLines = 1
+                )
+            }
+
+            // Right Controls: Camera Eyes, Music Mini Indicator, Dashboard
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Kamera-Augen Toggle
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (isVisionActive) Gold else AppTheme.colors.cardBackground.copy(alpha = 0.88f)
+                        )
+                        .border(
+                            1.dp,
+                            if (isVisionActive) Gold else Gold.copy(alpha = 0.50f),
+                            CircleShape
+                        )
+                        .clickable {
+                            if (isVisionActive) {
+                                FalconCameraController.stopCamera()
+                            } else if (FalconCameraController.hasCameraPermission(context)) {
+                                FalconCameraController.startVisionAsync(context)
+                            } else {
+                                pendingCameraAction = PendingCameraAction("enable_vision", "back")
+                                cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                            }
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (isVisionActive) Icons.Default.Videocam else Icons.Default.VideocamOff,
+                        contentDescription = "Kamera-Augen",
+                        tint = if (isVisionActive) SpaceBlack else Gold,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+
+                // Musik-Mini-Indikator (nur sichtbar während Musik läuft)
+                AnimatedVisibility(visible = isMusicPlaying, enter = fadeIn(), exit = fadeOut()) {
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(50))
+                            .background(AppTheme.colors.cardBackground.copy(alpha = 0.88f))
+                            .border(1.dp, Gold.copy(alpha = 0.55f), RoundedCornerShape(50))
+                            .padding(horizontal = 6.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .background(Gold.copy(alpha = 0.16f))
+                                .clickable { MusicPlayerManager.togglePlayPause(context) },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Pause,
+                                contentDescription = "Musik pausieren",
+                                tint = Gold,
+                                modifier = Modifier.size(15.dp)
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .background(Gold.copy(alpha = 0.16f))
+                                .clickable { MusicPlayerManager.playNext(context) },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.SkipNext,
+                                contentDescription = "Nächster Titel",
+                                tint = Gold,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                }
+
+                // Dashboard Switch Button
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50))
+                        .background(AppTheme.colors.cardBackground.copy(alpha = 0.88f))
+                        .border(1.dp, Gold.copy(alpha = 0.60f), RoundedCornerShape(50))
+                        .clickable {
+                            FalconCameraController.stopCamera()
+                            onOpenDashboard()
+                        }
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.GridView,
+                        contentDescription = null,
+                        tint = Gold,
+                        modifier = Modifier.size(15.dp)
+                    )
+                    Text(
+                        text = "Dashboard",
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = AppTheme.colors.textPrimary
+                    )
+                }
+            }
+        }
+
+        // 3. Visible Gold PIP Camera Preview (Top Right below Header when Vision is Active)
+        AnimatedVisibility(
+            visible = isVisionActive,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .statusBarsPadding()
+                .padding(top = 62.dp, end = 16.dp)
+        ) {
+            Card(
+                modifier = Modifier
+                    .width(104.dp)
+                    .height(138.dp)
+                    .border(1.5.dp, Gold, RoundedCornerShape(14.dp)),
+                colors = CardDefaults.cardColors(containerColor = SpaceBlack),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    if (previewBitmap != null) {
+                        Image(
+                            bitmap = previewBitmap!!,
+                            contentDescription = "Falcon Live-Kamera",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        CircularProgressIndicator(
+                            color = Gold,
+                            strokeWidth = 2.dp,
+                            modifier = Modifier
+                                .size(22.dp)
+                                .align(Alignment.Center)
+                        )
+                    }
+
+                    // Switch lens button (bottom-left of PIP)
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(5.dp)
+                            .size(26.dp)
+                            .clip(CircleShape)
+                            .background(SpaceBlack.copy(alpha = 0.72f))
+                            .border(1.dp, Gold.copy(alpha = 0.65f), CircleShape)
+                            .clickable { FalconCameraController.switchCameraAsync(context) },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Cameraswitch,
+                            contentDescription = "Kamera wechseln",
+                            tint = Gold,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+
+                    // Turn off camera button (top-right of PIP)
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(5.dp)
+                            .size(24.dp)
+                            .clip(CircleShape)
+                            .background(SpaceBlack.copy(alpha = 0.72f))
+                            .border(1.dp, Rose500.copy(alpha = 0.75f), CircleShape)
+                            .clickable { FalconCameraController.stopCamera() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Kamera ausschalten",
+                            tint = Rose500,
+                            modifier = Modifier.size(13.dp)
+                        )
+                    }
+                }
+            }
+        }
+
+        // 4. Lower-Third Live Subtitle + Bottom Command Dock
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(horizontal = 18.dp, vertical = 18.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            val currentSub = liveSubtitle?.trim().orEmpty()
+            if (currentSub.isNotEmpty() && currentSub != dismissedSubtitleText) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(AppTheme.colors.cardBackground.copy(alpha = 0.90f))
+                        .border(1.dp, Gold.copy(alpha = 0.45f), RoundedCornerShape(14.dp))
+                        .padding(horizontal = 14.dp, vertical = 9.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = currentSub,
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp,
+                        color = AppTheme.colors.textPrimary,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .size(22.dp)
+                            .clip(CircleShape)
+                            .clickable { dismissedSubtitleText = currentSub },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Untertitel ausblenden",
+                            tint = AppTheme.colors.textMuted,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+                }
+            }
+
+            // Bottom Command Dock
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Left: Photo Shutter + Captured Photo Lightbox Thumbnail
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(CircleShape)
+                            .background(AppTheme.colors.cardBackground.copy(alpha = 0.90f))
+                            .border(1.dp, Gold.copy(alpha = 0.60f), CircleShape)
+                            .clickable(enabled = !isCapturingPhoto) {
+                                if (FalconCameraController.hasCameraPermission(context)) {
+                                    scope.launch {
+                                        FalconCameraController.captureHighResPhoto(context)
+                                    }
+                                } else {
+                                    pendingCameraAction = PendingCameraAction("take_photo", "back")
+                                    cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                                }
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (isCapturingPhoto) {
+                            CircularProgressIndicator(
+                                color = Gold,
+                                strokeWidth = 2.dp,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.PhotoCamera,
+                                contentDescription = "Foto aufnehmen",
+                                tint = Gold,
+                                modifier = Modifier.size(21.dp)
+                            )
+                        }
+                    }
+
+                    lastCapturedPhoto?.let { photo ->
+                        Box(modifier = Modifier.size(48.dp)) {
+                            Image(
+                                bitmap = photo.previewBitmap,
+                                contentDescription = photo.fileName,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .align(Alignment.BottomStart)
+                                    .clip(CircleShape)
+                                    .border(1.5.dp, Gold, CircleShape)
+                                    .clickable { showPhotoLightbox = true }
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(18.dp)
+                                    .align(Alignment.TopEnd)
+                                    .clip(CircleShape)
+                                    .background(SpaceBlack.copy(alpha = 0.85f))
+                                    .border(1.dp, Rose500, CircleShape)
+                                    .clickable { FalconCameraController.clearLastCapturedPhoto() },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Foto verwerfen",
+                                    tint = Rose500,
+                                    modifier = Modifier.size(11.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Center: Large 64.dp Gold-Puls-Button (Live Call Start / Stop; 0 Tokens when Idle!)
+                Box(contentAlignment = Alignment.Center) {
+                    Box(
+                        modifier = Modifier
+                            .size(78.dp)
+                            .scale(pulseScale)
+                            .background(
+                                brush = Brush.radialGradient(
+                                    colors = listOf(
+                                        (if (isConnected) Emerald500 else Gold).copy(alpha = 0.34f),
+                                        Color.Transparent
+                                    )
+                                ),
+                                shape = CircleShape
+                            )
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .size(64.dp)
+                            .clip(CircleShape)
+                            .background(if (isConnected) Rose500 else Gold)
+                            .border(
+                                2.dp,
+                                if (isConnected) Color.White.copy(alpha = 0.35f) else Gold,
+                                CircleShape
+                            )
+                            .clickable {
+                                if (isConnected || isConnecting) {
+                                    viewModel.disconnectLiveChat()
+                                } else {
+                                    val hasMic = ContextCompat.checkSelfPermission(
+                                        context,
+                                        Manifest.permission.RECORD_AUDIO
+                                    ) == PackageManager.PERMISSION_GRANTED
+                                    if (hasMic) {
+                                        SoundManager.playSound(R.raw.open_project_brain)
+                                        viewModel.startLiveChat()
+                                    } else {
+                                        micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                    }
+                                }
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (isConnecting) {
+                            CircularProgressIndicator(
+                                color = SpaceBlack,
+                                strokeWidth = 2.5.dp,
+                                modifier = Modifier.size(26.dp)
+                            )
+                        } else {
+                            Icon(
+                                imageVector = if (isConnected) Icons.Default.CallEnd else Icons.Default.Mic,
+                                contentDescription = if (isConnected) "Gespräch beenden" else "Mit Falcon sprechen",
+                                tint = if (isConnected) Color.White else SpaceBlack,
+                                modifier = Modifier.size(27.dp)
+                            )
+                        }
+                    }
+                }
+
+                // Right: Direkt-Aufträge & Text-Sheet Button (with agOpenCount badge)
+                Box(
+                    modifier = Modifier.weight(1f),
+                    contentAlignment = Alignment.CenterEnd
+                ) {
+                    Box(modifier = Modifier.size(50.dp)) {
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .align(Alignment.BottomStart)
+                                .clip(CircleShape)
+                                .background(AppTheme.colors.cardBackground.copy(alpha = 0.90f))
+                                .border(1.dp, Gold.copy(alpha = 0.60f), CircleShape)
+                                .clickable { showDirectInboxSheet = true },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Bolt,
+                                contentDescription = "Direktnachricht",
+                                tint = Gold,
+                                modifier = Modifier.size(21.dp)
+                            )
+                        }
+
+                        if (agOpenCount > 0) {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .clip(RoundedCornerShape(50))
+                                    .background(Gold)
+                                    .padding(horizontal = 6.dp, vertical = 1.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = agOpenCount.toString(),
+                                    fontSize = 10.5.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = SpaceBlack
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

@@ -54,6 +54,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -61,8 +62,10 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import de.meinseelenfunke.app.di.ServiceLocator
 import de.meinseelenfunke.app.ui.screens.ChatScreen
+import de.meinseelenfunke.app.ui.screens.FalconFocusScreen
 import de.meinseelenfunke.app.ui.screens.FinanceScreen
 import de.meinseelenfunke.app.ui.screens.FunkiraLiveScreen
+import de.meinseelenfunke.app.ui.screens.FunkiraLiveViewModel
 import de.meinseelenfunke.app.ui.screens.SettingsScreen
 import de.meinseelenfunke.app.ui.screens.LoginScreen
 import de.meinseelenfunke.app.ui.screens.OrganizerScreen
@@ -101,6 +104,7 @@ sealed class Screen(val route: String, val title: String = "", val icon: ImageVe
     object Settings : Screen("settings", "Einstellungen", Icons.Default.Settings)
     object Orders : Screen("orders", "Bestellungen", Icons.Default.ShoppingCart)
     object LiveVoice : Screen("live_voice")
+    object FalconFocus : Screen("falcon_focus")
 }
 
 @Composable
@@ -229,14 +233,19 @@ fun AppNavigation(
         }
     }
 
+    var wakeWordAutoStart by remember { mutableStateOf(false) }
+
     LaunchedEffect(navController) {
         de.meinseelenfunke.app.util.NavigationBridge.wakeWordTrigger.collect {
             if (ServiceLocator.authRepository.isLoggedIn() && isBiometricUnlocked) {
                 try {
+                    val isAdminNow = ServiceLocator.getUserType() == "admin" || ServiceLocator.userTypeState.value == "admin"
+                    val targetRoute = if (isAdminNow) Screen.FalconFocus.route else Screen.LiveVoice.route
                     val currentRoute = navController.currentDestination?.route
-                    if (currentRoute != Screen.LiveVoice.route) {
-                        de.meinseelenfunke.app.util.NavigationBridge.pendingWakeWordTrigger = false
-                        navController.navigate(Screen.LiveVoice.route)
+                    de.meinseelenfunke.app.util.NavigationBridge.pendingWakeWordTrigger = false
+                    if (isAdminNow) wakeWordAutoStart = true
+                    if (currentRoute != targetRoute) {
+                        navController.navigate(targetRoute) { launchSingleTop = true }
                     }
                 } catch (e: IllegalStateException) {
                     // NavController graph is not yet initialized; preserve the pending trigger so the backstack listener handles it later.
@@ -249,9 +258,12 @@ fun AppNavigation(
         navController.currentBackStackEntryFlow.collect { backStackEntry ->
             if (de.meinseelenfunke.app.util.NavigationBridge.pendingWakeWordTrigger) {
                 if (ServiceLocator.authRepository.isLoggedIn() && isBiometricUnlocked) {
-                    if (backStackEntry.destination.route != Screen.LiveVoice.route) {
-                        de.meinseelenfunke.app.util.NavigationBridge.pendingWakeWordTrigger = false
-                        navController.navigate(Screen.LiveVoice.route)
+                    val isAdminNow = ServiceLocator.getUserType() == "admin" || ServiceLocator.userTypeState.value == "admin"
+                    val targetRoute = if (isAdminNow) Screen.FalconFocus.route else Screen.LiveVoice.route
+                    de.meinseelenfunke.app.util.NavigationBridge.pendingWakeWordTrigger = false
+                    if (isAdminNow) wakeWordAutoStart = true
+                    if (backStackEntry.destination.route != targetRoute) {
+                        navController.navigate(targetRoute) { launchSingleTop = true }
                     }
                 }
             }
@@ -274,7 +286,35 @@ fun AppNavigation(
             }
         )
     } else {
-        val startDestination = remember { if (ServiceLocator.authRepository.isLoggedIn()) "main" else Screen.Login.route }
+        val sharedLiveViewModel: FunkiraLiveViewModel = viewModel()
+        val startDestination = remember {
+            if (!ServiceLocator.authRepository.isLoggedIn()) {
+                Screen.Login.route
+            } else {
+                val isAdminRole = ServiceLocator.getUserType() == "admin" || ServiceLocator.userTypeState.value == "admin"
+                val hasPendingDeepLink = de.meinseelenfunke.app.util.NavigationBridge.pendingTarget != null ||
+                    de.meinseelenfunke.app.util.NavigationBridge.pendingTab != null
+                if (isAdminRole && !hasPendingDeepLink) Screen.FalconFocus.route else "main"
+            }
+        }
+
+        val performLogout: () -> Unit = {
+            sharedLiveViewModel.disconnectLiveChat()
+            de.meinseelenfunke.app.util.FalconCameraController.stopCamera()
+            AppUpdateManager.resetOnLogout(context)
+            ServiceLocator.authRepository.logout()
+            isLoggedIn = false
+            isBiometricUnlocked = false
+            navController.navigate(Screen.Login.route) {
+                popUpTo(0) { inclusive = true }
+            }
+        }
+
+        LaunchedEffect(Unit) {
+            de.meinseelenfunke.app.util.NavigationBridge.logoutTrigger.collect {
+                performLogout()
+            }
+        }
 
         NavHost(
             navController = navController,
@@ -317,30 +357,51 @@ fun AppNavigation(
                     onLoginSuccess = {
                         isLoggedIn = true
                         isBiometricUnlocked = true
-                        navController.navigate("main") {
+                        val isAdminAfterLogin = ServiceLocator.getUserType() == "admin" ||
+                            ServiceLocator.userTypeState.value == "admin"
+                        val dest = if (isAdminAfterLogin) Screen.FalconFocus.route else "main"
+                        navController.navigate(dest) {
                             popUpTo(Screen.Login.route) { inclusive = true }
                         }
                     }
                 )
             }
+            composable(Screen.FalconFocus.route) {
+                FalconFocusScreen(
+                    onOpenDashboard = {
+                        navController.navigate("main") {
+                            launchSingleTop = true
+                        }
+                    },
+                    autoStartVoice = wakeWordAutoStart,
+                    onConsumedAutoStartVoice = { wakeWordAutoStart = false },
+                    viewModel = sharedLiveViewModel
+                )
+            }
             composable("main") {
                 MainTabbedScreen(
                     navController = navController,
-                    onNavigateToLiveChat = { navController.navigate(Screen.LiveVoice.route) },
-                    onLogout = {
-                        AppUpdateManager.resetOnLogout(context)
-                        ServiceLocator.authRepository.logout()
-                        isLoggedIn = false
-                        isBiometricUnlocked = false
-                        navController.navigate(Screen.Login.route) {
-                            popUpTo(0) { inclusive = true }
+                    onNavigateToLiveChat = {
+                        val isAdminNow = ServiceLocator.getUserType() == "admin" ||
+                            ServiceLocator.userTypeState.value == "admin"
+                        if (isAdminNow) {
+                            val popped = navController.popBackStack(Screen.FalconFocus.route, inclusive = false)
+                            if (!popped) {
+                                navController.navigate(Screen.FalconFocus.route) {
+                                    launchSingleTop = true
+                                }
+                            }
+                        } else {
+                            navController.navigate(Screen.LiveVoice.route)
                         }
-                    }
+                    },
+                    onLogout = performLogout
                 )
             }
             composable(Screen.LiveVoice.route) {
                 FunkiraLiveScreen(
-                    onBack = { navController.popBackStack() }
+                    onBack = { navController.popBackStack() },
+                    viewModel = sharedLiveViewModel
                 )
             }
         }

@@ -112,7 +112,9 @@ private sealed class LightboxTarget {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AgDirectInboxSheet(
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    initialAttachment: PreparedAgAttachment? = null,
+    onAttachmentSubmitted: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -125,7 +127,7 @@ fun AgDirectInboxSheet(
     var messageText by remember { mutableStateOf("") }
     val checklistItems = remember { mutableStateListOf<String>() }
     var executionMode by remember { mutableStateOf("concept") }
-    var selectedAttachment by remember { mutableStateOf<PreparedAgAttachment?>(null) }
+    var selectedAttachment by remember { mutableStateOf(initialAttachment) }
     var isPreparingImage by remember { mutableStateOf(false) }
     var expandedItemId by remember { mutableStateOf<String?>(null) }
     var lightboxTarget by remember { mutableStateOf<LightboxTarget?>(null) }
@@ -600,6 +602,9 @@ fun AgDirectInboxSheet(
                     checklistItems.clear()
                     selectedAttachment = null
                     executionMode = "concept"
+                    if (attachmentSnapshot != null) {
+                        onAttachmentSubmitted()
+                    }
 
                     scope.launch {
                         val sentLive = AgDirectInboxManager.submitNewEntry(
@@ -970,6 +975,18 @@ private fun AgHistoryItemCard(
             }
         }
     }
+}
+
+@Composable
+fun AgImageLightboxDialog(
+    bitmap: ImageBitmap,
+    title: String,
+    onDismiss: () -> Unit
+) {
+    AgImageLightboxDialog(
+        target = LightboxTarget.DirectBitmap(bitmap = bitmap, title = title),
+        onDismiss = onDismiss
+    )
 }
 
 @Composable

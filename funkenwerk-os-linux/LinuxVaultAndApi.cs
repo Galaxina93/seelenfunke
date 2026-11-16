@@ -633,6 +633,42 @@ namespace FunkenwerkOSLinux
         private static long s_lastNetActivityUnixMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         private static string s_lastPulseDiagSignature = "";
         private static int s_consecutiveZeroPulseFailures = 0;
+        private static int s_consecutiveRateLimitPulseFailures = 0;
+        private static int s_consecutiveGatewayPulseFailures = 0;
+        private static DateTime s_pulseRateLimitUntilUtc = DateTime.MinValue;
+
+        internal static bool ComputePulseBackoffDecision(
+            int status,
+            int retryAfterHeaderSec,
+            ref int zeroStreak,
+            ref int rateLimitStreak,
+            ref int gatewayStreak,
+            out int backoffSeconds)
+        {
+            backoffSeconds = 0;
+            if (status == 429)
+            {
+                rateLimitStreak++;
+                backoffSeconds = Math.Clamp(retryAfterHeaderSec > 0 ? retryAfterHeaderSec : 30, 15, 120);
+                // Nur bei anhaltender Dauer-Drosselung (>= 8 Zyklen trotz Backoff) melden
+                return rateLimitStreak >= 8;
+            }
+
+            if (status is 502 or 503 or 504)
+            {
+                gatewayStreak++;
+                backoffSeconds = Math.Clamp(retryAfterHeaderSec > 0 ? retryAfterHeaderSec : 15, 10, 60);
+                return gatewayStreak >= 3;
+            }
+
+            if (status == 0)
+            {
+                zeroStreak++;
+                return zeroStreak >= 3;
+            }
+
+            return true;
+        }
 
         private static bool s_initializedOrderTracking;
         private static int s_lastOpenOrders = -1;
@@ -1155,7 +1191,21 @@ namespace FunkenwerkOSLinux
             var sw = Stopwatch.StartNew();
             try
             {
-                var (status, body) = await GetJsonAsync($"{baseUrl}/shop/monitor-pulse", bearer).ConfigureAwait(false);
+                if (DateTime.UtcNow < s_pulseRateLimitUntilUtc &&
+                    LatestPulse != null &&
+                    string.Equals(LatestPulse.Environment, snap.Environment, StringComparison.OrdinalIgnoreCase))
+                {
+                    int remSec = Math.Max(1, (int)Math.Ceiling((s_pulseRateLimitUntilUtc - DateTime.UtcNow).TotalSeconds));
+                    LatestPulse.TimestampLocal = snap.TimestampLocal;
+                    PopulateLocalRoutineAndWorldDefaults(LatestPulse);
+                    if (LatestPulse.IsConnected)
+                    {
+                        LatestPulse.StatusSummary = $"{snap.Environment} · Gedrosselt ({remSec}s)";
+                    }
+                    return LatestPulse;
+                }
+
+                var (status, body, retryAfterSec) = await GetJsonWithRetryAfterAsync($"{baseUrl}/shop/monitor-pulse", bearer).ConfigureAwait(false);
                 if (status == 404 && string.IsNullOrWhiteSpace(body))
                 {
                     (_, body) = await GetJsonAsync($"{baseUrl}/shop/orders?status=all", bearer).ConfigureAwait(false);
@@ -1165,14 +1215,39 @@ namespace FunkenwerkOSLinux
 
                 if (string.IsNullOrWhiteSpace(body))
                 {
-                    snap.IsConnected = false;
-                    snap.StatusSummary = status == 401 || status == 403 ? "Token abgelaufen" : "Offline";
-                    if (status == 0)
+                    bool shouldRecordPulseWarning = ComputePulseBackoffDecision(
+                        status,
+                        retryAfterSec,
+                        ref s_consecutiveZeroPulseFailures,
+                        ref s_consecutiveRateLimitPulseFailures,
+                        ref s_consecutiveGatewayPulseFailures,
+                        out int backoffSec);
+
+                    if (backoffSec > 0)
                     {
-                        s_consecutiveZeroPulseFailures++;
+                        s_pulseRateLimitUntilUtc = DateTime.UtcNow.AddSeconds(backoffSec);
                     }
+
+                    if (!shouldRecordPulseWarning &&
+                        (status == 429 || status is 502 or 503 or 504) &&
+                        LatestPulse != null &&
+                        LatestPulse.IsConnected &&
+                        string.Equals(LatestPulse.Environment, snap.Environment, StringComparison.OrdinalIgnoreCase))
+                    {
+                        LatestPulse.TimestampLocal = snap.TimestampLocal;
+                        PopulateLocalRoutineAndWorldDefaults(LatestPulse);
+                        LatestPulse.StatusSummary = status == 429
+                            ? $"{snap.Environment} · Gedrosselt ({backoffSec}s)"
+                            : $"{snap.Environment} · Kurz-Pause ({backoffSec}s)";
+                        return LatestPulse;
+                    }
+
+                    snap.IsConnected = false;
+                    snap.StatusSummary = status == 401 || status == 403
+                        ? "Token abgelaufen"
+                        : (status == 429 ? $"Gedrosselt ({backoffSec}s)" : "Offline");
+
                     string sig = $"{norm}:{status}";
-                    bool shouldRecordPulseWarning = status != 0 || s_consecutiveZeroPulseFailures >= 3;
                     if (shouldRecordPulseWarning && s_lastPulseDiagSignature != sig)
                     {
                         s_lastPulseDiagSignature = sig;
@@ -1192,11 +1267,15 @@ namespace FunkenwerkOSLinux
                 }
 
                 s_consecutiveZeroPulseFailures = 0;
+                s_consecutiveRateLimitPulseFailures = 0;
+                s_consecutiveGatewayPulseFailures = 0;
+                s_pulseRateLimitUntilUtc = DateTime.MinValue;
                 s_lastPulseDiagSignature = "";
                 snap.IsConnected = true;
                 snap.StatusSummary = $"{snap.Environment} · {snap.LatencyMs} ms";
                 ParsePulseBody(body, snap);
                 LatestPulse = snap;
+                ErrorSentinelAndWatchdog.AutoHealRecoverableHistory(senseHealthy: false, cameraHealthy: false, onlineHealthy: true);
 
                 if (snap.PendingTrichterCount > 0)
                 {
@@ -1523,6 +1602,12 @@ namespace FunkenwerkOSLinux
 
         private static async Task<(int Status, string? Body)> GetJsonAsync(string url, string bearer)
         {
+            var (status, body, _) = await GetJsonWithRetryAfterAsync(url, bearer).ConfigureAwait(false);
+            return (status, body);
+        }
+
+        private static async Task<(int Status, string? Body, int RetryAfterSeconds)> GetJsonWithRetryAfterAsync(string url, string bearer)
+        {
             try
             {
                 using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(9));
@@ -1531,12 +1616,25 @@ namespace FunkenwerkOSLinux
                 req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
                 using var resp = await Http.SendAsync(req, cts.Token).ConfigureAwait(false);
                 int code = (int)resp.StatusCode;
-                if (!resp.IsSuccessStatusCode) return (code, null);
-                return (code, await resp.Content.ReadAsStringAsync(cts.Token).ConfigureAwait(false));
+                int retryAfterSec = 0;
+                if (resp.Headers.RetryAfter != null)
+                {
+                    if (resp.Headers.RetryAfter.Delta.HasValue)
+                    {
+                        retryAfterSec = Math.Max(1, (int)Math.Ceiling(resp.Headers.RetryAfter.Delta.Value.TotalSeconds));
+                    }
+                    else if (resp.Headers.RetryAfter.Date.HasValue)
+                    {
+                        double diff = (resp.Headers.RetryAfter.Date.Value - DateTimeOffset.UtcNow).TotalSeconds;
+                        if (diff > 0) retryAfterSec = Math.Max(1, (int)Math.Ceiling(diff));
+                    }
+                }
+                if (!resp.IsSuccessStatusCode) return (code, null, retryAfterSec);
+                return (code, await resp.Content.ReadAsStringAsync(cts.Token).ConfigureAwait(false), 0);
             }
             catch
             {
-                return (0, null);
+                return (0, null, 0);
             }
         }
 
@@ -1995,11 +2093,18 @@ namespace FunkenwerkOSLinux
                     string comb = $"{ev.Component} {ev.Title} {ev.Message}".ToLowerInvariant();
                     bool isSense = comb.Contains("sense") || comb.Contains("17701") || comb.Contains("ocr") || comb.Contains("face") || comb.Contains("voice");
                     bool isCamAudio = comb.Contains("camera") || comb.Contains("webcam") || comb.Contains("video") || comb.Contains("audio") || comb.Contains("pipewire") || comb.Contains("alsa");
-                    bool isTransientNet = comb.Contains("timeout") || comb.Contains("timed out") || comb.Contains("eai_again") ||
+                    bool isRecoverablePulseStatus = comb.Contains("portal_pulse") &&
+                                                    (comb.Contains("lieferte status 429") || comb.Contains("status 429") ||
+                                                     comb.Contains("status 0") || comb.Contains("status 502") ||
+                                                     comb.Contains("status 503") || comb.Contains("status 504") ||
+                                                     onlineHealthy);
+                    bool isTransientNet = isRecoverablePulseStatus ||
+                                          comb.Contains("timeout") || comb.Contains("timed out") || comb.Contains("eai_again") ||
                                           comb.Contains("tryagain") || comb.Contains("websocket") || comb.Contains("socket") ||
                                           comb.Contains("connection") || comb.Contains("goaway") || comb.Contains("session duration") ||
                                           comb.Contains("portal_pulse") || comb.Contains("status 0") ||
-                                          comb.Contains("401") || comb.Contains("502") || comb.Contains("503") ||
+                                          comb.Contains("lieferte status 429") || comb.Contains("status 429") ||
+                                          comb.Contains("401") || comb.Contains("502") || comb.Contains("503") || comb.Contains("504") ||
                                           comb.Contains("bitte einmalig nas-passwort") ||
                                           string.Equals(ev.Severity, "warning", StringComparison.OrdinalIgnoreCase);
 
@@ -2297,7 +2402,11 @@ namespace FunkenwerkOSLinux
                             healSummary: btHeal.Summary);
                     }
 
-                    // 4. Flush any pending offline queue items
+                    // 4. Auto-heal recoverable transient history entries (Zero-Log-Baseline: sentinel_history.json -> 0 Bytes) & flush queue
+                    AutoHealRecoverableHistory(
+                        senseHealthy: senseOk,
+                        cameraHealthy: cam.HasCamera,
+                        onlineHealthy: SeelenfunkeLinuxApiClient.LatestPulse?.IsConnected == true);
                     await FlushQueueAsync().ConfigureAwait(false);
                 }
                 catch { }

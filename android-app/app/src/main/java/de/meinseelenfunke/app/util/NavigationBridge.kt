@@ -44,6 +44,9 @@ object NavigationBridge {
     var pendingEmailId: String? = null
 
     @Volatile
+    var pendingOpenQuickEntry: Boolean = false
+
+    @Volatile
     var isLiveCallActive: Boolean = false
 
     @Volatile
@@ -51,6 +54,9 @@ object NavigationBridge {
 
     private val _navigationTrigger = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val navigationTrigger: SharedFlow<Unit> = _navigationTrigger.asSharedFlow()
+
+    private val _falconExitFocusTrigger = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val falconExitFocusTrigger: SharedFlow<Unit> = _falconExitFocusTrigger.asSharedFlow()
 
     private val _wakeWordTrigger = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val wakeWordTrigger: SharedFlow<Unit> = _wakeWordTrigger.asSharedFlow()
@@ -134,6 +140,7 @@ object NavigationBridge {
         pendingTab = target.code
         organizerSubTab = subTab
         _navigationTrigger.tryEmit(Unit)
+        _falconExitFocusTrigger.tryEmit(Unit)
     }
 
     fun triggerNavigation(tabIndex: Int, subTab: Int = 0) {

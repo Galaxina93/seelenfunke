@@ -199,6 +199,8 @@ namespace FunkenwerkOSLinux
 
         private static string s_lastConsumedFocusVoicePhrase = "";
         private static DateTime s_lastConsumedFocusVoiceAtUtc = DateTime.MinValue;
+        private static string s_lastConsumedCityVoicePhrase = "";
+        private static DateTime s_lastConsumedCityVoiceAtUtc = DateTime.MinValue;
 
         public static async Task<JsonObject> PollWakeAsync()
         {
@@ -215,7 +217,20 @@ namespace FunkenwerkOSLinux
                     var curSettings = LinuxVaultAndStorage.LoadSettings();
                     bool privacyBlocked = curSettings.TikTokLiveMode ||
                                           string.Equals(EffectivePrivacyIdentity, "visitor", StringComparison.OrdinalIgnoreCase);
-                    if (curSettings.FocusMode && !privacyBlocked)
+
+                    string matchedCityCmd = FunkiraLiveAndMcpEngine.TryMatchSpokenFunkenwerkCityCommand(lastHeard);
+                    if (!string.IsNullOrEmpty(matchedCityCmd) && !privacyBlocked)
+                    {
+                        bool isCityDup = string.Equals(s_lastConsumedCityVoicePhrase, lastHeard, StringComparison.OrdinalIgnoreCase) &&
+                                         (DateTime.UtcNow - s_lastConsumedCityVoiceAtUtc).TotalSeconds < 6.0;
+                        if (!isCityDup)
+                        {
+                            s_lastConsumedCityVoicePhrase = lastHeard;
+                            s_lastConsumedCityVoiceAtUtc = DateTime.UtcNow;
+                            obj["cityVoiceCommand"] = matchedCityCmd;
+                        }
+                    }
+                    else if (curSettings.FocusMode && !privacyBlocked)
                     {
                         string matchedCmd = FunkiraLiveAndMcpEngine.TryMatchSpokenWorkshopFocusCommand(lastHeard);
                         if (!string.IsNullOrEmpty(matchedCmd))
@@ -1664,7 +1679,7 @@ namespace FunkenwerkOSLinux
                 new JsonObject
                 {
                     ["name"] = "minipc_ui_control",
-                    ["description"] = "Steuert die Bildschirmoberfläche auf dem Manufaktur-Mini-PC Monitor: Zurück zur Bestellansicht wechseln (show_orders), Portal-Anmeldefenster bei abgelaufenem Login öffnen (open_login), Fokus-Modus ein-/ausschalten (focus_on, focus_off), Funkenwerk Desktop öffnen (open_desktop), ein Desktop-Programm öffnen (open_app), Funkira schließen (close_funkira), Hintergrundvideo umschalten (wallpaper_video, wallpaper_kosmos) oder den Bestelleingangs-Effekt testen (test_order_celebration).",
+                    ["description"] = "Steuert die Bildschirmoberfläche auf dem Manufaktur-Mini-PC Monitor: Zurück zur Bestellansicht wechseln (show_orders), Portal-Anmeldefenster bei abgelaufenem Login öffnen (open_login), Fokus-Modus ein-/ausschalten (focus_on, focus_off), Funkenwerk Desktop öffnen (open_desktop), ein Desktop-Programm öffnen (open_app), die 3D-Wasserstadt Funkenwerk samt Planeten-Anflug oder Thronsaal öffnen/schließen (open_funkenwerk_city, open_funkenwerk_city_overview, open_throne_room, close_funkenwerk_city), Funkira schließen (close_funkira), Hintergrundvideo umschalten (wallpaper_video, wallpaper_kosmos) oder den Bestelleingangs-Effekt testen (test_order_celebration).",
                     ["parameters"] = new JsonObject
                     {
                         ["type"] = "OBJECT",
@@ -1674,7 +1689,7 @@ namespace FunkenwerkOSLinux
                             {
                                 ["type"] = "STRING",
                                 ["description"] = "Auszuführende Monitor-Aktion.",
-                                ["enum"] = new JsonArray("show_orders", "open_login", "focus_on", "focus_off", "open_desktop", "open_app", "close_funkira", "wallpaper_video", "wallpaper_kosmos", "test_order_celebration")
+                                ["enum"] = new JsonArray("show_orders", "open_login", "focus_on", "focus_off", "open_desktop", "open_app", "open_funkenwerk_city", "open_funkenwerk_city_overview", "open_throne_room", "close_funkenwerk_city", "close_funkira", "wallpaper_video", "wallpaper_kosmos", "test_order_celebration")
                             },
                             ["app"] = new JsonObject
                             {
@@ -2096,6 +2111,41 @@ namespace FunkenwerkOSLinux
                 norm.Contains("versandlabel drucken", StringComparison.Ordinal))
             {
                 return "ship_and_next";
+            }
+
+            return "";
+        }
+
+        public static string TryMatchSpokenFunkenwerkCityCommand(string? rawText)
+        {
+            if (string.IsNullOrWhiteSpace(rawText)) return "";
+            string norm = Regex.Replace(rawText.Trim().ToLowerInvariant(), @"[^a-zäöüß0-9\s]", " ");
+            norm = Regex.Replace(norm, @"\s+", " ").Trim();
+            if (string.IsNullOrEmpty(norm)) return "";
+
+            if (norm.Contains("stadt schließen", StringComparison.Ordinal) ||
+                norm.Contains("stadt schliessen", StringComparison.Ordinal) ||
+                norm.Contains("funkenwerk schließen", StringComparison.Ordinal) ||
+                norm.Contains("funkenwerk schliessen", StringComparison.Ordinal) ||
+                norm.Contains("thronsaal schließen", StringComparison.Ordinal) ||
+                norm.Contains("thronsaal schliessen", StringComparison.Ordinal))
+            {
+                return "close_funkenwerk_city";
+            }
+
+            if (norm.Contains("thronsaal", StringComparison.Ordinal) ||
+                norm.Contains("thron saal", StringComparison.Ordinal))
+            {
+                return "open_throne_room";
+            }
+
+            if (norm.Contains("funkenwerk stadt", StringComparison.Ordinal) ||
+                norm.Contains("stadt funkenwerk", StringComparison.Ordinal) ||
+                norm.Contains("wasserstadt", StringComparison.Ordinal) ||
+                norm.Contains("orbit anflug", StringComparison.Ordinal) ||
+                norm.Contains("funken universum", StringComparison.Ordinal))
+            {
+                return "open_funkenwerk_city";
             }
 
             return "";
@@ -2731,7 +2781,7 @@ namespace FunkenwerkOSLinux
             sb.AppendLine("     * minipc_bluetooth_control: WICHTIG! Du steuerst BlueZ & PipeWire direkt auf dem Mini-PC! Wenn Alina sagt 'Verbinde dich mit der Teufel-Anlage', 'Die Teufelanlage ist im Pairing-Modus' oder 'Koppel Bluetooth neu', rufe SOFORT minipc_bluetooth_control auf (bei Pairing-Modus/Neu-Koppeln mit action='pair_and_connect', sonst action='connect'). Behaupte NIEMALS, du könntest kein Bluetooth koppeln!");
             sb.AppendLine("     * minipc_audio_control: Stelle die Lautstärke exakt (0 bis 100) oder relativ lauter/leiser ('volume_up'/'volume_down'), schalte stumm/laut, wechsle zwischen Teufel und internem Lautsprecher ('switch_output') oder teste den Kassen-Sound ('test_chime').");
             sb.AppendLine("     * minipc_wifi_control: Prüfe, scanne oder verbinde das 5-GHz-Werkstatt-WLAN ('easy-AP').");
-            sb.AppendLine("     * minipc_ui_control: Wechsle zur Bestellansicht (action='show_orders'), öffne das Portal-Anmeldefenster auf dem Monitor (action='open_login', danach öffnest du dich automatisch wieder!), schalte Fokus ein/aus ('focus_on'/'focus_off'), öffne Desktop ('open_desktop') oder Programme ('open_app': files, music, notes, calc, tresor, settings, term), schalte das Hintergrundvideo um ('wallpaper_video'/'wallpaper_kosmos') oder schalte dich ab ('close_funkira'). WICHTIG BEIM ABSCHALTEN ('Schalt dich ab', 'Funkira aus', 'Tschüss Funkira', 'Gute Nacht', 'Bis später'): Rufe SOFORT minipc_ui_control mit action='close_funkira' auf und sage herzlich 'Tschüss Alina...' (passend zur Tageszeit). Während du sprichst winkst du ihr zu, und erst wenn du komplett fertig gesprochen hast, löst sich deine Animation in einer kleinen Magie-Lichtanimation auf!");
+            sb.AppendLine("     * minipc_ui_control: Wechsle zur Bestellansicht (action='show_orders'), öffne das Portal-Anmeldefenster auf dem Monitor (action='open_login', danach öffnest du dich automatisch wieder!), schalte Fokus ein/aus ('focus_on'/'focus_off'), öffne Desktop ('open_desktop') oder Programme ('open_app': files, music, notes, calc, tresor, settings, term), öffne die epische 3D-Wasserstadt Funkenwerk mit Planeten-Anflug ('open_funkenwerk_city'), Stadt-Übersicht ('open_funkenwerk_city_overview'), Alinas & Falcons Thronsaal an der Turmspitze ('open_throne_room') oder schließe sie ('close_funkenwerk_city'), schalte das Hintergrundvideo um ('wallpaper_video'/'wallpaper_kosmos') oder schalte dich ab ('close_funkira'). WICHTIG BEIM ABSCHALTEN ('Schalt dich ab', 'Funkira aus', 'Tschüss Funkira', 'Gute Nacht', 'Bis später'): Rufe SOFORT minipc_ui_control mit action='close_funkira' auf und sage herzlich 'Tschüss Alina...' (passend zur Tageszeit). Während du sprichst winkst du ihr zu, und erst wenn du komplett fertig gesprochen hast, löst sich deine Animation in einer kleinen Magie-Lichtanimation auf!");
             sb.AppendLine("     * minipc_camera_capture: Nimm ein scharfes Foto mit der Logitech C920 auf, speichere es unter Meine_Daten und öffne es direkt als Lightbox auf dem Monitor.");
             sb.AppendLine("     * minipc_workshop_helper: Speichere/lies/lösche lokale Werkstatt-Notizen, starte/stoppe/prüfe einen sichtbaren Produktions- oder Laser-Timer auf dem Monitor, liste Dateien in Meine_Daten/Trichter/USB auf ('list_files') oder aktiviere die Nachtruhe bis 08:00 Uhr (vor der Nachtruhe sichert der Mini-PC automatisch alle neuen/geänderten Dateien per Snapshot-Delta auf das Synology-NAS!).");
             sb.AppendLine("     * minipc_document_search: WICHTIG! Dein ultraschnelles lokales Dokumenten-Gedächtnis (SQLite FTS5 Index über alle 3.600+ Unterlagen in 'Meine_Daten' / Windows-Laufwerk Z:\\ sowie alle über '00_Eingang_Trichter' oder per Android-App gescannten Briefe inkl. Offline-OCR)! Sobald Alina nach irgendeinem Brief, Vertrag, Versicherungsschein (z. B. Hiscox, Gebäudeversicherung, Haftpflicht), Haus-/Bauunterlagen, Steuerbescheid, Bank/Darlehen, Behördenschreiben, Gesundheitsdokument oder einem gescannten Trichter-Dokument fragt, rufe SOFORT 'minipc_document_search' (action='search' und bei Detailfragen direkt action='read_document' oder zum Anzeigen action='open_on_monitor') auf! Du kennst in unter 3 Millisekunden den genauen Ablageort UND den Inhalt. Mit action='backup_status' oder 'run_backup_now' prüfst oder startest du außerdem jederzeit das Snapshot-Delta-Backup auf das NAS (//nas/Backups/Unterlagen/Meine_Daten_Backup).");

@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Funkenwerk OS</title>
-  <link rel="stylesheet" href="/styles.css?v=20261113v9" />
+  <link rel="stylesheet" href="/styles.css?v=20261116v25" />
 </head>
 <body>
 
@@ -147,6 +147,14 @@
           </div>
           <button class="pill-btn funkira-btn" id="btn-open-funkira" title="Funkira einschalten (Taste K)">✦ Funkira</button>
           <button class="pill-btn" id="btn-toggle-focus" title="Fokus-Modus (Taste F)">◎ Fokus</button>
+          <button class="pill-btn fw-city-launch-btn" id="btn-open-funkenwerk-city" title="Funkenwerk">
+            <svg class="fw-city-svg-icon" viewBox="0 0 24 24" fill="none" stroke="#C5A059" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="14" r="6.5" />
+              <ellipse cx="12" cy="14" rx="10.5" ry="3.4" transform="rotate(-18 12 14)" />
+              <path d="M12 2.5 L10.2 11.5 H13.8 Z" fill="#C5A059" stroke="#FDE68A" stroke-width="1.1" />
+            </svg>
+            <span>Funkenwerk</span>
+          </button>
         </div>
       </div>
     </div>
@@ -166,6 +174,7 @@
         <button class="start-btn" id="btn-start-menu">✦ FUNKENWERK</button>
         <button class="task-app-btn" id="btn-back-gewerbe">💎 Gewerbe-Monitor</button>
         <button class="task-app-btn funkira-task-btn" id="btn-taskbar-funkira">✦ Funkira</button>
+        <button class="task-app-btn" id="btn-taskbar-funkenwerk-city" title="Funkenwerk">🪐 Funkenwerk</button>
       </div>
       <div class="taskbar-center" id="taskbar-windows"></div>
       <div class="taskbar-right">
@@ -409,7 +418,20 @@
     </div>
   </div>
 
+  <!-- FUNKENWERK 3D WATER METROPOLIS (ORBIT -> ATLANTIS CITY -> THRONSAAL) -->
+  <section id="funkenwerk-city-stage" class="hidden">
+    <canvas id="funkenwerk-city-canvas"></canvas>
+    <div id="fw-city-cloud-veil"></div>
+    <nav class="fw-city-hud-bar" aria-label="Funkenwerk">
+      <button type="button" class="fw-city-hud-btn active" id="btn-fw-city-orbit" title="Orbit">🪐 Orbit-Anflug</button>
+      <button type="button" class="fw-city-hud-btn" id="btn-fw-city-overview" title="Stadt">🏙️ Stadt</button>
+      <button type="button" class="fw-city-hud-btn" id="btn-fw-city-throne" title="Thronsaal">👑 Thronsaal</button>
+      <button type="button" class="fw-city-hud-btn fw-city-close" id="btn-fw-city-close" title="Schließen">✕</button>
+    </nav>
+  </section>
+
   <script type="module" src="/funkira3d.js?v=20261115v24"></script>
-  <script src="/app.js?v=20261115v24"></script>
+  <script type="module" src="/funkenwerk_city_3d.js?v=20261116v25"></script>
+  <script src="/app.js?v=20261116v25"></script>
 </body>
 </html>

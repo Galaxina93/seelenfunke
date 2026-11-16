@@ -89,6 +89,7 @@
   const atelierVideo = document.getElementById('atelier-bg-video');
   let currentWallpaperMode = 'AtelierVideo';
   let serverHasAtelierVideo = true;
+  let funkenwerkCityOpen = false;
 
   function syncAtelierVideoPlayback() {
     if (!atelierVideo) return;
@@ -98,7 +99,7 @@
 
     document.body.classList.toggle('kosmos-wallpaper', useKosmos);
 
-    if (useKosmos || isFocus || isFunkiraOpen) {
+    if (useKosmos || isFocus || isFunkiraOpen || funkenwerkCityOpen) {
       if (!atelierVideo.paused) {
         try { atelierVideo.pause(); } catch { }
       }
@@ -362,6 +363,13 @@
       fpsEl.textContent = `${fps} FPS`;
       fpsFrames = 0;
       fpsTimer = 0;
+    }
+
+    if (funkenwerkCityOpen) {
+      if (funkiraStageOpen) {
+        sampleFunkiraVoiceFormants(dt);
+      }
+      return;
     }
 
     if (funkiraStageOpen) {
@@ -3018,6 +3026,14 @@
       closeFunkiraStageImmediate();
       switchWorkspace('gewerbe');
       triggerOrderCelebration();
+    } else if (act === 'open_funkenwerk_city') {
+      openFunkenwerkCity('orbit');
+    } else if (act === 'open_funkenwerk_city_overview') {
+      openFunkenwerkCity('city');
+    } else if (act === 'open_throne_room') {
+      openFunkenwerkCity('throne');
+    } else if (act === 'close_funkenwerk_city') {
+      closeFunkenwerkCity();
     } else if (act === 'phone_hangup_after_speech') {
       endFunkiraPhoneCallSession(true);
     }
@@ -3420,7 +3436,11 @@
             : (/Treppe|Terrasse/i.test(rm) ? `Auf der ${rm}` : `Im ${rm}`);
           setFunkiraStatusUi(`${icon} ${loc} · Ruf einfach „Funkira“`, 'online');
         }
-        if (d && d.focusVoiceCommand && document.body.classList.contains('focus-mode') && !funkiraStageOpen) {
+        if (d && d.cityVoiceCommand) {
+          if (d.cityVoiceCommand === 'open_throne_room') openFunkenwerkCity('throne');
+          else if (d.cityVoiceCommand === 'close_funkenwerk_city') closeFunkenwerkCity();
+          else openFunkenwerkCity('orbit');
+        } else if (d && d.focusVoiceCommand && document.body.classList.contains('focus-mode') && !funkiraStageOpen) {
           executeSpokenWorkshopFocusCommand(d.focusVoiceCommand);
         } else if (d && d.triggered) {
           if (funkiraStageOpen && fkIdleAtelierMode) {
@@ -5357,6 +5377,10 @@
         document.getElementById('lightbox-overlay').classList.add('hidden');
         return;
       }
+      if (funkenwerkCityOpen) {
+        closeFunkenwerkCity();
+        return;
+      }
       if (fkCellarOpen) {
         closeFunkiraCellarPanel(false);
         return;
@@ -5452,6 +5476,16 @@
       }
       if (p.shopLevel) fkLatestShopLevel = p.shopLevel;
       updateFaceAndTikTokBadges();
+
+      if (data.pendingCityAction === 'orbit') {
+        openFunkenwerkCity('orbit');
+      } else if (data.pendingCityAction === 'city') {
+        openFunkenwerkCity('city');
+      } else if (data.pendingCityAction === 'throne') {
+        openFunkenwerkCity('throne');
+      } else if (data.pendingCityAction === 'close' && funkenwerkCityOpen) {
+        closeFunkenwerkCity();
+      }
 
       if (data.pendingStageAction === 'open') {
         if (!funkiraStageOpen) openFunkiraStage();
@@ -6553,6 +6587,45 @@
   function esc(s) {
     return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
   }
+
+  // =========================================================================
+  // FUNKENWERK 3D WATER METROPOLIS OVERLAY CONTROL (0% LOAD WHEN CLOSED)
+  // =========================================================================
+  function openFunkenwerkCity(initialMode = 'orbit') {
+    const stageEl = document.getElementById('funkenwerk-city-stage');
+    if (!stageEl) return;
+    funkenwerkCityOpen = true;
+    stageEl.classList.remove('hidden');
+    document.body.classList.add('funkenwerk-city-open');
+    syncAtelierVideoPlayback();
+
+    const tryStart = (attempt = 0) => {
+      if (!funkenwerkCityOpen) return;
+      if (window.FunkenwerkCity3D) {
+        window.FunkenwerkCity3D.open(initialMode);
+      } else if (attempt < 25) {
+        setTimeout(() => tryStart(attempt + 1), 60);
+      }
+    };
+    tryStart(0);
+  }
+
+  function closeFunkenwerkCity() {
+    funkenwerkCityOpen = false;
+    document.getElementById('funkenwerk-city-stage')?.classList.add('hidden');
+    document.body.classList.remove('funkenwerk-city-open');
+    if (window.FunkenwerkCity3D) {
+      window.FunkenwerkCity3D.close();
+    }
+    syncAtelierVideoPlayback();
+  }
+
+  document.getElementById('btn-open-funkenwerk-city')?.addEventListener('click', () => openFunkenwerkCity('orbit'));
+  document.getElementById('btn-taskbar-funkenwerk-city')?.addEventListener('click', () => openFunkenwerkCity('orbit'));
+  document.getElementById('btn-fw-city-orbit')?.addEventListener('click', () => window.FunkenwerkCity3D?.startOrbitalFlyIn());
+  document.getElementById('btn-fw-city-overview')?.addEventListener('click', () => window.FunkenwerkCity3D?.flyToCityOverview(false));
+  document.getElementById('btn-fw-city-throne')?.addEventListener('click', () => window.FunkenwerkCity3D?.flyToThroneRoom(false));
+  document.getElementById('btn-fw-city-close')?.addEventListener('click', () => closeFunkenwerkCity());
 
   async function copyWithFallback(text) {
     if (navigator.clipboard && window.isSecureContext) {

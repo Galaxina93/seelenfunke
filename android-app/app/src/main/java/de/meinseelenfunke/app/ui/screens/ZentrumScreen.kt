@@ -304,6 +304,7 @@ fun ZentrumScreen(
                         isAdmin = isAdmin,
                         falconOpenCount = agOpenCount,
                         onOpenFalconDirect = { showAgDirectInboxSheet = true },
+                        onOpenFalconFocus = onNavigateToLiveChat,
                         onNavigateToFinances = onNavigateToFinances,
                         onNavigateToOrganizer = onNavigateToOrganizer,
                         onNavigateToOrders = onNavigateToOrders,
@@ -366,6 +367,7 @@ fun DashboardContent(
     isAdmin: Boolean = false,
     falconOpenCount: Int = 0,
     onOpenFalconDirect: () -> Unit = {},
+    onOpenFalconFocus: () -> Unit = {},
     onNavigateToFinances: () -> Unit,
     onNavigateToOrganizer: (subTab: Int) -> Unit,
     onNavigateToOrders: () -> Unit = {},
@@ -405,7 +407,15 @@ fun DashboardContent(
     FinanceDashboardCard(kpis = kpis, onClick = onNavigateToFinances)
 
     // 3. BELEG ERFASSEN & SCHNELLEINTRAG
-    var isQuickEntryExpanded by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    var isQuickEntryExpanded by androidx.compose.runtime.saveable.rememberSaveable {
+        mutableStateOf(de.meinseelenfunke.app.util.NavigationBridge.pendingOpenQuickEntry)
+    }
+    LaunchedEffect(Unit) {
+        if (de.meinseelenfunke.app.util.NavigationBridge.pendingOpenQuickEntry) {
+            de.meinseelenfunke.app.util.NavigationBridge.pendingOpenQuickEntry = false
+            isQuickEntryExpanded = true
+        }
+    }
     val isUploading by viewModel.isUploading.collectAsState()
     val isAiScanning by viewModel.isAiScanning.collectAsState()
     val actionResult by viewModel.actionResult.collectAsState()
@@ -552,12 +562,13 @@ fun DashboardContent(
                             .clip(CircleShape)
                             .background(Gold.copy(alpha = 0.16f))
                             .border(1.dp, Gold.copy(alpha = 0.65f), CircleShape)
+                            .clickable(onClick = onOpenFalconFocus)
                             .padding(2.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Image(
                             painter = painterResource(id = R.drawable.falcon_avatar),
-                            contentDescription = "Falcon",
+                            contentDescription = "Falcon 3D Fokus",
                             contentScale = ContentScale.Fit,
                             modifier = Modifier.fillMaxSize()
                         )
@@ -596,6 +607,22 @@ fun DashboardContent(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(50))
+                            .background(Gold.copy(alpha = 0.16f))
+                            .border(1.dp, Gold.copy(alpha = 0.55f), RoundedCornerShape(50))
+                            .clickable(onClick = onOpenFalconFocus)
+                            .padding(horizontal = 9.dp, vertical = 4.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "3D Fokus",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Gold
+                        )
+                    }
                     if (falconOpenCount > 0) {
                         Box(
                             modifier = Modifier

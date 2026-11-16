@@ -211,12 +211,19 @@ class FunkiraSkillPoolAndFunkiIsolationTest extends TestCase
     public function test_is_funkira_helper_and_live_credentials_endpoint_succeed(): void
     {
         $this->seed(AiAgentSeeder::class);
+        $falcon = AiAgent::where('name', 'Falcon')->firstOrFail();
         $funkira = AiAgent::where('name', 'Funkira')->firstOrFail();
         $funki = AiAgent::where('name', 'Funki')->firstOrFail();
 
+        $this->assertTrue(FunkiraSkillPoolService::isExecutiveRoot($falcon));
+        $this->assertTrue(FunkiraSkillPoolService::isExecutiveRoot($funkira));
+        $this->assertTrue(FunkiraSkillPoolService::isFunkira($falcon));
         $this->assertTrue(FunkiraSkillPoolService::isFunkira($funkira));
         $this->assertTrue(FunkiraSkillPoolService::isFunkira('Funkira'));
+        $this->assertTrue(FunkiraSkillPoolService::isFunkira('Falcon'));
         $this->assertTrue(FunkiraSkillPoolService::isFunkira(['name' => 'Funkira']));
+        $this->assertTrue(FunkiraSkillPoolService::isFunkira(['name' => 'Falcon']));
+        $this->assertFalse(FunkiraSkillPoolService::isExecutiveRoot($funki));
         $this->assertFalse(FunkiraSkillPoolService::isFunkira($funki));
         $this->assertFalse(FunkiraSkillPoolService::isFunkira(null));
 

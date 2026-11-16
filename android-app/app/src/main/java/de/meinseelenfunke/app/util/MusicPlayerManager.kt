@@ -153,12 +153,114 @@ object MusicPlayerManager {
     @Volatile
     private var isDuckedForAlarm: Boolean = false
 
-    fun setAlarmDucking(duck: Boolean) {
-        isDuckedForAlarm = duck
-        val targetVol = if (duck) 0.12f else 1.0f
+    @Volatile
+    private var isDuckedForVoice: Boolean = false
+
+    @Volatile
+    private var userVolumeScalar: Float = 1.0f
+
+    fun computeEffectiveVolume(
+        alarmDucked: Boolean = isDuckedForAlarm,
+        voiceDucked: Boolean = isDuckedForVoice,
+        baseVolume: Float = userVolumeScalar
+    ): Float {
+        val clampedBase = baseVolume.coerceIn(0f, 1f)
+        return when {
+            alarmDucked -> 0.12f.coerceAtMost(clampedBase)
+            voiceDucked -> if (clampedBase <= 0.001f) 0f else (clampedBase * 0.22f).coerceIn(0.05f, 0.26f)
+            else -> clampedBase
+        }
+    }
+
+    private fun applyEffectiveVolumeNow() {
+        val targetVol = computeEffectiveVolume()
         try {
             mediaPlayer?.setVolume(targetVol, targetVol)
         } catch (_: Exception) { }
+    }
+
+    fun setAlarmDucking(duck: Boolean) {
+        isDuckedForAlarm = duck
+        applyEffectiveVolumeNow()
+    }
+
+    fun setVoiceDucking(duck: Boolean) {
+        if (isDuckedForVoice == duck) return
+        isDuckedForVoice = duck
+        applyEffectiveVolumeNow()
+    }
+
+    fun setUserVolumePercent(context: Context, percent: Int): Int {
+        val clamped = percent.coerceIn(0, 100)
+        userVolumeScalar = clamped / 100f
+        applyEffectiveVolumeNow()
+        try {
+            val am = context.applicationContext.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+            if (am != null) {
+                val maxVol = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+                if (maxVol > 0) {
+                    val targetIdx = kotlin.math.round((clamped / 100f) * maxVol).toInt().coerceIn(0, maxVol)
+                    am.setStreamVolume(AudioManager.STREAM_MUSIC, targetIdx, 0)
+                }
+            }
+        } catch (_: Exception) { }
+        return clamped
+    }
+
+    fun setShuffleEnabled(context: Context, enabled: Boolean) {
+        val appCtx = context.applicationContext
+        appContext = appCtx
+        _isShuffle.value = enabled
+        MusicWidgetProvider.updateAllWidgets(appCtx)
+        if (_isPlaying.value || _currentTrack.value != null) {
+            MusicPlaybackService.startOrUpdate(appCtx)
+        }
+    }
+
+    fun pauseIfPlaying(context: Context): Boolean {
+        val appCtx = context.applicationContext
+        appContext = appCtx
+        val mp = mediaPlayer
+        return try {
+            if (mp != null && mp.isPlaying) {
+                mp.pause()
+                _isPlaying.value = false
+                MusicPlaybackService.startOrUpdate(appCtx)
+                MusicWidgetProvider.updateAllWidgets(appCtx)
+                true
+            } else {
+                _isPlaying.value = false
+                false
+            }
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    fun resumeOrStart(context: Context) {
+        val appCtx = context.applicationContext
+        if (!_isPlaying.value) {
+            togglePlayPause(appCtx)
+        }
+    }
+
+    fun playQueueFromFalcon(
+        context: Context,
+        tracks: List<MusicTrackDto>,
+        shuffle: Boolean,
+        playlistId: String = "all"
+    ): MusicTrackDto? {
+        if (tracks.isEmpty()) return null
+        val appCtx = context.applicationContext
+        appContext = appCtx
+        _activePlaylistId.value = playlistId
+        _isShuffle.value = shuffle
+        currentQueue = tracks
+        val cachedPool = tracks.filter { isTrackCached(appCtx, it.id) }
+        val pool = if (cachedPool.isNotEmpty()) cachedPool else tracks
+        val chosen = if (shuffle) pool.random() else pool.first()
+        playTrack(appCtx, chosen, tracks)
+        return chosen
     }
 
     private val _playlists = MutableStateFlow<List<MusicPlaylistDto>>(emptyList())
@@ -1466,7 +1568,7 @@ object MusicPlayerManager {
                 }
 
                 requestAudioFocus(appCtx)
-                val initialVol = if (isDuckedForAlarm) 0.12f else 1.0f
+                val initialVol = computeEffectiveVolume()
                 mp.setVolume(initialVol, initialVol)
                 mp.start()
 

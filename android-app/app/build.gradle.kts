@@ -48,8 +48,8 @@ android {
         applicationId = "de.meinseelenfunke.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 23
-        versionName = "1.7.5"
+        versionCode = 24
+        versionName = "1.8.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

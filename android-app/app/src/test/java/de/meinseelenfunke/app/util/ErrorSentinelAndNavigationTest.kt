@@ -129,4 +129,76 @@ class ErrorSentinelAndNavigationTest {
         assertEquals(NavigationBridge.NavTarget.ORDERS, NavigationBridge.consumePendingTarget())
         assertNull("consumePendingTarget must clear pending state after consumption", NavigationBridge.consumePendingTarget())
     }
+
+    @Test
+    fun funkiraLiveWsFiltersTransientSocketDisconnectsWhileCapturingRealErrorsWithDynamicVersion() {
+        ServiceLocator.clearAuthToken()
+        ErrorSentinelReporter.clearQueue(context)
+        File(context.filesDir, "error_sentinel_history.json").delete()
+
+        val queueFile = File(context.filesDir, "error_sentinel_queue.json")
+
+        // 1. Transient WebSocket stream-end / handover / offline exceptions MUST NOT enqueue bug dossiers
+        val transientCases = listOf<Throwable>(
+            java.io.EOFException(),
+            java.net.SocketException("Connection reset"),
+            java.net.SocketException("Software caused connection abort"),
+            java.net.SocketTimeoutException(),
+            java.net.UnknownHostException("stage.mein-seelenfunke.de"),
+            javax.net.ssl.SSLException("Read error: ssl=0x0, I/O error during system call, Software caused connection abort"),
+            javax.net.ssl.SSLException("Write error: Connection reset by peer")
+        )
+        for (transient in transientCases) {
+            assertTrue(
+                "Expected transient classification for ${transient.javaClass.simpleName}: ${transient.message}",
+                ErrorSentinelReporter.isTransientWebSocketDisconnect(transient, httpStatus = null)
+            )
+            ErrorSentinelReporter.captureError(
+                context = context,
+                tag = "funkira_live_ws",
+                message = "Verbindung kurz unterbrochen",
+                throwable = transient,
+                extraContext = mapOf("http_status" to "0")
+            )
+        }
+        assertFalse("Transient funkira_live_ws disconnects must not create error_sentinel_queue.json", queueFile.exists())
+
+        // 2. Real TLS handshake / certificate errors, HTTP 4xx/5xx upgrade rejections, and code/JSON bugs MUST be captured
+        assertFalse(
+            ErrorSentinelReporter.isTransientWebSocketDisconnect(
+                javax.net.ssl.SSLHandshakeException("Chain validation failed"),
+                httpStatus = null
+            )
+        )
+        assertFalse(
+            ErrorSentinelReporter.isTransientWebSocketDisconnect(
+                java.io.EOFException(),
+                httpStatus = 401
+            )
+        )
+        assertFalse(
+            ErrorSentinelReporter.isTransientWebSocketDisconnect(
+                com.google.gson.JsonSyntaxException("Malformed JSON frame"),
+                httpStatus = null
+            )
+        )
+
+        ErrorSentinelReporter.captureError(
+            context = context,
+            tag = "funkira_live_ws",
+            message = "Verbindungsfehler (HTTP 401)",
+            throwable = java.net.ProtocolException("Expected HTTP 101 response but was '401 Unauthorized'"),
+            extraContext = mapOf("http_status" to "401")
+        )
+        assertTrue("Real HTTP 401 WebSocket handshake error must be queued", queueFile.exists())
+
+        val latest = ErrorSentinelReporter.getRecentHistory(context, limit = 5).firstOrNull()
+        assertTrue(latest != null)
+        assertEquals("error", latest!!.severity)
+        assertFalse(latest.auto_healed)
+        assertEquals(
+            "${de.meinseelenfunke.app.BuildConfig.VERSION_NAME} (${de.meinseelenfunke.app.BuildConfig.VERSION_CODE})",
+            latest.app_version
+        )
+    }
 }
