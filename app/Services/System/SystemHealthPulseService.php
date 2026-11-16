@@ -17,7 +17,13 @@ class SystemHealthPulseService
     public const NAS_BACKUP_STATE_FILE = 'app/private/watchtower_nas_backup.json';
 
     public const SSL_CACHE_KEY = 'system_health_pulse_ssl_days_v1';
+    public const LIVE_DOMAIN_CACHE_KEY = 'system_health_pulse_live_domain_v1';
+    public const LIVE_DOMAIN_CACHE_TTL = 300;
+    public const LIVE_PRIMARY_HOST = 'mein-seelenfunke.de';
+    public const LIVE_WWW_HOST = 'www.mein-seelenfunke.de';
     public const MAX_LEDGER_DAYS = 90;
+
+    protected static ?\Closure $liveDomainProbeResolver = null;
 
     private const ALLOWED_SOURCES = [
         'synology_nas' => 'Synology NAS',
@@ -28,16 +34,27 @@ class SystemHealthPulseService
         'dashboard' => 'Admin Dashboard',
     ];
 
+    public static function setLiveDomainProbeResolver(?\Closure $resolver): void
+    {
+        self::$liveDomainProbeResolver = $resolver;
+    }
+
+    public function hasCustomLiveProbeResolver(): bool
+    {
+        return self::$liveDomainProbeResolver !== null;
+    }
+
     /**
      * Zentraler 4-Säulen Health-Puls (Shop & SSL, Cronjobs, Queue-Worker, Backups)
-     * inklusive 90-Tage-Uptime-Historie und Außen-Wächter-Registrierung.
+     * inklusive passivem Mittwald Live-Domain-Puls, 90-Tage-Uptime-Historie und Außen-Wächter-Registrierung.
      */
     public function evaluate(
         ?string $source = null,
         bool $strict = false,
         bool $recordSample = true,
         bool $syncLogs = false,
-        ?int $overrideSslDays = null
+        ?int $overrideSslDays = null,
+        ?array $overrideLiveDomain = null
     ): array {
         $startedAt = microtime(true);
         $now = now();
@@ -51,6 +68,7 @@ class SystemHealthPulseService
         $cronPillar = $this->evaluateCronjobsPillar($effectiveStrict, $now);
         $queuePillar = $this->evaluateQueuesPillar($effectiveStrict, $now);
         $backupPillar = $this->evaluateBackupsPillar($effectiveStrict, $now);
+        $liveDomain = $this->evaluateLiveDomain($effectiveStrict, $overrideLiveDomain);
 
         $pillars = [
             'shop' => $shopPillar,
@@ -76,12 +94,27 @@ class SystemHealthPulseService
             }
         }
 
+        $liveSt = (string) ($liveDomain['status'] ?? 'ok');
+        if ($liveSt === 'critical') {
+            $overallStatus = 'critical';
+            $criticalPillars[] = 'live_domain';
+        } elseif ($liveSt === 'warning') {
+            if ($overallStatus === 'ok') {
+                $overallStatus = 'warning';
+            }
+            $warningPillars[] = 'live_domain';
+        }
+
         $uptimeSummary = $recordSample
             ? $this->recordAndSummarizeUptime($overallStatus, $shopPillar['status'] === 'ok', $now)
             : $this->summarizeUptime($now);
 
         if ($syncLogs) {
-            $this->syncWithSystemLogs($pillars, $now);
+            $syncTargets = $pillars;
+            if (!empty($liveDomain['probed'])) {
+                $syncTargets['live_domain'] = $liveDomain;
+            }
+            $this->syncWithSystemLogs($syncTargets, $now);
         }
 
         $watchtowerSummary = $this->getWatchtowerNodesSummary($now);
@@ -105,6 +138,7 @@ class SystemHealthPulseService
             'tracked_days_count' => $uptimeSummary['tracked_days_count'],
             'daily_bars' => $uptimeSummary['daily_bars'],
             'pillars' => $pillars,
+            'live_domain' => $liveDomain,
             'watchtower' => $watchtowerSummary,
         ];
     }
@@ -148,6 +182,394 @@ class SystemHealthPulseService
             }
         }
         Cache::forget(self::SSL_CACHE_KEY);
+        Cache::forget(self::LIVE_DOMAIN_CACHE_KEY);
+        self::$liveDomainProbeResolver = null;
+    }
+
+    /**
+     * Liefert gecachte oder frisch gelesene Live-Domain-Messdaten (5 Minuten TTL via Cache::remember).
+     */
+    public function getCachedOrProbeLiveDomains(bool $forceRefresh = false): array
+    {
+        if ($forceRefresh) {
+            Cache::forget(self::LIVE_DOMAIN_CACHE_KEY);
+        }
+
+        return Cache::remember(self::LIVE_DOMAIN_CACHE_KEY, self::LIVE_DOMAIN_CACHE_TTL, function (): array {
+            if (self::$liveDomainProbeResolver !== null) {
+                $custom = (self::$liveDomainProbeResolver)();
+                if (is_array($custom)) {
+                    return $custom;
+                }
+            }
+
+            return $this->probeLiveDomains();
+        });
+    }
+
+    /**
+     * Rein lesender HTTPS-Check (0 Schreibzugriffe) für https://mein-seelenfunke.de (max. 3.0s Timeout)
+     * sowie passiver Ingress-Check für https://www.mein-seelenfunke.de (1.5s Timeout).
+     */
+    public function probeLiveDomains(): array
+    {
+        $primary = $this->probeHttpsEndpointReadOnly(self::LIVE_PRIMARY_HOST, '/', 2.8);
+
+        // Falls Root einen Redirect (301/302/307/308) liefert, 1 Hop lesend auflösen
+        if (
+            $primary['reachable']
+            && in_array($primary['http_status'], [301, 302, 307, 308], true)
+            && !empty($primary['location'])
+        ) {
+            $locUrl = (string) $primary['location'];
+            $locHost = strtolower((string) (parse_url($locUrl, PHP_URL_HOST) ?: self::LIVE_PRIMARY_HOST));
+            $locPath = (string) (parse_url($locUrl, PHP_URL_PATH) ?: '/');
+            if (in_array($locHost, [self::LIVE_PRIMARY_HOST, self::LIVE_WWW_HOST], true)) {
+                $followed = $this->probeHttpsEndpointReadOnly($locHost, $locPath, 2.2);
+                if ($followed['reachable']) {
+                    $primary['http_status'] = $followed['http_status'];
+                    $primary['body_bytes'] = $followed['body_bytes'];
+                    $primary['has_shop_markers'] = $followed['has_shop_markers'];
+                    $primary['latency_ms'] = round($primary['latency_ms'] + $followed['latency_ms'], 2);
+                }
+            }
+        }
+
+        $mode = $this->classifyLiveDomainMode(
+            (bool) $primary['reachable'],
+            (int) $primary['http_status'],
+            (int) $primary['body_bytes'],
+            (bool) $primary['has_shop_markers']
+        );
+
+        $www = $this->probeHttpsEndpointReadOnly(self::LIVE_WWW_HOST, '/', 1.5);
+        $wwwIngressActive = $www['reachable'] && $www['http_status'] > 0 && ($www['http_status'] < 500 || $www['http_status'] === 503);
+
+        return [
+            'probed' => true,
+            'domain' => self::LIVE_PRIMARY_HOST,
+            'url' => 'https://' . self::LIVE_PRIMARY_HOST,
+            'reachable' => (bool) $primary['reachable'],
+            'http_status' => (int) $primary['http_status'],
+            'latency_ms' => (float) $primary['latency_ms'],
+            'ssl_days_remaining' => $primary['ssl_days_remaining'],
+            'ssl_valid_until' => $primary['ssl_valid_until'],
+            'body_bytes' => (int) $primary['body_bytes'],
+            'has_shop_markers' => (bool) $primary['has_shop_markers'],
+            'mode' => $mode,
+            'www_domain' => self::LIVE_WWW_HOST,
+            'www_ingress_active' => $wwwIngressActive,
+            'www_http_status' => (int) $www['http_status'],
+            'www_status' => $wwwIngressActive ? 'active' : 'pending_ingress',
+            'checked_at' => now()->toIso8601String(),
+        ];
+    }
+
+    /**
+     * Klassifiziert den Betriebsmodus von mein-seelenfunke.de:
+     * - 'maintenance' bei HTTP 503 (gewollter Vorab-Schutz -> gesund/ok!)
+     * - 'placeholder' bei HTTP 200 und Body < 12000 Bytes ohne Laravel/Livewire-Shop-Marker (-> technisch ok!)
+     * - 'live_shop' bei HTTP 200 mit aktivem Laravel/Livewire-Shop
+     * - 'error' bei Nichterreichbarkeit oder HTTP >= 500 (außer 503)
+     */
+    public function classifyLiveDomainMode(bool $reachable, int $httpStatus, int $bodyBytes, bool $hasShopMarkers): string
+    {
+        if (!$reachable || $httpStatus <= 0 || ($httpStatus >= 500 && $httpStatus !== 503)) {
+            return 'error';
+        }
+
+        if ($httpStatus === 503) {
+            return 'maintenance';
+        }
+
+        if ($httpStatus === 200) {
+            if (!$hasShopMarkers && $bodyBytes < 12000) {
+                return 'placeholder';
+            }
+
+            return 'live_shop';
+        }
+
+        if ($httpStatus >= 200 && $httpStatus < 400) {
+            return 'placeholder';
+        }
+
+        return 'error';
+    }
+
+    protected function evaluateLiveDomain(bool $effectiveStrict, ?array $overrideLiveDomain = null): array
+    {
+        if ($overrideLiveDomain !== null) {
+            $raw = $overrideLiveDomain;
+            $enforceStrictThresholds = true;
+        } elseif (self::$liveDomainProbeResolver !== null) {
+            $raw = $this->getCachedOrProbeLiveDomains(false);
+            $enforceStrictThresholds = true;
+        } elseif (app()->runningUnitTests()) {
+            // In isolierten Unit-Tests ohne Override keine echten Internet-Calls auslösen
+            return [
+                'probed' => false,
+                'status' => 'ok',
+                'label' => 'Übersprungen (Testumgebung)',
+                'issues' => [],
+                'domain' => self::LIVE_PRIMARY_HOST,
+                'url' => 'https://' . self::LIVE_PRIMARY_HOST,
+                'reachable' => true,
+                'http_status' => 200,
+                'latency_ms' => 0.0,
+                'ssl_days_remaining' => null,
+                'ssl_valid_until' => null,
+                'mode' => 'placeholder',
+                'www_domain' => self::LIVE_WWW_HOST,
+                'www_ingress_active' => false,
+                'www_http_status' => 0,
+                'www_status' => 'pending_ingress',
+            ];
+        } elseif (!app()->environment('production', 'staging') && !$effectiveStrict && !Cache::has(self::LIVE_DOMAIN_CACHE_KEY)) {
+            // Lokal ohne strict-Flag kein blockierender Netzwerk-Call beim normalen Dashboard-Aufruf
+            return [
+                'probed' => false,
+                'status' => 'ok',
+                'label' => 'Bereit (Auf Abruf lokal)',
+                'issues' => [],
+                'domain' => self::LIVE_PRIMARY_HOST,
+                'url' => 'https://' . self::LIVE_PRIMARY_HOST,
+                'reachable' => true,
+                'http_status' => 200,
+                'latency_ms' => 0.0,
+                'ssl_days_remaining' => null,
+                'ssl_valid_until' => null,
+                'mode' => 'placeholder',
+                'www_domain' => self::LIVE_WWW_HOST,
+                'www_ingress_active' => false,
+                'www_http_status' => 0,
+                'www_status' => 'pending_ingress',
+            ];
+        } else {
+            $raw = $this->getCachedOrProbeLiveDomains(false);
+            $enforceStrictThresholds = $effectiveStrict;
+        }
+
+        $reachable = (bool) ($raw['reachable'] ?? false);
+        $httpStatus = (int) ($raw['http_status'] ?? ($reachable ? 200 : 0));
+        $latencyMs = round((float) ($raw['latency_ms'] ?? 0.0), 2);
+        $sslDays = array_key_exists('ssl_days_remaining', $raw) && $raw['ssl_days_remaining'] !== null
+            ? (int) $raw['ssl_days_remaining']
+            : null;
+        $sslValidUntil = isset($raw['ssl_valid_until']) && $raw['ssl_valid_until'] !== ''
+            ? (string) $raw['ssl_valid_until']
+            : null;
+        $bodyBytes = (int) ($raw['body_bytes'] ?? 0);
+        $hasShopMarkers = (bool) ($raw['has_shop_markers'] ?? false);
+
+        $mode = isset($raw['mode']) && in_array($raw['mode'], ['maintenance', 'placeholder', 'live_shop', 'error'], true)
+            ? (string) $raw['mode']
+            : $this->classifyLiveDomainMode($reachable, $httpStatus, $bodyBytes, $hasShopMarkers);
+
+        $wwwIngressActive = (bool) ($raw['www_ingress_active'] ?? false);
+        $wwwHttpStatus = (int) ($raw['www_http_status'] ?? 0);
+        $wwwStatus = $wwwIngressActive ? 'active' : 'pending_ingress';
+
+        $status = 'ok';
+        $issues = [];
+
+        if ($mode === 'error' || !$reachable || ($httpStatus >= 500 && $httpStatus !== 503)) {
+            $mode = 'error';
+            $status = $this->escalateStatus($status, $enforceStrictThresholds ? 'critical' : 'warning');
+            $issues[] = !$reachable
+                ? 'Live-Domain mein-seelenfunke.de nicht erreichbar'
+                : "Live-Domain mein-seelenfunke.de meldet HTTP {$httpStatus}";
+        }
+
+        if ($sslDays !== null) {
+            if ($sslDays < 7) {
+                $status = $this->escalateStatus($status, $enforceStrictThresholds ? 'critical' : 'warning');
+                $issues[] = "Live-SSL-Zertifikat läuft in {$sslDays} Tagen ab";
+            } elseif ($sslDays < 14) {
+                $status = $this->escalateStatus($status, 'warning');
+                $issues[] = "Live-SSL-Zertifikat läuft in {$sslDays} Tagen ab";
+            }
+        }
+
+        $label = match ($status) {
+            'critical', 'warning' => $issues[0] ?? 'Live-Domain Hinweis',
+            default => match ($mode) {
+                'maintenance' => 'Wartungsmodus aktiv (HTTP 503 · geschützt)',
+                'placeholder' => 'Mittwald-Platzhalter aktiv (HTTP 200)',
+                'live_shop' => $latencyMs > 0 ? "Live-Shop online ({$latencyMs} ms)" : 'Live-Shop online',
+                default => 'Online',
+            },
+        };
+
+        return [
+            'probed' => true,
+            'status' => $status,
+            'label' => $label,
+            'issues' => $issues,
+            'domain' => self::LIVE_PRIMARY_HOST,
+            'url' => 'https://' . self::LIVE_PRIMARY_HOST,
+            'reachable' => $reachable,
+            'http_status' => $httpStatus,
+            'latency_ms' => $latencyMs,
+            'ssl_days_remaining' => $sslDays,
+            'ssl_valid_until' => $sslValidUntil,
+            'mode' => $mode,
+            'www_domain' => self::LIVE_WWW_HOST,
+            'www_ingress_active' => $wwwIngressActive,
+            'www_http_status' => $wwwHttpStatus,
+            'www_status' => $wwwStatus,
+            'checked_at' => $raw['checked_at'] ?? now()->toIso8601String(),
+        ];
+    }
+
+    /**
+     * Führt einen strikt lesenden TLS+HTTP/1.1 GET-Check mit engem Timeout aus (0 Schreibzugriffe).
+     */
+    protected function probeHttpsEndpointReadOnly(string $host, string $path = '/', float $timeoutSeconds = 2.8): array
+    {
+        $t0 = microtime(true);
+        $cleanPath = '/' . ltrim($path, '/');
+
+        try {
+            $ctx = stream_context_create([
+                'ssl' => [
+                    'capture_peer_cert' => true,
+                    'verify_peer' => true,
+                    'verify_peer_name' => true,
+                    'SNI_enabled' => true,
+                    'peer_name' => $host,
+                ],
+            ]);
+
+            $errno = 0;
+            $errstr = '';
+            $client = @stream_socket_client(
+                "ssl://{$host}:443",
+                $errno,
+                $errstr,
+                $timeoutSeconds,
+                STREAM_CLIENT_CONNECT,
+                $ctx
+            );
+
+            if (!$client) {
+                return [
+                    'reachable' => false,
+                    'http_status' => 0,
+                    'latency_ms' => round((microtime(true) - $t0) * 1000, 2),
+                    'ssl_days_remaining' => null,
+                    'ssl_valid_until' => null,
+                    'body_bytes' => 0,
+                    'has_shop_markers' => false,
+                    'location' => null,
+                ];
+            }
+
+            $sec = max(1, (int) floor($timeoutSeconds));
+            $usec = (int) round(($timeoutSeconds - floor($timeoutSeconds)) * 1_000_000);
+            @stream_set_timeout($client, $sec, $usec);
+
+            $sslDaysRemaining = null;
+            $sslValidUntil = null;
+            $params = @stream_context_get_params($client);
+            $certResource = $params['options']['ssl']['peer_certificate'] ?? null;
+            if ($certResource) {
+                $parsed = @openssl_x509_parse($certResource);
+                $validTo = (int) ($parsed['validTo_time_t'] ?? 0);
+                if ($validTo > 0) {
+                    $sslDaysRemaining = (int) floor(($validTo - time()) / 86400);
+                    $sslValidUntil = Carbon::createFromTimestamp($validTo)->toIso8601String();
+                }
+            }
+
+            $req = "GET {$cleanPath} HTTP/1.1\r\n"
+                . "Host: {$host}\r\n"
+                . "User-Agent: Seelenfunke-Watchtower/1.0\r\n"
+                . "Accept: text/html,application/xhtml+xml,*/*\r\n"
+                . "Accept-Encoding: identity\r\n"
+                . "Connection: close\r\n\r\n";
+
+            @fwrite($client, $req);
+
+            $rawResponse = '';
+            $maxReadBytes = 28672;
+            while (!feof($client) && strlen($rawResponse) < $maxReadBytes) {
+                $chunk = @fread($client, 4096);
+                if ($chunk === false || $chunk === '') {
+                    break;
+                }
+                $rawResponse .= $chunk;
+                $meta = @stream_get_meta_data($client);
+                if (!empty($meta['timed_out'])) {
+                    break;
+                }
+            }
+            @fclose($client);
+
+            $latencyMs = round((microtime(true) - $t0) * 1000, 2);
+            if ($rawResponse === '') {
+                return [
+                    'reachable' => false,
+                    'http_status' => 0,
+                    'latency_ms' => $latencyMs,
+                    'ssl_days_remaining' => $sslDaysRemaining,
+                    'ssl_valid_until' => $sslValidUntil,
+                    'body_bytes' => 0,
+                    'has_shop_markers' => false,
+                    'location' => null,
+                ];
+            }
+
+            $parts = explode("\r\n\r\n", $rawResponse, 2);
+            $headerBlock = $parts[0] ?? '';
+            $bodySample = $parts[1] ?? '';
+
+            $httpStatus = 0;
+            if (preg_match('/^HTTP\/\d(?:\.\d)?\s+(\d{3})/i', $headerBlock, $m)) {
+                $httpStatus = (int) $m[1];
+            }
+
+            $contentLength = null;
+            if (preg_match('/^Content-Length:\s*(\d+)/mi', $headerBlock, $clm)) {
+                $contentLength = (int) $clm[1];
+            }
+
+            $location = null;
+            if (preg_match('/^Location:\s*([^\r\n]+)/mi', $headerBlock, $locm)) {
+                $location = trim($locm[1]);
+            }
+
+            $bodyBytes = $contentLength !== null ? max($contentLength, strlen($bodySample)) : strlen($bodySample);
+            $lowerHeader = strtolower($headerBlock);
+            $lowerBody = strtolower($bodySample);
+
+            $hasShopMarkers = str_contains($lowerBody, 'livewire')
+                || str_contains($lowerBody, 'csrf-token')
+                || str_contains($lowerHeader, 'mein_seelenfunke_session')
+                || str_contains($lowerHeader, 'seelenfunke_session');
+
+            return [
+                'reachable' => $httpStatus > 0,
+                'http_status' => $httpStatus,
+                'latency_ms' => $latencyMs,
+                'ssl_days_remaining' => $sslDaysRemaining,
+                'ssl_valid_until' => $sslValidUntil,
+                'body_bytes' => $bodyBytes,
+                'has_shop_markers' => $hasShopMarkers,
+                'location' => $location,
+            ];
+        } catch (\Throwable $ignore) {
+            return [
+                'reachable' => false,
+                'http_status' => 0,
+                'latency_ms' => round((microtime(true) - $t0) * 1000, 2),
+                'ssl_days_remaining' => null,
+                'ssl_valid_until' => null,
+                'body_bytes' => 0,
+                'has_shop_markers' => false,
+                'location' => null,
+            ];
+        }
     }
 
     protected function evaluateShopPillar(bool $strict, ?int $overrideSslDays = null): array
@@ -875,6 +1297,7 @@ class SystemHealthPulseService
             'cronjobs' => 'Cronjobs',
             'queues' => 'Queue-Worker',
             'backups' => 'Backups',
+            'live_domain' => 'Live-Domain',
             default => ucfirst($key),
         };
     }

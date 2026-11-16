@@ -47,6 +47,7 @@ class FunkiraSkillPoolService
         $core = [
             self::EQUIP_TOOL_NAME,
             'system_get_current_time',
+            'system_get_server_status',
             'system_get_error_sentinel',
             'system_prepare_antigravity_handoff',
             'system_open_nav_item',
@@ -268,7 +269,9 @@ class FunkiraSkillPoolService
                 'symptom', 'dr. funki', 'dr funki',
             ],
             'system_global' => [
-                'server', 'log', 'logs', 'backup', 'datenbank', 'fehler', 'bug', 'code', 'dateisystem',
+                'server', 'live-server', 'liveserver', 'stage-server', 'mittwald', 'serverstatus', 'domain',
+                'mein-seelenfunke.de', 'ssl', 'uptime', 'wartungsmodus', 'log', 'logs', 'backup', 'datenbank',
+                'fehler', 'bug', 'code', 'dateisystem',
                 'security', 'sicherheit', 'websocket', 'neural', 'organigramm', 'abteilung', 'agenten',
                 'nachrichten', 'news', 'youtube', 'weltkarte', 'karte', 'urlaub', 'feiertag', 'wetter',
                 'clipboard', 'zwischenablage', 'osint', 'persona', 'systemi', 'agenti', 'globi',
@@ -306,6 +309,13 @@ class FunkiraSkillPoolService
         return array_values(array_unique($matched));
     }
 
+    public static function normalizePoolKey(string $poolKey): string
+    {
+        $clean = strtolower(trim($poolKey));
+
+        return $clean === 'system_workspace' ? 'system_global' : $clean;
+    }
+
     /**
      * Liefert die aktiven Werkzeug-Namen für den aktuellen Moment (Core + ausgerüstete Pools).
      */
@@ -315,8 +325,9 @@ class FunkiraSkillPoolService
         $defs = self::getPoolDefinitions();
 
         foreach ($equippedPools as $poolKey) {
-            if (isset($defs[$poolKey]['tools'])) {
-                $tools = array_merge($tools, $defs[$poolKey]['tools']);
+            $normKey = self::normalizePoolKey((string) $poolKey);
+            if (isset($defs[$normKey]['tools'])) {
+                $tools = array_merge($tools, $defs[$normKey]['tools']);
             }
         }
 
@@ -344,8 +355,9 @@ class FunkiraSkillPoolService
         $defs = self::getPoolDefinitions();
         $blocks = [];
         foreach (array_unique($equippedPools) as $poolKey) {
-            if (isset($defs[$poolKey])) {
-                $blocks[] = "### AKTIVER FÄHIGKEITS-POOL [{$poolKey}] ({$defs[$poolKey]['label']})\n" . $defs[$poolKey]['sop'];
+            $normKey = self::normalizePoolKey((string) $poolKey);
+            if (isset($defs[$normKey])) {
+                $blocks[] = "### AKTIVER FÄHIGKEITS-POOL [{$normKey}] ({$defs[$normKey]['label']})\n" . $defs[$normKey]['sop'];
             }
         }
 
@@ -464,7 +476,7 @@ class FunkiraSkillPoolService
         $briefings = [];
 
         foreach ($requested as $poolKey) {
-            $key = strtolower(trim((string) $poolKey));
+            $key = self::normalizePoolKey((string) $poolKey);
             if (isset($defs[$key])) {
                 $equipped[] = $key;
                 $unlockedTools = array_merge($unlockedTools, $defs[$key]['tools']);

@@ -207,13 +207,14 @@ class FalconSupremeExecutiveBrainTest extends TestCase
         $toolIdentifiers = $falcone->tools->pluck('identifier')->all();
         $this->assertContains(FunkiraSkillPoolService::EQUIP_TOOL_NAME, $toolIdentifiers);
         $this->assertContains('master_get_next_best_actions', $toolIdentifiers);
+        $this->assertContains('system_get_server_status', $toolIdentifiers);
         $this->assertContains('system_get_error_sentinel', $toolIdentifiers);
 
         // Keine KI-Gedankenstriche (" – ")
-        $this->assertStringNotContainsString(' – ', (string) $falcone->role_description);
-        $this->assertStringNotContainsString(' – ', (string) $falcone->system_prompt);
+        $this->assertStringNotContainsString(' ' . "\u{2013}" . ' ', (string) $falcone->role_description);
+        $this->assertStringNotContainsString(' ' . "\u{2013}" . ' ', (string) $falcone->system_prompt);
 
-        // Alle geforderten Executive-, SmartHome-, Inaktivitäts-, Kamera-, Musik- & Antigravity-Direktiven
+        // Alle geforderten Executive-, Server-, SmartHome-, Inaktivitäts-, Kamera-, Musik- & Antigravity-Direktiven
         foreach ([
             'Falcone',
             'F-A-L-C-O-N-E',
@@ -222,6 +223,8 @@ class FalconSupremeExecutiveBrainTest extends TestCase
             'FYRST',
             '2-MINUTEN-INAKTIVITÄTS-NACHFRAGE-DISZIPLIN',
             'master_get_next_best_actions',
+            'system_get_server_status',
+            'mein-seelenfunke.de',
             'system_get_error_sentinel',
             'AUSSCHLIESSLICH AUF EXPLIZITE NACHFRAGE',
             'falcon_music_control',
@@ -244,6 +247,104 @@ class FalconSupremeExecutiveBrainTest extends TestCase
             'attach_captured_photo=true',
         ] as $expectedSnippet) {
             $this->assertStringContainsString($expectedSnippet, (string) $falcone->system_prompt);
+        }
+    }
+
+    public function test_system_get_server_status_executes_for_falcone_supports_force_refresh_and_enforces_role_isolation(): void
+    {
+        $this->seed(AiAgentSeeder::class);
+
+        $falcone = AiAgent::where('name', 'Falcone')->with('role.tools')->firstOrFail();
+        $funki = AiAgent::where('name', 'Funki')->with('role.tools')->firstOrFail();
+
+        // 1. Keyword-Routing & Pool-Zugehörigkeit (Core + system_global / system_workspace)
+        $this->assertContains('system_get_server_status', FunkiraSkillPoolService::getCoreToolIdentifiers());
+        $this->assertContains('system_get_server_status', FunkiraSkillPoolService::getActiveToolIdentifiers(['system_global']));
+        $this->assertContains('system_get_server_status', FunkiraSkillPoolService::getActiveToolIdentifiers(['system_workspace']));
+
+        foreach (['Wie läuft der Mittwald Live-Server?', 'Prüfe SSL und Domain mein-seelenfunke.de', 'Serverstatus und Uptime'] as $msg) {
+            $this->assertContains('system_global', FunkiraSkillPoolService::detectPoolsForRequest($msg));
+        }
+
+        // 2. Migration 2026_11_16_160500 aktualisiert Falcone idempotent
+        $falcone->update(['system_prompt' => 'Alter Prompt ohne Serverstatus']);
+        $mig = require base_path('database/migrations/2026_11_16_160500_add_live_server_status_tool_to_falcone.php');
+        $mig->applyUpgrade();
+        $this->assertStringContainsString('system_get_server_status', (string) $falcone->fresh()->system_prompt);
+
+        // 3. Rollen- & Air-Gap-Schutz: Unauthentifiziert, Kunde, interne Mitarbeiter, Influencer, Steuerberater & Funki -> gesperrt!
+        $guestRes = AIFunctionsRegistry::executeGetServerStatus([]);
+        $this->assertTrue($guestRes['error'] ?? false);
+
+        $customer = Customer::factory()->create();
+        Auth::guard('customer')->login($customer);
+        $custRes = AIFunctionsRegistry::execute('system_get_server_status', [], $falcone);
+        $this->assertTrue($custRes['error'] ?? false);
+        Auth::guard('customer')->logout();
+
+        foreach (['internal', 'influencer', 'tax_advisor'] as $empRole) {
+            $emp = Employee::create([
+                'first_name' => 'Emp',
+                'last_name' => $empRole,
+                'email' => $empRole . '-srv-' . Str::lower(Str::random(5)) . '@mein-seelenfunke.de',
+                'role' => $empRole,
+                'password' => bcrypt('Secret123!'),
+            ]);
+            Auth::guard('employee')->login($emp);
+            $empRes = AIFunctionsRegistry::execute('system_get_server_status', [], $falcone);
+            $this->assertTrue($empRes['error'] ?? false);
+            $this->assertStringContainsString('ROLE VIOLATION', (string) ($empRes['message'] ?? ''));
+            Auth::guard('employee')->logout();
+        }
+
+        $admin = $this->createAdmin();
+        Auth::guard('admin')->login($admin);
+
+        // Air-Gap: Funki darf system_get_server_status selbst bei eingeloggtem Admin niemals ausführen!
+        $funkiBlocked = AIFunctionsRegistry::execute('system_get_server_status', [], $funki);
+        $this->assertTrue($funkiBlocked['error'] ?? false);
+        $this->assertStringContainsString('SANDBOX VIOLATION', (string) ($funkiBlocked['message'] ?? ''));
+
+        // 4. Deterministischer 5-Minuten-Cache + force_refresh = true für Falcone
+        $pulseSvc = app(\App\Services\System\SystemHealthPulseService::class);
+        $pulseSvc->resetStateForTesting();
+
+        $probeCalls = 0;
+        \App\Services\System\SystemHealthPulseService::setLiveDomainProbeResolver(function () use (&$probeCalls): array {
+            $probeCalls++;
+            return [
+                'reachable' => true,
+                'http_status' => $probeCalls === 1 ? 200 : 503,
+                'latency_ms' => 36.4,
+                'ssl_days_remaining' => 82,
+                'body_bytes' => 1800,
+                'has_shop_markers' => false,
+                'www_ingress_active' => false,
+                'www_http_status' => 0,
+            ];
+        });
+
+        try {
+            $first = AIFunctionsRegistry::execute('system_get_server_status', ['force_refresh' => false], $falcone);
+            $this->assertSame('success', $first['status'] ?? null);
+            $this->assertSame(1, $probeCalls);
+            $this->assertSame('placeholder', $first['live_server']['mode']);
+            $this->assertSame('pending_ingress', $first['live_server']['www_status']);
+
+            // Zweiter Aufruf ohne force_refresh liest aus dem 5-Minuten-Cache (kein neuer Probe-Call)
+            $second = AIFunctionsRegistry::execute('system_get_server_status', ['force_refresh' => false], $falcone);
+            $this->assertSame(1, $probeCalls);
+            $this->assertSame('placeholder', $second['live_server']['mode']);
+
+            // Aufruf mit force_refresh = true leert LIVE_DOMAIN_CACHE_KEY und misst sofort neu (jetzt 503 maintenance = ok!)
+            $refreshed = AIFunctionsRegistry::execute('system_get_server_status', ['force_refresh' => true], $falcone);
+            $this->assertSame('success', $refreshed['status'] ?? null);
+            $this->assertTrue($refreshed['force_refreshed']);
+            $this->assertSame(2, $probeCalls);
+            $this->assertSame('maintenance', $refreshed['live_server']['mode']);
+            $this->assertSame('ok', $refreshed['live_server']['status']);
+        } finally {
+            $pulseSvc->resetStateForTesting();
         }
     }
 }

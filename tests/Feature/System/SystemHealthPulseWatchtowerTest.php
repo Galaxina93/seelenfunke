@@ -280,4 +280,127 @@ class SystemHealthPulseWatchtowerTest extends TestCase
         $this->artisan('system:health-pulse --json')
             ->assertExitCode(0);
     }
+
+    public function test_live_domain_monitoring_handles_placeholder_200_maintenance_503_outage_502_and_ssl_warning(): void
+    {
+        Storage::fake('local');
+        Config::set('backup.backup.destination.disks', ['local']);
+        Config::set('backup.backup.name', 'seelenfunke-test-backup');
+        Config::set('queue.default', 'sync');
+        Storage::disk('local')->put('seelenfunke-test-backup/fresh.zip', 'ZIP');
+        Cache::put('scheduler_last_run', now()->timestamp, 600);
+        DB::table('failed_jobs')->delete();
+
+        $svc = app(SystemHealthPulseService::class);
+
+        // 1. Mittwald-Platzhalter (HTTP 200, < 12 KB ohne Shop-Marker, www noch ohne Ingress) -> ok!
+        $placeholderReport = $svc->evaluate(
+            source: 'dashboard',
+            strict: true,
+            recordSample: false,
+            syncLogs: false,
+            overrideSslDays: 60,
+            overrideLiveDomain: [
+                'reachable' => true,
+                'http_status' => 200,
+                'latency_ms' => 42.5,
+                'ssl_days_remaining' => 75,
+                'ssl_valid_until' => now()->addDays(75)->toIso8601String(),
+                'body_bytes' => 2400,
+                'has_shop_markers' => false,
+                'www_ingress_active' => false,
+                'www_http_status' => 0,
+            ]
+        );
+        $this->assertSame('ok', $placeholderReport['status']);
+        $this->assertTrue($placeholderReport['healthy']);
+        $this->assertSame('ok', $placeholderReport['live_domain']['status']);
+        $this->assertSame('placeholder', $placeholderReport['live_domain']['mode']);
+        $this->assertSame('pending_ingress', $placeholderReport['live_domain']['www_status']);
+        $this->assertFalse($placeholderReport['live_domain']['www_ingress_active']);
+        $this->assertSame(['shop', 'cronjobs', 'queues', 'backups'], array_keys($placeholderReport['pillars']));
+
+        // 2. Aktiver Vorab-Wartungsmodus (HTTP 503) -> gilt ausdrücklich als gesund / grün (ok)!
+        $maintenanceReport = $svc->evaluate(
+            source: 'dashboard',
+            strict: true,
+            recordSample: false,
+            syncLogs: false,
+            overrideSslDays: 60,
+            overrideLiveDomain: [
+                'reachable' => true,
+                'http_status' => 503,
+                'latency_ms' => 38.0,
+                'ssl_days_remaining' => 80,
+                'body_bytes' => 4200,
+                'has_shop_markers' => false,
+                'www_ingress_active' => true,
+                'www_http_status' => 503,
+            ]
+        );
+        $this->assertSame('ok', $maintenanceReport['status']);
+        $this->assertTrue($maintenanceReport['healthy']);
+        $this->assertSame('ok', $maintenanceReport['live_domain']['status']);
+        $this->assertSame('maintenance', $maintenanceReport['live_domain']['mode']);
+        $this->assertSame('active', $maintenanceReport['live_domain']['www_status']);
+
+        // 3. Live-Shop aktiv (HTTP 200 mit Livewire/Shop-Markern) + SSL < 14 Tage (10 Tage) -> warning!
+        $sslWarningReport = $svc->evaluate(
+            source: 'dashboard',
+            strict: true,
+            recordSample: false,
+            syncLogs: false,
+            overrideSslDays: 60,
+            overrideLiveDomain: [
+                'reachable' => true,
+                'http_status' => 200,
+                'latency_ms' => 55.2,
+                'ssl_days_remaining' => 10,
+                'body_bytes' => 38000,
+                'has_shop_markers' => true,
+            ]
+        );
+        $this->assertSame('warning', $sslWarningReport['status']);
+        $this->assertTrue($sslWarningReport['healthy']);
+        $this->assertSame('live_shop', $sslWarningReport['live_domain']['mode']);
+        $this->assertSame('warning', $sslWarningReport['live_domain']['status']);
+        $this->assertStringContainsString('Live-Domain', $sslWarningReport['headline']);
+
+        // 4. Echter Ausfall HTTP 502 -> critical + SystemLog Deduplizierung & Auto-Heal bei Erholung!
+        $outageReport = $svc->evaluate(
+            source: 'synology_nas',
+            strict: true,
+            recordSample: false,
+            syncLogs: true,
+            overrideSslDays: 60,
+            overrideLiveDomain: [
+                'reachable' => true,
+                'http_status' => 502,
+                'latency_ms' => 190.0,
+                'ssl_days_remaining' => 75,
+            ]
+        );
+        $this->assertSame('critical', $outageReport['status']);
+        $this->assertFalse($outageReport['healthy']);
+        $this->assertSame('error', $outageReport['live_domain']['mode']);
+        $this->assertSame('critical', $outageReport['live_domain']['status']);
+        $this->assertStringContainsString('Live-Domain', $outageReport['headline']);
+        $this->assertSame(1, SystemLog::openIssues()->where('action_id', 'watchtower:pillar:live_domain')->count());
+
+        // Erholung zurück in Wartungsmodus 503 heilt den SystemLog-Eintrag automatisch!
+        $healedReport = $svc->evaluate(
+            source: 'synology_nas',
+            strict: true,
+            recordSample: false,
+            syncLogs: true,
+            overrideSslDays: 60,
+            overrideLiveDomain: [
+                'reachable' => true,
+                'http_status' => 503,
+                'ssl_days_remaining' => 75,
+            ]
+        );
+        $this->assertSame('ok', $healedReport['status']);
+        $this->assertSame(0, SystemLog::openIssues()->where('action_id', 'watchtower:pillar:live_domain')->count());
+    }
 }

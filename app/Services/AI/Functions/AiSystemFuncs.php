@@ -22,6 +22,20 @@ trait AiSystemFuncs
 
         $schema = [
             [
+                'name' => 'system_get_server_status',
+                'description' => 'Prüft in Echtzeit den Gesundheits-, SSL-, Antwortzeit- und Betriebsstatus des Mittwald Live-Servers (mein-seelenfunke.de & www) sowie des Stage-Servers (stage.mein-seelenfunke.de inkl. Cronjobs, Queue-Workern, Backups und 90-Tage-Uptime).',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'force_refresh' => [
+                            'type' => 'boolean',
+                            'description' => 'Optional. Wenn true, wird der 5-Minuten-Cache der Live-Domain geleert und sofort frisch gegen mein-seelenfunke.de & www geprüft.'
+                        ]
+                    ],
+                ],
+                'callable' => [self::class, 'executeGetServerStatus']
+            ],
+            [
                 'name' => 'system_get_error_sentinel',
                 'description' => 'Liest den zentralen plattformübergreifenden Ökosystem-Fehler-Sentinel (Laravel Portal, Android App, Werkstatt Mini-PC Linux & Funkenwerk Windows Suite) inklusive offener Fehler, 24h-Häufigkeitszähler (occurrences_count), Ursachen-Diagnose und erfolgter Selbstheilungen ([AUTO-GEHEILT]). Nutze dies sofort, wenn Alina fragt, ob irgendwo im System/auf dem Handy/Mini-PC ein Fehler vorliegt oder was automatisch repariert wurde.',
                 'parameters' => [
@@ -4561,6 +4575,72 @@ trait AiSystemFuncs
                 ['type' => 'dispatch', 'name' => 'write-clipboard', 'detail' => ['text' => $args['text']]]
             ]
         ];
+    }
+
+    public static function executeGetServerStatus(array $args = [])
+    {
+        if ($denied = self::assertSystemAdminAccess()) {
+            return array_merge(['error' => true], $denied);
+        }
+
+        if (!\App\Services\AI\AiAuthHelper::isAdmin()) {
+            return [
+                'error' => true,
+                'status' => 'error',
+                'message' => 'Zugriff verweigert: Dieses System-Werkzeug ist ausschließlich Administratoren vorbehalten.',
+            ];
+        }
+
+        try {
+            /** @var \App\Services\System\SystemHealthPulseService $pulseService */
+            $pulseService = app(\App\Services\System\SystemHealthPulseService::class);
+            $forceRefresh = !empty($args['force_refresh']);
+
+            if ($forceRefresh) {
+                \Illuminate\Support\Facades\Cache::forget(\App\Services\System\SystemHealthPulseService::LIVE_DOMAIN_CACHE_KEY);
+            }
+
+            $overrideLiveDomain = null;
+            if ($pulseService->hasCustomLiveProbeResolver() || !app()->runningUnitTests()) {
+                $overrideLiveDomain = $pulseService->getCachedOrProbeLiveDomains(false);
+            } elseif (\Illuminate\Support\Facades\Cache::has(\App\Services\System\SystemHealthPulseService::LIVE_DOMAIN_CACHE_KEY)) {
+                $cached = \Illuminate\Support\Facades\Cache::get(\App\Services\System\SystemHealthPulseService::LIVE_DOMAIN_CACHE_KEY);
+                $overrideLiveDomain = is_array($cached) ? $cached : null;
+            }
+
+            $report = $pulseService->evaluate(
+                source: 'dashboard',
+                strict: false,
+                recordSample: false,
+                syncLogs: false,
+                overrideSslDays: null,
+                overrideLiveDomain: $overrideLiveDomain
+            );
+
+            return [
+                'status' => 'success',
+                'force_refreshed' => $forceRefresh,
+                'overall_status' => $report['status'],
+                'healthy' => $report['healthy'],
+                'headline' => $report['headline'],
+                'checked_at' => $report['checked_at'],
+                'live_server' => $report['live_domain'],
+                'stage_and_portal' => [
+                    'environment' => $report['environment'],
+                    'uptime_90d_percent' => $report['uptime_90d_percent'],
+                    'strict_healthy_90d_percent' => $report['strict_healthy_90d_percent'],
+                    'latency_ms' => $report['latency_ms'],
+                    'pillars' => $report['pillars'],
+                    'watchtower' => $report['watchtower'],
+                ],
+            ];
+        } catch (\Throwable $e) {
+            return [
+                'error' => true,
+                'status' => 'error',
+                'message' => 'Server-Status konnte nicht abgerufen werden: ' . $e->getMessage(),
+            ];
+        }
     }
 
     public static function executeGetErrorSentinel(array $args)

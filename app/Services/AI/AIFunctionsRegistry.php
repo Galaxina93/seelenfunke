@@ -150,6 +150,8 @@ class AIFunctionsRegistry
         $adminOnlyTools = [
             'move_agent_to_department',
             'analyze_agents_activity',
+            'system_get_server_status',
+            'system_get_error_sentinel',
             'system_write_to_file',
             'system_multi_replace_file',
             'system_run_command',
