@@ -90,6 +90,9 @@
   let currentWallpaperMode = 'AtelierVideo';
   let serverHasAtelierVideo = true;
   let funkenwerkCityOpen = false;
+  let latestPulseData = null;
+  let activeCityDeptKey = null;
+  const CITY_DEPT_SHORTCUT_ORDER = ['orders', 'products', 'accounting', 'marketing', 'support', 'agents', 'system'];
 
   function syncAtelierVideoPlayback() {
     if (!atelierVideo) return;
@@ -3034,11 +3037,21 @@
       openFunkenwerkCity('heroes');
     } else if (act === 'open_throne_room') {
       openFunkenwerkCity('throne');
+    } else if (act.startsWith('open_department:')) {
+      const deptKey = act.slice('open_department:'.length).trim() || cmd.department || 'orders';
+      openFunkenwerkCity(`department:${deptKey}`);
+    } else if (act === 'open_funkenwerk_department') {
+      const deptKey = String(cmd.department || cmd.deptKey || cmd.target || 'orders').trim();
+      openFunkenwerkCity(`department:${deptKey}`);
     } else if (act === 'close_funkenwerk_city') {
       closeFunkenwerkCity();
     } else if (act === 'phone_hangup_after_speech') {
       endFunkiraPhoneCallSession(true);
     }
+  }
+
+  function handleUiControlEvent(cmd) {
+    executeImmediateMiniPcUiAction(cmd);
   }
 
   function handleLocalFunkiraCommand(data) {
@@ -3441,6 +3454,10 @@
         if (d && d.cityVoiceCommand) {
           if (d.cityVoiceCommand === 'open_throne_room') openFunkenwerkCity('throne');
           else if (d.cityVoiceCommand === 'open_hall_of_heroes') openFunkenwerkCity('heroes');
+          else if (d.cityVoiceCommand === 'open_funkenwerk_city_overview') openFunkenwerkCity('city');
+          else if (d.cityVoiceCommand.startsWith('open_department:')) {
+            openFunkenwerkCity(`department:${d.cityVoiceCommand.slice('open_department:'.length).trim() || 'orders'}`);
+          }
           else if (d.cityVoiceCommand === 'close_funkenwerk_city') closeFunkenwerkCity();
           else openFunkenwerkCity('orbit');
         } else if (d && d.focusVoiceCommand && document.body.classList.contains('focus-mode') && !funkiraStageOpen) {
@@ -4341,7 +4358,7 @@
     if (fkTikTokLiveMode || fkFaceIdentity === 'visitor') return;
     fkCellarOpen = true;
     fkLastInteractionMs = Date.now();
-    // Clean-Design v23: Zero control windows — cellar operates 100% autonomously in pure 3D Kuppelhalle
+    // Clean-Design v23: Zero control windows, cellar operates 100% autonomously in pure 3D Kuppelhalle
     document.getElementById('funkira-cellar-panel')?.classList.add('hidden');
     updateFaceAndTikTokBadges();
 
@@ -5381,7 +5398,12 @@
         return;
       }
       if (funkenwerkCityOpen) {
-        closeFunkenwerkCity();
+        closeCityDeptMenu();
+        if (window.FunkenwerkCity3D?.viewMode === 'department') {
+          window.FunkenwerkCity3D.flyToCityOverview(false);
+        } else {
+          closeFunkenwerkCity();
+        }
         return;
       }
       if (fkCellarOpen) {
@@ -5398,6 +5420,15 @@
       }
     }
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if (funkenwerkCityOpen && !e.ctrlKey && !e.altKey && !e.metaKey) {
+      const deptIdx = '1234567'.indexOf(e.key);
+      if (deptIdx !== -1) {
+        e.preventDefault();
+        closeCityDeptMenu();
+        window.FunkenwerkCity3D?.flyToDepartment(CITY_DEPT_SHORTCUT_ORDER[deptIdx], false);
+        return;
+      }
+    }
     if (e.key === 'f' || e.key === 'F') toggleFocusMode();
     if (e.key === 'k' || e.key === 'K') {
       if (funkiraStageOpen) closeFunkiraStage();
@@ -5426,6 +5457,7 @@
     try {
       const res = await fetch('/api/pulse');
       const data = await res.json();
+      latestPulseData = data;
       if (!focusInitApplied) {
         focusInitApplied = true;
         if (data.focusMode) {
@@ -5480,7 +5512,9 @@
       if (p.shopLevel) fkLatestShopLevel = p.shopLevel;
       updateFaceAndTikTokBadges();
 
-      if (data.pendingCityAction === 'orbit') {
+      if (typeof data.pendingCityAction === 'string' && data.pendingCityAction.startsWith('department:')) {
+        openFunkenwerkCity(data.pendingCityAction);
+      } else if (data.pendingCityAction === 'orbit') {
         openFunkenwerkCity('orbit');
       } else if (data.pendingCityAction === 'city') {
         openFunkenwerkCity('city');
@@ -5490,6 +5524,10 @@
         openFunkenwerkCity('throne');
       } else if (data.pendingCityAction === 'close' && funkenwerkCityOpen) {
         closeFunkenwerkCity();
+      }
+
+      if (funkenwerkCityOpen && activeCityDeptKey) {
+        renderCityDepartmentDrawer(activeCityDeptKey);
       }
 
       if (data.pendingStageAction === 'open') {
@@ -6594,20 +6632,217 @@
   }
 
   // =========================================================================
-  // FUNKENWERK 3D WATER METROPOLIS OVERLAY CONTROL (0% LOAD WHEN CLOSED)
+  // FUNKENWERK 3D WATER METROPOLIS OVERLAY CONTROL & DEPARTMENT DRAWER
   // =========================================================================
+  function sanitizeCleanCityText(val, fallback = '') {
+    const cleaned = String(val ?? fallback).replace(/\s[\u2013\u2014]\s/g, ' · ').trim();
+    return cleaned || fallback;
+  }
+
+  const CITY_DEPT_CONFIGS = {
+    orders: {
+      title: '📦 BESTELLUNGEN',
+      accent: '#F59E0B',
+      primaryLabel: '◎ Fokus starten',
+      portalRoute: '/admin/orders',
+      getKpis: (pulse) => [
+        ['Offen', `${pulse.openOrdersCount ?? 0}`],
+        ['Heute', `${pulse.ordersToday ?? 0}`],
+        ['Warenkörbe', `${pulse.openCartsCount ?? 0}`]
+      ],
+      onPrimary: async () => {
+        closeFunkenwerkCity();
+        if (funkiraStageOpen) closeFunkiraStageImmediate();
+        switchWorkspace('gewerbe');
+        await toggleFocusMode(true);
+      }
+    },
+    products: {
+      title: '🎨 PRODUKTE',
+      accent: '#3B82F6',
+      primaryLabel: '📁 Laser-Dateien',
+      portalRoute: '/admin/products',
+      getKpis: (pulse) => [
+        ['Shop-Stufe', `Stufe ${pulse.shopLevel || 1}`],
+        ['Saison', sanitizeCleanCityText(pulse.seasonLabel, 'Aktiv')],
+        ['Woche', `${pulse.ordersWeek || 0}`]
+      ],
+      onPrimary: async () => {
+        closeFunkenwerkCity();
+        if (funkiraStageOpen) closeFunkiraStageImmediate();
+        if (document.body.classList.contains('focus-mode')) await toggleFocusMode(false);
+        switchWorkspace('desktop');
+        launchApp('files');
+      }
+    },
+    accounting: {
+      title: '💶 BUCHHALTUNG',
+      accent: '#10B981',
+      primaryLabel: '🔐 Tresor öffnen',
+      portalRoute: '/admin/financial-analytics',
+      getKpis: (pulse) => [
+        ['Monat', `${pulse.ordersMonth || 0}`],
+        ['Belege', `${pulse.pendingTrichterCount || 0}`],
+        ['FYRST', pulse.isConnected ? 'Verbunden' : 'Offline']
+      ],
+      onPrimary: async () => {
+        closeFunkenwerkCity();
+        if (funkiraStageOpen) closeFunkiraStageImmediate();
+        if (document.body.classList.contains('focus-mode')) await toggleFocusMode(false);
+        switchWorkspace('desktop');
+        launchApp('tresor');
+      }
+    },
+    marketing: {
+      title: '📣 MARKETING',
+      accent: '#A855F7',
+      primaryLabel: '🎥 TikTok Live',
+      portalRoute: '/admin/marketing/analytics',
+      getKpis: (pulse) => [
+        ['Anlass', sanitizeCleanCityText(pulse.occasionLabel, 'Aktiv')],
+        ['TikTok Live', latestPulseData?.tikTokLiveMode ? 'Aktiv' : 'Bereit'],
+        ['Rosen', `${latestPulseData?.tikTokRosesCount || 0}`]
+      ],
+      onPrimary: async () => {
+        closeFunkenwerkCity();
+        if (!funkiraStageOpen) await openFunkiraStage();
+        else if (fkIdleAtelierMode) await wakeFunkiraFromAtelier('wake_word');
+        document.getElementById('btn-funkira-tiktok')?.click();
+      }
+    },
+    support: {
+      title: '🎧 SUPPORT',
+      accent: '#06B6D4',
+      primaryLabel: '📞 Telefonie',
+      portalRoute: '/admin/support-tickets',
+      getKpis: (pulse) => [
+        ['Portal', pulse.isConnected ? 'Online' : 'Offline'],
+        ['Telefon-AB', 'Bereit'],
+        ['Latenz', `${pulse.latencyMs || 0} ms`]
+      ],
+      onPrimary: async () => {
+        closeFunkenwerkCity();
+        if (!funkiraStageOpen) await openFunkiraStage();
+        else if (fkIdleAtelierMode) await wakeFunkiraFromAtelier('wake_word');
+        document.getElementById('btn-funkira-phone')?.click();
+      }
+    },
+    agents: {
+      title: '🤖 AGENTEN',
+      accent: '#6366F1',
+      primaryLabel: '✦ Funkira Atelier',
+      portalRoute: '/admin/organigramm',
+      getKpis: (pulse) => [
+        ['Funkira', 'Bereit'],
+        ['Falcone', 'Leitung'],
+        ['Vertex AI', pulse.environment || 'LIVE']
+      ],
+      onPrimary: async () => {
+        closeFunkenwerkCity();
+        if (!funkiraStageOpen) await openFunkiraStage();
+        else if (fkIdleAtelierMode) await wakeFunkiraFromAtelier('wake_word');
+      }
+    },
+    system: {
+      title: '⚙️ SYSTEM',
+      accent: '#EF4444',
+      primaryLabel: '🧠 Kuppelhalle',
+      portalRoute: '/admin/settings',
+      getKpis: () => {
+        const sys = latestPulseData?.systemStats || cachedTray?.stats || {};
+        return [
+          ['CPU / Temp', `${Math.round(sys.cpuPercent || 0)}% · ${Math.round(sys.cpuTempC || 0)}°C`],
+          ['Sentinel', `${latestPulseData?.openCellarIssuesCount || 0} Fehler`],
+          ['Uptime', sanitizeCleanCityText(latestPulseData?.uptimeLabel || sys.uptimeLabel, 'Aktiv')]
+        ];
+      },
+      onPrimary: async () => {
+        closeFunkenwerkCity();
+        if (!funkiraStageOpen) await openFunkiraStage();
+        if (!fkCellarOpen) {
+          document.getElementById('btn-funkira-cellar')?.click();
+        }
+      }
+    }
+  };
+
+  function closeCityDeptMenu() {
+    document.getElementById('fw-city-dept-menu')?.classList.add('hidden');
+    document.getElementById('btn-fw-city-departments')?.setAttribute('aria-expanded', 'false');
+  }
+
+  function renderCityDepartmentDrawer(deptKey) {
+    const drawerEl = document.getElementById('fw-city-department-drawer');
+    if (!drawerEl) return;
+    const spec = deptKey ? CITY_DEPT_CONFIGS[deptKey] : null;
+    if (!spec || !funkenwerkCityOpen) {
+      drawerEl.classList.add('hidden');
+      return;
+    }
+
+    const pulse = latestPulseData?.pulse || {};
+    const kpis = spec.getKpis(pulse);
+
+    drawerEl.style.setProperty('--dept-accent', spec.accent);
+    const titleEl = document.getElementById('fw-dept-title');
+    const badgeEl = document.getElementById('fw-dept-badge');
+    const primBtn = document.getElementById('btn-fw-dept-primary');
+    if (titleEl) titleEl.textContent = spec.title;
+    if (badgeEl) badgeEl.textContent = 'LIVE';
+    if (primBtn) primBtn.textContent = spec.primaryLabel;
+
+    for (let i = 0; i < 3; i++) {
+      const pair = kpis[i] || ['', ''];
+      const lblEl = document.getElementById(`fw-dept-kpi-${i + 1}-lbl`);
+      const valEl = document.getElementById(`fw-dept-kpi-${i + 1}-val`);
+      if (lblEl) lblEl.textContent = pair[0];
+      if (valEl) valEl.textContent = pair[1];
+    }
+
+    drawerEl.classList.remove('hidden');
+  }
+
+  window.addEventListener('fw-city-department-change', (ev) => {
+    const nextKey = ev.detail?.deptKey || null;
+    activeCityDeptKey = nextKey;
+    closeCityDeptMenu();
+    if (nextKey && CITY_DEPT_CONFIGS[nextKey] && funkenwerkCityOpen) {
+      renderCityDepartmentDrawer(nextKey);
+    } else {
+      document.getElementById('fw-city-department-drawer')?.classList.add('hidden');
+    }
+  });
+
   function openFunkenwerkCity(initialMode = 'orbit') {
     const stageEl = document.getElementById('funkenwerk-city-stage');
     if (!stageEl) return;
+    const wasAlreadyRunning = funkenwerkCityOpen && !!window.FunkenwerkCity3D?.running;
     funkenwerkCityOpen = true;
     stageEl.classList.remove('hidden');
     document.body.classList.add('funkenwerk-city-open');
+    closeCityDeptMenu();
     syncAtelierVideoPlayback();
+
+    const modeStr = String(initialMode || 'orbit').trim();
+    if (wasAlreadyRunning && window.FunkenwerkCity3D) {
+      if (modeStr.startsWith('department:')) {
+        window.FunkenwerkCity3D.flyToDepartment(modeStr.slice('department:'.length).trim() || 'orders', false);
+      } else if (modeStr === 'city') {
+        window.FunkenwerkCity3D.flyToCityOverview(false);
+      } else if (modeStr === 'heroes') {
+        window.FunkenwerkCity3D.flyToHallOfHeroes(false);
+      } else if (modeStr === 'throne') {
+        window.FunkenwerkCity3D.flyToThroneRoom(false);
+      } else {
+        window.FunkenwerkCity3D.startOrbitalFlyIn();
+      }
+      return;
+    }
 
     const tryStart = (attempt = 0) => {
       if (!funkenwerkCityOpen) return;
       if (window.FunkenwerkCity3D) {
-        window.FunkenwerkCity3D.open(initialMode);
+        window.FunkenwerkCity3D.open(modeStr);
       } else if (attempt < 25) {
         setTimeout(() => tryStart(attempt + 1), 60);
       }
@@ -6617,6 +6852,10 @@
 
   function closeFunkenwerkCity() {
     funkenwerkCityOpen = false;
+    activeCityDeptKey = null;
+    closeCityDeptMenu();
+    document.getElementById('fw-city-department-drawer')?.classList.add('hidden');
+    document.getElementById('fw-city-hover-chip')?.classList.add('hidden');
     document.getElementById('funkenwerk-city-stage')?.classList.add('hidden');
     document.body.classList.remove('funkenwerk-city-open');
     if (window.FunkenwerkCity3D) {
@@ -6627,10 +6866,69 @@
 
   document.getElementById('btn-open-funkenwerk-city')?.addEventListener('click', () => openFunkenwerkCity('orbit'));
   document.getElementById('btn-taskbar-funkenwerk-city')?.addEventListener('click', () => openFunkenwerkCity('orbit'));
-  document.getElementById('btn-fw-city-orbit')?.addEventListener('click', () => window.FunkenwerkCity3D?.startOrbitalFlyIn());
-  document.getElementById('btn-fw-city-overview')?.addEventListener('click', () => window.FunkenwerkCity3D?.flyToCityOverview(false));
-  document.getElementById('btn-fw-city-throne')?.addEventListener('click', () => window.FunkenwerkCity3D?.flyToThroneRoom(false));
+  document.getElementById('btn-fw-city-orbit')?.addEventListener('click', () => {
+    closeCityDeptMenu();
+    window.FunkenwerkCity3D?.startOrbitalFlyIn();
+  });
+  document.getElementById('btn-fw-city-overview')?.addEventListener('click', () => {
+    closeCityDeptMenu();
+    window.FunkenwerkCity3D?.flyToCityOverview(false);
+  });
+  document.getElementById('btn-fw-city-throne')?.addEventListener('click', () => {
+    closeCityDeptMenu();
+    window.FunkenwerkCity3D?.flyToThroneRoom(false);
+  });
   document.getElementById('btn-fw-city-close')?.addEventListener('click', () => closeFunkenwerkCity());
+
+  document.getElementById('btn-fw-city-departments')?.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    const menuEl = document.getElementById('fw-city-dept-menu');
+    if (!menuEl) return;
+    const willOpen = menuEl.classList.contains('hidden');
+    menuEl.classList.toggle('hidden', !willOpen);
+    ev.currentTarget.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+  });
+
+  document.getElementById('fw-city-dept-menu')?.addEventListener('click', (ev) => {
+    const item = ev.target.closest('[data-dept-key]');
+    if (!item) return;
+    const deptKey = item.getAttribute('data-dept-key');
+    closeCityDeptMenu();
+    if (deptKey) {
+      window.FunkenwerkCity3D?.flyToDepartment(deptKey, false);
+    }
+  });
+
+  document.addEventListener('click', (ev) => {
+    if (!funkenwerkCityOpen) return;
+    if (!ev.target.closest('#fw-city-dept-wrap')) {
+      closeCityDeptMenu();
+    }
+  });
+
+  document.getElementById('btn-fw-dept-close')?.addEventListener('click', () => {
+    window.FunkenwerkCity3D?.flyToCityOverview(false);
+  });
+
+  document.getElementById('btn-fw-dept-primary')?.addEventListener('click', () => {
+    const spec = activeCityDeptKey ? CITY_DEPT_CONFIGS[activeCityDeptKey] : null;
+    if (spec && typeof spec.onPrimary === 'function') {
+      spec.onPrimary();
+    }
+  });
+
+  document.getElementById('btn-fw-dept-portal')?.addEventListener('click', () => {
+    const spec = activeCityDeptKey ? CITY_DEPT_CONFIGS[activeCityDeptKey] : null;
+    if (!spec) return;
+    const baseUrl = latestPulseData?.apiEnvironment === 'stage'
+      ? 'https://stage.mein-seelenfunke.de'
+      : 'https://mein-seelenfunke.de';
+    fetch('/api/browser/open', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: `${baseUrl}${spec.portalRoute}` })
+    }).catch(() => {});
+  });
 
   async function copyWithFallback(text) {
     if (navigator.clipboard && window.isSecureContext) {

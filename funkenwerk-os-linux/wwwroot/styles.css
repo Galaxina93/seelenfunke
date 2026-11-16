@@ -1980,3 +1980,276 @@ body.funkenwerk-city-open #atelier-video-wrap {
   color: #FFFFFF;
 }
 
+/* Department Dropdown Menu in HUD Bar */
+.fw-city-dept-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.fw-city-dept-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  min-width: 218px;
+  padding: 6px;
+  border-radius: 10px;
+  background: #0B0E14;
+  border: 1px solid rgba(197, 160, 89, 0.38);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.78);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  z-index: 14;
+}
+
+.fw-city-dept-item {
+  width: 100%;
+  height: 33px;
+  padding: 0 10px;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #F9FAFB;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-align: left;
+  transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+}
+
+.fw-city-dept-item:hover {
+  background: rgba(197, 160, 89, 0.15);
+  border-color: rgba(197, 160, 89, 0.34);
+  color: #FDE68A;
+}
+
+.fw-city-dept-item.active {
+  background: rgba(197, 160, 89, 0.22);
+  border-color: #C5A059;
+  color: #FDE68A;
+}
+
+.fw-dept-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.fw-dept-item-lbl {
+  flex: 1;
+  white-space: nowrap;
+}
+
+.fw-city-dept-item kbd {
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  color: #9CA3AF;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(197, 160, 89, 0.22);
+  border-radius: 5px;
+  padding: 1px 6px;
+}
+
+/* Floating 2D Raycast Hover Chip */
+.fw-city-hover-chip {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 9;
+  pointer-events: none;
+  background: #0B0E14;
+  border: 1px solid rgba(197, 160, 89, 0.42);
+  border-radius: 999px;
+  padding: 5px 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #F9FAFB;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.68);
+}
+
+.fw-city-hover-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #C5A059;
+  flex-shrink: 0;
+}
+
+/* Right-Side Clean-Design Department Glass-Drawer (Matt-Obsidian #0B0E14 + 24K-Gold #C5A059) */
+.fw-city-department-drawer {
+  --dept-accent: #C5A059;
+  position: absolute;
+  top: 66px;
+  right: 20px;
+  width: 324px;
+  max-width: calc(100vw - 40px);
+  z-index: 6;
+  background: #0B0E14;
+  border: 1px solid rgba(197, 160, 89, 0.32);
+  border-top: 3px solid var(--dept-accent);
+  border-radius: 13px;
+  padding: 15px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+  box-shadow: 0 22px 48px rgba(0, 0, 0, 0.76);
+}
+
+.fw-dept-drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.fw-dept-title {
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  color: #F9FAFB;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fw-dept-head-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex-shrink: 0;
+}
+
+.fw-dept-badge {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.9px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  color: var(--dept-accent);
+  border: 1px solid var(--dept-accent);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.fw-dept-close-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  border: 1px solid rgba(197, 160, 89, 0.28);
+  background: #121620;
+  color: #F9FAFB;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+}
+
+.fw-dept-close-btn:hover {
+  background: rgba(197, 160, 89, 0.18);
+  border-color: #C5A059;
+  color: #FDE68A;
+}
+
+.fw-dept-kpi-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.fw-dept-kpi-pill {
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 9px;
+  background: #11151F;
+  border: 1px solid rgba(197, 160, 89, 0.20);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.fw-dept-kpi-lbl {
+  font-size: 12px;
+  font-weight: 600;
+  color: #9CA3AF;
+  white-space: nowrap;
+}
+
+.fw-dept-kpi-val {
+  font-size: 13px;
+  font-weight: 800;
+  color: #FDE68A;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fw-dept-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 2px;
+}
+
+.fw-dept-primary-btn {
+  width: 100%;
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 9px;
+  border: 1px solid #C5A059;
+  background: #C5A059;
+  color: #08080A;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.25px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  transition: background 0.14s ease, border-color 0.14s ease;
+}
+
+.fw-dept-primary-btn:hover {
+  background: #D4B06A;
+  border-color: #FDE68A;
+}
+
+.fw-dept-portal-btn {
+  width: 100%;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 9px;
+  border: 1px solid rgba(197, 160, 89, 0.28);
+  background: #161A24;
+  color: #F9FAFB;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+}
+
+.fw-dept-portal-btn:hover {
+  background: rgba(197, 160, 89, 0.14);
+  border-color: #C5A059;
+  color: #FDE68A;
+}
+

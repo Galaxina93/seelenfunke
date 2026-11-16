@@ -402,8 +402,15 @@ static void ConfigureKioskApp(
     });
 
     var fileProvider = new PhysicalFileProvider(webRoot);
+    var staticMimeProvider = new Microsoft.AspNetCore.StaticFiles.FileExtensionContentTypeProvider();
+    staticMimeProvider.Mappings[".glb"] = "model/gltf-binary";
+    staticMimeProvider.Mappings[".gltf"] = "model/gltf+json";
     app.UseDefaultFiles(new DefaultFilesOptions { FileProvider = fileProvider });
-    app.UseStaticFiles(new StaticFileOptions { FileProvider = fileProvider });
+    app.UseStaticFiles(new StaticFileOptions
+    {
+        FileProvider = fileProvider,
+        ContentTypeProvider = staticMimeProvider
+    });
 
     KdbxDatabase? activeTresorDb = null;
     object tresorLock = new();
@@ -417,10 +424,22 @@ static void ConfigureKioskApp(
     // =========================================================================
     // 1. LIVE PORTAL PULSE, WALLPAPER & AUTHENTICATION
     // =========================================================================
+    static string FormatCompactUptimeLabel(long tickCountMs)
+    {
+        var ts = TimeSpan.FromMilliseconds(Math.Max(0L, tickCountMs));
+        if (ts.TotalDays >= 1.0)
+            return $"{(int)ts.TotalDays}d {ts.Hours}h";
+        if (ts.TotalHours >= 1.0)
+            return $"{(int)ts.TotalHours}h {ts.Minutes}m";
+        return $"{Math.Max(1, ts.Minutes)}m";
+    }
+
     app.MapGet("/api/pulse", async () =>
     {
         var s = LinuxVaultAndStorage.LoadSettings();
         var pulse = pulseOverride?.Invoke() ?? await SeelenfunkeLinuxApiClient.FetchPulseAsync(s).ConfigureAwait(false);
+        var sysStats = LinuxHardwareEngine.GetSystemStats();
+        string uptimeLbl = FormatCompactUptimeLabel(Environment.TickCount64);
 
         bool privacyRestricted = IsPrivacyRestrictedActive(s);
         if (privacyRestricted)
@@ -472,6 +491,8 @@ static void ConfigureKioskApp(
             companionsCount = IsPrivacyRestrictedActive(s) ? 0 : LocalSenseBridge.CurrentCompanionsCount,
             pendingStageAction = consumeStageAction,
             pendingCityAction = consumeCityAction,
+            systemStats = sysStats,
+            uptimeLabel = uptimeLbl,
             workshopTimer = new
             {
                 active = tmr.Active,
@@ -826,8 +847,44 @@ static void ConfigureKioskApp(
     app.MapPost("/api/funkenwerk-city/control", async (HttpContext ctx) =>
     {
         using var doc = await JsonDocument.ParseAsync(ctx.Request.Body).ConfigureAwait(false);
-        string rawAct = doc.RootElement.TryGetProperty("action", out var aEl) ? (aEl.GetString() ?? "orbit") : "orbit";
-        string act = rawAct.Trim().ToLowerInvariant() switch
+        var root = doc.RootElement;
+        string rawAct = root.TryGetProperty("action", out var aEl) && aEl.ValueKind == JsonValueKind.String
+            ? (aEl.GetString() ?? "orbit")
+            : "orbit";
+        string rawDept = root.TryGetProperty("department", out var dEl) && dEl.ValueKind == JsonValueKind.String
+            ? (dEl.GetString() ?? "")
+            : "";
+
+        string trimmedAct = rawAct.Trim();
+        string deptCandidate;
+        if (string.Equals(trimmedAct, "department", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(trimmedAct, "open_department", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(trimmedAct, "open_funkenwerk_department", StringComparison.OrdinalIgnoreCase))
+        {
+            deptCandidate = rawDept;
+        }
+        else if (trimmedAct.StartsWith("department:", StringComparison.OrdinalIgnoreCase) ||
+                 trimmedAct.StartsWith("open_department:", StringComparison.OrdinalIgnoreCase))
+        {
+            deptCandidate = trimmedAct;
+        }
+        else
+        {
+            deptCandidate = !string.IsNullOrWhiteSpace(rawDept) ? rawDept : trimmedAct;
+        }
+
+        string deptKey = FunkiraLiveAndMcpEngine.NormalizeFunkenwerkDepartmentKey(deptCandidate);
+        if (!string.IsNullOrEmpty(deptKey))
+        {
+            string queuedDept = $"department:{deptKey}";
+            lock (stageStateLock)
+            {
+                pendingCityAction = queuedDept;
+            }
+            return Results.Json(new { ok = true, queuedCityAction = queuedDept, department = deptKey });
+        }
+
+        string act = trimmedAct.ToLowerInvariant() switch
         {
             "city" or "overview" => "city",
             "heroes" or "halle_der_helden" or "helden" => "heroes",
@@ -3077,7 +3134,7 @@ async Task<int> RunLinuxSelfTestsAsync()
                     jsApp.Contains("isCannedRefusalClientText", StringComparison.Ordinal) &&
                     jsApp.Contains("projectRawVideoBoxToPip", StringComparison.Ordinal) &&
                     !jsApp.Contains("safetySettings", StringComparison.Ordinal) &&
-                    htmlIdx.Contains("/app.js?v=20261116v26", StringComparison.Ordinal);
+                    htmlIdx.Contains("/app.js?v=20261116v29", StringComparison.Ordinal);
 
                 return detectOk && diagAndLoginOk && historyCleanOk && promptHygieneOk && jsOk;
             }).ConfigureAwait(false);
@@ -3762,7 +3819,7 @@ async Task<int> RunLinuxSelfTestsAsync()
                     htmlIdx.Contains("id=\"btn-fw-city-overview\"", StringComparison.Ordinal) &&
                     htmlIdx.Contains("id=\"btn-fw-city-throne\"", StringComparison.Ordinal) &&
                     htmlIdx.Contains("id=\"btn-fw-city-close\"", StringComparison.Ordinal) &&
-                    htmlIdx.Contains("/funkenwerk_city_3d.js?v=20261116v28", StringComparison.Ordinal) &&
+                    htmlIdx.Contains("/funkenwerk_city_3d.js?v=20261116v30", StringComparison.Ordinal) &&
                     cityJs.Contains("MEIN SEELENFUNKE", StringComparison.Ordinal) &&
                     cityJs.Contains("'ALINA'", StringComparison.Ordinal) &&
                     cityJs.Contains("Herrscherin über das Seelenfunken-Universum", StringComparison.Ordinal) &&
@@ -3934,7 +3991,42 @@ async Task<int> RunLinuxSelfTestsAsync()
                     mcpRes["status"]?.GetValue<string>() == "success" &&
                     mcpEvt?["action"]?.GetValue<string>() == "open_hall_of_heroes";
 
-                // 5. Frontend 3D Pantheon (raised domeBaseY + offset ribs), Carrara Marble, ALL 10 Funki Levels & HUD buttons + 0 KI en-dashes
+                // 5. Frontend 3D Pantheon, Carrara Marble, ALL 10 Real Compressed Tripo .glb Models + parseGlbBinary & 0 KI en-dashes
+                string[] expectedGlbFiles =
+                {
+                    "funki_lvl_1_rags.glb",
+                    "funki_lvl_2_basic.glb",
+                    "funki_lvl_3_helper.glb",
+                    "funki_lvl_4_novice.glb",
+                    "funki_lvl_5_apprentice.glb",
+                    "funki_lvl_6_craftsman.glb",
+                    "funki_lvl_7_artisan.glb",
+                    "funki_lvl_8_master.glb",
+                    "funki_lvl_9_lightbringer.glb",
+                    "funki_lvl_10_god_of_soul.glb"
+                };
+                string glbDir = Path.Combine(resolvedWebRoot, "assets", "funki_models");
+                bool allTenGlbsOnDiskOk = expectedGlbFiles.All(fn =>
+                {
+                    string fp = Path.Combine(glbDir, fn);
+                    if (!File.Exists(fp)) return false;
+                    var fi = new FileInfo(fp);
+                    if (fi.Length < 400_000 || fi.Length > 5_000_000) return false;
+                    using var fs = File.OpenRead(fp);
+                    Span<byte> hdr = stackalloc byte[8];
+                    if (fs.Read(hdr) != 8) return false;
+                    uint magic = BitConverter.ToUInt32(hdr.Slice(0, 4));
+                    uint ver = BitConverter.ToUInt32(hdr.Slice(4, 4));
+                    return magic == 0x46546C67u && ver == 2u;
+                });
+
+                using var glbHttpResp = await rawHttp.GetAsync("/assets/funki_models/funki_lvl_10_god_of_soul.glb").ConfigureAwait(false);
+                byte[] glbHttpBytes = glbHttpResp.IsSuccessStatusCode ? await glbHttpResp.Content.ReadAsByteArrayAsync().ConfigureAwait(false) : Array.Empty<byte>();
+                bool glbHttpOk = glbHttpResp.IsSuccessStatusCode &&
+                                 glbHttpBytes.Length > 400_000 &&
+                                 BitConverter.ToUInt32(glbHttpBytes, 0) == 0x46546C67u &&
+                                 BitConverter.ToUInt32(glbHttpBytes, 4) == 2u;
+
                 string htmlIdx = File.ReadAllText(Path.Combine(resolvedWebRoot, "index.html"), Encoding.UTF8);
                 string cityJs = File.ReadAllText(Path.Combine(resolvedWebRoot, "funkenwerk_city_3d.js"), Encoding.UTF8);
                 string[] allTenTitles =
@@ -3942,9 +4034,12 @@ async Task<int> RunLinuxSelfTestsAsync()
                     "Ursprung", "Lehrling", "Helfer", "Kristall-Novize", "Funken-Geselle",
                     "Gravur-Handwerker", "Kunsthandwerker", "Meister", "Lichtbringer", "Gott des Seelenfunkens"
                 };
-                bool allTenLevelsOk = allTenTitles.All(t => cityJs.Contains(t, StringComparison.Ordinal));
+                bool allTenLevelsOk = allTenTitles.All(t => cityJs.Contains(t, StringComparison.Ordinal)) &&
+                                      expectedGlbFiles.All(fn => cityJs.Contains($"/assets/funki_models/{fn}", StringComparison.Ordinal));
 
                 bool uiAnd3dOk =
+                    allTenGlbsOnDiskOk &&
+                    glbHttpOk &&
                     allTenLevelsOk &&
                     htmlIdx.Contains("id=\"btn-fw-city-heroes\"", StringComparison.Ordinal) &&
                     htmlIdx.Contains("🏛️ Helden", StringComparison.Ordinal) &&
@@ -3953,13 +4048,16 @@ async Task<int> RunLinuxSelfTestsAsync()
                     cityJs.Contains("HALLE DER HELDEN", StringComparison.Ordinal) &&
                     cityJs.Contains("Freier Ehrenplatz", StringComparison.Ordinal) &&
                     cityJs.Contains("_buildHallOfHeroes", StringComparison.Ordinal) &&
+                    cityJs.Contains("_buildPantheonLighting", StringComparison.Ordinal) &&
+                    cityJs.Contains("parseGlbBinary", StringComparison.Ordinal) &&
+                    cityJs.Contains("FUNKI_GLB_FRONT_ROTATION_Y = -Math.PI * 0.5", StringComparison.Ordinal) &&
+                    cityJs.Contains("glbTemplateCache", StringComparison.Ordinal) &&
                     cityJs.Contains("makeHallOfHeroesMarbleTexture", StringComparison.Ordinal) &&
                     cityJs.Contains("#ECEAE4", StringComparison.Ordinal) &&
                     cityJs.Contains("#133B5C", StringComparison.Ordinal) &&
                     cityJs.Contains("const domeBaseY = entY + 5.35;", StringComparison.Ordinal) &&
                     cityJs.Contains("((r + 0.5) / 6) * Math.PI", StringComparison.Ordinal) &&
                     cityJs.Contains("FUNKI_LEVEL_SPECS", StringComparison.Ordinal) &&
-                    cityJs.Contains("makeFunkiTvFaceTexture", StringComparison.Ordinal) &&
                     cityJs.Contains("buildFunki3DByLevel", StringComparison.Ordinal) &&
                     cityJs.Contains("cyclePreviewHeroLevel", StringComparison.Ordinal) &&
                     cityJs.Contains("flyToHallOfHeroes", StringComparison.Ordinal) &&
@@ -3968,6 +4066,113 @@ async Task<int> RunLinuxSelfTestsAsync()
                     !htmlIdx.Contains(" \u2013 ", StringComparison.Ordinal);
 
                 return foundingOk && liveParseOk && ctrlAndVoiceOk && uiAnd3dOk;
+            }).ConfigureAwait(false);
+
+            await AssertCheckAsync(47, "Funkenwerk 3D-Stadt Klickbare Abteilungen (7 Raycast-Piers, glide_department Tiefflug, Clean-Design Department-HUD, 1-Klick-Aktionen, Sprach-/API-Routing & 0 KI-Gedankenstriche)", async () =>
+            {
+                // 1. POST /api/funkenwerk-city/control department normalization & /api/pulse telemetry (systemStats + uptimeLabel)
+                using var ctrlDeptResp = await authedHttp.PostAsync(
+                    "/api/funkenwerk-city/control",
+                    new StringContent("{\"action\":\"department\",\"department\":\"bestellungen\"}", Encoding.UTF8, "application/json")).ConfigureAwait(false);
+                var ctrlDeptJson = JsonNode.Parse(await ctrlDeptResp.Content.ReadAsStringAsync().ConfigureAwait(false)) as JsonObject;
+
+                using var pulseDeptResp = await authedHttp.GetAsync("/api/pulse").ConfigureAwait(false);
+                var pulseDeptJson = JsonNode.Parse(await pulseDeptResp.Content.ReadAsStringAsync().ConfigureAwait(false)) as JsonObject;
+                var sysStatsObj = pulseDeptJson?["systemStats"] as JsonObject;
+                string uptimeLbl = pulseDeptJson?["uptimeLabel"]?.GetValue<string>() ?? "";
+
+                using var ctrlColonResp = await authedHttp.PostAsync(
+                    "/api/funkenwerk-city/control",
+                    new StringContent("{\"action\":\"department:buchhaltung\"}", Encoding.UTF8, "application/json")).ConfigureAwait(false);
+                var ctrlColonJson = JsonNode.Parse(await ctrlColonResp.Content.ReadAsStringAsync().ConfigureAwait(false)) as JsonObject;
+
+                using var ctrlDirectResp = await authedHttp.PostAsync(
+                    "/api/funkenwerk-city/control",
+                    new StringContent("{\"action\":\"sentinel\"}", Encoding.UTF8, "application/json")).ConfigureAwait(false);
+                var ctrlDirectJson = JsonNode.Parse(await ctrlDirectResp.Content.ReadAsStringAsync().ConfigureAwait(false)) as JsonObject;
+                using var drainPulseResp = await authedHttp.GetAsync("/api/pulse").ConfigureAwait(false);
+                var drainPulseJson = JsonNode.Parse(await drainPulseResp.Content.ReadAsStringAsync().ConfigureAwait(false)) as JsonObject;
+
+                bool apiAndTelemetryOk =
+                    ctrlDeptResp.IsSuccessStatusCode &&
+                    ctrlDeptJson?["queuedCityAction"]?.GetValue<string>() == "department:orders" &&
+                    ctrlDeptJson["department"]?.GetValue<string>() == "orders" &&
+                    pulseDeptResp.IsSuccessStatusCode &&
+                    pulseDeptJson?["pendingCityAction"]?.GetValue<string>() == "department:orders" &&
+                    sysStatsObj != null &&
+                    sysStatsObj["cpuPercent"] != null &&
+                    sysStatsObj["ramTotalMb"] != null &&
+                    sysStatsObj["ipAddress"] != null &&
+                    sysStatsObj["sshActive"] != null &&
+                    !string.IsNullOrWhiteSpace(uptimeLbl) &&
+                    ctrlColonJson?["queuedCityAction"]?.GetValue<string>() == "department:accounting" &&
+                    ctrlDirectJson?["queuedCityAction"]?.GetValue<string>() == "department:system" &&
+                    drainPulseJson?["pendingCityAction"]?.GetValue<string>() == "department:system";
+
+                // 2. Spoken German department commands + regression guard for existing city & workshop-focus commands
+                bool spokenOk =
+                    FunkiraLiveAndMcpEngine.TryMatchSpokenFunkenwerkCityCommand("Zeige mir die Abteilung Bestellungen") == "open_department:orders" &&
+                    FunkiraLiveAndMcpEngine.TryMatchSpokenFunkenwerkCityCommand("Flieg zur Buchhaltung") == "open_department:accounting" &&
+                    FunkiraLiveAndMcpEngine.TryMatchSpokenFunkenwerkCityCommand("Abteilung System öffnen") == "open_department:system" &&
+                    FunkiraLiveAndMcpEngine.TryMatchSpokenFunkenwerkCityCommand("Funkenwerk Abteilung System öffnen") == "open_department:system" &&
+                    FunkiraLiveAndMcpEngine.TryMatchSpokenFunkenwerkCityCommand("Zeig mir Produkte in der 3D-Stadt") == "open_department:products" &&
+                    FunkiraLiveAndMcpEngine.TryMatchSpokenFunkenwerkCityCommand("Abteilung Support") == "open_department:support" &&
+                    FunkiraLiveAndMcpEngine.TryMatchSpokenFunkenwerkCityCommand("Abteilung Marketing") == "open_department:marketing" &&
+                    FunkiraLiveAndMcpEngine.TryMatchSpokenFunkenwerkCityCommand("Abteilung Agenten") == "open_department:agents" &&
+                    FunkiraLiveAndMcpEngine.TryMatchSpokenFunkenwerkCityCommand("Bring mich in den Thronsaal") == "open_throne_room" &&
+                    FunkiraLiveAndMcpEngine.TryMatchSpokenFunkenwerkCityCommand("Bring mich in die Halle der Helden") == "open_hall_of_heroes" &&
+                    FunkiraLiveAndMcpEngine.TryMatchSpokenFunkenwerkCityCommand("Funkenwerk schließen") == "close_funkenwerk_city" &&
+                    FunkiraLiveAndMcpEngine.TryMatchSpokenFunkenwerkCityCommand("Zeig mir bitte die Funkenwerk Stadt") == "open_funkenwerk_city" &&
+                    FunkiraLiveAndMcpEngine.TryMatchSpokenFunkenwerkCityCommand("DHL Label drucken und Auftrag abschließen") == "";
+
+                // 3. MCP minipc_ui_control department routing
+                using var mcpDeptDoc = JsonDocument.Parse("{\"action\":\"open_funkenwerk_department\",\"department\":\"orders\"}");
+                var (mcpDeptRes, mcpDeptEvt) = await FunkiraLiveAndMcpEngine.ExecuteLocalMiniPcToolAsync("minipc_ui_control", mcpDeptDoc.RootElement).ConfigureAwait(false);
+                using var mcpShortDoc = JsonDocument.Parse("{\"action\":\"open_department:accounting\"}");
+                var (mcpShortRes, mcpShortEvt) = await FunkiraLiveAndMcpEngine.ExecuteLocalMiniPcToolAsync("minipc_ui_control", mcpShortDoc.RootElement).ConfigureAwait(false);
+
+                bool mcpOk =
+                    mcpDeptRes["status"]?.GetValue<string>() == "success" &&
+                    mcpDeptEvt?["action"]?.GetValue<string>() == "open_department:orders" &&
+                    mcpDeptEvt["department"]?.GetValue<string>() == "orders" &&
+                    mcpShortRes["status"]?.GetValue<string>() == "success" &&
+                    mcpShortEvt?["action"]?.GetValue<string>() == "open_department:accounting" &&
+                    mcpShortEvt["department"]?.GetValue<string>() == "accounting";
+
+                // 4. Static assets: Raycast targets, glide_department, Clean-Design HUD, all 7 portal routes & 0 KI en-dashes
+                string cityJs = File.ReadAllText(Path.Combine(resolvedWebRoot, "funkenwerk_city_3d.js"), Encoding.UTF8);
+                string htmlIdx = File.ReadAllText(Path.Combine(resolvedWebRoot, "index.html"), Encoding.UTF8);
+                string cssRaw = File.ReadAllText(Path.Combine(resolvedWebRoot, "styles.css"), Encoding.UTF8);
+                string jsApp = File.ReadAllText(Path.Combine(resolvedWebRoot, "app.js"), Encoding.UTF8);
+                string combinedFrontend = string.Concat(cityJs, "\n", jsApp, "\n", htmlIdx);
+
+                string[] requiredPortalRoutes =
+                {
+                    "/admin/orders",
+                    "/admin/products",
+                    "/admin/financial-analytics",
+                    "/admin/marketing/analytics",
+                    "/admin/support-tickets",
+                    "/admin/organigramm",
+                    "/admin/settings"
+                };
+                bool allRoutesOk = requiredPortalRoutes.All(r => combinedFrontend.Contains(r, StringComparison.Ordinal));
+
+                bool assetsOk =
+                    cityJs.Contains("departmentClickTargets", StringComparison.Ordinal) &&
+                    cityJs.Contains("flyToDepartment", StringComparison.Ordinal) &&
+                    cityJs.Contains("glide_department", StringComparison.Ordinal) &&
+                    htmlIdx.Contains("id=\"fw-city-department-drawer\"", StringComparison.Ordinal) &&
+                    htmlIdx.Contains("id=\"btn-fw-city-departments\"", StringComparison.Ordinal) &&
+                    htmlIdx.Contains("id=\"fw-city-hover-chip\"", StringComparison.Ordinal) &&
+                    !string.IsNullOrWhiteSpace(cssRaw) &&
+                    allRoutesOk &&
+                    !cityJs.Contains(" \u2013 ", StringComparison.Ordinal) &&
+                    !htmlIdx.Contains(" \u2013 ", StringComparison.Ordinal) &&
+                    !cssRaw.Contains(" \u2013 ", StringComparison.Ordinal) &&
+                    !jsApp.Contains(" \u2013 ", StringComparison.Ordinal);
+
+                return apiAndTelemetryOk && spokenOk && mcpOk && assetsOk;
             }).ConfigureAwait(false);
         }
         finally

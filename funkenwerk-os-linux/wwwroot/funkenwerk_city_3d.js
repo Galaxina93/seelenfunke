@@ -25,13 +25,13 @@ const PLANET_RADIUS = 1800.0;
 
 // Exact 7 Seelenfunke Portal Department Colors (~10% subtle facade/pier accents)
 const DEPARTMENTS = [
-  { key: 'support',     name: 'Support',     hex: '#06B6D4', color: 0x06B6D4 },
-  { key: 'products',    name: 'Produkte',    hex: '#3B82F6', color: 0x3B82F6 },
-  { key: 'marketing',   name: 'Marketing',   hex: '#A855F7', color: 0xA855F7 },
-  { key: 'orders',      name: 'Bestellungen',hex: '#F59E0B', color: 0xF59E0B },
-  { key: 'accounting',  name: 'Buchhaltung', hex: '#10B981', color: 0x10B981 },
-  { key: 'agents',      name: 'Agenten',     hex: '#6366F1', color: 0x6366F1 },
-  { key: 'system',      name: 'System',      hex: '#EF4444', color: 0xEF4444 }
+  { key: 'support',     name: 'Support',      icon: '🎧', hex: '#06B6D4', color: 0x06B6D4 },
+  { key: 'products',    name: 'Produkte',     icon: '🎨', hex: '#3B82F6', color: 0x3B82F6 },
+  { key: 'marketing',   name: 'Marketing',    icon: '📣', hex: '#A855F7', color: 0xA855F7 },
+  { key: 'orders',      name: 'Bestellungen', icon: '📦', hex: '#F59E0B', color: 0xF59E0B },
+  { key: 'accounting',  name: 'Buchhaltung',  icon: '💶', hex: '#10B981', color: 0x10B981 },
+  { key: 'agents',      name: 'Agenten',      icon: '🤖', hex: '#6366F1', color: 0x6366F1 },
+  { key: 'system',      name: 'System',       icon: '⚙️', hex: '#EF4444', color: 0xEF4444 }
 ];
 
 function clamp(v, lo, hi) {
@@ -623,18 +623,327 @@ function makeHallOfHeroesMarbleTexture() {
   return configureHdTex(new THREE.CanvasTexture(c), 4);
 }
 
+// Verified Tripo 3D local front axis (+X) -> -Math.PI / 2 rotates TV face & "Funki" chest text straight to +Z camera!
+const FUNKI_GLB_FRONT_ROTATION_Y = -Math.PI * 0.5;
 
-// 10 Authentic Funki Evolution Levels (1:1 to funki_lvl_1_rags.png .. funki_lvl_10_god_of_soul.png)
+const LOCAL_FUNKI_GLB_URLS = {
+  1:  '/assets/funki_models/funki_lvl_1_rags.glb',
+  2:  '/assets/funki_models/funki_lvl_2_basic.glb',
+  3:  '/assets/funki_models/funki_lvl_3_helper.glb',
+  4:  '/assets/funki_models/funki_lvl_4_novice.glb',
+  5:  '/assets/funki_models/funki_lvl_5_apprentice.glb',
+  6:  '/assets/funki_models/funki_lvl_6_craftsman.glb',
+  7:  '/assets/funki_models/funki_lvl_7_artisan.glb',
+  8:  '/assets/funki_models/funki_lvl_8_master.glb',
+  9:  '/assets/funki_models/funki_lvl_9_lightbringer.glb',
+  10: '/assets/funki_models/funki_lvl_10_god_of_soul.glb'
+};
+
+function makeSparkParticleTexture() {
+  const S = 64;
+  const c = document.createElement('canvas');
+  c.width = S;
+  c.height = S;
+  const ctx = c.getContext('2d');
+  const g = ctx.createRadialGradient(S * 0.5, S * 0.5, 1, S * 0.5, S * 0.5, S * 0.48);
+  g.addColorStop(0.0, 'rgba(255, 255, 255, 1.0)');
+  g.addColorStop(0.28, 'rgba(255, 238, 170, 0.92)');
+  g.addColorStop(0.65, 'rgba(212, 175, 55, 0.35)');
+  g.addColorStop(1.0, 'rgba(197, 160, 89, 0.0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, S, S);
+  const tex = new THREE.CanvasTexture(c);
+  tex.needsUpdate = true;
+  return tex;
+}
+
+// Zero-Dependency Native Binary GLB 2.0 Parser (0 external CDN requests, 0ms local Mini-PC load!)
+function parseGlbBinary(arrayBuffer, maxAniso, disposablesList) {
+  if (!arrayBuffer || arrayBuffer.byteLength < 20) {
+    return Promise.reject(new Error('Ungueltiger GLB-Datenstrom.'));
+  }
+
+  const dv = new DataView(arrayBuffer);
+  const magic = dv.getUint32(0, true);
+  const version = dv.getUint32(4, true);
+  if (magic !== 0x46546C67 || version !== 2) {
+    return Promise.reject(new Error('Nicht unterstuetztes GLB-2.0-Format.'));
+  }
+
+  let jsonObj = null;
+  let binOffset = 0;
+  let binLength = 0;
+  let offset = 12;
+
+  while (offset + 8 <= arrayBuffer.byteLength) {
+    const chunkLen = dv.getUint32(offset, true);
+    const chunkType = dv.getUint32(offset + 4, true);
+    const dataStart = offset + 8;
+    if (dataStart + chunkLen > arrayBuffer.byteLength) break;
+
+    if (chunkType === 0x4E4F534A) {
+      const jsonBytes = new Uint8Array(arrayBuffer, dataStart, chunkLen);
+      const jsonStr = new TextDecoder('utf-8').decode(jsonBytes);
+      jsonObj = JSON.parse(jsonStr);
+    } else if (chunkType === 0x004E4942) {
+      binOffset = dataStart;
+      binLength = chunkLen;
+    }
+    offset = dataStart + chunkLen;
+  }
+
+  if (!jsonObj || !binLength) {
+    return Promise.reject(new Error('Unvollstaendige GLB-Chunks.'));
+  }
+
+  const COMP_SPECS = {
+    5120: { Ctor: Int8Array, bytes: 1, read: (v, o) => v.getInt8(o) },
+    5121: { Ctor: Uint8Array, bytes: 1, read: (v, o) => v.getUint8(o) },
+    5122: { Ctor: Int16Array, bytes: 2, read: (v, o) => v.getInt16(o, true) },
+    5123: { Ctor: Uint16Array, bytes: 2, read: (v, o) => v.getUint16(o, true) },
+    5125: { Ctor: Uint32Array, bytes: 4, read: (v, o) => v.getUint32(o, true) },
+    5126: { Ctor: Float32Array, bytes: 4, read: (v, o) => v.getFloat32(o, true) }
+  };
+  const TYPE_COUNTS = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4, MAT4: 16 };
+
+  function readAccessorArray(accIdx) {
+    if (accIdx === undefined || accIdx === null || !jsonObj.accessors || !jsonObj.accessors[accIdx]) {
+      return null;
+    }
+    const acc = jsonObj.accessors[accIdx];
+    const bv = (jsonObj.bufferViews && jsonObj.bufferViews[acc.bufferView]) ? jsonObj.bufferViews[acc.bufferView] : null;
+    const spec = COMP_SPECS[acc.componentType];
+    const itemSize = TYPE_COUNTS[acc.type] || 1;
+    if (!bv || !spec) return null;
+
+    const count = acc.count || 0;
+    const byteStart = binOffset + (bv.byteOffset || 0) + (acc.byteOffset || 0);
+    const packedStride = itemSize * spec.bytes;
+    const stride = bv.byteStride || packedStride;
+
+    if (stride === packedStride && (byteStart % spec.bytes) === 0) {
+      return {
+        array: new spec.Ctor(arrayBuffer, byteStart, count * itemSize).slice(),
+        itemSize
+      };
+    }
+
+    const out = new spec.Ctor(count * itemSize);
+    for (let i = 0; i < count; i++) {
+      const baseOff = byteStart + i * stride;
+      for (let c = 0; c < itemSize; c++) {
+        out[i * itemSize + c] = spec.read(dv, baseOff + c * spec.bytes);
+      }
+    }
+    return { array: out, itemSize };
+  }
+
+  const localTexPromises = {};
+  const localMatPromises = {};
+
+  function loadEmbeddedTexture(texIndex, isSrgb) {
+    if (texIndex === undefined || texIndex === null || !jsonObj.textures || !jsonObj.textures[texIndex]) {
+      return Promise.resolve(null);
+    }
+    const key = texIndex + (isSrgb ? ':srgb' : ':lin');
+    if (localTexPromises[key]) return localTexPromises[key];
+
+    const texDef = jsonObj.textures[texIndex];
+    const imgDef = (jsonObj.images && texDef.source !== undefined) ? jsonObj.images[texDef.source] : null;
+    if (!imgDef || imgDef.bufferView === undefined || !jsonObj.bufferViews || !jsonObj.bufferViews[imgDef.bufferView]) {
+      return Promise.resolve(null);
+    }
+
+    const bv = jsonObj.bufferViews[imgDef.bufferView];
+    const imgStart = binOffset + (bv.byteOffset || 0);
+    const imgBytes = new Uint8Array(arrayBuffer, imgStart, bv.byteLength);
+    const blob = new Blob([imgBytes], { type: imgDef.mimeType || 'image/jpeg' });
+    const blobUrl = URL.createObjectURL(blob);
+
+    localTexPromises[key] = new Promise((resolve) => {
+      const imgEl = new Image();
+      imgEl.onload = () => {
+        URL.revokeObjectURL(blobUrl);
+        const tex = new THREE.Texture(imgEl);
+        tex.flipY = false;
+        tex.wrapS = THREE.RepeatWrapping;
+        tex.wrapT = THREE.RepeatWrapping;
+        tex.generateMipmaps = true;
+        tex.minFilter = THREE.LinearMipmapLinearFilter;
+        tex.magFilter = THREE.LinearFilter;
+        tex.anisotropy = Math.min(maxAniso || 4, 4);
+        if (isSrgb) {
+          tex.colorSpace = THREE.SRGBColorSpace;
+        } else if (typeof THREE.NoColorSpace !== 'undefined') {
+          tex.colorSpace = THREE.NoColorSpace;
+        }
+        tex.needsUpdate = true;
+        if (disposablesList) disposablesList.push(tex);
+        resolve(tex);
+      };
+      imgEl.onerror = () => {
+        URL.revokeObjectURL(blobUrl);
+        resolve(null);
+      };
+      imgEl.src = blobUrl;
+    });
+
+    return localTexPromises[key];
+  }
+
+  function buildMaterial(matIndex) {
+    const key = (matIndex === undefined || matIndex === null) ? 'default' : String(matIndex);
+    if (localMatPromises[key]) return localMatPromises[key];
+
+    const matDef = (jsonObj.materials && jsonObj.materials[matIndex]) ? jsonObj.materials[matIndex] : {};
+    const pbr = matDef.pbrMetallicRoughness || {};
+    const baseIdx = (pbr.baseColorTexture && pbr.baseColorTexture.index !== undefined) ? pbr.baseColorTexture.index : null;
+    const mrIdx = (pbr.metallicRoughnessTexture && pbr.metallicRoughnessTexture.index !== undefined) ? pbr.metallicRoughnessTexture.index : null;
+    const normIdx = (matDef.normalTexture && matDef.normalTexture.index !== undefined) ? matDef.normalTexture.index : null;
+    const emisIdx = (matDef.emissiveTexture && matDef.emissiveTexture.index !== undefined) ? matDef.emissiveTexture.index : null;
+
+    localMatPromises[key] = Promise.all([
+      loadEmbeddedTexture(baseIdx, true),
+      loadEmbeddedTexture(mrIdx, false),
+      loadEmbeddedTexture(normIdx, false),
+      loadEmbeddedTexture(emisIdx, true)
+    ]).then(([baseTex, mrTex, normTex, emisTex]) => {
+      const bcf = Array.isArray(pbr.baseColorFactor) ? pbr.baseColorFactor : [1, 1, 1, 1];
+      const rawMetal = (typeof pbr.metallicFactor === 'number') ? pbr.metallicFactor : (mrTex ? 1.0 : 0.16);
+      const safeMetalness = mrTex ? clamp(rawMetal * 0.34, 0.14, 0.36) : clamp(rawMetal, 0.12, 0.28);
+      const rawRough = (typeof pbr.roughnessFactor === 'number') ? pbr.roughnessFactor : 0.78;
+      const safeRoughness = mrTex ? clamp(rawRough * 0.74, 0.32, 0.86) : clamp(rawRough * 0.84, 0.38, 0.88);
+
+      const opts = {
+        color: new THREE.Color(bcf[0], bcf[1], bcf[2]),
+        metalness: safeMetalness,
+        roughness: safeRoughness,
+        side: matDef.doubleSided ? THREE.DoubleSide : THREE.FrontSide
+      };
+      if (baseTex) opts.map = baseTex;
+      if (mrTex) {
+        opts.roughnessMap = mrTex;
+        opts.metalnessMap = mrTex;
+      }
+      if (normTex) {
+        opts.normalMap = normTex;
+        const ns = (matDef.normalTexture && typeof matDef.normalTexture.scale === 'number') ? matDef.normalTexture.scale : 0.85;
+        opts.normalScale = new THREE.Vector2(ns, ns);
+      }
+      if (emisTex) {
+        opts.emissiveMap = emisTex;
+        const ef = Array.isArray(matDef.emissiveFactor) ? matDef.emissiveFactor : [1, 1, 1];
+        opts.emissive = new THREE.Color(ef[0], ef[1], ef[2]);
+      } else if (Array.isArray(matDef.emissiveFactor)) {
+        opts.emissive = new THREE.Color(matDef.emissiveFactor[0], matDef.emissiveFactor[1], matDef.emissiveFactor[2]);
+      }
+      if (matDef.alphaMode === 'MASK') {
+        opts.alphaTest = (typeof matDef.alphaCutoff === 'number') ? matDef.alphaCutoff : 0.5;
+      } else if (matDef.alphaMode === 'BLEND') {
+        opts.transparent = true;
+        opts.opacity = (typeof bcf[3] === 'number') ? bcf[3] : 1.0;
+      }
+
+      const mat = new THREE.MeshStandardMaterial(opts);
+      if (disposablesList) disposablesList.push(mat);
+      return mat;
+    });
+
+    return localMatPromises[key];
+  }
+
+  function buildNodeAsync(nodeIdx) {
+    const nDef = (jsonObj.nodes && jsonObj.nodes[nodeIdx]) ? jsonObj.nodes[nodeIdx] : null;
+    if (!nDef) return Promise.resolve(new THREE.Group());
+
+    const nodeObj = new THREE.Group();
+    if (Array.isArray(nDef.matrix) && nDef.matrix.length === 16) {
+      const m4 = new THREE.Matrix4();
+      m4.fromArray(nDef.matrix);
+      m4.decompose(nodeObj.position, nodeObj.quaternion, nodeObj.scale);
+    } else {
+      if (Array.isArray(nDef.translation)) nodeObj.position.fromArray(nDef.translation);
+      if (Array.isArray(nDef.rotation)) nodeObj.quaternion.fromArray(nDef.rotation);
+      if (Array.isArray(nDef.scale)) nodeObj.scale.fromArray(nDef.scale);
+    }
+
+    const primTasks = [];
+    if (nDef.mesh !== undefined && jsonObj.meshes && jsonObj.meshes[nDef.mesh]) {
+      const prims = jsonObj.meshes[nDef.mesh].primitives || [];
+      for (let pi = 0; pi < prims.length; pi++) {
+        const prim = prims[pi];
+        primTasks.push(buildMaterial(prim.material).then((mat) => {
+          const geo = new THREE.BufferGeometry();
+          const attrs = prim.attributes || {};
+          const posData = readAccessorArray(attrs.POSITION);
+          if (!posData) return;
+          geo.setAttribute('position', new THREE.BufferAttribute(posData.array, 3));
+
+          const normData = readAccessorArray(attrs.NORMAL);
+          if (normData) {
+            geo.setAttribute('normal', new THREE.BufferAttribute(normData.array, 3));
+          }
+
+          const uvData = readAccessorArray(attrs.TEXCOORD_0);
+          if (uvData) {
+            geo.setAttribute('uv', new THREE.BufferAttribute(uvData.array, 2));
+          }
+
+          const idxData = readAccessorArray(prim.indices);
+          if (idxData) {
+            geo.setIndex(new THREE.BufferAttribute(idxData.array, 1));
+          }
+
+          if (!normData) {
+            geo.computeVertexNormals();
+          }
+          geo.computeBoundingBox();
+          geo.computeBoundingSphere();
+          if (disposablesList) disposablesList.push(geo);
+
+          nodeObj.add(new THREE.Mesh(geo, mat));
+        }));
+      }
+    }
+
+    const childIndices = Array.isArray(nDef.children) ? nDef.children : [];
+    const childTasks = childIndices.map((ci) =>
+      buildNodeAsync(ci).then((childGrp) => {
+        nodeObj.add(childGrp);
+      })
+    );
+
+    return Promise.all(primTasks.concat(childTasks)).then(() => nodeObj);
+  }
+
+  const sceneIdx = (typeof jsonObj.scene === 'number') ? jsonObj.scene : 0;
+  const rootNodes = (jsonObj.scenes && jsonObj.scenes[sceneIdx] && Array.isArray(jsonObj.scenes[sceneIdx].nodes))
+    ? jsonObj.scenes[sceneIdx].nodes
+    : [0];
+
+  const rootGroup = new THREE.Group();
+  return Promise.all(rootNodes.map((rn) =>
+    buildNodeAsync(rn).then((child) => {
+      rootGroup.add(child);
+    })
+  )).then(() => ({
+    scene: rootGroup,
+    animations: Array.isArray(jsonObj.animations) ? jsonObj.animations : []
+  }));
+}
+
+
+// 10 Authentic Funki Evolution Levels (1:1 to funki_lvl_1_rags.glb .. funki_lvl_10_god_of_soul.glb)
 const FUNKI_LEVEL_SPECS = {
-  1:  { level: 1,  title: 'Ursprung',               sitting: true,  eyeMode: 'sad',      mouth: 'sad',      auraHex: 0x9A7B4F },
-  2:  { level: 2,  title: 'Lehrling',               sitting: false, eyeMode: 'solemn',   mouth: 'solemn',   auraHex: 0x38BDF8 },
-  3:  { level: 3,  title: 'Helfer',                 sitting: false, eyeMode: 'solemn',   mouth: 'solemn',   auraHex: 0x38BDF8 },
-  4:  { level: 4,  title: 'Kristall-Novize',        sitting: false, eyeMode: 'happy',    mouth: 'laugh',    auraHex: 0xF59E0B },
-  5:  { level: 5,  title: 'Funken-Geselle',         sitting: false, eyeMode: 'confident',mouth: 'grin',     auraHex: 0xFBBF24 },
-  6:  { level: 6,  title: 'Gravur-Handwerker',      sitting: false, eyeMode: 'confident',mouth: 'grin',     auraHex: 0x38BDF8 },
+  1:  { level: 1,  title: 'Ursprung',               sitting: true,  eyeMode: 'sad',      mouth: 'sad',      auraHex: 0xC5A059 },
+  2:  { level: 2,  title: 'Lehrling',               sitting: false, eyeMode: 'solemn',   mouth: 'solemn',   auraHex: 0xD97706 },
+  3:  { level: 3,  title: 'Helfer',                 sitting: false, eyeMode: 'solemn',   mouth: 'solemn',   auraHex: 0xEAB308 },
+  4:  { level: 4,  title: 'Kristall-Novize',        sitting: false, eyeMode: 'happy',    mouth: 'laugh',    auraHex: 0x38BDF8 },
+  5:  { level: 5,  title: 'Funken-Geselle',         sitting: false, eyeMode: 'confident',mouth: 'grin',     auraHex: 0x10B981 },
+  6:  { level: 6,  title: 'Gravur-Handwerker',      sitting: false, eyeMode: 'confident',mouth: 'grin',     auraHex: 0xF43F5E },
   7:  { level: 7,  title: 'Kunsthandwerker',        sitting: false, eyeMode: 'confident',mouth: 'grin',     auraHex: 0xD4AF37 },
   8:  { level: 8,  title: 'Meister',                sitting: false, eyeMode: 'confident',mouth: 'grin',     auraHex: 0xFDE68A },
-  9:  { level: 9,  title: 'Lichtbringer',           sitting: false, eyeMode: 'confident',mouth: 'grin',     auraHex: 0x06B6D4 },
+  9:  { level: 9,  title: 'Lichtbringer',           sitting: false, eyeMode: 'confident',mouth: 'grin',     auraHex: 0x38BDF8 },
   10: { level: 10, title: 'Gott des Seelenfunkens', sitting: false, eyeMode: 'amethyst', mouth: 'grin',     auraHex: 0xA855F7 }
 };
 
@@ -1071,12 +1380,28 @@ class FunkenwerkCityEngine {
     this.falconHeadGroup = null;
     this.throneClickTargets = [];
     this.heroesClickTargets = [];
+    this.departmentClickTargets = [];
+    this.departmentBeacons = {};
+    this.hoveredDeptKey = null;
+    this.activeDepartment = null;
+    this.departments = DEPARTMENTS;
+    this.hoverChipEl = null;
+    this.hoverDotEl = null;
+    this.hoverLabelEl = null;
     this.heroPedestalEntries = [];
     this.heroSteleEntries = [];
     this.lastHeroesFetchMs = 0;
     this.heroesFetchInFlight = false;
     this.cachedHeroesList = [];
     this.previewHeroLevel = 0; // 0 = Live Shop Heroes, 1..10 = Interactive Level 1..10 Showcase!
+
+    // RAM Cache Map<level, THREE.Group> so no .glb model is ever downloaded or parsed twice!
+    this.glbTemplateCache = new Map();
+    this.glbLoadingPromises = new Map();
+    this.glbDisposables = [];
+    this.pedestalSparkMeta = [];
+    this.pedestalSparkPosAttr = null;
+    this.sparkSpriteTex = null;
 
     this.skyUniforms = null;
     this.planetSurfaceUniforms = null;
@@ -1091,7 +1416,7 @@ class FunkenwerkCityEngine {
     this.dummyObj = new THREE.Object3D();
 
     // Camera Flight & Damped Spherical OrbitControls
-    this.viewMode = 'orbit'; // 'orbit' | 'city' | 'throne'
+    this.viewMode = 'orbit'; // 'orbit' | 'city' | 'heroes' | 'throne' | 'department'
     this.flight = {
       active: false,
       type: 'none',
@@ -1146,7 +1471,7 @@ class FunkenwerkCityEngine {
     });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.08;
+    this.renderer.toneMappingExposure = 1.10;
     this.renderer.setClearColor(0x02040a, 1);
 
     MAX_ANISO = Math.min(8, this.renderer.capabilities.getMaxAnisotropy() || 4);
@@ -1192,6 +1517,7 @@ class FunkenwerkCityEngine {
     const mcAmethyst = makeLuxuryMatcap('#9333EA', '#FFFFFF', '#F5D0FE', 44, 0.56);
 
     const facadeTex = makeSkyscraperFacadeTexture();
+    this.sparkSpriteTex = makeSparkParticleTexture();
 
     this.mats = {
       goldBright: new THREE.MeshMatcapMaterial({ matcap: mcGoldBright }),
@@ -1935,6 +2261,48 @@ class FunkenwerkCityEngine {
       const wzPad = Math.cos(rotY) * 540;
       pushDeptVein(wxPad, 4.92, wzPad, 16, 0.35, 16, rotY, dept.hex);
 
+      // 3d-click. Invisible Department Pier Raycast Proxy + Matte Accent Ring Beacons (Zero artificial bloom!)
+      const deptClickProxy = new THREE.Mesh(
+        new THREE.BoxGeometry(68, 52, 290),
+        new THREE.MeshBasicMaterial({ visible: false })
+      );
+      deptClickProxy.position.set(0, 26, 360);
+      deptClickProxy.userData = {
+        isDepartment: true,
+        deptKey: dept.key,
+        deptIndex: k,
+        name: dept.name,
+        icon: dept.icon,
+        hex: dept.hex
+      };
+      pierGrp.add(deptClickProxy);
+      this.departmentClickTargets.push(deptClickProxy);
+
+      const beaconMat = new THREE.MeshBasicMaterial({
+        color: dept.color,
+        transparent: true,
+        opacity: 0.28,
+        side: THREE.DoubleSide,
+        depthWrite: false
+      });
+      const podiumBeaconGeo = new THREE.RingGeometry(24.2, 26.8, 32);
+      podiumBeaconGeo.rotateX(-Math.PI * 0.5);
+      const podiumBeacon = new THREE.Mesh(podiumBeaconGeo, beaconMat);
+      podiumBeacon.position.set(0, 8.12, 362);
+      pierGrp.add(podiumBeacon);
+
+      const padBeaconGeo = new THREE.RingGeometry(17.2, 20.4, 8);
+      padBeaconGeo.rotateX(-Math.PI * 0.5);
+      const padBeacon = new THREE.Mesh(padBeaconGeo, beaconMat);
+      padBeacon.position.set(0, 4.98, 540);
+      pierGrp.add(padBeacon);
+
+      this.departmentBeacons[dept.key] = {
+        mat: beaconMat,
+        podiumBeacon,
+        padBeacon
+      };
+
       // 3d. 22 Stepped Skyscrapers on this Department Pier Wing!
       const pierTowerSpots = [
         // Central Pier Spine High-Rises
@@ -2646,10 +3014,173 @@ class FunkenwerkCityEngine {
   }
 
   // ==========================================================================
-  // AUTHENTIC 10-STAGE 3D FUNKI EVOLUTION BUILDER (LEVEL 1 .. LEVEL 10)
-  // 1:1 Sculpted from funki_lvl_1_rags.png .. funki_lvl_10_god_of_soul.png!
+  // REAL COMPRESSED TRIPO 3D FUNKI (.GLB) LOADER, RAM CACHE & 3-POINT LIGHTING
   // ==========================================================================
+  _buildPantheonLighting() {
+    // Attached directly inside hallOfHeroesGroup so +Z_local shines straight onto all 5 front-facing Funki .glb heroes!
+    const hemiLight = new THREE.HemisphereLight(0xFFFDF5, 0x4A5878, 2.05);
+    hemiLight.position.set(0, 34.0, 0);
+    this.hallOfHeroesGroup.add(hemiLight);
+
+    const ambLight = new THREE.AmbientLight(0xFFF9EE, 0.92);
+    this.hallOfHeroesGroup.add(ambLight);
+
+    const keyLight = new THREE.DirectionalLight(0xFFF0CC, 2.45);
+    keyLight.position.set(8.5, 22.0, 24.0);
+    keyLight.target.position.set(0, 3.8, -5.0);
+    this.hallOfHeroesGroup.add(keyLight);
+    this.hallOfHeroesGroup.add(keyLight.target);
+
+    const fillLight = new THREE.DirectionalLight(0xFFE4B5, 1.15);
+    fillLight.position.set(-10.5, 14.0, 21.0);
+    fillLight.target.position.set(0, 3.5, -4.5);
+    this.hallOfHeroesGroup.add(fillLight);
+    this.hallOfHeroesGroup.add(fillLight.target);
+
+    const rimLight = new THREE.DirectionalLight(0xBAE6FD, 0.95);
+    rimLight.position.set(-14.0, 17.0, -20.0);
+    rimLight.target.position.set(0, 4.0, -4.0);
+    this.hallOfHeroesGroup.add(rimLight);
+    this.hallOfHeroesGroup.add(rimLight.target);
+  }
+
+  _loadFunkiGlbTemplate(rawLevel) {
+    const lvl = clamp(Math.round(Number(rawLevel) || 1), 1, 10);
+    if (this.glbTemplateCache.has(lvl)) {
+      return Promise.resolve(this.glbTemplateCache.get(lvl));
+    }
+    if (this.glbLoadingPromises.has(lvl)) {
+      return this.glbLoadingPromises.get(lvl);
+    }
+
+    const url = LOCAL_FUNKI_GLB_URLS[lvl] || LOCAL_FUNKI_GLB_URLS[1];
+    const p = fetch(url, { method: 'GET', credentials: 'same-origin' })
+      .then((resp) => {
+        if (!resp.ok) {
+          throw new Error('GLB HTTP ' + resp.status);
+        }
+        return resp.arrayBuffer();
+      })
+      .then((buf) => parseGlbBinary(buf, MAX_ANISO, this.glbDisposables))
+      .then((parsed) => {
+        const sceneRoot = parsed.scene;
+        sceneRoot.updateMatrixWorld(true);
+        const bbox = new THREE.Box3().setFromObject(sceneRoot);
+        const rawH = Math.max(0.001, bbox.max.y - bbox.min.y);
+        const centerX = (bbox.min.x + bbox.max.x) * 0.5;
+        const centerZ = (bbox.min.z + bbox.max.z) * 0.5;
+        const minY = bbox.min.y;
+
+        const targetH = (lvl === 1) ? 1.62 : 2.08;
+        const normScale = targetH / rawH;
+        sceneRoot.scale.setScalar(normScale);
+        // Align boots/base flush on pedestal surface (bbox.min.y -> y = 0.000) and center X/Z
+        sceneRoot.position.set(-centerX * normScale, -minY * normScale, -centerZ * normScale);
+
+        // Verified Tripo local front axis (+X) -> -Math.PI * 0.5 (-90°) faces +Z straight to the camera!
+        const frontOriented = new THREE.Group();
+        frontOriented.rotation.y = FUNKI_GLB_FRONT_ROTATION_Y;
+        frontOriented.add(sceneRoot);
+
+        const templateGroup = new THREE.Group();
+        templateGroup.add(frontOriented);
+        templateGroup.userData = {
+          level: lvl,
+          hasEmbeddedAnimations: !!(parsed.animations && parsed.animations.length > 0)
+        };
+
+        this.glbTemplateCache.set(lvl, templateGroup);
+        this.glbLoadingPromises.delete(lvl);
+        return templateGroup;
+      })
+      .catch((err) => {
+        this.glbLoadingPromises.delete(lvl);
+        throw err;
+      });
+
+    this.glbLoadingPromises.set(lvl, p);
+    return p;
+  }
+
+  _warmPreloadAllFunkiGlbs() {
+    // Stagger background RAM-cache warm-up of all 10 local .glb models so "✨ Stufen" switches in 0.0ms!
+    for (let lvl = 1; lvl <= 10; lvl++) {
+      setTimeout(() => {
+        this._loadFunkiGlbTemplate(lvl).catch(() => {});
+      }, lvl * 65);
+    }
+  }
+
   buildFunki3DByLevel(level, statueScale = 1.0, slotSeed = 1) {
+    const lvl = clamp(Math.round(Number(level) || 1), 1, 10);
+    const spec = FUNKI_LEVEL_SPECS[lvl];
+    const root = new THREE.Group();
+    root.scale.setScalar(statueScale);
+
+    const auraMat = new THREE.MeshBasicMaterial({ color: spec.auraHex });
+    const auraOuter = new THREE.Mesh(new THREE.TorusGeometry(0.96, 0.036, 10, 40), auraMat);
+    auraOuter.rotation.x = Math.PI * 0.5;
+    auraOuter.position.y = 0.036;
+    root.add(auraOuter);
+
+    const auraInnerMat = new THREE.MeshBasicMaterial({
+      color: 0xFDE68A,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.78
+    });
+    const auraInner = new THREE.Mesh(new THREE.RingGeometry(0.58, 0.68, 8), auraInnerMat);
+    auraInner.rotation.x = -Math.PI * 0.5;
+    auraInner.position.y = 0.028;
+    root.add(auraInner);
+
+    let divineOuterRing = null;
+    if (lvl === 10) {
+      divineOuterRing = new THREE.Mesh(new THREE.TorusGeometry(1.32, 0.026, 8, 40), this.mats.goldBright);
+      divineOuterRing.rotation.y = Math.PI * 0.25;
+      divineOuterRing.position.y = 1.18;
+      root.add(divineOuterRing);
+    }
+
+    const motionRig = new THREE.Group();
+    root.add(motionRig);
+
+    const funkiRecord = {
+      root,
+      motionRig,
+      floatGroup: motionRig,
+      haloRing: auraOuter,
+      auraOuter,
+      auraInner,
+      divineOuterRing,
+      auraMat,
+      level: lvl,
+      sitting: spec.sitting,
+      baseFloatY: 0,
+      phase: slotSeed * 1.17,
+      disposed: false
+    };
+
+    if (this.glbTemplateCache.has(lvl)) {
+      motionRig.add(this.glbTemplateCache.get(lvl).clone(true));
+    } else {
+      this._loadFunkiGlbTemplate(lvl)
+        .then((templateGroup) => {
+          if (funkiRecord.disposed) return;
+          motionRig.add(templateGroup.clone(true));
+        })
+        .catch(() => {
+          if (funkiRecord.disposed) return;
+          const fallback = this._buildProceduralFallbackFunki(lvl, 1.0, slotSeed);
+          motionRig.add(fallback.root);
+        });
+    }
+
+    return funkiRecord;
+  }
+
+  // Procedural Fallback (used only if local .glb file were ever unreachable)
+  _buildProceduralFallbackFunki(level, statueScale = 1.0, slotSeed = 1) {
     const lvl = clamp(Math.round(Number(level) || 1), 1, 10);
     const spec = FUNKI_LEVEL_SPECS[lvl];
     const root = new THREE.Group();
@@ -3198,6 +3729,9 @@ class FunkenwerkCityEngine {
     this.hallOfHeroesGroup.rotation.y = pierRotY;
     this.cityGroup.add(this.hallOfHeroesGroup);
 
+    // 3-Point Pantheon Lighting (HemisphereLight + AmbientLight + Warm Front KeyLight + Sapphire RimLight)
+    this._buildPantheonLighting();
+
     // 1. Grand Ehrenpromenade Causeway Connecting Pier 1 Starport Plaza (r=540) to the Pantheon (r=598)
     const promBridge = new THREE.Mesh(new THREE.BoxGeometry(22.0, 3.2, 42.0), this.mats.obsidian);
     promBridge.position.set(0, -1.2, -39.0);
@@ -3509,6 +4043,67 @@ class FunkenwerkCityEngine {
     steleGoldInst.instanceMatrix.needsUpdate = true;
     this.hallOfHeroesGroup.add(steleGoldInst);
     this.hallOfHeroesGroup.add(steleObsInst);
+
+    // 8. Rising Golden Seelenfunken Spark Particles around all 5 Honor Pedestals (1 batched Points draw call!)
+    const sparksPerPedestal = 26;
+    const totalPedSparks = pedestalSpecs.length * sparksPerPedestal;
+    const sparkPositions = new Float32Array(totalPedSparks * 3);
+    const sparkColors = new Float32Array(totalPedSparks * 3);
+    const sparkRng = mulberry32(20261117);
+    this.pedestalSparkMeta = [];
+
+    pedestalSpecs.forEach((pSpec, spi) => {
+      const accentRgb = hexToRgb(FUNKI_LEVEL_SPECS[pSpec.defaultLevel]?.auraHex || 0xC5A059);
+      for (let sj = 0; sj < sparksPerPedestal; sj++) {
+        const sIdx = spi * sparksPerPedestal + sj;
+        const phaseVal = sparkRng();
+        const baseR = pSpec.w * (0.34 + sparkRng() * 0.26);
+        const spanH = (2.35 + sparkRng() * 0.95) * pSpec.scale;
+        const spd = 0.14 + sparkRng() * 0.16;
+        const sw = (0.65 + sparkRng() * 0.75) * (sj % 2 === 0 ? 1 : -1);
+        const startY = floorTopY + pSpec.h + 0.16;
+
+        this.pedestalSparkMeta.push({
+          baseX: pSpec.x,
+          baseY: startY,
+          baseZ: pSpec.z,
+          radius: baseR,
+          heightSpan: spanH,
+          speed: spd,
+          phase: phaseVal,
+          swirl: sw
+        });
+
+        sparkPositions[sIdx * 3] = pSpec.x + Math.cos(phaseVal * 6.283) * baseR;
+        sparkPositions[sIdx * 3 + 1] = startY + phaseVal * spanH;
+        sparkPositions[sIdx * 3 + 2] = pSpec.z + Math.sin(phaseVal * 6.283) * baseR;
+
+        const useAccent = (sj % 3 === 0);
+        sparkColors[sIdx * 3] = useAccent ? (accentRgb[0] / 255) : 1.0;
+        sparkColors[sIdx * 3 + 1] = useAccent ? (accentRgb[1] / 255) : 0.89;
+        sparkColors[sIdx * 3 + 2] = useAccent ? (accentRgb[2] / 255) : 0.52;
+      }
+    });
+
+    const pedSparkGeo = new THREE.BufferGeometry();
+    this.pedestalSparkPosAttr = new THREE.BufferAttribute(sparkPositions, 3);
+    pedSparkGeo.setAttribute('position', this.pedestalSparkPosAttr);
+    pedSparkGeo.setAttribute('color', new THREE.BufferAttribute(sparkColors, 3));
+    const pedSparkMat = new THREE.PointsMaterial({
+      size: 0.22,
+      map: this.sparkSpriteTex || null,
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.88,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    const pedSparkPoints = new THREE.Points(pedSparkGeo, pedSparkMat);
+    pedSparkPoints.frustumCulled = false;
+    this.hallOfHeroesGroup.add(pedSparkPoints);
+
+    // Warm-preload all 10 local .glb models into RAM cache for instant 0ms "✨ Stufen" cycling!
+    this._warmPreloadAllFunkiGlbs();
   }
 
   async refreshHeroesFromServer(force = false) {
@@ -3561,6 +4156,7 @@ class FunkenwerkCityEngine {
       }
 
       if (entry.funki.level !== targetLevel) {
+        entry.funki.disposed = true;
         entry.statueMount.remove(entry.funki.root);
         entry.funki = this.buildFunki3DByLevel(targetLevel, entry.scale, entry.slot);
         entry.statueMount.add(entry.funki.root);
@@ -3646,6 +4242,59 @@ class FunkenwerkCityEngine {
     }
   }
 
+  _resolveDepartment(deptKeyOrIndex) {
+    if (typeof deptKeyOrIndex === 'number' && Number.isInteger(deptKeyOrIndex)) {
+      return DEPARTMENTS[deptKeyOrIndex] || null;
+    }
+    const norm = String(deptKeyOrIndex ?? '').trim().toLowerCase();
+    if (!norm) return null;
+    const byKey = DEPARTMENTS.find((d) => d.key === norm);
+    if (byKey) return byKey;
+    if (/^[0-6]$/.test(norm)) {
+      return DEPARTMENTS[Number(norm)] || null;
+    }
+    return DEPARTMENTS.find((d) => d.name.toLowerCase() === norm) || null;
+  }
+
+  _emitDepartmentChange(deptOrNull) {
+    const nextKey = deptOrNull ? deptOrNull.key : null;
+    this.activeDepartment = nextKey;
+    window.dispatchEvent(new CustomEvent('fw-city-department-change', {
+      detail: {
+        deptKey: nextKey,
+        dept: deptOrNull || null
+      }
+    }));
+  }
+
+  _showHoverChip(clientX, clientY, label, hexColor) {
+    if (!this.hoverChipEl) {
+      this.hoverChipEl = document.getElementById('fw-city-hover-chip');
+      this.hoverDotEl = document.getElementById('fw-city-hover-dot');
+      this.hoverLabelEl = document.getElementById('fw-city-hover-label');
+    }
+    if (!this.hoverChipEl) return;
+    if (this.hoverDotEl) {
+      this.hoverDotEl.style.background = hexColor || '#C5A059';
+    }
+    if (this.hoverLabelEl) {
+      this.hoverLabelEl.textContent = label || '';
+    }
+    const maxLeft = Math.max(12, window.innerWidth - 210);
+    const maxTop = Math.max(12, window.innerHeight - 46);
+    const x = clamp(clientX + 16, 12, maxLeft);
+    const y = clamp(clientY - 18, 12, maxTop);
+    this.hoverChipEl.style.transform = `translate3d(${Math.round(x)}px, ${Math.round(y)}px, 0)`;
+    this.hoverChipEl.classList.remove('hidden');
+  }
+
+  _hideHoverChip() {
+    if (!this.hoverChipEl) {
+      this.hoverChipEl = document.getElementById('fw-city-hover-chip');
+    }
+    this.hoverChipEl?.classList.add('hidden');
+  }
+
   _adoptCameraIntoOrbitControls(targetVec, modeHint = null) {
     if (modeHint) this.viewMode = modeHint;
     this.orbit.target.copy(targetVec);
@@ -3668,6 +4317,10 @@ class FunkenwerkCityEngine {
       this.orbit.minRadius = 2.2;
       this.orbit.maxRadius = 220.0;
       this.orbit.minY = 6.9;
+    } else if (this.viewMode === 'department') {
+      this.orbit.minRadius = 42.0;
+      this.orbit.maxRadius = 920.0;
+      this.orbit.minY = 6.2;
     } else {
       this.orbit.minRadius = 28.0;
       this.orbit.maxRadius = 6200.0;
@@ -3678,6 +4331,7 @@ class FunkenwerkCityEngine {
 
   cancelFlightToFreeOrbit() {
     if (!this.flight.active) return;
+    const prevFlightType = this.flight.type;
     this.flight.active = false;
     if (this.cloudVeilEl) this.cloudVeilEl.style.opacity = '0';
 
@@ -3686,10 +4340,14 @@ class FunkenwerkCityEngine {
     this.camera.getWorldDirection(curLook);
     const dist = clamp(this.camera.position.length() * 0.45, 4.0, 900.0);
     const target = this.camera.position.clone().addScaledVector(curLook, dist);
-    if (this.camera.position.length() < 1200 && this.viewMode !== 'heroes') {
+    if (this.viewMode === 'department' && prevFlightType === 'glide_department') {
+      target.copy(this.flight.toTarget);
+    } else if (this.camera.position.length() < 1200 && this.viewMode !== 'heroes' && this.viewMode !== 'department') {
       target.set(0, clamp(target.y, 8, 265), 0);
     }
-    const keepMode = (this.viewMode === 'throne' || this.viewMode === 'heroes') ? this.viewMode : 'city';
+    const keepMode = (this.viewMode === 'throne' || this.viewMode === 'heroes' || this.viewMode === 'department')
+      ? this.viewMode
+      : 'city';
     this._adoptCameraIntoOrbitControls(target, keepMode);
   }
 
@@ -3697,6 +4355,7 @@ class FunkenwerkCityEngine {
   startOrbitalFlyIn() {
     this.init();
     this.viewMode = 'orbit';
+    this._emitDepartmentChange(null);
     this._updateHudActiveButtons();
 
     const startPos = new THREE.Vector3(980, 3550, 3850);
@@ -3723,6 +4382,7 @@ class FunkenwerkCityEngine {
   flyToCityOverview(instant = false) {
     this.init();
     this.viewMode = 'city';
+    this._emitDepartmentChange(null);
     this._updateHudActiveButtons();
 
     const destPos = new THREE.Vector3(175, 178, 520);
@@ -3752,10 +4412,77 @@ class FunkenwerkCityEngine {
     this.flight.toTarget.copy(destTarget);
   }
 
+  // Phase 2D Smooth Over-Lagoon Glide to any of the 7 Department Piers!
+  flyToDepartment(deptKeyOrIndex, instant = false) {
+    this.init();
+    const dept = this._resolveDepartment(deptKeyOrIndex);
+    if (!dept) return false;
+    const k = DEPARTMENTS.indexOf(dept);
+    const theta = this.pierAngles[k];
+    const rotY = Math.atan2(Math.cos(theta), Math.sin(theta));
+
+    this.viewMode = 'department';
+    this._emitDepartmentChange(dept);
+    this._updateHudActiveButtons();
+
+    // Pier-Citadel target (lx = 0, y = 18.0, lz = 362) & elevated 3/4 lagoon viewpoint (lx = 54, y = 40.0, lz = 248)
+    const destTarget = new THREE.Vector3(
+      362 * Math.sin(rotY),
+      18.0,
+      362 * Math.cos(rotY)
+    );
+    const destPos = new THREE.Vector3(
+      54 * Math.cos(rotY) + 248 * Math.sin(rotY),
+      40.0,
+      -54 * Math.sin(rotY) + 248 * Math.cos(rotY)
+    );
+
+    if (instant) {
+      this.flight.active = false;
+      this.camera.position.copy(destPos);
+      this.camera.lookAt(destTarget);
+      this._syncPlanetVsCityBlend(destPos);
+      this._adoptCameraIntoOrbitControls(destTarget, 'department');
+      return true;
+    }
+
+    // Atmospheric approach entry point if starting from deep space or fresh origin
+    if (this.camera.position.length() > 1400 || this.camera.position.lengthSq() < 10) {
+      const seaEntry = new THREE.Vector3(
+        115 * Math.cos(rotY) + 185 * Math.sin(rotY),
+        135.0,
+        -115 * Math.sin(rotY) + 185 * Math.cos(rotY)
+      );
+      this.camera.position.copy(seaEntry);
+      this.orbit.target.copy(destTarget);
+    }
+
+    const mid = new THREE.Vector3().lerpVectors(this.camera.position, destPos, 0.5);
+    const midHoriz = Math.hypot(mid.x, mid.z);
+    if (midHoriz < 215) {
+      const outAngle = midHoriz > 5 ? Math.atan2(mid.z, mid.x) : theta;
+      mid.x = Math.cos(outAngle) * 240;
+      mid.z = Math.sin(outAngle) * 240;
+    }
+    mid.y = Math.max(this.camera.position.y, destPos.y) + 28;
+
+    this.flight.active = true;
+    this.flight.type = 'glide_department';
+    this.flight.elapsed = 0;
+    this.flight.duration = 2.2;
+    this.flight.fromPos.copy(this.camera.position);
+    this.flight.fromTarget.copy(this.orbit.target);
+    this.flight.midPos.copy(mid);
+    this.flight.toPos.copy(destPos);
+    this.flight.toTarget.copy(destTarget);
+    return true;
+  }
+
   // Phase 3 Smooth Panoramic Ascent into Alina & Falcon's Penthouse Throne Room!
   flyToThroneRoom(instant = false) {
     this.init();
     this.viewMode = 'throne';
+    this._emitDepartmentChange(null);
     this._updateHudActiveButtons();
 
     // Framed right on the Royal Crimson Velvet Carpet so BOTH Alina's High Throne ("ALINA / Herrscherin...")
@@ -3798,6 +4525,7 @@ class FunkenwerkCityEngine {
     this.init();
     this.refreshHeroesFromServer(false);
     this.viewMode = 'heroes';
+    this._emitDepartmentChange(null);
     this._updateHudActiveButtons();
 
     this.hallOfHeroesGroup.updateMatrixWorld(true);
@@ -3834,6 +4562,8 @@ class FunkenwerkCityEngine {
   _updateHudActiveButtons() {
     const bOrbit = document.getElementById('btn-fw-city-orbit');
     const bCity = document.getElementById('btn-fw-city-overview');
+    const bDepts = document.getElementById('btn-fw-city-departments');
+    const deptMenu = document.getElementById('fw-city-dept-menu');
     const bHeroes = document.getElementById('btn-fw-city-heroes');
     const bLevels = document.getElementById('btn-fw-city-hero-levels');
     const bThrone = document.getElementById('btn-fw-city-throne');
@@ -3841,6 +4571,19 @@ class FunkenwerkCityEngine {
     bCity?.classList.toggle('active', this.viewMode === 'city');
     bHeroes?.classList.toggle('active', this.viewMode === 'heroes');
     bThrone?.classList.toggle('active', this.viewMode === 'throne');
+    if (bDepts) {
+      const activeDept = this.viewMode === 'department' && this.activeDepartment
+        ? DEPARTMENTS.find((d) => d.key === this.activeDepartment)
+        : null;
+      bDepts.classList.toggle('active', !!activeDept);
+      bDepts.textContent = activeDept ? `${activeDept.icon} ${activeDept.name} ▾` : '🏢 Abteilungen ▾';
+    }
+    if (deptMenu) {
+      deptMenu.querySelectorAll('[data-dept-key]').forEach((item) => {
+        const isAct = this.viewMode === 'department' && item.getAttribute('data-dept-key') === this.activeDepartment;
+        item.classList.toggle('active', isAct);
+      });
+    }
     if (bLevels) {
       bLevels.classList.toggle('hidden', this.viewMode !== 'heroes');
       bLevels.classList.toggle('active', this.previewHeroLevel > 0);
@@ -3856,6 +4599,9 @@ class FunkenwerkCityEngine {
 
     el.addEventListener('pointerdown', (e) => {
       if (!this.running) return;
+      document.getElementById('fw-city-dept-menu')?.classList.add('hidden');
+      document.getElementById('btn-fw-city-departments')?.setAttribute('aria-expanded', 'false');
+      this._hideHoverChip();
       if (this.flight.active) {
         this.cancelFlightToFreeOrbit();
       }
@@ -3868,12 +4614,63 @@ class FunkenwerkCityEngine {
     });
 
     el.addEventListener('pointermove', (e) => {
-      if (!this.running || !this.orbit.isDragging) return;
+      if (!this.running) return;
+
+      if (!this.orbit.isDragging) {
+        if (!this.cityGroup?.visible) {
+          this.hoveredDeptKey = null;
+          el.style.cursor = 'grab';
+          this._hideHoverChip();
+          return;
+        }
+
+        const rect = el.getBoundingClientRect();
+        this.pointerNdc.x = ((e.clientX - rect.left) / Math.max(1, rect.width)) * 2 - 1;
+        this.pointerNdc.y = -((e.clientY - rect.top) / Math.max(1, rect.height)) * 2 + 1;
+        this.raycaster.setFromCamera(this.pointerNdc, this.camera);
+
+        let hitLabel = '';
+        let hitHex = '#C5A059';
+        let hitDeptKey = null;
+
+        if (this.viewMode !== 'throne' && this.raycaster.intersectObjects(this.throneClickTargets, false).length > 0) {
+          hitLabel = '👑 Thronsaal';
+          hitHex = '#C5A059';
+        } else if (this.viewMode !== 'heroes' && this.raycaster.intersectObjects(this.heroesClickTargets, false).length > 0) {
+          hitLabel = '🏛️ Halle der Helden';
+          hitHex = '#C5A059';
+        } else {
+          const deptHits = this.raycaster.intersectObjects(this.departmentClickTargets, false);
+          if (deptHits.length > 0 && deptHits[0].object?.userData?.deptKey) {
+            const ud = deptHits[0].object.userData;
+            hitDeptKey = ud.deptKey;
+            hitLabel = `${ud.icon || '🏢'} ${ud.name}`;
+            hitHex = ud.hex || '#C5A059';
+          }
+        }
+
+        this.hoveredDeptKey = hitDeptKey;
+        if (hitLabel) {
+          el.style.cursor = 'pointer';
+          this._showHoverChip(e.clientX, e.clientY, hitLabel, hitHex);
+        } else {
+          el.style.cursor = 'grab';
+          this._hideHoverChip();
+        }
+        return;
+      }
+
       const dx = e.clientX - this.orbit.lastX;
       const dy = e.clientY - this.orbit.lastY;
       this.orbit.lastX = e.clientX;
       this.orbit.lastY = e.clientY;
       this.orbit.movedDist += Math.hypot(dx, dy);
+
+      if (this.orbit.movedDist > 2) {
+        this.hoveredDeptKey = null;
+        this._hideHoverChip();
+        el.style.cursor = 'grabbing';
+      }
 
       if (this.orbit.dragButton === 2 || e.shiftKey) {
         // Right-drag / Shift-drag: Smooth horizontal/vertical pan
@@ -3892,21 +4689,38 @@ class FunkenwerkCityEngine {
       }
     });
 
+    el.addEventListener('pointerleave', () => {
+      this.hoveredDeptKey = null;
+      this._hideHoverChip();
+      if (!this.orbit.isDragging) {
+        el.style.cursor = 'grab';
+      }
+    });
+
     const endPointer = (e) => {
       if (!this.orbit.isDragging) return;
       this.orbit.isDragging = false;
+      el.style.cursor = 'grab';
       try { el.releasePointerCapture(e.pointerId); } catch { }
 
-      // Click without drag on Golden Supertower Crown -> Throne Room, or Pantheon -> Hall of Heroes!
-      if (this.orbit.movedDist < 6 && e.button === 0) {
+      // Click without drag: 1. Throne Room -> 2. Hall of Heroes -> 3. Department Pier -> 4. Open Water return
+      if (this.orbit.movedDist < 6 && e.button === 0 && this.cityGroup?.visible) {
         const rect = el.getBoundingClientRect();
         this.pointerNdc.x = ((e.clientX - rect.left) / Math.max(1, rect.width)) * 2 - 1;
         this.pointerNdc.y = -((e.clientY - rect.top) / Math.max(1, rect.height)) * 2 + 1;
         this.raycaster.setFromCamera(this.pointerNdc, this.camera);
+
         if (this.viewMode !== 'throne' && this.raycaster.intersectObjects(this.throneClickTargets, false).length > 0) {
           this.flyToThroneRoom(false);
         } else if (this.viewMode !== 'heroes' && this.raycaster.intersectObjects(this.heroesClickTargets, false).length > 0) {
           this.flyToHallOfHeroes(false);
+        } else {
+          const deptHits = this.raycaster.intersectObjects(this.departmentClickTargets, false);
+          if (deptHits.length > 0 && deptHits[0].object?.userData?.deptKey) {
+            this.flyToDepartment(deptHits[0].object.userData.deptKey, false);
+          } else if (this.viewMode === 'department') {
+            this.flyToCityOverview(false);
+          }
         }
       }
     };
@@ -3962,11 +4776,19 @@ class FunkenwerkCityEngine {
     this.resize();
     this.refreshHeroesFromServer(false);
 
-    if (initialMode === 'throne') {
+    const modeStr = String(initialMode || 'orbit').trim();
+    if (modeStr.startsWith('department:')) {
+      const deptKey = modeStr.slice('department:'.length).trim() || 'orders';
+      if (this.camera.position.lengthSq() < 10) {
+        this.camera.position.set(175, 178, 520);
+        this.orbit.target.set(0, 112, 0);
+      }
+      this.flyToDepartment(deptKey, false);
+    } else if (modeStr === 'throne') {
       this.flyToThroneRoom(false);
-    } else if (initialMode === 'heroes') {
+    } else if (modeStr === 'heroes') {
       this.flyToHallOfHeroes(false);
-    } else if (initialMode === 'city') {
+    } else if (modeStr === 'city') {
       this.flyToCityOverview(true);
     } else {
       this.startOrbitalFlyIn();
@@ -3982,6 +4804,9 @@ class FunkenwerkCityEngine {
   close() {
     this.running = false;
     this.flight.active = false;
+    this.hoveredDeptKey = null;
+    this._hideHoverChip();
+    this._emitDepartmentChange(null);
     if (this.rafId) {
       cancelAnimationFrame(this.rafId);
       this.rafId = 0;
@@ -4042,6 +4867,28 @@ class FunkenwerkCityEngine {
       this.gliderInst.instanceMatrix.needsUpdate = true;
     }
 
+    // 1b. Gentle Matte Beacon Ring Pulse on Hovered or Active Department Pier
+    if (this.cityGroup?.visible) {
+      for (let k = 0; k < DEPARTMENTS.length; k++) {
+        const dk = DEPARTMENTS[k].key;
+        const b = this.departmentBeacons[dk];
+        if (!b) continue;
+        const isHighlighted = (this.hoveredDeptKey === dk) || (this.viewMode === 'department' && this.activeDepartment === dk);
+        if (isHighlighted) {
+          const pulse = 0.5 + 0.5 * Math.sin(t * 3.4);
+          b.mat.opacity = 0.52 + 0.30 * pulse;
+          const scPod = 1.0 + 0.026 * pulse;
+          const scPad = 1.0 + 0.048 * pulse;
+          b.podiumBeacon.scale.set(scPod, 1, scPod);
+          b.padBeacon.scale.set(scPad, 1, scPad);
+        } else {
+          b.mat.opacity = 0.26;
+          b.podiumBeacon.scale.set(1, 1, 1);
+          b.padBeacon.scale.set(1, 1, 1);
+        }
+      }
+    }
+
     // 2. Subtle Poised Vigilance Animation for 3D Falcon in the Penthouse Throne Room
     if (this.falconChestGroup && this.falconHeadGroup) {
       this.falconChestGroup.position.y = 0.94 + Math.sin(t * 1.85) * 0.008;
@@ -4049,16 +4896,59 @@ class FunkenwerkCityEngine {
       this.falconHeadGroup.rotation.z = Math.cos(t * 0.85) * 0.022;
     }
 
-    // 3. Gentle Animation & Aura Rotation for the 5 Central 3D Funki Heroes (Seated Lvl 1 vs Levitating Lvl 2..10)!
+    // 3. 60-FPS Living Pedestal Animation for the Real Tripo 3D Funki (.glb) Heroes + Counter-Rotating Aura Rings & Sparks!
     for (let i = 0; i < this.heroPedestalEntries.length; i++) {
       const f = this.heroPedestalEntries[i].funki;
-      const bob = f.sitting ? 0.012 : 0.065;
-      f.floatGroup.position.y = f.baseFloatY + Math.sin(t * 1.9 + f.phase) * bob;
-      f.haloRing.rotation.z = t * 0.55 + f.phase;
+      const rig = f.motionRig || f.floatGroup;
+      if (!rig) continue;
+
+      const breathWave = Math.sin(t * 1.85 + f.phase);
+      const breathScaleY = 1.0 + breathWave * 0.013;
+      const breathScaleXZ = 1.0 - breathWave * 0.005;
+      rig.scale.set(breathScaleXZ, breathScaleY, breathScaleXZ);
+
+      if (f.level >= 8) {
+        // High-tier Masters, Lightbringers & Gods hover with majestic aura levitation
+        rig.position.y = 0.035 + (0.5 + 0.5 * breathWave) * 0.055;
+      } else if (!f.sitting) {
+        rig.position.y = Math.max(0, breathWave) * 0.016;
+      } else {
+        rig.position.y = 0;
+      }
+
+      // Proud upper-body & gaze presence toward the Hall of Heroes
+      rig.rotation.y = Math.sin(t * 0.72 + f.phase) * 0.082;
+      rig.rotation.z = Math.sin(t * 0.52 + f.phase * 1.3) * 0.016;
+      rig.rotation.x = Math.sin(t * 0.94 + f.phase) * 0.012;
+
+      if (f.auraOuter) {
+        const auraPulse = 1.0 + Math.sin(t * 2.2 + f.phase) * 0.032;
+        f.auraOuter.scale.set(auraPulse, auraPulse, 1.0);
+        f.auraOuter.rotation.z = t * 0.65 + f.phase;
+      }
+      if (f.auraInner) {
+        f.auraInner.rotation.z = -t * 0.95 - f.phase;
+      }
       if (f.divineOuterRing) {
         f.divineOuterRing.rotation.x = t * 0.45 + f.phase;
         f.divineOuterRing.rotation.z = -t * 0.35;
       }
+    }
+
+    // Rising Golden Seelenfunken Spark Particles around the 5 Honor Pedestals (0 allocations per frame!)
+    if (this.pedestalSparkPosAttr && this.cityGroup?.visible) {
+      const posArr = this.pedestalSparkPosAttr.array;
+      for (let si = 0; si < this.pedestalSparkMeta.length; si++) {
+        const sm = this.pedestalSparkMeta[si];
+        const su = ((sm.phase + t * sm.speed) % 1 + 1) % 1;
+        const sang = t * sm.swirl + sm.phase * 6.283185;
+        const sr = sm.radius * (0.76 + 0.24 * Math.sin(su * 3.14159));
+        const p3 = si * 3;
+        posArr[p3] = sm.baseX + Math.cos(sang) * sr;
+        posArr[p3 + 1] = sm.baseY + su * sm.heightSpan;
+        posArr[p3 + 2] = sm.baseZ + Math.sin(sang) * sr;
+      }
+      this.pedestalSparkPosAttr.needsUpdate = true;
     }
   }
 
@@ -4108,7 +4998,9 @@ class FunkenwerkCityEngine {
         this.flight.active = false;
         const settledMode = this.flight.type === 'glide_throne'
           ? 'throne'
-          : (this.flight.type === 'glide_heroes' ? 'heroes' : 'city');
+          : (this.flight.type === 'glide_heroes'
+            ? 'heroes'
+            : (this.flight.type === 'glide_department' ? 'department' : 'city'));
         this._adoptCameraIntoOrbitControls(this.flight.toTarget, settledMode);
       }
     } else {
@@ -4139,7 +5031,8 @@ function CylinderOrBoxPillar(r, h) {
   return new THREE.CylinderGeometry(r, r * 1.08, h, 14);
 }
 
-window.FunkenwerkCity3D = new FunkenwerkCityEngine();
+const funkenwerkCityInstance = new FunkenwerkCityEngine();
+window.FunkenwerkCity3D = funkenwerkCityInstance;
 document.getElementById('btn-fw-city-heroes')?.addEventListener('click', () => {
   window.FunkenwerkCity3D?.flyToHallOfHeroes(false);
 });

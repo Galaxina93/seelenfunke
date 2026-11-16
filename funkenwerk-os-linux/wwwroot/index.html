@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Funkenwerk OS</title>
-  <link rel="stylesheet" href="/styles.css?v=20261116v25" />
+  <link rel="stylesheet" href="/styles.css?v=20261116v29" />
 </head>
 <body>
 
@@ -418,22 +418,70 @@
     </div>
   </div>
 
-  <!-- FUNKENWERK 3D WATER METROPOLIS (ORBIT -> ATLANTIS CITY -> THRONSAAL) -->
+  <!-- FUNKENWERK 3D WATER METROPOLIS (ORBIT -> ATLANTIS CITY -> ABTEILUNGEN -> THRONSAAL) -->
   <section id="funkenwerk-city-stage" class="hidden">
     <canvas id="funkenwerk-city-canvas"></canvas>
     <div id="fw-city-cloud-veil"></div>
+
+    <div id="fw-city-hover-chip" class="fw-city-hover-chip hidden" aria-hidden="true">
+      <span class="fw-city-hover-dot" id="fw-city-hover-dot"></span>
+      <span id="fw-city-hover-label"></span>
+    </div>
+
     <nav class="fw-city-hud-bar" aria-label="Funkenwerk">
       <button type="button" class="fw-city-hud-btn active" id="btn-fw-city-orbit" title="Orbit">🪐 Orbit-Anflug</button>
       <button type="button" class="fw-city-hud-btn" id="btn-fw-city-overview" title="Stadt">🏙️ Stadt</button>
+      <div class="fw-city-dept-wrap" id="fw-city-dept-wrap">
+        <button type="button" class="fw-city-hud-btn" id="btn-fw-city-departments" aria-haspopup="true" aria-expanded="false" title="Abteilungen">🏢 Abteilungen ▾</button>
+        <div class="fw-city-dept-menu hidden" id="fw-city-dept-menu" role="menu">
+          <button type="button" class="fw-city-dept-item" data-dept-key="orders" role="menuitem"><span class="fw-dept-dot" style="background:#F59E0B;"></span><span class="fw-dept-item-lbl">📦 Bestellungen</span><kbd>1</kbd></button>
+          <button type="button" class="fw-city-dept-item" data-dept-key="products" role="menuitem"><span class="fw-dept-dot" style="background:#3B82F6;"></span><span class="fw-dept-item-lbl">🎨 Produkte</span><kbd>2</kbd></button>
+          <button type="button" class="fw-city-dept-item" data-dept-key="accounting" role="menuitem"><span class="fw-dept-dot" style="background:#10B981;"></span><span class="fw-dept-item-lbl">💶 Buchhaltung</span><kbd>3</kbd></button>
+          <button type="button" class="fw-city-dept-item" data-dept-key="marketing" role="menuitem"><span class="fw-dept-dot" style="background:#A855F7;"></span><span class="fw-dept-item-lbl">📣 Marketing</span><kbd>4</kbd></button>
+          <button type="button" class="fw-city-dept-item" data-dept-key="support" role="menuitem"><span class="fw-dept-dot" style="background:#06B6D4;"></span><span class="fw-dept-item-lbl">🎧 Support</span><kbd>5</kbd></button>
+          <button type="button" class="fw-city-dept-item" data-dept-key="agents" role="menuitem"><span class="fw-dept-dot" style="background:#6366F1;"></span><span class="fw-dept-item-lbl">🤖 Agenten</span><kbd>6</kbd></button>
+          <button type="button" class="fw-city-dept-item" data-dept-key="system" role="menuitem"><span class="fw-dept-dot" style="background:#EF4444;"></span><span class="fw-dept-item-lbl">⚙️ System</span><kbd>7</kbd></button>
+        </div>
+      </div>
       <button type="button" class="fw-city-hud-btn" id="btn-fw-city-heroes" title="Helden">🏛️ Helden</button>
       <button type="button" class="fw-city-hud-btn hidden" id="btn-fw-city-hero-levels" title="Stufen">✨ Stufen</button>
       <button type="button" class="fw-city-hud-btn" id="btn-fw-city-throne" title="Thronsaal">👑 Thronsaal</button>
       <button type="button" class="fw-city-hud-btn fw-city-close" id="btn-fw-city-close" title="Schließen">✕</button>
     </nav>
+
+    <aside id="fw-city-department-drawer" class="fw-city-department-drawer hidden" aria-label="Abteilung">
+      <header class="fw-dept-drawer-head">
+        <strong class="fw-dept-title" id="fw-dept-title">📦 BESTELLUNGEN</strong>
+        <div class="fw-dept-head-right">
+          <span class="fw-dept-badge" id="fw-dept-badge">LIVE</span>
+          <button type="button" class="fw-dept-close-btn" id="btn-fw-dept-close" title="Zurück zur Stadt">✕</button>
+        </div>
+      </header>
+
+      <div class="fw-dept-kpi-list">
+        <div class="fw-dept-kpi-pill" id="fw-dept-kpi-1">
+          <span class="fw-dept-kpi-lbl" id="fw-dept-kpi-1-lbl">Offen</span>
+          <strong class="fw-dept-kpi-val" id="fw-dept-kpi-1-val">0</strong>
+        </div>
+        <div class="fw-dept-kpi-pill" id="fw-dept-kpi-2">
+          <span class="fw-dept-kpi-lbl" id="fw-dept-kpi-2-lbl">Heute</span>
+          <strong class="fw-dept-kpi-val" id="fw-dept-kpi-2-val">0</strong>
+        </div>
+        <div class="fw-dept-kpi-pill" id="fw-dept-kpi-3">
+          <span class="fw-dept-kpi-lbl" id="fw-dept-kpi-3-lbl">Warenkörbe</span>
+          <strong class="fw-dept-kpi-val" id="fw-dept-kpi-3-val">0</strong>
+        </div>
+      </div>
+
+      <div class="fw-dept-actions">
+        <button type="button" class="fw-dept-primary-btn" id="btn-fw-dept-primary">◎ Fokus starten</button>
+        <button type="button" class="fw-dept-portal-btn" id="btn-fw-dept-portal">🌐 Im Webportal öffnen</button>
+      </div>
+    </aside>
   </section>
 
   <script type="module" src="/funkira3d.js?v=20261115v24"></script>
-  <script type="module" src="/funkenwerk_city_3d.js?v=20261116v28"></script>
-  <script src="/app.js?v=20261116v26"></script>
+  <script type="module" src="/funkenwerk_city_3d.js?v=20261116v30"></script>
+  <script src="/app.js?v=20261116v29"></script>
 </body>
 </html>
