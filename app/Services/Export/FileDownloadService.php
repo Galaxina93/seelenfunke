@@ -1549,7 +1549,7 @@ class FileDownloadService
             'seelen-kristall' => [
                 'widthMm'      => 161.5,
                 'heightMm'     => 161.5,
-                'plateBoxPct'  => ['left' => 12.90, 'top' => 8.50, 'width' => 74.20, 'height' => 74.20],
+                'plateBoxPct'  => ['left' => 14.23, 'top' => 9.83, 'width' => 71.54, 'height' => 71.54],
                 'contourShape' => 'circle',
             ],
             'seelen-anhaenger' => [
@@ -1674,12 +1674,14 @@ class FileDownloadService
                 $pbWidth = (float) $pb['width'];
                 $pbHeight = (float) $pb['height'];
 
-                // Veraltete 78.24%-Vorlage beim Seelen-Kristall automatisch auf die kalibrierte 148.0-mm-Innenfacette (74.20%) heben
+                // Veraltete 78.24%- oder 74.20%-Vorlage beim Seelen-Kristall automatisch auf exakt 4.0 mm Facettenrand (71.54% -> Ø 153.5 mm glatte Glasflaeche) heben
                 $isLegacyCrystalBox = $matchedProfile !== null
                     && ($matchedProfile['contourShape'] ?? null) === 'circle'
                     && abs((float) ($matchedProfile['widthMm'] ?? 0.0) - 161.5) < 0.05
-                    && abs($pbWidth - 78.24) < 0.25
-                    && abs($pbLeft - 10.88) < 0.25;
+                    && (
+                        (abs($pbWidth - 78.24) < 0.30 && abs($pbLeft - 10.88) < 0.30)
+                        || (abs($pbWidth - 74.20) < 0.30 && abs($pbLeft - 12.90) < 0.30)
+                    );
 
                 $plateBoxPct = $isLegacyCrystalBox
                     ? $matchedProfile['plateBoxPct']

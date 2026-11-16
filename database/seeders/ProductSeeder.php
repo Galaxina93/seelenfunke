@@ -105,7 +105,7 @@ class ProductSeeder extends Seeder
                 'allow_logo' => true,
                 'xtool_plane_width' => 161.5,
                 'xtool_plane_height' => 161.5,
-                'xtool_plate_box_pct' => ['left' => 10.88, 'top' => 6.48, 'width' => 78.24, 'height' => 78.24],
+                'xtool_plate_box_pct' => ['left' => 14.23, 'top' => 9.83, 'width' => 71.54, 'height' => 71.54],
                 'xtool_contour_shape' => 'circle',
                 'xtool_equipment_key' => 'flatbed_standard',
                 'xtool_setup_note' => 'Schwarzes Lamellenrost nutzen, Standfuß frei über Vorderkante schweben lassen. Shop-SVG nicht invertieren.',

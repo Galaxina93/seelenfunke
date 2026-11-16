@@ -164,10 +164,12 @@ class LaserDesignParityTest extends TestCase
         $this->assertEqualsWithDelta(161.5, $payload['heightMm'], 0.01);
         $this->assertSame(1, substr_count($payload['ghostContourDPath'], 'M '));
 
-        // Kalibrierte Innenfacette: 68 / 74.20 = 91.64 % (~148,0 mm Durchmesser auf 161,5 mm Kristall)
+        // Kalibrierte Innenfacette: exakt 4,0 mm Facettenrand ringsum -> 68 / 71.54 = 95.05 % (153,5 mm glatte Glasflaeche auf 161,5 mm Kristall)
         $polyXs = array_column($payload['workingAreaPolygonPct'], 'x');
         $spanPct = max($polyXs) - min($polyXs);
-        $this->assertEqualsWithDelta(91.64, $spanPct, 0.35);
+        $this->assertEqualsWithDelta(95.05, $spanPct, 0.35);
+        $this->assertEqualsWithDelta(4.0, (min($polyXs) / 100.0) * 161.5, 0.15);
+        $this->assertEqualsWithDelta(4.0, ((100.0 - max($polyXs)) / 100.0) * 161.5, 0.15);
 
         $gd = imagecreatefromstring($payload['stageEngravePngBytes']);
         $this->assertNotFalse($gd);
@@ -198,8 +200,8 @@ class LaserDesignParityTest extends TestCase
 
         // Oberste Christbaumkugel (viewBox 512: Kugelmitte (256, 196) -> relativ zu (256, 256) = -60 Einheiten):
         // Muss als ausgestanztes Loch (R > 40 statt 0) innerhalb des schwarzen Baums erhalten bleiben!
-        $mappedTreeY = ((20.6684 - 8.50) / 74.20) * $h;
-        $mappedTreeW = (((80.0 * (100.0 / 74.20)) / 500.0) * $w);
+        $mappedTreeY = ((20.6684 - 9.83) / 71.54) * $h;
+        $mappedTreeW = (((80.0 * (100.0 / 71.54)) / 500.0) * $w);
         $baubleCenterY = (int) round($mappedTreeY + ((-60.0 / 512.0) * $mappedTreeW));
         $baubleColor = imagecolorat($gd, $cx, $baubleCenterY);
         if ((($baubleColor >> 16) & 0xFF) > 40) {
@@ -371,8 +373,8 @@ class LaserDesignParityTest extends TestCase
 
         // Prüfe Kopf des Bräutigams (<circle cx="32.5" cy="13.5" r="10.1"/> in viewBox 0 0 128 128)
         $mappedX = 0.50 * $w;
-        $mappedY = (((34.0 - 8.50) / 74.20)) * $h;
-        $logoWidthPx = (((120.0 * (100.0 / 74.20)) / 500.0)) * $w;
+        $mappedY = (((34.0 - 9.83) / 71.54)) * $h;
+        $logoWidthPx = (((120.0 * (100.0 / 71.54)) / 500.0)) * $w;
         $scale = $logoWidthPx / 128.0;
 
         $groomHeadX = (int) round($mappedX + ((32.5 - 64.0) * $scale));
@@ -390,8 +392,8 @@ class LaserDesignParityTest extends TestCase
         $this->assertSame(0, ($headPixel >> 16) & 0xFF, 'Kopf des Bräutigams (<circle>) muss tiefschwarz sein');
         $this->assertSame(127, $dressInnerAlpha, 'Innenfläche des Brautkleids (nonzero Gegenpfad) muss transparent ausgestanzt bleiben');
 
-        // Cache-Salt v3-parity in OrderOverview verifizieren
+        // Cache-Salt v4-4mm-bevel in OrderOverview verifizieren
         $overviewSource = (string) file_get_contents(app_path('Livewire/Shop/Order/OrderOverview.php'));
-        $this->assertStringContainsString("'v3-parity|'", $overviewSource);
+        $this->assertStringContainsString("'v4-4mm-bevel|'", $overviewSource);
     }
 }
