@@ -228,9 +228,11 @@ class SystemPrepareLiveCommand extends Command
         // c) Geordnetes Produktions-Seeding (--force kompatibel in APP_ENV=production)
         $seedingFailed = $this->runProductionSeeders($admin);
 
-        // c2) RAG-Wissensbasis synchronisieren: Alle Abschlussberichte indexieren
-        $this->info('Synchronisiere KI-Wissensbasis mit Abschlussberichten...');
-        $this->call('ai:sync-abschlussberichte');
+        // c2) RAG-Wissensbasis synchronisieren: Alle Abschlussberichte indexieren (sobald Command registriert)
+        if (array_key_exists('ai:sync-abschlussberichte', \Illuminate\Support\Facades\Artisan::all())) {
+            $this->info('Synchronisiere KI-Wissensbasis mit Abschlussberichten...');
+            $this->call('ai:sync-abschlussberichte');
+        }
 
         // c3) Clean-Room Digital-Blueprint-Pakete bauen, synchronisieren und per Zero-Leak-Scanner verifizieren
         $this->info('Baue und verifiziere Clean-Room Digital-Blueprints für ' . self::DIGITAL_DOMAIN_HOST . '...');
