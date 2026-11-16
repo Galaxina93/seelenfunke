@@ -51,36 +51,48 @@
             {{-- Filter & Search Bar --}}
             <div class="bg-white rounded-2xl shadow-xl shadow-gray-200/50 border border-gray-100 p-4 md:p-5 mb-12">
 
-                {{-- 3-Welten-Kollektions-Weiche (Manufaktur | Atelier Echtgold & Silber | Geschenkgutscheine) --}}
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 p-1.5 bg-gray-50 rounded-2xl border border-gray-100 mb-4">
-                    <button type="button"
-                            wire:click="setCollectionWorld('manufaktur')"
-                            class="flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer {{ $collectionWorld === 'manufaktur' ? 'bg-[#F5F1E8] text-gray-900 border border-[#D8C9A8] shadow-sm' : 'text-gray-600 hover:text-gray-900 hover:bg-white/70 border border-transparent' }}">
-                        <svg class="w-4 h-4 shrink-0 {{ $collectionWorld === 'manufaktur' ? 'text-gray-900' : 'text-gray-400' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
-                        <span class="truncate">Manufaktur-Kollektion</span>
-                        @if(($manufakturCount ?? 0) > 0)
-                            <span class="px-1.5 py-0.5 rounded-md text-[10px] font-black leading-none {{ $collectionWorld === 'manufaktur' ? 'bg-white/90 text-gray-900 border border-[#D8C9A8]/60' : 'bg-gray-200/80 text-gray-600' }}">{{ $manufakturCount }}</span>
-                        @endif
-                    </button>
+                {{-- Kopfleiste: 3-Welten-Kollektions-Weiche + Begehbarer 3D-Showroom Button (0 Subtexte) --}}
+                <div class="flex flex-col lg:flex-row items-stretch lg:items-center gap-2.5 mb-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 p-1.5 bg-gray-50 rounded-2xl border border-gray-100 flex-1">
+                        <button type="button"
+                                wire:click="setCollectionWorld('manufaktur')"
+                                class="flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer {{ $collectionWorld === 'manufaktur' ? 'bg-[#F5F1E8] text-gray-900 border border-[#D8C9A8] shadow-sm' : 'text-gray-600 hover:text-gray-900 hover:bg-white/70 border border-transparent' }}">
+                            <svg class="w-4 h-4 shrink-0 {{ $collectionWorld === 'manufaktur' ? 'text-gray-900' : 'text-gray-400' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+                            <span class="truncate">Manufaktur-Kollektion</span>
+                            @if(($manufakturCount ?? 0) > 0)
+                                <span class="px-1.5 py-0.5 rounded-md text-[10px] font-black leading-none {{ $collectionWorld === 'manufaktur' ? 'bg-white/90 text-gray-900 border border-[#D8C9A8]/60' : 'bg-gray-200/80 text-gray-600' }}">{{ $manufakturCount }}</span>
+                            @endif
+                        </button>
+
+                        <button type="button"
+                                wire:click="setCollectionWorld('atelier')"
+                                class="flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer {{ $collectionWorld === 'atelier' ? 'bg-[#F5F1E8] text-gray-900 border border-[#D8C9A8] shadow-sm' : 'text-gray-600 hover:text-gray-900 hover:bg-white/70 border border-transparent' }}">
+                            <svg class="w-4 h-4 shrink-0 {{ $collectionWorld === 'atelier' ? 'text-gray-900' : 'text-gray-400' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>
+                            <span class="truncate">Atelier Echtgold &amp; Silber</span>
+                            @if(($atelierCount ?? 0) > 0)
+                                <span class="px-1.5 py-0.5 rounded-md text-[10px] font-black leading-none {{ $collectionWorld === 'atelier' ? 'bg-white/90 text-gray-900 border border-[#D8C9A8]/60' : 'bg-gray-200/80 text-gray-600' }}">{{ $atelierCount }}</span>
+                            @endif
+                        </button>
+
+                        <button type="button"
+                                wire:click="setCollectionWorld('voucher')"
+                                class="flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer {{ $collectionWorld === 'voucher' ? 'bg-[#F5F1E8] text-gray-900 border border-[#D8C9A8] shadow-sm' : 'text-gray-600 hover:text-gray-900 hover:bg-white/70 border border-transparent' }}">
+                            <svg class="w-4 h-4 shrink-0 {{ $collectionWorld === 'voucher' ? 'text-gray-900' : 'text-gray-400' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" /></svg>
+                            <span class="truncate">Geschenkgutscheine</span>
+                            @if(($voucherCount ?? 0) > 0)
+                                <span class="px-1.5 py-0.5 rounded-md text-[10px] font-black leading-none {{ $collectionWorld === 'voucher' ? 'bg-white/90 text-gray-900 border border-[#D8C9A8]/60' : 'bg-gray-200/80 text-gray-600' }}">{{ $voucherCount }}</span>
+                            @endif
+                        </button>
+                    </div>
 
                     <button type="button"
-                            wire:click="setCollectionWorld('atelier')"
-                            class="flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer {{ $collectionWorld === 'atelier' ? 'bg-[#F5F1E8] text-gray-900 border border-[#D8C9A8] shadow-sm' : 'text-gray-600 hover:text-gray-900 hover:bg-white/70 border border-transparent' }}">
-                        <svg class="w-4 h-4 shrink-0 {{ $collectionWorld === 'atelier' ? 'text-gray-900' : 'text-gray-400' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>
-                        <span class="truncate">Atelier Echtgold &amp; Silber</span>
-                        @if(($atelierCount ?? 0) > 0)
-                            <span class="px-1.5 py-0.5 rounded-md text-[10px] font-black leading-none {{ $collectionWorld === 'atelier' ? 'bg-white/90 text-gray-900 border border-[#D8C9A8]/60' : 'bg-gray-200/80 text-gray-600' }}">{{ $atelierCount }}</span>
-                        @endif
-                    </button>
-
-                    <button type="button"
-                            wire:click="setCollectionWorld('voucher')"
-                            class="flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer {{ $collectionWorld === 'voucher' ? 'bg-[#F5F1E8] text-gray-900 border border-[#D8C9A8] shadow-sm' : 'text-gray-600 hover:text-gray-900 hover:bg-white/70 border border-transparent' }}">
-                        <svg class="w-4 h-4 shrink-0 {{ $collectionWorld === 'voucher' ? 'text-gray-900' : 'text-gray-400' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" /></svg>
-                        <span class="truncate">Geschenkgutscheine</span>
-                        @if(($voucherCount ?? 0) > 0)
-                            <span class="px-1.5 py-0.5 rounded-md text-[10px] font-black leading-none {{ $collectionWorld === 'voucher' ? 'bg-white/90 text-gray-900 border border-[#D8C9A8]/60' : 'bg-gray-200/80 text-gray-600' }}">{{ $voucherCount }}</span>
-                        @endif
+                            @click="$dispatch('open-louvre-showroom')"
+                            class="inline-flex items-center justify-center gap-2.5 px-5 py-3.5 rounded-2xl bg-white hover:bg-[#FAF6EE] text-gray-900 border border-[#C5A059] shadow-sm hover:shadow-md text-xs font-bold uppercase tracking-wider transition-all shrink-0 cursor-pointer">
+                        <svg class="w-4 h-4 text-[#C5A059] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3l9 15H3L12 3z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v15" />
+                        </svg>
+                        <span>3D shoppen</span>
                     </button>
                 </div>
                 
@@ -522,7 +534,7 @@
                                                            class="absolute inset-0 w-full h-full object-cover sf-card-hover-layer pointer-events-none"></video>
                                                 @else
                                                     <img src="{{ $resolvedHoverMediaUrl }}"
-                                                         alt="{{ $resolvedHoverMeta['label'] ?? ($product->name . ' – Hover-Ansicht') }}"
+                                                         alt="{{ str_replace([' ' . "\u{2013}" . ' ', ' ' . "\u{2014}" . ' '], ' · ', (string) ($resolvedHoverMeta['label'] ?? ($product->name . ' · Hover-Ansicht'))) }}"
                                                          loading="lazy"
                                                          decoding="async"
                                                          @if($isAiHoverMedia) data-is-ai-generated="true" @endif
@@ -743,4 +755,561 @@
             </div>
         </div>
     </div>
+
+    {{-- Begehbarer 3D-Showroom im Louvre-Stil (0 KB Initial-Last, On-Demand via Klick auf "3D shoppen") --}}
+    <div wire:ignore
+         x-data="window.sfLouvreShowroomModal()"
+         @open-louvre-showroom.window="openShowroom()"
+         @keydown.escape.window="handleEscape()">
+
+        <div x-show="isOpen"
+             x-cloak
+             x-transition.opacity.duration.250ms
+             role="dialog"
+             aria-modal="true"
+             aria-label="Mein Seelenfunke Louvre Showroom"
+             class="fixed inset-0 z-[2147483500] bg-[#0A0C10] overflow-hidden select-none flex flex-col">
+
+            {{-- Schlichter Schwarz-Gold Museums-Header --}}
+            <div class="relative z-30 h-14 px-3 sm:px-6 bg-[#0A0C10]/95 border-b border-[#C5A059]/35 flex items-center justify-between gap-3 shrink-0">
+                <div class="flex items-center gap-2.5 min-w-0">
+                    <span class="w-7 h-7 rounded-lg bg-[#C5A059]/15 border border-[#C5A059]/45 flex items-center justify-center text-[#C5A059] shrink-0">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3l9 15H3L12 3z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v15" />
+                        </svg>
+                    </span>
+                    <span class="text-[11px] sm:text-xs font-bold uppercase tracking-[0.18em] text-[#FAF8F5] truncate">
+                        MEIN SEELENFUNKE · LOUVRE SHOWROOM
+                    </span>
+                    <span x-show="funkiInfo.level > 0"
+                          class="hidden md:inline-flex items-center px-2.5 py-0.5 rounded-full bg-[#141821] border border-[#C5A059]/40 text-[10px] font-bold uppercase tracking-wider text-[#E6C687] shrink-0"
+                          x-text="'Funki Lv. ' + funkiInfo.level">
+                    </span>
+                </div>
+
+                <button type="button"
+                        @click="closeShowroom()"
+                        class="px-3.5 py-2 rounded-xl bg-[#141821] hover:bg-[#1E2430] text-[#FAF8F5] border border-[#C5A059]/50 text-xs font-bold tracking-wide transition-colors cursor-pointer shrink-0">
+                    &times; Zurück zum Shop
+                </button>
+            </div>
+
+            {{-- 3D-Louvre Buehne + Overlays --}}
+            <div class="relative flex-1 min-h-0 w-full overflow-hidden">
+                <canvas x-ref="louvreCanvas"
+                        class="absolute inset-0 w-full h-full block touch-none cursor-grab"></canvas>
+
+                {{-- Lade- & Fehlerstatus --}}
+                <div x-show="isLoading || loadError !== ''"
+                     class="absolute inset-0 z-20 bg-[#0A0C10]/90 flex flex-col items-center justify-center p-6 text-center">
+                    <template x-if="isLoading">
+                        <div class="flex flex-col items-center gap-3">
+                            <div class="w-10 h-10 rounded-full border-2 border-[#C5A059]/30 border-t-[#C5A059] animate-spin"></div>
+                            <span class="text-xs font-bold uppercase tracking-[0.2em] text-[#E6C687]">Louvre Galerie wird geöffnet</span>
+                        </div>
+                    </template>
+                    <template x-if="!isLoading && loadError !== ''">
+                        <div class="bg-white text-gray-900 rounded-2xl p-6 max-w-sm border border-gray-200 shadow-xl space-y-4">
+                            <p class="text-sm font-semibold text-gray-800" x-text="loadError"></p>
+                            <button type="button"
+                                    @click="closeShowroom()"
+                                    class="px-5 py-2.5 rounded-xl bg-gray-900 text-white text-xs font-bold uppercase tracking-wider cursor-pointer">
+                                Zurück zum Shop
+                            </button>
+                        </div>
+                    </template>
+                </div>
+
+                {{-- Virtueller Mobile-Stick unten links (1-Hand & Smartphone Steuerung) --}}
+                <div x-show="!isLoading && loadError === '' && products.length > 0"
+                     class="absolute bottom-20 left-4 sm:bottom-6 sm:left-6 z-20">
+                    <div x-ref="stickZone"
+                         @pointerdown.stop.prevent="startStick($event)"
+                         @pointermove.stop.prevent="moveStick($event)"
+                         @pointerup.stop.prevent="endStick()"
+                         @pointercancel.stop.prevent="endStick()"
+                         class="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-[#0A0C10]/75 border border-[#C5A059]/45 backdrop-blur-sm flex items-center justify-center relative touch-none cursor-pointer shadow-lg"
+                         aria-label="Bewegungssteuerung">
+                        <div class="w-2 h-2 rounded-full bg-[#C5A059]/30"></div>
+                        <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#C5A059] border border-[#FFF8E1]/60 shadow-md pointer-events-none transition-transform duration-75"
+                             :style="'transform: translate3d(' + stickUiX + 'px, ' + stickUiY + 'px, 0)'"></div>
+                    </div>
+                </div>
+
+                {{-- Kompakte Schwarz-Gold Museums-Leiste (Vorheriges | Exponat X/N | Naechstes) --}}
+                <div x-show="!isLoading && loadError === '' && products.length > 0"
+                     class="absolute bottom-4 inset-x-3 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 z-20 flex justify-center pointer-events-none">
+                    <div class="pointer-events-auto inline-flex items-center gap-1.5 sm:gap-2 px-2.5 py-2 rounded-2xl bg-[#0A0C10]/90 border border-[#C5A059]/50 shadow-2xl backdrop-blur-md max-w-full">
+                        <button type="button"
+                                @click="prevExhibit()"
+                                class="px-3 py-2 rounded-xl bg-[#141821] hover:bg-[#1E2430] text-[#FAF8F5] border border-[#C5A059]/35 text-xs font-bold transition-colors cursor-pointer shrink-0">
+                            &lsaquo; <span class="hidden sm:inline">Vorheriges</span>
+                        </button>
+
+                        <button type="button"
+                                @click="openCurrentExhibitDrawer()"
+                                class="px-3.5 py-2 rounded-xl bg-[#141821]/80 hover:bg-[#1E2430] border border-[#C5A059]/30 text-xs font-bold text-[#E6C687] truncate max-w-[180px] sm:max-w-[260px] cursor-pointer"
+                                title="Produktdetails anzeigen">
+                            <span x-text="'Exponat ' + (activeIndex + 1) + '/' + products.length"></span>
+                            <span class="hidden md:inline text-[#FAF8F5]" x-show="activeExhibitName() !== ''" x-text="' · ' + activeExhibitName()"></span>
+                        </button>
+
+                        <button type="button"
+                                @click="nextExhibit()"
+                                class="px-3 py-2 rounded-xl bg-[#141821] hover:bg-[#1E2430] text-[#FAF8F5] border border-[#C5A059]/35 text-xs font-bold transition-colors cursor-pointer shrink-0">
+                            <span class="hidden sm:inline">Nächstes</span> &rsaquo;
+                        </button>
+                    </div>
+                </div>
+
+                {{-- Freundlicher, heller Seelenfunke Light-Mode Produkt-Drawer (Baustein 1 & 2: Immer bg-white text-gray-900!) --}}
+                <div x-show="selectedProduct !== null"
+                     x-cloak
+                     x-transition:enter="transition ease-out duration-250"
+                     x-transition:enter-start="opacity-0 translate-y-6 sm:translate-y-0 sm:translate-x-8"
+                     x-transition:enter-end="opacity-100 translate-y-0 sm:translate-x-0"
+                     x-transition:leave="transition ease-in duration-180"
+                     x-transition:leave-start="opacity-100 translate-y-0 sm:translate-x-0"
+                     x-transition:leave-end="opacity-0 translate-y-6 sm:translate-y-0 sm:translate-x-8"
+                     class="absolute inset-x-0 bottom-0 max-h-[82dvh] sm:max-h-none sm:inset-y-0 sm:left-auto sm:right-0 sm:w-[420px] md:w-[440px] z-30 bg-white text-gray-900 rounded-t-3xl sm:rounded-none border-t sm:border-t-0 sm:border-l border-gray-200 shadow-2xl flex flex-col overflow-hidden">
+
+                    {{-- Drawer Kopfleiste --}}
+                    <div class="px-5 py-3.5 bg-white border-b border-gray-100 flex items-center justify-between gap-3 shrink-0">
+                        <span class="text-[11px] font-bold uppercase tracking-widest text-[#9A7738] truncate"
+                              x-text="selectedProduct ? selectedProduct.category_name : ''"></span>
+                        <button type="button"
+                                @click="closeDrawer()"
+                                aria-label="Produktansicht schließen"
+                                class="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 flex items-center justify-center font-bold text-base transition-colors cursor-pointer shrink-0">
+                            &times;
+                        </button>
+                    </div>
+
+                    {{-- Drawer Inhalt (Light-Mode) --}}
+                    <div class="flex-1 overflow-y-auto p-5 space-y-4 bg-white text-gray-900">
+                        {{-- Interaktiver Bild-Slider + Lightbox-Grossansicht im selben Fenster --}}
+                        <div class="space-y-2.5">
+                            <div class="aspect-square bg-gray-50 rounded-2xl border border-gray-100 overflow-hidden relative group">
+                                <template x-if="currentGalleryImage()">
+                                    <img :src="currentGalleryImage().url"
+                                         :alt="currentGalleryImage().alt || (selectedProduct ? selectedProduct.name : '')"
+                                         @click="openLightbox(activeImageIndex)"
+                                         class="w-full h-full object-cover cursor-zoom-in transition-transform duration-500 group-hover:scale-[1.03]">
+                                </template>
+
+                                <button type="button"
+                                        @click="openLightbox(activeImageIndex)"
+                                        aria-label="Bild vergrößern"
+                                        class="absolute top-3 right-3 w-9 h-9 rounded-full bg-white/90 hover:bg-white text-gray-800 border border-gray-200 shadow-sm flex items-center justify-center transition-all cursor-pointer">
+                                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M11 18a7 7 0 100-14 7 7 0 000 14zM11 8v6M8 11h6" />
+                                    </svg>
+                                </button>
+
+                                <span x-show="currentGalleryImage() && currentGalleryImage().is_dimension_sheet"
+                                      class="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-white/95 text-gray-900 border border-gray-200 text-[10px] font-bold uppercase tracking-wider shadow-sm">
+                                    Maßbild
+                                </span>
+
+                                <span x-show="currentGalleryImage() && currentGalleryImage().is_ai_generated"
+                                      style="font-size: 7px; line-height: 1; padding: 2px 5px; background: rgba(0,0,0,0.36); color: rgba(255,255,255,0.68);"
+                                      class="pointer-events-none select-none absolute bottom-2.5 right-2.5 backdrop-blur-sm rounded border border-white/10">
+                                    KI-generiert
+                                </span>
+
+                                <template x-if="galleryCount() > 1">
+                                    <div>
+                                        <button type="button"
+                                                @click.stop="prevImage()"
+                                                aria-label="Vorheriges Produktbild"
+                                                class="absolute left-2.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/90 hover:bg-white text-gray-800 border border-gray-200 shadow-sm flex items-center justify-center cursor-pointer">
+                                            &lsaquo;
+                                        </button>
+                                        <button type="button"
+                                                @click.stop="nextImage()"
+                                                aria-label="Nächstes Produktbild"
+                                                class="absolute right-2.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/90 hover:bg-white text-gray-800 border border-gray-200 shadow-sm flex items-center justify-center cursor-pointer">
+                                            &rsaquo;
+                                        </button>
+                                    </div>
+                                </template>
+                            </div>
+
+                            {{-- Thumbnails inkl. Massbild auf letzter Position --}}
+                            <template x-if="galleryCount() > 1">
+                                <div class="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+                                    <template x-for="(img, idx) in (selectedProduct ? selectedProduct.gallery_images : [])" :key="idx">
+                                        <button type="button"
+                                                @click="activeImageIndex = idx"
+                                                class="w-14 h-14 rounded-xl overflow-hidden border-2 shrink-0 transition-all cursor-pointer bg-gray-50"
+                                                :class="activeImageIndex === idx ? 'border-[#C5A059] shadow-sm' : 'border-gray-100 hover:border-gray-300'">
+                                            <img :src="img.url" :alt="img.alt || ''" class="w-full h-full object-cover">
+                                        </button>
+                                    </template>
+                                </div>
+                            </template>
+                        </div>
+
+                        {{-- Titel, Preis & Lieferzeit --}}
+                        <div class="space-y-2">
+                            <h3 class="text-2xl font-serif font-bold text-gray-900 leading-snug"
+                                x-text="selectedProduct ? selectedProduct.name : ''"></h3>
+
+                            <div class="flex flex-col">
+                                <span class="text-2xl font-serif font-bold text-gray-900"
+                                      x-text="selectedProduct ? selectedProduct.price_formatted : ''"></span>
+                                <span class="text-xs text-gray-500 mt-0.5"
+                                      x-text="selectedProduct ? selectedProduct.tax_shipping_label : ''"></span>
+                            </div>
+
+                            <div class="pt-1">
+                                <span class="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-stone-50 border border-stone-200 text-xs font-semibold text-stone-800">
+                                    <span class="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
+                                    <span x-text="selectedProduct ? selectedProduct.delivery_label : ''"></span>
+                                </span>
+                            </div>
+                        </div>
+
+                        <p x-show="selectedProduct && selectedProduct.short_description"
+                           class="text-sm text-gray-600 leading-relaxed"
+                           x-text="selectedProduct ? selectedProduct.short_description : ''"></p>
+
+                        {{-- Exakt 3 kurze Vorteile mit goldenem Haken (#C5A059) auf cleanem Hintergrund --}}
+                        <div class="bg-gray-50/80 border border-gray-100 rounded-2xl p-3.5 space-y-2">
+                            <template x-for="(benefit, bIdx) in (selectedProduct ? selectedProduct.benefits : [])" :key="bIdx">
+                                <div class="flex items-start gap-2.5 text-xs font-semibold text-gray-800">
+                                    <span class="text-[#C5A059] font-black leading-4 shrink-0">&#10003;</span>
+                                    <span class="leading-4" x-text="benefit"></span>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    {{-- Frei bedienbarer CTA-Footer (auch mobil vor der Android-Leiste geschuetzt) --}}
+                    <div class="px-5 pt-3.5 pb-[max(1rem,env(safe-area-inset-bottom))] bg-white border-t border-gray-100 shrink-0">
+                        <template x-if="selectedProduct && selectedProduct.is_personalizable">
+                            <a :href="selectedProduct.product_url"
+                               class="w-full py-3.5 px-5 rounded-xl bg-gray-900 hover:bg-black text-white font-bold text-sm tracking-wide border border-[#C5A059]/60 shadow-md flex items-center justify-center gap-2 transition-all">
+                                <span>Jetzt personalisieren</span>
+                                <span>&rarr;</span>
+                            </a>
+                        </template>
+
+                        <template x-if="selectedProduct && !selectedProduct.is_personalizable && selectedProduct.can_direct_add_to_cart">
+                            <div class="flex flex-col sm:flex-row gap-2">
+                                <button type="button"
+                                        @click="addProductToCart(selectedProduct)"
+                                        :disabled="isAddingToCart"
+                                        class="flex-1 py-3.5 px-4 rounded-xl bg-gray-900 hover:bg-black text-white font-bold text-sm border border-[#C5A059]/60 shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer">
+                                    <span x-text="addedProductId === selectedProduct.id ? '✓ Im Warenkorb' : 'In den Warenkorb'"></span>
+                                </button>
+                                <a :href="selectedProduct.product_url"
+                                   class="py-3.5 px-4 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-900 font-bold text-sm flex items-center justify-center transition-all">
+                                    Zum Produkt
+                                </a>
+                            </div>
+                        </template>
+
+                        <template x-if="selectedProduct && !selectedProduct.is_personalizable && !selectedProduct.can_direct_add_to_cart">
+                            <a :href="selectedProduct.product_url"
+                               class="w-full py-3.5 px-5 rounded-xl bg-gray-900 hover:bg-black text-white font-bold text-sm tracking-wide border border-[#C5A059]/60 shadow-md flex items-center justify-center gap-2 transition-all">
+                                <span>Zum Produkt</span>
+                                <span>&rarr;</span>
+                            </a>
+                        </template>
+                    </div>
+                </div>
+
+                {{-- Light-Mode Lightbox-Slider im selben Fenster (kein neuer Tab!) --}}
+                <div x-show="lightboxOpen && selectedProduct !== null"
+                     x-cloak
+                     x-transition.opacity.duration.200ms
+                     @click.self="lightboxOpen = false"
+                     class="absolute inset-0 z-50 bg-white/95 backdrop-blur-md text-gray-900 flex flex-col justify-between p-4 sm:p-6">
+
+                    <div class="flex items-center justify-between gap-4">
+                        <div class="min-w-0">
+                            <span class="text-xs font-bold text-[#9A7738] uppercase tracking-wider"
+                                  x-text="(activeImageIndex + 1) + ' / ' + galleryCount()"></span>
+                            <h4 class="text-sm sm:text-base font-serif font-bold text-gray-900 truncate"
+                                x-text="currentGalleryImage() ? currentGalleryImage().alt : ''"></h4>
+                        </div>
+                        <button type="button"
+                                @click="lightboxOpen = false"
+                                class="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-900 text-xs font-bold cursor-pointer shrink-0">
+                            &times; Schließen
+                        </button>
+                    </div>
+
+                    <div class="relative flex-1 min-h-0 flex items-center justify-center my-3">
+                        <template x-if="currentGalleryImage()">
+                            <img :src="currentGalleryImage().url"
+                                 :alt="currentGalleryImage().alt || ''"
+                                 class="max-h-full max-w-full object-contain rounded-2xl border border-gray-200 bg-white shadow-xl">
+                        </template>
+
+                        <template x-if="galleryCount() > 1">
+                            <div>
+                                <button type="button"
+                                        @click="prevImage()"
+                                        aria-label="Vorheriges Bild"
+                                        class="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white hover:bg-gray-50 text-gray-900 border border-gray-200 shadow-md flex items-center justify-center text-lg font-bold cursor-pointer">
+                                    &lsaquo;
+                                </button>
+                                <button type="button"
+                                        @click="nextImage()"
+                                        aria-label="Nächstes Bild"
+                                        class="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white hover:bg-gray-50 text-gray-900 border border-gray-200 shadow-md flex items-center justify-center text-lg font-bold cursor-pointer">
+                                    &rsaquo;
+                                </button>
+                            </div>
+                        </template>
+                    </div>
+
+                    <div class="flex items-center justify-center gap-2 overflow-x-auto pb-1">
+                        <template x-for="(img, lIdx) in (selectedProduct ? selectedProduct.gallery_images : [])" :key="lIdx">
+                            <button type="button"
+                                    @click="activeImageIndex = lIdx"
+                                    class="w-12 h-12 rounded-xl overflow-hidden border-2 shrink-0 cursor-pointer bg-gray-50"
+                                    :class="activeImageIndex === lIdx ? 'border-[#C5A059]' : 'border-gray-200 opacity-70 hover:opacity-100'">
+                                <img :src="img.url" :alt="img.alt || ''" class="w-full h-full object-cover">
+                            </button>
+                        </template>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        window.sfLouvreShowroomModal = function () {
+            return {
+                isOpen: false,
+                isLoading: false,
+                loadError: '',
+                products: [],
+                funkiInfo: { is_guest: true, level: 2, name: '' },
+                activeIndex: 0,
+                selectedProduct: null,
+                activeImageIndex: 0,
+                lightboxOpen: false,
+                isAddingToCart: false,
+                addedProductId: '',
+                stickActive: false,
+                stickUiX: 0,
+                stickUiY: 0,
+                prevOverflow: '',
+                _engine: null,
+
+                openShowroom() {
+                    if (this.isOpen) return;
+                    this.isOpen = true;
+                    this.isLoading = true;
+                    this.loadError = '';
+                    this.selectedProduct = null;
+                    this.lightboxOpen = false;
+                    this.prevOverflow = document.body.style.overflow || '';
+                    document.body.style.overflow = 'hidden';
+
+                    const dataPromise = fetch('/shop/showroom-data', {
+                        method: 'GET',
+                        credentials: 'same-origin',
+                        headers: { 'Accept': 'application/json' }
+                    }).then((res) => {
+                        if (!res.ok) {
+                            throw new Error('Showroom ist aktuell nicht erreichbar.');
+                        }
+                        return res.json();
+                    });
+
+                    const modulePromise = import('/js/seelenfunke-louvre-showroom-3d.js');
+
+                    Promise.all([dataPromise, modulePromise])
+                        .then(([payload, mod]) => {
+                            if (!this.isOpen) return;
+                            this.products = Array.isArray(payload.products) ? payload.products : [];
+                            this.funkiInfo = payload.player_funki || { is_guest: true, level: 2, name: '' };
+                            this.activeIndex = 0;
+                            this.isLoading = false;
+
+                            if (this.products.length === 0) {
+                                this.loadError = 'Aktuell sind keine Ausstellungsstücke freigegeben.';
+                                return;
+                            }
+
+                            this.$nextTick(() => {
+                                if (!this.isOpen || !this.$refs.louvreCanvas) return;
+                                if (this._engine) {
+                                    this._engine.destroy();
+                                    this._engine = null;
+                                }
+                                this._engine = mod.createLouvreShowroom({
+                                    canvas: this.$refs.louvreCanvas,
+                                    products: this.products,
+                                    playerFunki: this.funkiInfo,
+                                    onSelectProduct: (prod, idx) => {
+                                        this.activeIndex = idx;
+                                        this.selectedProduct = prod;
+                                        this.activeImageIndex = 0;
+                                        this.lightboxOpen = false;
+                                    },
+                                    onActiveExhibitChange: (idx) => {
+                                        this.activeIndex = idx;
+                                    }
+                                });
+                            });
+                        })
+                        .catch(() => {
+                            this.isLoading = false;
+                            this.loadError = 'Der 3D-Showroom konnte auf diesem Gerät nicht geladen werden.';
+                        });
+                },
+
+                closeShowroom() {
+                    this.isOpen = false;
+                    this.isLoading = false;
+                    this.lightboxOpen = false;
+                    this.selectedProduct = null;
+                    this.endStick();
+                    if (this._engine) {
+                        this._engine.destroy();
+                        this._engine = null;
+                    }
+                    document.body.style.overflow = this.prevOverflow;
+                },
+
+                closeDrawer() {
+                    this.lightboxOpen = false;
+                    this.selectedProduct = null;
+                },
+
+                handleEscape() {
+                    if (!this.isOpen) return;
+                    if (this.lightboxOpen) {
+                        this.lightboxOpen = false;
+                    } else if (this.selectedProduct !== null) {
+                        this.selectedProduct = null;
+                    } else {
+                        this.closeShowroom();
+                    }
+                },
+
+                activeExhibitName() {
+                    const p = this.products[this.activeIndex];
+                    return p ? p.name : '';
+                },
+
+                prevExhibit() {
+                    if (!this._engine || this.products.length === 0) return;
+                    const nextIdx = (this.activeIndex - 1 + this.products.length) % this.products.length;
+                    this._engine.goToExhibit(nextIdx, this.selectedProduct !== null);
+                },
+
+                nextExhibit() {
+                    if (!this._engine || this.products.length === 0) return;
+                    const nextIdx = (this.activeIndex + 1) % this.products.length;
+                    this._engine.goToExhibit(nextIdx, this.selectedProduct !== null);
+                },
+
+                openCurrentExhibitDrawer() {
+                    const p = this.products[this.activeIndex];
+                    if (!p) return;
+                    if (this._engine) {
+                        this._engine.goToExhibit(this.activeIndex, true);
+                    } else {
+                        this.selectedProduct = p;
+                        this.activeImageIndex = 0;
+                    }
+                },
+
+                galleryCount() {
+                    if (!this.selectedProduct || !Array.isArray(this.selectedProduct.gallery_images)) return 0;
+                    return this.selectedProduct.gallery_images.length;
+                },
+
+                currentGalleryImage() {
+                    const total = this.galleryCount();
+                    if (total === 0) return null;
+                    const safe = Math.max(0, Math.min(total - 1, this.activeImageIndex));
+                    return this.selectedProduct.gallery_images[safe] || null;
+                },
+
+                prevImage() {
+                    const total = this.galleryCount();
+                    if (total <= 1) return;
+                    this.activeImageIndex = (this.activeImageIndex - 1 + total) % total;
+                },
+
+                nextImage() {
+                    const total = this.galleryCount();
+                    if (total <= 1) return;
+                    this.activeImageIndex = (this.activeImageIndex + 1) % total;
+                },
+
+                openLightbox(idx) {
+                    this.activeImageIndex = typeof idx === 'number' ? idx : 0;
+                    this.lightboxOpen = true;
+                },
+
+                addProductToCart(product) {
+                    if (!product || !product.id || this.isAddingToCart || !this.$wire) return;
+                    this.isAddingToCart = true;
+                    this.$wire.addToCart(product.id)
+                        .then((ok) => {
+                            this.isAddingToCart = false;
+                            if (ok) {
+                                this.addedProductId = product.id;
+                                setTimeout(() => {
+                                    if (this.addedProductId === product.id) {
+                                        this.addedProductId = '';
+                                    }
+                                }, 2200);
+                            }
+                        })
+                        .catch(() => {
+                            this.isAddingToCart = false;
+                        });
+                },
+
+                startStick(e) {
+                    this.stickActive = true;
+                    const zone = this.$refs.stickZone;
+                    if (zone && zone.setPointerCapture) {
+                        zone.setPointerCapture(e.pointerId);
+                    }
+                    this.moveStick(e);
+                },
+
+                moveStick(e) {
+                    if (!this.stickActive || !this.$refs.stickZone) return;
+                    const rect = this.$refs.stickZone.getBoundingClientRect();
+                    const cx = rect.left + rect.width * 0.5;
+                    const cy = rect.top + rect.height * 0.5;
+                    const maxR = Math.max(16, rect.width * 0.34);
+                    let dx = e.clientX - cx;
+                    let dy = e.clientY - cy;
+                    const dist = Math.hypot(dx, dy);
+                    if (dist > maxR) {
+                        dx = (dx / dist) * maxR;
+                        dy = (dy / dist) * maxR;
+                    }
+                    this.stickUiX = Math.round(dx);
+                    this.stickUiY = Math.round(dy);
+                    if (this._engine) {
+                        this._engine.setJoystickVector(dx / maxR, dy / maxR);
+                    }
+                },
+
+                endStick() {
+                    this.stickActive = false;
+                    this.stickUiX = 0;
+                    this.stickUiY = 0;
+                    if (this._engine) {
+                        this._engine.setJoystickVector(0, 0);
+                    }
+                }
+            };
+        };
+    </script>
 </div>

@@ -34,6 +34,7 @@ class AIFunctionsRegistry
     use Functions\AiShoppingListFuncs;
     use Functions\AiLaserFuncs;
     use Functions\AiSuppliersFuncs;
+    use Functions\AiStripeFuncs;
 
     /**
      * Optional static context merged into all executed function arguments.
@@ -87,6 +88,7 @@ class AIFunctionsRegistry
             self::getAiShoppingListFuncsSchema(),
             self::getAiLaserFuncsSchema(),
             self::getAiSuppliersFuncsSchema(),
+            self::getAiStripeFuncsSchema(),
             FunkiraSkillPoolService::getEquipToolSchema()
         );
     }
@@ -135,6 +137,7 @@ class AIFunctionsRegistry
         $adminOnlyPrefixes = [
             'admin_',
             'finance_',
+            'stripe_',
             'mail_',
             'email_',
             'master_',
@@ -153,6 +156,8 @@ class AIFunctionsRegistry
             'system_get_server_status',
             'system_get_health',
             'system_get_error_sentinel',
+            'system_search_web',
+            'system_read_web_url',
             'system_write_to_file',
             'system_multi_replace_file',
             'system_run_command',
@@ -189,8 +194,6 @@ class AIFunctionsRegistry
             'system_search_chat_history',
             'system_read_knowledge',
             'system_read_wiki_files',
-            'system_search_web',
-            'system_read_web_url',
         ];
 
         if (in_array($name, $adminOnlyTools, true) || (str_starts_with($name, 'system_') && !in_array($name, $employeeAllowedSystemTools, true))) {
@@ -211,6 +214,62 @@ class AIFunctionsRegistry
      */
     public static function execute(string $name, array $args = [], $agent = null)
     {
+        // Harte Sicherheits- & Air-Gap-Sperre für sämtliche autonomen Stripe-Werkzeuge (stripe_*)
+        if (str_starts_with($name, 'stripe_')) {
+            $rawAgentName = is_string($agent)
+                ? trim($agent)
+                : (is_object($agent) ? trim((string) ($agent->name ?? '')) : (is_array($agent) ? trim((string) ($agent['name'] ?? '')) : ''));
+
+            if (strcasecmp($rawAgentName, 'Funki') === 0 || !empty(self::$globalContext['__chat_id']) || !empty($args['__chat_id'])) {
+                \App\Services\System\SystemSecurityService::logEvent(
+                    'security:ai_funki_stripe_airgap_blocked',
+                    'Funki Panzerglas-Isolation bei Stripe-Tool aktiv',
+                    "Der externe Support-Agent 'Funki' bzw. öffentliche Kontext versuchte '{$name}' aufzurufen.",
+                    'error',
+                    ['tool' => $name]
+                );
+                return [
+                    'error' => true,
+                    'status' => 'error',
+                    'http_status' => 403,
+                    'message' => "SANDBOX VIOLATION: Der externe Support-Agent 'Funki' darf '{$name}' niemals ausführen."
+                ];
+            }
+
+            if (!AiAuthHelper::isAdmin()) {
+                $actorId = AiAuthHelper::getUserId() ?? AiAuthHelper::getEmployeeId() ?? 'guest';
+                \App\Services\System\SystemSecurityService::logEvent(
+                    'security:ai_stripe_privilege_escalation_blocked',
+                    'Unautorisierter Stripe-Tool-Zugriff durch Nicht-Admin blockiert',
+                    "Akteur ({$actorId}) versuchte das geschützte Werkzeug '{$name}' auszuführen.",
+                    'error',
+                    ['tool' => $name, 'actor_id' => $actorId]
+                );
+                return [
+                    'error' => true,
+                    'status' => 'error',
+                    'http_status' => 403,
+                    'message' => "ROLE VIOLATION: Das Werkzeug '{$name}' erfordert Administrator-Berechtigungen (403)."
+                ];
+            }
+
+            if (!FunkiraSkillPoolService::isExecutiveRoot($agent)) {
+                \App\Services\System\SystemSecurityService::logEvent(
+                    'security:ai_stripe_non_executive_blocked',
+                    'Stripe-Tool für Nicht-Executive-Agent blockiert',
+                    "Agent '{$rawAgentName}' besitzt keine Executive-Root-Freigabe für '{$name}'.",
+                    'error',
+                    ['tool' => $name, 'agent' => $rawAgentName]
+                );
+                return [
+                    'error' => true,
+                    'status' => 'error',
+                    'http_status' => 403,
+                    'message' => "ROLE VIOLATION: Nur Executive-Root-Agenten (Falcone & Funkira) dürfen '{$name}' ausführen (403)."
+                ];
+            }
+        }
+
         // Rollen-Schranke: Nicht-Administratoren unterliegen strikter Rollentrennung
         if ((AiAuthHelper::check() || AiAuthHelper::isExternalPartner() || \Illuminate\Support\Facades\Auth::guard('employee')->check()) && !AiAuthHelper::isAdmin()) {
             $actorId = AiAuthHelper::getUserId() ?? AiAuthHelper::getEmployeeId();
@@ -330,6 +389,8 @@ class AIFunctionsRegistry
                             'system_get_server_status',
                             'system_get_health',
                             'system_get_error_sentinel',
+                            'system_search_web',
+                            'system_read_web_url',
                             'master_get_next_best_actions',
                             FunkiraSkillPoolService::EQUIP_TOOL_NAME,
                         ]

@@ -67,9 +67,12 @@ return [
         'allow_in_tests' => (bool) env('GOOGLE_VERTEX_ALLOW_IN_TESTS', false),
         'project_id' => env('GOOGLE_VERTEX_PROJECT_ID', 'gen-lang-client-0670786367'),
         'location' => env('GOOGLE_VERTEX_LOCATION', 'global'),
+        'grounding_location' => env('GOOGLE_VERTEX_GROUNDING_LOCATION', 'global'),
+        'grounding_model' => env('GOOGLE_VERTEX_GROUNDING_MODEL', 'gemini-3.5-flash'),
         'live_location' => env('GOOGLE_VERTEX_LIVE_LOCATION', 'europe-west4'),
         'live_model' => env('GOOGLE_VERTEX_LIVE_MODEL', 'gemini-live-2.5-flash-native-audio'),
         'credentials_file' => env('GOOGLE_VERTEX_SERVICE_ACCOUNT_PATH', storage_path('app/vertex-service-account.json')),
+        'credentials_json' => env('GOOGLE_VERTEX_SERVICE_ACCOUNT_JSON'),
     ],
 
     'twilio' => [

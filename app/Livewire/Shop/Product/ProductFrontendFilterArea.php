@@ -119,11 +119,30 @@ class ProductFrontendFilterArea extends Component
         $this->dispatch('wishlist-updated');
     }
 
-    #[Title('Unsere Kollektion - Mein Seelenfunke')]
+    public function addToCart(string $productId, \App\Services\CartService $cartService): bool
+    {
+        $product = Product::where('status', 'active')
+            ->where('slug', '!=', 'seelenfunke-ingame-artifact')
+            ->where('id', $productId)
+            ->first();
+
+        if (!$product || $product->is_personalizable || $product->slug === 'geschenkgutschein' || !$product->isAvailable()) {
+            return false;
+        }
+
+        $cartService->addItem($product, 1, []);
+        $this->dispatch('cart-updated');
+
+        return true;
+    }
+
+    #[Title('Unsere Kollektion · Mein Seelenfunke')]
     public function render()
     {
         // Wartungsmodus Check (Admins dürfen trotz Wartungsmodus testen)
-        if (shop_setting('maintenance_mode', false) && !\Illuminate\Support\Facades\Auth::guard('admin')->check()) {
+        $isMaintenance = filter_var(shop_setting('maintenance_mode', false), FILTER_VALIDATE_BOOLEAN)
+            || filter_var(shop_setting('shop_maintenance_mode', false), FILTER_VALIDATE_BOOLEAN);
+        if ($isMaintenance && !\Illuminate\Support\Facades\Auth::guard('admin')->check()) {
             return view('global.errors.503_fragment')->layout('components.layouts.frontend_layout');
         }
 
@@ -392,16 +411,16 @@ class ProductFrontendFilterArea extends Component
 
         $companyName = shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke'));
         $city = shop_setting('company_city', shop_setting('owner_city', 'Gifhorn'));
-        $shopTitle = "Unsere Kollektion – Personalisierte Geschenke & Lasergravur | {$companyName}";
-        $shopMetaDesc = 'Entdecke handveredelte Unikate mit präziser Lasergravur: K9-Kristallglas-Trophäen, Edelstahl-Schlüsselanhänger, Hundemarken & Kristallgläser – live im 3D-Konfigurator gestalten.';
+        $shopTitle = "Unsere Kollektion · Personalisierte Geschenke & Lasergravur | {$companyName}";
+        $shopMetaDesc = 'Entdecke handveredelte Unikate mit präziser Lasergravur: K9-Kristallglas-Trophäen, Edelstahl-Schlüsselanhänger, Hundemarken & Kristallgläser live im 3D-Konfigurator gestalten.';
         $shopCanonical = route('shop');
 
         if ($activeWorld === 'atelier') {
-            $shopTitle = "Atelier Echtgold & Silber – Exklusive Unikate mit Gravur | {$companyName}";
-            $shopMetaDesc = "Meisterstücke aus echtem 585er & 333er Gold sowie 925er Sterling Silber – mit weißen Handschuhen individuell in unserer Manufaktur in {$city} veredelt.";
+            $shopTitle = "Atelier Echtgold & Silber · Exklusive Unikate mit Gravur | {$companyName}";
+            $shopMetaDesc = "Meisterstücke aus echtem 585er & 333er Gold sowie 925er Sterling Silber, mit weißen Handschuhen individuell in unserer Manufaktur in {$city} veredelt.";
             $shopCanonical = route('shop', ['collectionWorld' => 'atelier']);
         } elseif ($activeWorld === 'voucher') {
-            $shopTitle = "Geschenkgutscheine – Sofort-Freude & Edel-Umschlag | {$companyName}";
+            $shopTitle = "Geschenkgutscheine · Sofort-Freude & Edel-Umschlag | {$companyName}";
             $shopMetaDesc = "Verschenke den Seelenfunke-Geschenkgutschein digital als Sofort-PDF oder als lasergravierte Aluminiumkarte im schwarzen Edel-Umschlag mit Wachssiegel.";
             $shopCanonical = route('shop', ['collectionWorld' => 'voucher']);
         } elseif (!empty($this->filterHoliday)) {
@@ -413,12 +432,13 @@ class ProductFrontendFilterArea extends Component
         } elseif (!empty($this->filterCategory)) {
             $selectedCat = $categories->firstWhere('id', (int) $this->filterCategory);
             if ($selectedCat) {
-                $shopTitle = "{$selectedCat->name} – Personalisiert mit Lasergravur | {$companyName}";
-                $shopMetaDesc = "Entdecke personalisierbare Unikate in der Kategorie {$selectedCat->name} – individuell graviert in unserer deutschen Manufaktur in {$city}.";
+                $cleanCatName = str_replace([' ' . "\u{2013}" . ' ', ' ' . "\u{2014}" . ' '], ' · ', (string) $selectedCat->name);
+                $shopTitle = "{$cleanCatName} · Personalisiert mit Lasergravur | {$companyName}";
+                $shopMetaDesc = "Entdecke personalisierbare Unikate in der Kategorie {$cleanCatName}, individuell graviert in unserer deutschen Manufaktur in {$city}.";
             }
         } elseif ($this->filterSale) {
             $shopTitle = "Angebote & Reduzierte Geschenkideen mit Gravur | {$companyName}";
-            $shopMetaDesc = "Sichere dir personalisierte Geschenke mit Lasergravur zum Aktionspreis – handveredelt in unserer Manufaktur in {$city}.";
+            $shopMetaDesc = "Sichere dir personalisierte Geschenke mit Lasergravur zum Aktionspreis, handveredelt in unserer Manufaktur in {$city}.";
         }
 
         $shopSchema = [

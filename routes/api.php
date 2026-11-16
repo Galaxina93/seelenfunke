@@ -18,6 +18,9 @@ require __DIR__ . '/api/auth.php';
 // --- Lokale KI API ---
 require __DIR__ . '/api/ai.php';
 
+// --- Agentic Commerce Protocol (Stripe Shared Payment Tokens) ---
+require __DIR__ . '/api/acp.php';
+
 // --- Frontend Error Tracking ---
 Route::post('/log/frontend-error', function (\Illuminate\Http\Request $request) {
     try {

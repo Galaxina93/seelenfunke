@@ -409,7 +409,17 @@ static void ConfigureKioskApp(
     app.UseStaticFiles(new StaticFileOptions
     {
         FileProvider = fileProvider,
-        ContentTypeProvider = staticMimeProvider
+        ContentTypeProvider = staticMimeProvider,
+        OnPrepareResponse = sctx =>
+        {
+            string ext = Path.GetExtension(sctx.File.Name);
+            if (string.Equals(ext, ".js", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(ext, ".css", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(ext, ".html", StringComparison.OrdinalIgnoreCase))
+            {
+                sctx.Context.Response.Headers["Cache-Control"] = "no-cache, must-revalidate";
+            }
+        }
     });
 
     KdbxDatabase? activeTresorDb = null;
@@ -4174,6 +4184,140 @@ async Task<int> RunLinuxSelfTestsAsync()
 
                 return apiAndTelemetryOk && spokenOk && mcpOk && assetsOk;
             }).ConfigureAwait(false);
+
+            await AssertCheckAsync(48, "Funkenwerk 3D-Stadt Z-Fighting-Eliminierung & Fotorealismus-Upgrade (Dynamischer 3-Stufen Depth-Guard, polygonOffset, 2K-PMREM-Himmelskuppel, Baked AO, 1024er Fassaden-Atlas & 7 Abteilungs-Wahrzeichen)", async () =>
+            {
+                using var cityResp = await rawHttp.GetAsync("/funkenwerk_city_3d.js").ConfigureAwait(false);
+                if (!cityResp.IsSuccessStatusCode)
+                    return false;
+
+                string cacheHdr = cityResp.Headers.CacheControl?.ToString() ?? "";
+                string cityJs = await cityResp.Content.ReadAsStringAsync().ConfigureAwait(false);
+
+                bool depthGuardOk =
+                    cityJs.Contains("camDist < 48.0", StringComparison.Ordinal) &&
+                    cityJs.Contains("newNear = 0.15;", StringComparison.Ordinal) &&
+                    cityJs.Contains("newFar = 4200;", StringComparison.Ordinal) &&
+                    cityJs.Contains("clamp(camDist * 0.018, 0.8, 22.0)", StringComparison.Ordinal) &&
+                    cityJs.Contains("newFar = 9600;", StringComparison.Ordinal) &&
+                    cityJs.Contains("clamp(camDist * 0.04, 22.0, 140.0)", StringComparison.Ordinal) &&
+                    cityJs.Contains("newFar = 28000;", StringComparison.Ordinal) &&
+                    cityJs.Contains("Math.abs(newNear - this.camera.near) > 0.02 || Math.abs(newFar - this.camera.far) > 5", StringComparison.Ordinal);
+
+                bool polygonOffsetAndStepsOk =
+                    cityJs.Contains("polygonOffset: true", StringComparison.Ordinal) &&
+                    cityJs.Contains("polygonOffsetFactor: -1", StringComparison.Ordinal) &&
+                    cityJs.Contains("polygonOffsetUnits: -2", StringComparison.Ordinal) &&
+                    cityJs.Contains("polygonOffsetFactor: -2", StringComparison.Ordinal) &&
+                    cityJs.Contains("polygonOffsetUnits: -4", StringComparison.Ordinal) &&
+                    cityJs.Contains("polygonOffsetFactor: -3", StringComparison.Ordinal) &&
+                    cityJs.Contains("polygonOffsetUnits: -6", StringComparison.Ordinal) &&
+                    cityJs.Contains("railLen = Math.max(10, deckLen - 0.60)", StringComparison.Ordinal);
+
+                bool skyAndFacadeAndAoOk =
+                    cityJs.Contains("makePhotorealSkyPanoramaTexture", StringComparison.Ordinal) &&
+                    cityJs.Contains("THREE.PMREMGenerator", StringComparison.Ordinal) &&
+                    cityJs.Contains("THREE.EquirectangularReflectionMapping", StringComparison.Ordinal) &&
+                    cityJs.Contains("this.scene.environment = this.pmremTarget.texture", StringComparison.Ordinal) &&
+                    cityJs.Contains("makeBakedAoShadowTexture", StringComparison.Ordinal) &&
+                    cityJs.Contains("bakedAo:", StringComparison.Ordinal) &&
+                    cityJs.Contains("aoTransforms", StringComparison.Ordinal) &&
+                    cityJs.Contains("makeSkyscraperFacadeAtlas", StringComparison.Ordinal) &&
+                    cityJs.Contains("roughnessMap:", StringComparison.Ordinal) &&
+                    cityJs.Contains("emissiveMap:", StringComparison.Ordinal);
+
+                string[] sevenLandmarks =
+                {
+                    "parabolic_comm_ring",
+                    "k9_crystal_prism",
+                    "golden_light_crown",
+                    "precision_laser_focus_ring",
+                    "octagonal_vault_monolith",
+                    "neural_gyro_sphere",
+                    "armored_reactor_shield_core"
+                };
+                bool landmarksOk =
+                    cityJs.Contains("_buildDepartmentLandmark", StringComparison.Ordinal) &&
+                    cityJs.Contains("this.departmentLandmarks", StringComparison.Ordinal) &&
+                    sevenLandmarks.All(lm => cityJs.Contains(lm, StringComparison.Ordinal));
+
+                bool cacheAndCleanOk =
+                    cacheHdr.Contains("no-cache", StringComparison.OrdinalIgnoreCase) &&
+                    !cityJs.Contains(" \u2013 ", StringComparison.Ordinal);
+
+                return depthGuardOk && polygonOffsetAndStepsOk && skyAndFacadeAndAoOk && landmarksOk && cacheAndCleanOk;
+            }).ConfigureAwait(false);
+
+            AssertCheck(49, "24/7 Watchtower Wartungsmodus-Schutz (HTTP 503 planned_maintenance = kein Fehlalarm & Auto-Close vs. echter 502/500 & critical = 2-Strike-Alarm)", () =>
+            {
+                bool markersOk =
+                    DocumentArchiveAndNasEngine.IsPlannedMaintenanceBody("<html><h1>Wartungsarbeiten</h1></html>") &&
+                    DocumentArchiveAndNasEngine.IsPlannedMaintenanceBody("{\"error\":\"maintenance\",\"shop_is_live\":false}") &&
+                    DocumentArchiveAndNasEngine.IsPlannedMaintenanceBody("Mein-Seelenfunke ist in Vorbereitung · Bald für Sie da") &&
+                    !DocumentArchiveAndNasEngine.IsPlannedMaintenanceBody("503 Service Unavailable - upstream connect error") &&
+                    !DocumentArchiveAndNasEngine.IsPlannedMaintenanceBody("502 Bad Gateway nginx");
+
+                // 1. Planned 503 maintenance resets strikes & never triggers raise_alert across repeated polls
+                int strikes = 1;
+                bool open = false;
+                var m1 = DocumentArchiveAndNasEngine.EvaluateWatchtowerOutcome(
+                    shopHttpReachable: true, httpStatusCode: 503, pulseStatus: null, pulseHeadline: null,
+                    localInternetOnline: true, ref strikes, ref open,
+                    rawBodySnippet: "<html>Mein-Seelenfunke in Vorbereitung - Bald für Sie da</html>");
+                var m2 = DocumentArchiveAndNasEngine.EvaluateWatchtowerOutcome(
+                    shopHttpReachable: true, httpStatusCode: 503, pulseStatus: "planned_maintenance", pulseHeadline: "Planmäßiger Wartungsmodus aktiv",
+                    localInternetOnline: true, ref strikes, ref open);
+                bool maintNoAlertOk = m1.Action == "planned_maintenance" &&
+                                      m2.Action == "planned_maintenance" &&
+                                      strikes == 0 && !open;
+
+                // 2. If an alert was previously open, planned 503 maintenance closes it cleanly (auto_healed)
+                bool openBeforeMaint = true;
+                int prevStrikes = 2;
+                var mClose = DocumentArchiveAndNasEngine.EvaluateWatchtowerOutcome(
+                    shopHttpReachable: true, httpStatusCode: 503, pulseStatus: null, pulseHeadline: null,
+                    localInternetOnline: true, ref prevStrikes, ref openBeforeMaint,
+                    rawBodySnippet: "{\"shop_is_live\":false,\"mode\":\"wartung\"}");
+                bool maintClosesAlertOk = mClose.Action == "auto_healed" && !openBeforeMaint && prevStrikes == 0;
+
+                // 3. Real unplanned 502 / 500 triggers pending_confirmation on Strike 1 and raise_alert on Strike 2
+                int errStrikes = 0;
+                bool errOpen = false;
+                var e1 = DocumentArchiveAndNasEngine.EvaluateWatchtowerOutcome(
+                    shopHttpReachable: true, httpStatusCode: 502, pulseStatus: null, pulseHeadline: null,
+                    localInternetOnline: true, ref errStrikes, ref errOpen,
+                    rawBodySnippet: "502 Bad Gateway");
+                var e2 = DocumentArchiveAndNasEngine.EvaluateWatchtowerOutcome(
+                    shopHttpReachable: true, httpStatusCode: 500, pulseStatus: null, pulseHeadline: null,
+                    localInternetOnline: true, ref errStrikes, ref errOpen,
+                    rawBodySnippet: "Internal Server Error");
+                bool realOutageAlertsOk = e1.Action == "pending_confirmation" &&
+                                          e2.Action == "raise_alert" &&
+                                          errStrikes == 2 && errOpen;
+
+                // 4. normStatus == "critical" also honors 2-Strike protection (single worker restart = no false alarm)
+                int critStrikes = 0;
+                bool critOpen = false;
+                var c1 = DocumentArchiveAndNasEngine.EvaluateWatchtowerOutcome(
+                    shopHttpReachable: true, httpStatusCode: 200, pulseStatus: "critical", pulseHeadline: "Queue kurz im Neustart",
+                    localInternetOnline: true, ref critStrikes, ref critOpen);
+                var cRecover = DocumentArchiveAndNasEngine.EvaluateWatchtowerOutcome(
+                    shopHttpReachable: true, httpStatusCode: 200, pulseStatus: "ok", pulseHeadline: "OK",
+                    localInternetOnline: true, ref critStrikes, ref critOpen);
+                var c2a = DocumentArchiveAndNasEngine.EvaluateWatchtowerOutcome(
+                    shopHttpReachable: true, httpStatusCode: 200, pulseStatus: "critical", pulseHeadline: "Datenbank überlastet",
+                    localInternetOnline: true, ref critStrikes, ref critOpen);
+                var c2b = DocumentArchiveAndNasEngine.EvaluateWatchtowerOutcome(
+                    shopHttpReachable: true, httpStatusCode: 200, pulseStatus: "critical", pulseHeadline: "Datenbank überlastet",
+                    localInternetOnline: true, ref critStrikes, ref critOpen);
+                bool criticalTwoStrikeOk = c1.Action == "pending_confirmation" &&
+                                           cRecover.Action == "healthy" &&
+                                           c2a.Action == "pending_confirmation" &&
+                                           c2b.Action == "raise_alert" &&
+                                           critOpen && critStrikes == 2;
+
+                return markersOk && maintNoAlertOk && maintClosesAlertOk && realOutageAlertsOk && criticalTwoStrikeOk;
+            });
         }
         finally
         {

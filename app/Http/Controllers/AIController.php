@@ -726,13 +726,16 @@ class AIController extends Controller
 
         // Für den Echtzeit-Sprachmodus (Gemini Live) optimieren wir die Tools auf die hochrelevanten Sprach- und Interaktions-Funktionen,
         // um Token-Overhead und Inferenz-Latenzen auf TPU-Seite minimal zu halten (Reaktionszeit wie in der mobilen Gemini-App).
+        $isFunkiAgent = $aiAgent && strcasecmp(trim((string) ($aiAgent->name ?? '')), 'Funki') === 0;
         $voiceAllowedTools = [
-            'system_open_nav_item', 'system_open_zentrum', 'system_close_zentrum', 'system_close_ui', 
-            'system_trigger_ui_element', 'system_search_web', 'system_read_web_url',
+            'system_open_nav_item', 'system_open_zentrum', 'system_close_zentrum', 'system_close_ui',
+            'system_trigger_ui_element',
             'task_get_all', 'task_get_lists', 'task_create', 'task_add_subtask', 'task_update', 'task_complete',
         ];
-        if ($isAdminUser) {
+        if ($isAdminUser && !$isFunkiAgent) {
             $voiceAllowedTools = array_merge($voiceAllowedTools, [
+                'system_search_web',
+                'system_read_web_url',
                 'system_get_server_status',
                 'system_get_health',
                 'system_get_error_sentinel',

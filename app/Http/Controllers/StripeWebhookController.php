@@ -45,11 +45,19 @@ class StripeWebhookController extends Controller
             return response('Error: Invalid Payload', 400);
         }
 
+        $eventObject = $event->data->object ?? null;
+        if (!is_object($eventObject)) {
+            Log::warning('Stripe Webhook: Event enthält kein gültiges data.object.');
+            return response('Error: Invalid Event Data', 400);
+        }
+
         // 2. Auf relevante Events hören
-        if ($event->type === 'checkout.session.completed') {
-            $session = $event->data->object;
+        if (in_array($event->type, ['checkout.session.completed', 'checkout.session.async_payment_succeeded'], true)) {
+            $session = $eventObject;
             $orderId = $session->metadata->order_id ?? null;
-            $intentId = is_object($session->payment_intent) ? ($session->payment_intent->id ?? null) : $session->payment_intent;
+            $intentId = is_object($session->payment_intent ?? null)
+                ? ($session->payment_intent->id ?? null)
+                : ($session->payment_intent ?? null);
 
             $order = null;
             if ($orderId) {
@@ -61,19 +69,36 @@ class StripeWebhookController extends Controller
             }
 
             if ($order) {
-                if (isset($session->payment_status) && $session->payment_status !== 'paid') {
-                    Log::info("Webhook checkout.session.completed: Session {$session->id} für Order {$order->order_number} noch nicht bezahlt (Status: {$session->payment_status}). Warte auf Zahlungseingang.");
-                    return response('Success', 200);
-                }
-
                 if (isset($session->currency) && strtolower((string) $session->currency) !== 'eur') {
-                    Log::error("Webhook checkout.session.completed: Währungsabweichung für Order {$order->order_number} (Session: {$session->currency}).");
+                    Log::error("Webhook {$event->type}: Währungsabweichung für Order {$order->order_number} (Session: {$session->currency}).");
+                    \App\Services\System\SystemSecurityService::logEvent(
+                        'security:webhook_currency_mismatch',
+                        'Stripe-Webhook Währungsabweichung blockiert',
+                        "Order {$order->order_number}: Erwartet EUR, erhalten {$session->currency}.",
+                        'error',
+                        ['order_id' => $order->id, 'currency' => $session->currency]
+                    );
                     return response('Error: Currency mismatch', 400);
                 }
 
                 if (isset($session->amount_total) && (int) $session->amount_total < (int) $order->total_price) {
-                    Log::error("Webhook checkout.session.completed: Betragsabweichung für Order {$order->order_number} (Session: {$session->amount_total}, Order: {$order->total_price}).");
+                    Log::error("Webhook {$event->type}: Betragsabweichung für Order {$order->order_number} (Session: {$session->amount_total}, Order: {$order->total_price}).");
+                    \App\Services\System\SystemSecurityService::logEvent(
+                        'security:webhook_amount_mismatch',
+                        'Stripe-Webhook Betragsabweichung blockiert',
+                        "Order {$order->order_number}: Erwartet {$order->total_price} Cent, erhalten {$session->amount_total} Cent.",
+                        'error',
+                        ['order_id' => $order->id, 'expected_cents' => (int) $order->total_price, 'received_cents' => (int) $session->amount_total]
+                    );
                     return response('Error: Amount mismatch', 400);
+                }
+
+                if (isset($session->payment_status) && $session->payment_status !== 'paid') {
+                    if (empty($order->stripe_payment_intent_id) && !empty($intentId) && $order->payment_status === 'unpaid') {
+                        $order->update(['stripe_payment_intent_id' => $intentId]);
+                    }
+                    Log::info("Webhook {$event->type}: Session {$session->id} für Order {$order->order_number} noch nicht bezahlt (Status: {$session->payment_status}). Warte auf Zahlungseingang.");
+                    return response('Success', 200);
                 }
 
                 if (
@@ -81,9 +106,9 @@ class StripeWebhookController extends Controller
                     && !in_array($order->status, ['cancelled', 'refunded'], true)
                 ) {
                     $order->completePayment($intentId);
-                    Log::info("Webhook checkout.session.completed: Order {$order->order_number} erfolgreich als bezahlt verarbeitet.");
+                    Log::info("Webhook {$event->type}: Order {$order->order_number} erfolgreich als bezahlt verarbeitet.");
                 } else {
-                    Log::info("Webhook checkout.session.completed ignoriert: Order {$order->order_number} bereits bezahlt, storniert oder erstattet.");
+                    Log::info("Webhook {$event->type} ignoriert: Order {$order->order_number} bereits bezahlt, storniert oder erstattet.");
                 }
 
                 // Falls aus Angebot (Quote) entstanden
@@ -94,18 +119,18 @@ class StripeWebhookController extends Controller
                         $quote
                         && $quote->status !== 'converted'
                         && empty($quote->converted_order_id)
-                        && (int) $order->total_price >= (int) $quote->gross_total
+                        && ((int) $order->total_price + (int) ($order->discount_amount ?? 0)) >= (int) $quote->gross_total
                     ) {
                         $quote->update(['status' => 'converted', 'converted_order_id' => $order->id]);
                     }
                 }
             } else {
-                Log::warning("Webhook checkout.session.completed: Keine passende Order gefunden für Session {$session->id}.");
+                Log::warning("Webhook {$event->type}: Keine passende Order gefunden für Session " . ($session->id ?? 'unknown') . '.');
             }
         } elseif ($event->type === 'payment_intent.succeeded') {
-            $intent = $event->data->object;
+            $intent = $eventObject;
             $orderId = $intent->metadata->order_id ?? null;
-            $intentId = $intent->id;
+            $intentId = $intent->id ?? null;
 
             $order = null;
             if ($orderId) {
@@ -119,11 +144,29 @@ class StripeWebhookController extends Controller
             if ($order) {
                 if (isset($intent->currency) && strtolower((string) $intent->currency) !== 'eur') {
                     Log::error("Webhook payment_intent.succeeded: Währungsabweichung für Order {$order->order_number} (Intent: {$intent->currency}).");
+                    \App\Services\System\SystemSecurityService::logEvent(
+                        'security:webhook_currency_mismatch',
+                        'Stripe-Webhook Währungsabweichung blockiert',
+                        "Order {$order->order_number}: Erwartet EUR, erhalten {$intent->currency}.",
+                        'error',
+                        ['order_id' => $order->id, 'currency' => $intent->currency]
+                    );
                     return response('Error: Currency mismatch', 400);
                 }
 
-                if (isset($intent->amount) && (int) $intent->amount < (int) $order->total_price) {
-                    Log::error("Webhook payment_intent.succeeded: Betragsabweichung für Order {$order->order_number} (Intent: {$intent->amount}, Order: {$order->total_price}).");
+                if (
+                    (isset($intent->amount) && (int) $intent->amount < (int) $order->total_price)
+                    || (isset($intent->amount_received) && (int) $intent->amount_received < (int) $order->total_price)
+                ) {
+                    $receivedCents = isset($intent->amount_received) ? (int) $intent->amount_received : (int) ($intent->amount ?? 0);
+                    Log::error("Webhook payment_intent.succeeded: Betragsabweichung für Order {$order->order_number} (Intent: {$receivedCents}, Order: {$order->total_price}).");
+                    \App\Services\System\SystemSecurityService::logEvent(
+                        'security:webhook_amount_mismatch',
+                        'Stripe-Webhook Betragsabweichung blockiert',
+                        "Order {$order->order_number}: Erwartet {$order->total_price} Cent, erhalten {$receivedCents} Cent.",
+                        'error',
+                        ['order_id' => $order->id, 'expected_cents' => (int) $order->total_price, 'received_cents' => $receivedCents]
+                    );
                     return response('Error: Amount mismatch', 400);
                 }
 
@@ -145,7 +188,7 @@ class StripeWebhookController extends Controller
                         $quote
                         && $quote->status !== 'converted'
                         && empty($quote->converted_order_id)
-                        && (int) $order->total_price >= (int) $quote->gross_total
+                        && ((int) $order->total_price + (int) ($order->discount_amount ?? 0)) >= (int) $quote->gross_total
                     ) {
                         $quote->update(['status' => 'converted', 'converted_order_id' => $order->id]);
                     }
@@ -154,59 +197,106 @@ class StripeWebhookController extends Controller
                 Log::warning("Webhook payment_intent.succeeded: Keine passende Order gefunden für PaymentIntent {$intentId}.");
             }
         } elseif ($event->type === 'payment_intent.payment_failed') {
-            $intent = $event->data->object;
+            $intent = $eventObject;
             $intentId = $intent->id ?? 'unknown';
             $errorMessage = $intent->last_payment_error->message ?? 'Zahlung fehlgeschlagen';
             Log::warning("Webhook payment_intent.payment_failed für Intent {$intentId}: {$errorMessage}");
         } elseif ($event->type === 'charge.refunded') {
-            $charge = $event->data->object;
-            $intentId = is_object($charge->payment_intent) ? ($charge->payment_intent->id ?? null) : $charge->payment_intent;
+            $charge = $eventObject;
+            $intentId = is_object($charge->payment_intent ?? null)
+                ? ($charge->payment_intent->id ?? null)
+                : ($charge->payment_intent ?? null);
+            $metaOrderId = $charge->metadata->order_id ?? null;
 
             $order = null;
-            if (!empty($intentId)) {
-                $order = OrderOrder::with('items.product')->where('stripe_payment_intent_id', $intentId)->first();
+            if (!empty($metaOrderId)) {
+                $order = OrderOrder::with(['items.product', 'invoices'])->find($metaOrderId);
+            }
+            if (!$order && !empty($intentId)) {
+                $order = OrderOrder::with(['items.product', 'invoices'])->where('stripe_payment_intent_id', $intentId)->first();
             }
 
             if ($order) {
-                $isFullRefund = $charge->refunded ?? false;
-                if ($isFullRefund) {
-                    if ($order->payment_status === 'refunded' && $order->status === 'refunded') {
-                        Log::info("Webhook charge.refunded ignoriert: Order {$order->order_number} bereits vollständig als erstattet verarbeitet.");
-                        return response('Success', 200);
-                    }
-
-                    $previousStatus = $order->status;
-                    $previousPaymentStatus = $order->payment_status;
-
-                    // Vollständige Rückabwicklung (Lager Standardware, Spende, Gutscheine, Referral) VOR Status-Update
-                    $order->handleCancellation('Stripe Webhook Rückerstattung', $previousStatus, $previousPaymentStatus);
-
-                    $order->update([
-                        'payment_status' => 'refunded',
-                        'status' => 'refunded',
-                    ]);
-                    Log::info("Webhook charge.refunded: Order {$order->order_number} erfolgreich als erstattet verarbeitet.");
-                } else {
-                    Log::info("Webhook charge.refunded: Order {$order->order_number} wurde teilweise erstattet.");
-                }
+                app(\App\Services\StripeAgentExecutionService::class)->syncWebhookRefund(
+                    $order,
+                    $charge,
+                    is_string($event->id ?? null) ? $event->id : null
+                );
+                Log::info("Webhook charge.refunded: Order {$order->order_number} idempotent mit GoBD-Gutschrift synchronisiert.");
             } else {
                 Log::warning("Webhook charge.refunded: Keine passende Order gefunden für Intent {$intentId}.");
             }
+        } elseif ($event->type === 'charge.dispute.created') {
+            $dispute = $eventObject;
+            $disputeId = (string) ($dispute->id ?? 'unknown');
+            $secActionId = 'security:stripe_dispute_created:' . $disputeId;
+            if (
+                !\Illuminate\Support\Facades\Schema::hasTable('system_logs')
+                || !\App\Models\System\SystemLog::query()->where('action_id', $secActionId)->exists()
+            ) {
+                \App\Services\System\SystemSecurityService::logEvent(
+                    $secActionId,
+                    'Stripe Chargeback / Dispute eingegangen',
+                    "Für Stripe Dispute {$disputeId} wurde eine Rückbuchungsanfrage gemeldet.",
+                    'warning',
+                    [
+                        'dispute_id' => $disputeId,
+                        'amount_cents' => (int) ($dispute->amount ?? 0),
+                        'reason' => (string) ($dispute->reason ?? 'unknown'),
+                    ]
+                );
+            }
+            app(\App\Services\StripeAgentExecutionService::class)->handleWebhookDisputeCreated(
+                $dispute,
+                is_string($event->id ?? null) ? $event->id : null
+            );
+            Log::warning('Webhook charge.dispute.created verarbeitet: ' . $disputeId);
+        } elseif ($event->type === 'charge.dispute.closed') {
+            $dispute = $eventObject;
+            app(\App\Services\StripeAgentExecutionService::class)->handleWebhookDisputeClosed(
+                $dispute,
+                is_string($event->id ?? null) ? $event->id : null
+            );
+            Log::info('Webhook charge.dispute.closed verarbeitet: ' . ($dispute->id ?? 'unknown'));
+        } elseif ($event->type === 'payout.paid') {
+            $payout = $eventObject;
+            app(\App\Services\StripeAgentExecutionService::class)->handleWebhookPayoutPaid(
+                $payout,
+                is_string($event->id ?? null) ? $event->id : null
+            );
+            Log::info('Webhook payout.paid für FYRST-Abgleich vorgemerkt: ' . ($payout->id ?? 'unknown'));
         } elseif ($event->type === 'payment_intent.canceled') {
-            $intent = $event->data->object;
+            $intent = $eventObject;
             $intentId = $intent->id ?? null;
+            $metaOrderId = $intent->metadata->order_id ?? null;
+            $order = null;
+
             if ($intentId) {
-                $order = OrderOrder::where('stripe_payment_intent_id', $intentId)->where('payment_status', 'unpaid')->first();
-                if ($order && $order->status === 'pending') {
-                    $previousStatus = $order->status;
-                    $previousPaymentStatus = $order->payment_status;
-                    $order->handleCancellation('Stripe PaymentIntent abgebrochen', $previousStatus, $previousPaymentStatus);
-                    $order->update([
-                        'status' => 'cancelled',
-                        'cancellation_reason' => 'Stripe PaymentIntent abgebrochen/abgelaufen'
-                    ]);
-                    Log::info("Webhook payment_intent.canceled: Unbezahlte Order {$order->order_number} storniert.");
+                $order = OrderOrder::where('stripe_payment_intent_id', $intentId)
+                    ->where('payment_status', 'unpaid')
+                    ->first();
+            }
+
+            if (!$order && !empty($metaOrderId)) {
+                $candidate = OrderOrder::find($metaOrderId);
+                if (
+                    $candidate
+                    && $candidate->payment_status === 'unpaid'
+                    && (empty($candidate->stripe_payment_intent_id) || $candidate->stripe_payment_intent_id === $intentId)
+                ) {
+                    $order = $candidate;
                 }
+            }
+
+            if ($order && $order->payment_status === 'unpaid' && $order->status === 'pending') {
+                $previousStatus = $order->status;
+                $previousPaymentStatus = $order->payment_status;
+                $order->handleCancellation('Stripe PaymentIntent abgebrochen', $previousStatus, $previousPaymentStatus);
+                $order->update([
+                    'status' => 'cancelled',
+                    'cancellation_reason' => 'Stripe PaymentIntent abgebrochen/abgelaufen'
+                ]);
+                Log::info("Webhook payment_intent.canceled: Unbezahlte Order {$order->order_number} storniert.");
             }
         }
 

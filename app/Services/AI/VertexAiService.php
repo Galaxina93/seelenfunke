@@ -25,9 +25,7 @@ class VertexAiService
             return false;
         }
 
-        $credentialsPath = self::resolveCredentialsPath();
-
-        return $credentialsPath !== '' && is_file($credentialsPath) && is_readable($credentialsPath);
+        return self::loadServiceAccount() !== null;
     }
 
     /**
@@ -67,18 +65,29 @@ class VertexAiService
     }
 
     /**
-     * Lädt und validiert die Service-Account-Daten aus der JSON-Datei.
+     * Lädt und validiert die Service-Account-Daten aus der JSON-Datei oder aus services.vertex.credentials_json.
      */
     public static function loadServiceAccount(): ?array
     {
-        $path = self::resolveCredentialsPath();
-        if ($path === '' || !is_file($path) || !is_readable($path)) {
-            return null;
+        $raw = null;
+        $inlineJson = trim((string) config('services.vertex.credentials_json', ''));
+        if ($inlineJson !== '') {
+            $raw = str_starts_with($inlineJson, '{')
+                ? $inlineJson
+                : ((string) base64_decode($inlineJson, true) ?: '');
         }
 
-        $raw = @file_get_contents($path);
-        if (!is_string($raw) || $raw === '') {
-            return null;
+        if ($raw === null || $raw === '') {
+            $path = self::resolveCredentialsPath();
+            if ($path === '' || !is_file($path) || !is_readable($path)) {
+                return null;
+            }
+
+            $fileContent = @file_get_contents($path);
+            if (!is_string($fileContent) || $fileContent === '') {
+                return null;
+            }
+            $raw = $fileContent;
         }
 
         $decoded = json_decode($raw, true);
@@ -307,20 +316,26 @@ class VertexAiService
     /**
      * Löst URL, Header und normalisiertes Modell für native :generateContent-Aufrufe auf.
      *
-     * @return array{url: string, headers: array<string, string>, model: string, is_vertex: bool}
+     * @return array{url: string, headers: array<string, string>, model: string, is_vertex: bool, location: string}
      */
-    public static function resolveGenerateContentEndpoint(string $model, bool $forceRefreshToken = false): array
-    {
+    public static function resolveGenerateContentEndpoint(
+        string $model,
+        bool $forceRefreshToken = false,
+        ?string $locationOverride = null,
+        bool $preserveExactModel = false
+    ): array {
         if (self::isEnabled()) {
             $token = self::getAccessToken($forceRefreshToken);
             if ($token !== null && $token !== '') {
                 $sa = self::loadServiceAccount();
                 $projectId = self::getProjectId($sa);
-                $location = trim((string) config('services.vertex.location', 'global')) ?: 'global';
+                $location = trim((string) ($locationOverride ?: config('services.vertex.location', 'global'))) ?: 'global';
                 $host = $location === 'global'
                     ? 'aiplatform.googleapis.com'
                     : "{$location}-aiplatform.googleapis.com";
-                $resolvedModel = self::resolveModel($model);
+                $resolvedModel = $preserveExactModel
+                    ? preg_replace('#^(?:models/|google/)#i', '', trim($model))
+                    : self::resolveModel($model);
 
                 return [
                     'url' => "https://{$host}/v1beta1/projects/{$projectId}/locations/{$location}/publishers/google/models/{$resolvedModel}:generateContent",
@@ -328,13 +343,16 @@ class VertexAiService
                         'Content-Type' => 'application/json',
                         'Authorization' => 'Bearer ' . $token,
                     ],
-                    'model' => $resolvedModel,
+                    'model' => (string) $resolvedModel,
                     'is_vertex' => true,
+                    'location' => $location,
                 ];
             }
         }
 
-        $fallbackModel = app()->runningUnitTests() ? trim($model) : self::resolveModel($model);
+        $fallbackModel = (app()->runningUnitTests() || $preserveExactModel)
+            ? preg_replace('#^(?:models/|google/)#i', '', trim($model))
+            : self::resolveModel($model);
         $apiKey = (string) (config('services.gemini.key') ?: config('services.gemini.api_key') ?: '');
 
         return [
@@ -343,8 +361,9 @@ class VertexAiService
                 'Content-Type' => 'application/json',
                 'x-goog-api-key' => $apiKey,
             ],
-            'model' => $fallbackModel,
+            'model' => (string) $fallbackModel,
             'is_vertex' => false,
+            'location' => 'ai_studio',
         ];
     }
 
@@ -399,9 +418,11 @@ class VertexAiService
         string $model,
         array $payload,
         int $timeout = 45,
-        int $connectTimeout = 6
+        int $connectTimeout = 6,
+        ?string $locationOverride = null,
+        bool $preserveExactModel = false
     ): Response {
-        $endpoint = self::resolveGenerateContentEndpoint($model);
+        $endpoint = self::resolveGenerateContentEndpoint($model, false, $locationOverride, $preserveExactModel);
         $normalizedPayload = $endpoint['is_vertex']
             ? self::normalizeGenerateContentPayload($payload)
             : $payload;
@@ -415,7 +436,7 @@ class VertexAiService
             ->post($endpoint['url'], $normalizedPayload);
 
         if ($endpoint['is_vertex'] && $response->status() === 401) {
-            $refreshedEndpoint = self::resolveGenerateContentEndpoint($model, true);
+            $refreshedEndpoint = self::resolveGenerateContentEndpoint($model, true, $locationOverride, $preserveExactModel);
             $response = Http::withOptions([
                 'force_ip_resolve' => 'v4',
                 'connect_timeout' => $connectTimeout,

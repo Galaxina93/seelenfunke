@@ -415,6 +415,8 @@ SPRACHMELODIE: Deine Sprachmelodie ist extrem technisch, monoton und maschinenä
                         'system_get_server_status',
                         'system_get_health',
                         'system_get_error_sentinel',
+                        'system_search_web',
+                        'system_read_web_url',
                         'master_get_next_best_actions',
                         FunkiraSkillPoolService::EQUIP_TOOL_NAME,
                     ]

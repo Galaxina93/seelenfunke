@@ -143,62 +143,407 @@ function makeLuxuryMatcap(baseHex, specHex, rimHex, specPower = 28, rimStrength 
   return configureHdTex(new THREE.CanvasTexture(c), 2);
 }
 
-// Procedural Skyscraper Curtain-Wall Facade Texture (90% Obsidian & 24K Gold Mullions + Warm Atelier Windows)
-function makeSkyscraperFacadeTexture() {
-  const W = 512, H = 1024;
-  const c = document.createElement('canvas');
-  c.width = W;
-  c.height = H;
-  const ctx = c.getContext('2d');
+// 1024x1024 Interior-Lit Skyscraper Curtain-Wall Atlas + Emissive Window Map + PBR Roughness Map (4x Anisotropy)
+function makeSkyscraperFacadeAtlas() {
+  const W = 1024, H = 1024;
+  const cCol = document.createElement('canvas');
+  cCol.width = W;
+  cCol.height = H;
+  const ctx = cCol.getContext('2d');
+
+  const cEmis = document.createElement('canvas');
+  cEmis.width = W;
+  cEmis.height = H;
+  const ectx = cEmis.getContext('2d');
+
+  const cRough = document.createElement('canvas');
+  cRough.width = W;
+  cRough.height = H;
+  const rctx = cRough.getContext('2d');
+
   const rng = mulberry32(20261116);
 
-  // Deep obsidian architectural glass base
+  // Base obsidian architectural stone & steel cladding
   const bg = ctx.createLinearGradient(0, 0, 0, H);
-  bg.addColorStop(0, '#0c1018');
-  bg.addColorStop(0.55, '#080b11');
-  bg.addColorStop(1, '#05070b');
+  bg.addColorStop(0, '#0d131d');
+  bg.addColorStop(0.55, '#090d15');
+  bg.addColorStop(1, '#06090f');
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, W, H);
 
-  const floors = 48;
-  const cols = 16;
+  ectx.fillStyle = '#000000';
+  ectx.fillRect(0, 0, W, H);
+
+  // Default matte dark stone spandrel roughness (~0.78 -> rgb 199)
+  rctx.fillStyle = 'rgb(199, 199, 199)';
+  rctx.fillRect(0, 0, W, H);
+
+  // Subtle dark granite/steel mineral micro-grain on spandrels
+  for (let g = 0; g < 4200; g++) {
+    const gx = rng() * W;
+    const gy = rng() * H;
+    const shade = rng() > 0.5 ? 'rgba(255,250,235,0.035)' : 'rgba(0,0,0,0.22)';
+    ctx.fillStyle = shade;
+    ctx.fillRect(gx, gy, 3, 2);
+  }
+
+  const floors = 24;
+  const cols = 12;
   const fh = H / floors;
   const cw = W / cols;
 
   for (let f = 0; f < floors; f++) {
     const y = f * fh;
     const bandHighlight = (f % 8 === 0);
+    let suiteLit = rng() > 0.46;
+    let suiteWarmth = rng();
+
     for (let col = 0; col < cols; col++) {
+      if (col % 3 === 0 && rng() > 0.35) {
+        suiteLit = rng() > 0.44;
+        suiteWarmth = rng();
+      }
       const x = col * cw;
-      const litRoll = rng();
+      const padX = 4.5;
+      const padTop = 5.5;
+      const padBot = 4.5;
+      const wx = x + padX;
+      const wy = y + padTop;
+      const ww = cw - padX * 2;
+      const wh = fh - padTop - padBot;
+
+      // Mirror-smooth architectural glass pane in roughnessMap (~0.14 -> rgb 36)
+      rctx.fillStyle = 'rgb(36, 36, 36)';
+      rctx.fillRect(wx, wy, ww, wh);
+
       if (bandHighlight) {
-        ctx.fillStyle = 'rgba(197, 160, 89, 0.42)';
-        ctx.fillRect(x + 2, y + 3, cw - 4, fh - 6);
-      } else if (litRoll > 0.56) {
-        const warm = litRoll > 0.86 ? 'rgba(255, 236, 179, 0.82)' : 'rgba(197, 160, 89, 0.38)';
-        ctx.fillStyle = warm;
-        ctx.fillRect(x + 3.5, y + 3.5, cw - 7, fh - 7);
+        const lg = ctx.createLinearGradient(0, wy, 0, wy + wh);
+        lg.addColorStop(0, '#FFEAB3');
+        lg.addColorStop(0.5, '#C5A059');
+        lg.addColorStop(1, '#5E4720');
+        ctx.fillStyle = lg;
+        ctx.fillRect(wx, wy, ww, wh);
+
+        ectx.fillStyle = 'rgba(225, 182, 98, 0.72)';
+        ectx.fillRect(wx, wy + 2, ww, wh - 4);
+      } else if (suiteLit && rng() > 0.14) {
+        // Warm champagne-gold interior atelier/office lighting with ceiling downlight gradient
+        const topCol = suiteWarmth > 0.62 ? '#FFF6D6' : '#FDE68A';
+        const midCol = suiteWarmth > 0.62 ? '#F3C878' : '#D4AF37';
+        const botCol = '#58411E';
+        const roomGrad = ctx.createLinearGradient(0, wy, 0, wy + wh);
+        roomGrad.addColorStop(0.0, topCol);
+        roomGrad.addColorStop(0.48, midCol);
+        roomGrad.addColorStop(1.0, botCol);
+        ctx.fillStyle = roomGrad;
+        ctx.fillRect(wx, wy, ww, wh);
+
+        // Interior architectural silhouette (mezzanine desk bar & subtle vertical partition/blinds)
+        ctx.fillStyle = 'rgba(14, 18, 26, 0.42)';
+        ctx.fillRect(wx, wy + wh * 0.66, ww, 2.2);
+        if (rng() > 0.45) {
+          const partX = wx + ww * (0.35 + rng() * 0.35);
+          ctx.fillRect(partX, wy, 2.0, wh);
+        }
+        if (rng() > 0.68) {
+          ctx.fillStyle = 'rgba(18, 22, 30, 0.28)';
+          ctx.fillRect(wx, wy, ww, wh * 0.32);
+        }
+
+        const emisGrad = ectx.createLinearGradient(0, wy, 0, wy + wh);
+        emisGrad.addColorStop(0.0, suiteWarmth > 0.62 ? 'rgba(255, 243, 201, 0.94)' : 'rgba(245, 208, 125, 0.78)');
+        emisGrad.addColorStop(0.75, 'rgba(197, 160, 89, 0.52)');
+        emisGrad.addColorStop(1.0, 'rgba(92, 68, 30, 0.25)');
+        ectx.fillStyle = emisGrad;
+        ectx.fillRect(wx + 1, wy + 1, ww - 2, wh - 2);
       } else {
-        ctx.fillStyle = 'rgba(18, 26, 38, 0.68)';
-        ctx.fillRect(x + 3, y + 3, cw - 6, fh - 6);
+        // Unlit deep sapphire-obsidian curtain glass (reflects 2K sky via PMREM envMap!)
+        const dg = ctx.createLinearGradient(0, wy, 0, wy + wh);
+        dg.addColorStop(0, '#131e30');
+        dg.addColorStop(0.6, '#0c1422');
+        dg.addColorStop(1, '#080d17');
+        ctx.fillStyle = dg;
+        ctx.fillRect(wx, wy, ww, wh);
       }
     }
-    // Horizontal brushed gold spandrel line
-    ctx.fillStyle = bandHighlight ? '#D4AF37' : 'rgba(197, 160, 89, 0.34)';
-    ctx.fillRect(0, y, W, bandHighlight ? 2.4 : 1.2);
+
+    // Horizontal brushed stone & 24K-gold spandrel cornice line
+    ctx.fillStyle = '#141923';
+    ctx.fillRect(0, y, W, 4.5);
+    ctx.fillStyle = bandHighlight ? '#E5C158' : 'rgba(197, 160, 89, 0.52)';
+    ctx.fillRect(0, y + (bandHighlight ? 0.5 : 1.5), W, bandHighlight ? 3.4 : 1.8);
+
+    rctx.fillStyle = bandHighlight ? 'rgb(76, 76, 76)' : 'rgb(186, 186, 186)';
+    rctx.fillRect(0, y, W, 5.0);
   }
 
-  // Crisp vertical 24K gold structural mullions
+  // Crisp vertical 24K-gold structural mullions with satin metallic roughness (~0.32 -> rgb 82)
   for (let col = 0; col <= cols; col++) {
     const x = col * cw;
     const major = (col % 4 === 0);
-    ctx.fillStyle = major ? '#C5A059' : 'rgba(197, 160, 89, 0.26)';
-    ctx.fillRect(x - (major ? 1.5 : 0.6), 0, major ? 3.0 : 1.2, H);
+    const mw = major ? 4.4 : 2.0;
+    ctx.fillStyle = major ? '#D4AF37' : 'rgba(197, 160, 89, 0.44)';
+    ctx.fillRect(x - mw * 0.5, 0, mw, H);
+    if (major) {
+      ctx.fillStyle = 'rgba(255, 248, 214, 0.45)';
+      ctx.fillRect(x - 0.8, 0, 1.2, H);
+    }
+    rctx.fillStyle = 'rgb(82, 82, 82)';
+    rctx.fillRect(x - mw * 0.5, 0, mw, H);
+  }
+
+  const colorTex = configureHdTex(new THREE.CanvasTexture(cCol), 4);
+  colorTex.wrapS = THREE.RepeatWrapping;
+  colorTex.wrapT = THREE.RepeatWrapping;
+
+  const emissiveTex = configureHdTex(new THREE.CanvasTexture(cEmis), 4);
+  emissiveTex.wrapS = THREE.RepeatWrapping;
+  emissiveTex.wrapT = THREE.RepeatWrapping;
+
+  const roughnessTex = new THREE.CanvasTexture(cRough);
+  roughnessTex.generateMipmaps = true;
+  roughnessTex.minFilter = THREE.LinearMipmapLinearFilter;
+  roughnessTex.magFilter = THREE.LinearFilter;
+  roughnessTex.anisotropy = Math.min(MAX_ANISO, 4);
+  if (typeof THREE.NoColorSpace !== 'undefined') {
+    roughnessTex.colorSpace = THREE.NoColorSpace;
+  }
+  roughnessTex.wrapS = THREE.RepeatWrapping;
+  roughnessTex.wrapT = THREE.RepeatWrapping;
+
+  return { colorTex, emissiveTex, roughnessTex };
+}
+
+function makeSkyscraperFacadeTexture() {
+  return makeSkyscraperFacadeAtlas().colorTex;
+}
+
+// Seamless 2K (2048x1024) Equirectangular Golden-Hour Sky & Volumetric Cloud Panorama for SkyDome & PMREM IBL
+function makePhotorealSkyPanoramaTexture(sunDirVec) {
+  const W = 2048, H = 1024;
+  const c = document.createElement('canvas');
+  c.width = W;
+  c.height = H;
+  const ctx = c.getContext('2d');
+
+  const sx = sunDirVec ? sunDirVec.x : -0.38;
+  const sy = sunDirVec ? sunDirVec.y : 0.24;
+  const sz = sunDirVec ? sunDirVec.z : -0.89;
+  const sLen = Math.hypot(sx, sy, sz) || 1.0;
+  const ux = sx / sLen, uy = sy / sLen, uz = sz / sLen;
+
+  // 1. Seamless 3D-Spherical Volumetric Cloud & Atmospheric Scattering Pass (512x256 -> upscaled smoothly to 2048x1024)
+  const cw = 512, ch = 256;
+  const cloudCanvas = document.createElement('canvas');
+  cloudCanvas.width = cw;
+  cloudCanvas.height = ch;
+  const cctx = cloudCanvas.getContext('2d');
+  const img = cctx.createImageData(cw, ch);
+  const data = img.data;
+
+  const hash3 = (ix, iy, iz) => {
+    let n = (Math.imul(ix, 127) + Math.imul(iy, 311) + Math.imul(iz, 74)) | 0;
+    n = (n << 13) ^ n;
+    return ((Math.imul(n, (Math.imul(n, Math.imul(n, 15731)) + 789221) | 0) + 1376312589) >>> 0) / 4294967296;
+  };
+
+  const noise3 = (px, py, pz) => {
+    const ix = Math.floor(px), iy = Math.floor(py), iz = Math.floor(pz);
+    let fx = px - ix, fy = py - iy, fz = pz - iz;
+    fx = fx * fx * (3 - 2 * fx);
+    fy = fy * fy * (3 - 2 * fy);
+    fz = fz * fz * (3 - 2 * fz);
+    const n000 = hash3(ix, iy, iz),       n100 = hash3(ix + 1, iy, iz);
+    const n010 = hash3(ix, iy + 1, iz),   n110 = hash3(ix + 1, iy + 1, iz);
+    const n001 = hash3(ix, iy, iz + 1),   n101 = hash3(ix + 1, iy, iz + 1);
+    const n011 = hash3(ix, iy + 1, iz + 1), n111 = hash3(ix + 1, iy + 1, iz + 1);
+    const nx00 = n000 + (n100 - n000) * fx;
+    const nx10 = n010 + (n110 - n010) * fx;
+    const nx01 = n001 + (n101 - n001) * fx;
+    const nx11 = n011 + (n111 - n011) * fx;
+    const nxy0 = nx00 + (nx10 - nx00) * fy;
+    const nxy1 = nx01 + (nx11 - nx01) * fy;
+    return nxy0 + (nxy1 - nxy0) * fz;
+  };
+
+  const cloudFbm = (px, py, pz) => {
+    let v = 0.0;
+    v += 0.52 * noise3(px, py, pz);
+    v += 0.27 * noise3(px * 2.07 + 3.1, py * 2.07 + 1.7, pz * 2.07 + 4.3);
+    v += 0.14 * noise3(px * 4.23 + 7.4, py * 4.23 + 5.2, pz * 4.23 + 2.9);
+    v += 0.07 * noise3(px * 8.51 + 1.9, py * 8.51 + 8.6, pz * 8.51 + 6.1);
+    return v;
+  };
+
+  for (let y = 0; y < ch; y++) {
+    const lat = (0.5 - (y + 0.5) / ch) * Math.PI;
+    const sinLat = Math.sin(lat);
+    const cosLat = Math.cos(lat);
+
+    for (let x = 0; x < cw; x++) {
+      const u = (x + 0.5) / cw;
+      const lon = (u - 0.5) * Math.PI * 2.0;
+      const dx = cosLat * Math.cos(lon);
+      const dy = sinLat;
+      const dz = cosLat * Math.sin(lon);
+
+      const sunDot = Math.max(0, dx * ux + dy * uy + dz * uz);
+      let r = 0, g = 0, b = 0;
+
+      if (dy >= -0.02) {
+        const h = clamp(dy, 0.0, 1.0);
+        // Atmospheric Rayleigh zenith -> golden-sapphire mid-sky -> warm champagne horizon
+        const tMid = Math.pow(1.0 - h, 1.85);
+        const tHor = Math.pow(1.0 - h, 5.2);
+        const azGlow = Math.pow(sunDot, 2.4);
+
+        // Zenith (#081B3A) -> Mid (#1C4776)
+        r = lerp(8, 34, tMid);
+        g = lerp(27, 78, tMid);
+        b = lerp(58, 126, tMid);
+
+        // Horizon atmospheric scattering (warm gold near sun, twilight rose-bronze opposite)
+        const horR = lerp(86, 238, azGlow);
+        const horG = lerp(96, 186, azGlow);
+        const horB = lerp(124, 112, azGlow);
+        r = lerp(r, horR, tHor * 0.92);
+        g = lerp(g, horG, tHor * 0.92);
+        b = lerp(b, horB, tHor * 0.92);
+
+        // Volumetric cloud deck projected onto elevated atmospheric shell
+        const cloudBand = clamp((h - 0.015) / 0.14, 0.0, 1.0) * clamp((0.78 - h) / 0.52, 0.0, 1.0);
+        if (cloudBand > 0.004) {
+          const projScale = 3.8 / (h + 0.24);
+          const cxp = dx * projScale;
+          const CYP = dy * 2.4;
+          const czp = dz * projScale;
+
+          const dens = cloudFbm(cxp, CYP, czp);
+          const cov = clamp((dens - 0.47) / 0.30, 0.0, 1.0);
+          const cloudAlpha = cov * cov * (3 - 2 * cov) * cloudBand * 0.88;
+
+          if (cloudAlpha > 0.005) {
+            // Directional sun self-shadowing sample toward sunDirVec
+            const litSample = cloudFbm(cxp + ux * 0.42, CYP + uy * 0.35, czp + uz * 0.42);
+            const shadow = clamp((litSample - dens) * 3.8, -0.45, 0.65);
+            const sunLit = clamp(0.56 - shadow + Math.pow(sunDot, 3.0) * 0.42, 0.08, 1.0);
+            const silverLining = Math.pow(sunDot, 6.0) * clamp(1.0 - cov * 0.75, 0.15, 1.0);
+
+            // Dark indigo-slate cloud base vs sunlit 24K champagne-gold cloud ridges
+            let cr = lerp(32, 246, sunLit) + silverLining * 55;
+            let cg = lerp(44, 208, sunLit) + silverLining * 38;
+            let cb = lerp(68, 154, sunLit) + silverLining * 14;
+
+            // Aerial perspective horizon mist blending
+            const mist = Math.pow(1.0 - h, 4.2) * 0.62;
+            cr = lerp(cr, horR, mist);
+            cg = lerp(cg, horG, mist);
+            cb = lerp(cb, horB, mist);
+
+            r = lerp(r, cr, cloudAlpha);
+            g = lerp(g, cg, cloudAlpha);
+            b = lerp(b, cb, cloudAlpha);
+          }
+        }
+
+        // Solar Mie aureole & crisp sun disc
+        const mie = Math.pow(sunDot, 9.0) * 0.46 + Math.pow(sunDot, 64.0) * 0.85 + Math.pow(sunDot, 380.0) * 1.45;
+        r += 255 * mie * 0.92;
+        g += 224 * mie * 0.82;
+        b += 156 * mie * 0.58;
+      } else {
+        // Lower hemisphere (-Y ocean bounce for physically grounded PMREM metallic undersides!)
+        const depth = clamp(-dy, 0.0, 1.0);
+        const reflSun = Math.max(0, dx * ux + (-dy) * uy + dz * uz);
+        const waterGlint = Math.pow(reflSun, 14.0) * 0.55;
+        r = lerp(48, 8, Math.pow(depth, 0.55)) + 212 * waterGlint;
+        g = lerp(68, 26, Math.pow(depth, 0.55)) + 175 * waterGlint;
+        b = lerp(94, 52, Math.pow(depth, 0.55)) + 92 * waterGlint;
+      }
+
+      const p = (y * cw + x) * 4;
+      data[p]     = clamp(Math.round(r), 0, 255);
+      data[p + 1] = clamp(Math.round(g), 0, 255);
+      data[p + 2] = clamp(Math.round(b), 0, 255);
+      data[p + 3] = 255;
+    }
+  }
+  cctx.putImageData(img, 0, 0);
+
+  ctx.imageSmoothingEnabled = true;
+  if (typeof ctx.imageSmoothingQuality !== 'undefined') {
+    ctx.imageSmoothingQuality = 'high';
+  }
+  ctx.drawImage(cloudCanvas, 0, 0, W, H);
+
+  // 2. High-Frequency 2K Horizon Haze Veil & Fine Golden Cirrus Filaments directly at 2048x1024
+  const hzGrad = ctx.createLinearGradient(0, H * 0.43, 0, H * 0.54);
+  hzGrad.addColorStop(0.0, 'rgba(245, 206, 134, 0.0)');
+  hzGrad.addColorStop(0.58, 'rgba(236, 192, 118, 0.14)');
+  hzGrad.addColorStop(0.75, 'rgba(176, 152, 128, 0.18)');
+  hzGrad.addColorStop(1.0, 'rgba(18, 38, 66, 0.0)');
+  ctx.fillStyle = hzGrad;
+  ctx.fillRect(0, H * 0.43, W, H * 0.11);
+
+  const rng = mulberry32(20261118);
+  for (let i = 0; i < 64; i++) {
+    const cx = rng() * W;
+    const cy = H * (0.20 + rng() * 0.27);
+    const rx = 70 + rng() * 190;
+    const ry = 2.2 + rng() * 6.5;
+    const wg = ctx.createRadialGradient(cx, cy, 2, cx, cy, rx);
+    wg.addColorStop(0.0, 'rgba(255, 238, 196, 0.09)');
+    wg.addColorStop(0.55, 'rgba(212, 175, 55, 0.04)');
+    wg.addColorStop(1.0, 'rgba(212, 175, 55, 0.0)');
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.scale(1.0, ry / rx);
+    ctx.fillStyle = wg;
+    ctx.beginPath();
+    ctx.arc(0, 0, rx, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
   }
 
   const tex = configureHdTex(new THREE.CanvasTexture(c), 4);
+  tex.mapping = THREE.EquirectangularReflectionMapping;
   tex.wrapS = THREE.RepeatWrapping;
-  tex.wrapT = THREE.RepeatWrapping;
+  tex.wrapT = THREE.ClampToEdgeWrapping;
+  return tex;
+}
+
+// Procedural Soft Squircle Contact-Shadow Map for Baked Ambient Occlusion (0% Real-Time Shadow Cost!)
+function makeBakedAoShadowTexture() {
+  const S = 256;
+  const c = document.createElement('canvas');
+  c.width = S;
+  c.height = S;
+  const ctx = c.getContext('2d');
+  const img = ctx.createImageData(S, S);
+  const d = img.data;
+  const half = S * 0.5;
+
+  for (let y = 0; y < S; y++) {
+    const ny = Math.abs((y + 0.5 - half) / half);
+    for (let x = 0; x < S; x++) {
+      const nx = Math.abs((x + 0.5 - half) / half);
+      // Rounded-box squircle norm fits both rectangular skyscrapers and octagonal/circular towers naturally
+      const dist = Math.pow(Math.pow(nx, 2.8) + Math.pow(ny, 2.8), 1.0 / 2.8);
+      const t = clamp(1.0 - dist / 0.95, 0.0, 1.0);
+      const alpha = Math.pow(t, 1.85) * 0.72;
+      const p = (y * S + x) * 4;
+      d[p]     = 4;
+      d[p + 1] = 6;
+      d[p + 2] = 11;
+      d[p + 3] = clamp(Math.round(alpha * 255), 0, 255);
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  const tex = new THREE.CanvasTexture(c);
+  tex.generateMipmaps = true;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.needsUpdate = true;
   return tex;
 }
 
@@ -1382,6 +1727,7 @@ class FunkenwerkCityEngine {
     this.heroesClickTargets = [];
     this.departmentClickTargets = [];
     this.departmentBeacons = {};
+    this.departmentLandmarks = [];
     this.hoveredDeptKey = null;
     this.activeDepartment = null;
     this.departments = DEPARTMENTS;
@@ -1402,6 +1748,10 @@ class FunkenwerkCityEngine {
     this.pedestalSparkMeta = [];
     this.pedestalSparkPosAttr = null;
     this.sparkSpriteTex = null;
+    this.skyPanoramaTex = null;
+    this.pmremTarget = null;
+    this._throneRefVec = new THREE.Vector3(0, THRONE_FLOOR_Y + 2, 0);
+    this._heroesRefVec = new THREE.Vector3(0, 8, 598);
 
     this.skyUniforms = null;
     this.planetSurfaceUniforms = null;
@@ -1500,6 +1850,20 @@ class FunkenwerkCityEngine {
   }
 
   _buildMaterials() {
+    const sunDir = new THREE.Vector3(-0.38, 0.24, -0.89).normalize();
+    this.skyPanoramaTex = makePhotorealSkyPanoramaTexture(sunDir);
+
+    // Precompute PMREM IBL Reflection Environment once at startup (0% per-frame shadow/probe cost!)
+    if (this.renderer && typeof THREE.PMREMGenerator === 'function') {
+      const pmremGen = new THREE.PMREMGenerator(this.renderer);
+      if (typeof pmremGen.compileEquirectangularShader === 'function') {
+        pmremGen.compileEquirectangularShader();
+      }
+      this.pmremTarget = pmremGen.fromEquirectangular(this.skyPanoramaTex);
+      this.scene.environment = this.pmremTarget.texture;
+      pmremGen.dispose();
+    }
+
     const mcGoldBright = makeLuxuryMatcap('#D4AF37', '#FFFBEB', '#FDE68A', 38, 0.46);
     const mcGoldBrushed = makeLuxuryMatcap('#B89146', '#FFF3C4', '#D4AF37', 22, 0.32);
     const mcObsidian = makeLuxuryMatcap('#11141C', '#687387', '#C5A059', 30, 0.22);
@@ -1516,12 +1880,57 @@ class FunkenwerkCityEngine {
     const mcIceCrystal = makeLuxuryMatcap('#38BDF8', '#FFFFFF', '#BAE6FD', 42, 0.52);
     const mcAmethyst = makeLuxuryMatcap('#9333EA', '#FFFFFF', '#F5D0FE', 44, 0.56);
 
-    const facadeTex = makeSkyscraperFacadeTexture();
+    const facadeAtlas = makeSkyscraperFacadeAtlas();
+    const stColorTex = facadeAtlas.colorTex.clone();
+    stColorTex.repeat.set(2, 3);
+    stColorTex.needsUpdate = true;
+    const stEmisTex = facadeAtlas.emissiveTex.clone();
+    stEmisTex.repeat.set(2, 3);
+    stEmisTex.needsUpdate = true;
+    const stRoughTex = facadeAtlas.roughnessTex.clone();
+    stRoughTex.repeat.set(2, 3);
+    stRoughTex.needsUpdate = true;
+
+    const aoTex = makeBakedAoShadowTexture();
     this.sparkSpriteTex = makeSparkParticleTexture();
 
     this.mats = {
-      goldBright: new THREE.MeshMatcapMaterial({ matcap: mcGoldBright }),
-      goldBrushed: new THREE.MeshMatcapMaterial({ matcap: mcGoldBrushed }),
+      goldBright: new THREE.MeshMatcapMaterial({
+        matcap: mcGoldBright,
+        polygonOffset: true,
+        polygonOffsetFactor: -1,
+        polygonOffsetUnits: -2
+      }),
+      goldBrushed: new THREE.MeshMatcapMaterial({
+        matcap: mcGoldBrushed,
+        polygonOffset: true,
+        polygonOffsetFactor: -1,
+        polygonOffsetUnits: -2
+      }),
+      goldPbrBright: new THREE.MeshStandardMaterial({
+        color: 0xE2BA4A,
+        metalness: 0.88,
+        roughness: 0.20,
+        envMapIntensity: 1.35,
+        polygonOffset: true,
+        polygonOffsetFactor: -1,
+        polygonOffsetUnits: -2
+      }),
+      goldPbrBrushed: new THREE.MeshStandardMaterial({
+        color: 0xC69C42,
+        metalness: 0.80,
+        roughness: 0.34,
+        envMapIntensity: 1.15,
+        polygonOffset: true,
+        polygonOffsetFactor: -1,
+        polygonOffsetUnits: -2
+      }),
+      obsidianPbr: new THREE.MeshStandardMaterial({
+        color: 0x101520,
+        metalness: 0.42,
+        roughness: 0.24,
+        envMapIntensity: 1.18
+      }),
       obsidian: new THREE.MeshMatcapMaterial({ matcap: mcObsidian }),
       anthracite: new THREE.MeshMatcapMaterial({ matcap: mcAnthracite }),
       velvet: new THREE.MeshMatcapMaterial({ matcap: mcCrimsonVelvet }),
@@ -1539,9 +1948,47 @@ class FunkenwerkCityEngine {
       potionGreen: new THREE.MeshBasicMaterial({ color: 0x4ADE80 }),
       potionRed: new THREE.MeshBasicMaterial({ color: 0xEF4444 }),
       amethystGlow: new THREE.MeshBasicMaterial({ color: 0xD8B4FE }),
-      skyscraperFacade: new THREE.MeshBasicMaterial({ map: facadeTex }),
-      beaconGold: new THREE.MeshBasicMaterial({ color: 0xFFE89E }),
-      deptVeins: new THREE.MeshBasicMaterial({ color: 0xFFFFFF }),
+      skyscraperFacade: new THREE.MeshStandardMaterial({
+        map: facadeAtlas.colorTex,
+        roughnessMap: facadeAtlas.roughnessTex,
+        roughness: 1.0,
+        metalness: 0.26,
+        emissive: new THREE.Color(0xFFE4A3),
+        emissiveMap: facadeAtlas.emissiveTex,
+        emissiveIntensity: 0.78,
+        envMapIntensity: 1.18
+      }),
+      supertowerFacade: new THREE.MeshStandardMaterial({
+        map: stColorTex,
+        roughnessMap: stRoughTex,
+        roughness: 1.0,
+        metalness: 0.30,
+        emissive: new THREE.Color(0xFFE8B0),
+        emissiveMap: stEmisTex,
+        emissiveIntensity: 0.84,
+        envMapIntensity: 1.28
+      }),
+      bakedAo: new THREE.MeshBasicMaterial({
+        map: aoTex,
+        transparent: true,
+        opacity: 0.82,
+        depthWrite: false,
+        polygonOffset: true,
+        polygonOffsetFactor: -3,
+        polygonOffsetUnits: -6
+      }),
+      beaconGold: new THREE.MeshBasicMaterial({
+        color: 0xFFE89E,
+        polygonOffset: true,
+        polygonOffsetFactor: -1,
+        polygonOffsetUnits: -2
+      }),
+      deptVeins: new THREE.MeshBasicMaterial({
+        color: 0xFFFFFF,
+        polygonOffset: true,
+        polygonOffsetFactor: -2,
+        polygonOffsetUnits: -4
+      }),
       panoramicGlass: new THREE.MeshBasicMaterial({
         color: 0x9BD5F5,
         transparent: true,
@@ -1553,16 +2000,17 @@ class FunkenwerkCityEngine {
   }
 
   // ==========================================================================
-  // PHASE 1A: DEEP FUNKEN-UNIVERSUM STAR COSMOS & ATMOSPHERIC SKY DOME
+  // PHASE 1A: DEEP FUNKEN-UNIVERSUM STAR COSMOS & 2K ATMOSPHERIC SKY DOME
   // ==========================================================================
   _buildCosmosAndSky() {
     this.spaceGroup = new THREE.Group();
     this.scene.add(this.spaceGroup);
 
-    // Sky Dome blending seamlessly from Deep Space (#010206) to Golden-Sapphire Horizon
+    // Sky Dome blending seamlessly from Deep Space (#010206) to 2K Volumetric Golden-Hour Panorama
     this.skyUniforms = {
       uSpaceBlend: { value: 1.0 },
-      uSunDir: { value: new THREE.Vector3(-0.38, 0.24, -0.89).normalize() }
+      uSunDir: { value: new THREE.Vector3(-0.38, 0.24, -0.89).normalize() },
+      uSkyPano: { value: this.skyPanoramaTex }
     };
 
     const skyMat = new THREE.ShaderMaterial({
@@ -1580,6 +2028,7 @@ class FunkenwerkCityEngine {
       fragmentShader: `
         uniform float uSpaceBlend;
         uniform vec3 uSunDir;
+        uniform sampler2D uSkyPano;
         varying vec3 vWorldDir;
         void main() {
           vec3 d = normalize(vWorldDir);
@@ -1590,25 +2039,19 @@ class FunkenwerkCityEngine {
           float nebula = pow(max(0.0, dot(d, normalize(vec3(0.45, 0.35, -0.82)))), 3.0);
           spaceCol += vec3(0.075, 0.055, 0.022) * nebula;
 
-          // Atmospheric Ocean-Metropolis Sky (Rich Sapphire Zenith -> Golden Horizon)
-          vec3 zenithCol = vec3(0.018, 0.048, 0.105);
-          vec3 midSkyCol = vec3(0.055, 0.145, 0.265);
-          vec3 horizonCol = vec3(0.24, 0.26, 0.33);
-          float tSky = pow(1.0 - clamp(h, 0.0, 1.0), 2.6);
-          vec3 citySky = mix(zenithCol, midSkyCol, smoothstep(0.85, 0.18, h));
-          citySky = mix(citySky, horizonCol, tSky);
-
-          // Golden Sun Halo above the Ocean Horizon
-          float sunDot = max(0.0, dot(d, uSunDir));
-          citySky += vec3(0.85, 0.66, 0.32) * pow(sunDot, 7.0) * 0.48;
-          citySky += vec3(1.00, 0.94, 0.76) * pow(sunDot, 96.0) * 0.95;
+          // Sample seamless 2K Equirectangular Golden-Hour Cloud Panorama
+          vec2 equirectUv = vec2(
+            atan(d.z, d.x) * 0.15915494 + 0.5,
+            asin(clamp(d.y, -1.0, 1.0)) * 0.31830989 + 0.5
+          );
+          vec3 citySky = texture2D(uSkyPano, equirectUv).rgb;
 
           vec3 col = mix(citySky, spaceCol, uSpaceBlend);
           gl_FragColor = vec4(col, 1.0);
         }
       `
     });
-    const skyDome = new THREE.Mesh(new THREE.SphereGeometry(18500, 40, 28), skyMat);
+    const skyDome = new THREE.Mesh(new THREE.SphereGeometry(18500, 48, 32), skyMat);
     this.spaceGroup.add(skyDome);
 
     // 3,600 Crisp Multi-Hue Stars in the Funken-Universum
@@ -1905,7 +2348,8 @@ class FunkenwerkCityEngine {
     this.oceanUniforms = {
       uTime: { value: 0 },
       uAlpha: { value: 1.0 },
-      uSunDir: { value: new THREE.Vector3(-0.38, 0.24, -0.89).normalize() }
+      uSunDir: { value: new THREE.Vector3(-0.38, 0.24, -0.89).normalize() },
+      uSkyPano: { value: this.skyPanoramaTex }
     };
 
     const oceanMat = new THREE.ShaderMaterial({
@@ -1929,6 +2373,7 @@ class FunkenwerkCityEngine {
         uniform float uTime;
         uniform float uAlpha;
         uniform vec3 uSunDir;
+        uniform sampler2D uSkyPano;
         varying vec3 vWorldPos;
 
         // 6-Component Multi-Scale Analytical Ocean Wave Normal (60 FPS on UHD 605!)
@@ -1983,16 +2428,20 @@ class FunkenwerkCityEngine {
 
           // Lagoon shallow teal vs deep open sapphire ocean
           float lagoonMask = smoothstep(640.0, 160.0, dist);
-          vec3 deepWater = vec3(0.015, 0.062, 0.125);
-          vec3 lagoonWater = vec3(0.032, 0.145, 0.235);
+          vec3 deepWater = vec3(0.014, 0.058, 0.120);
+          vec3 lagoonWater = vec3(0.030, 0.142, 0.232);
           vec3 waterBase = mix(deepWater, lagoonWater, lagoonMask * 0.72);
 
-          // True Fresnel Sky Reflection
+          // True Fresnel Reflection sampling the 2K Golden-Hour Sky & Volumetric Clouds!
           float fresnel = pow(1.0 - max(0.0, dot(N, V)), 4.0);
-          vec3 reflDir = reflect(-V, N);
-          float skyGrad = clamp(reflDir.y * 1.6, 0.0, 1.0);
-          vec3 skyRefl = mix(vec3(0.28, 0.27, 0.29), vec3(0.045, 0.125, 0.245), skyGrad);
-          vec3 col = mix(waterBase, skyRefl, clamp(0.16 + fresnel * 0.78, 0.0, 0.92));
+          vec3 rawRefl = reflect(-V, N);
+          vec3 reflDir = normalize(vec3(rawRefl.x, abs(rawRefl.y) + 0.015, rawRefl.z));
+          vec2 reflUv = vec2(
+            atan(reflDir.z, reflDir.x) * 0.15915494 + 0.5,
+            asin(clamp(reflDir.y, -1.0, 1.0)) * 0.31830989 + 0.5
+          );
+          vec3 skyRefl = texture2D(uSkyPano, reflUv).rgb * 0.90;
+          vec3 col = mix(waterBase, skyRefl, clamp(0.18 + fresnel * 0.78, 0.0, 0.92));
 
           // Sun Specular Glitter Path across Waves
           vec3 H = normalize(L + V);
@@ -2022,7 +2471,8 @@ class FunkenwerkCityEngine {
 
           // Distant Atmospheric Horizon Blend
           float horizonFog = smoothstep(3200.0, 9200.0, dist);
-          col = mix(col, vec3(0.16, 0.19, 0.26), horizonFog);
+          vec3 horUvCol = texture2D(uSkyPano, vec2(atan(vWorldPos.z, vWorldPos.x) * 0.15915494 + 0.5, 0.505)).rgb;
+          col = mix(col, horUvCol * 0.88, horizonFog);
 
           gl_FragColor = vec4(col, uAlpha);
         }
@@ -2037,6 +2487,277 @@ class FunkenwerkCityEngine {
   }
 
   // ==========================================================================
+  // 7 INDIVIDUAL 3D DEPARTMENT LANDMARKS ON THE PIER CITADEL ROOFS
+  // ==========================================================================
+  _buildDepartmentLandmark(dept, deptIndex) {
+    const landmarkRoot = new THREE.Group();
+    landmarkRoot.position.set(0, 8.20, 362);
+
+    // Subtle matte satin department accent material (~10% architectural accent, zero artificial neon glow)
+    const accentMat = new THREE.MeshStandardMaterial({
+      color: dept.color,
+      metalness: 0.32,
+      roughness: 0.38,
+      envMapIntensity: 0.95,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -2
+    });
+
+    // Stepped Schwarz-Gold Citadel Altar Tower (Y_local = 0 .. 10.4m -> Y_world = 8.2 .. 18.6m)
+    const altarBase = new THREE.Mesh(new THREE.CylinderGeometry(11.6, 13.8, 3.6, 8), this.mats.obsidianPbr);
+    altarBase.position.y = 1.8;
+    landmarkRoot.add(altarBase);
+
+    const altarCollar1 = new THREE.Mesh(new THREE.CylinderGeometry(12.2, 12.6, 0.62, 8), this.mats.goldPbrBright);
+    altarCollar1.position.y = 3.95;
+    landmarkRoot.add(altarCollar1);
+
+    const altarMid = new THREE.Mesh(new THREE.CylinderGeometry(8.8, 10.8, 4.8, 8), this.mats.obsidianPbr);
+    altarMid.position.y = 6.7;
+    landmarkRoot.add(altarMid);
+
+    const altarCrown = new THREE.Mesh(new THREE.CylinderGeometry(9.6, 9.2, 0.72, 8), this.mats.goldPbrBright);
+    altarCrown.position.y = 9.5;
+    landmarkRoot.add(altarCrown);
+
+    const altarAccentRing = new THREE.Mesh(new THREE.TorusGeometry(8.2, 0.28, 8, 32), accentMat);
+    altarAccentRing.rotation.x = Math.PI * 0.5;
+    altarAccentRing.position.y = 10.05;
+    landmarkRoot.add(altarAccentRing);
+
+    // Levitating Rooftop Landmark Assembly (centered at Y_local = 17.8m -> Y_world = 26.0m)
+    const floatGroup = new THREE.Group();
+    floatGroup.position.set(0, 17.8, 0);
+    landmarkRoot.add(floatGroup);
+
+    const primaryRotor = new THREE.Group();
+    floatGroup.add(primaryRotor);
+
+    const secondaryRotor = new THREE.Group();
+    floatGroup.add(secondaryRotor);
+
+    let landmarkType = 'monolith';
+
+    if (dept.key === 'support') {
+      // 1. SUPPORT: Kommunikations-Parabolring (parabolic_comm_ring)
+      landmarkType = 'parabolic_comm_ring';
+      const outerWaveRing = new THREE.Mesh(new THREE.TorusGeometry(6.8, 0.46, 12, 48), this.mats.goldPbrBright);
+      outerWaveRing.rotation.x = 0.42;
+      primaryRotor.add(outerWaveRing);
+
+      const dishGeo = new THREE.SphereGeometry(5.2, 28, 16, 0, Math.PI * 2, 0, 0.92);
+      const dish = new THREE.Mesh(dishGeo, this.mats.obsidianPbr);
+      dish.rotation.x = Math.PI * 0.74;
+      dish.position.set(0, -0.8, 0);
+      primaryRotor.add(dish);
+
+      const dishRim = new THREE.Mesh(new THREE.TorusGeometry(4.15, 0.28, 10, 36), this.mats.goldPbrBright);
+      dishRim.rotation.x = Math.PI * 0.24;
+      dishRim.position.set(0, 1.42, -1.35);
+      primaryRotor.add(dishRim);
+
+      const feedSpire = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.58, 6.2, 12), this.mats.goldPbrBrushed);
+      feedSpire.rotation.x = -Math.PI * 0.26;
+      feedSpire.position.set(0, 1.35, -1.3);
+      primaryRotor.add(feedSpire);
+
+      const relayOrb = new THREE.Mesh(new THREE.OctahedronGeometry(1.15, 1), accentMat);
+      relayOrb.position.set(0, 3.4, -3.4);
+      primaryRotor.add(relayOrb);
+
+      const innerSignalRing = new THREE.Mesh(new THREE.TorusGeometry(4.9, 0.22, 10, 40), accentMat);
+      innerSignalRing.rotation.y = Math.PI * 0.35;
+      secondaryRotor.add(innerSignalRing);
+    } else if (dept.key === 'products') {
+      // 2. PRODUKTE: Facettiertes K9-Kristall-Prisma (k9_crystal_prism)
+      landmarkType = 'k9_crystal_prism';
+      const k9Mat = new THREE.MeshStandardMaterial({
+        color: 0xCFE8FF,
+        metalness: 0.18,
+        roughness: 0.08,
+        envMapIntensity: 1.65
+      });
+      const crystalCore = new THREE.Mesh(new THREE.OctahedronGeometry(5.2, 0), k9Mat);
+      crystalCore.scale.set(0.86, 1.34, 0.86);
+      primaryRotor.add(crystalCore);
+
+      const crystalGirdle = new THREE.Mesh(new THREE.CylinderGeometry(4.65, 4.65, 0.42, 6), this.mats.goldPbrBright);
+      primaryRotor.add(crystalGirdle);
+
+      const caliperOuter = new THREE.Mesh(new THREE.TorusGeometry(6.9, 0.36, 8, 6), this.mats.goldPbrBright);
+      secondaryRotor.add(caliperOuter);
+
+      const caliperAccent = new THREE.Mesh(new THREE.TorusGeometry(5.8, 0.20, 8, 36), accentMat);
+      caliperAccent.rotation.x = Math.PI * 0.5;
+      secondaryRotor.add(caliperAccent);
+    } else if (dept.key === 'marketing') {
+      // 3. MARKETING: Goldene Licht-Krone (golden_light_crown)
+      landmarkType = 'golden_light_crown';
+      const crownBand = new THREE.Mesh(new THREE.CylinderGeometry(5.4, 4.6, 2.2, 8), this.mats.obsidianPbr);
+      crownBand.position.y = -1.2;
+      primaryRotor.add(crownBand);
+
+      const crownRimBot = new THREE.Mesh(new THREE.TorusGeometry(4.8, 0.36, 10, 32), this.mats.goldPbrBright);
+      crownRimBot.rotation.x = Math.PI * 0.5;
+      crownRimBot.position.y = -2.2;
+      primaryRotor.add(crownRimBot);
+
+      const crownRimTop = new THREE.Mesh(new THREE.TorusGeometry(5.5, 0.38, 10, 32), this.mats.goldPbrBright);
+      crownRimTop.rotation.x = Math.PI * 0.5;
+      crownRimTop.position.y = -0.1;
+      primaryRotor.add(crownRimTop);
+
+      for (let s = 0; s < 8; s++) {
+        const ang = (s / 8) * Math.PI * 2;
+        const spikeH = (s % 2 === 0) ? 5.6 : 3.8;
+        const spike = new THREE.Mesh(new THREE.ConeGeometry(0.78, spikeH, 4), this.mats.goldPbrBright);
+        spike.position.set(Math.cos(ang) * 5.3, spikeH * 0.5 - 0.1, Math.sin(ang) * 5.3);
+        spike.rotation.y = -ang;
+        spike.rotation.z = -Math.cos(ang) * 0.16;
+        spike.rotation.x = Math.sin(ang) * 0.16;
+        primaryRotor.add(spike);
+
+        const jewel = new THREE.Mesh(new THREE.OctahedronGeometry(0.58, 0), accentMat);
+        jewel.position.set(Math.cos(ang) * 5.15, -1.15, Math.sin(ang) * 5.15);
+        primaryRotor.add(jewel);
+      }
+
+      const centerStar = new THREE.Mesh(new THREE.OctahedronGeometry(2.3, 0), this.mats.goldPbrBright);
+      centerStar.position.y = 1.6;
+      secondaryRotor.add(centerStar);
+    } else if (dept.key === 'orders') {
+      // 4. BESTELLUNGEN: Praezisions-Laser-Fokusring (precision_laser_focus_ring)
+      landmarkType = 'precision_laser_focus_ring';
+      const collimatorRing = new THREE.Mesh(new THREE.CylinderGeometry(6.8, 6.8, 1.5, 24, 1, true), this.mats.obsidianPbr);
+      collimatorRing.rotation.x = 0.36;
+      primaryRotor.add(collimatorRing);
+
+      for (const gy of [-0.82, 0.82]) {
+        const rim = new THREE.Mesh(new THREE.TorusGeometry(6.85, 0.34, 10, 48), this.mats.goldPbrBright);
+        rim.rotation.x = Math.PI * 0.5 + 0.36;
+        rim.position.set(0, gy * Math.cos(0.36), gy * Math.sin(0.36));
+        primaryRotor.add(rim);
+      }
+
+      // 4 inward-pointing micrometric xTool UV focus calipers
+      for (let c = 0; c < 4; c++) {
+        const cAng = (c / 4) * Math.PI * 2;
+        const emitter = new THREE.Mesh(new THREE.ConeGeometry(0.62, 3.2, 8), this.mats.goldPbrBright);
+        emitter.position.set(Math.cos(cAng) * 4.8, 0, Math.sin(cAng) * 4.8);
+        emitter.rotation.z = Math.cos(cAng) * Math.PI * 0.5;
+        emitter.rotation.x = -Math.sin(cAng) * Math.PI * 0.5;
+        secondaryRotor.add(emitter);
+      }
+
+      const focusTargetRing = new THREE.Mesh(new THREE.TorusGeometry(2.75, 0.26, 10, 36), accentMat);
+      focusTargetRing.rotation.x = Math.PI * 0.5;
+      secondaryRotor.add(focusTargetRing);
+
+      const blankCore = new THREE.Mesh(new THREE.CylinderGeometry(1.85, 1.85, 0.9, 8), this.mats.obsidianPbr);
+      secondaryRotor.add(blankCore);
+    } else if (dept.key === 'accounting') {
+      // 5. BUCHHALTUNG: Oktogonaler Tresor-Monolith (octagonal_vault_monolith)
+      landmarkType = 'octagonal_vault_monolith';
+      const vaultBody = new THREE.Mesh(new THREE.CylinderGeometry(5.2, 5.2, 3.6, 8), this.mats.obsidianPbr);
+      vaultBody.rotation.x = Math.PI * 0.5;
+      primaryRotor.add(vaultBody);
+
+      const vaultOuterRim = new THREE.Mesh(new THREE.TorusGeometry(5.45, 0.52, 8, 8), this.mats.goldPbrBright);
+      primaryRotor.add(vaultOuterRim);
+
+      const sealRing = new THREE.Mesh(new THREE.TorusGeometry(3.85, 0.24, 8, 32), accentMat);
+      sealRing.position.z = 1.92;
+      primaryRotor.add(sealRing);
+
+      const sealRingBack = sealRing.clone();
+      sealRingBack.position.z = -1.92;
+      primaryRotor.add(sealRingBack);
+
+      // Twin 8-spoke 24K-gold vault locking wheels
+      for (const vz of [-2.05, 2.05]) {
+        const wheel = new THREE.Group();
+        wheel.position.z = vz;
+        wheel.add(new THREE.Mesh(new THREE.TorusGeometry(2.55, 0.26, 8, 24), this.mats.goldPbrBright));
+        for (let sp = 0; sp < 4; sp++) {
+          const bar = new THREE.Mesh(new THREE.BoxGeometry(4.9, 0.28, 0.28), this.mats.goldPbrBright);
+          bar.rotation.z = (sp / 4) * Math.PI;
+          wheel.add(bar);
+        }
+        const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.78, 0.78, 0.5, 12), this.mats.goldPbrBright);
+        hub.rotation.x = Math.PI * 0.5;
+        wheel.add(hub);
+        secondaryRotor.add(wheel);
+      }
+    } else if (dept.key === 'agents') {
+      // 6. AGENTEN: Mehrachsige Neuronale Gyro-Sphaere (neural_gyro_sphere)
+      landmarkType = 'neural_gyro_sphere';
+      const gyroOuter = new THREE.Mesh(new THREE.TorusGeometry(7.0, 0.38, 10, 48), this.mats.goldPbrBright);
+      primaryRotor.add(gyroOuter);
+
+      const gyroMid = new THREE.Mesh(new THREE.TorusGeometry(5.5, 0.32, 10, 44), this.mats.goldPbrBrushed);
+      gyroMid.rotation.x = Math.PI * 0.38;
+      secondaryRotor.add(gyroMid);
+
+      const gyroInner = new THREE.Mesh(new THREE.TorusGeometry(4.1, 0.24, 10, 36), accentMat);
+      gyroInner.rotation.y = Math.PI * 0.42;
+      secondaryRotor.add(gyroInner);
+
+      const neuralCore = new THREE.Mesh(new THREE.IcosahedronGeometry(2.45, 1), this.mats.obsidianPbr);
+      primaryRotor.add(neuralCore);
+
+      const synapticCage = new THREE.Mesh(
+        new THREE.IcosahedronGeometry(2.62, 1),
+        new THREE.MeshBasicMaterial({ color: 0xD4AF37, wireframe: true })
+      );
+      primaryRotor.add(synapticCage);
+    } else {
+      // 7. SYSTEM: Gepanzerter Reaktor-Schildkern (armored_reactor_shield_core)
+      landmarkType = 'armored_reactor_shield_core';
+      const gearRing = new THREE.Mesh(new THREE.TorusGeometry(5.8, 0.48, 10, 36), this.mats.goldPbrBright);
+      gearRing.rotation.x = Math.PI * 0.5;
+      primaryRotor.add(gearRing);
+
+      for (let t = 0; t < 12; t++) {
+        const tang = (t / 12) * Math.PI * 2;
+        const tooth = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.95, 1.35), this.mats.goldPbrBright);
+        tooth.position.set(Math.cos(tang) * 6.35, 0, Math.sin(tang) * 6.35);
+        tooth.rotation.y = -tang;
+        primaryRotor.add(tooth);
+      }
+
+      // 6 Armored Obsidian-Gold Aegis Shield Plates
+      for (let p = 0; p < 6; p++) {
+        const pang = (p / 6) * Math.PI * 2;
+        const shield = new THREE.Mesh(new THREE.BoxGeometry(2.6, 5.4, 0.65), this.mats.obsidianPbr);
+        shield.position.set(Math.cos(pang) * 4.1, 0, Math.sin(pang) * 4.1);
+        shield.rotation.y = -pang + Math.PI * 0.5;
+        secondaryRotor.add(shield);
+
+        const shieldTrim = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.42, 0.78), this.mats.goldPbrBright);
+        shieldTrim.position.set(Math.cos(pang) * 4.12, 2.55, Math.sin(pang) * 4.12);
+        shieldTrim.rotation.y = -pang + Math.PI * 0.5;
+        secondaryRotor.add(shieldTrim);
+      }
+
+      const reactorCore = new THREE.Mesh(new THREE.OctahedronGeometry(2.35, 1), accentMat);
+      primaryRotor.add(reactorCore);
+    }
+
+    this.departmentLandmarks.push({
+      key: dept.key,
+      landmarkType,
+      floatGroup,
+      primaryRotor,
+      secondaryRotor,
+      baseY: 17.8,
+      phase: deptIndex * 0.92
+    });
+
+    return landmarkRoot;
+  }
+
+  // ==========================================================================
   // PHASE 2B: STARGATE-ATLANTIS WATER METROPOLIS (7 PIERS + RING BRIDGES + INSTANCED TOWERS)
   // ==========================================================================
   _buildAtlantisMetropolis() {
@@ -2045,13 +2766,13 @@ class FunkenwerkCityEngine {
 
     const rng = mulberry32(20260707);
 
-    // 1. Central Metropolis Core Island (Multi-Tiered Obsidian & 24K-Gold Seawall Terraces)
+    // 1. Central Metropolis Core Island (Cleanly Stepped >= 0.70m Vertical Separation -> Zero Coplanar Overlap!)
     const coreRadii = [
-      { r: 148, h: 3.2, y: 1.6, segs: 14, mat: this.mats.anthracite },
-      { r: 149.2, h: 0.9, y: 3.3, segs: 14, mat: this.mats.goldBrushed },
-      { r: 132, h: 3.4, y: 4.9, segs: 14, mat: this.mats.obsidian },
-      { r: 133.0, h: 0.85, y: 6.7, segs: 14, mat: this.mats.goldBright },
-      { r: 96,  h: 2.8, y: 8.0, segs: 14, mat: this.mats.obsidian }
+      { r: 148.0, h: 2.80, y: 1.40, segs: 14, mat: this.mats.anthracite },
+      { r: 149.2, h: 0.68, y: 3.16, segs: 14, mat: this.mats.goldBrushed },
+      { r: 132.0, h: 2.90, y: 4.98, segs: 14, mat: this.mats.obsidian },
+      { r: 133.2, h: 0.68, y: 6.80, segs: 14, mat: this.mats.goldBright },
+      { r: 96.0,  h: 2.30, y: 8.32, segs: 14, mat: this.mats.obsidian }
     ];
     coreRadii.forEach((tier) => {
       const m = new THREE.Mesh(new THREE.CylinderGeometry(tier.r * 0.97, tier.r, tier.h, tier.segs), tier.mat);
@@ -2079,28 +2800,30 @@ class FunkenwerkCityEngine {
     wingShape.lineTo( 22, 275);
     wingShape.closePath();
 
+    // wingDeck top at Y = 4.80 + 0.70 = 5.50m; wingGoldTrim wider seawall promenade stepped cleanly at Y = 4.70 + 0.32 = 5.02m (0.48m step!)
     const wingDeckGeo = new THREE.ExtrudeGeometry(wingShape, {
-      depth: 4.2,
+      depth: 4.1,
       bevelEnabled: true,
-      bevelThickness: 0.8,
-      bevelSize: 1.2,
+      bevelThickness: 0.70,
+      bevelSize: 0.90,
       bevelSegments: 1
     });
     wingDeckGeo.rotateX(Math.PI / 2);
 
     const wingGoldTrimGeo = new THREE.ExtrudeGeometry(wingShape, {
-      depth: 0.75,
+      depth: 0.72,
       bevelEnabled: true,
-      bevelThickness: 0.35,
-      bevelSize: 1.8,
+      bevelThickness: 0.32,
+      bevelSize: 2.35,
       bevelSegments: 1
     });
     wingGoldTrimGeo.rotateX(Math.PI / 2);
 
-    // Collect Instance Transforms for Hundreds of Skyscrapers, Crowns, Pylons & Department Veins!
+    // Collect Instance Transforms for Skyscrapers, Crowns, Pylons, Department Veins & Baked AO Shadows!
     const towerTransforms = [];
     const goldFrameTransforms = [];
     const spireTransforms = [];
+    const aoTransforms = [];
     const deptVeinItems = []; // { matrix, color }
 
     const pushMat = (arr, x, y, z, sx, sy, sz, rotY = 0) => {
@@ -2111,6 +2834,14 @@ class FunkenwerkCityEngine {
       arr.push(this.dummyObj.matrix.clone());
     };
 
+    const pushAo = (x, y, z, sx, sz, rotY = 0) => {
+      this.dummyObj.position.set(x, y, z);
+      this.dummyObj.rotation.set(0, rotY, 0);
+      this.dummyObj.scale.set(sx, 1, sz);
+      this.dummyObj.updateMatrix();
+      aoTransforms.push(this.dummyObj.matrix.clone());
+    };
+
     const pushDeptVein = (x, y, z, sx, sy, sz, rotY, hexCol) => {
       this.dummyObj.position.set(x, y, z);
       this.dummyObj.rotation.set(0, rotY, 0);
@@ -2119,19 +2850,26 @@ class FunkenwerkCityEngine {
       deptVeinItems.push({ matrix: this.dummyObj.matrix.clone(), color: new THREE.Color(hexCol) });
     };
 
-    // Helper to add a multi-tier stepped Atlantis skyscraper at world (wx, baseY, wz)
+    // Soft Baked AO under Supertower Base Podium & Core Terrace Step
+    pushAo(0, 9.55, 0, 94, 94, 0);
+    pushAo(0, 6.51, 0, 212, 212, 0);
+
+    // Helper to add a multi-tier stepped Atlantis skyscraper + Baked AO Contact Shadow at world (wx, baseY, wz)
     const addSteppedSkyscraper = (wx, baseY, wz, baseW, baseD, totalH, rotY, deptHex = null) => {
+      // Grounding Baked AO Contact Shadow directly on Pier/Core Deck (0% real-time shadow cost!)
+      pushAo(wx, baseY + 0.08, wz, baseW * 1.66, baseD * 1.66, rotY);
+
       // Main lower shaft
       const h1 = totalH * 0.64;
       pushMat(towerTransforms, wx, baseY + h1 * 0.5, wz, baseW, h1, baseD, rotY);
-      pushMat(goldFrameTransforms, wx, baseY + h1 + 0.6, wz, baseW * 1.06, 1.2, baseD * 1.06, rotY);
+      pushMat(goldFrameTransforms, wx, baseY + h1 + 0.62, wz, baseW * 1.07, 1.2, baseD * 1.07, rotY);
 
       // Stepped mid setback
       const h2 = totalH * 0.26;
       const w2 = baseW * 0.74;
       const d2 = baseD * 0.74;
       pushMat(towerTransforms, wx, baseY + h1 + h2 * 0.5, wz, w2, h2, d2, rotY);
-      pushMat(goldFrameTransforms, wx, baseY + h1 + h2 + 0.5, wz, w2 * 1.08, 1.0, d2 * 1.08, rotY);
+      pushMat(goldFrameTransforms, wx, baseY + h1 + h2 + 0.54, wz, w2 * 1.09, 1.0, d2 * 1.09, rotY);
 
       // Upper penthouse crown + 24K-Gold Spire Needle
       const h3 = totalH * 0.12;
@@ -2140,15 +2878,15 @@ class FunkenwerkCityEngine {
       const spireH = Math.max(8, totalH * 0.20);
       pushMat(spireTransforms, wx, baseY + totalH + spireH * 0.48, wz, Math.max(0.7, baseW * 0.08), spireH, Math.max(0.7, baseW * 0.08), rotY);
 
-      // ~10% Subtle Department Vertical Optical Light Vein on Pier Towers
+      // ~10% Subtle Department Vertical Optical Light Vein with clear facade offset + polygonOffset (-2/-4)
       if (deptHex) {
-        const vx = wx + Math.sin(rotY) * (baseD * 0.51);
-        const vz = wz + Math.cos(rotY) * (baseD * 0.51);
-        pushDeptVein(vx, baseY + (h1 + h2) * 0.5, vz, 0.55, (h1 + h2) * 0.92, 0.55, rotY, deptHex);
+        const vx = wx + Math.sin(rotY) * (baseD * 0.535);
+        const vz = wz + Math.cos(rotY) * (baseD * 0.535);
+        pushDeptVein(vx, baseY + (h1 + h2) * 0.5, vz, 0.58, (h1 + h2) * 0.90, 0.58, rotY, deptHex);
       }
     };
 
-    // 2. Populate Dense Central Core Skyscraper Cluster (~92 stepped towers rising toward Supertower!)
+    // 2. Populate Dense Central Core Skyscraper Cluster (~94 stepped towers rising toward Supertower!)
     const coreRings = [
       { count: 14, rad: 46,  minH: 132, maxH: 196, w: 12.5 },
       { count: 22, rad: 74,  minH: 92,  maxH: 152, w: 11.8 },
@@ -2158,7 +2896,6 @@ class FunkenwerkCityEngine {
     coreRings.forEach((ring, rIdx) => {
       for (let i = 0; i < ring.count; i++) {
         const ang = (i / ring.count) * Math.PI * 2 + rIdx * 0.21 + (rng() - 0.5) * 0.08;
-        // Leave narrow grand sightline corridor on front +Z axis so MEIN SEELENFUNKE tower gleams unobstructed
         const frontAlign = Math.cos(ang - Math.PI * 0.5);
         const rad = ring.rad + (rng() - 0.5) * 6.5;
         const wx = Math.cos(ang) * rad;
@@ -2168,69 +2905,90 @@ class FunkenwerkCityEngine {
         const w = ring.w * (0.84 + rng() * 0.34);
         const d = ring.w * (0.84 + rng() * 0.34);
         const deptAccent = (i % 5 === 0) ? DEPARTMENTS[i % 7].hex : null;
-        addSteppedSkyscraper(wx, 8.2, wz, w, d, h, -ang + Math.PI * 0.5, deptAccent);
+        const coreBaseY = rad < 95.0 ? 9.47 : 6.43;
+        addSteppedSkyscraper(wx, coreBaseY, wz, w, d, h, -ang + Math.PI * 0.5, deptAccent);
       }
     });
 
-    // 3. Build the 7 Radial Atlantis Department Piers + Inner/Outer Water-Lagoon Ring Bridges!
-    const causewayGeo = new THREE.BoxGeometry(30, 3.4, 142);
-    const causewayGoldTrimGeo = new THREE.BoxGeometry(32.2, 0.85, 142);
+    // 3. Build the 7 Radial Atlantis Department Piers + 7 Landmarks + Water-Lagoon Ring Bridges!
+    // Shortened end-faces (-0.30m per end: 133.4m vs 134.0m) + >= 0.38m vertical step separation!
+    const causewayGeo = new THREE.BoxGeometry(30.0, 3.20, 134.0);
+    const causewayGoldTrimGeo = new THREE.BoxGeometry(32.6, 0.68, 133.4);
+    const causewayParapetGeo = new THREE.BoxGeometry(1.10, 0.42, 133.4);
     const landingPadOctGeo = new THREE.CylinderGeometry(34, 37, 4.2, 8);
-    const landingPadRingGeo = new THREE.TorusGeometry(24, 1.15, 8, 8);
+    const landingPadRingGeo = new THREE.TorusGeometry(24, 0.62, 8, 8);
     landingPadRingGeo.rotateX(Math.PI / 2);
 
     this.pierAngles = [];
+    this.departmentLandmarks = [];
 
     for (let k = 0; k < 7; k++) {
       const dept = DEPARTMENTS[k];
-      // Pier 0 angled dramatically toward front-right like Alina's Stargate-Atlantis photo!
       const theta = (k / 7) * Math.PI * 2 + 0.36;
       this.pierAngles.push(theta);
 
       const pierGrp = new THREE.Group();
-      // Local +Z of pierGrp points along radial angle theta: (sin(rotY), 0, cos(rotY))
       const rotY = Math.atan2(Math.cos(theta), Math.sin(theta));
       pierGrp.rotation.y = rotY;
       this.cityGroup.add(pierGrp);
 
-      // 3a. Inner Radial Causeway over Water (r = 142 .. 284m)
+      // 3a. Inner Radial Causeway over Water (cwDeck top = 5.08m, cwTrim top = 4.70m, Parapets top = 5.50m)
       const cwDeck = new THREE.Mesh(causewayGeo, this.mats.obsidian);
-      cwDeck.position.set(0, 3.8, 213);
+      cwDeck.position.set(0, 3.48, 211.5);
       pierGrp.add(cwDeck);
 
       const cwTrim = new THREE.Mesh(causewayGoldTrimGeo, this.mats.goldBrushed);
-      cwTrim.position.set(0, 5.4, 213);
+      cwTrim.position.set(0, 4.36, 211.5);
       pierGrp.add(cwTrim);
 
-      // Sea Pylons under Causeway
+      for (const pxSide of [-14.45, 14.45]) {
+        const parapet = new THREE.Mesh(causewayParapetGeo, this.mats.goldBright);
+        parapet.position.set(pxSide, 5.29, 211.5);
+        pierGrp.add(parapet);
+      }
+
+      // Sea Pylons + Water Contact AO Shadows under Causeway
       for (let pz = 168; pz <= 264; pz += 32) {
         const wx = Math.sin(rotY) * pz;
         const wz = Math.cos(rotY) * pz;
-        pushMat(goldFrameTransforms, wx, 2.0, wz, 26, 4.4, 5.5, rotY);
+        pushMat(goldFrameTransforms, wx, 1.85, wz, 26, 3.8, 5.5, rotY);
+        pushAo(wx, 0.16, wz, 34, 13.5, rotY);
       }
 
-      // Subtle ~10% Department Optical Veins running along Pier Causeway
+      // Subtle ~10% Department Optical Veins cleanly stepped above Parapets (y = 5.88m)
       for (const side of [-12.5, 12.5]) {
-        const lx = side * Math.cos(rotY) + 213 * Math.sin(rotY);
-        const lz = -side * Math.sin(rotY) + 213 * Math.cos(rotY);
-        pushDeptVein(lx, 5.95, lz, 0.85, 0.45, 136, rotY, dept.hex);
+        const lx = side * Math.cos(rotY) + 211.5 * Math.sin(rotY);
+        const lz = -side * Math.sin(rotY) + 211.5 * Math.cos(rotY);
+        pushDeptVein(lx, 5.88, lz, 0.82, 0.36, 131.0, rotY, dept.hex);
       }
 
-      // 3b. Broad Chamfered Atlantis Outer Pier Wing (r = 275 .. 504m)
+      // 3b. Broad Chamfered Atlantis Outer Pier Wing (wingDeck top = 5.50m, wingGold seawall top = 5.02m -> 0.48m step!)
       const wingDeck = new THREE.Mesh(wingDeckGeo, this.mats.anthracite);
-      wingDeck.position.set(0, 4.8, 0);
+      wingDeck.position.set(0, 4.80, 0);
       pierGrp.add(wingDeck);
 
       const wingGold = new THREE.Mesh(wingGoldTrimGeo, this.mats.goldBright);
-      wingGold.position.set(0, 5.52, 0);
+      wingGold.position.set(0, 4.70, 0);
       pierGrp.add(wingGold);
 
-      // Raised Central Pier Citadel Podium
-      const pod = new THREE.Mesh(new THREE.BoxGeometry(58, 3.2, 128), this.mats.obsidian);
-      pod.position.set(0, 6.4, 382);
+      // Raised Central Pier Citadel Podium (top = 8.20m) + Stepped Gold Cornice (top = 7.80m -> 0.40m step!)
+      const pod = new THREE.Mesh(new THREE.BoxGeometry(58, 3.10, 128.0), this.mats.obsidian);
+      pod.position.set(0, 6.65, 382);
       pierGrp.add(pod);
 
-      // Twin Sleek Black-Gold Hydro-Cruisers berthed in the Atlantis Pier Slip (just like the reference photo!)
+      const podGoldTrim = new THREE.Mesh(new THREE.BoxGeometry(59.8, 0.56, 127.4), this.mats.goldBright);
+      podGoldTrim.position.set(0, 7.52, 382);
+      pierGrp.add(podGoldTrim);
+
+      // Soft Baked AO under Citadel Podium on Wing Deck & under Landmark Altar on Citadel Podium
+      pushAo(Math.sin(rotY) * 382, 5.58, Math.cos(rotY) * 382, 74, 146, rotY);
+      pushAo(Math.sin(rotY) * 362, 8.28, Math.cos(rotY) * 362, 29, 29, rotY);
+
+      // 3b-landmark. Individual 3D Department Landmark crowning the Pier Citadel!
+      const landmarkNode = this._buildDepartmentLandmark(dept, k);
+      pierGrp.add(landmarkNode);
+
+      // Twin Sleek Black-Gold Hydro-Cruisers berthed in the Atlantis Pier Slip
       for (const slipX of [-13, 13]) {
         const hull = new THREE.Mesh(new THREE.ConeGeometry(4.2, 34, 6), this.mats.obsidian);
         hull.rotation.x = Math.PI * 0.5;
@@ -2238,35 +2996,35 @@ class FunkenwerkCityEngine {
         hull.position.set(slipX, 1.6, 478);
         pierGrp.add(hull);
 
-        const trim = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.1, 24), this.mats.goldBright);
-        trim.position.set(slipX, 2.6, 476);
+        const trim = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.1, 23.4), this.mats.goldBright);
+        trim.position.set(slipX, 2.75, 476);
         pierGrp.add(trim);
       }
 
-      // 3c. Iconic Pier-Tip Octagonal Atlantis Starport / Landing Pad (r = 538m)
-      const linkBridge = new THREE.Mesh(new THREE.BoxGeometry(18, 2.8, 28), this.mats.obsidian);
-      linkBridge.position.set(0, 3.8, 508);
+      // 3c. Iconic Pier-Tip Octagonal Atlantis Starport / Landing Pad (pad top = 4.50m, linkBridge top = 4.95m -> 0.45m step!)
+      const linkBridge = new THREE.Mesh(new THREE.BoxGeometry(18, 2.50, 26.4), this.mats.obsidian);
+      linkBridge.position.set(0, 3.70, 506);
       pierGrp.add(linkBridge);
 
       const pad = new THREE.Mesh(landingPadOctGeo, this.mats.obsidian);
-      pad.position.set(0, 2.6, 540);
+      pad.position.set(0, 2.40, 540);
       pierGrp.add(pad);
 
       const padGoldRing = new THREE.Mesh(landingPadRingGeo, this.mats.goldBright);
-      padGoldRing.position.set(0, 4.85, 540);
+      padGoldRing.position.set(0, 4.92, 540);
       pierGrp.add(padGoldRing);
 
-      // Subtle Department Ring Accent inside Octagonal Landing Pad
       const wxPad = Math.sin(rotY) * 540;
       const wzPad = Math.cos(rotY) * 540;
-      pushDeptVein(wxPad, 4.92, wzPad, 16, 0.35, 16, rotY, dept.hex);
+      pushAo(wxPad, 0.16, wzPad, 88, 88, rotY);
+      pushDeptVein(wxPad, 4.96, wzPad, 15.6, 0.38, 15.6, rotY, dept.hex);
 
-      // 3d-click. Invisible Department Pier Raycast Proxy + Matte Accent Ring Beacons (Zero artificial bloom!)
+      // 3d-click. Invisible Department Pier Raycast Proxy (covers Pier + Citadel + 3D Rooftop Landmark!)
       const deptClickProxy = new THREE.Mesh(
-        new THREE.BoxGeometry(68, 52, 290),
+        new THREE.BoxGeometry(72, 64, 290),
         new THREE.MeshBasicMaterial({ visible: false })
       );
-      deptClickProxy.position.set(0, 26, 360);
+      deptClickProxy.position.set(0, 32, 360);
       deptClickProxy.userData = {
         isDepartment: true,
         deptKey: dept.key,
@@ -2283,18 +3041,21 @@ class FunkenwerkCityEngine {
         transparent: true,
         opacity: 0.28,
         side: THREE.DoubleSide,
-        depthWrite: false
+        depthWrite: false,
+        polygonOffset: true,
+        polygonOffsetFactor: -2,
+        polygonOffsetUnits: -4
       });
-      const podiumBeaconGeo = new THREE.RingGeometry(24.2, 26.8, 32);
+      const podiumBeaconGeo = new THREE.RingGeometry(24.2, 26.8, 36);
       podiumBeaconGeo.rotateX(-Math.PI * 0.5);
       const podiumBeacon = new THREE.Mesh(podiumBeaconGeo, beaconMat);
-      podiumBeacon.position.set(0, 8.12, 362);
+      podiumBeacon.position.set(0, 8.32, 362);
       pierGrp.add(podiumBeacon);
 
       const padBeaconGeo = new THREE.RingGeometry(17.2, 20.4, 8);
       padBeaconGeo.rotateX(-Math.PI * 0.5);
       const padBeacon = new THREE.Mesh(padBeaconGeo, beaconMat);
-      padBeacon.position.set(0, 4.98, 540);
+      padBeacon.position.set(0, 4.62, 540);
       pierGrp.add(padBeacon);
 
       this.departmentBeacons[dept.key] = {
@@ -2303,12 +3064,13 @@ class FunkenwerkCityEngine {
         padBeacon
       };
 
-      // 3d. 22 Stepped Skyscrapers on this Department Pier Wing!
+      // 3d. 22 Stepped Skyscrapers Framing the Open Department Landmark Citadel Plaza at (0, 362)!
       const pierTowerSpots = [
-        // Central Pier Spine High-Rises
-        [0, 332, 114, 13.5], [-18, 348, 92, 11.2], [18, 348, 96, 11.2],
-        [0, 376, 104, 12.8], [-22, 392, 78, 10.5], [22, 392, 82, 10.5],
-        [0, 418, 72, 11.0],
+        // Twin Gateway Towers in front & Tall Citadel Keep behind the 3D Landmark at (0, 362)
+        [-19, 330, 88, 11.0], [19, 330, 92, 11.0],
+        [-21, 356, 82, 10.6], [21, 356, 86, 10.6],
+        [0,   398, 108, 13.2], [-22, 392, 78, 10.5], [22, 392, 82, 10.5],
+        [0,   426, 74, 11.0],
         // Left & Right Stepped Atlantis Wing Towers
         [-44, 342, 66, 10.2], [44, 342, 68, 10.2],
         [-52, 374, 58, 9.6],  [52, 374, 62, 9.6],
@@ -2316,8 +3078,7 @@ class FunkenwerkCityEngine {
         [-38, 438, 44, 8.8],  [38, 438, 46, 8.8],
         [-58, 426, 36, 8.4],  [58, 426, 38, 8.4],
         [-32, 314, 54, 9.2],  [32, 314, 56, 9.2],
-        [-26, 462, 34, 8.2],  [26, 462, 36, 8.2],
-        [0,   302, 64, 10.4]
+        [-26, 462, 34, 8.2],  [26, 462, 36, 8.2]
       ];
 
       pierTowerSpots.forEach(([lx, lz, hBase, wBase], idx) => {
@@ -2325,18 +3086,19 @@ class FunkenwerkCityEngine {
         const wz = -lx * Math.sin(rotY) + lz * Math.cos(rotY);
         const h = hBase * (0.90 + rng() * 0.22);
         const w = wBase * (0.92 + rng() * 0.18);
-        const baseY = Math.abs(lx) < 26 && lz > 318 && lz < 444 ? 7.8 : 5.2;
+        const baseY = Math.abs(lx) < 26 && lz > 318 && lz < 444 ? 8.20 : 5.50;
         addSteppedSkyscraper(wx, baseY, wz, w, w * 0.94, h, rotY, idx % 2 === 0 ? dept.hex : null);
       });
     }
 
-    // 4. Outer & Mid Ring Bridges Connecting Adjacent Piers Over Shimmering Water Lagoons!
+    // 4. Outer & Mid Ring Bridges Over Shimmering Water Lagoons (Shortened Stirnflaechen & >= 0.40m Step!)
     const ringRadii = [
-      { r: 252, width: 14.5, y: 4.2 },
-      { r: 412, width: 16.5, y: 4.6 }
+      { r: 252, width: 14.5, y: 3.55 },
+      { r: 412, width: 16.5, y: 3.95 }
     ];
 
     ringRadii.forEach((rb, rIdx) => {
+      const deckTop = rb.y + 1.0;
       for (let k = 0; k < 7; k++) {
         const a1 = this.pierAngles[k];
         const a2 = this.pierAngles[(k + 1) % 7];
@@ -2345,37 +3107,53 @@ class FunkenwerkCityEngine {
         const dx = p2.x - p1.x;
         const dz = p2.y - p1.y;
         const spanLen = Math.hypot(dx, dz);
+        const deckLen = Math.max(12, spanLen - 2.4);
+        const railLen = Math.max(10, deckLen - 0.60); // -0.30m shortened at each end!
         const midX = (p1.x + p2.x) * 0.5;
         const midZ = (p1.y + p2.y) * 0.5;
         const bridgeRotY = Math.atan2(dx, dz);
 
-        // Obsidian Bridge Deck
-        const deck = new THREE.Mesh(new THREE.BoxGeometry(rb.width, 2.2, spanLen), this.mats.obsidian);
+        // Obsidian Bridge Deck (top = deckTop)
+        const deck = new THREE.Mesh(new THREE.BoxGeometry(rb.width, 2.0, deckLen), this.mats.obsidian);
         deck.position.set(midX, rb.y, midZ);
         deck.rotation.y = bridgeRotY;
         this.cityGroup.add(deck);
 
-        // 24K-Gold Suspension Side Rails
-        const goldRail = new THREE.Mesh(new THREE.BoxGeometry(rb.width + 1.8, 0.65, spanLen), this.mats.goldBrushed);
-        goldRail.position.set(midX, rb.y + 1.25, midZ);
+        // Stepped Lower 24K-Gold Arch-Cornice (top = deckTop - 0.40m)
+        const goldRail = new THREE.Mesh(new THREE.BoxGeometry(rb.width + 2.2, 0.56, railLen), this.mats.goldBrushed);
+        goldRail.position.set(midX, deckTop - 0.68, midZ);
         goldRail.rotation.y = bridgeRotY;
         this.cityGroup.add(goldRail);
 
-        // Bridge Support Pylons in the Water Basin
+        // Twin Raised 24K-Gold Side Balustrades (top = deckTop + 0.42m)
+        for (const sideSign of [-1, 1]) {
+          const sideOff = sideSign * (rb.width * 0.5 - 0.48);
+          const rx = midX + sideOff * Math.cos(bridgeRotY);
+          const rz = midZ - sideOff * Math.sin(bridgeRotY);
+          const sideBar = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.42, railLen), this.mats.goldBright);
+          sideBar.position.set(rx, deckTop + 0.21, rz);
+          sideBar.rotation.y = bridgeRotY;
+          this.cityGroup.add(sideBar);
+        }
+
+        // Bridge Support Pylons + Water Contact AO Shadows in the Lagoon
         for (let s = 0.25; s <= 0.76; s += 0.25) {
           const px = lerp(p1.x, p2.x, s);
           const pz = lerp(p1.y, p2.y, s);
-          pushMat(goldFrameTransforms, px, 2.2, pz, rb.width * 0.85, 4.8, 4.2, bridgeRotY);
+          pushMat(goldFrameTransforms, px, 1.85, pz, rb.width * 0.85, 3.8, 4.2, bridgeRotY);
+          pushAo(px, 0.16, pz, rb.width * 1.4, 11.5, bridgeRotY);
         }
 
-        // Subtle Department Light Vein on Ring Bridge
-        pushDeptVein(midX, rb.y + 1.68, midZ, 0.75, 0.35, spanLen * 0.88, bridgeRotY, DEPARTMENTS[(k + rIdx) % 7].hex);
+        // Subtle Department Light Vein on Ring Bridge (+0.38m above deckTop + polygonOffset -2/-4)
+        pushDeptVein(midX, deckTop + 0.38, midZ, 0.75, 0.36, railLen * 0.90, bridgeRotY, DEPARTMENTS[(k + rIdx) % 7].hex);
       }
     });
 
     // 5. Commit All Batched InstancedMeshes (Ultra-Low Draw Calls = Locked 60 FPS!)
     const unitBox = new THREE.BoxGeometry(1, 1, 1);
     const unitSpire = new THREE.ConeGeometry(0.5, 1, 6);
+    const unitAoPlane = new THREE.PlaneGeometry(1, 1);
+    unitAoPlane.rotateX(-Math.PI * 0.5);
 
     const buildInst = (geo, mat, matrices) => {
       const inst = new THREE.InstancedMesh(geo, mat, matrices.length);
@@ -2391,6 +3169,9 @@ class FunkenwerkCityEngine {
     buildInst(unitBox, this.mats.skyscraperFacade, towerTransforms);
     buildInst(unitBox, this.mats.goldBrushed, goldFrameTransforms);
     buildInst(unitSpire, this.mats.goldBright, spireTransforms);
+
+    const aoInst = buildInst(unitAoPlane, this.mats.bakedAo, aoTransforms);
+    aoInst.renderOrder = 1;
 
     const veinInst = new THREE.InstancedMesh(unitBox, this.mats.deptVeins, deptVeinItems.length);
     for (let i = 0; i < deptVeinItems.length; i++) {
@@ -2433,25 +3214,25 @@ class FunkenwerkCityEngine {
     this.supertowerGroup = new THREE.Group();
     this.cityGroup.add(this.supertowerGroup);
 
-    // 1. Grand Octagonal Base Podium (Y = 8 .. 26m)
-    const basePodium = new THREE.Mesh(new THREE.CylinderGeometry(30, 36, 18, 8), this.mats.obsidian);
-    basePodium.position.y = 17;
+    // 1. Grand Octagonal Base Podium (Y = 9.47 .. 26m, PBR Obsidian + 24K Gold PMREM Reflections!)
+    const basePodium = new THREE.Mesh(new THREE.CylinderGeometry(30, 36, 17, 8), this.mats.obsidianPbr);
+    basePodium.position.y = 17.5;
     this.supertowerGroup.add(basePodium);
 
-    const baseGoldCollar = new THREE.Mesh(new THREE.CylinderGeometry(31.2, 31.2, 2.2, 8), this.mats.goldBright);
-    baseGoldCollar.position.y = 26.2;
+    const baseGoldCollar = new THREE.Mesh(new THREE.CylinderGeometry(31.2, 31.2, 2.2, 8), this.mats.goldPbrBright);
+    baseGoldCollar.position.y = 26.8;
     this.supertowerGroup.add(baseGoldCollar);
 
-    // 2. Spiraling Burj-Khalifa Setback Tiers (Y = 26 .. 218m) in 24K Gold & Obsidian Curtain-Wall
-    const coreShaft = new THREE.Mesh(new THREE.CylinderGeometry(13.2, 20.5, 194, 8), this.mats.skyscraperFacade);
+    // 2. Spiraling Burj-Khalifa Setback Tiers (Y = 26 .. 218m) in 24K Gold & Interior-Lit Curtain-Wall
+    const coreShaft = new THREE.Mesh(new THREE.CylinderGeometry(13.2, 20.5, 194, 8), this.mats.supertowerFacade);
     coreShaft.position.y = 123;
     this.supertowerGroup.add(coreShaft);
 
     // 8 Soaring 24K-Gold Vertical Exoskeleton Ribs up the Entire Supertower
     for (let i = 0; i < 8; i++) {
       const ang = (i / 8) * Math.PI * 2 + Math.PI / 8;
-      const rib = new THREE.Mesh(new THREE.BoxGeometry(1.75, 232, 2.8), this.mats.goldBright);
-      const rMid = 16.8;
+      const rib = new THREE.Mesh(new THREE.BoxGeometry(1.75, 232, 2.8), this.mats.goldPbrBright);
+      const rMid = 16.95;
       rib.position.set(Math.cos(ang) * rMid, 138, Math.sin(ang) * rMid);
       rib.rotation.y = -ang + Math.PI * 0.5;
       this.supertowerGroup.add(rib);
@@ -2465,100 +3246,100 @@ class FunkenwerkCityEngine {
       const dist = 20.5 - w * 1.15;
       const rad = 8.8 - w * 0.55;
 
-      const wingShaft = new THREE.Mesh(new THREE.CylinderGeometry(rad * 0.84, rad, h - 24, 6), this.mats.skyscraperFacade);
+      const wingShaft = new THREE.Mesh(new THREE.CylinderGeometry(rad * 0.84, rad, h - 24, 6), this.mats.supertowerFacade);
       wingShaft.position.set(Math.cos(ang) * dist, 24 + (h - 24) * 0.5, Math.sin(ang) * dist);
       this.supertowerGroup.add(wingShaft);
 
       // Gleaming 24K-Gold Setback Terrace Crown + Mini Spire on Each Buttress
-      const cap = new THREE.Mesh(new THREE.CylinderGeometry(rad * 0.92, rad * 0.96, 2.4, 6), this.mats.goldBright);
-      cap.position.set(Math.cos(ang) * dist, h + 1.0, Math.sin(ang) * dist);
+      const cap = new THREE.Mesh(new THREE.CylinderGeometry(rad * 0.94, rad * 0.98, 2.4, 6), this.mats.goldPbrBright);
+      cap.position.set(Math.cos(ang) * dist, h + 1.2, Math.sin(ang) * dist);
       this.supertowerGroup.add(cap);
 
-      const fin = new THREE.Mesh(new THREE.ConeGeometry(1.1, 16, 6), this.mats.goldBright);
-      fin.position.set(Math.cos(ang) * dist, h + 9.5, Math.sin(ang) * dist);
+      const fin = new THREE.Mesh(new THREE.ConeGeometry(1.1, 16, 6), this.mats.goldPbrBright);
+      fin.position.set(Math.cos(ang) * dist, h + 9.7, Math.sin(ang) * dist);
       this.supertowerGroup.add(fin);
     }
 
     // Horizontal Golden Ring Bands along Main Shaft
     [54, 88, 122, 156, 190, 218].forEach((ry, idx) => {
-      const rr = lerp(20.6, 14.4, idx / 5);
-      const band = new THREE.Mesh(new THREE.CylinderGeometry(rr, rr, 1.6, 8), this.mats.goldBright);
+      const rr = lerp(20.8, 14.6, idx / 5);
+      const band = new THREE.Mesh(new THREE.CylinderGeometry(rr, rr, 1.6, 8), this.mats.goldPbrBright);
       band.position.y = ry;
       this.supertowerGroup.add(band);
     });
 
     // 3. Avengers Stark-Tower Cantilevered Upper Sky-Citadel & "MEIN SEELENFUNKE" Monumental Plaque (Y = 218 .. 258m)
-    const starkLower = new THREE.Mesh(new THREE.CylinderGeometry(18.6, 14.2, 18, 8), this.mats.obsidian);
+    const starkLower = new THREE.Mesh(new THREE.CylinderGeometry(18.6, 14.2, 18, 8), this.mats.obsidianPbr);
     starkLower.position.y = 227;
     this.supertowerGroup.add(starkLower);
 
-    // Cantilevered Avengers-Style Angled Sky-Deck Collar jutting boldly outward
-    const starkDeck = new THREE.Mesh(new THREE.BoxGeometry(44, 10.5, 32), this.mats.obsidian);
+    const starkDeck = new THREE.Mesh(new THREE.BoxGeometry(44, 10.2, 32), this.mats.obsidianPbr);
     starkDeck.position.set(0, 238.5, 2.2);
     this.supertowerGroup.add(starkDeck);
 
-    const starkGoldFrameTop = new THREE.Mesh(new THREE.BoxGeometry(45.6, 1.5, 33.6), this.mats.goldBright);
-    starkGoldFrameTop.position.set(0, 244.2, 2.2);
+    const starkGoldFrameTop = new THREE.Mesh(new THREE.BoxGeometry(45.6, 1.5, 33.6), this.mats.goldPbrBright);
+    starkGoldFrameTop.position.set(0, 244.45, 2.2);
     this.supertowerGroup.add(starkGoldFrameTop);
 
-    const starkGoldFrameBot = new THREE.Mesh(new THREE.BoxGeometry(45.6, 1.5, 33.6), this.mats.goldBright);
-    starkGoldFrameBot.position.set(0, 232.8, 2.2);
+    const starkGoldFrameBot = new THREE.Mesh(new THREE.BoxGeometry(45.6, 1.5, 33.6), this.mats.goldPbrBright);
+    starkGoldFrameBot.position.set(0, 232.55, 2.2);
     this.supertowerGroup.add(starkGoldFrameBot);
 
-    // Diagonal Stark-Tower 24K-Gold Structural Struts
     for (const sx of [-18.5, 18.5]) {
-      const strut = new THREE.Mesh(new THREE.BoxGeometry(2.0, 26, 2.4), this.mats.goldBright);
+      const strut = new THREE.Mesh(new THREE.BoxGeometry(2.0, 26, 2.4), this.mats.goldPbrBright);
       strut.position.set(sx, 224, 11.5);
       strut.rotation.z = sx > 0 ? 0.24 : -0.24;
       strut.rotation.x = -0.22;
       this.supertowerGroup.add(strut);
     }
 
-    // High-Resolution Monumental "MEIN SEELENFUNKE" Gold Facade Signage (Front +Z & Back -Z!)
+    // High-Resolution Monumental "MEIN SEELENFUNKE" Gold Facade Signage (Front +Z & Back -Z with polygonOffset!)
     const signTex = makeMeinSeelenfunkePlaqueTexture();
-    const signMat = new THREE.MeshBasicMaterial({ map: signTex });
+    const signMat = new THREE.MeshBasicMaterial({
+      map: signTex,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -4
+    });
     const signGeo = new THREE.PlaneGeometry(42.5, 8.0);
 
     const frontSign = new THREE.Mesh(signGeo, signMat);
-    frontSign.position.set(0, 238.5, 18.35);
+    frontSign.position.set(0, 238.5, 18.55);
     this.supertowerGroup.add(frontSign);
 
     const backSign = new THREE.Mesh(signGeo, signMat);
-    backSign.position.set(0, 238.5, -13.95);
+    backSign.position.set(0, 238.5, -14.15);
     backSign.rotation.y = Math.PI;
     this.supertowerGroup.add(backSign);
 
-    // Neck Transition Pedestal Supporting the Crown Penthouse Throne Room (Y = 245 .. 258m)
-    const neckPedestal = new THREE.Mesh(new THREE.CylinderGeometry(14.2, 16.8, 13.0, 16), this.mats.obsidian);
-    neckPedestal.position.y = 251.2;
+    const neckPedestal = new THREE.Mesh(new THREE.CylinderGeometry(14.2, 16.8, 12.6, 16), this.mats.obsidianPbr);
+    neckPedestal.position.y = 251.0;
     this.supertowerGroup.add(neckPedestal);
 
-    const penthouseRimBase = new THREE.Mesh(new THREE.CylinderGeometry(14.6, 14.2, 1.2, 32), this.mats.goldBright);
+    const penthouseRimBase = new THREE.Mesh(new THREE.CylinderGeometry(14.6, 14.2, 1.2, 32), this.mats.goldPbrBright);
     penthouseRimBase.position.y = THRONE_FLOOR_Y - 0.55;
     this.supertowerGroup.add(penthouseRimBase);
 
     // 4. Clickable Crown Spire & Golden Filigree Cupola Above Penthouse (Y = 266.2 .. 328.0m)
-    const cupolaRing = new THREE.Mesh(new THREE.CylinderGeometry(11.8, 13.8, 1.4, 32), this.mats.goldBright);
+    const cupolaRing = new THREE.Mesh(new THREE.CylinderGeometry(11.8, 13.8, 1.4, 32), this.mats.goldPbrBright);
     cupolaRing.position.y = THRONE_FLOOR_Y + 8.4;
     this.supertowerGroup.add(cupolaRing);
     this.throneClickTargets.push(cupolaRing);
 
-    // Open Filigree Golden Ribbed Dome over Throne Room
     for (let i = 0; i < 8; i++) {
       const ang = (i / 8) * Math.PI;
-      const arch = new THREE.Mesh(new THREE.TorusGeometry(11.6, 0.36, 8, 32, Math.PI), this.mats.goldBright);
+      const arch = new THREE.Mesh(new THREE.TorusGeometry(11.6, 0.36, 8, 32, Math.PI), this.mats.goldPbrBright);
       arch.position.y = THRONE_FLOOR_Y + 8.5;
       arch.rotation.y = ang;
       this.supertowerGroup.add(arch);
     }
 
-    // Telescopic Burj-Khalifa 24K-Gold Spire Needle Rising to 328m!
-    const spireBase = new THREE.Mesh(new THREE.CylinderGeometry(3.2, 6.4, 14, 16), this.mats.goldBright);
+    const spireBase = new THREE.Mesh(new THREE.CylinderGeometry(3.2, 6.4, 14, 16), this.mats.goldPbrBright);
     spireBase.position.y = THRONE_FLOOR_Y + 24.5;
     this.supertowerGroup.add(spireBase);
     this.throneClickTargets.push(spireBase);
 
-    const spireNeedle = new THREE.Mesh(new THREE.ConeGeometry(2.8, 42, 16), this.mats.goldBright);
+    const spireNeedle = new THREE.Mesh(new THREE.ConeGeometry(2.8, 42, 16), this.mats.goldPbrBright);
     spireNeedle.position.y = THRONE_FLOOR_Y + 51.0;
     this.supertowerGroup.add(spireNeedle);
     this.throneClickTargets.push(spireNeedle);
@@ -2568,7 +3349,6 @@ class FunkenwerkCityEngine {
     this.supertowerGroup.add(apexStar);
     this.throneClickTargets.push(apexStar);
 
-    // Invisible Generous Click Proxy Sphere around Crown Penthouse & Spire for Effortless Raycast Click!
     const clickProxy = new THREE.Mesh(
       new THREE.CylinderGeometry(16, 16, 72, 12),
       new THREE.MeshBasicMaterial({ visible: false })
@@ -3728,61 +4508,86 @@ class FunkenwerkCityEngine {
     );
     this.hallOfHeroesGroup.rotation.y = pierRotY;
     this.cityGroup.add(this.hallOfHeroesGroup);
+    this._heroesRefVec.set(Math.sin(pierRotY) * hallRadius, 8.0, Math.cos(pierRotY) * hallRadius);
 
     // 3-Point Pantheon Lighting (HemisphereLight + AmbientLight + Warm Front KeyLight + Sapphire RimLight)
     this._buildPantheonLighting();
 
     // 1. Grand Ehrenpromenade Causeway Connecting Pier 1 Starport Plaza (r=540) to the Pantheon (r=598)
-    const promBridge = new THREE.Mesh(new THREE.BoxGeometry(22.0, 3.2, 42.0), this.mats.obsidian);
-    promBridge.position.set(0, -1.2, -39.0);
+    // Shortened Stirnflaechen (-0.30m per end) & >= 0.38m vertical step separation!
+    const promBridge = new THREE.Mesh(new THREE.BoxGeometry(22.0, 3.0, 41.4), this.mats.obsidian);
+    promBridge.position.set(0, -1.30, -39.0); // top = +0.20
     this.hallOfHeroesGroup.add(promBridge);
 
-    const promGoldRails = new THREE.Mesh(new THREE.BoxGeometry(23.6, 0.65, 42.0), this.mats.goldBright);
-    promGoldRails.position.set(0, 0.45, -39.0);
+    const promGoldRails = new THREE.Mesh(new THREE.BoxGeometry(23.8, 0.56, 40.8), this.mats.goldBright);
+    promGoldRails.position.set(0, -0.48, -39.0); // top = -0.20 (0.40m step below promBridge top!)
     this.hallOfHeroesGroup.add(promGoldRails);
 
-    // 2. Stepped 3-Tier Pantheon Stylobate Platform (Obsidian Sea-Base + Alabaster Upper Plinth)
+    for (const pxSide of [-10.5, 10.5]) {
+      const promParapet = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.40, 40.8), this.mats.goldBright);
+      promParapet.position.set(pxSide, 0.40, -39.0); // top = +0.60 (0.40m step above promBridge top!)
+      this.hallOfHeroesGroup.add(promParapet);
+    }
+
+    // 2. Stepped 3-Tier Pantheon Stylobate Platform (Clean >= 0.40m Vertical Steps -> Zero Coplanar Overlap!)
     const alabasterStepMat = new THREE.MeshBasicMaterial({ color: 0xDFDCD3 });
     const sapphireTrimMat = new THREE.MeshBasicMaterial({ color: 0x133B5C });
     const steps = [
-      { w: 56.0, d: 58.0, h: 3.4, y: -1.7, mat: this.mats.obsidian, trimMat: this.mats.goldBright },
-      { w: 52.0, d: 54.0, h: 0.9, y: 0.45, mat: sapphireTrimMat, trimMat: this.mats.goldBright },
-      { w: 48.0, d: 50.0, h: 0.8, y: 1.25, mat: alabasterStepMat, trimMat: sapphireTrimMat }
+      { w: 56.0, d: 58.0, h: 3.10, y: -1.95, trimY: -0.98, mat: this.mats.obsidian, trimMat: this.mats.goldBright },
+      { w: 52.0, d: 54.0, h: 0.90, y: 0.08,  trimY: -0.08, mat: sapphireTrimMat,   trimMat: this.mats.goldBright },
+      { w: 48.0, d: 50.0, h: 0.84, y: 0.98,  trimY: 0.82,  mat: alabasterStepMat,  trimMat: sapphireTrimMat }
     ];
     steps.forEach((s) => {
       const m = new THREE.Mesh(new THREE.BoxGeometry(s.w, s.h, s.d), s.mat);
       m.position.set(0, s.y, 0);
       this.hallOfHeroesGroup.add(m);
 
-      const trim = new THREE.Mesh(new THREE.BoxGeometry(s.w + 0.8, 0.26, s.d + 0.8), s.trimMat);
-      trim.position.set(0, s.y + s.h * 0.5, 0);
+      const trim = new THREE.Mesh(new THREE.BoxGeometry(s.w + 1.1, 0.34, s.d + 1.1), s.trimMat);
+      trim.position.set(0, s.trimY, 0);
       this.hallOfHeroesGroup.add(trim);
     });
 
     const floorTopY = 1.80;
 
-    // High-Contrast Carrara-Alabaster & Atlantis-Sapphire Marble Floor (Maximaler Kontrast zu 24K-Gold!)
+    // Raised Plinth Riser (1.40 .. 1.80, +0.40m step above step[2] top 1.40!) + Carrara-Alabaster & Sapphire Floor
+    const floorRiser = new THREE.Mesh(new THREE.BoxGeometry(47.2, 0.38, 49.2), sapphireTrimMat);
+    floorRiser.position.set(0, 1.59, 0);
+    this.hallOfHeroesGroup.add(floorRiser);
+
     const marbleTex = makeHallOfHeroesMarbleTexture();
     const marbleFloor = new THREE.Mesh(
       new THREE.PlaneGeometry(47.2, 49.2),
-      new THREE.MeshBasicMaterial({ map: marbleTex })
+      new THREE.MeshBasicMaterial({
+        map: marbleTex,
+        polygonOffset: true,
+        polygonOffsetFactor: -1,
+        polygonOffsetUnits: -2
+      })
     );
     marbleFloor.rotation.x = -Math.PI * 0.5;
-    marbleFloor.position.set(0, floorTopY + 0.03, 0);
+    marbleFloor.position.set(0, floorTopY + 0.02, 0);
     this.hallOfHeroesGroup.add(marbleFloor);
+
+    const hallAoTransforms = [];
+    const pushHallAo = (x, y, z, sx, sz) => {
+      this.dummyObj.position.set(x, y, z);
+      this.dummyObj.rotation.set(0, 0, 0);
+      this.dummyObj.scale.set(sx, 1, sz);
+      this.dummyObj.updateMatrix();
+      hallAoTransforms.push(this.dummyObj.matrix.clone());
+    };
+    // Soft Water Contact AO Shadow around the Pantheon Sea-Base
+    pushHallAo(0, -4.84, 0, 68.0, 70.0);
 
     // 3. 28 Monumental 24K-Gold & Obsidian Colonnade Columns via THREE.InstancedMesh (Locked 60 FPS!)
     const colCoords = [];
-    // Left & Right Grand Colonnades (8 columns per side)
     for (let i = 0; i < 8; i++) {
       const cz = lerp(-21.5, 21.5, i / 7);
       colCoords.push([-21.5, cz], [21.5, cz]);
     }
-    // Seaward Front Portico (+Z) & Tower-Facing Triumphal Portico (-Z), leaving wide 17m central sightline!
     for (const cx of [-15.2, -9.2, 9.2, 15.2]) {
       colCoords.push([cx, 21.5], [cx, -21.5]);
     }
-    // 4 Wide Outer Rotunda Pendentive Piers (well outside the central sightline!)
     colCoords.push([-14.8, -14.8], [14.8, -14.8], [-14.8, 14.8], [14.8, 14.8]);
 
     const colHeight = 12.6;
@@ -3798,6 +4603,8 @@ class FunkenwerkCityEngine {
     );
 
     colCoords.forEach(([cx, cz], idx) => {
+      pushHallAo(cx, floorTopY + 0.05, cz, 3.1, 3.1);
+
       this.dummyObj.position.set(cx, floorTopY + colHeight * 0.5, cz);
       this.dummyObj.rotation.set(0, 0, 0);
       this.dummyObj.scale.set(1, 1, 1);
@@ -3816,14 +4623,14 @@ class FunkenwerkCityEngine {
     // 4. Sculpted Obsidian & 24K-Gold Entablature Perimeter Beams + "HALLE DER HELDEN" Friezes
     const entY = floorTopY + colHeight + 1.45;
     const beamMat = this.mats.obsidian;
-    const sideBeamGeo = new THREE.BoxGeometry(2.4, 1.9, 45.6);
+    const sideBeamGeo = new THREE.BoxGeometry(2.4, 1.9, 45.0);
     for (const sx of [-21.5, 21.5]) {
       const b = new THREE.Mesh(sideBeamGeo, beamMat);
       b.position.set(sx, entY, 0);
       this.hallOfHeroesGroup.add(b);
 
-      const g = new THREE.Mesh(new THREE.BoxGeometry(2.65, 0.35, 46.0), this.mats.goldBright);
-      g.position.set(sx, entY + 1.05, 0);
+      const g = new THREE.Mesh(new THREE.BoxGeometry(2.65, 0.35, 45.4), this.mats.goldBright);
+      g.position.set(sx, entY + 1.15, 0);
       this.hallOfHeroesGroup.add(g);
     }
 
@@ -3834,12 +4641,17 @@ class FunkenwerkCityEngine {
       this.hallOfHeroesGroup.add(cb);
 
       const cg = new THREE.Mesh(new THREE.BoxGeometry(46.2, 0.38, 2.8), this.mats.goldBright);
-      cg.position.set(0, entY + 1.15, sz);
+      cg.position.set(0, entY + 1.25, sz);
       this.hallOfHeroesGroup.add(cg);
     }
 
     const friezeTex = makeHallOfHeroesFriezeTexture();
-    const friezeMat = new THREE.MeshBasicMaterial({ map: friezeTex });
+    const friezeMat = new THREE.MeshBasicMaterial({
+      map: friezeTex,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -4
+    });
     const friezeGeo = new THREE.PlaneGeometry(24.0, 3.75);
 
     // Seaward Exterior Portico Frieze (greets the over-water camera fly-in!)
@@ -3919,6 +4731,8 @@ class FunkenwerkCityEngine {
 
     this.heroPedestalEntries = [];
     pedestalSpecs.forEach((sp) => {
+      pushHallAo(sp.x, floorTopY + 0.05, sp.z, sp.w * 1.75, sp.w * 1.75);
+
       const pGrp = new THREE.Group();
       pGrp.position.set(sp.x, floorTopY, sp.z);
       pGrp.rotation.y = sp.rotY;
@@ -3961,7 +4775,12 @@ class FunkenwerkCityEngine {
 
       const plaqueMesh = new THREE.Mesh(
         new THREE.PlaneGeometry(pW, pH),
-        new THREE.MeshBasicMaterial({ map: plaqueTex })
+        new THREE.MeshBasicMaterial({
+          map: plaqueTex,
+          polygonOffset: true,
+          polygonOffsetFactor: -2,
+          polygonOffsetUnits: -4
+        })
       );
       plaqueMesh.position.set(0, sp.h * 0.54, sp.w * 0.56 + 0.048);
       plaqueMesh.rotation.x = -0.08;
@@ -3984,6 +4803,19 @@ class FunkenwerkCityEngine {
         funki
       });
     });
+
+    if (hallAoTransforms.length > 0) {
+      const hallAoGeo = new THREE.PlaneGeometry(1, 1);
+      hallAoGeo.rotateX(-Math.PI * 0.5);
+      const hallAoInst = new THREE.InstancedMesh(hallAoGeo, this.mats.bakedAo, hallAoTransforms.length);
+      for (let ai = 0; ai < hallAoTransforms.length; ai++) {
+        hallAoInst.setMatrixAt(ai, hallAoTransforms[ai]);
+      }
+      hallAoInst.instanceMatrix.needsUpdate = true;
+      hallAoInst.frustumCulled = false;
+      hallAoInst.renderOrder = 1;
+      this.hallOfHeroesGroup.add(hallAoInst);
+    }
 
     // 7. 24 Golden Honor Steles Along Both Colonnades via THREE.InstancedMesh (Slots #6 .. #29)
     const steleCount = 24;
@@ -4231,13 +5063,30 @@ class FunkenwerkCityEngine {
       this.cloudVeilEl.style.opacity = op > 0.005 ? op.toFixed(3) : '0';
     }
 
-    // Tight near/far clip plane in Throne Room vs Space Orbit for zero z-fighting!
-    const inThroneScale = camPos.distanceTo(new THREE.Vector3(0, THRONE_FLOOR_Y + 2, 0)) < 36;
-    const wantNear = inThroneScale ? 0.12 : 0.6;
-    const wantFar = distFromOrigin > 1400 ? 28000 : 19500;
-    if (Math.abs(this.camera.near - wantNear) > 0.02 || Math.abs(this.camera.far - wantFar) > 100) {
-      this.camera.near = wantNear;
-      this.camera.far = wantFar;
+    // Dynamic 3-Stage Camera Clipping Planes (0% GPU cost, 35x-74x higher depth buffer precision, zero Z-fighting!)
+    const distTarget = camPos.distanceTo(this.orbit.target);
+    const distThrone = camPos.distanceTo(this._throneRefVec);
+    const distHeroes = camPos.distanceTo(this._heroesRefVec);
+    const camDist = distFromOrigin > 1400
+      ? distFromOrigin
+      : Math.min(distFromOrigin, distTarget, distThrone, distHeroes);
+
+    let newNear;
+    let newFar;
+    if (camDist < 48.0) {
+      newNear = 0.15;
+      newFar = 4200;
+    } else if (camDist <= 1400.0) {
+      newNear = clamp(camDist * 0.018, 0.8, 22.0);
+      newFar = 9600;
+    } else {
+      newNear = clamp(camDist * 0.04, 22.0, 140.0);
+      newFar = 28000;
+    }
+
+    if (Math.abs(newNear - this.camera.near) > 0.02 || Math.abs(newFar - this.camera.far) > 5) {
+      this.camera.near = newNear;
+      this.camera.far = newFar;
       this.camera.updateProjectionMatrix();
     }
   }
@@ -4425,16 +5274,16 @@ class FunkenwerkCityEngine {
     this._emitDepartmentChange(dept);
     this._updateHudActiveButtons();
 
-    // Pier-Citadel target (lx = 0, y = 18.0, lz = 362) & elevated 3/4 lagoon viewpoint (lx = 54, y = 40.0, lz = 248)
+    // Pier-Citadel Landmark target (lx = 0, y = 23.5, lz = 362) & elevated 3/4 lagoon hero viewpoint (lx = 52, y = 39.5, lz = 250)
     const destTarget = new THREE.Vector3(
       362 * Math.sin(rotY),
-      18.0,
+      23.5,
       362 * Math.cos(rotY)
     );
     const destPos = new THREE.Vector3(
-      54 * Math.cos(rotY) + 248 * Math.sin(rotY),
-      40.0,
-      -54 * Math.sin(rotY) + 248 * Math.cos(rotY)
+      52 * Math.cos(rotY) + 250 * Math.sin(rotY),
+      39.5,
+      -52 * Math.sin(rotY) + 250 * Math.cos(rotY)
     );
 
     if (instant) {
@@ -4885,6 +5734,21 @@ class FunkenwerkCityEngine {
           b.mat.opacity = 0.26;
           b.podiumBeacon.scale.set(1, 1, 1);
           b.padBeacon.scale.set(1, 1, 1);
+        }
+      }
+
+      // 1c. Smooth 60-FPS Levitation & Multi-Axis Rotation of the 7 Pier Citadel 3D Landmarks
+      for (let li = 0; li < this.departmentLandmarks.length; li++) {
+        const lm = this.departmentLandmarks[li];
+        const isActiveLm = (this.hoveredDeptKey === lm.key) || (this.viewMode === 'department' && this.activeDepartment === lm.key);
+        const speedMul = isActiveLm ? 1.45 : 1.0;
+        const liftY = isActiveLm ? 0.38 : 0.0;
+        lm.floatGroup.position.y = lm.baseY + liftY + Math.sin(t * 1.35 + lm.phase) * 0.42;
+        lm.primaryRotor.rotation.y = (t * 0.36 * speedMul) + lm.phase;
+        lm.secondaryRotor.rotation.y = -(t * 0.54 * speedMul) - lm.phase;
+        if (lm.key === 'agents' || lm.key === 'orders' || lm.key === 'support') {
+          lm.secondaryRotor.rotation.x = Math.sin(t * 0.68 + lm.phase) * 0.36;
+          lm.secondaryRotor.rotation.z = Math.cos(t * 0.52 + lm.phase) * 0.28;
         }
       }
     }

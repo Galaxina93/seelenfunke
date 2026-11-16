@@ -100,6 +100,9 @@ namespace FunkenwerkOSLinux
             try
             {
                 s_dbInitialized = false;
+                s_watchtowerConsecutiveOutages = 0;
+                s_watchtowerAlertOpen = false;
+                s_watchtowerHydratedFromHistory = false;
                 SqliteConnection.ClearAllPools();
             }
             finally
@@ -1640,6 +1643,47 @@ namespace FunkenwerkOSLinux
 
         private static int s_watchtowerConsecutiveOutages;
         private static bool s_watchtowerAlertOpen;
+        private static bool s_watchtowerHydratedFromHistory;
+
+        private static readonly string[] s_plannedMaintenanceMarkers =
+        {
+            "wartung",
+            "maintenance",
+            "shop_is_live",
+            "bald für sie da",
+            "vorbereitung"
+        };
+
+        public static bool IsPlannedMaintenanceBody(string? rawBody)
+        {
+            if (string.IsNullOrWhiteSpace(rawBody))
+                return false;
+
+            string snippet = rawBody.Length > 8192 ? rawBody.Substring(0, 8192) : rawBody;
+            foreach (string marker in s_plannedMaintenanceMarkers)
+            {
+                if (snippet.Contains(marker, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+            return false;
+        }
+
+        private static async Task<string> ReadBoundedResponseSnippetAsync(System.Net.Http.HttpContent? content, int maxBytes, CancellationToken ct)
+        {
+            if (content == null || maxBytes <= 0)
+                return string.Empty;
+
+            using var stream = await content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+            byte[] buffer = new byte[Math.Min(maxBytes, 8192)];
+            int totalRead = 0;
+            while (totalRead < buffer.Length)
+            {
+                int n = await stream.ReadAsync(buffer.AsMemory(totalRead, buffer.Length - totalRead), ct).ConfigureAwait(false);
+                if (n <= 0) break;
+                totalRead += n;
+            }
+            return totalRead <= 0 ? string.Empty : Encoding.UTF8.GetString(buffer, 0, totalRead);
+        }
 
         public static string BuildNasBackupHeartbeatJson(bool ok, string summary, int copied, int deleted, string? nasHost)
         {
@@ -1666,8 +1710,27 @@ namespace FunkenwerkOSLinux
             string? pulseHeadline,
             bool localInternetOnline,
             ref int consecutiveOutages,
-            ref bool alertAlreadyOpen)
+            ref bool alertAlreadyOpen,
+            string? rawBodySnippet = null)
         {
+            string normStatus = (pulseStatus ?? "ok").Trim().ToLowerInvariant();
+            bool isPlannedMaintenance = shopHttpReachable &&
+                (normStatus == "planned_maintenance" ||
+                 (httpStatusCode == 503 && IsPlannedMaintenanceBody(rawBodySnippet)));
+
+            if (isPlannedMaintenance)
+            {
+                consecutiveOutages = 0;
+                if (alertAlreadyOpen)
+                {
+                    alertAlreadyOpen = false;
+                    return ("auto_healed", "Planmäßiger Wartungsmodus aktiv (offene Warnung geschlossen)");
+                }
+                return ("planned_maintenance", string.IsNullOrWhiteSpace(pulseHeadline)
+                    ? "Planmäßiger Wartungsmodus aktiv"
+                    : pulseHeadline!);
+            }
+
             if (!shopHttpReachable || httpStatusCode >= 500)
             {
                 if (!localInternetOnline)
@@ -1685,21 +1748,37 @@ namespace FunkenwerkOSLinux
                         : $"Shop meldet HTTP {httpStatusCode}";
                     return ("raise_alert", detail);
                 }
+                if (alertAlreadyOpen)
+                {
+                    return ("already_alerted", !shopHttpReachable ? "Shop antwortet weiterhin nicht" : $"Shop meldet weiterhin HTTP {httpStatusCode}");
+                }
                 return ("pending_confirmation", "Erster Verbindungsfehler, warte auf Gegenprüfung");
             }
 
-            consecutiveOutages = 0;
-            string normStatus = (pulseStatus ?? "ok").Trim().ToLowerInvariant();
             if (normStatus == "critical")
             {
-                if (!alertAlreadyOpen)
+                if (!localInternetOnline)
+                {
+                    return ("suppressed_local_offline", "Lokales Heimnetz kurz offline (kein Shop-Fehlalarm)");
+                }
+
+                consecutiveOutages++;
+                string critHeadline = string.IsNullOrWhiteSpace(pulseHeadline)
+                    ? "Kritische Watchtower-Säule im Shop"
+                    : pulseHeadline!;
+                if (consecutiveOutages >= 2 && !alertAlreadyOpen)
                 {
                     alertAlreadyOpen = true;
-                    return ("raise_alert", string.IsNullOrWhiteSpace(pulseHeadline) ? "Kritische Watchtower-Säule im Shop" : pulseHeadline!);
+                    return ("raise_alert", critHeadline);
                 }
-                return ("already_alerted", pulseHeadline ?? "Kritisch");
+                if (alertAlreadyOpen)
+                {
+                    return ("already_alerted", critHeadline);
+                }
+                return ("pending_confirmation", "Erster kritischer Befund, warte auf 2-Strike-Gegenprüfung");
             }
 
+            consecutiveOutages = 0;
             if (alertAlreadyOpen)
             {
                 alertAlreadyOpen = false;
@@ -1770,10 +1849,25 @@ namespace FunkenwerkOSLinux
             string url = $"{SeelenfunkeLinuxApiClient.ResolveBaseApiUrl(norm)}/system/health-pulse?source=minipc_linux";
             if (!SeelenfunkeLinuxApiClient.ValidateHttpsUrl(url)) return;
 
+            if (!s_watchtowerHydratedFromHistory)
+            {
+                s_watchtowerHydratedFromHistory = true;
+                try
+                {
+                    bool hasOpenWatchtower = ErrorSentinelAndWatchdog.GetRecentHistory(30)
+                        .Any(ev => !ev.AutoHealed &&
+                                   string.Equals(ev.Component, "shop_watchtower", StringComparison.OrdinalIgnoreCase));
+                    if (hasOpenWatchtower)
+                        s_watchtowerAlertOpen = true;
+                }
+                catch { }
+            }
+
             bool reachable = false;
             int statusCode = 0;
             string? pulseStatus = null;
             string? pulseHeadline = null;
+            string? rawBodySnippet = null;
 
             try
             {
@@ -1801,6 +1895,15 @@ namespace FunkenwerkOSLinux
                         pulseHeadline = dataObj["headline"]?.GetValue<string>();
                     }
                 }
+                else if (statusCode == 503)
+                {
+                    rawBodySnippet = await ReadBoundedResponseSnippetAsync(resp.Content, 8192, cts.Token).ConfigureAwait(false);
+                    if (IsPlannedMaintenanceBody(rawBodySnippet))
+                    {
+                        pulseStatus = "planned_maintenance";
+                        pulseHeadline = "Planmäßiger Wartungsmodus aktiv (HTTP 503)";
+                    }
+                }
             }
             catch
             {
@@ -1808,7 +1911,10 @@ namespace FunkenwerkOSLinux
             }
 
             bool internetUp = true;
-            if (!reachable || statusCode >= 500)
+            bool plannedMaintDetected = reachable &&
+                                        statusCode == 503 &&
+                                        string.Equals(pulseStatus, "planned_maintenance", StringComparison.OrdinalIgnoreCase);
+            if (!plannedMaintDetected && (!reachable || statusCode >= 500))
             {
                 internetUp = await VerifyLocalInternetConnectivityAsync().ConfigureAwait(false);
             }
@@ -1820,7 +1926,8 @@ namespace FunkenwerkOSLinux
                 pulseHeadline,
                 internetUp,
                 ref s_watchtowerConsecutiveOutages,
-                ref s_watchtowerAlertOpen);
+                ref s_watchtowerAlertOpen,
+                rawBodySnippet);
 
             if (action == "raise_alert")
             {
@@ -1840,6 +1947,7 @@ namespace FunkenwerkOSLinux
                     autoHealed: true,
                     healSummary: headline,
                     severity: "warning");
+                ErrorSentinelAndWatchdog.AutoHealRecoverableHistory(false, false, true);
             }
         }
 

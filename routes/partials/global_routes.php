@@ -160,6 +160,9 @@ Route::get('/manufaktur', function () {
 })->name('manufacture');
 
 Route::get('/shop', ProductFrontendFilterArea::class)->name('shop');
+Route::get('/shop/showroom-data', [\App\Http\Controllers\Frontend\ShopShowroomController::class, 'index'])
+    ->middleware('throttle:60,1')
+    ->name('shop.showroom.data');
 Route::redirect('/gutscheine', '/produkt/geschenkgutschein', 301)->name('vouchers');
 
 // Marketing Landing Page

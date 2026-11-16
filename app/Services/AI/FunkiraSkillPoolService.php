@@ -49,6 +49,8 @@ class FunkiraSkillPoolService
             'system_get_current_time',
             'system_get_server_status',
             'system_get_error_sentinel',
+            'system_search_web',
+            'system_read_web_url',
             'system_prepare_antigravity_handoff',
             'system_open_nav_item',
             'system_open_zentrum',
@@ -101,11 +103,13 @@ class FunkiraSkillPoolService
                 'legacy_colleagues' => ['Buchi'],
                 'tools' => array_values(array_unique(array_merge(
                     array_column(AIFunctionsRegistry::getAiFinanceFuncsSchema(), 'name'),
+                    array_column(AIFunctionsRegistry::getAiStripeFuncsSchema(), 'name'),
                     ['system_generate_pdf_report', 'system_generate_docx_report']
                 ))),
                 'sop' => "FACHREGELN FINANZEN (Ex-Buchi-Disziplin):\n"
                     . "- Alle Ausgaben, Sonderausgaben, Kassenbons und Rechnungen ZWINGEND als negativen Betrag übergeben (z.B. -110.32 statt +110.32).\n"
                     . "- Trenne strikt zwischen Gewerblich (Mein-Seelenfunke Betriebskosten, Rohlinge, Laser, Verpackung, FYRST) und Privat.\n"
+                    . "- Nutze autonome Stripe-Werkzeuge (Erstattungen mit GoBD-Gutschrift, Auszahlungs- & Gebührenabgleich für FYRST, Live-Telemetrie) exakt in Cent-Integern innerhalb der konfigurierten Sicherheitslimits.\n"
                     . "- Arbeite exakt mit den realen Datenbankzahlen ohne geschätzte Pauschalwerte.",
             ],
             'orders' => [
@@ -114,6 +118,7 @@ class FunkiraSkillPoolService
                 'tools' => array_values(array_unique(array_merge(
                     array_column(AIFunctionsRegistry::getAiOrderFuncsSchema(), 'name'),
                     array_column(AIFunctionsRegistry::getAiScoutFuncsSchema(), 'name'),
+                    array_column(AIFunctionsRegistry::getAiStripeFuncsSchema(), 'name'),
                     ['system_generate_delivery_note']
                 ))),
                 'sop' => "FACHREGELN BESTELLWESEN & LOGISTIK (Ex-Bestelli-Disziplin):\n"
@@ -232,12 +237,14 @@ class FunkiraSkillPoolService
                 'buchhaltung', 'finanz', 'fixkosten', 'sonderausgab', 'ausgabe', 'einnahme', 'umsatz',
                 'steuer', 'elster', 'ust', 'mwst', 'kassenbon', 'beleg', 'quittung', 'konto', 'fyrst',
                 'bank', 'rechnung', 'gutschrift', 'vertrag', 'versicherung', 'gewinn', 'cashflow', 'euro', 'buchi',
+                'stripe', 'auszahlung', 'payout', 'gebühr', 'gebuehr', 'dispute', 'chargeback',
             ],
             'orders' => [
                 'bestellung', 'auftrag', 'aufträge', 'auftraege', 'versand', 'dhl', 'sendung', 'tracking',
                 'lieferschein', 'retoure', 'widerruf', 'storno', 'warenkorb', 'warenkoerbe', 'express',
                 'werkstatt-stand', 'werkstattstand', 'check-in', 'checkin', 'wiedervorlage',
                 'kunde ', 'kunden', 'halle der helden', 'bestelli',
+                'zahlungslink', 'checkout-link', 'erstattung', 'rückerstattung', 'rueckerstattung', 'mandat', 'konfliktfall',
             ],
             'products' => [
                 'produkt', 'artikel', 'rohling', 'sortiment', 'variante', 'kalkulator', 'verpackung',

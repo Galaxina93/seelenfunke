@@ -139,55 +139,348 @@
     return configureTex(THREE, new THREE.CanvasTexture(c), maxAniso, 2);
   }
 
-  function makeSkyscraperFacadeTexture(THREE, maxAniso) {
-    var W = 512, H = 1024;
-    var c = document.createElement('canvas');
-    c.width = W;
-    c.height = H;
-    var ctx = c.getContext('2d');
+  // 1024x1024 Interior-Lit Skyscraper Curtain-Wall Atlas + Emissive Map + PBR Roughness Map (4x Anisotropy)
+  function makeSkyscraperFacadeAtlas(THREE, maxAniso) {
+    var W = 1024, H = 1024;
+    var cCol = document.createElement('canvas');
+    cCol.width = W;
+    cCol.height = H;
+    var ctx = cCol.getContext('2d');
+
+    var cEmis = document.createElement('canvas');
+    cEmis.width = W;
+    cEmis.height = H;
+    var ectx = cEmis.getContext('2d');
+
+    var cRough = document.createElement('canvas');
+    cRough.width = W;
+    cRough.height = H;
+    var rctx = cRough.getContext('2d');
+
     var rng = mulberry32(20261116);
 
     var bg = ctx.createLinearGradient(0, 0, 0, H);
-    bg.addColorStop(0, '#0d121c');
-    bg.addColorStop(0.55, '#090d14');
-    bg.addColorStop(1, '#05070b');
+    bg.addColorStop(0, '#0e1520');
+    bg.addColorStop(0.55, '#090e17');
+    bg.addColorStop(1, '#06090f');
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, W, H);
 
-    var floors = 48, cols = 16;
+    ectx.fillStyle = '#000000';
+    ectx.fillRect(0, 0, W, H);
+
+    rctx.fillStyle = 'rgb(199, 199, 199)';
+    rctx.fillRect(0, 0, W, H);
+
+    for (var g = 0; g < 4000; g++) {
+      ctx.fillStyle = rng() > 0.5 ? 'rgba(255,250,235,0.035)' : 'rgba(0,0,0,0.22)';
+      ctx.fillRect(rng() * W, rng() * H, 3, 2);
+    }
+
+    var floors = 24, cols = 12;
     var fh = H / floors, cw = W / cols;
 
     for (var f = 0; f < floors; f++) {
       var y = f * fh;
       var bandHighlight = (f % 8 === 0);
+      var suiteLit = rng() > 0.46;
+      var suiteWarmth = rng();
+
       for (var col = 0; col < cols; col++) {
+        if (col % 3 === 0 && rng() > 0.35) {
+          suiteLit = rng() > 0.44;
+          suiteWarmth = rng();
+        }
         var x = col * cw;
-        var litRoll = rng();
+        var wx = x + 4.5, wy = y + 5.5;
+        var ww = cw - 9.0, wh = fh - 10.0;
+
+        rctx.fillStyle = 'rgb(36, 36, 36)';
+        rctx.fillRect(wx, wy, ww, wh);
+
         if (bandHighlight) {
-          ctx.fillStyle = 'rgba(197, 160, 89, 0.44)';
-          ctx.fillRect(x + 2, y + 3, cw - 4, fh - 6);
-        } else if (litRoll > 0.55) {
-          ctx.fillStyle = litRoll > 0.85 ? 'rgba(255, 238, 186, 0.84)' : 'rgba(197, 160, 89, 0.38)';
-          ctx.fillRect(x + 3.5, y + 3.5, cw - 7, fh - 7);
+          var lg = ctx.createLinearGradient(0, wy, 0, wy + wh);
+          lg.addColorStop(0, '#FFEAB3');
+          lg.addColorStop(0.5, '#C5A059');
+          lg.addColorStop(1, '#5E4720');
+          ctx.fillStyle = lg;
+          ctx.fillRect(wx, wy, ww, wh);
+
+          ectx.fillStyle = 'rgba(225, 182, 98, 0.72)';
+          ectx.fillRect(wx, wy + 2, ww, wh - 4);
+        } else if (suiteLit && rng() > 0.14) {
+          var roomGrad = ctx.createLinearGradient(0, wy, 0, wy + wh);
+          roomGrad.addColorStop(0.0, suiteWarmth > 0.62 ? '#FFF6D6' : '#FDE68A');
+          roomGrad.addColorStop(0.48, suiteWarmth > 0.62 ? '#F3C878' : '#D4AF37');
+          roomGrad.addColorStop(1.0, '#58411E');
+          ctx.fillStyle = roomGrad;
+          ctx.fillRect(wx, wy, ww, wh);
+
+          ctx.fillStyle = 'rgba(14, 18, 26, 0.42)';
+          ctx.fillRect(wx, wy + wh * 0.66, ww, 2.2);
+          if (rng() > 0.45) {
+            ctx.fillRect(wx + ww * (0.35 + rng() * 0.35), wy, 2.0, wh);
+          }
+
+          var emisGrad = ectx.createLinearGradient(0, wy, 0, wy + wh);
+          emisGrad.addColorStop(0.0, suiteWarmth > 0.62 ? 'rgba(255, 243, 201, 0.94)' : 'rgba(245, 208, 125, 0.78)');
+          emisGrad.addColorStop(0.75, 'rgba(197, 160, 89, 0.52)');
+          emisGrad.addColorStop(1.0, 'rgba(92, 68, 30, 0.25)');
+          ectx.fillStyle = emisGrad;
+          ectx.fillRect(wx + 1, wy + 1, ww - 2, wh - 2);
         } else {
-          ctx.fillStyle = 'rgba(18, 26, 38, 0.68)';
-          ctx.fillRect(x + 3, y + 3, cw - 6, fh - 6);
+          var dg = ctx.createLinearGradient(0, wy, 0, wy + wh);
+          dg.addColorStop(0, '#142136');
+          dg.addColorStop(0.6, '#0d1626');
+          dg.addColorStop(1, '#080d17');
+          ctx.fillStyle = dg;
+          ctx.fillRect(wx, wy, ww, wh);
         }
       }
-      ctx.fillStyle = bandHighlight ? '#D4AF37' : 'rgba(197, 160, 89, 0.34)';
-      ctx.fillRect(0, y, W, bandHighlight ? 2.4 : 1.2);
+
+      ctx.fillStyle = '#141923';
+      ctx.fillRect(0, y, W, 4.5);
+      ctx.fillStyle = bandHighlight ? '#E5C158' : 'rgba(197, 160, 89, 0.52)';
+      ctx.fillRect(0, y + (bandHighlight ? 0.5 : 1.5), W, bandHighlight ? 3.4 : 1.8);
+
+      rctx.fillStyle = bandHighlight ? 'rgb(76, 76, 76)' : 'rgb(186, 186, 186)';
+      rctx.fillRect(0, y, W, 5.0);
     }
 
     for (var colLine = 0; colLine <= cols; colLine++) {
       var xl = colLine * cw;
       var major = (colLine % 4 === 0);
-      ctx.fillStyle = major ? '#C5A059' : 'rgba(197, 160, 89, 0.26)';
-      ctx.fillRect(xl - (major ? 1.5 : 0.6), 0, major ? 3.0 : 1.2, H);
+      var mw = major ? 4.4 : 2.0;
+      ctx.fillStyle = major ? '#D4AF37' : 'rgba(197, 160, 89, 0.44)';
+      ctx.fillRect(xl - mw * 0.5, 0, mw, H);
+      if (major) {
+        ctx.fillStyle = 'rgba(255, 248, 214, 0.45)';
+        ctx.fillRect(xl - 0.8, 0, 1.2, H);
+      }
+      rctx.fillStyle = 'rgb(82, 82, 82)';
+      rctx.fillRect(xl - mw * 0.5, 0, mw, H);
     }
 
+    var colorTex = configureTex(THREE, new THREE.CanvasTexture(cCol), maxAniso, 4);
+    colorTex.wrapS = THREE.RepeatWrapping;
+    colorTex.wrapT = THREE.RepeatWrapping;
+
+    var emissiveTex = configureTex(THREE, new THREE.CanvasTexture(cEmis), maxAniso, 4);
+    emissiveTex.wrapS = THREE.RepeatWrapping;
+    emissiveTex.wrapT = THREE.RepeatWrapping;
+
+    var roughnessTex = new THREE.CanvasTexture(cRough);
+    roughnessTex.generateMipmaps = true;
+    roughnessTex.minFilter = THREE.LinearMipmapLinearFilter;
+    roughnessTex.magFilter = THREE.LinearFilter;
+    roughnessTex.anisotropy = Math.min(maxAniso || 4, 4);
+    if ('colorSpace' in roughnessTex && typeof THREE.NoColorSpace !== 'undefined') {
+      roughnessTex.colorSpace = THREE.NoColorSpace;
+    } else if (THREE.LinearEncoding) {
+      roughnessTex.encoding = THREE.LinearEncoding;
+    }
+    roughnessTex.wrapS = THREE.RepeatWrapping;
+    roughnessTex.wrapT = THREE.RepeatWrapping;
+
+    return { colorTex: colorTex, emissiveTex: emissiveTex, roughnessTex: roughnessTex };
+  }
+
+  // Seamless 2K (2048x1024) Equirectangular Golden-Hour Sky & Volumetric Cloud Panorama (0 external CDN assets!)
+  function makePhotorealSkyPanoramaTexture(THREE, maxAniso, sunDirVec) {
+    var W = 2048, H = 1024;
+    var c = document.createElement('canvas');
+    c.width = W;
+    c.height = H;
+    var ctx = c.getContext('2d');
+
+    var sx = sunDirVec ? sunDirVec.x : -0.35;
+    var sy = sunDirVec ? sunDirVec.y : 0.32;
+    var sz = sunDirVec ? sunDirVec.z : -0.88;
+    var sLen = Math.hypot(sx, sy, sz) || 1.0;
+    var ux = sx / sLen, uy = sy / sLen, uz = sz / sLen;
+
+    var cw = 512, ch = 256;
+    var cloudCanvas = document.createElement('canvas');
+    cloudCanvas.width = cw;
+    cloudCanvas.height = ch;
+    var cctx = cloudCanvas.getContext('2d');
+    var img = cctx.createImageData(cw, ch);
+    var data = img.data;
+
+    function hash3(ix, iy, iz) {
+      var n = (Math.imul(ix, 127) + Math.imul(iy, 311) + Math.imul(iz, 74)) | 0;
+      n = (n << 13) ^ n;
+      return ((Math.imul(n, (Math.imul(n, Math.imul(n, 15731)) + 789221) | 0) + 1376312589) >>> 0) / 4294967296;
+    }
+
+    function noise3(px, py, pz) {
+      var ix = Math.floor(px), iy = Math.floor(py), iz = Math.floor(pz);
+      var fx = px - ix, fy = py - iy, fz = pz - iz;
+      fx = fx * fx * (3 - 2 * fx);
+      fy = fy * fy * (3 - 2 * fy);
+      fz = fz * fz * (3 - 2 * fz);
+      var n000 = hash3(ix, iy, iz), n100 = hash3(ix + 1, iy, iz);
+      var n010 = hash3(ix, iy + 1, iz), n110 = hash3(ix + 1, iy + 1, iz);
+      var n001 = hash3(ix, iy, iz + 1), n101 = hash3(ix + 1, iy, iz + 1);
+      var n011 = hash3(ix, iy + 1, iz + 1), n111 = hash3(ix + 1, iy + 1, iz + 1);
+      var nx00 = n000 + (n100 - n000) * fx;
+      var nx10 = n010 + (n110 - n010) * fx;
+      var nx01 = n001 + (n101 - n001) * fx;
+      var nx11 = n011 + (n111 - n011) * fx;
+      var nxy0 = nx00 + (nx10 - nx00) * fy;
+      var nxy1 = nx01 + (nx11 - nx01) * fy;
+      return nxy0 + (nxy1 - nxy0) * fz;
+    }
+
+    function cloudFbm(px, py, pz) {
+      var v = 0.0;
+      v += 0.52 * noise3(px, py, pz);
+      v += 0.27 * noise3(px * 2.07 + 3.1, py * 2.07 + 1.7, pz * 2.07 + 4.3);
+      v += 0.14 * noise3(px * 4.23 + 7.4, py * 4.23 + 5.2, pz * 4.23 + 2.9);
+      v += 0.07 * noise3(px * 8.51 + 1.9, py * 8.51 + 8.6, pz * 8.51 + 6.1);
+      return v;
+    }
+
+    for (var y = 0; y < ch; y++) {
+      var lat = (0.5 - (y + 0.5) / ch) * Math.PI;
+      var sinLat = Math.sin(lat);
+      var cosLat = Math.cos(lat);
+
+      for (var x = 0; x < cw; x++) {
+        var u = (x + 0.5) / cw;
+        var lon = (u - 0.5) * Math.PI * 2.0;
+        var dx = cosLat * Math.cos(lon);
+        var dy = sinLat;
+        var dz = cosLat * Math.sin(lon);
+
+        var sunDot = Math.max(0, dx * ux + dy * uy + dz * uz);
+        var r = 0, g = 0, b = 0;
+
+        if (dy >= -0.02) {
+          var h = clamp(dy, 0.0, 1.0);
+          var tMid = Math.pow(1.0 - h, 1.85);
+          var tHor = Math.pow(1.0 - h, 5.0);
+          var azGlow = Math.pow(sunDot, 2.3);
+
+          r = lerp(12, 42, tMid);
+          g = lerp(36, 94, tMid);
+          b = lerp(74, 148, tMid);
+
+          var horR = lerp(102, 242, azGlow);
+          var horG = lerp(112, 192, azGlow);
+          var horB = lerp(138, 120, azGlow);
+          r = lerp(r, horR, tHor * 0.92);
+          g = lerp(g, horG, tHor * 0.92);
+          b = lerp(b, horB, tHor * 0.92);
+
+          var cloudBand = clamp((h - 0.015) / 0.14, 0.0, 1.0) * clamp((0.78 - h) / 0.52, 0.0, 1.0);
+          if (cloudBand > 0.004) {
+            var projScale = 3.8 / (h + 0.24);
+            var cxp = dx * projScale;
+            var cyp = dy * 2.4;
+            var czp = dz * projScale;
+
+            var dens = cloudFbm(cxp, cyp, czp);
+            var cov = clamp((dens - 0.47) / 0.30, 0.0, 1.0);
+            var cloudAlpha = cov * cov * (3 - 2 * cov) * cloudBand * 0.86;
+
+            if (cloudAlpha > 0.005) {
+              var litSample = cloudFbm(cxp + ux * 0.42, cyp + uy * 0.35, czp + uz * 0.42);
+              var shadow = clamp((litSample - dens) * 3.8, -0.45, 0.65);
+              var sunLit = clamp(0.58 - shadow + Math.pow(sunDot, 3.0) * 0.42, 0.10, 1.0);
+              var silverLining = Math.pow(sunDot, 6.0) * clamp(1.0 - cov * 0.75, 0.15, 1.0);
+
+              var cr = lerp(38, 248, sunLit) + silverLining * 52;
+              var cg = lerp(52, 212, sunLit) + silverLining * 36;
+              var cb = lerp(78, 160, sunLit) + silverLining * 14;
+
+              var mist = Math.pow(1.0 - h, 4.2) * 0.60;
+              cr = lerp(cr, horR, mist);
+              cg = lerp(cg, horG, mist);
+              cb = lerp(cb, horB, mist);
+
+              r = lerp(r, cr, cloudAlpha);
+              g = lerp(g, cg, cloudAlpha);
+              b = lerp(b, cb, cloudAlpha);
+            }
+          }
+
+          var mie = Math.pow(sunDot, 8.5) * 0.44 + Math.pow(sunDot, 60.0) * 0.82 + Math.pow(sunDot, 360.0) * 1.40;
+          r += 255 * mie * 0.92;
+          g += 226 * mie * 0.82;
+          b += 160 * mie * 0.58;
+        } else {
+          var depth = clamp(-dy, 0.0, 1.0);
+          var reflSun = Math.max(0, dx * ux + (-dy) * uy + dz * uz);
+          var waterGlint = Math.pow(reflSun, 14.0) * 0.52;
+          r = lerp(54, 10, Math.pow(depth, 0.55)) + 212 * waterGlint;
+          g = lerp(74, 30, Math.pow(depth, 0.55)) + 175 * waterGlint;
+          b = lerp(102, 58, Math.pow(depth, 0.55)) + 92 * waterGlint;
+        }
+
+        var p = (y * cw + x) * 4;
+        data[p] = clamp(Math.round(r), 0, 255);
+        data[p + 1] = clamp(Math.round(g), 0, 255);
+        data[p + 2] = clamp(Math.round(b), 0, 255);
+        data[p + 3] = 255;
+      }
+    }
+    cctx.putImageData(img, 0, 0);
+
+    ctx.imageSmoothingEnabled = true;
+    if (typeof ctx.imageSmoothingQuality !== 'undefined') {
+      ctx.imageSmoothingQuality = 'high';
+    }
+    ctx.drawImage(cloudCanvas, 0, 0, W, H);
+
+    var hzGrad = ctx.createLinearGradient(0, H * 0.43, 0, H * 0.54);
+    hzGrad.addColorStop(0.0, 'rgba(245, 206, 134, 0.0)');
+    hzGrad.addColorStop(0.58, 'rgba(238, 196, 124, 0.14)');
+    hzGrad.addColorStop(0.75, 'rgba(182, 160, 136, 0.18)');
+    hzGrad.addColorStop(1.0, 'rgba(22, 44, 74, 0.0)');
+    ctx.fillStyle = hzGrad;
+    ctx.fillRect(0, H * 0.43, W, H * 0.11);
+
     var tex = configureTex(THREE, new THREE.CanvasTexture(c), maxAniso, 4);
+    if (THREE.EquirectangularReflectionMapping) {
+      tex.mapping = THREE.EquirectangularReflectionMapping;
+    }
     tex.wrapS = THREE.RepeatWrapping;
-    tex.wrapT = THREE.RepeatWrapping;
+    tex.wrapT = THREE.ClampToEdgeWrapping;
+    return tex;
+  }
+
+  // Procedural Soft Squircle Contact-Shadow Map for Baked Ambient Occlusion
+  function makeBakedAoShadowTexture(THREE) {
+    var S = 256;
+    var c = document.createElement('canvas');
+    c.width = S;
+    c.height = S;
+    var ctx = c.getContext('2d');
+    var img = ctx.createImageData(S, S);
+    var d = img.data;
+    var half = S * 0.5;
+
+    for (var y = 0; y < S; y++) {
+      var ny = Math.abs((y + 0.5 - half) / half);
+      for (var x = 0; x < S; x++) {
+        var nx = Math.abs((x + 0.5 - half) / half);
+        var dist = Math.pow(Math.pow(nx, 2.8) + Math.pow(ny, 2.8), 1.0 / 2.8);
+        var t = clamp(1.0 - dist / 0.95, 0.0, 1.0);
+        var alpha = Math.pow(t, 1.85) * 0.72;
+        var p = (y * S + x) * 4;
+        d[p] = 4;
+        d[p + 1] = 6;
+        d[p + 2] = 11;
+        d[p + 3] = clamp(Math.round(alpha * 255), 0, 255);
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+    var tex = new THREE.CanvasTexture(c);
+    tex.generateMipmaps = true;
+    tex.minFilter = THREE.LinearMipmapLinearFilter;
+    tex.magFilter = THREE.LinearFilter;
+    tex.needsUpdate = true;
     return tex;
   }
 
@@ -1165,6 +1458,24 @@
 
   FunkenwerkHeroes3DEngine.prototype._buildMaterials = function () {
     var THREE = this.THREE;
+    this.staticDisposables = [];
+    this._pantheonRefVec = new THREE.Vector3(0, PANTHEON_Y + 4.0, PANTHEON_Z);
+
+    var sunDir = new THREE.Vector3(-0.35, 0.32, -0.88).normalize();
+    this.skyPanoramaTex = makePhotorealSkyPanoramaTexture(THREE, this.maxAniso, sunDir);
+    this.staticDisposables.push(this.skyPanoramaTex);
+
+    if (this.renderer && typeof THREE.PMREMGenerator === 'function') {
+      var pmremGen = new THREE.PMREMGenerator(this.renderer);
+      if (typeof pmremGen.compileEquirectangularShader === 'function') {
+        pmremGen.compileEquirectangularShader();
+      }
+      this.pmremTarget = pmremGen.fromEquirectangular(this.skyPanoramaTex);
+      this.scene.environment = this.pmremTarget.texture;
+      this.staticDisposables.push(this.pmremTarget);
+      pmremGen.dispose();
+    }
+
     var mcGoldBright = makeLuxuryMatcap(THREE, this.maxAniso, '#D4AF37', '#FFFBEB', '#FDE68A', 38, 0.46);
     var mcGoldBrushed = makeLuxuryMatcap(THREE, this.maxAniso, '#B89146', '#FFF3C4', '#D4AF37', 22, 0.32);
     var mcGoldAntique = makeLuxuryMatcap(THREE, this.maxAniso, '#8F6A28', '#FDE68A', '#C5A059', 18, 0.28);
@@ -1178,12 +1489,61 @@
     var mcSapphireCrystal = makeLuxuryMatcap(THREE, this.maxAniso, '#0284C7', '#E0F2FE', '#7DD3FC', 40, 0.58);
     var mcAmethystCrystal = makeLuxuryMatcap(THREE, this.maxAniso, '#7E22CE', '#F3E8FF', '#D8B4FE', 42, 0.62);
 
-    var facadeTex = makeSkyscraperFacadeTexture(THREE, this.maxAniso);
+    var facadeAtlas = makeSkyscraperFacadeAtlas(THREE, this.maxAniso);
+    var stColorTex = facadeAtlas.colorTex.clone();
+    stColorTex.repeat.set(2, 3);
+    stColorTex.needsUpdate = true;
+    var stEmisTex = facadeAtlas.emissiveTex.clone();
+    stEmisTex.repeat.set(2, 3);
+    stEmisTex.needsUpdate = true;
+    var stRoughTex = facadeAtlas.roughnessTex.clone();
+    stRoughTex.repeat.set(2, 3);
+    stRoughTex.needsUpdate = true;
+
+    var aoTex = makeBakedAoShadowTexture(THREE);
+    this.staticDisposables.push(
+      facadeAtlas.colorTex, facadeAtlas.emissiveTex, facadeAtlas.roughnessTex,
+      stColorTex, stEmisTex, stRoughTex, aoTex
+    );
     this.sparkSpriteTex = makeSparkParticleTexture(THREE);
 
     this.mats = {
-      goldBright: new THREE.MeshMatcapMaterial({ matcap: mcGoldBright }),
-      goldBrushed: new THREE.MeshMatcapMaterial({ matcap: mcGoldBrushed }),
+      goldBright: new THREE.MeshMatcapMaterial({
+        matcap: mcGoldBright,
+        polygonOffset: true,
+        polygonOffsetFactor: -1,
+        polygonOffsetUnits: -2
+      }),
+      goldBrushed: new THREE.MeshMatcapMaterial({
+        matcap: mcGoldBrushed,
+        polygonOffset: true,
+        polygonOffsetFactor: -1,
+        polygonOffsetUnits: -2
+      }),
+      goldPbrBright: new THREE.MeshStandardMaterial({
+        color: 0xE2BA4A,
+        metalness: 0.88,
+        roughness: 0.20,
+        envMapIntensity: 1.32,
+        polygonOffset: true,
+        polygonOffsetFactor: -1,
+        polygonOffsetUnits: -2
+      }),
+      goldPbrBrushed: new THREE.MeshStandardMaterial({
+        color: 0xC69C42,
+        metalness: 0.80,
+        roughness: 0.34,
+        envMapIntensity: 1.15,
+        polygonOffset: true,
+        polygonOffsetFactor: -1,
+        polygonOffsetUnits: -2
+      }),
+      obsidianPbr: new THREE.MeshStandardMaterial({
+        color: 0x101520,
+        metalness: 0.42,
+        roughness: 0.24,
+        envMapIntensity: 1.18
+      }),
       goldAntique: new THREE.MeshMatcapMaterial({ matcap: mcGoldAntique }),
       obsidian: new THREE.MeshMatcapMaterial({ matcap: mcObsidian }),
       anthracite: new THREE.MeshMatcapMaterial({ matcap: mcGunmetal }),
@@ -1197,15 +1557,59 @@
       amethystCrystal: new THREE.MeshMatcapMaterial({ matcap: mcAmethystCrystal }),
       alabasterStep: new THREE.MeshBasicMaterial({ color: 0xE2DFD7 }),
       sapphireTrim: new THREE.MeshBasicMaterial({ color: 0x133B5C }),
-      skyscraperFacade: new THREE.MeshBasicMaterial({ map: facadeTex }),
-      beaconGold: new THREE.MeshBasicMaterial({ color: 0xFFE89E }),
+      skyscraperFacade: new THREE.MeshStandardMaterial({
+        map: facadeAtlas.colorTex,
+        roughnessMap: facadeAtlas.roughnessTex,
+        roughness: 1.0,
+        metalness: 0.26,
+        emissive: new THREE.Color(0xFFE4A3),
+        emissiveMap: facadeAtlas.emissiveTex,
+        emissiveIntensity: 0.78,
+        envMapIntensity: 1.18
+      }),
+      supertowerFacade: new THREE.MeshStandardMaterial({
+        map: stColorTex,
+        roughnessMap: stRoughTex,
+        roughness: 1.0,
+        metalness: 0.30,
+        emissive: new THREE.Color(0xFFE8B0),
+        emissiveMap: stEmisTex,
+        emissiveIntensity: 0.84,
+        envMapIntensity: 1.26
+      }),
+      bakedAo: new THREE.MeshBasicMaterial({
+        map: aoTex,
+        transparent: true,
+        opacity: 0.82,
+        depthWrite: false,
+        polygonOffset: true,
+        polygonOffsetFactor: -3,
+        polygonOffsetUnits: -6
+      }),
+      beaconGold: new THREE.MeshBasicMaterial({
+        color: 0xFFE89E,
+        polygonOffset: true,
+        polygonOffsetFactor: -1,
+        polygonOffsetUnits: -2
+      }),
       plasmaBlue: new THREE.MeshBasicMaterial({ color: 0x38BDF8 }),
       gemYellow: new THREE.MeshBasicMaterial({ color: 0xFACC15 }),
       vialGreen: new THREE.MeshBasicMaterial({ color: 0x10B981 }),
       vialRed: new THREE.MeshBasicMaterial({ color: 0xEF4444 }),
       amethystGlow: new THREE.MeshBasicMaterial({ color: 0xC084FC }),
-      mySlotGlow: new THREE.MeshBasicMaterial({ color: 0xFDE68A, side: THREE.DoubleSide }),
-      pierVeins: new THREE.MeshBasicMaterial({ color: 0xFFFFFF })
+      mySlotGlow: new THREE.MeshBasicMaterial({
+        color: 0xFDE68A,
+        side: THREE.DoubleSide,
+        polygonOffset: true,
+        polygonOffsetFactor: -2,
+        polygonOffsetUnits: -4
+      }),
+      pierVeins: new THREE.MeshBasicMaterial({
+        color: 0xFFFFFF,
+        polygonOffset: true,
+        polygonOffsetFactor: -2,
+        polygonOffsetUnits: -4
+      })
     };
   };
 
@@ -1216,7 +1620,8 @@
 
     this.skyUniforms = {
       uSpaceBlend: { value: 1.0 },
-      uSunDir: { value: new THREE.Vector3(-0.35, 0.32, -0.88).normalize() }
+      uSunDir: { value: new THREE.Vector3(-0.35, 0.32, -0.88).normalize() },
+      uSkyPano: { value: this.skyPanoramaTex }
     };
 
     var skyMat = new THREE.ShaderMaterial({
@@ -1234,6 +1639,7 @@
       fragmentShader: [
         'uniform float uSpaceBlend;',
         'uniform vec3 uSunDir;',
+        'uniform sampler2D uSkyPano;',
         'varying vec3 vWorldDir;',
         'void main() {',
         '  vec3 d = normalize(vWorldDir);',
@@ -1241,21 +1647,17 @@
         '  vec3 spaceCol = mix(vec3(0.015, 0.022, 0.045), vec3(0.004, 0.006, 0.015), clamp(h * 1.4 + 0.2, 0.0, 1.0));',
         '  float nebula = pow(max(0.0, dot(d, normalize(vec3(0.42, 0.36, -0.82)))), 3.0);',
         '  spaceCol += vec3(0.085, 0.062, 0.025) * nebula;',
-        '  vec3 zenithCol = vec3(0.045, 0.125, 0.255);',
-        '  vec3 midSkyCol = vec3(0.125, 0.285, 0.465);',
-        '  vec3 horizonCol = vec3(0.58, 0.53, 0.46);',
-        '  float tSky = pow(1.0 - clamp(h, 0.0, 1.0), 2.4);',
-        '  vec3 citySky = mix(zenithCol, midSkyCol, smoothstep(0.85, 0.18, h));',
-        '  citySky = mix(citySky, horizonCol, tSky);',
-        '  float sunDot = max(0.0, dot(d, uSunDir));',
-        '  citySky += vec3(0.92, 0.74, 0.38) * pow(sunDot, 6.0) * 0.46;',
-        '  citySky += vec3(1.00, 0.96, 0.82) * pow(sunDot, 90.0) * 0.92;',
+        '  vec2 equirectUv = vec2(',
+        '    atan(d.z, d.x) * 0.15915494 + 0.5,',
+        '    asin(clamp(d.y, -1.0, 1.0)) * 0.31830989 + 0.5',
+        '  );',
+        '  vec3 citySky = texture2D(uSkyPano, equirectUv).rgb;',
         '  vec3 col = mix(citySky, spaceCol, uSpaceBlend);',
         '  gl_FragColor = vec4(col, 1.0);',
         '}'
       ].join('\n')
     });
-    this.spaceGroup.add(new THREE.Mesh(new THREE.SphereGeometry(18500, 36, 24), skyMat));
+    this.spaceGroup.add(new THREE.Mesh(new THREE.SphereGeometry(18500, 44, 28), skyMat));
 
     var rng = mulberry32(424242);
     var starCount = 2800;
@@ -1360,7 +1762,8 @@
     this.oceanUniforms = {
       uTime: { value: 0 },
       uAlpha: { value: 1.0 },
-      uSunDir: { value: new THREE.Vector3(-0.35, 0.32, -0.88).normalize() }
+      uSunDir: { value: new THREE.Vector3(-0.35, 0.32, -0.88).normalize() },
+      uSkyPano: { value: this.skyPanoramaTex }
     };
 
     var oceanMat = new THREE.ShaderMaterial({
@@ -1383,6 +1786,7 @@
         'uniform float uTime;',
         'uniform float uAlpha;',
         'uniform vec3 uSunDir;',
+        'uniform sampler2D uSkyPano;',
         'varying vec3 vWorldPos;',
         'vec3 getOceanNormal(vec2 p, float dist) {',
         '  float fade = smoothstep(3600.0, 120.0, dist);',
@@ -1400,9 +1804,15 @@
         '  vec3 N = getOceanNormal(xz, dist);',
         '  vec3 L = normalize(uSunDir);',
         '  float lagoon = smoothstep(660.0, 160.0, dist);',
-        '  vec3 waterBase = mix(vec3(0.022, 0.085, 0.165), vec3(0.045, 0.205, 0.315), lagoon * 0.78);',
+        '  vec3 waterBase = mix(vec3(0.020, 0.080, 0.160), vec3(0.042, 0.195, 0.305), lagoon * 0.78);',
         '  float fresnel = pow(1.0 - max(0.0, dot(N, V)), 3.8);',
-        '  vec3 skyRefl = mix(vec3(0.42, 0.39, 0.36), vec3(0.075, 0.185, 0.345), clamp(reflect(-V, N).y * 1.5, 0.0, 1.0));',
+        '  vec3 rawRefl = reflect(-V, N);',
+        '  vec3 reflDir = normalize(vec3(rawRefl.x, abs(rawRefl.y) + 0.015, rawRefl.z));',
+        '  vec2 reflUv = vec2(',
+        '    atan(reflDir.z, reflDir.x) * 0.15915494 + 0.5,',
+        '    asin(clamp(reflDir.y, -1.0, 1.0)) * 0.31830989 + 0.5',
+        '  );',
+        '  vec3 skyRefl = texture2D(uSkyPano, reflUv).rgb * 0.90;',
         '  vec3 col = mix(waterBase, skyRefl, clamp(0.18 + fresnel * 0.74, 0.0, 0.90));',
         '  vec3 H = normalize(L + V);',
         '  float spec = pow(max(0.0, dot(N, H)), 150.0) * 1.45 + pow(max(0.0, dot(N, H)), 22.0) * 0.26;',
@@ -1410,7 +1820,8 @@
         '  float coreGlow = exp(-max(0.0, dist - 140.0) * 0.012) * smoothstep(90.0, 165.0, dist);',
         '  col += vec3(0.86, 0.68, 0.34) * coreGlow * 0.35;',
         '  float fog = smoothstep(3200.0, 9000.0, dist);',
-        '  col = mix(col, vec3(0.32, 0.34, 0.38), fog);',
+        '  vec3 horCol = texture2D(uSkyPano, vec2(atan(vWorldPos.z, vWorldPos.x) * 0.15915494 + 0.5, 0.505)).rgb;',
+        '  col = mix(col, horCol * 0.88, fog);',
         '  gl_FragColor = vec4(col, uAlpha);',
         '}'
       ].join('\n')
@@ -1430,12 +1841,13 @@
 
     var rng = mulberry32(20260707);
 
+    // Cleanly stepped >= 0.70m vertical separation across all Core Island terraces (zero coplanar overlap!)
     var coreTiers = [
-      { r: 148, h: 3.2, y: 1.6, mat: this.mats.anthracite },
-      { r: 149.2, h: 0.9, y: 3.3, mat: this.mats.goldBrushed },
-      { r: 132, h: 3.4, y: 4.9, mat: this.mats.obsidian },
-      { r: 133.0, h: 0.85, y: 6.7, mat: this.mats.goldBright },
-      { r: 96, h: 2.8, y: 8.0, mat: this.mats.obsidian }
+      { r: 148.0, h: 2.80, y: 1.40, mat: this.mats.anthracite },
+      { r: 149.2, h: 0.68, y: 3.16, mat: this.mats.goldBrushed },
+      { r: 132.0, h: 2.90, y: 4.98, mat: this.mats.obsidian },
+      { r: 133.2, h: 0.68, y: 6.80, mat: this.mats.goldBright },
+      { r: 96.0,  h: 2.30, y: 8.32, mat: this.mats.obsidian }
     ];
     for (var ct = 0; ct < coreTiers.length; ct++) {
       var tier = coreTiers[ct];
@@ -1463,19 +1875,21 @@
     wingShape.lineTo(22, 275);
     wingShape.closePath();
 
+    // wingDeck top at Y = 4.80 + 0.70 = 5.50m; wingGoldTrim wider seawall promenade stepped at Y = 4.70 + 0.32 = 5.02m (0.48m step!)
     var wingDeckGeo = new THREE.ExtrudeGeometry(wingShape, {
-      depth: 4.2, bevelEnabled: true, bevelThickness: 0.8, bevelSize: 1.2, bevelSegments: 1
+      depth: 4.1, bevelEnabled: true, bevelThickness: 0.70, bevelSize: 0.90, bevelSegments: 1
     });
     wingDeckGeo.rotateX(Math.PI / 2);
 
     var wingGoldTrimGeo = new THREE.ExtrudeGeometry(wingShape, {
-      depth: 0.75, bevelEnabled: true, bevelThickness: 0.35, bevelSize: 1.8, bevelSegments: 1
+      depth: 0.72, bevelEnabled: true, bevelThickness: 0.32, bevelSize: 2.35, bevelSegments: 1
     });
     wingGoldTrimGeo.rotateX(Math.PI / 2);
 
     var towerTransforms = [];
     var goldFrameTransforms = [];
     var spireTransforms = [];
+    var aoTransforms = [];
     var veinItems = [];
 
     function pushMat(arr, x, y, z, sx, sy, sz, rotY) {
@@ -1486,6 +1900,14 @@
       arr.push(self.dummyObj.matrix.clone());
     }
 
+    function pushAo(x, y, z, sx, sz, rotY) {
+      self.dummyObj.position.set(x, y, z);
+      self.dummyObj.rotation.set(0, rotY || 0, 0);
+      self.dummyObj.scale.set(sx, 1, sz);
+      self.dummyObj.updateMatrix();
+      aoTransforms.push(self.dummyObj.matrix.clone());
+    }
+
     function pushVein(x, y, z, sx, sy, sz, rotY, hexCol) {
       self.dummyObj.position.set(x, y, z);
       self.dummyObj.rotation.set(0, rotY || 0, 0);
@@ -1494,16 +1916,21 @@
       veinItems.push({ matrix: self.dummyObj.matrix.clone(), color: new THREE.Color(hexCol) });
     }
 
+    pushAo(0, 9.55, 0, 94, 94, 0);
+    pushAo(0, 6.51, 0, 212, 212, 0);
+
     function addSteppedSkyscraper(wx, baseY, wz, baseW, baseD, totalH, rotY, accentHex) {
+      pushAo(wx, baseY + 0.08, wz, baseW * 1.66, baseD * 1.66, rotY);
+
       var h1 = totalH * 0.64;
       pushMat(towerTransforms, wx, baseY + h1 * 0.5, wz, baseW, h1, baseD, rotY);
-      pushMat(goldFrameTransforms, wx, baseY + h1 + 0.6, wz, baseW * 1.06, 1.2, baseD * 1.06, rotY);
+      pushMat(goldFrameTransforms, wx, baseY + h1 + 0.62, wz, baseW * 1.07, 1.2, baseD * 1.07, rotY);
 
       var h2 = totalH * 0.26;
       var w2 = baseW * 0.74;
       var d2 = baseD * 0.74;
       pushMat(towerTransforms, wx, baseY + h1 + h2 * 0.5, wz, w2, h2, d2, rotY);
-      pushMat(goldFrameTransforms, wx, baseY + h1 + h2 + 0.5, wz, w2 * 1.08, 1.0, d2 * 1.08, rotY);
+      pushMat(goldFrameTransforms, wx, baseY + h1 + h2 + 0.54, wz, w2 * 1.09, 1.0, d2 * 1.09, rotY);
 
       var h3 = totalH * 0.12;
       var w3 = baseW * 0.48;
@@ -1512,9 +1939,9 @@
       pushMat(spireTransforms, wx, baseY + totalH + spireH * 0.48, wz, Math.max(0.7, baseW * 0.08), spireH, Math.max(0.7, baseW * 0.08), rotY);
 
       if (accentHex) {
-        var vx = wx + Math.sin(rotY) * (baseD * 0.51);
-        var vz = wz + Math.cos(rotY) * (baseD * 0.51);
-        pushVein(vx, baseY + (h1 + h2) * 0.5, vz, 0.55, (h1 + h2) * 0.92, 0.55, rotY, accentHex);
+        var vx = wx + Math.sin(rotY) * (baseD * 0.535);
+        var vz = wz + Math.cos(rotY) * (baseD * 0.535);
+        pushVein(vx, baseY + (h1 + h2) * 0.5, vz, 0.58, (h1 + h2) * 0.90, 0.58, rotY, accentHex);
       }
     }
 
@@ -1535,14 +1962,17 @@
         }
         var h = lerp(ring.minH, ring.maxH, rng());
         var w = ring.w * (0.86 + rng() * 0.28);
-        addSteppedSkyscraper(wx, 8.2, wz, w, w, h, -ang + Math.PI * 0.5, (ci % 4 === 0) ? PIER_ACCENTS[ci % 7] : null);
+        var coreBaseY = ring.rad < 95.0 ? 9.47 : 6.43;
+        addSteppedSkyscraper(wx, coreBaseY, wz, w, w, h, -ang + Math.PI * 0.5, (ci % 4 === 0) ? PIER_ACCENTS[ci % 7] : null);
       }
     }
 
-    var causewayGeo = new THREE.BoxGeometry(30, 3.4, 142);
-    var causewayGoldTrimGeo = new THREE.BoxGeometry(32.2, 0.85, 142);
+    // Shortened end-faces (-0.30m per end) & >= 0.38m vertical step separation
+    var causewayGeo = new THREE.BoxGeometry(30.0, 3.20, 134.0);
+    var causewayGoldTrimGeo = new THREE.BoxGeometry(32.6, 0.68, 133.4);
+    var causewayParapetGeo = new THREE.BoxGeometry(1.10, 0.42, 133.4);
     var landingPadOctGeo = new THREE.CylinderGeometry(34, 37, 4.2, 8);
-    var landingPadRingGeo = new THREE.TorusGeometry(24, 1.15, 8, 8);
+    var landingPadRingGeo = new THREE.TorusGeometry(24, 0.62, 8, 8);
     landingPadRingGeo.rotateX(Math.PI / 2);
 
     this.pierAngles = [];
@@ -1557,32 +1987,40 @@
       this.cityGroup.add(pierGrp);
 
       var cwDeck = new THREE.Mesh(causewayGeo, k === 0 ? this.mats.alabasterStep : this.mats.obsidian);
-      cwDeck.position.set(0, 3.8, 213);
+      cwDeck.position.set(0, 3.48, 211.5);
       pierGrp.add(cwDeck);
 
       var cwTrim = new THREE.Mesh(causewayGoldTrimGeo, this.mats.goldBright);
-      cwTrim.position.set(0, 5.4, 213);
+      cwTrim.position.set(0, 4.36, 211.5);
       pierGrp.add(cwTrim);
 
+      for (var cpSide = -1; cpSide <= 1; cpSide += 2) {
+        var parapet = new THREE.Mesh(causewayParapetGeo, this.mats.goldBright);
+        parapet.position.set(cpSide * 14.45, 5.29, 211.5);
+        pierGrp.add(parapet);
+      }
+
       var wingDeck = new THREE.Mesh(wingDeckGeo, this.mats.anthracite);
-      wingDeck.position.set(0, 4.8, 0);
+      wingDeck.position.set(0, 4.80, 0);
       pierGrp.add(wingDeck);
 
       var wingGold = new THREE.Mesh(wingGoldTrimGeo, this.mats.goldBright);
-      wingGold.position.set(0, 5.52, 0);
+      wingGold.position.set(0, 4.70, 0);
       pierGrp.add(wingGold);
 
-      var linkBridge = new THREE.Mesh(new THREE.BoxGeometry(18, 2.8, 28), this.mats.obsidian);
-      linkBridge.position.set(0, 3.8, 508);
+      var linkBridge = new THREE.Mesh(new THREE.BoxGeometry(18, 2.50, 26.4), this.mats.obsidian);
+      linkBridge.position.set(0, 3.70, 506);
       pierGrp.add(linkBridge);
 
       var pad = new THREE.Mesh(landingPadOctGeo, this.mats.obsidian);
-      pad.position.set(0, 2.6, 540);
+      pad.position.set(0, 2.40, 540);
       pierGrp.add(pad);
 
       var padGoldRing = new THREE.Mesh(landingPadRingGeo, this.mats.goldBright);
-      padGoldRing.position.set(0, 4.85, 540);
+      padGoldRing.position.set(0, 4.92, 540);
       pierGrp.add(padGoldRing);
+
+      pushAo(Math.sin(rotY) * 540, 0.16, Math.cos(rotY) * 540, 88, 88, rotY);
 
       var pierTowerSpots = [
         [-44, 342, 66, 10.2], [44, 342, 68, 10.2],
@@ -1602,13 +2040,14 @@
         var sp = pierTowerSpots[pts];
         var twx = sp[0] * Math.cos(rotY) + sp[1] * Math.sin(rotY);
         var twz = -sp[0] * Math.sin(rotY) + sp[1] * Math.cos(rotY);
-        addSteppedSkyscraper(twx, 5.4, twz, sp[3], sp[3] * 0.94, sp[2] * (0.9 + rng() * 0.2), rotY, PIER_ACCENTS[k]);
+        addSteppedSkyscraper(twx, 5.50, twz, sp[3], sp[3] * 0.94, sp[2] * (0.9 + rng() * 0.2), rotY, PIER_ACCENTS[k]);
       }
     }
 
-    var ringRadii = [{ r: 266, width: 14.0, y: 4.1 }, { r: 412, width: 16.0, y: 4.6 }];
+    var ringRadii = [{ r: 266, width: 14.0, y: 3.55 }, { r: 412, width: 16.0, y: 3.95 }];
     for (var rbIdx = 0; rbIdx < ringRadii.length; rbIdx++) {
       var rb = ringRadii[rbIdx];
+      var deckTop = rb.y + 1.0;
       for (var rk = 0; rk < 7; rk++) {
         var a1 = this.pierAngles[rk];
         var a2 = this.pierAngles[(rk + 1) % 7];
@@ -1616,26 +2055,40 @@
         var p2x = Math.cos(a2) * rb.r, p2z = Math.sin(a2) * rb.r;
         var dx = p2x - p1x, dz = p2z - p1z;
         var spanLen = Math.hypot(dx, dz);
+        var deckLen = Math.max(12, spanLen - 2.4);
+        var railLen = Math.max(10, deckLen - 0.60);
         var midX = (p1x + p2x) * 0.5, midZ = (p1z + p2z) * 0.5;
         var bridgeRotY = Math.atan2(dx, dz);
 
-        var deck = new THREE.Mesh(new THREE.BoxGeometry(rb.width, 2.0, spanLen), this.mats.obsidian);
+        var deck = new THREE.Mesh(new THREE.BoxGeometry(rb.width, 2.0, deckLen), this.mats.obsidian);
         deck.position.set(midX, rb.y, midZ);
         deck.rotation.y = bridgeRotY;
         this.cityGroup.add(deck);
 
-        var rail = new THREE.Mesh(new THREE.BoxGeometry(rb.width + 1.8, 0.65, spanLen), this.mats.goldBrushed);
-        rail.position.set(midX, rb.y + 1.2, midZ);
+        var rail = new THREE.Mesh(new THREE.BoxGeometry(rb.width + 2.2, 0.56, railLen), this.mats.goldBrushed);
+        rail.position.set(midX, deckTop - 0.68, midZ);
         rail.rotation.y = bridgeRotY;
         this.cityGroup.add(rail);
+
+        for (var rs = -1; rs <= 1; rs += 2) {
+          var rOff = rs * (rb.width * 0.5 - 0.48);
+          var rx = midX + rOff * Math.cos(bridgeRotY);
+          var rz = midZ - rOff * Math.sin(bridgeRotY);
+          var sideBar = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.42, railLen), this.mats.goldBright);
+          sideBar.position.set(rx, deckTop + 0.21, rz);
+          sideBar.rotation.y = bridgeRotY;
+          this.cityGroup.add(sideBar);
+        }
       }
     }
 
     var unitBox = new THREE.BoxGeometry(1, 1, 1);
     var unitSpire = new THREE.ConeGeometry(0.5, 1, 6);
+    var unitAoPlane = new THREE.PlaneGeometry(1, 1);
+    unitAoPlane.rotateX(-Math.PI * 0.5);
 
     function commitInst(geo, mat, matrices) {
-      if (!matrices.length) return;
+      if (!matrices.length) return null;
       var inst = new THREE.InstancedMesh(geo, mat, matrices.length);
       for (var idx = 0; idx < matrices.length; idx++) {
         inst.setMatrixAt(idx, matrices[idx]);
@@ -1643,11 +2096,15 @@
       inst.instanceMatrix.needsUpdate = true;
       inst.frustumCulled = false;
       self.cityGroup.add(inst);
+      return inst;
     }
 
     commitInst(unitBox, this.mats.skyscraperFacade, towerTransforms);
     commitInst(unitBox, this.mats.goldBrushed, goldFrameTransforms);
     commitInst(unitSpire, this.mats.goldBright, spireTransforms);
+
+    var aoInst = commitInst(unitAoPlane, this.mats.bakedAo, aoTransforms);
+    if (aoInst) aoInst.renderOrder = 1;
 
     if (veinItems.length > 0) {
       var veinInst = new THREE.InstancedMesh(unitBox, this.mats.pierVeins, veinItems.length);
@@ -1684,28 +2141,28 @@
     }
   };
 
-  // Strictly Customer-Isolated Supertower ("MEIN SEELENFUNKE" — ZERO internal admin throne room!)
+  // Strictly Customer-Isolated Supertower ("MEIN SEELENFUNKE", ZERO internal admin throne room!)
   FunkenwerkHeroes3DEngine.prototype._buildSupertower = function () {
     var THREE = this.THREE;
     var towerGrp = new THREE.Group();
     this.cityGroup.add(towerGrp);
 
-    var basePodium = new THREE.Mesh(new THREE.CylinderGeometry(30, 36, 18, 8), this.mats.obsidian);
-    basePodium.position.y = 17;
+    var basePodium = new THREE.Mesh(new THREE.CylinderGeometry(30, 36, 17, 8), this.mats.obsidianPbr);
+    basePodium.position.y = 17.5;
     towerGrp.add(basePodium);
 
-    var baseGoldCollar = new THREE.Mesh(new THREE.CylinderGeometry(31.2, 31.2, 2.2, 8), this.mats.goldBright);
-    baseGoldCollar.position.y = 26.2;
+    var baseGoldCollar = new THREE.Mesh(new THREE.CylinderGeometry(31.2, 31.2, 2.2, 8), this.mats.goldPbrBright);
+    baseGoldCollar.position.y = 26.8;
     towerGrp.add(baseGoldCollar);
 
-    var coreShaft = new THREE.Mesh(new THREE.CylinderGeometry(13.2, 20.5, 194, 8), this.mats.skyscraperFacade);
+    var coreShaft = new THREE.Mesh(new THREE.CylinderGeometry(13.2, 20.5, 194, 8), this.mats.supertowerFacade);
     coreShaft.position.y = 123;
     towerGrp.add(coreShaft);
 
     for (var i = 0; i < 8; i++) {
       var ang = (i / 8) * Math.PI * 2 + Math.PI / 8;
-      var rib = new THREE.Mesh(new THREE.BoxGeometry(1.75, 232, 2.8), this.mats.goldBright);
-      rib.position.set(Math.cos(ang) * 16.8, 138, Math.sin(ang) * 16.8);
+      var rib = new THREE.Mesh(new THREE.BoxGeometry(1.75, 232, 2.8), this.mats.goldPbrBright);
+      rib.position.set(Math.cos(ang) * 16.95, 138, Math.sin(ang) * 16.95);
       rib.rotation.y = -ang + Math.PI * 0.5;
       towerGrp.add(rib);
     }
@@ -1717,49 +2174,54 @@
       var dist = 20.5 - w * 1.15;
       var rad = 8.8 - w * 0.55;
 
-      var wingShaft = new THREE.Mesh(new THREE.CylinderGeometry(rad * 0.84, rad, wh - 24, 6), this.mats.skyscraperFacade);
+      var wingShaft = new THREE.Mesh(new THREE.CylinderGeometry(rad * 0.84, rad, wh - 24, 6), this.mats.supertowerFacade);
       wingShaft.position.set(Math.cos(wang) * dist, 24 + (wh - 24) * 0.5, Math.sin(wang) * dist);
       towerGrp.add(wingShaft);
 
-      var cap = new THREE.Mesh(new THREE.CylinderGeometry(rad * 0.92, rad * 0.96, 2.4, 6), this.mats.goldBright);
-      cap.position.set(Math.cos(wang) * dist, wh + 1.0, Math.sin(wang) * dist);
+      var cap = new THREE.Mesh(new THREE.CylinderGeometry(rad * 0.94, rad * 0.98, 2.4, 6), this.mats.goldPbrBright);
+      cap.position.set(Math.cos(wang) * dist, wh + 1.2, Math.sin(wang) * dist);
       towerGrp.add(cap);
     }
 
-    var starkDeck = new THREE.Mesh(new THREE.BoxGeometry(44, 10.5, 32), this.mats.obsidian);
+    var starkDeck = new THREE.Mesh(new THREE.BoxGeometry(44, 10.2, 32), this.mats.obsidianPbr);
     starkDeck.position.set(0, 238.5, 2.2);
     towerGrp.add(starkDeck);
 
-    var starkGoldTop = new THREE.Mesh(new THREE.BoxGeometry(45.6, 1.5, 33.6), this.mats.goldBright);
-    starkGoldTop.position.set(0, 244.2, 2.2);
+    var starkGoldTop = new THREE.Mesh(new THREE.BoxGeometry(45.6, 1.5, 33.6), this.mats.goldPbrBright);
+    starkGoldTop.position.set(0, 244.45, 2.2);
     towerGrp.add(starkGoldTop);
 
-    var starkGoldBot = new THREE.Mesh(new THREE.BoxGeometry(45.6, 1.5, 33.6), this.mats.goldBright);
-    starkGoldBot.position.set(0, 232.8, 2.2);
+    var starkGoldBot = new THREE.Mesh(new THREE.BoxGeometry(45.6, 1.5, 33.6), this.mats.goldPbrBright);
+    starkGoldBot.position.set(0, 232.55, 2.2);
     towerGrp.add(starkGoldBot);
 
     var signTex = makeBannerPlaqueTexture(THREE, this.maxAniso, 'MEIN SEELENFUNKE');
-    var signMat = new THREE.MeshBasicMaterial({ map: signTex });
+    var signMat = new THREE.MeshBasicMaterial({
+      map: signTex,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -4
+    });
     var signGeo = new THREE.PlaneGeometry(42.5, 6.8);
 
     var frontSign = new THREE.Mesh(signGeo, signMat);
-    frontSign.position.set(0, 238.5, 18.35);
+    frontSign.position.set(0, 238.5, 18.55);
     towerGrp.add(frontSign);
 
     var backSign = new THREE.Mesh(signGeo, signMat);
-    backSign.position.set(0, 238.5, -13.95);
+    backSign.position.set(0, 238.5, -14.15);
     backSign.rotation.y = Math.PI;
     towerGrp.add(backSign);
 
-    var crownLantern = new THREE.Mesh(new THREE.CylinderGeometry(11.5, 15.5, 22, 16), this.mats.goldBrushed);
+    var crownLantern = new THREE.Mesh(new THREE.CylinderGeometry(11.5, 15.5, 22, 16), this.mats.goldPbrBrushed);
     crownLantern.position.y = 256;
     towerGrp.add(crownLantern);
 
-    var spireBase = new THREE.Mesh(new THREE.CylinderGeometry(3.2, 8.5, 18, 16), this.mats.goldBright);
+    var spireBase = new THREE.Mesh(new THREE.CylinderGeometry(3.2, 8.5, 18, 16), this.mats.goldPbrBright);
     spireBase.position.y = 276;
     towerGrp.add(spireBase);
 
-    var spireNeedle = new THREE.Mesh(new THREE.ConeGeometry(2.8, 42, 16), this.mats.goldBright);
+    var spireNeedle = new THREE.Mesh(new THREE.ConeGeometry(2.8, 42, 16), this.mats.goldPbrBright);
     spireNeedle.position.y = 306;
     towerGrp.add(spireNeedle);
 
@@ -2381,15 +2843,16 @@
   // ============================================================================
   FunkenwerkHeroes3DEngine.prototype._buildPantheonArchitecture = function () {
     var THREE = this.THREE;
+    var self = this;
     this.pantheonGroup = new THREE.Group();
     this.pantheonGroup.position.set(0, PANTHEON_Y, PANTHEON_Z);
     this.cityGroup.add(this.pantheonGroup);
 
-    // 1. Stepped 3-Tier Pantheon Stylobate (Obsidian Sea-Base + Deep Sapphire + Carrara-Alabaster Upper Plinth)
+    // 1. Stepped 3-Tier Pantheon Stylobate (Clean >= 0.40m Vertical Steps -> Zero Coplanar Overlap!)
     var steps = [
-      { w: 56.0, d: 58.0, h: 3.4, y: -1.7, mat: this.mats.obsidian, trimMat: this.mats.goldBright },
-      { w: 52.0, d: 54.0, h: 0.9, y: 0.45, mat: this.mats.sapphireTrim, trimMat: this.mats.goldBright },
-      { w: 48.0, d: 50.0, h: 0.8, y: 1.25, mat: this.mats.alabasterStep, trimMat: this.mats.sapphireTrim }
+      { w: 56.0, d: 58.0, h: 3.10, y: -1.95, trimY: -0.98, mat: this.mats.obsidian, trimMat: this.mats.goldBright },
+      { w: 52.0, d: 54.0, h: 0.90, y: 0.08,  trimY: -0.08, mat: this.mats.sapphireTrim, trimMat: this.mats.goldBright },
+      { w: 48.0, d: 50.0, h: 0.80, y: 0.86,  trimY: 0.70,  mat: this.mats.alabasterStep, trimMat: this.mats.sapphireTrim }
     ];
     for (var si = 0; si < steps.length; si++) {
       var s = steps[si];
@@ -2397,22 +2860,43 @@
       sm.position.set(0, s.y, 0);
       this.pantheonGroup.add(sm);
 
-      var trim = new THREE.Mesh(new THREE.BoxGeometry(s.w + 0.8, 0.26, s.d + 0.8), s.trimMat);
-      trim.position.set(0, s.y + s.h * 0.5, 0);
+      var trim = new THREE.Mesh(new THREE.BoxGeometry(s.w + 1.1, 0.34, s.d + 1.1), s.trimMat);
+      trim.position.set(0, s.trimY, 0);
       this.pantheonGroup.add(trim);
     }
 
     var floorTopY = 1.66;
 
+    // Stepped Plinth Riser (1.26 .. 1.66, +0.40m step above step[2] top 1.26!) + Carrara-Alabaster Floor
+    var floorRiser = new THREE.Mesh(new THREE.BoxGeometry(46.8, 0.38, 48.8), this.mats.sapphireTrim);
+    floorRiser.position.set(0, 1.45, 0);
+    this.pantheonGroup.add(floorRiser);
+
     // 2. High-Contrast Carrara-Alabaster & Deep Atlantis-Sapphire Marble Floor (#ECEAE4 / #E2DFD7, #94A3B8, #133B5C)
     var marbleTex = makeHallOfHeroesMarbleTexture(THREE, this.maxAniso);
+    this.staticDisposables.push(marbleTex);
     var marbleFloor = new THREE.Mesh(
       new THREE.PlaneGeometry(46.8, 48.8),
-      new THREE.MeshBasicMaterial({ map: marbleTex })
+      new THREE.MeshBasicMaterial({
+        map: marbleTex,
+        polygonOffset: true,
+        polygonOffsetFactor: -1,
+        polygonOffsetUnits: -2
+      })
     );
     marbleFloor.rotation.x = -Math.PI * 0.5;
     marbleFloor.position.set(0, floorTopY + 0.02, 0);
     this.pantheonGroup.add(marbleFloor);
+
+    var hallAoMatrices = [];
+    function pushHallAo(x, y, z, sx, sz) {
+      self.dummyObj.position.set(x, y, z);
+      self.dummyObj.rotation.set(0, 0, 0);
+      self.dummyObj.scale.set(sx, 1, sz);
+      self.dummyObj.updateMatrix();
+      hallAoMatrices.push(self.dummyObj.matrix.clone());
+    }
+    pushHallAo(0, -4.84, 0, 68.0, 70.0);
 
     // 3. 28 Monumental 24K-Gold Colonnade Columns via InstancedMesh (leaving wide 18.4m central sightline!)
     var colCoords = [];
@@ -2440,6 +2924,8 @@
 
     for (var cIdx = 0; cIdx < colCoords.length; cIdx++) {
       var coord = colCoords[cIdx];
+      pushHallAo(coord[0], floorTopY + 0.05, coord[1], 3.1, 3.1);
+
       this.dummyObj.position.set(coord[0], floorTopY + colHeight * 0.5, coord[1]);
       this.dummyObj.rotation.set(0, 0, 0);
       this.dummyObj.scale.set(1, 1, 1);
@@ -2455,17 +2941,28 @@
     this.pantheonGroup.add(shaftInst);
     this.pantheonGroup.add(capInst);
 
+    var hallAoGeo = new THREE.PlaneGeometry(1, 1);
+    hallAoGeo.rotateX(-Math.PI * 0.5);
+    var hallAoInst = new THREE.InstancedMesh(hallAoGeo, this.mats.bakedAo, hallAoMatrices.length);
+    for (var hai = 0; hai < hallAoMatrices.length; hai++) {
+      hallAoInst.setMatrixAt(hai, hallAoMatrices[hai]);
+    }
+    hallAoInst.instanceMatrix.needsUpdate = true;
+    hallAoInst.frustumCulled = false;
+    hallAoInst.renderOrder = 1;
+    this.pantheonGroup.add(hallAoInst);
+
     // 4. Entablature Perimeter Beams + 100% Unobstructed "HALLE DER HELDEN" Friezes
     var entY = floorTopY + colHeight + 1.45;
-    var sideBeamGeo = new THREE.BoxGeometry(2.4, 1.9, 45.6);
+    var sideBeamGeo = new THREE.BoxGeometry(2.4, 1.9, 45.0);
     var sideXs = [-21.5, 21.5];
     for (var sbi = 0; sbi < sideXs.length; sbi++) {
       var b = new THREE.Mesh(sideBeamGeo, this.mats.obsidian);
       b.position.set(sideXs[sbi], entY, 0);
       this.pantheonGroup.add(b);
 
-      var g = new THREE.Mesh(new THREE.BoxGeometry(2.65, 0.35, 46.0), this.mats.goldBright);
-      g.position.set(sideXs[sbi], entY + 1.05, 0);
+      var g = new THREE.Mesh(new THREE.BoxGeometry(2.65, 0.35, 45.4), this.mats.goldBright);
+      g.position.set(sideXs[sbi], entY + 1.15, 0);
       this.pantheonGroup.add(g);
     }
 
@@ -2477,12 +2974,18 @@
       this.pantheonGroup.add(cb);
 
       var cg = new THREE.Mesh(new THREE.BoxGeometry(46.2, 0.38, 2.8), this.mats.goldBright);
-      cg.position.set(0, entY + 1.15, crossZs[cbi]);
+      cg.position.set(0, entY + 1.25, crossZs[cbi]);
       this.pantheonGroup.add(cg);
     }
 
     var friezeTex = makeBannerPlaqueTexture(THREE, this.maxAniso, 'HALLE DER HELDEN');
-    var friezeMat = new THREE.MeshBasicMaterial({ map: friezeTex });
+    this.staticDisposables.push(friezeTex);
+    var friezeMat = new THREE.MeshBasicMaterial({
+      map: friezeTex,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -4
+    });
 
     // Seaward Front Portico Frieze (+Z)
     var outerFriezeBack = new THREE.Mesh(new THREE.BoxGeometry(24.8, 3.85, 0.9), this.mats.goldBright);
@@ -2647,11 +3150,25 @@
 
       var plaqueMesh = new THREE.Mesh(
         new THREE.PlaneGeometry(pW, pH),
-        new THREE.MeshBasicMaterial({ map: plaqueTex })
+        new THREE.MeshBasicMaterial({
+          map: plaqueTex,
+          polygonOffset: true,
+          polygonOffsetFactor: -2,
+          polygonOffsetUnits: -4
+        })
       );
       plaqueMesh.position.set(0, sp.h * 0.54, sp.w * 0.56 + 0.048);
       plaqueMesh.rotation.x = -0.08;
       pGrp.add(plaqueMesh);
+
+      var pedAoMesh = new THREE.Mesh(
+        new THREE.PlaneGeometry(sp.w * 1.75, sp.w * 1.75),
+        this.mats.bakedAo
+      );
+      pedAoMesh.rotation.x = -Math.PI * 0.5;
+      pedAoMesh.position.y = 0.04;
+      pedAoMesh.renderOrder = 1;
+      pGrp.add(pedAoMesh);
 
       // Authentic Compressed Level 1..10 Tripo 3D Funki (.glb) Character flush on pedestal top (sp.h + 0.15)!
       var funkiChar = this._createFunkiCharacterByLevel(displayLevel, sp.slot, sp.scale, hero);
@@ -2787,7 +3304,12 @@
 
         var facePlane = new THREE.Mesh(
           new THREE.PlaneGeometry(1.18, 2.36),
-          new THREE.MeshBasicMaterial({ map: stTex })
+          new THREE.MeshBasicMaterial({
+            map: stTex,
+            polygonOffset: true,
+            polygonOffsetFactor: -2,
+            polygonOffsetUnits: -4
+          })
         );
         facePlane.position.set(
           sx + Math.sin(rotY) * 0.185,
@@ -2852,6 +3374,34 @@
       var cloudBand = Math.exp(-Math.pow((distFromOrigin - 960) / 210, 2));
       var op = (this.flight && this.flight.active) ? (cloudBand * 0.32) : 0;
       this.cloudVeilEl.style.opacity = op > 0.005 ? op.toFixed(3) : '0';
+    }
+
+    // Dynamic 3-Stage Camera Clipping Planes (Zero Z-Fighting at 600m..1400m & 0 CPU Overhead!)
+    if (this.camera && this.orbit) {
+      var distTarget = camPos.distanceTo(this.orbit.target);
+      var distPantheon = this._pantheonRefVec ? camPos.distanceTo(this._pantheonRefVec) : distTarget;
+      var camDist = distFromOrigin > 1400
+        ? distFromOrigin
+        : Math.min(distFromOrigin, distTarget, distPantheon);
+
+      var newNear;
+      var newFar;
+      if (camDist < 48.0) {
+        newNear = 0.15;
+        newFar = 4200;
+      } else if (camDist <= 1400.0) {
+        newNear = clamp(camDist * 0.018, 0.8, 22.0);
+        newFar = 9600;
+      } else {
+        newNear = clamp(camDist * 0.04, 22.0, 140.0);
+        newFar = 28000;
+      }
+
+      if (Math.abs(newNear - this.camera.near) > 0.02 || Math.abs(newFar - this.camera.far) > 5) {
+        this.camera.near = newNear;
+        this.camera.far = newFar;
+        this.camera.updateProjectionMatrix();
+      }
     }
   };
 
@@ -3212,6 +3762,17 @@
       this.sparkSpriteTex.dispose();
       this.sparkSpriteTex = null;
     }
+
+    if (this.staticDisposables) {
+      for (var sdIdx = 0; sdIdx < this.staticDisposables.length; sdIdx++) {
+        if (this.staticDisposables[sdIdx] && typeof this.staticDisposables[sdIdx].dispose === 'function') {
+          this.staticDisposables[sdIdx].dispose();
+        }
+      }
+      this.staticDisposables = [];
+    }
+    this.skyPanoramaTex = null;
+    this.pmremTarget = null;
 
     window.removeEventListener('resize', this._boundResize);
     window.removeEventListener('keydown', this._boundKeydown);

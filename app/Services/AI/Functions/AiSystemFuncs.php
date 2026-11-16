@@ -4508,6 +4508,8 @@ trait AiSystemFuncs
 
     public static function executeReadWebUrl(array $args)
     {
+        if ($denied = self::assertSystemAdminAccess()) return $denied;
+
         $url = trim($args['url'] ?? '');
         if (empty($url)) return ['status' => 'error', 'message' => 'URL fehlt.'];
 
@@ -4539,70 +4541,16 @@ trait AiSystemFuncs
 
     public static function executeSearchWeb(array $args)
     {
-        $query = $args['query'] ?? '';
-        if (empty($query)) return ['status' => 'error', 'message' => 'Query fehlt.'];
-
-        try {
-            if (!\App\Services\AI\VertexAiService::hasCredentials()) {
-                return ['status' => 'error', 'message' => 'Gemini API Key fehlt. Websuche nicht möglich.'];
-            }
-
-            // Wir nutzen Gemini 3 Flash für schnelle, tiefe Suche via Search Grounding
-            $payload = [
-                "contents" => [
-                    [
-                        "role" => "user",
-                        "parts" => [
-                            [
-                                "text" => "Bitte recherchiere detailliert und präzise im Internet nach folgendem Thema. Liefere eine zusammenhängende, informative und auf den Punkt gebrachte Zusammenfassung (Deep Research). Suchanfrage: " . $query
-                            ]
-                        ]
-                    ]
-                ],
-                "tools" => [
-                    [
-                        "googleSearch" => new \stdClass()
-                    ]
-                ]
-            ];
-
-            $response = \App\Services\AI\VertexAiService::generateContent('gemini-3-flash-preview', $payload, 45);
-
-            if ($response->successful()) {
-                $data = $response->json();
-                
-                $text = $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
-                $groundingMetadata = $data['candidates'][0]['groundingMetadata'] ?? null;
-                
-                if (empty($text)) {
-                     return ['status' => 'error', 'message' => 'Keine Textantwort von Gemini Research erhalten.'];
-                }
-
-                $sourceHint = "";
-                if ($groundingMetadata && isset($groundingMetadata['groundingChunks'])) {
-                    $sourceHint = "\n\n(Quellen: ";
-                    $sources = [];
-                    foreach ($groundingMetadata['groundingChunks'] as $chunk) {
-                        if (isset($chunk['web']['title'])) {
-                            $sources[] = $chunk['web']['title'];
-                        }
-                    }
-                    $sourceHint .= implode(", ", array_unique($sources)) . ")";
-                }
-
-                return [
-                    'status' => 'success',
-                    'content' => $text . $sourceHint,
-                    'note' => 'Nutze diese detaillierten Deep Research Informationen, um dem User zu antworten.'
-                ];
-            }
-            
-            $err = $response->json();
-            $errMsg = $err['error']['message'] ?? 'Unbekannter API Fehler';
-            return ['status' => 'error', 'message' => 'Deep Research Service nicht erreichbar: ' . $errMsg];
-        } catch (\Exception $e) {
-            return ['status' => 'error', 'message' => 'Fehler bei Deep Research Websuche: ' . $e->getMessage()];
+        if ($denied = self::assertSystemAdminAccess()) {
+            return array_merge(['error' => true], $denied);
         }
+
+        $query = trim((string) ($args['query'] ?? ''));
+        if ($query === '') {
+            return ['status' => 'error', 'message' => 'Query fehlt.'];
+        }
+
+        return \App\Services\AI\WebSearchCascadeService::search($query);
     }
 
     public static function executeReadClipboard(array $args)
