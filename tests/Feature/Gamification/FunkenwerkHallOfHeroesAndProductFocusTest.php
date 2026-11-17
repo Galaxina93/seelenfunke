@@ -294,18 +294,23 @@ class FunkenwerkHallOfHeroesAndProductFocusTest extends TestCase
             'funken_total_earned' => 4000,
         ]);
 
-        // 1. Public guest request works on BOTH routes and exposes 0 PII
+        // 1. Public guest request works on BOTH routes and exposes 0 PII (inkl. Sanctum-Gate fuer Gast: login_required)
         $guestResp = $this->getJson('/funkenwerk-welt/heroes-data');
         $guestResp->assertOk()
             ->assertJsonPath('success', true)
             ->assertJsonPath('founding_era', true)
             ->assertJsonPath('total_heroes', 2)
             ->assertJsonPath('customer_logged_in', false)
+            ->assertJsonPath('can_enter_heroes', false)
+            ->assertJsonPath('can_enter_sanctums', false)
+            ->assertJsonPath('sanctum_block_reason', 'login_required')
             ->assertJsonPath('my_hero_slot', null);
 
         $this->getJson('/api/gamification/funkenwerk-heroes')
             ->assertOk()
-            ->assertJsonPath('total_heroes', 2);
+            ->assertJsonPath('total_heroes', 2)
+            ->assertJsonPath('can_enter_heroes', false)
+            ->assertJsonPath('sanctum_block_reason', 'login_required');
 
         $rawGuestBody = $guestResp->getContent();
         $this->assertStringNotContainsString('streng.geheim.eins@private-mail.de', $rawGuestBody);
@@ -316,12 +321,17 @@ class FunkenwerkHallOfHeroesAndProductFocusTest extends TestCase
         $this->assertStringNotContainsString((string) $heroOneCustomer->id, $rawGuestBody);
         $this->assertStringNotContainsString((string) $meCustomer->id, $rawGuestBody);
 
-        // 2. Logged-in customer receives is_me = true, my_hero_slot = 2, level_models (1..10) & model_url
+        // 2. Logged-in customer (noch ohne bezahlte Bestellung -> order_required) receives is_me = true, my_hero_slot = 2, level_models (1..10) & model_url
         $this->actingAs($meCustomer, 'customer');
         $authResp = $this->getJson('/funkenwerk-welt/heroes-data');
         $authResp->assertOk()
             ->assertJsonPath('customer_logged_in', true)
             ->assertJsonPath('customer_opt_in', true)
+            ->assertJsonPath('has_completed_order', false)
+            ->assertJsonPath('gamification_active', true)
+            ->assertJsonPath('can_enter_heroes', false)
+            ->assertJsonPath('can_enter_sanctums', false)
+            ->assertJsonPath('sanctum_block_reason', 'order_required')
             ->assertJsonPath('my_hero_slot', 2)
             ->assertJsonPath('level_models.1', '/shop/customer/gamification/models/funki_lvl_1_rags.glb')
             ->assertJsonPath('level_models.10', '/shop/customer/gamification/models/funki_lvl_10_god_of_soul.glb')
@@ -407,6 +417,16 @@ class FunkenwerkHallOfHeroesAndProductFocusTest extends TestCase
 
         $this->createPaidOrder('ORD-SUCC-CLEAN-01', $meCustomer, false, 'pending');
 
+        // Nach bezahlter Bestellung + aktiver Magie sind alle 3 Voraussetzungen fuer Halle der Helden erfuellt
+        $this->actingAs($meCustomer, 'customer')
+            ->getJson('/funkenwerk-welt/heroes-data')
+            ->assertOk()
+            ->assertJsonPath('has_completed_order', true)
+            ->assertJsonPath('gamification_active', true)
+            ->assertJsonPath('can_enter_heroes', true)
+            ->assertJsonPath('can_enter_sanctums', true)
+            ->assertJsonPath('sanctum_block_reason', null);
+
         Livewire::actingAs($meCustomer, 'customer')
             ->test(OrderCheckoutSuccess::class)
             ->assertSee('ORD-SUCC-CLEAN-01')
@@ -461,6 +481,113 @@ class FunkenwerkHallOfHeroesAndProductFocusTest extends TestCase
 
         // Alle 10 Modelle zusammen ca. 9.7 MB (< 14 MB statt 468 MB!)
         $this->assertLessThan(14 * 1024 * 1024, $totalBytes);
+    }
+
+    public function test_hall_of_heroes_ranking_sync_funki_3d_lobby_cta_and_legal_pages(): void
+    {
+        $cAlpha = Customer::create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Alpha',
+            'last_name' => 'NachnameAlpha',
+            'email' => 'alpha.sync@example.de',
+            'password' => bcrypt('secret1234'),
+        ]);
+        $pAlpha = CustomerGamification::create([
+            'customer_id' => $cAlpha->id,
+            'is_active' => true,
+            'ranking_opt_in' => true,
+            'use_real_name' => false,
+            'player_name' => 'FunkenAlpha',
+            'level' => 6,
+            'funken_total_earned' => 3100,
+            'galactic_conquest_points' => 10,
+        ]);
+        $pAlpha->timestamps = false;
+        $pAlpha->forceFill(['updated_at' => Carbon::parse('2026-11-17 10:00:00')])->save();
+
+        $cBeta = Customer::create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Beta',
+            'last_name' => 'NachnameBeta',
+            'email' => 'beta.sync@example.de',
+            'password' => bcrypt('secret1234'),
+        ]);
+        $pBeta = CustomerGamification::create([
+            'customer_id' => $cBeta->id,
+            'is_active' => true,
+            'ranking_opt_in' => true,
+            'use_real_name' => false,
+            'player_name' => 'FunkenBeta',
+            'level' => 9,
+            'funken_total_earned' => 2900,
+            'galactic_conquest_points' => 99999,
+        ]);
+        $pBeta->timestamps = false;
+        $pBeta->forceFill(['updated_at' => Carbon::parse('2026-11-17 09:00:00')])->save();
+
+        $cGamma = Customer::create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Gamma',
+            'last_name' => 'NachnameGamma',
+            'email' => 'gamma.sync@example.de',
+            'password' => bcrypt('secret1234'),
+        ]);
+        $pGamma = CustomerGamification::create([
+            'customer_id' => $cGamma->id,
+            'is_active' => true,
+            'ranking_opt_in' => true,
+            'use_real_name' => false,
+            'player_name' => 'FunkenGamma',
+            'level' => 6,
+            'funken_total_earned' => 3100,
+            'galactic_conquest_points' => 5000,
+        ]);
+        $pGamma->timestamps = false;
+        $pGamma->forceFill(['updated_at' => Carbon::parse('2026-11-17 08:00:00')])->save();
+
+        // Identische Sortierung: funken_total_earned DESC -> level DESC -> updated_at ASC
+        // Gamma (3100, Lvl 6, 08:00) -> Alpha (3100, Lvl 6, 10:00) -> Beta (2900, Lvl 9)
+        $dashboardNames = collect(app(\App\Services\Gamification\GamificationService::class)->getHallOfFamePaginated(1, 10)['items'])
+            ->pluck('display_name')
+            ->all();
+        $apiNames = collect($this->getJson('/funkenwerk-welt/heroes-data')->assertOk()->json('heroes'))
+            ->where('occupied', true)
+            ->pluck('display_name')
+            ->values()
+            ->all();
+
+        $this->assertSame(['FunkenGamma', 'FunkenAlpha', 'FunkenBeta'], $dashboardNames);
+        $this->assertSame($dashboardNames, $apiNames);
+
+        // Direkt-Button "Funken in der 3D-Lobby sammeln" im Gutschein-Bereich von CustomerFunkiComponent
+        Livewire::actingAs($cAlpha, 'customer')
+            ->test(CustomerFunkiComponent::class)
+            ->assertSee('Funken in der 3D-Lobby sammeln')
+            ->assertSee('250')
+            ->assertSee('600')
+            ->assertSee('1.200');
+
+        // Rechtstexte: neue Gutschein-Staffel, Manufaktur-Meisterschluessel, 0 Mini-Labyrinth & 0 KI-Gedankenstriche
+        $agbHtml = (string) $this->get('/agb')->assertOk()->getContent();
+        $this->assertStringContainsString('Manufaktur-Meisterschlüssel', $agbHtml);
+        $this->assertStringContainsString('250 Seelenfunken', $agbHtml);
+        $this->assertStringContainsString('600 Seelenfunken', $agbHtml);
+        $this->assertStringContainsString('1.200 Seelenfunken', $agbHtml);
+        $this->assertStringNotContainsString('Mini-Labyrinth', $agbHtml);
+        $this->assertStringNotContainsString(' ' . "\u{2013}" . ' ', $agbHtml);
+
+        $widerrufHtml = (string) $this->get('/widerruf')->assertOk()->getContent();
+        $this->assertStringContainsString('Manufaktur-Meisterschlüssel', $widerrufHtml);
+        $this->assertStringNotContainsString('Mini-Labyrinth', $widerrufHtml);
+        $this->assertStringNotContainsString(' ' . "\u{2013}" . ' ', $widerrufHtml);
+
+        $dsHtml = (string) $this->get('/datenschutz')->assertOk()->getContent();
+        $this->assertStringContainsString('250 / 600 / 1.200 Seelenfunken', $dsHtml);
+        $this->assertStringContainsString('sparks_total', $dsHtml);
+        $this->assertStringContainsString('sf_lobby_*', $dsHtml);
+        $this->assertStringContainsString('sf_funki_*', $dsHtml);
+        $this->assertStringNotContainsString('Mini-Labyrinth', $dsHtml);
+        $this->assertStringNotContainsString(' ' . "\u{2013}" . ' ', $dsHtml);
     }
 
     private function createPaidOrder(string $orderNumber, Customer $customer, bool $isExpress, string $status): OrderOrder

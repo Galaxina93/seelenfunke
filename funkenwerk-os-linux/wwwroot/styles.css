@@ -1809,6 +1809,10 @@ body.focus-mode:not(.wf-has-order) .wf-idle-close {
   font-weight: 800;
   letter-spacing: 0.3px;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
   transition: background 0.15s ease, color 0.15s ease;
 }
 
@@ -1825,8 +1829,32 @@ body.focus-mode:not(.wf-has-order) .wf-idle-close {
 .wf-primary-gold-btn:disabled,
 .wf-secondary-btn:disabled,
 .wf-icon-btn:disabled {
-  opacity: 0.6;
-  cursor: default;
+  opacity: 0.72;
+  cursor: wait;
+}
+
+@keyframes wfBtnSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.wf-btn-spinner {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 3px solid currentColor;
+  border-right-color: transparent;
+  display: inline-block;
+  flex-shrink: 0;
+  animation: wfBtnSpin 0.72s linear infinite;
+}
+
+.wf-icon-btn .wf-btn-spinner {
+  width: 26px;
+  height: 26px;
+  border-color: rgba(197, 160, 89, 0.28);
+  border-top-color: #C5A059;
 }
 
 .wf-ship-btn {

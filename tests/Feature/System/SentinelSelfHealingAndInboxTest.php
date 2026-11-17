@@ -1135,10 +1135,12 @@ class SentinelSelfHealingAndInboxTest extends TestCase
 
     public function test_phpunit_log_isolation_keeps_laravel_log_at_zero_bytes_and_sentinel_ignores_testing_log_lines(): void
     {
-        // 1. PHPUnit-Pfadisolation pruefen: Log::error() schreibt nach /tmp/sf_phpunit_testing.log und laesst storage/logs/laravel.log bei 0 Bytes
-        $this->assertSame('/tmp/sf_phpunit_testing.log', config('logging.channels.single.path'));
-        $this->assertSame('/tmp/sf_phpunit_testing.log', config('logging.channels.daily.path'));
-        $this->assertSame('/tmp/sf_phpunit_testing.log', config('logging.channels.emergency.path'));
+        // 1. PHPUnit-Pfadisolation pruefen: Log::error() schreibt nach /tmp/sf_phpunit_testing.log (bzw. pro-UID-Ausweichpfad
+        //    /tmp/sf_phpunit_testing.uid<N>.log via Tests\Support\TestingTmpPathGuard) und laesst storage/logs/laravel.log bei 0 Bytes
+        $isolatedTestLog = (string) config('logging.channels.single.path');
+        $this->assertMatchesRegularExpression('#^/tmp/sf_phpunit_testing(\.uid\d+)?\.log$#', $isolatedTestLog);
+        $this->assertSame($isolatedTestLog, config('logging.channels.daily.path'));
+        $this->assertSame($isolatedTestLog, config('logging.channels.emergency.path'));
 
         $laravelLogPath = storage_path('logs/laravel.log');
         $hadOriginalLaravelLog = is_file($laravelLogPath);
@@ -1161,7 +1163,6 @@ class SentinelSelfHealingAndInboxTest extends TestCase
                 'storage/logs/laravel.log muss waehrend PHPUnit-Laeufen exakt 0 Bytes gross bleiben!'
             );
 
-            $isolatedTestLog = '/tmp/sf_phpunit_testing.log';
             clearstatcache(true, $isolatedTestLog);
             $this->assertFileExists($isolatedTestLog);
             $this->assertStringContainsString($negMarker, (string) file_get_contents($isolatedTestLog));

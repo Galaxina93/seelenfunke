@@ -20,20 +20,6 @@ return new class extends Migration
                 $table->timestamp('digital_waiver_accepted_at')->nullable()->after('is_small_business');
             });
         }
-
-        if (Schema::hasTable('shop_settings')) {
-            SystemSetting::firstOrCreate(
-                ['key' => 'digital_domain_is_live'],
-                ['value' => '0']
-            );
-
-            SystemSetting::firstOrCreate(
-                ['key' => 'digital_domain_host'],
-                ['value' => 'digital.mein-seelenfunke.de']
-            );
-
-            Cache::forget('global_shop_settings');
-        }
     }
 
     public function down(): void

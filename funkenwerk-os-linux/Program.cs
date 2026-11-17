@@ -3227,7 +3227,7 @@ async Task<int> RunLinuxSelfTestsAsync()
                     jsApp.Contains("isCannedRefusalClientText", StringComparison.Ordinal) &&
                     jsApp.Contains("projectRawVideoBoxToPip", StringComparison.Ordinal) &&
                     !jsApp.Contains("safetySettings", StringComparison.Ordinal) &&
-                    htmlIdx.Contains("/app.js?v=20261116v30", StringComparison.Ordinal);
+                    htmlIdx.Contains("/app.js?v=20261117v31", StringComparison.Ordinal);
 
                 return detectOk && diagAndLoginOk && historyCleanOk && promptHygieneOk && jsOk;
             }).ConfigureAwait(false);
@@ -3813,6 +3813,9 @@ async Task<int> RunLinuxSelfTestsAsync()
                             htmlIdx.Contains("DHL Label drucken", StringComparison.Ordinal) &&
                             htmlIdx.Contains("#00bcd4", StringComparison.Ordinal) &&
                             cssRaw.Contains("#C5A059", StringComparison.Ordinal) &&
+                            cssRaw.Contains(".wf-btn-spinner", StringComparison.Ordinal) &&
+                            jsApp.Contains("wf-btn-spinner", StringComparison.Ordinal) &&
+                            jsApp.Contains("Sende an Laser...", StringComparison.Ordinal) &&
                             jsApp.Contains("/api/workshop-focus/send-laser", StringComparison.Ordinal) &&
                             jsApp.Contains("/api/workshop-focus/ship-and-next", StringComparison.Ordinal);
 

@@ -6,46 +6,7 @@
     @endpush
     <div class="bg-gray-50 min-h-screen pb-20">
 
-        {{-- Header / Hero Section: Light-Mode Engineering Header auf Digital-Domain, sonst saisonaler Hauptshop-Header --}}
-        @if(!empty($isDigitalDomain))
-            <div class="bg-white border-b border-[#E6DAC3] py-14 md:py-18 text-center relative overflow-hidden">
-                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-                    <div class="flex justify-end mb-4">
-                        <div class="inline-flex items-center rounded-xl border border-[#D8C9A8] bg-[#FAF7F0] p-1 shadow-xs" role="group" aria-label="Language switcher">
-                            <a href="{{ request()->fullUrlWithQuery(['lang' => 'de']) }}"
-                               wire:click.prevent="setDigitalLocale('de')"
-                               class="px-3 py-1 rounded-lg text-xs font-black tracking-wider transition-all {{ ($digitalLocale ?? 'de') === 'de' ? 'bg-[#C5A059] text-white shadow-xs' : 'text-gray-700 hover:text-gray-900' }}">
-                                DE
-                            </a>
-                            <span class="px-1 text-xs font-bold text-[#C5A059]/60 select-none">|</span>
-                            <a href="{{ request()->fullUrlWithQuery(['lang' => 'en']) }}"
-                               wire:click.prevent="setDigitalLocale('en')"
-                               class="px-3 py-1 rounded-lg text-xs font-black tracking-wider transition-all {{ ($digitalLocale ?? 'de') === 'en' ? 'bg-[#C5A059] text-white shadow-xs' : 'text-gray-700 hover:text-gray-900' }}">
-                                EN
-                            </a>
-                        </div>
-                    </div>
-
-                    @if(($digitalLocale ?? 'de') === 'en')
-                        <span class="text-[#C5A059] font-bold uppercase tracking-[0.22em] text-xs mb-3 block">AI Architecture &amp; Autonomous Systems</span>
-                        <h1 class="text-3xl md:text-5xl font-serif font-bold text-gray-900 mb-4">
-                            Autonomous AI Architecture Blueprints
-                        </h1>
-                        <p class="text-gray-600 max-w-2xl mx-auto text-base md:text-lg leading-relaxed">
-                            Production-grade reference code, multi-agent orchestration engines, self-healing sentinels, and zero-secret vault brokers for instant deployment.
-                        </p>
-                    @else
-                        <span class="text-[#C5A059] font-bold uppercase tracking-[0.22em] text-xs mb-3 block">AI Architecture &amp; Autonomous Systems</span>
-                        <h1 class="text-3xl md:text-5xl font-serif font-bold text-gray-900 mb-4">
-                            Software- &amp; KI-Architektur-Blueprints
-                        </h1>
-                        <p class="text-gray-600 max-w-2xl mx-auto text-base md:text-lg leading-relaxed">
-                            Produktionsreife Referenz-Systeme für autonome Selbstheilung, Multi-Agenten-Orchestrierung und Zero-Secret-Security als direkter Sofort-Download.
-                        </p>
-                    @endif
-                </div>
-            </div>
-        @else
+        {{-- Header / Hero Section: saisonaler Hauptshop-Header --}}
         <div class="bg-gray-950 border-b border-gray-800 py-16 md:py-20 text-center relative overflow-hidden">
             @if(!empty($heroBanner['url']))
                 <img src="{{ $heroBanner['url'] }}"
@@ -87,24 +48,18 @@
                     <button type="button"
                             data-testid="hero-open-3d-showroom-btn"
                             @click="$dispatch('open-louvre-showroom')"
-                            class="inline-flex items-center justify-center gap-2.5 px-7 py-3.5 rounded-2xl bg-white hover:bg-[#FAF6EE] text-gray-900 border-2 border-[#C5A059] shadow-lg text-xs sm:text-sm font-bold uppercase tracking-widest transition-all cursor-pointer">
-                        <svg class="w-4 h-4 text-[#C5A059] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3l9 15H3L12 3z" />
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v15" />
-                        </svg>
-                        <span>3D shoppen</span>
+                            class="bg-primary text-gray-900 px-8 py-4 rounded-full font-bold text-lg hover:bg-white hover:text-primary-dark transition-all transform hover:scale-105 shadow-lg shadow-primary/30 inline-flex items-center justify-center gap-2.5 cursor-pointer">
+                        <span>3D Shoppen</span>
                     </button>
                 </div>
             </div>
         </div>
-        @endif
 
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-8 relative z-20">
 
             {{-- Filter & Search Bar --}}
             <div class="bg-white rounded-2xl shadow-xl shadow-gray-200/50 border border-gray-100 p-4 md:p-5 mb-12">
 
-                @if(empty($isDigitalDomain))
                 {{-- Kopfleiste: 3-Welten-Kollektions-Weiche (volle Breite, 0 Subtexte) --}}
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 p-1.5 bg-gray-50 rounded-2xl border border-gray-100 mb-4">
                         <button type="button"
@@ -137,12 +92,11 @@
                             @endif
                         </button>
                 </div>
-                @endif
                 
                 {{-- Suchleiste Volle Breite Oben --}}
-                <div class="w-full {{ empty($isDigitalDomain) ? 'mb-4' : '' }}">
+                <div class="w-full mb-4">
                     <div class="relative w-full group">
-                        <input wire:model.live.debounce.300ms="search" type="text" placeholder="{{ !empty($isDigitalDomain) ? (($digitalLocale ?? 'de') === 'en' ? 'Search architecture blueprints...' : 'Architektur-Blueprint suchen...') : 'Suche nach Name oder Eigenschaft...' }}" class="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-900 focus:bg-white focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] transition-all placeholder-gray-400">
+                        <input wire:model.live.debounce.300ms="search" type="text" placeholder="Suche nach Name oder Eigenschaft..." class="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-900 focus:bg-white focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] transition-all placeholder-gray-400">
                         <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400 group-focus-within:text-[var(--theme-color)] transition-colors">
                             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                         </div>
@@ -155,7 +109,7 @@
                 </div>
 
                 {{-- Untere Ebene: Pills & Dropdowns (Kompakt auf Desktop, damit nichts abschneidet) --}}
-                @if(empty($isDigitalDomain) && $collectionWorld !== 'voucher')
+                @if($collectionWorld !== 'voucher')
                 <div class="flex flex-col xl:flex-row gap-3 justify-between items-stretch xl:items-center">
 
                     {{-- Personalizable & Sale Pills --}}
@@ -534,7 +488,7 @@
                                             @if($product->type === 'digital')
                                                 <div class="bg-[#F5F1E8]/95 backdrop-blur-sm text-gray-900 border border-[#D8C9A8] text-[9px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest shadow-sm flex items-center gap-1.5">
                                                     <svg class="w-3 h-3 text-[#C5A059]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" /></svg>
-                                                    {{ !empty($isDigitalDomain) ? (($digitalLocale ?? 'de') === 'en' ? 'ZIP Blueprint' : 'ZIP-Paket') : 'Gutschein' }}
+                                                    Gutschein
                                                 </div>
                                             @endif
                                             @if($product->type === 'service')
@@ -670,14 +624,9 @@
                                         </div>
                                     @endif
 
-                                    @php
-                                        $cardTitle = (!empty($isDigitalDomain) && ($digitalLocale ?? 'de') === 'en' && !empty($product->attributes['name_en']))
-                                            ? $product->attributes['name_en']
-                                            : $product->name;
-                                    @endphp
                                     <h3 class="text-lg font-serif font-bold {{ $isSoldOut ? 'text-gray-400' : 'text-gray-900 group-hover:text-[var(--theme-color)] transition-colors' }} mb-1.5 leading-tight line-clamp-2">
                                         <a href="{{ $productUrl }}">
-                                            {{ $cardTitle }}
+                                            {{ $product->name }}
                                         </a>
                                     </h3>
 
@@ -762,11 +711,11 @@
 
                                             {{-- NEU: RECHTLICHE PAngV ANGABE (Sehr wichtig) --}}
                                             <span class="text-[10px] sm:text-[11px] text-gray-500 font-medium leading-tight mt-1">
-                                                @if(!empty($isDigitalDomain) || $product->type === 'digital')
+                                                @if($product->type === 'digital')
                                                     @if(shop_setting('is_small_business', false))
-                                                        {{ ($digitalLocale ?? 'de') === 'en' ? 'No VAT (§ 19 UStG) · Instant Download' : 'Keine MwSt. gem. § 19 UStG · Sofort-Download' }}
+                                                        Keine MwSt. gem. § 19 UStG · Sofort-Download
                                                     @else
-                                                        {{ ($digitalLocale ?? 'de') === 'en' ? 'incl. VAT · Instant Download' : (($product->tax_included ? 'inkl. MwSt.' : 'zzgl. MwSt.') . ' · Sofort-Download') }}
+                                                        {{ ($product->tax_included ? 'inkl. MwSt.' : 'zzgl. MwSt.') . ' · Sofort-Download' }}
                                                     @endif
                                                 @elseif(shop_setting('is_small_business', false))
                                                     Keine MwSt. gem. § 19 UStG · <a href="{{ route('versand') }}" target="_blank" class="hover:text-gray-600 underline">zzgl. Versand</a>
@@ -799,7 +748,6 @@
         </div>
     </div>
 
-    @if(empty($isDigitalDomain))
     {{-- Vereinte 3D-User-Lobby: Louvre-Produktgalerie + Goldenes Ehrenportal + Halle der Helden (0 KB Initial-Last, 0 Tailwind-Abhaengigkeit) --}}
     <div id="sf-louvre-showroom-host"
          wire:ignore
@@ -1575,6 +1523,139 @@
             .sf-lobby-lava-chest-card.is-cta:hover {
                 background: #B38E46;
             }
+            .sf-lobby-unit-frame {
+                pointer-events: auto;
+                display: inline-flex;
+                align-items: center;
+                gap: 9px;
+                padding: 5px 12px 5px 6px;
+                border-radius: 999px;
+                background: rgba(255, 255, 255, 0.95);
+                border: 1px solid rgba(197, 160, 89, 0.55);
+                box-shadow: 0 8px 24px rgba(17, 24, 39, 0.08);
+                color: #111827;
+            }
+            .sf-lobby-unit-avatar {
+                width: 30px;
+                height: 30px;
+                border-radius: 999px;
+                background: #FAF8F5;
+                border: 1.5px solid #C5A059;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 13px;
+                font-weight: 900;
+                color: #9A7738;
+                flex-shrink: 0;
+            }
+            .sf-lobby-unit-meta {
+                display: flex;
+                flex-direction: column;
+                gap: 2px;
+                min-width: 96px;
+            }
+            .sf-lobby-unit-mana-track {
+                width: 100%;
+                height: 4px;
+                border-radius: 999px;
+                background: rgba(197, 160, 89, 0.22);
+                overflow: hidden;
+            }
+            .sf-lobby-unit-mana-fill {
+                height: 100%;
+                border-radius: 999px;
+                background: #C5A059;
+                transition: width 160ms ease;
+            }
+            .sf-lobby-minimap-wrap {
+                position: absolute;
+                top: 62px;
+                right: 20px;
+                width: 84px;
+                height: 84px;
+                z-index: 25;
+                pointer-events: auto;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            .sf-lobby-minimap-canvas {
+                width: 84px;
+                height: 84px;
+                border-radius: 999px;
+                background: rgba(255, 255, 255, 0.94);
+                border: 2px solid #C5A059;
+                box-shadow: 0 10px 26px rgba(17, 24, 39, 0.14);
+                display: block;
+            }
+            .sf-lobby-minimap-time {
+                position: absolute;
+                bottom: -8px;
+                left: 50%;
+                transform: translateX(-50%);
+                padding: 2px 8px;
+                border-radius: 999px;
+                background: #FFFFFF;
+                border: 1px solid #C5A059;
+                color: #111827;
+                font-size: 10px;
+                font-weight: 800;
+                line-height: 1.2;
+                white-space: nowrap;
+                box-shadow: 0 4px 10px rgba(17, 24, 39, 0.10);
+                cursor: help;
+            }
+            .sf-lobby-exhibit-step-row {
+                margin-top: 8px;
+                padding-top: 8px;
+                border-top: 1px solid rgba(197, 160, 89, 0.22);
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 5px;
+            }
+            .sf-lobby-sanctum-list {
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+            }
+            .sf-lobby-sanctum-row {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 10px;
+                padding: 10px 12px;
+                border-radius: 12px;
+                background: #FAF8F5;
+                border: 1px solid rgba(197, 160, 89, 0.34);
+                font-size: 13px;
+                font-weight: 800;
+                color: #111827;
+            }
+            .sf-lobby-sanctum-row.is-done {
+                background: #FFFFFF;
+                border-color: #C5A059;
+            }
+            .sf-lobby-sanctum-check {
+                width: 22px;
+                height: 22px;
+                border-radius: 999px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 12px;
+                font-weight: 900;
+                flex-shrink: 0;
+                background: #FFFFFF;
+                border: 1.5px solid rgba(197, 160, 89, 0.55);
+                color: #6B7280;
+            }
+            .sf-lobby-sanctum-row.is-done .sf-lobby-sanctum-check {
+                background: #FAF3E3;
+                border-color: #C5A059;
+                color: #C5A059;
+            }
             .sf-lobby-stick-wrap { display: none; position: absolute; bottom: 72px; left: 12px; z-index: 22; }
             .sf-lobby-stick {
                 width: 84px;
@@ -1733,19 +1814,37 @@
                  :class="isOpen ? 'sf-lobby-modal is-open' : 'sf-lobby-modal is-closed'"
                  style="position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; width: 100vw !important; height: 100dvh !important; z-index: 2147483000 !important; background: #FAF8F5 !important; overflow: hidden !important; margin: 0 !important; padding: 0 !important;">
 
-                {{-- Edle schwebende Light-Mode HUD-Leiste --}}
+                {{-- Edle schwebende Light-Mode HUD-Leiste (Spieler-Frame oben links + Aktionen oben rechts) --}}
                 <div class="sf-lobby-topbar">
-                    <div class="sf-lobby-nav-pill">
-                        <span class="sf-lobby-zone-badge"
-                              data-testid="lobby-current-zone-badge"
-                              x-text="currentZoneLabel()">🛍️ Kollektion</span>
-                        <button type="button"
-                                x-show="currentZone === 'heroes' && isCustomerAuthenticated()"
-                                data-testid="lobby-stages-preview-btn"
-                                @click="cycleStagesPreview()"
-                                class="sf-lobby-stages-btn">
-                            <span x-text="stagesPreviewLabel()"></span>
-                        </button>
+                    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;pointer-events:none;">
+                        <div class="sf-lobby-unit-frame" data-testid="lobby-player-unit-frame">
+                            <span class="sf-lobby-unit-avatar">✦</span>
+                            <div class="sf-lobby-unit-meta">
+                                <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;font-weight:800;line-height:1.15;">
+                                    <span style="max-width:112px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+                                          x-text="playerHud.name || 'Funki'"></span>
+                                    <span style="color:#9A7738;"
+                                          x-text="'Stufe ' + (playerHud.level || 2) + ' · ✨ ' + (playerHud.funkenBalance || 0)"></span>
+                                </div>
+                                <div class="sf-lobby-unit-mana-track">
+                                    <div class="sf-lobby-unit-mana-fill"
+                                         :style="'width:' + Math.max(0, Math.min(100, Math.round(((playerHud.mana || 100) / Math.max(1, playerHud.maxMana || 100)) * 100))) + '%'"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="sf-lobby-nav-pill">
+                            <span class="sf-lobby-zone-badge"
+                                  data-testid="lobby-current-zone-badge"
+                                  x-text="currentZoneLabel()">🛍️ Kollektion</span>
+                            <button type="button"
+                                    x-show="currentZone === 'heroes' && isCustomerAuthenticated()"
+                                    data-testid="lobby-stages-preview-btn"
+                                    @click="cycleStagesPreview()"
+                                    class="sf-lobby-stages-btn">
+                                <span x-text="stagesPreviewLabel()"></span>
+                            </button>
+                        </div>
                     </div>
 
                     <div class="sf-lobby-actions">
@@ -1847,6 +1946,17 @@
                 <div class="sf-lobby-stage">
                     <canvas x-ref="louvreCanvas" class="sf-lobby-canvas"></canvas>
 
+                    {{-- Runde Echtzeit-Minimap oben rechts mit sticky Uhrzeit-Badge & Jahreszeiten-Tooltip --}}
+                    <div x-show="!isLoading && loadError === ''"
+                         @pointerdown.stop
+                         data-testid="lobby-minimap"
+                         class="sf-lobby-minimap-wrap sf-lobby-hide-sm">
+                        <canvas x-ref="minimapCanvas" width="84" height="84" class="sf-lobby-minimap-canvas"></canvas>
+                        <span class="sf-lobby-minimap-time"
+                              :title="minimapTooltip()"
+                              x-text="environmentInfo.server_time || '12:00'"></span>
+                    </div>
+
                     {{-- Lade- & Fehlerstatus im Light-Mode --}}
                     <div x-show="isLoading || loadError !== ''" class="sf-lobby-loading">
                         <template x-if="isLoading">
@@ -1902,6 +2012,19 @@
                                 <span x-text="focusedProduct && focusedProduct.is_personalizable ? 'Jetzt gestalten' : 'Zum Produkt'"></span>
                                 <span>&rarr;</span>
                             </a>
+
+                            <div x-show="products.length > 1" class="sf-lobby-exhibit-step-row">
+                                <button type="button" @click="prevExhibit()" class="sf-lobby-step-btn" style="padding:4px 9px;font-size:10px;">
+                                    &lsaquo; Vorheriges
+                                </button>
+                                <button type="button"
+                                        @click="focusCurrentExhibit()"
+                                        style="appearance:none;border:none;background:transparent;font-size:10px;font-weight:800;color:#6B7280;cursor:pointer;"
+                                        x-text="'Exponat ' + (activeIndex + 1) + '/' + products.length"></button>
+                                <button type="button" @click="nextExhibit()" class="sf-lobby-step-btn" style="padding:4px 9px;font-size:10px;">
+                                    Nächstes &rsaquo;
+                                </button>
+                            </div>
                         </div>
                         <div class="sf-lobby-floating-arrow"></div>
                     </div>
@@ -1936,29 +2059,35 @@
                         <div class="sf-lobby-floating-arrow"></div>
                     </div>
 
-                    {{-- Schwebendes Light-Mode Schild am goldenen Ehrenportal fuer nicht eingeloggte Gaeste --}}
+                    {{-- Schwebendes Light-Mode Schild am goldenen Ehrenportal bei fehlenden Voraussetzungen --}}
                     <div x-ref="floatingPortalCard"
                          data-testid="lobby-guest-portal-card"
                          style="opacity: 0; visibility: hidden; pointer-events: none; transform: translate3d(-9999px, -9999px, 0);"
                          class="sf-lobby-floating-anchor">
-                        <a href="/login" @pointerdown.stop class="sf-lobby-portal-pill">
+                        <button type="button"
+                                @pointerdown.stop
+                                @click="openSanctumGateModal('heroes')"
+                                class="sf-lobby-portal-pill"
+                                style="cursor:pointer;">
                             <span>🔒</span>
-                            <span>Mitglieder-Bereich · Anmelden</span>
+                            <span x-text="isCustomerAuthenticated() ? 'Halle der Helden · Voraussetzungen' : 'Mitglieder-Bereich · Anmelden'"></span>
                             <span>&rarr;</span>
-                        </a>
+                        </button>
                     </div>
 
-                    {{-- Schwebendes World-Space Schatztruhen-Schild (Bereich 3: Magma-Kammer, +5 Funken täglich) --}}
+                    {{-- Schwebendes World-Space Schatztruhen-Schild (Bereich 3: 10-Stufen Magma-Welt) --}}
                     <div x-ref="floatingLavaChestCard"
                          data-testid="lobby-lava-chest-card"
                          style="opacity: 0; visibility: hidden; pointer-events: none; transform: translate3d(-9999px, -9999px, 0);"
                          class="sf-lobby-floating-anchor">
                         <div @pointerdown.stop style="display:flex;flex-direction:column;align-items:center;gap:6px;">
                             <template x-if="!isCustomerAuthenticated()">
-                                <a href="/login" class="sf-lobby-lava-chest-card">
+                                <button type="button"
+                                        @click="openSanctumGateModal('lava')"
+                                        class="sf-lobby-lava-chest-card">
                                     <span>🔒</span>
-                                    <span>Anmelden für +5 ✨ &rarr;</span>
-                                </a>
+                                    <span>Anmelden &rarr;</span>
+                                </button>
                             </template>
                             <template x-if="isCustomerAuthenticated() && lavaChestState.claimedToday">
                                 <div class="sf-lobby-lava-chest-card">
@@ -1969,7 +2098,7 @@
                             <template x-if="isCustomerAuthenticated() && !lavaChestState.claimedToday">
                                 <div style="display:flex;flex-direction:column;align-items:center;gap:6px;">
                                     <div class="sf-lobby-lava-chest-card" style="cursor:default;">
-                                        <span>Magma-Truhe · +5 ✨ Funken</span>
+                                        <span x-text="'Magma-Truhe · +' + (lavaChestState.rewardPreview || 5) + ' ✨ Funken'">Magma-Truhe · +5 ✨ Funken</span>
                                     </div>
                                     <button type="button"
                                             @click="claimLavaChest()"
@@ -1986,59 +2115,137 @@
                         <div class="sf-lobby-floating-arrow"></div>
                     </div>
 
-                    {{-- Schwebendes World-Space Buzzer-Schild (Bereich 4: Mini-Labyrinth West-Flügel, +3 Funken täglich) --}}
-                    <div x-ref="floatingLabyrinthBuzzerCard"
-                         data-testid="lobby-labyrinth-buzzer-card"
+                    {{-- Schwebendes Light-Mode Schild am verschlossenen West-Prunktor zur Aussenwelt --}}
+                    <div x-ref="floatingOuterGateCard"
+                         data-testid="lobby-outer-gate-card"
                          style="opacity: 0; visibility: hidden; pointer-events: none; transform: translate3d(-9999px, -9999px, 0);"
                          class="sf-lobby-floating-anchor">
-                        <div @pointerdown.stop style="display:flex;flex-direction:column;align-items:center;gap:6px;">
-                            <template x-if="!isCustomerAuthenticated()">
-                                <div style="display:flex;flex-direction:column;align-items:center;gap:6px;">
-                                    <button type="button"
-                                            @click="claimLabyrinthBuzzer()"
-                                            class="sf-lobby-lava-chest-card is-cta">
-                                        <span>🎉 Konfetti zünden</span>
-                                    </button>
-                                    <a href="/login" class="sf-lobby-lava-chest-card">
-                                        <span>🔒</span>
-                                        <span>Anmelden für +3 ✨ &rarr;</span>
-                                    </a>
-                                </div>
-                            </template>
-                            <template x-if="isCustomerAuthenticated() && labyrinthBuzzerState.claimedToday">
-                                <div style="display:flex;flex-direction:column;align-items:center;gap:6px;">
-                                    <div class="sf-lobby-lava-chest-card" style="cursor:default;">
-                                        <span style="color:#C5A059;">&#10003;</span>
-                                        <span x-text="labyrinthBuzzerState.statusMessage || 'Heute bereits geholt ✓'"></span>
-                                    </div>
-                                    <button type="button"
-                                            @click="claimLabyrinthBuzzer()"
-                                            class="sf-lobby-lava-chest-card is-cta">
-                                        <span>🎉 Konfetti zünden</span>
-                                    </button>
-                                </div>
-                            </template>
-                            <template x-if="isCustomerAuthenticated() && !labyrinthBuzzerState.claimedToday">
-                                <div style="display:flex;flex-direction:column;align-items:center;gap:6px;">
-                                    <div class="sf-lobby-lava-chest-card" style="cursor:default;">
-                                        <span>🌀 Mini-Labyrinth · +3 ✨</span>
-                                    </div>
-                                    <button type="button"
-                                            @click="claimLabyrinthBuzzer()"
-                                            :disabled="labyrinthBuzzerState.claiming"
-                                            class="sf-lobby-lava-chest-card is-cta">
-                                        <span x-text="labyrinthBuzzerState.claiming ? 'Konfetti startet...' : '🎉 Buzzer drücken'"></span>
-                                    </button>
-                                </div>
-                            </template>
-                            <span x-show="labyrinthBuzzerState.statusMessage !== '' && !labyrinthBuzzerState.claimedToday && !labyrinthBuzzerState.claiming"
-                                  style="pointer-events:none;padding:4px 10px;border-radius:999px;background:rgba(255,255,255,0.95);border:1px solid rgba(197,160,89,0.5);font-size:11px;font-weight:700;color:#111827;"
-                                  x-text="labyrinthBuzzerState.statusMessage"></span>
+                        <div @pointerdown.stop class="sf-lobby-portal-pill">
+                            <span>🔒</span>
+                            <span>Tor zur Außenwelt · Bald geöffnet</span>
                         </div>
-                        <div class="sf-lobby-floating-arrow"></div>
                     </div>
 
-                    {{-- Kompaktes Light-Mode Einstellungsmenü (⚙️ Gamification Clean-Design, 0 Subtexte) --}}
+                    {{-- Helles Light-Mode Voraussetzungs-Modal (3-Stufen-Zugangscheck fuer Halle der Helden & Magma-Welt, Clean-Design, 0 Subtexte) --}}
+                    <div x-show="sanctumGateOpen"
+                         x-cloak
+                         @pointerdown.stop
+                         @click.self="closeSanctumGateModal()"
+                         data-testid="lobby-sanctum-gate-modal"
+                         class="sf-lobby-settings-backdrop">
+                        <div class="sf-lobby-settings-card" role="dialog" aria-label="Zugangsvoraussetzungen">
+                            <div class="sf-lobby-settings-head">
+                                <h3 class="sf-lobby-settings-title">
+                                    <span x-text="sanctumGateZone === 'lava' ? '🌋' : '🏛️'"></span>
+                                    <span x-text="sanctumGateZone === 'lava' ? 'Magma-Welt' : 'Halle der Helden'"></span>
+                                </h3>
+                                <button type="button"
+                                        @click="closeSanctumGateModal()"
+                                        style="appearance:none;width:28px;height:28px;border-radius:9px;border:1px solid rgba(197,160,89,0.35);background:#FAF8F5;color:#111827;font-size:15px;font-weight:800;cursor:pointer;"
+                                        aria-label="Schließen">&times;</button>
+                            </div>
+
+                            <div class="sf-lobby-sanctum-list">
+                                <div class="sf-lobby-sanctum-row"
+                                     data-testid="sanctum-check-login"
+                                     :class="{ 'is-done': sanctumGateState.checks.login }">
+                                    <span>Angemeldet</span>
+                                    <span class="sf-lobby-sanctum-check"
+                                          x-text="sanctumGateState.checks.login ? '✓' : '1'"></span>
+                                </div>
+
+                                <div class="sf-lobby-sanctum-row"
+                                     data-testid="sanctum-check-order"
+                                     :class="{ 'is-done': sanctumGateState.checks.order }">
+                                    <span>Mindestens 1 Bestellung</span>
+                                    <span class="sf-lobby-sanctum-check"
+                                          x-text="sanctumGateState.checks.order ? '✓' : '2'"></span>
+                                </div>
+
+                                <div class="sf-lobby-sanctum-row"
+                                     data-testid="sanctum-check-magic"
+                                     :class="{ 'is-done': sanctumGateState.checks.magic }">
+                                    <span>✨ Magie aktivieren</span>
+                                    <span class="sf-lobby-sanctum-check"
+                                          x-text="sanctumGateState.checks.magic ? '✓' : '3'"></span>
+                                </div>
+                            </div>
+
+                            <div>
+                                <template x-if="!sanctumGateState.checks.login">
+                                    <a :href="sanctumGateState.loginUrl || '/login'"
+                                       data-testid="sanctum-gate-cta-btn"
+                                       class="sf-lobby-prod-cta"
+                                       style="margin-top:2px;">
+                                        <span>Anmelden</span>
+                                        <span>&rarr;</span>
+                                    </a>
+                                </template>
+                                <template x-if="sanctumGateState.checks.login && !sanctumGateState.checks.order">
+                                    <button type="button"
+                                            @click="closeSanctumGateModal()"
+                                            data-testid="sanctum-gate-cta-btn"
+                                            class="sf-lobby-prod-cta"
+                                            style="margin-top:2px;border:none;cursor:pointer;">
+                                        <span>Kollektion ansehen</span>
+                                    </button>
+                                </template>
+                                <template x-if="sanctumGateState.checks.login && sanctumGateState.checks.order && !sanctumGateState.checks.magic">
+                                    <a :href="sanctumGateState.dashboardUrl || '/dashboard'"
+                                       data-testid="sanctum-gate-cta-btn"
+                                       class="sf-lobby-prod-cta"
+                                       style="margin-top:2px;">
+                                        <span>✨ Magie aktivieren</span>
+                                        <span>&rarr;</span>
+                                    </a>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+
+                    {{-- Helles Light-Mode Modal fuer das Epische Tor vor Magma-Raum 6 (Manufaktur-Meisterschluessel) --}}
+                    <div x-show="masterKeyModalOpen"
+                         x-cloak
+                         @pointerdown.stop
+                         @click.self="masterKeyModalOpen = false"
+                         data-testid="lobby-master-key-modal"
+                         class="sf-lobby-settings-backdrop">
+                        <div class="sf-lobby-settings-card" role="dialog" aria-label="Manufaktur-Meisterschlüssel">
+                            <div class="sf-lobby-settings-head">
+                                <h3 class="sf-lobby-settings-title">
+                                    <span>🔑</span>
+                                    <span>Manufaktur-Meisterschlüssel</span>
+                                </h3>
+                                <button type="button"
+                                        @click="masterKeyModalOpen = false"
+                                        style="appearance:none;width:28px;height:28px;border-radius:9px;border:1px solid rgba(197,160,89,0.35);background:#FAF8F5;color:#111827;font-size:15px;font-weight:800;cursor:pointer;"
+                                        aria-label="Schließen">&times;</button>
+                            </div>
+
+                            <div class="sf-lobby-sanctum-list">
+                                <div class="sf-lobby-sanctum-row is-done">
+                                    <span>Magma-Stufen 6 bis 10</span>
+                                    <span class="sf-lobby-sanctum-check">✓</span>
+                                </div>
+                            </div>
+
+                            <div style="display:flex;flex-direction:column;gap:8px;">
+                                <button type="button"
+                                        @click="masterKeyModalOpen = false; closeShowroom()"
+                                        class="sf-lobby-prod-cta"
+                                        style="margin-top:0;border:none;cursor:pointer;">
+                                    <span>Unikat im Shop gestalten</span>
+                                </button>
+                                <a :href="playerHud.giftVoucherUrl || '/produkt/geschenkgutschein'"
+                                   class="sf-lobby-step-btn"
+                                   style="text-align:center;text-decoration:none;padding:9px 14px;border-radius:12px;">
+                                    15,00 € Gutschein sichern &rarr;
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
+                    {{-- Kompaktes Light-Mode ESC-Einstellungsmenü (⚙️ Gamification Clean-Design, 0 Subtexte) --}}
                     <div x-show="settingsOpen"
                          x-cloak
                          @pointerdown.stop
@@ -2092,6 +2299,26 @@
                             </div>
 
                             <div class="sf-lobby-settings-section">
+                                <div class="sf-lobby-settings-row">
+                                    <span class="sf-lobby-settings-label">Grafik-Stufe</span>
+                                    <div style="display:flex;align-items:center;gap:6px;">
+                                        <button type="button"
+                                                @click="setGraphicsQuality('high')"
+                                                class="sf-lobby-step-btn"
+                                                :class="{ 'is-active': (userSettings.graphicsQuality || 'high') === 'high' }">
+                                            Hoch
+                                        </button>
+                                        <button type="button"
+                                                @click="setGraphicsQuality('balanced')"
+                                                class="sf-lobby-step-btn"
+                                                :class="{ 'is-active': userSettings.graphicsQuality === 'balanced' }">
+                                            Ausgewogen
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="sf-lobby-settings-section">
                                 <label class="sf-lobby-settings-row" style="cursor:pointer;">
                                     <span class="sf-lobby-settings-label">Echten Vornamen nutzen</span>
                                     <input type="checkbox"
@@ -2134,6 +2361,21 @@
                                         </button>
                                     </template>
                                 </div>
+                            </div>
+
+                            <div style="display:flex;align-items:center;gap:8px;padding-top:2px;">
+                                <button type="button"
+                                        @click="closeSettingsModal()"
+                                        class="sf-lobby-prod-cta"
+                                        style="margin-top:0;flex:1;border:none;cursor:pointer;">
+                                    Weiterspielen
+                                </button>
+                                <button type="button"
+                                        @click="closeShowroom()"
+                                        class="sf-lobby-step-btn"
+                                        style="padding:9px 14px;border-radius:12px;">
+                                    Lobby verlassen
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -2398,27 +2640,9 @@
                         </button>
                     </div>
 
-                    {{-- Untere Navigation + dezente Light-Mode Steuerungs-Pill --}}
-                    <div x-show="!isLoading && loadError === ''" class="sf-lobby-bottom-stack">
-                        <div x-show="currentZone === 'gallery' && products.length > 0" class="sf-lobby-bottom-pill">
-                            <button type="button" @click="prevExhibit()" class="sf-lobby-step-btn">
-                                &lsaquo; <span class="sf-lobby-hide-sm">Vorheriges</span>
-                            </button>
-
-                            <button type="button"
-                                    @click="focusCurrentExhibit()"
-                                    class="sf-lobby-exhibit-btn"
-                                    title="Zum Podest gehen">
-                                <span x-text="'Exponat ' + (activeIndex + 1) + '/' + products.length"></span>
-                                <span class="sf-lobby-hide-sm" x-show="activeExhibitName() !== ''" x-text="' · ' + activeExhibitName()"></span>
-                            </button>
-
-                            <button type="button" @click="nextExhibit()" class="sf-lobby-step-btn">
-                                <span class="sf-lobby-hide-sm">Nächstes</span> &rsaquo;
-                            </button>
-                        </div>
-
-                        <div x-show="currentZone === 'heroes'" class="sf-lobby-bottom-pill">
+                    {{-- Schlanke untere Schnellwahl in der Halle der Helden (0 Steuerungs-Textballast) --}}
+                    <div x-show="!isLoading && loadError === '' && currentZone === 'heroes'" class="sf-lobby-bottom-stack">
+                        <div class="sf-lobby-bottom-pill">
                             <template x-for="slotNum in [1, 2, 3, 4, 5]" :key="slotNum">
                                 <button type="button"
                                         @click="focusHeroSlot(slotNum)"
@@ -2431,22 +2655,6 @@
                                     class="sf-lobby-step-btn is-active">
                                 ⭐ Mein Platz
                             </button>
-                        </div>
-
-                        <div x-show="currentZone === 'lava'" class="sf-lobby-bottom-pill">
-                            <span style="padding:4px 10px;font-size:11px;font-weight:800;color:#9A7738;">
-                                🌋 Magma-Kammer · +5 ✨ Täglich
-                            </span>
-                        </div>
-
-                        <div x-show="currentZone === 'labyrinth'" class="sf-lobby-bottom-pill">
-                            <span style="padding:4px 10px;font-size:11px;font-weight:800;color:#9A7738;">
-                                🌀 Mini-Labyrinth · 3 ✨ Täglich
-                            </span>
-                        </div>
-
-                        <div class="sf-lobby-hint-pill">
-                            WASD / Pfeiltasten · Maus ziehen · Leertaste Sprung · 1 bis 4 Fähigkeiten · ⛶ Vollbild · Esc Schließen
                         </div>
                     </div>
                 </div>
@@ -2529,6 +2737,7 @@
                         volume: 50,
                         cameraSensitivity: 100,
                         useRealName: false,
+                        graphicsQuality: 'high',
                     },
                     keybindings: {
                         sprint: 'Digit1',
@@ -2549,16 +2758,42 @@
                         sfxMuted: false,
                         allMuted: false,
                     },
-                    lavaChestState: {
-                        nearChest: false,
-                        isAuthenticated: false,
-                        claimedToday: false,
-                        claiming: false,
-                        canClaim: false,
-                        statusMessage: '',
+                    environmentInfo: {
+                        season_key: 'autumn',
+                        season_label: 'Herbst',
+                        holiday_key: null,
+                        holiday_label: null,
+                        server_time: '12:00',
                     },
-                    labyrinthBuzzerState: {
-                        nearBuzzer: false,
+                    playerHud: {
+                        isAuthenticated: false,
+                        canEnterSanctums: false,
+                        name: 'Gast-Funki',
+                        level: 2,
+                        levelTitle: 'Lehrling',
+                        funkenBalance: 0,
+                        mana: 100,
+                        maxMana: 100,
+                        giftVoucherUrl: '/produkt/geschenkgutschein',
+                    },
+                    sanctumGateOpen: false,
+                    sanctumGateZone: 'heroes',
+                    sanctumGateState: {
+                        canEnter: false,
+                        reason: 'login_required',
+                        checks: {
+                            login: false,
+                            order: false,
+                            magic: false,
+                        },
+                        loginUrl: '/login',
+                        dashboardUrl: '/dashboard',
+                    },
+                    masterKeyModalOpen: false,
+                    lavaChestState: {
+                        level: 1,
+                        rewardPreview: 5,
+                        nearChest: false,
                         isAuthenticated: false,
                         claimedToday: false,
                         claiming: false,
@@ -2717,6 +2952,59 @@
                         if (privateAudio) privateAudio.playUiSwitch();
                     },
 
+                    setGraphicsQuality(level) {
+                        const clean = level === 'balanced' ? 'balanced' : 'high';
+                        this.userSettings.graphicsQuality = clean;
+                        const facade = getFacade();
+                        if (facade && typeof facade.setGraphicsQuality === 'function') {
+                            facade.setGraphicsQuality(clean);
+                        } else if (privateMod && typeof privateMod.saveLobbyUserSettings === 'function') {
+                            privateMod.saveLobbyUserSettings({ graphicsQuality: clean });
+                        }
+                        if (privateAudio) privateAudio.playUiSwitch();
+                    },
+
+                    minimapTooltip() {
+                        const season = this.environmentInfo.season_label || 'Herbst';
+                        if (this.environmentInfo.holiday_label) {
+                            return season + ' · ' + this.environmentInfo.holiday_label;
+                        }
+                        return season;
+                    },
+
+                    canEnterSanctums() {
+                        return Boolean(this.sanctumGateState && this.sanctumGateState.canEnter);
+                    },
+
+                    openSanctumGateModal(zone, incomingState) {
+                        const facade = getFacade();
+                        if (facade && typeof facade.releasePointerLock === 'function') {
+                            facade.releasePointerLock();
+                        }
+                        this.sanctumGateZone = (zone === 'lava') ? 'lava' : 'heroes';
+                        const resolved = incomingState
+                            || (facade && typeof facade.getSanctumAccessState === 'function' ? facade.getSanctumAccessState() : null);
+                        if (resolved && typeof resolved === 'object') {
+                            this.sanctumGateState = {
+                                canEnter: Boolean(resolved.canEnter),
+                                reason: resolved.reason || 'login_required',
+                                checks: {
+                                    login: Boolean(resolved.checks && resolved.checks.login),
+                                    order: Boolean(resolved.checks && resolved.checks.order),
+                                    magic: Boolean(resolved.checks && resolved.checks.magic),
+                                },
+                                loginUrl: resolved.loginUrl || '/login',
+                                dashboardUrl: resolved.dashboardUrl || '/dashboard',
+                            };
+                        }
+                        this.sanctumGateOpen = true;
+                    },
+
+                    closeSanctumGateModal() {
+                        this.sanctumGateOpen = false;
+                        if (privateAudio) privateAudio.playUiClick();
+                    },
+
                     toggleQuickMute() {
                         if (privateAudio && typeof privateAudio.toggleQuickMute === 'function') {
                             this.audioState = privateAudio.toggleQuickMute();
@@ -2727,13 +3015,6 @@
                         const facade = getFacade();
                         if (facade && typeof facade.claimLavaChest === 'function') {
                             facade.claimLavaChest();
-                        }
-                    },
-
-                    claimLabyrinthBuzzer() {
-                        const facade = getFacade();
-                        if (facade && typeof facade.claimLabyrinthBuzzer === 'function') {
-                            facade.claimLabyrinthBuzzer();
                         }
                     },
 
@@ -2864,8 +3145,7 @@
 
                     currentZoneLabel() {
                         if (this.currentZone === 'heroes') return '🏛️ Halle der Helden';
-                        if (this.currentZone === 'lava') return '🌋 Magma-Kammer';
-                        if (this.currentZone === 'labyrinth') return '🌀 Mini-Labyrinth';
+                        if (this.currentZone === 'lava') return '🌋 Magma-Welt';
                         return '🛍️ Kollektion';
                     },
 
@@ -2878,9 +3158,7 @@
                     switchZone(targetZone) {
                         const z = targetZone === 'lava'
                             ? 'lava'
-                            : (targetZone === 'labyrinth'
-                                ? 'labyrinth'
-                                : ((targetZone === 'heroes' || targetZone === 'hall') ? 'heroes' : 'gallery'));
+                            : ((targetZone === 'heroes' || targetZone === 'hall') ? 'heroes' : 'gallery');
                         if (privateAudio) privateAudio.playUiClick();
                         const facade = getFacade();
                         if (facade) {
@@ -2958,9 +3236,7 @@
 
                         const requestedZone = initialZone === 'lava'
                             ? 'lava'
-                            : (initialZone === 'labyrinth'
-                                ? 'labyrinth'
-                                : ((initialZone === 'heroes' || initialZone === 'hall') ? 'heroes' : 'gallery'));
+                            : ((initialZone === 'heroes' || initialZone === 'hall') ? 'heroes' : 'gallery');
                         if (this.isOpen) {
                             this.switchZone(requestedZone);
                             return;
@@ -2971,12 +3247,14 @@
                         this.isFullscreen = Boolean(document.fullscreenElement || document.webkitFullscreenElement);
                         this.isLoading = true;
                         this.loadError = '';
-                        this.currentZone = requestedZone;
+                        this.currentZone = 'gallery';
                         this.stagesPreviewMode = 'live';
                         this.focusedProduct = null;
                         this.focusedHero = null;
                         this.instanceMenuOpen = false;
                         this.settingsOpen = false;
+                        this.sanctumGateOpen = false;
+                        this.masterKeyModalOpen = false;
                         this.listeningKeyAction = '';
                         this.peers = [];
                         this.chatMessages = [];
@@ -3042,10 +3320,39 @@
                                     player_id: null
                                 };
 
-                                const isAuth = this.isCustomerAuthenticated();
+                                const rawPlayer = (payload.player && typeof payload.player === 'object') ? payload.player : null;
+                                if (payload.environment && typeof payload.environment === 'object') {
+                                    this.environmentInfo = Object.assign({}, this.environmentInfo, payload.environment);
+                                }
+
+                                const isAuth = Boolean(
+                                    (rawPlayer && rawPlayer.is_authenticated)
+                                    || this.isCustomerAuthenticated()
+                                );
                                 this.lobbyAuthenticated = isAuth;
                                 this.soloMode = false;
                                 this.activeIndex = 0;
+
+                                const hasOrder = Boolean(rawPlayer && (rawPlayer.has_completed_order ?? false));
+                                const magicActive = Boolean(rawPlayer && rawPlayer.gamification_active);
+                                const fallbackCanEnter = Boolean(isAuth && hasOrder && magicActive);
+                                const resolvedCanEnter = (rawPlayer && rawPlayer.can_enter_sanctums !== undefined)
+                                    ? Boolean(rawPlayer.can_enter_sanctums && fallbackCanEnter)
+                                    : fallbackCanEnter;
+                                this.sanctumGateState = {
+                                    canEnter: resolvedCanEnter,
+                                    reason: resolvedCanEnter
+                                        ? null
+                                        : ((rawPlayer && rawPlayer.sanctum_block_reason)
+                                            || (!isAuth ? 'login_required' : (!hasOrder ? 'order_required' : 'magic_activation_required'))),
+                                    checks: {
+                                        login: isAuth,
+                                        order: hasOrder,
+                                        magic: magicActive,
+                                    },
+                                    loginUrl: (rawPlayer && rawPlayer.login_url) || '/login',
+                                    dashboardUrl: (rawPlayer && rawPlayer.dashboard_url) || '/dashboard',
+                                };
 
                                 if (typeof mod.loadLobbyUserSettings === 'function') {
                                     this.userSettings = mod.loadLobbyUserSettings();
@@ -3065,20 +3372,13 @@
                                 }
 
                                 this.lavaChestState = {
+                                    level: 1,
+                                    rewardPreview: 5,
                                     nearChest: false,
                                     isAuthenticated: isAuth,
                                     claimedToday: Boolean(payload.lava_parkour && payload.lava_parkour.claimed_today),
                                     claiming: false,
                                     canClaim: Boolean(isAuth && !(payload.lava_parkour && payload.lava_parkour.claimed_today)),
-                                    statusMessage: '',
-                                };
-
-                                this.labyrinthBuzzerState = {
-                                    nearBuzzer: false,
-                                    isAuthenticated: isAuth,
-                                    claimedToday: Boolean(payload.mini_labyrinth && payload.mini_labyrinth.claimed_today),
-                                    claiming: false,
-                                    canClaim: Boolean(isAuth && !(payload.mini_labyrinth && payload.mini_labyrinth.claimed_today)),
                                     statusMessage: '',
                                 };
 
@@ -3102,12 +3402,13 @@
                                         floatingHeroCardEl: this.$refs.floatingHeroCard || null,
                                         floatingPortalCardEl: this.$refs.floatingPortalCard || null,
                                         floatingLavaChestEl: this.$refs.floatingLavaChestCard || null,
-                                        floatingLabyrinthBuzzerEl: this.$refs.floatingLabyrinthBuzzerCard || null,
+                                        floatingOuterGateEl: this.$refs.floatingOuterGateCard || null,
                                         products: this.products,
+                                        environment: payload.environment || null,
+                                        player: rawPlayer,
                                         heroesPayload: this.heroesPayload,
                                         playerFunki: this.funkiInfo,
                                         lavaParkour: payload.lava_parkour || null,
-                                        miniLabyrinth: payload.mini_labyrinth || null,
                                         audio: privateAudio || undefined,
                                         isAuthenticatedCustomer: isAuth,
                                         initialZone: requestedZone,
@@ -3132,11 +3433,28 @@
                                             this.currentZone = zone;
                                             this.handleZoneSyncTransition(zone);
                                         },
+                                        onAuthGatePrompt: (zone, accessState) => {
+                                            this.openSanctumGateModal(zone, accessState);
+                                        },
+                                        onMasterKeyPromptChange: (flag) => {
+                                            if (flag) {
+                                                const f = getFacade();
+                                                if (f && typeof f.releasePointerLock === 'function') {
+                                                    f.releasePointerLock();
+                                                }
+                                                this.masterKeyModalOpen = true;
+                                            }
+                                        },
+                                        onPlayerHudChange: (hud) => {
+                                            if (hud && typeof hud === 'object') {
+                                                this.playerHud = Object.assign({}, this.playerHud, hud);
+                                                if (hud.environment) {
+                                                    this.environmentInfo = Object.assign({}, this.environmentInfo, hud.environment);
+                                                }
+                                            }
+                                        },
                                         onLavaChestStateChange: (state) => {
                                             this.lavaChestState = state;
-                                        },
-                                        onLabyrinthBuzzerStateChange: (state) => {
-                                            this.labyrinthBuzzerState = state;
                                         },
                                         onSelectProduct: (prod) => {
                                             if (prod && prod.product_url) {
@@ -3145,15 +3463,30 @@
                                         }
                                     });
                                     setFacade(createdFacade);
+                                    if (typeof createdFacade.getPlayerHudState === 'function') {
+                                        this.playerHud = Object.assign({}, this.playerHud, createdFacade.getPlayerHudState());
+                                    }
+                                    if (typeof createdFacade.getSanctumAccessState === 'function') {
+                                        const stAccess = createdFacade.getSanctumAccessState();
+                                        this.sanctumGateState = {
+                                            canEnter: Boolean(stAccess.canEnter),
+                                            reason: stAccess.reason || null,
+                                            checks: Object.assign({ login: false, order: false, magic: false }, stAccess.checks || {}),
+                                            loginUrl: stAccess.loginUrl || '/login',
+                                            dashboardUrl: stAccess.dashboardUrl || '/dashboard',
+                                        };
+                                    }
+                                    this.currentZone = createdFacade.getCurrentZone();
 
                                     if (this.mutedPlayerIds.length > 0) {
                                         createdFacade.setMutedPlayers(this.mutedPlayerIds);
                                     }
 
-                                    // Ruhiges Solo-Shopping in 'gallery'/'lava'/'labyrinth': Multiplayer-Instanz startet erst beim Betreten von 'heroes'!
-                                    if (isAuth && this.currentZone === 'heroes') {
+                                    // Ruhiges Solo-Shopping in 'gallery'/'lava': Multiplayer-Instanz startet erst beim Betreten von 'heroes'!
+                                    if (isAuth && this.canEnterSanctums() && this.currentZone === 'heroes') {
                                         this.handleZoneSyncTransition('heroes');
                                     }
+                                    this.renderMinimap();
                                 });
                             })
                             .catch(() => {
@@ -3167,7 +3500,7 @@
                         const facade = getFacade();
 
                         if (z === 'heroes') {
-                            if (this.isCustomerAuthenticated() && !this.soloMode && (this._activeSyncZone !== 'heroes' || !this._syncTimer)) {
+                            if (this.isCustomerAuthenticated() && this.canEnterSanctums() && !this.soloMode && (this._activeSyncZone !== 'heroes' || !this._syncTimer)) {
                                 this._activeSyncZone = 'heroes';
                                 this.joinLobbyInstance();
                             }
@@ -3234,7 +3567,17 @@
                                 combo_stage: st.combo_stage
                             })
                         })
-                            .then((res) => (res.ok ? res.json() : null))
+                            .then((res) => res.json().catch(() => null).then((b) => {
+                                if (res.status === 401 || res.status === 403) {
+                                    this.stopMultiplayerLoop();
+                                    const fGate = getFacade();
+                                    if (fGate && typeof fGate.handleSanctumHttpResponse === 'function') {
+                                        fGate.handleSanctumHttpResponse(res.status, b, 'heroes');
+                                    }
+                                    return null;
+                                }
+                                return res.ok ? b : null;
+                            }))
                             .then((data) => {
                                 if (!data || !data.ok || !this.isOpen || this.currentZone !== 'heroes') return;
                                 this.lobbyAuthenticated = Boolean(data.authenticated);
@@ -3308,7 +3651,17 @@
                                 combo_stage: st.combo_stage
                             })
                         })
-                            .then((res) => (res.ok ? res.json() : null))
+                            .then((res) => res.json().catch(() => null).then((b) => {
+                                if (res.status === 401 || res.status === 403) {
+                                    this.stopMultiplayerLoop();
+                                    const fGate = getFacade();
+                                    if (fGate && typeof fGate.handleSanctumHttpResponse === 'function') {
+                                        fGate.handleSanctumHttpResponse(res.status, b, 'heroes');
+                                    }
+                                    return null;
+                                }
+                                return res.ok ? b : null;
+                            }))
                             .then((data) => {
                                 const f2 = getFacade();
                                 if (!data || !data.ok || !this.isOpen || !f2 || this.currentZone !== 'heroes') return;
@@ -3356,7 +3709,17 @@
                                 zone: 'heroes'
                             })
                         })
-                            .then((res) => (res.ok ? res.json() : null))
+                            .then((res) => res.json().catch(() => null).then((b) => {
+                                if (res.status === 401 || res.status === 403) {
+                                    this.stopMultiplayerLoop();
+                                    const fGate = getFacade();
+                                    if (fGate && typeof fGate.handleSanctumHttpResponse === 'function') {
+                                        fGate.handleSanctumHttpResponse(res.status, b, 'heroes');
+                                    }
+                                    return null;
+                                }
+                                return res.ok ? b : null;
+                            }))
                             .then((data) => {
                                 const f2 = getFacade();
                                 if (!data || !data.ok || !this.isOpen || !f2) return;
@@ -3585,6 +3948,76 @@
                         if (facade && typeof facade.getAbilityState === 'function') {
                             this.abilityState = facade.getAbilityState();
                         }
+                        if (facade && typeof facade.getPlayerHudState === 'function') {
+                            this.playerHud = Object.assign({}, this.playerHud, facade.getPlayerHudState());
+                        }
+                        this.renderMinimap();
+                    },
+
+                    renderMinimap() {
+                        const canvas = this.$refs.minimapCanvas;
+                        const facade = getFacade();
+                        if (!canvas || !facade || typeof facade.getMinimapState !== 'function') return;
+                        const ctx = canvas.getContext('2d');
+                        if (!ctx) return;
+                        const snap = facade.getMinimapState();
+                        if (!snap) return;
+
+                        const w = canvas.width || 84;
+                        const h = canvas.height || 84;
+                        const cx = w * 0.5;
+                        const cy = h * 0.5;
+                        const rad = w * 0.5 - 6;
+
+                        ctx.clearRect(0, 0, w, h);
+                        ctx.save();
+                        ctx.beginPath();
+                        ctx.arc(cx, cy, rad + 4, 0, Math.PI * 2);
+                        ctx.clip();
+
+                        ctx.fillStyle = snap.zone === 'lava' ? '#FBF5EC' : '#FAF8F5';
+                        ctx.fillRect(0, 0, w, h);
+
+                        ctx.strokeStyle = 'rgba(197, 160, 89, 0.25)';
+                        ctx.lineWidth = 1;
+                        ctx.beginPath();
+                        ctx.arc(cx, cy, rad * 0.58, 0, Math.PI * 2);
+                        ctx.stroke();
+
+                        const markers = Array.isArray(snap.markers) ? snap.markers : [];
+                        for (let i = 0; i < markers.length; i++) {
+                            const m = markers[i];
+                            const mx = cx + (m.u - 0.5) * rad * 1.65;
+                            const my = cy + (m.v - 0.5) * rad * 1.65;
+                            ctx.beginPath();
+                            if (m.type === 'chest' || m.type === 'portal') {
+                                ctx.fillStyle = m.active ? '#C5A059' : '#9CA3AF';
+                                ctx.arc(mx, my, 3.2, 0, Math.PI * 2);
+                            } else {
+                                ctx.fillStyle = m.active ? '#C5A059' : 'rgba(17, 24, 39, 0.32)';
+                                ctx.arc(mx, my, m.active ? 2.8 : 2.0, 0, Math.PI * 2);
+                            }
+                            ctx.fill();
+                        }
+
+                        if (snap.player) {
+                            const px = cx + (snap.player.u - 0.5) * rad * 1.65;
+                            const py = cy + (snap.player.v - 0.5) * rad * 1.65;
+                            ctx.save();
+                            ctx.translate(px, py);
+                            ctx.rotate(-(snap.player.yaw || 0) + Math.PI);
+                            ctx.fillStyle = '#111827';
+                            ctx.beginPath();
+                            ctx.moveTo(0, -5);
+                            ctx.lineTo(3.6, 4);
+                            ctx.lineTo(0, 2.2);
+                            ctx.lineTo(-3.6, 4);
+                            ctx.closePath();
+                            ctx.fill();
+                            ctx.restore();
+                        }
+
+                        ctx.restore();
                     },
 
                     mutePeer(playerId) {
@@ -3659,6 +4092,8 @@
                         this.focusedHero = null;
                         this.instanceMenuOpen = false;
                         this.settingsOpen = false;
+                        this.sanctumGateOpen = false;
+                        this.masterKeyModalOpen = false;
                         this.listeningKeyAction = '';
                         this.chatOpen = false;
                         if (privateAudio && typeof privateAudio.setLobbyActive === 'function') {
@@ -3698,24 +4133,34 @@
 
                     handleEscape() {
                         if (!this.isOpen) return;
+                        const facade = getFacade();
+                        if (facade && typeof facade.releasePointerLock === 'function') {
+                            facade.releasePointerLock();
+                        }
                         if (this.listeningKeyAction !== '') {
                             this.listeningKeyAction = '';
+                            return;
+                        }
+                        if (this.sanctumGateOpen) {
+                            this.closeSanctumGateModal();
+                            return;
+                        }
+                        if (this.masterKeyModalOpen) {
+                            this.masterKeyModalOpen = false;
                             return;
                         }
                         if (this.settingsOpen) {
                             this.closeSettingsModal();
                             return;
                         }
-                        const fsEl = document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement || null;
-                        if (fsEl) {
-                            this.toggleFullscreen();
-                            return;
-                        }
                         if (this.instanceMenuOpen) {
                             this.instanceMenuOpen = false;
                             return;
                         }
-                        this.closeShowroom();
+                        this.settingsOpen = true;
+                        if (privateAudio) {
+                            privateAudio.playUiClick();
+                        }
                     },
 
                     activeExhibitName() {
@@ -3800,5 +4245,4 @@
             };
         })();
     </script>
-    @endif
 </div>

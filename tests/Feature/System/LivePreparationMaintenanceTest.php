@@ -16,9 +16,6 @@ use App\Models\Product\Product;
 use App\Models\Product\ProductCategory;
 use App\Models\Product\ProductTemplate;
 use App\Models\System\SystemSetting;
-use App\Services\System\BlueprintZeroLeakScanner;
-use App\Services\System\CleanRoomBlueprintBuilderService;
-use App\Support\DigitalDomainContext;
 use Database\Seeders\SystemSettingSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Foundation\Testing\RefreshDatabaseState;
@@ -76,38 +73,15 @@ class LivePreparationMaintenanceTest extends TestCase
         $this->assertSame(1, Admin::count());
         $this->assertSame('Gifhorn', $admin->profile?->city);
 
-        // Echte Produktions-Stammdaten vorhanden
+        // Echte Produktions-Stammdaten vorhanden (inkl. Geschenkgutschein MSF-GUTSCHEIN-001, aber 0 NXC-BP-* Blueprints)
         $this->assertGreaterThan(0, Product::count());
         $this->assertGreaterThan(0, ProductCategory::count());
         $this->assertGreaterThan(0, ProductTemplate::count());
         $this->assertGreaterThan(0, LogisticsShippingZone::where('is_active', true)->count());
         $this->assertGreaterThan(0, DB::table('tax_rates')->count());
-
-        // Digital-Shop (digital.mein-seelenfunke.de) fail-closed vorbereitet inkl. 5 Clean-Room Blueprint-Entwürfen & Zero-Leak-ZIPs
-        $this->assertSame('0', (string) SystemSetting::where('key', 'digital_domain_is_live')->value('value'));
-        $this->assertFalse(DigitalDomainContext::isDigitalDomainLive());
-        $this->assertSame('digital.mein-seelenfunke.de', SystemSetting::where('key', 'digital_domain_host')->value('value'));
-
-        $blueprintDrafts = Product::where('type', 'digital')
-            ->where('collection_line', 'digital_blueprint')
-            ->where('status', 'draft')
-            ->get();
-        $this->assertCount(5, $blueprintDrafts);
-
-        foreach (array_keys(CleanRoomBlueprintBuilderService::getBlueprintDefinitions()) as $bpSlug) {
-            $this->assertTrue(Storage::disk('local')->exists(CleanRoomBlueprintBuilderService::STORAGE_REL_DIR . '/' . $bpSlug . '.zip'));
-            $this->assertTrue(Storage::disk('local')->exists(SystemPrepareLiveCommand::DIGITAL_BLUEPRINTS_DIR . '/' . $bpSlug . '.zip'));
-        }
-        $scanner = app(BlueprintZeroLeakScanner::class);
-        $this->assertTrue($scanner->scanDirectory(Storage::disk('local')->path(SystemPrepareLiveCommand::DIGITAL_BLUEPRINTS_DIR))['clean']);
-
-        // Gäste sehen auf digital.mein-seelenfunke.de 503, während Alina als Admin sofort HTTP 200 Vorschau (DE & EN) erhält
-        $this->get('https://digital.mein-seelenfunke.de/shop')->assertStatus(503);
-        $this->actingAs($admin, 'admin')->get('https://digital.mein-seelenfunke.de/shop')->assertStatus(200);
-        $this->actingAs($admin, 'admin')->get('https://digital.mein-seelenfunke.de/shop?lang=en')->assertStatus(200);
-        Auth::guard('admin')->logout();
-        $this->app['auth']->forgetGuards();
-        $this->flushSession();
+        $this->assertNotNull(Product::where('slug', 'geschenkgutschein')->where('sku', 'MSF-GUTSCHEIN-001')->first());
+        $this->assertSame(0, Product::withTrashed()->whereIn('sku', SystemPrepareLiveCommand::RETIRED_BLUEPRINT_SKUS)->count());
+        $this->assertSame(0, SystemSetting::whereIn('key', ['digital_domain_is_live', 'digital_domain_host'])->count());
 
         // 0 Test-Accounts, 0 LARA10, 0 Fake-Bestellungen
         $this->assertSame(0, Employee::withTrashed()->whereIn('email', SystemPrepareLiveCommand::FORBIDDEN_EMPLOYEE_EMAILS)->count());
@@ -172,10 +146,9 @@ class LivePreparationMaintenanceTest extends TestCase
 
         $this->assertSame(0, Artisan::call('system:prepare-live', ['--verify-only' => true]));
         $verifyOutput = Artisan::output();
-        $this->assertStringContainsString('Digital-Shop (digital.mein-seelenfunke.de)', $verifyOutput);
-        $this->assertStringContainsString('digital_domain_is_live = false (Vorab-Schutz 503)', $verifyOutput);
-        $this->assertStringContainsString('5 Blueprints (5 Entwürfe)', $verifyOutput);
-        $this->assertStringContainsString('Zero-Leak OK', $verifyOutput);
+        $this->assertStringContainsString('Live gehen (shop_is_live)', $verifyOutput);
+        $this->assertStringContainsString('false (Gesperrt / 503)', $verifyOutput);
+        $this->assertStringNotContainsString('digital.mein-seelenfunke.de', $verifyOutput);
     }
 
     public function test_live_go_live_switch_and_maintenance_mode_workflow_for_alina_and_visitors(): void
@@ -266,8 +239,6 @@ class LivePreparationMaintenanceTest extends TestCase
         $this->assertSame(1, preg_match($hostPattern, 'www.mein-seelenfunke.de'));
         $this->assertSame(1, preg_match($hostPattern, 'WWW.MEIN-SEELENFUNKE.DE'));
         $this->assertSame(0, preg_match($hostPattern, 'mein-seelenfunke.de'));
-        $this->assertSame(0, preg_match($hostPattern, 'digital.mein-seelenfunke.de'));
-        $this->assertSame(0, preg_match($hostPattern, 'DIGITAL.MEIN-SEELENFUNKE.DE'));
         $this->assertSame(0, preg_match($hostPattern, 'stage.mein-seelenfunke.de'));
         $this->assertSame(0, preg_match($hostPattern, 'ws.mein-seelenfunke.de'));
         $this->assertSame(0, preg_match($hostPattern, 'api-live-bridge.mein-seelenfunke.de'));

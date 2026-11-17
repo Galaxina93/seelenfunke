@@ -341,7 +341,7 @@ class SentinelTriageService
             @unlink($spoolPath);
         } else {
             @file_put_contents($spoolPath, implode("\n", $remainingLines) . "\n", LOCK_EX);
-            @chmod($spoolPath, 0600);
+            @chmod($spoolPath, app()->environment('local', 'testing') ? 0666 : 0600);
         }
 
         return $imported;
@@ -891,7 +891,9 @@ class SentinelTriageService
                 $path = SystemHealthPulseService::resolveSentinelLastTriageFilePath();
                 File::ensureDirectoryExists(dirname($path));
                 @file_put_contents($path, json_encode(['ran_at' => $iso, 'timestamp' => now()->timestamp], JSON_UNESCAPED_SLASHES), LOCK_EX);
-                @chmod($path, app()->environment('local', 'testing') ? 0666 : 0664);
+                if (!function_exists('posix_geteuid') || posix_geteuid() === 0 || @fileowner($path) === posix_geteuid()) {
+                    @chmod($path, app()->environment('local', 'testing') ? 0666 : 0664);
+                }
             }
         } catch (\Throwable $ignore) {
         }
@@ -1150,7 +1152,9 @@ class SentinelTriageService
         $inboxPath = storage_path(self::INBOX_FILE);
         File::ensureDirectoryExists(dirname($inboxPath));
         File::put($inboxPath, json_encode($snapshot, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
-        @chmod($inboxPath, $fileMode);
+        if (!function_exists('posix_geteuid') || posix_geteuid() === 0 || @fileowner($inboxPath) === posix_geteuid()) {
+            @chmod($inboxPath, $fileMode);
+        }
 
         $handoffPath = storage_path(self::HANDOFF_FILE);
         if (!empty($items)) {
@@ -1184,7 +1188,9 @@ class SentinelTriageService
                 'outgoing_files' => $top['outgoing_files'] ?? [],
             ]);
             File::put($handoffPath, json_encode($handoffCompat, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
-            @chmod($handoffPath, $fileMode);
+            if (!function_exists('posix_geteuid') || posix_geteuid() === 0 || @fileowner($handoffPath) === posix_geteuid()) {
+                @chmod($handoffPath, $fileMode);
+            }
         } elseif (File::exists($handoffPath)) {
             $existingHandoff = json_decode((string) @file_get_contents($handoffPath), true);
             if (is_array($existingHandoff) && str_contains((string) ($existingHandoff['prepared_by'] ?? ''), 'Sentinel')) {

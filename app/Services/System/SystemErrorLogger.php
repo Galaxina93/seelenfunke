@@ -1235,7 +1235,7 @@ class SystemErrorLogger
             $jsonLine = json_encode($safeEntry, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             if (is_string($jsonLine) && $jsonLine !== '') {
                 @file_put_contents($spoolPath, $jsonLine . "\n", FILE_APPEND | LOCK_EX);
-                @chmod($spoolPath, 0600);
+                @chmod($spoolPath, app()->environment('local', 'testing') ? 0666 : 0600);
             }
         } catch (\Throwable $ignore) {
         }

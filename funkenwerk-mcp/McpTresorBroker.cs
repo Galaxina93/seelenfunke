@@ -2243,7 +2243,7 @@ function(mode, userVal, passVal, totpVal, doSubmit) {
         // =====================================================================
         // 5. PINNED SEELENFUNKE-LIVE CLI PREPARATION ENGINE (CLI-ONLY, ZERO-SECRET)
         // =====================================================================
-        public const string PinnedLiveDigitalHostname = "digital.mein-seelenfunke.de";
+        private const string RetiredDigitalSubdomainHostname = "digital.mein-seelenfunke.de";
 
         internal static Func<string, string, Task<byte[]?>>? TestReadContainerEnvOverride { get; set; }
         internal static Func<Task<(bool Connected, string StatusToken)>>? TestProbeLiveMysqlPdoOverride { get; set; }
@@ -2517,7 +2517,7 @@ function(mode, userVal, passVal, totpVal, doSubmit) {
                     ["REDIS_PASSWORD"] = "null"u8.ToArray(),
                     ["REDIS_PORT"] = "6379"u8.ToArray(),
                     ["GOOGLE_REDIRECT_URL"] = "https://mein-seelenfunke.de/auth/google/callback"u8.ToArray(),
-                    ["SANCTUM_STATEFUL_DOMAINS"] = "mein-seelenfunke.de,www.mein-seelenfunke.de,digital.mein-seelenfunke.de"u8.ToArray()
+                    ["SANCTUM_STATEFUL_DOMAINS"] = "mein-seelenfunke.de,www.mein-seelenfunke.de"u8.ToArray()
                 };
 
                 var primaryLines = (preserveExistingLiveDbPassword && liveLines.Count > 0) ? liveLines : stageLines;
@@ -2531,8 +2531,9 @@ function(mode, userVal, passVal, totpVal, doSubmit) {
                     if (map.TryGetValue("ASSET_URL", out var auVal)
                         && (AsciiContainsIgnoreCase(auVal, "stage.mein-seelenfunke.de"u8) || AsciiContainsIgnoreCase(auVal, "www.mein-seelenfunke.de"u8)))
                         forcedOverrides["ASSET_URL"] = "https://mein-seelenfunke.de"u8.ToArray();
-                    if (map.TryGetValue("SANCTUM_STATEFUL_DOMAINS", out var ssdVal) && AsciiContainsIgnoreCase(ssdVal, "stage.mein-seelenfunke.de"u8))
-                        forcedOverrides["SANCTUM_STATEFUL_DOMAINS"] = "mein-seelenfunke.de,www.mein-seelenfunke.de,digital.mein-seelenfunke.de"u8.ToArray();
+                    if (map.TryGetValue("SANCTUM_STATEFUL_DOMAINS", out var ssdVal)
+                        && (AsciiContainsIgnoreCase(ssdVal, "stage.mein-seelenfunke.de"u8) || AsciiContainsIgnoreCase(ssdVal, "digital.mein-seelenfunke.de"u8)))
+                        forcedOverrides["SANCTUM_STATEFUL_DOMAINS"] = "mein-seelenfunke.de,www.mein-seelenfunke.de"u8.ToArray();
                 }
 
                 var emittedKeys = new HashSet<string>(StringComparer.Ordinal);
@@ -2941,14 +2942,131 @@ function(mode, userVal, passVal, totpVal, doSubmit) {
             return res;
         }
 
+        private static async Task<(bool IngressRemoved, string RemovedIngressId, bool DnsZoneRemoved, string RemovedDnsZoneId)> RetireLegacyDigitalSubdomainInfraAsync(
+            HttpClient client,
+            byte[] apiTokenUtf8,
+            JsonArray? currentIngresses,
+            List<string> infraErrors,
+            CancellationToken ct)
+        {
+            bool ingressRemoved = false;
+            string removedIngressId = "";
+            bool dnsZoneRemoved = false;
+            string removedDnsZoneId = "";
+
+            JsonArray? ingArr = currentIngresses;
+            if (ingArr == null)
+            {
+                var (ingSt, ingBody, ingNode) = await SendMittwaldRequestAsync(
+                    client,
+                    HttpMethod.Get,
+                    $"/v2/ingresses?projectId={Uri.EscapeDataString(McpSecurityGuard.PinnedLiveProjectId)}",
+                    apiTokenUtf8,
+                    ct);
+                if (ingSt is < 200 or >= 300 || ingNode is not JsonArray fetchedArr)
+                    throw new InvalidOperationException($"GET /v2/ingresses fehlgeschlagen (HTTP {ingSt}): {ingBody}");
+                ingArr = fetchedArr;
+            }
+
+            foreach (var item in ingArr)
+            {
+                if (item is not JsonObject io)
+                    continue;
+                string host = io["hostname"]?.GetValue<string>() ?? "";
+                if (!string.Equals(host, RetiredDigitalSubdomainHostname, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                // Hard guard: never touch apex, www, stage, ws, bridge, or steinhauer-invest
+                if (string.Equals(host, "mein-seelenfunke.de", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(host, McpSecurityGuard.PinnedLiveWwwHostname, StringComparison.OrdinalIgnoreCase)
+                    || host.StartsWith("stage.", StringComparison.OrdinalIgnoreCase)
+                    || host.StartsWith("ws.", StringComparison.OrdinalIgnoreCase)
+                    || host.StartsWith("api-live-bridge.", StringComparison.OrdinalIgnoreCase)
+                    || host.Contains("steinhauer-invest", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new UnauthorizedAccessException($"PINNING-SPERRE: Verbotenes Ziel '{host}' beim Bereinigen von {RetiredDigitalSubdomainHostname}.");
+                }
+
+                string ingId = ValidateSafeMittwaldId(io["id"]?.GetValue<string>(), "ingressId");
+                if (string.Equals(ingId, McpSecurityGuard.PinnedLiveApexIngressUuid, StringComparison.OrdinalIgnoreCase))
+                    throw new UnauthorizedAccessException("PINNING-SPERRE: Apex-Ingress darf niemals entfernt werden.");
+
+                var (delSt, delBody, _) = await SendMittwaldRequestAsync(
+                    client,
+                    HttpMethod.Delete,
+                    $"/v2/ingresses/{ingId}",
+                    apiTokenUtf8,
+                    ct);
+                if ((delSt is < 200 or >= 300) && delSt != 404)
+                {
+                    infraErrors.Add($"DELETE /v2/ingresses/{ingId} ({RetiredDigitalSubdomainHostname}) -> HTTP {delSt}: {delBody}");
+                }
+                else
+                {
+                    ingressRemoved = delSt != 404;
+                    removedIngressId = ingId;
+                }
+            }
+
+            var (zSt, zBody, zNode) = await SendMittwaldRequestAsync(
+                client,
+                HttpMethod.Get,
+                $"/v2/projects/{McpSecurityGuard.PinnedLiveProjectId}/dns-zones",
+                apiTokenUtf8,
+                ct);
+            if (zSt is >= 200 and < 300 && zNode is JsonArray zonesArr)
+            {
+                foreach (var z in zonesArr)
+                {
+                    if (z is not JsonObject zo)
+                        continue;
+                    string dom = zo["domain"]?.GetValue<string>() ?? "";
+                    if (!string.Equals(dom, RetiredDigitalSubdomainHostname, StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    string zoneId = ValidateSafeMittwaldId(zo["id"]?.GetValue<string>(), "dnsZoneId");
+                    if (string.Equals(zoneId, McpSecurityGuard.PinnedLiveRootZoneUuid, StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(dom, "mein-seelenfunke.de", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(dom, McpSecurityGuard.PinnedLiveWwwHostname, StringComparison.OrdinalIgnoreCase)
+                        || dom.StartsWith("stage.", StringComparison.OrdinalIgnoreCase)
+                        || dom.Contains("steinhauer-invest", StringComparison.OrdinalIgnoreCase))
+                    {
+                        throw new UnauthorizedAccessException($"PINNING-SPERRE: Haupt-/Stage-DNS-Zone '{dom}' darf niemals entfernt werden.");
+                    }
+
+                    var (delZSt, delZBody, _) = await SendMittwaldRequestAsync(
+                        client,
+                        HttpMethod.Delete,
+                        $"/v2/dns-zones/{zoneId}",
+                        apiTokenUtf8,
+                        ct);
+                    if ((delZSt is < 200 or >= 300) && delZSt != 404)
+                    {
+                        infraErrors.Add($"DELETE /v2/dns-zones/{zoneId} ({RetiredDigitalSubdomainHostname}) -> HTTP {delZSt}: {delZBody}");
+                    }
+                    else
+                    {
+                        dnsZoneRemoved = delZSt != 404;
+                        removedDnsZoneId = zoneId;
+                    }
+                }
+            }
+            else
+            {
+                infraErrors.Add($"GET /v2/projects/{McpSecurityGuard.PinnedLiveProjectId}/dns-zones -> HTTP {zSt}: {zBody}");
+            }
+
+            return (ingressRemoved, removedIngressId, dnsZoneRemoved, removedDnsZoneId);
+        }
+
         public static async Task<JsonObject> ExecutePinnedSeelenfunkeLivePrepareAsync(
             string step = "all",
             string? entryTitleOrId = null,
             CancellationToken ct = default)
         {
             string normStep = string.IsNullOrWhiteSpace(step) ? "all" : step.Trim().ToLowerInvariant();
-            if (normStep is not ("all" or "infra" or "env" or "cron" or "check"))
-                throw new ArgumentException($"Ungültiger --step='{McpSecurityGuard.ScrubSecrets(step)}'. Erlaubt: all, infra, env, cron, check.");
+            if (normStep is not ("all" or "infra" or "env" or "cron" or "check" or "retire-digital"))
+                throw new ArgumentException($"Ungültiger --step='{McpSecurityGuard.ScrubSecrets(step)}'. Erlaubt: all, infra, env, cron, check, retire-digital.");
 
             if (!string.IsNullOrWhiteSpace(entryTitleOrId)
                 && (entryTitleOrId.Contains("steinhauer-invest", StringComparison.OrdinalIgnoreCase)
@@ -2999,19 +3117,18 @@ function(mode, userVal, passVal, totpVal, doSubmit) {
                         client, HttpMethod.Get, $"/v2/ingresses?projectId={Uri.EscapeDataString(McpSecurityGuard.PinnedLiveProjectId)}", lease.ApiTokenUtf8, ct);
                     var cIngArr = cIngNode as JsonArray;
                     var wwwIngItem = cIngArr?.FirstOrDefault(x => string.Equals(x?["hostname"]?.GetValue<string>(), McpSecurityGuard.PinnedLiveWwwHostname, StringComparison.OrdinalIgnoreCase));
-                    var digitalIngItem = cIngArr?.FirstOrDefault(x => string.Equals(x?["hostname"]?.GetValue<string>(), PinnedLiveDigitalHostname, StringComparison.OrdinalIgnoreCase));
+                    var retiredDigitalIngItem = cIngArr?.FirstOrDefault(x => string.Equals(x?["hostname"]?.GetValue<string>(), RetiredDigitalSubdomainHostname, StringComparison.OrdinalIgnoreCase));
                     checkObj["ingresses_http"] = cIngSt;
                     checkObj["www_ingress_exists"] = wwwIngItem != null;
                     checkObj["www_tls_is_created"] = wwwIngItem?["tls"]?["isCreated"]?.GetValue<bool>() == true;
-                    checkObj["digital_ingress_exists"] = digitalIngItem != null;
-                    checkObj["digital_tls_is_created"] = digitalIngItem?["tls"]?["isCreated"]?.GetValue<bool>() == true;
+                    checkObj["retired_digital_ingress_present"] = retiredDigitalIngItem != null;
 
                     var (cDnsSt, _, cDnsNode) = await SendMittwaldRequestAsync(
                         client, HttpMethod.Get, $"/v2/projects/{McpSecurityGuard.PinnedLiveProjectId}/dns-zones", lease.ApiTokenUtf8, ct);
                     var cDnsArr = cDnsNode as JsonArray;
                     checkObj["dns_zones_http"] = cDnsSt;
                     checkObj["www_dns_zone_exists"] = cDnsArr?.Any(x => string.Equals(x?["domain"]?.GetValue<string>(), McpSecurityGuard.PinnedLiveWwwHostname, StringComparison.OrdinalIgnoreCase)) == true;
-                    checkObj["digital_dns_zone_exists"] = cDnsArr?.Any(x => string.Equals(x?["domain"]?.GetValue<string>(), PinnedLiveDigitalHostname, StringComparison.OrdinalIgnoreCase)) == true;
+                    checkObj["retired_digital_dns_zone_present"] = cDnsArr?.Any(x => string.Equals(x?["domain"]?.GetValue<string>(), RetiredDigitalSubdomainHostname, StringComparison.OrdinalIgnoreCase)) == true;
 
                     var (cCronSt, _, cCronNode) = await SendMittwaldRequestAsync(
                         client, HttpMethod.Get, $"/v2/projects/{McpSecurityGuard.PinnedLiveProjectId}/cronjobs", lease.ApiTokenUtf8, ct);
@@ -3055,8 +3172,27 @@ function(mode, userVal, passVal, totpVal, doSubmit) {
                     return summary;
                 }
 
+                if (normStep == "retire-digital")
+                {
+                    var retireErrors = new List<string>();
+                    var (ingRemoved, remIngId, dnsRemoved, remDnsId) = await RetireLegacyDigitalSubdomainInfraAsync(
+                        client, lease.ApiTokenUtf8, null, retireErrors, ct);
+                    summary["retire_digital"] = new JsonObject
+                    {
+                        ["ingress_removed"] = ingRemoved,
+                        ["removed_ingress_id"] = remIngId,
+                        ["dns_zone_removed"] = dnsRemoved,
+                        ["removed_dns_zone_id"] = remDnsId
+                    };
+                    if (retireErrors.Count > 0)
+                        throw new InvalidOperationException(string.Join(" || ", retireErrors));
+
+                    McpSecurityGuard.AppendAuditLog("mittwald_prepare_live", $"retire_digital:ing={remIngId}:dns={remDnsId}", "ALLOW");
+                    return summary;
+                }
+
                 // =============================================================
-                // STEP 1 & 2: INFRA (DocumentRoot /public + Ingress + ACME + DNS)
+                // STEP 1 & 2: INFRA (DocumentRoot /public + www Ingress + ACME + DNS)
                 // =============================================================
                 if (normStep is "all" or "infra")
                 {
@@ -3125,7 +3261,7 @@ function(mode, userVal, passVal, totpVal, doSubmit) {
                     infraObj["document_root_after"] = docRootAfter;
                     infraObj["document_root_patched"] = docRootPatched;
 
-                    // 2) Ingresses www.mein-seelenfunke.de & digital.mein-seelenfunke.de -> 93f33f15-d27c-4d15-9f85-155eb9adace8 (/) + ACME TLS + DNS Zones
+                    // 2) Ingress www.mein-seelenfunke.de -> 93f33f15-d27c-4d15-9f85-155eb9adace8 (/) + ACME TLS + DNS Zone
                     var (ingListSt, ingListBody, ingListNode) = await SendMittwaldRequestAsync(
                         client,
                         HttpMethod.Get,
@@ -3145,12 +3281,9 @@ function(mode, userVal, passVal, totpVal, doSubmit) {
                         infraErrors,
                         ct);
 
-                    var digitalRes = await EnsurePinnedLiveSubdomainInfraAsync(
+                    var (retiredIngRemoved, retiredIngId, retiredDnsRemoved, retiredDnsId) = await RetireLegacyDigitalSubdomainInfraAsync(
                         client,
                         lease.ApiTokenUtf8,
-                        lease.Title,
-                        PinnedLiveDigitalHostname,
-                        "digital",
                         ingArr,
                         infraErrors,
                         ct);
@@ -3165,24 +3298,16 @@ function(mode, userVal, passVal, totpVal, doSubmit) {
                     infraObj["dns_zone_created"] = wwwRes.DnsZoneCreated;
                     infraObj["dns_set_managed_called"] = wwwRes.DnsSetManagedCalled;
                     infraObj["dns_managed_by_ingress_id"] = wwwRes.ManagedByIngressId;
-
-                    infraObj["digital_hostname"] = digitalRes.Hostname;
-                    infraObj["digital_ingress_id"] = digitalRes.IngressId;
-                    infraObj["digital_ingress_created"] = digitalRes.IngressCreated;
-                    infraObj["digital_tls_acme"] = digitalRes.TlsAcme;
-                    infraObj["digital_tls_is_created"] = digitalRes.TlsIsCreated;
-                    infraObj["digital_ownership_verified"] = digitalRes.OwnershipVerified;
-                    infraObj["digital_dns_zone_id"] = digitalRes.DnsZoneId;
-                    infraObj["digital_dns_zone_created"] = digitalRes.DnsZoneCreated;
-                    infraObj["digital_dns_set_managed_called"] = digitalRes.DnsSetManagedCalled;
-                    infraObj["digital_dns_set_managed_attempts"] = digitalRes.DnsSetManagedAttempts;
-                    infraObj["digital_dns_managed_by_ingress_id"] = digitalRes.ManagedByIngressId;
+                    infraObj["retired_digital_ingress_removed"] = retiredIngRemoved;
+                    infraObj["retired_digital_ingress_id"] = retiredIngId;
+                    infraObj["retired_digital_dns_zone_removed"] = retiredDnsRemoved;
+                    infraObj["retired_digital_dns_zone_id"] = retiredDnsId;
 
                     summary["infra"] = infraObj;
                     if (infraErrors.Count > 0)
                         throw new InvalidOperationException(string.Join(" || ", infraErrors));
 
-                    McpSecurityGuard.AppendAuditLog("mittwald_prepare_live", $"infra:www={wwwRes.IngressId}:digital={digitalRes.IngressId}", "ALLOW");
+                    McpSecurityGuard.AppendAuditLog("mittwald_prepare_live", $"infra:www={wwwRes.IngressId}", "ALLOW");
                 }
 
                 // =============================================================
@@ -3300,7 +3425,7 @@ function(mode, userVal, passVal, totpVal, doSubmit) {
                                 ["SESSION_DRIVER"] = "file",
                                 ["QUEUE_CONNECTION"] = "sync",
                                 ["BROADCAST_CONNECTION"] = "log",
-                                ["SANCTUM_STATEFUL_DOMAINS"] = "mein-seelenfunke.de,www.mein-seelenfunke.de,digital.mein-seelenfunke.de",
+                                ["SANCTUM_STATEFUL_DOMAINS"] = "mein-seelenfunke.de,www.mein-seelenfunke.de",
                                 ["REDIS_ISOLATED"] = true
                             }
                         };

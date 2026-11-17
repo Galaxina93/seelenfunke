@@ -11,11 +11,11 @@
                 Shop-Domains &amp; Livegang-Status
             </h3>
             <div class="flex items-center gap-2">
-                <span class="text-[10px] uppercase font-bold tracking-wider px-2.5 py-1 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700">2-Kanal-Architektur</span>
+                <span class="text-[10px] uppercase font-bold tracking-wider px-2.5 py-1 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700">2-Stufen-Schutz</span>
             </div>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 xl:gap-8">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 xl:gap-8">
             {{-- 1. HAUPT-SHOP: PERSONALISIERTE MANUFAKTUR --}}
             <div class="p-5 rounded-2xl bg-gray-50/60 dark:bg-gray-800/40 border border-gray-200/70 dark:border-gray-800 space-y-3">
                 <div class="flex items-center justify-between gap-2">
@@ -47,38 +47,7 @@
                 </div>
             </div>
 
-            {{-- 2. DIGITAL-SHOP: SOFORT-DOWNLOADS & E-BOOKS --}}
-            <div class="p-5 rounded-2xl bg-gray-50/60 dark:bg-gray-800/40 border border-gray-200/70 dark:border-gray-800 space-y-3">
-                <div class="flex items-center justify-between gap-2">
-                    <div class="flex items-center gap-2">
-                        <span class="text-[10px] font-mono px-2 py-0.5 rounded-md bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 font-bold border border-cyan-500/20">digital.mein-seelenfunke.de</span>
-                        <div x-data="{ open: false }" class="relative inline-flex items-center" @mouseenter="open = true" @mouseleave="open = false">
-                            <button type="button" @click.prevent="open = !open" title="{{ $infoTexts['digital_domain_is_live'] }}" class="w-4 h-4 rounded-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-500 dark:text-gray-300 text-[10px] font-black flex items-center justify-center hover:border-[var(--theme-color)] hover:text-[var(--theme-color)] transition-colors">!</button>
-                            <div x-show="open" x-cloak class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 w-72 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-3 text-[11px] leading-relaxed text-gray-700 dark:text-gray-200 shadow-xl pointer-events-none">
-                                {{ $infoTexts['digital_domain_is_live'] }}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div>
-                    <label class="{{ $labelClass }} !mb-1 !ml-0 font-bold">Digitaler Shop (Live-Freigabe)</label>
-                    <button type="button" wire:click="toggleDigitalDomainIsLive" role="switch" aria-checked="{{ $digital_domain_is_live ? 'true' : 'false' }}" class="{{ $checkboxContainerClass }} w-full justify-between !py-3">
-                        <div class="flex items-center gap-2.5 min-w-0">
-                            <span class="font-bold text-gray-900 dark:text-white text-sm">Status</span>
-                            @if($digital_domain_is_live)
-                                <span class="text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider border bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">Live (Öffentlich)</span>
-                            @else
-                                <span class="text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider border bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30">In Vorbereitung (Gesperrt)</span>
-                            @endif
-                        </div>
-                        <span class="relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out {{ $digital_domain_is_live ? 'bg-emerald-500' : 'bg-gray-200 dark:bg-gray-800' }}">
-                            <span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {{ $digital_domain_is_live ? 'translate-x-5' : 'translate-x-0' }}"></span>
-                        </span>
-                    </button>
-                </div>
-            </div>
-
-            {{-- 3. GLOBALER WARTUNGSMODUS (TEMPORÄRE WARTUNG) --}}
+            {{-- 2. GLOBALER WARTUNGSMODUS (TEMPORÄRE WARTUNG) --}}
             <div class="p-5 rounded-2xl bg-gray-50/60 dark:bg-gray-800/40 border border-gray-200/70 dark:border-gray-800 space-y-3">
                 <div class="flex items-center justify-between gap-2">
                     <div class="flex items-center gap-2">
@@ -104,7 +73,7 @@
                 </div>
             </div>
 
-            {{-- 4. 3D-SHOWROOM MULTI-USER & RAUM-CHAT --}}
+            {{-- 3. 3D-SHOWROOM MULTI-USER & RAUM-CHAT --}}
             <div class="p-5 rounded-2xl bg-gray-50/60 dark:bg-gray-800/40 border border-gray-200/70 dark:border-gray-800 space-y-3">
                 <div class="flex items-center justify-between gap-2">
                     <div class="flex items-center gap-2">
@@ -206,8 +175,6 @@
                     </div>
                 </label>
             </div>
-        </div>
-    </div>
         </div>
     </div>
 

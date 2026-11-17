@@ -47,6 +47,7 @@
         foreach ($equipModes as $eqK => $eqM) {
             $equipmentDefaultProcessModes[$eqK] = (string) ($eqM['process_mode'] ?? '');
         }
+        $handbookPresets = \App\Services\Laser\XtoolLaserCockpitService::getStepOnePresetOptions($previewItem->product);
     @endphp
     <div x-data="{
             itemId: '{{ $previewItem->id }}',
@@ -91,6 +92,39 @@
             toggleLaserParams() {
                 this.showLaserParams = !this.showLaserParams;
                 window.__sfLaserParamsOpen = this.showLaserParams ? this.openScopeKey : null;
+            },
+            handbookPresets: @js($handbookPresets),
+            handbookPresetKey: '',
+            applyHandbookPreset() {
+                const preset = this.handbookPresets.find(p => p.key === this.handbookPresetKey);
+                if (!preset) return;
+                const bmp = preset.bitmap || null;
+                const vec = preset.vector || null;
+                const main = bmp || vec;
+                if (!main) return;
+                if (preset.equipment_key && this.equipmentDefaultModes[preset.equipment_key] !== undefined) {
+                    this.laserParams.equipment_key = preset.equipment_key;
+                    this.laserParams.process_mode = this.equipmentDefaultModes[preset.equipment_key] || this.laserParams.process_mode;
+                }
+                this.laserParams.focus_mm = Math.max(0.1, Number(main.focus_mm) || 0.1);
+                this.laserParams.power_percent = Number(main.power_percent);
+                this.laserParams.frequency_khz = Number(main.frequency_khz);
+                this.laserParams.passes = Number(main.passes);
+                this.laserParams.dpi = Number(main.dpi);
+                if (bmp) {
+                    this.laserParams.element_type = 'Bild';
+                    this.laserParams.dot_duration_us = Number(bmp.dot_duration_us);
+                    this.laserParams.bitmap_mode = String(bmp.bitmap_mode || 'Jarvis');
+                } else {
+                    this.laserParams.element_type = 'Vektor';
+                    this.laserParams.bitmap_mode = 'Schwellenwert';
+                }
+                if (vec) {
+                    this.laserParams.speed_mms = Number(vec.speed_mms);
+                    this.laserParams.vector_note = `Gravieren · ${vec.power_percent} % · ${vec.speed_mms} mm/s · ${vec.lpc} Linien/cm · ${vec.frequency_khz} kHz` + (Number(vec.passes) > 1 ? ` · ${vec.passes}x` : '');
+                }
+                this.laserParams.preset_mode = 'Referenz';
+                this.persistLaserParams();
             },
             onEquipmentChange() {
                 const defMode = this.equipmentDefaultModes[this.laserParams.equipment_key] || '';
@@ -657,6 +691,25 @@
                      x-show="showLaserParams"
                      style="display: none;"
                      class="bg-gray-50 dark:bg-gray-950 p-3 rounded-xl border border-gray-200 dark:border-gray-800 space-y-2.5">
+                    @if(!empty($handbookPresets))
+                        {{-- Zeile 0: Validierte xTool F2 Ultra UV Handbuch-Presets (PDF 1 & PDF 2, Vektor + Bitmap) --}}
+                        <div class="bg-white dark:bg-gray-900 px-3 py-1.5 rounded-lg border border-[var(--theme-color-30)]">
+                            <label class="block text-[9px] font-black uppercase tracking-wider text-[var(--theme-color)]">Handbuch-Preset</label>
+                            <select x-model="handbookPresetKey"
+                                    @change="applyHandbookPreset()"
+                                    data-sf-handbook-presets="{{ count($handbookPresets) }}"
+                                    class="w-full mt-0.5 text-xs font-bold bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none cursor-pointer">
+                                <option value="">Preset wählen</option>
+                                @foreach(collect($handbookPresets)->groupBy('group') as $presetGroup => $presetsInGroup)
+                                    <optgroup label="{{ $presetGroup }}">
+                                        @foreach($presetsInGroup as $hbPreset)
+                                            <option value="{{ $hbPreset['key'] }}">{{ $hbPreset['label'] }}</option>
+                                        @endforeach
+                                    </optgroup>
+                                @endforeach
+                            </select>
+                        </div>
+                    @endif
                     {{-- Zeile 1: Aufbau (Equipment) · Prozess-Modus · Material · Fokus (mm) --}}
                     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
                         <div class="bg-white dark:bg-gray-900 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-800">
@@ -923,23 +976,23 @@
                         </div>
                     </div>
 
-                    {{-- Zeile 5: Vektortext / Zusatzparameter + Komfort-Aktionen --}}
-                    <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-2 pt-0.5">
-                        <div class="bg-white dark:bg-gray-900 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-800 flex-1 min-w-[220px]">
+                    {{-- Zeile 5: Vektortext / Zusatzparameter + Komfort-Aktionen (mobil gestapelt, erst ab 2xl nebeneinander) --}}
+                    <div data-sf-laser-action-row class="flex flex-col 2xl:flex-row 2xl:items-end gap-2 pt-0.5 w-full min-w-0">
+                        <div class="bg-white dark:bg-gray-900 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-800 w-full min-w-0 2xl:flex-1">
                             <label class="block text-[9px] font-black uppercase tracking-wider text-gray-400">Vektortext</label>
                             <input type="text"
                                    placeholder="z. B. 80 % · 200 mm/s · 60 kHz"
                                    x-model="laserParams.vector_note"
                                    @change="persistLaserParams()"
-                                   class="w-full mt-0.5 font-mono text-xs font-bold bg-transparent text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none">
+                                   class="w-full min-w-0 mt-0.5 font-mono text-xs font-bold bg-transparent text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none">
                         </div>
 
-                        <div class="flex flex-wrap items-center gap-1.5 shrink-0">
+                        <div data-sf-laser-action-buttons class="flex flex-wrap items-stretch gap-1.5 w-full min-w-0 2xl:w-auto 2xl:justify-end">
                             <button type="button"
                                     wire:click="resetOrderItemLaserParameters('{{ $previewItem->id }}', '{{ $cockpitData['side'] }}')"
                                     wire:loading.attr="disabled"
                                     wire:target="resetOrderItemLaserParameters,resetLaserParameters"
-                                    class="sf-laser-action-btn inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-white dark:bg-gray-900 hover:border-[var(--theme-color)] text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700 text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer">
+                                    class="sf-laser-action-btn flex-1 basis-full sm:basis-auto min-w-0 whitespace-normal text-center inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-white dark:bg-gray-900 hover:border-[var(--theme-color)] text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700 text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer">
                                 <span>Standardwerte laden</span>
                             </button>
 
@@ -947,13 +1000,14 @@
                                     wire:click="saveOrderLaserParametersToProduct('{{ $previewItem->id }}', '{{ $cockpitData['side'] }}', laserParams)"
                                     wire:loading.attr="disabled"
                                     wire:target="saveOrderLaserParametersToProduct"
-                                    class="sf-laser-action-btn inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-white dark:bg-gray-900 hover:border-[var(--theme-color)] text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-700 text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer">
+                                    class="sf-laser-action-btn flex-1 basis-full sm:basis-auto min-w-0 whitespace-normal text-center inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-white dark:bg-gray-900 hover:border-[var(--theme-color)] text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-700 text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer">
                                 <span>Als Produkt-Standard speichern</span>
                             </button>
 
                             <button type="button"
+                                    data-sf-laser-apply-btn
                                     @click.stop="persistLaserParams()"
-                                    class="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-[var(--theme-color)] text-gray-950 border border-[var(--theme-color)] text-[9px] font-black uppercase tracking-wider hover:brightness-95 transition-all cursor-pointer">
+                                    class="flex-1 basis-full sm:basis-auto min-w-0 whitespace-normal text-center inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-[var(--theme-color)] text-gray-950 border border-[var(--theme-color)] text-[9px] font-black uppercase tracking-wider hover:brightness-95 transition-all cursor-pointer">
                                 <span>Übernehmen</span>
                             </button>
                         </div>

@@ -647,6 +647,19 @@ class AccountingSeeder extends Seeder
 
         $specialIssues = [
             [
+                'title'          => '5000 AI Credits (Google One)',
+                'location'       => 'Google Payment Ireland Ltd.',
+                'amount'         => -54.99,
+                'date'           => '2026-11-17',
+                'category'       => 'Software & Lizenzen',
+                'tax_rate'       => 19,
+                'invoice_number' => '518295267493660576 (PayPal 44368105GE322293C)',
+                'note'           => "Rechnungsnummer: 518295267493660576 | PayPal-Transaktionscode: 44368105GE322293C | Datum: 17.11.2026 (Belegausdruck 17.11.2026, 14:19 Uhr) | Zahlungsart: PayPal Zahlung im Einzugsverfahren (Volksbank eG Braunschweig Wolfsburg x-6000)\nVerkäufer: Google Payment Ireland Ltd. (noreply+support@google.com)\nPosition:\n- 1x 5000 AI Credits (Google One): 54,99 € brutto (46,21 € netto zzgl. 8,78 € USt. bei 19 %)\nSumme (Brutto): 54,99 €",
+                'file_paths'     => [
+                    'buchhaltung/receipts/2026/11/2026-11-17_Google-Payment-Ireland_5000-AI-Credits-Google-One-PayPal-518295267493660576.pdf'
+                ]
+            ],
+            [
                 'title'          => '2x Schaumstoff Meterware Schwarz (Dicke 1cm, je 250cm)',
                 'location'       => 'www.schaumstoffonline.de (Schaumstoffonline DE)',
                 'amount'         => -44.37,

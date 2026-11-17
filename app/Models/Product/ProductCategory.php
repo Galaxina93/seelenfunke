@@ -81,7 +81,6 @@ use HasFactory;
                 'templates' => fn ($q) => $q->where('is_active', true),
             ])
                 ->where('status', 'active')
-                ->where(fn ($q) => $q->whereNull('collection_line')->orWhere('collection_line', '!=', 'digital_blueprint'))
                 ->get();
 
             $allCategories = static::orderBy('id')->get();

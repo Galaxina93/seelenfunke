@@ -742,7 +742,7 @@
                 </p>
                 <div class="space-y-1.5 text-[11px] text-gray-600 dark:text-gray-300 mb-4">
                     <div class="flex items-center justify-between bg-gray-50 dark:bg-gray-950/50 px-2.5 py-1.5 rounded-lg border border-gray-200/70 dark:border-gray-800">
-                        <span class="font-bold">60 ✨ / 150 ✨ / 350 ✨</span>
+                        <span class="font-bold">250 ✨ / 600 ✨ / 1.200 ✨</span>
                         <span class="text-amber-700 dark:text-[#f5dca0] font-black">5 % / 10 % / 15 % Gutschein</span>
                     </div>
                     <div class="flex items-center justify-between bg-gray-50 dark:bg-gray-950/50 px-2.5 py-1.5 rounded-lg border border-gray-200/70 dark:border-gray-800">
@@ -883,7 +883,7 @@
                         Sammle Funken & sichere dir <span class="text-transparent bg-clip-text bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-600 dark:from-primary dark:via-amber-200 dark:to-amber-400">bis zu 15 % Rabatt.</span>
                     </h2>
                     <p class="text-gray-600 dark:text-gray-400 text-xs sm:text-sm mb-6 leading-relaxed">
-                        Begleite deinen persönlichen Gefährten <strong>Funki von Level 1 bis Level 10</strong>! Mit jedem gekauften Artikel und durch seltene, versteckte Seelenfunken auf unseren Seiten sammelst du Punkte für einmalige Rabatt-Gutscheine (<strong>60 ✨ = 5 %</strong>, <strong>150 ✨ = 10 %</strong>, <strong>350 ✨ = 15 %</strong>) und schaltest mit jeder Stufe kostenlos noch epischere Profilbild-Hintergründe frei.
+                        Begleite deinen persönlichen Gefährten <strong>Funki von Level 1 bis Level 10</strong>! Mit jedem gekauften Artikel, in der begehbaren 3D-Lobby und durch seltene, versteckte Seelenfunken auf unseren Seiten sammelst du Punkte für einmalige Rabatt-Gutscheine (<strong>250 ✨ = 5 %</strong>, <strong>600 ✨ = 10 %</strong>, <strong>1.200 ✨ = 15 %</strong>) und schaltest mit jeder Stufe kostenlos noch epischere Profilbild-Hintergründe frei.
                     </p>
 
                     <div class="mb-6 flex flex-col gap-2 text-left">
@@ -1142,15 +1142,23 @@
                 {{-- Modal Body --}}
                 <div class="flex-1 overflow-y-auto p-4 sm:p-8 space-y-6">
 
-                    {{-- TAB 1: RABATT-GUTSCHEINE (60 = 5%, 150 = 10%, 350 = 15%) --}}
+                    {{-- TAB 1: RABATT-GUTSCHEINE (250 = 5%, 600 = 10%, 1200 = 15%) --}}
                     <div x-show="activeFunkiTab === 'vouchers'" class="space-y-6">
-                        <div>
-                            <h3 class="text-lg font-serif font-bold text-gray-900 dark:text-white">
-                                Gesammelte Seelenfunken gegen Gutscheine eintauschen
-                            </h3>
-                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                                Jeder eingelöste Gutschein ist <strong>einmalig für deine nächste Bestellung</strong> gültig. Dein Funki-Level (Lebenszeit-Funken) sinkt beim Einlösen niemals!
-                            </p>
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div>
+                                <h3 class="text-lg font-serif font-bold text-gray-900 dark:text-white">
+                                    Gesammelte Seelenfunken gegen Gutscheine eintauschen
+                                </h3>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                    Jeder eingelöste Gutschein ist <strong>einmalig für deine nächste Bestellung</strong> gültig. Dein Funki-Level (Lebenszeit-Funken) sinkt beim Einlösen niemals!
+                                </p>
+                            </div>
+                            <button type="button"
+                                    onclick="(function(){ if (window.getSeelenfunkeLobbyAudio) { window.getSeelenfunkeLobbyAudio({ isAuthenticated: true }).startLobbyMusicFromGesture(); } var e = window.SeelenfunkeHeroes3D; if (e && typeof e.open === 'function') { e.open('lobby'); return; } var s = document.getElementById('sf-heroes-3d-script'); if (!s) { s = document.createElement('script'); s.id = 'sf-heroes-3d-script'; s.src = '{{ asset('js/funkenwerk-heroes-3d.js') }}?v=20261117v4'; s.onload = function(){ if (window.SeelenfunkeHeroes3D) window.SeelenfunkeHeroes3D.open('lobby'); }; document.head.appendChild(s); } })()"
+                                    class="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white dark:bg-gray-900 hover:bg-[#faf6ee] dark:hover:bg-gray-800 border border-[#C5A059] text-gray-900 dark:text-[#f5dca0] text-xs font-black tracking-wide shadow-xs transition cursor-pointer shrink-0">
+                                <span>🌋</span>
+                                <span>Funken in der 3D-Lobby sammeln</span>
+                            </button>
                         </div>
 
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1248,7 +1256,7 @@
                                 </div>
                             @else
                                 <p class="text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/50 p-4 rounded-2xl border border-gray-200 dark:border-gray-800">
-                                    Du hast noch keinen Rabatt-Gutschein eingelöst. Sammle Seelenfunken durch deine Einkäufe oder auf den Shop-Seiten und tausche sie oben ab 60 ✨ direkt ein!
+                                    Du hast noch keinen Rabatt-Gutschein eingelöst. Sammle Seelenfunken durch deine Einkäufe, in der 3D-Lobby oder auf den Shop-Seiten und tausche sie oben ab 250 ✨ direkt ein!
                                 </p>
                             @endif
                         </div>

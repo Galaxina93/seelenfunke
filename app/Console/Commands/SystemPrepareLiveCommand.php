@@ -22,9 +22,6 @@ use App\Models\Product\ProductCategory;
 use App\Models\Product\ProductTemplate;
 use App\Models\System\SystemCronjob;
 use App\Models\System\SystemSetting;
-use App\Services\System\BlueprintZeroLeakScanner;
-use App\Services\System\CleanRoomBlueprintBuilderService;
-use App\Support\DigitalDomainContext;
 use Database\Seeders\AccountingSeeder;
 use Database\Seeders\AiAgentSeeder;
 use Database\Seeders\AiCompanyStructureSeeder;
@@ -78,8 +75,14 @@ class SystemPrepareLiveCommand extends Command
 {
     public const ALINA_ADMIN_ID = '2122795e-da08-484f-9696-a58d11070163';
     public const ALINA_ADMIN_EMAIL = 'kontakt@mein-seelenfunke.de';
-    public const DIGITAL_DOMAIN_HOST = 'digital.mein-seelenfunke.de';
-    public const DIGITAL_BLUEPRINTS_DIR = 'private/digital_blueprints';
+
+    public const RETIRED_BLUEPRINT_SKUS = [
+        'NXC-BP-SENTINEL-01',
+        'NXC-BP-ORCHESTRA-02',
+        'NXC-BP-VAULT-03',
+        'NXC-BP-VOICE-04',
+        'NXC-BP-SUITE-99',
+    ];
 
     /**
      * Bekannte Entwicklungs- und Test-Mitarbeiter aus UserSeeder, die auf Live strikt verboten sind.
@@ -218,7 +221,7 @@ class SystemPrepareLiveCommand extends Command
                 ['value' => 'true']
             );
         }
-        $this->ensureDigitalDomainSettings();
+        $this->purgeRetiredDigitalDomainArtifacts();
         Cache::forget('global_shop_settings');
 
         // b) Reiner Admin-Account (Alina) + Bereinigung jeglicher Test-Accounts
@@ -232,12 +235,6 @@ class SystemPrepareLiveCommand extends Command
         if (array_key_exists('ai:sync-abschlussberichte', \Illuminate\Support\Facades\Artisan::all())) {
             $this->info('Synchronisiere KI-Wissensbasis mit Abschlussberichten...');
             $this->call('ai:sync-abschlussberichte');
-        }
-
-        // c3) Clean-Room Digital-Blueprint-Pakete bauen, synchronisieren und per Zero-Leak-Scanner verifizieren
-        $this->info('Baue und verifiziere Clean-Room Digital-Blueprints für ' . self::DIGITAL_DOMAIN_HOST . '...');
-        if (!$this->ensureAndVerifyDigitalBlueprints()) {
-            $seedingFailed = true;
         }
 
         // d) Fail-Closed Step Final: Live gehen (false) & Wartungsmodus (true) erneut hart absichern & global_shop_settings-Cache erneuern
@@ -255,7 +252,7 @@ class SystemPrepareLiveCommand extends Command
                 ['value' => 'true']
             );
         }
-        $this->ensureDigitalDomainSettings();
+        $this->purgeRetiredDigitalDomainArtifacts();
         $this->refreshGlobalShopSettingsCache();
 
         if ($seedingFailed) {
@@ -535,202 +532,36 @@ class SystemPrepareLiveCommand extends Command
     }
 
     /**
-     * Initialisiert die Einstellungen für digital.mein-seelenfunke.de fail-closed per firstOrCreate:
-     * Gäste erhalten bis zu Alinas Go-Live HTTP 503, während Alina als Admin das Schaufenster (DE/EN) live aufbauen kann.
+     * Entfernt stillgelegte Digital-Domain-Einstellungen (digital_domain_is_live, digital_domain_host)
+     * sowie etwaige NXC-BP-* / digital_blueprint-Entwürfe, ohne den Seelenfunken-Geschenkgutschein anzutasten.
      */
-    private function ensureDigitalDomainSettings(): void
+    private function purgeRetiredDigitalDomainArtifacts(): void
     {
-        SystemSetting::firstOrCreate(
-            ['key' => 'digital_domain_is_live'],
-            ['value' => '0']
-        );
-        $rawDigitalLive = SystemSetting::where('key', 'digital_domain_is_live')->value('value');
-        if ($rawDigitalLive === null || trim((string) $rawDigitalLive) === '') {
-            SystemSetting::updateOrCreate(
-                ['key' => 'digital_domain_is_live'],
-                ['value' => '0']
+        if (Schema::hasTable((new SystemSetting())->getTable())) {
+            SystemSetting::whereIn('key', ['digital_domain_is_live', 'digital_domain_host'])->delete();
+        }
+
+        if (Schema::hasTable((new Product())->getTable())) {
+            $hasCollectionLine = Schema::hasColumn((new Product())->getTable(), 'collection_line');
+            $this->purgeRecords(
+                Product::class,
+                function ($q) use ($hasCollectionLine) {
+                    $q->where('slug', '!=', 'geschenkgutschein')
+                        ->where(function ($sub) use ($hasCollectionLine) {
+                            $sub->whereIn('sku', self::RETIRED_BLUEPRINT_SKUS);
+                            if ($hasCollectionLine) {
+                                $sub->orWhere('collection_line', 'digital_blueprint');
+                            }
+                        });
+                }
             );
         }
 
-        SystemSetting::firstOrCreate(
-            ['key' => 'digital_domain_host'],
-            ['value' => self::DIGITAL_DOMAIN_HOST]
-        );
-        $rawDigitalHost = SystemSetting::where('key', 'digital_domain_host')->value('value');
-        if ($rawDigitalHost === null || trim((string) $rawDigitalHost) === '') {
-            SystemSetting::updateOrCreate(
-                ['key' => 'digital_domain_host'],
-                ['value' => self::DIGITAL_DOMAIN_HOST]
-            );
-        }
-    }
-
-    /**
-     * Baut alle 5 sterilen Clean-Room-Blueprint-Pakete, synchronisiert sie zusätzlich nach
-     * storage/app/private/digital_blueprints/ und prüft sämtliche Archive mit dem BlueprintZeroLeakScanner.
-     */
-    private function ensureAndVerifyDigitalBlueprints(): bool
-    {
-        try {
-            $builder = app(CleanRoomBlueprintBuilderService::class);
-            $scanner = app(BlueprintZeroLeakScanner::class);
-            $definitions = CleanRoomBlueprintBuilderService::getBlueprintDefinitions();
-
-            $builtPaths = $builder->buildAllPackages();
-            $disk = Storage::disk('local');
-            $disk->makeDirectory(self::DIGITAL_BLUEPRINTS_DIR);
-
-            $digitalCatIds = Schema::hasTable((new ProductCategory())->getTable())
-                ? ProductCategory::whereIn('name', ['E-Books & Guides', 'Design-Vorlagen'])->pluck('id')
-                : collect();
-
-            foreach ($definitions as $slug => $bp) {
-                $relPrimaryPath = $builtPaths[$slug] ?? (CleanRoomBlueprintBuilderService::STORAGE_REL_DIR . '/' . $slug . '.zip');
-                $relMirrorPath = self::DIGITAL_BLUEPRINTS_DIR . '/' . $slug . '.zip';
-
-                $zipBytes = $disk->get($relPrimaryPath);
-                if ($zipBytes === null || $zipBytes === '') {
-                    $this->error("  [FEHLER] Clean-Room-ZIP leer oder nicht lesbar: {$relPrimaryPath}");
-
-                    return false;
-                }
-
-                $disk->put($relMirrorPath, $zipBytes);
-                $scanner->assertZipIsClean($disk->path($relMirrorPath));
-
-                if (Schema::hasTable((new Product())->getTable())) {
-                    $existingBp = Product::where('slug', $slug)->first();
-                    if ($existingBp === null) {
-                        $createdBp = Product::create([
-                            'name' => $bp['name'],
-                            'slug' => $slug,
-                            'type' => 'digital',
-                            'collection_line' => 'digital_blueprint',
-                            'description' => $bp['description_de'],
-                            'short_description' => $bp['short_de'],
-                            'is_personalizable' => false,
-                            'three_d_active' => false,
-                            'status' => 'draft',
-                            'price' => (int) $bp['price_cents'],
-                            'tax_class' => 'standard',
-                            'sku' => $bp['sku'],
-                            'brand' => 'NexusCore Architecture',
-                            'track_quantity' => false,
-                            'quantity' => 0,
-                            'continue_selling_when_out_of_stock' => true,
-                            'digital_download_path' => $relPrimaryPath,
-                            'digital_filename' => $bp['filename'],
-                            'configurator_settings' => [
-                                'allow_text_pos' => false,
-                                'allow_logo' => false,
-                                'origin_badge' => 'none',
-                            ],
-                            'attributes' => [
-                                'name_en' => $bp['name_en'],
-                                'short_description_en' => $bp['short_en'],
-                                'Format' => 'ZIP Referenz-Architektur (DE & EN)',
-                                'Lizenz' => 'Single-Entity Commercial Reference Architecture',
-                                'Auslieferung' => 'Sofort-Download mit Lizenz-Stempel',
-                            ],
-                            'seo_title' => $bp['name'] . ' | Software Architecture Blueprint',
-                            'seo_description' => $bp['short_de'],
-                            'completion_step' => 4,
-                        ]);
-                        if ($digitalCatIds->isNotEmpty()) {
-                            $createdBp->categories()->sync($digitalCatIds);
-                        }
-                    } elseif (empty($existingBp->digital_download_path) || !$disk->exists((string) $existingBp->digital_download_path)) {
-                        $existingBp->digital_download_path = $relPrimaryPath;
-                        $existingBp->digital_filename = $existingBp->digital_filename ?: $bp['filename'];
-                        $existingBp->saveQuietly();
-                    }
-                }
-            }
-
-            $primaryReport = $scanner->scanDirectory($disk->path(CleanRoomBlueprintBuilderService::STORAGE_REL_DIR));
-            $mirrorReport = $scanner->scanDirectory($disk->path(self::DIGITAL_BLUEPRINTS_DIR));
-
-            if (!$primaryReport['clean'] || $primaryReport['hits_count'] > 0 || !$mirrorReport['clean'] || $mirrorReport['hits_count'] > 0) {
-                $totalHits = (int) $primaryReport['hits_count'] + (int) $mirrorReport['hits_count'];
-                $this->error("  [FEHLER] Zero-Leak-Scanner meldet {$totalHits} Sperrlisten-Treffer!");
-
-                return false;
-            }
-
-            $this->line('  [OK] Clean-Room Blueprints (' . count($definitions) . ' ZIP-Pakete gebaut & Zero-Leak OK)');
-
-            return true;
-        } catch (\Throwable $e) {
-            $this->error('  [FEHLER] Clean-Room Blueprint-Aufbau fehlgeschlagen: ' . $e->getMessage());
-
-            return false;
-        }
-    }
-
-    /**
-     * Rein lesende Bereitschafts- und Zero-Leak-Prüfung für digital.mein-seelenfunke.de (für --verify-only).
-     */
-    private function inspectDigitalShopLiveReadiness(): array
-    {
-        $rawDigitalSwitch = SystemSetting::where('key', 'digital_domain_is_live')->value('value');
-        $hasValidSwitch = $rawDigitalSwitch !== null && trim((string) $rawDigitalSwitch) !== '';
-        $isDigitalLive = DigitalDomainContext::isDigitalDomainLive();
-        $digitalHost = trim((string) (SystemSetting::where('key', 'digital_domain_host')->value('value') ?? ''));
-
-        $definitions = CleanRoomBlueprintBuilderService::getBlueprintDefinitions();
-        $expectedCount = count($definitions);
-
-        $blueprintProducts = Schema::hasTable((new Product())->getTable())
-            ? Product::where('type', 'digital')
-                ->where('collection_line', 'digital_blueprint')
-                ->get()
-            : collect();
-
-        $blueprintCount = $blueprintProducts->count();
-        $draftCount = $blueprintProducts->where('status', 'draft')->count();
-
-        $disk = Storage::disk('local');
-        $missingZips = 0;
-        foreach (array_keys($definitions) as $slug) {
-            $bpProd = $blueprintProducts->firstWhere('slug', $slug);
-            $relPath = ($bpProd && !empty($bpProd->digital_download_path))
-                ? (string) $bpProd->digital_download_path
-                : (CleanRoomBlueprintBuilderService::STORAGE_REL_DIR . '/' . $slug . '.zip');
-            $mirrorRelPath = self::DIGITAL_BLUEPRINTS_DIR . '/' . $slug . '.zip';
-
-            if (!$disk->exists($relPath) || !$disk->exists($mirrorRelPath)) {
-                $missingZips++;
+        foreach (['private/products-secure/blueprints', 'private/digital_blueprints'] as $retiredDir) {
+            if (Storage::disk('local')->exists($retiredDir)) {
+                Storage::disk('local')->deleteDirectory($retiredDir);
             }
         }
-
-        $scanner = app(BlueprintZeroLeakScanner::class);
-        $primaryDir = $disk->path(CleanRoomBlueprintBuilderService::STORAGE_REL_DIR);
-        $mirrorDir = $disk->path(self::DIGITAL_BLUEPRINTS_DIR);
-
-        $primaryScan = $scanner->scanDirectory($primaryDir);
-        $mirrorScan = $scanner->scanDirectory($mirrorDir);
-
-        $zeroLeakOk = $missingZips === 0
-            && !empty($primaryScan['clean'])
-            && ((int) ($primaryScan['hits_count'] ?? 1)) === 0
-            && ((int) ($primaryScan['scanned_files'] ?? 0)) >= $expectedCount
-            && !empty($mirrorScan['clean'])
-            && ((int) ($mirrorScan['hits_count'] ?? 1)) === 0
-            && ((int) ($mirrorScan['scanned_files'] ?? 0)) >= $expectedCount;
-
-        $passed = $hasValidSwitch
-            && $digitalHost === self::DIGITAL_DOMAIN_HOST
-            && $blueprintCount >= $expectedCount
-            && $zeroLeakOk;
-
-        return [
-            'is_live' => $isDigitalLive,
-            'host' => $digitalHost,
-            'blueprint_count' => $blueprintCount,
-            'draft_count' => $draftCount,
-            'zero_leak_ok' => $zeroLeakOk,
-            'passed' => $passed,
-        ];
     }
 
     /**
@@ -782,8 +613,6 @@ class SystemPrepareLiveCommand extends Command
             )
             : 0;
 
-        $digitalState = $this->inspectDigitalShopLiveReadiness();
-
         $checks = [
             [
                 'Prüfpunkt' => 'Live gehen (shop_is_live)',
@@ -796,16 +625,6 @@ class SystemPrepareLiveCommand extends Command
                 'Ist-Wert' => $actualMaintenanceState ? 'true (aktiv)' : 'false (inaktiv)',
                 'Status' => $actualMaintenanceState === $expectedMaintenanceState ? 'OK' : 'FEHLER',
                 'passed' => $actualMaintenanceState === $expectedMaintenanceState,
-            ],
-            [
-                'Prüfpunkt' => 'Digital-Shop (' . self::DIGITAL_DOMAIN_HOST . ')',
-                'Ist-Wert' => ($digitalState['is_live']
-                    ? 'digital_domain_is_live = true (Live)'
-                    : 'digital_domain_is_live = false (Vorab-Schutz 503)')
-                    . " / {$digitalState['blueprint_count']} Blueprints ({$digitalState['draft_count']} Entwürfe) / "
-                    . ($digitalState['zero_leak_ok'] ? 'Zero-Leak OK' : 'Zero-Leak FEHLER'),
-                'Status' => $digitalState['passed'] ? 'OK' : 'FEHLER',
-                'passed' => $digitalState['passed'],
             ],
             [
                 'Prüfpunkt' => 'Admin Alina (' . self::ALINA_ADMIN_EMAIL . ')',

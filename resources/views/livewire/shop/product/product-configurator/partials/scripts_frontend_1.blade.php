@@ -507,19 +507,42 @@
                         });
                         this.hasTransparentOverlay = transCorners >= 2;
 
-                        // 2. Durchschnittliche Helligkeit im zentralen Gravurbereich messen
+                        // 2. Durchschnittliche Helligkeit im tatsächlichen Gravurbereich messen
                         let lumSum = 0;
                         let count = 0;
-                        const aLeft = Number(this.areaLeft ?? 30);
-                        const aTop = Number(this.areaTop ?? 30);
-                        const aWidth = Number(this.areaWidth ?? 40);
-                        const aHeight = Number(this.areaHeight ?? 40);
-                        const xStart = Math.max(0, Math.min(size - 1, Math.floor(size * ((aLeft + aWidth * 0.25) / 100))));
-                        const xEnd = Math.max(xStart, Math.min(size - 1, Math.floor(size * ((aLeft + aWidth * 0.75) / 100))));
-                        const yStart = Math.max(0, Math.min(size - 1, Math.floor(size * ((aTop + aHeight * 0.25) / 100))));
-                        const yEnd = Math.max(yStart, Math.min(size - 1, Math.floor(size * ((aTop + aHeight * 0.75) / 100))));
+                        const isCustomPoly = Boolean(
+                            this.config
+                            && this.config.area_shape === 'custom'
+                            && Array.isArray(this.config.custom_points)
+                            && this.config.custom_points.length >= 3
+                        );
+                        let aLeft = Number(this.config?.area_left ?? 30);
+                        let aTop = Number(this.config?.area_top ?? 30);
+                        let aWidth = Number(this.config?.area_width ?? 40);
+                        let aHeight = Number(this.config?.area_height ?? 40);
+
+                        if (isCustomPoly) {
+                            const xs = this.config.custom_points.map(p => Number(p.x ?? 50));
+                            const ys = this.config.custom_points.map(p => Number(p.y ?? 50));
+                            aLeft = Math.min(...xs);
+                            aTop = Math.min(...ys);
+                            aWidth = Math.max(8, Math.max(...xs) - aLeft);
+                            aHeight = Math.max(8, Math.max(...ys) - aTop);
+                        }
+
+                        const xStart = Math.max(0, Math.min(size - 1, Math.floor(size * ((aLeft + aWidth * 0.20) / 100))));
+                        const xEnd = Math.max(xStart, Math.min(size - 1, Math.floor(size * ((aLeft + aWidth * 0.80) / 100))));
+                        const yStart = Math.max(0, Math.min(size - 1, Math.floor(size * ((aTop + aHeight * 0.20) / 100))));
+                        const yEnd = Math.max(yStart, Math.min(size - 1, Math.floor(size * ((aTop + aHeight * 0.80) / 100))));
                         for (let y = yStart; y <= yEnd; y++) {
                             for (let x = xStart; x <= xEnd; x++) {
+                                if (isCustomPoly) {
+                                    const pxPct = ((x + 0.5) / size) * 100;
+                                    const pyPct = ((y + 0.5) / size) * 100;
+                                    if (!this.isStagePointInsideArea(pxPct, pyPct)) {
+                                        continue;
+                                    }
+                                }
                                 const idx = (y * size + x) * 4;
                                 if (data[idx + 3] > 100) {
                                     lumSum += 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
@@ -1862,8 +1885,8 @@
                                                     div.style.overflow = 'visible';
                                                     if (ta.parentNode) ta.parentNode.replaceChild(div, ta);
                                                 });
-                                                const liveImgs = Array.from(containerToCapture.querySelectorAll('.logo-crop-wrapper img'));
-                                                const clonedImgs = Array.from(clonedDoc.querySelectorAll('.logo-crop-wrapper img'));
+                                                const liveImgs = Array.from(containerToCapture.querySelectorAll('.logo-crop-wrapper img:not([data-snapshot-ignore])'));
+                                                const clonedImgs = Array.from(clonedDoc.querySelectorAll('.logo-crop-wrapper img:not([data-snapshot-ignore])'));
                                                 clonedImgs.forEach((cImg, i) => {
                                                     const lImg = liveImgs[i];
                                                     if (lImg) {

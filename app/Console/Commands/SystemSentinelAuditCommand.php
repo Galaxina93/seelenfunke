@@ -242,7 +242,9 @@ class SystemSentinelAuditCommand extends Command
                 json_encode($summary, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
                 LOCK_EX
             );
-            @chmod($path, app()->environment('local', 'testing') ? 0666 : 0664);
+            if (!function_exists('posix_geteuid') || posix_geteuid() === 0 || @fileowner($path) === posix_geteuid()) {
+                @chmod($path, app()->environment('local', 'testing') ? 0666 : 0664);
+            }
         } catch (\Throwable $ignore) {
         }
     }

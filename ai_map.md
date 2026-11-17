@@ -1,5 +1,5 @@
 # Seelenfunke System-Architektur & AI Map (`ai_map.md`)
-> Generiert via `php artisan ai:generate-map` (2026-11-17 12:35)
+> Generiert via `php artisan ai:generate-map` (2026-11-17 19:03)
 
 ## 1. Ökosystem-Pfade & Umgebungen
 - **Hauptportal (`Mein-Seelenfunke`)**: Win-UNC `\\wsl.localhost\Ubuntu\home\ubuntuxina\meine-projekte\seelenfunke` | WSL `/home/ubuntuxina/meine-projekte/seelenfunke` (Docker PHP: `mein_php_server`) | Lokal `http://127.0.0.1` (`http://seelenfunke.test`) | Stage `https://stage.mein-seelenfunke.de` | Live `https://mein-seelenfunke.de`
@@ -89,7 +89,7 @@
 
 ## 6. HTTP-Controller (`app/Http/Controllers/*.php`)
 - **Accounting**: `InvoiceDownloadController`
-- **Api**: `AgenticCommerceController, AntigravityDirectInboxController, CustomerLobbyController, FunkenwerkHeroesController, LavaParkourController, MiniLabyrinthController, TelegramAgentController, TwilioCallController, WorkshopFocusApiController`
+- **Api**: `AgenticCommerceController, AntigravityDirectInboxController, CustomerLobbyController, FunkenwerkHeroesController, LavaParkourController, TelegramAgentController, TwilioCallController, WorkshopFocusApiController`
 - **Customer**: `CustomerVerificationController, DigitalProductDownloadController, GiftVoucherDownloadController`
 - **Frontend**: `ShopShowroomController`
 - **Root**: `AIController, CartReminderUnsubscribeController, Controller, GoogleAuthController, NewsletterController, RevocationFileController, RevocationPdfController, SeoController, StripeWebhookController`
@@ -102,9 +102,9 @@
 - **AI\Workspace**: `AbschlussberichteIndexerService, DateitrichterService`
 - **Accounting**: `ContractDocumentService`
 - **Employee**: `EmployeeHrService`
-- **Export**: `DigitalLicenseStampingService, FileDownloadService`
-- **Gamification**: `GameConfig, GamificationService, LavaParkourService, LobbyInstanceService, MiniLabyrinthService, PlayerNameValidator`
-- **Laser**: `XtoolLaserCockpitService`
+- **Export**: `FileDownloadService`
+- **Gamification**: `GameConfig, GamificationService, LavaParkourService, LobbyInstanceService, PlayerNameValidator`
+- **Laser**: `LaserPhotoPreprocessor, XtoolLaserCockpitService`
 - **Management**: `MailAiSortService`
 - **Marketing**: `HolidayOfferAutopilotService, InfluencerService`
 - **Navigation**: `BackendNavigationService`
@@ -112,6 +112,6 @@
 - **Root**: `AccountingEInvoiceParserService, AccountingXmlInvoiceService, AnalyticsService, BankApiService, CartFileCleanupService, CartService, ConfiguratorService, DhlService, ElsterEricService, FinancialService, FirebaseService, GoogleReviewsService, HerzensprojektService, InvoiceService, PriceCalcService, ProductConfiguratorService, ProductTrackingService, ReferralService, ShippingCalculatorService, StealthCrawlerService, StripeAgentExecutionService, WishlistService`
 - **Shop**: `ShowroomChatGuardService, ShowroomMultiplayerService`
 - **Storage**: `GlbOptimizerService`
-- **System**: `AndroidReleaseService, AntigravityDirectInboxService, AudioMulawCodec, BlueprintZeroLeakScanner, CleanRoomBlueprintBuilderService, FunkenwerkPrintService, FunkiraPhoneConciergeService, LogArchiveService, MiniPcTrichterRelayService, SentinelTriageService, SystemBlueprintService, SystemBrainDiagnosticsService, SystemErrorLogger, SystemHealthPulseService, SystemSecurityService, TwilioGeminiLiveBridgeService, TwilioReverbServerFactory`
-- **Tax**: `DigitalEuVatThresholdService, TaxSettingService`
+- **System**: `AndroidReleaseService, AntigravityDirectInboxService, AudioMulawCodec, FunkenwerkPrintService, FunkiraPhoneConciergeService, LogArchiveService, MiniPcTrichterRelayService, SentinelTriageService, SystemBlueprintService, SystemBrainDiagnosticsService, SystemErrorLogger, SystemHealthPulseService, SystemSecurityService, TwilioGeminiLiveBridgeService, TwilioReverbServerFactory`
+- **Tax**: `TaxSettingService`
 

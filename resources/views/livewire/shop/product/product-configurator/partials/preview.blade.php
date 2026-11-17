@@ -414,7 +414,7 @@
             <div x-show="currentTexts.length === 0 && currentLogos.length === 0 && context !== 'preview' && !config.isBeginnerMode"
                  data-snapshot-ignore="true"
                  class="absolute z-[26] pointer-events-none"
-                 :style="`
+                 :style="((currentTexts.length === 0 && currentLogos.length === 0 && context !== 'preview' && !config.isBeginnerMode) ? '' : 'display: none !important; ') + `
                         top: ${config.area_shape === 'custom' ? 0 : (config.area_top ?? 0)}%;
                         left: ${config.area_shape === 'custom' ? 0 : (config.area_left ?? 0)}%;
                         width: ${config.area_shape === 'custom' ? 100 : (config.area_width || 100)}%;
@@ -495,7 +495,7 @@
                             width: ${((currentLogos[index].size || 100) * scaleFactor)}px;
                             transform: translate(-50%,-50%) rotate(${currentLogos[index].rotation || 0}deg);
                             z-index: ${getInteractiveStageZIndex('logo', index)}
-                         ` : 'display:none;'"
+                         ` : 'display: none !important;'"
                          @mousedown.stop="if (!config.isBeginnerMode) startAction($event,'logo',index,'drag')"
                          @touchstart.stop="if (!config.isBeginnerMode) startAction($event,'logo',index,'drag')">
 
@@ -508,25 +508,25 @@
                                          : (isDarkSurface ? 'ring-primary bg-white/10 backdrop-blur-[2px] shadow-[0_0_15px_rgba(197,160,89,0.25)]' : 'ring-primary {{ $isDark ? 'bg-white/10' : 'bg-white/40' }} backdrop-blur-sm shadow-lg'))
                                      : (isDarkSurface ? 'ring-transparent hover:ring-primary/60 hover:bg-white/5' : 'ring-transparent hover:ring-gray-500 {{ $isDark ? 'hover:bg-white/5' : 'hover:bg-white/10' }}'))">
                             <div x-show="Boolean(currentLogos[index])" class="relative w-full h-auto">
-                                {{-- Abgedunkelte Hintergrund-Vorschau des abgeschnittenen Bereichs während des Zuschneidens --}}
-                                <img x-show="isCropping && selectedType==='logo' && selectedIndex===index"
-                                     x-cloak
-                                     :src="resolveLogoUrl(currentLogos[index])"
-                                     data-snapshot-ignore="true"
-                                     decoding="sync"
-                                     class="w-full h-auto pointer-events-none rounded-lg select-none"
-                                     :style="isDarkSurface
-                                         ? 'filter: brightness(0) invert(1) opacity(0.22);'
-                                         : 'opacity: 0.22;'">
+                                {{-- Abgedunkelte Hintergrund-Vorschau des abgeschnittenen Bereichs ausschließlich im aktiven Zuschnitt-Modus --}}
+                                <template x-if="isCropping && selectedType==='logo' && selectedIndex===index && context!=='preview'">
+                                    <img :src="resolveLogoUrl(currentLogos[index])"
+                                         data-snapshot-ignore="true"
+                                         decoding="sync"
+                                         class="w-full h-auto pointer-events-none rounded-lg select-none"
+                                         :style="isDarkSurface
+                                             ? 'filter: brightness(0) invert(1) opacity(0.22);'
+                                             : 'opacity: 0.22;'">
+                                </template>
 
                                 {{-- Hauptbild (im Zuschnitt-Modus live per clip-path beschnitten) --}}
                                 <img :src="resolveLogoUrl(currentLogos[index])"
                                      decoding="sync"
-                                     :class="(isCropping && selectedType==='logo' && selectedIndex===index) ? 'absolute inset-0 w-full h-full object-contain pointer-events-none rounded-lg' : 'w-full h-auto pointer-events-none rounded-lg'"
+                                     :class="(isCropping && selectedType==='logo' && selectedIndex===index && context!=='preview') ? 'absolute inset-0 w-full h-full object-contain pointer-events-none rounded-lg' : 'w-full h-auto pointer-events-none rounded-lg'"
                                      :style="(isDarkSurface
                                          ? 'filter: brightness(0) invert(1) opacity(0.93) drop-shadow(0px 1px 3px rgba(0,0,0,0.85)) drop-shadow(0px 0px 5px rgba(255,255,255,0.2));'
                                          : 'opacity: 0.92; filter: drop-shadow(0px 0px 3px rgba(255,255,255,0.75)) drop-shadow(0px 1px 2px rgba(0,0,0,0.25));')
-                                         + ((isCropping && selectedType==='logo' && selectedIndex===index) ? (' clip-path: ' + getLogoClipPath() + ';') : '')">
+                                         + ((isCropping && selectedType==='logo' && selectedIndex===index && context!=='preview') ? (' clip-path: ' + getLogoClipPath() + ';') : '')">
                             </div>
 
                             {{-- STANDARD-ECKEN (Verschieben, Drehen, Löschen, Größe) WENN NICHT IM ZUSCHNITT-MODUS --}}
@@ -544,7 +544,7 @@
                                  x-cloak
                                  data-snapshot-ignore="true"
                                  class="crop-control-handle absolute border-2 border-primary pointer-events-none"
-                                 :style="`
+                                 :style="((selectedType==='logo' && selectedIndex===index && isCropping && context!=='preview' && Boolean(currentLogos[index])) ? '' : 'display: none !important; ') + `
                                      top: ${cropBox.top}%;
                                      right: ${cropBox.right}%;
                                      bottom: ${cropBox.bottom}%;

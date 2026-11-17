@@ -119,7 +119,7 @@
 
                 {{-- Dateiupload (Optional) --}}
                 <div x-data="{ isDropping: false }" class="mt-4">
-                    <label class="block text-sm font-bold text-gray-700 mb-2">Optionale Dateianhänge (freiwillig – für den gesetzlichen Widerruf sind keinerlei Nachweise erforderlich)</label>
+                    <label class="block text-sm font-bold text-gray-700 mb-2">Optionale Dateianhänge (freiwillig, für den gesetzlichen Widerruf sind keinerlei Nachweise erforderlich)</label>
                     <div 
                         class="relative flex flex-col justify-center items-center w-full h-32 bg-gray-50 rounded-xl border-2 border-dashed transition-colors"
                         x-bind:class="isDropping ? 'border-[var(--theme-color)] bg-[var(--theme-color)]/5' : 'border-gray-300 hover:bg-gray-100'"

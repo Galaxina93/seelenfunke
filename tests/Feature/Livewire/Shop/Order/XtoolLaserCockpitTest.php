@@ -1541,6 +1541,17 @@ class XtoolLaserCockpitTest extends TestCase
         $this->assertStringContainsString('accent-color: var(--theme-color)', $renderedHtml);
         $this->assertGreaterThanOrEqual(4, substr_count($renderedHtml, 'type="range"'));
 
+        // 6a. Mobil- & Tablet-sichere Aktionszeile: "Übernehmen" bricht auf 320/375/640 px nie aus der Karte aus
+        $this->assertStringContainsString('data-sf-laser-action-row class="flex flex-col 2xl:flex-row', $renderedHtml);
+        $this->assertStringContainsString('data-sf-laser-action-buttons class="flex flex-wrap items-stretch gap-1.5 w-full min-w-0 2xl:w-auto', $renderedHtml);
+        $this->assertMatchesRegularExpression('/data-sf-laser-apply-btn[^>]*class="flex-1 basis-full sm:basis-auto min-w-0 whitespace-normal/s', $renderedHtml);
+        $this->assertStringNotContainsString('min-w-[220px]', $renderedHtml);
+        $this->assertStringNotContainsString('sm:flex-row sm:items-end justify-between gap-2 pt-0.5', $renderedHtml);
+
+        // 6b. Validierte Handbuch-Presets (PDF 1 & 2) sind in Schritt 1 wählbar
+        $this->assertStringContainsString('data-sf-handbook-presets=', $renderedHtml);
+        $this->assertStringContainsString('Handbuch-Preset', $renderedHtml);
+
         $component->call('resetOrderItemLaserParameters', $item->id, 'front')
             ->assertDispatched('laser-params-sync');
 

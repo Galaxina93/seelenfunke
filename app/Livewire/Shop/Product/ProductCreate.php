@@ -2589,7 +2589,7 @@ class ProductCreate extends Component
                 'path' => $fullPath,
                 'is_main' => count($gallery) === 0,
                 'is_hover' => false,
-                'is_ai_generated' => true,
+                'is_ai_generated' => false,
             ];
         }
 
@@ -2697,12 +2697,19 @@ class ProductCreate extends Component
 
     private function resizeAndSaveImage($sourcePath, $destinationPath)
     {
-        list($width, $height, $type) = getimagesize($sourcePath);
+        $info = @getimagesize($sourcePath);
+        if ($info === false || empty($info[0]) || empty($info[1])) {
+            return;
+        }
+        [$width, $height, $type] = $info;
         $maxWidth = 1920; $maxHeight = 1920;
         $ratio = $width / $height;
         if ($width > $maxWidth || $height > $maxHeight) {
             if ($maxWidth / $maxHeight > $ratio) { $newWidth = $maxHeight * $ratio; $newHeight = $maxHeight; } else { $newHeight = $maxWidth / $ratio; $newWidth = $maxWidth; }
         } else { $newWidth = $width; $newHeight = $height; }
+        // GD erwartet Integer-Pixelmaße: Seitenverhältnis-Floats sauber runden (PHP 8.1+ Deprecation "Implicit conversion from float")
+        $newWidth = max(1, (int) round($newWidth));
+        $newHeight = max(1, (int) round($newHeight));
 
         switch ($type) {
             case IMAGETYPE_JPEG: $src = imagecreatefromjpeg($sourcePath); break;
@@ -3184,7 +3191,7 @@ class ProductCreate extends Component
 
         $settings['seasonal_images'][$holidayKey] = [
             'path' => $fullPath,
-            'is_ai_generated' => true,
+            'is_ai_generated' => false,
             'updated_at' => now()->toDateTimeString(),
         ];
 
@@ -3197,7 +3204,7 @@ class ProductCreate extends Component
             ->whereRaw('LOWER(holiday) = ?', [mb_strtolower($holidayKey)])
             ->update([
                 'preview_image' => $fullPath,
-                'is_ai_generated' => true,
+                'is_ai_generated' => false,
             ]);
 
         $this->product->refresh();

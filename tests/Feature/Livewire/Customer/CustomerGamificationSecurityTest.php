@@ -149,16 +149,16 @@ class CustomerGamificationSecurityTest extends TestCase
     public function test_dashboard_voucher_redemption_rejects_invalid_tier_and_insufficient_balance()
     {
         $this->profile->update([
-            'funken_balance' => 40,
-            'funken_total_earned' => 200,
+            'funken_balance' => 240,
+            'funken_total_earned' => 240,
             'funki_level' => 2,
         ]);
 
         Livewire::test(CustomerDashboardComponent::class)
             ->call('redeemFunkenVoucher', 'invalid_tier')
-            ->call('redeemFunkenVoucher', 'voucher_5'); // requires 60
+            ->call('redeemFunkenVoucher', 'voucher_5'); // requires 250
 
         $this->profile->refresh();
-        $this->assertEquals(40, $this->profile->funken_balance);
+        $this->assertEquals(240, $this->profile->funken_balance);
     }
 }

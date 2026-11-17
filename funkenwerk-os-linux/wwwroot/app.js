@@ -5103,7 +5103,12 @@
     if (wfActionBusy) return;
     wfActionBusy = true;
     const camBtn = document.getElementById('btn-wf-camera');
-    if (camBtn) camBtn.disabled = true;
+    const sendBtn = document.getElementById('btn-wf-send-laser');
+    if (camBtn) {
+      camBtn.disabled = true;
+      camBtn.innerHTML = '<span class="wf-btn-spinner" aria-hidden="true"></span>';
+    }
+    if (sendBtn) sendBtn.disabled = true;
     try {
       const res = await fetch('/api/workshop-focus/camera', {
         method: 'POST',
@@ -5120,7 +5125,11 @@
       }
     } catch { } finally {
       wfActionBusy = false;
-      if (camBtn) camBtn.disabled = false;
+      if (camBtn) {
+        camBtn.disabled = false;
+        camBtn.textContent = '📷';
+      }
+      if (sendBtn) sendBtn.disabled = false;
     }
   }
 
@@ -5128,9 +5137,12 @@
     if (wfActionBusy || !wfState || !wfState.has_order) return;
     wfActionBusy = true;
     const btn = document.getElementById('btn-wf-send-laser');
+    const camBtn = document.getElementById('btn-wf-camera');
+    if (camBtn) camBtn.disabled = true;
     if (btn) {
       btn.disabled = true;
-      btn.textContent = 'Übertrage...';
+      btn.classList.remove('is-prepared');
+      btn.innerHTML = '<span class="wf-btn-spinner" aria-hidden="true"></span><span>Sende an Laser...</span>';
     }
     try {
       const res = await fetch('/api/workshop-focus/send-laser', {
@@ -5158,6 +5170,7 @@
       showWorkshopFocusToast('Laser-Übertragung fehlgeschlagen');
     } finally {
       wfActionBusy = false;
+      if (camBtn) camBtn.disabled = false;
       if (btn) btn.disabled = false;
     }
   }

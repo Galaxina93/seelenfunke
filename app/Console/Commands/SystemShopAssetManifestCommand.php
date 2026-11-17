@@ -233,7 +233,6 @@ class SystemShopAssetManifestCommand extends Command
             'id-armband-silber-herz',
             'id-armband-gold-herz',
             'geschenkgutschein',
-            'ki-agenten-playbook',
         ];
 
         if (Schema::hasTable('products')) {

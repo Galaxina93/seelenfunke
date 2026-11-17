@@ -2258,6 +2258,58 @@ E: Die Unterweisung beinhaltet unter anderem die sachgerechte Nutzung von persö
 **Richtige Antwort:** Die Aussagen B und E sind richtig.
 *(Wichtiges AI-Wissen: Gemäß § 8 OStrV muss die Unterweisung vor Aufnahme der Tätigkeit, danach mindestens jährlich, und bei wesentlichen Änderungen (z.B. neue Laser, Versetzungen) sofort erfolgen (B). Die Einweisung in die PSA ist ein essenzieller Bestandteil davon (E). A ist falsch (jährliche Pflicht). C ist falsch, die Dokumentation ist strengstens vorgeschrieben. D ist falsch, die Unterweisung muss zwingend in einer für den Arbeitnehmer verständlichen Form und Sprache erfolgen.)*
                 "
+            ],
+            // WERKSTATT-PRAXIS: VALIDIERTE XTOOL F2 ULTRA UV LASERWERTE (STAND 11/2026)
+            [
+                'title' => 'xTool F2 Ultra UV: Validierte Laserwerte pro Produkt (Vektor & Bitmap, Stand 11/2026)',
+                'content' => '
+# xTool F2 Ultra UV (5 W · 355 nm): Validierte Laserwerte pro Produkt
+
+Quelle: PDF 1 (Laserwerte- & Schwarzgravur-Handbuch, Pos. 01-16) und PDF 2 (Laserwerte-Datenbank Stand 11/2026, direkt in Bestellung Schritt 1 wählbar). Kundenfotos laufen immer auf einem eigenen Foto-Bitmap-Layer, Texte & Standard-Symbole auf einem eigenen Vektor-Layer.
+
+## Schritt-1 Standard pro Produkt (PDF 2)
+
+| Produkt | Polarität | Vektor (Text & Symbole) | Bitmap (Kundenfoto) |
+| :--- | :--- | :--- | :--- |
+| Die Seelen-Pfote (40 × 22 × 1,8 mm, 14K IP-Edelstahl PVD) | dark_on_light | 3,2 mm · 42 % · 110 mm/s · 65 kHz · 330 L/cm · 1x | 3,2 mm · 45 % · 210 µs · 65 kHz · 800 DPI · Jarvis · 1x |
+| Das Goldene Seelen-Herz (25 × 22 × 4,0 mm, STA1274) | dark_on_light | 5,4 mm · 46 % · 100 mm/s · 65 kHz · 350 L/cm · 1-2x | 5,4 mm · 48 % · 220 µs · 65 kHz · 800 DPI · Jarvis · 1x |
+| Der Seelen-Talisman (50 × 28 × 2,2 mm) | dark_on_light | 3,6 mm · 44 % · 105 mm/s · 65 kHz · 330 L/cm · 1x | 3,5 mm · 46 % · 215 µs · 65 kHz · 800 DPI · Jarvis · 1x |
+| Der Seelenanhänger (45 × 40 mm, Schwarzes Herz PVD/Eloxal) | white_on_dark | 19,9 mm (Jig) · 70 % · 450 mm/s · 40 kHz · 300 L/cm · 1x | 19,9 mm (Jig) · 85 % · 280 µs · 40 kHz · 600 DPI · Jarvis · 1x |
+| Echtsilber Seelen-Armband (925er Sterlingsilber) | dark_on_light | 2,2 mm · 75 % · 180 mm/s · 50 kHz · 400 L/cm · 2x | 2,2 mm · 75 % · 240 µs · 50 kHz · 1000 DPI · 2x |
+| Gold-Vermeil Seelen-Armband (925er Gold-Vermeil) | dark_on_light | 2,5 mm · 34 % · 130 mm/s · 70 kHz · 400 L/cm · 1x | 2,5 mm · 34 % · 180 µs · 70 kHz · 1000 DPI · 1x |
+| 585er Echtgold Seelen-Herz (PDF 1 Pos. 08) | dark_on_light | 0,8 mm (Dunkelton 1,6 mm) · 70 % · 80 mm/s · 60 kHz · 800 L/cm · 2x | nur Vektor |
+| Der Seelen Kristall (Ø 161,5 × 40 mm, K9) | white_on_dark | 33,1 mm · 60 % · 80 mm/s · 40 kHz · 300 L/cm · 1x | 33,1 mm · 100 % · 450 µs · 40 kHz · 500 DPI · Jarvis · 1x |
+| Feierabend-Funke Weizenbierglas (RA3, Ø 74 mm) | white_on_dark | Ø 74,0 mm Scheitel · 55 % · 380 mm/s · 40 kHz · 1x | 55 % · 260 µs · 40 kHz · 400 DPI · Jarvis · 1x |
+| Gutscheinkarte Alu Schwarz (86 × 54 mm) | white_on_dark | 0,8 mm · 45 % · 800-900 mm/s · 50-60 kHz · 450 L/cm | 220 µs · 500 DPI · Schwellenwert |
+
+## Zusatz-Presets (PDF 1)
+- Seelen-Pfote Tiefschwarz 100 kHz (Pos. 01/02): Vektor 3,8 mm (+2,0) · 95 % · 25 mm/s · 100 kHz · 1000 L/cm; Bitmap 3,6 mm (+1,8) · 95 % · 1100 µs · 100 kHz · 1270 DPI.
+- Seelen-Pfote Silber-Kontrast: 1,8 mm · 28 % · 550 mm/s · 40 kHz. Gold-Eloxal Alu: 1,8 mm (+0,4) · 55 % · 450 mm/s · 50 kHz · 300 L/cm, Bitmap 160 µs · 600 DPI.
+- Goldenes Seelen-Herz Massiv-Tiefschwarz (Pos. 03): 6,0 mm (+2,0) · 98 % · 20 mm/s · 100 kHz · 1000 L/cm; Bitmap 95 % · 1100 µs · 1270 DPI.
+- Seelen-Talisman Tiefschwarz (Pos. 04): 4,2 mm (+2,0) · 95 % · 25 mm/s · 100 kHz · 1000 L/cm; Bitmap 95 % · 1100 µs · 1270 DPI.
+- Seelenanhänger Fein-Text: 55 % · 700 mm/s · 450 L/cm · 40 kHz; Alt-Foto 90 % · 300 µs · 500 DPI.
+- Sterlingsilber Kreuzschraffur (Pos. 06): 2,0 mm (+0,8) · 85 % · 40 mm/s · 80 kHz · 1000 L/cm · 2x. Gold-Vermeil (Pos. 07): 2,4 mm (+1,2) · 55 % · 60 mm/s · 90 kHz · 1000 L/cm · 1x.
+- Seelen Kristall Innengravur (Pos. 09, inner_3d): Offset -15 bis -20 mm · 80 % · 220 µs · 40 kHz · 600 DPI · Jarvis (niemals Graustufen).
+- Weizenglas Kräftig-Frost (Pos. 11): Vektor 80 % · 125 mm/s · 300 L/cm; Bild 92 % · 650 µs · 500 DPI · 40 kHz · Jarvis.
+
+## Werkstoff-Presets
+- Edelstahl V2A Anlass-Schwarz: +1,5 mm · 55 % · 95 mm/s · Bitmap 260 µs · 1000 DPI · 55 kHz.
+- Edelstahl V2A Silber-Frost: 0,0 mm · 85 % · 600 mm/s · 200 µs · 500 DPI · 40 kHz.
+- Naturschiefer (white_on_dark): 0,0 mm · Bild 90 % · 350 µs · 400 DPI · Jarvis · Vektor 75-85 % · 350-500 mm/s · 40 kHz.
+- Alu-Flaschenöffner Conveyor: 0,0 mm · 55 % · 750 mm/s · 45 kHz · 450 L/cm.
+- Massivholz & Bambus (dark_on_light): 0,0 mm · 45-55 % (Bambus 35 %) · 250-650 mm/s · Bild 160-280 µs · 300-450 DPI · Jarvis · 40-50 kHz.
+- Messing poliert: +0,8..+1,0 mm · 80-85 % · 120-220 mm/s · Bild 280 µs · 800 DPI · 45-70 kHz · 1-2x.
+- Acrylglas & Echtleder: 0,0 mm · 38 % · 650 mm/s · 140 µs · 300 DPI · 60 kHz.
+
+## Foto-Dot-Gain-Regel (gegen zu helle Fotos)
+Bei 600 DPI liegt der Punktabstand bei 42,3 µm, der UV-Krater misst 42-48 µm. Ab ca. 58-60 % Punktdichte überlappen die Krater (UV-Dot-Gain) und PVD/Eloxal wird flächig abgetragen. Das Portal bereitet jedes Kundenfoto deshalb automatisch auf:
+1. Halbton-Foto vs. Silhouette erkennen (Silhouetten bleiben randscharf, Schwellenwert).
+2. Perzentil-Tonwertspreizung P2 bis P98 auf sichtbaren Pixeln.
+3. Unsharp Mask für Augen, Wimpern, Nasenflügel, Lippen und Locken.
+4. white_on_dark (Anhänger, Kristall, Glas, Schiefer, schwarze Karte): Schatten unter Luminanz 0,13 bleiben 0 %, Dot-Gain-Gamma 1,90 mit Highlight-Deckel 78 %. Helle Gesichtspartien landen bei ca. 38-62 % statt 85-100 %.
+5. dark_on_light (Gold, Silber, Edelstahl, Holz, Messing): d = k^1,40 · 0,82 mit k = 1 - Luminanz, Lichter unter 10 % bleiben reines Metall.
+6. Ausgabe Gray = round(255 · (1 - d)), xTool lasert bei 0 und pausiert bei 255. Um Texte über Fotos bleibt ein Schutzsaum von ca. 0,45 mm ohne Foto-Laserung stehen.
+'
             ]
         ];
 

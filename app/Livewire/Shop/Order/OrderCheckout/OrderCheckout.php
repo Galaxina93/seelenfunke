@@ -86,18 +86,10 @@ class OrderCheckout extends Component
 
     /**
      * Liefert die zulässigen Checkout-Länder:
-     * - Physischer Versand: strikt an aktive Lieferzonen (LogisticsShippingZone / active_countries) gekoppelt.
-     * - Rein digitale Downloads: keine physische Lieferzonen-Blockade für internationale B2B-/Developer-Rechnungen.
+     * Ausnahmslos an aktive Lieferzonen (LogisticsShippingZone / active_countries) gekoppelt (Baustein 8).
      */
     public function resolveAllowedCheckoutCountries(?Cart $cart = null): array
     {
-        if ($this->isOnlyDigitalCart($cart)) {
-            $all = \App\Livewire\Shop\System\SystemShipping::getAllCountries();
-            if (is_array($all) && !empty($all)) {
-                return $all;
-            }
-        }
-
         $active = shop_setting('active_countries', ['DE' => 'Deutschland']);
         return is_array($active) && !empty($active) ? $active : ['DE' => 'Deutschland'];
     }

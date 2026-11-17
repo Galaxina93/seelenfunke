@@ -843,7 +843,9 @@ class FileDownloadService
                             (float) $widthMm,
                             (float) $heightMm,
                             $workingAreaPolygonPct,
-                            $textsForThisRaster
+                            $textsForThisRaster,
+                            false,
+                            $this->resolveLaserPhotoProfile($product, is_array($productConfig) ? $productConfig : [])
                         );
 
                         if ($clippedRaster !== null) {
@@ -1067,13 +1069,16 @@ class FileDownloadService
         }
 
         if ($hasSvgInLogos && $hasRasterInLogos) {
+            $pngPhotoProfile = $this->resolveLaserPhotoProfile($product, is_array($productConfig) ? $productConfig : []);
             $stageRendered = $this->renderFullStageLaserPng(
                 (float) $widthMm,
                 (float) $heightMm,
                 $workingAreaPolygonPct,
                 $logos,
                 is_array($texts) ? $texts : [],
-                $item
+                $item,
+                (bool) $pngPhotoProfile['is_dark_surface'],
+                $pngPhotoProfile
             );
             $stageGd = @imagecreatefromstring($stageRendered['pngBytes'] ?? '');
             if ($stageGd) {
@@ -1175,7 +1180,9 @@ class FileDownloadService
                     (float) $widthMm,
                     (float) $heightMm,
                     $workingAreaPolygonPct,
-                    is_array($texts) ? $texts : []
+                    is_array($texts) ? $texts : [],
+                    false,
+                    $this->resolveLaserPhotoProfile($product, is_array($productConfig) ? $productConfig : [])
                 );
                 if ($clipped !== null) {
                     $pngOut = $clipped['pngData'];
@@ -1586,7 +1593,8 @@ class FileDownloadService
             $logos,
             $texts,
             $item,
-            $isDarkSurface
+            $isDarkSurface,
+            $this->resolveLaserPhotoProfile($product, $effectiveProductConfig, $isDarkSurface)
         );
 
         return [
@@ -1608,6 +1616,32 @@ class FileDownloadService
             'stagePixelWidth'        => $rendered['pixelWidth'],
             'stagePixelHeight'       => $rendered['pixelHeight'],
             'previewDataUrl'         => 'data:image/png;base64,' . base64_encode($rendered['previewPngBytes']),
+            'photoLayerPngBytes'     => $rendered['photoLayerPngBytes'] ?? null,
+            'vectorLayerPngBytes'    => $rendered['vectorLayerPngBytes'] ?? null,
+            'photoLayerInfo'         => $rendered['photoLayerInfo'] ?? null,
+            'textKnockoutPixels'     => (int) ($rendered['knockoutPixels'] ?? 0),
+            'stagePxPerMm'           => (float) ($rendered['pxPerMm'] ?? 0.0),
+        ];
+    }
+
+    /**
+     * Foto-Substrat-Profil für die physikalisch kalibrierte Foto-Pipeline (LaserPhotoPreprocessor):
+     * Produktwert 'xtool_photo_substrate_polarity' (white_on_dark / dark_on_light) mit Fallback auf die Oberflächen-Erkennung.
+     *
+     * @return array{polarity: string, is_dark_surface: bool}
+     */
+    public function resolveLaserPhotoProfile($product = null, array $productConfig = [], ?bool $isDarkSurface = null): array
+    {
+        $isDark = $isDarkSurface ?? $this->isFrostedLightEngravingSurface($product, $productConfig);
+        $rawPolarity = trim((string) ($productConfig['xtool_photo_substrate_polarity'] ?? ''));
+        // Materialwechsel im Cockpit (z. B. Edelstahl -> Schiefer) hat Vorrang vor dem Produktstandard
+        if (trim((string) ($productConfig['xtool_material_override'] ?? '')) !== '') {
+            $rawPolarity = '';
+        }
+
+        return [
+            'polarity'        => \App\Services\Laser\LaserPhotoPreprocessor::normalizePolarity($rawPolarity, $isDark),
+            'is_dark_surface' => $isDark,
         ];
     }
 
@@ -2356,7 +2390,8 @@ class FileDownloadService
         array $logos,
         array $texts,
         $item = null,
-        bool $isDarkSurface = false
+        bool $isDarkSurface = false,
+        ?array $photoProfile = null
     ): array {
         $minDimMm = max(1.0, min($widthMm, $heightMm));
         $maxDimMm = max(1.0, max($widthMm, $heightMm));
@@ -2369,6 +2404,30 @@ class FileDownloadService
         imagesavealpha($canvas, true);
         $trans = imagecolorallocatealpha($canvas, 255, 255, 255, 127);
         imagefill($canvas, 0, 0, $trans);
+
+        // Multi-Layer-Trennung (.xcs / .xf): Kundenfotos auf eigenem Foto-Bitmap-Layer, Texte & Vektorsymbole
+        // auf eigenem Vektor-Layer mit identischer Geometrie (gleiche Stage-Pixel, gleiche Maske, gleiche zIndex-Reihenfolge)
+        $isLayered = $photoProfile !== null;
+        $photoCanvas = null;
+        $vectorCanvas = null;
+        $photoTrans = null;
+        $vectorTrans = null;
+        $hasPhotoLayer = false;
+        $hasVectorLayer = false;
+        $photoLayerInfo = null;
+        if ($isLayered) {
+            $photoCanvas = imagecreatetruecolor($stageW, $stageH);
+            imagealphablending($photoCanvas, false);
+            imagesavealpha($photoCanvas, true);
+            $photoTrans = imagecolorallocatealpha($photoCanvas, 255, 255, 255, 127);
+            imagefill($photoCanvas, 0, 0, $photoTrans);
+
+            $vectorCanvas = imagecreatetruecolor($stageW, $stageH);
+            imagealphablending($vectorCanvas, false);
+            imagesavealpha($vectorCanvas, true);
+            $vectorTrans = imagecolorallocatealpha($vectorCanvas, 255, 255, 255, 127);
+            imagefill($vectorCanvas, 0, 0, $vectorTrans);
+        }
 
         $overlayTrackImg = imagecreatetruecolor($stageW, $stageH);
         $trackZero = imagecolorallocate($overlayTrackImg, 0, 0, 0);
@@ -2409,6 +2468,10 @@ class FileDownloadService
 
                 if ($ext === 'svg') {
                     $this->drawSvgLogoOntoStageCanvas($canvas, $rawBytes, $logo, $widthMm, $heightMm, $stageW, $stageH, true, $overlayTrackImg);
+                    if ($isLayered) {
+                        $this->drawSvgLogoOntoStageCanvas($vectorCanvas, $rawBytes, $logo, $widthMm, $heightMm, $stageW, $stageH, true, null);
+                        $hasVectorLayer = true;
+                    }
                 } else {
                     $clipped = $this->clipAndNormalizeRasterLogoForLaser(
                         $rawBytes,
@@ -2417,7 +2480,9 @@ class FileDownloadService
                         $widthMm,
                         $heightMm,
                         $workingAreaPolygonPct,
-                        []
+                        [],
+                        false,
+                        $photoProfile
                     );
                     if ($clipped !== null) {
                         $partImg = @imagecreatefromstring($clipped['pngData']);
@@ -2429,6 +2494,17 @@ class FileDownloadService
                             imagealphablending($canvas, true);
                             imagecopyresampled($canvas, $partImg, $dstX, $dstY, 0, 0, $dstW, $dstH, imagesx($partImg), imagesy($partImg));
                             imagealphablending($canvas, false);
+
+                            if ($isLayered) {
+                                imagealphablending($photoCanvas, true);
+                                imagecopyresampled($photoCanvas, $partImg, $dstX, $dstY, 0, 0, $dstW, $dstH, imagesx($partImg), imagesy($partImg));
+                                imagealphablending($photoCanvas, false);
+                                $hasPhotoLayer = true;
+                                $meta = is_array($clipped['photoMeta'] ?? null) ? $clipped['photoMeta'] : [];
+                                if ($photoLayerInfo === null || ($meta['class'] ?? '') === 'halftone') {
+                                    $photoLayerInfo = $meta;
+                                }
+                            }
 
                             // Falls ein Foto per höherem zIndex über einer älteren Vektor-/Textebene liegt, Track dort zurücksetzen
                             $clX0 = max(0, $dstX);
@@ -2443,6 +2519,10 @@ class FileDownloadService
                                     $sx = min($pw - 1, max(0, (int) floor((($px - $dstX) / max(1, $dstW)) * $pw)));
                                     if (((imagecolorat($partImg, $sx, $sy) >> 24) & 0x7F) < 120) {
                                         imagesetpixel($overlayTrackImg, $px, $py, $trackZero);
+                                        if ($isLayered) {
+                                            // Foto liegt per zIndex über älterer Text-/Vektorebene: dort nicht doppelt lasern
+                                            imagesetpixel($vectorCanvas, $px, $py, $vectorTrans);
+                                        }
                                     }
                                 }
                             }
@@ -2453,6 +2533,13 @@ class FileDownloadService
                 }
             } elseif ($entry['kind'] === 'text') {
                 $this->drawTextItemOntoStageCanvas($canvas, $entry['data'], $widthMm, $stageW, $stageH, $overlayTrackImg);
+                if ($isLayered) {
+                    $rawTextForLayer = trim((string) ($entry['data']['text'] ?? ''));
+                    if ($rawTextForLayer !== '' && $rawTextForLayer !== 'Text eingeben...') {
+                        $this->drawTextItemOntoStageCanvas($vectorCanvas, $entry['data'], $widthMm, $stageW, $stageH, null);
+                        $hasVectorLayer = true;
+                    }
+                }
             }
         }
 
@@ -2476,6 +2563,10 @@ class FileDownloadService
             for ($x = 0; $x < $stageW; $x++) {
                 if ((imagecolorat($maskImg, $x, $y) & 0xFF) === 0) {
                     imagesetpixel($canvas, $x, $y, $trans);
+                    if ($isLayered) {
+                        imagesetpixel($photoCanvas, $x, $y, $photoTrans);
+                        imagesetpixel($vectorCanvas, $x, $y, $vectorTrans);
+                    }
                     continue;
                 }
 
@@ -2540,11 +2631,43 @@ class FileDownloadService
         $previewPngBytes = (string) ob_get_clean();
         imagedestroy($previewCanvas);
 
+        $photoLayerPngBytes = null;
+        $vectorLayerPngBytes = null;
+        $knockoutPixels = 0;
+        if ($isLayered) {
+            if ($hasPhotoLayer && $hasVectorLayer) {
+                // Lesbarkeits-Schutzsaum (~0,45 mm, 0 % Foto-Laserung) um Buchstaben & Symbole über dem Kundenfoto
+                $knockoutPixels = app(\App\Services\Laser\LaserPhotoPreprocessor::class)->applyTextKnockoutHalo(
+                    $photoCanvas,
+                    $vectorCanvas,
+                    max(1, (int) round(\App\Services\Laser\LaserPhotoPreprocessor::TEXT_KNOCKOUT_MM * $pxPerMm)),
+                    max(1, (int) round(\App\Services\Laser\LaserPhotoPreprocessor::TEXT_KNOCKOUT_SOFT_MM * $pxPerMm))
+                );
+            }
+            if ($hasPhotoLayer) {
+                ob_start();
+                imagepng($photoCanvas, null, 6);
+                $photoLayerPngBytes = (string) ob_get_clean();
+            }
+            if ($hasVectorLayer) {
+                ob_start();
+                imagepng($vectorCanvas, null, 6);
+                $vectorLayerPngBytes = (string) ob_get_clean();
+            }
+            imagedestroy($photoCanvas);
+            imagedestroy($vectorCanvas);
+        }
+
         return [
-            'pngBytes'        => $pngBytes,
-            'previewPngBytes' => $previewPngBytes,
-            'pixelWidth'      => $stageW,
-            'pixelHeight'     => $stageH,
+            'pngBytes'            => $pngBytes,
+            'previewPngBytes'     => $previewPngBytes,
+            'pixelWidth'          => $stageW,
+            'pixelHeight'         => $stageH,
+            'pxPerMm'             => $pxPerMm,
+            'photoLayerPngBytes'  => $photoLayerPngBytes,
+            'vectorLayerPngBytes' => $vectorLayerPngBytes,
+            'photoLayerInfo'      => $photoLayerInfo,
+            'knockoutPixels'      => $knockoutPixels,
         ];
     }
 
@@ -3917,7 +4040,8 @@ class FileDownloadService
         float $heightMm,
         array $workingAreaPolygonPct,
         array $texts = [],
-        bool $knockoutOnlyTexts = false
+        bool $knockoutOnlyTexts = false,
+        ?array $photoProfile = null
     ): ?array {
         if (!function_exists('imagecreatefromstring') || $binaryData === '' || empty($workingAreaPolygonPct)) {
             return null;
@@ -4090,6 +4214,8 @@ class FileDownloadService
 
         $hist = array_fill(0, 256, 0);
         $totalMaskedPixels = 0;
+        $maxRgbSeen = 0;
+        $strongMaskPixels = 0;
 
         for ($y = $scanStartY; $y <= $scanEndY; $y++) {
             for ($x = $scanStartX; $x <= $scanEndX; $x++) {
@@ -4116,6 +4242,10 @@ class FileDownloadService
                 imagesetpixel($dst, $x, $y, $grayLut[$gray]);
                 $hist[$gray]++;
                 $totalMaskedPixels++;
+                if ($r > $maxRgbSeen) $maxRgbSeen = $r;
+                if ($g > $maxRgbSeen) $maxRgbSeen = $g;
+                if ($b > $maxRgbSeen) $maxRgbSeen = $b;
+                if ($a < 16) $strongMaskPixels++;
 
                 if ($x < $tightMinX) $tightMinX = $x;
                 if ($x > $tightMaxX) $tightMaxX = $x;
@@ -4137,7 +4267,46 @@ class FileDownloadService
             }
         }
 
-        if ($distinctGreys > 12 && $totalMaskedPixels > 100 && $tightMaxX >= $tightMinX) {
+        // 3a. Physik-kalibrierte Foto-Pipeline (LaserPhotoPreprocessor), sobald das Substrat-Profil bekannt ist:
+        // Halbton-Fotos erhalten P2..P98 Tonwertspreizung, Unsharp Mask und die UV-Dot-Gain-Kurve der Polarität
+        // (white_on_dark: Gamma 1,90 + Highlight-Deckel 78 %, dark_on_light: k^1,40 * 0,82).
+        // Silhouetten / Strich-Logos bleiben randscharf unverändert (Schwellenwert).
+        $photoMeta = ['class' => 'legacy', 'encoding' => null, 'polarity' => null, 'mean_density' => null];
+        if ($photoProfile !== null && $totalMaskedPixels > 0 && $tightMaxX >= $tightMinX) {
+            $photoPolarity = \App\Services\Laser\LaserPhotoPreprocessor::normalizePolarity(
+                (string) ($photoProfile['polarity'] ?? ''),
+                (bool) ($photoProfile['is_dark_surface'] ?? false)
+            );
+            $photoEncoding = \App\Services\Laser\LaserPhotoPreprocessor::detectSourceEncoding(
+                $maxRgbSeen,
+                $totalMaskedPixels,
+                $strongMaskPixels,
+                $photoPolarity
+            );
+            $photoClass = \App\Services\Laser\LaserPhotoPreprocessor::classifyHistogram($hist, $totalMaskedPixels);
+            $photoMeta = [
+                'class'        => $photoClass,
+                'encoding'     => $photoEncoding,
+                'polarity'     => $photoPolarity,
+                'mean_density' => null,
+            ];
+
+            if ($photoClass === 'halftone') {
+                $photoStats = app(\App\Services\Laser\LaserPhotoPreprocessor::class)->processHalftoneInPlace(
+                    $dst,
+                    $tightMinX,
+                    $tightMinY,
+                    $tightMaxX,
+                    $tightMaxY,
+                    $photoPolarity,
+                    $photoEncoding,
+                    $pxPerMm
+                );
+                $photoMeta['mean_density'] = $photoStats['mean_density'];
+                $photoMeta['p_low'] = $photoStats['p_low'];
+                $photoMeta['p_high'] = $photoStats['p_high'];
+            }
+        } elseif ($distinctGreys > 12 && $totalMaskedPixels > 100 && $tightMaxX >= $tightMinX) {
             $lowTarget = max(1, (int) round($totalMaskedPixels * 0.005));
             $highTarget = max(1, (int) round($totalMaskedPixels * 0.995));
             $cum = 0;
@@ -4521,6 +4690,7 @@ class FileDownloadService
             'heightMm'    => $outH_mm,
             'pixelWidth'  => $cropW,
             'pixelHeight' => $cropH,
+            'photoMeta'   => $photoMeta,
         ];
     }
 

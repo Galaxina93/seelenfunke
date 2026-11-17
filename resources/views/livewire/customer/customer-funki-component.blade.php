@@ -413,11 +413,18 @@
          ========================================================================= --}}
     <div x-show="activeFunkiTab === 'vouchers'" class="space-y-6">
         <div class="bg-white dark:bg-[#0d1017] border border-gray-200 dark:border-gray-800 rounded-3xl p-5 sm:p-7 shadow-sm space-y-6">
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                     <h2 class="text-lg font-serif font-bold text-gray-900 dark:text-white">Rabatt-Gutscheine freischalten</h2>
                     <p class="text-xs text-gray-500 dark:text-gray-400">Einmalig für deine nächste Bestellung einlösbar • Dein Level sinkt beim Einlösen nie.</p>
                 </div>
+                <button type="button"
+                        data-testid="funki-vouchers-open-3d-lobby"
+                        onclick="(function(){ if (window.getSeelenfunkeLobbyAudio) { window.getSeelenfunkeLobbyAudio({ isAuthenticated: true }).startLobbyMusicFromGesture(); } var e = window.SeelenfunkeHeroes3D; if (e && typeof e.open === 'function') { e.open('lobby'); return; } var s = document.getElementById('sf-heroes-3d-script'); if (!s) { s = document.createElement('script'); s.id = 'sf-heroes-3d-script'; s.src = '{{ asset('js/funkenwerk-heroes-3d.js') }}?v=20261117v4'; s.onload = function(){ if (window.SeelenfunkeHeroes3D) window.SeelenfunkeHeroes3D.open('lobby'); }; document.head.appendChild(s); } })()"
+                        class="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white dark:bg-gray-900 hover:bg-[#faf6ee] dark:hover:bg-gray-800 border border-[#C5A059] text-gray-900 dark:text-[#f5dca0] text-xs font-black tracking-wide shadow-xs transition cursor-pointer shrink-0">
+                    <span>🌋</span>
+                    <span>Funken in der 3D-Lobby sammeln</span>
+                </button>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -511,7 +518,7 @@
                     </div>
                 @else
                     <p class="text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/50 p-4 rounded-2xl border border-gray-200 dark:border-gray-800">
-                        Noch kein Gutschein eingelöst. Ab 60 ✨ kannst du oben deinen ersten Rabatt-Code freischalten.
+                        Noch kein Gutschein eingelöst. Ab {{ number_format((int) ($redeemableVouchers['voucher_5']['cost_sparks'] ?? 250), 0, ',', '.') }} ✨ kannst du oben deinen ersten Rabatt-Code freischalten.
                     </p>
                 @endif
             </div>
@@ -885,7 +892,7 @@
                     <h2 class="text-base font-serif font-bold text-gray-900 dark:text-white">Deine Anzeige in der Rangliste</h2>
                     <p class="text-xs text-gray-600 dark:text-gray-400">Wähle frei zwischen eigenem Spielernamen oder Vornamen + Initial.</p>
                     <p class="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
-                        <strong>Transparenz-Hinweis (DSGVO):</strong> Bei aktivierter Ranglisten-Anzeige werden ausschließlich dein gewählter <strong>Anzeigename, Funki-Stufe, aktiver Rang-Titel und Anzahl der Diamant-Titel</strong> öffentlich dargestellt (keine E-Mail-Adresse, kein Einkaufsvolumen).
+                        <strong>Transparenz-Hinweis (DSGVO):</strong> Bei aktivierter Ranglisten-Anzeige werden ausschließlich dein gewählter <strong>Anzeigename, Funki-Stufe, aktiver Rang-Titel, Diamant-Titel und gesammelte Gesamt-Funken</strong> öffentlich dargestellt (keine E-Mail-Adresse, kein Einkaufsvolumen in Euro).
                     </p>
                 </div>
                 <label class="inline-flex items-center gap-2.5 px-3.5 py-2 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 cursor-pointer shrink-0">

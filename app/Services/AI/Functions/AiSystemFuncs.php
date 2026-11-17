@@ -23,7 +23,7 @@ trait AiSystemFuncs
         $schema = [
             [
                 'name' => 'system_get_server_status',
-                'description' => 'Prüft in Echtzeit den Gesundheits-, DNS-, SSL-, Antwortzeit- und Betriebsstatus aller Seelenfunke-Domains und Subdomains: digital.mein-seelenfunke.de (inkl. DNS/Ingress, Schalter digital_domain_is_live sowie aktiven und vorbereiteten Digital-Produkten), mein-seelenfunke.de & www.mein-seelenfunke.de, stage.mein-seelenfunke.de, ws.mein-seelenfunke.de sowie api-live-bridge.mein-seelenfunke.de inkl. 4-Säulen-Status und 90-Tage-Uptime. Nutze dieses Werkzeug sofort ohne Rückfragen bei jeder Frage zu digital.mein-seelenfunke.de oder anderen Subdomains.',
+                'description' => 'Prüft in Echtzeit den Gesundheits-, DNS-, SSL-, Antwortzeit- und Betriebsstatus aller Seelenfunke-Domains und Subdomains: mein-seelenfunke.de & www.mein-seelenfunke.de, stage.mein-seelenfunke.de, ws.mein-seelenfunke.de sowie api-live-bridge.mein-seelenfunke.de inkl. 4-Säulen-Status und 90-Tage-Uptime. Nutze dieses Werkzeug sofort ohne Rückfragen bei jeder Frage zu Domains oder Subdomains.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
@@ -419,7 +419,7 @@ trait AiSystemFuncs
             ],
             [
                 'name' => 'system_get_health',
-                'description' => 'Prüft in Echtzeit den technischen Gesundheitszustand des gesamten Seelenfunke-Ökosystems: Stage-/Portal-System (Datenbank, Cache, SSL, Cronjobs, Queue-Worker, Backups, 90-Tage-Uptime), Mittwald Live-Server (mein-seelenfunke.de & www) sowie alle Subdomains inklusive digital.mein-seelenfunke.de (DNS/Ingress, Schalter digital_domain_is_live, aktive/vorbereitete Digital-Produkte), ws.mein-seelenfunke.de und api-live-bridge.mein-seelenfunke.de.',
+                'description' => 'Prüft in Echtzeit den technischen Gesundheitszustand des gesamten Seelenfunke-Ökosystems: Stage-/Portal-System (Datenbank, Cache, SSL, Cronjobs, Queue-Worker, Backups, 90-Tage-Uptime), Mittwald Live-Server (mein-seelenfunke.de & www) sowie alle Subdomains inklusive stage.mein-seelenfunke.de, ws.mein-seelenfunke.de und api-live-bridge.mein-seelenfunke.de.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
@@ -2256,7 +2256,6 @@ trait AiSystemFuncs
                 'live_domains' => $report['live_domain'],
                 'live_server' => $report['live_domain'],
                 'subdomains' => $report['subdomains'] ?? ($report['live_domain']['subdomains'] ?? []),
-                'digital_subdomain' => $report['digital_subdomain'] ?? ($report['live_domain']['digital_subdomain'] ?? []),
                 'stage_and_portal' => [
                     'environment' => $report['environment'],
                     'uptime_90d_percent' => $report['uptime_90d_percent'],
@@ -4816,7 +4815,6 @@ trait AiSystemFuncs
                 'live_server' => $report['live_domain'],
                 'live_domains' => $report['live_domain'],
                 'subdomains' => $report['subdomains'] ?? ($report['live_domain']['subdomains'] ?? []),
-                'digital_subdomain' => $report['digital_subdomain'] ?? ($report['live_domain']['digital_subdomain'] ?? []),
                 'stage_and_portal' => [
                     'environment' => $report['environment'],
                     'uptime_90d_percent' => $report['uptime_90d_percent'],

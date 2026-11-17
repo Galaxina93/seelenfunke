@@ -389,15 +389,17 @@ class ProductConfigurator extends Component
         }
 
         $normalized = [];
+        $seenIds = [];
         foreach (array_values($items) as $entry) {
             if (!is_array($entry)) {
                 continue;
             }
-            if (!isset($entry['id']) || !is_scalar($entry['id']) || trim((string) $entry['id']) === '') {
-                $entry['id'] = $prefix . '_' . Str::uuid()->toString();
-            } else {
-                $entry['id'] = (string) $entry['id'];
+            $candidateId = (isset($entry['id']) && is_scalar($entry['id'])) ? trim((string) $entry['id']) : '';
+            if ($candidateId === '' || isset($seenIds[$candidateId])) {
+                $candidateId = $prefix . '_' . Str::uuid()->toString();
             }
+            $seenIds[$candidateId] = true;
+            $entry['id'] = $candidateId;
             $normalized[] = $entry;
         }
 

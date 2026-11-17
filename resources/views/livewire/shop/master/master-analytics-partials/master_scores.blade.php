@@ -2527,7 +2527,7 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
                                 <x-heroicon-m-information-circle class="w-4 h-4 text-gray-400 dark:text-gray-500 hover:text-[#C5A059] cursor-help transition-colors" />
                                 <div x-show="wtTip" x-transition.opacity.duration.150ms class="absolute bottom-full mb-2 left-0 w-[280px] p-3 bg-white dark:bg-gray-950 border border-[#C5A059]/40 rounded-xl shadow-2xl z-[100] text-left" style="display: none;">
                                     <div class="text-[11px] text-gray-700 dark:text-gray-300 font-medium leading-relaxed">
-                                        Prüft gebündelt Shop/SSL, Cronjobs, Queue-Worker, Backups sowie alle Seelenfunke-Subdomains inklusive digital.mein-seelenfunke.de.
+                                        Prüft gebündelt Shop/SSL, Cronjobs, Queue-Worker, Backups sowie alle Seelenfunke-Domains und Subdomains.
                                     </div>
                                 </div>
                             </div>
@@ -2592,28 +2592,12 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
                         <div class="border-t border-gray-200/80 dark:border-gray-800 pt-3 flex flex-col gap-2.5">
                             <div class="flex items-center justify-between gap-2">
                                 <span class="text-[10px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-400">Domains &amp; Subdomains</span>
-                                @if(isset($wtSubdomains['digital']))
-                                    @php
-                                        $digSwitchOn = (bool) ($wtSubdomains['digital']['digital_domain_is_live'] ?? false);
-                                        $digActiveCnt = (int) ($wtSubdomains['digital']['active_digital_products'] ?? 0);
-                                        $digDraftCnt = (int) ($wtSubdomains['digital']['prepared_draft_products'] ?? 0);
-                                    @endphp
-                                    <div class="flex flex-wrap items-center gap-1.5">
-                                        <span class="px-2 py-0.5 rounded-md border text-[9px] font-black uppercase tracking-wider {{ $digSwitchOn ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-400' : 'bg-gray-100 dark:bg-gray-900 border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400' }}">
-                                            Digital-Schalter {{ $digSwitchOn ? 'AN' : 'AUS' }}
-                                        </span>
-                                        <span class="px-2 py-0.5 rounded-md bg-gray-100 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-[9px] font-bold text-gray-700 dark:text-gray-300">
-                                            {{ $digActiveCnt }} Aktiv · {{ $digDraftCnt }} Entwurf
-                                        </span>
-                                    </div>
-                                @endif
                             </div>
 
                             <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5">
                                 @foreach($wtSubdomains as $subKey => $subInfo)
                                     @php
                                         $subSt = (string) ($subInfo['status'] ?? 'prepared');
-                                        $isDigitalRow = $subKey === 'digital';
                                         $subDot = match($subSt) {
                                             'ok' => 'bg-emerald-500',
                                             'maintenance' => 'bg-[#C5A059]',
@@ -2626,9 +2610,7 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
                                             'prepared' => 'bg-gray-200/70 dark:bg-gray-800 border-gray-300/80 dark:border-gray-700 text-gray-700 dark:text-gray-300',
                                             default => 'bg-red-500/10 border-red-500/30 text-red-600 dark:text-red-400',
                                         };
-                                        $cardBorder = $isDigitalRow
-                                            ? 'border-[#C5A059]/45 bg-white dark:bg-gray-900/90'
-                                            : 'border-gray-200/80 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/70';
+                                        $cardBorder = 'border-gray-200/80 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/70';
                                     @endphp
                                     <div class="flex items-center justify-between gap-2 px-3 py-2 rounded-xl border {{ $cardBorder }}" title="{{ $subInfo['state_label'] ?? '' }}">
                                         <div class="flex items-center gap-2 min-w-0">

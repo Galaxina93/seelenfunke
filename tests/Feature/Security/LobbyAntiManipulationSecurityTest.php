@@ -5,6 +5,7 @@ namespace Tests\Feature\Security;
 use App\Models\Customer\Customer;
 use App\Models\Customer\CustomerGamification;
 use App\Models\Customer\CustomerGamificationLog;
+use App\Models\Order\OrderOrder;
 use App\Models\System\SystemLog;
 use App\Models\System\SystemSetting;
 use App\Services\Gamification\LobbyInstanceService;
@@ -565,31 +566,53 @@ class LobbyAntiManipulationSecurityTest extends TestCase
         Auth::guard('admin')->logout();
         Auth::forgetGuards();
 
-        // Lava-Parkour strikt 401
-        $this->postJson('/funkenwerk-welt/lava-parkour/start')->assertStatus(401);
+        // Lava-Parkour strikt 403 login_required fuer Gaeste
+        $this->postJson('/funkenwerk-welt/lava-parkour/start')
+            ->assertStatus(403)
+            ->assertJsonPath('code', 'login_required');
         $this->postJson('/funkenwerk-welt/lava-parkour/checkpoint', [
             'run_id' => Str::random(40),
             'stage' => 1,
             'x' => 31.5,
             'y' => 1.2,
             'z' => -2.0,
-        ])->assertStatus(401);
+        ])
+            ->assertStatus(403)
+            ->assertJsonPath('code', 'login_required');
         $this->postJson('/funkenwerk-welt/lava-parkour/claim', [
             'run_id' => Str::random(40),
             'claim_token' => Str::random(64),
             'x' => 66.5,
             'y' => 2.8,
             'z' => -2.0,
-        ])->assertStatus(401);
+        ])
+            ->assertStatus(403)
+            ->assertJsonPath('code', 'login_required');
 
-        // Lobby: Gast kann weder per Join/Sync eine Instanz belegen noch per Switch wechseln
+        // Lobby: Gast wird in 'heroes' und 'lava' mit 403 login_required blockiert
+        foreach (['heroes', 'lava'] as $protectedZone) {
+            $this->postJson('/funkenwerk-welt/lobby/join', [
+                'preferred_instance' => 1,
+                'level' => 10,
+                'display_name' => 'GHOST_HACKER',
+                'x' => 5.0,
+                'z' => -25.0,
+                'zone' => $protectedZone,
+            ])
+                ->assertStatus(403)
+                ->assertJsonPath('ok', false)
+                ->assertJsonPath('success', false)
+                ->assertJsonPath('code', 'login_required');
+        }
+
+        // In der Produkt-Lobby ('gallery') bleibt der Gast Solo ohne Instanz-Slot oder gefaelschte Spielerdaten
         $this->postJson('/funkenwerk-welt/lobby/join', [
             'preferred_instance' => 1,
             'level' => 10,
             'display_name' => 'GHOST_HACKER',
             'x' => 5.0,
-            'z' => -25.0,
-            'zone' => 'heroes',
+            'z' => 4.0,
+            'zone' => 'gallery',
         ])
             ->assertOk()
             ->assertJsonPath('authenticated', false)
@@ -597,9 +620,32 @@ class LobbyAntiManipulationSecurityTest extends TestCase
             ->assertJsonPath('player', null);
 
         $this->postJson('/funkenwerk-welt/lobby/switch', ['target_instance' => 1])
-            ->assertStatus(401);
+            ->assertStatus(403)
+            ->assertJsonPath('code', 'login_required');
 
-        // Ein echter Kunde betritt Instanz 1 in 'heroes' und sieht 0 Geister-Peers des Gastes
+        // Kunde ohne bezahlte Bestellung -> 403 order_required
+        $noOrderCustomer = $this->makeCustomer(11, 'OhneKauf', 2, 0, 150, false, true);
+        $this->actingAs($noOrderCustomer, 'customer')
+            ->postJson('/funkenwerk-welt/lobby/join', ['zone' => 'heroes'])
+            ->assertStatus(403)
+            ->assertJsonPath('code', 'order_required');
+        $this->actingAs($noOrderCustomer, 'customer')
+            ->postJson('/funkenwerk-welt/lava-parkour/start')
+            ->assertStatus(403)
+            ->assertJsonPath('code', 'order_required');
+
+        // Kunde mit bezahlter Bestellung, aber ohne 'Magie aktivieren' -> 403 magic_activation_required
+        $noMagicCustomer = $this->makeCustomer(12, 'OhneMagie', 2, 0, 150, true, false);
+        $this->actingAs($noMagicCustomer, 'customer')
+            ->postJson('/funkenwerk-welt/lobby/join', ['zone' => 'heroes'])
+            ->assertStatus(403)
+            ->assertJsonPath('code', 'magic_activation_required');
+        $this->actingAs($noMagicCustomer, 'customer')
+            ->postJson('/funkenwerk-welt/lava-parkour/start')
+            ->assertStatus(403)
+            ->assertJsonPath('code', 'magic_activation_required');
+
+        // Ein echter Kunde mit allen 3 Voraussetzungen betritt Instanz 1 in 'heroes' und sieht 0 Geister-Peers
         $realPlayer = $this->makeCustomer(10, 'EchterSpieler', 3, 10, 350);
         $realJoin = $this->actingAs($realPlayer, 'customer')
             ->postJson('/funkenwerk-welt/lobby/join', ['x' => 0.0, 'z' => -25.0, 'zone' => 'heroes']);
@@ -620,7 +666,9 @@ class LobbyAntiManipulationSecurityTest extends TestCase
         string $playerName,
         int $level,
         int $balance,
-        int $lifetimeSparks
+        int $lifetimeSparks,
+        bool $withPaidOrder = true,
+        bool $gamificationActive = true
     ): Customer {
         $customer = Customer::create([
             'id' => (string) Str::uuid(),
@@ -632,7 +680,7 @@ class LobbyAntiManipulationSecurityTest extends TestCase
 
         CustomerGamification::create([
             'customer_id' => $customer->id,
-            'is_active' => true,
+            'is_active' => $gamificationActive,
             'ranking_opt_in' => true,
             'use_real_name' => false,
             'player_name' => $playerName,
@@ -640,6 +688,22 @@ class LobbyAntiManipulationSecurityTest extends TestCase
             'funken_balance' => $balance,
             'funken_total_earned' => $lifetimeSparks,
         ]);
+
+        if ($withPaidOrder) {
+            OrderOrder::create([
+                'order_number' => sprintf('ORD-SEC-%04d', $idx),
+                'customer_id' => $customer->id,
+                'email' => $customer->email,
+                'status' => 'completed',
+                'payment_status' => 'paid',
+                'subtotal_price' => 2990,
+                'tax_amount' => 477,
+                'shipping_price' => 0,
+                'total_price' => 2990,
+                'billing_address' => ['first_name' => $customer->first_name, 'last_name' => $customer->last_name],
+                'shipping_address' => ['first_name' => $customer->first_name, 'last_name' => $customer->last_name],
+            ]);
+        }
 
         return $customer;
     }

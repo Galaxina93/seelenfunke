@@ -1493,12 +1493,12 @@ class AIController extends Controller
 
     /**
      * Verbindliche Direktive für Falcone & Funkira zur sofortigen, rückfragefreien Auskunft
-     * über digital.mein-seelenfunke.de und alle Seelenfunke-Subdomains.
+     * über alle Seelenfunke-Domains und Subdomains.
      */
     private function buildSubdomainReadinessDirective(): string
     {
         return "SUBDOMAIN- & SERVER-STATUS-DIREKTIVE (SOFORTIGE AUSKUNFT OHNE RÜCKFRAGEN):\n"
-            . "- Sobald Alina nach `digital.mein-seelenfunke.de`, dem Digital-Shop oder irgendeiner anderen Subdomain (`stage.mein-seelenfunke.de`, `ws.mein-seelenfunke.de`, `api-live-bridge.mein-seelenfunke.de`, `www.mein-seelenfunke.de`, `mein-seelenfunke.de`) fragt, stelle NIEMALS Gegenfragen und bitte NIEMALS um Präzisierung!\n"
-            . "- Rufe SOFORT `system_get_server_status` auf und nenne direkt in einem Guss alle Fakten aus `digital_subdomain` bzw. `subdomains`: DNS/Ingress-Status (`dns_configured`), ob der Schalter `digital_domain_is_live` auf AN oder AUS steht, HTTP-/Wartungs-/SSL-Status sowie wie viele aktive digitale Produkte und vorbereitete Entwürfe im Katalog bereitstehen.";
+            . "- Sobald Alina nach einer Domain oder Subdomain (`mein-seelenfunke.de`, `www.mein-seelenfunke.de`, `stage.mein-seelenfunke.de`, `ws.mein-seelenfunke.de`, `api-live-bridge.mein-seelenfunke.de`) fragt, stelle NIEMALS Gegenfragen und bitte NIEMALS um Präzisierung!\n"
+            . "- Rufe SOFORT `system_get_server_status` auf und nenne direkt in einem Guss alle Fakten aus `subdomains` bzw. `live_domains`: DNS/Ingress-Status (`dns_configured`), HTTP-/Wartungs-/SSL-Status sowie Antwortzeiten und den 4-Säulen-Status.";
     }
 }

@@ -60,6 +60,20 @@
         '.sf-lobby-lava-chest-card { pointer-events: auto; display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 999px; background: rgba(255,255,255,0.97); color: #111827; border: 1.5px solid #C5A059; box-shadow: 0 14px 32px rgba(17,24,39,0.16); font-size: 12px; font-weight: 800; white-space: nowrap; cursor: pointer; text-decoration: none; }',
         '.sf-lobby-lava-chest-card.is-cta { background: #C5A059; color: #FFFFFF; }',
         '.sf-lobby-lava-chest-card.is-cta:hover { background: #B38E46; }',
+        '.sf-lobby-unit-frame { pointer-events: auto; display: inline-flex; align-items: center; gap: 9px; padding: 5px 12px 5px 6px; border-radius: 999px; background: rgba(255,255,255,0.95); border: 1px solid rgba(197,160,89,0.55); box-shadow: 0 8px 24px rgba(17,24,39,0.08); color: #111827; }',
+        '.sf-lobby-unit-avatar { width: 30px; height: 30px; border-radius: 999px; background: #FAF8F5; border: 1.5px solid #C5A059; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 900; color: #9A7738; flex-shrink: 0; }',
+        '.sf-lobby-unit-meta { display: flex; flex-direction: column; gap: 2px; min-width: 96px; }',
+        '.sf-lobby-unit-mana-track { width: 100%; height: 4px; border-radius: 999px; background: rgba(197,160,89,0.22); overflow: hidden; }',
+        '.sf-lobby-unit-mana-fill { height: 100%; border-radius: 999px; background: #C5A059; transition: width 160ms ease; }',
+        '.sf-lobby-minimap-wrap { position: absolute; top: 62px; right: 20px; width: 84px; height: 84px; z-index: 25; pointer-events: auto; display: flex; align-items: center; justify-content: center; }',
+        '.sf-lobby-minimap-canvas { width: 84px; height: 84px; border-radius: 999px; background: rgba(255,255,255,0.94); border: 2px solid #C5A059; box-shadow: 0 10px 26px rgba(17,24,39,0.14); display: block; }',
+        '.sf-lobby-minimap-time { position: absolute; bottom: -8px; left: 50%; transform: translateX(-50%); padding: 2px 8px; border-radius: 999px; background: #FFFFFF; border: 1px solid #C5A059; color: #111827; font-size: 10px; font-weight: 800; line-height: 1.2; white-space: nowrap; box-shadow: 0 4px 10px rgba(17,24,39,0.10); cursor: help; }',
+        '.sf-lobby-exhibit-step-row { margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(197,160,89,0.22); display: flex; align-items: center; justify-content: space-between; gap: 5px; }',
+        '.sf-lobby-sanctum-list { display: flex; flex-direction: column; gap: 8px; }',
+        '.sf-lobby-sanctum-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border-radius: 12px; background: #FAF8F5; border: 1px solid rgba(197,160,89,0.34); font-size: 13px; font-weight: 800; color: #111827; }',
+        '.sf-lobby-sanctum-row.is-done { background: #FFFFFF; border-color: #C5A059; }',
+        '.sf-lobby-sanctum-check { width: 22px; height: 22px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 900; flex-shrink: 0; background: #FFFFFF; border: 1.5px solid rgba(197,160,89,0.55); color: #6B7280; }',
+        '.sf-lobby-sanctum-row.is-done .sf-lobby-sanctum-check { background: #FAF3E3; border-color: #C5A059; color: #C5A059; }',
         '.sf-lobby-abilities-dock { position: absolute; bottom: 78px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; z-index: 23; pointer-events: auto; }',
         '.sf-ability-btn { position: relative; width: 48px; height: 48px; border-radius: 13px; background: rgba(255,255,255,0.95); border: 1.5px solid rgba(197,160,89,0.55); color: #111827; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 6px 18px rgba(17,24,39,0.12); transition: transform 0.12s ease, border-color 0.15s ease, background 0.15s ease; user-select: none; }',
         '.sf-ability-btn:hover { border-color: #C5A059; transform: translateY(-2px); background: #FFFFFF; }',
@@ -200,7 +214,8 @@
         this.floatingHeroWrap = null;
         this.floatingPortalWrap = null;
         this.floatingLavaChestWrap = null;
-        this.floatingLabyrinthBuzzerWrap = null;
+        this.floatingOuterGateWrap = null;
+        this.minimapCanvasEl = null;
 
         this._mod = null;
         this._audio = null;
@@ -240,12 +255,41 @@
         this.instanceMenuOpen = false;
 
         this.settingsOpen = false;
+        this.sanctumGateOpen = false;
+        this.sanctumGateZone = 'heroes';
+        this.sanctumGateState = {
+            canEnter: false,
+            reason: 'login_required',
+            checks: { login: false, order: false, magic: false },
+            loginUrl: '/login',
+            dashboardUrl: '/dashboard'
+        };
+        this.masterKeyModalOpen = false;
+        this.environmentInfo = {
+            season_key: 'autumn',
+            season_label: 'Herbst',
+            holiday_key: null,
+            holiday_label: null,
+            server_time: '12:00'
+        };
+        this.playerHud = {
+            isAuthenticated: false,
+            canEnterSanctums: false,
+            name: 'Funki',
+            level: 2,
+            levelTitle: 'Lehrling',
+            funkenBalance: 0,
+            mana: 100,
+            maxMana: 100,
+            giftVoucherUrl: '/produkt/geschenkgutschein'
+        };
         this.keybindingsExpanded = false;
         this.listeningKeyAction = '';
         this.userSettings = {
             volume: 50,
             cameraSensitivity: 100,
-            useRealName: false
+            useRealName: false,
+            graphicsQuality: 'high'
         };
         this.keybindings = {
             sprint: 'Digit1',
@@ -267,15 +311,9 @@
             allMuted: false
         };
         this.lavaChestState = {
+            level: 1,
+            rewardPreview: 5,
             nearChest: false,
-            isAuthenticated: false,
-            claimedToday: false,
-            claiming: false,
-            canClaim: false,
-            statusMessage: ''
-        };
-        this.labyrinthBuzzerState = {
-            nearBuzzer: false,
             isAuthenticated: false,
             claimedToday: false,
             claiming: false,
@@ -310,14 +348,20 @@
             if (key === 'Escape' || code === 'Escape' || e.keyCode === 27) {
                 e.preventDefault();
                 e.stopPropagation();
-                if (self.settingsOpen) {
+                var fEsc = getFacade(self);
+                if (fEsc && typeof fEsc.releasePointerLock === 'function') {
+                    fEsc.releasePointerLock();
+                }
+                if (self.sanctumGateOpen) {
+                    self._setSanctumGateOpen(false);
+                } else if (self.masterKeyModalOpen) {
+                    self._setMasterKeyModalOpen(false);
+                } else if (self.settingsOpen) {
                     self._setSettingsOpen(false);
-                } else if (getActiveFullscreenElement()) {
-                    self.toggleFullscreen();
                 } else if (self.instanceMenuOpen) {
                     self._setInstanceMenuOpen(false);
                 } else {
-                    self.close();
+                    self._setSettingsOpen(true);
                 }
                 return;
             }
@@ -412,9 +456,23 @@
 
         root.innerHTML = [
             '<div class="sf-lobby-topbar">',
-            '  <div class="sf-lobby-nav-pill">',
-            '    <span data-lobby-current-zone-badge data-testid="lobby-current-zone-badge" class="sf-lobby-zone-badge">🛍️ Kollektion</span>',
-            '    <button type="button" data-lobby-stages-btn data-testid="lobby-stages-preview-btn" class="sf-lobby-stages-btn" style="display:none;">✨ Stufen</button>',
+            '  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;pointer-events:none;">',
+            '    <div data-lobby-unit-frame data-testid="lobby-player-unit-frame" class="sf-lobby-unit-frame">',
+            '      <span class="sf-lobby-unit-avatar">✦</span>',
+            '      <div class="sf-lobby-unit-meta">',
+            '        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;font-weight:800;line-height:1.15;">',
+            '          <span data-lobby-unit-name style="max-width:112px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Funki</span>',
+            '          <span data-lobby-unit-stats style="color:#9A7738;">Stufe 2 · ✨ 0</span>',
+            '        </div>',
+            '        <div class="sf-lobby-unit-mana-track">',
+            '          <div data-lobby-unit-mana class="sf-lobby-unit-mana-fill" style="width:100%;"></div>',
+            '        </div>',
+            '      </div>',
+            '    </div>',
+            '    <div class="sf-lobby-nav-pill">',
+            '      <span data-lobby-current-zone-badge data-testid="lobby-current-zone-badge" class="sf-lobby-zone-badge">🛍️ Kollektion</span>',
+            '      <button type="button" data-lobby-stages-btn data-testid="lobby-stages-preview-btn" class="sf-lobby-stages-btn" style="display:none;">✨ Stufen</button>',
+            '    </div>',
             '  </div>',
             '  <div class="sf-lobby-actions">',
             '    <button type="button" data-lobby-solo-toggle data-testid="louvre-live-solo-toggle" class="sf-lobby-pill-btn" style="display:none;">',
@@ -445,6 +503,10 @@
             '</div>',
             '<div class="sf-lobby-stage">',
             '  <canvas data-lobby-canvas class="sf-lobby-canvas"></canvas>',
+            '  <div data-lobby-minimap data-testid="lobby-minimap" class="sf-lobby-minimap-wrap">',
+            '    <canvas data-lobby-minimap-canvas width="84" height="84" class="sf-lobby-minimap-canvas"></canvas>',
+            '    <span data-lobby-minimap-time class="sf-lobby-minimap-time" title="Herbst">12:00</span>',
+            '  </div>',
             '  <div data-lobby-loading class="sf-lobby-loading">',
             '    <div class="sf-lobby-spinner"></div>',
             '    <span data-lobby-loading-text class="sf-lobby-loading-label">3D-Lobby wird geöffnet</span>',
@@ -457,16 +519,44 @@
             '    <div data-lobby-hero-inner class="sf-lobby-floating-card"></div>',
             '    <div class="sf-lobby-floating-arrow"></div>',
             '  </div>',
-            '  <div data-lobby-portal-card class="sf-lobby-floating-anchor" style="opacity:0;visibility:hidden;pointer-events:none;transform:translate3d(-9999px,-9999px,0);">',
-            '    <a href="/login" class="sf-lobby-portal-pill">🔒 Mitglieder-Bereich · Anmelden →</a>',
+            '  <div data-lobby-portal-card data-testid="lobby-guest-portal-card" class="sf-lobby-floating-anchor" style="opacity:0;visibility:hidden;pointer-events:none;transform:translate3d(-9999px,-9999px,0);">',
+            '    <button type="button" data-lobby-portal-pill class="sf-lobby-portal-pill" style="cursor:pointer;">🔒 Halle der Helden · Voraussetzungen →</button>',
             '  </div>',
             '  <div data-lobby-lava-chest-card data-testid="lobby-lava-chest-card" class="sf-lobby-floating-anchor" style="opacity:0;visibility:hidden;pointer-events:none;transform:translate3d(-9999px,-9999px,0);">',
             '    <div data-lobby-lava-chest-inner style="display:flex;flex-direction:column;align-items:center;gap:6px;"></div>',
             '    <div class="sf-lobby-floating-arrow"></div>',
             '  </div>',
-            '  <div data-lobby-labyrinth-buzzer-card data-testid="lobby-labyrinth-buzzer-card" class="sf-lobby-floating-anchor" style="opacity:0;visibility:hidden;pointer-events:none;transform:translate3d(-9999px,-9999px,0);">',
-            '    <div data-lobby-labyrinth-buzzer-inner style="display:flex;flex-direction:column;align-items:center;gap:6px;"></div>',
-            '    <div class="sf-lobby-floating-arrow"></div>',
+            '  <div data-lobby-outer-gate-card data-testid="lobby-outer-gate-card" class="sf-lobby-floating-anchor" style="opacity:0;visibility:hidden;pointer-events:none;transform:translate3d(-9999px,-9999px,0);">',
+            '    <div class="sf-lobby-portal-pill">🔒 Tor zur Außenwelt · Bald geöffnet</div>',
+            '  </div>',
+            '  <div data-lobby-sanctum-modal data-testid="lobby-sanctum-gate-modal" class="sf-lobby-settings-backdrop" style="display:none;">',
+            '    <div class="sf-lobby-settings-card" role="dialog" aria-label="Zugangsvoraussetzungen">',
+            '      <div class="sf-lobby-settings-head">',
+            '        <h3 class="sf-lobby-settings-title"><span data-sanctum-icon>🏛️</span><span data-sanctum-title>Halle der Helden</span></h3>',
+            '        <button type="button" data-sanctum-close style="appearance:none;width:28px;height:28px;border-radius:9px;border:1px solid rgba(197,160,89,0.35);background:#FAF8F5;color:#111827;font-size:15px;font-weight:800;cursor:pointer;" aria-label="Schließen">&times;</button>',
+            '      </div>',
+            '      <div class="sf-lobby-sanctum-list">',
+            '        <div data-sanctum-row="login" data-testid="sanctum-check-login" class="sf-lobby-sanctum-row"><span>Angemeldet</span><span data-sanctum-chk="login" class="sf-lobby-sanctum-check">1</span></div>',
+            '        <div data-sanctum-row="order" data-testid="sanctum-check-order" class="sf-lobby-sanctum-row"><span>Mindestens 1 Bestellung</span><span data-sanctum-chk="order" class="sf-lobby-sanctum-check">2</span></div>',
+            '        <div data-sanctum-row="magic" data-testid="sanctum-check-magic" class="sf-lobby-sanctum-row"><span>✨ Magie aktivieren</span><span data-sanctum-chk="magic" class="sf-lobby-sanctum-check">3</span></div>',
+            '      </div>',
+            '      <div data-sanctum-cta-wrap></div>',
+            '    </div>',
+            '  </div>',
+            '  <div data-lobby-master-key-modal data-testid="lobby-master-key-modal" class="sf-lobby-settings-backdrop" style="display:none;">',
+            '    <div class="sf-lobby-settings-card" role="dialog" aria-label="Manufaktur-Meisterschlüssel">',
+            '      <div class="sf-lobby-settings-head">',
+            '        <h3 class="sf-lobby-settings-title"><span>🔑</span><span>Manufaktur-Meisterschlüssel</span></h3>',
+            '        <button type="button" data-master-key-close style="appearance:none;width:28px;height:28px;border-radius:9px;border:1px solid rgba(197,160,89,0.35);background:#FAF8F5;color:#111827;font-size:15px;font-weight:800;cursor:pointer;" aria-label="Schließen">&times;</button>',
+            '      </div>',
+            '      <div class="sf-lobby-sanctum-list">',
+            '        <div class="sf-lobby-sanctum-row is-done"><span>Magma-Stufen 6 bis 10</span><span class="sf-lobby-sanctum-check">✓</span></div>',
+            '      </div>',
+            '      <div style="display:flex;flex-direction:column;gap:8px;">',
+            '        <a href="/shop" class="sf-lobby-prod-cta" style="margin-top:0;">Unikat im Shop gestalten →</a>',
+            '        <a data-master-key-voucher href="/produkt/geschenkgutschein" class="sf-lobby-step-btn" style="text-align:center;text-decoration:none;padding:9px 14px;border-radius:12px;">15,00 € Gutschein sichern →</a>',
+            '      </div>',
+            '    </div>',
             '  </div>',
             '  <div data-lobby-settings-modal data-testid="lobby-settings-modal" class="sf-lobby-settings-backdrop" style="display:none;">',
             '    <div class="sf-lobby-settings-card" role="dialog" aria-label="Einstellungen">',
@@ -489,6 +579,15 @@
             '        <input type="range" min="50" max="150" step="1" value="100" data-lobby-camera-slider data-testid="lobby-camera-sensitivity-slider" class="sf-lobby-slider" aria-label="Kamera-Tempo">',
             '      </div>',
             '      <div class="sf-lobby-settings-section">',
+            '        <div class="sf-lobby-settings-row">',
+            '          <span class="sf-lobby-settings-label">Grafik-Stufe</span>',
+            '          <div style="display:flex;align-items:center;gap:6px;">',
+            '            <button type="button" data-lobby-gfx="high" class="sf-lobby-step-btn is-active">Hoch</button>',
+            '            <button type="button" data-lobby-gfx="balanced" class="sf-lobby-step-btn">Ausgewogen</button>',
+            '          </div>',
+            '        </div>',
+            '      </div>',
+            '      <div class="sf-lobby-settings-section">',
             '        <label class="sf-lobby-settings-row" style="cursor:pointer;">',
             '          <span class="sf-lobby-settings-label">Echten Vornamen nutzen</span>',
             '          <input type="checkbox" data-lobby-realname-checkbox data-testid="lobby-use-real-name-checkbox" style="width:17px;height:17px;accent-color:#C5A059;cursor:pointer;">',
@@ -503,6 +602,10 @@
             '          </div>',
             '        </div>',
             '        <div data-lobby-keybind-grid class="sf-lobby-keybind-grid" style="display:none;"></div>',
+            '      </div>',
+            '      <div style="display:flex;align-items:center;gap:8px;padding-top:2px;">',
+            '        <button type="button" data-lobby-settings-resume class="sf-lobby-prod-cta" style="margin-top:0;flex:1;border:none;cursor:pointer;">Weiterspielen</button>',
+            '        <button type="button" data-lobby-settings-leave class="sf-lobby-step-btn" style="padding:9px 14px;border-radius:12px;">Lobby verlassen</button>',
             '      </div>',
             '    </div>',
             '  </div>',
@@ -541,11 +644,6 @@
             '    </button>',
             '  </div>',
             '  <div class="sf-lobby-bottom-stack">',
-            '    <div data-lobby-bottom-gallery class="sf-lobby-bottom-pill">',
-            '      <button type="button" data-lobby-prev class="sf-lobby-step-btn">‹</button>',
-            '      <button type="button" data-lobby-exhibit-pill class="sf-lobby-exhibit-btn">Kollektion</button>',
-            '      <button type="button" data-lobby-next class="sf-lobby-step-btn">›</button>',
-            '    </div>',
             '    <div data-lobby-bottom-heroes class="sf-lobby-bottom-pill" style="display:none;">',
             '      <button type="button" data-hero-slot="1" class="sf-lobby-step-btn">#1</button>',
             '      <button type="button" data-hero-slot="2" class="sf-lobby-step-btn">#2</button>',
@@ -554,13 +652,6 @@
             '      <button type="button" data-hero-slot="5" class="sf-lobby-step-btn">#5</button>',
             '      <button type="button" data-hero-my-place class="sf-lobby-step-btn is-active">⭐ Mein Platz</button>',
             '    </div>',
-            '    <div data-lobby-bottom-lava class="sf-lobby-bottom-pill" style="display:none;">',
-            '      <span style="padding:4px 10px;font-size:11px;font-weight:800;color:#9A7738;">🌋 Magma-Kammer · +5 ✨ Täglich</span>',
-            '    </div>',
-            '    <div data-lobby-bottom-labyrinth class="sf-lobby-bottom-pill" style="display:none;">',
-            '      <span style="padding:4px 10px;font-size:11px;font-weight:800;color:#9A7738;">🌀 Mini-Labyrinth · 3 ✨ Täglich</span>',
-            '    </div>',
-            '    <div class="sf-lobby-hint-pill">WASD / Pfeiltasten · Maus ziehen · Leertaste Sprung · 1 bis 4 Fähigkeiten · ⛶ Vollbild · Esc Schließen</div>',
             '  </div>',
             '</div>'
         ].join('');
@@ -568,19 +659,130 @@
         document.body.appendChild(root);
         this.modalEl = root;
         this.canvasEl = root.querySelector('[data-lobby-canvas]');
+        this.minimapCanvasEl = root.querySelector('[data-lobby-minimap-canvas]');
         this.loadingEl = root.querySelector('[data-lobby-loading]');
         this.floatingProductWrap = root.querySelector('[data-lobby-product-card]');
         this.floatingHeroWrap = root.querySelector('[data-lobby-hero-card]');
         this.floatingPortalWrap = root.querySelector('[data-lobby-portal-card]');
         this.floatingLavaChestWrap = root.querySelector('[data-lobby-lava-chest-card]');
-        this.floatingLabyrinthBuzzerWrap = root.querySelector('[data-lobby-labyrinth-buzzer-card]');
+        this.floatingOuterGateWrap = root.querySelector('[data-lobby-outer-gate-card]');
         this.stickZoneEl = root.querySelector('[data-lobby-stick]');
         this.stickKnobEl = root.querySelector('[data-lobby-stick-knob]');
 
         this._bindModalUiEvents();
         this._renderKeybindingsList();
         this._renderLavaChestCard();
-        this._renderLabyrinthBuzzerCard();
+        this._renderSanctumGateModal();
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._setSanctumGateOpen = function (flag, zone, incomingState) {
+        this.sanctumGateOpen = Boolean(flag);
+        if (zone) {
+            this.sanctumGateZone = (zone === 'lava') ? 'lava' : 'heroes';
+        }
+        var facade = getFacade(this);
+        if (this.sanctumGateOpen && facade && typeof facade.releasePointerLock === 'function') {
+            facade.releasePointerLock();
+        }
+        var resolved = incomingState || (facade && typeof facade.getSanctumAccessState === 'function' ? facade.getSanctumAccessState() : null);
+        if (resolved && typeof resolved === 'object') {
+            this.sanctumGateState = {
+                canEnter: Boolean(resolved.canEnter),
+                reason: resolved.reason || 'login_required',
+                checks: {
+                    login: Boolean(resolved.checks && resolved.checks.login),
+                    order: Boolean(resolved.checks && resolved.checks.order),
+                    magic: Boolean(resolved.checks && resolved.checks.magic)
+                },
+                loginUrl: resolved.loginUrl || '/login',
+                dashboardUrl: resolved.dashboardUrl || '/dashboard'
+            };
+        }
+        this._renderSanctumGateModal();
+        if (this.modalEl) {
+            var modal = this.modalEl.querySelector('[data-lobby-sanctum-modal]');
+            if (modal) {
+                modal.style.display = this.sanctumGateOpen ? 'flex' : 'none';
+            }
+        }
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._setMasterKeyModalOpen = function (flag) {
+        this.masterKeyModalOpen = Boolean(flag);
+        var facade = getFacade(this);
+        if (this.masterKeyModalOpen && facade && typeof facade.releasePointerLock === 'function') {
+            facade.releasePointerLock();
+        }
+        if (this.modalEl) {
+            var modal = this.modalEl.querySelector('[data-lobby-master-key-modal]');
+            if (modal) {
+                modal.style.display = this.masterKeyModalOpen ? 'flex' : 'none';
+            }
+            var vLink = this.modalEl.querySelector('[data-master-key-voucher]');
+            if (vLink && this.playerHud && this.playerHud.giftVoucherUrl) {
+                vLink.href = this.playerHud.giftVoucherUrl;
+            }
+        }
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._renderSanctumGateModal = function () {
+        if (!this.modalEl) return;
+        var root = this.modalEl;
+        var iconEl = root.querySelector('[data-sanctum-icon]');
+        var titleEl = root.querySelector('[data-sanctum-title]');
+        if (iconEl) iconEl.textContent = this.sanctumGateZone === 'lava' ? '🌋' : '🏛️';
+        if (titleEl) titleEl.textContent = this.sanctumGateZone === 'lava' ? 'Magma-Welt' : 'Halle der Helden';
+
+        var st = this.sanctumGateState || { checks: { login: false, order: false, magic: false }, loginUrl: '/login', dashboardUrl: '/dashboard' };
+        var checks = st.checks || {};
+        var syncRow = function (key, numLabel, done) {
+            var row = root.querySelector('[data-sanctum-row="' + key + '"]');
+            var chk = root.querySelector('[data-sanctum-chk="' + key + '"]');
+            if (row) {
+                if (done) row.classList.add('is-done');
+                else row.classList.remove('is-done');
+            }
+            if (chk) {
+                chk.textContent = done ? '✓' : numLabel;
+            }
+        };
+        syncRow('login', '1', Boolean(checks.login));
+        syncRow('order', '2', Boolean(checks.order));
+        syncRow('magic', '3', Boolean(checks.magic));
+
+        var ctaWrap = root.querySelector('[data-sanctum-cta-wrap]');
+        if (!ctaWrap) return;
+        while (ctaWrap.firstChild) ctaWrap.removeChild(ctaWrap.firstChild);
+
+        var self = this;
+        if (!checks.login) {
+            var loginLink = document.createElement('a');
+            loginLink.href = st.loginUrl || '/login';
+            loginLink.setAttribute('data-testid', 'sanctum-gate-cta-btn');
+            loginLink.className = 'sf-lobby-prod-cta';
+            loginLink.style.marginTop = '2px';
+            loginLink.textContent = 'Anmelden →';
+            ctaWrap.appendChild(loginLink);
+        } else if (!checks.order) {
+            var shopBtn = document.createElement('button');
+            shopBtn.type = 'button';
+            shopBtn.setAttribute('data-testid', 'sanctum-gate-cta-btn');
+            shopBtn.className = 'sf-lobby-prod-cta';
+            shopBtn.style.cssText = 'margin-top:2px;border:none;cursor:pointer;';
+            shopBtn.textContent = 'Kollektion ansehen';
+            shopBtn.addEventListener('click', function () {
+                self._setSanctumGateOpen(false);
+            });
+            ctaWrap.appendChild(shopBtn);
+        } else {
+            var magicLink = document.createElement('a');
+            magicLink.href = st.dashboardUrl || '/dashboard';
+            magicLink.setAttribute('data-testid', 'sanctum-gate-cta-btn');
+            magicLink.className = 'sf-lobby-prod-cta';
+            magicLink.style.marginTop = '2px';
+            magicLink.textContent = '✨ Magie aktivieren →';
+            ctaWrap.appendChild(magicLink);
+        }
     };
 
     SeelenfunkeUnifiedLobbyHost.prototype._setSettingsOpen = function (flag) {
@@ -703,11 +905,14 @@
         var st = this.lavaChestState || {};
 
         if (!this.lobbyAuth) {
-            var loginLink = document.createElement('a');
-            loginLink.href = '/login';
-            loginLink.className = 'sf-lobby-lava-chest-card';
-            loginLink.textContent = '🔒 Magma-Truhe · Anmelden →';
-            inner.appendChild(loginLink);
+            var loginBtn = document.createElement('button');
+            loginBtn.type = 'button';
+            loginBtn.className = 'sf-lobby-lava-chest-card';
+            loginBtn.textContent = '🔒 Anmelden →';
+            loginBtn.addEventListener('click', function () {
+                self._setSanctumGateOpen(true, 'lava');
+            });
+            inner.appendChild(loginBtn);
             return;
         }
 
@@ -719,9 +924,10 @@
             return;
         }
 
+        var rewardVal = st.rewardPreview || 5;
         var titleBadge = document.createElement('span');
         titleBadge.style.cssText = 'pointer-events:none;padding:4px 11px;border-radius:999px;background:rgba(255,255,255,0.96);border:1px solid rgba(197,160,89,0.55);font-size:11px;font-weight:800;color:#111827;';
-        titleBadge.textContent = 'Magma-Truhe · +5 ✨ Funken';
+        titleBadge.textContent = 'Magma-Truhe · +' + rewardVal + ' ✨ Funken';
         inner.appendChild(titleBadge);
 
         var claimBtn = document.createElement('button');
@@ -745,80 +951,65 @@
         }
     };
 
-    SeelenfunkeUnifiedLobbyHost.prototype._renderLabyrinthBuzzerCard = function () {
-        if (!this.modalEl) return;
-        var inner = this.modalEl.querySelector('[data-lobby-labyrinth-buzzer-inner]');
-        if (!inner) return;
-        while (inner.firstChild) inner.removeChild(inner.firstChild);
+    SeelenfunkeUnifiedLobbyHost.prototype._renderMinimap = function () {
+        var canvas = this.minimapCanvasEl;
+        var facade = getFacade(this);
+        if (!canvas || !facade || typeof facade.getMinimapState !== 'function') return;
+        var ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        var snap = facade.getMinimapState();
+        if (!snap) return;
 
-        var self = this;
-        var st = this.labyrinthBuzzerState || {};
+        var w = canvas.width || 84;
+        var h = canvas.height || 84;
+        var cx = w * 0.5;
+        var cy = h * 0.5;
+        var rad = w * 0.5 - 6;
 
-        if (!this.lobbyAuth) {
-            var guestConfettiBtn = document.createElement('button');
-            guestConfettiBtn.type = 'button';
-            guestConfettiBtn.className = 'sf-lobby-lava-chest-card is-cta';
-            guestConfettiBtn.textContent = '🎉 Konfetti zünden';
-            guestConfettiBtn.addEventListener('click', function () {
-                var facade = getFacade(self);
-                if (facade && typeof facade.claimLabyrinthBuzzer === 'function') {
-                    facade.claimLabyrinthBuzzer();
-                }
-            });
-            inner.appendChild(guestConfettiBtn);
+        ctx.clearRect(0, 0, w, h);
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(cx, cy, rad + 4, 0, Math.PI * 2);
+        ctx.clip();
 
-            var loginLink = document.createElement('a');
-            loginLink.href = '/login';
-            loginLink.className = 'sf-lobby-lava-chest-card';
-            loginLink.textContent = '🔒 Anmelden für +3 ✨ →';
-            inner.appendChild(loginLink);
-            return;
+        ctx.fillStyle = snap.zone === 'lava' ? '#FBF5EC' : '#FAF8F5';
+        ctx.fillRect(0, 0, w, h);
+
+        ctx.strokeStyle = 'rgba(197,160,89,0.25)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(cx, cy, rad * 0.58, 0, Math.PI * 2);
+        ctx.stroke();
+
+        var markers = Array.isArray(snap.markers) ? snap.markers : [];
+        for (var i = 0; i < markers.length; i++) {
+            var m = markers[i];
+            var mx = cx + (m.u - 0.5) * rad * 1.65;
+            var my = cy + (m.v - 0.5) * rad * 1.65;
+            ctx.beginPath();
+            ctx.fillStyle = m.active ? '#C5A059' : 'rgba(17,24,39,0.32)';
+            ctx.arc(mx, my, m.active ? 2.9 : 2.0, 0, Math.PI * 2);
+            ctx.fill();
         }
 
-        if (st.claimedToday) {
-            var donePill = document.createElement('div');
-            donePill.className = 'sf-lobby-lava-chest-card';
-            donePill.textContent = sanitizeText(st.statusMessage || 'Heute bereits geholt ✓');
-            inner.appendChild(donePill);
-
-            var funBtn = document.createElement('button');
-            funBtn.type = 'button';
-            funBtn.className = 'sf-lobby-lava-chest-card is-cta';
-            funBtn.textContent = '🎉 Konfetti zünden';
-            funBtn.addEventListener('click', function () {
-                var facade = getFacade(self);
-                if (facade && typeof facade.claimLabyrinthBuzzer === 'function') {
-                    facade.claimLabyrinthBuzzer();
-                }
-            });
-            inner.appendChild(funBtn);
-            return;
+        if (snap.player) {
+            var px = cx + (snap.player.u - 0.5) * rad * 1.65;
+            var py = cy + (snap.player.v - 0.5) * rad * 1.65;
+            ctx.save();
+            ctx.translate(px, py);
+            ctx.rotate(-(snap.player.yaw || 0) + Math.PI);
+            ctx.fillStyle = '#111827';
+            ctx.beginPath();
+            ctx.moveTo(0, -5);
+            ctx.lineTo(3.6, 4);
+            ctx.lineTo(0, 2.2);
+            ctx.lineTo(-3.6, 4);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
         }
 
-        var titleBadge = document.createElement('span');
-        titleBadge.style.cssText = 'pointer-events:none;padding:4px 11px;border-radius:999px;background:rgba(255,255,255,0.96);border:1px solid rgba(197,160,89,0.55);font-size:11px;font-weight:800;color:#111827;';
-        titleBadge.textContent = '🌀 Mini-Labyrinth · +3 ✨';
-        inner.appendChild(titleBadge);
-
-        var buzzerBtn = document.createElement('button');
-        buzzerBtn.type = 'button';
-        buzzerBtn.className = 'sf-lobby-lava-chest-card is-cta';
-        buzzerBtn.disabled = Boolean(st.claiming);
-        buzzerBtn.textContent = st.claiming ? 'Konfetti startet...' : '🎉 Buzzer drücken';
-        buzzerBtn.addEventListener('click', function () {
-            var facade = getFacade(self);
-            if (facade && typeof facade.claimLabyrinthBuzzer === 'function') {
-                facade.claimLabyrinthBuzzer();
-            }
-        });
-        inner.appendChild(buzzerBtn);
-
-        if (st.statusMessage && !st.claiming) {
-            var note = document.createElement('span');
-            note.style.cssText = 'pointer-events:none;padding:4px 10px;border-radius:999px;background:rgba(255,255,255,0.95);border:1px solid rgba(197,160,89,0.5);font-size:11px;font-weight:700;color:#111827;';
-            note.textContent = sanitizeText(st.statusMessage);
-            inner.appendChild(note);
-        }
+        ctx.restore();
     };
 
     SeelenfunkeUnifiedLobbyHost.prototype._syncAbilityHud = function () {
@@ -865,6 +1056,33 @@
                 badge.style.display = 'none';
             }
         }
+
+        if (typeof facade.getPlayerHudState === 'function') {
+            var pHud = facade.getPlayerHudState();
+            if (pHud) {
+                this.playerHud = pHud;
+                if (pHud.environment) {
+                    this.environmentInfo = pHud.environment;
+                }
+            }
+        }
+        var uName = root.querySelector('[data-lobby-unit-name]');
+        var uStats = root.querySelector('[data-lobby-unit-stats]');
+        var uMana = root.querySelector('[data-lobby-unit-mana]');
+        if (uName && this.playerHud) uName.textContent = sanitizeText(this.playerHud.name || 'Funki');
+        if (uStats && this.playerHud) uStats.textContent = 'Stufe ' + (this.playerHud.level || 2) + ' · ✨ ' + (this.playerHud.funkenBalance || 0);
+        if (uMana && this.playerHud) {
+            var pct = Math.max(0, Math.min(100, Math.round(((this.playerHud.mana || 100) / Math.max(1, this.playerHud.maxMana || 100)) * 100)));
+            uMana.style.width = pct + '%';
+        }
+        var mTime = root.querySelector('[data-lobby-minimap-time]');
+        if (mTime && this.environmentInfo) {
+            mTime.textContent = this.environmentInfo.server_time || '12:00';
+            mTime.title = this.environmentInfo.holiday_label
+                ? (this.environmentInfo.season_label + ' · ' + this.environmentInfo.holiday_label)
+                : (this.environmentInfo.season_label || 'Herbst');
+        }
+        this._renderMinimap();
     };
 
     SeelenfunkeUnifiedLobbyHost.prototype.toggleFullscreen = function () {
@@ -950,6 +1168,72 @@
         root.querySelector('[data-lobby-settings-close]').addEventListener('click', function () {
             self._setSettingsOpen(false);
         });
+
+        var resumeBtn = root.querySelector('[data-lobby-settings-resume]');
+        if (resumeBtn) {
+            resumeBtn.addEventListener('click', function () {
+                self._setSettingsOpen(false);
+            });
+        }
+        var leaveBtn = root.querySelector('[data-lobby-settings-leave]');
+        if (leaveBtn) {
+            leaveBtn.addEventListener('click', function () {
+                self.close();
+            });
+        }
+
+        var portalPillBtn = root.querySelector('[data-lobby-portal-pill]');
+        if (portalPillBtn) {
+            portalPillBtn.addEventListener('click', function () {
+                self._setSanctumGateOpen(true, 'heroes');
+            });
+        }
+
+        var sanctumClose = root.querySelector('[data-sanctum-close]');
+        if (sanctumClose) {
+            sanctumClose.addEventListener('click', function () {
+                self._setSanctumGateOpen(false);
+            });
+        }
+        var sanctumModal = root.querySelector('[data-lobby-sanctum-modal]');
+        if (sanctumModal) {
+            sanctumModal.addEventListener('click', function (ev) {
+                if (ev.target === ev.currentTarget) {
+                    self._setSanctumGateOpen(false);
+                }
+            });
+        }
+
+        var mkClose = root.querySelector('[data-master-key-close]');
+        if (mkClose) {
+            mkClose.addEventListener('click', function () {
+                self._setMasterKeyModalOpen(false);
+            });
+        }
+        var mkModal = root.querySelector('[data-lobby-master-key-modal]');
+        if (mkModal) {
+            mkModal.addEventListener('click', function (ev) {
+                if (ev.target === ev.currentTarget) {
+                    self._setMasterKeyModalOpen(false);
+                }
+            });
+        }
+
+        var gfxBtns = root.querySelectorAll('[data-lobby-gfx]');
+        for (var g = 0; g < gfxBtns.length; g++) {
+            gfxBtns[g].addEventListener('click', function (ev) {
+                var lvl = ev.currentTarget.getAttribute('data-lobby-gfx') === 'balanced' ? 'balanced' : 'high';
+                self.userSettings.graphicsQuality = lvl;
+                var facade = getFacade(self);
+                if (facade && typeof facade.setGraphicsQuality === 'function') {
+                    facade.setGraphicsQuality(lvl);
+                } else if (self._mod && typeof self._mod.saveLobbyUserSettings === 'function') {
+                    self._mod.saveLobbyUserSettings({ graphicsQuality: lvl });
+                }
+                if (self._audio) self._audio.playUiSwitch();
+                self._syncHudState();
+            });
+        }
 
         root.querySelector('[data-lobby-settings-modal]').addEventListener('click', function (ev) {
             if (ev.target === ev.currentTarget) {
@@ -1058,25 +1342,6 @@
             if (!facade) return;
             facade.triggerWeapon();
             self._syncAbilityHud();
-        });
-
-        root.querySelector('[data-lobby-prev]').addEventListener('click', function () {
-            var facade = getFacade(self);
-            if (!facade || self.products.length === 0) return;
-            facade.prevExhibit();
-        });
-
-        root.querySelector('[data-lobby-next]').addEventListener('click', function () {
-            var facade = getFacade(self);
-            if (!facade || self.products.length === 0) return;
-            facade.nextExhibit();
-        });
-
-        root.querySelector('[data-lobby-exhibit-pill]').addEventListener('click', function () {
-            var facade = getFacade(self);
-            if (facade && self.products.length > 0) {
-                facade.focusExhibit(self.activeIndex, false);
-            }
         });
 
         var slotBtns = root.querySelectorAll('[data-hero-slot]');
@@ -1210,9 +1475,7 @@
         if (zoneBadge) {
             zoneBadge.textContent = this.currentZone === 'heroes'
                 ? '🏛️ Halle der Helden'
-                : (this.currentZone === 'lava'
-                    ? '🌋 Magma-Kammer'
-                    : (this.currentZone === 'labyrinth' ? '🌀 Mini-Labyrinth' : '🛍️ Kollektion'));
+                : (this.currentZone === 'lava' ? '🌋 Magma-Welt' : '🛍️ Kollektion');
         }
 
         var stagesBtn = root.querySelector('[data-lobby-stages-btn]');
@@ -1262,6 +1525,18 @@
         var realChk = root.querySelector('[data-lobby-realname-checkbox]');
         if (realChk) realChk.checked = Boolean(this.userSettings.useRealName);
 
+        var gfxHigh = root.querySelector('[data-lobby-gfx="high"]');
+        var gfxBal = root.querySelector('[data-lobby-gfx="balanced"]');
+        var curGfx = (this.userSettings && this.userSettings.graphicsQuality === 'balanced') ? 'balanced' : 'high';
+        if (gfxHigh) {
+            if (curGfx === 'high') gfxHigh.classList.add('is-active');
+            else gfxHigh.classList.remove('is-active');
+        }
+        if (gfxBal) {
+            if (curGfx === 'balanced') gfxBal.classList.add('is-active');
+            else gfxBal.classList.remove('is-active');
+        }
+
         var keyMapEls = root.querySelectorAll('[data-ability-key]');
         for (var km = 0; km < keyMapEls.length; km++) {
             var actName = keyMapEls[km].getAttribute('data-ability-key');
@@ -1298,25 +1573,9 @@
             instLabel.textContent = '🌐 Instanz #' + this.instanceId + ' · ' + curCount + '/' + this.instanceCapacity + ' ▾';
         }
 
-        var btmGallery = root.querySelector('[data-lobby-bottom-gallery]');
         var btmHeroes = root.querySelector('[data-lobby-bottom-heroes]');
-        var btmLava = root.querySelector('[data-lobby-bottom-lava]');
-        var btmLabyrinth = root.querySelector('[data-lobby-bottom-labyrinth]');
-        if (btmGallery && btmHeroes) {
-            btmGallery.style.display = (this.currentZone === 'gallery' && this.products.length > 0) ? 'inline-flex' : 'none';
+        if (btmHeroes) {
             btmHeroes.style.display = (this.currentZone === 'heroes') ? 'inline-flex' : 'none';
-        }
-        if (btmLava) {
-            btmLava.style.display = (this.currentZone === 'lava') ? 'inline-flex' : 'none';
-        }
-        if (btmLabyrinth) {
-            btmLabyrinth.style.display = (this.currentZone === 'labyrinth') ? 'inline-flex' : 'none';
-        }
-
-        var exPill = root.querySelector('[data-lobby-exhibit-pill]');
-        if (exPill && this.products.length > 0) {
-            var curProd = this.products[this.activeIndex];
-            exPill.textContent = 'Exponat ' + (this.activeIndex + 1) + '/' + this.products.length + (curProd ? (' · ' + sanitizeText(curProd.name)) : '');
         }
     };
 
@@ -1328,6 +1587,7 @@
         while (inner.firstChild) inner.removeChild(inner.firstChild);
         if (!prod) return;
 
+        var self = this;
         var cat = document.createElement('span');
         cat.className = 'sf-lobby-prod-cat';
         cat.textContent = sanitizeText(prod.category_name || 'Kollektion');
@@ -1369,6 +1629,45 @@
         link.className = 'sf-lobby-prod-cta';
         link.textContent = (prod.is_personalizable ? 'Jetzt gestalten' : 'Zum Produkt') + ' →';
         inner.appendChild(link);
+
+        if (this.products.length > 1) {
+            var stepRow = document.createElement('div');
+            stepRow.className = 'sf-lobby-exhibit-step-row';
+
+            var prevBtn = document.createElement('button');
+            prevBtn.type = 'button';
+            prevBtn.className = 'sf-lobby-step-btn';
+            prevBtn.style.cssText = 'padding:4px 9px;font-size:10px;';
+            prevBtn.textContent = '‹ Vorheriges';
+            prevBtn.addEventListener('click', function () {
+                var f = getFacade(self);
+                if (f && self.products.length > 0) f.prevExhibit();
+            });
+
+            var curLbl = document.createElement('button');
+            curLbl.type = 'button';
+            curLbl.style.cssText = 'appearance:none;border:none;background:transparent;font-size:10px;font-weight:800;color:#6B7280;cursor:pointer;';
+            curLbl.textContent = 'Exponat ' + (this.activeIndex + 1) + '/' + this.products.length;
+            curLbl.addEventListener('click', function () {
+                var f = getFacade(self);
+                if (f && self.products.length > 0) f.focusExhibit(self.activeIndex, false);
+            });
+
+            var nextBtn = document.createElement('button');
+            nextBtn.type = 'button';
+            nextBtn.className = 'sf-lobby-step-btn';
+            nextBtn.style.cssText = 'padding:4px 9px;font-size:10px;';
+            nextBtn.textContent = 'Nächstes ›';
+            nextBtn.addEventListener('click', function () {
+                var f = getFacade(self);
+                if (f && self.products.length > 0) f.nextExhibit();
+            });
+
+            stepRow.appendChild(prevBtn);
+            stepRow.appendChild(curLbl);
+            stepRow.appendChild(nextBtn);
+            inner.appendChild(stepRow);
+        }
     };
 
     SeelenfunkeUnifiedLobbyHost.prototype._renderFloatingHeroCard = function (hero) {
@@ -1425,7 +1724,7 @@
         var facade = getFacade(this);
 
         if (z === 'heroes') {
-            if (this.lobbyAuth && !this.soloMode && (this._activeSyncZone !== 'heroes' || !this._syncTimer)) {
+            if (this.lobbyAuth && this.sanctumGateState.canEnter && !this.soloMode && (this._activeSyncZone !== 'heroes' || !this._syncTimer)) {
                 this._activeSyncZone = 'heroes';
                 this._joinLobby();
             }
@@ -1492,7 +1791,19 @@
                 combo_stage: st.combo_stage
             })
         })
-            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (r) {
+                return r.json().catch(function () { return null; }).then(function (b) {
+                    if (r.status === 401 || r.status === 403) {
+                        self._stopSyncLoop();
+                        var fGate = getFacade(self);
+                        if (fGate && typeof fGate.handleSanctumHttpResponse === 'function') {
+                            fGate.handleSanctumHttpResponse(r.status, b, 'heroes');
+                        }
+                        return null;
+                    }
+                    return r.ok ? b : null;
+                });
+            })
             .then(function (data) {
                 if (!data || !data.ok || !self.isOpen || self.currentZone !== 'heroes') return;
                 self.lobbyAuth = Boolean(data.authenticated);
@@ -1563,7 +1874,19 @@
                 combo_stage: st.combo_stage
             })
         })
-            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (r) {
+                return r.json().catch(function () { return null; }).then(function (b) {
+                    if (r.status === 401 || r.status === 403) {
+                        self._stopSyncLoop();
+                        var fGate = getFacade(self);
+                        if (fGate && typeof fGate.handleSanctumHttpResponse === 'function') {
+                            fGate.handleSanctumHttpResponse(r.status, b, 'heroes');
+                        }
+                        return null;
+                    }
+                    return r.ok ? b : null;
+                });
+            })
             .then(function (data) {
                 var f2 = getFacade(self);
                 if (!data || !data.ok || !self.isOpen || !f2 || self.currentZone !== 'heroes') return;
@@ -1611,7 +1934,19 @@
                 zone: 'heroes'
             })
         })
-            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (r) {
+                return r.json().catch(function () { return null; }).then(function (b) {
+                    if (r.status === 401 || r.status === 403) {
+                        self._stopSyncLoop();
+                        var fGate = getFacade(self);
+                        if (fGate && typeof fGate.handleSanctumHttpResponse === 'function') {
+                            fGate.handleSanctumHttpResponse(r.status, b, 'heroes');
+                        }
+                        return null;
+                    }
+                    return r.ok ? b : null;
+                });
+            })
             .then(function (data) {
                 var f2 = getFacade(self);
                 if (!data || !data.ok || !self.isOpen || !f2) return;
@@ -1702,9 +2037,7 @@
         var mode = String(initialMode || 'lobby').toLowerCase();
         var startZone = (mode === 'lava')
             ? 'lava'
-            : (mode === 'labyrinth'
-                ? 'labyrinth'
-                : ((mode === 'hall' || mode === 'heroes' || mode === 'my_place') ? mode : 'gallery'));
+            : ((mode === 'hall' || mode === 'heroes' || mode === 'my_place') ? mode : 'gallery');
 
         // User-Gesture-Token zu 100 % synchron im Klick-Event sichern (VOR fetch / import)!
         this._startLobbyMusicFromGestureSync();
@@ -1719,6 +2052,8 @@
         this.isOpen = true;
         this.isFullscreen = Boolean(getActiveFullscreenElement());
         this.settingsOpen = false;
+        this.sanctumGateOpen = false;
+        this.masterKeyModalOpen = false;
         this.listeningKeyAction = '';
         this._openSeq += 1;
         var seq = this._openSeq;
@@ -1726,13 +2061,11 @@
         this.modalEl.classList.remove('is-closed');
         this.modalEl.classList.add('is-open');
         this.modalEl.style.display = 'flex';
-        this.currentZone = (startZone === 'lava')
-            ? 'lava'
-            : (startZone === 'labyrinth'
-                ? 'labyrinth'
-                : ((startZone === 'gallery') ? 'gallery' : 'heroes'));
+        this.currentZone = 'gallery';
         this.stagesMode = 'live';
         this._setSettingsOpen(false);
+        this._setSanctumGateOpen(false);
+        this._setMasterKeyModalOpen(false);
 
         if (!this._abilityTimer) {
             this._abilityTimer = setInterval(function () {
@@ -1800,8 +2133,14 @@
                     self.heroesPayload = heroesJson;
                 }
 
+                var rawPlayer = (shopJson && shopJson.player && typeof shopJson.player === 'object') ? shopJson.player : null;
+                if (shopJson && shopJson.environment && typeof shopJson.environment === 'object') {
+                    self.environmentInfo = shopJson.environment;
+                }
+
                 var isAuth = Boolean(
-                    (self.funkiInfo && !self.funkiInfo.is_guest)
+                    (rawPlayer && rawPlayer.is_authenticated)
+                    || (self.funkiInfo && !self.funkiInfo.is_guest)
                     || (self.heroesPayload && self.heroesPayload.customer_logged_in)
                 );
                 self.lobbyAuth = isAuth;
@@ -1826,8 +2165,9 @@
                 }
 
                 var lavaInfo = (shopJson && shopJson.lava_parkour) ? shopJson.lava_parkour : null;
-                var labInfo = (shopJson && shopJson.mini_labyrinth) ? shopJson.mini_labyrinth : null;
                 self.lavaChestState = {
+                    level: 1,
+                    rewardPreview: 5,
                     nearChest: false,
                     isAuthenticated: isAuth,
                     claimedToday: Boolean(lavaInfo && lavaInfo.claimed_today),
@@ -1835,16 +2175,7 @@
                     canClaim: Boolean(isAuth && !(lavaInfo && lavaInfo.claimed_today)),
                     statusMessage: ''
                 };
-                self.labyrinthBuzzerState = {
-                    nearBuzzer: false,
-                    isAuthenticated: isAuth,
-                    claimedToday: Boolean(labInfo && labInfo.claimed_today),
-                    claiming: false,
-                    canClaim: Boolean(isAuth && !(labInfo && labInfo.claimed_today)),
-                    statusMessage: ''
-                };
                 self._renderLavaChestCard();
-                self._renderLabyrinthBuzzerCard();
                 self._renderKeybindingsList();
 
                 if (self.loadingEl) {
@@ -1857,23 +2188,24 @@
                     floatingHeroCardEl: self.floatingHeroWrap,
                     floatingPortalCardEl: self.floatingPortalWrap,
                     floatingLavaChestEl: self.floatingLavaChestWrap,
-                    floatingLabyrinthBuzzerEl: self.floatingLabyrinthBuzzerWrap,
+                    floatingOuterGateEl: self.floatingOuterGateWrap,
                     products: self.products,
+                    environment: shopJson ? shopJson.environment : null,
+                    player: rawPlayer,
                     heroesPayload: self.heroesPayload,
                     playerFunki: self.funkiInfo,
                     lavaParkour: lavaInfo,
-                    miniLabyrinth: labInfo,
                     audio: self._audio || undefined,
                     isAuthenticatedCustomer: isAuth,
                     initialZone: startZone === 'my_place' ? 'heroes' : startZone,
                     onFocusProductChange: function (prod, idx) {
                         self.focusedProduct = prod || null;
-                        self._renderFloatingProductCard(self.focusedProduct);
-                        self._syncAbilityHud();
                         if (typeof idx === 'number' && idx >= 0) {
                             self.activeIndex = idx;
-                            self._syncHudState();
                         }
+                        self._renderFloatingProductCard(self.focusedProduct);
+                        self._syncAbilityHud();
+                        self._syncHudState();
                     },
                     onFocusHeroChange: function (heroInfo) {
                         self.focusedHero = heroInfo || null;
@@ -1881,6 +2213,9 @@
                     },
                     onActiveExhibitChange: function (idx) {
                         self.activeIndex = idx;
+                        if (self.focusedProduct) {
+                            self._renderFloatingProductCard(self.focusedProduct);
+                        }
                         self._syncHudState();
                     },
                     onZoneChange: function (zone) {
@@ -1888,13 +2223,25 @@
                         self._handleZoneSyncTransition(zone);
                         self._syncHudState();
                     },
+                    onAuthGatePrompt: function (zone, accessState) {
+                        self._setSanctumGateOpen(true, zone, accessState);
+                    },
+                    onMasterKeyPromptChange: function (flag) {
+                        if (flag) {
+                            self._setMasterKeyModalOpen(true);
+                        }
+                    },
+                    onPlayerHudChange: function (hud) {
+                        if (hud) {
+                            self.playerHud = hud;
+                            if (hud.environment) {
+                                self.environmentInfo = hud.environment;
+                            }
+                        }
+                    },
                     onLavaChestStateChange: function (state) {
                         self.lavaChestState = state;
                         self._renderLavaChestCard();
-                    },
-                    onLabyrinthBuzzerStateChange: function (state) {
-                        self.labyrinthBuzzerState = state;
-                        self._renderLabyrinthBuzzerCard();
                     },
                     onSelectProduct: function (prod) {
                         if (prod && prod.product_url) {
@@ -1903,14 +2250,21 @@
                     }
                 });
                 setFacade(self, createdFacade);
-                if (startZone === 'my_place') {
+                if (typeof createdFacade.getSanctumAccessState === 'function') {
+                    self.sanctumGateState = createdFacade.getSanctumAccessState();
+                }
+                if (typeof createdFacade.getPlayerHudState === 'function') {
+                    self.playerHud = createdFacade.getPlayerHudState();
+                }
+                self.currentZone = createdFacade.getCurrentZone();
+                if (startZone === 'my_place' && self.sanctumGateState.canEnter) {
                     createdFacade.focusMyHeroPlace();
                 }
 
                 self._activeSyncZone = null;
                 self._syncHudState();
                 self._syncAbilityHud();
-                if (isAuth && self.currentZone === 'heroes') {
+                if (isAuth && self.sanctumGateState.canEnter && self.currentZone === 'heroes') {
                     self._handleZoneSyncTransition('heroes');
                 }
             })
@@ -1932,6 +2286,8 @@
         this.isOpen = false;
         this.instanceMenuOpen = false;
         this.settingsOpen = false;
+        this.sanctumGateOpen = false;
+        this.masterKeyModalOpen = false;
         this.listeningKeyAction = '';
         this.peers = [];
 

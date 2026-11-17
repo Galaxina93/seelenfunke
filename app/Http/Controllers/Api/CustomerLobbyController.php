@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Customer\Customer;
 use App\Services\Gamification\LobbyInstanceService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 
 class CustomerLobbyController extends Controller
@@ -56,6 +58,18 @@ class CustomerLobbyController extends Controller
             return $blocked;
         }
 
+        /** @var Customer|null $customer */
+        $customer = Auth::guard('customer')->user();
+        $isAdmin = $actor !== null && str_starts_with((string) ($actor['actor_key'] ?? ''), 'admin:');
+
+        if ($denied = $lobby->checkZoneSanctumRestriction($customer instanceof Customer ? $customer : null, $request->input('zone'), $isAdmin)) {
+            if ($actor !== null) {
+                $lobby->leave($actor);
+            }
+
+            return response()->json($denied['body'], $denied['status'], $this->securityHeaders());
+        }
+
         if ($actor === null) {
             return response()->json($lobby->guestJoinPayload(), 200, $this->securityHeaders());
         }
@@ -71,6 +85,18 @@ class CustomerLobbyController extends Controller
         $actor = $lobby->resolveActorFromAuth();
         if ($blocked = $this->guardAgainstConsoleManipulation($request, $actor['actor_key'] ?? null)) {
             return $blocked;
+        }
+
+        /** @var Customer|null $customer */
+        $customer = Auth::guard('customer')->user();
+        $isAdmin = $actor !== null && str_starts_with((string) ($actor['actor_key'] ?? ''), 'admin:');
+
+        if ($denied = $lobby->checkZoneSanctumRestriction($customer instanceof Customer ? $customer : null, $request->input('zone'), $isAdmin)) {
+            if ($actor !== null) {
+                $lobby->leave($actor);
+            }
+
+            return response()->json($denied['body'], $denied['status'], $this->securityHeaders());
         }
 
         if ($actor === null) {
@@ -89,11 +115,16 @@ class CustomerLobbyController extends Controller
             return $blocked;
         }
 
-        if ($actor === null) {
-            return response()->json([
-                'ok' => false,
-                'message' => 'Bitte melde dich an, um Lobby-Instanzen zu wechseln.',
-            ], 401, $this->securityHeaders());
+        /** @var Customer|null $customer */
+        $customer = Auth::guard('customer')->user();
+        $isAdmin = $actor !== null && str_starts_with((string) ($actor['actor_key'] ?? ''), 'admin:');
+
+        if ($denied = $lobby->checkZoneSanctumRestriction($customer instanceof Customer ? $customer : null, 'heroes', $isAdmin)) {
+            if ($actor !== null) {
+                $lobby->leave($actor);
+            }
+
+            return response()->json($denied['body'], $denied['status'], $this->securityHeaders());
         }
 
         $validator = Validator::make($request->all(), [

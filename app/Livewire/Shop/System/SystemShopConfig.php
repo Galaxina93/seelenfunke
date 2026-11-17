@@ -20,7 +20,6 @@ class SystemShopConfig extends Component
     public string $themingDepartment = 'System';
     public $settings = [];
     public bool $shop_is_live = false;
-    public bool $digital_domain_is_live = false;
     
     // Updates/Reports System-Info
     public $uploads = [];
@@ -85,8 +84,6 @@ class SystemShopConfig extends Component
         'stripe_fee_fixed_cents',
         'shop_is_live',
         'shop_live_unlocked',
-        'digital_domain_is_live',
-        'digital_domain_host',
         'maintenance_mode',
         'showroom_multiplayer_enabled',
         'inventory_low_stock_threshold',
@@ -157,7 +154,6 @@ class SystemShopConfig extends Component
         'stripe_fee_fixed_cents' => 'Kalkulatorische Fixgebühr pro Transaktion in der Produkt-Margenberechnung (Eingabe in Euro, z.B. 0.30).',
         'shop_is_live' => 'Hauptschalter für den personalisierten Manufaktur-Shop auf mein-seelenfunke.de: Gibt physische Manufaktur-Produkte und den Konfigurator live frei. Solange deaktiviert, bleibt mein-seelenfunke.de für Besucher im Vorbereitungsmodus.',
         'shop_live_unlocked' => 'Hauptschalter für den personalisierten Manufaktur-Shop auf mein-seelenfunke.de.',
-        'digital_domain_is_live' => 'Eigenständiger Hauptschalter für den digitalen Download-Shop auf digital.mein-seelenfunke.de: Ermöglicht den Verkaufsstart digitaler Produkte (z.B. Vorlagen, E-Books) völlig unabhängig vom physischen Manufaktur-Shop.',
         'maintenance_mode' => 'Globaler Wartungsmodus (HTTP 503) für alle Shop-Domains: Schaltet sofort die Wartungsseite für Kunden vor. Eingeloggte Administratoren behalten vollen Vorschau-Zugriff auf alle Seiten.',
         'showroom_multiplayer_enabled' => 'Steuert den Live-Mehrspielermodus (12er-Räume, Gamification-Waffen-Funken und moderierter Raum-Chat) für eingeloggte Kunden im 3D-Louvre-Showroom. Gäste erkunden den Showroom immer im Einzelmodus.',
         'inventory_low_stock_threshold' => 'Ab dieser Stückzahl wird ein Produkt im Dashboard als "niedriger Bestand" markiert.',
@@ -245,19 +241,10 @@ class SystemShopConfig extends Component
             $this->settings[$key] = $value;
         }
 
-        $boolKeys = ['is_small_business', 'prices_entered_gross', 'shop_is_live', 'shop_live_unlocked', 'digital_domain_is_live', 'maintenance_mode', 'showroom_multiplayer_enabled', 'skip_shipping_for_digital', 'send_order_email_to_admin', 'season_auto_mode', 'google_tag_enabled', 'google_shopping_require_real_photos'];
+        $boolKeys = ['is_small_business', 'prices_entered_gross', 'shop_is_live', 'shop_live_unlocked', 'maintenance_mode', 'showroom_multiplayer_enabled', 'skip_shipping_for_digital', 'send_order_email_to_admin', 'season_auto_mode', 'google_tag_enabled', 'google_shopping_require_real_photos'];
         foreach($boolKeys as $key) {
             $this->settings[$key] = filter_var($this->settings[$key], FILTER_VALIDATE_BOOLEAN);
         }
-
-        $hasExplicitDigitalLive = array_key_exists('digital_domain_is_live', $dbSettings)
-            && $dbSettings['digital_domain_is_live'] !== null
-            && $dbSettings['digital_domain_is_live'] !== '';
-        $resolvedDigitalLive = $hasExplicitDigitalLive
-            ? filter_var($dbSettings['digital_domain_is_live'], FILTER_VALIDATE_BOOLEAN)
-            : false;
-        $this->digital_domain_is_live = $resolvedDigitalLive;
-        $this->settings['digital_domain_is_live'] = $resolvedDigitalLive;
 
         $hasExplicitShopIsLive = array_key_exists('shop_is_live', $dbSettings)
             && $dbSettings['shop_is_live'] !== null
@@ -341,8 +328,6 @@ class SystemShopConfig extends Component
             'stripe_fee_fixed_cents' => 30,
             'shop_is_live' => !\App\Http\Middleware\EnforceShopMaintenanceMode::isLiveHost(request()),
             'shop_live_unlocked' => !\App\Http\Middleware\EnforceShopMaintenanceMode::isLiveHost(request()),
-            'digital_domain_is_live' => false,
-            'digital_domain_host' => 'digital.mein-seelenfunke.de',
             'maintenance_mode' => false,
             'showroom_multiplayer_enabled' => true,
             'inventory_low_stock_threshold' => 5,
@@ -418,53 +403,6 @@ class SystemShopConfig extends Component
         SystemSetting::updateOrCreate(
             ['key' => 'shop_live_unlocked'],
             ['value' => $strValue]
-        );
-
-        Cache::forget('global_shop_settings');
-        try {
-            $freshSettings = SystemSetting::pluck('value', 'key');
-            Cache::put('global_shop_settings', $freshSettings, 60);
-        } catch (\Throwable $e) {
-        }
-
-        $this->saved = true;
-    }
-
-    public function toggleDigitalDomainIsLive(): void
-    {
-        if (!Auth::guard('admin')->check()) {
-            abort(403);
-        }
-
-        $this->persistDigitalDomainIsLive(!$this->digital_domain_is_live);
-    }
-
-    public function updatedDigitalDomainIsLive($value): void
-    {
-        if (!Auth::guard('admin')->check()) {
-            abort(403);
-        }
-
-        $this->persistDigitalDomainIsLive(filter_var($value, FILTER_VALIDATE_BOOLEAN));
-    }
-
-    public function updatedSettingsDigitalDomainIsLive($value): void
-    {
-        if (!Auth::guard('admin')->check()) {
-            abort(403);
-        }
-
-        $this->persistDigitalDomainIsLive(filter_var($value, FILTER_VALIDATE_BOOLEAN));
-    }
-
-    protected function persistDigitalDomainIsLive(bool $isLive): void
-    {
-        $this->digital_domain_is_live = $isLive;
-        $this->settings['digital_domain_is_live'] = $isLive;
-
-        SystemSetting::updateOrCreate(
-            ['key' => 'digital_domain_is_live'],
-            ['value' => $isLive ? 'true' : 'false']
         );
 
         Cache::forget('global_shop_settings');
@@ -731,7 +669,6 @@ class SystemShopConfig extends Component
 
         $this->settings['shop_is_live'] = $this->shop_is_live;
         $this->settings['shop_live_unlocked'] = $this->shop_is_live;
-        $this->settings['digital_domain_is_live'] = $this->digital_domain_is_live;
 
         $protectedTaxTransitionKeys = [
             'is_small_business',

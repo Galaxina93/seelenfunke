@@ -216,7 +216,7 @@ Route::post('/funkenwerk-welt/lobby/leave', [\App\Http\Controllers\Api\CustomerL
     ->middleware('throttle:60,1,lobby_leave')
     ->name('gamification.funkenwerk-lobby.leave');
 
-// Lava-Parkour Schatztruhe (Server-Authoritative Anti-Cheat, +5 Funken 1x pro Kalendertag)
+// 10-Stufen Magma-Spiel (Server-Authoritative Anti-Cheat, Level 1 bis 10 & Manufaktur-Meisterschluessel)
 Route::post('/funkenwerk-welt/lava-parkour/start', [\App\Http\Controllers\Api\LavaParkourController::class, 'start'])
     ->middleware('throttle:60,1,lava_start')
     ->name('gamification.lava-parkour.start');
@@ -226,17 +226,6 @@ Route::post('/funkenwerk-welt/lava-parkour/checkpoint', [\App\Http\Controllers\A
 Route::post('/funkenwerk-welt/lava-parkour/claim', [\App\Http\Controllers\Api\LavaParkourController::class, 'claim'])
     ->middleware('throttle:30,1,lava_claim')
     ->name('gamification.lava-parkour.claim');
-
-// Mini-Labyrinth Gag im West-Fluegel (Server-Authoritative Anti-Cheat, +3 Funken 1x pro Kalendertag)
-Route::post('/funkenwerk-welt/labyrinth/start', [\App\Http\Controllers\Api\MiniLabyrinthController::class, 'start'])
-    ->middleware('throttle:60,1,labyrinth_start')
-    ->name('gamification.mini-labyrinth.start');
-Route::post('/funkenwerk-welt/labyrinth/checkpoint', [\App\Http\Controllers\Api\MiniLabyrinthController::class, 'checkpoint'])
-    ->middleware('throttle:90,1,labyrinth_cp')
-    ->name('gamification.mini-labyrinth.checkpoint');
-Route::post('/funkenwerk-welt/labyrinth/claim', [\App\Http\Controllers\Api\MiniLabyrinthController::class, 'claim'])
-    ->middleware('throttle:30,1,labyrinth_claim')
-    ->name('gamification.mini-labyrinth.claim');
 
 // --- 4. Rechtliches & Weiteres ---
 Route::get('/impressum', function () {

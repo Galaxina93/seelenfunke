@@ -5,6 +5,9 @@ namespace Tests\Feature\Gamification;
 use App\Models\Admin\Admin;
 use App\Models\Customer\Customer;
 use App\Models\Customer\CustomerGamification;
+use App\Models\Customer\CustomerGamificationLog;
+use App\Models\Order\OrderOrder;
+use App\Models\System\SystemSetting;
 use App\Services\Gamification\LobbyInstanceService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
@@ -22,13 +25,54 @@ class Customer3DLobbyInstancesTest extends TestCase
         Cache::flush();
     }
 
-    public function test_gallery_lava_and_labyrinth_are_strictly_solo_and_evict_player_from_heroes_immediately(): void
+    public function test_gallery_and_lava_are_strictly_solo_labyrinth_is_removed_and_guests_are_blocked_from_lava_and_heroes(): void
     {
         $alice = $this->makeCustomer(1, true, 'SoloAlice', 6);
         $bob = $this->makeCustomer(2, true, 'SoloBob', 7);
 
-        // Produkt-Lobby ('gallery'), 'lava' und 'labyrinth' sind 100 % Solo
-        foreach (['gallery', 'lava', 'labyrinth'] as $soloZone) {
+        // Historische Mini-Labyrinth-Logs bleiben in der Datenbank unangetastet, waehrend die Routen entfernt sind
+        $historicLog = CustomerGamificationLog::create([
+            'customer_id' => (string) $alice->id,
+            'event_type' => 'mini_labyrinth_gag',
+            'category' => 'labyrinth',
+            'title' => 'Historischer Eintrag',
+            'description' => 'Bestandsdaten bleiben erhalten',
+            'sparks_delta' => 3,
+            'balance_after' => 3003,
+        ]);
+
+        $this->actingAs($alice, 'customer')->postJson('/funkenwerk-welt/labyrinth/start')->assertStatus(404);
+        $this->actingAs($alice, 'customer')->postJson('/funkenwerk-welt/labyrinth/checkpoint')->assertStatus(404);
+        $this->actingAs($alice, 'customer')->postJson('/funkenwerk-welt/labyrinth/claim')->assertStatus(404);
+        $this->assertDatabaseHas('customer_gamification_logs', [
+            'id' => $historicLog->id,
+            'event_type' => 'mini_labyrinth_gag',
+        ]);
+
+        // 3-Stufen-Gate: Gaeste erhalten bei 'lava' und 'heroes' strikt HTTP 403 mit code = 'login_required'
+        Auth::guard('customer')->logout();
+        Auth::forgetGuards();
+
+        foreach (['lava', 'heroes'] as $protectedZone) {
+            $this->postJson('/funkenwerk-welt/lobby/join', ['zone' => $protectedZone])
+                ->assertStatus(403)
+                ->assertJsonPath('ok', false)
+                ->assertJsonPath('success', false)
+                ->assertJsonPath('guest', true)
+                ->assertJsonPath('code', 'login_required')
+                ->assertJsonPath('zone', $protectedZone);
+
+            $this->postJson('/funkenwerk-welt/lobby/sync', ['zone' => $protectedZone, 'x' => 0.0, 'z' => -20.0])
+                ->assertStatus(403)
+                ->assertJsonPath('ok', false)
+                ->assertJsonPath('success', false)
+                ->assertJsonPath('guest', true)
+                ->assertJsonPath('code', 'login_required')
+                ->assertJsonPath('zone', $protectedZone);
+        }
+
+        // Produkt-Lobby ('gallery') und 'lava' sind fuer eingeloggte Spieler 100 % Solo
+        foreach (['gallery', 'lava'] as $soloZone) {
             $respA = $this->actingAs($alice, 'customer')
                 ->postJson('/funkenwerk-welt/lobby/join', ['x' => 0.0, 'z' => 0.0, 'zone' => $soloZone]);
             $respA->assertOk()
@@ -384,7 +428,10 @@ class Customer3DLobbyInstancesTest extends TestCase
             'funken_total_earned' => 180,
         ]);
 
-        // 1. Gast-Pruefung (unauthentifiziert): HTTP 200 Solo ohne Instanz/Peers bei join & sync, HTTP 401 bei switch
+        $this->createPaidOrderForCustomer($optInHero, 'ORD-HERO-OPTIN-1');
+        $this->createPaidOrderForCustomer($privateCustomer, 'ORD-HERO-PRIV-2');
+
+        // 1. Gast-Pruefung (unauthentifiziert): HTTP 200 Solo ohne Instanz/Peers bei join & sync in Produkt-Lobby, HTTP 403 login_required bei switch
         $guestJoin = $this->postJson('/funkenwerk-welt/lobby/join');
         $guestJoin->assertOk()
             ->assertJsonPath('ok', true)
@@ -404,8 +451,10 @@ class Customer3DLobbyInstancesTest extends TestCase
             ->assertJsonPath('instances', []);
 
         $this->postJson('/funkenwerk-welt/lobby/switch', ['target_instance' => 1])
-            ->assertStatus(401)
-            ->assertJsonPath('ok', false);
+            ->assertStatus(403)
+            ->assertJsonPath('ok', false)
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('code', 'login_required');
 
         // 2. Beide Kunden + Admin betreten die Halle der Helden -> strikte Zero-PII Pruefung
         $this->actingAs($optInHero, 'customer')->postJson('/funkenwerk-welt/lobby/join', ['zone' => 'heroes'])->assertOk();
@@ -492,8 +541,229 @@ class Customer3DLobbyInstancesTest extends TestCase
         ]);
     }
 
-    private function makeCustomer(int $index, bool $optIn, string $playerName, int $level): Customer
+    public function test_console_payloads_identity_spoofing_and_teleport_coords_in_lobby_are_blocked_or_clamped(): void
     {
+        $attacker = $this->makeCustomer(60, true, 'KleinerFunki', 1);
+        CustomerGamification::where('customer_id', $attacker->id)->update(['funken_total_earned' => 10, 'level' => 1]);
+        $observer = $this->makeCustomer(61, true, 'WachsameEule', 5);
+
+        $forbiddenPayloads = [
+            ['zone' => 'heroes', 'command' => 'give_all'],
+            ['zone' => 'heroes', 'cmd' => 'whoami'],
+            ['zone' => 'heroes', 'exec' => 'ls'],
+            ['zone' => 'heroes', 'eval' => '1+1'],
+            ['zone' => 'heroes', 'script' => '<script>alert(1)</script>'],
+            ['zone' => 'heroes', 'admin' => true],
+            ['zone' => 'heroes', 'is_admin' => 1],
+            ['zone' => 'heroes', 'god_mode' => true],
+            ['zone' => 'heroes', 'give_sparks' => 99999],
+            ['zone' => 'heroes', 'sparks' => 5000],
+            ['zone' => 'heroes', 'amount' => 5000],
+            ['zone' => 'heroes', 'teleport_all' => true],
+            ['zone' => 'heroes', 'set_level' => 10],
+            ['zone' => 'heroes', 'nested' => ['give_sparks' => 100]],
+            ['zone' => 'heroes', 'x' => '1e500'],
+            ['zone' => 'heroes', 'x' => ['array_injection']],
+        ];
+
+        foreach ($forbiddenPayloads as $badPayload) {
+            $this->actingAs($attacker, 'customer')
+                ->postJson('/funkenwerk-welt/lobby/join', $badPayload)
+                ->assertStatus(422)
+                ->assertJsonPath('ok', false)
+                ->assertJsonPath('error', 'forbidden_payload');
+        }
+
+        $spoofJoin = $this->actingAs($attacker, 'customer')
+            ->postJson('/funkenwerk-welt/lobby/join', [
+                'zone' => 'heroes',
+                'level' => 10,
+                'display_name' => 'FAKE_ADMIN_GOD',
+                'peer_id' => '000000000000',
+                'ship_class' => 'KLASSE S',
+                'x' => -999.0,
+                'y' => -50.0,
+                'z' => 250.0,
+                'emote' => '<script>xss</script>',
+                'ability_slot' => 99,
+            ]);
+
+        $spoofJoin->assertOk()
+            ->assertJsonPath('player.level', 1)
+            ->assertJsonPath('player.display_name', 'KleinerFunki')
+            ->assertJsonPath('player.ship_class', 'KLASSE C');
+        $this->assertNotSame('000000000000', $spoofJoin->json('player.peer_id'));
+
+        $obsJoin = $this->actingAs($observer, 'customer')
+            ->postJson('/funkenwerk-welt/lobby/join', ['zone' => 'heroes', 'x' => 0.0, 'z' => -25.0]);
+        $obsJoin->assertOk();
+
+        $attackerPeer = $obsJoin->json('peers.0');
+        $this->assertNotNull($attackerPeer);
+        $this->assertSame(1, $attackerPeer['level']);
+        $this->assertEquals(-32.0, $attackerPeer['x']);
+        $this->assertEquals(-0.5, $attackerPeer['y']);
+        $this->assertEquals(-14.0, $attackerPeer['z']);
+    }
+
+    public function test_three_step_sanctum_gate_enforces_login_paid_order_and_magic_activation_on_lobby_and_showroom(): void
+    {
+        SystemSetting::updateOrCreate(['key' => 'shop_is_live'], ['value' => 'true']);
+        SystemSetting::updateOrCreate(['key' => 'maintenance_mode'], ['value' => 'false']);
+        SystemSetting::updateOrCreate(['key' => 'shop_maintenance_mode'], ['value' => 'false']);
+        SystemSetting::updateOrCreate(['key' => 'showroom_multiplayer_enabled'], ['value' => '1']);
+
+        // (a) Gast -> Produkt-Lobby frei, Halle der Helden & Magma 403 'login_required'
+        Auth::guard('customer')->logout();
+        Auth::forgetGuards();
+
+        $this->getJson('/shop/showroom-data')
+            ->assertOk()
+            ->assertJsonPath('player.is_authenticated', false)
+            ->assertJsonPath('player.has_completed_order', false)
+            ->assertJsonPath('player.gamification_active', false)
+            ->assertJsonPath('player.can_enter_sanctums', false)
+            ->assertJsonPath('player.sanctum_block_reason', 'login_required')
+            ->assertJsonPath('player.login_url', '/login')
+            ->assertJsonPath('player.dashboard_url', '/dashboard');
+
+        $this->postJson('/funkenwerk-welt/lobby/join', ['zone' => 'gallery'])->assertOk();
+        $this->postJson('/funkenwerk-welt/lobby/join', ['zone' => 'heroes'])
+            ->assertStatus(403)
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('code', 'login_required');
+        $this->postJson('/funkenwerk-welt/lobby/join', ['zone' => 'lava'])
+            ->assertStatus(403)
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('code', 'login_required');
+
+        // (b) Eingeloggter Kunde OHNE bezahlte Bestellung (auch stornierte/unbezahlte Bestellung zaehlt nicht) -> 403 'order_required'
+        $noOrderCustomer = $this->makeCustomer(81, true, 'OhneBestellung', 2, false, true);
+        OrderOrder::create([
+            'order_number' => 'ORD-CANCELLED-81',
+            'customer_id' => $noOrderCustomer->id,
+            'email' => $noOrderCustomer->email,
+            'status' => 'cancelled',
+            'payment_status' => 'paid',
+            'subtotal_price' => 2990,
+            'tax_amount' => 477,
+            'shipping_price' => 0,
+            'total_price' => 2990,
+            'billing_address' => ['first_name' => 'Test', 'last_name' => 'Kunde'],
+            'shipping_address' => ['first_name' => 'Test', 'last_name' => 'Kunde'],
+        ]);
+
+        $this->actingAs($noOrderCustomer, 'customer')
+            ->getJson('/shop/showroom-data')
+            ->assertOk()
+            ->assertJsonPath('player.is_authenticated', true)
+            ->assertJsonPath('player.has_completed_order', false)
+            ->assertJsonPath('player.gamification_active', true)
+            ->assertJsonPath('player.can_enter_sanctums', false)
+            ->assertJsonPath('player.sanctum_block_reason', 'order_required')
+            ->assertJsonPath('player.login_url', '/login')
+            ->assertJsonPath('player.dashboard_url', '/dashboard');
+
+        // Produkt-Lobby bleibt fuer eingeloggten Kunden ohne Bestellung frei zugaenglich
+        $this->actingAs($noOrderCustomer, 'customer')
+            ->postJson('/funkenwerk-welt/lobby/join', ['zone' => 'gallery'])
+            ->assertOk()
+            ->assertJsonPath('zone', 'gallery');
+
+        // Showroom-Sync klemmt unberechtigten Zonenwechsel auf 'lobby'
+        $this->actingAs($noOrderCustomer, 'customer')
+            ->postJson('/shop/showroom-sync', ['x' => 0.0, 'y' => 0.0, 'z' => -40.0, 'zone' => 'heroes'])
+            ->assertOk()
+            ->assertJsonPath('zone', 'lobby')
+            ->assertJsonPath('sanctum_clamped', true)
+            ->assertJsonPath('can_enter_sanctums', false)
+            ->assertJsonPath('sanctum_block_reason', 'order_required');
+
+        foreach (['heroes', 'lava'] as $z) {
+            $this->actingAs($noOrderCustomer, 'customer')
+                ->postJson('/funkenwerk-welt/lobby/join', ['zone' => $z])
+                ->assertStatus(403)
+                ->assertJsonPath('success', false)
+                ->assertJsonPath('code', 'order_required');
+
+            $this->actingAs($noOrderCustomer, 'customer')
+                ->postJson('/funkenwerk-welt/lobby/sync', ['zone' => $z, 'x' => 0, 'z' => -20])
+                ->assertStatus(403)
+                ->assertJsonPath('success', false)
+                ->assertJsonPath('code', 'order_required');
+        }
+
+        $this->actingAs($noOrderCustomer, 'customer')
+            ->postJson('/funkenwerk-welt/lobby/switch', ['target_instance' => 1])
+            ->assertStatus(403)
+            ->assertJsonPath('code', 'order_required');
+
+        // (c) Kunde MIT bezahlter Bestellung, aber OHNE 'Magie aktivieren' (is_active = false) -> 403 'magic_activation_required'
+        $noMagicCustomer = $this->makeCustomer(82, false, 'OhneMagie', 1, true, false);
+
+        $this->actingAs($noMagicCustomer, 'customer')
+            ->getJson('/shop/showroom-data')
+            ->assertOk()
+            ->assertJsonPath('player.is_authenticated', true)
+            ->assertJsonPath('player.has_completed_order', true)
+            ->assertJsonPath('player.gamification_active', false)
+            ->assertJsonPath('player.can_enter_sanctums', false)
+            ->assertJsonPath('player.sanctum_block_reason', 'magic_activation_required');
+
+        $this->actingAs($noMagicCustomer, 'customer')
+            ->postJson('/shop/showroom-sync', ['x' => 0.0, 'y' => 0.0, 'z' => 5.0, 'zone' => 'lava'])
+            ->assertOk()
+            ->assertJsonPath('zone', 'lobby')
+            ->assertJsonPath('sanctum_clamped', true)
+            ->assertJsonPath('can_enter_sanctums', false)
+            ->assertJsonPath('sanctum_block_reason', 'magic_activation_required');
+
+        foreach (['heroes', 'lava'] as $z) {
+            $this->actingAs($noMagicCustomer, 'customer')
+                ->postJson('/funkenwerk-welt/lobby/join', ['zone' => $z])
+                ->assertStatus(403)
+                ->assertJsonPath('success', false)
+                ->assertJsonPath('code', 'magic_activation_required');
+        }
+
+        $this->actingAs($noMagicCustomer, 'customer')
+            ->postJson('/funkenwerk-welt/lobby/switch', ['target_instance' => 1])
+            ->assertStatus(403)
+            ->assertJsonPath('code', 'magic_activation_required');
+
+        // (d) Sobald Magie aktiviert wird (alle 3 Voraussetzungen erfuellt) -> 200 OK in Halle der Helden & Magma!
+        CustomerGamification::where('customer_id', $noMagicCustomer->id)->update(['is_active' => true]);
+
+        $this->actingAs($noMagicCustomer, 'customer')
+            ->getJson('/shop/showroom-data')
+            ->assertOk()
+            ->assertJsonPath('player.is_authenticated', true)
+            ->assertJsonPath('player.has_completed_order', true)
+            ->assertJsonPath('player.gamification_active', true)
+            ->assertJsonPath('player.can_enter_sanctums', true)
+            ->assertJsonPath('player.sanctum_block_reason', null);
+
+        $this->actingAs($noMagicCustomer, 'customer')
+            ->postJson('/funkenwerk-welt/lobby/join', ['zone' => 'heroes'])
+            ->assertOk()
+            ->assertJsonPath('ok', true)
+            ->assertJsonPath('zone', 'heroes');
+
+        $this->actingAs($noMagicCustomer, 'customer')
+            ->postJson('/funkenwerk-welt/lobby/join', ['zone' => 'lava'])
+            ->assertOk()
+            ->assertJsonPath('ok', true)
+            ->assertJsonPath('zone', 'lava');
+    }
+
+    private function makeCustomer(
+        int $index,
+        bool $optIn,
+        string $playerName,
+        int $level,
+        bool $withPaidOrder = true,
+        bool $gamificationActive = true
+    ): Customer {
         $customer = Customer::create([
             'id' => (string) Str::uuid(),
             'first_name' => 'Vorname' . $index,
@@ -504,7 +774,7 @@ class Customer3DLobbyInstancesTest extends TestCase
 
         CustomerGamification::create([
             'customer_id' => $customer->id,
-            'is_active' => true,
+            'is_active' => $gamificationActive,
             'ranking_opt_in' => $optIn,
             'use_real_name' => false,
             'player_name' => $playerName,
@@ -512,7 +782,34 @@ class Customer3DLobbyInstancesTest extends TestCase
             'funken_total_earned' => $level * 500,
         ]);
 
+        if ($withPaidOrder) {
+            $this->createPaidOrderForCustomer($customer, sprintf('ORD-LOBBY-%04d', $index));
+        }
+
         return $customer;
+    }
+
+    private function createPaidOrderForCustomer(Customer $customer, string $orderNumber): OrderOrder
+    {
+        return OrderOrder::create([
+            'order_number' => $orderNumber,
+            'customer_id' => $customer->id,
+            'email' => $customer->email,
+            'status' => 'completed',
+            'payment_status' => 'paid',
+            'subtotal_price' => 2990,
+            'tax_amount' => 477,
+            'shipping_price' => 0,
+            'total_price' => 2990,
+            'billing_address' => [
+                'first_name' => $customer->first_name,
+                'last_name' => $customer->last_name,
+            ],
+            'shipping_address' => [
+                'first_name' => $customer->first_name,
+                'last_name' => $customer->last_name,
+            ],
+        ]);
     }
 
     /**

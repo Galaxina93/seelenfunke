@@ -231,7 +231,7 @@ class GamificationService
 
     /**
      * Löst gesammelte Seelenfunken direkt in einen einmalig nutzbaren Rabatt-Gutschein ein:
-     * 60 Funken = 5 %, 150 Funken = 10 %, 350 Funken = 15 %
+     * 250 Funken = 5 %, 600 Funken = 10 %, 1.200 Funken = 15 %
      * Das Lebenszeit-Konto (funken_total_earned) und Funkis Level bleiben dabei vollständig erhalten!
      */
     public function redeemSparksForVoucher(Customer $customer, string $voucherKey): array
@@ -270,7 +270,7 @@ class GamificationService
                 $code = $prefix . '-' . $token;
             } while (MarketingVoucher::where('code', $code)->exists());
 
-            // Nur das auszugebende Guthaben reduzieren – Lebenszeit-Funken & Funki-Level bleiben erhalten!
+            // Nur das auszugebende Guthaben reduzieren; Lebenszeit-Funken & Funki-Level bleiben erhalten!
             $profile->funken_balance = max(0, (int) $profile->funken_balance - $cost);
 
             MarketingVoucher::create([
@@ -645,11 +645,7 @@ class GamificationService
                             }
                             $unusedVoucher->update(['is_active' => false]);
                             $unlocked = array_filter($unlocked, fn($c) => $c !== $unusedVoucher->code);
-                            $reclaimed = match ((int) $unusedVoucher->value) {
-                                15 => 750,
-                                10 => 500,
-                                default => 250,
-                            };
+                            $reclaimed = $this->resolveVoucherSparkCostByPercent((int) $unusedVoucher->value);
                             $deficit = max(0, $deficit - $reclaimed);
                         }
                     }
@@ -826,11 +822,7 @@ class GamificationService
                             }
                             $unusedVoucher->update(['is_active' => false]);
                             $unlocked = array_filter($unlocked, fn($c) => $c !== $unusedVoucher->code);
-                            $reclaimed = match ((int) $unusedVoucher->value) {
-                                15 => 750,
-                                10 => 500,
-                                default => 250,
-                            };
+                            $reclaimed = $this->resolveVoucherSparkCostByPercent((int) $unusedVoucher->value);
                             $deficit = max(0, $deficit - $reclaimed);
                         }
                     }
@@ -1068,7 +1060,9 @@ class GamificationService
             }
         }
 
-        $profile->update($updatePayload);
+        CustomerGamification::withoutTimestamps(function () use ($profile, $updatePayload) {
+            $profile->update($updatePayload);
+        });
     }
 
     public function evaluateTitles(CustomerGamification $profile): array
@@ -1493,7 +1487,8 @@ class GamificationService
             ->whereHas('customer')
             ->orderByDesc('funken_total_earned')
             ->orderByDesc('level')
-            ->orderBy('id');
+            ->orderBy('updated_at', 'asc')
+            ->orderBy('id', 'asc');
 
         $total = (int) (clone $baseQuery)->count();
         $lastPage = max(1, (int) ceil($total / $perPage));
@@ -1534,6 +1529,18 @@ class GamificationService
             $progress[$key] = 0;
         }
         return $progress;
+    }
+
+    private function resolveVoucherSparkCostByPercent(int $percentValue): int
+    {
+        $vouchers = GameConfig::getRedeemableVouchers();
+        foreach ($vouchers as $cfg) {
+            if ((int) ($cfg['percent'] ?? $cfg['value'] ?? 0) === $percentValue) {
+                return (int) $cfg['cost_sparks'];
+            }
+        }
+
+        return (int) ($vouchers['voucher_5']['cost_sparks'] ?? 250);
     }
 
     public const ANNUAL_BIRTHDAY_SPARKS = 50;

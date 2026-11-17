@@ -192,4 +192,52 @@ class DigitalOrderProcessTest extends TestCase
 
         $this->assertNotNull(OrderOrder::latest()->first());
     }
+
+    public function test_checkout_countries_are_strictly_coupled_to_active_shipping_zones_even_for_digital_cart()
+    {
+        Session::start();
+
+        $zone = \App\Models\Logistics\LogisticsShippingZone::create([
+            'name' => 'Deutschland & Österreich',
+            'is_active' => true,
+        ]);
+        \App\Models\Logistics\LogisticsShippingZoneCountry::create([
+            'logistics_shipping_zone_id' => $zone->id,
+            'country_code' => 'DE',
+        ]);
+        \App\Models\Logistics\LogisticsShippingZoneCountry::create([
+            'logistics_shipping_zone_id' => $zone->id,
+            'country_code' => 'AT',
+        ]);
+        \Illuminate\Support\Facades\Cache::forget('global_shop_settings');
+
+        $digitalProduct = Product::where('type', 'digital')->firstOrFail();
+        $cart = Cart::create(['session_id' => Session::getId()]);
+        $cart->items()->create([
+            'product_id' => $digitalProduct->id,
+            'quantity' => 1,
+            'unit_price' => $digitalProduct->price,
+            'total_price' => $digitalProduct->price,
+        ]);
+
+        $component = new Checkout();
+        $allowed = $component->resolveAllowedCheckoutCountries($cart);
+
+        $this->assertSame(['DE', 'AT'], array_keys($allowed));
+        $this->assertArrayNotHasKey('US', $allowed);
+
+        Livewire::test(Checkout::class)
+            ->set('email', 'non-zone@kunde.de')
+            ->set('first_name', 'Max')
+            ->set('last_name', 'Mustermann')
+            ->set('address', 'Teststraße 123')
+            ->set('city', 'Musterstadt')
+            ->set('postal_code', '12345')
+            ->set('country', 'US')
+            ->set('terms_accepted', true)
+            ->set('privacy_accepted', true)
+            ->set('digital_waiver_accepted', true)
+            ->call('validateAndCreateOrder')
+            ->assertHasErrors(['country']);
+    }
 }

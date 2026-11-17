@@ -40,7 +40,7 @@
                         Um Ihr Widerrufsrecht auszuüben, müssen Sie uns:
                     </p>
                     <div class="p-4 rounded-xl bg-gray-50 border border-gray-200 font-medium text-gray-900">
-                        {{ $companyName }} – Inh. {{ $ownerName }}<br>
+                        {{ $companyName }}, Inh. {{ $ownerName }}<br>
                         {{ $street }}, {{ $zip }} {{ $city }}, Deutschland<br>
                         E-Mail: <a href="mailto:{{ $email }}" class="text-primary underline">{{ $email }}</a><br>
                         Telefon: {{ $phone }}
@@ -57,6 +57,9 @@
                     </p>
                     <p>
                         Wir können die Rückzahlung verweigern, bis wir die Waren wieder zurückerhalten haben oder bis Sie den Nachweis erbracht haben, dass Sie die Waren zurückgesandt haben, je nachdem, welches der frühere Zeitpunkt ist. Sie haben die Waren unverzüglich und in jedem Fall spätestens binnen vierzehn Tagen ab dem Tag, an dem Sie uns über den Widerruf dieses Vertrags unterrichten, an uns zurückzusenden oder zu übergeben. Die Frist ist gewahrt, wenn Sie die Waren vor Ablauf der Frist von vierzehn Tagen absenden. Sie tragen die unmittelbaren Kosten der Rücksendung der Waren. Sie müssen für einen etwaigen Wertverlust der Waren nur aufkommen, wenn dieser Wertverlust auf einen zur Prüfung der Beschaffenheit, Eigenschaften und Funktionsweise der Waren nicht notwendigen Umgang mit ihnen zurückzuführen ist (§ 357a Abs. 1 BGB).
+                    </p>
+                    <p class="p-3.5 rounded-xl bg-gray-50 border border-gray-200 text-xs sm:text-sm text-gray-700 leading-relaxed">
+                        <strong>Ergänzender Hinweis zum kostenfreien Seelenfunken-Treueprogramm:</strong> Sofern Ihrem Kundenkonto für die widerrufene Bestellung unentgeltliche Treuepunkte („Seelenfunken“) gutgeschrieben wurden, werden diese bei einem vollständigen Vertrags-Widerruf automatisch wieder mit Ihrem Punktekonto verrechnet (noch ungenutzte, hieraus freigeschaltete Rabattcodes werden entsprechend deaktiviert). Ebenso entfällt ein ausschließlich durch diese Bestellung ausgelöstes unentgeltliches Stammkunden-Privileg (wie der „Manufaktur-Meisterschlüssel“ für die Stufen 6 bis 10 des 3D-Magma-Spiels in der 3D-Lobby gemäß <a href="{{ route('agb') }}#agb-gamification" class="text-primary underline">§ 8 Abs. 4 AGB</a>), sofern keine weitere bezahlte und bestandskräftige Bestellung in Ihrem Kundenkonto besteht. Ihr gesetzlicher Anspruch auf vollständige Kaufpreiserstattung bleibt hiervon selbstverständlich uneingeschränkt unberührt.
                     </p>
                 </div>
 
@@ -75,12 +78,12 @@
                     <p class="text-xs text-gray-500 italic">(Wenn Sie den Vertrag widerrufen wollen, dann füllen Sie bitte dieses Formular aus und senden Sie es zurück oder nutzen Sie unser elektronisches Formular oben auf dieser Seite.)</p>
                     <div class="p-4 rounded-xl bg-gray-50 border border-gray-200 text-xs sm:text-sm space-y-1.5 font-mono text-gray-800">
                         <p>An: {{ $companyName }}, Inh. {{ $ownerName }}, {{ $street }}, {{ $zip }} {{ $city }}, Telefon: {{ $phone }}, E-Mail: {{ $email }}</p>
-                        <p>— Hiermit widerrufe(n) ich/wir (*) den von mir/uns (*) abgeschlossenen Vertrag über den Kauf der folgenden Waren (*) / die Erbringung der folgenden Dienstleistung (*)</p>
-                        <p>— Bestellt am (*) / erhalten am (*)</p>
-                        <p>— Name des/der Verbraucher(s)</p>
-                        <p>— Anschrift des/der Verbraucher(s)</p>
-                        <p>— Unterschrift des/der Verbraucher(s) (nur bei Mitteilung auf Papier)</p>
-                        <p>— Datum</p>
+                        <p>• Hiermit widerrufe(n) ich/wir (*) den von mir/uns (*) abgeschlossenen Vertrag über den Kauf der folgenden Waren (*) / die Erbringung der folgenden Dienstleistung (*)</p>
+                        <p>• Bestellt am (*) / erhalten am (*)</p>
+                        <p>• Name des/der Verbraucher(s)</p>
+                        <p>• Anschrift des/der Verbraucher(s)</p>
+                        <p>• Unterschrift des/der Verbraucher(s) (nur bei Mitteilung auf Papier)</p>
+                        <p>• Datum</p>
                         <p class="text-[11px] text-gray-500 pt-1">(*) Unzutreffendes streichen.</p>
                     </div>
                 </div>

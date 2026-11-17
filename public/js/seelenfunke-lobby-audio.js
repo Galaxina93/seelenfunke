@@ -903,36 +903,273 @@ export class SeelenfunkeLobbyAudio {
         });
     }
 
+    playChestWobble() {
+        if (!this._canPlaySfx()) return;
+        // Sattes, warm-gedaempftes Truhen-Wackeln (~0.55s Antizipation, 0 schrille Hoehen)
+        const offsets = [0.0, 0.105, 0.21, 0.315, 0.42];
+        for (let i = 0; i < offsets.length; i++) {
+            const d = offsets[i];
+            const accent = (i % 2 === 0) ? 1.08 : 0.94;
+            this._triggerMatteTone({
+                type: 'triangle',
+                freqStart: 138 * accent,
+                freqEnd: 64 * accent,
+                duration: 0.085,
+                gain: 0.22 - i * 0.015,
+                cutoff: 390,
+                delay: d,
+            });
+            this._triggerMatteTone({
+                type: 'sine',
+                freqStart: 248 * accent,
+                freqEnd: 142 * accent,
+                duration: 0.05,
+                gain: 0.09,
+                cutoff: 580,
+                delay: d + 0.015,
+            });
+        }
+        this._triggerMatteWhoosh({
+            duration: 0.48,
+            gain: 0.14,
+            filterType: 'lowpass',
+            freqStart: 280,
+            freqEnd: 150,
+            q: 0.75,
+        });
+    }
+
+    playChestBurstOpen() {
+        if (!this._canPlaySfx()) return;
+        // Warmer matter Explosions- und Oeffnungs-Klang der Belohnungstruhe
+        this._triggerMatteTone({
+            type: 'sine',
+            freqStart: 92,
+            freqEnd: 35,
+            duration: 0.46,
+            gain: 0.42,
+            cutoff: 250,
+        });
+        this._triggerMatteTone({
+            type: 'triangle',
+            freqStart: 146.83,
+            freqEnd: 58,
+            duration: 0.30,
+            gain: 0.28,
+            cutoff: 430,
+        });
+        this._triggerMatteWhoosh({
+            duration: 0.48,
+            gain: 0.36,
+            filterType: 'lowpass',
+            freqStart: 540,
+            freqEnd: 130,
+            q: 0.85,
+        });
+        this.playChestOpenFanfare();
+    }
+
     playChestOpenFanfare() {
         if (!this._canPlaySfx()) return;
-        // Warmer G-Dur Celesta-Gold-Akkord (G4, H4, D5, G5) mit sanftem Tiefpass
-        const notes = [392.00, 493.88, 587.33, 783.99];
+        // Edler, tiefpassgefilterter Dunkelgold-Akkord (G3, D4, G4, A4, D5) ohne schrille Spitzen
+        const notes = [196.00, 293.66, 392.00, 440.00, 587.33];
         for (let i = 0; i < notes.length; i++) {
             const f = notes[i];
-            const d = i * 0.085;
+            const d = 0.04 + i * 0.075;
             this._triggerMatteTone({
                 type: 'sine',
                 freqStart: f,
                 freqEnd: f * 0.998,
-                duration: 0.68,
-                gain: 0.20 - i * 0.02,
-                cutoff: 1850,
+                duration: 0.72,
+                gain: 0.17 - i * 0.018,
+                cutoff: 1180,
                 delay: d,
             });
             this._triggerMatteTone({
                 type: 'triangle',
                 freqStart: f * 0.5,
                 freqEnd: f * 0.5,
-                duration: 0.55,
-                gain: 0.08,
-                cutoff: 920,
+                duration: 0.58,
+                gain: 0.085,
+                cutoff: 680,
                 delay: d,
             });
         }
     }
 
+    playSparkCollect(stepIndex = 0) {
+        if (!this._canPlaySfx()) return;
+        const now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+        if (this._lastSparkCollectAt && (now - this._lastSparkCollectAt) < 42) {
+            return;
+        }
+        this._lastSparkCollectAt = now;
+
+        // Sanftes, samtig-mattes Einsammel-Klingen der Boden-Funken (warme Pentatonik, tiefpassgefiltert)
+        const scale = [293.66, 329.63, 392.00, 440.00, 523.25, 587.33];
+        const idx = Math.abs(Math.round(Number(stepIndex) || 0)) % scale.length;
+        const baseFreq = scale[idx];
+
+        this._triggerMatteTone({
+            type: 'sine',
+            freqStart: baseFreq,
+            freqEnd: baseFreq * 1.012,
+            duration: 0.24,
+            gain: 0.12,
+            cutoff: 1040,
+        });
+        this._triggerMatteTone({
+            type: 'triangle',
+            freqStart: baseFreq * 0.5,
+            freqEnd: baseFreq * 0.5,
+            duration: 0.19,
+            gain: 0.065,
+            cutoff: 620,
+            delay: 0.012,
+        });
+    }
+
+    playTeleporter() {
+        if (!this._canPlaySfx()) return;
+        // Tiefer, weich gefilterter Sub-Impuls + edle dunkle Kristall-Resonanz beim Portal-/Raumwechsel
+        this._triggerMatteTone({
+            type: 'sine',
+            freqStart: 64,
+            freqEnd: 34,
+            duration: 0.56,
+            gain: 0.38,
+            cutoff: 210,
+        });
+        this._triggerMatteWhoosh({
+            duration: 0.54,
+            gain: 0.28,
+            filterType: 'bandpass',
+            freqStart: 165,
+            freqEnd: 410,
+            q: 1.05,
+        });
+        this._triggerMatteTone({
+            type: 'sine',
+            freqStart: 196.00,
+            freqEnd: 194.50,
+            duration: 0.62,
+            gain: 0.14,
+            cutoff: 740,
+            delay: 0.04,
+        });
+        this._triggerMatteTone({
+            type: 'triangle',
+            freqStart: 293.66,
+            freqEnd: 292.00,
+            duration: 0.58,
+            gain: 0.10,
+            cutoff: 820,
+            delay: 0.09,
+        });
+    }
+
+    playPortalPass() {
+        this.playTeleporter();
+    }
+
+    playGateLocked() {
+        if (!this._canPlaySfx()) return;
+        const now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+        if (this._lastGateLockedAt && (now - this._lastGateLockedAt) < 420) return;
+        this._lastGateLockedAt = now;
+
+        // Schweres mattes Manufaktur-Vorhaengeschloss
+        this._triggerMatteTone({
+            type: 'triangle',
+            freqStart: 92,
+            freqEnd: 48,
+            duration: 0.18,
+            gain: 0.26,
+            cutoff: 340,
+        });
+        this._triggerMatteTone({
+            type: 'sine',
+            freqStart: 168,
+            freqEnd: 112,
+            duration: 0.12,
+            gain: 0.14,
+            cutoff: 520,
+            delay: 0.055,
+        });
+    }
+
+    playEpicGateOpen() {
+        if (!this._canPlaySfx()) return;
+        // Monumentales Obsidian-Gold-Tor schwingt schwer und majestätisch auf
+        this._triggerMatteTone({
+            type: 'sine',
+            freqStart: 54,
+            freqEnd: 32,
+            duration: 0.85,
+            gain: 0.40,
+            cutoff: 190,
+        });
+        this._triggerMatteWhoosh({
+            duration: 0.82,
+            gain: 0.30,
+            filterType: 'lowpass',
+            freqStart: 240,
+            freqEnd: 95,
+            q: 0.9,
+        });
+        this._triggerMatteTone({
+            type: 'triangle',
+            freqStart: 146.83,
+            freqEnd: 220.00,
+            duration: 0.70,
+            gain: 0.15,
+            cutoff: 680,
+            delay: 0.10,
+        });
+    }
+
+    playUpdraftWhoosh() {
+        if (!this._canPlaySfx()) return;
+        const now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+        if (this._lastUpdraftAt && (now - this._lastUpdraftAt) < 480) return;
+        this._lastUpdraftAt = now;
+
+        this._triggerMatteWhoosh({
+            duration: 0.42,
+            gain: 0.22,
+            filterType: 'bandpass',
+            freqStart: 150,
+            freqEnd: 360,
+            q: 0.95,
+        });
+        this._triggerMatteTone({
+            type: 'sine',
+            freqStart: 110,
+            freqEnd: 196,
+            duration: 0.34,
+            gain: 0.14,
+            cutoff: 560,
+        });
+    }
+
+    playShieldDeflect() {
+        if (!this._canPlaySfx()) return;
+        const now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+        if (this._lastShieldDeflectAt && (now - this._lastShieldDeflectAt) < 360) return;
+        this._lastShieldDeflectAt = now;
+
+        this._triggerMatteTone({
+            type: 'sine',
+            freqStart: 164.81,
+            freqEnd: 98.00,
+            duration: 0.24,
+            gain: 0.22,
+            cutoff: 640,
+        });
+    }
+
     updateLavaAmbience(distanceMeters, active = true) {
-        const shouldRun = Boolean(active) && this._canPlaySfx() && distanceMeters < 24.0;
+        const shouldRun = Boolean(active) && this._canPlaySfx() && distanceMeters < 32.0;
         if (!shouldRun) {
             if (this._lavaRumblerNodes && this._ctx) {
                 try {
@@ -960,8 +1197,8 @@ export class SeelenfunkeLobbyAudio {
             return;
         }
 
-        const proximity = clampNum(1.0 - (distanceMeters / 24.0), 0, 1);
-        const targetGain = 0.002 + proximity * proximity * 0.075;
+        const proximity = clampNum(1.0 - (distanceMeters / 32.0), 0, 1);
+        const targetGain = 0.003 + proximity * proximity * 0.072;
 
         if (!this._lavaRumblerNodes && this._warmNoiseBuffer && this._masterSfxGain) {
             try {
@@ -971,15 +1208,15 @@ export class SeelenfunkeLobbyAudio {
 
                 const subOsc = this._ctx.createOscillator();
                 subOsc.type = 'sine';
-                subOsc.frequency.value = 46;
+                subOsc.frequency.value = 42;
 
                 const subGain = this._ctx.createGain();
-                subGain.gain.value = 0.35;
+                subGain.gain.value = 0.38;
 
                 const filter = this._ctx.createBiquadFilter();
                 filter.type = 'lowpass';
-                filter.frequency.value = 112;
-                filter.Q.value = 0.8;
+                filter.frequency.value = 96;
+                filter.Q.value = 0.78;
 
                 const gain = this._ctx.createGain();
                 gain.gain.value = 0.0001;

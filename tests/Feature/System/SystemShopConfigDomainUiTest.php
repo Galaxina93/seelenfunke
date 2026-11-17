@@ -23,7 +23,6 @@ class SystemShopConfigDomainUiTest extends TestCase
         ]);
 
         SystemSetting::updateOrCreate(['key' => 'shop_is_live'], ['value' => 'false']);
-        SystemSetting::updateOrCreate(['key' => 'digital_domain_is_live'], ['value' => 'false']);
         SystemSetting::updateOrCreate(['key' => 'maintenance_mode'], ['value' => 'false']);
         SystemSetting::updateOrCreate(['key' => 'showroom_multiplayer_enabled'], ['value' => 'true']);
     }
@@ -37,25 +36,23 @@ class SystemShopConfigDomainUiTest extends TestCase
 
         // 1. Klare Trennung: Shop-Domains & Livegang-Status als eigene Karte
         $this->assertStringContainsString('Shop-Domains &amp; Livegang-Status', $html);
-        $this->assertStringContainsString('2-Kanal-Architektur', $html);
+        $this->assertStringContainsString('2-Stufen-Schutz', $html);
 
-        // 2. Personalisierter Shop auf mein-seelenfunke.de
+        // 2. Personalisierter Shop auf mein-seelenfunke.de (ohne digital.mein-seelenfunke.de)
         $this->assertStringContainsString('mein-seelenfunke.de', $html);
         $this->assertStringContainsString('Personalisierter Shop (Live-Freigabe)', $html);
+        $this->assertStringNotContainsString('digital.mein-seelenfunke.de', $html);
+        $this->assertStringNotContainsString('Digitaler Shop (Live-Freigabe)', $html);
 
-        // 3. Digitaler Shop auf digital.mein-seelenfunke.de
-        $this->assertStringContainsString('digital.mein-seelenfunke.de', $html);
-        $this->assertStringContainsString('Digitaler Shop (Live-Freigabe)', $html);
-
-        // 4. Globaler Wartungsmodus (Alle Domains)
+        // 3. Globaler Wartungsmodus (Alle Domains)
         $this->assertStringContainsString('Alle Domains', $html);
         $this->assertStringContainsString('Wartungsmodus (HTTP 503)', $html);
 
-        // 5. 3D-Showroom Mehrspielermodus
+        // 4. 3D-Showroom Mehrspielermodus
         $this->assertStringContainsString('3D-Welt', $html);
         $this->assertStringContainsString('3D-Multiplayer (12er-Räume &amp; Chat)', $html);
 
-        // 6. Getrennte Karte für Steuern & Finanzen
+        // 5. Getrennte Karte für Steuern & Finanzen
         $this->assertStringContainsString('Steuern &amp; Finanzen (§ 19 UStG &amp; MwSt-Sätze)', $html);
         $this->assertStringContainsString('Kleinunternehmerregelung', $html);
     }
@@ -66,13 +63,10 @@ class SystemShopConfigDomainUiTest extends TestCase
             ->test(\App\Livewire\Shop\System\SystemShopConfig::class)
             ->call('toggleShopIsLive')
             ->assertSet('shop_is_live', true)
-            ->call('toggleDigitalDomainIsLive')
-            ->assertSet('digital_domain_is_live', true)
             ->call('toggleMaintenanceMode')
             ->assertSet('settings.maintenance_mode', true);
 
         $this->assertEquals('true', SystemSetting::where('key', 'shop_is_live')->value('value'));
-        $this->assertEquals('true', SystemSetting::where('key', 'digital_domain_is_live')->value('value'));
         $this->assertEquals('true', SystemSetting::where('key', 'maintenance_mode')->value('value'));
     }
 }

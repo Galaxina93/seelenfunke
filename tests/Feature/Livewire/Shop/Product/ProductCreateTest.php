@@ -185,6 +185,7 @@ class ProductCreateTest extends TestCase
         $this->assertEquals(45, $product->laser_runtime_minutes);
         $this->assertEquals(250, $product->packaging_cost);
         $this->assertEquals(10, $product->quantity);
+        $this->assertFalse((bool) ($product->media_gallery[0]['is_ai_generated'] ?? true));
     }
 
     #[Test]
@@ -823,16 +824,16 @@ class ProductCreateTest extends TestCase
         Storage::disk('public')->assertExists($customWinterPath);
         Storage::disk('public')->assertExists($customSeasonalPath);
 
-        // ProductTemplate for Weihnachten is automatically synchronized
+        // ProductTemplate for Weihnachten is automatically synchronized (default is_ai_generated = false on upload)
         $this->assertSame($customSeasonalPath, $xmasTemplate->fresh()->preview_image);
-        $this->assertTrue((bool) $xmasTemplate->fresh()->is_ai_generated);
+        $this->assertFalse((bool) $xmasTemplate->fresh()->is_ai_generated);
 
         $resolvedWinter = $freshAfterUpload->resolveMainImageMeta('Winter', true);
         $this->assertSame($customWinterPath, $resolvedWinter['path']);
 
         $resolvedXmas = $freshAfterUpload->resolveMainImageMeta('Weihnachten', true);
         $this->assertSame($customSeasonalPath, $resolvedXmas['path']);
-        $this->assertTrue($resolvedXmas['is_ai_generated']);
+        $this->assertFalse($resolvedXmas['is_ai_generated']);
 
         $partialSetStatus = $freshAfterUpload->getSeasonalImageSetStatus();
         $this->assertFalse($partialSetStatus['is_complete']);
@@ -852,8 +853,8 @@ class ProductCreateTest extends TestCase
 
         // 5. Toggle AI flag and remove custom seasonal images (verifying physical deletion + template reset)
         $component->call('toggleSeasonalImageAiGenerated', 'Weihnachten');
-        $this->assertFalse((bool) ($product->fresh()->configurator_settings['seasonal_images']['Weihnachten']['is_ai_generated'] ?? true));
-        $this->assertFalse((bool) $xmasTemplate->fresh()->is_ai_generated);
+        $this->assertTrue((bool) ($product->fresh()->configurator_settings['seasonal_images']['Weihnachten']['is_ai_generated'] ?? false));
+        $this->assertTrue((bool) $xmasTemplate->fresh()->is_ai_generated);
 
         $component->call('removeSeasonalMainImage', 'Weihnachten');
         $this->assertArrayNotHasKey('Weihnachten', $product->fresh()->configurator_settings['seasonal_images'] ?? []);

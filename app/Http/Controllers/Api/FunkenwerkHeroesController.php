@@ -36,6 +36,7 @@ class FunkenwerkHeroesController extends Controller
         $loggedInCustomer = Auth::guard('customer')->user();
         $customerLoggedIn = $loggedInCustomer !== null;
         $customerOptIn = false;
+        $sanctumAccess = LobbyInstanceService::evaluateSanctumAccess($loggedInCustomer instanceof Customer ? $loggedInCustomer : null);
 
         if ($loggedInCustomer && Schema::hasTable('customer_gamifications')) {
             $ownProfile = CustomerGamification::where('customer_id', $loggedInCustomer->id)->first();
@@ -51,26 +52,31 @@ class FunkenwerkHeroesController extends Controller
                 'my_hero_slot' => null,
                 'customer_logged_in' => $customerLoggedIn,
                 'customer_opt_in' => false,
+                'has_completed_order' => $sanctumAccess['has_completed_order'],
+                'gamification_active' => false,
+                'can_enter_heroes' => false,
+                'can_enter_sanctums' => false,
+                'sanctum_block_reason' => $sanctumAccess['sanctum_block_reason'],
+                'login_url' => $sanctumAccess['login_url'],
+                'dashboard_url' => $sanctumAccess['dashboard_url'],
                 'level_models' => $levelModels,
                 'heroes' => $this->padEmptyHeroSlots([], 10),
             ], 200, $this->securityHeaders());
         }
 
         $query = CustomerGamification::with(['customer:id,first_name,last_name'])
-            ->where('ranking_opt_in', true)
             ->where('is_active', true)
-            ->whereHas('customer')
-            ->orderByDesc('level');
+            ->where('ranking_opt_in', true)
+            ->whereHas('customer');
 
-        if (Schema::hasColumn('customer_gamifications', 'galactic_conquest_points')) {
-            $query->orderByDesc('galactic_conquest_points');
-        }
         if (Schema::hasColumn('customer_gamifications', 'funken_total_earned')) {
             $query->orderByDesc('funken_total_earned');
         }
 
         $profiles = $query
+            ->orderByDesc('level')
             ->orderBy('updated_at', 'asc')
+            ->orderBy('id', 'asc')
             ->limit(500)
             ->get();
 
@@ -142,6 +148,13 @@ class FunkenwerkHeroesController extends Controller
             'my_hero_slot' => $myHeroSlot,
             'customer_logged_in' => $customerLoggedIn,
             'customer_opt_in' => $customerOptIn,
+            'has_completed_order' => $sanctumAccess['has_completed_order'],
+            'gamification_active' => $sanctumAccess['gamification_active'],
+            'can_enter_heroes' => $sanctumAccess['can_enter_sanctums'],
+            'can_enter_sanctums' => $sanctumAccess['can_enter_sanctums'],
+            'sanctum_block_reason' => $sanctumAccess['sanctum_block_reason'],
+            'login_url' => $sanctumAccess['login_url'],
+            'dashboard_url' => $sanctumAccess['dashboard_url'],
             'level_models' => $levelModels,
             'heroes' => $heroes,
         ], 200, $this->securityHeaders());

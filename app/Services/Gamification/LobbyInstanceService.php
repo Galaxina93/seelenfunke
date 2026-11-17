@@ -5,6 +5,7 @@ namespace App\Services\Gamification;
 use App\Models\Admin\Admin;
 use App\Models\Customer\Customer;
 use App\Models\Customer\CustomerGamification;
+use App\Models\Order\OrderOrder;
 use App\Services\System\SystemSecurityService;
 use Closure;
 use Illuminate\Contracts\Cache\LockProvider;
@@ -32,7 +33,6 @@ class LobbyInstanceService
     public const SOLO_ZONES = [
         'gallery',
         'lava',
-        'labyrinth',
     ];
 
     /**
@@ -41,6 +41,16 @@ class LobbyInstanceService
      * @var array<int, string>
      */
     public const MULTIPLAYER_ZONES = [
+        'heroes',
+    ];
+
+    /**
+     * Zonen, die serverseitig strikt nur fuer eingeloggte Nutzer zugaenglich sind.
+     *
+     * @var array<int, string>
+     */
+    public const AUTH_REQUIRED_ZONES = [
+        'lava',
         'heroes',
     ];
 
@@ -253,15 +263,20 @@ class LobbyInstanceService
             'daily_reward',
         ]);
 
+        $isLavaParkourEndpoint = str_contains($endpoint, 'lava-parkour');
         $forgedMatched = [];
         foreach ($authorityCheckKeys as $key) {
-            if (array_key_exists($key, $rawInput)) {
-                $forgedMatched[] = $key;
+            if (!array_key_exists($key, $rawInput)) {
+                continue;
             }
+            if ($key === 'level' && $isLavaParkourEndpoint && self::isValidFiniteNumeric($rawInput['level'])) {
+                continue;
+            }
+            $forgedMatched[] = $key;
         }
 
         $coordFlags = [];
-        foreach (['x', 'y', 'z', 'rot_y', 'rotY'] as $coordKey) {
+        foreach (['x', 'y', 'z', 'rel_x', 'rel_y', 'rel_z', 'rot_y', 'rotY'] as $coordKey) {
             if (!array_key_exists($coordKey, $rawInput) || $rawInput[$coordKey] === null || $rawInput[$coordKey] === '') {
                 continue;
             }
@@ -420,6 +435,135 @@ class LobbyInstanceService
         return !in_array($zone, self::MULTIPLAYER_ZONES, true);
     }
 
+    public static function isAuthRequiredZone(mixed $rawZone): bool
+    {
+        if (!is_string($rawZone)) {
+            return false;
+        }
+
+        return in_array(strtolower(trim($rawZone)), self::AUTH_REQUIRED_ZONES, true);
+    }
+
+    /**
+     * Prueft zentral die 3 verbindlichen Voraussetzungen fuer die Halle der Helden ('heroes')
+     * und das gesamte Magma-Level ('lava', Stufen 1 bis 10 inkl. Truhe):
+     * 1. Eingeloggter Kunde (login_required)
+     * 2. Mindestens eine bezahlte, nicht stornierte/erstattete Bestellung (order_required)
+     * 3. Seelenfunken-Magie aktiviert (magic_activation_required)
+     *
+     * @return array{
+     *     is_authenticated: bool,
+     *     has_completed_order: bool,
+     *     gamification_active: bool,
+     *     can_enter_sanctums: bool,
+     *     sanctum_block_reason: ?string,
+     *     login_url: string,
+     *     dashboard_url: string,
+     *     message: ?string
+     * }
+     */
+    public static function evaluateSanctumAccess(?Customer $customer): array
+    {
+        $loginUrl = '/login';
+        $dashboardUrl = '/dashboard';
+
+        if ($customer === null) {
+            return [
+                'is_authenticated' => false,
+                'has_completed_order' => false,
+                'gamification_active' => false,
+                'can_enter_sanctums' => false,
+                'sanctum_block_reason' => 'login_required',
+                'login_url' => $loginUrl,
+                'dashboard_url' => $dashboardUrl,
+                'message' => 'Bitte melde dich an, um die Halle der Helden oder das Magma-Level zu betreten.',
+            ];
+        }
+
+        $hasCompletedOrder = Schema::hasTable('order_orders')
+            && OrderOrder::where('customer_id', $customer->id)
+                ->where('payment_status', 'paid')
+                ->whereNotIn('status', ['cancelled', 'refunded'])
+                ->exists();
+
+        $gamificationActive = Schema::hasTable('customer_gamifications')
+            && CustomerGamification::where('customer_id', $customer->id)
+                ->where('is_active', true)
+                ->exists();
+
+        $canEnterSanctums = $hasCompletedOrder && $gamificationActive;
+        $blockReason = null;
+        $message = null;
+
+        if (!$hasCompletedOrder) {
+            $blockReason = 'order_required';
+            $message = 'Ab deiner ersten abgeschlossenen Bestellung schaltest du die Halle der Helden und das Magma-Level frei.';
+        } elseif (!$gamificationActive) {
+            $blockReason = 'magic_activation_required';
+            $message = 'Bitte führe im Kundenbereich zuerst Magie aktivieren aus, um die Halle der Helden und das Magma-Level zu betreten.';
+        }
+
+        return [
+            'is_authenticated' => true,
+            'has_completed_order' => $hasCompletedOrder,
+            'gamification_active' => $gamificationActive,
+            'can_enter_sanctums' => $canEnterSanctums,
+            'sanctum_block_reason' => $blockReason,
+            'login_url' => $loginUrl,
+            'dashboard_url' => $dashboardUrl,
+            'message' => $message,
+        ];
+    }
+
+    /**
+     * Prueft fuer geschuetzte Zonen ('lava' oder 'heroes') alle 3 Voraussetzungen.
+     * Die Produkt-Lobby ('gallery' / 'lobby') bleibt fuer alle Besucher frei zugaenglich.
+     *
+     * @return array{status: int, body: array<string, mixed>}|null
+     */
+    public function checkZoneSanctumRestriction(?Customer $customer, mixed $rawZone, bool $isAdmin = false): ?array
+    {
+        if ($isAdmin || !self::isAuthRequiredZone($rawZone)) {
+            return null;
+        }
+
+        $access = self::evaluateSanctumAccess($customer);
+        if ($access['can_enter_sanctums']) {
+            return null;
+        }
+
+        $zone = strtolower(trim((string) $rawZone));
+
+        return [
+            'status' => 403,
+            'body' => [
+                'ok' => false,
+                'success' => false,
+                'authenticated' => $access['is_authenticated'],
+                'guest' => !$access['is_authenticated'],
+                'code' => $access['sanctum_block_reason'],
+                'sanctum_block_reason' => $access['sanctum_block_reason'],
+                'has_completed_order' => $access['has_completed_order'],
+                'gamification_active' => $access['gamification_active'],
+                'can_enter_sanctums' => false,
+                'login_url' => $access['login_url'],
+                'dashboard_url' => $access['dashboard_url'],
+                'zone' => $zone,
+                'message' => (string) $access['message'],
+            ],
+        ];
+    }
+
+    /**
+     * Prueft fuer nicht eingeloggte Gaeste, ob eine geschuetzte Zone ('lava' oder 'heroes') angefragt wurde.
+     *
+     * @return array{status: int, body: array<string, mixed>}|null
+     */
+    public function checkGuestZoneRestriction(mixed $rawZone): ?array
+    {
+        return $this->checkZoneSanctumRestriction(null, $rawZone, false);
+    }
+
     /**
      * Ermittelt den aktuell authentifizierten Spieler (Customer oder Admin) strikt Zero-PII.
      * Gibt fuer Gaeste null zurueck.
@@ -488,7 +632,7 @@ class LobbyInstanceService
 
     /**
      * Bucht einen eingeloggten Spieler zonenabhaengig ein:
-     * - Solo-Zonen ('gallery', 'lava', 'labyrinth'): solo_mode = true, gibt ggf. belegten Heldenhallen-Slot frei.
+     * - Solo-Zonen ('gallery', 'lava'): solo_mode = true, gibt ggf. belegten Heldenhallen-Slot frei.
      * - Halle der Helden ('heroes'): Auto-Sharding < SOFT_CAP = 16 oder Wunsch-Instanz < HARD_CAP = 20.
      *
      * @param array<string, mixed> $actor
@@ -497,6 +641,14 @@ class LobbyInstanceService
      */
     public function join(array $actor, array $input = []): array
     {
+        if (empty($actor['peer_id']) || empty($actor['actor_key'])) {
+            if ($denied = $this->checkGuestZoneRestriction($input['zone'] ?? null)) {
+                return $denied['body'];
+            }
+
+            return $this->guestJoinPayload();
+        }
+
         $zone = self::normalizeZone($input['zone'] ?? null, 'gallery');
 
         if (self::isSoloZone($zone)) {
@@ -580,7 +732,7 @@ class LobbyInstanceService
 
     /**
      * Aktualisiert Position, Blickrichtung, Geschwindigkeit und Zone inkl. 25s Heartbeat-Verlaengerung.
-     * In Solo-Zonen ('gallery', 'lava', 'labyrinth') wird der Spieler sofort aus Heldenhallen-Instanzen ausgebucht.
+     * In Solo-Zonen ('gallery', 'lava') wird der Spieler sofort aus Heldenhallen-Instanzen ausgebucht.
      *
      * @param array<string, mixed> $actor
      * @param array<string, mixed> $input
@@ -588,6 +740,14 @@ class LobbyInstanceService
      */
     public function sync(array $actor, array $input = []): array
     {
+        if (empty($actor['peer_id']) || empty($actor['actor_key'])) {
+            if ($denied = $this->checkGuestZoneRestriction($input['zone'] ?? null)) {
+                return $denied['body'];
+            }
+
+            return $this->guestSyncPayload();
+        }
+
         $zone = self::normalizeZone($input['zone'] ?? null, 'gallery');
 
         if (self::isSoloZone($zone)) {
@@ -1048,19 +1208,12 @@ class LobbyInstanceService
             $minZ = -110.0;
             $maxZ = -14.0;
         } elseif ($zone === 'lava') {
-            $minX = 14.0;
-            $maxX = 85.0;
-            $minY = -2.0;
-            $maxY = 12.0;
-            $minZ = -18.0;
-            $maxZ = 18.0;
-        } elseif ($zone === 'labyrinth') {
-            $minX = -36.0;
-            $maxX = -12.0;
-            $minY = -0.5;
-            $maxY = 6.0;
-            $minZ = -16.0;
-            $maxZ = 16.0;
+            $minX = -260.0;
+            $maxX = 260.0;
+            $minY = -4.0;
+            $maxY = 24.0;
+            $minZ = -260.0;
+            $maxZ = 260.0;
         } else {
             $minX = -32.0;
             $maxX = 32.0;

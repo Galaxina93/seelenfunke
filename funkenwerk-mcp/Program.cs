@@ -4479,12 +4479,8 @@ namespace FunkenwerkMcp
             public bool LiveWwwIngressCreated { get; set; }
             public bool LiveWwwDnsZoneCreated { get; set; }
             public bool LiveWwwDnsManaged { get; set; }
-            public bool LiveDigitalIngressCreated { get; set; }
-            public bool LiveDigitalDnsZoneCreated { get; set; }
-            public bool LiveDigitalDnsManaged { get; set; }
-            public bool LiveDigitalOwnershipVerified { get; set; }
-            public bool LiveDigitalTlsCreated { get; set; }
-            public int DigitalSetManagedCalls { get; set; }
+            public bool LiveDigitalIngressExists { get; set; } = true;
+            public bool LiveDigitalDnsZoneExists { get; set; } = true;
             public bool LiveCronCreated { get; set; }
             public int LiveMysqlPasswordPatchCount { get; set; }
 
@@ -4603,50 +4599,25 @@ namespace FunkenwerkMcp
                     {
                         items.Add($$$"""{"id":"11111111-2222-4333-8444-555555555555","hostname":"www.mein-seelenfunke.de","paths":[{"path":"/","target":{"installationId":"{{{McpSecurityGuard.PinnedLiveAppUuid}}}"}}],"tls":{"acme":true,"isCreated":true},"ownership":{"verified":true}}""");
                     }
-                    if (LiveDigitalIngressCreated)
+                    if (LiveDigitalIngressExists)
                     {
-                        string tCr = LiveDigitalTlsCreated ? "true" : "false";
-                        string oVr = LiveDigitalOwnershipVerified ? "true" : "false";
-                        items.Add($$$"""{"id":"88888888-9999-4aaa-8bbb-cccccccccccc","hostname":"digital.mein-seelenfunke.de","paths":[{"path":"/","target":{"installationId":"{{{McpSecurityGuard.PinnedLiveAppUuid}}}"}}],"tls":{"acme":true,"isCreated":{{{tCr}}}},"ownership":{"verified":{{{oVr}}}}}""");
+                        items.Add($$$"""{"id":"88888888-9999-4aaa-8bbb-cccccccccccc","hostname":"digital.mein-seelenfunke.de","paths":[{"path":"/","target":{"installationId":"{{{McpSecurityGuard.PinnedLiveAppUuid}}}"}}],"tls":{"acme":true,"isCreated":true},"ownership":{"verified":true}}""");
                     }
                     json = "[" + string.Join(",", items) + "]";
                 }
                 else if (p == "/v2/ingresses" && request.Method == HttpMethod.Post)
                 {
-                    using var ingDoc = JsonDocument.Parse(bodyStr);
-                    string reqHost = ingDoc.RootElement.TryGetProperty("hostname", out var hp) ? (hp.GetString() ?? "") : "";
-                    if (string.Equals(reqHost, McpTresorBroker.PinnedLiveDigitalHostname, StringComparison.OrdinalIgnoreCase))
-                    {
-                        LiveDigitalIngressCreated = true;
-                        code = HttpStatusCode.Created;
-                        json = """{"id":"88888888-9999-4aaa-8bbb-cccccccccccc","ownership":{"verified":false,"txtRecord":""}}""";
-                    }
-                    else
-                    {
-                        LiveWwwIngressCreated = true;
-                        code = HttpStatusCode.Created;
-                        json = """{"id":"11111111-2222-4333-8444-555555555555","ownership":{"verified":true,"txtRecord":""}}""";
-                    }
+                    LiveWwwIngressCreated = true;
+                    code = HttpStatusCode.Created;
+                    json = """{"id":"11111111-2222-4333-8444-555555555555","ownership":{"verified":true,"txtRecord":""}}""";
                 }
                 else if (p == "/v2/ingresses/11111111-2222-4333-8444-555555555555" && request.Method == HttpMethod.Get)
                 {
                     json = $$$"""{"id":"11111111-2222-4333-8444-555555555555","hostname":"www.mein-seelenfunke.de","projectId":"{{{McpSecurityGuard.PinnedLiveProjectId}}}","paths":[{"path":"/","target":{"installationId":"{{{McpSecurityGuard.PinnedLiveAppUuid}}}"}}],"tls":{"acme":true,"isCreated":true},"ownership":{"verified":true}}""";
                 }
-                else if (p == "/v2/ingresses/88888888-9999-4aaa-8bbb-cccccccccccc" && request.Method == HttpMethod.Get)
+                else if (p == "/v2/ingresses/88888888-9999-4aaa-8bbb-cccccccccccc" && request.Method == HttpMethod.Delete)
                 {
-                    string tCr = LiveDigitalTlsCreated ? "true" : "false";
-                    string oVr = LiveDigitalOwnershipVerified ? "true" : "false";
-                    json = $$$"""{"id":"88888888-9999-4aaa-8bbb-cccccccccccc","hostname":"digital.mein-seelenfunke.de","projectId":"{{{McpSecurityGuard.PinnedLiveProjectId}}}","paths":[{"path":"/","target":{"installationId":"{{{McpSecurityGuard.PinnedLiveAppUuid}}}"}}],"tls":{"acme":true,"isCreated":{{{tCr}}}},"ownership":{"verified":{{{oVr}}}}}""";
-                }
-                else if (p == "/v2/ingresses/88888888-9999-4aaa-8bbb-cccccccccccc/actions/verify-ownership" && request.Method == HttpMethod.Post)
-                {
-                    LiveDigitalOwnershipVerified = true;
-                    code = HttpStatusCode.NoContent;
-                    json = "";
-                }
-                else if (p == "/v2/ingresses/88888888-9999-4aaa-8bbb-cccccccccccc/actions/request-acme-certificate-issuance" && request.Method == HttpMethod.Post)
-                {
-                    LiveDigitalTlsCreated = true;
+                    LiveDigitalIngressExists = false;
                     code = HttpStatusCode.NoContent;
                     json = "";
                 }
@@ -4662,30 +4633,17 @@ namespace FunkenwerkMcp
                             ? """{"id":"66666666-7777-4888-9999-aaaaaaaaaaaa","domain":"www.mein-seelenfunke.de","recordSet":{"combinedARecords":{"managedBy":{"ingressId":"11111111-2222-4333-8444-555555555555"}}}}"""
                             : """{"id":"66666666-7777-4888-9999-aaaaaaaaaaaa","domain":"www.mein-seelenfunke.de","recordSet":{"combinedARecords":{}}}""");
                     }
-                    if (LiveDigitalDnsZoneCreated)
+                    if (LiveDigitalDnsZoneExists)
                     {
-                        zItems.Add(LiveDigitalDnsManaged
-                            ? """{"id":"22222222-3333-4444-8555-666666666666","domain":"digital.mein-seelenfunke.de","recordSet":{"combinedARecords":{"managedBy":{"ingressId":"88888888-9999-4aaa-8bbb-cccccccccccc"}}}}"""
-                            : """{"id":"22222222-3333-4444-8555-666666666666","domain":"digital.mein-seelenfunke.de","recordSet":{"combinedARecords":{}}}""");
+                        zItems.Add("""{"id":"22222222-3333-4444-8555-666666666666","domain":"digital.mein-seelenfunke.de","recordSet":{"combinedARecords":{"managedBy":{"ingressId":"88888888-9999-4aaa-8bbb-cccccccccccc"}}}}""");
                     }
                     json = "[" + string.Join(",", zItems) + "]";
                 }
                 else if ((p == "/v2/dns-zones" || p == $"/v2/projects/{McpSecurityGuard.PinnedLiveProjectId}/dns-zones") && request.Method == HttpMethod.Post)
                 {
-                    using var zDoc = JsonDocument.Parse(bodyStr);
-                    string zName = zDoc.RootElement.TryGetProperty("name", out var np) ? (np.GetString() ?? "") : "";
-                    if (zName.StartsWith("digital", StringComparison.OrdinalIgnoreCase))
-                    {
-                        LiveDigitalDnsZoneCreated = true;
-                        code = HttpStatusCode.Created;
-                        json = """{"id":"22222222-3333-4444-8555-666666666666"}""";
-                    }
-                    else
-                    {
-                        LiveWwwDnsZoneCreated = true;
-                        code = HttpStatusCode.Created;
-                        json = """{"id":"66666666-7777-4888-9999-aaaaaaaaaaaa"}""";
-                    }
+                    LiveWwwDnsZoneCreated = true;
+                    code = HttpStatusCode.Created;
+                    json = """{"id":"66666666-7777-4888-9999-aaaaaaaaaaaa"}""";
                 }
                 else if (p == "/v2/dns-zones/66666666-7777-4888-9999-aaaaaaaaaaaa" && request.Method == HttpMethod.Get)
                 {
@@ -4693,32 +4651,17 @@ namespace FunkenwerkMcp
                         ? """{"id":"66666666-7777-4888-9999-aaaaaaaaaaaa","domain":"www.mein-seelenfunke.de","recordSet":{"combinedARecords":{"managedBy":{"ingressId":"11111111-2222-4333-8444-555555555555"}}}}"""
                         : """{"id":"66666666-7777-4888-9999-aaaaaaaaaaaa","domain":"www.mein-seelenfunke.de","recordSet":{"combinedARecords":{}}}""";
                 }
-                else if (p == "/v2/dns-zones/22222222-3333-4444-8555-666666666666" && request.Method == HttpMethod.Get)
+                else if (p == "/v2/dns-zones/22222222-3333-4444-8555-666666666666" && request.Method == HttpMethod.Delete)
                 {
-                    json = LiveDigitalDnsManaged
-                        ? """{"id":"22222222-3333-4444-8555-666666666666","domain":"digital.mein-seelenfunke.de","recordSet":{"combinedARecords":{"managedBy":{"ingressId":"88888888-9999-4aaa-8bbb-cccccccccccc"}}}}"""
-                        : """{"id":"22222222-3333-4444-8555-666666666666","domain":"digital.mein-seelenfunke.de","recordSet":{"combinedARecords":{}}}""";
+                    LiveDigitalDnsZoneExists = false;
+                    code = HttpStatusCode.NoContent;
+                    json = "";
                 }
                 else if (p == "/v2/dns-zones/66666666-7777-4888-9999-aaaaaaaaaaaa/record-sets/a/actions/set-managed" && request.Method == HttpMethod.Post)
                 {
                     LiveWwwDnsManaged = true;
                     code = HttpStatusCode.OK;
                     json = """{"ingressId":"11111111-2222-4333-8444-555555555555"}""";
-                }
-                else if (p == "/v2/dns-zones/22222222-3333-4444-8555-666666666666/record-sets/a/actions/set-managed" && request.Method == HttpMethod.Post)
-                {
-                    DigitalSetManagedCalls++;
-                    if (DigitalSetManagedCalls == 1)
-                    {
-                        code = HttpStatusCode.NotFound;
-                        json = """{"message":"ingress ips not ready yet"}""";
-                    }
-                    else
-                    {
-                        LiveDigitalDnsManaged = true;
-                        code = HttpStatusCode.OK;
-                        json = """{"ingressId":"88888888-9999-4aaa-8bbb-cccccccccccc"}""";
-                    }
                 }
                 else if (p == $"/v2/mysql-users/{McpSecurityGuard.PinnedLiveMysqlUserUuid}/password" && request.Method == HttpMethod.Patch)
                 {
@@ -6667,14 +6610,10 @@ namespace FunkenwerkMcp
                         && mockLiveMw.LiveWwwIngressCreated
                         && mockLiveMw.LiveWwwDnsZoneCreated
                         && mockLiveMw.LiveWwwDnsManaged
-                        && mockLiveMw.LiveDigitalIngressCreated
-                        && mockLiveMw.LiveDigitalDnsZoneCreated
-                        && mockLiveMw.LiveDigitalDnsManaged
-                        && mockLiveMw.DigitalSetManagedCalls == 2
-                        && mockLiveMw.LiveDigitalOwnershipVerified
-                        && mockLiveMw.LiveDigitalTlsCreated
-                        && firstRunSummary["infra"]?["digital_ingress_id"]?.GetValue<string>() == "88888888-9999-4aaa-8bbb-cccccccccccc"
-                        && firstRunSummary["infra"]?["digital_dns_zone_id"]?.GetValue<string>() == "22222222-3333-4444-8555-666666666666"
+                        && !mockLiveMw.LiveDigitalIngressExists
+                        && !mockLiveMw.LiveDigitalDnsZoneExists
+                        && firstRunSummary["infra"]?["retired_digital_ingress_removed"]?.GetValue<bool>() == true
+                        && firstRunSummary["infra"]?["retired_digital_dns_zone_removed"]?.GetValue<bool>() == true
                         && mockLiveMw.LiveCronCreated
                         && mockLiveMw.LiveMysqlPasswordPatchCount == 1
                         && pdoCallsOnFirstRun == 2
@@ -6697,7 +6636,8 @@ namespace FunkenwerkMcp
                         && !writtenEnv1.Contains("redis-t4tm3u", StringComparison.Ordinal)
                         && !writtenEnv1.Contains("StageRedisSecretPassword!", StringComparison.Ordinal)
                         && writtenEnv1.Contains("GOOGLE_REDIRECT_URL=https://mein-seelenfunke.de/auth/google/callback\n", StringComparison.Ordinal)
-                        && writtenEnv1.Contains("SANCTUM_STATEFUL_DOMAINS=mein-seelenfunke.de,www.mein-seelenfunke.de,digital.mein-seelenfunke.de\n", StringComparison.Ordinal)
+                        && writtenEnv1.Contains("SANCTUM_STATEFUL_DOMAINS=mein-seelenfunke.de,www.mein-seelenfunke.de\n", StringComparison.Ordinal)
+                        && !writtenEnv1.Contains("digital.mein-seelenfunke.de", StringComparison.Ordinal)
                         && firstRunSummary["env"]?["isolation_enforced"]?["APP_URL"]?.GetValue<string>() == "https://mein-seelenfunke.de"
                         && writtenEnv1.Contains("STRIPE_SECRET=sk_test_MockStageStripeKey999\n", StringComparison.Ordinal)
                         && writtenEnv1.Contains("MAIL_HOST=mail.agenturserver.de\n", StringComparison.Ordinal)
@@ -6713,9 +6653,8 @@ namespace FunkenwerkMcp
                     string writtenEnv2 = Encoding.UTF8.GetString(currentMockLiveEnv!);
                     var checkSummary = await McpTresorBroker.ExecutePinnedSeelenfunkeLivePrepareAsync(step: "check");
                     bool checkOk = checkSummary["check"]?["www_ingress_exists"]?.GetValue<bool>() == true
-                        && checkSummary["check"]?["digital_ingress_exists"]?.GetValue<bool>() == true
-                        && checkSummary["check"]?["digital_dns_zone_exists"]?.GetValue<bool>() == true
-                        && checkSummary["check"]?["digital_tls_is_created"]?.GetValue<bool>() == true;
+                        && checkSummary["check"]?["retired_digital_ingress_present"]?.GetValue<bool>() == false
+                        && checkSummary["check"]?["retired_digital_dns_zone_present"]?.GetValue<bool>() == false;
 
                     bool secondRunIdempotent = mockLiveMw.LiveMysqlPasswordPatchCount == 1
                         && mockLiveMw.CapturedBodies.All(r => r.Method == HttpMethod.Get)

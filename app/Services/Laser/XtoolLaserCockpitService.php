@@ -1563,6 +1563,648 @@ class XtoolLaserCockpitService
         ];
     }
 
+    /**
+     * Vektor-Parameter (Text & Standard-Symbole) eines Handbuch-Presets.
+     *
+     * @return array{focus_mm: float, power_percent: int, speed_mms: int, frequency_khz: int, lpc: int, dpi: int, passes: int, engrave_mode: string, note: string}
+     */
+    private static function hbVector(float $focusMm, int $power, int $speed, int $freqKhz, int $lpc, int $passes = 1, string $note = ''): array
+    {
+        return [
+            'focus_mm'      => $focusMm,
+            'power_percent' => $power,
+            'speed_mms'     => $speed,
+            'frequency_khz' => $freqKhz,
+            'lpc'           => $lpc,
+            'dpi'           => (int) round($lpc * 2.54),
+            'passes'        => $passes,
+            'engrave_mode'  => 'Bidirektional',
+            'note'          => $note,
+        ];
+    }
+
+    /**
+     * Bitmap-Parameter (Kundenfotos / Uploads) eines Handbuch-Presets.
+     *
+     * @return array{focus_mm: float, power_percent: int, dot_duration_us: int, frequency_khz: int, dpi: int, passes: int, bitmap_mode: string, engrave_mode: string, note: string}
+     */
+    private static function hbBitmap(float $focusMm, int $power, int $dotUs, int $freqKhz, int $dpi, int $passes = 1, string $bitmapMode = 'Jarvis', string $note = ''): array
+    {
+        return [
+            'focus_mm'        => $focusMm,
+            'power_percent'   => $power,
+            'dot_duration_us' => $dotUs,
+            'frequency_khz'   => $freqKhz,
+            'dpi'             => $dpi,
+            'passes'          => $passes,
+            'bitmap_mode'     => $bitmapMode,
+            'engrave_mode'    => 'Bidirektional',
+            'note'            => $note,
+        ];
+    }
+
+    /**
+     * Validierter Preset-Katalog des xTool F2 Ultra UV (5 W · 355 nm) aus beiden Werkstatthandbüchern
+     * (PDF 1: Laserwerte- & Schwarzgravur-Handbuch Pos. 01-16, PDF 2: Laserwerte-Datenbank Stand 11/2026),
+     * getrennt nach Vektor (Text & Standard-Symbole) und Bitmap (Kundenfotos) pro Produkt. Der jeweils erste
+     * Preset-Eintrag ist der Schritt-1-Standard und entspricht 1:1 den Werten in ProductSeeder & Live-Sync-Migration.
+     *
+     * @return array<string, array{label: string, blank: string, polarity: string, equipment_key: string, material: string, setup_note: string, presets: array<string, array>}>
+     */
+    public static function getHandbookPresetCatalog(): array
+    {
+        $v = static fn (...$a) => self::hbVector(...$a);
+        $b = static fn (...$a) => self::hbBitmap(...$a);
+
+        return [
+            'seelen-pfote-hundemarke' => [
+                'label'         => 'Die Seelen-Pfote',
+                'blank'         => '40 × 22 × 1,8 mm · 14K IP-Edelstahl PVD',
+                'polarity'      => 'dark_on_light',
+                'equipment_key' => 'flatbed_standard',
+                'material'      => 'Edelstahl 14K IP vergoldet (PVD)',
+                'setup_note'    => 'Schwarzes Lamellenrost, vor und nach dem Lasern mit Isopropanol reinigen.',
+                'presets'       => [
+                    'pdf2_sweetspot' => [
+                        'label'  => 'Cockpit-Sweetspot (PDF 2)',
+                        'source' => 'PDF 2',
+                        'focus_offset_mm' => 1.4,
+                        'vector' => $v(3.2, 42, 110, 65, 330, 1, 'opt. 2x 90° Kreuzschraffur'),
+                        'bitmap' => $b(3.2, 45, 210, 65, 800, 1, 'Jarvis', 'Pixel-Logo / Silhouette: Schwellenwert'),
+                    ],
+                    'pdf1_tiefschwarz_100khz' => [
+                        'label'  => 'Tiefschwarz Anlass-Oxidation 100 kHz (PDF 1 Pos. 01/02)',
+                        'source' => 'PDF 1',
+                        'focus_offset_mm' => 2.0,
+                        'vector' => $v(3.8, 95, 25, 100, 1000, 1),
+                        'bitmap' => $b(3.6, 95, 1100, 100, 1270, 1, 'Jarvis', 'Offset +1,8 mm'),
+                    ],
+                    'silber_kontrast' => [
+                        'label'  => 'Silber-Kontrastgravur',
+                        'source' => 'PDF 1',
+                        'focus_offset_mm' => 0.0,
+                        'vector' => $v(1.8, 28, 550, 40, 300, 1),
+                        'bitmap' => null,
+                    ],
+                    'gold_eloxal_alu' => [
+                        'label'  => 'Gold-Eloxal Alu Hundemarke',
+                        'source' => 'PDF 1',
+                        'focus_offset_mm' => 0.4,
+                        'vector' => $v(1.8, 55, 450, 50, 300, 1),
+                        'bitmap' => $b(1.8, 55, 160, 50, 600, 1),
+                    ],
+                ],
+            ],
+            'goldenes-seelen-herz' => [
+                'label'         => 'Das Goldene Seelen-Herz',
+                'blank'         => '25 × 22 × 4,0 mm · STA1274 14K IP-Edelstahl massiv',
+                'polarity'      => 'dark_on_light',
+                'equipment_key' => 'flatbed_standard',
+                'material'      => 'Edelstahl 14K IP vergoldet (massiv)',
+                'setup_note'    => 'Kette abnehmen, Herz flach auf das schwarze Lamellenrost legen.',
+                'presets'       => [
+                    'pdf2_sweetspot' => [
+                        'label'  => 'Schritt-1 Katalog (PDF 2)',
+                        'source' => 'PDF 2',
+                        'focus_offset_mm' => 1.4,
+                        'vector' => $v(5.4, 46, 100, 65, 350, 1, '1-2 Pässe'),
+                        'bitmap' => $b(5.4, 48, 220, 65, 800, 1, 'Jarvis', 'Alternativ Graustufen'),
+                    ],
+                    'pdf1_massiv_tiefschwarz_100khz' => [
+                        'label'  => 'Massiv-Tiefschwarz 100 kHz (PDF 1 Pos. 03)',
+                        'source' => 'PDF 1',
+                        'focus_offset_mm' => 2.0,
+                        'vector' => $v(6.0, 98, 20, 100, 1000, 1, '1-2 Pässe'),
+                        'bitmap' => $b(6.0, 95, 1100, 100, 1270, 1),
+                    ],
+                ],
+            ],
+            'seelen-talisman' => [
+                'label'         => 'Der Seelen-Talisman',
+                'blank'         => '50 × 28 × 2,2 mm · Gold-Finish Edelstahl Dog-Tag',
+                'polarity'      => 'dark_on_light',
+                'equipment_key' => 'flatbed_standard',
+                'material'      => 'Edelstahl Gold-Finish',
+                'setup_note'    => 'Schlüsselring frei über die Lamellenkante hängen lassen.',
+                'presets'       => [
+                    'pdf2_sweetspot' => [
+                        'label'  => 'Schritt-1 Katalog (PDF 2)',
+                        'source' => 'PDF 2',
+                        'focus_offset_mm' => 1.4,
+                        'vector' => $v(3.6, 44, 105, 65, 330, 1),
+                        'bitmap' => $b(3.5, 46, 215, 65, 800, 1),
+                    ],
+                    'pdf1_tiefschwarz_100khz' => [
+                        'label'  => 'Tiefschwarz 100 kHz (PDF 1 Pos. 04)',
+                        'source' => 'PDF 1',
+                        'focus_offset_mm' => 2.0,
+                        'vector' => $v(4.2, 95, 25, 100, 1000, 1),
+                        'bitmap' => $b(4.2, 95, 1100, 100, 1270, 1),
+                    ],
+                ],
+            ],
+            'seelen-anhaenger' => [
+                'label'         => 'Der Seelenanhänger',
+                'blank'         => '45 × 40 × 1,8..2,3 mm · Schwarzes Herz PVD / Eloxal',
+                'polarity'      => 'white_on_dark',
+                'equipment_key' => 'flatbed_standard',
+                'material'      => '0,2 mm Aluminiumlegierung',
+                'setup_note'    => 'Jig-Fokus 19,9 mm (Flachbett ohne Jig 1,8 mm). Foto invertiert mit Dot-Gain-Gamma.',
+                'presets'       => [
+                    'pdf2_silber_kontrast' => [
+                        'label'  => 'Heller Silber-Kontrast (PDF 2)',
+                        'source' => 'PDF 2',
+                        'focus_offset_mm' => 0.0,
+                        'vector' => $v(19.9, 70, 450, 40, 300, 1),
+                        'bitmap' => $b(19.9, 85, 280, 40, 600, 1),
+                    ],
+                    'pdf1_feintext' => [
+                        'label'  => 'Fein-Text & Alt-Foto (PDF 1)',
+                        'source' => 'PDF 1',
+                        'focus_offset_mm' => 0.0,
+                        'vector' => $v(19.9, 55, 700, 40, 450, 1),
+                        'bitmap' => $b(19.9, 90, 300, 40, 500, 1),
+                    ],
+                    'flachbett_ohne_jig' => [
+                        'label'  => 'Flachbett ohne Jig (1,8 mm)',
+                        'source' => 'PDF 2',
+                        'focus_offset_mm' => 0.0,
+                        'vector' => $v(1.8, 70, 450, 40, 300, 1),
+                        'bitmap' => $b(1.8, 85, 280, 40, 600, 1),
+                    ],
+                ],
+            ],
+            'id-armband-silber-herz' => [
+                'label'         => 'Echtsilber Seelen-Armband (925er Sterlingsilber)',
+                'blank'         => '24 × 5,5 × 1,2 mm · FBM 925er Sterlingsilber',
+                'polarity'      => 'dark_on_light',
+                'equipment_key' => 'flatbed_standard',
+                'material'      => '925er Sterlingsilber',
+                'setup_note'    => 'Auf der schwarzen Schaumstoffmatte fixieren.',
+                'presets'       => [
+                    'pdf2_sweetspot' => [
+                        'label'  => 'Schritt-1 Katalog (PDF 2)',
+                        'source' => 'PDF 2',
+                        'focus_offset_mm' => 1.0,
+                        'vector' => $v(2.2, 75, 180, 50, 400, 2),
+                        'bitmap' => $b(2.2, 75, 240, 50, 1000, 2),
+                    ],
+                    'pdf1_kreuzschraffur' => [
+                        'label'  => 'Kreuzschraffur (PDF 1 Pos. 06)',
+                        'source' => 'PDF 1',
+                        'focus_offset_mm' => 0.8,
+                        'vector' => $v(2.0, 85, 40, 80, 1000, 2, 'Kreuzschraffur 90°'),
+                        'bitmap' => null,
+                    ],
+                ],
+            ],
+            'id-armband-gold-herz' => [
+                'label'         => 'Gold-Vermeil Seelen-Armband (925er Gold-Vermeil)',
+                'blank'         => '24 × 5,5 × 1,2 mm · FBM 925er Gold-Vermeil',
+                'polarity'      => 'dark_on_light',
+                'equipment_key' => 'flatbed_standard',
+                'material'      => '925er Gold-Vermeil',
+                'setup_note'    => 'Auf der schwarzen Schaumstoffmatte fixieren (Schon-Oxidation).',
+                'presets'       => [
+                    'pdf2_sweetspot' => [
+                        'label'  => 'Schritt-1 Katalog (PDF 2)',
+                        'source' => 'PDF 2',
+                        'focus_offset_mm' => 1.3,
+                        'vector' => $v(2.5, 34, 130, 70, 400, 1),
+                        'bitmap' => $b(2.5, 34, 180, 70, 1000, 1),
+                    ],
+                    'pdf1_pos07' => [
+                        'label'  => 'Schon-Oxidation (PDF 1 Pos. 07)',
+                        'source' => 'PDF 1',
+                        'focus_offset_mm' => 1.2,
+                        'vector' => $v(2.4, 55, 60, 90, 1000, 1),
+                        'bitmap' => null,
+                    ],
+                ],
+            ],
+            'echtgold-seelen-herz' => [
+                'label'         => '585er Echtgold Seelen-Herz',
+                'blank'         => '13 × 14 × 0,8 mm · 585er Gold',
+                'polarity'      => 'dark_on_light',
+                'equipment_key' => 'flatbed_standard',
+                'material'      => '585er Gold',
+                'setup_note'    => 'Für Dunkelton Offset +0,8 mm (1,6 mm).',
+                'presets'       => [
+                    'pdf1_pos08' => [
+                        'label'  => 'Echtgold (PDF 1 Pos. 08)',
+                        'source' => 'PDF 1',
+                        'focus_offset_mm' => 0.0,
+                        'vector' => $v(0.8, 70, 80, 60, 800, 2),
+                        'bitmap' => null,
+                    ],
+                    'pdf1_pos08_dunkelton' => [
+                        'label'  => 'Echtgold Dunkelton (+0,8 mm)',
+                        'source' => 'PDF 1',
+                        'focus_offset_mm' => 0.8,
+                        'vector' => $v(1.6, 70, 80, 60, 800, 2),
+                        'bitmap' => null,
+                    ],
+                ],
+            ],
+            'seelen-kristall' => [
+                'label'         => 'Der Seelen Kristall',
+                'blank'         => 'Ø 161,5 × 40 mm · K9-Kristall MSF-KRISTALL-3D-001',
+                'polarity'      => 'white_on_dark',
+                'equipment_key' => 'flatbed_standard',
+                'material'      => 'K9 Kristalltrophäe',
+                'setup_note'    => 'Schwarzes Lamellenrost nutzen, Standfuß frei über Vorderkante schweben lassen. Shop-SVG nicht invertieren.',
+                'presets'       => [
+                    'pdf2_seidenmatt_frost' => [
+                        'label'  => 'Außen Seidenmatt-Frost (PDF 2)',
+                        'source' => 'PDF 2',
+                        'focus_offset_mm' => 0.0,
+                        'vector' => $v(33.1, 60, 80, 40, 300, 1),
+                        'bitmap' => $b(33.1, 100, 450, 40, 500, 1),
+                    ],
+                    'pdf1_frost_600dpi' => [
+                        'label'  => 'Frost 600 DPI (PDF 1)',
+                        'source' => 'PDF 1',
+                        'focus_offset_mm' => 0.0,
+                        'vector' => $v(33.1, 60, 80, 40, 300, 1),
+                        'bitmap' => $b(33.1, 100, 500, 40, 600, 1),
+                    ],
+                    'master_referenz_32_8' => [
+                        'label'  => 'Master-Referenz 32,8 mm (Brennpunkt-Doku)',
+                        'source' => 'Brennpunkt_Masse.md',
+                        'focus_offset_mm' => -0.3,
+                        'vector' => $v(32.8, 60, 80, 40, 300, 1),
+                        'bitmap' => $b(32.8, 85, 500, 40, 600, 1),
+                    ],
+                    'inner_3d_subsurface' => [
+                        'label'         => 'Innengravur 3D/2D Subsurface (PDF 1 Pos. 09)',
+                        'source'        => 'PDF 1',
+                        'equipment_key' => 'inner_3d',
+                        'focus_offset_mm' => -17.5,
+                        'vector' => null,
+                        'bitmap' => $b(15.6, 80, 220, 40, 600, 1, 'Jarvis', 'Offset -15 bis -20 mm ins Glas, niemals Graustufen'),
+                    ],
+                ],
+            ],
+            'weizenglas-personalisiert' => [
+                'label'         => 'Feierabend-Funke Kristall-Weizenbierglas',
+                'blank'         => '0,5 l · Ø 74 × 218 mm · MSF-GLAS-WEIZEN-001',
+                'polarity'      => 'white_on_dark',
+                'equipment_key' => 'rotary_ra3',
+                'material'      => 'Klares Glas (Kristall-Weizenbierglas)',
+                'setup_note'    => 'RA3 MagSwap, Wasserwaage Pflicht, 30 mm zum Trinkrand, 40 mm zum Fuß.',
+                'presets'       => [
+                    'pdf2_ra3_frost' => [
+                        'label'  => 'RA3 Frost (PDF 2)',
+                        'source' => 'PDF 2',
+                        'focus_offset_mm' => 0.0,
+                        'vector' => $v(74.0, 55, 380, 40, 300, 1, 'Ø 74,0 mm Scheitel (0,0 mm)'),
+                        'bitmap' => $b(74.0, 55, 260, 40, 400, 1),
+                    ],
+                    'pdf1_kraeftig_frost' => [
+                        'label'  => 'Kräftig-Frost (PDF 1 Pos. 11)',
+                        'source' => 'PDF 1',
+                        'focus_offset_mm' => 0.0,
+                        'vector' => $v(74.0, 80, 125, 40, 300, 1),
+                        'bitmap' => $b(74.0, 92, 650, 40, 500, 1),
+                    ],
+                ],
+            ],
+            'geschenkgutschein' => [
+                'label'         => 'Geschenkgutschein-Karte (Alu Schwarz & Gold)',
+                'blank'         => '86 × 54 × 0,2..0,8 mm · Aluminium',
+                'polarity'      => 'white_on_dark',
+                'equipment_key' => 'flatbed_standard',
+                'material'      => 'Eloxiertes Aluminium (Visitenkarte)',
+                'setup_note'    => 'Schwarze Karte 0,8 mm (Jig 19,9 mm). Gold-Karte +0,4 mm.',
+                'presets'       => [
+                    'karte_schwarz' => [
+                        'label'  => 'Gutscheinkarte Schwarz',
+                        'source' => 'PDF 2',
+                        'focus_offset_mm' => 0.0,
+                        'vector' => $v(0.8, 45, 850, 55, 450, 1, '800-900 mm/s · 50-60 kHz'),
+                        'bitmap' => $b(0.8, 45, 220, 55, 500, 1, 'Schwellenwert'),
+                    ],
+                    'karte_gold' => [
+                        'label'    => 'Gutscheinkarte Gold',
+                        'source'   => 'PDF 2',
+                        'polarity' => 'dark_on_light',
+                        'focus_offset_mm' => 0.4,
+                        'vector' => $v(1.2, 52, 450, 50, 300, 1),
+                        'bitmap' => $b(1.2, 52, 220, 50, 800, 1),
+                    ],
+                ],
+            ],
+            '_materials' => [
+                'label'         => 'Erweiterte Werkstoff-Presets',
+                'blank'         => 'Werkstoff-Bibliothek',
+                'polarity'      => 'dark_on_light',
+                'equipment_key' => 'flatbed_standard',
+                'material'      => 'Edelstahl',
+                'setup_note'    => '',
+                'presets'       => [
+                    'edelstahl_v2a_anlass_schwarz' => [
+                        'label'  => 'Edelstahl V2A Anlass-Schwarz',
+                        'source' => 'PDF 2',
+                        'focus_offset_mm' => 1.5,
+                        'vector' => $v(1.5, 55, 95, 55, 400, 1, 'Fokus = Materialstärke + 1,5 mm'),
+                        'bitmap' => $b(1.5, 55, 260, 55, 1000, 1),
+                    ],
+                    'edelstahl_v2a_silber_frost' => [
+                        'label'  => 'Edelstahl V2A Silber-Frost',
+                        'source' => 'PDF 2',
+                        'focus_offset_mm' => 0.0,
+                        'vector' => $v(0.0, 85, 600, 40, 300, 1, 'Fokus = Materialstärke'),
+                        'bitmap' => $b(0.0, 85, 200, 40, 500, 1),
+                    ],
+                    'naturschiefer' => [
+                        'label'    => 'Naturschiefer',
+                        'source'   => 'PDF 2',
+                        'polarity' => 'white_on_dark',
+                        'focus_offset_mm' => 0.0,
+                        'vector' => $v(0.0, 80, 425, 40, 300, 1, '75-85 % · 350-500 mm/s'),
+                        'bitmap' => $b(0.0, 90, 350, 40, 400, 1),
+                    ],
+                    'alu_flaschenoeffner_conveyor' => [
+                        'label'         => 'Alu-Flaschenöffner (Conveyor)',
+                        'source'        => 'PDF 2',
+                        'polarity'      => 'white_on_dark',
+                        'equipment_key' => 'conveyor_batch',
+                        'focus_offset_mm' => 0.0,
+                        'vector' => $v(0.0, 55, 750, 45, 450, 1),
+                        'bitmap' => null,
+                    ],
+                    'massivholz_bambus' => [
+                        'label'  => 'Massivholz & Bambus',
+                        'source' => 'PDF 2',
+                        'focus_offset_mm' => 0.0,
+                        'vector' => $v(0.0, 50, 450, 45, 300, 1, '45-55 % (Bambus 35 %) · 250-650 mm/s · 40-50 kHz'),
+                        'bitmap' => $b(0.0, 50, 220, 45, 400, 1, 'Jarvis', '160-280 µs · 300-450 DPI'),
+                    ],
+                    'messing_poliert' => [
+                        'label'  => 'Messing poliert',
+                        'source' => 'PDF 2',
+                        'focus_offset_mm' => 0.9,
+                        'vector' => $v(0.9, 82, 170, 57, 400, 1, '+0,8..+1,0 mm · 80-85 % · 120-220 mm/s · 45-70 kHz · 1-2x'),
+                        'bitmap' => $b(0.9, 82, 280, 57, 800, 1),
+                    ],
+                    'acryl_echtleder' => [
+                        'label'  => 'Acrylglas & Echtleder',
+                        'source' => 'PDF 2',
+                        'focus_offset_mm' => 0.0,
+                        'vector' => $v(0.0, 38, 650, 60, 300, 1),
+                        'bitmap' => $b(0.0, 38, 140, 60, 300, 1),
+                    ],
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * Handbuch-Profil eines Produkts (per Slug oder template_package) inkl. aller wählbaren Schritt-1-Presets.
+     */
+    public static function getHandbookProductProfile(?string $slug, ?string $templatePackage = null): ?array
+    {
+        $catalog = self::getHandbookPresetCatalog();
+        foreach ([trim((string) $templatePackage), trim((string) $slug)] as $key) {
+            if ($key === '' || $key === '_materials') {
+                continue;
+            }
+            if (isset($catalog[$key])) {
+                return $catalog[$key] + ['slug' => $key];
+            }
+            if ($key === 'feierabend-funke' && isset($catalog['weizenglas-personalisiert'])) {
+                return $catalog['weizenglas-personalisiert'] + ['slug' => 'weizenglas-personalisiert'];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Baut aus einem Handbuch-Preset die kompatiblen configurator_settings-Schlüssel (Top-Level-Bitmap-Werte,
+     * getrennte xtool_vector_* / xtool_bitmap_* Werte, Polarität und Vektor-Notiz) für Seeder, Migration und Cockpit.
+     *
+     * @return array<string, mixed>
+     */
+    public static function buildProductLaserSettingsFromHandbook(string $slug, ?string $presetKey = null): array
+    {
+        $profile = self::getHandbookProductProfile($slug);
+        if ($profile === null || empty($profile['presets'])) {
+            return [];
+        }
+
+        $presetKey = ($presetKey !== null && isset($profile['presets'][$presetKey]))
+            ? $presetKey
+            : (string) array_key_first($profile['presets']);
+        $preset = $profile['presets'][$presetKey];
+        $vector = $preset['vector'] ?? null;
+        $bitmap = $preset['bitmap'] ?? null;
+        $primary = $bitmap ?? $vector;
+        $equipmentKey = (string) ($preset['equipment_key'] ?? $profile['equipment_key']);
+        $modes = self::getSupportedEquipmentModes();
+
+        $settings = [
+            'xtool_handbook_preset'          => $presetKey,
+            'xtool_photo_substrate_polarity' => (string) ($preset['polarity'] ?? $profile['polarity']),
+            'xtool_equipment_key'            => $equipmentKey,
+            'xtool_process_mode'             => $modes[$equipmentKey]['process_mode'] ?? 'Prozess auf flacher Oberfläche',
+            'xtool_material'                 => (string) $profile['material'],
+            'xtool_focus_mm'                 => (float) $primary['focus_mm'],
+            'xtool_element_type'             => $bitmap !== null ? 'Bild' : 'Vektor',
+            'xtool_engrave_tab'              => 'Gravieren',
+            'xtool_power_percent'            => (int) $primary['power_percent'],
+            'xtool_frequency_khz'            => (int) $primary['frequency_khz'],
+            'xtool_passes'                   => (int) $primary['passes'],
+            'xtool_engrave_mode'             => 'Bidirektional',
+        ];
+
+        if ($bitmap !== null) {
+            $settings += [
+                'xtool_dot_duration_us'        => (int) $bitmap['dot_duration_us'],
+                'xtool_dpi'                    => (int) $bitmap['dpi'],
+                'xtool_bitmap_mode'            => (string) $bitmap['bitmap_mode'],
+                'xtool_bitmap_focus_mm'        => (float) $bitmap['focus_mm'],
+                'xtool_bitmap_power_percent'   => (int) $bitmap['power_percent'],
+                'xtool_bitmap_dot_duration_us' => (int) $bitmap['dot_duration_us'],
+                'xtool_bitmap_frequency_khz'   => (int) $bitmap['frequency_khz'],
+                'xtool_bitmap_dpi'             => (int) $bitmap['dpi'],
+                'xtool_bitmap_passes'          => (int) $bitmap['passes'],
+            ];
+        } else {
+            $settings += [
+                'xtool_dpi'         => (int) $vector['dpi'],
+                'xtool_bitmap_mode' => 'Schwellenwert',
+            ];
+        }
+
+        if ($vector !== null) {
+            $settings += [
+                'xtool_speed_mms'            => (int) $vector['speed_mms'],
+                'xtool_lpc'                  => (int) $vector['lpc'],
+                'xtool_vector_note'          => self::formatHandbookVectorNote($vector),
+                'xtool_vector_focus_mm'      => (float) $vector['focus_mm'],
+                'xtool_vector_power_percent' => (int) $vector['power_percent'],
+                'xtool_vector_speed_mms'     => (int) $vector['speed_mms'],
+                'xtool_vector_frequency_khz' => (int) $vector['frequency_khz'],
+                'xtool_vector_lpc'           => (int) $vector['lpc'],
+                'xtool_vector_dpi'           => (int) $vector['dpi'],
+                'xtool_vector_passes'        => (int) $vector['passes'],
+            ];
+        }
+
+        return $settings;
+    }
+
+    public static function formatHandbookVectorNote(array $vector): string
+    {
+        $parts = [
+            'Gravieren',
+            ((int) $vector['power_percent']) . ' %',
+            ((int) $vector['speed_mms']) . ' mm/s',
+            ((int) $vector['lpc']) . ' Linien/cm',
+            ((int) $vector['frequency_khz']) . ' kHz',
+        ];
+        if (((int) ($vector['passes'] ?? 1)) > 1) {
+            $parts[] = ((int) $vector['passes']) . 'x';
+        }
+
+        return implode(' · ', $parts);
+    }
+
+    /**
+     * Schritt-1-Presetliste (flach) für ein Produkt inkl. erweiterter Werkstoff-Presets.
+     *
+     * @return array<int, array{key: string, label: string, source: string, group: string, polarity: string, equipment_key: string, vector: ?array, bitmap: ?array}>
+     */
+    public static function getStepOnePresetOptions(?Product $product): array
+    {
+        $catalog = self::getHandbookPresetCatalog();
+        $settings = $product
+            ? (is_string($product->configurator_settings) ? (json_decode($product->configurator_settings, true) ?: []) : ($product->configurator_settings ?? []))
+            : [];
+        $profile = $product ? self::getHandbookProductProfile($product->slug, (string) ($settings['template_package'] ?? '')) : null;
+
+        $groups = [];
+        if ($profile !== null) {
+            $groups[] = [$profile, 'Produkt'];
+        }
+        $groups[] = [$catalog['_materials'], 'Werkstoff'];
+
+        $out = [];
+        foreach ($groups as [$grp, $groupLabel]) {
+            foreach ($grp['presets'] as $key => $preset) {
+                $out[] = [
+                    'key'           => $key,
+                    'label'         => (string) $preset['label'],
+                    'source'        => (string) ($preset['source'] ?? ''),
+                    'group'         => $groupLabel,
+                    'polarity'      => (string) ($preset['polarity'] ?? $grp['polarity']),
+                    'equipment_key' => (string) ($preset['equipment_key'] ?? $grp['equipment_key']),
+                    'vector'        => $preset['vector'] ?? null,
+                    'bitmap'        => $preset['bitmap'] ?? null,
+                ];
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * Zerlegt eine Vektor-Notiz ("Gravieren · 70 % · 450 mm/s · 300 Linien/cm · 40 kHz") in Einzelwerte.
+     *
+     * @return array{power_percent: ?int, speed_mms: ?int, lpc: ?int, frequency_khz: ?int, passes: ?int}
+     */
+    public static function parseVectorNoteValues(string $note): array
+    {
+        $out = ['power_percent' => null, 'speed_mms' => null, 'lpc' => null, 'frequency_khz' => null, 'passes' => null];
+        if (trim($note) === '') {
+            return $out;
+        }
+        if (preg_match('/(\d+(?:[.,]\d+)?)\s*%/u', $note, $m)) {
+            $out['power_percent'] = max(1, min(100, (int) round((float) str_replace(',', '.', $m[1]))));
+        }
+        if (preg_match('/(\d+(?:[.,]\d+)?)\s*mm\s*\/\s*s/iu', $note, $m)) {
+            $out['speed_mms'] = max(1, min(4000, (int) round((float) str_replace(',', '.', $m[1]))));
+        }
+        if (preg_match('/(\d+)\s*(?:L|Linien)\s*\/\s*cm/iu', $note, $m)) {
+            $out['lpc'] = max(10, min(2000, (int) $m[1]));
+        }
+        if (preg_match('/(\d+(?:[.,]\d+)?)\s*kHz/iu', $note, $m)) {
+            $out['frequency_khz'] = max(1, min(200, (int) round((float) str_replace(',', '.', $m[1]))));
+        }
+        if (preg_match('/(?:^|\s|·)(\d{1,2})\s*x(?:\s|$|·)/iu', $note, $m)) {
+            $out['passes'] = max(1, min(20, (int) $m[1]));
+        }
+
+        return $out;
+    }
+
+    /**
+     * Getrennte Laserparameter für den Foto-Bitmap-Layer und den Text-/Vektor-Layer einer Bestellposition.
+     * Bitmap = effektive Schritt-1-Werte (Produkt + Overrides). Vektor = Produkt-Vektorwerte (xtool_vector_*)
+     * bzw. bei Overrides die effektive Vektor-Notiz, jeweils mit Fallback auf die Bitmap-Werte.
+     *
+     * @return array{bitmap: array<string, mixed>, vector: array<string, mixed>, has_product_vector_values: bool, polarity: string}
+     */
+    public function resolveLayerLaserParameters($item, string $side = 'front', ?array $effective = null): array
+    {
+        $effective = $effective ?? $this->resolveEffectiveLaserParameters($item, $side);
+        $product = (is_object($item) && isset($item->product)) ? $item->product : null;
+        $settings = $product
+            ? (is_string($product->configurator_settings) ? (json_decode($product->configurator_settings, true) ?: []) : (is_array($product->configurator_settings) ? $product->configurator_settings : []))
+            : [];
+
+        $hasProductVector = isset($settings['xtool_vector_power_percent']) && is_numeric($settings['xtool_vector_power_percent']);
+        $hasOverrides = (bool) ($effective['has_overrides'] ?? false);
+        $noteValues = self::parseVectorNoteValues((string) ($effective['vector_note'] ?? ''));
+
+        $pick = static function (?int $fromNote, $fromProduct, int $fallback, bool $preferNote): int {
+            if ($preferNote && $fromNote !== null) {
+                return $fromNote;
+            }
+            if ($fromProduct !== null && is_numeric($fromProduct)) {
+                return (int) $fromProduct;
+            }
+            return $fromNote ?? $fallback;
+        };
+
+        $vectorLpc = $pick($noteValues['lpc'], $settings['xtool_vector_lpc'] ?? ($settings['xtool_lpc'] ?? null), 300, $hasOverrides);
+        $vector = [
+            'focus_mm'      => $hasOverrides
+                ? (float) $effective['focus_mm']
+                : (float) (is_numeric($settings['xtool_vector_focus_mm'] ?? null) ? $settings['xtool_vector_focus_mm'] : $effective['focus_mm']),
+            'power_percent' => $pick($noteValues['power_percent'], $settings['xtool_vector_power_percent'] ?? null, (int) $effective['power_percent'], $hasOverrides),
+            'speed_mms'     => $pick($noteValues['speed_mms'], $settings['xtool_vector_speed_mms'] ?? null, (int) $effective['speed_mms'], $hasOverrides),
+            'frequency_khz' => $pick($noteValues['frequency_khz'], $settings['xtool_vector_frequency_khz'] ?? null, (int) $effective['frequency_khz'], $hasOverrides),
+            'lpc'           => $vectorLpc,
+            'dpi'           => max(50, min(2540, (int) round($vectorLpc * 2.54))),
+            'passes'        => $pick($noteValues['passes'], $settings['xtool_vector_passes'] ?? null, (int) $effective['passes'], $hasOverrides),
+            'engrave_mode'  => (string) $effective['engrave_mode'],
+            'bitmap_mode'   => 'Schwellenwert',
+        ];
+
+        $bitmap = [
+            'focus_mm'        => (float) $effective['focus_mm'],
+            'power_percent'   => (int) $effective['power_percent'],
+            'dot_duration_us' => (int) $effective['dot_duration_us'],
+            'frequency_khz'   => (int) $effective['frequency_khz'],
+            'dpi'             => (int) $effective['dpi'],
+            'passes'          => (int) $effective['passes'],
+            'bitmap_mode'     => (string) $effective['bitmap_mode'],
+            'engrave_mode'    => (string) $effective['engrave_mode'],
+            'speed_mms'       => (int) $effective['speed_mms'],
+        ];
+
+        $isDark = app(FileDownloadService::class)->isFrostedLightEngravingSurface($product, $settings);
+
+        return [
+            'bitmap'                    => $bitmap,
+            'vector'                    => $vector,
+            'has_product_vector_values' => $hasProductVector,
+            'polarity'                  => LaserPhotoPreprocessor::normalizePolarity((string) ($settings['xtool_photo_substrate_polarity'] ?? ''), $isDark),
+        ];
+    }
+
     public static function normalizeEquipmentKey(string $rawKey, string $rawProcessMode = ''): string
     {
         $k = mb_strtolower(trim($rawKey));
@@ -2401,7 +3043,11 @@ class XtoolLaserCockpitService
 
         // Sauberes Gravur-PNG mit echt transparentem Hintergrund (Alpha = 0 außerhalb des Motivs) erzeugen,
         // damit xTool Studio auf dem Live-Kamerabild keinen schwarzen oder weißen Kasten über den Rohling legt.
-        $engravePngBytes = $this->buildCleanTransparentXcsBitmapPng((string) $payload['stageEngravePngBytes']);
+        // Multi-Layer: Kundenfoto (Foto-Bitmap-Layer) und Texte/Symbole (Vektor-Layer) werden getrennt eingebettet.
+        $photoLayerSource = (string) ($payload['photoLayerPngBytes'] ?? '');
+        $vectorLayerSource = (string) ($payload['vectorLayerPngBytes'] ?? '');
+        $isMultiLayer = $photoLayerSource !== '' && $vectorLayerSource !== '';
+        $engravePngBytes = $this->buildCleanTransparentXcsBitmapPng($isMultiLayer ? $photoLayerSource : (string) $payload['stageEngravePngBytes']);
         $opaqueThumbSourceBytes = $this->buildOpaqueWhiteBackedGrayscalePng((string) $payload['stageEngravePngBytes']);
         $thumbnailPngBytes = $this->buildXcsProjectThumbnailPng($opaqueThumbSourceBytes);
 
@@ -2440,6 +3086,29 @@ class XtoolLaserCockpitService
         $safeOrderNumber = preg_replace('/[^A-Za-z0-9_-]/', '_', $orderNumber) ?: 'Auftrag';
         $sideLabel = $side === 'back' ? 'Rueckseite' : 'Vorderseite';
         $projectName = "SF-{$safeOrderNumber}-{$sideLabel}";
+
+        // Getrennte Layer-Laserwerte (Foto-Bitmap vs. Text/Vektor) aus Produkt-Handbuchwerten & Schritt-1-Overrides
+        $layerParams = $this->resolveLayerLaserParameters($item, $side, $laserSummary);
+        $photoLayerInfo = is_array($payload['photoLayerInfo'] ?? null) ? $payload['photoLayerInfo'] : [];
+        $hasOverrides = (bool) ($laserSummary['has_overrides'] ?? false);
+        $isPhotoOnly = $photoLayerSource !== '' && $vectorLayerSource === '';
+        $isVectorOnly = $photoLayerSource === '' && $vectorLayerSource !== '';
+        if (($isMultiLayer || $isPhotoOnly) && !$hasOverrides && ($photoLayerInfo['class'] ?? '') === 'silhouette') {
+            // Reines 1-Bit-Logo / Silhouette: randscharf per Schwellenwert statt Fehlerdiffusion
+            $bitmapMode = 'threshold';
+        }
+        if ($isVectorOnly && !$hasOverrides && $layerParams['has_product_vector_values']) {
+            // Reine Text-/Symbol-Gravur: exakt die Vektor-Handbuchwerte des Produkts
+            $vec = $layerParams['vector'];
+            $powerPercent = max(1, min(100, (int) $vec['power_percent']));
+            $speedMms = max(1, min(4000, (int) $vec['speed_mms']));
+            $frequencyKhz = max(1, min(200, (int) $vec['frequency_khz']));
+            $dpi = max(50, min(2540, (int) $vec['dpi']));
+            $passes = max(1, min(20, (int) $vec['passes']));
+            $dotDurationUs = self::equivalentDotDurationUs($dpi, $speedMms);
+            $bitmapMode = 'threshold';
+            $processingType = 'FILL_VECTOR_ENGRAVING';
+        }
 
         // 1. Ghost-Contour SVG dPath im lokalen Koordinatensystem (0..widthMm, 0..heightMm)
         $ghostDPath = $payload['ghostContourDPath'];
@@ -2579,6 +3248,38 @@ class XtoolLaserCockpitService
             ],
         ];
 
+        // 2b. Multi-Layer: Text-/Vektor-Layer als eigenes, deckungsgleiches Element (identische x/y/angle/scale)
+        $vectorDisplayId = null;
+        $vectorPngBytes = '';
+        $vectorSha256 = '';
+        $vectorResourceRelPath = '';
+        $vectorResourceFileName = '';
+        if ($isMultiLayer) {
+            $displaysJson['displays'][0]['name'] = 'Foto-Bitmap (' . ($item->product_name ?? 'Unikat') . ')';
+
+            $vectorPngBytes = $this->buildCleanTransparentXcsBitmapPng($vectorLayerSource);
+            $vectorSha256 = hash('sha256', $vectorPngBytes);
+            $vectorResourceFileName = $vectorSha256 . '.png';
+            $vectorResourceRelPath = 'resources/' . $vectorResourceFileName;
+            $vectorDisplayId = (string) Str::uuid();
+
+            $vectorDisplay = $displaysJson['displays'][0];
+            $vectorDisplay['id'] = $vectorDisplayId;
+            $vectorDisplay['sourceId'] = $vectorDisplayId;
+            $vectorDisplay['name'] = 'Text & Symbole (Vektor-Layer)';
+            $vectorDisplay['layerColor'] = '#1E40AF';
+            $vectorDisplay['layerTag'] = '#1E40AF';
+            $vectorDisplay['zOrder'] = 2;
+            $vectorDisplay['base64'] = 'data:image/png;base64,' . base64_encode($vectorPngBytes);
+            $vectorDisplay['DPI'] = (int) $layerParams['vector']['dpi'];
+            $vectorDisplay['bitmapSourceToken'] = (string) Str::uuid();
+            $vectorDisplay['resourcePath'] = $vectorResourceRelPath;
+
+            $ghostDisplay = $displaysJson['displays'][1];
+            $ghostDisplay['zOrder'] = 3;
+            $displaysJson['displays'] = [$displaysJson['displays'][0], $vectorDisplay, $ghostDisplay];
+        }
+
         // 3. canvases/<canvasId>.json (ohne BATCH_TEMPLATE-Sperre und ohne Zwangs-Gruppierung, inkl. chunkIndexes: [0])
         $canvasMetaJson = [
             'id'              => $canvasId,
@@ -2618,6 +3319,26 @@ class XtoolLaserCockpitService
                 'count'        => 2,
             ],
         ];
+        if ($isMultiLayer) {
+            $canvasMetaJson['layerData'] = [
+                '#000000' => [
+                    'name'    => 'Foto-Bitmap (Kundenfoto)',
+                    'order'   => 1,
+                    'visible' => true,
+                ],
+                '#1E40AF' => [
+                    'name'    => 'Text & Symbole (Vektor)',
+                    'order'   => 2,
+                    'visible' => true,
+                ],
+                '#00bcd4' => [
+                    'name'    => 'Geister-Kontur (Ignorieren)',
+                    'order'   => 3,
+                    'visible' => true,
+                ],
+            ];
+            $canvasMetaJson['chunkLayout']['count'] = 3;
+        }
 
         // 4. devices/device-GS009-CLASS-4-1.json (100 % V2DeviceConfig-konform: id auf Canvas, profiles/patches/bindings als Listen)
         $profileKey = implode('::', [$activeMode, $materialId, 'BITMAP', $processingType, 'uv', 0]);
@@ -2702,6 +3423,63 @@ class XtoolLaserCockpitService
             ],
         ];
 
+        // 4b. Multi-Layer: eigenes Vektor-Profil (Text & Symbole) mit den Vektor-Handbuchwerten + eigene Bindung
+        $vectorProfileValues = null;
+        if ($isMultiLayer && $vectorDisplayId !== null) {
+            $modeRef = &$deviceJson['processing'][$canvasId]['modes'][$activeMode];
+            $modeRef['profiles'][0]['values']['seelenfunkeLayer'] = 'photo_bitmap';
+            $modeRef['profiles'][0]['base']['values']['seelenfunkeLayer'] = 'photo_bitmap';
+
+            $vec = $layerParams['vector'];
+            $vecDpi = max(50, min(2540, (int) $vec['dpi']));
+            $vecSpeed = max(1, min(4000, (int) $vec['speed_mms']));
+            $vectorProcessingType = 'FILL_VECTOR_ENGRAVING';
+            $vectorProfileKey = implode('::', [$activeMode, $materialId, 'BITMAP', $vectorProcessingType, 'uv', 1]);
+            $vectorProfileId = 'profile_' . substr(md5($vectorProfileKey), 0, 8);
+            $vectorProfileValues = [
+                'materialType'          => $materialId > 0 ? 'official' : 'customize',
+                'materialId'            => $materialId,
+                'ProcessingLightSource' => 'uv',
+                'laserType'             => 'uv',
+                'dotDuration'           => self::equivalentDotDurationUs($vecDpi, $vecSpeed),
+                'power'                 => max(1, min(100, (int) $vec['power_percent'])),
+                'speed'                 => $vecSpeed,
+                'dpi'                   => $vecDpi,
+                'density'               => (int) $vec['lpc'],
+                'linesPerCm'            => (int) $vec['lpc'],
+                'repeat'                => max(1, min(20, (int) $vec['passes'])),
+                'frequency'             => max(1, min(200, (int) $vec['frequency_khz'])),
+                'bitmapMode'            => 'threshold',
+                'bitmapScanMode'        => self::resolveXtoolScanMode((string) $vec['engrave_mode']),
+                'elementType'           => 'Vektor',
+                'engraveTab'            => 'Gravieren',
+                'presetMode'            => $presetMode,
+                'vectorNote'            => $vectorNote,
+                'focusHeight'           => round((float) $vec['focus_mm'], 2),
+                'seelenfunkeLayer'      => 'text_vector',
+                'crossAngle'            => false,
+                'enableKerf'            => false,
+                'kerfDistance'          => 0,
+            ];
+            $modeRef['profiles'][] = [
+                'id'                    => $vectorProfileId,
+                'key'                   => $vectorProfileKey,
+                'processingType'        => $vectorProcessingType,
+                'ProcessingLightSource' => 'uv',
+                'values'                => $vectorProfileValues,
+                'base'                  => [
+                    'source' => $profileSource,
+                    'values' => $vectorProfileValues,
+                ],
+            ];
+            $modeRef['bindings'][] = [
+                'bindingId'     => 'binding_' . substr(md5($vectorDisplayId . '::' . $vectorProfileId), 0, 8),
+                'baseProfileId' => $vectorProfileId,
+                'displayIds'    => [$vectorDisplayId],
+            ];
+            unset($modeRef);
+        }
+
         // 5. project.json + resources/<sha256>.png.meta.json für OPFS-Rehydrierung in xTool Studio v1.10.15
         $nowMs = (int) round(microtime(true) * 1000);
         $resourceMetaJson = [
@@ -2767,6 +3545,25 @@ class XtoolLaserCockpitService
             'materialList'        => [],
         ];
 
+        $photoJarvisPngBytes = null;
+        if ($isMultiLayer && $vectorDisplayId !== null) {
+            $projectJson['resources'][$vectorResourceRelPath] = [
+                'sha256'    => $vectorSha256,
+                'size'      => strlen($vectorPngBytes),
+                'mime'      => 'image/png',
+                'extension' => 'png',
+                'createdAt' => $nowMs,
+                'displays'  => [
+                    $canvasId => [$vectorDisplayId],
+                ],
+            ];
+            $projectJson['customData']['seelenfunke_layers'] = 'photo_bitmap+text_vector';
+            $projectJson['customData']['seelenfunke_photo_polarity'] = (string) ($photoLayerInfo['polarity'] ?? $layerParams['polarity']);
+        }
+        if ($photoLayerSource !== '' && ($photoLayerInfo['class'] ?? '') === 'halftone') {
+            $photoJarvisPngBytes = $this->buildJarvisPreviewPng($photoLayerSource, $widthMm, $heightMm, $dpi);
+        }
+
         $persistenceMetaJson = [
             'schemaVersion' => '2.0.0',
             'protocol'      => 'xcs-workspace-v2',
@@ -2793,6 +3590,19 @@ class XtoolLaserCockpitService
             $zip->addFromString('devices/device-' . self::DEVICE_ID_KEY . '.json', json_encode($deviceJson, $jsonFlags));
             $zip->addFromString($resourceRelPath, $engravePngBytes);
             $zip->addFromString($resourceRelPath . '.meta.json', json_encode($resourceMetaJson, $jsonFlags));
+            if ($isMultiLayer && $vectorDisplayId !== null) {
+                $vectorResourceMeta = $resourceMetaJson;
+                $vectorResourceMeta['ref'] = $vectorResourceRelPath;
+                $vectorResourceMeta['metadata']['size'] = strlen($vectorPngBytes);
+                $vectorResourceMeta['metadata']['checksum'] = $vectorSha256;
+                $vectorResourceMeta['metadata']['displayId'] = $vectorDisplayId;
+                $vectorResourceMeta['metadata']['source']['value'] = $vectorResourceFileName;
+                $zip->addFromString($vectorResourceRelPath, $vectorPngBytes);
+                $zip->addFromString($vectorResourceRelPath . '.meta.json', json_encode($vectorResourceMeta, $jsonFlags));
+            }
+            if ($photoJarvisPngBytes !== null) {
+                $zip->addFromString('seelenfunke/Laser_Foto_Jarvis_Vorschau.png', $photoJarvisPngBytes);
+            }
             $zip->addFromString('thumbnail.png', $thumbnailPngBytes);
             $zip->close();
 
@@ -2805,14 +3615,58 @@ class XtoolLaserCockpitService
         $filename = "xTool-Projekt-{$safeOrderNumber}-Pos-" . substr((string) $item->id, 0, 8) . "-{$sideLabel}.xcs";
 
         return [
-            'bytes'       => $zipBytes,
-            'filename'    => $filename,
-            'center_x_mm' => $centerXMm,
-            'center_y_mm' => $centerYMm,
-            'angle_deg'   => $angleDeg,
-            'width_mm'    => $widthMm,
-            'height_mm'   => $heightMm,
+            'bytes'            => $zipBytes,
+            'filename'         => $filename,
+            'center_x_mm'      => $centerXMm,
+            'center_y_mm'      => $centerYMm,
+            'angle_deg'        => $angleDeg,
+            'width_mm'         => $widthMm,
+            'height_mm'        => $heightMm,
+            'is_multi_layer'   => $isMultiLayer,
+            'photo_layer_info' => $photoLayerInfo,
+            'photo_jarvis_png' => $photoJarvisPngBytes,
         ];
+    }
+
+    /**
+     * Physikalisch äquivalente Punktdauer (µs) eines gerasterten Vektor-Layers: Punktabstand / Geschwindigkeit.
+     */
+    public static function equivalentDotDurationUs(int $dpi, int $speedMms): int
+    {
+        $pitchMm = 25.4 / max(50, $dpi);
+
+        return max(1, min(5000, (int) round(($pitchMm / max(1, $speedMms)) * 1000000.0)));
+    }
+
+    /**
+     * Erzeugt die Jarvis-Judice-Ninke Vorschau (Laser_Foto_Jarvis_Vorschau.png) des Foto-Layers in echter Ziel-DPI.
+     */
+    public function buildJarvisPreviewPng(string $photoLayerPngBytes, float $widthMm, float $heightMm, int $dpi): ?string
+    {
+        $src = @imagecreatefromstring($photoLayerPngBytes);
+        if (!$src) {
+            return null;
+        }
+        $effectiveDpi = max(100, min(1000, $dpi));
+        // Identisches Abtastraster wie buildLaserMotionStream() (1:1 Punkt-Übernahme in motion.gcode)
+        $sampleW = max(64, min(800, (int) round(($widthMm / 25.4) * $effectiveDpi)));
+        $sampleH = max(64, min(800, (int) round(($heightMm / 25.4) * $effectiveDpi)));
+        $small = imagecreatetruecolor($sampleW, $sampleH);
+        imagealphablending($small, false);
+        imagesavealpha($small, true);
+        imagefill($small, 0, 0, imagecolorallocatealpha($small, 255, 255, 255, 127));
+        imagecopyresampled($small, $src, 0, 0, 0, 0, $sampleW, $sampleH, imagesx($src), imagesy($src));
+        imagedestroy($src);
+
+        $dithered = app(LaserPhotoPreprocessor::class)->jarvisDither($small);
+        imagedestroy($small);
+
+        ob_start();
+        imagepng($dithered, null, 9);
+        $bytes = (string) ob_get_clean();
+        imagedestroy($dithered);
+
+        return $bytes !== '' ? $bytes : null;
     }
 
     /**
@@ -2890,21 +3744,110 @@ class XtoolLaserCockpitService
         $scanMode = self::resolveXtoolScanMode((string) ($laserSummary['engrave_mode'] ?? 'Bidirektional'));
 
         $previewJpgBytes = $this->buildPreviewJpeg200($payload['stageEngravePngBytes']);
-        $motionGcodeBytes = $this->buildLaserMotionStream(
-            $payload['stageEngravePngBytes'],
-            $centerXMm,
-            $centerYMm,
-            $widthMm,
-            $heightMm,
-            $angleDeg,
-            $powerPercent,
-            $dotDurationUs,
-            $frequencyKhz,
-            $passes,
-            $dpi,
-            $scanMode,
-            $speedMms
-        );
+
+        // Multi-Layer (.xf): Foto-Bitmap-Block (Jarvis-Punktraster mit Bitmap-Werten) + Text-/Vektor-Block (Vektor-Werte)
+        $photoLayerSource = (string) ($payload['photoLayerPngBytes'] ?? '');
+        $vectorLayerSource = (string) ($payload['vectorLayerPngBytes'] ?? '');
+        $isMultiLayer = $photoLayerSource !== '' && $vectorLayerSource !== '';
+        $photoLayerInfo = is_array($payload['photoLayerInfo'] ?? null) ? $payload['photoLayerInfo'] : [];
+        $layerParams = $this->resolveLayerLaserParameters($item, $side, $laserSummary);
+        $hasOverrides = (bool) ($laserSummary['has_overrides'] ?? false);
+        $vectorProcessingParams = null;
+
+        if ($photoLayerSource === '' && $vectorLayerSource !== '' && !$hasOverrides && $layerParams['has_product_vector_values']) {
+            $vec = $layerParams['vector'];
+            $powerPercent = max(1, min(100, (int) $vec['power_percent']));
+            $speedMms = max(1, min(4000, (int) $vec['speed_mms']));
+            $frequencyKhz = max(1, min(200, (int) $vec['frequency_khz']));
+            $dpi = max(50, min(2540, (int) $vec['dpi']));
+            $passes = max(1, min(20, (int) $vec['passes']));
+            $dotDurationUs = self::equivalentDotDurationUs($dpi, $speedMms);
+            $bitmapMode = 'threshold';
+            $processingType = 'FILL_VECTOR_ENGRAVING';
+        }
+        if (($isMultiLayer || ($photoLayerSource !== '' && $vectorLayerSource === '')) && !$hasOverrides && ($photoLayerInfo['class'] ?? '') === 'silhouette') {
+            $bitmapMode = 'threshold';
+        }
+
+        if ($isMultiLayer) {
+            $isHalftonePhoto = ($photoLayerInfo['class'] ?? '') === 'halftone';
+            $photoMotionSource = $isHalftonePhoto
+                ? ($this->buildJarvisPreviewPng($photoLayerSource, $widthMm, $heightMm, $dpi) ?? $photoLayerSource)
+                : $photoLayerSource;
+            $motionGcodeBytes = $this->buildLaserMotionStream(
+                $photoMotionSource,
+                $centerXMm,
+                $centerYMm,
+                $widthMm,
+                $heightMm,
+                $angleDeg,
+                $powerPercent,
+                $dotDurationUs,
+                $frequencyKhz,
+                $passes,
+                $dpi,
+                $scanMode,
+                $speedMms,
+                $isHalftonePhoto ? 'jarvis' : 'grayscale'
+            );
+
+            $vec = $layerParams['vector'];
+            $vecDpi = max(50, min(2540, (int) $vec['dpi']));
+            $vecSpeed = max(1, min(4000, (int) $vec['speed_mms']));
+            $vecScan = self::resolveXtoolScanMode((string) $vec['engrave_mode']);
+            $vectorMotion = $this->buildLaserMotionStream(
+                $vectorLayerSource,
+                $centerXMm,
+                $centerYMm,
+                $widthMm,
+                $heightMm,
+                $angleDeg,
+                max(1, min(100, (int) $vec['power_percent'])),
+                self::equivalentDotDurationUs($vecDpi, $vecSpeed),
+                max(1, min(200, (int) $vec['frequency_khz'])),
+                max(1, min(20, (int) $vec['passes'])),
+                $vecDpi,
+                $vecScan,
+                $vecSpeed,
+                'threshold'
+            );
+            $motionGcodeBytes = self::mergeMotionBlocks($motionGcodeBytes, $vectorMotion);
+
+            $vectorProcessingParams = [
+                'processingType' => 'FILL_VECTOR_ENGRAVING',
+                'elementType'    => 'Vektor',
+                'engraveTab'     => 'Gravieren',
+                'presetMode'     => $presetMode,
+                'lightSource'    => 'uv',
+                'bitmapMode'     => 'threshold',
+                'bitmapScanMode' => $vecScan,
+                'dotDuration'    => self::equivalentDotDurationUs($vecDpi, $vecSpeed),
+                'dpi'            => $vecDpi,
+                'linesPerCm'     => (int) $vec['lpc'],
+                'power'          => max(1, min(100, (int) $vec['power_percent'])),
+                'speed'          => $vecSpeed,
+                'frequency'      => max(1, min(200, (int) $vec['frequency_khz'])),
+                'repeat'         => max(1, min(20, (int) $vec['passes'])),
+                'vectorNote'     => $vectorNote,
+                'layer'          => 'text_vector',
+            ];
+        } else {
+            $motionGcodeBytes = $this->buildLaserMotionStream(
+                $payload['stageEngravePngBytes'],
+                $centerXMm,
+                $centerYMm,
+                $widthMm,
+                $heightMm,
+                $angleDeg,
+                $powerPercent,
+                $dotDurationUs,
+                $frequencyKhz,
+                $passes,
+                $dpi,
+                $scanMode,
+                $speedMms
+            );
+        }
 
         $speedTimeScale = max(0.2, min(10.0, $speedMms / 200.0));
         $description = [
@@ -2945,6 +3888,11 @@ class XtoolLaserCockpitService
                 'ip'          => self::DEFAULT_LASER_IP,
             ],
         ];
+        if ($vectorProcessingParams !== null) {
+            $description['processingParams'][0]['layer'] = 'photo_bitmap';
+            $description['processingParams'][] = $vectorProcessingParams;
+            $description['isProcessByLayer'] = true;
+        }
 
         $descriptionJsonBytes = (string) json_encode($description, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
@@ -2972,7 +3920,28 @@ class XtoolLaserCockpitService
             'angle_deg'    => $angleDeg,
             'width_mm'     => $widthMm,
             'height_mm'    => $heightMm,
+            'is_multi_layer' => $isMultiLayer,
         ];
+    }
+
+    /**
+     * Fügt den Bitmap-Block (BITMAP HEAD .. motion_end) eines zweiten motion.gcode-Stroms direkt nach dem
+     * ersten Block ein (gemeinsamer GS009-4 Kopf & Fuß, zwei Layer mit eigenen blockConfig-Laserwerten).
+     */
+    public static function mergeMotionBlocks(string $primaryGcode, string $secondaryGcode): string
+    {
+        $startMarker = '# GS009-4 BITMAP HEAD';
+        $endMarker = "# motion_end\n";
+        $secStart = strpos($secondaryGcode, $startMarker);
+        $secEnd = strpos($secondaryGcode, $endMarker, $secStart === false ? 0 : $secStart);
+        $priEnd = strpos($primaryGcode, $endMarker);
+        if ($secStart === false || $secEnd === false || $priEnd === false) {
+            return $primaryGcode;
+        }
+        $block = substr($secondaryGcode, $secStart, ($secEnd + strlen($endMarker)) - $secStart);
+        $insertAt = $priEnd + strlen($endMarker);
+
+        return substr($primaryGcode, 0, $insertAt) . $block . substr($primaryGcode, $insertAt);
     }
 
     /**
@@ -3007,6 +3976,10 @@ class XtoolLaserCockpitService
         $publicDisk->put('bestellungen/xtool/latest_job.xf', $xfData['bytes']);
         $publicDisk->put('bestellungen/xtool/latest_project.xcs', $xcsData['bytes']);
         $publicDisk->put('bestellungen/xtool/latest_border.gcode', $xfData['border_gcode']);
+        if (!empty($xcsData['photo_jarvis_png'])) {
+            // Produktions-Ablage: echtes Jarvis-Punktraster des Foto-Layers zur Sichtkontrolle in der Werkstatt
+            $publicDisk->put('bestellungen/xtool/Laser_Foto_Jarvis_Vorschau.png', (string) $xcsData['photo_jarvis_png']);
+        }
 
         // Zusätzlich falls auf dem Windows-Host das xTool Studio Arbeitsverzeichnis gemountet ist,
         // legen wir das fertig ausgerichtete .xcs Projekt direkt im "Seelenfunke-AutoStart"-Ordner ab.
@@ -3427,7 +4400,8 @@ class XtoolLaserCockpitService
         int $passes,
         int $dpi = 500,
         string $scanMode = 'zMode',
-        int $speedMms = 200
+        int $speedMms = 200,
+        string $blockBitmapMode = 'grayscale'
     ): string {
         $effectiveDpi = max(100, min(1000, $dpi));
         $sampleW = max(64, min(800, (int) round(($widthMm / 25.4) * $effectiveDpi)));
@@ -3452,7 +4426,7 @@ class XtoolLaserCockpitService
             'accel'       => 5000,
             'density'     => $densityLinesPerMm,
             'power'       => [0, $sMax],
-            'bitmapMode'  => 'grayscale',
+            'bitmapMode'  => $blockBitmapMode,
             'crossDot'    => false,
             'startX'      => 0,
             'isVector'    => false,

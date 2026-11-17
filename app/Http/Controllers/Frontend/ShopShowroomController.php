@@ -12,10 +12,10 @@ use App\Models\Product\ProductTemplate;
 use App\Services\Gamification\GameConfig;
 use App\Services\Gamification\LavaParkourService;
 use App\Services\Gamification\LobbyInstanceService;
-use App\Services\Gamification\MiniLabyrinthService;
 use App\Services\Shop\ShowroomMultiplayerService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Schema;
@@ -31,8 +31,7 @@ class ShopShowroomController extends Controller
     public function index(
         Request $request,
         ShowroomMultiplayerService $multiplayer,
-        LavaParkourService $lavaParkour,
-        MiniLabyrinthService $miniLabyrinth
+        LavaParkourService $lavaParkour
     ): JsonResponse {
         if ($maintenanceResp = $this->checkMaintenanceOrLock($request)) {
             return $maintenanceResp;
@@ -55,16 +54,22 @@ class ShopShowroomController extends Controller
         $multiplayerPayload = $multiplayer->buildBootstrapPayload($customer);
         $playerFunki = $this->resolvePlayerFunki($multiplayerPayload);
         $lavaParkourPayload = $lavaParkour->buildShowroomPayload($customer);
-        $miniLabyrinthPayload = $miniLabyrinth->buildShowroomPayload($customer);
+        $environmentPayload = $this->resolveShowroomEnvironment();
+        $playerPayload = $this->resolveShowroomPlayer(
+            $customer,
+            $multiplayerPayload,
+            (bool) ($lavaParkourPayload['master_key_unlocked'] ?? false)
+        );
 
         return response()->json([
             'success' => true,
             'showroom_style' => 'louvre_black_gold',
             'total_products' => count($products),
+            'environment' => $environmentPayload,
+            'player' => $playerPayload,
             'player_funki' => $playerFunki,
             'multiplayer' => $multiplayerPayload,
             'lava_parkour' => $lavaParkourPayload,
-            'mini_labyrinth' => $miniLabyrinthPayload,
             'products' => $products,
         ], 200, $this->noStoreHeaders());
     }
@@ -104,22 +109,42 @@ class ShopShowroomController extends Controller
             ], 403, $this->noStoreHeaders());
         }
 
-        $payload = $multiplayer->syncPlayerState(
-            $customer,
-            $request->only([
-                'x',
-                'y',
-                'z',
-                'rotY',
-                'rot_y',
-                'speed',
-                'zone',
-                'jumping',
-                'weaponActionSeq',
-                'soloMode',
-                'emote',
-            ])
-        );
+        $syncInput = $request->only([
+            'x',
+            'y',
+            'z',
+            'rotY',
+            'rot_y',
+            'speed',
+            'zone',
+            'jumping',
+            'weaponActionSeq',
+            'soloMode',
+            'emote',
+        ]);
+
+        $sanctumAccess = LobbyInstanceService::evaluateSanctumAccess($customer);
+        $rawRequestedZone = isset($syncInput['zone']) && is_string($syncInput['zone'])
+            ? strtolower(trim($syncInput['zone']))
+            : 'lobby';
+        $wasSanctumClamped = false;
+
+        if (in_array($rawRequestedZone, ['heroes', 'lava'], true) && !$sanctumAccess['can_enter_sanctums']) {
+            $syncInput['zone'] = 'gallery';
+            if (array_key_exists('z', $syncInput) && LobbyInstanceService::isValidFiniteNumeric($syncInput['z']) && (float) $syncInput['z'] < -14.0) {
+                $syncInput['z'] = -14.0;
+            }
+            $wasSanctumClamped = true;
+        }
+
+        $payload = $multiplayer->syncPlayerState($customer, $syncInput);
+        $payload['can_enter_sanctums'] = $sanctumAccess['can_enter_sanctums'];
+        $payload['sanctum_block_reason'] = $sanctumAccess['sanctum_block_reason'];
+
+        if ($wasSanctumClamped) {
+            $payload['zone'] = 'lobby';
+            $payload['sanctum_clamped'] = true;
+        }
 
         return response()->json($payload, 200, $this->noStoreHeaders());
     }
@@ -683,6 +708,165 @@ class ShopShowroomController extends Controller
             'model_url' => $guestModelUrl,
             'glb_url' => $guestModelUrl,
             'level_models' => $levelModels,
+        ];
+    }
+
+    /**
+     * Berechnet Jahreszeit, aktive Feiertage und Server-Uhrzeit in Europe/Berlin fuer den 3D-Showroom.
+     *
+     * @return array{
+     *     season_key: string,
+     *     season_label: string,
+     *     holiday_key: string|null,
+     *     holiday_label: string|null,
+     *     server_time: string
+     * }
+     */
+    private function resolveShowroomEnvironment(): array
+    {
+        $now = Carbon::now('Europe/Berlin');
+        $month = (int) $now->month;
+        $day = (int) $now->day;
+        $year = (int) $now->year;
+
+        [$seasonKey, $seasonLabel] = match (true) {
+            in_array($month, [3, 4, 5], true) => ['spring', 'Frühling'],
+            in_array($month, [6, 7, 8], true) => ['summer', 'Sommer'],
+            in_array($month, [9, 10, 11], true) => ['autumn', 'Herbst'],
+            default => ['winter', 'Winter'],
+        };
+
+        $holidayKey = null;
+        $holidayLabel = null;
+        $todayStart = $now->copy()->startOfDay();
+        $easter = $this->computeEasterDateBerlin($year);
+        $mothersDay = Carbon::create($year, 5, 1, 0, 0, 0, 'Europe/Berlin')->nthOfMonth(2, Carbon::SUNDAY)->startOfDay();
+        $fathersDay = $easter->copy()->addDays(39)->startOfDay();
+
+        if (($month === 12 && $day >= 30) || ($month === 1 && $day <= 4)) {
+            $holidayKey = 'neujahr';
+            $holidayLabel = 'Neujahr';
+        } elseif ($month === 12 && $day >= 1 && $day <= 26) {
+            $holidayKey = 'weihnachten';
+            $holidayLabel = 'Weihnachten';
+        } elseif ($month === 2 && $day >= 7 && $day <= 14) {
+            $holidayKey = 'valentinstag';
+            $holidayLabel = 'Valentinstag';
+        } elseif ($todayStart->betweenIncluded($easter->copy()->subDays(7), $easter->copy()->addDay())) {
+            $holidayKey = 'ostern';
+            $holidayLabel = 'Ostern';
+        } elseif ($todayStart->betweenIncluded($mothersDay->copy()->subDays(4), $mothersDay)) {
+            $holidayKey = 'muttertag';
+            $holidayLabel = 'Muttertag';
+        } elseif ($todayStart->betweenIncluded($fathersDay->copy()->subDays(3), $fathersDay)) {
+            $holidayKey = 'vatertag';
+            $holidayLabel = 'Vatertag';
+        } elseif ($month === 10 && $day >= 24 && $day <= 31) {
+            $holidayKey = 'halloween';
+            $holidayLabel = 'Halloween';
+        }
+
+        return [
+            'season_key' => $seasonKey,
+            'season_label' => $seasonLabel,
+            'holiday_key' => $holidayKey,
+            'holiday_label' => $holidayLabel,
+            'server_time' => $now->format('H:i'),
+        ];
+    }
+
+    private function computeEasterDateBerlin(int $year): Carbon
+    {
+        $k = intdiv($year, 100);
+        $m = 15 + intdiv((3 * $k + 3), 4) - intdiv((8 * $k + 13), 25);
+        $s = 2 - intdiv((3 * $k + 3), 4);
+        $a = $year % 19;
+        $d = (19 * $a + $m) % 30;
+        $r = intdiv($d, 29) + (intdiv($d, 28) - intdiv($d, 29)) * intdiv($a, 11);
+        $og = 21 + $d - $r;
+        $sz = 7 - (($year + intdiv($year, 4) + $s) % 7);
+        $oe = 7 - (($og - $sz) % 7);
+
+        return Carbon::create($year, 3, 1, 0, 0, 0, 'Europe/Berlin')->addDays($og + $oe - 1)->startOfDay();
+    }
+
+    /**
+     * Erzeugt den strukturierten Spieler-Block fuer GET /shop/showroom-data (Zero-PII).
+     *
+     * @param array<string, mixed> $multiplayerPayload
+     * @return array<string, mixed>
+     */
+    private function resolveShowroomPlayer(
+        ?Customer $customer,
+        array $multiplayerPayload,
+        bool $masterKeyUnlocked
+    ): array {
+        $giftVoucherUrl = '/produkt/geschenkgutschein';
+        $levelTitles = GameConfig::getLevelTitles();
+        $sanctumAccess = LobbyInstanceService::evaluateSanctumAccess($customer);
+
+        if ($customer !== null) {
+            $profile = Schema::hasTable('customer_gamifications')
+                ? CustomerGamification::where('customer_id', $customer->id)->first()
+                : null;
+
+            $gamificationActive = $sanctumAccess['gamification_active'];
+            $funkenBalance = max(0, (int) ($profile?->funken_balance ?? 0));
+            $funkenTotalEarned = max(0, (int) ($profile?->funken_total_earned ?? 0));
+            $rawLevel = (int) ($profile?->level ?: GameConfig::getLevelForLifetimeSparks($funkenTotalEarned));
+            $resolvedLevel = min(GameConfig::MAX_LEVEL, max(1, $rawLevel));
+
+            $cfg = GameConfig::getLevelConfig($resolvedLevel);
+            $modelRel = ltrim((string) ($cfg['model_path'] ?? 'shop/customer/gamification/models/funki_lvl_1_rags.glb'), '/');
+            $modelUrl = '/' . $modelRel;
+            $levelTitle = $this->cleanText((string) ($levelTitles[$resolvedLevel]['name'] ?? ('Stufe ' . $resolvedLevel)));
+
+            $rawDisplayName = trim((string) ($multiplayerPayload['display_name'] ?? ''));
+            $safeName = $rawDisplayName !== ''
+                ? $this->cleanText($rawDisplayName)
+                : $this->cleanText((string) ($cfg['name'] ?? ('Funki · Stufe ' . $resolvedLevel)));
+
+            return [
+                'is_authenticated' => true,
+                'has_completed_order' => $sanctumAccess['has_completed_order'],
+                'gamification_active' => $gamificationActive,
+                'can_enter_sanctums' => $sanctumAccess['can_enter_sanctums'],
+                'sanctum_block_reason' => $sanctumAccess['sanctum_block_reason'],
+                'login_url' => $sanctumAccess['login_url'],
+                'dashboard_url' => $sanctumAccess['dashboard_url'],
+                'name' => $safeName,
+                'level' => $resolvedLevel,
+                'level_title' => $levelTitle,
+                'model_url' => $modelUrl,
+                'funken_balance' => $funkenBalance,
+                'funken_total_earned' => $funkenTotalEarned,
+                'master_key_unlocked' => $masterKeyUnlocked,
+                'gift_voucher_url' => $giftVoucherUrl,
+            ];
+        }
+
+        $guestLevel = 2;
+        $guestCfg = GameConfig::getLevelConfig($guestLevel);
+        $guestModelRel = ltrim((string) ($guestCfg['model_path'] ?? 'shop/customer/gamification/models/funki_lvl_2_basic.glb'), '/');
+        $guestModelUrl = '/' . $guestModelRel;
+        $guestTitle = $this->cleanText((string) ($levelTitles[$guestLevel]['name'] ?? 'Lichtträger-Lehrling'));
+
+        return [
+            'is_authenticated' => false,
+            'has_completed_order' => false,
+            'gamification_active' => false,
+            'can_enter_sanctums' => false,
+            'sanctum_block_reason' => $sanctumAccess['sanctum_block_reason'],
+            'login_url' => $sanctumAccess['login_url'],
+            'dashboard_url' => $sanctumAccess['dashboard_url'],
+            'name' => 'Gast-Funki',
+            'level' => $guestLevel,
+            'level_title' => $guestTitle,
+            'model_url' => $guestModelUrl,
+            'funken_balance' => 0,
+            'funken_total_earned' => 0,
+            'master_key_unlocked' => false,
+            'gift_voucher_url' => $giftVoucherUrl,
         ];
     }
 
