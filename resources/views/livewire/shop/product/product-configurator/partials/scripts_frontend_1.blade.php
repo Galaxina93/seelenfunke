@@ -1204,7 +1204,7 @@
                     }
                 } catch (e) {}
 
-                let widthPx = Math.max(60, canvasWidth + 24);
+                let widthPx = Math.max(60, canvasWidth + 20 + 24);
                 if (!hasText) {
                     widthPx = Math.min(widthPx, this.getMaxEmptyTextWidthPx());
                 }
@@ -2258,6 +2258,120 @@
                 this.recordHistory();
             },
 
+            // Ausgewähltes Element liegt während der Bearbeitung immer oben (reine UI-Ebene, ändert keine gespeicherten zIndex-Werte / Laser-Reihenfolge)
+            getInteractiveStageZIndex(type, index) {
+                const base = this.getElementZIndex(type, index);
+                if (this.context === 'preview' || this.config.isBeginnerMode || this.isCapturing) return base;
+                if (this.selectedType === type && this.selectedIndex === index) return 96;
+                return base;
+            },
+
+            setSelectedElementSize(rawVal) {
+                if (this.selectedIndex === null || !this.selectedType) return;
+                const list = this.selectedType === 'text' ? this.currentTexts : this.currentLogos;
+                const item = list ? list[this.selectedIndex] : null;
+                const num = Number(rawVal);
+                if (!item || !isFinite(num)) return;
+                item.size = this.selectedType === 'text'
+                    ? Math.max(0.1, Math.min(5, num))
+                    : Math.max(10, Math.min(500, num));
+            },
+
+            // Symbol sofort clientseitig (0 ms, ohne Livewire-Re-Render/Morph) auf die Bühne legen; Tracking läuft still im Hintergrund
+            applySymbolToStage(file, url, category = null) {
+                if (this.context === 'preview' || this.config.isBeginnerMode) return;
+                let rel = String(file || '').replace(/\\/g, '/').replace(/^\/+/, '').trim();
+                if (rel.startsWith('vectors/')) rel = rel.slice(8).replace(/^\/+/, '');
+                if (!rel || rel.includes('..') || rel.includes('\0') || !rel.toLowerCase().endsWith('.svg')) return;
+
+                const lName = this.activeSide === 'back' ? 'logos_back' : 'logos';
+                const tName = this.activeSide === 'back' ? 'texts_back' : 'texts';
+                let list = JSON.parse(JSON.stringify(this.normalizeArray(this[lName])));
+                list = Array.isArray(list) ? list : Object.values(list || {});
+                const texts = this.normalizeArray(this[tName]);
+
+                // Spawn im (visuellen) Mittelpunkt, bei exakter Überlappung leicht versetzt (identisch zur Server-Logik)
+                const baseX = Number(this.spawnCenterX ?? this.areaCenterX ?? 50);
+                const baseY = Number(this.spawnCenterY ?? this.areaCenterY ?? 50);
+                let x = baseX, y = baseY;
+                const overlaps = list.some(l => l && Math.hypot(Number(l.x ?? baseX) - baseX, Number(l.y ?? baseY) - baseY) < 1.5);
+                if (overlaps) {
+                    const step = Math.max(1, Math.min(4, list.length));
+                    const offsets = [[3.2 * step, 2.8 * step], [-3.2 * step, 2.8 * step], [3.2 * step, -2.8 * step], [-3.2 * step, -2.8 * step]];
+                    for (const [dx, dy] of offsets) {
+                        const cx = Number(Math.max(6, Math.min(94, baseX + dx)).toFixed(2));
+                        const cy = Number(Math.max(6, Math.min(94, baseY + dy)).toFixed(2));
+                        if (this.isStagePointInsideArea(cx, cy)) { x = cx; y = cy; break; }
+                    }
+                }
+
+                let maxZ = 30;
+                texts.forEach((t, i) => { const z = (t && typeof t.zIndex === 'number') ? t.zIndex : (30 + i); if (z > maxZ) maxZ = z; });
+                list.forEach((l, i) => { const z = (l && typeof l.zIndex === 'number') ? l.zIndex : (10 + i); if (z > maxZ) maxZ = z; });
+
+                const newId = (window.crypto && typeof window.crypto.randomUUID === 'function')
+                    ? window.crypto.randomUUID()
+                    : ('logo_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10));
+
+                list.push({
+                    id: newId,
+                    type: 'vector',
+                    value: 'vectors/' + rel,
+                    url: String(url || ''),
+                    x: Number(x.toFixed(2)),
+                    y: Number(y.toFixed(2)),
+                    size: 100,
+                    rotation: 0,
+                    zIndex: Math.min(95, maxZ + 1),
+                });
+
+                this.flushPendingCurve();
+                this.isCropping = false;
+                this.activeCropHandle = null;
+                this.focusedTextId = null;
+                if (document.activeElement && document.activeElement.tagName === 'TEXTAREA') {
+                    document.activeElement.blur();
+                }
+
+                // Leere, unbenutzte Textfelder der aktiven Seite entfernen (wie serverseitig clearUnusedEmptyTextsOnActiveSide)
+                if (texts.length > 0 && texts.every(t => !t || !t.text || String(t.text).trim() === '')) {
+                    this[tName] = [];
+                }
+
+                this[lName] = list;
+                this.selectItem('logo', list.length - 1);
+                this.updateTexture();
+                this.recordHistory();
+
+                try {
+                    const p = this.$wire ? this.$wire.trackSymbolAddedSilent(rel, category) : null;
+                    if (p && typeof p.catch === 'function') p.catch(() => {});
+                } catch (e) {}
+            },
+
+            isStagePointInsideArea(px, py) {
+                const c = this.config || {};
+                if (c.area_shape === 'custom') {
+                    const pts = Array.isArray(c.custom_points) ? c.custom_points : [];
+                    if (pts.length < 3) return true;
+                    let inside = false;
+                    for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+                        const xi = Number(pts[i].x), yi = Number(pts[i].y);
+                        const xj = Number(pts[j].x), yj = Number(pts[j].y);
+                        if (((yi > py) !== (yj > py)) && (px < (xj - xi) * (py - yi) / ((yj - yi) || 1e-7) + xi)) inside = !inside;
+                    }
+                    return inside;
+                }
+                const left = Number(c.area_left ?? 10), top = Number(c.area_top ?? 10);
+                const width = Math.max(8, Number(c.area_width ?? 80)), height = Math.max(8, Number(c.area_height ?? 80));
+                if (c.area_shape === 'circle') {
+                    const rx = Math.max(4, width * 0.45), ry = Math.max(4, height * 0.45);
+                    const nx = (px - (left + width / 2)) / rx, ny = (py - (top + height / 2)) / ry;
+                    return (nx * nx + ny * ny) <= 1;
+                }
+                return px >= left + 2 && px <= left + width - 2 && py >= top + 2 && py <= top + height - 2;
+            },
+
             getTextBoxWidthPercent(item) {
                 if (!item || !item.id) return 0;
                 const dimW = parseFloat(this.textDims[item.id]?.width || 0);
@@ -2906,15 +3020,21 @@
 
                 } else if (this.isResizing) {
                     const dist = Math.max(1, Math.hypot(
-                        clientX - (rect.left + (item.x || 50) / 100 * rect.width),
-                        clientY - (rect.top + (item.y || 50) / 100 * rect.height)
+                        clientX - (rect.left + Number(item.x ?? this.areaCenterX) / 100 * rect.width),
+                        clientY - (rect.top + Number(item.y ?? this.areaCenterY) / 100 * rect.height)
                     ));
-                    item.size = Math.max(0.1, this.initialSize * (dist / this.initialDist));
+                    const nextSize = Math.max(0.1, this.initialSize * (dist / this.initialDist));
+                    // Mikro-Schwankungen der Maus (< 0,5 %) ignorieren, damit das Feld beim langsamen Ziehen nicht flackert
+                    if (Math.abs(nextSize - Number(item.size || 0)) >= Math.max(0.0005, Number(item.size || 0) * 0.005)) {
+                        item.size = this.currentElement.type === 'text'
+                            ? Number(nextSize.toFixed(3))
+                            : Number(nextSize.toFixed(2));
+                    }
 
                 } else if (this.isRotating) {
                     const angle = Math.atan2(
-                        clientY - (rect.top + (item.y || 50) / 100 * rect.height),
-                        clientX - (rect.left + (item.x || 50) / 100 * rect.width)
+                        clientY - (rect.top + Number(item.y ?? this.areaCenterY) / 100 * rect.height),
+                        clientX - (rect.left + Number(item.x ?? this.areaCenterX) / 100 * rect.width)
                     );
 
                     let newRot = this.initialRotation + (angle - this.initialAngle) * (180 / Math.PI);
@@ -2950,6 +3070,7 @@
                     return;
                 }
                 const wasTransforming = this.isDragging || this.isResizing || this.isRotating;
+                const wasTextResize = this.isResizing && this.currentElement && this.currentElement.type === 'text';
                 if (this.currentElement && this.currentElement.fromTextarea && !this.hasDraggedDistance && !wasTransforming) {
                     const tItem = (this.currentTexts && this.currentTexts[this.currentElement.index]) ? this.currentTexts[this.currentElement.index] : null;
                     if (tItem && tItem.id) {
@@ -2970,6 +3091,10 @@
                     setTimeout(() => { this._justTransformed = false; }, 80);
                     this.recordHistory();
                 }
+                if (wasTextResize) {
+                    // Nach dem Loslassen einmalig pixelgenau am echten DOM nachmessen
+                    this.refitAllTextareas();
+                }
             },
 
             fitTextarea(id, el) {
@@ -2982,6 +3107,19 @@
                 // Niemals das aktive Eingabefeld überschreiben, während der Nutzer darin tippt oder löscht!
                 if (document.activeElement !== el && item && typeof item.text === 'string' && el.value !== item.text) {
                     el.value = item.text;
+                }
+
+                // Während das Textfeld aktiv größer/kleiner gezogen wird: nur EINE deterministische Maßquelle (Canvas) nutzen.
+                // Sonst kämpfen DOM-Messung (scrollWidth) und :style-Bindung pro Frame gegeneinander und das Feld zuckt.
+                if (this.isResizing && item && this.currentElement && this.currentElement.type === 'text') {
+                    const activeItem = this.currentTexts ? this.currentTexts[this.currentElement.index] : null;
+                    if (activeItem && String(activeItem.id) === String(id)) {
+                        const liveDims = this.ensureTextDims(item);
+                        el.style.fontSize = this.getEffectiveTextareaFontSizePx(item) + 'px';
+                        el.style.width = liveDims.width;
+                        el.style.height = liveDims.height;
+                        return;
+                    }
                 }
 
                 const hasText = el.value !== undefined && el.value !== null && el.value.length > 0;
@@ -3022,7 +3160,7 @@
                 const isCurved = Boolean(hasText && item && this.isTextCurved(item));
                 const isVisible = !isCurved && this.showDrawingBoard && el.offsetParent !== null && el.getClientRects().length > 0;
 
-                let newWidth = canvasWidth;
+                let newWidth = canvasWidth + 20;
                 let newHeight = canvasHeight;
 
                 if (isVisible) {

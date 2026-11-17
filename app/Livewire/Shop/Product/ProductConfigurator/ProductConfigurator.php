@@ -362,10 +362,10 @@ class ProductConfigurator extends Component
             }
         }
 
-        $this->texts = array_values(is_array($this->texts) ? $this->texts : []);
-        $this->texts_back = array_values(is_array($this->texts_back) ? $this->texts_back : []);
-        $this->logos = array_values(is_array($this->logos) ? $this->logos : []);
-        $this->logos_back = array_values(is_array($this->logos_back) ? $this->logos_back : []);
+        $this->texts = $this->normalizeStageItemsList($this->texts, 'txt');
+        $this->texts_back = $this->normalizeStageItemsList($this->texts_back, 'txt');
+        $this->logos = $this->normalizeStageItemsList($this->logos, 'logo');
+        $this->logos_back = $this->normalizeStageItemsList($this->logos_back, 'logo');
 
         if ($this->isUsingCustomFieldsMode() && $this->product->usesStudioConfigurator()) {
             $this->syncBeginnerPositionToCanvas($this->context === 'preview');
@@ -376,10 +376,32 @@ class ProductConfigurator extends Component
 
     public function hydrate(): void
     {
-        $this->texts = array_values(is_array($this->texts) ? $this->texts : []);
-        $this->texts_back = array_values(is_array($this->texts_back) ? $this->texts_back : []);
-        $this->logos = array_values(is_array($this->logos) ? $this->logos : []);
-        $this->logos_back = array_values(is_array($this->logos_back) ? $this->logos_back : []);
+        $this->texts = $this->normalizeStageItemsList($this->texts, 'txt');
+        $this->texts_back = $this->normalizeStageItemsList($this->texts_back, 'txt');
+        $this->logos = $this->normalizeStageItemsList($this->logos, 'logo');
+        $this->logos_back = $this->normalizeStageItemsList($this->logos_back, 'logo');
+    }
+
+    protected function normalizeStageItemsList($items, string $prefix = 'item'): array
+    {
+        if (!is_array($items)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach (array_values($items) as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            if (!isset($entry['id']) || !is_scalar($entry['id']) || trim((string) $entry['id']) === '') {
+                $entry['id'] = $prefix . '_' . Str::uuid()->toString();
+            } else {
+                $entry['id'] = (string) $entry['id'];
+            }
+            $normalized[] = $entry;
+        }
+
+        return $normalized;
     }
 
     // NEU: Holt die aktiven (und im Frontend verfügbaren) Varianten für den Dropdown

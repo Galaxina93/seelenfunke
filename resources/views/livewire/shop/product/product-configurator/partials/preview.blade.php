@@ -145,18 +145,14 @@
                             @click.stop="toggleMaximize()"
                             class="px-2.5 py-2 rounded-xl shadow-sm border backdrop-blur-md transition-all flex items-center gap-1.5 cursor-pointer {{ $isDark ? 'bg-gray-900/95 border-gray-800 text-gray-200 hover:text-white hover:bg-gray-800' : 'bg-white/95 border-gray-200/90 text-gray-800 hover:text-gray-950 hover:bg-gray-100' }}"
                             :title="isMaximized ? 'Normalansicht (Esc)' : 'Maximal-Ansicht'">
-                        <template x-if="!isMaximized">
-                            <div class="flex items-center gap-1.5">
-                                <x-heroicon-m-arrows-pointing-out class="w-4 h-4 text-primary" />
-                                <span class="text-[10px] font-black uppercase tracking-wider hidden sm:inline">Maximal</span>
-                            </div>
-                        </template>
-                        <template x-if="isMaximized">
-                            <div class="flex items-center gap-1.5">
-                                <x-heroicon-m-arrows-pointing-in class="w-4 h-4 text-primary" />
-                                <span class="text-[10px] font-black uppercase tracking-wider hidden sm:inline">Verkleinern</span>
-                            </div>
-                        </template>
+                        <span x-show="!isMaximized" class="flex items-center gap-1.5">
+                            <x-heroicon-m-arrows-pointing-out class="w-4 h-4 text-primary" />
+                            <span class="text-[10px] font-black uppercase tracking-wider hidden sm:inline">Maximal</span>
+                        </span>
+                        <span x-show="isMaximized" x-cloak class="flex items-center gap-1.5">
+                            <x-heroicon-m-arrows-pointing-in class="w-4 h-4 text-primary" />
+                            <span class="text-[10px] font-black uppercase tracking-wider hidden sm:inline">Verkleinern</span>
+                        </span>
                     </button>
                 </div>
                 @endif
@@ -275,24 +271,27 @@
          @touchstart="deselectAll($event)">
 
         {{-- AUTOMATISCHES JAHRESZEITEN- & FEIERTAGS-HINTERGRUNDVIDEO (2D & 3D im Hintergrund hinter dem Produkt) --}}
-        <template x-if="activeBgVideo && videoEnabled">
-            <video x-ref="bgVideo"
-                   data-snapshot-ignore="true"
-                   :key="activeBgVideo"
-                   :src="activeBgVideo"
-                   x-init="$el.muted = true; $el.defaultMuted = true; $el.play().catch(() => {})"
-                   x-effect="if (activeBgVideo && videoEnabled) { $el.muted = true; $el.play().catch(() => {}); }"
-                   autoplay
-                   loop
-                   muted
-                   playsinline
-                   style="transform: translate3d(0,0,0); -webkit-transform: translate3d(0,0,0); backface-visibility: hidden; -webkit-backface-visibility: hidden; will-change: transform;"
-                   class="absolute inset-0 w-full h-full object-cover pointer-events-none transition-opacity duration-500 z-[5] opacity-95"></video>
-        </template>
+        <div wire:ignore class="contents">
+            <template x-if="activeBgVideo && videoEnabled">
+                <video x-ref="bgVideo"
+                       data-snapshot-ignore="true"
+                       :key="activeBgVideo"
+                       :src="activeBgVideo"
+                       x-init="$el.muted = true; $el.defaultMuted = true; $el.play().catch(() => {})"
+                       x-effect="if (activeBgVideo && videoEnabled) { $el.muted = true; $el.play().catch(() => {}); }"
+                       autoplay
+                       loop
+                       muted
+                       playsinline
+                       style="transform: translate3d(0,0,0); -webkit-transform: translate3d(0,0,0); backface-visibility: hidden; -webkit-backface-visibility: hidden; will-change: transform;"
+                       class="absolute inset-0 w-full h-full object-cover pointer-events-none transition-opacity duration-500 z-[5] opacity-95"></video>
+            </template>
+        </div>
 
         @if($context !== 'preview')
         {{-- EXTRA-ZOOMFENSTER (NAVIGATOR / MINIMAP) OBEN RECHTS ZUM MM-GENAUEN VERSCHIEBEN --}}
-        <div x-show="stageZoom > 1.01 && (showDrawingBoard || !config.modelPath) && context !== 'preview'"
+        <div wire:ignore
+             x-show="stageZoom > 1.01 && (showDrawingBoard || !config.modelPath) && context !== 'preview'"
              x-cloak
              x-transition:enter="transition ease-out duration-200"
              x-transition:enter-start="opacity-0 scale-90"
@@ -307,9 +306,7 @@
              title="Ausschnitt im Zoomfenster millimetergenau verschieben"
              class="absolute top-2.5 right-2.5 z-40 w-20 h-20 sm:w-24 sm:h-24 rounded-xl overflow-hidden shadow-[0_8px_24px_rgba(0,0,0,0.28)] border-2 border-[#C5A059] bg-white/95 backdrop-blur-md cursor-grab active:cursor-grabbing select-none touch-none pointer-events-auto">
             {{-- Miniatur-Hintergrund --}}
-            <template x-if="activeBgImage">
-                <img :src="activeBgImage" class="absolute inset-0 w-full h-full object-cover pointer-events-none opacity-85" alt="">
-            </template>
+            <img x-show="Boolean(activeBgImage)" :src="activeBgImage || ''" class="absolute inset-0 w-full h-full object-cover pointer-events-none opacity-85" alt="">
             {{-- Miniatur-Produkt-Overlay --}}
             <img x-show="Boolean(activeOverlayImg || config.fallbackImg)"
                  :src="activeOverlayImg || config.fallbackImg"
@@ -497,7 +494,7 @@
                             top: ${config.area_shape === 'custom' ? (currentLogos[index].y ?? areaCenterY) : ((currentLogos[index].y ?? areaCenterY)-(config.area_top ?? 0))/(config.area_height || 100)* 100}%;
                             width: ${((currentLogos[index].size || 100) * scaleFactor)}px;
                             transform: translate(-50%,-50%) rotate(${currentLogos[index].rotation || 0}deg);
-                            z-index: ${getElementZIndex('logo', index)}
+                            z-index: ${getInteractiveStageZIndex('logo', index)}
                          ` : 'display:none;'"
                          @mousedown.stop="if (!config.isBeginnerMode) startAction($event,'logo',index,'drag')"
                          @touchstart.stop="if (!config.isBeginnerMode) startAction($event,'logo',index,'drag')">
@@ -510,85 +507,83 @@
                                          ? 'ring-primary/40 bg-black/20 backdrop-blur-[1px]'
                                          : (isDarkSurface ? 'ring-primary bg-white/10 backdrop-blur-[2px] shadow-[0_0_15px_rgba(197,160,89,0.25)]' : 'ring-primary {{ $isDark ? 'bg-white/10' : 'bg-white/40' }} backdrop-blur-sm shadow-lg'))
                                      : (isDarkSurface ? 'ring-transparent hover:ring-primary/60 hover:bg-white/5' : 'ring-transparent hover:ring-gray-500 {{ $isDark ? 'hover:bg-white/5' : 'hover:bg-white/10' }}'))">
-                            <template x-if="currentLogos[index] !== undefined">
-                                <div class="relative w-full h-auto">
-                                    {{-- Abgedunkelte Hintergrund-Vorschau des abgeschnittenen Bereichs während des Zuschneidens --}}
-                                    <template x-if="isCropping && selectedType==='logo' && selectedIndex===index">
-                                        <img :src="resolveLogoUrl(currentLogos[index])"
-                                             data-snapshot-ignore="true"
-                                             decoding="sync"
-                                             class="w-full h-auto pointer-events-none rounded-lg select-none"
-                                             :style="isDarkSurface
-                                                 ? 'filter: brightness(0) invert(1) opacity(0.22);'
-                                                 : 'opacity: 0.22;'">
-                                    </template>
+                            <div x-show="Boolean(currentLogos[index])" class="relative w-full h-auto">
+                                {{-- Abgedunkelte Hintergrund-Vorschau des abgeschnittenen Bereichs während des Zuschneidens --}}
+                                <img x-show="isCropping && selectedType==='logo' && selectedIndex===index"
+                                     x-cloak
+                                     :src="resolveLogoUrl(currentLogos[index])"
+                                     data-snapshot-ignore="true"
+                                     decoding="sync"
+                                     class="w-full h-auto pointer-events-none rounded-lg select-none"
+                                     :style="isDarkSurface
+                                         ? 'filter: brightness(0) invert(1) opacity(0.22);'
+                                         : 'opacity: 0.22;'">
 
-                                    {{-- Hauptbild (im Zuschnitt-Modus live per clip-path beschnitten) --}}
-                                    <img :src="resolveLogoUrl(currentLogos[index])"
-                                         decoding="sync"
-                                         :class="(isCropping && selectedType==='logo' && selectedIndex===index) ? 'absolute inset-0 w-full h-full object-contain pointer-events-none rounded-lg' : 'w-full h-auto pointer-events-none rounded-lg'"
-                                         :style="(isDarkSurface
-                                             ? 'filter: brightness(0) invert(1) opacity(0.93) drop-shadow(0px 1px 3px rgba(0,0,0,0.85)) drop-shadow(0px 0px 5px rgba(255,255,255,0.2));'
-                                             : 'opacity: 0.92; filter: drop-shadow(0px 0px 3px rgba(255,255,255,0.75)) drop-shadow(0px 1px 2px rgba(0,0,0,0.25));')
-                                             + ((isCropping && selectedType==='logo' && selectedIndex===index) ? (' clip-path: ' + getLogoClipPath() + ';') : '')">
-                                </div>
-                            </template>
+                                {{-- Hauptbild (im Zuschnitt-Modus live per clip-path beschnitten) --}}
+                                <img :src="resolveLogoUrl(currentLogos[index])"
+                                     decoding="sync"
+                                     :class="(isCropping && selectedType==='logo' && selectedIndex===index) ? 'absolute inset-0 w-full h-full object-contain pointer-events-none rounded-lg' : 'w-full h-auto pointer-events-none rounded-lg'"
+                                     :style="(isDarkSurface
+                                         ? 'filter: brightness(0) invert(1) opacity(0.93) drop-shadow(0px 1px 3px rgba(0,0,0,0.85)) drop-shadow(0px 0px 5px rgba(255,255,255,0.2));'
+                                         : 'opacity: 0.92; filter: drop-shadow(0px 0px 3px rgba(255,255,255,0.75)) drop-shadow(0px 1px 2px rgba(0,0,0,0.25));')
+                                         + ((isCropping && selectedType==='logo' && selectedIndex===index) ? (' clip-path: ' + getLogoClipPath() + ';') : '')">
+                            </div>
 
                             {{-- STANDARD-ECKEN (Verschieben, Drehen, Löschen, Größe) WENN NICHT IM ZUSCHNITT-MODUS --}}
-                            <template x-if="selectedType==='logo' && selectedIndex===index && !isCropping && context!=='preview' && !config.isBeginnerMode && currentLogos[index] !== undefined">
-                                <div data-snapshot-ignore="true">
-                                    <div @mousedown.stop="startAction($event,'logo',index,'drag')" @touchstart.stop.prevent="startAction($event,'logo',index,'drag')" class="active-control-corner absolute -top-4 -left-4 w-8 h-8 rounded-full shadow-md border flex items-center justify-center cursor-move transition-colors {{ $isDark ? 'bg-gray-800 border-gray-700 text-gray-400 hover:text-primary' : 'bg-white border-gray-100 text-gray-500 hover:text-primary' }}" :style="`z-index:200; transform: scale(${(1 / (stageZoom || 1)).toFixed(3)});`"><x-heroicon-m-arrows-pointing-out class="w-4 h-4 rotate-45" /></div>
-                                    <div @mousedown.stop="startAction($event,'logo',index,'rotate')" @touchstart.stop.prevent="startAction($event,'logo',index,'rotate')" class="active-control-corner absolute -top-4 -right-4 w-8 h-8 rounded-full shadow-md border flex items-center justify-center cursor-alias transition-colors {{ $isDark ? 'bg-gray-800 border-gray-700 text-primary hover:text-primary-dark' : 'bg-white border-gray-100 text-primary hover:text-primary-dark' }}" :style="`z-index:200; transform: scale(${(1 / (stageZoom || 1)).toFixed(3)});`"><x-heroicon-m-arrow-path class="w-4 h-4" /></div>
-                                    <div @mousedown.stop @click.stop="deleteSelectedItem()" @touchstart.stop.prevent="deleteSelectedItem()" class="active-control-corner absolute -bottom-4 -left-4 w-8 h-8 rounded-full shadow-md border flex items-center justify-center cursor-pointer transition-colors {{ $isDark ? 'bg-gray-800 border-gray-700 text-red-400 hover:text-red-500' : 'bg-white border-gray-100 text-red-500 hover:text-red-700' }}" :style="`z-index:200; transform: scale(${(1 / (stageZoom || 1)).toFixed(3)});`"><x-heroicon-m-trash class="w-4 h-4" /></div>
-                                    <div @mousedown.stop="startAction($event,'logo',index,'resize')" @touchstart.stop.prevent="startAction($event,'logo',index,'resize')" class="active-control-corner absolute -bottom-4 -right-4 w-8 h-8 rounded-full shadow-md border flex items-center justify-center cursor-se-resize transition-colors {{ $isDark ? 'bg-gray-800 border-gray-700 text-primary hover:text-primary-dark' : 'bg-white border-gray-100 text-primary hover:text-primary-dark' }}" :style="`z-index:200; transform: scale(${(1 / (stageZoom || 1)).toFixed(3)});`"><svg class="w-4 h-4 rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path d="M4 20L20 4M20 4H14M20 4V10M4 20H10M4 20V14" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-                                </div>
-                            </template>
+                            <div x-show="selectedType==='logo' && selectedIndex===index && !isCropping && context!=='preview' && !config.isBeginnerMode && Boolean(currentLogos[index])"
+                                 x-cloak
+                                 data-snapshot-ignore="true">
+                                <div @mousedown.stop="startAction($event,'logo',index,'drag')" @touchstart.stop.prevent="startAction($event,'logo',index,'drag')" class="active-control-corner absolute -top-4 -left-4 w-8 h-8 rounded-full shadow-md border flex items-center justify-center cursor-move transition-colors {{ $isDark ? 'bg-gray-800 border-gray-700 text-gray-400 hover:text-primary' : 'bg-white border-gray-100 text-gray-500 hover:text-primary' }}" :style="`z-index:200; transform: scale(${(1 / (stageZoom || 1)).toFixed(3)});`"><x-heroicon-m-arrows-pointing-out class="w-4 h-4 rotate-45" /></div>
+                                <div @mousedown.stop="startAction($event,'logo',index,'rotate')" @touchstart.stop.prevent="startAction($event,'logo',index,'rotate')" class="active-control-corner absolute -top-4 -right-4 w-8 h-8 rounded-full shadow-md border flex items-center justify-center cursor-alias transition-colors {{ $isDark ? 'bg-gray-800 border-gray-700 text-primary hover:text-primary-dark' : 'bg-white border-gray-100 text-primary hover:text-primary-dark' }}" :style="`z-index:200; transform: scale(${(1 / (stageZoom || 1)).toFixed(3)});`"><x-heroicon-m-arrow-path class="w-4 h-4" /></div>
+                                <div @mousedown.stop @click.stop="deleteSelectedItem()" @touchstart.stop.prevent="deleteSelectedItem()" class="active-control-corner absolute -bottom-4 -left-4 w-8 h-8 rounded-full shadow-md border flex items-center justify-center cursor-pointer transition-colors {{ $isDark ? 'bg-gray-800 border-gray-700 text-red-400 hover:text-red-500' : 'bg-white border-gray-100 text-red-500 hover:text-red-700' }}" :style="`z-index:200; transform: scale(${(1 / (stageZoom || 1)).toFixed(3)});`"><x-heroicon-m-trash class="w-4 h-4" /></div>
+                                <div @mousedown.stop="startAction($event,'logo',index,'resize')" @touchstart.stop.prevent="startAction($event,'logo',index,'resize')" class="active-control-corner absolute -bottom-4 -right-4 w-8 h-8 rounded-full shadow-md border flex items-center justify-center cursor-se-resize transition-colors {{ $isDark ? 'bg-gray-800 border-gray-700 text-primary hover:text-primary-dark' : 'bg-white border-gray-100 text-primary hover:text-primary-dark' }}" :style="`z-index:200; transform: scale(${(1 / (stageZoom || 1)).toFixed(3)});`"><svg class="w-4 h-4 rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path d="M4 20L20 4M20 4H14M20 4V10M4 20H10M4 20V14" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                            </div>
 
                             {{-- INTERAKTIVER ZUSCHNITT-RAHMEN MIT 4 KANTEN-BALKEN & 4 ECKEN --}}
-                            <template x-if="selectedType==='logo' && selectedIndex===index && isCropping && context!=='preview' && currentLogos[index] !== undefined">
-                                <div data-snapshot-ignore="true"
-                                     class="crop-control-handle absolute border-2 border-primary pointer-events-none"
-                                     :style="`
-                                         top: ${cropBox.top}%;
-                                         right: ${cropBox.right}%;
-                                         bottom: ${cropBox.bottom}%;
-                                         left: ${cropBox.left}%;
-                                         border-radius: ${cropBox.shape === 'circle' ? '9999px' : '4px'};
-                                         box-shadow: 0 0 0 1px rgba(0,0,0,0.45);
-                                         z-index: 210;
-                                     `">
-                                    {{-- Obere Kante (N) --}}
-                                    <div @mousedown.stop="startCropDrag($event, 'n')" @touchstart.stop.prevent="startCropDrag($event, 'n')"
-                                         class="crop-control-handle pointer-events-auto absolute -top-2.5 left-1/2 -translate-x-1/2 w-10 h-4 flex items-center justify-center cursor-ns-resize">
-                                        <span class="w-8 h-1.5 rounded-full bg-primary border border-gray-900 shadow-sm"></span>
-                                    </div>
-                                    {{-- Untere Kante (S) --}}
-                                    <div @mousedown.stop="startCropDrag($event, 's')" @touchstart.stop.prevent="startCropDrag($event, 's')"
-                                         class="crop-control-handle pointer-events-auto absolute -bottom-2.5 left-1/2 -translate-x-1/2 w-10 h-4 flex items-center justify-center cursor-ns-resize">
-                                        <span class="w-8 h-1.5 rounded-full bg-primary border border-gray-900 shadow-sm"></span>
-                                    </div>
-                                    {{-- Linke Kante (W) --}}
-                                    <div @mousedown.stop="startCropDrag($event, 'w')" @touchstart.stop.prevent="startCropDrag($event, 'w')"
-                                         class="crop-control-handle pointer-events-auto absolute top-1/2 -left-2.5 -translate-y-1/2 w-4 h-10 flex items-center justify-center cursor-ew-resize">
-                                        <span class="w-1.5 h-8 rounded-full bg-primary border border-gray-900 shadow-sm"></span>
-                                    </div>
-                                    {{-- Rechte Kante (E) --}}
-                                    <div @mousedown.stop="startCropDrag($event, 'e')" @touchstart.stop.prevent="startCropDrag($event, 'e')"
-                                         class="crop-control-handle pointer-events-auto absolute top-1/2 -right-2.5 -translate-y-1/2 w-4 h-10 flex items-center justify-center cursor-ew-resize">
-                                        <span class="w-1.5 h-8 rounded-full bg-primary border border-gray-900 shadow-sm"></span>
-                                    </div>
-
-                                    {{-- 4 Ecken (NW, NE, SW, SE) --}}
-                                    <div @mousedown.stop="startCropDrag($event, 'nw')" @touchstart.stop.prevent="startCropDrag($event, 'nw')"
-                                         class="crop-control-handle pointer-events-auto absolute -top-2 -left-2 w-4 h-4 rounded-full bg-white border-2 border-primary shadow-md cursor-nwse-resize"></div>
-                                    <div @mousedown.stop="startCropDrag($event, 'ne')" @touchstart.stop.prevent="startCropDrag($event, 'ne')"
-                                         class="crop-control-handle pointer-events-auto absolute -top-2 -right-2 w-4 h-4 rounded-full bg-white border-2 border-primary shadow-md cursor-nesw-resize"></div>
-                                    <div @mousedown.stop="startCropDrag($event, 'sw')" @touchstart.stop.prevent="startCropDrag($event, 'sw')"
-                                         class="crop-control-handle pointer-events-auto absolute -bottom-2 -left-2 w-4 h-4 rounded-full bg-white border-2 border-primary shadow-md cursor-nesw-resize"></div>
-                                    <div @mousedown.stop="startCropDrag($event, 'se')" @touchstart.stop.prevent="startCropDrag($event, 'se')"
-                                         class="crop-control-handle pointer-events-auto absolute -bottom-2 -right-2 w-4 h-4 rounded-full bg-white border-2 border-primary shadow-md cursor-nwse-resize"></div>
+                            <div x-show="selectedType==='logo' && selectedIndex===index && isCropping && context!=='preview' && Boolean(currentLogos[index])"
+                                 x-cloak
+                                 data-snapshot-ignore="true"
+                                 class="crop-control-handle absolute border-2 border-primary pointer-events-none"
+                                 :style="`
+                                     top: ${cropBox.top}%;
+                                     right: ${cropBox.right}%;
+                                     bottom: ${cropBox.bottom}%;
+                                     left: ${cropBox.left}%;
+                                     border-radius: ${cropBox.shape === 'circle' ? '9999px' : '4px'};
+                                     box-shadow: 0 0 0 1px rgba(0,0,0,0.45);
+                                     z-index: 210;
+                                 `">
+                                {{-- Obere Kante (N) --}}
+                                <div @mousedown.stop="startCropDrag($event, 'n')" @touchstart.stop.prevent="startCropDrag($event, 'n')"
+                                     class="crop-control-handle pointer-events-auto absolute -top-2.5 left-1/2 -translate-x-1/2 w-10 h-4 flex items-center justify-center cursor-ns-resize">
+                                    <span class="w-8 h-1.5 rounded-full bg-primary border border-gray-900 shadow-sm"></span>
                                 </div>
-                            </template>
+                                {{-- Untere Kante (S) --}}
+                                <div @mousedown.stop="startCropDrag($event, 's')" @touchstart.stop.prevent="startCropDrag($event, 's')"
+                                     class="crop-control-handle pointer-events-auto absolute -bottom-2.5 left-1/2 -translate-x-1/2 w-10 h-4 flex items-center justify-center cursor-ns-resize">
+                                    <span class="w-8 h-1.5 rounded-full bg-primary border border-gray-900 shadow-sm"></span>
+                                </div>
+                                {{-- Linke Kante (W) --}}
+                                <div @mousedown.stop="startCropDrag($event, 'w')" @touchstart.stop.prevent="startCropDrag($event, 'w')"
+                                     class="crop-control-handle pointer-events-auto absolute top-1/2 -left-2.5 -translate-y-1/2 w-4 h-10 flex items-center justify-center cursor-ew-resize">
+                                    <span class="w-1.5 h-8 rounded-full bg-primary border border-gray-900 shadow-sm"></span>
+                                </div>
+                                {{-- Rechte Kante (E) --}}
+                                <div @mousedown.stop="startCropDrag($event, 'e')" @touchstart.stop.prevent="startCropDrag($event, 'e')"
+                                     class="crop-control-handle pointer-events-auto absolute top-1/2 -right-2.5 -translate-y-1/2 w-4 h-10 flex items-center justify-center cursor-ew-resize">
+                                    <span class="w-1.5 h-8 rounded-full bg-primary border border-gray-900 shadow-sm"></span>
+                                </div>
+
+                                {{-- 4 Ecken (NW, NE, SW, SE) --}}
+                                <div @mousedown.stop="startCropDrag($event, 'nw')" @touchstart.stop.prevent="startCropDrag($event, 'nw')"
+                                     class="crop-control-handle pointer-events-auto absolute -top-2 -left-2 w-4 h-4 rounded-full bg-white border-2 border-primary shadow-md cursor-nwse-resize"></div>
+                                <div @mousedown.stop="startCropDrag($event, 'ne')" @touchstart.stop.prevent="startCropDrag($event, 'ne')"
+                                     class="crop-control-handle pointer-events-auto absolute -top-2 -right-2 w-4 h-4 rounded-full bg-white border-2 border-primary shadow-md cursor-nesw-resize"></div>
+                                <div @mousedown.stop="startCropDrag($event, 'sw')" @touchstart.stop.prevent="startCropDrag($event, 'sw')"
+                                     class="crop-control-handle pointer-events-auto absolute -bottom-2 -left-2 w-4 h-4 rounded-full bg-white border-2 border-primary shadow-md cursor-nesw-resize"></div>
+                                <div @mousedown.stop="startCropDrag($event, 'se')" @touchstart.stop.prevent="startCropDrag($event, 'se')"
+                                     class="crop-control-handle pointer-events-auto absolute -bottom-2 -right-2 w-4 h-4 rounded-full bg-white border-2 border-primary shadow-md cursor-nwse-resize"></div>
+                            </div>
                         </div>
                     </div>
                 </template>
@@ -601,7 +596,7 @@
                             top: ${config.area_shape === 'custom' ? (currentTexts[index].y ?? areaCenterY) : ((currentTexts[index].y ?? areaCenterY)-(config.area_top ?? 0))/(config.area_height || 100)* 100}%;
                             transform-origin: ${currentTexts[index].align==='left'?'0% 50%':(currentTexts[index].align==='right'?'100% 50%':'50% 50%')};
                             transform: translate(${currentTexts[index].align==='left'?'0%':(currentTexts[index].align==='right'?'-100%':'-50%')},-50%) rotate(${currentTexts[index].rotation || 0}deg);
-                            z-index: ${getElementZIndex('text', index)}
+                            z-index: ${getInteractiveStageZIndex('text', index)}
                          ` : 'display:none;'"
                          @mousedown.stop="if (!config.isBeginnerMode) startAction($event,'text',index,'drag')"
                          @touchstart.stop="if (!config.isBeginnerMode) startAction($event,'text',index,'drag')">
@@ -733,36 +728,36 @@
                                         </div>
                                     </template>
 
-                                    <textarea x-model="currentTexts[index].text"
-                                              :data-id="currentTexts[index].id"
-                                              :data-curved="isTextCurved(currentTexts[index], index) ? '1' : '0'"
-                                              :rows="(currentTexts[index].text?.match(/\n/g) || []).length + 1"
+                                    <textarea x-model="textItem.text"
+                                              :data-id="textItem?.id || ''"
+                                              :data-curved="isTextCurved(currentTexts[index] || textItem, index) ? '1' : '0'"
+                                              :rows="((textItem?.text || '').match(/\n/g) || []).length + 1"
                                               x-effect="if (textItem && document.activeElement !== $el && $el.value !== (textItem.text || '')) { $el.value = textItem.text || ''; fitTextarea(textItem.id, $el); }"
                                               x-init="
-                                                    if (currentTexts[index]) fitTextarea(currentTexts[index].id, $el);
+                                                    if (textItem && textItem.id) fitTextarea(textItem.id, $el);
                                                     $watch('currentTexts[index]?.text', () => { if (currentTexts[index]) fitTextarea(currentTexts[index].id, $el); });
                                                     $watch('currentTexts[index]?.size', () => $nextTick(() => { if (currentTexts[index]) fitTextarea(currentTexts[index].id, $el); }));
                                                     $watch('currentTexts[index]?.font', () => setTimeout(() => { if (currentTexts[index]) fitTextarea(currentTexts[index].id, $el); }, 50));
-                                                    $nextTick(() => { if (currentTexts[index]) fitTextarea(currentTexts[index].id, $el); });
+                                                    $nextTick(() => { if (textItem && textItem.id) fitTextarea(textItem.id, $el); });
                                               "
                                               @focus="if (currentTexts[index]) { focusedTextId = currentTexts[index].id; selectItem('text', index); }"
                                               @click.stop="if (!_justTransformed && currentTexts[index]) { focusedTextId = currentTexts[index].id; selectItem('text', index); }"
-                                              @input="handleTextInput(currentTexts[index], $el, index)"
+                                              @input="handleTextInput(currentTexts[index] || textItem, $el, index)"
                                               @blur="if (currentTexts[index] && focusedTextId === currentTexts[index].id) { focusedTextId = null; } recordHistory()"
                                               wrap="off"
                                               class="bg-transparent font-bold resize-none overflow-hidden block whitespace-pre m-0 border-0 outline-none shadow-none ring-0 focus:placeholder-transparent select-text"
                                               :class="[alignMap[currentTexts[index]?.align || 'center'], focusedTextId === currentTexts[index]?.id ? 'cursor-text' : 'cursor-move']"
                                               :style="`
-                                                    width: ${ensureTextDims(currentTexts[index]).width};
-                                                    height: ${ensureTextDims(currentTexts[index]).height};
+                                                    width: ${ensureTextDims(currentTexts[index] || textItem).width};
+                                                    height: ${ensureTextDims(currentTexts[index] || textItem).height};
                                                     padding: 10px 10px;
-                                                    font-size: ${getEffectiveTextareaFontSizePx(currentTexts[index])}px;
+                                                    font-size: ${getEffectiveTextareaFontSizePx(currentTexts[index] || textItem)}px;
                                                     font-family: ${fontMap[currentTexts[index]?.font] || 'Arial'};
                                                     line-height: 1.28;
-                                                    color: ${isTextCurved(currentTexts[index], index) ? 'transparent' : (isDarkSurface ? 'rgba(248, 250, 252, 0.98)' : 'rgba(17, 24, 39, 0.96)')};
-                                                    -webkit-text-fill-color: ${isTextCurved(currentTexts[index], index) ? 'transparent' : (isDarkSurface ? '#f8fafc' : '#111827')};
-                                                    caret-color: ${(isTextCurved(currentTexts[index], index) || (focusedTextId === currentTexts[index]?.id && (!currentTexts[index]?.text || currentTexts[index]?.text.length === 0))) ? 'transparent' : '#C5A059'};
-                                                    text-shadow: ${isTextCurved(currentTexts[index], index)
+                                                    color: ${isTextCurved(currentTexts[index] || textItem, index) ? 'transparent' : (isDarkSurface ? 'rgba(248, 250, 252, 0.98)' : 'rgba(17, 24, 39, 0.96)')};
+                                                    -webkit-text-fill-color: ${isTextCurved(currentTexts[index] || textItem, index) ? 'transparent' : (isDarkSurface ? '#f8fafc' : '#111827')};
+                                                    caret-color: ${(isTextCurved(currentTexts[index] || textItem, index) || (focusedTextId === currentTexts[index]?.id && (!currentTexts[index]?.text || currentTexts[index]?.text.length === 0))) ? 'transparent' : '#C5A059'};
+                                                    text-shadow: ${isTextCurved(currentTexts[index] || textItem, index)
                                                         ? 'none'
                                                         : (isDarkSurface
                                                             ? '0px 1px 2px rgba(0,0,0,0.98), 0px 0px 4px rgba(0,0,0,0.92), 0px 0px 8px rgba(0,0,0,0.75)'
@@ -774,14 +769,14 @@
                                 </div>
                             </template>
 
-                            <template x-if="selectedType==='text' && selectedIndex===index && context!=='preview' && !config.isBeginnerMode && currentTexts[index] !== undefined">
-                                <div data-snapshot-ignore="true">
-                                    <div @mousedown.stop="startAction($event,'text',index,'drag')" @touchstart.stop.prevent="startAction($event,'text',index,'drag')" class="active-control-corner absolute -top-4 -left-4 w-8 h-8 rounded-full shadow-md border flex items-center justify-center cursor-move transition-colors {{ $isDark ? 'bg-gray-800 border-gray-700 text-gray-400 hover:text-primary' : 'bg-white border-gray-100 text-gray-500 hover:text-primary' }}" :style="`z-index:200; transform: scale(${(1 / (stageZoom || 1)).toFixed(3)});`"><x-heroicon-m-arrows-pointing-out class="w-4 h-4 rotate-45" /></div>
-                                    <div @mousedown.stop="startAction($event,'text',index,'rotate')" @touchstart.stop.prevent="startAction($event,'text',index,'rotate')" class="active-control-corner absolute -top-4 -right-4 w-8 h-8 rounded-full shadow-md border flex items-center justify-center cursor-alias transition-colors {{ $isDark ? 'bg-gray-800 border-gray-700 text-primary hover:text-primary-dark' : 'bg-white border-gray-100 text-primary hover:text-primary-dark' }}" :style="`z-index:200; transform: scale(${(1 / (stageZoom || 1)).toFixed(3)});`"><x-heroicon-m-arrow-path class="w-4 h-4" /></div>
-                                    <div @mousedown.stop @click.stop="deleteSelectedItem()" @touchstart.stop.prevent="deleteSelectedItem()" class="active-control-corner absolute -bottom-4 -left-4 w-8 h-8 rounded-full shadow-md border flex items-center justify-center cursor-pointer transition-colors {{ $isDark ? 'bg-gray-800 border-gray-700 text-red-400 hover:text-red-500' : 'bg-white border-gray-100 text-red-500 hover:text-red-700' }}" :style="`z-index:200; transform: scale(${(1 / (stageZoom || 1)).toFixed(3)});`"><x-heroicon-m-trash class="w-4 h-4" /></div>
-                                    <div @mousedown.stop="startAction($event,'text',index,'resize')" @touchstart.stop.prevent="startAction($event,'text',index,'resize')" class="active-control-corner absolute -bottom-4 -right-4 w-8 h-8 rounded-full shadow-md border flex items-center justify-center cursor-se-resize transition-colors {{ $isDark ? 'bg-gray-800 border-gray-700 text-primary hover:text-primary-dark' : 'bg-white border-gray-100 text-primary hover:text-primary-dark' }}" :style="`z-index:200; transform: scale(${(1 / (stageZoom || 1)).toFixed(3)});`"><svg class="w-4 h-4 rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path d="M4 20L20 4M20 4H14M20 4V10M4 20H10M4 20V14" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-                                </div>
-                            </template>
+                            <div x-show="selectedType==='text' && selectedIndex===index && context!=='preview' && !config.isBeginnerMode && Boolean(currentTexts[index])"
+                                 x-cloak
+                                 data-snapshot-ignore="true">
+                                <div @mousedown.stop="startAction($event,'text',index,'drag')" @touchstart.stop.prevent="startAction($event,'text',index,'drag')" class="active-control-corner absolute -top-4 -left-4 w-8 h-8 rounded-full shadow-md border flex items-center justify-center cursor-move transition-colors {{ $isDark ? 'bg-gray-800 border-gray-700 text-gray-400 hover:text-primary' : 'bg-white border-gray-100 text-gray-500 hover:text-primary' }}" :style="`z-index:200; transform: scale(${(1 / (stageZoom || 1)).toFixed(3)});`"><x-heroicon-m-arrows-pointing-out class="w-4 h-4 rotate-45" /></div>
+                                <div @mousedown.stop="startAction($event,'text',index,'rotate')" @touchstart.stop.prevent="startAction($event,'text',index,'rotate')" class="active-control-corner absolute -top-4 -right-4 w-8 h-8 rounded-full shadow-md border flex items-center justify-center cursor-alias transition-colors {{ $isDark ? 'bg-gray-800 border-gray-700 text-primary hover:text-primary-dark' : 'bg-white border-gray-100 text-primary hover:text-primary-dark' }}" :style="`z-index:200; transform: scale(${(1 / (stageZoom || 1)).toFixed(3)});`"><x-heroicon-m-arrow-path class="w-4 h-4" /></div>
+                                <div @mousedown.stop @click.stop="deleteSelectedItem()" @touchstart.stop.prevent="deleteSelectedItem()" class="active-control-corner absolute -bottom-4 -left-4 w-8 h-8 rounded-full shadow-md border flex items-center justify-center cursor-pointer transition-colors {{ $isDark ? 'bg-gray-800 border-gray-700 text-red-400 hover:text-red-500' : 'bg-white border-gray-100 text-red-500 hover:text-red-700' }}" :style="`z-index:200; transform: scale(${(1 / (stageZoom || 1)).toFixed(3)});`"><x-heroicon-m-trash class="w-4 h-4" /></div>
+                                <div @mousedown.stop="startAction($event,'text',index,'resize')" @touchstart.stop.prevent="startAction($event,'text',index,'resize')" class="active-control-corner absolute -bottom-4 -right-4 w-8 h-8 rounded-full shadow-md border flex items-center justify-center cursor-se-resize transition-colors {{ $isDark ? 'bg-gray-800 border-gray-700 text-primary hover:text-primary-dark' : 'bg-white border-gray-100 text-primary hover:text-primary-dark' }}" :style="`z-index:200; transform: scale(${(1 / (stageZoom || 1)).toFixed(3)});`"><svg class="w-4 h-4 rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path d="M4 20L20 4M20 4H14M20 4V10M4 20H10M4 20V14" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                            </div>
                         </div>
                     </div>
                 </template>
@@ -791,15 +786,17 @@
     </div>
 
     {{-- UNTEN AUSSEN STICKY DIREKT AN DER VORSCHAU (VOLLE BREITE): VEREINTE AKTIONS- & WERKZEUGLEISTE --}}
-    <div x-show="showDrawingBoard && context !== 'preview' && !config.isBeginnerMode && (selectedIndex !== null || isCropping)"
+    <div wire:ignore
+         x-show="showDrawingBoard && context !== 'preview' && !config.isBeginnerMode && (selectedIndex !== null || isCropping)"
          x-cloak
          data-snapshot-ignore="true"
          :class="isMaximized ? 'w-[min(90vw,min(58vh,600px))]' : 'w-full max-w-[455px] md:max-w-[600px]'"
          class="rounded-b-2xl border-x border-b px-2 sm:px-3 py-2 flex flex-wrap items-center justify-center sm:justify-around gap-1 sm:gap-1.5 relative z-50 pointer-events-auto schwebender-werkzeugkasten shrink-0 {{ $isDark ? 'bg-gray-900/95 border-gray-800 shadow-lg' : 'bg-white/95 border-gray-200/90 shadow-[0_10px_28px_rgba(0,0,0,0.06)]' }}">
 
         {{-- MODUS A: ALLE WERKZEUGE LOGISCH IN 2 ÜBERSICHTLICHEN REIHEN (Reihe 1: Hauptwerkzeuge | Reihe 2 ab Kopie-Icon: Kopie, Ausrichten, Löschen) --}}
-        <template x-if="!isCropping && selectedIndex !== null">
-            <div class="flex flex-col gap-1.5 w-full">
+        <div x-show="!isCropping && selectedIndex !== null"
+             x-cloak
+             class="flex flex-col gap-1.5 w-full">
 
                 {{-- REIHE 1: VERSCHIEBEN | DREHEN | GRÖSSE | ZUSCHNEIDEN (Bild) bzw. SCHRIFT & FORMAT (Text) --}}
                 <div class="flex items-center justify-around gap-1.5 sm:gap-2 w-full pb-1.5 border-b {{ $isDark ? 'border-gray-800/80' : 'border-gray-100' }}">
@@ -839,29 +836,38 @@
                              x-cloak
                              class="absolute bottom-[calc(100%+10px)] left-1/2 -translate-x-1/2 w-56 rounded-2xl shadow-2xl border p-4 z-[100] {{ $isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200' }}">
                             <div class="flex justify-between text-[10px] font-black tracking-widest text-gray-400 uppercase mb-2.5"><span>Klein</span><span>Groß</span></div>
-                            <template x-if="selectedType === 'text' && currentTexts[selectedIndex] !== undefined">
-                                <input type="range" min="0.1" max="5" step="0.05" x-model="currentTexts[selectedIndex].size" @change="recordHistory()" class="w-full accent-primary h-2 rounded-lg appearance-none cursor-pointer {{ $isDark ? 'bg-gray-800' : 'bg-gray-100' }}">
-                            </template>
-                            <template x-if="selectedType === 'logo' && currentLogos[selectedIndex] !== undefined">
-                                <input type="range" min="10" max="500" step="1" x-model="currentLogos[selectedIndex].size" @change="recordHistory()" class="w-full accent-primary h-2 rounded-lg appearance-none cursor-pointer {{ $isDark ? 'bg-gray-800' : 'bg-gray-100' }}">
-                            </template>
+                            <input x-show="selectedType === 'text' && Boolean(currentTexts[selectedIndex])"
+                                   x-cloak
+                                   type="range" min="0.1" max="5" step="0.05"
+                                   :value="currentTexts[selectedIndex]?.size ?? 1"
+                                   @input="setSelectedElementSize($event.target.value)"
+                                   @change="recordHistory()"
+                                   class="w-full accent-primary h-2 rounded-lg appearance-none cursor-pointer {{ $isDark ? 'bg-gray-800' : 'bg-gray-100' }}">
+                            <input x-show="selectedType === 'logo' && Boolean(currentLogos[selectedIndex])"
+                                   x-cloak
+                                   type="range" min="10" max="500" step="1"
+                                   :value="currentLogos[selectedIndex]?.size ?? 100"
+                                   @input="setSelectedElementSize($event.target.value)"
+                                   @change="recordHistory()"
+                                   class="w-full accent-primary h-2 rounded-lg appearance-none cursor-pointer {{ $isDark ? 'bg-gray-800' : 'bg-gray-100' }}">
                         </div>
                     </div>
 
                     {{-- 4. ZUSCHNEIDEN (Nur bei ausgewähltem Bild/Motiv) --}}
-                    <template x-if="selectedType === 'logo' && currentLogos[selectedIndex] !== undefined">
-                        <button type="button"
-                                @mousedown.stop @click.stop="startCropMode()"
-                                class="flex-1 flex flex-col items-center justify-center cursor-pointer transition-colors px-2 py-1.5 rounded-xl group select-none {{ $isDark ? 'text-gray-300 hover:text-primary hover:bg-primary/10' : 'text-gray-700 hover:text-[#9A7B3E] hover:bg-[#C5A059]/12' }}"
-                                title="Bild zuschneiden">
-                            <x-heroicon-m-scissors class="w-4 h-4 sm:w-5 sm:h-5 pointer-events-none" />
-                            <span class="text-[9px] font-bold uppercase tracking-tight mt-0.5 pointer-events-none">Zuschneiden</span>
-                        </button>
-                    </template>
+                    <button x-show="selectedType === 'logo' && Boolean(currentLogos[selectedIndex])"
+                            x-cloak
+                            type="button"
+                            @mousedown.stop @click.stop="startCropMode()"
+                            class="flex-1 flex flex-col items-center justify-center cursor-pointer transition-colors px-2 py-1.5 rounded-xl group select-none {{ $isDark ? 'text-gray-300 hover:text-primary hover:bg-primary/10' : 'text-gray-700 hover:text-[#9A7B3E] hover:bg-[#C5A059]/12' }}"
+                            title="Bild zuschneiden">
+                        <x-heroicon-m-scissors class="w-4 h-4 sm:w-5 sm:h-5 pointer-events-none" />
+                        <span class="text-[9px] font-bold uppercase tracking-tight mt-0.5 pointer-events-none">Zuschneiden</span>
+                    </button>
 
                     {{-- 5. TEXT-WERKZEUGE: SCHRIFT & FORMAT (Nur bei ausgewähltem Text) --}}
-                    <template x-if="selectedType === 'text' && currentTexts[selectedIndex] !== undefined">
-                        <div class="contents">
+                    <div x-show="selectedType === 'text' && Boolean(currentTexts[selectedIndex])"
+                         x-cloak
+                         class="contents">
                             <div class="w-px h-6 mx-0.5 {{ $isDark ? 'bg-gray-800' : 'bg-gray-200' }}"></div>
 
                             <div class="relative flex-1 flex justify-center">
@@ -883,7 +889,7 @@
                                                     @click.stop="setTextFont(fontKey)"
                                                     class="w-full text-left px-4 py-2.5 text-sm rounded-xl truncate transition-colors cursor-pointer {{ $isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-50' }}"
                                                     :style="{ fontFamily: fontName }"
-                                                    :class="currentTexts[selectedIndex].font === fontKey ? 'text-primary font-bold {{ $isDark ? 'bg-primary/10' : 'bg-primary/5' }}' : '{{ $isDark ? 'text-gray-300' : 'text-gray-700' }}'">
+                                                    :class="(currentTexts[selectedIndex]?.font || 'Arial') === fontKey ? 'text-primary font-bold {{ $isDark ? 'bg-primary/10' : 'bg-primary/5' }}' : '{{ $isDark ? 'text-gray-300' : 'text-gray-700' }}'">
                                                 <span x-text="fontKey"></span>
                                             </button>
                                         </template>
@@ -898,9 +904,9 @@
                                         class="w-full flex flex-col items-center justify-center px-2 py-1.5 rounded-xl transition-colors cursor-pointer select-none"
                                         title="Textausrichtung">
                                     <div class="w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center">
-                                        <template x-if="currentTexts[selectedIndex].align === 'left'"><svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3.75 6.75h16.5M3.75 12h10.5m-10.5 5.25h16.5" /></svg></template>
-                                        <template x-if="currentTexts[selectedIndex].align === 'center' || !currentTexts[selectedIndex].align"><svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3.75 6.75h16.5M7.5 12h9m-9 5.25h9" /></svg></template>
-                                        <template x-if="currentTexts[selectedIndex].align === 'right'"><svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3.75 6.75h16.5M10.5 12h9.75m-16.5 5.25h16.5" /></svg></template>
+                                        <svg x-show="currentTexts[selectedIndex]?.align === 'left'" x-cloak class="w-4 h-4 sm:w-5 sm:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3.75 6.75h16.5M3.75 12h10.5m-10.5 5.25h16.5" /></svg>
+                                        <svg x-show="currentTexts[selectedIndex]?.align === 'center' || !currentTexts[selectedIndex]?.align" class="w-4 h-4 sm:w-5 sm:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3.75 6.75h16.5M7.5 12h9m-9 5.25h9" /></svg>
+                                        <svg x-show="currentTexts[selectedIndex]?.align === 'right'" x-cloak class="w-4 h-4 sm:w-5 sm:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3.75 6.75h16.5M10.5 12h9.75m-16.5 5.25h16.5" /></svg>
                                     </div>
                                     <span class="text-[9px] font-bold uppercase tracking-tight mt-0.5">Format</span>
                                 </button>
@@ -962,8 +968,7 @@
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    </template>
+                    </div>
                 </div>
 
                 {{-- REIHE 2 (AB KOPIE-ICON): KOPIE | HORIZ. | VERTIK. | MITTE | LÖSCHEN --}}
@@ -1010,12 +1015,12 @@
                         <span class="text-[9px] font-bold uppercase tracking-tight mt-0.5 pointer-events-none">Löschen</span>
                     </button>
                 </div>
-            </div>
-        </template>
+        </div>
 
         {{-- MODUS B: AKTIVER ZUSCHNITT-MODUS (Eckig, Rund, Original, Abbrechen, Übernehmen) --}}
-        <template x-if="isCropping">
-            <div class="flex flex-wrap items-center justify-center gap-2 sm:gap-3 w-full">
+        <div x-show="isCropping"
+             x-cloak
+             class="flex flex-wrap items-center justify-center gap-2 sm:gap-3 w-full">
                 <button type="button"
                         @mousedown.stop @click.stop="cropBox.shape = 'rect'"
                         :class="cropBox.shape === 'rect' ? 'text-[#9A7B3E] bg-[#C5A059]/15 border-[#C5A059]/45' : '{{ $isDark ? 'text-gray-300 hover:text-white' : 'text-gray-700 hover:text-[#9A7B3E]' }} border-transparent'"
@@ -1032,15 +1037,15 @@
                     <span class="text-[9px] font-bold uppercase tracking-tight mt-0.5 pointer-events-none">Rund</span>
                 </button>
 
-                <template x-if="currentLogos[selectedIndex] && (currentLogos[selectedIndex].original_url || cropBox.top > 0 || cropBox.right > 0 || cropBox.bottom > 0 || cropBox.left > 0)">
-                    <button type="button"
-                            @mousedown.stop @click.stop="resetLogoToOriginal()"
-                            class="flex flex-col items-center justify-center cursor-pointer transition-colors px-2.5 py-1.5 rounded-xl select-none {{ $isDark ? 'text-gray-300 hover:text-primary hover:bg-gray-800/70' : 'text-gray-700 hover:text-[#9A7B3E] hover:bg-[#C5A059]/15' }}"
-                            title="Zuschnitt zurücksetzen">
-                        <x-heroicon-m-arrow-uturn-left class="w-4 h-4 pointer-events-none" />
-                        <span class="text-[9px] font-bold uppercase tracking-tight mt-0.5 pointer-events-none">Original</span>
-                    </button>
-                </template>
+                <button x-show="Boolean(currentLogos[selectedIndex] && (currentLogos[selectedIndex]?.original_url || cropBox.top > 0 || cropBox.right > 0 || cropBox.bottom > 0 || cropBox.left > 0))"
+                        x-cloak
+                        type="button"
+                        @mousedown.stop @click.stop="resetLogoToOriginal()"
+                        class="flex flex-col items-center justify-center cursor-pointer transition-colors px-2.5 py-1.5 rounded-xl select-none {{ $isDark ? 'text-gray-300 hover:text-primary hover:bg-gray-800/70' : 'text-gray-700 hover:text-[#9A7B3E] hover:bg-[#C5A059]/15' }}"
+                        title="Zuschnitt zurücksetzen">
+                    <x-heroicon-m-arrow-uturn-left class="w-4 h-4 pointer-events-none" />
+                    <span class="text-[9px] font-bold uppercase tracking-tight mt-0.5 pointer-events-none">Original</span>
+                </button>
 
                 <div class="w-px h-7 mx-0.5 self-center {{ $isDark ? 'bg-gray-700' : 'bg-[#C5A059]/30' }}"></div>
 
@@ -1058,12 +1063,12 @@
                     <x-heroicon-m-check class="w-4 h-4 stroke-[2.5] pointer-events-none" />
                     <span x-text="isApplyingCrop ? 'Speichert...' : 'Übernehmen'"></span>
                 </button>
-            </div>
-        </template>
+        </div>
     </div>
 
     {{-- EBENEN- & ELEMENT-AUSWAHL (Damit verdeckte Texte/Bilder jederzeit anklickbar und nach oben hebbar sind) --}}
-    <div x-show="showDrawingBoard && context !== 'preview' && !config.isBeginnerMode && (currentTexts.length + currentLogos.length) > 1"
+    <div wire:ignore
+         x-show="showDrawingBoard && context !== 'preview' && !config.isBeginnerMode && (currentTexts.length + currentLogos.length) > 1"
          x-cloak
          class="w-full max-w-[455px] md:max-w-[600px] px-1 sm:px-2 mt-3 relative z-40">
         <div class="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-2xl border shadow-sm {{ $isDark ? 'bg-gray-900/90 border-gray-800 text-gray-300' : 'bg-white border-gray-200/80 text-gray-700' }}">

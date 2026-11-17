@@ -407,16 +407,12 @@
                                 ? 'border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
                                 : '{{ $isDark ? 'bg-gray-900 border-gray-700 text-[#C5A059] hover:border-[#C5A059]' : 'bg-white border-[#C5A059]/45 text-[#9A7B3E] hover:bg-[#C5A059]/10 hover:border-[#C5A059]' }}'"
                             class="w-8 h-8 rounded-xl border transition-all duration-200 flex items-center justify-center cursor-pointer select-none shrink-0">
-                        <template x-if="!isDraftLoading">
-                            <svg class="w-4 h-4 text-[#C5A059]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                            </svg>
-                        </template>
-                        <template x-if="isDraftLoading">
-                            <svg class="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-                            </svg>
-                        </template>
+                        <svg x-show="!isDraftLoading" class="w-4 h-4 text-[#C5A059]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        <svg x-show="isDraftLoading" x-cloak class="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
                     </button>
 
                     <button type="button"
@@ -427,18 +423,14 @@
                                 ? 'border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
                                 : '{{ $isDark ? 'bg-gray-900 border-gray-700 text-gray-300 hover:text-[#C5A059] hover:border-[#C5A059]' : 'bg-white border-gray-200 text-gray-700 hover:text-[#9A7B3E] hover:border-[#C5A059]' }}'"
                             class="w-8 h-8 rounded-xl border transition-all duration-200 flex items-center justify-center cursor-pointer select-none shrink-0">
-                        <template x-if="!isDraftSaving">
-                            <svg class="w-4 h-4 text-[#C5A059]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
-                                <polyline points="17 21 17 13 7 13 7 21"></polyline>
-                                <polyline points="7 3 7 8 15 8"></polyline>
-                            </svg>
-                        </template>
-                        <template x-if="isDraftSaving">
-                            <svg class="w-4 h-4 text-emerald-500 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-                            </svg>
-                        </template>
+                        <svg x-show="!isDraftSaving" class="w-4 h-4 text-[#C5A059]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                            <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                            <polyline points="7 3 7 8 15 8"></polyline>
+                        </svg>
+                        <svg x-show="isDraftSaving" x-cloak class="w-4 h-4 text-emerald-500 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
                     </button>
                 </div>
 
@@ -514,16 +506,12 @@
                                     ? 'border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
                                     : '{{ $isDark ? 'bg-gray-800 border-gray-700 text-[#C5A059] hover:border-[#C5A059]' : 'bg-white border-[#C5A059]/45 text-[#9A7B3E] hover:bg-[#C5A059]/10 hover:border-[#C5A059] shadow-2xs' }}'"
                                 class="w-7 h-7 rounded-lg border transition-all duration-200 flex items-center justify-center cursor-pointer select-none shrink-0">
-                            <template x-if="!isDraftLoading">
-                                <svg class="w-3.5 h-3.5 text-[#C5A059]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                                </svg>
-                            </template>
-                            <template x-if="isDraftLoading">
-                                <svg class="w-3.5 h-3.5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                            </template>
+                            <svg x-show="!isDraftLoading" class="w-3.5 h-3.5 text-[#C5A059]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                            <svg x-show="isDraftLoading" x-cloak class="w-3.5 h-3.5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
                         </button>
 
                         {{-- Design Sichern (Diskette ganz rechts am Rand) --}}
@@ -536,18 +524,14 @@
                                     : '{{ $isDark ? 'bg-gray-800 border-gray-700 text-gray-300 hover:text-[#C5A059] hover:border-[#C5A059]' : 'bg-white border-gray-200/90 text-gray-700 hover:text-[#9A7B3E] hover:border-[#C5A059] shadow-2xs' }}'"
                                 class="w-7 h-7 rounded-lg border transition-all duration-200 flex items-center justify-center cursor-pointer select-none shrink-0">
                             <span class="sr-only">Design Sichern</span>
-                            <template x-if="!isDraftSaving">
-                                <svg class="w-3.5 h-3.5 text-[#C5A059]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
-                                    <polyline points="17 21 17 13 7 13 7 21"></polyline>
-                                    <polyline points="7 3 7 8 15 8"></polyline>
-                                </svg>
-                            </template>
-                            <template x-if="isDraftSaving">
-                                <svg class="w-3.5 h-3.5 text-emerald-500 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                            </template>
+                            <svg x-show="!isDraftSaving" class="w-3.5 h-3.5 text-[#C5A059]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                                <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                                <polyline points="7 3 7 8 15 8"></polyline>
+                            </svg>
+                            <svg x-show="isDraftSaving" x-cloak class="w-3.5 h-3.5 text-emerald-500 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
                         </button>
                     </div>
                 </div>

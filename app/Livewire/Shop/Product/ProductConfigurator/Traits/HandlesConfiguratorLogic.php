@@ -5,6 +5,7 @@ namespace App\Livewire\Shop\Product\ProductConfigurator\Traits;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Storage;
 use App\Services\ProductTrackingService;
+use Livewire\Attributes\Renderless;
 
 trait HandlesConfiguratorLogic
 {
@@ -163,6 +164,130 @@ trait HandlesConfiguratorLogic
         }
     }
 
+    protected function resolveNextTopStageZIndex(): int
+    {
+        $textProp = $this->activeSide === 'back' ? 'texts_back' : 'texts';
+        $logoProp = $this->activeSide === 'back' ? 'logos_back' : 'logos';
+        $texts = is_array($this->$textProp ?? null) ? array_values($this->$textProp) : [];
+        $logos = is_array($this->$logoProp ?? null) ? array_values($this->$logoProp) : [];
+
+        $maxZ = 30;
+        foreach ($texts as $idx => $t) {
+            if (!is_array($t)) {
+                continue;
+            }
+            $z = (isset($t['zIndex']) && is_numeric($t['zIndex'])) ? (int) round((float) $t['zIndex']) : (30 + $idx);
+            if ($z > $maxZ) {
+                $maxZ = $z;
+            }
+        }
+        foreach ($logos as $idx => $l) {
+            if (!is_array($l)) {
+                continue;
+            }
+            $z = (isset($l['zIndex']) && is_numeric($l['zIndex'])) ? (int) round((float) $l['zIndex']) : (10 + $idx);
+            if ($z > $maxZ) {
+                $maxZ = $z;
+            }
+        }
+
+        return min(95, $maxZ + 1);
+    }
+
+    /**
+     * @return array{x: float, y: float}
+     */
+    protected function resolveNonOverlappingLogoSpawn(float $baseX, float $baseY): array
+    {
+        $logoProp = $this->activeSide === 'back' ? 'logos_back' : 'logos';
+        $logos = is_array($this->$logoProp ?? null) ? array_values($this->$logoProp) : [];
+
+        $hasExactOverlap = false;
+        foreach ($logos as $l) {
+            if (!is_array($l)) {
+                continue;
+            }
+            $lx = isset($l['x']) && is_numeric($l['x']) ? (float) $l['x'] : $baseX;
+            $ly = isset($l['y']) && is_numeric($l['y']) ? (float) $l['y'] : $baseY;
+            if (hypot($lx - $baseX, $ly - $baseY) < 1.5) {
+                $hasExactOverlap = true;
+                break;
+            }
+        }
+
+        if (!$hasExactOverlap) {
+            return ['x' => $baseX, 'y' => $baseY];
+        }
+
+        $stepCount = max(1, min(4, count($logos)));
+        $offsets = [
+            [3.2 * $stepCount, 2.8 * $stepCount],
+            [-3.2 * $stepCount, 2.8 * $stepCount],
+            [3.2 * $stepCount, -2.8 * $stepCount],
+            [-3.2 * $stepCount, -2.8 * $stepCount],
+        ];
+
+        $cfg = is_array($this->configSettings ?? null)
+            ? $this->configSettings
+            : (is_array($this->product->configurator_settings ?? null) ? $this->product->configurator_settings : []);
+        $shape = (string) ($cfg['area_shape'] ?? 'rect');
+        $pts = is_array($cfg['custom_points'] ?? null) ? $cfg['custom_points'] : [];
+
+        foreach ($offsets as [$dx, $dy]) {
+            $cx = round(max(6.0, min(94.0, $baseX + $dx)), 2);
+            $cy = round(max(6.0, min(94.0, $baseY + $dy)), 2);
+
+            if ($shape === 'custom' && count($pts) >= 3) {
+                if ($this->isStagePointInsideCustomPolygon($pts, $cx, $cy)) {
+                    return ['x' => $cx, 'y' => $cy];
+                }
+                continue;
+            }
+
+            $left = (float) ($cfg['area_left'] ?? 10.0);
+            $top = (float) ($cfg['area_top'] ?? 10.0);
+            $width = max(8.0, (float) ($cfg['area_width'] ?? 80.0));
+            $height = max(8.0, (float) ($cfg['area_height'] ?? 80.0));
+
+            if ($shape === 'circle') {
+                $midX = $left + ($width * 0.5);
+                $midY = $top + ($height * 0.5);
+                $rx = max(4.0, $width * 0.45);
+                $ry = max(4.0, $height * 0.45);
+                $norm = ((($cx - $midX) / $rx) ** 2) + ((($cy - $midY) / $ry) ** 2);
+                if ($norm <= 1.0) {
+                    return ['x' => $cx, 'y' => $cy];
+                }
+                continue;
+            }
+
+            if ($cx >= ($left + 2.0) && $cx <= ($left + $width - 2.0) && $cy >= ($top + 2.0) && $cy <= ($top + $height - 2.0)) {
+                return ['x' => $cx, 'y' => $cy];
+            }
+        }
+
+        return ['x' => $baseX, 'y' => $baseY];
+    }
+
+    protected function isStagePointInsideCustomPolygon(array $pts, float $px, float $py): bool
+    {
+        $inside = false;
+        $n = count($pts);
+        for ($i = 0, $j = $n - 1; $i < $n; $j = $i++) {
+            $xi = (float) ($pts[$i]['x'] ?? 50.0);
+            $yi = (float) ($pts[$i]['y'] ?? 50.0);
+            $xj = (float) ($pts[$j]['x'] ?? 50.0);
+            $yj = (float) ($pts[$j]['y'] ?? 50.0);
+            $intersect = (($yi > $py) !== ($yj > $py))
+                && ($px < ($xj - $xi) * ($py - $yi) / (($yj - $yi) ?: 1e-7) + $xi);
+            if ($intersect) {
+                $inside = !$inside;
+            }
+        }
+
+        return $inside;
+    }
+
     public function addStandardVector($filename, $x = null, $y = null)
     {
         if ($this->context === 'preview') return;
@@ -178,10 +303,20 @@ trait HandlesConfiguratorLogic
         }
 
         $spawn = $this->resolveStudioSpawnCenter();
-        $centerX = is_numeric($x) ? round((float) $x, 2) : $spawn['x'];
-        $centerY = is_numeric($y) ? round((float) $y, 2) : $spawn['y'];
+        if (is_numeric($x) && is_numeric($y)) {
+            $centerX = round((float) $x, 2);
+            $centerY = round((float) $y, 2);
+        } else {
+            $pos = $this->resolveNonOverlappingLogoSpawn(
+                is_numeric($x) ? round((float) $x, 2) : $spawn['x'],
+                is_numeric($y) ? round((float) $y, 2) : $spawn['y']
+            );
+            $centerX = $pos['x'];
+            $centerY = $pos['y'];
+        }
 
         $url = $vectorService->resolveVectorUrl($canonicalRel);
+        $nextZ = $this->resolveNextTopStageZIndex();
 
         $newItem = [
             'id' => Str::uuid()->toString(),
@@ -191,7 +326,8 @@ trait HandlesConfiguratorLogic
             'x' => $centerX,
             'y' => $centerY,
             'size' => 100,
-            'rotation' => 0
+            'rotation' => 0,
+            'zIndex' => $nextZ,
         ];
 
         if ($this->activeSide === 'back') {
@@ -208,6 +344,33 @@ trait HandlesConfiguratorLogic
             $this->product->id ?? null,
             $canonicalRel,
             $this->selectedCategory ?? null,
+            $this->activeSide ?? 'front'
+        );
+    }
+
+    #[Renderless]
+    public function trackSymbolAddedSilent(string $filename, ?string $category = null): void
+    {
+        if ($this->context === 'preview') {
+            return;
+        }
+
+        $rawFilename = ltrim(str_replace('\\', '/', trim($filename)), '/');
+        if ($rawFilename === '' || str_contains($rawFilename, '..') || str_contains($rawFilename, "\0")) {
+            return;
+        }
+
+        $canonicalRel = app(\App\Services\ProductConfiguratorService::class)->resolveCanonicalVectorRelPath($rawFilename);
+        if ($canonicalRel === null) {
+            return;
+        }
+
+        $cleanCat = ($category !== null && trim($category) !== '') ? mb_substr(trim($category), 0, 64) : ($this->selectedCategory ?? null);
+
+        ProductTrackingService::trackSymbolAdded(
+            $this->product->id ?? null,
+            $canonicalRel,
+            $cleanCat,
             $this->activeSide ?? 'front'
         );
     }

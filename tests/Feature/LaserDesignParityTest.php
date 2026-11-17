@@ -397,9 +397,9 @@ class LaserDesignParityTest extends TestCase
         $this->assertSame(0, ($headPixel >> 16) & 0xFF, 'Kopf des Bräutigams (<circle>) muss tiefschwarz sein');
         $this->assertSame(127, $dressInnerAlpha, 'Innenfläche des Brautkleids (nonzero Gegenpfad) muss transparent ausgestanzt bleiben');
 
-        // Cache-Salt v6-cockpit-wysiwyg + Kalibrierungs-Hash in OrderOverview verifizieren
+        // Cache-Salt v7-cockpit-wysiwyg + Kalibrierungs-Hash in OrderOverview verifizieren
         $overviewSource = (string) file_get_contents(app_path('Livewire/Shop/Order/OrderOverview.php'));
-        $this->assertStringContainsString("'v6-cockpit-wysiwyg|'", $overviewSource);
+        $this->assertStringContainsString("'v7-cockpit-wysiwyg|'", $overviewSource);
         $this->assertStringContainsString('json_encode($calibration)', $overviewSource);
     }
 
