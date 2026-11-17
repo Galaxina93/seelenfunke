@@ -2897,8 +2897,8 @@ object FunkenwerkAlarmManager {
         try {
             val appCtx = context.applicationContext
             ServiceLocator.ensureInitialized(appCtx)
-            val apiKey = ServiceLocator.getGeminiApiKey().trim()
-            if (apiKey.isNotBlank()) {
+            var vertexBundle = VertexClientTokenCache.getOrFetchValidBundle(appCtx)
+            if (vertexBundle != null) {
                 val prompt = "Transkribiere exakt auf Deutsch, was die Person auf die Frage 'Soll ich den Wecker direkt verschieben?' geantwortet hat (z.B. Ja, Nein, um 15 Minuten, gar nicht klingeln). Gib ausschließlich den gehörten deutschen Text ohne Anführungszeichen zurück."
                 val reqJson = JSONObject().apply {
                     put("contents", JSONArray().put(
@@ -2915,34 +2915,44 @@ object FunkenwerkAlarmManager {
                     ))
                 }.toString()
 
-                val conn = (URL("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent").openConnection() as HttpURLConnection).apply {
-                    instanceFollowRedirects = false
-                    requestMethod = "POST"
-                    connectTimeout = 4000
-                    readTimeout = 6000
-                    doOutput = true
-                    setRequestProperty("Content-Type", "application/json")
-                    setRequestProperty("x-goog-api-key", apiKey)
-                }
-                conn.outputStream.use { it.write(reqJson.toByteArray(Charsets.UTF_8)) }
-                if (conn.responseCode in 200..299) {
-                    val resp = conn.inputStream.bufferedReader().use { it.readText() }
-                    conn.disconnect()
-                    val text = JSONObject(resp)
-                        .optJSONArray("candidates")
-                        ?.optJSONObject(0)
-                        ?.optJSONObject("content")
-                        ?.optJSONArray("parts")
-                        ?.optJSONObject(0)
-                        ?.optString("text", "")
-                        ?.trim()
-                        .orEmpty()
-                    if (text.isNotBlank()) {
-                        _alarmDialogStateFlow.value = "🎙️ Verstanden: „$text“"
-                        return@withContext text
+                for (attempt in 0..1) {
+                    val activeBundle = vertexBundle ?: break
+                    val vertexUrl = VertexClientTokenCache.buildModelGenerateContentUrl("gemini-3.5-flash", activeBundle)
+                    val conn = (URL(vertexUrl).openConnection() as HttpURLConnection).apply {
+                        instanceFollowRedirects = false
+                        requestMethod = "POST"
+                        connectTimeout = 4000
+                        readTimeout = 6000
+                        doOutput = true
+                        setRequestProperty("Content-Type", "application/json")
+                        setRequestProperty("Authorization", "Bearer ${activeBundle.accessToken}")
                     }
-                } else {
-                    conn.disconnect()
+                    conn.outputStream.use { it.write(reqJson.toByteArray(Charsets.UTF_8)) }
+                    val statusCode = conn.responseCode
+                    if (statusCode in 200..299) {
+                        val resp = conn.inputStream.bufferedReader().use { it.readText() }
+                        conn.disconnect()
+                        val text = JSONObject(resp)
+                            .optJSONArray("candidates")
+                            ?.optJSONObject(0)
+                            ?.optJSONObject("content")
+                            ?.optJSONArray("parts")
+                            ?.optJSONObject(0)
+                            ?.optString("text", "")
+                            ?.trim()
+                            .orEmpty()
+                        if (text.isNotBlank()) {
+                            _alarmDialogStateFlow.value = "🎙️ Verstanden: „$text“"
+                            return@withContext text
+                        }
+                        break
+                    } else if (statusCode == 401 && attempt == 0) {
+                        conn.disconnect()
+                        vertexBundle = VertexClientTokenCache.getOrFetchValidBundle(appCtx, forceRefresh = true)
+                    } else {
+                        conn.disconnect()
+                        break
+                    }
                 }
             }
 
@@ -3417,19 +3427,19 @@ object FunkenwerkAlarmManager {
             return@withContext cacheFile
         }
 
-        // 1. Direct Gemini TTS API with Funkira's voice ("Aoede") if API key is available on device
+        // 1. Direct Vertex AI TTS API with Funkira's voice ("Aoede") via short-lived OAuth2 token
         try {
             ServiceLocator.ensureInitialized(appCtx)
-            val apiKey = ServiceLocator.getGeminiApiKey().trim()
-            if (apiKey.isNotBlank()) {
-                val wavBytes = synthesizeGeminiAoedeDirect(apiKey, text)
+            val vertexBundle = VertexClientTokenCache.getOrFetchValidBundle(appCtx)
+            if (vertexBundle != null) {
+                val wavBytes = synthesizeVertexAoedeDirect(appCtx, vertexBundle, text)
                 if (wavBytes != null && wavBytes.size > 1000) {
                     FileOutputStream(cacheFile).use { it.write(wavBytes) }
                     return@withContext cacheFile
                 }
             }
         } catch (e: Exception) {
-            Log.w(TAG, "Direct Gemini Aoede TTS failed, trying backend", e)
+            Log.w(TAG, "Direct Vertex Aoede TTS failed, trying backend", e)
         }
 
         // 2. Backend /funki/routine/morning-briefing-tts on single configured environment
@@ -3486,8 +3496,13 @@ object FunkenwerkAlarmManager {
         return@withContext null
     }
 
-    private fun synthesizeGeminiAoedeDirect(apiKey: String, text: String): ByteArray? {
-        val models = listOf("gemini-3.1-flash-tts-preview", "gemini-2.5-flash-preview-tts")
+    private suspend fun synthesizeVertexAoedeDirect(
+        appCtx: Context,
+        initialBundle: CachedVertexBundle,
+        text: String
+    ): ByteArray? {
+        var currentBundle: CachedVertexBundle? = initialBundle
+        val models = listOf("gemini-2.5-flash-tts", "gemini-3.1-flash-tts-preview", "gemini-3.8-flash-tts")
         val promptText = "Lies ausschließlich den folgenden Text Wort für Wort freundlich und natürlich vor, ohne eigene Sätze oder Ortsangaben zu ergänzen: $text"
 
         val reqJson = JSONObject().apply {
@@ -3510,8 +3525,9 @@ object FunkenwerkAlarmManager {
         }.toString()
 
         for (model in models) {
+            val activeBundle = currentBundle ?: break
             try {
-                val url = URL("https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent")
+                val url = URL(VertexClientTokenCache.buildModelGenerateContentUrl(model, activeBundle))
                 val conn = (url.openConnection() as HttpURLConnection).apply {
                     instanceFollowRedirects = false
                     requestMethod = "POST"
@@ -3519,10 +3535,11 @@ object FunkenwerkAlarmManager {
                     readTimeout = 14000
                     doOutput = true
                     setRequestProperty("Content-Type", "application/json")
-                    setRequestProperty("x-goog-api-key", apiKey)
+                    setRequestProperty("Authorization", "Bearer ${activeBundle.accessToken}")
                 }
                 conn.outputStream.use { it.write(reqJson.toByteArray(Charsets.UTF_8)) }
-                if (conn.responseCode in 200..299) {
+                val code = conn.responseCode
+                if (code in 200..299) {
                     val respStr = conn.inputStream.bufferedReader().use { it.readText() }
                     conn.disconnect()
                     val root = JSONObject(respStr)
@@ -3535,13 +3552,24 @@ object FunkenwerkAlarmManager {
                         ?.optString("data", "") ?: ""
                     if (b64Pcm.isNotBlank()) {
                         val pcmBytes = Base64.decode(b64Pcm, Base64.DEFAULT)
+                        if (pcmBytes.size >= 4 &&
+                            pcmBytes[0] == 'R'.code.toByte() &&
+                            pcmBytes[1] == 'I'.code.toByte() &&
+                            pcmBytes[2] == 'F'.code.toByte() &&
+                            pcmBytes[3] == 'F'.code.toByte()
+                        ) {
+                            return pcmBytes
+                        }
                         return wrapPcm24kMono16BitToWav(pcmBytes)
                     }
+                } else if (code == 401) {
+                    conn.disconnect()
+                    currentBundle = VertexClientTokenCache.getOrFetchValidBundle(appCtx, forceRefresh = true)
                 } else {
                     conn.disconnect()
                 }
             } catch (e: Exception) {
-                Log.w(TAG, "Direct Gemini model $model failed: ${e.message}")
+                Log.w(TAG, "Direct Vertex model $model failed: ${e.message}")
             }
         }
         return null

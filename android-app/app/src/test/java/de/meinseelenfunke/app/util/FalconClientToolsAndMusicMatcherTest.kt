@@ -831,4 +831,52 @@ class FalconClientToolsAndMusicMatcherTest {
         assertEquals("direct", res3.get("execution_mode").asString)
         assertEquals("direct", capturedRequests.last().execution_mode)
     }
+
+    @Test
+    fun `music control triggers automatic Ruhemodus standby and blocks mid-call reconnect`() {
+        assertTrue(FalconClientTools.shouldEnterStandbyAfterTool("falcon_music_control"))
+        assertTrue(FalconClientTools.shouldEnterStandbyAfterTool("  FALCON_MUSIC_CONTROL  "))
+        assertTrue(FalconClientTools.shouldEnterStandbyAfterTool("music_play"))
+        assertTrue(FalconClientTools.shouldEnterStandbyAfterTool("management_music_pause"))
+
+        assertFalse(FalconClientTools.shouldEnterStandbyAfterTool("falcon_smarthome_control"))
+        assertFalse(FalconClientTools.shouldEnterStandbyAfterTool("falcon_camera_control"))
+        assertFalse(FalconClientTools.shouldEnterStandbyAfterTool("falcon_send_to_antigravity"))
+        assertFalse(FalconClientTools.shouldEnterStandbyAfterTool(""))
+        assertFalse(FalconClientTools.shouldEnterStandbyAfterTool(null))
+
+        val decls = com.google.gson.JsonArray()
+        FalconClientTools.appendFalconToolDeclarations(decls)
+        val musicDecl = (0 until decls.size())
+            .map { decls.get(it).asJsonObject }
+            .first { it.get("name").asString == "falcon_music_control" }
+        assertTrue(musicDecl.get("description").asString.contains("Ruhemodus"))
+
+        assertFalse(
+            de.meinseelenfunke.app.ui.screens.FunkiraLiveViewModel.shouldAutoReconnectMidCall(
+                wasSetupComplete = true,
+                userInitiatedHangup = false,
+                shouldEndCall = true,
+                reconnectAttemptCount = 0
+            )
+        )
+    }
+
+    @Test
+    fun `falcon3d chest emblem uses POT mipmaps max anisotropy feathered rule and polygonOffset`() {
+        val candidates = listOf(
+            java.io.File("src/main/assets/falcon3d/falcon3d.js"),
+            java.io.File("app/src/main/assets/falcon3d/falcon3d.js")
+        )
+        val assetFile = candidates.firstOrNull { it.exists() }
+        assertNotNull("falcon3d.js asset must exist", assetFile)
+        val js = assetFile!!.readText(Charsets.UTF_8)
+
+        assertTrue(js.contains("THREE.LinearMipmapLinearFilter"))
+        assertTrue(js.contains("getMaxAnisotropy"))
+        assertTrue(js.contains("c.width = 1024;\n        c.height = 512;") || js.contains("c.width = 1024;\r\n        c.height = 512;"))
+        assertTrue(js.contains("softBandV"))
+        assertTrue(js.contains("polygonOffset: true"))
+        assertTrue(js.contains("polygonOffsetFactor: -2"))
+    }
 }

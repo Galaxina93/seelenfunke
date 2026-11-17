@@ -82,7 +82,8 @@ object StandalonePhoneSecretaryEngine {
         val isDirectGoogle: Boolean,
         val originUrl: String,
         val voiceName: String,
-        val liveModel: String = "models/gemini-3.1-flash-live-preview"
+        val liveModel: String = de.meinseelenfunke.app.data.api.VertexEphemeralResponse.DEFAULT_LIVE_MODEL,
+        val directBearerToken: String? = null
     )
 
     private const val WARM_CACHE_TTL_MS = 75_000L
@@ -374,25 +375,30 @@ object StandalonePhoneSecretaryEngine {
         val voice = creds?.voice_name?.takeIf { it.isNotBlank() } ?: "Kore"
         val list = mutableListOf<WsCandidate>()
 
-        // 1. Fastest path: Direct Vertex AI / Gemini Live WebSocket (skips proxy hop for ~250 ms faster greeting)
-        val serverDirect = creds?.direct_ws_url?.takeIf { it.isNotBlank() }
-        val serverLiveModel = creds?.live_model?.takeIf { it.isNotBlank() } ?: "models/gemini-3.1-flash-live-preview"
-        val localDirect = FunkiraLiveViewModel.buildDirectGeminiWsUrl(ServiceLocator.getGeminiApiKey())
-        val bestDirect = serverDirect ?: localDirect
-        if (!bestDirect.isNullOrBlank()) {
-            val directModel = if (bestDirect.contains("aiplatform.googleapis.com", ignoreCase = true) && serverLiveModel.startsWith("projects/")) {
-                serverLiveModel
-            } else {
-                "models/gemini-3.1-flash-live-preview"
-            }
+        // 1. Fastest path: Direct EU Vertex AI Live WebSocket (skips proxy hop for ~250 ms faster greeting)
+        val cachedVertex = creds?.vertex_ephemeral?.let {
+            de.meinseelenfunke.app.util.VertexClientTokenCache.store(it, appCtx)
+        } ?: de.meinseelenfunke.app.util.VertexClientTokenCache.getOrFetchValidBundle(appCtx)
+
+        val directBearer = cachedVertex?.accessToken
+            ?: de.meinseelenfunke.app.util.VertexClientTokenCache.extractAccessTokenFromWsUrl(creds?.direct_ws_url)
+        val bestDirect = FunkiraLiveViewModel.buildDirectVertexWsUrl(
+            accessToken = directBearer,
+            customLiveWsUrl = cachedVertex?.liveWsUrl ?: creds?.direct_ws_url
+        )
+        if (!bestDirect.isNullOrBlank() && !directBearer.isNullOrBlank()) {
+            val directModel = creds?.live_model?.takeIf { it.startsWith("projects/") }
+                ?: cachedVertex?.liveModel
+                ?: de.meinseelenfunke.app.data.api.VertexEphemeralResponse.DEFAULT_LIVE_MODEL
             list.add(
                 WsCandidate(
-                    label = "direct_gemini_live",
+                    label = "direct_vertex_live",
                     url = bestDirect,
                     isDirectGoogle = true,
                     originUrl = origin,
                     voiceName = voice,
-                    liveModel = directModel
+                    liveModel = directModel,
+                    directBearerToken = directBearer
                 )
             )
         }
@@ -455,6 +461,9 @@ object StandalonePhoneSecretaryEngine {
         if (candidate.isDirectGoogle) {
             reqBuilder.header("Origin", candidate.originUrl)
             reqBuilder.header("Referer", candidate.originUrl.trimEnd('/') + "/")
+            if (!candidate.directBearerToken.isNullOrBlank()) {
+                reqBuilder.header("Authorization", "Bearer ${candidate.directBearerToken}")
+            }
         }
 
         var wsRef: WebSocket? = null

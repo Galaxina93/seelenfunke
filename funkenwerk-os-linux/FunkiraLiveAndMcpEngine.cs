@@ -7,6 +7,7 @@ using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Net.WebSockets;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -761,6 +762,662 @@ namespace FunkenwerkOSLinux
         private static string s_cachedServerRoutineInfo = "";
         private static DateTime s_cachedServerRoutineAtUtc = DateTime.MinValue;
         private static DateTime s_lastProactiveReturnUtc = DateTime.MinValue;
+
+        // =====================================================================
+        // GOOGLE CLOUD VERTEX AI POSTPAY (EU europe-west4) NATIVE RS256 OAUTH2
+        // =====================================================================
+        public const string DefaultVertexProjectId = "gen-lang-client-0670786367";
+        public const string DefaultVertexLiveLocation = "europe-west4";
+        public const string DefaultVertexLiveModelId = "gemini-live-2.5-flash-native-audio";
+        public const string VertexOAuthTokenEndpoint = "https://oauth2.googleapis.com/token";
+        public const string VertexCloudPlatformScope = "https://www.googleapis.com/auth/cloud-platform";
+        public const string VertexLiveDirectWebSocketUrl = "wss://europe-west4-aiplatform.googleapis.com/ws/google.cloud.aiplatform.v1beta1.LlmBidiService/BidiGenerateContent";
+        public const string DefaultLinuxServiceAccountPath = "/home/alina/.local/share/FunkenwerkOS/vertex-service-account.json";
+
+        private static readonly object s_vertexCacheLock = new();
+        private static readonly SemaphoreSlim s_vertexMintGate = new(1, 1);
+        private static readonly HttpClient s_vertexHttp = new(new SocketsHttpHandler
+        {
+            PooledConnectionLifetime = TimeSpan.FromMinutes(10),
+            ConnectTimeout = TimeSpan.FromSeconds(6)
+        })
+        {
+            Timeout = TimeSpan.FromSeconds(12)
+        };
+        private static string s_cachedVertexBearerToken = "";
+        private static string s_cachedVertexProjectId = DefaultVertexProjectId;
+        private static string s_cachedVertexSource = "";
+        private static DateTimeOffset s_cachedVertexExpiresUtc = DateTimeOffset.MinValue;
+        private static DateTimeOffset s_lastPortalDirectWarmUtc = DateTimeOffset.MinValue;
+
+        private static readonly Regex RxGoogleAccessToken = new(@"ya29\.[A-Za-z0-9\-._~+/=]+", RegexOptions.Compiled);
+        private static readonly Regex RxGoogleApiKey = new(@"AIza[A-Za-z0-9\-_]{16,}", RegexOptions.Compiled);
+        private static readonly Regex RxBearerHeader = new(@"(Bearer\s+)[A-Za-z0-9\-._~+/=]{12,}", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private static readonly Regex RxQuerySecret = new(@"([?&](?:api[_-]?key|key|token|access_token|secret|assertion)=)[^&\s""']+", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private static readonly Regex RxPrivateKeyJson = new(@"(""private_key""\s*:\s*"")[^""]+("")", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private static readonly Regex RxVertexModelProject = new(@"^projects/([A-Za-z0-9\-._:]+)/locations/", RegexOptions.Compiled);
+
+        internal static string? TestOverrideVertexServiceAccountPath { get; set; }
+        internal static Func<string, string, CancellationToken, Task<(int StatusCode, string Body)>>? TestOverrideVertexOAuthPostAsync { get; set; }
+
+        public static void ResetVertexTokenCacheForSelfTest()
+        {
+            lock (s_vertexCacheLock)
+            {
+                s_cachedVertexBearerToken = "";
+                s_cachedVertexProjectId = DefaultVertexProjectId;
+                s_cachedVertexSource = "";
+                s_cachedVertexExpiresUtc = DateTimeOffset.MinValue;
+                s_lastPortalDirectWarmUtc = DateTimeOffset.MinValue;
+            }
+            TestOverrideVertexServiceAccountPath = null;
+            TestOverrideVertexOAuthPostAsync = null;
+        }
+
+        public static string SanitizeVertexAndLiveSecrets(string? raw)
+        {
+            if (string.IsNullOrEmpty(raw))
+                return "";
+
+            string scrubbed = RxGoogleAccessToken.Replace(raw, "ya29.[REDACTED]");
+            scrubbed = RxGoogleApiKey.Replace(scrubbed, "AIza[REDACTED]");
+            scrubbed = RxBearerHeader.Replace(scrubbed, "$1[REDACTED]");
+            scrubbed = RxQuerySecret.Replace(scrubbed, "$1[REDACTED]");
+            scrubbed = RxPrivateKeyJson.Replace(scrubbed, "$1[REDACTED]$2");
+            return scrubbed;
+        }
+
+        public static Uri BuildDirectVertexLiveWebSocketUri(string location = DefaultVertexLiveLocation)
+        {
+            string cleanLoc = string.IsNullOrWhiteSpace(location) ? DefaultVertexLiveLocation : location.Trim().ToLowerInvariant();
+            if (!Regex.IsMatch(cleanLoc, "^[a-z0-9-]+$"))
+                cleanLoc = DefaultVertexLiveLocation;
+
+            return new Uri($"wss://{cleanLoc}-aiplatform.googleapis.com/ws/google.cloud.aiplatform.v1beta1.LlmBidiService/BidiGenerateContent");
+        }
+
+        public static string BuildVertexLiveModelResource(
+            string? projectId = null,
+            string location = DefaultVertexLiveLocation,
+            string modelId = DefaultVertexLiveModelId)
+        {
+            string pid = string.IsNullOrWhiteSpace(projectId) ? DefaultVertexProjectId : projectId.Trim();
+            if (!Regex.IsMatch(pid, "^[A-Za-z0-9\\-._:]+$"))
+                pid = DefaultVertexProjectId;
+
+            string loc = string.IsNullOrWhiteSpace(location) ? DefaultVertexLiveLocation : location.Trim().ToLowerInvariant();
+            if (!Regex.IsMatch(loc, "^[a-z0-9-]+$"))
+                loc = DefaultVertexLiveLocation;
+
+            string mid = string.IsNullOrWhiteSpace(modelId) ? DefaultVertexLiveModelId : modelId.Trim();
+            if (mid.StartsWith("models/", StringComparison.OrdinalIgnoreCase))
+                mid = mid.Substring(7);
+            if (!Regex.IsMatch(mid, "^[A-Za-z0-9\\-._]+$"))
+                mid = DefaultVertexLiveModelId;
+
+            return $"projects/{pid}/locations/{loc}/publishers/google/models/{mid}";
+        }
+
+        public static JsonObject BuildLiveSetupPacket(
+            bool useDirectVertexWs,
+            string? vertexProjectId,
+            string fullInstruction,
+            string? voiceName,
+            JsonArray mergedTools)
+        {
+            string modelPath = useDirectVertexWs
+                ? BuildVertexLiveModelResource(vertexProjectId)
+                : "models/gemini-3.1-flash-live-preview";
+
+            return new JsonObject
+            {
+                ["setup"] = new JsonObject
+                {
+                    ["model"] = modelPath,
+                    ["systemInstruction"] = new JsonObject
+                    {
+                        ["parts"] = new JsonArray
+                        {
+                            new JsonObject { ["text"] = fullInstruction ?? "" }
+                        }
+                    },
+                    ["generationConfig"] = new JsonObject
+                    {
+                        ["responseModalities"] = new JsonArray("AUDIO"),
+                        ["speechConfig"] = new JsonObject
+                        {
+                            ["voiceConfig"] = new JsonObject
+                            {
+                                ["prebuiltVoiceConfig"] = new JsonObject
+                                {
+                                    ["voiceName"] = string.IsNullOrWhiteSpace(voiceName) ? "Kore" : voiceName.Trim()
+                                }
+                            }
+                        }
+                    },
+                    ["tools"] = mergedTools,
+                    ["inputAudioTranscription"] = new JsonObject(),
+                    ["outputAudioTranscription"] = new JsonObject()
+                }
+            };
+        }
+
+        public static string? NormalizeBidiPacketForDirectVertex(string? rawJson, string? vertexProjectId = null)
+        {
+            if (string.IsNullOrWhiteSpace(rawJson))
+                return null;
+
+            // Fast zero-allocation pass-through for high-frequency 16kHz PCM audio and JPEG vision chunks
+            if (!rawJson.Contains("\"text\"", StringComparison.Ordinal) &&
+                !rawJson.Contains("\"clientContent\"", StringComparison.Ordinal) &&
+                !rawJson.Contains("\"mediaChunks\"", StringComparison.Ordinal) &&
+                !rawJson.Contains("\"setup\"", StringComparison.Ordinal))
+            {
+                return rawJson;
+            }
+
+            JsonObject? rootObj;
+            try
+            {
+                rootObj = JsonNode.Parse(rawJson) as JsonObject;
+            }
+            catch
+            {
+                return rawJson;
+            }
+
+            if (rootObj == null)
+                return rawJson;
+
+            if (rootObj["setup"] is JsonObject setupObj)
+            {
+                setupObj["model"] = BuildVertexLiveModelResource(vertexProjectId);
+                setupObj["inputAudioTranscription"] ??= new JsonObject();
+                setupObj["outputAudioTranscription"] ??= new JsonObject();
+                return rootObj.ToJsonString();
+            }
+
+            if (rootObj["realtimeInput"] is JsonObject rtObj)
+            {
+                if (rtObj["text"] is JsonValue txtVal && txtVal.TryGetValue<string>(out string? promptText))
+                {
+                    if (string.IsNullOrWhiteSpace(promptText))
+                        return null;
+
+                    var turnPacket = new JsonObject
+                    {
+                        ["clientContent"] = new JsonObject
+                        {
+                            ["turns"] = new JsonArray
+                            {
+                                new JsonObject
+                                {
+                                    ["role"] = "user",
+                                    ["parts"] = new JsonArray
+                                    {
+                                        new JsonObject { ["text"] = promptText }
+                                    }
+                                }
+                            },
+                            ["turnComplete"] = true
+                        }
+                    };
+                    return turnPacket.ToJsonString();
+                }
+
+                if (rtObj["mediaChunks"] is JsonArray chunksArr)
+                {
+                    for (int i = chunksArr.Count - 1; i >= 0; i--)
+                    {
+                        if (chunksArr[i] is not JsonObject chunkObj)
+                            continue;
+                        string mime = chunkObj["mimeType"]?.GetValue<string>() ?? "";
+                        string data = chunkObj["data"]?.GetValue<string>() ?? "";
+                        if (mime.StartsWith("audio/pcm", StringComparison.OrdinalIgnoreCase) && rtObj["audio"] == null)
+                        {
+                            rtObj["audio"] = new JsonObject { ["mimeType"] = mime, ["data"] = data };
+                            chunksArr.RemoveAt(i);
+                        }
+                        else if (mime.StartsWith("image/", StringComparison.OrdinalIgnoreCase) && rtObj["video"] == null)
+                        {
+                            rtObj["video"] = new JsonObject { ["mimeType"] = mime, ["data"] = data };
+                            chunksArr.RemoveAt(i);
+                        }
+                    }
+                    if (chunksArr.Count == 0)
+                        rtObj.Remove("mediaChunks");
+
+                    return rootObj.ToJsonString();
+                }
+            }
+
+            if (rootObj["clientContent"] is JsonObject ccObj)
+            {
+                bool turnCompleteExplicitFalse = ccObj["turnComplete"] is JsonValue tcVal &&
+                                                 tcVal.TryGetValue<bool>(out bool tcBool) &&
+                                                 !tcBool;
+
+                if (ccObj["turns"] is JsonArray turnsArr)
+                {
+                    if (turnCompleteExplicitFalse && turnsArr.Count > 0)
+                    {
+                        bool allWhitespaceOnly = true;
+                        foreach (var tNode in turnsArr)
+                        {
+                            if (tNode is not JsonObject tObj || tObj["parts"] is not JsonArray pArr)
+                            {
+                                allWhitespaceOnly = false;
+                                break;
+                            }
+                            foreach (var pNode in pArr)
+                            {
+                                if (pNode is not JsonObject pObj) continue;
+                                if (pObj["inlineData"] != null)
+                                {
+                                    allWhitespaceOnly = false;
+                                    break;
+                                }
+                                string pTxt = pObj["text"]?.GetValue<string>() ?? "";
+                                if (!string.IsNullOrWhiteSpace(pTxt))
+                                {
+                                    allWhitespaceOnly = false;
+                                    break;
+                                }
+                            }
+                            if (!allWhitespaceOnly) break;
+                        }
+
+                        if (allWhitespaceOnly)
+                            return null;
+                    }
+
+                    foreach (var tNode in turnsArr)
+                    {
+                        if (tNode is JsonObject tObj)
+                        {
+                            string existingRole = tObj["role"]?.GetValue<string>() ?? "";
+                            if (string.IsNullOrWhiteSpace(existingRole))
+                                tObj["role"] = "user";
+                        }
+                    }
+                }
+
+                if (ccObj["turnComplete"] == null)
+                    ccObj["turnComplete"] = true;
+
+                return rootObj.ToJsonString();
+            }
+
+            return rootObj.ToJsonString();
+        }
+
+        private static string Base64UrlEncodeBytes(ReadOnlySpan<byte> bytes)
+        {
+            return Convert.ToBase64String(bytes)
+                .TrimEnd('=')
+                .Replace('+', '-')
+                .Replace('/', '_');
+        }
+
+        public static string CreateSignedVertexServiceAccountJwt(
+            string clientEmail,
+            string privateKeyPem,
+            DateTimeOffset? nowUtcOverride = null,
+            string scope = VertexCloudPlatformScope,
+            string audience = VertexOAuthTokenEndpoint)
+        {
+            if (string.IsNullOrWhiteSpace(clientEmail))
+                throw new ArgumentException("Service-Account client_email fehlt.", nameof(clientEmail));
+            if (string.IsNullOrWhiteSpace(privateKeyPem))
+                throw new ArgumentException("Service-Account private_key fehlt.", nameof(privateKeyPem));
+
+            long iat = (nowUtcOverride ?? DateTimeOffset.UtcNow).ToUnixTimeSeconds();
+            long exp = iat + 3300; // 55-Minuten-JWT
+
+            var headerObj = new JsonObject
+            {
+                ["alg"] = "RS256",
+                ["typ"] = "JWT"
+            };
+            var claimsObj = new JsonObject
+            {
+                ["iss"] = clientEmail.Trim(),
+                ["sub"] = clientEmail.Trim(),
+                ["aud"] = string.IsNullOrWhiteSpace(audience) ? VertexOAuthTokenEndpoint : audience.Trim(),
+                ["scope"] = string.IsNullOrWhiteSpace(scope) ? VertexCloudPlatformScope : scope.Trim(),
+                ["iat"] = iat,
+                ["exp"] = exp
+            };
+
+            string headerB64 = Base64UrlEncodeBytes(Encoding.UTF8.GetBytes(headerObj.ToJsonString()));
+            string claimsB64 = Base64UrlEncodeBytes(Encoding.UTF8.GetBytes(claimsObj.ToJsonString()));
+            string signingInput = $"{headerB64}.{claimsB64}";
+
+            string normalizedPem = privateKeyPem.Contains("\\n", StringComparison.Ordinal) && !privateKeyPem.Contains('\n')
+                ? privateKeyPem.Replace("\\n", "\n", StringComparison.Ordinal)
+                : privateKeyPem;
+
+            using var rsa = RSA.Create();
+            rsa.ImportFromPem(normalizedPem.AsSpan());
+            byte[] sigBytes = rsa.SignData(
+                Encoding.ASCII.GetBytes(signingInput),
+                HashAlgorithmName.SHA256,
+                RSASignaturePadding.Pkcs1);
+
+            return $"{signingInput}.{Base64UrlEncodeBytes(sigBytes)}";
+        }
+
+        public static void CachePortalDirectBearerToken(string? bearerToken, string? projectId = null, TimeSpan? ttl = null)
+        {
+            if (string.IsNullOrWhiteSpace(bearerToken))
+                return;
+
+            string clean = bearerToken.Trim();
+            if (clean.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+                clean = clean.Substring(7).Trim();
+
+            if (clean.Length < 16)
+                return;
+
+            TimeSpan effectiveTtl = ttl ?? TimeSpan.FromMinutes(50);
+            if (effectiveTtl <= TimeSpan.Zero)
+                return;
+
+            lock (s_vertexCacheLock)
+            {
+                s_cachedVertexBearerToken = clean;
+                if (!string.IsNullOrWhiteSpace(projectId) && Regex.IsMatch(projectId.Trim(), "^[A-Za-z0-9\\-._:]+$"))
+                {
+                    s_cachedVertexProjectId = projectId.Trim();
+                }
+                s_cachedVertexSource = "portal_direct_bearer";
+                s_cachedVertexExpiresUtc = DateTimeOffset.UtcNow.Add(effectiveTtl);
+            }
+        }
+
+        public static bool TryCachePortalLiveCredentialsJson(string? rawJson)
+        {
+            if (string.IsNullOrWhiteSpace(rawJson))
+                return false;
+
+            try
+            {
+                using var doc = JsonDocument.Parse(rawJson);
+                var root = doc.RootElement;
+                if (root.ValueKind != JsonValueKind.Object)
+                    return false;
+
+                string? extractedProject = null;
+                if (root.TryGetProperty("vertex_project_id", out var vpEl) && vpEl.ValueKind == JsonValueKind.String)
+                {
+                    extractedProject = vpEl.GetString();
+                }
+                else if (root.TryGetProperty("live_model", out var lmEl) && lmEl.ValueKind == JsonValueKind.String)
+                {
+                    string lm = lmEl.GetString() ?? "";
+                    var m = RxVertexModelProject.Match(lm);
+                    if (m.Success)
+                        extractedProject = m.Groups[1].Value;
+                }
+
+                string? bearer = null;
+                if (root.TryGetProperty("direct_bearer_token", out var dbEl) && dbEl.ValueKind == JsonValueKind.String)
+                {
+                    bearer = dbEl.GetString();
+                }
+
+                if (string.IsNullOrWhiteSpace(bearer) &&
+                    root.TryGetProperty("direct_ws_url", out var dwEl) &&
+                    dwEl.ValueKind == JsonValueKind.String)
+                {
+                    string dw = dwEl.GetString() ?? "";
+                    int idx = dw.IndexOf("access_token=", StringComparison.OrdinalIgnoreCase);
+                    if (idx >= 0)
+                    {
+                        string tail = dw.Substring(idx + "access_token=".Length);
+                        int amp = tail.IndexOf('&');
+                        string rawTok = Uri.UnescapeDataString(amp >= 0 ? tail.Substring(0, amp) : tail).Trim();
+                        if (rawTok.StartsWith("ya29.", StringComparison.Ordinal))
+                            bearer = rawTok;
+                    }
+                }
+
+                if (!string.IsNullOrWhiteSpace(bearer))
+                {
+                    CachePortalDirectBearerToken(bearer, extractedProject, TimeSpan.FromMinutes(50));
+                    return true;
+                }
+            }
+            catch { }
+
+            return false;
+        }
+
+        public static string? ResolveVertexServiceAccountPath()
+        {
+            if (!string.IsNullOrWhiteSpace(TestOverrideVertexServiceAccountPath))
+            {
+                if (string.Equals(TestOverrideVertexServiceAccountPath, "__NONE__", StringComparison.Ordinal))
+                    return null;
+                return File.Exists(TestOverrideVertexServiceAccountPath) ? TestOverrideVertexServiceAccountPath : null;
+            }
+
+            string? env1 = Environment.GetEnvironmentVariable("VERTEX_SERVICE_ACCOUNT_PATH");
+            if (!string.IsNullOrWhiteSpace(env1) && File.Exists(env1.Trim()))
+                return env1.Trim();
+
+            string? env2 = Environment.GetEnvironmentVariable("GOOGLE_VERTEX_SERVICE_ACCOUNT_PATH");
+            if (!string.IsNullOrWhiteSpace(env2) && File.Exists(env2.Trim()))
+                return env2.Trim();
+
+            string dataDirCandidate = Path.Combine(LinuxVaultAndStorage.DataDir, "vertex-service-account.json");
+            if (File.Exists(dataDirCandidate))
+                return dataDirCandidate;
+
+            if (string.IsNullOrWhiteSpace(LinuxVaultAndStorage.TestOverrideRootDir) &&
+                File.Exists(DefaultLinuxServiceAccountPath))
+            {
+                return DefaultLinuxServiceAccountPath;
+            }
+
+            return null;
+        }
+
+        public static bool HasLocalVertexServiceAccountFile()
+        {
+            return ResolveVertexServiceAccountPath() != null;
+        }
+
+        public static bool HasCachedVertexBearerToken()
+        {
+            lock (s_vertexCacheLock)
+            {
+                return !string.IsNullOrWhiteSpace(s_cachedVertexBearerToken) &&
+                       s_cachedVertexExpiresUtc > DateTimeOffset.UtcNow;
+            }
+        }
+
+        public static bool HasLocalVertexCapability()
+        {
+            return HasCachedVertexBearerToken() || HasLocalVertexServiceAccountFile();
+        }
+
+        public static async Task<(bool Ok, string AccessToken, string ProjectId, string Source, string Error)> TryMintLocalVertexAccessTokenAsync(
+            bool forceRefresh = false,
+            CancellationToken ct = default)
+        {
+            if (!forceRefresh)
+            {
+                lock (s_vertexCacheLock)
+                {
+                    if (!string.IsNullOrWhiteSpace(s_cachedVertexBearerToken) &&
+                        s_cachedVertexExpiresUtc > DateTimeOffset.UtcNow)
+                    {
+                        return (true, s_cachedVertexBearerToken, s_cachedVertexProjectId, s_cachedVertexSource, "");
+                    }
+                }
+            }
+
+            await s_vertexMintGate.WaitAsync(ct).ConfigureAwait(false);
+            try
+            {
+                if (!forceRefresh)
+                {
+                    lock (s_vertexCacheLock)
+                    {
+                        if (!string.IsNullOrWhiteSpace(s_cachedVertexBearerToken) &&
+                            s_cachedVertexExpiresUtc > DateTimeOffset.UtcNow)
+                        {
+                            return (true, s_cachedVertexBearerToken, s_cachedVertexProjectId, s_cachedVertexSource, "");
+                        }
+                    }
+                }
+
+                string? saPath = ResolveVertexServiceAccountPath();
+                if (string.IsNullOrWhiteSpace(saPath) || !File.Exists(saPath))
+                {
+                    return (false, "", DefaultVertexProjectId, "none", "Lokale Vertex-Service-Account-Datei nicht vorhanden.");
+                }
+
+                string rawSaJson = await File.ReadAllTextAsync(saPath, Encoding.UTF8, ct).ConfigureAwait(false);
+                string clientEmail;
+                string privateKeyPem;
+                string projectId = DefaultVertexProjectId;
+                string tokenUri = VertexOAuthTokenEndpoint;
+
+                using (var saDoc = JsonDocument.Parse(rawSaJson))
+                {
+                    var saRoot = saDoc.RootElement;
+                    clientEmail = SeelenfunkeLinuxApiClient.GetStr(saRoot, "client_email").Trim();
+                    privateKeyPem = SeelenfunkeLinuxApiClient.GetStr(saRoot, "private_key");
+                    string parsedProj = SeelenfunkeLinuxApiClient.GetStr(saRoot, "project_id").Trim();
+                    if (!string.IsNullOrWhiteSpace(parsedProj) && Regex.IsMatch(parsedProj, "^[A-Za-z0-9\\-._:]+$"))
+                        projectId = parsedProj;
+
+                    string parsedUri = SeelenfunkeLinuxApiClient.GetStr(saRoot, "token_uri").Trim();
+                    if (string.Equals(parsedUri, VertexOAuthTokenEndpoint, StringComparison.OrdinalIgnoreCase))
+                        tokenUri = VertexOAuthTokenEndpoint;
+                }
+
+                if (string.IsNullOrWhiteSpace(clientEmail) || string.IsNullOrWhiteSpace(privateKeyPem))
+                {
+                    return (false, "", projectId, "invalid_sa", "Service-Account-JSON unvollständig (client_email/private_key fehlt).");
+                }
+
+                string signedJwt = CreateSignedVertexServiceAccountJwt(
+                    clientEmail,
+                    privateKeyPem,
+                    nowUtcOverride: null,
+                    scope: VertexCloudPlatformScope,
+                    audience: tokenUri);
+
+                int statusCode;
+                string respBody;
+
+                if (TestOverrideVertexOAuthPostAsync != null)
+                {
+                    (statusCode, respBody) = await TestOverrideVertexOAuthPostAsync(tokenUri, signedJwt, ct).ConfigureAwait(false);
+                }
+                else
+                {
+                    using var reqCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                    reqCts.CancelAfter(TimeSpan.FromSeconds(10));
+                    using var formContent = new FormUrlEncodedContent(new Dictionary<string, string>
+                    {
+                        ["grant_type"] = "urn:ietf:params:oauth:grant-type:jwt-bearer",
+                        ["assertion"] = signedJwt
+                    });
+                    using var req = new HttpRequestMessage(HttpMethod.Post, tokenUri)
+                    {
+                        Content = formContent
+                    };
+                    req.Headers.TryAddWithoutValidation("Accept", "application/json");
+                    using var resp = await s_vertexHttp.SendAsync(req, reqCts.Token).ConfigureAwait(false);
+                    statusCode = (int)resp.StatusCode;
+                    respBody = await resp.Content.ReadAsStringAsync(reqCts.Token).ConfigureAwait(false);
+                }
+
+                if (statusCode >= 200 && statusCode < 300 && !string.IsNullOrWhiteSpace(respBody))
+                {
+                    using var tokDoc = JsonDocument.Parse(respBody);
+                    string accessToken = SeelenfunkeLinuxApiClient.GetStr(tokDoc.RootElement, "access_token").Trim();
+                    int expiresInSec = 3600;
+                    if (tokDoc.RootElement.TryGetProperty("expires_in", out var expEl) && expEl.TryGetInt32(out int parsedExp) && parsedExp > 120)
+                    {
+                        expiresInSec = parsedExp;
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(accessToken))
+                    {
+                        // Cache 50 minutes in RAM (3000s) for standard 3600s OAuth2 tokens
+                        int cacheSeconds = Math.Clamp(expiresInSec - 600, 300, 3000);
+                        lock (s_vertexCacheLock)
+                        {
+                            s_cachedVertexBearerToken = accessToken;
+                            s_cachedVertexProjectId = projectId;
+                            s_cachedVertexSource = "local_service_account_jwt";
+                            s_cachedVertexExpiresUtc = DateTimeOffset.UtcNow.AddSeconds(cacheSeconds);
+                        }
+                        return (true, accessToken, projectId, "local_service_account_jwt", "");
+                    }
+                }
+
+                string safeSnippet = SanitizeVertexAndLiveSecrets(respBody);
+                if (safeSnippet.Length > 200) safeSnippet = safeSnippet.Substring(0, 200);
+                return (false, "", projectId, "oauth_http_error", $"Vertex OAuth2 Token-Tausch fehlgeschlagen (HTTP {statusCode}): {safeSnippet}");
+            }
+            catch (Exception ex)
+            {
+                return (false, "", DefaultVertexProjectId, "exception", SanitizeVertexAndLiveSecrets(ex.Message));
+            }
+            finally
+            {
+                s_vertexMintGate.Release();
+            }
+        }
+
+        private static void TryWarmPortalDirectBearerCacheInBackground(LinuxOsSettings settings)
+        {
+            if (!string.IsNullOrWhiteSpace(LinuxVaultAndStorage.TestOverrideRootDir))
+                return;
+
+            lock (s_vertexCacheLock)
+            {
+                if ((DateTimeOffset.UtcNow - s_lastPortalDirectWarmUtc).TotalMinutes < 45.0)
+                    return;
+                s_lastPortalDirectWarmUtc = DateTimeOffset.UtcNow;
+            }
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    string norm = (settings.ApiEnvironment ?? "live").Trim().ToLowerInvariant() == "stage" ? "stage" : "live";
+                    string portalBearer = LinuxVaultAndStorage.GetToken(settings, norm);
+                    if (string.IsNullOrWhiteSpace(portalBearer))
+                        return;
+
+                    string baseUrl = SeelenfunkeLinuxApiClient.ResolveBaseApiUrl(norm);
+                    string url = $"{baseUrl}/ai/live-credentials?client=minipc&fallback=direct&t={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
+                    if (!SeelenfunkeLinuxApiClient.ValidateHttpsUrl(url))
+                        return;
+
+                    using var warmReq = new HttpRequestMessage(HttpMethod.Get, url);
+                    warmReq.Headers.TryAddWithoutValidation("Authorization", $"Bearer {portalBearer}");
+                    warmReq.Headers.TryAddWithoutValidation("Accept", "application/json");
+                    using var warmResp = await s_vertexHttp.SendAsync(warmReq).ConfigureAwait(false);
+                    if (warmResp.IsSuccessStatusCode)
+                    {
+                        string body = await warmResp.Content.ReadAsStringAsync().ConfigureAwait(false);
+                        if (!string.IsNullOrWhiteSpace(body))
+                        {
+                            TryCachePortalLiveCredentialsJson(body);
+                        }
+                    }
+                }
+                catch { }
+            });
+        }
 
         // =====================================================================
         // FUNKIRA TELEFON-ASSISTENT (WHITELIST CALL CONCIERGE, ZERO-TWILIO)
@@ -4309,59 +4966,70 @@ namespace FunkenwerkOSLinux
             var sysStats = LinuxHardwareEngine.GetSystemStats();
 
             string originHeader = SeelenfunkeLinuxApiClient.ResolveOriginUrl(settings.ApiEnvironment);
-            string vaultGeminiKey = LinuxVaultAndStorage.GetGeminiApiKey(settings);
-            bool useDirectGoogleWs = !string.IsNullOrWhiteSpace(vaultGeminiKey);
-            bool localResilientMode = !creds.Ok && useDirectGoogleWs;
+            (bool Ok, string AccessToken, string ProjectId, string Source, string Error) vertexAuth =
+                (false, "", DefaultVertexProjectId, "none", "");
 
-            if (!CanStartFunkiraResilientSession(creds.Ok, useDirectGoogleWs))
+            if (creds.Ok)
             {
+                s_lastSpokenAuthExpiredAtUtc = DateTime.MinValue;
+                TryWarmPortalDirectBearerCacheInBackground(settings);
+            }
+            else
+            {
+                vertexAuth = await TryMintLocalVertexAccessTokenAsync(forceRefresh: false, ct: sessionCts.Token).ConfigureAwait(false);
+            }
+
+            bool useDirectVertexWs = !creds.Ok && vertexAuth.Ok;
+            bool localResilientMode = useDirectVertexWs;
+
+            if (!CanStartFunkiraResilientSession(creds.Ok, useDirectVertexWs))
+            {
+                string safeCredsErr = SanitizeVertexAndLiveSecrets(creds.ErrorMessage);
+                string safeVertexErr = SanitizeVertexAndLiveSecrets(vertexAuth.Error);
                 ErrorSentinelAndWatchdog.RecordEvent(
                     component: "funkira_live_session",
                     title: creds.IsAuthError
-                        ? $"Funkira Start abgelehnt ({pulse.Environment}): Anmeldung erforderlich (kein lokaler Vault-Key)"
+                        ? $"Funkira Start abgelehnt ({pulse.Environment}): Anmeldung erforderlich (kein lokales Vertex-Token)"
                         : $"Funkira Start fehlgeschlagen ({pulse.Environment}): Keine Live-Credentials",
-                    message: creds.ErrorMessage,
+                    message: string.IsNullOrWhiteSpace(safeVertexErr) ? safeCredsErr : $"{safeCredsErr} | Vertex: {safeVertexErr}",
                     severity: creds.IsAuthError ? "warning" : "error",
                     context: new Dictionary<string, string>
                     {
                         ["environment"] = pulse.Environment,
                         ["is_auth_error"] = creds.IsAuthError ? "true" : "false",
                         ["pulse_connected"] = pulse.IsConnected ? "true" : "false",
-                        ["has_vault_gemini_key"] = "false"
+                        ["has_vertex_service_account"] = HasLocalVertexServiceAccountFile() ? "true" : "false"
                     });
                 await SafeSendLocalAsync(JsonSerializer.Serialize(new
                 {
                     type = creds.IsAuthError ? "funkiraAuthRequired" : "funkiraError",
-                    message = string.IsNullOrWhiteSpace(creds.ErrorMessage) ? "Verbindung zu Funkira konnte nicht hergestellt werden." : creds.ErrorMessage
+                    message = string.IsNullOrWhiteSpace(safeCredsErr) ? "Verbindung zu Funkira konnte nicht hergestellt werden." : safeCredsErr
                 })).ConfigureAwait(false);
                 try { await localWs.CloseAsync(WebSocketCloseStatus.NormalClosure, creds.IsAuthError ? "auth_required" : "creds_error", CancellationToken.None).ConfigureAwait(false); } catch { }
                 return;
             }
 
-            if (creds.Ok)
-            {
-                s_lastSpokenAuthExpiredAtUtc = DateTime.MinValue;
-            }
-
             if (localResilientMode)
             {
+                string safePortalErr = SanitizeVertexAndLiveSecrets(creds.ErrorMessage);
                 ErrorSentinelAndWatchdog.RecordEvent(
                     component: "funkira_live_session",
-                    title: $"Funkira trotz Portal-Störung ({pulse.Environment}) im lokalen Vault-Resilienz-Modus gestartet",
-                    message: string.IsNullOrWhiteSpace(creds.ErrorMessage) ? "Portal-Credentials nicht verfügbar." : creds.ErrorMessage,
+                    title: $"Funkira trotz Portal-Störung ({pulse.Environment}) im lokalen Vertex-AI-Resilienz-Modus gestartet",
+                    message: string.IsNullOrWhiteSpace(safePortalErr) ? "Portal-Credentials nicht verfügbar." : safePortalErr,
                     autoHealed: true,
-                    healSummary: "Lokaler AES-256-GCM Gemini-Schlüssel übernommen; Funkira ist im 3D-Atelier und mit allen lokalen Werkzeugen ohne Unterbrechung aktiv.",
+                    healSummary: $"Lokaler Google Cloud Vertex AI OAuth2-Provider ({DefaultVertexLiveLocation}, Quelle: {vertexAuth.Source}) übernommen; Funkira ist im 3D-Atelier und mit allen lokalen Werkzeugen ohne Unterbrechung aktiv.",
                     context: new Dictionary<string, string>
                     {
                         ["environment"] = pulse.Environment,
                         ["is_auth_error"] = creds.IsAuthError ? "true" : "false",
                         ["pulse_connected"] = pulse.IsConnected ? "true" : "false",
-                        ["portal_error"] = creds.ErrorMessage ?? ""
+                        ["vertex_source"] = vertexAuth.Source,
+                        ["portal_error"] = safePortalErr
                     });
 
                 string serverHint = creds.IsAuthError
                     ? $"\n- HINWEIS ZUR PORTAL-VERBINDUNG: Deine Anmeldung für {pulse.Environment} ist aktuell abgelaufen (HTTP 401). Alle lokalen Mini-PC-, 3D-Haus-, Dokumenten-Suche-, Kamera-, Audio- und Werkstatt-Funktionen laufen zu 100% normal! Wenn Alina nach Online-Bestellungen, Mails, Kontakten, Co-CEO-Tipps oder Handy-Benachrichtigungen fragt, nenne ihr SOFORT ehrlich diesen Grund (Portal-Login abgelaufen) und biete an, das Anmeldefenster per 'minipc_ui_control' (action='open_login') direkt zu öffnen."
-                    : $"\n- HINWEIS ZUR PORTAL-VERBINDUNG: Das Online-Portal ({pulse.Environment}) war beim Start kurzzeitig nicht erreichbar ({creds.ErrorMessage}). Alle lokalen Mini-PC-, 3D-Haus-, Dokumenten-Suche-, Kamera-, Audio- und Werkstatt-Funktionen laufen zu 100% normal! Nenne Alina bei Online-Fragen ehrlich diesen konkreten Grund.";
+                    : $"\n- HINWEIS ZUR PORTAL-VERBINDUNG: Das Online-Portal ({pulse.Environment}) war beim Start kurzzeitig nicht erreichbar ({safePortalErr}). Alle lokalen Mini-PC-, 3D-Haus-, Dokumenten-Suche-, Kamera-, Audio- und Werkstatt-Funktionen laufen zu 100% normal! Nenne Alina bei Online-Fragen ehrlich diesen konkreten Grund.";
 
                 creds.AgentName = "Funkira";
                 creds.VoiceName = "Kore";
@@ -4377,88 +5045,165 @@ namespace FunkenwerkOSLinux
                     serverHint;
             }
 
-            Uri targetUri;
-            if (useDirectGoogleWs)
+            using var wsHttpInvoker = SeelenfunkeLinuxApiClient.CreateWebSocketHttpInvoker();
+            int[] wsRetryDelaysMs = new[] { 0, 550, 1300 };
+
+            async Task<(ClientWebSocket? Ws, Exception? LastEx, string ActiveProjectId)> ConnectTargetWithRetriesAsync(
+                Uri uri,
+                bool directVertex,
+                string initialBearer,
+                string initialProjectId)
             {
-                targetUri = new Uri($"wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key={Uri.EscapeDataString(vaultGeminiKey)}");
+                Exception? lastEx = null;
+                string activeBearer = initialBearer;
+                string activeProj = string.IsNullOrWhiteSpace(initialProjectId) ? DefaultVertexProjectId : initialProjectId;
+                bool refreshedOnce = false;
+
+                for (int attempt = 0; attempt < wsRetryDelaysMs.Length; attempt++)
+                {
+                    if (wsRetryDelaysMs[attempt] > 0)
+                    {
+                        await Task.Delay(wsRetryDelaysMs[attempt], sessionCts.Token).ConfigureAwait(false);
+                    }
+
+                    if (directVertex && attempt > 0 && !refreshedOnce && HasLocalVertexServiceAccountFile())
+                    {
+                        refreshedOnce = true;
+                        var refreshed = await TryMintLocalVertexAccessTokenAsync(forceRefresh: true, ct: sessionCts.Token).ConfigureAwait(false);
+                        if (refreshed.Ok)
+                        {
+                            activeBearer = refreshed.AccessToken;
+                            activeProj = refreshed.ProjectId;
+                        }
+                    }
+
+                    var candidateWs = new ClientWebSocket();
+                    candidateWs.Options.KeepAliveInterval = TimeSpan.FromSeconds(15);
+                    candidateWs.Options.SetRequestHeader("Origin", originHeader);
+                    candidateWs.Options.SetRequestHeader("Referer", originHeader.TrimEnd('/') + "/");
+                    candidateWs.Options.SetRequestHeader("User-Agent", $"FunkenwerkOS-Linux-Funkira/2.8 ({Environment.MachineName})");
+                    if (directVertex && !string.IsNullOrWhiteSpace(activeBearer))
+                    {
+                        candidateWs.Options.SetRequestHeader("Authorization", $"Bearer {activeBearer}");
+                    }
+
+                    try
+                    {
+                        using var connectCts = CancellationTokenSource.CreateLinkedTokenSource(sessionCts.Token);
+                        connectCts.CancelAfter(TimeSpan.FromSeconds(11));
+                        await candidateWs.ConnectAsync(uri, wsHttpInvoker, connectCts.Token).ConfigureAwait(false);
+
+                        if (attempt > 0 && lastEx != null)
+                        {
+                            string safeRetryMsg = SanitizeVertexAndLiveSecrets(lastEx.Message);
+                            ErrorSentinelAndWatchdog.RecordEvent(
+                                component: "gemini_live_ws",
+                                title: $"Funkira Live-WebSocket ({uri.Host}) nach Retry #{attempt + 1} verbunden",
+                                message: safeRetryMsg,
+                                stacktrace: SanitizeVertexAndLiveSecrets(lastEx.ToString()),
+                                autoHealed: true,
+                                healSummary: $"WebSocket-Verbindung zu {uri.Host} im Versuch #{attempt + 1} erfolgreich aufgebaut.",
+                                context: new Dictionary<string, string>
+                                {
+                                    ["target_host"] = uri.Host,
+                                    ["mode"] = directVertex ? "direct_vertex_eu" : "portal_bridge",
+                                    ["attempt"] = (attempt + 1).ToString(CultureInfo.InvariantCulture)
+                                });
+                        }
+                        return (candidateWs, null, activeProj);
+                    }
+                    catch (Exception ex) when (!sessionCts.IsCancellationRequested)
+                    {
+                        candidateWs.Dispose();
+                        lastEx = ex;
+                    }
+                    catch
+                    {
+                        candidateWs.Dispose();
+                        throw;
+                    }
+                }
+
+                return (null, lastEx, activeProj);
+            }
+
+            Uri targetUri;
+            ClientWebSocket? connectedWs = null;
+            Exception? lastWsEx = null;
+            string activeVertexProjectId = vertexAuth.ProjectId;
+
+            if (useDirectVertexWs)
+            {
+                targetUri = BuildDirectVertexLiveWebSocketUri();
+                (connectedWs, lastWsEx, activeVertexProjectId) = await ConnectTargetWithRetriesAsync(
+                    targetUri,
+                    directVertex: true,
+                    initialBearer: vertexAuth.AccessToken,
+                    initialProjectId: vertexAuth.ProjectId).ConfigureAwait(false);
             }
             else
             {
                 string sep = creds.WsUrl.Contains('?') ? "&" : "?";
                 targetUri = new Uri($"{creds.WsUrl}{sep}token={Uri.EscapeDataString(creds.Token)}");
-            }
+                (connectedWs, lastWsEx, activeVertexProjectId) = await ConnectTargetWithRetriesAsync(
+                    targetUri,
+                    directVertex: false,
+                    initialBearer: "",
+                    initialProjectId: DefaultVertexProjectId).ConfigureAwait(false);
 
-            using var wsHttpInvoker = SeelenfunkeLinuxApiClient.CreateWebSocketHttpInvoker();
-            ClientWebSocket? connectedWs = null;
-            Exception? lastWsEx = null;
-            int[] wsRetryDelaysMs = new[] { 0, 550, 1300 };
-
-            for (int attempt = 0; attempt < wsRetryDelaysMs.Length; attempt++)
-            {
-                if (wsRetryDelaysMs[attempt] > 0)
+                // Seamless Vertex AI Postpay failover if the Portal WebSocket Bridge is down/restarting
+                if (connectedWs == null && !sessionCts.IsCancellationRequested)
                 {
-                    await Task.Delay(wsRetryDelaysMs[attempt], sessionCts.Token).ConfigureAwait(false);
-                }
-
-                var candidateWs = new ClientWebSocket();
-                candidateWs.Options.KeepAliveInterval = TimeSpan.FromSeconds(15);
-                candidateWs.Options.SetRequestHeader("Origin", originHeader);
-                candidateWs.Options.SetRequestHeader("Referer", originHeader.TrimEnd('/') + "/");
-                candidateWs.Options.SetRequestHeader("User-Agent", $"FunkenwerkOS-Linux-Funkira/2.7 ({Environment.MachineName})");
-
-                try
-                {
-                    using var connectCts = CancellationTokenSource.CreateLinkedTokenSource(sessionCts.Token);
-                    connectCts.CancelAfter(TimeSpan.FromSeconds(11));
-                    await candidateWs.ConnectAsync(targetUri, wsHttpInvoker, connectCts.Token).ConfigureAwait(false);
-                    connectedWs = candidateWs;
-
-                    if (attempt > 0 && lastWsEx != null)
+                    var bridgeFailEx = lastWsEx;
+                    vertexAuth = await TryMintLocalVertexAccessTokenAsync(forceRefresh: false, ct: sessionCts.Token).ConfigureAwait(false);
+                    if (vertexAuth.Ok)
                     {
-                        ErrorSentinelAndWatchdog.RecordEvent(
-                            component: "gemini_live_ws",
-                            title: $"Funkira Live-WebSocket ({targetUri.Host}) nach Retry #{attempt + 1} verbunden",
-                            message: lastWsEx.Message,
-                            stacktrace: lastWsEx.ToString(),
-                            autoHealed: true,
-                            healSummary: $"WebSocket-Verbindung zu {targetUri.Host} im Versuch #{attempt + 1} erfolgreich aufgebaut.",
-                            context: new Dictionary<string, string>
-                            {
-                                ["target_host"] = targetUri.Host,
-                                ["mode"] = useDirectGoogleWs ? "direct_google" : "portal_bridge",
-                                ["attempt"] = (attempt + 1).ToString(CultureInfo.InvariantCulture)
-                            });
+                        Uri bridgeHostUri = targetUri;
+                        useDirectVertexWs = true;
+                        targetUri = BuildDirectVertexLiveWebSocketUri();
+                        (connectedWs, lastWsEx, activeVertexProjectId) = await ConnectTargetWithRetriesAsync(
+                            targetUri,
+                            directVertex: true,
+                            initialBearer: vertexAuth.AccessToken,
+                            initialProjectId: vertexAuth.ProjectId).ConfigureAwait(false);
+
+                        if (connectedWs != null)
+                        {
+                            ErrorSentinelAndWatchdog.RecordEvent(
+                                component: "gemini_live_ws",
+                                title: $"Portal-Bridge ({bridgeHostUri.Host}) nicht erreichbar -> nahtlos auf Vertex AI ({targetUri.Host}) umgeschaltet",
+                                message: SanitizeVertexAndLiveSecrets(bridgeFailEx?.Message ?? "Bridge-Verbindung fehlgeschlagen"),
+                                stacktrace: SanitizeVertexAndLiveSecrets(bridgeFailEx?.ToString()),
+                                autoHealed: true,
+                                healSummary: $"Direkte EU-Vertex-AI-Verbindung ({DefaultVertexLiveLocation}, Quelle: {vertexAuth.Source}) ohne Unterbrechung aufgebaut.",
+                                context: new Dictionary<string, string>
+                                {
+                                    ["bridge_host"] = bridgeHostUri.Host,
+                                    ["vertex_host"] = targetUri.Host,
+                                    ["vertex_source"] = vertexAuth.Source,
+                                    ["environment"] = pulse.Environment
+                                });
+                        }
                     }
-                    break;
-                }
-                catch (Exception ex) when (!sessionCts.IsCancellationRequested)
-                {
-                    candidateWs.Dispose();
-                    lastWsEx = ex;
-                }
-                catch
-                {
-                    candidateWs.Dispose();
-                    throw;
                 }
             }
 
             if (connectedWs == null)
             {
                 string safeErr = lastWsEx?.Message ?? "WebSocket-Verbindung fehlgeschlagen";
-                if (!string.IsNullOrEmpty(vaultGeminiKey)) safeErr = safeErr.Replace(vaultGeminiKey, "[vault]");
                 if (!string.IsNullOrEmpty(creds.Token)) safeErr = safeErr.Replace(creds.Token, "[token]");
+                safeErr = SanitizeVertexAndLiveSecrets(safeErr);
                 SeelenfunkeLinuxApiClient.IsTransientDnsOrSocketException(lastWsEx ?? new Exception(safeErr), out string wsSockErr);
                 ErrorSentinelAndWatchdog.RecordEvent(
                     component: "gemini_live_ws",
                     title: $"Verbindung zur Funkira Live-Engine fehlgeschlagen ({targetUri.Host})",
                     message: safeErr,
-                    stacktrace: lastWsEx?.ToString(),
+                    stacktrace: SanitizeVertexAndLiveSecrets(lastWsEx?.ToString()),
                     severity: "error",
                     context: new Dictionary<string, string>
                     {
                         ["target_host"] = targetUri.Host,
-                        ["mode"] = useDirectGoogleWs ? "direct_google" : "portal_bridge",
+                        ["mode"] = useDirectVertexWs ? "direct_vertex_eu" : "portal_bridge",
                         ["attempts"] = wsRetryDelaysMs.Length.ToString(CultureInfo.InvariantCulture),
                         ["socket_error"] = wsSockErr,
                         ["environment"] = pulse.Environment
@@ -4477,7 +5222,12 @@ namespace FunkenwerkOSLinux
             async Task SafeSendUpstreamAsync(string json)
             {
                 if (upstreamWs.State != WebSocketState.Open) return;
-                byte[] bytes = Encoding.UTF8.GetBytes(json);
+                string? effectiveJson = useDirectVertexWs
+                    ? NormalizeBidiPacketForDirectVertex(json, activeVertexProjectId)
+                    : json;
+                if (string.IsNullOrWhiteSpace(effectiveJson)) return;
+
+                byte[] bytes = Encoding.UTF8.GetBytes(effectiveJson);
                 await upstreamSendLock.WaitAsync(sessionCts.Token).ConfigureAwait(false);
                 try
                 {
@@ -4514,37 +5264,12 @@ namespace FunkenwerkOSLinux
                 mergedTools = BuildMergedToolsNode(creds.RawToolsJson, schemaJson, settings.TikTokLiveMode, phoneConciergeMode: false);
             }
 
-            var setupPacket = new JsonObject
-            {
-                ["setup"] = new JsonObject
-                {
-                    ["model"] = "models/gemini-3.1-flash-live-preview",
-                    ["systemInstruction"] = new JsonObject
-                    {
-                        ["parts"] = new JsonArray
-                        {
-                            new JsonObject { ["text"] = fullInstruction }
-                        }
-                    },
-                    ["generationConfig"] = new JsonObject
-                    {
-                        ["responseModalities"] = new JsonArray("AUDIO"),
-                        ["speechConfig"] = new JsonObject
-                        {
-                            ["voiceConfig"] = new JsonObject
-                            {
-                                ["prebuiltVoiceConfig"] = new JsonObject
-                                {
-                                    ["voiceName"] = string.IsNullOrWhiteSpace(creds.VoiceName) ? "Kore" : creds.VoiceName
-                                }
-                            }
-                        }
-                    },
-                    ["tools"] = mergedTools,
-                    ["inputAudioTranscription"] = new JsonObject(),
-                    ["outputAudioTranscription"] = new JsonObject()
-                }
-            };
+            var setupPacket = BuildLiveSetupPacket(
+                useDirectVertexWs,
+                activeVertexProjectId,
+                fullInstruction,
+                creds.VoiceName,
+                mergedTools);
 
             await SafeSendUpstreamAsync(setupPacket.ToJsonString()).ConfigureAwait(false);
             Func<string, Task> sendLocalDelegate = SafeSendLocalAsync;
@@ -4922,22 +5647,23 @@ namespace FunkenwerkOSLinux
                             }
                             else if (closeCode != 1000 && closeCode != 1001 && !sessionCts.IsCancellationRequested)
                             {
+                                string safeCloseReason = SanitizeVertexAndLiveSecrets(closeReason);
                                 ErrorSentinelAndWatchdog.RecordEvent(
                                     component: "gemini_live_ws_close",
                                     title: $"Live-WebSocket unerwartet geschlossen (Code {closeCode})",
-                                    message: string.IsNullOrWhiteSpace(closeReason) ? $"CloseStatus={closeCode}" : closeReason,
+                                    message: string.IsNullOrWhiteSpace(safeCloseReason) ? $"CloseStatus={closeCode}" : safeCloseReason,
                                     severity: "error",
                                     context: new Dictionary<string, string>
                                     {
                                         ["close_code"] = closeCode.ToString(CultureInfo.InvariantCulture),
-                                        ["close_reason"] = closeReason,
+                                        ["close_reason"] = safeCloseReason,
                                         ["setup_complete"] = Volatile.Read(ref upstreamSetupComplete) ? "true" : "false",
-                                        ["mode"] = useDirectGoogleWs ? "direct_google" : "portal_bridge"
+                                        ["mode"] = useDirectVertexWs ? "direct_vertex_eu" : "portal_bridge"
                                     });
                                 await SafeSendLocalAsync(JsonSerializer.Serialize(new
                                 {
                                     type = "funkiraError",
-                                    message = $"Live-Verbindung getrennt (Code {closeCode}): {closeReason}"
+                                    message = $"Live-Verbindung getrennt (Code {closeCode}): {safeCloseReason}"
                                 })).ConfigureAwait(false);
                             }
                             break;
@@ -5041,7 +5767,7 @@ namespace FunkenwerkOSLinux
                                             {
                                                 ["user_utterance"] = lastUserUtteranceInTurn,
                                                 ["reason_category"] = diag.Category,
-                                                ["mode"] = useDirectGoogleWs ? "direct_google" : "portal_bridge"
+                                                ["mode"] = useDirectVertexWs ? "direct_vertex_eu" : "portal_bridge"
                                             });
                                         await SafeSendLocalAsync(JsonSerializer.Serialize(new
                                         {

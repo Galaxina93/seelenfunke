@@ -319,4 +319,80 @@ class RepositoriesMockWebServerTest {
         val wrappedWithImages = EmailHtmlSanitizer.wrapSafeHtmlDocument(maliciousEmailHtml, allowExternalImages = true)
         assertTrue(wrappedWithImages.contains("img-src https: data:;"))
     }
+
+    @Test
+    fun financeScanReceipt502FetchesEphemeralVertexTokenEncryptsCacheAndCallsVertexWithBearerAndUserRole() = runTest {
+        de.meinseelenfunke.app.util.VertexClientTokenCache.clear()
+        ServiceLocator.saveAuthToken("77|AdminSanctumTokenForVertex123456")
+        ServiceLocator.financeRepository.geminiDirectEndpointOverride =
+            "http://127.0.0.1:${geminiServer.port}/v1beta1/projects/gen-lang-client-0670786367/locations/global/publishers/google/models/gemini-3.5-flash:generateContent"
+
+        backendServer.enqueue(
+            MockResponse()
+                .setResponseCode(502)
+                .setBody("""{"success":false,"message":"Bad Gateway"}""")
+        )
+        backendServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "application/json")
+                .setBody(
+                    """{
+                        "status":"ok",
+                        "access_token":"ya29.MockAndroidVertexPostpayToken99887766",
+                        "expires_in_seconds":3000,
+                        "project_id":"gen-lang-client-0670786367",
+                        "rest_models_base_url":"https://aiplatform.googleapis.com/v1beta1/projects/gen-lang-client-0670786367/locations/global/publishers/google/models",
+                        "live_ws_url":"wss://europe-west4-aiplatform.googleapis.com/ws/google.cloud.aiplatform.v1beta1.LlmBidiService/BidiGenerateContent",
+                        "live_model":"projects/gen-lang-client-0670786367/locations/europe-west4/publishers/google/models/gemini-live-2.5-flash-native-audio"
+                    }"""
+                )
+        )
+        geminiServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "application/json")
+                .setBody(
+                    """{
+                        "candidates":[{
+                            "content":{
+                                "role":"model",
+                                "parts":[{"text":"{\"merchant\":\"Westpack\",\"description\":\"Schmuckboxen\",\"title\":\"Westpack - Schmuckboxen\",\"amount\":89.50,\"date\":\"2026-11-17\",\"location\":\"Gifhorn\",\"category\":\"Verpackung\",\"is_business\":true,\"tax_rate\":19.0,\"invoice_number\":\"WP-2026-11\"}"}]
+                            }
+                        }]
+                    }"""
+                )
+        )
+
+        val res = ServiceLocator.financeRepository.scanReceipt(
+            fileBytes = ByteArray(24) { 7 },
+            fileName = "westpack.jpg",
+            mimeType = "image/jpeg",
+            autoSave = false
+        )
+        assertTrue("Expected Vertex direct receipt fallback to succeed", res.isSuccess)
+        assertEquals("Westpack - Schmuckboxen", res.getOrNull()?.data?.title)
+
+        val scanReq = backendServer.takeRequest()
+        assertTrue(scanReq.path!!.contains("/funki/financials/scan-receipt"))
+        val ephemeralReq = backendServer.takeRequest()
+        assertEquals("/api/ai/vertex-ephemeral", ephemeralReq.path)
+        assertEquals("Bearer 77|AdminSanctumTokenForVertex123456", ephemeralReq.getHeader("Authorization"))
+
+        val vertexReq = geminiServer.takeRequest()
+        assertEquals("Bearer ya29.MockAndroidVertexPostpayToken99887766", vertexReq.getHeader("Authorization"))
+        assertNull("Vertex AI call must never send legacy x-goog-api-key", vertexReq.getHeader("x-goog-api-key"))
+        val sentJson = org.json.JSONObject(vertexReq.body.readUtf8())
+        assertEquals("user", sentJson.getJSONArray("contents").getJSONObject(0).getString("role"))
+
+        // Verify AES-256-GCM encryption of cached Vertex token on disk + wipe on clearAuthToken()
+        val rawStored = context.getSharedPreferences("seelenfunke_prefs", Context.MODE_PRIVATE)
+            .getString(de.meinseelenfunke.app.util.VertexClientTokenCache.PREF_KEY_VERTEX_BUNDLE, null)
+        assertNotNull(rawStored)
+        assertTrue(rawStored!!.startsWith("enc_v1:"))
+        assertFalse(rawStored.contains("ya29.MockAndroidVertexPostpayToken99887766"))
+
+        ServiceLocator.clearAuthToken()
+        assertNull(de.meinseelenfunke.app.util.VertexClientTokenCache.getValidCachedBundle(context))
+    }
 }

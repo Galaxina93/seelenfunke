@@ -106,6 +106,9 @@ Route::prefix('ai')->group(function () {
         // Endpunkt für den Multimodal Live API Mode (WebSockets)
         Route::get('/live-credentials', [AIController::class, 'liveCredentials']);
 
+        // Kurzlebiger Zero-Secret Vertex-OAuth2-Token-Broker (strikt Admin-only im Controller)
+        Route::get('/vertex-ephemeral', [AIController::class, 'vertexEphemeral'])->middleware('throttle:30,1');
+
         // Leichtgewichtiger Health- & Latenz-Ping für das Live-AI Seiten-Widget
         Route::get('/bridge-ping', [AIController::class, 'bridgePing']);
 

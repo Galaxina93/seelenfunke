@@ -132,11 +132,14 @@ class VertexAiService
         }
 
         $projectId = self::getProjectId($sa);
-        $cacheKey = 'google_vertex_oauth2_token_' . substr(sha1($sa['client_email'] . '|' . $projectId), 0, 16);
+        $cacheHash = substr(sha1($sa['client_email'] . '|' . $projectId), 0, 16);
+        $cacheKey = 'google_vertex_oauth2_token_' . $cacheHash;
+        $expCacheKey = 'google_vertex_oauth2_exp_' . $cacheHash;
 
         if ($forceRefresh) {
             try {
                 Cache::forget($cacheKey);
+                Cache::forget($expCacheKey);
             } catch (\Throwable) {
             }
         } else {
@@ -175,6 +178,7 @@ class VertexAiService
                 if ($accessToken !== '') {
                     try {
                         Cache::put($cacheKey, $accessToken, $expiresIn);
+                        Cache::put($expCacheKey, time() + $expiresIn, $expiresIn);
                     } catch (\Throwable) {
                     }
 
@@ -494,6 +498,71 @@ class VertexAiService
             'model' => 'models/gemini-3.1-flash-live-preview',
             'headers' => [],
             'direct_ws_url' => "wss://{$host}{$path}",
+        ];
+    }
+
+    /**
+     * Erzeugt ein kurzlebiges Zero-Secret Vertex-OAuth2-Paket für authentifizierte Admin-Endgeräte (z. B. Android-App).
+     * Gibt niemals den Service-Account Private Key heraus, sondern ausschließlich den kurzlebigen ya29.* Bearer-Token
+     * sowie die kanonischen Vertex-Endpunkte.
+     *
+     * @return array{access_token: string, expires_in_seconds: int, project_id: string, rest_models_base_url: string, live_ws_url: string, live_model: string}|null
+     */
+    public static function buildEphemeralClientBundle(bool $forceRefresh = false): ?array
+    {
+        if (!self::isEnabled()) {
+            return null;
+        }
+
+        $sa = self::loadServiceAccount();
+        if ($sa === null) {
+            return null;
+        }
+
+        $projectId = self::getProjectId($sa);
+        $cacheHash = substr(sha1($sa['client_email'] . '|' . $projectId), 0, 16);
+        $expCacheKey = 'google_vertex_oauth2_exp_' . $cacheHash;
+
+        $remainingSeconds = 0;
+        if (!$forceRefresh) {
+            try {
+                $expTs = (int) Cache::get($expCacheKey, 0);
+                if ($expTs > 0) {
+                    $remainingSeconds = $expTs - time();
+                }
+            } catch (\Throwable) {
+            }
+        }
+
+        $shouldRefresh = $forceRefresh || ($remainingSeconds > 0 && $remainingSeconds < 360);
+        $token = self::getAccessToken($shouldRefresh);
+        if ($token === null || $token === '') {
+            return null;
+        }
+
+        $expiresInSeconds = 3000;
+        try {
+            $expTsAfter = (int) Cache::get($expCacheKey, 0);
+            if ($expTsAfter > time()) {
+                $expiresInSeconds = max(300, $expTsAfter - time());
+            }
+        } catch (\Throwable) {
+        }
+
+        $restLocation = trim((string) config('services.vertex.location', 'global')) ?: 'global';
+        $restHost = $restLocation === 'global'
+            ? 'aiplatform.googleapis.com'
+            : "{$restLocation}-aiplatform.googleapis.com";
+        $liveLocation = trim((string) config('services.vertex.live_location', 'europe-west4')) ?: 'europe-west4';
+        $liveModelId = trim((string) config('services.vertex.live_model', 'gemini-live-2.5-flash-native-audio')) ?: 'gemini-live-2.5-flash-native-audio';
+
+        return [
+            'access_token' => $token,
+            'expires_in_seconds' => $expiresInSeconds,
+            'project_id' => $projectId,
+            'rest_models_base_url' => "https://{$restHost}/v1beta1/projects/{$projectId}/locations/{$restLocation}/publishers/google/models",
+            'live_ws_url' => "wss://{$liveLocation}-aiplatform.googleapis.com/ws/google.cloud.aiplatform.v1beta1.LlmBidiService/BidiGenerateContent",
+            'live_model' => "projects/{$projectId}/locations/{$liveLocation}/publishers/google/models/{$liveModelId}",
         ];
     }
 

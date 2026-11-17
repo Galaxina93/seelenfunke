@@ -532,7 +532,12 @@ object ServiceLocator {
 
     fun clearAuthToken() {
         sessionFallbackSecrets.remove(KEY_AUTH_TOKEN)
-        sharedPreferences.edit().remove(KEY_AUTH_TOKEN).remove(KEY_SAVED_PASSWORD).apply()
+        de.meinseelenfunke.app.util.VertexClientTokenCache.clear(sharedPreferences)
+        sharedPreferences.edit()
+            .remove(KEY_AUTH_TOKEN)
+            .remove(KEY_SAVED_PASSWORD)
+            .remove(de.meinseelenfunke.app.util.VertexClientTokenCache.PREF_KEY_VERTEX_BUNDLE)
+            .apply()
         clearUserType()
         rebuildRetrofit()
     }

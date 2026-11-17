@@ -69,7 +69,7 @@ Sofern keine andere Codebase genannt wird, beziehen sich alle Anfragen auf **Mei
 
 <!-- AI_MAP_START -->
 # Seelenfunke System-Architektur & AI Map (`ai_map.md`)
-> Generiert via `php artisan ai:generate-map` (2026-11-17 10:11)
+> Generiert via `php artisan ai:generate-map` (2026-11-17 11:58)
 
 ## 1. Ökosystem-Pfade & Umgebungen
 - **Hauptportal (`Mein-Seelenfunke`)**: Win-UNC `\wsl.localhost\Ubuntu\home\ubuntuxina\meine-projekte\seelenfunke` | WSL `/home/ubuntuxina/meine-projekte/seelenfunke` (Docker PHP: `mein_php_server`) | Lokal `http://127.0.0.1` (`http://seelenfunke.test`) | Stage `https://stage.mein-seelenfunke.de` | Live `https://mein-seelenfunke.de`

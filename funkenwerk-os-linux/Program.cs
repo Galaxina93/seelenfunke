@@ -333,11 +333,15 @@ static void ConfigureKioskApp(
             });
         }
 
-        // Require fw_kiosk_session cookie or X-Fw-Session header on all /api/* and /ws/* endpoints
-        if (reqPath.StartsWith("/api/", StringComparison.OrdinalIgnoreCase) ||
-            reqPath.Equals("/api", StringComparison.OrdinalIgnoreCase) ||
-            reqPath.StartsWith("/ws/", StringComparison.OrdinalIgnoreCase) ||
-            reqPath.Equals("/ws", StringComparison.OrdinalIgnoreCase))
+        // Require fw_kiosk_session cookie or X-Fw-Session header on all /api/* and /ws/* endpoints (except Zero-PII loopback /api/health)
+        bool isLoopbackHealthProbe = (HttpMethods.IsGet(reqMethod) || HttpMethods.IsHead(reqMethod)) &&
+                                     reqPath.Equals("/api/health", StringComparison.OrdinalIgnoreCase);
+
+        if (!isLoopbackHealthProbe &&
+            (reqPath.StartsWith("/api/", StringComparison.OrdinalIgnoreCase) ||
+             reqPath.Equals("/api", StringComparison.OrdinalIgnoreCase) ||
+             reqPath.StartsWith("/ws/", StringComparison.OrdinalIgnoreCase) ||
+             reqPath.Equals("/ws", StringComparison.OrdinalIgnoreCase)))
         {
             if (!HasValidSessionToken(ctx))
             {
@@ -444,6 +448,15 @@ static void ConfigureKioskApp(
             return $"{(int)ts.TotalHours}h {ts.Minutes}m";
         return $"{Math.Max(1, ts.Minutes)}m";
     }
+
+    app.MapGet("/api/health", () => Results.Json(new
+    {
+        ok = true,
+        service = "FunkenwerkOS.Linux",
+        vertexDirectEndpoint = FunkiraLiveAndMcpEngine.VertexLiveDirectWebSocketUrl,
+        vertexServiceAccountReady = FunkiraLiveAndMcpEngine.HasLocalVertexServiceAccountFile(),
+        uptimeLabel = FormatCompactUptimeLabel(Environment.TickCount64)
+    }));
 
     app.MapGet("/api/pulse", async () =>
     {
@@ -734,11 +747,13 @@ static void ConfigureKioskApp(
         var s = LinuxVaultAndStorage.LoadSettings();
         var cam = await LinuxHardwareEngine.DetectAndPrepareWebcamAsync(activateUsbMicDefault: true).ConfigureAwait(false);
         bool hasToken = !string.IsNullOrWhiteSpace(LinuxVaultAndStorage.GetToken(s));
-        bool hasGeminiKey = !string.IsNullOrWhiteSpace(LinuxVaultAndStorage.GetGeminiApiKey(s));
+        bool hasVertexDirect = FunkiraLiveAndMcpEngine.HasLocalVertexCapability();
+        bool hasGeminiKey = hasVertexDirect || !string.IsNullOrWhiteSpace(LinuxVaultAndStorage.GetGeminiApiKey(s));
         return Results.Json(new
         {
             hasToken,
             hasGeminiKey,
+            hasVertexDirect,
             environment = (s.ApiEnvironment ?? "live").ToUpperInvariant(),
             camera = cam
         });
@@ -4463,9 +4478,174 @@ async Task<int> RunLinuxSelfTestsAsync()
                     StageLaserRelayDaemon.ResetRelayActivityForSelfTest();
                 }
             }).ConfigureAwait(false);
+
+            await AssertCheckAsync(51, "Google Cloud Vertex AI Postpay Offline-Resilienz (RS256-JWT Signatur, 50m OAuth2-RAM-Cache, Portal direct_bearer_token, europe-west4 LlmBidiService, role=user & ya29-Redaction)", async () =>
+            {
+                string tempSaPath = Path.Combine(tempRoot, "ephemeral_vertex_sa_test.json");
+                try
+                {
+                    FunkiraLiveAndMcpEngine.ResetVertexTokenCacheForSelfTest();
+
+                    // 1. Ephemeral 2048-bit RSA key in RAM (0 real secrets!) -> RS256 JWT structure, 55m claims & signature verification
+                    using var ephemeralRsa = RSA.Create(2048);
+                    string pemKey = ephemeralRsa.ExportPkcs8PrivateKeyPem();
+                    var fixedNow = new DateTimeOffset(2026, 11, 17, 10, 30, 0, TimeSpan.Zero);
+                    string testEmail = "ephemeral-selftest@gen-lang-client-0670786367.iam.gserviceaccount.com";
+
+                    string jwt = FunkiraLiveAndMcpEngine.CreateSignedVertexServiceAccountJwt(
+                        testEmail,
+                        pemKey,
+                        nowUtcOverride: fixedNow);
+
+                    string[] jwtParts = jwt.Split('.');
+                    if (jwtParts.Length != 3)
+                        return false;
+
+                    static byte[] DecodeBase64Url(string seg)
+                    {
+                        string s = seg.Replace('-', '+').Replace('_', '/');
+                        switch (s.Length % 4)
+                        {
+                            case 2: s += "=="; break;
+                            case 3: s += "="; break;
+                        }
+                        return Convert.FromBase64String(s);
+                    }
+
+                    var hdrJson = JsonNode.Parse(Encoding.UTF8.GetString(DecodeBase64Url(jwtParts[0]))) as JsonObject;
+                    var clmJson = JsonNode.Parse(Encoding.UTF8.GetString(DecodeBase64Url(jwtParts[1]))) as JsonObject;
+                    byte[] sigBytes = DecodeBase64Url(jwtParts[2]);
+                    byte[] signedAscii = Encoding.ASCII.GetBytes($"{jwtParts[0]}.{jwtParts[1]}");
+
+                    bool sigVerified = ephemeralRsa.VerifyData(
+                        signedAscii,
+                        sigBytes,
+                        HashAlgorithmName.SHA256,
+                        RSASignaturePadding.Pkcs1);
+
+                    long iat = clmJson?["iat"]?.GetValue<long>() ?? 0L;
+                    long exp = clmJson?["exp"]?.GetValue<long>() ?? 0L;
+                    bool jwtOk =
+                        sigVerified &&
+                        hdrJson?["alg"]?.GetValue<string>() == "RS256" &&
+                        hdrJson["typ"]?.GetValue<string>() == "JWT" &&
+                        clmJson?["iss"]?.GetValue<string>() == testEmail &&
+                        clmJson["sub"]?.GetValue<string>() == testEmail &&
+                        clmJson["aud"]?.GetValue<string>() == "https://oauth2.googleapis.com/token" &&
+                        clmJson["scope"]?.GetValue<string>() == "https://www.googleapis.com/auth/cloud-platform" &&
+                        iat == fixedNow.ToUnixTimeSeconds() &&
+                        (exp - iat) == 3300L;
+
+                    // 2. End-to-end TryMintLocalVertexAccessTokenAsync + 50m RAM cache + Portal direct_bearer_token cache
+                    string fakeSaJson = JsonSerializer.Serialize(new
+                    {
+                        type = "service_account",
+                        project_id = "gen-lang-client-0670786367",
+                        client_email = testEmail,
+                        private_key = pemKey,
+                        token_uri = "https://oauth2.googleapis.com/token"
+                    });
+                    await File.WriteAllTextAsync(tempSaPath, fakeSaJson, Encoding.UTF8).ConfigureAwait(false);
+                    FunkiraLiveAndMcpEngine.TestOverrideVertexServiceAccountPath = tempSaPath;
+
+                    int oauthCalls = 0;
+                    string observedTokenUri = "";
+                    string observedAssertion = "";
+                    FunkiraLiveAndMcpEngine.TestOverrideVertexOAuthPostAsync = (uri, assertion, _) =>
+                    {
+                        oauthCalls++;
+                        observedTokenUri = uri;
+                        observedAssertion = assertion;
+                        return Task.FromResult((200, "{\"access_token\":\"ya29.SimulatedLocalVertexToken_AbCdEf_1234567890\",\"expires_in\":3600,\"token_type\":\"Bearer\"}"));
+                    };
+
+                    var mint1 = await FunkiraLiveAndMcpEngine.TryMintLocalVertexAccessTokenAsync().ConfigureAwait(false);
+                    var mint2 = await FunkiraLiveAndMcpEngine.TryMintLocalVertexAccessTokenAsync().ConfigureAwait(false);
+
+                    bool mintAndCacheOk =
+                        mint1.Ok &&
+                        mint2.Ok &&
+                        oauthCalls == 1 &&
+                        observedTokenUri == "https://oauth2.googleapis.com/token" &&
+                        observedAssertion.Split('.').Length == 3 &&
+                        mint1.ProjectId == "gen-lang-client-0670786367" &&
+                        mint1.AccessToken.StartsWith("ya29.", StringComparison.Ordinal) &&
+                        mint2.AccessToken == mint1.AccessToken;
+
+                    bool portalDirectCached = FunkiraLiveAndMcpEngine.TryCachePortalLiveCredentialsJson(
+                        "{\"direct_bearer_token\":\"ya29.PortalDeliveredBearerToken_9876543210\",\"live_model\":\"projects/gen-lang-client-0670786367/locations/europe-west4/publishers/google/models/gemini-live-2.5-flash-native-audio\"}");
+                    var cachedPortal = await FunkiraLiveAndMcpEngine.TryMintLocalVertexAccessTokenAsync().ConfigureAwait(false);
+                    bool portalCacheOk =
+                        portalDirectCached &&
+                        cachedPortal.Ok &&
+                        cachedPortal.Source == "portal_direct_bearer" &&
+                        oauthCalls == 1 &&
+                        cachedPortal.AccessToken == "ya29.PortalDeliveredBearerToken_9876543210";
+
+                    // 3. Direct EU Vertex WS URI, setup.model resource path & Bidi clientContent role="user" normalization
+                    Uri wsUri = FunkiraLiveAndMcpEngine.BuildDirectVertexLiveWebSocketUri();
+                    string modelRes = FunkiraLiveAndMcpEngine.BuildVertexLiveModelResource("gen-lang-client-0670786367");
+                    var setupPkt = FunkiraLiveAndMcpEngine.BuildLiveSetupPacket(
+                        useDirectVertexWs: true,
+                        vertexProjectId: "gen-lang-client-0670786367",
+                        fullInstruction: "Deutsch.",
+                        voiceName: "Kore",
+                        mergedTools: new JsonArray());
+
+                    string? normTextTurn = FunkiraLiveAndMcpEngine.NormalizeBidiPacketForDirectVertex(
+                        "{\"realtimeInput\":{\"text\":\"Hallo Funkira\"}}");
+                    var normTextJson = JsonNode.Parse(normTextTurn ?? "{}") as JsonObject;
+
+                    string? normMissingRole = FunkiraLiveAndMcpEngine.NormalizeBidiPacketForDirectVertex(
+                        "{\"clientContent\":{\"turns\":[{\"parts\":[{\"text\":\"Test\"}]}],\"turnComplete\":true}}");
+                    var normRoleJson = JsonNode.Parse(normMissingRole ?? "{}") as JsonObject;
+
+                    string? droppedEmptyInterrupt = FunkiraLiveAndMcpEngine.NormalizeBidiPacketForDirectVertex(
+                        "{\"clientContent\":{\"turns\":[{\"role\":\"user\",\"parts\":[{\"text\":\"   \"}]}],\"turnComplete\":false}}");
+
+                    bool bidiProtocolOk =
+                        wsUri.ToString() == "wss://europe-west4-aiplatform.googleapis.com/ws/google.cloud.aiplatform.v1beta1.LlmBidiService/BidiGenerateContent" &&
+                        !wsUri.ToString().Contains("generativelanguage.googleapis.com", StringComparison.OrdinalIgnoreCase) &&
+                        modelRes == "projects/gen-lang-client-0670786367/locations/europe-west4/publishers/google/models/gemini-live-2.5-flash-native-audio" &&
+                        setupPkt["setup"]?["model"]?.GetValue<string>() == modelRes &&
+                        normTextJson?["clientContent"]?["turns"]?[0]?["role"]?.GetValue<string>() == "user" &&
+                        normTextJson["clientContent"]?["turns"]?[0]?["parts"]?[0]?["text"]?.GetValue<string>() == "Hallo Funkira" &&
+                        normTextJson["clientContent"]?["turnComplete"]?.GetValue<bool>() == true &&
+                        normRoleJson?["clientContent"]?["turns"]?[0]?["role"]?.GetValue<string>() == "user" &&
+                        droppedEmptyInterrupt == null;
+
+                    // 4. ya29.* & Bearer secret scrubbing + Loopback /api/health verification
+                    string dirtyErr = "Auth failed for Bearer ya29.a0AfH6SMB_SuperSecretLiveToken-123.456_xyz at ?access_token=ya29.AnotherSecretToken_999";
+                    string cleanErr = FunkiraLiveAndMcpEngine.SanitizeVertexAndLiveSecrets(dirtyErr);
+                    bool redactOk =
+                        !cleanErr.Contains("SuperSecretLiveToken", StringComparison.Ordinal) &&
+                        !cleanErr.Contains("AnotherSecretToken", StringComparison.Ordinal) &&
+                        cleanErr.Contains("[REDACTED]", StringComparison.Ordinal);
+
+                    using var healthResp = await rawHttp.GetAsync("/api/health").ConfigureAwait(false);
+                    var healthJson = JsonNode.Parse(await healthResp.Content.ReadAsStringAsync().ConfigureAwait(false)) as JsonObject;
+                    using var rebindHealthReq = new HttpRequestMessage(HttpMethod.Get, "/api/health");
+                    rebindHealthReq.Headers.Host = "evil.rebind.test";
+                    using var rebindHealthResp = await rawHttp.SendAsync(rebindHealthReq).ConfigureAwait(false);
+
+                    bool healthOk =
+                        healthResp.IsSuccessStatusCode &&
+                        healthJson?["ok"]?.GetValue<bool>() == true &&
+                        healthJson["vertexDirectEndpoint"]?.GetValue<string>() == FunkiraLiveAndMcpEngine.VertexLiveDirectWebSocketUrl &&
+                        rebindHealthResp.StatusCode == HttpStatusCode.Forbidden;
+
+                    return jwtOk && mintAndCacheOk && portalCacheOk && bidiProtocolOk && redactOk && healthOk;
+                }
+                finally
+                {
+                    FunkiraLiveAndMcpEngine.ResetVertexTokenCacheForSelfTest();
+                    try { if (File.Exists(tempSaPath)) File.Delete(tempSaPath); } catch { }
+                }
+            }).ConfigureAwait(false);
         }
         finally
         {
+            FunkiraLiveAndMcpEngine.ResetVertexTokenCacheForSelfTest();
             WorkshopFocusCoordinator.TestOverrideHandler = null;
             LinuxHardwareEngine.ResetNightSleepGuardForSelfTest();
             StageLaserRelayDaemon.ResetRelayActivityForSelfTest();

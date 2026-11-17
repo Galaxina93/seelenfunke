@@ -860,7 +860,64 @@ class AIController extends Controller
             $responsePayload['direct_ws_url'] = $liveEndpoint['direct_ws_url'];
         }
 
+        if ($isStrictAdmin) {
+            $vertexBundle = \App\Services\AI\VertexAiService::buildEphemeralClientBundle();
+            if ($vertexBundle !== null) {
+                $responsePayload['vertex_ephemeral'] = $vertexBundle;
+                $responsePayload['access_token'] = $vertexBundle['access_token'];
+                $responsePayload['expires_in_seconds'] = $vertexBundle['expires_in_seconds'];
+                $responsePayload['project_id'] = $vertexBundle['project_id'];
+                $responsePayload['rest_models_base_url'] = $vertexBundle['rest_models_base_url'];
+                $responsePayload['live_ws_url'] = $vertexBundle['live_ws_url'];
+            }
+        }
+
         return response()->json($responsePayload, 200, [
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, private',
+            'Pragma' => 'no-cache',
+        ]);
+    }
+
+    /**
+     * Kurzlebiger Zero-Secret Vertex-OAuth2-Token-Broker für authentifizierte Administratoren (z. B. Android-App).
+     * Gibt niemals den Service-Account-Schlüssel heraus, sondern nur einen ~50 Min. gültigen ya29.* Bearer-Token
+     * samt Vertex-Endpunkten.
+     */
+    public function vertexEphemeral(Request $request)
+    {
+        $user = $request->user() ?: auth('sanctum')->user() ?: auth('admin')->user();
+        $isStrictAdmin = \App\Services\AI\AiAuthHelper::isAdmin()
+            || ($user instanceof \App\Models\Admin\Admin);
+
+        if (!$isStrictAdmin) {
+            $status = (\App\Services\AI\AiAuthHelper::check()
+                || \App\Services\AI\AiAuthHelper::isExternalPartner()
+                || auth('sanctum')->check()
+                || auth('employee')->check()) ? 403 : 401;
+
+            return response()->json([
+                'status' => 'error',
+                'error' => $status === 403 ? 'Forbidden' : 'Unauthorized',
+                'message' => 'Zugriff verweigert: Kurzlebige Vertex-Tokens sind ausschließlich für Administratoren freigegeben.',
+            ], $status, [
+                'Cache-Control' => 'no-store, no-cache, must-revalidate, private',
+            ]);
+        }
+
+        $forceRefresh = (bool) $request->boolean('refresh', false);
+        $bundle = \App\Services\AI\VertexAiService::buildEphemeralClientBundle($forceRefresh);
+
+        if ($bundle === null) {
+            return response()->json([
+                'status' => 'error',
+                'error' => 'VertexUnavailable',
+                'message' => 'Vertex AI Service Account ist aktuell nicht aktiv oder OAuth2-Token konnte nicht bezogen werden.',
+            ], 503, [
+                'Cache-Control' => 'no-store, no-cache, must-revalidate, private',
+            ]);
+        }
+
+        return response()->json(array_merge(['status' => 'ok'], $bundle), 200, [
             'Cache-Control' => 'no-store, no-cache, must-revalidate, private',
             'Pragma' => 'no-cache',
         ]);

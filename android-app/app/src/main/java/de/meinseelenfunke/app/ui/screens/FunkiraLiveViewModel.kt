@@ -111,14 +111,17 @@ class FunkiraLiveViewModel : ViewModel() {
     private val inactivityTracker = de.meinseelenfunke.app.util.FalconInactivityTracker()
     private var userManuallyPickedNonFalcon: Boolean = false
     private var fallbackDirectUrl: String? = null
+    @Volatile private var fallbackDirectBearerToken: String? = null
     private var fallbackOriginUrl: String = "https://mein-seelenfunke.de"
-    private var activeLiveModel: String = "models/gemini-3.1-flash-live-preview"
+    private var activeLiveModel: String = de.meinseelenfunke.app.data.api.VertexEphemeralResponse.DEFAULT_LIVE_MODEL
     private var activeSysInstruction: String = ""
     private var activeVoiceName: String = "Orus"
     private var activeToolsJson: String? = null
     @Volatile private var pendingProactiveKickPrompt: String? = null
 
     @Volatile private var shouldEndCall = false
+    @Volatile private var shouldEnterStandbyAfterTurn = false
+    private var musicStandbyFallbackJob: Job? = null
     private val _shouldCloseScreen = MutableStateFlow(false)
     val shouldCloseScreen: StateFlow<Boolean> = _shouldCloseScreen.asStateFlow()
 
@@ -244,6 +247,9 @@ class FunkiraLiveViewModel : ViewModel() {
         _isConnecting.value = true
         _error.value = null
         shouldEndCall = false
+        shouldEnterStandbyAfterTurn = false
+        musicStandbyFallbackJob?.cancel()
+        musicStandbyFallbackJob = null
         setAiSpeakingState(false)
         _falconEmotion.value = "idle"
         _shouldCloseScreen.value = false
@@ -278,7 +284,6 @@ class FunkiraLiveViewModel : ViewModel() {
             val parsedUri = try { java.net.URI(baseUrl) } catch (_: Exception) { null }
             val host = parsedUri?.host ?: "stage.mein-seelenfunke.de"
             val defaultOrigin = if (baseUrl.startsWith("https://", ignoreCase = true)) "https://$host" else "https://mein-seelenfunke.de"
-            val localGeminiKey = de.meinseelenfunke.app.di.ServiceLocator.getGeminiApiKey().trim()
 
             aiRepository.getLiveCredentials(
                 agentId = _selectedAgent.value?.id,
@@ -305,10 +310,20 @@ class FunkiraLiveViewModel : ViewModel() {
                         rawWsUrl = "wss://" + rawWsUrl.substring(5)
                     }
 
+                    val cachedVertex = creds.vertex_ephemeral?.let {
+                        de.meinseelenfunke.app.util.VertexClientTokenCache.store(it, ServiceLocator.context)
+                    } ?: de.meinseelenfunke.app.util.VertexClientTokenCache.getValidCachedBundle(ServiceLocator.context)
+
                     fallbackOriginUrl = creds.origin_url?.takeIf { it.isNotBlank() } ?: defaultOrigin
-                    fallbackDirectUrl = creds.direct_ws_url?.takeIf { it.isNotBlank() }
-                        ?: buildDirectGeminiWsUrl(localGeminiKey)
-                    activeLiveModel = creds.live_model?.takeIf { it.isNotBlank() } ?: "models/gemini-3.1-flash-live-preview"
+                    fallbackDirectBearerToken = cachedVertex?.accessToken
+                        ?: de.meinseelenfunke.app.util.VertexClientTokenCache.extractAccessTokenFromWsUrl(creds.direct_ws_url)
+                    fallbackDirectUrl = buildDirectVertexWsUrl(
+                        accessToken = fallbackDirectBearerToken,
+                        customLiveWsUrl = cachedVertex?.liveWsUrl ?: creds.direct_ws_url
+                    )
+                    activeLiveModel = creds.live_model?.takeIf { it.isNotBlank() }
+                        ?: cachedVertex?.liveModel
+                        ?: de.meinseelenfunke.app.data.api.VertexEphemeralResponse.DEFAULT_LIVE_MODEL
                     val isFalconSelected = _selectedAgent.value == null ||
                         isFalconeAgentName(_selectedAgent.value?.name) ||
                         (!userManuallyPickedNonFalcon && _agents.value.none { isFalconeAgentName(it.name) })
@@ -356,17 +371,27 @@ class FunkiraLiveViewModel : ViewModel() {
 
                     if (!isTrustedLiveWebSocketHost(rawWsUrl, host)) {
                         val directCandidate = fallbackDirectUrl
+                        val directBearer = fallbackDirectBearerToken
                         if (!directCandidate.isNullOrBlank()) {
                             fallbackDirectUrl = null
+                            fallbackDirectBearerToken = null
                             de.meinseelenfunke.app.util.ErrorSentinelReporter.captureAutoHeal(
                                 context = ServiceLocator.context,
                                 component = "funkira_live_ws",
-                                title = "Unbekannter Bridge-Host durch Direkt-WebSocket geheilt",
-                                message = "Bridge-URL '$rawWsUrl' wich ab; Direktverbindung aktiviert.",
-                                healSummary = "Automatischer Wechsel auf direkte Gemini-Live-Verbindung durchgeführt.",
+                                title = "Unbekannter Bridge-Host durch Vertex-Direkt-WebSocket geheilt",
+                                message = "Bridge-URL '$rawWsUrl' wich ab; Vertex-AI-Direktverbindung aktiviert.",
+                                healSummary = "Automatischer Wechsel auf direkte EU-Vertex-AI-Live-Verbindung durchgeführt.",
                                 extraContext = mapOf("base_host" to host)
                             )
-                            establishWebSocket("", directCandidate, activeSysInstruction, activeVoiceName, activeToolsJson, isDirectGoogle = true)
+                            establishWebSocket(
+                                token = "",
+                                wsUrl = directCandidate,
+                                systemInstruction = activeSysInstruction,
+                                voiceName = activeVoiceName,
+                                toolsJson = activeToolsJson,
+                                isDirectGoogle = true,
+                                directBearerToken = directBearer
+                            )
                             return@onSuccess
                         }
                         _isConnecting.value = false
@@ -386,10 +411,13 @@ class FunkiraLiveViewModel : ViewModel() {
                 }
                 .onFailure { err ->
                     if (connectJob?.isActive != true || userInitiatedHangup) return@onFailure
-                    val directCandidate = buildDirectGeminiWsUrl(localGeminiKey)
-                    if (!directCandidate.isNullOrBlank()) {
+                    val cachedVertex = de.meinseelenfunke.app.util.VertexClientTokenCache.getOrFetchValidBundle(ServiceLocator.context)
+                    val directCandidate = buildDirectVertexWsUrl(cachedVertex?.accessToken, cachedVertex?.liveWsUrl)
+                    if (!directCandidate.isNullOrBlank() && cachedVertex != null) {
                         fallbackDirectUrl = null
+                        fallbackDirectBearerToken = null
                         fallbackOriginUrl = defaultOrigin
+                        activeLiveModel = cachedVertex.liveModel
                         val useFalconFallback = !userManuallyPickedNonFalcon
                         if (activeSysInstruction.isBlank()) {
                             activeSysInstruction = if (useFalconFallback) {
@@ -404,13 +432,21 @@ class FunkiraLiveViewModel : ViewModel() {
                         de.meinseelenfunke.app.util.ErrorSentinelReporter.captureAutoHeal(
                             context = ServiceLocator.context,
                             component = "funkira_live_credentials",
-                            title = "Portal-Verbindungsproblem per lokalem Gemini-Schlüssel überbrückt",
+                            title = "Portal-Verbindungsproblem per Vertex-AI-Direktverbindung überbrückt",
                             message = err.message ?: "Live-Credentials nicht erreichbar",
-                            healSummary = "Falcone wurde auf dem Smartphone trotz Server-Fehler nahtlos über den verschlüsselten lokalen Schlüssel verbunden.",
+                            healSummary = "Falcone wurde auf dem Smartphone trotz Server-Fehler nahtlos über das kurzlebige EU-Vertex-AI-Paket verbunden.",
                             extraContext = mapOf("base_host" to host)
                         )
-                        addLog("[Auto-Heilung]: Server kurzzeitig nicht erreichbar. Starte Direkt-Modus...")
-                        establishWebSocket("", directCandidate, activeSysInstruction, activeVoiceName, activeToolsJson, isDirectGoogle = true)
+                        addLog("[Auto-Heilung]: Server kurzzeitig nicht erreichbar. Starte Vertex-Direktmodus...")
+                        establishWebSocket(
+                            token = "",
+                            wsUrl = directCandidate,
+                            systemInstruction = activeSysInstruction,
+                            voiceName = activeVoiceName,
+                            toolsJson = activeToolsJson,
+                            isDirectGoogle = true,
+                            directBearerToken = cachedVertex.accessToken
+                        )
                         return@onFailure
                     }
 
@@ -454,11 +490,24 @@ class FunkiraLiveViewModel : ViewModel() {
         systemInstruction: String,
         voiceName: String,
         toolsJson: String?,
-        isDirectGoogle: Boolean = false
+        isDirectGoogle: Boolean = false,
+        directBearerToken: String? = null
     ) {
         setupCompletedForCurrentSocket = false
         val encodedToken = android.net.Uri.encode(token)
-        val url = if (isDirectGoogle || token.isBlank()) {
+        val resolvedDirectBearer = if (isDirectGoogle) {
+            directBearerToken?.takeIf { it.isNotBlank() }
+                ?: de.meinseelenfunke.app.util.VertexClientTokenCache.extractAccessTokenFromWsUrl(wsUrl)
+        } else {
+            null
+        }
+        val url = if (isDirectGoogle) {
+            if (!resolvedDirectBearer.isNullOrBlank() && wsUrl.contains("aiplatform.googleapis.com", ignoreCase = true)) {
+                de.meinseelenfunke.app.util.VertexClientTokenCache.stripQueryTokenFromVertexWsUrl(wsUrl) ?: wsUrl
+            } else {
+                wsUrl
+            }
+        } else if (token.isBlank()) {
             wsUrl
         } else if (wsUrl.contains("?")) {
             "$wsUrl&token=$encodedToken"
@@ -469,6 +518,9 @@ class FunkiraLiveViewModel : ViewModel() {
         if (isDirectGoogle) {
             reqBuilder.header("Origin", fallbackOriginUrl)
             reqBuilder.header("Referer", fallbackOriginUrl.trimEnd('/') + "/")
+            if (!resolvedDirectBearer.isNullOrBlank()) {
+                reqBuilder.header("Authorization", "Bearer $resolvedDirectBearer")
+            }
         }
         val request = reqBuilder.build()
 
@@ -520,7 +572,7 @@ class FunkiraLiveViewModel : ViewModel() {
                                     if (!strictPrompt.contains("TOKEN-SPAR-DISZIPLIN")) {
                                         strictPrompt = "$strictPrompt\n\n$brevityRule"
                                     }
-                                    val falconDeviceToolsRule = "LOKALE SMARTPHONE-SUPERTOOLS: Nutze bei Musikwünschen sofort falcon_music_control (z.B. action='play_sport' für Sport-/Workout-Musik), für Smart-Home-Steckdosen und Lichterketten (wie Fußleisten Lichterkette, Spiegel Lichterkette oder Packtisch) sofort falcon_smarthome_control (action='turn_on', 'turn_off', 'toggle', 'turn_all_on', 'turn_all_off', 'list_devices'), für Kamera-Sicht oder ein Foto falcon_camera_control (action='enable_vision', 'disable_vision', 'switch_camera', 'take_photo'), für Entwicklungsaufträge/Ideen/Bugs an deinen Leitstand Antigravity falcon_send_to_antigravity (setze attach_captured_photo=true wenn gerade ein Foto geschossen wurde), für Statusabfragen falcon_check_antigravity_status, zum Öffnen von App-Bereichen falcon_app_navigate und für deinen 3D-Ausdruck falcon_set_emotion."
+                                    val falconDeviceToolsRule = "LOKALE SMARTPHONE-SUPERTOOLS: Nutze bei Musikwünschen sofort falcon_music_control (z.B. action='play_sport' für Sport-/Workout-Musik) und bestätige danach nur ultrakurz in max. 4 Wörtern ohne Gegenfrage, da du direkt in den Ruhemodus wechselst; für Smart-Home-Steckdosen und Lichterketten (wie Fußleisten Lichterkette, Spiegel Lichterkette oder Packtisch) sofort falcon_smarthome_control (action='turn_on', 'turn_off', 'toggle', 'turn_all_on', 'turn_all_off', 'list_devices'), für Kamera-Sicht oder ein Foto falcon_camera_control (action='enable_vision', 'disable_vision', 'switch_camera', 'take_photo'), für Entwicklungsaufträge/Ideen/Bugs an deinen Leitstand Antigravity falcon_send_to_antigravity (setze attach_captured_photo=true wenn gerade ein Foto geschossen wurde), für Statusabfragen falcon_check_antigravity_status, zum Öffnen von App-Bereichen falcon_app_navigate und für deinen 3D-Ausdruck falcon_set_emotion."
                                     if (!strictPrompt.contains("LOKALE SMARTPHONE-SUPERTOOLS")) {
                                         strictPrompt = "$strictPrompt\n\n$falconDeviceToolsRule"
                                     }
@@ -586,7 +638,7 @@ class FunkiraLiveViewModel : ViewModel() {
                 if (shouldAutoReconnectMidCall(
                         wasSetupComplete = wasSetupComplete,
                         userInitiatedHangup = userInitiatedHangup,
-                        shouldEndCall = shouldEndCall,
+                        shouldEndCall = shouldEndCall || shouldEnterStandbyAfterTurn,
                         reconnectAttemptCount = midCallReconnectCount
                     )
                 ) {
@@ -606,7 +658,7 @@ class FunkiraLiveViewModel : ViewModel() {
                             "http_status" to (httpCode?.toString() ?: "0")
                         )
                     )
-                } else if (!shouldEndCall && !(wasSetupComplete && t is java.io.EOFException)) {
+                } else if (!shouldEndCall && !shouldEnterStandbyAfterTurn && !(wasSetupComplete && t is java.io.EOFException)) {
                     _error.value = disconnectMsg
                 }
                 handleDisconnect(disconnectMsg)
@@ -624,7 +676,7 @@ class FunkiraLiveViewModel : ViewModel() {
                 if (shouldAutoReconnectMidCall(
                         wasSetupComplete = wasSetupComplete,
                         userInitiatedHangup = userInitiatedHangup,
-                        shouldEndCall = shouldEndCall,
+                        shouldEndCall = shouldEndCall || shouldEnterStandbyAfterTurn,
                         reconnectAttemptCount = midCallReconnectCount
                     )
                 ) {
@@ -649,7 +701,7 @@ class FunkiraLiveViewModel : ViewModel() {
                 if (shouldAutoReconnectMidCall(
                         wasSetupComplete = wasSetupComplete,
                         userInitiatedHangup = userInitiatedHangup,
-                        shouldEndCall = shouldEndCall,
+                        shouldEndCall = shouldEndCall || shouldEnterStandbyAfterTurn,
                         reconnectAttemptCount = midCallReconnectCount
                     )
                 ) {
@@ -703,16 +755,18 @@ class FunkiraLiveViewModel : ViewModel() {
 
     private fun tryFailoverToDirectGemini(triggerReason: String, throwable: Throwable?): Boolean {
         val directUrl = fallbackDirectUrl?.takeIf { it.isNotBlank() } ?: return false
+        val directBearer = fallbackDirectBearerToken
         fallbackDirectUrl = null
+        fallbackDirectBearerToken = null
         try { webSocket?.cancel() } catch (_: Exception) { }
         webSocket = null
-        addLog("[Auto-Heilung]: Bridge gestört ($triggerReason). Wechsle sofort auf Direkt-Verbindung...")
+        addLog("[Auto-Heilung]: Bridge gestört ($triggerReason). Wechsle sofort auf Vertex-AI-Direktverbindung...")
         de.meinseelenfunke.app.util.ErrorSentinelReporter.captureAutoHeal(
             context = ServiceLocator.context,
             component = "funkira_live_ws",
-            title = "Bridge-Fehler automatisch per Direkt-WebSocket geheilt",
+            title = "Bridge-Fehler automatisch per Vertex-Direkt-WebSocket geheilt",
             message = triggerReason + (throwable?.message?.let { " | $it" } ?: ""),
-            healSummary = "Automatischer Failover von der WebSocket-Bridge auf die direkte Gemini-Live-Verbindung erfolgreich ausgelöst.",
+            healSummary = "Automatischer Failover von der WebSocket-Bridge auf die direkte EU-Vertex-AI-Live-Verbindung erfolgreich ausgelöst.",
             extraContext = mapOf("trigger" to triggerReason.take(140))
         )
         _isConnecting.value = true
@@ -723,7 +777,8 @@ class FunkiraLiveViewModel : ViewModel() {
             systemInstruction = activeSysInstruction,
             voiceName = activeVoiceName,
             toolsJson = activeToolsJson,
-            isDirectGoogle = true
+            isDirectGoogle = true,
+            directBearerToken = directBearer
         )
         return true
     }
@@ -866,11 +921,20 @@ class FunkiraLiveViewModel : ViewModel() {
                         }
                         aiTurnTranscript.clear()
                     }
-                    if (shouldEndCall) {
+                    if (shouldEndCall || shouldEnterStandbyAfterTurn) {
+                        val isMusicStandby = shouldEnterStandbyAfterTurn && !shouldEndCall
                         shouldEndCall = false
+                        shouldEnterStandbyAfterTurn = false
+                        musicStandbyFallbackJob?.cancel()
+                        musicStandbyFallbackJob = null
                         viewModelScope.launch(Dispatchers.Main) {
-                            de.meinseelenfunke.app.util.SoundManager.playSound(de.meinseelenfunke.app.R.raw.click_file_in_project_brain)
-                            delay(maxOf(1200L, remainingPlaybackMs))
+                            if (!isMusicStandby) {
+                                de.meinseelenfunke.app.util.SoundManager.playSound(de.meinseelenfunke.app.R.raw.click_file_in_project_brain)
+                                delay(maxOf(1200L, remainingPlaybackMs))
+                            } else {
+                                delay(remainingPlaybackMs + 220L)
+                                addLog("[System]: Musiksteuerung abgeschlossen. Wechsel in den Ruhemodus.")
+                            }
                             disconnectLiveChat()
                             _shouldCloseScreen.value = true
                         }
@@ -967,6 +1031,9 @@ class FunkiraLiveViewModel : ViewModel() {
 
                         if (de.meinseelenfunke.app.util.FalconClientTools.isLocalFalconTool(name)) {
                             val localArgs = if (callObj.has("args")) callObj.get("args") else null
+                            if (de.meinseelenfunke.app.util.FalconClientTools.shouldEnterStandbyAfterTool(name)) {
+                                scheduleStandbyAfterMusicControl(name)
+                            }
                             activeToolCallCount.incrementAndGet()
                             inactivityTracker.onToolActivity(android.os.SystemClock.uptimeMillis())
                             viewModelScope.launch(Dispatchers.IO) {
@@ -995,6 +1062,9 @@ class FunkiraLiveViewModel : ViewModel() {
                             return@forEach
                         }
                         
+                        if (de.meinseelenfunke.app.util.FalconClientTools.shouldEnterStandbyAfterTool(name)) {
+                            scheduleStandbyAfterMusicControl(name)
+                        }
                         activeToolCallCount.incrementAndGet()
                         inactivityTracker.onToolActivity(android.os.SystemClock.uptimeMillis())
                         viewModelScope.launch(Dispatchers.IO) {
@@ -1564,7 +1634,35 @@ class FunkiraLiveViewModel : ViewModel() {
         visionStreamJob = null
     }
 
+    private fun scheduleStandbyAfterMusicControl(toolName: String) {
+        shouldEnterStandbyAfterTurn = true
+        // Close open microphone immediately so loudspeaker music cannot feed back into VAD
+        stopRecording()
+        addLog("[Musik-Ruhemodus]: '$toolName' erkannt. Wechsel in Ruhemodus nach Bestätigung...")
+        musicStandbyFallbackJob?.cancel()
+        musicStandbyFallbackJob = viewModelScope.launch(Dispatchers.Main) {
+            var waitedMs = 0L
+            while (shouldEnterStandbyAfterTurn && waitedMs < 7500L) {
+                delay(350L)
+                waitedMs += 350L
+                if (waitedMs >= 3200L && activeToolCallCount.get() <= 0 && !isAiEffectivelySpeaking()) {
+                    break
+                }
+            }
+            if (shouldEnterStandbyAfterTurn) {
+                shouldEnterStandbyAfterTurn = false
+                musicStandbyFallbackJob = null
+                addLog("[System]: Musiksteuerung abgeschlossen. Wechsel in den Ruhemodus.")
+                disconnectLiveChat()
+                _shouldCloseScreen.value = true
+            }
+        }
+    }
+
     private fun handleDisconnect(reason: String) {
+        shouldEnterStandbyAfterTurn = false
+        musicStandbyFallbackJob?.cancel()
+        musicStandbyFallbackJob = null
         _isConnected.value = false
         _isConnecting.value = false
         setupCompletedForCurrentSocket = false
@@ -1777,6 +1875,13 @@ class FunkiraLiveViewModel : ViewModel() {
             if (clean.length < 16) return null
             val encoded = java.net.URLEncoder.encode(clean, "UTF-8")
             return "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=$encoded"
+        }
+
+        fun buildDirectVertexWsUrl(accessToken: String?, customLiveWsUrl: String? = null): String? {
+            val cleanToken = accessToken?.trim().orEmpty()
+            if (cleanToken.length < 16 || cleanToken.startsWith("AIza")) return null
+            val cleanWs = de.meinseelenfunke.app.util.VertexClientTokenCache.stripQueryTokenFromVertexWsUrl(customLiveWsUrl)
+            return cleanWs ?: de.meinseelenfunke.app.data.api.VertexEphemeralResponse.DEFAULT_LIVE_WS_URL
         }
 
         fun safeErrorDetail(t: Throwable?): String? {

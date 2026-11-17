@@ -142,6 +142,9 @@ class AiRepository(private val serviceLocator: ServiceLocator) {
                     client = client,
                     fallback = fallback
                 )
+                response.vertex_ephemeral?.let { bundle ->
+                    de.meinseelenfunke.app.util.VertexClientTokenCache.store(bundle, serviceLocator.context)
+                }
                 if (attempt > 0 && lastErr != null) {
                     de.meinseelenfunke.app.util.ErrorSentinelReporter.captureAutoHeal(
                         context = serviceLocator.context,

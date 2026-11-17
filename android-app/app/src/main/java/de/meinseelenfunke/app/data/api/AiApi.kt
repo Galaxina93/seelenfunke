@@ -39,6 +39,25 @@ data class PendingAgBlockadeDto(
     val waiting_minutes: Int? = 0
 )
 
+data class VertexEphemeralResponse(
+    val access_token: String? = null,
+    val expires_in_seconds: Int = 3000,
+    val project_id: String? = DEFAULT_PROJECT_ID,
+    val rest_models_base_url: String? = DEFAULT_REST_MODELS_BASE_URL,
+    val live_ws_url: String? = DEFAULT_LIVE_WS_URL,
+    val live_model: String? = DEFAULT_LIVE_MODEL
+) {
+    companion object {
+        const val DEFAULT_PROJECT_ID = "gen-lang-client-0670786367"
+        const val DEFAULT_REST_MODELS_BASE_URL =
+            "https://aiplatform.googleapis.com/v1beta1/projects/gen-lang-client-0670786367/locations/global/publishers/google/models"
+        const val DEFAULT_LIVE_WS_URL =
+            "wss://europe-west4-aiplatform.googleapis.com/ws/google.cloud.aiplatform.v1beta1.LlmBidiService/BidiGenerateContent"
+        const val DEFAULT_LIVE_MODEL =
+            "projects/gen-lang-client-0670786367/locations/europe-west4/publishers/google/models/gemini-live-2.5-flash-native-audio"
+    }
+}
+
 data class LiveCredentialsResponse(
     val token: String?,
     val ws_url: String?,
@@ -49,7 +68,8 @@ data class LiveCredentialsResponse(
     val voice_name: String,
     val tools: JsonElement?,
     val pending_ag_blockades: List<PendingAgBlockadeDto>? = emptyList(),
-    val proactive_kick_prompt: String? = null
+    val proactive_kick_prompt: String? = null,
+    val vertex_ephemeral: VertexEphemeralResponse? = null
 )
 
 data class AiAgent(
@@ -143,6 +163,11 @@ interface AiApi {
         @Query("client") client: String? = null,
         @Query("fallback") fallback: String? = null
     ): LiveCredentialsResponse
+
+    @GET("ai/vertex-ephemeral")
+    suspend fun getVertexEphemeral(
+        @Query("refresh") refresh: Int? = null
+    ): VertexEphemeralResponse
 
     @GET("ai/agents")
     suspend fun getAgents(): AgentsResponse

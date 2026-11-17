@@ -334,7 +334,8 @@ class WakeWordService : Service() {
 
                     if (cadenceGate.onFrame(audioBuffer, readResult)) {
                         val now = System.currentTimeMillis()
-                        if (now - lastTriggerTime > COOLDOWN_MS && now - lastCheckEndMs > 600L) {
+                        val checkGapMs = if (de.meinseelenfunke.app.util.MusicPlayerManager.isPlaying.value) 1800L else 600L
+                        if (now - lastTriggerTime > COOLDOWN_MS && now - lastCheckEndMs > checkGapMs) {
                             val preRollBytes = snapshotPreRollPcmBytes(preRollRing, preRollWritePos, preRollFilled)
                             val phraseMatched = verifyWakePhrase(preRollBytes, audioBuffer)
                             lastCheckEndMs = System.currentTimeMillis()
@@ -384,6 +385,9 @@ class WakeWordService : Service() {
             if (pipeResult != null) {
                 return pipeResult
             }
+        }
+        if (de.meinseelenfunke.app.util.MusicPlayerManager.isPlaying.value) {
+            return false
         }
         return verifyViaDirectSpeechRecognizerFallback()
     }

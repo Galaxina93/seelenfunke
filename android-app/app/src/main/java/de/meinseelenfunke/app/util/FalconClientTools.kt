@@ -282,6 +282,13 @@ object FalconClientTools {
         return name != null && name in LOCAL_TOOL_NAMES
     }
 
+    fun shouldEnterStandbyAfterTool(toolName: String?): Boolean {
+        val clean = toolName?.trim()?.lowercase(Locale.ROOT) ?: return false
+        return clean == "falcon_music_control" ||
+            clean.startsWith("music_") ||
+            clean.startsWith("management_music_")
+    }
+
     fun normalizeEmotion(raw: String?): String {
         val clean = raw?.trim()?.lowercase(Locale.ROOT).orEmpty()
         return when {
@@ -665,7 +672,7 @@ object FalconClientTools {
                 addProperty("name", "falcon_music_control")
                 addProperty(
                     "description",
-                    "Steuert sofort den lokalen Musikplayer auf Alinas Smartphone (Sportmusik, Playlist/Song-Suche, Pause, Weiter, Zurück, Shuffle, Lautstärke)."
+                    "Steuert sofort den lokalen Musikplayer auf Alinas Smartphone (Sportmusik, Playlist/Song-Suche, Pause, Weiter, Zurück, Shuffle, Lautstärke). Bestätige danach nur ultrakurz ohne Gegenfrage, da Falcone direkt in den Ruhemodus wechselt."
                 )
                 add("parameters", JsonObject().apply {
                     addProperty("type", "OBJECT")
@@ -942,7 +949,7 @@ object FalconClientTools {
                     MusicPlayerManager.ensureCatalogLoadedFast(appCtx)
                 }
 
-                when (action) {
+                val musicRes = when (action) {
                     "pause", "stop" -> {
                         withContext(Dispatchers.Main.immediate) {
                             MusicPlayerManager.pauseIfPlaying(appCtx)
@@ -1061,6 +1068,12 @@ object FalconClientTools {
                         }
                     }
                 }
+                musicRes.addProperty("auto_standby", true)
+                musicRes.addProperty(
+                    "standby_directive",
+                    "Bestätige ultrakurz in maximal 3 bis 5 Wörtern ohne Gegenfrage, da du danach direkt in den Ruhemodus wechselst."
+                )
+                musicRes
             }
 
             "falcon_camera_control" -> {

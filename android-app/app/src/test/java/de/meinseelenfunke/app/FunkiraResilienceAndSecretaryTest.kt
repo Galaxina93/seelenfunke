@@ -76,6 +76,36 @@ class FunkiraResilienceAndSecretaryTest {
     }
 
     @Test
+    fun buildDirectVertexWsUrl_andVertexTokenHelpers_enforceOAuthBearerAndCleanEuEndpoint() {
+        assertNull(FunkiraLiveViewModel.buildDirectVertexWsUrl(""))
+        assertNull(FunkiraLiveViewModel.buildDirectVertexWsUrl("short"))
+        assertNull(FunkiraLiveViewModel.buildDirectVertexWsUrl("AIzaSyLegacyKeyMustBeRejected12345"))
+
+        val cleanVertexUrl = FunkiraLiveViewModel.buildDirectVertexWsUrl(
+            accessToken = "ya29.ValidVertexAccessToken1234567890",
+            customLiveWsUrl = "wss://europe-west4-aiplatform.googleapis.com/ws/google.cloud.aiplatform.v1beta1.LlmBidiService/BidiGenerateContent?access_token=ya29.LeakGuard1234567890"
+        )
+        assertEquals(
+            "wss://europe-west4-aiplatform.googleapis.com/ws/google.cloud.aiplatform.v1beta1.LlmBidiService/BidiGenerateContent",
+            cleanVertexUrl
+        )
+        assertTrue(
+            FunkiraLiveViewModel.isTrustedLiveWebSocketHost(
+                cleanVertexUrl,
+                "stage.mein-seelenfunke.de"
+            )
+        )
+        assertEquals(
+            "https://aiplatform.googleapis.com/v1beta1/projects/gen-lang-client-0670786367/locations/global/publishers/google/models/gemini-3.5-flash:generateContent",
+            de.meinseelenfunke.app.util.VertexClientTokenCache.buildModelGenerateContentUrl("gemini-2.5-flash")
+        )
+        assertEquals(
+            "https://aiplatform.googleapis.com/v1beta1/projects/gen-lang-client-0670786367/locations/global/publishers/google/models/gemini-2.5-flash-tts:generateContent",
+            de.meinseelenfunke.app.util.VertexClientTokenCache.buildModelGenerateContentUrl("gemini-2.5-flash-preview-tts")
+        )
+    }
+
+    @Test
     fun standaloneSecretaryPromptAndTools_enforceGermanFriendlyReassuranceAndZeroPiiSingleTool() {
         val prompt = StandalonePhoneSecretaryEngine.buildSecretarySystemInstruction(
             callerName = "Jan Steinhauer",

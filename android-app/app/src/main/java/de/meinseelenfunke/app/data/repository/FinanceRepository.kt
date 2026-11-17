@@ -188,8 +188,8 @@ class FinanceRepository(private val serviceLocator: ServiceLocator) {
         mimeType: String
     ): de.meinseelenfunke.app.data.api.ReceiptAiScanResponse? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         lastDirectGeminiFallbackInvoked = true
-        val apiKey = serviceLocator.getGeminiApiKey().trim()
-        if (apiKey.isEmpty()) return@withContext null
+        var vertexBundle = de.meinseelenfunke.app.util.VertexClientTokenCache.getOrFetchValidBundle(serviceLocator.context)
+            ?: return@withContext null
 
         try {
             val b64 = java.util.Base64.getEncoder().encodeToString(fileBytes)
@@ -201,18 +201,20 @@ class FinanceRepository(private val serviceLocator: ServiceLocator) {
 
             val payload = org.json.JSONObject().apply {
                 put("contents", org.json.JSONArray().put(
-                    org.json.JSONObject().put("parts", org.json.JSONArray().apply {
-                        put(org.json.JSONObject().put("text", prompt))
-                        put(org.json.JSONObject().put("inlineData", org.json.JSONObject().apply {
-                            put("mimeType", if (mimeType.isBlank()) "image/jpeg" else mimeType)
-                            put("data", b64)
-                        }))
-                    })
+                    org.json.JSONObject().apply {
+                        put("role", "user")
+                        put("parts", org.json.JSONArray().apply {
+                            put(org.json.JSONObject().put("text", prompt))
+                            put(org.json.JSONObject().put("inlineData", org.json.JSONObject().apply {
+                                put("mimeType", if (mimeType.isBlank()) "image/jpeg" else mimeType)
+                                put("data", b64)
+                            }))
+                        })
+                    }
                 ))
                 put("generationConfig", org.json.JSONObject().apply {
                     put("temperature", 0.1)
                     put("responseMimeType", "application/json")
-                    put("thinkingConfig", org.json.JSONObject().put("thinkingLevel", "LOW"))
                 })
             }
 
@@ -223,66 +225,85 @@ class FinanceRepository(private val serviceLocator: ServiceLocator) {
                 .followSslRedirects(false)
                 .build()
 
-            val targetUrl = geminiDirectEndpointOverride
-                ?: "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent"
+            var bodyStr: String? = null
+            for (attempt in 0..1) {
+                val targetUrl = geminiDirectEndpointOverride
+                    ?: de.meinseelenfunke.app.util.VertexClientTokenCache.buildModelGenerateContentUrl("gemini-3.5-flash", vertexBundle)
 
-            val req = okhttp3.Request.Builder()
-                .url(targetUrl)
-                .addHeader("x-goog-api-key", apiKey)
-                .post(payload.toString().toRequestBody("application/json".toMediaTypeOrNull()))
-                .build()
+                val req = okhttp3.Request.Builder()
+                    .url(targetUrl)
+                    .addHeader("Authorization", "Bearer ${vertexBundle.accessToken}")
+                    .post(payload.toString().toRequestBody("application/json".toMediaTypeOrNull()))
+                    .build()
 
-            client.newCall(req).execute().use { resp ->
-                if (!resp.isSuccessful) return@withContext null
-                val bodyStr = resp.body?.string() ?: return@withContext null
-                val root = org.json.JSONObject(bodyStr)
-                val parts = root.optJSONArray("candidates")?.optJSONObject(0)
-                    ?.optJSONObject("content")?.optJSONArray("parts") ?: return@withContext null
-
-                var jsonText: String? = null
-                for (i in 0 until parts.length()) {
-                    val part = parts.optJSONObject(i) ?: continue
-                    if (part.optBoolean("thought", false)) continue
-                    val t = part.optString("text", "")
-                    if (t.isNotBlank()) {
-                        jsonText = t
-                        break
+                val status = client.newCall(req).execute().use { resp ->
+                    if (resp.isSuccessful) {
+                        bodyStr = resp.body?.string()
                     }
+                    resp.code
                 }
-                if (jsonText.isNullOrBlank()) return@withContext null
 
-                val cleaned = jsonText.replace(Regex("^```(?:json)?\\s*", RegexOption.IGNORE_CASE), "")
-                    .replace(Regex("\\s*```$"), "")
-                    .trim()
-                val parsed = org.json.JSONObject(cleaned)
-                val amountAbs = kotlin.math.abs(parsed.optDouble("amount", 0.0))
-                val merchant = parsed.optString("merchant", "Beleg").trim()
-                val desc = parsed.optString("description", "").trim()
-                val rawTitle = parsed.optString("title", "").trim()
-                val finalTitle = if (rawTitle.isNotBlank()) rawTitle else if (desc.isNotBlank()) "$merchant - $desc" else merchant
-
-                val scanData = de.meinseelenfunke.app.data.api.ReceiptAiScanData(
-                    title = finalTitle,
-                    merchant = merchant,
-                    description = desc,
-                    amount_abs = amountAbs,
-                    amount_formatted = String.format(java.util.Locale.US, "-%.2f", amountAbs),
-                    date = parsed.optString("date", today).ifBlank { today },
-                    location = parsed.optString("location", ""),
-                    category = parsed.optString("category", "Sonstiges").ifBlank { "Sonstiges" },
-                    is_business = parsed.optBoolean("is_business", true),
-                    tax_rate = parsed.optDouble("tax_rate", 19.0),
-                    invoice_number = parsed.optString("invoice_number", "")
-                )
-
-                de.meinseelenfunke.app.data.api.ReceiptAiScanResponse(
-                    success = true,
-                    auto_saved = false,
-                    data = scanData,
-                    entry = null,
-                    message = "Beleg '$finalTitle' erkannt."
-                )
+                if (status in 200..299 && !bodyStr.isNullOrBlank()) {
+                    break
+                }
+                if (status == 401 && attempt == 0) {
+                    vertexBundle = de.meinseelenfunke.app.util.VertexClientTokenCache.getOrFetchValidBundle(
+                        serviceLocator.context,
+                        forceRefresh = true
+                    ) ?: return@withContext null
+                } else {
+                    return@withContext null
+                }
             }
+
+            val rawBody = bodyStr ?: return@withContext null
+            val root = org.json.JSONObject(rawBody)
+            val parts = root.optJSONArray("candidates")?.optJSONObject(0)
+                ?.optJSONObject("content")?.optJSONArray("parts") ?: return@withContext null
+
+            var jsonText: String? = null
+            for (i in 0 until parts.length()) {
+                val part = parts.optJSONObject(i) ?: continue
+                if (part.optBoolean("thought", false)) continue
+                val t = part.optString("text", "")
+                if (t.isNotBlank()) {
+                    jsonText = t
+                    break
+                }
+            }
+            if (jsonText.isNullOrBlank()) return@withContext null
+
+            val cleaned = jsonText.replace(Regex("^```(?:json)?\\s*", RegexOption.IGNORE_CASE), "")
+                .replace(Regex("\\s*```$"), "")
+                .trim()
+            val parsed = org.json.JSONObject(cleaned)
+            val amountAbs = kotlin.math.abs(parsed.optDouble("amount", 0.0))
+            val merchant = parsed.optString("merchant", "Beleg").trim()
+            val desc = parsed.optString("description", "").trim()
+            val rawTitle = parsed.optString("title", "").trim()
+            val finalTitle = if (rawTitle.isNotBlank()) rawTitle else if (desc.isNotBlank()) "$merchant - $desc" else merchant
+
+            val scanData = de.meinseelenfunke.app.data.api.ReceiptAiScanData(
+                title = finalTitle,
+                merchant = merchant,
+                description = desc,
+                amount_abs = amountAbs,
+                amount_formatted = String.format(java.util.Locale.US, "-%.2f", amountAbs),
+                date = parsed.optString("date", today).ifBlank { today },
+                location = parsed.optString("location", ""),
+                category = parsed.optString("category", "Sonstiges").ifBlank { "Sonstiges" },
+                is_business = parsed.optBoolean("is_business", true),
+                tax_rate = parsed.optDouble("tax_rate", 19.0),
+                invoice_number = parsed.optString("invoice_number", "")
+            )
+
+            de.meinseelenfunke.app.data.api.ReceiptAiScanResponse(
+                success = true,
+                auto_saved = false,
+                data = scanData,
+                entry = null,
+                message = "Beleg '$finalTitle' erkannt."
+            )
         } catch (_: Exception) {
             null
         }
