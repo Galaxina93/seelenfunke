@@ -1225,4 +1225,85 @@ class SentinelSelfHealingAndInboxTest extends TestCase
             @unlink($tmpLogPath);
         }
     }
+
+    public function test_local_incomplete_migration_catches_customers_42s02_with_503_retry_after_3_while_typo_table_and_production_are_logged(): void
+    {
+        $missingCustomersEx = new \Illuminate\Database\QueryException(
+            'mysql',
+            'select * from `customers` where `id` = ? and `customers`.`deleted_at` is null limit 1',
+            ['00000000-0000-0000-0000-000000000001'],
+            new \PDOException("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'seelenfunke.customers' doesn't exist", 1146)
+        );
+
+        $typoTableEx = new \Illuminate\Database\QueryException(
+            'mysql',
+            'select * from `typo_table_does_not_exist` limit 1',
+            [],
+            new \PDOException("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'seelenfunke.typo_table_does_not_exist' doesn't exist", 1146)
+        );
+
+        \Illuminate\Support\Facades\Route::get('/api/_test-migrate-fresh-customers-42s02', function () use ($missingCustomersEx) {
+            throw $missingCustomersEx;
+        });
+        \Illuminate\Support\Facades\Route::get('/api/_test-typo-table-42s02', function () use ($typoTableEx) {
+            throw $typoTableEx;
+        });
+
+        $origEnv = $this->app['env'];
+        $removedMigrations = \Illuminate\Support\Facades\DB::table('migrations')
+            ->orderByDesc('id')
+            ->limit(5)
+            ->get()
+            ->map(fn ($row) => (array) $row)
+            ->all();
+
+        try {
+            // 1. Unvollstaendige Migration im local-Env (migrate:fresh laeuft): customers wird als 503 Retry-After: 3 ohne Log abgefangen!
+            \Illuminate\Support\Facades\DB::table('migrations')
+                ->whereIn('id', array_column($removedMigrations, 'id'))
+                ->delete();
+
+            $this->app['env'] = 'local';
+            $this->assertTrue(SystemErrorLogger::isLocalDatabaseIncompleteOrMigrating());
+            $this->assertTrue(SystemErrorLogger::isTransientLocalBootstrapTableMissing($missingCustomersEx));
+            $this->assertFalse(SystemErrorLogger::isTransientLocalBootstrapTableMissing($typoTableEx));
+
+            $beforeCount = SystemLog::count();
+            $migratingResp = $this->getJson('/api/_test-migrate-fresh-customers-42s02');
+            $migratingResp->assertStatus(503)
+                ->assertHeader('Retry-After', '3')
+                ->assertJson(['status' => 'maintenance']);
+            $this->assertSame($beforeCount, SystemLog::count(), 'Kein SystemLog-Eintrag waehrend laufender lokaler Migration!');
+
+            // 2. Fertig migrierte DB im local-Env: Echte Tippfehler-Tabelle wird NICHT unterdrueckt, sondern voll gemeldet!
+            if (!empty($removedMigrations)) {
+                \Illuminate\Support\Facades\DB::table('migrations')->insert($removedMigrations);
+            }
+            $this->assertFalse(SystemErrorLogger::isLocalDatabaseIncompleteOrMigrating());
+            $this->assertFalse(SystemErrorLogger::isTransientLocalBootstrapTableMissing($typoTableEx));
+
+            $typoResp = $this->getJson('/api/_test-typo-table-42s02');
+            $typoResp->assertStatus(500);
+            $this->assertTrue(
+                SystemLog::where('message', 'like', '%typo_table_does_not_exist%')->exists(),
+                'Echte Tippfehler-Tabelle muss voll in SystemLog erfasst werden!'
+            );
+
+            // 3. Production-Umgebung: Selbst waehrend fehlender Migrationen NIEMALS unterdruecken!
+            $this->app['env'] = 'production';
+            $this->assertFalse(SystemErrorLogger::isTransientLocalBootstrapTableMissing($missingCustomersEx));
+
+            $beforeProdCount = SystemLog::count();
+            $prodResp = $this->getJson('/api/_test-migrate-fresh-customers-42s02');
+            $prodResp->assertStatus(500);
+            $this->assertGreaterThan($beforeProdCount, SystemLog::count());
+
+            // 4. ext-intl Verifikation: Illuminate\Support\Number::format / fileSize (u. a. fuer php artisan db:show) laeuft fehlerfrei
+            $this->assertTrue(extension_loaded('intl'), 'PHP-Extension ext-intl muss im Container aktiv geladen sein.');
+            $this->assertNotEmpty(\Illuminate\Support\Number::format(1234.56, 2));
+            $this->assertNotEmpty(\Illuminate\Support\Number::fileSize(4096, 2));
+        } finally {
+            $this->app['env'] = $origEnv;
+        }
+    }
 }

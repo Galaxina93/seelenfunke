@@ -1,7 +1,7 @@
 # 0. Das Base-Image (WICHTIG! Ohne das crasht der Build)
 FROM php:8.4-apache
 
-# 1. System-Abhängigkeiten installieren (inklusive default-mysql-client, libzip-dev, nodejs & npm)
+# 1. System-Abhängigkeiten installieren (inklusive default-mysql-client, libzip-dev, libicu-dev, nodejs & npm)
 RUN apt-get update && apt-get install -y \
     libfreetype6-dev \
     libjpeg62-turbo-dev \
@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y \
     libwebp-dev \
     default-mysql-client \
     libzip-dev \
+    libicu-dev \
     nodejs \
     npm \
     python3-docx \
@@ -18,8 +19,8 @@ RUN apt-get update && apt-get install -y \
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp \
     && docker-php-ext-install gd
 
-# 3. MySQL, PCNTL, EXIF, Calendar und ZIP
-RUN docker-php-ext-install pdo pdo_mysql pcntl exif zip calendar
+# 3. MySQL, PCNTL, EXIF, Calendar, ZIP und INTL
+RUN docker-php-ext-install pdo pdo_mysql pcntl exif zip calendar intl
 
 # 4. Redis Extension via PECL installieren und aktivieren
 RUN pecl install redis && docker-php-ext-enable redis

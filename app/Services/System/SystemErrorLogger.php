@@ -24,6 +24,13 @@ class SystemErrorLogger
     protected static array $loggedExceptionIds = [];
 
     /**
+     * Gecachte Liste aller echten Projekt-Tabellennamen aus database/migrations/*.php.
+     *
+     * @var array<string, bool>|null
+     */
+    protected static ?array $knownMigrationTables = null;
+
+    /**
      * Analysiert eine Fehlermeldung / Exception und liefert eine strukturierte deutsche Ursachen-Diagnose.
      */
     public static function diagnose(string $message, ?string $exceptionClass = null, ?string $file = null): array
@@ -491,8 +498,104 @@ class SystemErrorLogger
     }
 
     /**
-     * Erkennt kurzzeitige SQLSTATE[42S02]-Meldungen ("Base table or view not found") auf Basis-Tabellen
+     * Alias für isTransientLocalMigrationTableMissing zur konsistenten Aufrufbarkeit.
+     */
+    public static function isTransientLocalBootstrapTableMissing(\Throwable $e): bool
+    {
+        return self::isTransientLocalMigrationTableMissing($e);
+    }
+
+    /**
+     * Prüft anhand von database/migrations/*.php (gecacht pro Prozess), ob ein Tabellenname zu einer echten
+     * Seelenfunke-Migration gehört, damit echte Tippfehler-Tabellen niemals unterdrückt werden.
+     */
+    public static function isKnownProjectMigrationTable(string $tableName): bool
+    {
+        $normalized = strtolower(trim($tableName));
+        if ($normalized === '') {
+            return false;
+        }
+
+        if (self::$knownMigrationTables === null) {
+            $tables = [
+                'migrations' => true,
+                'personal_access_tokens' => true,
+                'jobs' => true,
+                'failed_jobs' => true,
+                'job_batches' => true,
+                'sessions' => true,
+                'cache' => true,
+                'cache_locks' => true,
+                'system_logs' => true,
+                'system_settings' => true,
+                'shop_settings' => true,
+                'admins' => true,
+                'admin_profiles' => true,
+                'customers' => true,
+                'customer_profiles' => true,
+                'employees' => true,
+                'employee_profiles' => true,
+                'users' => true,
+                'password_reset_tokens' => true,
+            ];
+
+            try {
+                $migrationDir = database_path('migrations');
+                foreach (glob($migrationDir . '/*.php') ?: [] as $file) {
+                    $content = (string) @file_get_contents($file);
+                    if ($content !== '' && preg_match_all('/Schema::create\(\s*[\'"]([a-z0-9_]+)[\'"]/i', $content, $matches)) {
+                        foreach ($matches[1] as $createdTable) {
+                            $tables[strtolower($createdTable)] = true;
+                        }
+                    }
+                }
+            } catch (\Throwable $ignore) {
+            }
+
+            self::$knownMigrationTables = $tables;
+        }
+
+        return isset(self::$knownMigrationTables[$normalized]);
+    }
+
+    /**
+     * Prüft, ob die lokale Datenbank gerade frisch geleert wurde oder eine Migration unvollständig läuft
+     * (migrations-Tabelle fehlt oder Anzahl ausgeführter Migrationen < Anzahl der Dateien in database/migrations/*.php).
+     */
+    public static function isLocalDatabaseIncompleteOrMigrating(): bool
+    {
+        try {
+            if (!\Illuminate\Support\Facades\Schema::hasTable('migrations')) {
+                return true;
+            }
+
+            $appliedCount = (int) \Illuminate\Support\Facades\DB::table('migrations')->count();
+            $migrationFiles = glob(database_path('migrations/*.php')) ?: [];
+            $expectedCount = count($migrationFiles);
+
+            return $expectedCount > 0 && $appliedCount < $expectedCount;
+        } catch (\Throwable $ignore) {
+            return true;
+        }
+    }
+
+    /**
+     * Extrahiert den Tabellennamen aus einer MySQL/PDO 42S02 / 1146 Fehlermeldung
+     * (z. B. "Table 'seelenfunke.customers' doesn't exist" -> "customers").
+     */
+    protected static function extractMissingTableNameFromSqlError(string $msgLower): ?string
+    {
+        if (preg_match("/table\s+[`'\"]?(?:[a-z0-9_-]+[`'\"]?\.[`'\"]?)?([a-z0-9_]+)[`'\"]?\s+doesn't\s+exist/i", $msgLower, $m)) {
+            return strtolower($m[1]);
+        }
+
+        return null;
+    }
+
+    /**
+     * Erkennt kurzzeitige SQLSTATE[42S02]-Meldungen ("Base table or view not found") auf Basis- und Projekt-Tabellen
      * während eines lokalen migrate:fresh-Laufs (ausschließlich im local-Environment aktiv, niemals auf Stage/Live!).
+     * Echte Tippfehler-Tabellen (nicht in database/migrations/*.php enthalten) werden niemals unterdrückt.
      */
     public static function isTransientLocalMigrationTableMissing(\Throwable $e): bool
     {
@@ -504,7 +607,7 @@ class SystemErrorLogger
             return false;
         }
 
-        $bootstrapTables = [
+        $coreBootstrapTables = [
             'personal_access_tokens',
             'jobs',
             'failed_jobs',
@@ -513,8 +616,18 @@ class SystemErrorLogger
             'cache',
             'cache_locks',
             'system_logs',
+            'system_settings',
             'shop_settings',
             'migrations',
+        ];
+
+        $authGuardTables = [
+            'admins',
+            'admin_profiles',
+            'customers',
+            'customer_profiles',
+            'employees',
+            'employee_profiles',
         ];
 
         $cursor = $e;
@@ -527,13 +640,39 @@ class SystemErrorLogger
                 || str_contains($msgLower, 'base table or view not found: 1146');
 
             if ($isMissingTableError) {
-                foreach ($bootstrapTables as $tbl) {
-                    if (
-                        str_contains($msgLower, ".{$tbl}'")
-                        || str_contains($msgLower, "`{$tbl}`")
-                        || str_contains($msgLower, "'{$tbl}'")
-                    ) {
+                $missingTable = self::extractMissingTableNameFromSqlError($msgLower);
+
+                if ($missingTable === null) {
+                    foreach ($coreBootstrapTables as $tbl) {
+                        if (
+                            str_contains($msgLower, ".{$tbl}'")
+                            || str_contains($msgLower, "`{$tbl}`")
+                            || str_contains($msgLower, "'{$tbl}'")
+                        ) {
+                            return true;
+                        }
+                    }
+                } else {
+                    if (in_array($missingTable, $coreBootstrapTables, true)) {
                         return true;
+                    }
+
+                    if (!self::isKnownProjectMigrationTable($missingTable)) {
+                        return false;
+                    }
+
+                    if (self::isLocalDatabaseIncompleteOrMigrating()) {
+                        return true;
+                    }
+
+                    if (in_array($missingTable, $authGuardTables, true)) {
+                        try {
+                            if (!\Illuminate\Support\Facades\Schema::hasTable($missingTable)) {
+                                return true;
+                            }
+                        } catch (\Throwable $ignore) {
+                            return true;
+                        }
                     }
                 }
             }

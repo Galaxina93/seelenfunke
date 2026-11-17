@@ -97,10 +97,10 @@ return Application::configure(basePath: dirname(__DIR__))
                     return response()->json([
                         'status' => 'maintenance',
                         'message' => 'Lokale Datenbank-Migration aktiv. Bitte in wenigen Sekunden erneut versuchen.',
-                    ], 503, ['Retry-After' => '5']);
+                    ], 503, ['Retry-After' => '3']);
                 }
 
-                return response('Lokale Datenbank-Migration aktiv. Bitte in wenigen Sekunden neu laden.', 503, ['Retry-After' => '5']);
+                return response('Lokale Datenbank-Migration aktiv. Bitte in wenigen Sekunden neu laden.', 503, ['Retry-After' => '3']);
             }
 
             try {
