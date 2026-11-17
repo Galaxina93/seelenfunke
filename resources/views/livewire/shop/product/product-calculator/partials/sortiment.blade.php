@@ -497,23 +497,9 @@
 
                             {{-- Produkt-Infos --}}
                             <div class="flex-1 flex flex-col px-2 pb-2">
-                                {{-- Herkunfts-Siegel & Kategorien --}}
-                                @php
-                                    $originLabel = $product->getOriginBadgeLabel();
-                                    $originMode = $product->getOriginBadgeMode();
-                                @endphp
-                                @if($product->categories->isNotEmpty() || $originLabel)
+                                {{-- Kategorien --}}
+                                @if($product->categories->isNotEmpty())
                                     <div class="flex flex-wrap items-center gap-1 mb-2">
-                                        @if($originLabel)
-                                            <span class="inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md border {{ $originMode === 'made_in_germany' ? 'bg-amber-50/90 text-amber-900 border-amber-200/80' : 'bg-stone-50 text-stone-700 border-stone-200/80' }}">
-                                                <span class="inline-flex flex-col w-3 h-2 rounded-[1.5px] overflow-hidden shrink-0 border border-black/15">
-                                                    <span class="h-1/3 w-full bg-black"></span>
-                                                    <span class="h-1/3 w-full bg-[#DD0000]"></span>
-                                                    <span class="h-1/3 w-full bg-[#FFCE00]"></span>
-                                                </span>
-                                                <span>{{ $originLabel }}</span>
-                                            </span>
-                                        @endif
                                         @foreach($product->categories->take(2) as $pCat)
                                             <span class="text-[9px] font-bold text-gray-400 uppercase tracking-widest bg-gray-50 px-2 py-0.5 rounded-md">{{ $pCat->name }}</span>
                                         @endforeach

@@ -160,6 +160,9 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringNotContainsString('<script src="/js/seelenfunke-louvre-showroom-3d.js"', $html);
         $this->assertStringNotContainsString('t_seelenk.glb', $html);
 
+        // Produktkacheln in "Unsere Kollektion" ohne "Handveredelt in Deutschland"-Badge (Clean Design)
+        $this->assertStringNotContainsString('Handveredelt in Deutschland', $html);
+
         // 0 KI-Gedankenstriche auf /shop
         $this->assertStringNotContainsString(' ' . "\u{2013}" . ' ', $html);
         $this->assertStringNotContainsString(' ' . "\u{2014}" . ' ', $html);
