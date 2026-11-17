@@ -1168,6 +1168,141 @@ export class SeelenfunkeLobbyAudio {
         });
     }
 
+    playShieldShatter() {
+        if (!this._canPlaySfx()) return;
+        // Kraftvoller Katapult-Impuls + edles kristallines Zerbersten des Aegis-Schilds
+        this._triggerMatteTone({
+            type: 'sine',
+            freqStart: 72,
+            freqEnd: 186,
+            duration: 0.34,
+            gain: 0.38,
+            cutoff: 540,
+        });
+        this._triggerMatteTone({
+            type: 'triangle',
+            freqStart: 136,
+            freqEnd: 44,
+            duration: 0.38,
+            gain: 0.30,
+            cutoff: 380,
+        });
+        this._triggerMatteWhoosh({
+            duration: 0.46,
+            gain: 0.36,
+            filterType: 'bandpass',
+            freqStart: 680,
+            freqEnd: 210,
+            q: 1.05,
+        });
+        const shards = [587.33, 493.88, 392.00, 311.13, 246.94];
+        for (let i = 0; i < shards.length; i++) {
+            const f = shards[i];
+            this._triggerMatteTone({
+                type: i % 2 === 0 ? 'triangle' : 'sine',
+                freqStart: f,
+                freqEnd: f * 0.74,
+                duration: 0.16,
+                gain: 0.15 - i * 0.018,
+                cutoff: 1280,
+                delay: 0.02 + i * 0.042,
+            });
+        }
+    }
+
+    playShockRingHit(kind = 'gold') {
+        if (!this._canPlaySfx()) return;
+        const isBlack = kind === 'black';
+        if (isBlack) {
+            this._triggerMatteTone({
+                type: 'sine',
+                freqStart: 118,
+                freqEnd: 34,
+                duration: 0.40,
+                gain: 0.42,
+                cutoff: 280,
+            });
+            this._triggerMatteTone({
+                type: 'triangle',
+                freqStart: 164,
+                freqEnd: 52,
+                duration: 0.28,
+                gain: 0.28,
+                cutoff: 460,
+            });
+            this._triggerMatteWhoosh({
+                duration: 0.38,
+                gain: 0.34,
+                filterType: 'lowpass',
+                freqStart: 440,
+                freqEnd: 110,
+                q: 0.95,
+            });
+        } else {
+            this._triggerMatteTone({
+                type: 'triangle',
+                freqStart: 224,
+                freqEnd: 78,
+                duration: 0.28,
+                gain: 0.32,
+                cutoff: 640,
+            });
+            this._triggerMatteTone({
+                type: 'sine',
+                freqStart: 330,
+                freqEnd: 165,
+                duration: 0.22,
+                gain: 0.18,
+                cutoff: 920,
+                delay: 0.02,
+            });
+            this._triggerMatteWhoosh({
+                duration: 0.30,
+                gain: 0.28,
+                filterType: 'bandpass',
+                freqStart: 580,
+                freqEnd: 195,
+                q: 1.1,
+            });
+        }
+    }
+
+    playProductTransition() {
+        if (!this._canPlaySfx()) return;
+        // Sanft gleitender Elfenbein-Gold-Uebergangsklang (~680 ms) beim Wechsel zum Produkt-Konfigurator
+        this._triggerMatteWhoosh({
+            duration: 0.58,
+            gain: 0.20,
+            filterType: 'bandpass',
+            freqStart: 220,
+            freqEnd: 540,
+            q: 0.95,
+        });
+        const notes = [261.63, 329.63, 392.00, 493.88, 587.33];
+        for (let i = 0; i < notes.length; i++) {
+            const f = notes[i];
+            const d = i * 0.065;
+            this._triggerMatteTone({
+                type: 'sine',
+                freqStart: f,
+                freqEnd: f * 1.002,
+                duration: 0.52,
+                gain: 0.13 - i * 0.014,
+                cutoff: 1240,
+                delay: d,
+            });
+            this._triggerMatteTone({
+                type: 'triangle',
+                freqStart: f * 0.5,
+                freqEnd: f * 0.5,
+                duration: 0.42,
+                gain: 0.06,
+                cutoff: 680,
+                delay: d + 0.015,
+            });
+        }
+    }
+
     updateLavaAmbience(distanceMeters, active = true) {
         const shouldRun = Boolean(active) && this._canPlaySfx() && distanceMeters < 32.0;
         if (!shouldRun) {

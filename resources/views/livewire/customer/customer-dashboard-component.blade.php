@@ -396,10 +396,10 @@
 
                 <button type="button"
                         data-testid="dashboard-open-user-lobby-3d"
-                        onclick="(function(){ if (window.getSeelenfunkeLobbyAudio) { window.getSeelenfunkeLobbyAudio({ isAuthenticated: true }).startLobbyMusicFromGesture(); } var e = window.SeelenfunkeHeroes3D; if (e && typeof e.open === 'function') { e.open('lobby'); return; } var s = document.getElementById('sf-heroes-3d-script'); if (!s) { s = document.createElement('script'); s.id = 'sf-heroes-3d-script'; s.src = '{{ asset('js/funkenwerk-heroes-3d.js') }}?v=20261117v4'; s.onload = function(){ if (window.SeelenfunkeHeroes3D) window.SeelenfunkeHeroes3D.open('lobby'); }; document.head.appendChild(s); } })()"
+                        onclick="(function(){ if (window.getSeelenfunkeLobbyAudio) { window.getSeelenfunkeLobbyAudio({ isAuthenticated: true }).startLobbyMusicFromGesture(); } var e = window.SeelenfunkeHeroes3D; if (e && typeof e.open === 'function') { e.open('lobby'); return; } var s = document.getElementById('sf-heroes-3d-script'); if (!s) { s = document.createElement('script'); s.id = 'sf-heroes-3d-script'; s.src = '{{ asset('js/funkenwerk-heroes-3d.js') }}?v={{ @filemtime(public_path('js/funkenwerk-heroes-3d.js')) ?: time() }}'; s.onload = function(){ if (window.SeelenfunkeHeroes3D) window.SeelenfunkeHeroes3D.open('lobby'); }; document.head.appendChild(s); } })()"
                         class="col-span-2 sm:col-span-3 py-2.5 px-4 rounded-xl bg-white dark:bg-gray-950/80 hover:bg-[#faf6ee] dark:hover:bg-gray-900 border border-[#C5A059] text-gray-900 dark:text-[#f5dca0] text-xs font-black uppercase tracking-widest shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer">
-                    <span>🏛️</span>
-                    <span>3D-Lobby öffnen</span>
+                    <span>✨</span>
+                    <span>Ins Funkenreich</span>
                 </button>
             </div>
         </div>
@@ -883,10 +883,10 @@
                         Sammle Funken & sichere dir <span class="text-transparent bg-clip-text bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-600 dark:from-primary dark:via-amber-200 dark:to-amber-400">bis zu 15 % Rabatt.</span>
                     </h2>
                     <p class="text-gray-600 dark:text-gray-400 text-xs sm:text-sm mb-6 leading-relaxed">
-                        Begleite deinen persönlichen Gefährten <strong>Funki von Level 1 bis Level 10</strong>! Mit jedem gekauften Artikel, in der begehbaren 3D-Lobby und durch seltene, versteckte Seelenfunken auf unseren Seiten sammelst du Punkte für einmalige Rabatt-Gutscheine (<strong>250 ✨ = 5 %</strong>, <strong>600 ✨ = 10 %</strong>, <strong>1.200 ✨ = 15 %</strong>) und schaltest mit jeder Stufe kostenlos noch epischere Profilbild-Hintergründe frei.
+                        Begleite deinen persönlichen Gefährten <strong>Funki von Level 1 bis Level 10</strong>! Mit jedem gekauften Artikel, im begehbaren Funkenreich und durch seltene, versteckte Seelenfunken auf unseren Seiten sammelst du Punkte für einmalige Rabatt-Gutscheine (<strong>250 ✨ = 5 %</strong>, <strong>600 ✨ = 10 %</strong>, <strong>1.200 ✨ = 15 %</strong>) und schaltest mit jeder Stufe kostenlos noch epischere Profilbild-Hintergründe frei.
                     </p>
 
-                    <div class="mb-6 flex flex-col gap-2 text-left">
+                    <div class="mb-6 flex flex-col gap-2.5 text-left">
                         <label class="flex items-start gap-3 cursor-pointer group">
                             <div class="relative flex items-center justify-center shrink-0 mt-0.5">
                                 <input type="checkbox" x-model="agreedToTerms" class="peer appearance-none w-5 h-5 border-2 border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 checked:bg-primary checked:border-primary transition-all cursor-pointer">
@@ -896,6 +896,18 @@
                             </div>
                             <span class="text-xs text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-300 transition-colors leading-relaxed">
                                 Ich habe die <a href="{{ route('agb') }}#agb-gamification" target="_blank" @click.stop class="text-amber-700 dark:text-primary hover:underline font-semibold">Teilnahmebedingungen zum Seelenfunken-Programm</a> gelesen und stimme diesen zu. Zudem nehme ich die <a href="{{ route('datenschutz') }}#datenschutz-gamification" target="_blank" @click.stop class="text-amber-700 dark:text-primary hover:underline font-semibold">Datenschutzhinweise</a> bezüglich der Speicherung meines Funken-Guthabens und Funki-Levels zur Kenntnis.
+                            </span>
+                        </label>
+
+                        <label class="flex items-start gap-3 cursor-pointer group">
+                            <div class="relative flex items-center justify-center shrink-0 mt-0.5">
+                                <input type="checkbox" wire:model="optInPublicNameOnActivate" class="peer appearance-none w-5 h-5 border-2 border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 checked:bg-primary checked:border-primary transition-all cursor-pointer">
+                                <svg class="absolute w-3 h-3 text-gray-900 opacity-0 peer-checked:opacity-100 pointer-events-none transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+                                </svg>
+                            </div>
+                            <span class="text-xs text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-300 transition-colors leading-relaxed">
+                                Öffentliche Namensanzeige in der Halle der Helden aktivieren (optional)
                             </span>
                         </label>
                     </div>
@@ -1154,10 +1166,10 @@
                                 </p>
                             </div>
                             <button type="button"
-                                    onclick="(function(){ if (window.getSeelenfunkeLobbyAudio) { window.getSeelenfunkeLobbyAudio({ isAuthenticated: true }).startLobbyMusicFromGesture(); } var e = window.SeelenfunkeHeroes3D; if (e && typeof e.open === 'function') { e.open('lobby'); return; } var s = document.getElementById('sf-heroes-3d-script'); if (!s) { s = document.createElement('script'); s.id = 'sf-heroes-3d-script'; s.src = '{{ asset('js/funkenwerk-heroes-3d.js') }}?v=20261117v4'; s.onload = function(){ if (window.SeelenfunkeHeroes3D) window.SeelenfunkeHeroes3D.open('lobby'); }; document.head.appendChild(s); } })()"
+                                    onclick="(function(){ if (window.getSeelenfunkeLobbyAudio) { window.getSeelenfunkeLobbyAudio({ isAuthenticated: true }).startLobbyMusicFromGesture(); } var e = window.SeelenfunkeHeroes3D; if (e && typeof e.open === 'function') { e.open('lobby'); return; } var s = document.getElementById('sf-heroes-3d-script'); if (!s) { s = document.createElement('script'); s.id = 'sf-heroes-3d-script'; s.src = '{{ asset('js/funkenwerk-heroes-3d.js') }}?v={{ @filemtime(public_path('js/funkenwerk-heroes-3d.js')) ?: time() }}'; s.onload = function(){ if (window.SeelenfunkeHeroes3D) window.SeelenfunkeHeroes3D.open('lobby'); }; document.head.appendChild(s); } })()"
                                     class="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white dark:bg-gray-900 hover:bg-[#faf6ee] dark:hover:bg-gray-800 border border-[#C5A059] text-gray-900 dark:text-[#f5dca0] text-xs font-black tracking-wide shadow-xs transition cursor-pointer shrink-0">
-                                <span>🌋</span>
-                                <span>Funken in der 3D-Lobby sammeln</span>
+                                <span>✨</span>
+                                <span>Funken im Funkenreich sammeln</span>
                             </button>
                         </div>
 
@@ -1256,7 +1268,7 @@
                                 </div>
                             @else
                                 <p class="text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/50 p-4 rounded-2xl border border-gray-200 dark:border-gray-800">
-                                    Du hast noch keinen Rabatt-Gutschein eingelöst. Sammle Seelenfunken durch deine Einkäufe, in der 3D-Lobby oder auf den Shop-Seiten und tausche sie oben ab 250 ✨ direkt ein!
+                                    Du hast noch keinen Rabatt-Gutschein eingelöst. Sammle Seelenfunken durch deine Einkäufe, im Funkenreich oder auf den Shop-Seiten und tausche sie oben ab 250 ✨ direkt ein!
                                 </p>
                             @endif
                         </div>
@@ -1796,7 +1808,7 @@
                                 <div class="flex flex-wrap items-center gap-2.5">
                                     <button type="button"
                                             data-testid="modal-open-hall-of-heroes-3d"
-                                            onclick="(function(){ if (window.getSeelenfunkeLobbyAudio) { window.getSeelenfunkeLobbyAudio({ isAuthenticated: true }).startLobbyMusicFromGesture(); } var e = window.SeelenfunkeHeroes3D; if (e && typeof e.open === 'function') { e.open('hall'); return; } var s = document.getElementById('sf-heroes-3d-script'); if (!s) { s = document.createElement('script'); s.id = 'sf-heroes-3d-script'; s.src = '{{ asset('js/funkenwerk-heroes-3d.js') }}?v=20261117v4'; s.onload = function(){ if (window.SeelenfunkeHeroes3D) window.SeelenfunkeHeroes3D.open('hall'); }; document.head.appendChild(s); } })()"
+                                            onclick="(function(){ if (window.getSeelenfunkeLobbyAudio) { window.getSeelenfunkeLobbyAudio({ isAuthenticated: true }).startLobbyMusicFromGesture(); } var e = window.SeelenfunkeHeroes3D; if (e && typeof e.open === 'function') { e.open('hall'); return; } var s = document.getElementById('sf-heroes-3d-script'); if (!s) { s = document.createElement('script'); s.id = 'sf-heroes-3d-script'; s.src = '{{ asset('js/funkenwerk-heroes-3d.js') }}?v={{ @filemtime(public_path('js/funkenwerk-heroes-3d.js')) ?: time() }}'; s.onload = function(){ if (window.SeelenfunkeHeroes3D) window.SeelenfunkeHeroes3D.open('hall'); }; document.head.appendChild(s); } })()"
                                             class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#C5A059] hover:bg-[#b58f48] text-gray-950 text-xs font-black tracking-wide transition cursor-pointer">
                                         <span>🏛️</span>
                                         <span>Halle der Helden 3D</span>
@@ -1874,10 +1886,14 @@
 
                                             <div class="text-right shrink-0">
                                                 <span class="font-mono font-black text-xs sm:text-base text-amber-700 dark:text-[#f5dca0] block">
-                                                    {{ (int) ($leader['diamonds_count'] ?? 0) }}/{{ (int) ($leader['total_titles'] ?? 5) }} 💎
+                                                    {{ $leader['hero_score_formatted'] ?? number_format((int) ($leader['hero_score'] ?? 0), 0, ',', '.') }} ✨
                                                 </span>
                                                 <span class="text-[9px] uppercase tracking-wider font-bold text-gray-400 block">
-                                                    Diamant-Titel
+                                                    @if(!empty($leader['magma_highest_level']))
+                                                        🌋 {{ (int) $leader['magma_highest_level'] }}/10 • {{ (int) ($leader['diamonds_count'] ?? 0) }}/{{ (int) ($leader['total_titles'] ?? 5) }} 💎
+                                                    @else
+                                                        {{ (int) ($leader['diamonds_count'] ?? 0) }}/{{ (int) ($leader['total_titles'] ?? 5) }} 💎
+                                                    @endif
                                                 </span>
                                             </div>
                                         </div>
@@ -2359,5 +2375,5 @@
             };
         };
     </script>
-    <script type="module" src="{{ asset('js/seelenfunke-lobby-audio.js') }}?v=20261117v3"></script>
+    <script type="module" src="{{ asset('js/seelenfunke-lobby-audio.js') }}?v={{ @filemtime(public_path('js/seelenfunke-lobby-audio.js')) ?: time() }}"></script>
 </div>

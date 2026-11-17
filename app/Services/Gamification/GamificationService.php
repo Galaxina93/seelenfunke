@@ -1463,7 +1463,7 @@ class GamificationService
     }
 
     /**
-     * Liefert die Rangliste für die „Halle der Helden“ (nur aktive Kunden mit DSGVO-Opt-In).
+     * Liefert die Rangliste fuer die Halle der Helden (identische hero_score-Sortierung und DSGVO-Logik wie 3D).
      */
     public function getHallOfFameLeaders(int $limit = 30): array
     {
@@ -1471,45 +1471,56 @@ class GamificationService
     }
 
     /**
-     * Liefert die paginierte Rangliste für die „Halle der Helden“ (nur aktive Kunden mit DSGVO-Opt-In).
+     * Liefert die paginierte Rangliste fuer die Halle der Helden:
+     * Alle aktiven Seelenfunken-Teilnehmer (is_active = true mit bezahlter Bestellung, Funken > 0 oder Magma-Fortschritt)
+     * deterministisch sortiert nach hero_score (funken_total_earned + magma_prestige_points) und DSGVO-geschuetzt.
      */
     public function getHallOfFamePaginated(int $page = 1, int $perPage = 10): array
     {
         $this->ensureHangarColumns();
 
         $perPage = max(1, min(50, $perPage));
-        $baseQuery = CustomerGamification::with([
-                'customer:id,first_name,last_name,created_at',
-                'customer.profile:id,customer_id,photo_path',
-            ])
-            ->where('is_active', true)
-            ->where('ranking_opt_in', true)
-            ->whereHas('customer')
-            ->orderByDesc('funken_total_earned')
-            ->orderByDesc('level')
-            ->orderBy('updated_at', 'asc')
-            ->orderBy('id', 'asc');
+        $allEntries = LobbyInstanceService::loadRankedHeroEntries(0);
 
-        $total = (int) (clone $baseQuery)->count();
+        $total = count($allEntries);
         $lastPage = max(1, (int) ceil($total / $perPage));
         $currentPage = max(1, min($lastPage, $page));
-
-        $profiles = $baseQuery
-            ->skip(($currentPage - 1) * $perPage)
-            ->take($perPage)
-            ->get();
-
-        $currentCustomerId = Auth::guard('customer')->id();
-        $leaders = [];
         $offset = ($currentPage - 1) * $perPage;
 
-        foreach ($profiles as $index => $profile) {
+        $slicedEntries = array_slice($allEntries, $offset, $perPage);
+        $currentCustomerId = Auth::guard('customer')->id();
+        $leaders = [];
+
+        foreach ($slicedEntries as $index => $entry) {
+            /** @var CustomerGamification $profile */
+            $profile = $entry['profile'];
+            $metrics = $entry['metrics'];
+
             if (!$profile->customer) {
                 continue;
             }
+
+            $rankPosition = $offset + $index + 1;
+            $isMe = $currentCustomerId !== null && (string) $currentCustomerId === (string) $profile->customer_id;
+
             $card = $this->getPublicProfileCardData($profile->customer, $profile);
-            $card['rank_position'] = $offset + $index + 1;
-            $card['is_current_user'] = $currentCustomerId && (string) $currentCustomerId === (string) $profile->customer_id;
+            $card['display_name'] = LobbyInstanceService::resolveHallOfHeroesDisplayName(
+                $profile->customer,
+                $profile,
+                $rankPosition,
+                $isMe,
+                $this
+            );
+            $card['rank_position'] = $rankPosition;
+            $card['is_current_user'] = $isMe;
+            $card['sparks_total'] = $metrics['sparks_total'];
+            $card['sparks_formatted'] = number_format($metrics['sparks_total'], 0, ',', '.');
+            $card['hero_score'] = $metrics['hero_score'];
+            $card['hero_score_formatted'] = number_format($metrics['hero_score'], 0, ',', '.');
+            $card['magma_highest_level'] = $metrics['magma_highest_level'];
+            $card['magma_cleared_count'] = $metrics['magma_cleared_count'];
+            $card['magma_prestige_points'] = $metrics['magma_prestige_points'];
+
             $leaders[] = $card;
         }
 

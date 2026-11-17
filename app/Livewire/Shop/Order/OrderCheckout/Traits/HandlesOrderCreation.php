@@ -229,7 +229,7 @@ trait HandlesOrderCreation
             }
         }
 
-        return DB::transaction(function () use ($cartService, $cart) {
+        $order = DB::transaction(function () use ($cartService, $cart) {
             $cart->refresh();
 
             $targetCountry = $this->has_separate_shipping ? $this->shipping_country : $this->country;
@@ -432,6 +432,14 @@ trait HandlesOrderCreation
             // VERHINDERE DOPPELTE BESTELLUNGEN WENN DER USER MEHRFACH KLICKT
             $order = null;
             if (!empty($finalIntentId)) {
+                $existingPaidOrder = OrderOrder::where('stripe_payment_intent_id', $finalIntentId)
+                    ->where('payment_status', 'paid')
+                    ->first();
+                if ($existingPaidOrder) {
+                    session(['checkout_order_id' => $existingPaidOrder->id]);
+                    return $existingPaidOrder;
+                }
+
                 $order = OrderOrder::where('stripe_payment_intent_id', $finalIntentId)
                     ->where('payment_status', 'unpaid')
                     ->first();
@@ -524,7 +532,58 @@ trait HandlesOrderCreation
                 }
             }
 
-            return $order->id;
+            return $order;
         });
+
+        $this->reconcileCachedStripeWebhookPayment($order);
+
+        return $order->id;
+    }
+
+    /**
+     * Wertet einen kurzlebigen, kryptografisch verifizierten Stripe-Webhook-Marker aus,
+     * falls payment_intent.succeeded wenige Millisekunden vor dem Livewire-Order-Commit eintraf.
+     */
+    private function reconcileCachedStripeWebhookPayment(OrderOrder $order): void
+    {
+        $intentId = trim((string) ($order->stripe_payment_intent_id ?? ''));
+        if ($intentId === '' || (int) $order->total_price <= 0 || $order->payment_status !== 'unpaid') {
+            return;
+        }
+
+        $cacheKey = \App\Http\Controllers\StripeWebhookController::WEBHOOK_PAID_INTENT_CACHE_PREFIX . $intentId;
+        $cachedIntent = \Illuminate\Support\Facades\Cache::get($cacheKey);
+        if (!is_array($cachedIntent)) {
+            return;
+        }
+
+        $cachedCurrency = strtolower(trim((string) ($cachedIntent['currency'] ?? '')));
+        $cachedAmountReceived = (int) ($cachedIntent['amount_received'] ?? 0);
+        $cachedAmount = (int) ($cachedIntent['amount'] ?? 0);
+        $effectivePaidCents = $cachedAmountReceived > 0 ? $cachedAmountReceived : $cachedAmount;
+
+        if (
+            ($cachedIntent['intent_id'] ?? '') !== $intentId
+            || $cachedCurrency !== 'eur'
+            || $effectivePaidCents < (int) $order->total_price
+        ) {
+            return;
+        }
+
+        $order->completePayment($intentId);
+        \Illuminate\Support\Facades\Cache::forget($cacheKey);
+
+        $quoteNumber = trim((string) ($cachedIntent['quote_number'] ?? ''));
+        if ($quoteNumber !== '' && $order->payment_status === 'paid') {
+            $quote = \App\Models\Order\OrderQuoteRequest::where('quote_number', $quoteNumber)->first();
+            if (
+                $quote
+                && $quote->status !== 'converted'
+                && empty($quote->converted_order_id)
+                && ((int) $order->total_price + (int) ($order->discount_amount ?? 0)) >= (int) $quote->gross_total
+            ) {
+                $quote->update(['status' => 'converted', 'converted_order_id' => $order->id]);
+            }
+        }
     }
 }

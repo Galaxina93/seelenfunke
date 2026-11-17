@@ -5,12 +5,20 @@ namespace App\Http\Controllers;
 use App\Models\Order\OrderOrder;
 use App\Models\Order\OrderQuoteRequest;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Stripe\Exception\SignatureVerificationException;
 use Stripe\Webhook;
 
 class StripeWebhookController extends Controller
 {
+    public const WEBHOOK_PAID_INTENT_CACHE_PREFIX = 'stripe_webhook_pi_paid:';
+
+    /**
+     * Optionaler Hook für deterministische Race-Condition-Tests in PHPUnit ohne echtes usleep().
+     */
+    public static ?\Closure $testingOrderLookupRetryHook = null;
+
     public function handle(Request $request)
     {
         $payload = $request->getContent();
@@ -129,17 +137,22 @@ class StripeWebhookController extends Controller
             }
         } elseif ($event->type === 'payment_intent.succeeded') {
             $intent = $eventObject;
-            $orderId = $intent->metadata->order_id ?? null;
-            $intentId = $intent->id ?? null;
+            $metadata = is_object($intent->metadata ?? null)
+                ? $intent->metadata
+                : (object) (is_array($intent->metadata ?? null) ? $intent->metadata : []);
+            $orderId = isset($metadata->order_id) && trim((string) $metadata->order_id) !== ''
+                ? trim((string) $metadata->order_id)
+                : null;
+            $intentId = isset($intent->id) && trim((string) $intent->id) !== ''
+                ? trim((string) $intent->id)
+                : null;
+            $isForeignEnvironment = $this->isForeignEnvironmentMetadata($metadata);
 
-            $order = null;
-            if ($orderId) {
-                $order = OrderOrder::find($orderId);
-            }
-
-            if (!$order && !empty($intentId)) {
-                $order = OrderOrder::where('stripe_payment_intent_id', $intentId)->first();
-            }
+            $order = $this->findOrderForPaymentIntent(
+                $isForeignEnvironment ? null : $orderId,
+                $intentId,
+                !$isForeignEnvironment
+            );
 
             if ($order) {
                 if (isset($intent->currency) && strtolower((string) $intent->currency) !== 'eur') {
@@ -180,8 +193,12 @@ class StripeWebhookController extends Controller
                     Log::info("Webhook payment_intent.succeeded ignoriert: Order {$order->order_number} bereits bezahlt, storniert oder erstattet.");
                 }
 
+                if (!empty($intentId)) {
+                    Cache::forget(self::WEBHOOK_PAID_INTENT_CACHE_PREFIX . $intentId);
+                }
+
                 // Falls aus Angebot (Quote) entstanden
-                $quoteNumber = $intent->metadata->quote_number ?? null;
+                $quoteNumber = $metadata->quote_number ?? null;
                 if ($quoteNumber && $order->payment_status === 'paid') {
                     $quote = OrderQuoteRequest::where('quote_number', $quoteNumber)->first();
                     if (
@@ -194,7 +211,31 @@ class StripeWebhookController extends Controller
                     }
                 }
             } else {
-                Log::warning("Webhook payment_intent.succeeded: Keine passende Order gefunden für PaymentIntent {$intentId}.");
+                if (!empty($intentId) && !$isForeignEnvironment) {
+                    $verifiedAmount = isset($intent->amount) ? (int) $intent->amount : 0;
+                    $verifiedAmountReceived = isset($intent->amount_received) ? (int) $intent->amount_received : $verifiedAmount;
+                    $verifiedCurrency = isset($intent->currency) ? strtolower(trim((string) $intent->currency)) : 'eur';
+
+                    Cache::put(
+                        self::WEBHOOK_PAID_INTENT_CACHE_PREFIX . $intentId,
+                        [
+                            'intent_id' => $intentId,
+                            'event_id' => is_string($event->id ?? null) ? $event->id : null,
+                            'amount' => $verifiedAmount,
+                            'amount_received' => $verifiedAmountReceived,
+                            'currency' => $verifiedCurrency,
+                            'quote_number' => isset($metadata->quote_number) ? (string) $metadata->quote_number : null,
+                            'checkout_flow' => isset($metadata->checkout_flow) ? (string) $metadata->checkout_flow : null,
+                            'app_env' => isset($metadata->app_env) ? (string) $metadata->app_env : (string) config('app.env', ''),
+                            'verified_at' => now()->toIso8601String(),
+                        ],
+                        now()->addHours(2)
+                    );
+                }
+
+                if (!$isForeignEnvironment && $orderId !== null) {
+                    Log::warning("Webhook payment_intent.succeeded: Keine passende Order gefunden für PaymentIntent {$intentId} (order_id: {$orderId}).");
+                }
             }
         } elseif ($event->type === 'payment_intent.payment_failed') {
             $intent = $eventObject;
@@ -301,5 +342,73 @@ class StripeWebhookController extends Controller
         }
 
         return response('Success', 200);
+    }
+
+    /**
+     * Sucht die zugehörige Order und führt bei gleicher Umgebung bis zu 2 kurze Nachprüfungen durch,
+     * falls HandlesOrderCreation im parallelen Livewire-Request wenige Millisekunden später committet.
+     */
+    private function findOrderForPaymentIntent(?string $orderId, ?string $intentId, bool $allowRetry): ?OrderOrder
+    {
+        $lookup = static function () use ($orderId, $intentId): ?OrderOrder {
+            $order = null;
+            if (!empty($orderId)) {
+                $order = OrderOrder::useWritePdo()->find($orderId);
+            }
+
+            if (!$order && !empty($intentId)) {
+                $order = OrderOrder::useWritePdo()->where('stripe_payment_intent_id', $intentId)->first();
+            }
+
+            return $order;
+        };
+
+        $order = $lookup();
+        if ($order || !$allowRetry || (empty($orderId) && empty($intentId))) {
+            return $order;
+        }
+
+        $maxRetries = max(0, (int) config('services.stripe.webhook_lookup_retries', 2));
+        $defaultDelayUs = app()->runningUnitTests() ? 0 : 350000;
+        $delayUs = max(0, (int) config('services.stripe.webhook_lookup_retry_delay_us', $defaultDelayUs));
+
+        for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
+            if (self::$testingOrderLookupRetryHook instanceof \Closure) {
+                (self::$testingOrderLookupRetryHook)($attempt, $intentId, $orderId);
+            } elseif ($delayUs > 0) {
+                usleep($delayUs);
+            }
+
+            $order = $lookup();
+            if ($order) {
+                return $order;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Erkennt PaymentIntents aus einer anderen App-Umgebung (z.B. lokaler Testkauf im geteilten Stripe-Testkonto).
+     */
+    private function isForeignEnvironmentMetadata(?object $metadata): bool
+    {
+        if (!$metadata) {
+            return false;
+        }
+
+        $metaAppEnv = trim((string) ($metadata->app_env ?? ''));
+        $currentAppEnv = trim((string) config('app.env', ''));
+        if ($metaAppEnv !== '' && $currentAppEnv !== '' && strcasecmp($metaAppEnv, $currentAppEnv) !== 0) {
+            return true;
+        }
+
+        $metaAppUrl = rtrim(strtolower(trim((string) ($metadata->app_url ?? ''))), '/');
+        $currentAppUrl = rtrim(strtolower(trim((string) config('app.url', ''))), '/');
+        if ($metaAppUrl !== '' && $currentAppUrl !== '' && $metaAppUrl !== $currentAppUrl) {
+            return true;
+        }
+
+        return false;
     }
 }

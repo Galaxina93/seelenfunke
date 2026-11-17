@@ -155,6 +155,8 @@ class CustomerGamificationSecurityTest extends TestCase
         ]);
 
         Livewire::test(CustomerDashboardComponent::class)
+            ->assertSee('Ins Funkenreich')
+            ->assertDontSee('3D-Lobby öffnen')
             ->call('redeemFunkenVoucher', 'invalid_tier')
             ->call('redeemFunkenVoucher', 'voucher_5'); // requires 250
 

@@ -156,17 +156,42 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringContainsString('Echten Vornamen nutzen', $html);
         $this->assertStringContainsString('Steuerung', $html);
         $this->assertStringContainsString('sf-ability-combo-badge', $html);
+        $this->assertStringContainsString('data-testid="lobby-gold-crest-bar"', $html);
+        $this->assertStringContainsString('&copy; Mein-Seelenfunke', $html);
         $this->assertStringContainsString('data-testid="louvre-abilities-dock"', $html);
-        $this->assertStringNotContainsString("x-show=\"!isLoading && loadError === '' && focusedProduct === null\"\n                         @pointerdown.stop\n                         data-testid=\"louvre-abilities-dock\"", $html);
         $this->assertStringContainsString('data-testid="ability-slot-1-btn"', $html);
         $this->assertStringContainsString('data-testid="ability-slot-2-btn"', $html);
         $this->assertStringContainsString('data-testid="ability-slot-3-btn"', $html);
         $this->assertStringContainsString('data-testid="ability-slot-4-btn"', $html);
-        // Mobile UI: Steuerknüppel am Desktop ausgeblendet, mobil sichtbar & Fähigkeiten direkt daneben
+        $this->assertStringContainsString('data-testid="ability-slot-5-btn"', $html);
+        $this->assertStringContainsString('Funken-Hieb', $html);
+        $this->assertStringContainsString('Licht-Sprint', $html);
+        $this->assertStringContainsString('Aufwind-Impuls', $html);
+        $this->assertStringContainsString('Aegis-Schild', $html);
+        $this->assertStringContainsString('Seelen-Nova', $html);
+        $this->assertStringContainsString('sf-ability-tooltip', $html);
+        $this->assertStringContainsString('sf-ability-svg', $html);
+        $this->assertStringNotContainsString('data-testid="louvre-jump-btn"', $html);
+        $this->assertStringNotContainsString('data-testid="louvre-weapon-btn"', $html);
+
+        // Blauer Mana-Balken mit explizitem Label "Mana", 180px Minimap, 2-Zeilen Edel-Exponat-Modal + Übergangsanimation & Kontextmenü-Schutz
+        $this->assertStringContainsString('sf-lobby-unit-mana-label', $html);
+        $this->assertStringContainsString('>Mana<', $html);
+        $this->assertStringContainsString('linear-gradient(90deg, #1d4ed8 0%, #38bdf8 100%)', $html);
+        $this->assertStringContainsString('width="180" height="180"', $html);
+        $this->assertStringContainsString('width: 180px;', $html);
+        $this->assertStringContainsString('sf-lobby-prod-row1', $html);
+        $this->assertStringContainsString('sf-lobby-prod-price-badge', $html);
+        $this->assertStringContainsString('sf-lobby-prod-summary', $html);
+        $this->assertStringContainsString('-webkit-line-clamp: 2;', $html);
+        $this->assertStringContainsString('sf-lobby-ivory-transition', $html);
+        $this->assertStringContainsString('launchProductTransition', $html);
+        $this->assertStringContainsString('@contextmenu.prevent', $html);
+
+        // Mobile UI: Steuerknüppel am Desktop ausgeblendet, mobil sichtbar & Fähigkeiten fließend in der goldenen Zierleiste
         $this->assertStringContainsString('.sf-lobby-stick-wrap { display: none;', $html);
         $this->assertStringContainsString('@media (max-width: 900px), (pointer: coarse)', $html);
-        $this->assertStringContainsString('.sf-lobby-abilities-dock { bottom: 88px; left: 94px;', $html);
-        $this->assertStringContainsString('grid-template-columns: repeat(2, 36px)', $html);
+        $this->assertStringContainsString('.sf-lobby-gold-crest-bar', $html);
         $this->assertStringContainsString('data-testid="louvre-chat-toggle-btn"', $html);
         $this->assertStringContainsString('data-testid="louvre-room-chat-panel"', $html);
         $this->assertStringContainsString('/dance', $html);
@@ -176,7 +201,7 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringNotContainsString('this._engine', $html);
         $this->assertStringContainsString('startLobbyMusicFromGesture', $html);
         $this->assertStringContainsString('setBgmVolume', $html);
-        $this->assertStringContainsString("import('/js/seelenfunke-louvre-showroom-3d.js?v=20261117v4')", $html);
+        $this->assertStringContainsString("import('/js/seelenfunke-louvre-showroom-3d.js?v=20261117v5')", $html);
         $this->assertStringNotContainsString('openCurrentExhibitDrawer', $html);
         $this->assertStringNotContainsString('lightboxOpen', $html);
 
@@ -301,12 +326,26 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringContainsString('thrusterFlameL', $js);
         $this->assertStringContainsString('bothMouseWalk', $js);
         $this->assertStringContainsString('clickMoveRing', $js);
-        $this->assertStringContainsString('sf_lobby_keybindings_v2', $js);
-        $this->assertStringContainsString("sprint: 'Digit1'", $js);
-        $this->assertStringContainsString("titanJump: 'Digit2'", $js);
-        $this->assertStringContainsString("shield: 'Digit3'", $js);
-        $this->assertStringContainsString("burst: 'Digit4'", $js);
-        $this->assertStringContainsString("strike: 'KeyG'", $js);
+        $this->assertStringContainsString('sf_lobby_keybindings_v3', $js);
+        $this->assertStringContainsString("strike: 'Digit1'", $js);
+        $this->assertStringContainsString("sprint: 'Digit2'", $js);
+        $this->assertStringContainsString("titanJump: 'Digit3'", $js);
+        $this->assertStringContainsString("shield: 'Digit4'", $js);
+        $this->assertStringContainsString("burst: 'Digit5'", $js);
+        $this->assertStringContainsString('LOBBY_ABILITY_DEFINITIONS', $js);
+        $this->assertStringContainsString('getLobbyAbilitySvgMarkup', $js);
+        $this->assertStringContainsString('proceduralExoMeshes', $js);
+        $this->assertStringContainsString('u >= 0.58', $js);
+        $this->assertStringContainsString('? (this.player.somersaultProgress * TWO_PI)', $js);
+        $this->assertStringNotContainsString('? -(this.player.somersaultProgress * TWO_PI)', $js);
+        $this->assertStringContainsString('_shatterAegisShield', $js);
+        $this->assertStringContainsString('this.player.vy = 14.5;', $js);
+        $this->assertStringContainsString('lavaShockRings', $js);
+        $this->assertStringContainsString('addShockRingEmitter', $js);
+        $this->assertStringContainsString('addSideBasaltColumn', $js);
+        $this->assertStringContainsString('freePedestalCrests', $js);
+        $this->assertStringContainsString('refreshHeroesData', $js);
+        $this->assertStringContainsString('startExhibitTransition', $js);
         $this->assertStringContainsString('triggerComboStrike', $js);
         $this->assertStringContainsString('_spawnComboStage2Burst', $js);
         $this->assertStringContainsString('_spawnComboStage3WhirlBurst', $js);
@@ -373,7 +412,7 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringContainsString('requestFullscreen', $hostJs);
         $this->assertStringContainsString('exitFullscreen', $hostJs);
         $this->assertStringContainsString("window.addEventListener('keydown', this._boundKeydown, true)", $hostJs);
-        $this->assertStringContainsString('/js/seelenfunke-louvre-showroom-3d.js?v=20261117v4', $hostJs);
+        $this->assertStringContainsString('/js/seelenfunke-louvre-showroom-3d.js?v=20261117v5', $hostJs);
         $this->assertStringContainsString('_startLobbyMusicFromGestureSync', $hostJs);
         $this->assertStringContainsString('setBgmVolume', $hostJs);
         $this->assertStringContainsString('data-testid="lobby-current-zone-badge"', $hostJs);
@@ -393,6 +432,7 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringContainsString('data-testid="lobby-minimap"', $hostJs);
         $this->assertStringContainsString('handleSanctumHttpResponse', $hostJs);
         $this->assertStringContainsString('_handleZoneSyncTransition', $hostJs);
+        $this->assertStringContainsString('refreshHeroesData', $hostJs);
         $this->assertStringContainsString("this.currentZone === 'heroes' && this.lobbyAuth && !this.soloMode", $hostJs);
         $this->assertStringContainsString('data-testid="louvre-settings-btn"', $hostJs);
         $this->assertStringContainsString('data-testid="lobby-settings-modal"', $hostJs);
@@ -400,11 +440,20 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringContainsString('data-testid="lobby-camera-sensitivity-slider"', $hostJs);
         $this->assertStringContainsString('data-testid="lobby-use-real-name-checkbox"', $hostJs);
         $this->assertStringContainsString('data-testid="lobby-lava-chest-card"', $hostJs);
+        $this->assertStringContainsString('data-testid="lobby-gold-crest-bar"', $hostJs);
+        $this->assertStringContainsString('© Mein-Seelenfunke', $hostJs);
         $this->assertStringContainsString('data-testid="louvre-abilities-dock"', $hostJs);
         $this->assertStringContainsString('data-testid="ability-slot-1-btn"', $hostJs);
         $this->assertStringContainsString('data-testid="ability-slot-2-btn"', $hostJs);
         $this->assertStringContainsString('data-testid="ability-slot-3-btn"', $hostJs);
         $this->assertStringContainsString('data-testid="ability-slot-4-btn"', $hostJs);
+        $this->assertStringContainsString('data-testid="ability-slot-5-btn"', $hostJs);
+        $this->assertStringContainsString('sf-ability-tooltip', $hostJs);
+        $this->assertStringContainsString('sf-lobby-prod-row1', $hostJs);
+        $this->assertStringContainsString('sf-lobby-prod-summary', $hostJs);
+        $this->assertStringContainsString('_startProductTransition', $hostJs);
+        $this->assertStringNotContainsString('data-lobby-jump', $hostJs);
+        $this->assertStringNotContainsString('data-lobby-strike', $hostJs);
         $this->assertStringContainsString('privateFacadeMap', $hostJs);
         $this->assertStringContainsString('Object.freeze({', $hostJs);
         $this->assertStringNotContainsString('this._engine', $hostJs);
@@ -670,6 +719,9 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringContainsString('playComboStrike', $audioJs);
         $this->assertStringContainsString('playComboFinisherImpact', $audioJs);
         $this->assertStringContainsString('playChestOpenFanfare', $audioJs);
+        $this->assertStringContainsString('playShieldShatter', $audioJs);
+        $this->assertStringContainsString('playShockRingHit', $audioJs);
+        $this->assertStringContainsString('playProductTransition', $audioJs);
         $this->assertStringContainsString('updateLavaAmbience', $audioJs);
         $this->assertStringNotContainsString('https://', $audioJs);
         $this->assertStringNotContainsString(' ' . "\u{2013}" . ' ', $audioJs);

@@ -24,6 +24,7 @@ class LobbyInstanceService
     public const MIN_SYNC_TELEPORT_STEP = 14.0;
     public const MAX_SPEED_WITH_MARGIN = 13.5;
     public const EXTREME_COORD_THRESHOLD = 500.0;
+    public const MAGMA_PRESTIGE_MULTIPLIER = 15;
 
     /**
      * Solo-Zonen: Jeder Besucher ist hier komplett alleine unterwegs (belegt keinen Instanz-Slot).
@@ -981,6 +982,276 @@ class LobbyInstanceService
         );
 
         return preg_replace('/\s+/u', ' ', $clean) ?? $clean;
+    }
+
+    /**
+     * Zentrale, deterministische Bewertungsformel fuer die 3D- und 2D-Halle der Helden:
+     * - magma_cleared_levels: gemeisterte Magma-Raeume (1..10 aus titles_progress['lava_cleared_levels'])
+     * - magma_highest_level: hoechste gemeisterte Magma-Stufe (0..10)
+     * - magma_cleared_count: Anzahl gemeisterter Magma-Raeume (0..10)
+     * - magma_prestige_points: Summe ueber gemeisterte Stufen L von (L * 15), max. +825 Punkte
+     * - hero_score = funken_total_earned + magma_prestige_points
+     *
+     * @return array{
+     *     sparks_total: int,
+     *     level: int,
+     *     magma_cleared_levels: array<int, int>,
+     *     magma_highest_level: int,
+     *     magma_cleared_count: int,
+     *     magma_prestige_points: int,
+     *     hero_score: int
+     * }
+     */
+    public static function calculateHeroRankingMetrics(?CustomerGamification $profile): array
+    {
+        $sparksTotal = $profile !== null ? max(0, (int) ($profile->funken_total_earned ?? 0)) : 0;
+        $resolvedLevel = $profile !== null
+            ? min(GameConfig::MAX_LEVEL, max(1, (int) ($profile->level ?: GameConfig::getLevelForLifetimeSparks($sparksTotal))))
+            : 1;
+
+        $progress = ($profile !== null && is_array($profile->titles_progress))
+            ? $profile->titles_progress
+            : [];
+
+        $rawCleared = $progress['lava_cleared_levels'] ?? [];
+        $validLevels = [];
+        if (is_array($rawCleared)) {
+            foreach ($rawCleared as $val) {
+                if (is_int($val) || (is_string($val) && ctype_digit($val))) {
+                    $lvl = (int) $val;
+                    if ($lvl >= 1 && $lvl <= LavaParkourService::MAX_MAGMA_LEVEL) {
+                        $validLevels[$lvl] = $lvl;
+                    }
+                }
+            }
+        }
+        ksort($validLevels, SORT_NUMERIC);
+        $clearedLevels = array_values($validLevels);
+
+        $magmaHighestLevel = !empty($clearedLevels) ? max($clearedLevels) : 0;
+        $magmaClearedCount = count($clearedLevels);
+        $magmaPrestigePoints = 0;
+        foreach ($clearedLevels as $lvl) {
+            $magmaPrestigePoints += $lvl * self::MAGMA_PRESTIGE_MULTIPLIER;
+        }
+
+        return [
+            'sparks_total' => $sparksTotal,
+            'level' => $resolvedLevel,
+            'magma_cleared_levels' => $clearedLevels,
+            'magma_highest_level' => $magmaHighestLevel,
+            'magma_cleared_count' => $magmaClearedCount,
+            'magma_prestige_points' => $magmaPrestigePoints,
+            'hero_score' => $sparksTotal + $magmaPrestigePoints,
+        ];
+    }
+
+    /**
+     * Laedt und sortiert alle berechtigten aktiven Seelenfunken-Teilnehmer identisch fuer die
+     * 3D-Halle der Helden (/funkenwerk-welt/heroes-data) und die 2D-Rangliste:
+     * - is_active = true + gueltiger Customer
+     * - mindestens 1 bezahlte Bestellung ODER funken_total_earned > 0 ODER gemeistertes Magma-Level
+     * - Sortierung: hero_score DESC -> magma_highest_level DESC -> funken_total_earned DESC -> level DESC -> updated_at ASC -> id ASC
+     *
+     * @return array<int, array{
+     *     profile: CustomerGamification,
+     *     metrics: array{
+     *         sparks_total: int,
+     *         level: int,
+     *         magma_cleared_levels: array<int, int>,
+     *         magma_highest_level: int,
+     *         magma_cleared_count: int,
+     *         magma_prestige_points: int,
+     *         hero_score: int
+     *     }
+     * }>
+     */
+    public static function loadRankedHeroEntries(int $limit = 500): array
+    {
+        if (!Schema::hasTable('customer_gamifications')) {
+            return [];
+        }
+
+        $relations = ['customer:id,first_name,last_name,email,created_at'];
+        if (Schema::hasTable('customer_profiles')) {
+            $relations[] = 'customer.profile:id,customer_id,photo_path';
+        }
+
+        $profiles = CustomerGamification::with($relations)
+            ->where('is_active', true)
+            ->whereHas('customer')
+            ->get();
+
+        if ($profiles->isEmpty()) {
+            return [];
+        }
+
+        $preliminary = [];
+        $zeroActivityCustomerIds = [];
+
+        foreach ($profiles as $profile) {
+            if (!$profile->customer) {
+                continue;
+            }
+            $metrics = self::calculateHeroRankingMetrics($profile);
+            if ($metrics['sparks_total'] <= 0 && $metrics['magma_cleared_count'] <= 0) {
+                $zeroActivityCustomerIds[] = (string) $profile->customer_id;
+            }
+            $preliminary[] = [
+                'profile' => $profile,
+                'metrics' => $metrics,
+            ];
+        }
+
+        $paidOrderCustomerLookup = [];
+        if (!empty($zeroActivityCustomerIds) && Schema::hasTable('order_orders')) {
+            $paidIds = OrderOrder::whereIn('customer_id', array_values(array_unique($zeroActivityCustomerIds)))
+                ->where('payment_status', 'paid')
+                ->whereNotIn('status', ['cancelled', 'refunded'])
+                ->pluck('customer_id')
+                ->all();
+
+            foreach ($paidIds as $cid) {
+                $paidOrderCustomerLookup[(string) $cid] = true;
+            }
+        }
+
+        $entries = [];
+        foreach ($preliminary as $row) {
+            $metrics = $row['metrics'];
+            $cid = (string) $row['profile']->customer_id;
+            $isEligible = $metrics['sparks_total'] > 0
+                || $metrics['magma_cleared_count'] > 0
+                || isset($paidOrderCustomerLookup[$cid]);
+
+            if ($isEligible) {
+                $entries[] = $row;
+            }
+        }
+
+        usort($entries, static function (array $a, array $b): int {
+            $ma = $a['metrics'];
+            $mb = $b['metrics'];
+
+            if ($ma['hero_score'] !== $mb['hero_score']) {
+                return $mb['hero_score'] <=> $ma['hero_score'];
+            }
+            if ($ma['magma_highest_level'] !== $mb['magma_highest_level']) {
+                return $mb['magma_highest_level'] <=> $ma['magma_highest_level'];
+            }
+            if ($ma['sparks_total'] !== $mb['sparks_total']) {
+                return $mb['sparks_total'] <=> $ma['sparks_total'];
+            }
+
+            $lvlA = (int) ($a['profile']->level ?: $ma['level']);
+            $lvlB = (int) ($b['profile']->level ?: $mb['level']);
+            if ($lvlA !== $lvlB) {
+                return $lvlB <=> $lvlA;
+            }
+
+            $tsA = $a['profile']->updated_at ? $a['profile']->updated_at->getTimestamp() : 0;
+            $tsB = $b['profile']->updated_at ? $b['profile']->updated_at->getTimestamp() : 0;
+            if ($tsA !== $tsB) {
+                return $tsA <=> $tsB;
+            }
+
+            return strcmp((string) $a['profile']->id, (string) $b['profile']->id);
+        });
+
+        if ($limit > 0 && count($entries) > $limit) {
+            return array_slice($entries, 0, $limit);
+        }
+
+        return $entries;
+    }
+
+    /**
+     * DSGVO-saubere Namensanzeige ohne leere Ehrenplaetze (Baustein 8):
+     * 1. ranking_opt_in = true: gewaehlter player_name bzw. Vorname + Initial (niemals voller Nachname / E-Mail).
+     * 2. ranking_opt_in = false + gesetzter player_name (Pseudonym, 0 Klardaten): zeige player_name.
+     * 3. ranking_opt_in = false + kein player_name:
+     *    - fuer den eingeloggten Spieler selbst ($isMe === true): eigener Vorname (z. B. "Alina")
+     *    - fuer alle anderen Besucher ($isMe === false): anonymes Ehren-Pseudonym "Funken-Hüter #<Rang>"
+     */
+    public static function resolveHallOfHeroesDisplayName(
+        ?Customer $customer,
+        ?CustomerGamification $profile,
+        int $rankSlot,
+        bool $isMe = false,
+        ?GamificationService $gameService = null
+    ): string {
+        $safeSlot = max(1, $rankSlot);
+        $guardianFallback = 'Funken-Hüter #' . $safeSlot;
+
+        if ($customer === null || $profile === null) {
+            return $guardianFallback;
+        }
+
+        if ((bool) $profile->ranking_opt_in) {
+            if ((bool) $profile->use_real_name) {
+                $service = $gameService ?? app(GamificationService::class);
+                $publicReal = self::cleanZeroDashText($service->resolvePublicDisplayName($customer, $profile));
+                if ($publicReal !== '' && !str_contains($publicReal, '@') && !self::containsFullLastName($publicReal, $customer)) {
+                    return mb_substr($publicReal, 0, 28);
+                }
+
+                return $isMe ? self::sanitizeOwnFirstName($customer, $safeSlot) : $guardianFallback;
+            }
+
+            $optInPseudo = self::sanitizePublicPseudonym($customer, (string) ($profile->player_name ?? ''));
+            if ($optInPseudo !== null) {
+                return $optInPseudo;
+            }
+
+            return $isMe ? self::sanitizeOwnFirstName($customer, $safeSlot) : $guardianFallback;
+        }
+
+        $pseudonym = self::sanitizePublicPseudonym($customer, (string) ($profile->player_name ?? ''));
+        if ($pseudonym !== null) {
+            return $pseudonym;
+        }
+
+        if ($isMe) {
+            return self::sanitizeOwnFirstName($customer, $safeSlot);
+        }
+
+        return $guardianFallback;
+    }
+
+    private static function sanitizePublicPseudonym(Customer $customer, string $rawPseudonym): ?string
+    {
+        $clean = self::cleanZeroDashText($rawPseudonym);
+        if ($clean === '' || str_contains($clean, '@')) {
+            return null;
+        }
+
+        if (self::containsFullLastName($clean, $customer)) {
+            return null;
+        }
+
+        return mb_substr($clean, 0, 28);
+    }
+
+    private static function sanitizeOwnFirstName(Customer $customer, int $rankSlot): string
+    {
+        $first = self::cleanZeroDashText((string) ($customer->first_name ?? ''));
+        if ($first === '' || str_contains($first, '@') || self::containsFullLastName($first, $customer)) {
+            return 'Funken-Hüter #' . max(1, $rankSlot);
+        }
+
+        return mb_substr($first, 0, 28);
+    }
+
+    private static function containsFullLastName(string $candidate, Customer $customer): bool
+    {
+        $lastNameLower = mb_strtolower(trim((string) ($customer->last_name ?? '')), 'UTF-8');
+        $firstNameLower = mb_strtolower(trim((string) ($customer->first_name ?? '')), 'UTF-8');
+
+        if ($lastNameLower === '' || mb_strlen($lastNameLower) < 3 || $lastNameLower === $firstNameLower) {
+            return false;
+        }
+
+        return str_contains(mb_strtolower($candidate, 'UTF-8'), $lastNameLower);
     }
 
     /**

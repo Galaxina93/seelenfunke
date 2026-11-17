@@ -7,6 +7,7 @@ use App\Models\Marketing\MarketingGiftVoucher;
 use App\Models\Order\OrderOrder;
 use App\Services\Gamification\GameConfig;
 use App\Services\Gamification\GamificationService;
+use App\Services\Gamification\LobbyInstanceService;
 use App\Services\ReferralService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -30,6 +31,7 @@ class CustomerDashboardComponent extends Component
     public bool $hasActivatedGamification = false;
 
     public bool $acceptTerms = false;
+    public bool $optInPublicNameOnActivate = false;
     #[Locked]
     public $activeGiftVouchers = [];
 
@@ -45,7 +47,7 @@ class CustomerDashboardComponent extends Component
     #[Locked]
     public int $totalReferralEarnedCents = 0;
 
-    // Seelenfunken-Treueprogramm & Funki (Level 1-10) – serverseitig gesperrt gegen Manipulation
+    // Seelenfunken-Treueprogramm & Funki (Level 1-10) · serverseitig gesperrt gegen Manipulation
     #[Locked]
     public int $funkiLevel = 1;
 
@@ -57,6 +59,12 @@ class CustomerDashboardComponent extends Component
 
     #[Locked]
     public int $funkenTotalEarned = 0;
+
+    #[Locked]
+    public int $heroScore = 0;
+
+    #[Locked]
+    public int $magmaHighestLevel = 0;
 
     #[Locked]
     public int $progressPercentage = 0;
@@ -171,7 +179,16 @@ class CustomerDashboardComponent extends Component
         $this->acceptTerms = true;
         $profile = $gameService->getProfile($user);
         $wasActive = (bool) $profile->is_active;
+        $oldOptIn = (bool) $profile->ranking_opt_in;
+        $oldUseReal = (bool) $profile->use_real_name;
         $profile->is_active = true;
+
+        if ($this->optInPublicNameOnActivate) {
+            $profile->ranking_opt_in = true;
+            if (trim((string) ($profile->player_name ?? '')) === '') {
+                $profile->use_real_name = true;
+            }
+        }
 
         $progress = is_array($profile->titles_progress) ? $profile->titles_progress : [];
         $progress['_audio_muted'] = true;
@@ -181,10 +198,18 @@ class CustomerDashboardComponent extends Component
         $gameService->syncLevelFromLifetimeSparks($profile);
         $profile->save();
 
+        $loggedChanges = [];
         if (!$wasActive) {
-            $gameService->recordUserProfileChangeLog($user, [
-                'gamification_active' => ['old' => false, 'new' => true],
-            ], 'Kunde (im Frontend)');
+            $loggedChanges['gamification_active'] = ['old' => false, 'new' => true];
+        }
+        if ($oldOptIn !== (bool) $profile->ranking_opt_in) {
+            $loggedChanges['ranking_opt_in'] = ['old' => $oldOptIn, 'new' => (bool) $profile->ranking_opt_in];
+        }
+        if ($oldUseReal !== (bool) $profile->use_real_name) {
+            $loggedChanges['use_real_name'] = ['old' => $oldUseReal, 'new' => (bool) $profile->use_real_name];
+        }
+        if (!empty($loggedChanges)) {
+            $gameService->recordUserProfileChangeLog($user, $loggedChanges, 'Kunde (im Frontend)');
         }
 
         $gameService->logGamificationEvent(
@@ -233,7 +258,7 @@ class CustomerDashboardComponent extends Component
         $this->dispatch('gamification-mode-changed');
         $this->dispatch('notify', [
             'type'    => 'info',
-            'message' => 'Seelenfunken-Sammeln deaktiviert. Dein bisheriger Fortschritt, dein Funki-Level & deine Funken bleiben 100 % sicher gespeichert – du kannst die Magie jederzeit wieder aktivieren!',
+            'message' => 'Seelenfunken-Sammeln deaktiviert. Dein bisheriger Fortschritt, dein Funki-Level & deine Funken bleiben 100 % sicher gespeichert. Du kannst die Magie jederzeit wieder aktivieren!',
         ]);
     }
 
@@ -518,6 +543,9 @@ class CustomerDashboardComponent extends Component
             $this->hasActivatedGamification = $this->isGameModeActive;
             $this->funkenBalance = max(0, (int) $profile->funken_balance);
             $this->funkenTotalEarned = max(0, (int) $profile->funken_total_earned);
+            $heroMetrics = LobbyInstanceService::calculateHeroRankingMetrics($profile);
+            $this->heroScore = $heroMetrics['hero_score'];
+            $this->magmaHighestLevel = $heroMetrics['magma_highest_level'];
 
             $progressData = GameConfig::getLevelProgressData($this->funkenTotalEarned, (int) ($profile->level ?: 1));
             $this->funkiLevel = (int) $progressData['level'];
@@ -561,6 +589,8 @@ class CustomerDashboardComponent extends Component
             $this->displayFunkiLevel = 1;
             $this->funkenBalance = 0;
             $this->funkenTotalEarned = 0;
+            $this->heroScore = 0;
+            $this->magmaHighestLevel = 0;
             $progressData = GameConfig::getLevelProgressData(0, 1);
             $this->isMaxLevel = false;
             $this->progressPercentage = 0;

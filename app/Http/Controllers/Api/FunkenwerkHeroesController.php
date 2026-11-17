@@ -16,8 +16,12 @@ use Illuminate\Support\Facades\Schema;
 class FunkenwerkHeroesController extends Controller
 {
     /**
-     * DSGVO-konformer Zero-PII Endpunkt für die 3D-Wasserstadt „Funkenwerk“ & „Halle der Helden“.
-     * Liefert ausschließlich aktive Kunden mit ausdrücklichem ranking_opt_in = true.
+     * DSGVO-konformer Zero-PII Endpunkt fuer die 3D-Halle der Helden (/funkenwerk-welt/heroes-data).
+     * Liefert alle berechtigten aktiven Seelenfunken-Teilnehmer deterministisch sortiert nach hero_score
+     * (Lebenszeit-Funken + Magma-Ehrenwertung) und schuetzt Klardaten ohne leere Podeste:
+     * - ranking_opt_in = true: gewaehlter Spielername bzw. Vorname + Initial
+     * - ranking_opt_in = false + player_name: Pseudonym (0 Klardaten)
+     * - ranking_opt_in = false ohne player_name: eigener Vorname nur fuer $isMe, sonst "Funken-Hüter #<Rang>"
      * Gibt NIEMALS E-Mail-Adressen, volle Nachnamen, Adressen, Kunden-UUIDs oder Bestellnummern preis.
      */
     public function index(Request $request, GamificationService $gameService): JsonResponse
@@ -64,51 +68,41 @@ class FunkenwerkHeroesController extends Controller
             ], 200, $this->securityHeaders());
         }
 
-        $query = CustomerGamification::with(['customer:id,first_name,last_name'])
-            ->where('is_active', true)
-            ->where('ranking_opt_in', true)
-            ->whereHas('customer');
-
-        if (Schema::hasColumn('customer_gamifications', 'funken_total_earned')) {
-            $query->orderByDesc('funken_total_earned');
-        }
-
-        $profiles = $query
-            ->orderByDesc('level')
-            ->orderBy('updated_at', 'asc')
-            ->orderBy('id', 'asc')
-            ->limit(500)
-            ->get();
-
+        $rankedEntries = LobbyInstanceService::loadRankedHeroEntries(500);
         $levelTitles = GameConfig::getLevelTitles();
         $heroes = [];
         $myHeroSlot = null;
         $slot = 0;
 
-        foreach ($profiles as $profile) {
+        foreach ($rankedEntries as $entry) {
+            /** @var CustomerGamification $profile */
+            $profile = $entry['profile'];
+            $metrics = $entry['metrics'];
+
             if (!$profile->customer) {
                 continue;
             }
 
             $slot++;
-            $sparksTotal = max(0, (int) ($profile->funken_total_earned ?? 0));
-            $level = min(
-                GameConfig::MAX_LEVEL,
-                max(1, (int) ($profile->level ?: GameConfig::getLevelForLifetimeSparks($sparksTotal)))
-            );
+            $sparksTotal = $metrics['sparks_total'];
+            $level = $metrics['level'];
             $levelCfg = GameConfig::getLevelConfig($level);
-            $modelPath = !empty($levelCfg['model_path']) ? (string) $levelCfg['model_path'] : ('shop/customer/gamification/models/funki_lvl_1_rags.glb');
-
-            $displayName = $this->sanitizeZeroPiiDisplayName(
-                $gameService->resolvePublicDisplayName($profile->customer, $profile),
-                $slot,
-                $profile->customer->last_name
-            );
+            $modelPath = !empty($levelCfg['model_path'])
+                ? (string) $levelCfg['model_path']
+                : 'shop/customer/gamification/models/funki_lvl_1_rags.glb';
 
             $isMe = $loggedInCustomer !== null && (string) $loggedInCustomer->id === (string) $profile->customer_id;
             if ($isMe) {
                 $myHeroSlot = $slot;
             }
+
+            $displayName = LobbyInstanceService::resolveHallOfHeroesDisplayName(
+                $profile->customer,
+                $profile,
+                $slot,
+                $isMe,
+                $gameService
+            );
 
             $rankClass = $this->resolveRankClass($level);
             $shipClass = LobbyInstanceService::resolveShipClassForProfile($profile, $level);
@@ -131,6 +125,11 @@ class FunkenwerkHeroesController extends Controller
                 'sparks' => $sparksTotal,
                 'sparks_total' => $sparksTotal,
                 'sparks_formatted' => number_format($sparksTotal, 0, ',', '.'),
+                'hero_score' => $metrics['hero_score'],
+                'hero_score_formatted' => number_format($metrics['hero_score'], 0, ',', '.'),
+                'magma_highest_level' => $metrics['magma_highest_level'],
+                'magma_cleared_count' => $metrics['magma_cleared_count'],
+                'magma_prestige_points' => $metrics['magma_prestige_points'],
                 'aura' => $aura,
                 'model_url' => asset($modelPath),
                 'is_me' => $isMe,
@@ -183,6 +182,11 @@ class FunkenwerkHeroesController extends Controller
                 'sparks' => 0,
                 'sparks_total' => 0,
                 'sparks_formatted' => '0',
+                'hero_score' => 0,
+                'hero_score_formatted' => '0',
+                'magma_highest_level' => 0,
+                'magma_cleared_count' => 0,
+                'magma_prestige_points' => 0,
                 'aura' => null,
                 'model_url' => null,
                 'is_me' => false,
@@ -190,25 +194,6 @@ class FunkenwerkHeroesController extends Controller
         }
 
         return $heroes;
-    }
-
-    /**
-     * Garantiert 100 % Zero-PII: Keine E-Mail-Adressen, keine Nachnamen, keine langen Klartextdaten.
-     */
-    private function sanitizeZeroPiiDisplayName(string $candidate, int $slot, ?string $rawLastName = null): string
-    {
-        $clean = LobbyInstanceService::cleanZeroDashText($candidate);
-
-        if ($clean === '' || str_contains($clean, '@')) {
-            return 'Funken-Held #' . $slot;
-        }
-
-        $lastNameLower = mb_strtolower(trim((string) $rawLastName), 'UTF-8');
-        if ($lastNameLower !== '' && mb_strlen($lastNameLower) >= 3 && str_contains(mb_strtolower($clean, 'UTF-8'), $lastNameLower)) {
-            return 'Funken-Held #' . $slot;
-        }
-
-        return mb_substr($clean, 0, 28);
     }
 
     private function resolveRankClass(int $level): string

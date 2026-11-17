@@ -758,6 +758,15 @@
         <style id="sf-3d-lobby-scoped-css">
             [x-cloak] { display: none !important; }
             @keyframes sfLobbySpin { to { transform: rotate(360deg); } }
+            .sf-lobby-modal, .sf-lobby-modal * {
+                user-select: none !important;
+                -webkit-user-select: none !important;
+                -webkit-touch-callout: none !important;
+            }
+            .sf-lobby-modal input, .sf-lobby-modal textarea {
+                user-select: text !important;
+                -webkit-user-select: text !important;
+            }
             .sf-lobby-modal {
                 position: fixed !important;
                 top: 0 !important;
@@ -774,8 +783,6 @@
                 margin: 0 !important;
                 padding: 0 !important;
                 box-sizing: border-box !important;
-                user-select: none !important;
-                -webkit-user-select: none !important;
                 font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
                 color: #111827;
             }
@@ -786,11 +793,11 @@
                 top: 0;
                 left: 0;
                 right: 0;
-                padding: 14px 20px;
+                padding: 12px 18px;
                 display: flex;
                 align-items: center;
                 justify-content: space-between;
-                gap: 12px;
+                gap: 10px;
                 flex-wrap: wrap;
                 pointer-events: none;
                 z-index: 30;
@@ -798,10 +805,10 @@
             }
             .sf-lobby-nav-pill {
                 pointer-events: auto;
-                background: rgba(255, 255, 255, 0.94);
-                border: 1px solid rgba(197, 160, 89, 0.42);
+                background: rgba(255, 255, 255, 0.95);
+                border: 1px solid rgba(197, 160, 89, 0.45);
                 border-radius: 999px;
-                padding: 5px;
+                padding: 4px;
                 box-shadow: 0 8px 24px rgba(17, 24, 39, 0.08);
                 display: inline-flex;
                 align-items: center;
@@ -814,11 +821,11 @@
                 display: inline-flex;
                 align-items: center;
                 gap: 6px;
-                padding: 6px 14px;
+                padding: 6px 13px;
                 border-radius: 999px;
                 background: #FAF8F5;
                 color: #111827;
-                border: 1px solid rgba(197, 160, 89, 0.38);
+                border: 1px solid rgba(197, 160, 89, 0.40);
                 font-size: 12px;
                 font-weight: 800;
                 line-height: 1.2;
@@ -848,16 +855,16 @@
                 pointer-events: auto;
                 display: inline-flex;
                 align-items: center;
-                gap: 8px;
+                gap: 7px;
                 flex-wrap: wrap;
             }
             .sf-lobby-pill-btn {
                 appearance: none;
-                background: rgba(255, 255, 255, 0.94);
+                background: rgba(255, 255, 255, 0.95);
                 color: #111827;
                 border: 1px solid rgba(197, 160, 89, 0.48);
                 border-radius: 999px;
-                padding: 7px 13px;
+                padding: 7px 12px;
                 font-size: 12px;
                 font-weight: 800;
                 line-height: 1.2;
@@ -1009,6 +1016,19 @@
                 touch-action: none;
                 cursor: grab;
             }
+            .sf-lobby-ivory-transition {
+                position: absolute;
+                inset: 0;
+                z-index: 44;
+                pointer-events: none;
+                opacity: 0;
+                background: radial-gradient(circle at 50% 45%, rgba(255, 252, 244, 0.92) 0%, rgba(250, 245, 232, 0.98) 58%, rgba(235, 214, 170, 0.99) 100%);
+                transition: opacity 540ms cubic-bezier(0.22, 1, 0.36, 1);
+            }
+            .sf-lobby-ivory-transition.is-fading {
+                opacity: 1;
+                pointer-events: auto;
+            }
             .sf-lobby-loading {
                 position: absolute;
                 inset: 0;
@@ -1061,13 +1081,13 @@
             }
             .sf-lobby-floating-card {
                 position: relative;
-                width: 276px;
+                width: 296px;
                 max-width: calc(100vw - 24px);
-                background: rgba(255, 255, 255, 0.96);
-                border: 1px solid rgba(197, 160, 89, 0.55);
-                border-radius: 16px;
-                padding: 14px 16px;
-                box-shadow: 0 14px 34px rgba(17, 24, 39, 0.12);
+                background: rgba(255, 255, 255, 0.98);
+                border: 1px solid rgba(197, 160, 89, 0.62);
+                border-radius: 18px;
+                padding: 14px 16px 12px;
+                box-shadow: 0 16px 38px rgba(17, 24, 39, 0.12), 0 0 0 1px rgba(255, 255, 255, 0.7) inset;
                 color: #111827;
                 pointer-events: auto;
                 box-sizing: border-box;
@@ -1075,79 +1095,79 @@
             .sf-lobby-floating-arrow {
                 width: 12px;
                 height: 12px;
-                background: rgba(255, 255, 255, 0.96);
-                border-right: 1px solid rgba(197, 160, 89, 0.55);
-                border-bottom: 1px solid rgba(197, 160, 89, 0.55);
+                background: rgba(255, 255, 255, 0.98);
+                border-right: 1px solid rgba(197, 160, 89, 0.62);
+                border-bottom: 1px solid rgba(197, 160, 89, 0.62);
                 transform: rotate(45deg);
                 margin: -6px auto 0;
                 pointer-events: none;
             }
-            .sf-lobby-prod-head { display: flex; align-items: flex-start; gap: 10px; }
-            .sf-lobby-prod-thumb {
-                width: 46px;
-                height: 46px;
-                border-radius: 12px;
-                object-fit: cover;
-                background: #FAF8F5;
-                border: 1px solid rgba(197, 160, 89, 0.35);
-                flex-shrink: 0;
-            }
-            .sf-lobby-prod-cat {
-                display: block;
-                font-size: 10px;
-                font-weight: 800;
-                letter-spacing: 0.14em;
-                text-transform: uppercase;
-                color: #9A7738;
-                overflow: hidden;
-                text-overflow: ellipsis;
-                white-space: nowrap;
+            .sf-lobby-prod-row1 {
+                display: flex;
+                align-items: baseline;
+                justify-content: space-between;
+                gap: 10px;
             }
             .sf-lobby-prod-title {
-                margin: 2px 0 0;
+                margin: 0;
                 font-family: Georgia, "Times New Roman", serif;
                 font-size: 15px;
                 font-weight: 700;
-                line-height: 1.28;
+                line-height: 1.24;
                 color: #111827;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+                flex: 1 1 auto;
+                min-width: 0;
             }
-            .sf-lobby-prod-price { display: inline-block; margin-top: 3px; font-size: 13px; font-weight: 800; color: #111827; }
-            .sf-lobby-prod-benefits {
-                margin-top: 10px;
-                padding-top: 10px;
-                border-top: 1px solid rgba(197, 160, 89, 0.25);
-                display: flex;
-                flex-direction: column;
-                gap: 5px;
+            .sf-lobby-prod-price-badge {
+                flex-shrink: 0;
+                display: inline-flex;
+                align-items: center;
+                padding: 2px 9px;
+                border-radius: 999px;
+                background: #FAF6EE;
+                border: 1px solid rgba(197, 160, 89, 0.52);
+                font-size: 11.5px;
+                font-weight: 800;
+                color: #8A692C;
+                white-space: nowrap;
             }
-            .sf-lobby-prod-benefit-row {
-                display: flex;
-                align-items: flex-start;
-                gap: 6px;
-                font-size: 11px;
-                font-weight: 700;
-                line-height: 1.3;
-                color: #111827;
+            .sf-lobby-prod-summary {
+                margin: 6px 0 0;
+                font-size: 11.5px;
+                font-weight: 500;
+                line-height: 1.38;
+                color: #4B5563;
+                display: -webkit-box;
+                -webkit-line-clamp: 2;
+                -webkit-box-orient: vertical;
+                overflow: hidden;
             }
-            .sf-lobby-prod-check { color: #C5A059; font-weight: 900; flex-shrink: 0; }
             .sf-lobby-prod-cta {
+                appearance: none;
                 margin-top: 11px;
                 width: 100%;
                 padding: 9px 14px;
-                border-radius: 12px;
+                border-radius: 999px;
+                border: 1px solid #B89146;
                 background: #C5A059;
-                color: #FFFFFF;
+                color: #FFFFFF !important;
                 font-size: 12px;
                 font-weight: 800;
-                text-decoration: none;
+                letter-spacing: 0.02em;
+                text-decoration: none !important;
                 display: flex;
                 align-items: center;
                 justify-content: center;
                 gap: 6px;
                 box-sizing: border-box;
-                transition: background-color 150ms ease;
+                cursor: pointer;
+                box-shadow: 0 6px 16px rgba(197, 160, 89, 0.28);
+                transition: background-color 150ms ease, transform 130ms ease;
             }
-            .sf-lobby-prod-cta:hover { background: #B38E46; }
+            .sf-lobby-prod-cta:hover { background: #B38E46; transform: translateY(-1px); }
             .sf-lobby-hero-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
             .sf-lobby-hero-rank {
                 padding: 3px 9px;
@@ -1203,7 +1223,7 @@
                 gap: 8px;
                 padding: 10px 18px;
                 border-radius: 999px;
-                background: rgba(255, 255, 255, 0.96);
+                background: rgba(255, 255, 255, 0.97);
                 color: #111827;
                 border: 1px solid #C5A059;
                 box-shadow: 0 14px 32px rgba(17, 24, 39, 0.14);
@@ -1214,12 +1234,12 @@
             }
             .sf-lobby-chat-panel {
                 position: absolute;
-                bottom: 84px;
+                bottom: calc(74px + env(safe-area-inset-bottom, 0px));
                 right: 20px;
-                z-index: 24;
+                z-index: 28;
                 width: 304px;
                 max-width: calc(100vw - 24px);
-                background: rgba(255, 255, 255, 0.96);
+                background: rgba(255, 255, 255, 0.97);
                 color: #111827;
                 border: 1px solid rgba(197, 160, 89, 0.55);
                 border-radius: 16px;
@@ -1254,12 +1274,8 @@
                 font-size: 11px;
                 color: #111827;
             }
-            .sf-lobby-chat-panel.is-expanded {
-                width: 440px;
-            }
-            .sf-lobby-chat-panel.is-expanded .sf-lobby-chat-scroll {
-                max-height: 280px;
-            }
+            .sf-lobby-chat-panel.is-expanded { width: 440px; }
+            .sf-lobby-chat-panel.is-expanded .sf-lobby-chat-scroll { max-height: 280px; }
             .sf-lobby-friends-scroll {
                 max-height: 156px;
                 overflow-y: auto;
@@ -1268,9 +1284,7 @@
                 gap: 5px;
                 padding-right: 2px;
             }
-            .sf-lobby-chat-panel.is-expanded .sf-lobby-friends-scroll {
-                max-height: 280px;
-            }
+            .sf-lobby-chat-panel.is-expanded .sf-lobby-friends-scroll { max-height: 280px; }
             .sf-emote-chip {
                 appearance: none;
                 border-radius: 6px;
@@ -1289,15 +1303,51 @@
                 color: #111827;
                 background: #FFFFFF;
             }
-            .sf-lobby-abilities-dock {
+            .sf-lobby-gold-crest-bar {
                 position: absolute;
-                bottom: 78px;
-                left: 50%;
-                transform: translateX(-50%);
+                left: 0;
+                right: 0;
+                bottom: 0;
+                min-height: 62px;
+                padding: 6px 20px calc(8px + env(safe-area-inset-bottom, 0px));
+                background: linear-gradient(180deg, rgba(250, 248, 245, 0.88) 0%, rgba(255, 255, 255, 0.98) 38%, #FAF6EE 100%);
+                border-top: 2px solid #C5A059;
+                box-shadow: 0 -8px 28px rgba(17, 24, 39, 0.09), 0 1px 0 rgba(255, 255, 255, 0.9) inset;
                 display: flex;
                 align-items: center;
-                gap: 8px;
-                z-index: 23;
+                justify-content: center;
+                z-index: 26;
+                pointer-events: auto;
+                box-sizing: border-box;
+            }
+            .sf-lobby-gold-crest-bar::before {
+                content: "";
+                position: absolute;
+                top: 3px;
+                left: 18px;
+                right: 18px;
+                height: 1px;
+                background: linear-gradient(90deg, transparent 0%, rgba(197, 160, 89, 0.55) 18%, rgba(197, 160, 89, 0.85) 50%, rgba(197, 160, 89, 0.55) 82%, transparent 100%);
+                pointer-events: none;
+            }
+            .sf-lobby-copyright {
+                position: absolute;
+                left: 20px;
+                bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+                font-size: 11px;
+                font-weight: 700;
+                letter-spacing: 0.03em;
+                color: #7C6334;
+                white-space: nowrap;
+                pointer-events: none;
+            }
+            .sf-lobby-abilities-dock {
+                position: relative;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 10px;
+                z-index: 27;
                 pointer-events: auto;
             }
             .sf-ability-btn {
@@ -1305,46 +1355,56 @@
                 width: 48px;
                 height: 48px;
                 border-radius: 13px;
-                background: rgba(255, 255, 255, 0.95);
-                border: 1.5px solid rgba(197, 160, 89, 0.55);
-                color: #111827;
+                background: #FFFFFF;
+                border: 1.5px solid rgba(197, 160, 89, 0.68);
+                color: #8A692C;
                 display: flex;
-                flex-direction: column;
                 align-items: center;
                 justify-content: center;
                 cursor: pointer;
-                box-shadow: 0 6px 18px rgba(17, 24, 39, 0.12);
-                transition: transform 0.12s ease, border-color 0.15s ease, background 0.15s ease;
-                user-select: none;
+                box-shadow: 0 4px 14px rgba(17, 24, 39, 0.08), 0 0 0 1px rgba(250, 246, 238, 0.9) inset;
+                transition: transform 0.14s ease, border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+                padding: 0;
             }
             .sf-ability-btn:hover {
                 border-color: #C5A059;
                 transform: translateY(-2px);
-                background: #FFFFFF;
+                background: #FAF6EE;
+                color: #6E501B;
             }
             .sf-ability-btn.is-active {
                 border-color: #C5A059;
                 background: #FAF3E3;
-                box-shadow: 0 6px 20px rgba(197, 160, 89, 0.36);
+                color: #78561C;
+                box-shadow: 0 6px 18px rgba(197, 160, 89, 0.34);
             }
             .sf-ability-btn.is-cooldown {
                 opacity: 0.56;
                 border-color: rgba(156, 163, 175, 0.55);
+                color: #6B7280;
             }
-            .sf-ability-icon {
-                font-size: 16px;
-                line-height: 1;
-                color: #9A7738;
-                font-weight: 900;
+            .sf-ability-svg {
+                width: 24px;
+                height: 24px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                pointer-events: none;
+            }
+            .sf-ability-svg svg {
+                width: 100%;
+                height: 100%;
+                display: block;
             }
             .sf-ability-key {
                 position: absolute;
                 top: 3px;
                 left: 5px;
                 font-size: 9px;
-                font-weight: 800;
+                font-weight: 900;
                 color: #6B7280;
                 line-height: 1;
+                pointer-events: none;
             }
             .sf-ability-cd {
                 position: absolute;
@@ -1353,10 +1413,11 @@
                 font-size: 9px;
                 font-weight: 800;
                 color: #FFFFFF;
-                background: rgba(17, 24, 39, 0.85);
+                background: rgba(17, 24, 39, 0.88);
                 padding: 1px 4px;
                 border-radius: 5px;
                 line-height: 1;
+                pointer-events: none;
             }
             .sf-ability-combo-badge {
                 position: absolute;
@@ -1371,24 +1432,72 @@
                 border: 1.5px solid #FFFFFF;
                 line-height: 1;
                 box-shadow: 0 3px 8px rgba(17, 24, 39, 0.18);
+                pointer-events: none;
             }
-            .sf-ability-combo-dots {
+            .sf-ability-tooltip {
                 position: absolute;
-                bottom: 3px;
+                bottom: calc(100% + 12px);
                 left: 50%;
-                transform: translateX(-50%);
+                transform: translateX(-50%) translateY(4px);
+                width: 224px;
+                padding: 10px 12px;
+                border-radius: 13px;
+                background: rgba(255, 255, 255, 0.98);
+                border: 1px solid #C5A059;
+                box-shadow: 0 14px 32px rgba(17, 24, 39, 0.16);
+                color: #111827;
+                text-align: left;
+                opacity: 0;
+                visibility: hidden;
+                pointer-events: none;
+                transition: opacity 140ms ease, transform 140ms ease;
+                z-index: 60;
+                box-sizing: border-box;
+                white-space: normal;
+            }
+            .sf-ability-btn:hover .sf-ability-tooltip,
+            .sf-ability-btn:focus-visible .sf-ability-tooltip {
+                opacity: 1;
+                visibility: visible;
+                transform: translateX(-50%) translateY(0);
+            }
+            .sf-ability-tooltip-head {
                 display: flex;
                 align-items: center;
-                gap: 2.5px;
+                justify-content: space-between;
+                gap: 6px;
+                margin-bottom: 4px;
             }
-            .sf-ability-combo-dot {
-                width: 4.5px;
-                height: 4.5px;
-                border-radius: 999px;
-                background: rgba(197, 160, 89, 0.28);
+            .sf-ability-tooltip-name {
+                font-size: 12px;
+                font-weight: 800;
+                color: #111827;
             }
-            .sf-ability-combo-dot.is-lit {
-                background: #C5A059;
+            .sf-ability-tooltip-key {
+                padding: 1px 6px;
+                border-radius: 5px;
+                background: #FAF6EE;
+                border: 1px solid rgba(197, 160, 89, 0.5);
+                font-size: 9.5px;
+                font-weight: 800;
+                color: #8A692C;
+            }
+            .sf-ability-tooltip-meta {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                font-size: 10px;
+                font-weight: 800;
+                color: #1D4ED8;
+                margin-bottom: 5px;
+            }
+            .sf-ability-tooltip-cd { color: #6B7280; }
+            .sf-ability-tooltip-desc {
+                margin: 0;
+                font-size: 10.5px;
+                font-weight: 500;
+                line-height: 1.36;
+                color: #374151;
             }
             .sf-lobby-settings-backdrop {
                 position: absolute;
@@ -1482,13 +1591,8 @@
                 color: #111827;
                 text-align: left;
             }
-            .sf-lobby-keybind-item:hover {
-                border-color: #C5A059;
-            }
-            .sf-lobby-keybind-item.is-listening {
-                border-color: #C5A059;
-                background: #FAF3E3;
-            }
+            .sf-lobby-keybind-item:hover { border-color: #C5A059; }
+            .sf-lobby-keybind-item.is-listening { border-color: #C5A059; background: #FAF3E3; }
             .sf-lobby-keybind-pill {
                 padding: 2px 7px;
                 border-radius: 6px;
@@ -1506,7 +1610,7 @@
                 gap: 8px;
                 padding: 10px 16px;
                 border-radius: 999px;
-                background: rgba(255, 255, 255, 0.97);
+                background: rgba(255, 255, 255, 0.98);
                 color: #111827;
                 border: 1.5px solid #C5A059;
                 box-shadow: 0 14px 32px rgba(17, 24, 39, 0.16);
@@ -1516,28 +1620,23 @@
                 cursor: pointer;
                 text-decoration: none;
             }
-            .sf-lobby-lava-chest-card.is-cta {
-                background: #C5A059;
-                color: #FFFFFF;
-            }
-            .sf-lobby-lava-chest-card.is-cta:hover {
-                background: #B38E46;
-            }
+            .sf-lobby-lava-chest-card.is-cta { background: #C5A059; color: #FFFFFF; }
+            .sf-lobby-lava-chest-card.is-cta:hover { background: #B38E46; }
             .sf-lobby-unit-frame {
                 pointer-events: auto;
                 display: inline-flex;
                 align-items: center;
                 gap: 9px;
-                padding: 5px 12px 5px 6px;
+                padding: 6px 13px 6px 7px;
                 border-radius: 999px;
-                background: rgba(255, 255, 255, 0.95);
+                background: rgba(255, 255, 255, 0.96);
                 border: 1px solid rgba(197, 160, 89, 0.55);
                 box-shadow: 0 8px 24px rgba(17, 24, 39, 0.08);
                 color: #111827;
             }
             .sf-lobby-unit-avatar {
-                width: 30px;
-                height: 30px;
+                width: 32px;
+                height: 32px;
                 border-radius: 999px;
                 background: #FAF8F5;
                 border: 1.5px solid #C5A059;
@@ -1552,28 +1651,51 @@
             .sf-lobby-unit-meta {
                 display: flex;
                 flex-direction: column;
-                gap: 2px;
-                min-width: 96px;
+                gap: 3px;
+                min-width: 134px;
+            }
+            .sf-lobby-unit-mana-row {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+            }
+            .sf-lobby-unit-mana-label {
+                font-size: 9.5px;
+                font-weight: 900;
+                letter-spacing: 0.06em;
+                text-transform: uppercase;
+                color: #1D4ED8;
+                line-height: 1;
+                flex-shrink: 0;
             }
             .sf-lobby-unit-mana-track {
-                width: 100%;
-                height: 4px;
+                flex: 1 1 auto;
+                height: 6px;
                 border-radius: 999px;
-                background: rgba(197, 160, 89, 0.22);
+                background: rgba(29, 78, 216, 0.16);
+                border: 1px solid rgba(29, 78, 216, 0.26);
                 overflow: hidden;
             }
             .sf-lobby-unit-mana-fill {
                 height: 100%;
                 border-radius: 999px;
-                background: #C5A059;
+                background: linear-gradient(90deg, #1d4ed8 0%, #38bdf8 100%);
                 transition: width 160ms ease;
+            }
+            .sf-lobby-unit-mana-val {
+                font-size: 9.5px;
+                font-weight: 800;
+                color: #1E40AF;
+                line-height: 1;
+                flex-shrink: 0;
+                font-variant-numeric: tabular-nums;
             }
             .sf-lobby-minimap-wrap {
                 position: absolute;
                 top: 62px;
-                right: 20px;
-                width: 84px;
-                height: 84px;
+                right: 18px;
+                width: 180px;
+                height: 180px;
                 z-index: 25;
                 pointer-events: auto;
                 display: flex;
@@ -1581,39 +1703,39 @@
                 justify-content: center;
             }
             .sf-lobby-minimap-canvas {
-                width: 84px;
-                height: 84px;
+                width: 100%;
+                height: 100%;
                 border-radius: 999px;
-                background: rgba(255, 255, 255, 0.94);
-                border: 2px solid #C5A059;
-                box-shadow: 0 10px 26px rgba(17, 24, 39, 0.14);
+                background: rgba(255, 255, 255, 0.96);
+                border: 2.5px solid #C5A059;
+                box-shadow: 0 12px 30px rgba(17, 24, 39, 0.16), 0 0 0 3px rgba(255, 255, 255, 0.72);
                 display: block;
             }
             .sf-lobby-minimap-time {
                 position: absolute;
-                bottom: -8px;
+                bottom: -9px;
                 left: 50%;
                 transform: translateX(-50%);
-                padding: 2px 8px;
+                padding: 2px 10px;
                 border-radius: 999px;
                 background: #FFFFFF;
                 border: 1px solid #C5A059;
                 color: #111827;
-                font-size: 10px;
+                font-size: 10.5px;
                 font-weight: 800;
-                line-height: 1.2;
+                line-height: 1.25;
                 white-space: nowrap;
-                box-shadow: 0 4px 10px rgba(17, 24, 39, 0.10);
+                box-shadow: 0 4px 12px rgba(17, 24, 39, 0.12);
                 cursor: help;
             }
             .sf-lobby-exhibit-step-row {
                 margin-top: 8px;
-                padding-top: 8px;
+                padding-top: 7px;
                 border-top: 1px solid rgba(197, 160, 89, 0.22);
                 display: flex;
                 align-items: center;
                 justify-content: space-between;
-                gap: 5px;
+                gap: 4px;
             }
             .sf-lobby-sanctum-list {
                 display: flex;
@@ -1633,10 +1755,7 @@
                 font-weight: 800;
                 color: #111827;
             }
-            .sf-lobby-sanctum-row.is-done {
-                background: #FFFFFF;
-                border-color: #C5A059;
-            }
+            .sf-lobby-sanctum-row.is-done { background: #FFFFFF; border-color: #C5A059; }
             .sf-lobby-sanctum-check {
                 width: 22px;
                 height: 22px;
@@ -1656,13 +1775,13 @@
                 border-color: #C5A059;
                 color: #C5A059;
             }
-            .sf-lobby-stick-wrap { display: none; position: absolute; bottom: 72px; left: 12px; z-index: 22; }
+            .sf-lobby-stick-wrap { display: none; position: absolute; bottom: calc(74px + env(safe-area-inset-bottom, 0px)); left: 14px; z-index: 25; }
             .sf-lobby-stick {
-                width: 84px;
-                height: 84px;
+                width: 78px;
+                height: 78px;
                 border-radius: 999px;
-                background: rgba(255, 255, 255, 0.88);
-                border: 1px solid rgba(197, 160, 89, 0.52);
+                background: rgba(255, 255, 255, 0.90);
+                border: 1.5px solid rgba(197, 160, 89, 0.58);
                 box-shadow: 0 10px 26px rgba(17, 24, 39, 0.12);
                 display: flex;
                 align-items: center;
@@ -1672,49 +1791,20 @@
                 cursor: pointer;
             }
             .sf-lobby-stick-knob {
-                width: 34px;
-                height: 34px;
+                width: 32px;
+                height: 32px;
                 border-radius: 999px;
                 background: #C5A059;
                 border: 2px solid #FFFFFF;
                 box-shadow: 0 4px 12px rgba(17, 24, 39, 0.18);
                 pointer-events: none;
             }
-            .sf-lobby-quick-actions {
-                position: absolute;
-                bottom: 22px;
-                right: 20px;
-                z-index: 22;
-                display: flex;
-                align-items: center;
-                gap: 8px;
-            }
-            .sf-lobby-icon-btn {
-                position: relative;
-                appearance: none;
-                height: 44px;
-                min-width: 44px;
-                padding: 0 12px;
-                border-radius: 14px;
-                background: rgba(255, 255, 255, 0.94);
-                color: #111827;
-                border: 1px solid rgba(197, 160, 89, 0.55);
-                box-shadow: 0 10px 24px rgba(17, 24, 39, 0.10);
-                font-size: 13px;
-                font-weight: 800;
-                display: inline-flex;
-                align-items: center;
-                justify-content: center;
-                gap: 6px;
-                cursor: pointer;
-            }
-            .sf-lobby-icon-btn:hover { background: #FFFFFF; border-color: #C5A059; }
             .sf-lobby-bottom-stack {
                 position: absolute;
-                bottom: 14px;
+                bottom: calc(70px + env(safe-area-inset-bottom, 0px));
                 left: 12px;
                 right: 12px;
-                z-index: 21;
+                z-index: 24;
                 display: flex;
                 flex-direction: column;
                 align-items: center;
@@ -1730,7 +1820,7 @@
                 gap: 6px;
                 padding: 6px 10px;
                 border-radius: 999px;
-                background: rgba(255, 255, 255, 0.94);
+                background: rgba(255, 255, 255, 0.95);
                 border: 1px solid rgba(197, 160, 89, 0.48);
                 box-shadow: 0 10px 28px rgba(17, 24, 39, 0.12);
                 max-width: 100%;
@@ -1750,56 +1840,35 @@
             }
             .sf-lobby-step-btn:hover { background: #F5EFE2; }
             .sf-lobby-step-btn.is-active { background: #C5A059; color: #FFFFFF; border-color: #C5A059; }
-            .sf-lobby-exhibit-btn {
-                appearance: none;
-                padding: 6px 14px;
-                border-radius: 999px;
-                border: 1px solid rgba(197, 160, 89, 0.35);
-                background: #FFFFFF;
-                color: #111827;
-                font-size: 11px;
-                font-weight: 800;
-                cursor: pointer;
-                max-width: 260px;
-                overflow: hidden;
-                text-overflow: ellipsis;
-                white-space: nowrap;
-            }
-            .sf-lobby-hint-pill {
-                pointer-events: none;
-                padding: 5px 14px;
-                border-radius: 999px;
-                background: rgba(255, 255, 255, 0.90);
-                border: 1px solid rgba(197, 160, 89, 0.38);
-                color: #374151;
-                font-size: 11px;
-                font-weight: 700;
-                box-shadow: 0 6px 18px rgba(17, 24, 39, 0.08);
-                white-space: nowrap;
-            }
             @media (max-width: 900px), (pointer: coarse) {
-                .sf-lobby-stick-wrap { display: block; bottom: 72px; left: 12px; }
-                .sf-lobby-stick { width: 72px; height: 72px; }
-                .sf-lobby-quick-actions { bottom: 72px; right: 12px; gap: 6px; }
-                .sf-lobby-abilities-dock { bottom: 88px; left: 94px; right: auto; transform: none; display: flex; align-items: center; gap: 6px; }
-                .sf-ability-btn { width: 40px; height: 40px; border-radius: 10px; }
-                .sf-ability-key { display: none; }
+                .sf-lobby-stick-wrap { display: block; bottom: calc(70px + env(safe-area-inset-bottom, 0px)); left: 12px; }
+                .sf-lobby-stick { width: 70px; height: 70px; }
+                .sf-lobby-minimap-wrap { width: 136px; height: 136px; top: 58px; right: 12px; }
+                .sf-ability-btn { width: 44px; height: 44px; border-radius: 11px; }
+                .sf-ability-svg { width: 21px; height: 21px; }
+                .sf-ability-tooltip { display: none; }
             }
             @media (max-width: 767px) {
-                .sf-lobby-topbar { padding: 10px 12px; gap: 8px; }
-                .sf-lobby-zone-badge { padding: 5px 10px; font-size: 11px; }
-                .sf-lobby-pill-btn, .sf-lobby-close-btn { padding: 6px 10px; font-size: 11px; }
-                .sf-lobby-kbd, .sf-lobby-hint-pill, .sf-lobby-hide-sm { display: none !important; }
-                .sf-lobby-chat-panel { bottom: 132px; right: 12px; }
-                .sf-lobby-chat-panel.is-expanded { width: calc(100vw - 24px); }
-                .sf-lobby-exhibit-btn { max-width: 175px; }
+                .sf-lobby-topbar { padding: 8px 10px; gap: 6px; }
+                .sf-lobby-zone-badge { padding: 5px 9px; font-size: 11px; }
+                .sf-lobby-pill-btn, .sf-lobby-close-btn { padding: 6px 9px; font-size: 11px; }
+                .sf-lobby-kbd, .sf-lobby-hide-sm { display: none !important; }
+                .sf-lobby-chat-panel { bottom: calc(70px + env(safe-area-inset-bottom, 0px)); right: 10px; }
+                .sf-lobby-chat-panel.is-expanded { width: calc(100vw - 20px); }
+                .sf-lobby-copyright { font-size: 9.5px; left: 10px; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); }
                 .sf-lobby-keybind-grid { grid-template-columns: 1fr; }
             }
             @media (max-width: 559px) {
-                .sf-lobby-abilities-dock { bottom: 71px; left: 92px; right: auto; transform: none; display: grid; grid-template-columns: repeat(2, 36px); gap: 5px; }
-                .sf-ability-btn { width: 36px; height: 36px; border-radius: 10px; }
-                .sf-ability-icon { font-size: 14px; }
-                .sf-lobby-icon-btn { height: 40px; min-width: 40px; padding: 0 10px; font-size: 12px; }
+                .sf-lobby-minimap-wrap { width: 116px; height: 116px; top: 96px; right: 10px; }
+                .sf-lobby-unit-meta { min-width: 112px; }
+                .sf-lobby-gold-crest-bar { min-height: 56px; padding: 5px 8px calc(6px + env(safe-area-inset-bottom, 0px)); justify-content: flex-end; }
+                .sf-lobby-copyright { left: 10px; font-size: 9px; max-width: 96px; overflow: hidden; text-overflow: ellipsis; }
+                .sf-lobby-abilities-dock { gap: 6px; }
+                .sf-ability-btn { width: 40px; height: 40px; border-radius: 10px; }
+                .sf-ability-svg { width: 19px; height: 19px; }
+                .sf-ability-key { display: none; }
+                .sf-lobby-floating-card { width: 266px; padding: 12px 13px 10px; }
+                .sf-lobby-prod-title { font-size: 13.5px; }
             }
         </style>
 
@@ -1808,6 +1877,7 @@
                  x-ref="lobbyModalRoot"
                  x-show="isOpen"
                  x-cloak
+                 @contextmenu.prevent
                  role="dialog"
                  aria-modal="true"
                  aria-label="MEIN SEELENFUNKE · LOUVRE SHOWROOM"
@@ -1826,9 +1896,14 @@
                                     <span style="color:#9A7738;"
                                           x-text="'Stufe ' + (playerHud.level || 2) + ' · ✨ ' + (playerHud.funkenBalance || 0)"></span>
                                 </div>
-                                <div class="sf-lobby-unit-mana-track">
-                                    <div class="sf-lobby-unit-mana-fill"
-                                         :style="'width:' + Math.max(0, Math.min(100, Math.round(((playerHud.mana || 100) / Math.max(1, playerHud.maxMana || 100)) * 100))) + '%'"></div>
+                                <div class="sf-lobby-unit-mana-row">
+                                    <span class="sf-lobby-unit-mana-label">Mana</span>
+                                    <div class="sf-lobby-unit-mana-track">
+                                        <div class="sf-lobby-unit-mana-fill"
+                                             :style="'width:' + Math.max(0, Math.min(100, Math.round(((playerHud.mana ?? 100) / Math.max(1, playerHud.maxMana || 100)) * 100))) + '%'"></div>
+                                    </div>
+                                    <span class="sf-lobby-unit-mana-val"
+                                          x-text="Math.round(playerHud.mana ?? 100)">100</span>
                                 </div>
                             </div>
                         </div>
@@ -1908,6 +1983,19 @@
                         </div>
 
                         <button type="button"
+                                x-show="currentZone === 'heroes'"
+                                data-testid="louvre-chat-toggle-btn"
+                                @click="toggleChatPanel()"
+                                :class="chatOpen ? 'sf-lobby-pill-btn is-gold' : 'sf-lobby-pill-btn'"
+                                title="Raum-Chat öffnen"
+                                aria-label="Raum-Chat">
+                            <span>💬 Chat</span>
+                            <span x-show="unreadChatCount > 0 && !chatOpen"
+                                  style="padding:2px 6px;border-radius:999px;background:#C5A059;color:#FFFFFF;font-size:10px;font-weight:900;line-height:1;"
+                                  x-text="unreadChatCount"></span>
+                        </button>
+
+                        <button type="button"
                                 data-testid="lobby-audio-mute-btn"
                                 @click="toggleQuickMute()"
                                 :class="!audioState.allMuted ? 'sf-lobby-pill-btn is-gold' : 'sf-lobby-pill-btn'"
@@ -1946,12 +2034,15 @@
                 <div class="sf-lobby-stage">
                     <canvas x-ref="louvreCanvas" class="sf-lobby-canvas"></canvas>
 
+                    {{-- Kinoreife Elfenbein-Gold-Blende beim Klick auf "Jetzt gestalten" --}}
+                    <div class="sf-lobby-ivory-transition" :class="{ 'is-fading': productTransitionActive }"></div>
+
                     {{-- Runde Echtzeit-Minimap oben rechts mit sticky Uhrzeit-Badge & Jahreszeiten-Tooltip --}}
                     <div x-show="!isLoading && loadError === ''"
                          @pointerdown.stop
                          data-testid="lobby-minimap"
-                         class="sf-lobby-minimap-wrap sf-lobby-hide-sm">
-                        <canvas x-ref="minimapCanvas" width="84" height="84" class="sf-lobby-minimap-canvas"></canvas>
+                         class="sf-lobby-minimap-wrap">
+                        <canvas x-ref="minimapCanvas" width="180" height="180" class="sf-lobby-minimap-canvas"></canvas>
                         <span class="sf-lobby-minimap-time"
                               :title="minimapTooltip()"
                               x-text="environmentInfo.server_time || '12:00'"></span>
@@ -1977,40 +2068,28 @@
                         </template>
                     </div>
 
-                    {{-- Schwebendes World-Space Produkt-Schild (Bereich 1: Kollektion, 100 % Light-Mode) --}}
+                    {{-- Einheitliches 2-Zeilen Edel-Exponat-Modal (identisch für Gäste & eingeloggte Magie-Spieler, 100 % Light-Mode) --}}
                     <div x-ref="floatingCard"
                          data-testid="louvre-floating-space-card"
                          style="opacity: 0; visibility: hidden; pointer-events: none; transform: translate3d(-9999px, -9999px, 0);"
                          class="sf-lobby-floating-anchor">
                         <div @pointerdown.stop class="sf-lobby-floating-card">
-                            <div class="sf-lobby-prod-head">
-                                <template x-if="focusedProduct && focusedProduct.preview_image_url">
-                                    <img :src="focusedProduct.preview_image_url"
-                                         :alt="focusedProduct ? focusedProduct.name : ''"
-                                         class="sf-lobby-prod-thumb">
-                                </template>
-                                <div style="min-width:0;flex:1;">
-                                    <span class="sf-lobby-prod-cat"
-                                          x-text="focusedProduct ? (focusedProduct.category_name || 'Kollektion') : ''"></span>
-                                    <h3 class="sf-lobby-prod-title"
-                                        x-text="focusedProduct ? focusedProduct.name : ''"></h3>
-                                    <span class="sf-lobby-prod-price"
-                                          x-text="focusedPriceLabel()"></span>
-                                </div>
+                            <div class="sf-lobby-prod-row1">
+                                <h4 class="sf-lobby-prod-title"
+                                    x-text="focusedProduct ? focusedProduct.name : ''"></h4>
+                                <span x-show="focusedPriceLabel() !== ''"
+                                      class="sf-lobby-prod-price-badge"
+                                      x-text="focusedPriceLabel()"></span>
                             </div>
 
-                            <div x-show="focusedBenefits().length > 0" class="sf-lobby-prod-benefits">
-                                <template x-for="(benefit, bIdx) in focusedBenefits()" :key="bIdx">
-                                    <div class="sf-lobby-prod-benefit-row">
-                                        <span class="sf-lobby-prod-check">&#10003;</span>
-                                        <span x-text="benefit"></span>
-                                    </div>
-                                </template>
-                            </div>
+                            <p x-show="focusedSummaryText() !== ''"
+                               class="sf-lobby-prod-summary"
+                               x-text="focusedSummaryText()"></p>
 
-                            <a :href="focusedProduct ? focusedProduct.product_url : '#'" class="sf-lobby-prod-cta">
+                            <a :href="focusedProduct ? (focusedProduct.product_url || '/shop') : '/shop'"
+                               @click.prevent="launchProductTransition(focusedProduct)"
+                               class="sf-lobby-prod-cta">
                                 <span x-text="focusedProduct && focusedProduct.is_personalizable ? 'Jetzt gestalten' : 'Zum Produkt'"></span>
-                                <span>&rarr;</span>
                             </a>
 
                             <div x-show="products.length > 1" class="sf-lobby-exhibit-step-row">
@@ -2019,8 +2098,8 @@
                                 </button>
                                 <button type="button"
                                         @click="focusCurrentExhibit()"
-                                        style="appearance:none;border:none;background:transparent;font-size:10px;font-weight:800;color:#6B7280;cursor:pointer;"
-                                        x-text="'Exponat ' + (activeIndex + 1) + '/' + products.length"></button>
+                                        style="appearance:none;border:none;background:transparent;font-size:10.5px;font-weight:800;color:#6B7280;cursor:pointer;"
+                                        x-text="(activeIndex + 1) + '/' + products.length"></button>
                                 <button type="button" @click="nextExhibit()" class="sf-lobby-step-btn" style="padding:4px 9px;font-size:10px;">
                                     Nächstes &rsaquo;
                                 </button>
@@ -2553,94 +2632,7 @@
                         </div>
                     </div>
 
-                    {{-- Kompakte Action-Leiste unten rechts --}}
-                    <div x-show="!isLoading && loadError === ''"
-                         @pointerdown.stop
-                         class="sf-lobby-quick-actions">
-                        <button type="button"
-                                data-testid="louvre-jump-btn"
-                                @click="triggerJump()"
-                                class="sf-lobby-icon-btn"
-                                :title="'Springen (' + keyLabel('jump') + ')'"
-                                aria-label="Springen">
-                            &#10514;
-                        </button>
-
-                        <button type="button"
-                                data-testid="louvre-weapon-btn"
-                                @click="triggerWeapon()"
-                                class="sf-lobby-icon-btn"
-                                style="color:#9A7738;"
-                                :title="'Waffen-Effekt (' + keyLabel('strike') + ')'"
-                                aria-label="Waffen-Effekt">
-                            <span>&#10022;</span>
-                            <span x-show="abilityState.combo && abilityState.combo.stage > 0"
-                                  class="sf-ability-combo-badge"
-                                  x-text="'x' + abilityState.combo.stage"></span>
-                        </button>
-
-                        <button type="button"
-                                x-show="currentZone === 'heroes'"
-                                data-testid="louvre-chat-toggle-btn"
-                                @click="toggleChatPanel()"
-                                class="sf-lobby-icon-btn"
-                                title="Raum-Chat öffnen"
-                                aria-label="Raum-Chat">
-                            <span>Chat</span>
-                            <span x-show="unreadChatCount > 0 && !chatOpen"
-                                  style="padding:2px 6px;border-radius:999px;background:#C5A059;color:#FFFFFF;font-size:10px;font-weight:900;line-height:1;"
-                                  x-text="unreadChatCount"></span>
-                        </button>
-                    </div>
-
-                    {{-- Permanente Spezialfähigkeiten-Leiste (Tasten 1-4: Sprint, Titan-Sprung, Schutzschild, Funkenstoß) --}}
-                    <div x-show="!isLoading && loadError === ''"
-                         @pointerdown.stop
-                         data-testid="louvre-abilities-dock"
-                         class="sf-lobby-abilities-dock">
-                        <button type="button"
-                                @click="triggerAbility(1)"
-                                data-testid="ability-slot-1-btn"
-                                class="sf-ability-btn"
-                                :class="{ 'is-active': abilityState.sprint.active, 'is-cooldown': abilityState.sprint.cooldown > 0 }"
-                                :title="'Funken-Sprint (' + keyLabel('sprint') + ')'">
-                            <span class="sf-ability-icon">⚡</span>
-                            <span class="sf-ability-key" x-text="keyLabel('sprint')"></span>
-                            <span x-show="abilityState.sprint.cooldown > 0" class="sf-ability-cd" x-text="Math.ceil(abilityState.sprint.cooldown) + 's'"></span>
-                        </button>
-                        <button type="button"
-                                @click="triggerAbility(2)"
-                                data-testid="ability-slot-2-btn"
-                                class="sf-ability-btn"
-                                :class="{ 'is-cooldown': abilityState.titanJump.cooldown > 0 }"
-                                :title="'Titan-Sprung (' + keyLabel('titanJump') + ')'">
-                            <span class="sf-ability-icon">▲</span>
-                            <span class="sf-ability-key" x-text="keyLabel('titanJump')"></span>
-                            <span x-show="abilityState.titanJump.cooldown > 0" class="sf-ability-cd" x-text="Math.ceil(abilityState.titanJump.cooldown) + 's'"></span>
-                        </button>
-                        <button type="button"
-                                @click="triggerAbility(3)"
-                                data-testid="ability-slot-3-btn"
-                                class="sf-ability-btn"
-                                :class="{ 'is-active': abilityState.shield.active, 'is-cooldown': abilityState.shield.cooldown > 0 }"
-                                :title="'Goldener Schutzschild (' + keyLabel('shield') + ')'">
-                            <span class="sf-ability-icon">🛡</span>
-                            <span class="sf-ability-key" x-text="keyLabel('shield')"></span>
-                            <span x-show="abilityState.shield.cooldown > 0" class="sf-ability-cd" x-text="Math.ceil(abilityState.shield.cooldown) + 's'"></span>
-                        </button>
-                        <button type="button"
-                                @click="triggerAbility(4)"
-                                data-testid="ability-slot-4-btn"
-                                class="sf-ability-btn"
-                                :class="{ 'is-cooldown': abilityState.burst.cooldown > 0 }"
-                                :title="'Funkenstoß (' + keyLabel('burst') + ')'">
-                            <span class="sf-ability-icon">✦</span>
-                            <span class="sf-ability-key" x-text="keyLabel('burst')"></span>
-                            <span x-show="abilityState.burst.cooldown > 0" class="sf-ability-cd" x-text="Math.ceil(abilityState.burst.cooldown) + 's'"></span>
-                        </button>
-                    </div>
-
-                    {{-- Schlanke untere Schnellwahl in der Halle der Helden (0 Steuerungs-Textballast) --}}
+                    {{-- Schlanke Schnellwahl über der Zierleiste in der Halle der Helden --}}
                     <div x-show="!isLoading && loadError === '' && currentZone === 'heroes'" class="sf-lobby-bottom-stack">
                         <div class="sf-lobby-bottom-pill">
                             <template x-for="slotNum in [1, 2, 3, 4, 5]" :key="slotNum">
@@ -2654,6 +2646,171 @@
                                     @click="focusMyHeroPlace()"
                                     class="sf-lobby-step-btn is-active">
                                 ⭐ Mein Platz
+                            </button>
+                        </div>
+                    </div>
+
+                    {{-- Goldene Zierleiste am unteren Rand: Links © Mein-Seelenfunke + Mittig 5 moderne SVG-Fähigkeiten (1 bis 5) mit Hover-Tooltips --}}
+                    <div x-show="!isLoading && loadError === ''"
+                         @pointerdown.stop
+                         data-testid="lobby-gold-crest-bar"
+                         class="sf-lobby-gold-crest-bar">
+                        <span class="sf-lobby-copyright">&copy; Mein-Seelenfunke</span>
+
+                        <div data-testid="louvre-abilities-dock" class="sf-lobby-abilities-dock">
+                            <button type="button"
+                                    @click="triggerAbility(1)"
+                                    data-testid="ability-slot-1-btn"
+                                    class="sf-ability-btn"
+                                    :class="{ 'is-active': abilityState.combo && abilityState.combo.active, 'is-cooldown': abilityState.combo && abilityState.combo.cooldown > 0 }"
+                                    aria-label="Funken-Hieb">
+                                <span class="sf-ability-svg">
+                                    <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                        <path d="M21.5 4.5L9.5 16.5"/>
+                                        <path d="M17.5 4.5H21.5V8.5"/>
+                                        <path d="M6.5 14.5L13.5 21.5"/>
+                                        <path d="M5 23L9.5 18.5"/>
+                                        <path d="M18.5 12.5C21 15 21.5 18.8 19.2 21.5" stroke-opacity="0.62"/>
+                                    </svg>
+                                </span>
+                                <span class="sf-ability-key" x-text="keyLabel('strike')"></span>
+                                <span x-show="abilityState.combo && abilityState.combo.cooldown > 0"
+                                      class="sf-ability-cd"
+                                      x-text="Math.ceil(abilityState.combo.cooldown) + 's'"></span>
+                                <span x-show="abilityState.combo && abilityState.combo.stage > 0"
+                                      class="sf-ability-combo-badge"
+                                      x-text="'x' + abilityState.combo.stage"></span>
+                                <div class="sf-ability-tooltip" role="tooltip">
+                                    <div class="sf-ability-tooltip-head">
+                                        <span class="sf-ability-tooltip-name">Funken-Hieb</span>
+                                        <span class="sf-ability-tooltip-key" x-text="'Taste ' + keyLabel('strike')"></span>
+                                    </div>
+                                    <div class="sf-ability-tooltip-meta">
+                                        <span>0 Mana</span>
+                                        <span class="sf-ability-tooltip-cd">· Kombo 1-4</span>
+                                    </div>
+                                    <p class="sf-ability-tooltip-desc">4-stufige Nahkampf-Kombo mit goldenem Wirbel und Finisher-Druckwelle.</p>
+                                </div>
+                            </button>
+
+                            <button type="button"
+                                    @click="triggerAbility(2)"
+                                    data-testid="ability-slot-2-btn"
+                                    class="sf-ability-btn"
+                                    :class="{ 'is-active': abilityState.sprint.active, 'is-cooldown': abilityState.sprint.cooldown > 0 }"
+                                    aria-label="Licht-Sprint">
+                                <span class="sf-ability-svg">
+                                    <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                        <path d="M4.5 10.5H15.5C17.7 10.5 19.2 9 19.2 7.2C19.2 5.5 17.8 4.3 16.2 4.3C14.8 4.3 13.7 5.2 13.5 6.5"/>
+                                        <path d="M3.5 15H20.5C22.6 15 24.2 16.5 24.2 18.5C24.2 20.4 22.7 21.8 20.9 21.8C19.3 21.8 18.1 20.8 17.9 19.4"/>
+                                        <path d="M6.5 19.5H13.5"/>
+                                        <circle cx="22" cy="9.5" r="1.3" fill="currentColor" stroke="none"/>
+                                    </svg>
+                                </span>
+                                <span class="sf-ability-key" x-text="keyLabel('sprint')"></span>
+                                <span x-show="abilityState.sprint.cooldown > 0"
+                                      class="sf-ability-cd"
+                                      x-text="Math.ceil(abilityState.sprint.cooldown) + 's'"></span>
+                                <div class="sf-ability-tooltip" role="tooltip">
+                                    <div class="sf-ability-tooltip-head">
+                                        <span class="sf-ability-tooltip-name">Licht-Sprint</span>
+                                        <span class="sf-ability-tooltip-key" x-text="'Taste ' + keyLabel('sprint')"></span>
+                                    </div>
+                                    <div class="sf-ability-tooltip-meta">
+                                        <span>18 Mana</span>
+                                        <span class="sf-ability-tooltip-cd">· 10 s Abklingzeit</span>
+                                    </div>
+                                    <p class="sf-ability-tooltip-desc">Erhöht dein Lauftempo 4,5 Sekunden lang um 55 % mit goldener Funkenspur.</p>
+                                </div>
+                            </button>
+
+                            <button type="button"
+                                    @click="triggerAbility(3)"
+                                    data-testid="ability-slot-3-btn"
+                                    class="sf-ability-btn"
+                                    :class="{ 'is-cooldown': abilityState.titanJump.cooldown > 0 }"
+                                    aria-label="Aufwind-Impuls">
+                                <span class="sf-ability-svg">
+                                    <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                        <path d="M14 4.5L8.2 11.2H11.8V18.5H16.2V11.2H19.8L14 4.5Z"/>
+                                        <path d="M7 21.2C9.2 19.6 11.5 19 14 19C16.5 19 18.8 19.6 21 21.2"/>
+                                        <path d="M9.5 24C11 23.1 12.4 22.7 14 22.7C15.6 22.7 17 23.1 18.5 24" stroke-opacity="0.65"/>
+                                    </svg>
+                                </span>
+                                <span class="sf-ability-key" x-text="keyLabel('titanJump')"></span>
+                                <span x-show="abilityState.titanJump.cooldown > 0"
+                                      class="sf-ability-cd"
+                                      x-text="Math.ceil(abilityState.titanJump.cooldown) + 's'"></span>
+                                <div class="sf-ability-tooltip" role="tooltip">
+                                    <div class="sf-ability-tooltip-head">
+                                        <span class="sf-ability-tooltip-name">Aufwind-Impuls</span>
+                                        <span class="sf-ability-tooltip-key" x-text="'Taste ' + keyLabel('titanJump')"></span>
+                                    </div>
+                                    <div class="sf-ability-tooltip-meta">
+                                        <span>22 Mana</span>
+                                        <span class="sf-ability-tooltip-cd">· 8 s Abklingzeit</span>
+                                    </div>
+                                    <p class="sf-ability-tooltip-desc">Katapultiert dich kraftvoll in die Höhe zum Überwinden weiter Schluchten und Ringe.</p>
+                                </div>
+                            </button>
+
+                            <button type="button"
+                                    @click="triggerAbility(4)"
+                                    data-testid="ability-slot-4-btn"
+                                    class="sf-ability-btn"
+                                    :class="{ 'is-active': abilityState.shield.active, 'is-cooldown': abilityState.shield.cooldown > 0 }"
+                                    aria-label="Aegis-Schild">
+                                <span class="sf-ability-svg">
+                                    <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                        <path d="M14 3.8L22 7.2V13.6C22 18.6 18.6 22.5 14 24.4C9.4 22.5 6 18.6 6 13.6V7.2L14 3.8Z"/>
+                                        <path d="M14 8.2L15.6 11.8L19.4 13.4L15.6 15L14 18.6L12.4 15L8.6 13.4L12.4 11.8L14 8.2Z" stroke-width="1.4"/>
+                                    </svg>
+                                </span>
+                                <span class="sf-ability-key" x-text="keyLabel('shield')"></span>
+                                <span x-show="abilityState.shield.cooldown > 0"
+                                      class="sf-ability-cd"
+                                      x-text="Math.ceil(abilityState.shield.cooldown) + 's'"></span>
+                                <div class="sf-ability-tooltip" role="tooltip">
+                                    <div class="sf-ability-tooltip-head">
+                                        <span class="sf-ability-tooltip-name">Aegis-Schild</span>
+                                        <span class="sf-ability-tooltip-key" x-text="'Taste ' + keyLabel('shield')"></span>
+                                    </div>
+                                    <div class="sf-ability-tooltip-meta">
+                                        <span>25 Mana</span>
+                                        <span class="sf-ability-tooltip-cd">· 15 s Abklingzeit</span>
+                                    </div>
+                                    <p class="sf-ability-tooltip-desc">Schützt 6,5 s vor Schockwellen und katapultiert dich bei Lava-Kontakt einmalig hoch hinaus, bevor das Schild zerbricht.</p>
+                                </div>
+                            </button>
+
+                            <button type="button"
+                                    @click="triggerAbility(5)"
+                                    data-testid="ability-slot-5-btn"
+                                    class="sf-ability-btn"
+                                    :class="{ 'is-cooldown': abilityState.burst.cooldown > 0 }"
+                                    aria-label="Seelen-Nova">
+                                <span class="sf-ability-svg">
+                                    <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                        <circle cx="14" cy="14" r="3.6"/>
+                                        <circle cx="14" cy="14" r="8.2" stroke-dasharray="2.6 2.6"/>
+                                        <path d="M14 2.8V5.8M14 22.2V25.2M2.8 14H5.8M22.2 14H25.2M6.1 6.1L8.2 8.2M19.8 19.8L21.9 21.9M21.9 6.1L19.8 8.2M8.2 19.8L6.1 21.9"/>
+                                    </svg>
+                                </span>
+                                <span class="sf-ability-key" x-text="keyLabel('burst')"></span>
+                                <span x-show="abilityState.burst.cooldown > 0"
+                                      class="sf-ability-cd"
+                                      x-text="Math.ceil(abilityState.burst.cooldown) + 's'"></span>
+                                <div class="sf-ability-tooltip" role="tooltip">
+                                    <div class="sf-ability-tooltip-head">
+                                        <span class="sf-ability-tooltip-name">Seelen-Nova</span>
+                                        <span class="sf-ability-tooltip-key" x-text="'Taste ' + keyLabel('burst')"></span>
+                                    </div>
+                                    <div class="sf-ability-tooltip-meta">
+                                        <span>30 Mana</span>
+                                        <span class="sf-ability-tooltip-cd">· 20 s Abklingzeit</span>
+                                    </div>
+                                    <p class="sf-ability-tooltip-desc">Entfesselt eine radiale 24K-Gold-Energiewelle und löst nahe Gefahrenringe im Umkreis auf.</p>
+                                </div>
                             </button>
                         </div>
                     </div>
@@ -2740,11 +2897,11 @@
                         graphicsQuality: 'high',
                     },
                     keybindings: {
-                        sprint: 'Digit1',
-                        titanJump: 'Digit2',
-                        shield: 'Digit3',
-                        burst: 'Digit4',
-                        strike: 'KeyG',
+                        strike: 'Digit1',
+                        sprint: 'Digit2',
+                        titanJump: 'Digit3',
+                        shield: 'Digit4',
+                        burst: 'Digit5',
                         jump: 'Space',
                         moveForward: 'KeyW',
                         moveLeft: 'KeyA',
@@ -2808,6 +2965,9 @@
                         combo: { stage: 0, windowTimer: 0, active: false, cooldown: 0, maxCd: 1.8 },
                     },
                     _abilityPollTimer: null,
+                    productTransitionActive: false,
+                    _productTransitionTimer: null,
+                    _productFadeTimer: null,
                     activeIndex: 0,
                     focusedProduct: null,
                     focusedHero: null,
@@ -2829,11 +2989,11 @@
                     keybindActionsList() {
                         return [
                             { key: 'jump', label: 'Sprung' },
-                            { key: 'strike', label: 'Aktion / Waffe' },
-                            { key: 'sprint', label: '1 · Funken-Sprint' },
-                            { key: 'titanJump', label: '2 · Titan-Sprung' },
-                            { key: 'shield', label: '3 · Schutzschild' },
-                            { key: 'burst', label: '4 · Funkenstoß' },
+                            { key: 'strike', label: '1 · Funken-Hieb' },
+                            { key: 'sprint', label: '2 · Licht-Sprint' },
+                            { key: 'titanJump', label: '3 · Aufwind-Impuls' },
+                            { key: 'shield', label: '4 · Aegis-Schild' },
+                            { key: 'burst', label: '5 · Seelen-Nova' },
                             { key: 'moveForward', label: 'Vorwärts' },
                             { key: 'moveLeft', label: 'Links' },
                             { key: 'moveBack', label: 'Zurück' },
@@ -3251,6 +3411,15 @@
                         this.stagesPreviewMode = 'live';
                         this.focusedProduct = null;
                         this.focusedHero = null;
+                        this.productTransitionActive = false;
+                        if (this._productTransitionTimer) {
+                            clearTimeout(this._productTransitionTimer);
+                            this._productTransitionTimer = null;
+                        }
+                        if (this._productFadeTimer) {
+                            clearTimeout(this._productFadeTimer);
+                            this._productFadeTimer = null;
+                        }
                         this.instanceMenuOpen = false;
                         this.settingsOpen = false;
                         this.sanctumGateOpen = false;
@@ -3300,7 +3469,7 @@
                             .then((res) => (res.ok ? res.json() : null))
                             .catch(() => null);
 
-                        const modulePromise = import('/js/seelenfunke-louvre-showroom-3d.js?v=20261117v4');
+                        const modulePromise = import('/js/seelenfunke-louvre-showroom-3d.js?v=20261117v5');
 
                         Promise.all([dataPromise, heroesPromise, modulePromise])
                             .then(([payload, heroesJson, mod]) => {
@@ -3457,9 +3626,7 @@
                                             this.lavaChestState = state;
                                         },
                                         onSelectProduct: (prod) => {
-                                            if (prod && prod.product_url) {
-                                                window.location.href = prod.product_url;
-                                            }
+                                            this.launchProductTransition(prod);
                                         }
                                     });
                                     setFacade(createdFacade);
@@ -3500,6 +3667,9 @@
                         const facade = getFacade();
 
                         if (z === 'heroes') {
+                            if (facade && typeof facade.refreshHeroesData === 'function') {
+                                facade.refreshHeroesData(false);
+                            }
                             if (this.isCustomerAuthenticated() && this.canEnterSanctums() && !this.soloMode && (this._activeSyncZone !== 'heroes' || !this._syncTimer)) {
                                 this._activeSyncZone = 'heroes';
                                 this.joinLobbyInstance();
@@ -3963,55 +4133,60 @@
                         const snap = facade.getMinimapState();
                         if (!snap) return;
 
-                        const w = canvas.width || 84;
-                        const h = canvas.height || 84;
+                        const w = canvas.width || 180;
+                        const h = canvas.height || 180;
+                        const scale = w / 180;
                         const cx = w * 0.5;
                         const cy = h * 0.5;
-                        const rad = w * 0.5 - 6;
+                        const rad = w * 0.5 - 8 * scale;
 
                         ctx.clearRect(0, 0, w, h);
                         ctx.save();
                         ctx.beginPath();
-                        ctx.arc(cx, cy, rad + 4, 0, Math.PI * 2);
+                        ctx.arc(cx, cy, rad + 4 * scale, 0, Math.PI * 2);
                         ctx.clip();
 
                         ctx.fillStyle = snap.zone === 'lava' ? '#FBF5EC' : '#FAF8F5';
                         ctx.fillRect(0, 0, w, h);
 
-                        ctx.strokeStyle = 'rgba(197, 160, 89, 0.25)';
-                        ctx.lineWidth = 1;
+                        ctx.strokeStyle = 'rgba(197, 160, 89, 0.28)';
+                        ctx.lineWidth = Math.max(1, 1.4 * scale);
                         ctx.beginPath();
-                        ctx.arc(cx, cy, rad * 0.58, 0, Math.PI * 2);
+                        ctx.arc(cx, cy, rad * 0.62, 0, Math.PI * 2);
+                        ctx.stroke();
+
+                        ctx.beginPath();
+                        ctx.arc(cx, cy, rad * 0.30, 0, Math.PI * 2);
                         ctx.stroke();
 
                         const markers = Array.isArray(snap.markers) ? snap.markers : [];
                         for (let i = 0; i < markers.length; i++) {
                             const m = markers[i];
-                            const mx = cx + (m.u - 0.5) * rad * 1.65;
-                            const my = cy + (m.v - 0.5) * rad * 1.65;
+                            const mx = cx + (m.u - 0.5) * rad * 1.68;
+                            const my = cy + (m.v - 0.5) * rad * 1.68;
                             ctx.beginPath();
                             if (m.type === 'chest' || m.type === 'portal') {
                                 ctx.fillStyle = m.active ? '#C5A059' : '#9CA3AF';
-                                ctx.arc(mx, my, 3.2, 0, Math.PI * 2);
+                                ctx.arc(mx, my, 5.2 * scale, 0, Math.PI * 2);
                             } else {
-                                ctx.fillStyle = m.active ? '#C5A059' : 'rgba(17, 24, 39, 0.32)';
-                                ctx.arc(mx, my, m.active ? 2.8 : 2.0, 0, Math.PI * 2);
+                                ctx.fillStyle = m.active ? '#C5A059' : 'rgba(17, 24, 39, 0.36)';
+                                ctx.arc(mx, my, (m.active ? 4.4 : 3.2) * scale, 0, Math.PI * 2);
                             }
                             ctx.fill();
                         }
 
                         if (snap.player) {
-                            const px = cx + (snap.player.u - 0.5) * rad * 1.65;
-                            const py = cy + (snap.player.v - 0.5) * rad * 1.65;
+                            const px = cx + (snap.player.u - 0.5) * rad * 1.68;
+                            const py = cy + (snap.player.v - 0.5) * rad * 1.68;
                             ctx.save();
                             ctx.translate(px, py);
                             ctx.rotate(-(snap.player.yaw || 0) + Math.PI);
                             ctx.fillStyle = '#111827';
                             ctx.beginPath();
-                            ctx.moveTo(0, -5);
-                            ctx.lineTo(3.6, 4);
-                            ctx.lineTo(0, 2.2);
-                            ctx.lineTo(-3.6, 4);
+                            ctx.moveTo(0, -8.5 * scale);
+                            ctx.lineTo(6.0 * scale, 6.8 * scale);
+                            ctx.lineTo(0, 3.6 * scale);
+                            ctx.lineTo(-6.0 * scale, 6.8 * scale);
                             ctx.closePath();
                             ctx.fill();
                             ctx.restore();
@@ -4090,6 +4265,15 @@
                         this.isLoading = false;
                         this.focusedProduct = null;
                         this.focusedHero = null;
+                        this.productTransitionActive = false;
+                        if (this._productTransitionTimer) {
+                            clearTimeout(this._productTransitionTimer);
+                            this._productTransitionTimer = null;
+                        }
+                        if (this._productFadeTimer) {
+                            clearTimeout(this._productFadeTimer);
+                            this._productFadeTimer = null;
+                        }
                         this.instanceMenuOpen = false;
                         this.settingsOpen = false;
                         this.sanctumGateOpen = false;
@@ -4173,6 +4357,46 @@
                             return [];
                         }
                         return this.focusedProduct.benefits.slice(0, 3);
+                    },
+
+                    focusedSummaryText() {
+                        if (!this.focusedProduct) return '';
+                        const stripDashes = (str) => String(str || '').replace(/\s[\u2013\u2014]\s/g, ' · ').trim();
+                        const shortDesc = stripDashes(this.focusedProduct.short_description || '');
+                        if (shortDesc !== '') {
+                            return shortDesc;
+                        }
+                        if (Array.isArray(this.focusedProduct.benefits) && this.focusedProduct.benefits.length > 0) {
+                            return this.focusedProduct.benefits
+                                .slice(0, 2)
+                                .map((b) => stripDashes(b))
+                                .filter((b) => b !== '')
+                                .join(' · ');
+                        }
+                        return '';
+                    },
+
+                    launchProductTransition(prod) {
+                        const targetProd = prod || this.focusedProduct;
+                        const targetUrl = (targetProd && targetProd.product_url) ? targetProd.product_url : '/shop';
+                        if (this._productTransitionTimer) return;
+
+                        const facade = getFacade();
+                        if (facade && typeof facade.startExhibitTransition === 'function') {
+                            facade.startExhibitTransition(this.activeIndex);
+                        } else if (privateAudio && typeof privateAudio.playProductTransition === 'function') {
+                            privateAudio.playProductTransition();
+                        }
+
+                        if (this._productFadeTimer) clearTimeout(this._productFadeTimer);
+                        this._productFadeTimer = setTimeout(() => {
+                            this.productTransitionActive = true;
+                        }, 140);
+
+                        this._productTransitionTimer = setTimeout(() => {
+                            this._productTransitionTimer = null;
+                            window.location.href = targetUrl;
+                        }, 680);
                     },
 
                     focusedPriceLabel() {

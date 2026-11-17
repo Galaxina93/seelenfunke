@@ -4,7 +4,7 @@
  * On-Demand ES-Modul: 0 KB Initial-Last auf /shop & /mein-konto, 0 % CPU/GPU nach dem Schliessen.
  */
 
-import { getLobbyAudioInstance, SeelenfunkeLobbyAudio } from './seelenfunke-lobby-audio.js?v=20261117v4';
+import { getLobbyAudioInstance, SeelenfunkeLobbyAudio } from './seelenfunke-lobby-audio.js?v=20261117v5';
 
 const TWO_PI = Math.PI * 2;
 const PROXIMITY_FOCUS_ENTER = 3.4;
@@ -12,21 +12,64 @@ const PROXIMITY_FOCUS_LEAVE = 3.75;
 const HERO_FOCUS_ENTER = 3.85;
 const HERO_FOCUS_LEAVE = 4.35;
 
-export const LOBBY_KEYBINDINGS_STORAGE_KEY = 'sf_lobby_keybindings_v2';
+export const LOBBY_KEYBINDINGS_STORAGE_KEY = 'sf_lobby_keybindings_v3';
 export const LOBBY_SETTINGS_STORAGE_KEY = 'sf_lobby_user_settings_v1';
 
 export const DEFAULT_LOBBY_KEYBINDINGS = {
-    sprint: 'Digit1',
-    titanJump: 'Digit2',
-    shield: 'Digit3',
-    burst: 'Digit4',
-    strike: 'KeyG',
+    strike: 'Digit1',
+    sprint: 'Digit2',
+    titanJump: 'Digit3',
+    shield: 'Digit4',
+    burst: 'Digit5',
     jump: 'Space',
     moveForward: 'KeyW',
     moveLeft: 'KeyA',
     moveBack: 'KeyS',
     moveRight: 'KeyD',
 };
+
+export const LOBBY_ABILITY_DEFINITIONS = Object.freeze([
+    Object.freeze({
+        slot: 1,
+        actionKey: 'strike',
+        name: 'Funken-Hieb',
+        costLabel: '0 Mana · 4er-Kombo',
+        cdLabel: 'Sofort / 1,8 s nach Schlag 4',
+        desc: 'Schlägt mit bis zu 4 Kombo-Stufen zu und entfesselt beim 4. Treffer einen Luft-Bodenschlag.',
+    }),
+    Object.freeze({
+        slot: 2,
+        actionKey: 'sprint',
+        name: 'Licht-Sprint',
+        costLabel: '18 Mana',
+        cdLabel: '10 s Abklingzeit',
+        desc: 'Erhöht dein Lauftempo 4,5 s lang um 55 % für weite Präzisionssprünge.',
+    }),
+    Object.freeze({
+        slot: 3,
+        actionKey: 'titanJump',
+        name: 'Aufwind-Impuls',
+        costLabel: '22 Mana',
+        cdLabel: '8 s Abklingzeit',
+        desc: 'Katapultiert dich sofort kraftvoll in die Höhe, ideal für hohe Randsäulen und Ebenen.',
+    }),
+    Object.freeze({
+        slot: 4,
+        actionKey: 'shield',
+        name: 'Aegis-Schild',
+        costLabel: '25 Mana',
+        cdLabel: '15 s Abklingzeit',
+        desc: 'Schützt 6,5 s vor Geysiren und Gefahrenringen. Bei Lava-Kontakt katapultiert dich das Schild hoch und zerbricht.',
+    }),
+    Object.freeze({
+        slot: 5,
+        actionKey: 'burst',
+        name: 'Seelen-Nova',
+        costLabel: '30 Mana',
+        cdLabel: '20 s Abklingzeit',
+        desc: 'Entfesselt eine goldene Druckwelle rund um Funki und neutralisiert nahe Gefahrenringe.',
+    }),
+]);
 
 export const DEFAULT_LOBBY_USER_SETTINGS = {
     volume: 50,
@@ -144,9 +187,9 @@ export function resolveLobbyEnvironment(rawEnv) {
 }
 
 const DEFAULT_LAVA_LEVEL_CONFIGS = [
-    { level: 1, title: 'Glut-Vorhof', requires_master_key: false, first_clear_reward: 10, daily_reward: 5, rel_cp1: { rel_x: 15.0, rel_z: 0.0 }, rel_cp2: { rel_x: 34.5, rel_z: 0.0 }, rel_chest: { rel_x: 50.0, rel_y: 3.2, rel_z: 0.0 } },
-    { level: 2, title: 'Pendel-Steg', requires_master_key: false, first_clear_reward: 12, daily_reward: 5, rel_cp1: { rel_x: 16.0, rel_z: 1.4 }, rel_cp2: { rel_x: 36.0, rel_z: -1.4 }, rel_chest: { rel_x: 52.0, rel_y: 3.4, rel_z: 0.0 } },
-    { level: 3, title: 'Bröckelnde Essen', requires_master_key: false, first_clear_reward: 15, daily_reward: 6, rel_cp1: { rel_x: 17.0, rel_z: -1.8 }, rel_cp2: { rel_x: 37.5, rel_z: 1.6 }, rel_chest: { rel_x: 54.0, rel_y: 3.6, rel_z: 0.0 } },
+    { level: 1, title: 'Glut-Vorhof', requires_master_key: false, first_clear_reward: 10, daily_reward: 5, rel_cp1: { rel_x: 16.5, rel_z: 0.0 }, rel_cp2: { rel_x: 36.5, rel_z: 0.0 }, rel_chest: { rel_x: 54.5, rel_y: 3.2, rel_z: 0.0 } },
+    { level: 2, title: 'Pendel-Steg', requires_master_key: false, first_clear_reward: 12, daily_reward: 5, rel_cp1: { rel_x: 16.5, rel_z: 1.4 }, rel_cp2: { rel_x: 37.0, rel_z: -1.4 }, rel_chest: { rel_x: 54.5, rel_y: 3.4, rel_z: 0.0 } },
+    { level: 3, title: 'Bröckelnde Essen', requires_master_key: false, first_clear_reward: 15, daily_reward: 6, rel_cp1: { rel_x: 17.0, rel_z: -1.8 }, rel_cp2: { rel_x: 37.5, rel_z: 1.6 }, rel_chest: { rel_x: 54.5, rel_y: 3.6, rel_z: 0.0 } },
     { level: 4, title: 'Schmiede-Takt', requires_master_key: false, first_clear_reward: 18, daily_reward: 6, rel_cp1: { rel_x: 18.0, rel_z: 2.0 }, rel_cp2: { rel_x: 39.0, rel_z: -2.0 }, rel_chest: { rel_x: 56.0, rel_y: 3.8, rel_z: 0.0 } },
     { level: 5, title: 'Geysir-Kamm', requires_master_key: false, first_clear_reward: 25, daily_reward: 8, rel_cp1: { rel_x: 19.0, rel_z: -2.2 }, rel_cp2: { rel_x: 40.5, rel_z: 2.2 }, rel_chest: { rel_x: 58.0, rel_y: 4.1, rel_z: 0.0 } },
     { level: 6, title: 'Aufwind-Kaverne', requires_master_key: true, first_clear_reward: 30, daily_reward: 10, rel_cp1: { rel_x: 20.0, rel_z: 2.2 }, rel_cp2: { rel_x: 42.0, rel_z: -2.2 }, rel_chest: { rel_x: 60.0, rel_y: 4.5, rel_z: 0.0 } },
@@ -278,6 +321,49 @@ function createBoiserieWallPlaneGeo(THREE, widthMeters, heightMeters, panelRepea
 
 const TOTAL_HERO_DISPLAY_SLOTS = 29;
 
+export function getLobbyAbilitySvgMarkup(slot) {
+    const s = parseInt(slot, 10) || 1;
+    if (s === 1) {
+        // [1] Funken-Hieb: Edle Manufaktur-Goldklinge mit geschwungenem Licht-Hiebbogen & Diamantfunke
+        return '<svg class="sf-ability-svg" viewBox="0 0 28 28" fill="none" aria-hidden="true">'
+            + '<path d="M5.5 21.5C8.5 11.8 15.2 6.2 23.2 5.2" stroke="#C5A059" stroke-width="2.2" stroke-linecap="round" opacity="0.55"/>'
+            + '<path d="M21.8 4.8L10.6 16.0L12.0 17.4L23.2 6.2L23.6 4.4L21.8 4.8Z" fill="#C5A059" stroke="#785A28" stroke-width="1.1" stroke-linejoin="round"/>'
+            + '<path d="M8.6 14.4L13.6 19.4" stroke="#111827" stroke-width="2.0" stroke-linecap="round"/>'
+            + '<path d="M10.4 17.6L6.6 21.4" stroke="#785A28" stroke-width="2.3" stroke-linecap="round"/>'
+            + '<path d="M19.5 12.2L20.6 9.8L21.7 12.2L24.1 13.3L21.7 14.4L20.6 16.8L19.5 14.4L17.1 13.3L19.5 12.2Z" fill="#D97706"/>'
+            + '</svg>';
+    }
+    if (s === 2) {
+        // [2] Licht-Sprint: Gefluegelter Gold-Impuls mit dreifachem Tempo-Schweif
+        return '<svg class="sf-ability-svg" viewBox="0 0 28 28" fill="none" aria-hidden="true">'
+            + '<path d="M4.5 10.5H13.5M3.5 14.5H11.5M5.5 18.5H12.5" stroke="#1D4ED8" stroke-width="1.8" stroke-linecap="round" opacity="0.78"/>'
+            + '<path d="M12.2 19.8L16.4 8.2L23.8 6.4L19.8 13.6L24.2 14.4L14.4 22.2L15.8 16.6L12.2 19.8Z" fill="#C5A059" stroke="#785A28" stroke-width="1.15" stroke-linejoin="round"/>'
+            + '</svg>';
+    }
+    if (s === 3) {
+        // [3] Aufwind-Impuls: Doppelter Gold-Aufwind-Chevron ueber elliptischem Druckring
+        return '<svg class="sf-ability-svg" viewBox="0 0 28 28" fill="none" aria-hidden="true">'
+            + '<ellipse cx="14" cy="21.5" rx="7.5" ry="2.4" stroke="#1D4ED8" stroke-width="1.6" opacity="0.72"/>'
+            + '<path d="M8.5 13.5L14 7.8L19.5 13.5" stroke="#785A28" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>'
+            + '<path d="M14 4.8L19.8 10.8H16.2V18.2H11.8V10.8H8.2L14 4.8Z" fill="#C5A059" stroke="#785A28" stroke-width="1.1" stroke-linejoin="round"/>'
+            + '</svg>';
+    }
+    if (s === 4) {
+        // [4] Aegis-Schild: Facettierter Wappenschild mit Saphir-Gold-Kristallkern
+        return '<svg class="sf-ability-svg" viewBox="0 0 28 28" fill="none" aria-hidden="true">'
+            + '<path d="M14 4.2L22.2 7.4V13.8C22.2 18.8 18.7 22.6 14 24.4C9.3 22.6 5.8 18.8 5.8 13.8V7.4L14 4.2Z" fill="#FAF3E3" stroke="#C5A059" stroke-width="1.9" stroke-linejoin="round"/>'
+            + '<path d="M14 6.8L19.6 9.0V13.6C19.6 17.2 17.2 19.9 14 21.4C10.8 19.9 8.4 17.2 8.4 13.6V9.0L14 6.8Z" fill="#C5A059" opacity="0.28"/>'
+            + '<path d="M14 8.8L16.8 13.8L14 18.8L11.2 13.8L14 8.8Z" fill="#1D4ED8" stroke="#C5A059" stroke-width="1.1"/>'
+            + '</svg>';
+    }
+    // [5] Seelen-Nova: Achtstrahliger Supernova-Kristallstern mit Gold-Druckwellen-Ring
+    return '<svg class="sf-ability-svg" viewBox="0 0 28 28" fill="none" aria-hidden="true">'
+        + '<circle cx="14" cy="14" r="9.2" stroke="#C5A059" stroke-width="1.35" stroke-dasharray="2.4 2.2" opacity="0.82"/>'
+        + '<path d="M14 3.8L16.3 10.6L23.2 11.7L17.4 15.6L19.2 22.4L14 18.2L8.8 22.4L10.6 15.6L4.8 11.7L11.7 10.6L14 3.8Z" fill="#C5A059" stroke="#785A28" stroke-width="1.1" stroke-linejoin="round"/>'
+        + '<circle cx="14" cy="14" r="2.5" fill="#FFFDF7"/>'
+        + '</svg>';
+}
+
 export const SF_LOBBY_SCOPED_CSS = `
 [x-cloak] { display: none !important; }
 @keyframes sfLobbySpin { to { transform: rotate(360deg); } }
@@ -299,8 +385,18 @@ export const SF_LOBBY_SCOPED_CSS = `
     box-sizing: border-box !important;
     user-select: none !important;
     -webkit-user-select: none !important;
+    -webkit-touch-callout: none !important;
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     color: #111827;
+}
+.sf-lobby-modal *, .sf-lobby-modal *::before, .sf-lobby-modal *::after {
+    user-select: none !important;
+    -webkit-user-select: none !important;
+    -webkit-touch-callout: none !important;
+}
+.sf-lobby-modal input, .sf-lobby-modal textarea {
+    user-select: text !important;
+    -webkit-user-select: text !important;
 }
 .sf-lobby-modal.is-open {
     display: flex !important;
@@ -314,11 +410,11 @@ export const SF_LOBBY_SCOPED_CSS = `
     top: 0;
     left: 0;
     right: 0;
-    padding: 14px 20px;
+    padding: 12px 18px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
+    gap: 10px;
     flex-wrap: wrap;
     pointer-events: none;
     z-index: 30;
@@ -326,10 +422,10 @@ export const SF_LOBBY_SCOPED_CSS = `
 }
 .sf-lobby-nav-pill {
     pointer-events: auto;
-    background: rgba(255, 255, 255, 0.94);
-    border: 1px solid rgba(197, 160, 89, 0.42);
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(197, 160, 89, 0.48);
     border-radius: 999px;
-    padding: 5px;
+    padding: 4px;
     box-shadow: 0 8px 24px rgba(17, 24, 39, 0.08);
     display: inline-flex;
     align-items: center;
@@ -342,11 +438,11 @@ export const SF_LOBBY_SCOPED_CSS = `
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 6px 14px;
+    padding: 6px 13px;
     border-radius: 999px;
     background: #FAF8F5;
     color: #111827;
-    border: 1px solid rgba(197, 160, 89, 0.38);
+    border: 1px solid rgba(197, 160, 89, 0.42);
     font-size: 12px;
     font-weight: 800;
     line-height: 1.2;
@@ -378,12 +474,12 @@ export const SF_LOBBY_SCOPED_CSS = `
     pointer-events: auto;
     display: inline-flex;
     align-items: center;
-    gap: 8px;
+    gap: 7px;
     flex-wrap: wrap;
 }
 .sf-lobby-pill-btn {
     appearance: none;
-    background: rgba(255, 255, 255, 0.94);
+    background: rgba(255, 255, 255, 0.95);
     color: #111827;
     border: 1px solid rgba(197, 160, 89, 0.48);
     border-radius: 999px;
@@ -564,6 +660,36 @@ export const SF_LOBBY_SCOPED_CSS = `
     touch-action: none;
     cursor: grab;
 }
+.sf-lobby-ivory-transition {
+    position: absolute;
+    inset: 0;
+    z-index: 44;
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    background: radial-gradient(circle at 50% 46%, rgba(255, 252, 244, 0.94) 0%, rgba(246, 236, 214, 0.99) 100%);
+    transition: opacity 420ms cubic-bezier(0.22, 0.61, 0.36, 1), visibility 420ms ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.sf-lobby-ivory-transition.is-fading {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+}
+.sf-lobby-ivory-transition-badge {
+    padding: 10px 22px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.96);
+    border: 1.5px solid #C5A059;
+    box-shadow: 0 16px 38px rgba(197, 160, 89, 0.24);
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: #111827;
+}
 .sf-lobby-loading {
     position: absolute;
     inset: 0;
@@ -616,13 +742,13 @@ export const SF_LOBBY_SCOPED_CSS = `
 }
 .sf-lobby-floating-card {
     position: relative;
-    width: 276px;
+    width: 288px;
     max-width: calc(100vw - 24px);
-    background: rgba(255, 255, 255, 0.96);
-    border: 1px solid rgba(197, 160, 89, 0.55);
-    border-radius: 16px;
-    padding: 14px 16px;
-    box-shadow: 0 14px 34px rgba(17, 24, 39, 0.12);
+    background: rgba(255, 255, 255, 0.98);
+    border: 1.5px solid rgba(197, 160, 89, 0.68);
+    border-radius: 18px;
+    padding: 13px 15px 11px;
+    box-shadow: 0 16px 38px rgba(17, 24, 39, 0.13);
     color: #111827;
     pointer-events: auto;
     box-sizing: border-box;
@@ -630,94 +756,117 @@ export const SF_LOBBY_SCOPED_CSS = `
 .sf-lobby-floating-arrow {
     width: 12px;
     height: 12px;
-    background: rgba(255, 255, 255, 0.96);
-    border-right: 1px solid rgba(197, 160, 89, 0.55);
-    border-bottom: 1px solid rgba(197, 160, 89, 0.55);
+    background: rgba(255, 255, 255, 0.98);
+    border-right: 1.5px solid rgba(197, 160, 89, 0.68);
+    border-bottom: 1.5px solid rgba(197, 160, 89, 0.68);
     transform: rotate(45deg);
     margin: -6px auto 0;
     pointer-events: none;
 }
-.sf-lobby-prod-head {
+.sf-lobby-prod-row1 {
     display: flex;
     align-items: flex-start;
-    gap: 10px;
-}
-.sf-lobby-prod-thumb {
-    width: 46px;
-    height: 46px;
-    border-radius: 12px;
-    object-fit: cover;
-    background: #FAF8F5;
-    border: 1px solid rgba(197, 160, 89, 0.35);
-    flex-shrink: 0;
-}
-.sf-lobby-prod-cat {
-    display: block;
-    font-size: 10px;
-    font-weight: 800;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: #9A7738;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    justify-content: space-between;
+    gap: 8px;
 }
 .sf-lobby-prod-title {
-    margin: 2px 0 0;
+    margin: 0;
     font-family: Georgia, "Times New Roman", serif;
     font-size: 15px;
     font-weight: 700;
-    line-height: 1.28;
+    line-height: 1.25;
     color: #111827;
+    flex: 1;
+    min-width: 0;
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
 }
-.sf-lobby-prod-price {
-    display: inline-block;
-    margin-top: 3px;
-    font-size: 13px;
-    font-weight: 800;
-    color: #111827;
-}
-.sf-lobby-prod-benefits {
-    margin-top: 10px;
-    padding-top: 10px;
-    border-top: 1px solid rgba(197, 160, 89, 0.25);
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-}
-.sf-lobby-prod-benefit-row {
-    display: flex;
-    align-items: flex-start;
-    gap: 6px;
+.sf-lobby-prod-price-badge {
+    flex-shrink: 0;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #FAF6EE;
+    border: 1px solid rgba(197, 160, 89, 0.52);
     font-size: 11px;
-    font-weight: 700;
+    font-weight: 800;
     line-height: 1.3;
     color: #111827;
+    white-space: nowrap;
 }
-.sf-lobby-prod-check {
-    color: #C5A059;
-    font-weight: 900;
-    flex-shrink: 0;
+.sf-lobby-prod-summary {
+    margin: 5px 0 0;
+    font-size: 11.5px;
+    font-weight: 600;
+    line-height: 1.35;
+    color: #4B5563;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
 }
 .sf-lobby-prod-cta {
-    margin-top: 11px;
+    appearance: none;
+    margin-top: 10px;
     width: 100%;
     padding: 9px 14px;
-    border-radius: 12px;
-    background: #C5A059;
+    border-radius: 999px;
+    border: 1px solid #B89146;
+    background: linear-gradient(180deg, #CFA962 0%, #B89146 100%);
     color: #FFFFFF;
     font-size: 12px;
     font-weight: 800;
+    letter-spacing: 0.02em;
     text-decoration: none;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 6px;
     box-sizing: border-box;
-    transition: background-color 150ms ease;
+    cursor: pointer;
+    box-shadow: 0 6px 16px rgba(197, 160, 89, 0.28);
+    transition: transform 140ms ease, filter 140ms ease;
 }
 .sf-lobby-prod-cta:hover {
-    background: #B38E46;
+    filter: brightness(1.04);
+    transform: translateY(-1px);
+}
+.sf-lobby-exhibit-step-row {
+    margin-top: 8px;
+    padding-top: 7px;
+    border-top: 1px solid rgba(197, 160, 89, 0.22);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px;
+}
+.sf-lobby-exhibit-nav-link {
+    appearance: none;
+    border: none;
+    background: transparent;
+    padding: 2px 5px;
+    border-radius: 6px;
+    font-size: 10.5px;
+    font-weight: 800;
+    color: #785A28;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.sf-lobby-exhibit-nav-link:hover {
+    background: #FAF6EE;
+    color: #111827;
+}
+.sf-lobby-exhibit-counter {
+    appearance: none;
+    border: none;
+    background: transparent;
+    padding: 2px 6px;
+    font-size: 10.5px;
+    font-weight: 800;
+    color: #6B7280;
+    cursor: pointer;
+    white-space: nowrap;
 }
 .sf-lobby-hero-head {
     display: flex;
@@ -793,12 +942,12 @@ export const SF_LOBBY_SCOPED_CSS = `
 }
 .sf-lobby-chat-panel {
     position: absolute;
-    bottom: 92px;
+    bottom: 84px;
     right: 20px;
-    z-index: 24;
+    z-index: 26;
     width: 304px;
     max-width: calc(100vw - 24px);
-    background: rgba(255, 255, 255, 0.96);
+    background: rgba(255, 255, 255, 0.97);
     color: #111827;
     border: 1px solid rgba(197, 160, 89, 0.55);
     border-radius: 16px;
@@ -833,19 +982,42 @@ export const SF_LOBBY_SCOPED_CSS = `
     font-size: 11px;
     color: #111827;
 }
-.sf-lobby-stick-wrap {
-    display: none;
-    position: absolute;
-    bottom: 72px;
-    left: 12px;
-    z-index: 22;
+.sf-lobby-chat-panel.is-expanded { width: 440px; }
+.sf-lobby-chat-panel.is-expanded .sf-lobby-chat-scroll { max-height: 280px; }
+.sf-lobby-friends-scroll {
+    max-height: 156px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding-right: 2px;
 }
+.sf-lobby-chat-panel.is-expanded .sf-lobby-friends-scroll { max-height: 280px; }
+.sf-emote-chip {
+    appearance: none;
+    border-radius: 6px;
+    background: #FAF8F5;
+    border: 1px solid rgba(197, 160, 89, 0.35);
+    padding: 2px 6px;
+    font-size: 10px;
+    font-weight: 700;
+    color: #4B5563;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.sf-emote-chip:hover {
+    border-color: #C5A059;
+    color: #111827;
+    background: #FFFFFF;
+}
+.sf-lobby-stick-wrap { display: none; position: absolute; bottom: calc(74px + env(safe-area-inset-bottom, 0px)); left: 14px; z-index: 24; }
 .sf-lobby-stick {
-    width: 84px;
-    height: 84px;
+    width: 80px;
+    height: 80px;
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.88);
-    border: 1px solid rgba(197, 160, 89, 0.52);
+    background: rgba(255, 255, 255, 0.90);
+    border: 1.5px solid rgba(197, 160, 89, 0.58);
     box-shadow: 0 10px 26px rgba(17, 24, 39, 0.12);
     display: flex;
     align-items: center;
@@ -855,55 +1027,24 @@ export const SF_LOBBY_SCOPED_CSS = `
     cursor: pointer;
 }
 .sf-lobby-stick-knob {
-    width: 34px;
-    height: 34px;
+    width: 32px;
+    height: 32px;
     border-radius: 999px;
     background: #C5A059;
     border: 2px solid #FFFFFF;
     box-shadow: 0 4px 12px rgba(17, 24, 39, 0.18);
     pointer-events: none;
 }
-.sf-lobby-quick-actions {
-    position: absolute;
-    bottom: 22px;
-    right: 20px;
-    z-index: 22;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-.sf-lobby-icon-btn {
-    appearance: none;
-    height: 44px;
-    min-width: 44px;
-    padding: 0 12px;
-    border-radius: 14px;
-    background: rgba(255, 255, 255, 0.94);
-    color: #111827;
-    border: 1px solid rgba(197, 160, 89, 0.55);
-    box-shadow: 0 10px 24px rgba(17, 24, 39, 0.10);
-    font-size: 13px;
-    font-weight: 800;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    cursor: pointer;
-}
-.sf-lobby-icon-btn:hover {
-    background: #FFFFFF;
-    border-color: #C5A059;
-}
 .sf-lobby-bottom-stack {
     position: absolute;
-    bottom: 14px;
+    bottom: calc(74px + env(safe-area-inset-bottom, 0px));
     left: 12px;
     right: 12px;
-    z-index: 21;
+    z-index: 22;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 7px;
+    gap: 6px;
     pointer-events: none;
 }
 .sf-lobby-bottom-pill {
@@ -913,9 +1054,9 @@ export const SF_LOBBY_SCOPED_CSS = `
     align-items: center;
     justify-content: center;
     gap: 6px;
-    padding: 6px 10px;
+    padding: 5px 10px;
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.94);
+    background: rgba(255, 255, 255, 0.95);
     border: 1px solid rgba(197, 160, 89, 0.48);
     box-shadow: 0 10px 28px rgba(17, 24, 39, 0.12);
     max-width: 100%;
@@ -941,90 +1082,107 @@ export const SF_LOBBY_SCOPED_CSS = `
     color: #FFFFFF;
     border-color: #C5A059;
 }
-.sf-lobby-exhibit-btn {
-    appearance: none;
-    padding: 6px 14px;
-    border-radius: 999px;
-    border: 1px solid rgba(197, 160, 89, 0.35);
-    background: #FFFFFF;
-    color: #111827;
+.sf-lobby-gold-crest-bar {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 25;
+    min-height: 64px;
+    padding: 6px 20px calc(7px + env(safe-area-inset-bottom, 0px));
+    background: linear-gradient(180deg, rgba(252, 250, 245, 0.96) 0%, rgba(244, 238, 226, 0.99) 100%);
+    border-top: 1.5px solid #C5A059;
+    box-shadow: 0 -8px 26px rgba(17, 24, 39, 0.09), inset 0 1px 0 rgba(255, 255, 255, 0.85);
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 12px;
+    pointer-events: auto;
+    box-sizing: border-box;
+}
+.sf-lobby-gold-crest-bar::before {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 18px;
+    right: 18px;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(197, 160, 89, 0.12) 0%, rgba(197, 160, 89, 0.65) 50%, rgba(197, 160, 89, 0.12) 100%);
+    pointer-events: none;
+}
+.sf-lobby-crest-brand {
+    justify-self: start;
     font-size: 11px;
     font-weight: 800;
-    cursor: pointer;
-    max-width: 260px;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    letter-spacing: 0.04em;
+    color: #785A28;
     white-space: nowrap;
 }
-.sf-lobby-hint-pill {
+.sf-lobby-crest-ornament {
+    justify-self: end;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: rgba(197, 160, 89, 0.78);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.16em;
     pointer-events: none;
-    padding: 5px 14px;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.90);
-    border: 1px solid rgba(197, 160, 89, 0.38);
-    color: #374151;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.01em;
-    box-shadow: 0 6px 18px rgba(17, 24, 39, 0.08);
-    white-space: nowrap;
 }
 .sf-lobby-abilities-dock {
-    position: absolute;
-    bottom: 78px;
-    left: 50%;
-    transform: translateX(-50%);
+    justify-self: center;
     display: flex;
     align-items: center;
-    gap: 8px;
-    z-index: 23;
+    justify-content: center;
+    gap: 9px;
     pointer-events: auto;
 }
 .sf-ability-btn {
     position: relative;
-    width: 48px;
-    height: 48px;
-    border-radius: 13px;
-    background: rgba(255, 255, 255, 0.95);
-    border: 1.5px solid rgba(197, 160, 89, 0.55);
+    width: 50px;
+    height: 50px;
+    border-radius: 14px;
+    background: linear-gradient(180deg, #FFFFFF 0%, #FAF6EE 100%);
+    border: 1.5px solid rgba(197, 160, 89, 0.68);
     color: #111827;
     display: flex;
-    flex-direction: column;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    box-shadow: 0 6px 18px rgba(17, 24, 39, 0.12);
-    transition: transform 0.12s ease, border-color 0.15s ease, background 0.15s ease;
-    user-select: none;
+    padding: 0;
+    box-shadow: 0 5px 14px rgba(17, 24, 39, 0.10), inset 0 1px 0 #FFFFFF;
+    transition: transform 0.12s ease, border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
 }
 .sf-ability-btn:hover {
     border-color: #C5A059;
     transform: translateY(-2px);
     background: #FFFFFF;
+    box-shadow: 0 8px 20px rgba(197, 160, 89, 0.28);
 }
 .sf-ability-btn.is-active {
     border-color: #C5A059;
     background: #FAF3E3;
-    box-shadow: 0 6px 20px rgba(197, 160, 89, 0.36);
+    box-shadow: 0 6px 20px rgba(197, 160, 89, 0.40);
 }
 .sf-ability-btn.is-cooldown {
-    opacity: 0.56;
-    border-color: rgba(156, 163, 175, 0.55);
+    opacity: 0.54;
+    border-color: rgba(156, 163, 175, 0.58);
 }
-.sf-ability-icon {
-    font-size: 16px;
-    line-height: 1;
-    color: #9A7738;
-    font-weight: 900;
+.sf-ability-svg {
+    width: 27px;
+    height: 27px;
+    display: block;
+    pointer-events: none;
 }
 .sf-ability-key {
     position: absolute;
     top: 3px;
     left: 5px;
     font-size: 9px;
-    font-weight: 800;
-    color: #6B7280;
+    font-weight: 900;
+    color: #785A28;
     line-height: 1;
+    pointer-events: none;
 }
 .sf-ability-cd {
     position: absolute;
@@ -1033,10 +1191,11 @@ export const SF_LOBBY_SCOPED_CSS = `
     font-size: 9px;
     font-weight: 800;
     color: #FFFFFF;
-    background: rgba(17, 24, 39, 0.85);
+    background: rgba(17, 24, 39, 0.88);
     padding: 1px 4px;
     border-radius: 5px;
     line-height: 1;
+    pointer-events: none;
 }
 .sf-ability-combo-badge {
     position: absolute;
@@ -1051,24 +1210,72 @@ export const SF_LOBBY_SCOPED_CSS = `
     border: 1.5px solid #FFFFFF;
     line-height: 1;
     box-shadow: 0 3px 8px rgba(17, 24, 39, 0.18);
+    pointer-events: none;
 }
-.sf-ability-combo-dots {
+.sf-ability-tooltip {
     position: absolute;
-    bottom: 3px;
+    bottom: calc(100% + 12px);
     left: 50%;
-    transform: translateX(-50%);
+    transform: translateX(-50%) translateY(4px);
+    width: 224px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.98);
+    border: 1.5px solid rgba(197, 160, 89, 0.72);
+    box-shadow: 0 14px 34px rgba(17, 24, 39, 0.16);
+    text-align: left;
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 140ms ease, transform 140ms ease, visibility 140ms ease;
+    z-index: 40;
+}
+.sf-ability-btn:hover .sf-ability-tooltip,
+.sf-ability-btn:focus-visible .sf-ability-tooltip {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) translateY(0);
+}
+.sf-ability-tooltip-head {
     display: flex;
     align-items: center;
-    gap: 2.5px;
+    justify-content: space-between;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 800;
+    color: #111827;
 }
-.sf-ability-combo-dot {
-    width: 4.5px;
-    height: 4.5px;
-    border-radius: 999px;
-    background: rgba(197, 160, 89, 0.28);
+.sf-ability-tooltip-key {
+    padding: 1px 6px;
+    border-radius: 6px;
+    background: #FAF6EE;
+    border: 1px solid rgba(197, 160, 89, 0.50);
+    font-size: 9.5px;
+    font-weight: 900;
+    color: #785A28;
 }
-.sf-ability-combo-dot.is-lit {
-    background: #C5A059;
+.sf-ability-tooltip-meta {
+    margin-top: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    font-size: 10px;
+    font-weight: 800;
+}
+.sf-ability-tooltip-mana {
+    color: #1D4ED8;
+}
+.sf-ability-tooltip-cd {
+    color: #6B7280;
+}
+.sf-ability-tooltip-desc {
+    margin-top: 5px;
+    font-size: 10.5px;
+    font-weight: 600;
+    line-height: 1.35;
+    color: #374151;
+    white-space: normal;
 }
 .sf-lobby-settings-backdrop {
     position: absolute;
@@ -1085,7 +1292,7 @@ export const SF_LOBBY_SCOPED_CSS = `
 .sf-lobby-settings-card {
     width: 392px;
     max-width: calc(100vw - 24px);
-    max-height: calc(100dvh - 40px);
+    max-height: calc(100dvh - 36px);
     overflow-y: auto;
     background: #FFFFFF;
     color: #111827;
@@ -1208,9 +1415,9 @@ export const SF_LOBBY_SCOPED_CSS = `
     display: inline-flex;
     align-items: center;
     gap: 10px;
-    padding: 6px 12px 6px 7px;
+    padding: 6px 13px 6px 7px;
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.95);
+    background: rgba(255, 255, 255, 0.96);
     border: 1px solid rgba(197, 160, 89, 0.55);
     box-shadow: 0 8px 24px rgba(17, 24, 39, 0.09);
     color: #111827;
@@ -1232,28 +1439,42 @@ export const SF_LOBBY_SCOPED_CSS = `
 .sf-lobby-unit-meta {
     display: flex;
     flex-direction: column;
-    gap: 2px;
-    min-width: 96px;
+    gap: 3px;
+    min-width: 126px;
+}
+.sf-lobby-unit-mana-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.sf-lobby-unit-mana-label {
+    font-size: 9.5px;
+    font-weight: 900;
+    letter-spacing: 0.03em;
+    color: #1D4ED8;
+    line-height: 1;
+    white-space: nowrap;
 }
 .sf-lobby-unit-mana-track {
-    width: 100%;
-    height: 4px;
+    flex: 1;
+    min-width: 64px;
+    height: 6px;
     border-radius: 999px;
-    background: rgba(197, 160, 89, 0.22);
+    background: rgba(29, 78, 216, 0.16);
     overflow: hidden;
 }
 .sf-lobby-unit-mana-fill {
     height: 100%;
     border-radius: 999px;
-    background: #C5A059;
+    background: linear-gradient(90deg, #1d4ed8 0%, #38bdf8 100%);
     transition: width 160ms ease;
 }
 .sf-lobby-minimap-wrap {
     position: absolute;
-    top: 62px;
+    top: 64px;
     right: 20px;
-    width: 84px;
-    height: 84px;
+    width: 180px;
+    height: 180px;
     z-index: 25;
     pointer-events: auto;
     display: flex;
@@ -1261,39 +1482,30 @@ export const SF_LOBBY_SCOPED_CSS = `
     justify-content: center;
 }
 .sf-lobby-minimap-canvas {
-    width: 84px;
-    height: 84px;
+    width: 100%;
+    height: 100%;
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.94);
-    border: 2px solid #C5A059;
-    box-shadow: 0 10px 26px rgba(17, 24, 39, 0.14);
+    background: rgba(255, 255, 255, 0.95);
+    border: 2.5px solid #C5A059;
+    box-shadow: 0 12px 30px rgba(17, 24, 39, 0.15);
     display: block;
 }
 .sf-lobby-minimap-time {
     position: absolute;
-    bottom: -8px;
+    bottom: -9px;
     left: 50%;
     transform: translateX(-50%);
-    padding: 2px 8px;
+    padding: 2px 10px;
     border-radius: 999px;
     background: #FFFFFF;
     border: 1px solid #C5A059;
     color: #111827;
-    font-size: 10px;
+    font-size: 10.5px;
     font-weight: 800;
     line-height: 1.2;
     white-space: nowrap;
     box-shadow: 0 4px 10px rgba(17, 24, 39, 0.10);
     cursor: help;
-}
-.sf-lobby-exhibit-step-row {
-    margin-top: 8px;
-    padding-top: 8px;
-    border-top: 1px solid rgba(197, 160, 89, 0.22);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 5px;
 }
 .sf-lobby-sanctum-list {
     display: flex;
@@ -1337,27 +1549,38 @@ export const SF_LOBBY_SCOPED_CSS = `
     color: #C5A059;
 }
 @media (max-width: 900px), (pointer: coarse) {
-    .sf-lobby-stick-wrap { display: block; bottom: 72px; left: 12px; }
+    .sf-lobby-stick-wrap { display: block; bottom: calc(70px + env(safe-area-inset-bottom, 0px)); left: 12px; }
     .sf-lobby-stick { width: 72px; height: 72px; }
-    .sf-lobby-quick-actions { bottom: 72px; right: 12px; gap: 6px; }
-    .sf-lobby-abilities-dock { bottom: 88px; left: 94px; right: auto; transform: none; display: flex; align-items: center; gap: 6px; }
-    .sf-ability-btn { width: 40px; height: 40px; border-radius: 10px; }
-    .sf-ability-key { display: none; }
+    .sf-lobby-minimap-wrap { width: 136px; height: 136px; top: 60px; right: 14px; }
+    .sf-ability-tooltip { display: none !important; }
 }
 @media (max-width: 767px) {
-    .sf-lobby-topbar { padding: 10px 12px; gap: 8px; }
-    .sf-lobby-zone-badge { padding: 5px 10px; font-size: 11px; }
-    .sf-lobby-pill-btn, .sf-lobby-close-btn { padding: 6px 10px; font-size: 11px; }
-    .sf-lobby-kbd, .sf-lobby-hint-pill, .sf-lobby-hide-sm { display: none !important; }
-    .sf-lobby-chat-panel { bottom: 132px; right: 12px; }
-    .sf-lobby-exhibit-btn { max-width: 175px; }
+    .sf-lobby-topbar { padding: 8px 10px; gap: 6px; }
+    .sf-lobby-unit-frame { padding: 4px 10px 4px 5px; gap: 7px; }
+    .sf-lobby-unit-avatar { width: 26px; height: 26px; font-size: 11px; }
+    .sf-lobby-unit-meta { min-width: 102px; }
+    .sf-lobby-zone-badge { padding: 4px 9px; font-size: 10.5px; }
+    .sf-lobby-pill-btn, .sf-lobby-close-btn { padding: 5px 9px; font-size: 11px; }
+    .sf-lobby-kbd, .sf-lobby-hide-sm, .sf-lobby-crest-ornament { display: none !important; }
+    .sf-lobby-minimap-wrap { width: 116px; height: 116px; top: 56px; right: 10px; }
+    .sf-lobby-minimap-time { font-size: 9.5px; padding: 1px 7px; }
+    .sf-lobby-chat-panel { bottom: calc(74px + env(safe-area-inset-bottom, 0px)); right: 10px; }
+    .sf-lobby-chat-panel.is-expanded { width: calc(100vw - 20px); }
     .sf-lobby-keybind-grid { grid-template-columns: 1fr; }
+    .sf-lobby-gold-crest-bar { grid-template-columns: auto 1fr; padding: 5px 12px calc(6px + env(safe-area-inset-bottom, 0px)); min-height: 58px; gap: 8px; }
+    .sf-lobby-abilities-dock { justify-self: end; gap: 6px; }
+    .sf-ability-btn { width: 42px; height: 42px; border-radius: 11px; }
+    .sf-ability-svg { width: 22px; height: 22px; }
+    .sf-ability-key { font-size: 8px; top: 2px; left: 4px; }
 }
-@media (max-width: 559px) {
-    .sf-lobby-abilities-dock { bottom: 71px; left: 92px; right: auto; transform: none; display: grid; grid-template-columns: repeat(2, 36px); gap: 5px; }
-    .sf-ability-btn { width: 36px; height: 36px; border-radius: 10px; }
-    .sf-ability-icon { font-size: 14px; }
-    .sf-lobby-icon-btn { height: 40px; min-width: 40px; padding: 0 10px; font-size: 12px; }
+@media (max-width: 480px) {
+    .sf-lobby-gold-crest-bar { display: flex; flex-direction: column-reverse; align-items: center; justify-content: center; gap: 3px; padding: 5px 8px calc(5px + env(safe-area-inset-bottom, 0px)); min-height: 60px; }
+    .sf-lobby-abilities-dock { width: 100%; justify-content: center; gap: 6px; }
+    .sf-lobby-crest-brand { font-size: 9.5px; opacity: 0.88; line-height: 1; }
+    .sf-lobby-stick-wrap { bottom: calc(74px + env(safe-area-inset-bottom, 0px)); left: 10px; }
+    .sf-lobby-stick { width: 66px; height: 66px; }
+    .sf-lobby-bottom-stack { bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
+    .sf-lobby-floating-card { width: 266px; padding: 11px 13px 10px; }
 }
 `;
 
@@ -1369,8 +1592,8 @@ export function ensureLobbyScopedStyles() {
         styleEl.id = 'sf-3d-lobby-scoped-css';
         styleEl.textContent = SF_LOBBY_SCOPED_CSS;
         (document.head || document.documentElement).appendChild(styleEl);
-    } else if (styleEl.textContent && styleEl.textContent.indexOf('.sf-lobby-zone-badge') === -1) {
-        styleEl.textContent += '\n' + SF_LOBBY_SCOPED_CSS;
+    } else if (!styleEl.textContent || styleEl.textContent.indexOf('.sf-lobby-gold-crest-bar') === -1) {
+        styleEl.textContent = SF_LOBBY_SCOPED_CSS;
     }
 }
 
@@ -1475,18 +1698,22 @@ function applyLinearColorSpace(THREE, tex) {
 
 export function normalizeHeroCardData(slotNumber, rawHero) {
     const slot = clamp(parseInt(slotNumber, 10) || 1, 1, 999);
-    const isPlaceholder = !rawHero || Boolean(rawHero.is_placeholder);
+    const isPlaceholder = !rawHero || ((Boolean(rawHero.is_placeholder) || rawHero.occupied === false) && !rawHero.is_preview);
 
     if (isPlaceholder) {
         return {
             slot,
+            occupied: false,
             is_placeholder: true,
             is_me: false,
             display_name: 'Freier Ehrenplatz',
             level: 1,
             level_title: FUNKI_LEVEL_TITLES[1],
+            model_url: null,
             sparks: 0,
             sparks_formatted: '0',
+            hero_score: 0,
+            magma_highest_level: 0,
             ship_class: 'KLASSE C',
             titles_count: 0,
         };
@@ -1494,10 +1721,12 @@ export function normalizeHeroCardData(slotNumber, rawHero) {
 
     const level = clamp(parseInt(rawHero.level, 10) || 1, 1, 10);
     const levelTitle = sanitizeDisplayText(rawHero.level_title || rawHero.rank_name || FUNKI_LEVEL_TITLES[level] || 'Ursprung');
-    const sparksNum = Math.max(0, parseInt(rawHero.sparks ?? rawHero.funken_total_earned ?? (level * 250), 10) || 0);
+    const sparksNum = Math.max(0, parseInt(rawHero.sparks ?? rawHero.funken_total_earned ?? rawHero.hero_score ?? (level * 250), 10) || 0);
     const sparksFormatted = rawHero.sparks_formatted
         ? sanitizeDisplayText(rawHero.sparks_formatted)
         : sparksNum.toLocaleString('de-DE');
+    const heroScore = Math.max(sparksNum, parseInt(rawHero.hero_score ?? sparksNum, 10) || 0);
+    const magmaHighest = Math.max(0, parseInt(rawHero.magma_highest_level ?? 0, 10) || 0);
 
     const fallbackClassLetter = level >= 9 ? 'S' : (level >= 6 ? 'A' : (level >= 3 ? 'B' : 'C'));
     const rawShipClass = sanitizeDisplayText(rawHero.ship_class || rawHero.rank_class || fallbackClassLetter).toUpperCase();
@@ -1510,14 +1739,18 @@ export function normalizeHeroCardData(slotNumber, rawHero) {
 
     return {
         slot,
+        occupied: true,
         is_placeholder: false,
         is_me: Boolean(rawHero.is_me),
         is_preview: Boolean(rawHero.is_preview),
         display_name: sanitizeDisplayText(rawHero.display_name || `Held #${slot}`),
         level,
         level_title: levelTitle,
+        model_url: rawHero.model_url || rawHero.glb_url || null,
         sparks: sparksNum,
         sparks_formatted: sparksFormatted,
+        hero_score: heroScore,
+        magma_highest_level: magmaHighest,
         ship_class: shipClass,
         titles_count: titlesCount,
     };
@@ -2923,25 +3156,32 @@ function paintHeroPedestalCanvas(c, slotNumber, hero) {
 
     if (!norm.is_placeholder) {
         ctx.fillStyle = norm.is_me ? '#FDE68A' : '#C5A059';
-        ctx.font = '800 38px "Liberation Sans", "Segoe UI", sans-serif';
+        ctx.font = '800 34px "Liberation Sans", "Segoe UI", sans-serif';
         ctx.fillText(
-            `#${slotNumber} · ${norm.ship_class} · STUFE ${norm.level}${norm.is_me ? ' · DU' : ''}`,
+            `#${slotNumber} · STUFE ${norm.level} · ${norm.level_title.toUpperCase()}${norm.is_me ? ' · DU' : ''}`,
             W * 0.5,
-            H * 0.27,
+            H * 0.23,
             W - 90
         );
 
         ctx.fillStyle = 'rgba(197, 160, 89, 0.45)';
-        ctx.fillRect(W * 0.18, H * 0.42, W * 0.64, 2.5);
+        ctx.fillRect(W * 0.16, H * 0.36, W * 0.68, 2.5);
 
-        const ng = ctx.createLinearGradient(0, H * 0.46, 0, H * 0.86);
+        const ng = ctx.createLinearGradient(0, H * 0.40, 0, H * 0.72);
         ng.addColorStop(0, '#FFFDF5');
         ng.addColorStop(0.35, '#FDE68A');
         ng.addColorStop(0.7, '#D4AF37');
         ng.addColorStop(1, '#B88D3B');
         ctx.fillStyle = ng;
-        ctx.font = '900 80px "Liberation Sans", "Segoe UI", sans-serif';
-        ctx.fillText(norm.display_name, W * 0.5, H * 0.67, W - 88);
+        ctx.font = '900 72px "Liberation Sans", "Segoe UI", sans-serif';
+        ctx.fillText(norm.display_name, W * 0.5, H * 0.56, W - 88);
+
+        ctx.fillStyle = '#E6C687';
+        ctx.font = '800 33px "Liberation Sans", "Segoe UI", sans-serif';
+        const scoreMeta = norm.magma_highest_level > 0
+            ? `${norm.sparks_formatted} FUNKEN · MAGMA RAUM ${norm.magma_highest_level}`
+            : `${norm.sparks_formatted} FUNKEN · ${norm.ship_class}`;
+        ctx.fillText(scoreMeta, W * 0.5, H * 0.80, W - 92);
     } else {
         ctx.fillStyle = 'rgba(212, 175, 55, 0.90)';
         ctx.font = '800 36px "Liberation Sans", "Segoe UI", sans-serif';
@@ -2976,17 +3216,18 @@ function paintHeroSteleCanvas(c, slotNumber, hero) {
 
     ctx.fillStyle = '#D4AF37';
     ctx.font = '900 38px "Liberation Sans", sans-serif';
-    ctx.fillText('✦', W * 0.5, H * 0.16);
+    ctx.fillText('✦', W * 0.5, H * 0.14);
 
     if (!norm.is_placeholder) {
         ctx.fillStyle = '#FDE68A';
-        ctx.font = '800 40px "Liberation Sans", sans-serif';
-        ctx.fillText(norm.display_name, W * 0.5, H * 0.42, W - 36);
+        ctx.font = '800 38px "Liberation Sans", sans-serif';
+        ctx.fillText(norm.display_name, W * 0.5, H * 0.38, W - 36);
 
         ctx.fillStyle = '#C5A059';
-        ctx.font = '700 26px "Liberation Sans", sans-serif';
-        ctx.fillText(`#${slotNumber} · ${norm.ship_class}`, W * 0.5, H * 0.63, W - 36);
-        ctx.fillText(`STUFE ${norm.level}${norm.is_me ? ' · DU' : ''}`, W * 0.5, H * 0.79, W - 36);
+        ctx.font = '700 25px "Liberation Sans", sans-serif';
+        ctx.fillText(`#${slotNumber} · STUFE ${norm.level}`, W * 0.5, H * 0.58, W - 36);
+        ctx.fillStyle = '#E6C687';
+        ctx.fillText(`${norm.sparks_formatted} Funken${norm.is_me ? ' · DU' : ''}`, W * 0.5, H * 0.76, W - 36);
     } else {
         ctx.fillStyle = 'rgba(212, 175, 55, 0.88)';
         ctx.font = '700 28px "Liberation Sans", sans-serif';
@@ -3286,7 +3527,7 @@ class SeelenfunkeLouvreShowroom3D {
         this.lavaPortalZ = -2.0;
         this.lavaPortalHalfSpan = 2.85;
         this.lavaChamberMinX = 3.5;
-        this.lavaChamberMaxX = 98.0;
+        this.lavaChamberMaxX = 102.0;
         this.lavaChamberMinZ = -14.8;
         this.lavaChamberMaxZ = 10.8;
         this.lavaBalconyMaxX = 19.0;
@@ -3299,10 +3540,12 @@ class SeelenfunkeLouvreShowroom3D {
         this.lavaGeysers = [];
         this.lavaUpdrafts = [];
         this.lavaRotatingRings = [];
+        this.lavaShockRings = [];
         this.lavaHubPortals = [];
         this.lavaHubPortalHitMeshes = [];
         this.lavaNextRoomPortal = null;
         this.lavaNextRoomHitMeshes = [];
+        this.lavaReturnPortalWorld = null;
         this.lavaEpicGate = null;
         this.lavaEpicGateHitMeshes = [];
         this.lavaCheckpointRings = {};
@@ -3318,14 +3561,39 @@ class SeelenfunkeLouvreShowroom3D {
         this.lavaChestBurstPending = false;
         this.collectibleSparks = [];
         this._sparkCollectCombo = 0;
+        this._exhibitTransition = null;
+        this._lastHeroesRefreshMs = 0;
+        this._heroesRefreshInFlight = false;
+        this._lastRightTapMs = 0;
+        this._touchSwipeStart = null;
 
         const rawLevels = Array.isArray(initLavaCfg.levels) && initLavaCfg.levels.length > 0
             ? initLavaCfg.levels
             : DEFAULT_LAVA_LEVEL_CONFIGS;
+        const mergedDailyClaimedSet = new Set();
+        if (Array.isArray(initLavaCfg.daily_claimed_levels)) {
+            initLavaCfg.daily_claimed_levels.forEach((v) => {
+                const n = parseInt(v, 10);
+                if (n >= 1 && n <= 10) mergedDailyClaimedSet.add(n);
+            });
+        }
+        if (Array.isArray(initLavaCfg.daily_cleared_levels)) {
+            initLavaCfg.daily_cleared_levels.forEach((v) => {
+                const n = parseInt(v, 10);
+                if (n >= 1 && n <= 10) mergedDailyClaimedSet.add(n);
+            });
+        }
+        if (initLavaCfg.claimed_today) {
+            mergedDailyClaimedSet.add(1);
+        }
+
         this.lavaLevels = [];
         for (let li = 1; li <= 10; li++) {
             const found = rawLevels.find((item) => Number(item && item.level) === li) || DEFAULT_LAVA_LEVEL_CONFIGS[li - 1];
             const defCfg = DEFAULT_LAVA_LEVEL_CONFIGS[li - 1];
+            if (found && (found.claimed_today || found.daily_claimed)) {
+                mergedDailyClaimedSet.add(li);
+            }
             this.lavaLevels.push({
                 level: li,
                 title: sanitizeDisplayText((found && found.title) || defCfg.title),
@@ -3353,9 +3621,7 @@ class SeelenfunkeLouvreShowroom3D {
             highestUnlockedLevel: clamp(parseInt(initLavaCfg.highest_unlocked_level, 10) || 1, 1, 10),
             unlockedPortals: Array.isArray(initLavaCfg.unlocked_portals) ? initLavaCfg.unlocked_portals.map((v) => Number(v)) : [],
             firstClearedLevels: Array.isArray(initLavaCfg.first_cleared_levels) ? initLavaCfg.first_cleared_levels.map((v) => Number(v)) : [],
-            dailyClearedLevels: Array.isArray(initLavaCfg.daily_cleared_levels)
-                ? initLavaCfg.daily_cleared_levels.map((v) => Number(v))
-                : (initLavaCfg.claimed_today ? [1] : []),
+            dailyClearedLevels: Array.from(mergedDailyClaimedSet),
             dailySparksEarned: Math.max(0, parseInt(initLavaCfg.daily_sparks_earned, 10) || 0),
             dailySparksCap: Math.max(5, parseInt(initLavaCfg.daily_sparks_cap, 10) || 50),
         };
@@ -3500,9 +3766,15 @@ class SeelenfunkeLouvreShowroom3D {
             shieldCooldown: 0,
             shieldMesh: null,
             burstCooldown: 0,
+            knockbackVx: 0,
+            knockbackVz: 0,
             emote: null,
             emoteTimer: 0,
         };
+
+        this.freePedestalCrests = [];
+        this.lavaReturnPortalWorld = null;
+        this._heroesNeedsLiveRefresh = false;
 
         this._avatarShared = null;
         this.peers = new Map();
@@ -4116,7 +4388,9 @@ class SeelenfunkeLouvreShowroom3D {
                 roughness: 0.22,
                 metalness: 0.08,
                 envMapIntensity: 0.96,
-                polygonOffset: false,
+                polygonOffset: true,
+                polygonOffsetFactor: -1,
+                polygonOffsetUnits: -3,
             })),
             lavaCavernNero: this._trackDisposable(new THREE.MeshStandardMaterial({
                 color: 0x1b1715,
@@ -4151,6 +4425,9 @@ class SeelenfunkeLouvreShowroom3D {
                 roughness: 0.22,
                 metalness: 0.16,
                 envMapIntensity: 0.96,
+                polygonOffset: true,
+                polygonOffsetFactor: -1,
+                polygonOffsetUnits: -3,
             })),
             coveWarmGlow: this._trackDisposable(new THREE.MeshBasicMaterial({
                 color: 0xfff5d8,
@@ -5203,12 +5480,14 @@ class SeelenfunkeLouvreShowroom3D {
         lintelGold.position.set(0, 5.62, this.hallNorthZ);
         this.galleryGroup.add(lintelGold);
 
+        const promSpanZ = Math.max(2.0, (this.hallNorthZ - 2.02) - (this.heroesEntryZ + 0.05));
+        const promNonOverlapZ = ((this.hallNorthZ - 2.02) + (this.heroesEntryZ + 0.05)) * 0.5;
         const promFloor = new THREE.Mesh(
-            this._trackDisposable(new THREE.PlaneGeometry(promW, this.promenadeLength + 2.4)),
+            this._trackDisposable(new THREE.PlaneGeometry(promW, promSpanZ)),
             this.mats.promenadeFloor
         );
         promFloor.rotation.x = -Math.PI * 0.5;
-        promFloor.position.set(0, 0.012, promCenterZ);
+        promFloor.position.set(0, 0.004, promNonOverlapZ);
         promFloor.userData = { isFloor: true };
         this.galleryGroup.add(promFloor);
         this.walkableFloorMeshes.push(promFloor);
@@ -5218,16 +5497,15 @@ class SeelenfunkeLouvreShowroom3D {
             this.mats.sapphireTrim
         );
         carpetStrip.rotation.x = -Math.PI * 0.5;
-        carpetStrip.position.set(0, 0.016, promCenterZ);
+        carpetStrip.position.set(0, 0.008, promCenterZ);
         this.galleryGroup.add(carpetStrip);
 
         [-1.34, 1.34, -this.portalHalfW + 0.12, this.portalHalfW - 0.12].forEach((gx) => {
             const gLine = new THREE.Mesh(
-                this._trackDisposable(new THREE.PlaneGeometry(0.11, this.promenadeLength + 3.2)),
+                this._trackDisposable(new THREE.BoxGeometry(0.11, 0.012, this.promenadeLength + 3.2)),
                 this.mats.goldMatcapBright
             );
-            gLine.rotation.x = -Math.PI * 0.5;
-            gLine.position.set(gx, 0.020, promCenterZ);
+            gLine.position.set(gx, 0.014, promCenterZ);
             this.galleryGroup.add(gLine);
         });
 
@@ -5294,11 +5572,11 @@ class SeelenfunkeLouvreShowroom3D {
 
         const floorTopY = 0.02;
 
-        // 1. Abgestuftes Pantheon-Stylobat (Nero Marquina, Saphir #133B5C, Alabaster #ECEAE4 & 24K-Gold-Rahmen)
+        // 1. Abgestuftes Pantheon-Stylobat (Nero Marquina, Saphir #133B5C, Alabaster #ECEAE4 & 24K-Gold-Rahmen mit >= 4cm Stufentrennung!)
         const steps = [
-            { w: 53.0, d: 55.0, h: 0.90, y: -0.62, trimY: -0.22, mat: this.mats.neroPedestal, trimMat: this.mats.goldMatcapBright },
-            { w: 50.0, d: 52.0, h: 0.42, y: -0.24, trimY: -0.09, mat: this.mats.sapphireTrim, trimMat: this.mats.goldMatcapBright },
-            { w: 47.6, d: 49.6, h: 0.24, y: -0.12, trimY: -0.08, mat: this.mats.alabasterStep, trimMat: this.mats.sapphireTrim },
+            { w: 53.0, d: 55.0, h: 0.90, y: -0.66, trimY: -0.32, mat: this.mats.neroPedestal, trimMat: this.mats.goldMatcapBright },
+            { w: 50.0, d: 52.0, h: 0.42, y: -0.28, trimY: -0.18, mat: this.mats.sapphireTrim, trimMat: this.mats.goldMatcapBright },
+            { w: 47.6, d: 49.6, h: 0.24, y: -0.14, trimY: -0.13, mat: this.mats.alabasterStep, trimMat: this.mats.sapphireTrim },
         ];
         for (let si = 0; si < steps.length; si++) {
             const s = steps[si];
@@ -5753,11 +6031,13 @@ class SeelenfunkeLouvreShowroom3D {
         this.lavaGeysers = [];
         this.lavaUpdrafts = [];
         this.lavaRotatingRings = [];
+        this.lavaShockRings = [];
         this.lavaCheckpointRings = {};
         this.lavaChestHitMeshes = [];
         this.lavaNextRoomHitMeshes = [];
         this.lavaEpicGateHitMeshes = [];
         this.lavaNextRoomPortal = null;
+        this.lavaReturnPortalWorld = null;
         this.lavaEpicGate = null;
         this.lavaChestRoot = null;
         this.lavaChestLidPivot = null;
@@ -5978,9 +6258,9 @@ class SeelenfunkeLouvreShowroom3D {
         const colPlacements = [];
         const rng = mulberry32(20261118);
         for (let ci = 0; ci < 14; ci++) {
-            const cx = lerp(21.5, 90.0, ci / 13);
-            const northZ = clamp(-13.2 + rng() * 3.4, -13.4, -8.8);
-            const southZ = clamp(4.8 + rng() * 3.5, 4.8, 9.2);
+            const cx = lerp(21.5, 92.0, ci / 13);
+            const northZ = clamp(-13.6 + rng() * 2.3, -13.6, -10.9);
+            const southZ = clamp(6.9 + rng() * 2.3, 6.9, 9.5);
             colPlacements.push([cx, northZ, 2.8 + rng() * 3.4]);
             colPlacements.push([cx, southZ, 2.8 + rng() * 3.4]);
         }
@@ -5996,7 +6276,7 @@ class SeelenfunkeLouvreShowroom3D {
             dummy.updateMatrix();
             hexColInst.setMatrixAt(ci, dummy.matrix);
 
-            dummy.position.set(cx, this.lavaSurfaceY + 0.03, cz);
+            dummy.position.set(cx, this.lavaSurfaceY + 0.038, cz);
             dummy.rotation.set(0, ci * 0.52, 0);
             dummy.scale.set(1, 1, 1);
             dummy.updateMatrix();
@@ -6006,7 +6286,7 @@ class SeelenfunkeLouvreShowroom3D {
         hexGlowInst.instanceMatrix.needsUpdate = true;
         this.lavaGroup.add(hexColInst, hexGlowInst);
 
-        // 3. Eingangs-Vorraum mit Schnellreise-Portal-Hub (Raum 2 bis 10) & Louvre-Rueckkehrportal
+        // 3. Eingangs-Vorraum mit Schnellreise-Portal-Hub (Raum 2 bis 10) & Louvre-Rueckkehrportal (0 % Z-Fighting durch echte Stufen!)
         const hubMinX = 4.6;
         const hubMaxX = this.lavaBalconyMaxX;
         const hubMinZ = -11.4;
@@ -6017,35 +6297,34 @@ class SeelenfunkeLouvreShowroom3D {
         const hubCenterZ = (hubMinZ + hubMaxZ) * 0.5;
 
         const hubBlock = new THREE.Mesh(
-            this._trackDisposable(new THREE.BoxGeometry(hubW, 1.68, hubD)),
+            this._trackDisposable(new THREE.BoxGeometry(hubW - 0.08, 1.60, hubD - 0.08)),
             basaltPolishedMat
         );
-        hubBlock.position.set(hubCenterX, -0.84, hubCenterZ);
+        hubBlock.position.set(hubCenterX, -0.916, hubCenterZ);
         this.lavaGroup.add(hubBlock);
 
         const hubFloor = new THREE.Mesh(
-            this._trackDisposable(new THREE.PlaneGeometry(hubW, hubD)),
+            this._trackDisposable(new THREE.BoxGeometry(hubW, 0.12, hubD)),
             this.mats.neroPedestal
         );
-        hubFloor.rotation.x = -Math.PI * 0.5;
-        hubFloor.position.set(hubCenterX, 0.004, hubCenterZ);
+        hubFloor.position.set(hubCenterX, -0.056, hubCenterZ);
         hubFloor.userData = { isFloor: true, isLavaWalkable: true, surfaceY: 0.004 };
         this.lavaGroup.add(hubFloor);
         this.walkableFloorMeshes.push(hubFloor);
 
         const hubRimGold = new THREE.Mesh(
-            this._trackDisposable(new THREE.BoxGeometry(hubW + 0.14, 0.10, hubD + 0.14)),
+            this._trackDisposable(new THREE.BoxGeometry(hubW + 0.18, 0.10, hubD + 0.18)),
             this.mats.goldBrushed
         );
-        hubRimGold.position.set(hubCenterX, -0.04, hubCenterZ);
+        hubRimGold.position.set(hubCenterX, -0.096, hubCenterZ);
         this.lavaGroup.add(hubRimGold);
 
         const hubCompassRing = new THREE.Mesh(
-            this._trackDisposable(new THREE.RingGeometry(2.65, 2.82, 48)),
-            this.mats.goldBrushed
+            this._trackDisposable(new THREE.TorusGeometry(2.72, 0.036, 8, 48)),
+            this.mats.goldMatcapBrushed
         );
-        hubCompassRing.rotation.x = -Math.PI * 0.5;
-        hubCompassRing.position.set(11.4, 0.009, -2.0);
+        hubCompassRing.rotation.x = Math.PI * 0.5;
+        hubCompassRing.position.set(11.4, 0.042, -2.0);
         this.lavaGroup.add(hubCompassRing);
 
         [hubMinZ + 0.16, hubMaxZ - 0.16].forEach((rz) => {
@@ -6142,8 +6421,8 @@ class SeelenfunkeLouvreShowroom3D {
         this.lavaHubPortalHitMeshes = [];
         const hubArchColGeo = this._trackDisposable(new THREE.CylinderGeometry(0.11, 0.13, 1.92, 14));
         const hubArchRingGeo = this._trackDisposable(new THREE.TorusGeometry(0.74, 0.075, 10, 28, Math.PI));
-        const hubBaseDiscGeo = this._trackDisposable(new THREE.CylinderGeometry(0.86, 0.94, 0.09, 24));
-        const hubFloorRuneGeo = this._trackDisposable(new THREE.RingGeometry(0.56, 0.72, 28));
+        const hubBaseDiscGeo = this._trackDisposable(new THREE.CylinderGeometry(0.86, 0.94, 0.08, 24));
+        const hubFloorRuneGeo = this._trackDisposable(new THREE.TorusGeometry(0.64, 0.024, 8, 28));
         const hubSignBackGeo = this._trackDisposable(new THREE.BoxGeometry(1.42, 0.34, 0.07));
         const hubSignFaceGeo = this._trackDisposable(new THREE.PlaneGeometry(1.34, 0.27));
         const hubVeilGeo = this._trackDisposable(new THREE.PlaneGeometry(1.32, 2.25));
@@ -6169,7 +6448,7 @@ class SeelenfunkeLouvreShowroom3D {
             this.lavaGroup.add(pGrp);
 
             const pBase = new THREE.Mesh(hubBaseDiscGeo, this.mats.neroPedestal);
-            pBase.position.y = 0.045;
+            pBase.position.y = 0.040;
             pGrp.add(pBase);
 
             const runeMat = this._trackDisposable(new THREE.MeshBasicMaterial({
@@ -6179,8 +6458,8 @@ class SeelenfunkeLouvreShowroom3D {
                 polygonOffsetUnits: -2,
             }));
             const runeMesh = new THREE.Mesh(hubFloorRuneGeo, runeMat);
-            runeMesh.rotation.x = -Math.PI * 0.5;
-            runeMesh.position.y = 0.096;
+            runeMesh.rotation.x = Math.PI * 0.5;
+            runeMesh.position.y = 0.118;
             pGrp.add(runeMesh);
 
             const archMat = this._trackDisposable(new THREE.MeshStandardMaterial({
@@ -6551,20 +6830,27 @@ class SeelenfunkeLouvreShowroom3D {
                 padCfg.checkpoint ? this.mats.goldMatcapBright : (warnRingMat || this.mats.goldBrushed)
             );
             rim.rotation.x = Math.PI * 0.5;
-            rim.position.y = -0.02;
+            rim.position.y = -0.045;
             grp.add(rim);
 
             const centerInlay = new THREE.Mesh(
-                this._trackLavaRoomDisposable(new THREE.RingGeometry(padCfg.r * 0.52, padCfg.r * 0.64, isCrumble ? 6 : 32)),
-                warnRingMat || this.mats.goldBrushed
+                this._trackLavaRoomDisposable(new THREE.TorusGeometry(padCfg.r * 0.58, 0.022, 8, isCrumble ? 6 : 28)),
+                warnRingMat || this.mats.goldMatcapBrushed
             );
-            centerInlay.rotation.x = -Math.PI * 0.5;
-            centerInlay.position.y = 0.006;
+            centerInlay.rotation.x = Math.PI * 0.5;
+            centerInlay.position.y = 0.022;
             grp.add(centerInlay);
 
             if (padCfg.checkpoint) {
+                const cpMedallion = new THREE.Mesh(
+                    this._trackLavaRoomDisposable(new THREE.CylinderGeometry(padCfg.r * 0.48, padCfg.r * 0.52, 0.038, 28)),
+                    this.mats.neroPedestal
+                );
+                cpMedallion.position.y = 0.019;
+                grp.add(cpMedallion);
+
                 const runeGroup = new THREE.Group();
-                runeGroup.position.y = 0.012;
+                runeGroup.position.y = 0.056;
                 const outerRuneMat = this._trackLavaRoomDisposable(new THREE.MeshBasicMaterial({
                     color: 0xfde68a,
                     polygonOffset: true,
@@ -6572,18 +6858,17 @@ class SeelenfunkeLouvreShowroom3D {
                     polygonOffsetUnits: -2,
                 }));
                 const outerRune = new THREE.Mesh(
-                    this._trackLavaRoomDisposable(new THREE.RingGeometry(padCfg.r * 0.34, padCfg.r * 0.48, 36)),
+                    this._trackLavaRoomDisposable(new THREE.TorusGeometry(padCfg.r * 0.36, 0.020, 8, 32)),
                     outerRuneMat
                 );
-                outerRune.rotation.x = -Math.PI * 0.5;
+                outerRune.rotation.x = Math.PI * 0.5;
                 runeGroup.add(outerRune);
 
                 const runeStar = new THREE.Mesh(
-                    this._trackLavaRoomDisposable(new THREE.RingGeometry(padCfg.r * 0.14, padCfg.r * 0.24, 6)),
+                    this._trackLavaRoomDisposable(new THREE.TorusGeometry(padCfg.r * 0.18, 0.016, 6, 6)),
                     outerRuneMat
                 );
-                runeStar.rotation.x = -Math.PI * 0.5;
-                runeStar.position.y = 0.003;
+                runeStar.rotation.x = Math.PI * 0.5;
                 runeGroup.add(runeStar);
                 grp.add(runeGroup);
 
@@ -6625,6 +6910,7 @@ class SeelenfunkeLouvreShowroom3D {
                 ampZ: padCfg.ampZ || 0,
                 freq: padCfg.freq || 1.25,
                 phase: padCfg.phase || 0,
+                sinkDelay: padCfg.sinkDelay || clamp(0.52 - lvl * 0.022, 0.28, 0.50),
                 steppedOn: false,
                 crumbleSoundPlayed: false,
                 crumbleTimer: 0,
@@ -6649,11 +6935,12 @@ class SeelenfunkeLouvreShowroom3D {
             box.position.y = -h * 0.5;
             grp.add(box);
 
+            // Echte 4.5 cm Stufentrennung (Oberkante trim = -0.045 vs. Oberkante box = 0.000 -> 0 % Z-Fighting!)
             const trim = new THREE.Mesh(
-                this._trackLavaRoomDisposable(new THREE.BoxGeometry(w + 0.08, 0.08, d + 0.08)),
+                this._trackLavaRoomDisposable(new THREE.BoxGeometry(w + 0.16, 0.12, d + 0.16)),
                 this.mats.goldBrushed
             );
-            trim.position.y = -0.04;
+            trim.position.y = -0.105;
             grp.add(trim);
 
             const topHit = new THREE.Mesh(
@@ -6839,37 +7126,189 @@ class SeelenfunkeLouvreShowroom3D {
             });
         };
 
+        // Punkt 4b: Begehbare hexagonale Basalt-Randsaeulen links & rechts in den Magma-Raeumen 1 bis 10
+        const addSideBasaltColumn = (cx, cy, cz, radius) => {
+            const colGrp = new THREE.Group();
+            colGrp.position.set(cx, cy, cz);
+            this.lavaRoomDynamicGroup.add(colGrp);
+
+            const colBottomY = -2.40;
+            const totalH = Math.max(0.8, cy - colBottomY);
+            const shaft = new THREE.Mesh(
+                this._trackLavaRoomDisposable(new THREE.CylinderGeometry(radius, radius * 1.05, totalH, 6)),
+                this._lavaBasaltPolishedMat || this.mats.neroPedestal
+            );
+            shaft.position.y = -totalH * 0.5;
+            colGrp.add(shaft);
+
+            const goldCollar = new THREE.Mesh(
+                this._trackLavaRoomDisposable(new THREE.CylinderGeometry(radius + 0.045, radius + 0.055, 0.09, 6)),
+                this.mats.goldBrushed
+            );
+            goldCollar.position.y = -0.092;
+            colGrp.add(goldCollar);
+
+            const magmaRing = new THREE.Mesh(
+                this._trackLavaRoomDisposable(new THREE.RingGeometry(radius * 0.96, radius * 1.24, 6)),
+                this._lavaMagmaUnderglowMat || this.mats.beaconGold
+            );
+            magmaRing.rotation.x = -Math.PI * 0.5;
+            magmaRing.position.y = (this.lavaSurfaceY - cy) + 0.038;
+            colGrp.add(magmaRing);
+
+            const topHit = new THREE.Mesh(
+                this._trackLavaRoomDisposable(new THREE.CircleGeometry(radius, 6)),
+                this._trackLavaRoomDisposable(new THREE.MeshBasicMaterial({ visible: false }))
+            );
+            topHit.rotation.x = -Math.PI * 0.5;
+            topHit.position.y = 0.006;
+            topHit.userData = { isFloor: true, isLavaWalkable: true, isRoomDynamic: true, surfaceY: cy };
+            colGrp.add(topHit);
+            this.walkableFloorMeshes.push(topHit);
+
+            const rec = {
+                shape: 'disc',
+                type: 'static',
+                isSideColumn: true,
+                checkpoint: 0,
+                group: colGrp,
+                warnRingMat: null,
+                baseX: cx,
+                baseY: cy,
+                baseZ: cz,
+                x: cx,
+                y: cy,
+                z: cz,
+                dx: 0,
+                dy: 0,
+                dz: 0,
+                r: radius,
+                ampX: 0,
+                ampY: 0,
+                ampZ: 0,
+                freq: 1.0,
+                phase: 0,
+                sinkDelay: 0.5,
+                steppedOn: false,
+                crumbleSoundPlayed: false,
+                crumbleTimer: 0,
+                sunk: false,
+            };
+            this.lavaPlatforms.push(rec);
+            return rec;
+        };
+
+        // Punkt 6: Echte gefaehrliche Goldene & Schwarze Ausbreitungs-Schockwellen-Ringe (springbar, sonst Knockback + Mana-Abzug!)
+        const addShockRingEmitter = (ringCfg) => {
+            const kind = ringCfg.kind === 'black' ? 'black' : 'gold';
+            const rRoot = new THREE.Group();
+            rRoot.position.set(ringCfg.x, ringCfg.y + 0.055, ringCfg.z);
+            this.lavaRoomDynamicGroup.add(rRoot);
+
+            const beaconMesh = new THREE.Mesh(
+                this._trackLavaRoomDisposable(new THREE.OctahedronGeometry(0.14, 0)),
+                kind === 'black' ? this.mats.neroPedestal : this.mats.beaconGold
+            );
+            beaconMesh.position.y = 0.14;
+            rRoot.add(beaconMesh);
+
+            const beaconRim = new THREE.Mesh(
+                this._trackLavaRoomDisposable(new THREE.TorusGeometry(0.20, 0.022, 8, 24)),
+                this.mats.goldMatcapBright
+            );
+            beaconRim.rotation.x = Math.PI * 0.5;
+            beaconRim.position.y = 0.015;
+            rRoot.add(beaconRim);
+
+            const ringHolder = new THREE.Group();
+            ringHolder.visible = false;
+            rRoot.add(ringHolder);
+
+            const coreMat = this._trackLavaRoomDisposable(new THREE.MeshBasicMaterial({
+                color: kind === 'black' ? 0x090b10 : 0xf5c451,
+                transparent: true,
+                opacity: 0.96,
+            }));
+            const rimMat = this._trackLavaRoomDisposable(new THREE.MeshBasicMaterial({
+                color: kind === 'black' ? 0xd97706 : 0xfff5cc,
+                transparent: true,
+                opacity: 0.90,
+            }));
+
+            const coreTorus = new THREE.Mesh(
+                this._trackLavaRoomDisposable(new THREE.TorusGeometry(1.0, kind === 'black' ? 0.062 : 0.048, 10, 48)),
+                coreMat
+            );
+            coreTorus.rotation.x = Math.PI * 0.5;
+            ringHolder.add(coreTorus);
+
+            const innerRazor = new THREE.Mesh(
+                this._trackLavaRoomDisposable(new THREE.TorusGeometry(0.94, 0.022, 8, 48)),
+                rimMat
+            );
+            innerRazor.rotation.x = Math.PI * 0.5;
+            ringHolder.add(innerRazor);
+
+            const maxRadius = Math.max(1.4, Number(ringCfg.maxRadius) || 2.5);
+            const speed = Math.max(1.5, Number(ringCfg.speed) || 2.6);
+            const restGap = Math.max(0.45, Number(ringCfg.restGap) || 0.85);
+            const cycleDuration = (maxRadius / speed) + restGap;
+
+            this.lavaShockRings.push({
+                x: ringCfg.x,
+                y: ringCfg.y,
+                z: ringCfg.z,
+                kind,
+                maxRadius,
+                speed,
+                restGap,
+                cycleDuration,
+                phaseOffset: Number(ringCfg.phaseOffset) || 0,
+                isTreasureGuard: Boolean(ringCfg.isTreasureGuard),
+                currentRadius: 0,
+                active: false,
+                paused: false,
+                suppressedTimer: 0,
+                lastHitCycle: -1,
+                group: rRoot,
+                ringHolder,
+                beaconMesh,
+                coreMat,
+                rimMat,
+            });
+        };
+
         const buildActSpan = (ax, ay, az, bx, by, bz, actIdx) => {
             const distX = Math.max(6.0, bx - ax);
-            const stepCount = clamp(Math.round(distX / 3.55) - 1, 3, 6);
-            const baseRadius = clamp(1.26 - (lvl - 1) * 0.034, 0.90, 1.26);
+            const stepCount = clamp(Math.round(distX / 3.45), 3, 7);
+            const baseRadius = clamp(1.12 - (lvl - 1) * 0.040, 0.74, 1.12);
+            const sinkDelay = clamp(0.50 - lvl * 0.022, 0.27, 0.48);
 
             for (let si = 1; si <= stepCount; si++) {
                 const u = si / (stepCount + 1);
                 const px = lerp(ax, bx, u);
-                const py = lerp(ay, by, u);
-                const zig = ((si + actIdx) % 2 === 0 ? 1 : -1) * Math.sin(u * Math.PI) * (0.65 + Math.min(lvl, 8) * 0.11);
+                const py = lerp(ay, by, u) + Math.sin(u * Math.PI * 2.0 + actIdx) * (0.08 + lvl * 0.016);
+                const zig = ((si + actIdx) % 2 === 0 ? 1 : -1) * Math.sin(u * Math.PI) * (0.85 + Math.min(lvl, 9) * 0.14);
                 const pz = lerp(az, bz, u) + zig;
 
-                if (lvl === 1 && si === 2) {
-                    addBoxPad({ x: px, y: py, z: lerp(az, bz, u), halfW: 1.55, halfD: 0.78, type: 'static' });
-                    continue;
-                }
-
                 let padType = 'static';
-                const ampX = 0;
+                let ampX = 0;
                 let ampY = 0;
                 let ampZ = 0;
-                const freq = 1.28 + lvl * 0.04;
-                const phase = si * 0.9 + actIdx * 1.4;
+                const dirFlip = ((si + actIdx) % 2 === 0) ? 1 : -1;
+                const freq = (1.42 + lvl * 0.075) * dirFlip;
+                const phase = si * 1.15 + actIdx * 1.65;
 
-                if (lvl >= 2 && (si % 2 === 0)) {
+                if (si % 2 === 0) {
                     padType = 'pendulum';
-                    ampZ = 1.05 + Math.min(lvl, 9) * 0.07;
-                    if (lvl >= 6 && actIdx >= 2) {
-                        ampY = 0.24;
+                    ampZ = 1.15 + Math.min(lvl, 10) * 0.105;
+                    if (lvl >= 4) {
+                        ampX = 0.42 + Math.min(lvl, 10) * 0.045;
                     }
-                } else if (lvl >= 3 && (si % 2 === 1) && si > 1) {
+                    if (lvl >= 5 && actIdx >= 2) {
+                        ampY = 0.28 + (lvl - 5) * 0.03;
+                    }
+                } else if ((lvl >= 2 && si > 1) || (lvl === 1 && actIdx >= 2 && si === 3)) {
                     padType = 'crumble';
                 }
 
@@ -6884,18 +7323,38 @@ class SeelenfunkeLouvreShowroom3D {
                     ampZ,
                     freq,
                     phase,
+                    sinkDelay,
                 });
 
-                if (lvl >= 8 && si === Math.ceil(stepCount * 0.5)) {
-                    addRotatingRing(px, py + 1.1, pz, baseRadius + 0.95, (actIdx % 2 === 0 ? 1 : -1) * (0.85 + lvl * 0.06));
+                // Auf statischen Anker-Platten oder im Zentrum des Abschnitts gefaehrliche Gold-/Schwarz-Schockwellen emittieren
+                if (si === Math.ceil(stepCount * 0.5) && (actIdx >= 2 || lvl >= 2)) {
+                    addShockRingEmitter({
+                        x: px,
+                        y: py,
+                        z: lerp(az, bz, u),
+                        kind: ((actIdx + lvl) % 2 === 0) ? 'black' : 'gold',
+                        maxRadius: clamp(2.35 + lvl * 0.09, 2.35, 3.25),
+                        speed: clamp(2.45 + lvl * 0.12, 2.45, 3.65),
+                        restGap: clamp(1.05 - lvl * 0.045, 0.55, 1.05),
+                        phaseOffset: actIdx * 1.1 + si * 0.6,
+                    });
+                }
+
+                if (lvl >= 5 && si === Math.ceil(stepCount * 0.5)) {
+                    addRotatingRing(px, py + 1.08, pz, baseRadius + 0.92, (actIdx % 2 === 0 ? 1 : -1) * (1.05 + lvl * 0.08));
                 }
             }
 
-            if (lvl >= 5 && actIdx >= 2) {
+            if (lvl >= 2 && (actIdx >= 2 || lvl >= 4)) {
                 const gx = lerp(ax, bx, 0.52);
                 const gz = lerp(az, bz, 0.52);
-                const gTop = Math.max(ay, by) + 2.35;
-                addGeyser(gx, gz, gTop, actIdx * 1.65 + lvl * 0.3);
+                const gTop = Math.max(ay, by) + 2.55;
+                addGeyser(gx, gz, gTop, actIdx * 1.45 + lvl * 0.35);
+            }
+            if (lvl >= 7 && actIdx >= 2) {
+                const gx2 = lerp(ax, bx, 0.26);
+                const gz2 = lerp(az, bz, 0.26) + (actIdx % 2 === 0 ? 0.9 : -0.9);
+                addGeyser(gx2, gz2, Math.max(ay, by) + 2.45, actIdx * 2.15 + 0.8);
             }
 
             if (lvl >= 6 && actIdx >= 2) {
@@ -6911,17 +7370,67 @@ class SeelenfunkeLouvreShowroom3D {
         const chest = anchors.chest;
 
         buildActSpan(startEdgeX, 0.08, -2.0, cp1.x - 1.5, cp1.y, cp1.z, 1);
-        addDiscPad({ x: cp1.x, y: cp1.y, z: cp1.z, r: 1.68, type: 'static', checkpoint: 1, h: 0.58 });
+        addDiscPad({ x: cp1.x, y: cp1.y, z: cp1.z, r: 1.62, type: 'static', checkpoint: 1, h: 0.58 });
+        addShockRingEmitter({
+            x: cp1.x,
+            y: cp1.y,
+            z: cp1.z,
+            kind: 'gold',
+            maxRadius: 2.15,
+            speed: clamp(2.35 + lvl * 0.11, 2.35, 3.45),
+            restGap: clamp(1.15 - lvl * 0.04, 0.65, 1.15),
+            phaseOffset: 0.35,
+        });
 
         buildActSpan(cp1.x + 1.5, cp1.y, cp1.z, cp2.x - 1.5, cp2.y, cp2.z, 2);
-        addDiscPad({ x: cp2.x, y: cp2.y, z: cp2.z, r: 1.68, type: 'static', checkpoint: 2, h: 0.62 });
+        addDiscPad({ x: cp2.x, y: cp2.y, z: cp2.z, r: 1.58, type: 'static', checkpoint: 2, h: 0.62 });
+        addShockRingEmitter({
+            x: cp2.x,
+            y: cp2.y,
+            z: cp2.z,
+            kind: 'black',
+            maxRadius: 2.20,
+            speed: clamp(2.25 + lvl * 0.12, 2.25, 3.45),
+            restGap: clamp(1.10 - lvl * 0.04, 0.62, 1.10),
+            phaseOffset: 1.25,
+        });
 
-        const islandHalfW = lvl === 10 ? 4.10 : 3.05;
-        const islandHalfD = lvl === 10 ? 4.50 : 3.55;
-        buildActSpan(cp2.x + 1.5, cp2.y, cp2.z, chest.x - islandHalfW + 0.3, chest.y, chest.z, 3);
+        // Punkt 4b: Begehbare Basalt-Randsaeulen-Ketten links (Nord) & rechts (Sued) vom Balkon bis zum Sanktuarium
+        const sideColStartX = startEdgeX + 2.35;
+        const sideColEndX = chest.x - 3.60;
+        const sideSpanX = Math.max(8.0, sideColEndX - sideColStartX);
+        const sideColCount = clamp(Math.round(sideSpanX / 3.65), 6, 18);
+        const sideColRadius = clamp(0.94 - (lvl - 1) * 0.016, 0.78, 0.94);
+
+        for (let sci = 0; sci < sideColCount; sci++) {
+            const su = sideColCount > 1 ? (sci / (sideColCount - 1)) : 0;
+            const scx = lerp(sideColStartX, sideColEndX, su);
+            const baseHeight = lerp(0.34, Math.max(0.85, chest.y - 0.16), su);
+            const waveH = Math.sin(sci * 1.35 + lvl * 0.5) * 0.18;
+
+            // Leichtes Einschwenken nahe CP1 / CP2, damit mutige Rand-Springer beide Checkpoints mitnehmen koennen
+            const nearCp1 = Math.exp(-Math.pow((scx - cp1.x) / 4.2, 2));
+            const nearCp2 = Math.exp(-Math.pow((scx - cp2.x) / 4.2, 2));
+            const cpPullZ = nearCp1 * cp1.z + nearCp2 * cp2.z;
+            const cpPullWeight = clamp(nearCp1 + nearCp2, 0, 0.55);
+
+            const rawNorthZ = -6.35 + Math.sin(sci * 0.95) * 0.48;
+            const rawSouthZ = 2.65 + Math.cos(sci * 0.95) * 0.48;
+            const northColZ = lerp(rawNorthZ, cpPullZ - 2.35, cpPullWeight);
+            const southColZ = lerp(rawSouthZ, cpPullZ + 2.35, cpPullWeight);
+
+            addSideBasaltColumn(scx, Number((baseHeight + waveH).toFixed(2)), northColZ, sideColRadius);
+            addSideBasaltColumn(scx, Number((baseHeight - waveH * 0.7).toFixed(2)), southColZ, sideColRadius);
+        }
+
+        // Punkt 10: Grosszuegiges Sanktuariums-Plateau (11.6 m x 11.2 m) rund um die Truhe; Truhe bleibt exakt auf Server-Anker!
+        const islandHalfW = 5.80;
+        const islandHalfD = 5.60;
+        const islandCenterOffsetX = 2.95; // Vorderkante bleibt bei chest.x - 2.85, Rueckkante reicht bis chest.x + 8.75!
+        buildActSpan(cp2.x + 1.5, cp2.y, cp2.z, (chest.x + islandCenterOffsetX) - islandHalfW + 0.30, chest.y, chest.z, 3);
 
         const islandRec = addBoxPad({
-            x: chest.x + 0.35,
+            x: chest.x + islandCenterOffsetX,
             y: chest.y,
             z: chest.z,
             halfW: islandHalfW,
@@ -6931,9 +7440,35 @@ class SeelenfunkeLouvreShowroom3D {
             isTreasureIsland: true,
         });
 
+        // Waechter-Schockwellen vor der Truhe (pausieren automatisch, sobald die Truhe heute geoeffnet wurde -> entspanntes Funken-Sammeln!)
+        addShockRingEmitter({
+            x: chest.x - 1.10,
+            y: chest.y,
+            z: chest.z,
+            kind: 'black',
+            maxRadius: 3.15,
+            speed: clamp(2.25 + lvl * 0.11, 2.25, 3.35),
+            restGap: 0.95,
+            phaseOffset: 0.20,
+            isTreasureGuard: true,
+        });
+        if (lvl >= 3) {
+            addShockRingEmitter({
+                x: chest.x - 1.10,
+                y: chest.y,
+                z: chest.z,
+                kind: 'gold',
+                maxRadius: 3.35,
+                speed: clamp(2.65 + lvl * 0.12, 2.65, 3.75),
+                restGap: 1.05,
+                phaseOffset: 1.45,
+                isTreasureGuard: true,
+            });
+        }
+
         if (lvl === 10) {
             const throneGroup = new THREE.Group();
-            throneGroup.position.set(chest.x + 2.35 - islandRec.x, 0.0, chest.z - islandRec.z);
+            throneGroup.position.set(chest.x + 6.55 - islandRec.x, 0.0, chest.z - islandRec.z);
             throneGroup.rotation.y = -Math.PI * 0.5;
             islandRec.group.add(throneGroup);
 
@@ -6941,28 +7476,28 @@ class SeelenfunkeLouvreShowroom3D {
                 this._trackLavaRoomDisposable(new THREE.CylinderGeometry(1.75, 2.05, 0.36, 8)),
                 this.mats.goldMatcapBrushed
             );
-            dais.position.y = 0.18;
+            dais.position.y = 0.22;
             throneGroup.add(dais);
 
             const throneBack = new THREE.Mesh(
                 this._trackLavaRoomDisposable(new THREE.BoxGeometry(1.62, 3.35, 0.32)),
                 this.mats.neroPedestal
             );
-            throneBack.position.set(0, 1.85, -0.45);
+            throneBack.position.set(0, 1.89, -0.45);
             throneGroup.add(throneBack);
 
             const throneHalo = new THREE.Mesh(
                 this._trackLavaRoomDisposable(new THREE.TorusGeometry(1.22, 0.09, 12, 36)),
                 this.mats.goldMatcapBright
             );
-            throneHalo.position.set(0, 3.25, -0.42);
+            throneHalo.position.set(0, 3.29, -0.42);
             throneGroup.add(throneHalo);
 
             const crownStar = new THREE.Mesh(
                 this._trackLavaRoomDisposable(new THREE.OctahedronGeometry(0.42, 0)),
                 this.mats.beaconGold
             );
-            crownStar.position.set(0, 3.25, -0.40);
+            crownStar.position.set(0, 3.29, -0.40);
             throneGroup.add(crownStar);
 
             [-2.8, 2.8].forEach((tz) => {
@@ -6970,7 +7505,7 @@ class SeelenfunkeLouvreShowroom3D {
                     this._trackLavaRoomDisposable(new THREE.CylinderGeometry(0.24, 0.28, 4.2, 16)),
                     this.mats.goldMatcapBrushed
                 );
-                col.position.set(tz, 2.1, -0.3);
+                col.position.set(tz, 2.14, -0.3);
                 throneGroup.add(col);
             });
         }
@@ -6986,29 +7521,30 @@ class SeelenfunkeLouvreShowroom3D {
             this.mats.contactShadow
         );
         chestAo.rotation.x = -Math.PI * 0.5;
-        chestAo.position.y = 0.008;
+        chestAo.position.y = 0.005;
         chestRoot.add(chestAo);
 
+        // Abgestufter 24K-Gold-Sockel (+0.036 m Bodenfreiheit + 0.12 m Hoehe -> 0 % Z-Fighting mit dem Insel-Deck!)
         const chestPlinth = new THREE.Mesh(
-            this._trackLavaRoomDisposable(new THREE.BoxGeometry(1.38, 0.12, 1.04)),
+            this._trackLavaRoomDisposable(new THREE.BoxGeometry(1.42, 0.12, 1.08)),
             this.mats.goldMatcapBrushed
         );
-        chestPlinth.position.y = 0.06;
+        chestPlinth.position.y = 0.096;
         chestRoot.add(chestPlinth);
 
         const chestBody = new THREE.Mesh(
             this._trackLavaRoomDisposable(new THREE.BoxGeometry(1.06, 0.52, 0.72)),
             this.mats.neroPedestal
         );
-        chestBody.position.y = 0.38;
+        chestBody.position.y = 0.416;
         chestRoot.add(chestBody);
 
         [-0.42, 0.0, 0.42].forEach((bx) => {
             const strap = new THREE.Mesh(
-                this._trackLavaRoomDisposable(new THREE.BoxGeometry(0.08, 0.54, 0.76)),
+                this._trackLavaRoomDisposable(new THREE.BoxGeometry(0.08, 0.53, 0.77)),
                 this.mats.goldMatcapBright
             );
-            strap.position.set(bx, 0.38, 0);
+            strap.position.set(bx, 0.421, 0);
             chestRoot.add(strap);
         });
 
@@ -7016,14 +7552,15 @@ class SeelenfunkeLouvreShowroom3D {
             this._trackLavaRoomDisposable(new THREE.BoxGeometry(0.20, 0.22, 0.06)),
             this.mats.goldMatcapBright
         );
-        lockCrest.position.set(0, 0.54, 0.38);
+        lockCrest.position.set(0, 0.576, 0.39);
         chestRoot.add(lockCrest);
 
         this.lavaChestGlowMesh = new THREE.Mesh(
             this._trackLavaRoomDisposable(new THREE.BoxGeometry(0.94, 0.08, 0.60)),
             this.mats.beaconGold
         );
-        this.lavaChestGlowMesh.position.set(0, 0.61, 0);
+        this.lavaChestGlowMesh.position.set(0, 0.646, 0);
+        this.lavaChestGlowMesh.visible = !isClaimedToday;
         chestRoot.add(this.lavaChestGlowMesh);
 
         for (let gi = 0; gi < 5; gi++) {
@@ -7031,12 +7568,12 @@ class SeelenfunkeLouvreShowroom3D {
                 this._trackLavaRoomDisposable(new THREE.OctahedronGeometry(0.085, 0)),
                 this.mats.goldChampagne
             );
-            gem.position.set(-0.28 + gi * 0.14, 0.65 + (gi % 2) * 0.03, (gi % 2 === 0 ? 0.06 : -0.06));
+            gem.position.set(-0.28 + gi * 0.14, 0.686 + (gi % 2) * 0.03, (gi % 2 === 0 ? 0.06 : -0.06));
             chestRoot.add(gem);
         }
 
         this.lavaChestLidPivot = new THREE.Group();
-        this.lavaChestLidPivot.position.set(0, 0.64, -0.36);
+        this.lavaChestLidPivot.position.set(0, 0.676, -0.36);
         chestRoot.add(this.lavaChestLidPivot);
 
         const lidBox = new THREE.Mesh(
@@ -7058,7 +7595,7 @@ class SeelenfunkeLouvreShowroom3D {
 
         [-0.42, 0.0, 0.42].forEach((bx) => {
             const lidStrap = new THREE.Mesh(
-                this._trackLavaRoomDisposable(new THREE.BoxGeometry(0.085, 0.32, 0.77)),
+                this._trackLavaRoomDisposable(new THREE.BoxGeometry(0.085, 0.32, 0.78)),
                 this.mats.goldMatcapBright
             );
             lidStrap.position.set(bx, 0.16, 0.36);
@@ -7070,17 +7607,23 @@ class SeelenfunkeLouvreShowroom3D {
             this._trackLavaRoomDisposable(new THREE.BoxGeometry(1.85, 1.65, 1.65)),
             this._trackLavaRoomDisposable(new THREE.MeshBasicMaterial({ visible: false }))
         );
-        chestHitProxy.position.set(0, 0.75, 0);
+        chestHitProxy.position.set(0, 0.78, 0);
         chestHitProxy.userData = { isLavaChest: true };
         chestRoot.add(chestHitProxy);
         this.lavaChestHitMeshes.push(chestHitProxy);
 
+        // Punkt 10: Beide goldenen Tore 6.20 m nach hinten (6.95 m Radialabstand zur Truhe!) fuer maximales Freifeld beim Funken-Sammeln!
+        const portalBackOffsetX = 6.20;
+        const portalSideOffsetZ = 3.15;
+
         if (lvl < 10) {
             const nextLvl = lvl + 1;
             const nextUnlocked = this._isLavaPortalUnlocked(nextLvl);
+            const nextWorldX = chest.x + portalBackOffsetX;
+            const nextWorldZ = chest.z - portalSideOffsetZ;
             const nextGroup = new THREE.Group();
-            nextGroup.position.set((chest.x + 1.85) - islandRec.x, 0.0, (chest.z - 2.05) - islandRec.z);
-            nextGroup.rotation.y = -Math.PI * 0.28;
+            nextGroup.position.set(nextWorldX - islandRec.x, 0.0, nextWorldZ - islandRec.z);
+            nextGroup.rotation.y = -Math.PI * 0.34;
             islandRec.group.add(nextGroup);
 
             const nextArchMat = this._trackLavaRoomDisposable(new THREE.MeshStandardMaterial({
@@ -7151,17 +7694,21 @@ class SeelenfunkeLouvreShowroom3D {
 
             this.lavaNextRoomPortal = {
                 targetLevel: nextLvl,
-                worldX: chest.x + 1.85,
-                worldZ: chest.z - 2.05,
+                worldX: nextWorldX,
+                worldZ: nextWorldZ,
                 unlocked: nextUnlocked,
                 archMat: nextArchMat,
                 veilMat: nextVeilMat,
             };
         }
 
+        const retWorldX = chest.x + portalBackOffsetX;
+        const retWorldZ = chest.z + portalSideOffsetZ;
+        this.lavaReturnPortalWorld = { x: retWorldX, z: retWorldZ };
+
         const returnArchGroup = new THREE.Group();
-        returnArchGroup.position.set((chest.x + 1.85) - islandRec.x, 0.0, (chest.z + 2.05) - islandRec.z);
-        returnArchGroup.rotation.y = -Math.PI * 0.72;
+        returnArchGroup.position.set(retWorldX - islandRec.x, 0.0, retWorldZ - islandRec.z);
+        returnArchGroup.rotation.y = -Math.PI * 0.66;
         islandRec.group.add(returnArchGroup);
 
         const retArch = new THREE.Mesh(
@@ -7179,6 +7726,41 @@ class SeelenfunkeLouvreShowroom3D {
             rCol.position.set(rx, 0.74, 0);
             returnArchGroup.add(rCol);
         });
+
+        const retVeil = new THREE.Mesh(
+            this._trackLavaRoomDisposable(new THREE.PlaneGeometry(1.78, 2.20)),
+            this._trackLavaRoomDisposable(new THREE.MeshBasicMaterial({
+                color: 0xfef3c7,
+                transparent: true,
+                opacity: 0.28,
+                side: THREE.DoubleSide,
+                depthWrite: false,
+            }))
+        );
+        retVeil.position.y = 1.15;
+        returnArchGroup.add(retVeil);
+
+        const retSignTex = buildLightModeMiniPlaqueTexture(THREE, this.maxAniso, 'ZURÜCK · HUB', this.lavaRoomDisposables);
+        const retSignMat = this._trackLavaRoomDisposable(new THREE.MeshBasicMaterial({
+            map: retSignTex,
+            polygonOffset: true,
+            polygonOffsetFactor: -2,
+            polygonOffsetUnits: -2,
+            depthWrite: true,
+        }));
+        const retSignBack = new THREE.Mesh(
+            this._trackLavaRoomDisposable(new THREE.BoxGeometry(1.56, 0.34, 0.06)),
+            this.mats.goldMatcapBright
+        );
+        retSignBack.position.set(0, 2.66, 0.03);
+        returnArchGroup.add(retSignBack);
+
+        const retSignFront = new THREE.Mesh(
+            this._trackLavaRoomDisposable(new THREE.PlaneGeometry(1.48, 0.27)),
+            retSignMat
+        );
+        retSignFront.position.set(0, 2.66, 0.086);
+        returnArchGroup.add(retSignFront);
 
         const retProxy = new THREE.Mesh(
             this._trackLavaRoomDisposable(new THREE.BoxGeometry(2.05, 2.45, 0.85)),
@@ -7469,32 +8051,36 @@ class SeelenfunkeLouvreShowroom3D {
                         }
                     }
                     p.crumbleTimer += dt;
-                    if (p.crumbleTimer < 0.65) {
+                    const sinkDelay = p.sinkDelay || 0.45;
+                    const sinkEnd = sinkDelay + 0.36;
+                    const riseStart = sinkEnd + 2.05;
+                    const riseEnd = riseStart + 0.70;
+                    if (p.crumbleTimer < sinkDelay) {
                         p.y = p.baseY;
                         p.dy = 0;
                         p.sunk = false;
-                        const vib = Math.sin(t * 54.0) * 0.042;
-                        const vibZ = Math.cos(t * 47.0) * 0.036;
+                        const vib = Math.sin(t * 62.0) * 0.052;
+                        const vibZ = Math.cos(t * 53.0) * 0.044;
                         p.group.position.set(p.baseX + vib, p.baseY, p.baseZ + vibZ);
                         if (p.warnRingMat) {
-                            p.warnRingMat.color.setHex((Math.floor(t * 14) % 2 === 0) ? 0xfde68a : 0xf97316);
+                            p.warnRingMat.color.setHex((Math.floor(t * 18) % 2 === 0) ? 0xfde68a : 0xf97316);
                         }
-                    } else if (p.crumbleTimer < 1.05) {
-                        const uSink = clamp((p.crumbleTimer - 0.65) / 0.40, 0, 1);
-                        p.y = lerp(p.baseY, p.baseY - 1.80, uSink * uSink);
+                    } else if (p.crumbleTimer < sinkEnd) {
+                        const uSink = clamp((p.crumbleTimer - sinkDelay) / 0.36, 0, 1);
+                        p.y = lerp(p.baseY, p.baseY - 1.85, uSink * uSink);
                         p.dy = p.y - prevY;
-                        p.sunk = (p.y < p.baseY - 0.50);
+                        p.sunk = (p.y < p.baseY - 0.46);
                         p.group.position.set(p.baseX, p.y, p.baseZ);
                         if (p.warnRingMat) p.warnRingMat.color.setHex(0xea580c);
-                    } else if (p.crumbleTimer < 3.25) {
-                        p.y = p.baseY - 1.80;
+                    } else if (p.crumbleTimer < riseStart) {
+                        p.y = p.baseY - 1.85;
                         p.dy = 0;
                         p.sunk = true;
                         p.group.position.set(p.baseX, p.y, p.baseZ);
-                    } else if (p.crumbleTimer < 4.00) {
-                        const uRise = clamp((p.crumbleTimer - 3.25) / 0.75, 0, 1);
+                    } else if (p.crumbleTimer < riseEnd) {
+                        const uRise = clamp((p.crumbleTimer - riseStart) / 0.70, 0, 1);
                         const smoothRise = uRise * uRise * (3.0 - 2.0 * uRise);
-                        p.y = lerp(p.baseY - 1.80, p.baseY, smoothRise);
+                        p.y = lerp(p.baseY - 1.85, p.baseY, smoothRise);
                         p.dy = p.y - prevY;
                         p.sunk = (uRise < 0.72);
                         p.group.position.set(p.baseX, p.y, p.baseZ);
@@ -7589,6 +8175,48 @@ class SeelenfunkeLouvreShowroom3D {
             const rr = this.lavaRotatingRings[ri];
             rr.group.rotation.z = t * rr.speed;
             rr.group.rotation.x = Math.sin(t * 0.7 + ri) * 0.28;
+        }
+
+        // Punkt 6: Goldene & Schwarze Ausbreitungs-Ringe animieren (Waechter-Ringe vor der Truhe ruhen nach Tages-Oeffnung!)
+        for (let sri = 0; sri < this.lavaShockRings.length; sri++) {
+            const sr = this.lavaShockRings[sri];
+            if (sr.beaconMesh) {
+                sr.beaconMesh.rotation.y = t * 2.4 + sri;
+            }
+            if (sr.suppressedTimer > 0) {
+                sr.suppressedTimer = Math.max(0, sr.suppressedTimer - dt);
+                sr.active = false;
+                sr.ringHolder.visible = false;
+                continue;
+            }
+            if (sr.isTreasureGuard && this.lavaRun.claimedToday) {
+                sr.paused = true;
+                sr.active = false;
+                sr.ringHolder.visible = false;
+                continue;
+            }
+            sr.paused = false;
+            const totalElapsed = t + sr.phaseOffset;
+            const cycleIdx = Math.floor(totalElapsed / sr.cycleDuration);
+            const inCyc = totalElapsed - cycleIdx * sr.cycleDuration;
+            const activeSpan = sr.maxRadius / sr.speed;
+
+            if (inCyc < activeSpan) {
+                const uRing = clamp(inCyc / activeSpan, 0, 1);
+                const rad = Math.max(0.18, uRing * sr.maxRadius);
+                sr.currentRadius = rad;
+                sr.cycleIdx = cycleIdx;
+                sr.active = true;
+                sr.ringHolder.visible = true;
+                sr.ringHolder.scale.set(rad, 1.0, rad);
+                const fadeOut = 1.0 - Math.pow(uRing, 3.2);
+                sr.coreMat.opacity = clamp(0.96 * fadeOut, 0.08, 0.96);
+                sr.rimMat.opacity = clamp(0.92 * fadeOut, 0.06, 0.92);
+            } else {
+                sr.active = false;
+                sr.currentRadius = 0;
+                sr.ringHolder.visible = false;
+            }
         }
 
         [1, 2].forEach((cpNum) => {
@@ -8245,12 +8873,15 @@ class SeelenfunkeLouvreShowroom3D {
                             if (Array.isArray(body.first_cleared_levels)) {
                                 this.lavaProgress.firstClearedLevels = body.first_cleared_levels.map((v) => Number(v));
                             }
-                            if (Array.isArray(body.daily_cleared_levels)) {
+                            if (Array.isArray(body.daily_claimed_levels)) {
+                                this.lavaProgress.dailyClearedLevels = body.daily_claimed_levels.map((v) => Number(v));
+                            } else if (Array.isArray(body.daily_cleared_levels)) {
                                 this.lavaProgress.dailyClearedLevels = body.daily_cleared_levels.map((v) => Number(v));
                             } else if (this.lavaProgress.dailyClearedLevels.indexOf(activeLvl) === -1) {
                                 this.lavaProgress.dailyClearedLevels.push(activeLvl);
                             }
 
+                            this._heroesNeedsLiveRefresh = true;
                             this._refreshLavaHubPortals();
 
                             this._pendingChestSparksCount = Math.max(5, awarded || 5);
@@ -8692,6 +9323,7 @@ class SeelenfunkeLouvreShowroom3D {
         }
         this.heroDynamicDisposables = [];
         this.animatedFunkiFigures = [];
+        this.freePedestalCrests = [];
         this.pedestalSparkMeta = [];
         this.pedestalSparkPosAttr = null;
         this.heroInteractiveHitMeshes = [];
@@ -8818,9 +9450,30 @@ class SeelenfunkeLouvreShowroom3D {
             pedAoMesh.position.y = 0.010;
             pGrp.add(pedAoMesh);
 
-            const funkiChar = this._createFunkiCharacterByLevel(displayLevel, sp.slot, sp.scale, effectiveHero);
-            funkiChar.position.set(0, sp.h + 0.13, 0);
-            pGrp.add(funkiChar);
+            // Punkt 17: Unbesetzte Ehrenplaetze ("Freier Ehrenplatz") bleiben edel frei (0 Dummy-Funki!), besetzte zeigen das echte Level-GLB!
+            if (!cardData.is_placeholder) {
+                const funkiChar = this._createFunkiCharacterByLevel(displayLevel, sp.slot, sp.scale, effectiveHero);
+                funkiChar.position.set(0, sp.h + 0.13, 0);
+                pGrp.add(funkiChar);
+            } else {
+                const freeHolder = new THREE.Group();
+                freeHolder.position.set(0, sp.h + 0.14, 0);
+                const freeRingGeo = new THREE.TorusGeometry(sp.w * 0.30, 0.022, 8, 36);
+                const freeGemGeo = new THREE.OctahedronGeometry(0.14 * sp.scale, 0);
+                this.heroDynamicDisposables.push(freeRingGeo, freeGemGeo);
+
+                const freeRing = new THREE.Mesh(freeRingGeo, this.mats.goldMatcapBrushed);
+                freeRing.rotation.x = Math.PI * 0.5;
+                freeRing.position.y = 0.02;
+                freeHolder.add(freeRing);
+
+                const freeGem = new THREE.Mesh(freeGemGeo, this.mats.beaconGold);
+                freeGem.position.y = 0.42;
+                freeHolder.add(freeGem);
+
+                pGrp.add(freeHolder);
+                this.freePedestalCrests.push({ gem: freeGem, ring: freeRing, phase: sp.slot * 0.9 });
+            }
 
             const proxyGeo = new THREE.CylinderGeometry(sp.w * 0.72, sp.w * 0.72, sp.h + 2.8, 12);
             const proxyMat = new THREE.MeshBasicMaterial({ visible: false });
@@ -9044,6 +9697,38 @@ class SeelenfunkeLouvreShowroom3D {
         if (this.pantheonDynamicGroup) {
             this._populateHeroesMonuments();
         }
+    }
+
+    /**
+     * Punkt 17: Laedt aktuelle Helden-Daten live vom Server nach (z. B. beim Betreten der Halle der Helden nach Magma-Funken-Gewinn).
+     */
+    refreshHeroesData(force = false) {
+        if (this.destroyed || typeof fetch !== 'function') {
+            return Promise.resolve(null);
+        }
+        const nowMs = this._nowClientMs();
+        if (!force && !this._heroesNeedsLiveRefresh && (nowMs - (this._lastHeroesRefreshMs || 0)) < 2500) {
+            return Promise.resolve(this.heroesPayload);
+        }
+        this._lastHeroesRefreshMs = nowMs;
+        this._heroesNeedsLiveRefresh = false;
+
+        return fetch('/funkenwerk-welt/heroes-data', {
+            method: 'GET',
+            credentials: 'same-origin',
+            cache: 'no-store',
+            headers: {
+                'Accept': 'application/json',
+            },
+        })
+            .then((r) => (r.ok ? r.json() : null))
+            .then((json) => {
+                if (!this.destroyed && json && typeof json === 'object' && Array.isArray(json.heroes)) {
+                    this.setHeroesPayload(json);
+                }
+                return json;
+            })
+            .catch(() => null);
     }
 
     setStagesPreviewMode(mode) {
@@ -9679,20 +10364,21 @@ class SeelenfunkeLouvreShowroom3D {
 
                     wBuf.fill(0);
 
-                    // 1. Arm-, Hand- & Finger-Zone (0.38 <= u <= 0.84, |x| > 0.145 * H)
+                    // Punkt 16: Chibi-kalibriertes 22-Bone-Skinning (0 % Gesichts- & Schulter-Verzerrungen!)
+                    // 1. Arm-, Hand- & Finger-Zone strikt unterhalb des Kopfes (0.28 <= u <= 0.53, |x| > 0.165 * H)
                     let wArmTotal = 0;
-                    if (u >= 0.38 && u <= 0.84 && ax > 0.145) {
-                        const armEnterY = smoothstep(0.38, 0.46, u);
-                        const armExitY = 1.0 - smoothstep(0.76, 0.83, u);
-                        const armLat = smoothstep(0.148, 0.215, ax);
-                        const backWingGuard = (vz < -0.058 * H && u > 0.64)
-                            ? (1.0 - smoothstep(0.058 * H, 0.135 * H, -vz))
+                    if (u >= 0.28 && u <= 0.53 && ax > 0.165) {
+                        const armEnterY = smoothstep(0.28, 0.35, u);
+                        const armExitY = 1.0 - smoothstep(0.47, 0.53, u);
+                        const armLat = smoothstep(0.165, 0.225, ax);
+                        const backWingGuard = (vz < -0.062 * H && u > 0.45)
+                            ? (1.0 - smoothstep(0.062 * H, 0.130 * H, -vz))
                             : 1.0;
                         wArmTotal = armEnterY * armExitY * armLat * backWingGuard;
 
                         if (wArmTotal > 0.0001) {
                             const distalAmt = clamp(
-                                Math.max(smoothstep(0.22, 0.36, ax), 1.0 - smoothstep(0.42, 0.68, u)),
+                                Math.max(smoothstep(0.22, 0.35, ax), 1.0 - smoothstep(0.32, 0.50, u)),
                                 0,
                                 1
                             );
@@ -9715,16 +10401,16 @@ class SeelenfunkeLouvreShowroom3D {
                         }
                     }
 
-                    // 2. Umhang-Zone (hintere Mantel-/Cape-Vertices vz < -0.068 * H, 0.10 <= u <= 0.73)
+                    // 2. Umhang-Zone strikt unterhalb der Kapuze/Kopfkante (vz < -0.072 * H, 0.08 <= u <= 0.53)
                     let wCapeTotal = 0;
-                    if (vz < -0.068 * H && u >= 0.10 && u <= 0.73 && ax <= 0.24) {
-                        const capeDepth = smoothstep(0.068 * H, 0.132 * H, -vz);
-                        const capeYMask = smoothstep(0.10, 0.18, u) * (1.0 - smoothstep(0.65, 0.73, u));
+                    if (vz < -0.072 * H && u >= 0.08 && u <= 0.53 && ax <= 0.24) {
+                        const capeDepth = smoothstep(0.072 * H, 0.135 * H, -vz);
+                        const capeYMask = smoothstep(0.08, 0.15, u) * (1.0 - smoothstep(0.46, 0.53, u));
                         const capeLatMask = 1.0 - smoothstep(0.19, 0.24, ax);
-                        wCapeTotal = capeDepth * capeYMask * capeLatMask * (1.0 - wArmTotal) * 0.92;
+                        wCapeTotal = capeDepth * capeYMask * capeLatMask * (1.0 - wArmTotal) * 0.90;
                         if (wCapeTotal > 0.0001) {
-                            const lowerFrac = 1.0 - smoothstep(0.24, 0.40, u);
-                            const midFrac = (1.0 - lowerFrac) * (1.0 - smoothstep(0.46, 0.60, u));
+                            const lowerFrac = 1.0 - smoothstep(0.18, 0.31, u);
+                            const midFrac = (1.0 - lowerFrac) * (1.0 - smoothstep(0.34, 0.45, u));
                             const upperFrac = Math.max(0, 1.0 - lowerFrac - midFrac);
                             wBuf[19] += wCapeTotal * upperFrac;
                             wBuf[20] += wCapeTotal * midFrac;
@@ -9732,16 +10418,16 @@ class SeelenfunkeLouvreShowroom3D {
                         }
                     }
 
-                    // 3. Bein-Zone (u < 0.465) mit Mitten-Saumschutz & Umhang-Freistellung
+                    // 3. Bein-Zone (u < 0.40) mit Mitten-Saumschutz & Umhang-Freistellung
                     let wLegTotal = 0;
-                    if (u < 0.465) {
-                        const legY = 1.0 - smoothstep(0.37, 0.465, u);
+                    if (u < 0.40) {
+                        const legY = 1.0 - smoothstep(0.32, 0.40, u);
                         const seamPelvis = 1.0 - smoothstep(0.016, 0.072, ax);
                         wLegTotal = legY * (1.0 - seamPelvis) * Math.max(0, 1.0 - wArmTotal - wCapeTotal);
 
                         if (wLegTotal > 0.0001) {
-                            const fFrac = 1.0 - smoothstep(0.045, 0.115, u);
-                            const kFrac = (1.0 - fFrac) * (1.0 - smoothstep(0.20, 0.30, u));
+                            const fFrac = 1.0 - smoothstep(0.045, 0.110, u);
+                            const kFrac = (1.0 - fFrac) * (1.0 - smoothstep(0.17, 0.26, u));
                             const hFrac = Math.max(0, 1.0 - fFrac - kFrac);
 
                             if (vx < 0) {
@@ -9756,22 +10442,19 @@ class SeelenfunkeLouvreShowroom3D {
                         }
                     }
 
-                    // 4. Kopf-Zone (u > 0.74, Fluegel bei |x| > 0.18*H bleiben bei chest)
+                    // 4. Starre Kopf-Zone (ab u >= 0.58 ueber ALLE ax zu 100 % starr auf Bone 4 head, sanfter Halsuebergang 0.52..0.58!)
                     let wHead = 0;
-                    if (u > 0.74 && ax < 0.26) {
-                        const headY = smoothstep(0.75, 0.815, u);
-                        const wingProtectX = (u > 0.84)
-                            ? (1.0 - smoothstep(0.165, 0.215, ax))
-                            : (1.0 - smoothstep(0.19, 0.245, ax));
-                        wHead = headY * wingProtectX * Math.max(0, 1.0 - wArmTotal - wCapeTotal);
+                    if (u > 0.52) {
+                        const headY = u >= 0.58 ? 1.0 : smoothstep(0.52, 0.58, u);
+                        wHead = headY * Math.max(0, 1.0 - wArmTotal - wCapeTotal);
                         wBuf[4] += wHead;
                     }
 
                     // 5. Rumpf-Kern (pelvis -> spine -> chest)
                     const coreRem = Math.max(0, 1.0 - wLegTotal - wArmTotal - wCapeTotal - wHead);
                     if (coreRem > 0.0001) {
-                        const toSpine = smoothstep(0.41, 0.53, u);
-                        const toChest = smoothstep(0.56, 0.68, u);
+                        const toSpine = smoothstep(0.35, 0.44, u);
+                        const toChest = smoothstep(0.45, 0.53, u);
                         const wPelvis = coreRem * (1.0 - toSpine);
                         const wSpine = coreRem * toSpine * (1.0 - toChest);
                         const wChest = coreRem * toSpine * toChest;
@@ -9857,36 +10540,36 @@ class SeelenfunkeLouvreShowroom3D {
     _createSkinnedFunkiFromTemplate(tpl, customDisposableBucket = null) {
         const THREE = this.THREE;
         const H = tpl.height || 1.62;
-        const restPelvisY = 0.752;
+        const restPelvisY = 0.58;
 
-        // 22-Bone Hierarchie (inkl. Hand/Finger & 3-Segment Spring-Bone Umhang)
+        // 22-Bone Hierarchie exakt auf Funkis echte Chibi-Proportionen (Hals bei y = 0.94 / u = 0.58, Schultern bei y = 0.82) kalibriert!
         const bRoot = new THREE.Bone(); bRoot.name = 'root'; bRoot.position.set(0, 0, 0);
         const bPelvis = new THREE.Bone(); bPelvis.name = 'pelvis'; bPelvis.position.set(0, restPelvisY, 0);
-        const bSpine = new THREE.Bone(); bSpine.name = 'spine'; bSpine.position.set(0, 0.165, 0);
-        const bChest = new THREE.Bone(); bChest.name = 'chest'; bChest.position.set(0, 0.175, 0);
-        const bHead = new THREE.Bone(); bHead.name = 'head'; bHead.position.set(0, 0.225, 0);
+        const bSpine = new THREE.Bone(); bSpine.name = 'spine'; bSpine.position.set(0, 0.13, 0);
+        const bChest = new THREE.Bone(); bChest.name = 'chest'; bChest.position.set(0, 0.12, 0);
+        const bHead = new THREE.Bone(); bHead.name = 'head'; bHead.position.set(0, 0.11, 0);
 
-        const bShoulderL = new THREE.Bone(); bShoulderL.name = 'shoulderL'; bShoulderL.position.set(-0.225, 0.087, -0.01);
-        const bForeArmL = new THREE.Bone(); bForeArmL.name = 'foreArmL'; bForeArmL.position.set(-0.035, -0.230, 0);
-        const bHandL = new THREE.Bone(); bHandL.name = 'handL'; bHandL.position.set(-0.014, -0.210, 0);
-        const bFingersL = new THREE.Bone(); bFingersL.name = 'fingersL'; bFingersL.position.set(0, -0.064, 0.004);
+        const bShoulderL = new THREE.Bone(); bShoulderL.name = 'shoulderL'; bShoulderL.position.set(-0.24, -0.01, -0.01);
+        const bForeArmL = new THREE.Bone(); bForeArmL.name = 'foreArmL'; bForeArmL.position.set(-0.030, -0.160, 0);
+        const bHandL = new THREE.Bone(); bHandL.name = 'handL'; bHandL.position.set(-0.012, -0.140, 0);
+        const bFingersL = new THREE.Bone(); bFingersL.name = 'fingersL'; bFingersL.position.set(0, -0.050, 0.004);
 
-        const bShoulderR = new THREE.Bone(); bShoulderR.name = 'shoulderR'; bShoulderR.position.set(0.225, 0.087, -0.01);
-        const bForeArmR = new THREE.Bone(); bForeArmR.name = 'foreArmR'; bForeArmR.position.set(0.035, -0.230, 0);
-        const bHandR = new THREE.Bone(); bHandR.name = 'handR'; bHandR.position.set(0.014, -0.210, 0);
-        const bFingersR = new THREE.Bone(); bFingersR.name = 'fingersR'; bFingersR.position.set(0, -0.064, 0.004);
+        const bShoulderR = new THREE.Bone(); bShoulderR.name = 'shoulderR'; bShoulderR.position.set(0.24, -0.01, -0.01);
+        const bForeArmR = new THREE.Bone(); bForeArmR.name = 'foreArmR'; bForeArmR.position.set(0.030, -0.160, 0);
+        const bHandR = new THREE.Bone(); bHandR.name = 'handR'; bHandR.position.set(0.012, -0.140, 0);
+        const bFingersR = new THREE.Bone(); bFingersR.name = 'fingersR'; bFingersR.position.set(0, -0.050, 0.004);
 
-        const bHipL = new THREE.Bone(); bHipL.name = 'hipL'; bHipL.position.set(-0.145, -0.028, 0);
-        const bKneeL = new THREE.Bone(); bKneeL.name = 'kneeL'; bKneeL.position.set(0, -0.330, 0);
-        const bFootL = new THREE.Bone(); bFootL.name = 'footL'; bFootL.position.set(0, -0.320, 0.025);
+        const bHipL = new THREE.Bone(); bHipL.name = 'hipL'; bHipL.position.set(-0.140, -0.020, 0);
+        const bKneeL = new THREE.Bone(); bKneeL.name = 'kneeL'; bKneeL.position.set(0, -0.270, 0);
+        const bFootL = new THREE.Bone(); bFootL.name = 'footL'; bFootL.position.set(0, -0.250, 0.025);
 
-        const bHipR = new THREE.Bone(); bHipR.name = 'hipR'; bHipR.position.set(0.145, -0.028, 0);
-        const bKneeR = new THREE.Bone(); bKneeR.name = 'kneeR'; bKneeR.position.set(0, -0.330, 0);
-        const bFootR = new THREE.Bone(); bFootR.name = 'footR'; bFootR.position.set(0, -0.320, 0.025);
+        const bHipR = new THREE.Bone(); bHipR.name = 'hipR'; bHipR.position.set(0.140, -0.020, 0);
+        const bKneeR = new THREE.Bone(); bKneeR.name = 'kneeR'; bKneeR.position.set(0, -0.270, 0);
+        const bFootR = new THREE.Bone(); bFootR.name = 'footR'; bFootR.position.set(0, -0.250, 0.025);
 
-        const bCapeUpper = new THREE.Bone(); bCapeUpper.name = 'capeUpper'; bCapeUpper.position.set(0, 0.030, -0.095);
-        const bCapeMid = new THREE.Bone(); bCapeMid.name = 'capeMid'; bCapeMid.position.set(0, -0.330, -0.020);
-        const bCapeLower = new THREE.Bone(); bCapeLower.name = 'capeLower'; bCapeLower.position.set(0, -0.350, -0.020);
+        const bCapeUpper = new THREE.Bone(); bCapeUpper.name = 'capeUpper'; bCapeUpper.position.set(0, 0.010, -0.095);
+        const bCapeMid = new THREE.Bone(); bCapeMid.name = 'capeMid'; bCapeMid.position.set(0, -0.260, -0.020);
+        const bCapeLower = new THREE.Bone(); bCapeLower.name = 'capeLower'; bCapeLower.position.set(0, -0.280, -0.020);
 
         bRoot.add(bPelvis);
         bPelvis.add(bSpine, bHipL, bHipR);
@@ -10065,20 +10748,20 @@ class SeelenfunkeLouvreShowroom3D {
             clamp(j.torsoPivot.rotation.z * 0.50, -0.38, 0.38)
         );
 
-        // 4: head
+        // 4: head (sanft geklemmt fuer 100 % verzerrungsfreies Chibi-Gesicht)
         b[4].rotation.set(
-            clamp(j.headPivot.rotation.x * 0.72 + 0.22 * tuck, -0.52, 0.68),
-            clamp(j.headPivot.rotation.y * 0.78, -0.65, 0.65),
-            clamp(j.headPivot.rotation.z * 0.65, -0.32, 0.32)
+            clamp(j.headPivot.rotation.x * 0.62 + 0.14 * tuck, -0.34, 0.42),
+            clamp(j.headPivot.rotation.y * 0.68, -0.52, 0.52),
+            clamp(j.headPivot.rotation.z * 0.55, -0.22, 0.22)
         );
 
         // 5..8: Left Arm + Hand + Fingers
         b[5].rotation.set(
-            clamp(j.shoulderPivotL.rotation.x * armSync, -1.65, 0.85),
-            clamp(j.shoulderPivotL.rotation.y * armSync, -0.72, 0.72),
-            clamp(j.shoulderPivotL.rotation.z * 0.76, -0.85, 0.85)
+            clamp(j.shoulderPivotL.rotation.x * 0.68, -1.15, 0.65),
+            clamp(j.shoulderPivotL.rotation.y * 0.68, -0.48, 0.48),
+            clamp(j.shoulderPivotL.rotation.z * 0.64, -0.58, 0.58)
         );
-        b[6].rotation.set(clamp(j.elbowPivotL.rotation.x * 0.78, -1.35, 0.42), 0, 0);
+        b[6].rotation.set(clamp(j.elbowPivotL.rotation.x * 0.68, -1.10, 0.36), 0, 0);
         if (b[7] && j.wristPivotL) {
             b[7].rotation.set(
                 clamp(j.wristPivotL.rotation.x * 0.85, -0.65, 0.65),
@@ -10096,11 +10779,11 @@ class SeelenfunkeLouvreShowroom3D {
 
         // 9..12: Right Arm + Hand + Fingers
         b[9].rotation.set(
-            clamp(j.shoulderPivotR.rotation.x * armSync, -1.65, 0.85),
-            clamp(j.shoulderPivotR.rotation.y * armSync, -0.72, 0.72),
-            clamp(j.shoulderPivotR.rotation.z * 0.76, -0.85, 0.85)
+            clamp(j.shoulderPivotR.rotation.x * 0.68, -1.15, 0.65),
+            clamp(j.shoulderPivotR.rotation.y * 0.68, -0.48, 0.48),
+            clamp(j.shoulderPivotR.rotation.z * 0.64, -0.58, 0.58)
         );
-        b[10].rotation.set(clamp(j.elbowPivotR.rotation.x * 0.78, -1.35, 0.42), 0, 0);
+        b[10].rotation.set(clamp(j.elbowPivotR.rotation.x * 0.68, -1.10, 0.36), 0, 0);
         if (b[11] && j.wristPivotR) {
             b[11].rotation.set(
                 clamp(j.wristPivotR.rotation.x * 0.85, -0.65, 0.65),
@@ -10458,6 +11141,16 @@ class SeelenfunkeLouvreShowroom3D {
         const armL = buildExoArm(-1);
         const armR = buildExoArm(1);
 
+        // Punkt 7: Saemtliche prozeduralen Roboter-/Exoskelett-Meshes (Stiefelsohlen, Roboterfuesse, Schienen, Haende usw.)
+        // standardmaessig ausblenden, sodass ausschliesslich das echte Funki-.glb (+ optionale Waffe & Bodenschatten) sichtbar ist!
+        const proceduralExoMeshes = [];
+        pelvisPivot.traverse((node) => {
+            if (node && node.isMesh) {
+                node.visible = false;
+                proceduralExoMeshes.push(node);
+            }
+        });
+
         const weaponMesh = this._buildWeaponAttachment(weaponInfo);
         if (weaponMesh) {
             armR.wristPivot.add(weaponMesh);
@@ -10467,6 +11160,7 @@ class SeelenfunkeLouvreShowroom3D {
             root,
             skinnedHostGroup,
             weaponMesh,
+            proceduralExoMeshes,
             skinnedRig: null,
             readyPromise: null,
             joints: {
@@ -10519,6 +11213,13 @@ class SeelenfunkeLouvreShowroom3D {
                 return rig;
             })
             .catch(() => {
+                // Nur falls das GLB offline/im Test nicht geladen werden konnte, Notfall-Meshes einblenden
+                for (let mi = 0; mi < proceduralExoMeshes.length; mi++) {
+                    const pm = proceduralExoMeshes[mi];
+                    if (pm !== legL.thrusterFlame && pm !== legR.thrusterFlame) {
+                        pm.visible = true;
+                    }
+                }
                 if (!isLocalPlayer || this._engineReady) {
                     root.visible = isLocalPlayer ? !(this.camControl && this.camControl.distance < 0.55) : true;
                 }
@@ -10804,11 +11505,12 @@ class SeelenfunkeLouvreShowroom3D {
         const stanceSink = -(0.016 + 0.014 * sprintBoost) * mb - squash * 0.18;
         const idleBreath = Math.sin(this.elapsedTime * 2.05) * 0.011 * idleWeight;
 
+        // Punkt 15: Dynamischer Vorwaertssalto in Blick-/Laufrichtung (+somersaultProgress * TWO_PI statt Rueckwaertssalto!)
         j.pelvisPivot.position.y = 0.776 + doubleStepBounce + stanceSink + idleBreath;
         j.pelvisPivot.position.x = -Math.sin(phaseL) * 0.020 * mb + idleSway * 0.016;
         j.pelvisPivot.position.z = 0.022 * sprintBoost * mb;
         j.pelvisPivot.rotation.x = (this.player.isSomersault && heightAboveSupport > 0.24)
-            ? (-this.player.somersaultProgress * TWO_PI)
+            ? (this.player.somersaultProgress * TWO_PI)
             : 0;
         j.pelvisPivot.rotation.y = Math.sin(phaseL) * 0.075 * mb + idleSway * 0.025;
         j.pelvisPivot.rotation.z = -Math.sin(phaseL) * 0.036 * mb - idleSway * 0.020;
@@ -10965,7 +11667,8 @@ class SeelenfunkeLouvreShowroom3D {
         }
 
         // Exoskelett Fersen-Schubduesen & Reaktor-Rotation bei Sprint, Hochsprung & Kombo-4-Sprung!
-        const thrustersLit = Boolean(
+        const hasPlayerSkinnedGlb = Boolean(this.player.builtRecord && this.player.builtRecord.skinnedRig);
+        const thrustersLit = !hasPlayerSkinnedGlb && Boolean(
             this.player.sprintTimer > 0
             || (this.player.highJumpActive && this.player.vy > -1.5)
             || (this.player.comboActiveStage === 4 && this.player.comboAnimTimer > 0.22)
@@ -11182,11 +11885,14 @@ class SeelenfunkeLouvreShowroom3D {
                         j.footShadow.scale.set(shScale, shScale, 1);
                     }
                     if (j.thrusterFlameL && j.thrusterFlameR) {
-                        j.thrusterFlameL.visible = true;
-                        j.thrusterFlameR.visible = true;
-                        const flamePulse = 0.82 + Math.sin(t * 32.0 + ph) * 0.22;
-                        j.thrusterFlameL.scale.set(0.92, flamePulse, 0.92);
-                        j.thrusterFlameR.scale.set(0.92, flamePulse, 0.92);
+                        const showPedFlame = !(built && built.skinnedRig);
+                        j.thrusterFlameL.visible = showPedFlame;
+                        j.thrusterFlameR.visible = showPedFlame;
+                        if (showPedFlame) {
+                            const flamePulse = 0.82 + Math.sin(t * 32.0 + ph) * 0.22;
+                            j.thrusterFlameL.scale.set(0.92, flamePulse, 0.92);
+                            j.thrusterFlameR.scale.set(0.92, flamePulse, 0.92);
+                        }
                     }
                     if (j.reactorRing) {
                         j.reactorRing.rotation.z = t * (3.2 + (lvl - 7) * 0.55);
@@ -11228,6 +11934,19 @@ class SeelenfunkeLouvreShowroom3D {
             if (fg.godCorona) {
                 fg.godCorona.rotation.z = -t * 0.85;
                 fg.godCorona.position.y = 1.54 + Math.sin(t * 2.25 + ph) * 0.075;
+            }
+        }
+
+        if (this.freePedestalCrests && this.freePedestalCrests.length > 0) {
+            for (let fci = 0; fci < this.freePedestalCrests.length; fci++) {
+                const fc = this.freePedestalCrests[fci];
+                if (fc.gem) {
+                    fc.gem.rotation.y = t * 1.15 + fc.phase;
+                    fc.gem.position.y = 0.42 + Math.sin(t * 1.85 + fc.phase) * 0.045;
+                }
+                if (fc.ring) {
+                    fc.ring.rotation.z = -t * 0.55 + fc.phase;
+                }
             }
         }
 
@@ -11821,24 +12540,133 @@ class SeelenfunkeLouvreShowroom3D {
         });
     }
 
+    _shatterAegisShield(x, y, z) {
+        this.player.shieldTimer = 0;
+        if (this.player.shieldMesh) {
+            this.player.shieldMesh.visible = false;
+        }
+        this.camControl.shakeTimer = Math.max(this.camControl.shakeTimer || 0, 0.16);
+        if (this.audio && typeof this.audio.playShieldShatter === 'function') {
+            this.audio.playShieldShatter();
+        }
+
+        if (!this.scene || !this.THREE) return;
+        if (this.weaponBursts.length >= 16) {
+            const oldest = this.weaponBursts.shift();
+            if (oldest) this._disposeWeaponBurst(oldest);
+        }
+
+        const THREE = this.THREE;
+        const shared = this._ensureAvatarSharedPool();
+        const group = new THREE.Group();
+        group.position.set(x, y, z);
+
+        const ringMat = new THREE.MeshBasicMaterial({
+            color: new THREE.Color('#60A5FA'),
+            transparent: true,
+            opacity: 0.96,
+            side: THREE.DoubleSide,
+            depthWrite: false,
+        });
+        const ringMesh = new THREE.Mesh(shared.geos.shockwaveRing, ringMat);
+        ringMesh.rotation.x = -Math.PI * 0.5;
+        ringMesh.scale.setScalar(0.85);
+        group.add(ringMesh);
+
+        const sparks = [];
+        const sparkMat = new THREE.MeshBasicMaterial({
+            color: new THREE.Color('#FDE68A'),
+            transparent: true,
+            opacity: 0.98,
+            depthWrite: false,
+        });
+        for (let i = 0; i < 24; i++) {
+            const ang = (i / 24) * TWO_PI + (i % 3) * 0.14;
+            const spd = 2.8 + (i % 4) * 0.85;
+            const sm = new THREE.Mesh(shared.geos.sparkDiamond, sparkMat);
+            sm.scale.setScalar(1.42);
+            sm.position.set(Math.cos(ang) * 0.52, (i % 3 - 1) * 0.18, Math.sin(ang) * 0.52);
+            group.add(sm);
+            sparks.push({
+                mesh: sm,
+                vx: Math.cos(ang) * spd,
+                vy: 2.2 + (i % 4) * 0.95,
+                vz: Math.sin(ang) * spd,
+            });
+        }
+
+        this.scene.add(group);
+        this.weaponBursts.push({
+            group,
+            slashMesh: ringMesh,
+            arcMat: ringMat,
+            sparkMat,
+            sparks,
+            age: 0,
+            duration: 0.62,
+            maxRingScale: 2.45,
+            isRemote: false,
+        });
+    }
+
     /**
-     * Tasten 1-4 Spezialfaehigkeiten (Punkt 6 konsistent in /shop und /mein-konto!):
-     * Slot 1 (Digit1): Funken-Sprint (+55 % = 8.06 m/s fuer 4.5 s, Cooldown 10 s)
-     * Slot 2 (Digit2): Titan-Sprung (vy = 11.6, ~2.6x Sprunghoehe, Cooldown 8 s)
-     * Slot 3 (Digit3): Goldener Schutzschild (24K-Gold-Schutzsphaere fuer 6.0 s, Cooldown 15 s)
-     * Slot 4 (Digit4): Funkenstoss (radiale 24K-Gold-Druckwelle r = 4.6 m, Cooldown 20 s)
+     * Punkt 1: Kinoreife ~680 ms Uebergangssequenz beim Klick auf "Jetzt gestalten"
+     * (Kamera gleitet sanft auf das beleuchtete Exponat zu + goldene Funken steigen auf + edler Klang).
+     */
+    startExhibitTransition(steleIdx) {
+        if (this.destroyed || !this.running || !this.camera) return false;
+        const idx = (typeof steleIdx === 'number' && steleIdx >= 0) ? steleIdx : this.focusedSteleIndex;
+        const st = (idx >= 0 && this.steles[idx]) ? this.steles[idx] : null;
+        if (this.audio && typeof this.audio.playProductTransition === 'function') {
+            this.audio.playProductTransition();
+        }
+        if (!st) return true;
+
+        this._spawnChestFountainBurst(st.x, 1.48, st.z);
+        const standR = 1.24;
+        this._exhibitTransition = {
+            elapsed: 0,
+            duration: 0.68,
+            startCamX: this.camera.position.x,
+            startCamY: this.camera.position.y,
+            startCamZ: this.camera.position.z,
+            targetCamX: st.x + Math.sin(st.facingYaw) * standR,
+            targetCamY: 1.72,
+            targetCamZ: st.z + Math.cos(st.facingYaw) * standR,
+            startLookX: this.camControl.lookAtCurrent ? this.camControl.lookAtCurrent.x : st.x,
+            startLookY: this.camControl.lookAtCurrent ? this.camControl.lookAtCurrent.y : 1.56,
+            startLookZ: this.camControl.lookAtCurrent ? this.camControl.lookAtCurrent.z : st.z,
+            lookX: st.x,
+            lookY: 1.56,
+            lookZ: st.z,
+        };
+        return true;
+    }
+
+    /**
+     * Tasten 1-5 Spezialfaehigkeiten in der goldenen Zierleiste (100 % konsistent in /shop und /dashboard!):
+     * Slot 1 (Digit1 / KeyG): Funken-Hieb (4er-Kombo, 0 Mana)
+     * Slot 2 (Digit2): Licht-Sprint (+55 % = 8.06 m/s fuer 4.5 s, 18 Mana, Cooldown 10 s)
+     * Slot 3 (Digit3): Aufwind-Impuls (vy = 11.6, ~2.6x Sprunghoehe, 22 Mana, Cooldown 8 s)
+     * Slot 4 (Digit4): Aegis-Schild (24K-Gold-Schutzsphaere fuer 6.5 s + Lava-Bounce & Schockwellen-Block, 25 Mana, Cooldown 15 s)
+     * Slot 5 (Digit5): Seelen-Nova (radiale 24K-Gold-Druckwelle r = 4.6 m + loest nahe Schockwellen auf, 30 Mana, Cooldown 20 s)
      */
     triggerAbility(slot) {
         if (!this.running || this.destroyed) return false;
         slot = parseInt(slot, 10);
 
+        if (slot === 1) {
+            return this.triggerComboStrike();
+        }
+
+        const hasMana = (cost) => (this.playerProfile.mana || 0) >= cost;
         const consumeMana = (cost) => {
             this.playerProfile.mana = clamp((this.playerProfile.mana || 0) - cost, 0, this.playerProfile.maxMana || 100);
             this._emitPlayerHudUpdate();
         };
 
-        if (slot === 1) {
-            if (this.player.sprintCooldown > 0) return false;
+        if (slot === 2) {
+            if (this.player.sprintCooldown > 0 || !hasMana(18)) return false;
             this.player.sprintTimer = 4.5;
             this.player.sprintCooldown = 10.0;
             consumeMana(18);
@@ -11846,8 +12674,8 @@ class SeelenfunkeLouvreShowroom3D {
             if (this.audio) this.audio.playSprint();
             return true;
         }
-        if (slot === 2) {
-            if (this.player.titanJumpCooldown > 0) return false;
+        if (slot === 3) {
+            if (this.player.titanJumpCooldown > 0 || !hasMana(22)) return false;
             this.player.titanJumpCooldown = 8.0;
             this.player.isJumping = true;
             this.player.highJumpActive = true;
@@ -11862,9 +12690,9 @@ class SeelenfunkeLouvreShowroom3D {
             if (this.audio) this.audio.playHighJump();
             return true;
         }
-        if (slot === 3) {
-            if (this.player.shieldCooldown > 0) return false;
-            this.player.shieldTimer = 6.0;
+        if (slot === 4) {
+            if (this.player.shieldCooldown > 0 || !hasMana(25)) return false;
+            this.player.shieldTimer = 6.5;
             this.player.shieldCooldown = 15.0;
             if (this.player.shieldMesh) this.player.shieldMesh.visible = true;
             consumeMana(25);
@@ -11872,12 +12700,22 @@ class SeelenfunkeLouvreShowroom3D {
             if (this.audio) this.audio.playShield();
             return true;
         }
-        if (slot === 4) {
-            if (this.player.burstCooldown > 0) return false;
+        if (slot === 5) {
+            if (this.player.burstCooldown > 0 || !hasMana(30)) return false;
             this.player.burstCooldown = 20.0;
             this.camControl.shakeTimer = 0.12;
             consumeMana(30);
             this._spawnComboFinisherExplosion(this.player.x, (this.player.y || 0) + 0.08, this.player.z);
+            if (this.currentZone === 'lava' && this.lavaShockRings && this.lavaShockRings.length > 0) {
+                for (let sri = 0; sri < this.lavaShockRings.length; sri++) {
+                    const sr = this.lavaShockRings[sri];
+                    if (Math.hypot(this.player.x - sr.x, this.player.z - sr.z) <= 5.4) {
+                        sr.suppressedTimer = 2.4;
+                        sr.active = false;
+                        if (sr.ringHolder) sr.ringHolder.visible = false;
+                    }
+                }
+            }
             if (this.audio) this.audio.playComboFinisherImpact();
             return true;
         }
@@ -12390,7 +13228,7 @@ class SeelenfunkeLouvreShowroom3D {
             j.torsoPivot.rotation.y = -Math.sin(pL) * 0.085 * mb;
 
             if (j.thrusterFlameL && j.thrusterFlameR) {
-                const peerThrusters = peerSprint > 0;
+                const peerThrusters = !(peer.builtRecord && peer.builtRecord.skinnedRig) && peerSprint > 0;
                 j.thrusterFlameL.visible = peerThrusters;
                 j.thrusterFlameR.visible = peerThrusters;
             }
@@ -12665,29 +13503,29 @@ class SeelenfunkeLouvreShowroom3D {
             return;
         }
 
-        if (matchesActionKey(code, kb.strike)) {
-            e.preventDefault();
-            this.triggerStrikeAction();
-            return;
-        }
-        if (matchesActionKey(code, kb.sprint)) {
+        if (matchesActionKey(code, kb.strike) || code === 'KeyG') {
             e.preventDefault();
             this.triggerAbility(1);
             return;
         }
-        if (matchesActionKey(code, kb.titanJump)) {
+        if (matchesActionKey(code, kb.sprint)) {
             e.preventDefault();
             this.triggerAbility(2);
             return;
         }
-        if (matchesActionKey(code, kb.shield)) {
+        if (matchesActionKey(code, kb.titanJump)) {
             e.preventDefault();
             this.triggerAbility(3);
             return;
         }
-        if (matchesActionKey(code, kb.burst)) {
+        if (matchesActionKey(code, kb.shield)) {
             e.preventDefault();
             this.triggerAbility(4);
+            return;
+        }
+        if (matchesActionKey(code, kb.burst)) {
+            e.preventDefault();
+            this.triggerAbility(5);
             return;
         }
         if (code === 'Enter' || code === 'KeyE') {
@@ -12877,6 +13715,18 @@ class SeelenfunkeLouvreShowroom3D {
         }
 
         if (!wasChord && moved < 7 && (e.button === 0 || e.pointerType === 'touch') && !this.camControl.mouseRightDown) {
+            if (e.pointerType === 'touch' && this.canvas) {
+                const rect = this.canvas.getBoundingClientRect();
+                if (e.clientX > rect.left + rect.width * 0.48) {
+                    const nowTap = this._nowClientMs();
+                    if ((nowTap - (this._lastRightTapMs || 0)) < 310) {
+                        this._lastRightTapMs = 0;
+                        this.triggerJump();
+                        return;
+                    }
+                    this._lastRightTapMs = nowTap;
+                }
+            }
             this._handleCanvasTap(e.clientX, e.clientY);
         }
     }
@@ -12904,7 +13754,15 @@ class SeelenfunkeLouvreShowroom3D {
     }
 
     _onTouchStart(e) {
-        if (e.touches.length === 2) {
+        if (e.touches.length === 1) {
+            this._touchSwipeStart = {
+                x: e.touches[0].clientX,
+                y: e.touches[0].clientY,
+                t: this._nowClientMs(),
+                jumped: false,
+            };
+        } else if (e.touches.length === 2) {
+            this._touchSwipeStart = null;
             const dx = e.touches[0].clientX - e.touches[1].clientX;
             const dy = e.touches[0].clientY - e.touches[1].clientY;
             this.camControl.pinchDist = Math.hypot(dx, dy);
@@ -12912,6 +13770,19 @@ class SeelenfunkeLouvreShowroom3D {
     }
 
     _onTouchMove(e) {
+        if (e.touches.length === 1 && this._touchSwipeStart && !this._touchSwipeStart.jumped && this.canvas) {
+            const rect = this.canvas.getBoundingClientRect();
+            if (this._touchSwipeStart.x > rect.left + rect.width * 0.44) {
+                const dy = e.touches[0].clientY - this._touchSwipeStart.y;
+                const dx = e.touches[0].clientX - this._touchSwipeStart.x;
+                const elapsed = this._nowClientMs() - this._touchSwipeStart.t;
+                if (dy < -42 && Math.abs(dx) < 48 && elapsed < 280) {
+                    this._touchSwipeStart.jumped = true;
+                    this.triggerJump();
+                    return;
+                }
+            }
+        }
         if (e.touches.length === 2 && this.camControl.pinchDist > 8) {
             const dx = e.touches[0].clientX - e.touches[1].clientX;
             const dy = e.touches[0].clientY - e.touches[1].clientY;
@@ -13259,6 +14130,7 @@ class SeelenfunkeLouvreShowroom3D {
             } else {
                 this._syncZoneGroupVisibility();
             }
+            this.refreshHeroesData(false);
             return;
         }
 
@@ -13811,19 +14683,34 @@ class SeelenfunkeLouvreShowroom3D {
         const prevZ = this.player.z;
         const prevYaw = this.player.yaw;
 
-        if (this.player.isMoving) {
+        // Punkt 6: Abklingender Knockback-Impuls aus Goldenen/Schwarzen Magma-Schockwellen-Ringen
+        const kbMag = Math.hypot(this.player.knockbackVx || 0, this.player.knockbackVz || 0);
+        if (kbMag > 0.05) {
+            const dampKb = Math.exp(-dt * 6.4);
+            this.player.knockbackVx *= dampKb;
+            this.player.knockbackVz *= dampKb;
+        } else {
+            this.player.knockbackVx = 0;
+            this.player.knockbackVz = 0;
+        }
+
+        if (this.player.isMoving || kbMag > 0.05) {
+            const totalVx = vx + (this.player.knockbackVx || 0);
+            const totalVz = vz + (this.player.knockbackVz || 0);
             const nextPos = this._resolveCollisions(
-                this.player.x + vx * dt,
-                this.player.z + vz * dt
+                this.player.x + totalVx * dt,
+                this.player.z + totalVz * dt
             );
             this.player.x = nextPos.x;
             this.player.z = nextPos.z;
 
-            const moveYaw = Math.atan2(vx, vz);
-            this.player.yaw = lerpAngle(this.player.yaw, moveYaw, 1.0 - Math.exp(-13.5 * dt));
+            if (this.player.isMoving) {
+                const moveYaw = Math.atan2(vx, vz);
+                this.player.yaw = lerpAngle(this.player.yaw, moveYaw, 1.0 - Math.exp(-13.5 * dt));
+            }
 
             // Goldene Fersen-Funken beim aktiven Funken-Sprint!
-            if (this.player.sprintTimer > 0 && !this.player.isJumping) {
+            if (this.player.sprintTimer > 0 && !this.player.isJumping && this.player.isMoving) {
                 this.player.sprintSparkAcc += dt;
                 if (this.player.sprintSparkAcc >= 0.14) {
                     this.player.sprintSparkAcc = 0;
@@ -13899,28 +14786,85 @@ class SeelenfunkeLouvreShowroom3D {
                     shadowSurfaceY = supAir.shadowY;
                 }
 
-                // Lava-Sturz (Y < -0.95): Gold-oranger Respawn-Effekt + fairer Respawn am letzten erreichten Checkpoint!
-                if (this.player.y < -0.95) {
-                    this._respawnAtLavaBalcony();
-                    shadowSurfaceY = this.player.groundY || 0.004;
+                // Punkt 9: Aegis-Schild [4] Lava-Bounce (vy = +14.5 + Schild zerbricht!) statt Tod; ohne Schild fairer Respawn!
+                if (this.player.y < -0.90) {
+                    if (this.player.shieldTimer > 0) {
+                        this.player.y = -0.74;
+                        this.player.vy = 14.5;
+                        this.player.isJumping = true;
+                        this.player.highJumpActive = true;
+                        this.player.jumpCount = 1;
+                        this.player.standingPlatform = null;
+                        this.player.isSomersault = false;
+                        this.player.somersaultProgress = 0.0;
+                        this._spawnLavaSplashBurst(this.player.x, this.lavaSurfaceY + 0.14, this.player.z);
+                        this._shatterAegisShield(this.player.x, this.lavaSurfaceY + 0.42, this.player.z);
+                    } else {
+                        this.player.knockbackVx = 0;
+                        this.player.knockbackVz = 0;
+                        this._respawnAtLavaBalcony();
+                        shadowSurfaceY = this.player.groundY || 0.004;
+                    }
                 }
             }
 
-            // Rhythmische Magma-Geysire: Ohne 3 · Schutzschild -> Reset zum letzten Checkpoint; MIT 3 · Schutzschild prallt Glut ab!
+            // Punkt 6 & Punkt 9: Goldene & Schwarze Schockwellen-Ringe (springbar ab +0.56 m; sonst Knockback + Mana-Abzug oder Aegis-Schild-Bruch!)
+            for (let sri = 0; sri < this.lavaShockRings.length; sri++) {
+                const sr = this.lavaShockRings[sri];
+                if (!sr.active || sr.paused || sr.lastHitCycle === sr.cycleIdx) continue;
+                const distRing = Math.hypot(this.player.x - sr.x, this.player.z - sr.z);
+                if (Math.abs(distRing - sr.currentRadius) <= 0.42
+                    && (this.player.y || 0) >= sr.y - 0.45
+                    && ((this.player.y || 0) - sr.y) < 0.56) {
+                    sr.lastHitCycle = sr.cycleIdx;
+                    if (this.player.shieldTimer > 0) {
+                        sr.suppressedTimer = 1.4;
+                        sr.active = false;
+                        if (sr.ringHolder) sr.ringHolder.visible = false;
+                        this._shatterAegisShield(this.player.x, (this.player.y || 0) + 0.88, this.player.z);
+                    } else {
+                        const outX = distRing > 0.05 ? ((this.player.x - sr.x) / distRing) : -1.0;
+                        const outZ = distRing > 0.05 ? ((this.player.z - sr.z) / distRing) : 0.0;
+                        if (sr.kind === 'black') {
+                            this.player.knockbackVx = outX * 9.8;
+                            this.player.knockbackVz = outZ * 9.8;
+                            this.player.vy = Math.max(this.player.vy || 0, 3.35);
+                            this.playerProfile.mana = clamp((this.playerProfile.mana || 0) - 28, 0, this.playerProfile.maxMana || 100);
+                            this.camControl.shakeTimer = 0.18;
+                        } else {
+                            const latX = -outZ * 0.45;
+                            const latZ = outX * 0.45;
+                            this.player.knockbackVx = (outX * 0.88 + latX) * 7.8;
+                            this.player.knockbackVz = (outZ * 0.88 + latZ) * 7.8;
+                            this.player.vy = Math.max(this.player.vy || 0, 3.55);
+                            this.playerProfile.mana = clamp((this.playerProfile.mana || 0) - 12, 0, this.playerProfile.maxMana || 100);
+                            this.camControl.shakeTimer = 0.12;
+                        }
+                        this.player.isJumping = true;
+                        this.player.standingPlatform = null;
+                        this._emitPlayerHudUpdate();
+                        if (this.audio && typeof this.audio.playShockRingHit === 'function') {
+                            this.audio.playShockRingHit(sr.kind);
+                        }
+                    }
+                }
+            }
+
+            // Rhythmische Magma-Geysire: Mit Aegis-Schild [4] Katapult-Bounce + Schild-Bruch; ohne Schild Reset zum letzten Checkpoint!
             for (let gi = 0; gi < this.lavaGeysers.length; gi++) {
                 const gy = this.lavaGeysers[gi];
                 if (gy.eruptFactor > 0.34 && this.player.y <= gy.currentTopY) {
                     const dGeyser = Math.hypot(this.player.x - gy.x, this.player.z - gy.z);
                     if (dGeyser < 0.96) {
                         if (this.player.shieldTimer > 0) {
-                            if (gy.shieldDeflectCd <= 0) {
-                                gy.shieldDeflectCd = 0.55;
-                                this._spawnAbilityBurst(this.player.x, (this.player.y || 0) + 0.9, this.player.z, 'shield');
-                                if (this.audio && typeof this.audio.playShield === 'function') {
-                                    this.audio.playShield();
-                                }
-                            }
+                            this.player.vy = Math.max(this.player.vy || 0, 12.2);
+                            this.player.isJumping = true;
+                            this.player.standingPlatform = null;
+                            this._shatterAegisShield(this.player.x, (this.player.y || 0) + 0.9, this.player.z);
+                            break;
                         } else {
+                            this.player.knockbackVx = 0;
+                            this.player.knockbackVz = 0;
                             this._respawnAtLavaBalcony();
                             shadowSurfaceY = this.player.groundY || 0.004;
                             break;
@@ -13977,9 +14921,13 @@ class SeelenfunkeLouvreShowroom3D {
                         } else if (this.audio && typeof this.audio.playGateLocked === 'function') {
                             this.audio.playGateLocked();
                         }
-                    } else if (Math.hypot(this.player.x - (lavaAnchors.chest.x + 1.85), this.player.z - (lavaAnchors.chest.z + 2.05)) < 0.78) {
-                        this._portalWalkCd = 1.6;
-                        this._returnToLavaHub();
+                    } else {
+                        const retX = this.lavaReturnPortalWorld ? this.lavaReturnPortalWorld.x : (lavaAnchors.chest.x + 6.20);
+                        const retZ = this.lavaReturnPortalWorld ? this.lavaReturnPortalWorld.z : (lavaAnchors.chest.z + 3.15);
+                        if (Math.hypot(this.player.x - retX, this.player.z - retZ) < 0.84) {
+                            this._portalWalkCd = 1.6;
+                            this._returnToLavaHub();
+                        }
                     }
                 }
             }
@@ -14057,6 +15005,9 @@ class SeelenfunkeLouvreShowroom3D {
             } else {
                 this.currentZone = activeZoneNow;
                 this._syncZoneGroupVisibility();
+                if (activeZoneNow === 'heroes') {
+                    this.refreshHeroesData(false);
+                }
                 if (this.onZoneChange) {
                     this.onZoneChange(activeZoneNow);
                 }
@@ -14225,6 +15176,27 @@ class SeelenfunkeLouvreShowroom3D {
             this.camera.lookAt(this.camControl.lookAtCurrent);
         }
 
+        // Punkt 1: Sanfter Kameraglide zum beleuchteten Exponat waehrend der ~680 ms Produkt-Uebergangssequenz
+        if (this._exhibitTransition) {
+            const tr = this._exhibitTransition;
+            tr.elapsed += dt;
+            const uTr = clamp(tr.elapsed / Math.max(0.1, tr.duration), 0, 1);
+            const easeTr = uTr * uTr * (3.0 - 2.0 * uTr);
+            this.camera.position.set(
+                lerp(tr.startCamX, tr.targetCamX, easeTr),
+                lerp(tr.startCamY, tr.targetCamY, easeTr),
+                lerp(tr.startCamZ, tr.targetCamZ, easeTr)
+            );
+            this.camera.lookAt(
+                lerp(tr.startLookX, tr.lookX, easeTr),
+                lerp(tr.startLookY, tr.lookY, easeTr),
+                lerp(tr.startLookZ, tr.lookZ, easeTr)
+            );
+            if (uTr >= 1.0) {
+                this._exhibitTransition = null;
+            }
+        }
+
         this._updateFloatingCardProjection();
         this._updateCharacterFollowLights();
 
@@ -14277,7 +15249,7 @@ class SeelenfunkeLouvreShowroom3D {
         let maxZ;
         if (zone === 'lava') {
             minX = 4.6;
-            maxX = Math.min(this.lavaChamberMaxX, this._getCurrentLavaAnchors().chest.x + 6.0);
+            maxX = Math.min(this.lavaChamberMaxX, this._getCurrentLavaAnchors().chest.x + 9.2);
             minZ = this.lavaChamberMinZ;
             maxZ = this.lavaChamberMaxZ;
         } else if (zone === 'heroes') {
@@ -14609,6 +15581,12 @@ export function createLouvreShowroom(options) {
         },
         setHeroesPayload(payload) {
             engine.setHeroesPayload(payload);
+        },
+        refreshHeroesData(force = false) {
+            return engine.refreshHeroesData(Boolean(force));
+        },
+        startExhibitTransition(steleIdx) {
+            return engine.startExhibitTransition(steleIdx);
         },
         showChatBubble(playerId, text) {
             engine.showChatBubble(playerId, text);

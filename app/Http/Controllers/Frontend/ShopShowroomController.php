@@ -811,8 +811,9 @@ class ShopShowroomController extends Controller
                 : null;
 
             $gamificationActive = $sanctumAccess['gamification_active'];
+            $heroMetrics = LobbyInstanceService::calculateHeroRankingMetrics($profile);
             $funkenBalance = max(0, (int) ($profile?->funken_balance ?? 0));
-            $funkenTotalEarned = max(0, (int) ($profile?->funken_total_earned ?? 0));
+            $funkenTotalEarned = $heroMetrics['sparks_total'];
             $rawLevel = (int) ($profile?->level ?: GameConfig::getLevelForLifetimeSparks($funkenTotalEarned));
             $resolvedLevel = min(GameConfig::MAX_LEVEL, max(1, $rawLevel));
 
@@ -840,6 +841,11 @@ class ShopShowroomController extends Controller
                 'model_url' => $modelUrl,
                 'funken_balance' => $funkenBalance,
                 'funken_total_earned' => $funkenTotalEarned,
+                'hero_score' => $heroMetrics['hero_score'],
+                'hero_score_formatted' => number_format($heroMetrics['hero_score'], 0, ',', '.'),
+                'magma_highest_level' => $heroMetrics['magma_highest_level'],
+                'magma_cleared_count' => $heroMetrics['magma_cleared_count'],
+                'magma_prestige_points' => $heroMetrics['magma_prestige_points'],
                 'master_key_unlocked' => $masterKeyUnlocked,
                 'gift_voucher_url' => $giftVoucherUrl,
             ];
@@ -865,6 +871,11 @@ class ShopShowroomController extends Controller
             'model_url' => $guestModelUrl,
             'funken_balance' => 0,
             'funken_total_earned' => 0,
+            'hero_score' => 0,
+            'hero_score_formatted' => '0',
+            'magma_highest_level' => 0,
+            'magma_cleared_count' => 0,
+            'magma_prestige_points' => 0,
             'master_key_unlocked' => false,
             'gift_voucher_url' => $giftVoucherUrl,
         ];

@@ -48,22 +48,22 @@ class LavaParkourService
 
     public const CP1_X = 31.5;
     public const CP1_Z = -2.0;
-    public const CP1_MAX_DIST = 6.0;
+    public const CP1_MAX_DIST = 6.5;
     public const CP1_MIN_Y = -1.0;
-    public const CP1_MAX_Y = 10.0;
+    public const CP1_MAX_Y = 14.5;
 
     public const CP2_X = 51.0;
     public const CP2_Z = -2.0;
-    public const CP2_MAX_DIST = 6.0;
+    public const CP2_MAX_DIST = 6.5;
     public const CP2_MIN_Y = -0.5;
-    public const CP2_MAX_Y = 11.0;
+    public const CP2_MAX_Y = 15.5;
 
     public const CHEST_X = 66.5;
     public const CHEST_Y = 3.2;
     public const CHEST_Z = -2.0;
     public const CHEST_MAX_DIST = 6.0;
-    public const CHEST_MIN_Y = 1.0;
-    public const CHEST_MAX_Y = 11.0;
+    public const CHEST_MIN_Y = 0.5;
+    public const CHEST_MAX_Y = 14.5;
 
     /**
      * @var array<int, string>
@@ -267,6 +267,7 @@ class LavaParkourService
      *     unlocked_portals: array<int, int>,
      *     first_cleared_levels: array<int, int>,
      *     daily_cleared_levels: array<int, int>,
+     *     daily_claimed_levels: array<int, int>,
      *     daily_sparks_earned: int,
      *     daily_sparks_cap: int
      * }
@@ -281,6 +282,7 @@ class LavaParkourService
                 'unlocked_portals' => [],
                 'first_cleared_levels' => [],
                 'daily_cleared_levels' => [],
+                'daily_claimed_levels' => [],
                 'daily_sparks_earned' => 0,
                 'daily_sparks_cap' => self::DAILY_CAP_FREE,
             ];
@@ -337,6 +339,7 @@ class LavaParkourService
             'unlocked_portals' => $unlockedPortals,
             'first_cleared_levels' => $clearedLevels,
             'daily_cleared_levels' => $dailyClearedLevels,
+            'daily_claimed_levels' => $dailyClearedLevels,
             'daily_sparks_earned' => $dailySparksEarned,
             'daily_sparks_cap' => $dailyCap,
         ];
@@ -381,7 +384,17 @@ class LavaParkourService
     {
         $access = LobbyInstanceService::evaluateSanctumAccess($customer);
         $state = $this->resolveProgressState($customer);
-        $levelsList = array_values($this->getLevelsCatalog());
+        $levelsList = [];
+
+        foreach ($this->getLevelsCatalog() as $lvlNum => $levelDef) {
+            $isClaimedToday = in_array((int) $lvlNum, $state['daily_cleared_levels'], true);
+            $isFirstCleared = in_array((int) $lvlNum, $state['first_cleared_levels'], true);
+            $levelDef['claimed_today'] = $isClaimedToday;
+            $levelDef['chest_locked_today'] = $isClaimedToday;
+            $levelDef['first_cleared'] = $isFirstCleared;
+            $levelDef['unlocked'] = (int) $lvlNum <= $state['highest_unlocked_level'];
+            $levelsList[] = $levelDef;
+        }
 
         return [
             'enabled' => true,
@@ -397,6 +410,7 @@ class LavaParkourService
             'unlocked_portals' => $state['unlocked_portals'],
             'first_cleared_levels' => $state['first_cleared_levels'],
             'daily_cleared_levels' => $state['daily_cleared_levels'],
+            'daily_claimed_levels' => $state['daily_cleared_levels'],
             'daily_sparks_earned' => $state['daily_sparks_earned'],
             'daily_sparks_cap' => $state['daily_sparks_cap'],
             'levels' => $levelsList,
@@ -507,6 +521,9 @@ class LavaParkourService
                     'is_first_clear_available' => $isFirstClearAvailable,
                     'claimed_today' => $isClaimedToday,
                     'already_claimed_today' => $isClaimedToday,
+                    'chest_locked_today' => $isClaimedToday,
+                    'daily_claimed_levels' => $state['daily_cleared_levels'],
+                    'daily_cleared_levels' => $state['daily_cleared_levels'],
                     'first_clear_reward' => $levelDef['first_clear_reward'],
                     'daily_reward' => $isFirstClearAvailable ? $levelDef['first_clear_reward'] : $levelDef['daily_reward'],
                     'repeat_daily_reward' => $levelDef['daily_reward'],
@@ -1128,17 +1145,19 @@ class LavaParkourService
                             $sparksAwarded = self::FIRST_CLEAR_REWARDS[$runLevel];
                             $clearedLevels[] = $runLevel;
                             $clearedLevels = $this->normalizeLevelList($clearedLevels);
-                            $dailyLevels[] = $runLevel;
-                            $dailyLevels = $this->normalizeLevelList($dailyLevels);
                         } else {
                             $remainingDailyCap = max(0, $dailyCap - $dailySparksEarned);
                             $sparksAwarded = min(self::DAILY_REWARDS[$runLevel], $remainingDailyCap);
                             if ($sparksAwarded > 0) {
                                 $dailySparksEarned += $sparksAwarded;
-                                $dailyLevels[] = $runLevel;
-                                $dailyLevels = $this->normalizeLevelList($dailyLevels);
                             }
                         }
+
+                        // Jede Magma-Truhe (Stufe 1..10) wird bei der ersten Oeffnung des Kalendertages
+                        // sofort fest als geoeffnet markiert (auch wenn das Tages-Funken-Cap bereits erreicht ist).
+                        $dailyLevels[] = $runLevel;
+                        $dailyLevels = $this->normalizeLevelList($dailyLevels);
+                        $titlesProgress['_lava_chest_last_claim_date'] = $today;
                     }
 
                     if ($sparksAwarded > 0) {
@@ -1147,7 +1166,6 @@ class LavaParkourService
                         $this->gamificationService->syncLevelFromLifetimeSparks($gam);
 
                         $titlesProgress['funkenkoenig'] = (int) $gam->funken_total_earned;
-                        $titlesProgress['_lava_chest_last_claim_date'] = $today;
                         $titlesProgress['_lava_chest_total_claims'] = (int) ($titlesProgress['_lava_chest_total_claims'] ?? 0) + 1;
                     }
 
@@ -1202,13 +1220,15 @@ class LavaParkourService
                     $rawUnlocked = min(self::MAX_MAGMA_LEVEL, $maxSequential + 1);
                     $highestUnlockedLevel = $masterKeyUnlocked ? $rawUnlocked : min(5, $rawUnlocked);
                     $unlockedPortals = $highestUnlockedLevel >= 2 ? range(2, $highestUnlockedLevel) : [];
+                    $heroMetrics = LobbyInstanceService::calculateHeroRankingMetrics($gam);
+                    $isLockedToday = in_array($runLevel, $dailyLevels, true);
 
                     if ($alreadyClaimedToday) {
-                        $message = 'Diese Magma-Truhe wurde heute bereits geöffnet.';
+                        $message = 'Diese Truhe wurde heute bereits geöffnet. Morgen ab 00:00 Uhr ist sie wieder bereit!';
                     } elseif ($sparksAwarded > 0) {
                         $message = '+' . $sparksAwarded . ' Funken erhalten!';
                     } else {
-                        $message = 'Tageslimit erreicht (' . $dailyCap . ' Funken pro Tag).';
+                        $message = 'Tageslimit erreicht (' . $dailyCap . ' Funken pro Tag). Morgen ab 00:00 Uhr füllt sich die Truhe neu!';
                     }
 
                     return [
@@ -1220,10 +1240,15 @@ class LavaParkourService
                             'rewarded_sparks' => $sparksAwarded,
                             'is_first_clear' => $isFirstClear,
                             'already_claimed_today' => $alreadyClaimedToday,
-                            'claimed_today' => in_array($runLevel, $dailyLevels, true),
+                            'claimed_today' => $isLockedToday,
+                            'chest_locked_today' => $isLockedToday,
                             'funken_balance' => (int) $gam->funken_balance,
                             'new_balance' => (int) $gam->funken_balance,
                             'funken_total_earned' => (int) $gam->funken_total_earned,
+                            'hero_score' => $heroMetrics['hero_score'],
+                            'magma_highest_level' => $heroMetrics['magma_highest_level'],
+                            'magma_cleared_count' => $heroMetrics['magma_cleared_count'],
+                            'magma_prestige_points' => $heroMetrics['magma_prestige_points'],
                             'player_level' => $playerLevel,
                             'new_level' => $playerLevel,
                             'model_url' => $modelUrl,
@@ -1232,6 +1257,7 @@ class LavaParkourService
                             'unlocked_portals' => $unlockedPortals,
                             'first_cleared_levels' => $clearedLevels,
                             'daily_cleared_levels' => $dailyLevels,
+                            'daily_claimed_levels' => $dailyLevels,
                             'daily_sparks_earned' => $dailySparksEarned,
                             'daily_sparks_cap' => $dailyCap,
                             'message' => $message,

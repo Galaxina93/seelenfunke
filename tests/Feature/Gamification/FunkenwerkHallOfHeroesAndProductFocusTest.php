@@ -238,7 +238,7 @@ class FunkenwerkHallOfHeroesAndProductFocusTest extends TestCase
 
     public function test_heroes_json_endpoint_enforces_opt_in_zero_pii_is_me_and_renders_3d_buttons(): void
     {
-        // Hero 1: Opt-in with player_name (Level 10 -> Rank S)
+        // Hero 1: Opt-in with player_name (Level 10 -> Rank S + Magma Lvl 1 & 2 = +45 Prestige -> hero_score = 5045)
         $heroOneCustomer = Customer::create([
             'id' => (string) Str::uuid(),
             'first_name' => 'Maximilian',
@@ -255,9 +255,30 @@ class FunkenwerkHallOfHeroesAndProductFocusTest extends TestCase
             'level' => 10,
             'funken_total_earned' => 5000,
             'galactic_conquest_points' => 900,
+            'titles_progress' => [
+                'lava_cleared_levels' => [1, 2],
+            ],
         ]);
 
-        // Hero 2 (Logged-in customer): Opt-in with use_real_name = true -> ONLY "Clara S.", NEVER full last name!
+        // Hero 2: ranking_opt_in = false, aber frei gewaehltes Pseudonym (0 Klardaten) -> erscheint als "HiddenShadow99" auf Platz #2
+        $optOutCustomer = Customer::create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Versteckt',
+            'last_name' => 'Unsichtbar',
+            'email' => 'unsichtbar@example.de',
+            'password' => bcrypt('secret1234'),
+        ]);
+        CustomerGamification::create([
+            'customer_id' => $optOutCustomer->id,
+            'is_active' => true,
+            'ranking_opt_in' => false,
+            'use_real_name' => false,
+            'player_name' => 'HiddenShadow99',
+            'level' => 9,
+            'funken_total_earned' => 4000,
+        ]);
+
+        // Hero 3 (Logged-in customer): Opt-in with use_real_name = true -> ONLY "Clara S.", NEVER full last name!
         $meCustomer = Customer::create([
             'id' => (string) Str::uuid(),
             'first_name' => 'Clara',
@@ -276,22 +297,22 @@ class FunkenwerkHallOfHeroesAndProductFocusTest extends TestCase
             'galactic_conquest_points' => 450,
         ]);
 
-        // Customer 3: ranking_opt_in = false -> MUST NEVER appear!
-        $optOutCustomer = Customer::create([
+        // Hero 4: ranking_opt_in = false UND kein player_name -> fuer Dritte "Funken-Hüter #4", fuer sich selbst eigener Vorname!
+        $anonNoPseudoCustomer = Customer::create([
             'id' => (string) Str::uuid(),
-            'first_name' => 'Versteckt',
-            'last_name' => 'Unsichtbar',
-            'email' => 'unsichtbar@example.de',
+            'first_name' => 'Helena',
+            'last_name' => 'GeheimPrivatNachname',
+            'email' => 'helena.geheim@example.de',
             'password' => bcrypt('secret1234'),
         ]);
         CustomerGamification::create([
-            'customer_id' => $optOutCustomer->id,
+            'customer_id' => $anonNoPseudoCustomer->id,
             'is_active' => true,
             'ranking_opt_in' => false,
             'use_real_name' => false,
-            'player_name' => 'HiddenShadow99',
-            'level' => 9,
-            'funken_total_earned' => 4000,
+            'player_name' => null,
+            'level' => 2,
+            'funken_total_earned' => 271,
         ]);
 
         // 1. Public guest request works on BOTH routes and exposes 0 PII (inkl. Sanctum-Gate fuer Gast: login_required)
@@ -299,29 +320,48 @@ class FunkenwerkHallOfHeroesAndProductFocusTest extends TestCase
         $guestResp->assertOk()
             ->assertJsonPath('success', true)
             ->assertJsonPath('founding_era', true)
-            ->assertJsonPath('total_heroes', 2)
+            ->assertJsonPath('total_heroes', 4)
             ->assertJsonPath('customer_logged_in', false)
             ->assertJsonPath('can_enter_heroes', false)
             ->assertJsonPath('can_enter_sanctums', false)
             ->assertJsonPath('sanctum_block_reason', 'login_required')
-            ->assertJsonPath('my_hero_slot', null);
+            ->assertJsonPath('my_hero_slot', null)
+            ->assertJsonPath('heroes.0.display_name', 'Sternenwanderer')
+            ->assertJsonPath('heroes.0.hero_score', 5045)
+            ->assertJsonPath('heroes.0.hero_score_formatted', '5.045')
+            ->assertJsonPath('heroes.0.magma_highest_level', 2)
+            ->assertJsonPath('heroes.0.magma_cleared_count', 2)
+            ->assertJsonPath('heroes.0.magma_prestige_points', 45)
+            ->assertJsonPath('heroes.1.display_name', 'HiddenShadow99')
+            ->assertJsonPath('heroes.2.display_name', 'Clara S.')
+            ->assertJsonPath('heroes.3.display_name', 'Funken-Hüter #4')
+            ->assertJsonPath('heroes.3.occupied', true)
+            ->assertJsonPath('heroes.4.occupied', false)
+            ->assertJsonPath('heroes.4.is_placeholder', true)
+            ->assertJsonPath('heroes.4.model_url', null);
 
         $this->getJson('/api/gamification/funkenwerk-heroes')
             ->assertOk()
-            ->assertJsonPath('total_heroes', 2)
+            ->assertJsonPath('total_heroes', 4)
             ->assertJsonPath('can_enter_heroes', false)
             ->assertJsonPath('sanctum_block_reason', 'login_required');
 
         $rawGuestBody = $guestResp->getContent();
         $this->assertStringNotContainsString('streng.geheim.eins@private-mail.de', $rawGuestBody);
         $this->assertStringNotContainsString('clara.privat@geheim.de', $rawGuestBody);
+        $this->assertStringNotContainsString('unsichtbar@example.de', $rawGuestBody);
+        $this->assertStringNotContainsString('helena.geheim@example.de', $rawGuestBody);
         $this->assertStringNotContainsString('StrengGeheimerNachname', $rawGuestBody);
         $this->assertStringNotContainsString('SuperGeheimNachname', $rawGuestBody);
-        $this->assertStringNotContainsString('HiddenShadow99', $rawGuestBody);
+        $this->assertStringNotContainsString('Versteckt', $rawGuestBody);
+        $this->assertStringNotContainsString('Unsichtbar', $rawGuestBody);
+        $this->assertStringNotContainsString('Helena', $rawGuestBody);
+        $this->assertStringNotContainsString('GeheimPrivatNachname', $rawGuestBody);
         $this->assertStringNotContainsString((string) $heroOneCustomer->id, $rawGuestBody);
         $this->assertStringNotContainsString((string) $meCustomer->id, $rawGuestBody);
+        $this->assertStringNotContainsString((string) $anonNoPseudoCustomer->id, $rawGuestBody);
 
-        // 2. Logged-in customer (noch ohne bezahlte Bestellung -> order_required) receives is_me = true, my_hero_slot = 2, level_models (1..10) & model_url
+        // 2. Logged-in customer ($meCustomer auf Platz #3) sieht sich mit is_me = true, waehrend Platz #4 weiterhin "Funken-Hüter #4" bleibt
         $this->actingAs($meCustomer, 'customer');
         $authResp = $this->getJson('/funkenwerk-welt/heroes-data');
         $authResp->assertOk()
@@ -332,20 +372,35 @@ class FunkenwerkHallOfHeroesAndProductFocusTest extends TestCase
             ->assertJsonPath('can_enter_heroes', false)
             ->assertJsonPath('can_enter_sanctums', false)
             ->assertJsonPath('sanctum_block_reason', 'order_required')
-            ->assertJsonPath('my_hero_slot', 2)
+            ->assertJsonPath('my_hero_slot', 3)
             ->assertJsonPath('level_models.1', '/shop/customer/gamification/models/funki_lvl_1_rags.glb')
             ->assertJsonPath('level_models.10', '/shop/customer/gamification/models/funki_lvl_10_god_of_soul.glb')
             ->assertJsonPath('heroes.0.display_name', 'Sternenwanderer')
             ->assertJsonPath('heroes.0.rank_class', 'S')
             ->assertJsonPath('heroes.0.is_me', false)
-            ->assertJsonPath('heroes.1.display_name', 'Clara S.')
-            ->assertJsonPath('heroes.1.rank_class', 'A')
-            ->assertJsonPath('heroes.1.is_me', true);
+            ->assertJsonPath('heroes.2.display_name', 'Clara S.')
+            ->assertJsonPath('heroes.2.rank_class', 'A')
+            ->assertJsonPath('heroes.2.is_me', true)
+            ->assertJsonPath('heroes.3.display_name', 'Funken-Hüter #4')
+            ->assertJsonPath('heroes.3.is_me', false);
 
         $authJson = $authResp->json();
         $this->assertCount(10, $authJson['level_models']);
         $this->assertStringEndsWith('/shop/customer/gamification/models/funki_lvl_10_god_of_soul.glb', (string) $authJson['heroes'][0]['model_url']);
-        $this->assertStringEndsWith('/shop/customer/gamification/models/funki_lvl_6_craftsman.glb', (string) $authJson['heroes'][1]['model_url']);
+        $this->assertStringEndsWith('/shop/customer/gamification/models/funki_lvl_6_craftsman.glb', (string) $authJson['heroes'][2]['model_url']);
+        $this->assertStringEndsWith('/shop/customer/gamification/models/funki_lvl_2_basic.glb', (string) $authJson['heroes'][3]['model_url']);
+
+        // 2b. Schaut Hero 4 ($anonNoPseudoCustomer, ranking_opt_in = false, kein player_name) selbst hinein, sieht sie ihren eigenen Vornamen "Helena"!
+        $this->actingAs($anonNoPseudoCustomer, 'customer');
+        $selfAnonResp = $this->getJson('/funkenwerk-welt/heroes-data');
+        $selfAnonResp->assertOk()
+            ->assertJsonPath('my_hero_slot', 4)
+            ->assertJsonPath('customer_opt_in', false)
+            ->assertJsonPath('heroes.3.is_me', true)
+            ->assertJsonPath('heroes.3.display_name', 'Helena');
+        $this->assertStringNotContainsString('GeheimPrivatNachname', $selfAnonResp->getContent());
+
+        $this->actingAs($meCustomer, 'customer');
 
         // 3. Verify 3D User Lobby loader & engine adhere to Clean-Design, 1:1 Pantheon Hall of Heroes & Multiplayer Instances (0 Water City!)
         $loaderJs = (string) file_get_contents(public_path('js/funkenwerk-heroes-3d.js'));
@@ -356,7 +411,7 @@ class FunkenwerkHallOfHeroesAndProductFocusTest extends TestCase
         $this->assertStringNotContainsString('https://', $loaderJs);
         $this->assertStringNotContainsString('_buildWaterMetropolis', $loaderJs);
         $this->assertStringNotContainsString('startOrbitalFlyIn', $loaderJs);
-        $this->assertStringContainsString('/js/seelenfunke-louvre-showroom-3d.js?v=20261117v4', $loaderJs);
+        $this->assertStringContainsString('/js/seelenfunke-louvre-showroom-3d.js', $loaderJs);
         $this->assertStringContainsString('sf-lobby-instance-btn', $loaderJs);
         $this->assertStringContainsString('sf-lobby-instance-menu', $loaderJs);
         $this->assertStringContainsString('data-testid="lobby-current-zone-badge"', $loaderJs);
@@ -386,31 +441,35 @@ class FunkenwerkHallOfHeroesAndProductFocusTest extends TestCase
         $this->assertStringContainsString('_createFunkiCharacterByLevel', $engineJs);
         $this->assertStringContainsString('Freier Ehrenplatz', $engineJs);
 
-        // 4. Verify "3D-Lobby öffnen" / "Halle der Helden 3D" buttons render in Customer Dashboard & Funki page (0 internal Funkenwerk references!), and remain REMOVED from Checkout Success
+        // 4. Verify "Ins Funkenreich" / "Halle der Helden 3D" buttons render in Customer Dashboard & Funki page (0 internal Funkenwerk references!), and remain REMOVED from Checkout Success
         $dashTest = Livewire::actingAs($meCustomer, 'customer')
             ->test(CustomerDashboardComponent::class)
-            ->assertSee('3D-Lobby öffnen')
+            ->assertSee('Ins Funkenreich')
+            ->assertDontSee('3D-Lobby öffnen')
             ->assertDontSee('Funkenwerk 3D öffnen')
             ->assertSeeHtml('data-testid="dashboard-open-user-lobby-3d"')
-            ->assertSeeHtml('funkenwerk-heroes-3d.js')
+            ->assertSeeHtml('funkenwerk-heroes-3d.js?v=')
             ->assertSeeHtml("open('lobby')")
             ->assertSeeHtml("open('hall')");
 
         $dashHtml = (string) $dashTest->html();
         $visibleDashHtml = explode('<template x-teleport="body">', $dashHtml)[0] ?? '';
         $this->assertStringContainsString('data-testid="dashboard-open-user-lobby-3d"', $visibleDashHtml);
-        $this->assertStringContainsString('3D-Lobby öffnen', $visibleDashHtml);
+        $this->assertStringContainsString('Ins Funkenreich', $visibleDashHtml);
+        $this->assertStringNotContainsString('3D-Lobby öffnen', $visibleDashHtml);
 
         $this->actingAs($meCustomer, 'customer')
             ->get('/customer/dashboard')
             ->assertOk()
-            ->assertSee('3D-Lobby öffnen')
+            ->assertSee('Ins Funkenreich')
+            ->assertDontSee('3D-Lobby öffnen')
             ->assertDontSee('Funkenwerk 3D öffnen')
             ->assertSee('data-testid="dashboard-open-user-lobby-3d"', false);
 
         Livewire::actingAs($meCustomer, 'customer')
             ->test(CustomerFunkiComponent::class)
             ->assertSee('Halle der Helden 3D')
+            ->assertSee('Funken im Funkenreich sammeln')
             ->assertDontSee('Funkenwerk 3D öffnen')
             ->assertSeeHtml('data-testid="funki-open-hall-of-heroes-3d"')
             ->assertSeeHtml("open('hall')");
@@ -432,6 +491,7 @@ class FunkenwerkHallOfHeroesAndProductFocusTest extends TestCase
             ->assertSee('ORD-SUCC-CLEAN-01')
             ->assertSee('Zur Bestellung')
             ->assertSee('Weiter einkaufen')
+            ->assertDontSee('Ins Funkenreich')
             ->assertDontSee('3D-Lobby öffnen')
             ->assertDontSee('Halle der Helden 3D')
             ->assertDontSee('Funkenwerk 3D öffnen')
@@ -441,6 +501,7 @@ class FunkenwerkHallOfHeroesAndProductFocusTest extends TestCase
         $this->actingAs($meCustomer, 'customer')
             ->get('/checkout/success')
             ->assertOk()
+            ->assertDontSee('Ins Funkenreich')
             ->assertDontSee('3D-Lobby öffnen')
             ->assertDontSee('Funkenwerk 3D öffnen')
             ->assertDontSee('SeelenfunkeHeroes3D', false);
@@ -545,7 +606,7 @@ class FunkenwerkHallOfHeroesAndProductFocusTest extends TestCase
         $pGamma->timestamps = false;
         $pGamma->forceFill(['updated_at' => Carbon::parse('2026-11-17 08:00:00')])->save();
 
-        // Identische Sortierung: funken_total_earned DESC -> level DESC -> updated_at ASC
+        // Identische Sortierung ohne Magma: hero_score (= funken_total_earned) DESC -> level DESC -> updated_at ASC
         // Gamma (3100, Lvl 6, 08:00) -> Alpha (3100, Lvl 6, 10:00) -> Beta (2900, Lvl 9)
         $dashboardNames = collect(app(\App\Services\Gamification\GamificationService::class)->getHallOfFamePaginated(1, 10)['items'])
             ->pluck('display_name')
@@ -559,10 +620,36 @@ class FunkenwerkHallOfHeroesAndProductFocusTest extends TestCase
         $this->assertSame(['FunkenGamma', 'FunkenAlpha', 'FunkenBeta'], $dashboardNames);
         $this->assertSame($dashboardNames, $apiNames);
 
-        // Direkt-Button "Funken in der 3D-Lobby sammeln" im Gutschein-Bereich von CustomerFunkiComponent
+        // Punkt 5b: Magma-Level fliesst logisch in die Halle-der-Helden-Bewertungslogik ein!
+        // FunkenBeta (2900 Funken) meistert Magma-Raeume 1..5 -> +15 +30 +45 +60 +75 = +225 Prestige -> hero_score = 3125 > 3100!
+        $pBeta->forceFill([
+            'titles_progress' => [
+                'lava_cleared_levels' => [1, 2, 3, 4, 5],
+            ],
+        ])->save();
+
+        $dashboardItemsAfterMagma = app(\App\Services\Gamification\GamificationService::class)->getHallOfFamePaginated(1, 10)['items'];
+        $dashboardNamesAfterMagma = collect($dashboardItemsAfterMagma)->pluck('display_name')->all();
+        $heroesAfterMagmaResp = $this->getJson('/funkenwerk-welt/heroes-data')->assertOk();
+        $apiNamesAfterMagma = collect($heroesAfterMagmaResp->json('heroes'))
+            ->where('occupied', true)
+            ->pluck('display_name')
+            ->values()
+            ->all();
+
+        $this->assertSame(['FunkenBeta', 'FunkenGamma', 'FunkenAlpha'], $dashboardNamesAfterMagma);
+        $this->assertSame($dashboardNamesAfterMagma, $apiNamesAfterMagma);
+        $this->assertSame(3125, $heroesAfterMagmaResp->json('heroes.0.hero_score'));
+        $this->assertSame('3.125', $heroesAfterMagmaResp->json('heroes.0.hero_score_formatted'));
+        $this->assertSame(5, $heroesAfterMagmaResp->json('heroes.0.magma_highest_level'));
+        $this->assertSame(5, $heroesAfterMagmaResp->json('heroes.0.magma_cleared_count'));
+        $this->assertSame(225, $heroesAfterMagmaResp->json('heroes.0.magma_prestige_points'));
+        $this->assertSame(3125, $dashboardItemsAfterMagma[0]['hero_score']);
+
+        // Direkt-Button "Funken im Funkenreich sammeln" im Gutschein-Bereich von CustomerFunkiComponent
         Livewire::actingAs($cAlpha, 'customer')
             ->test(CustomerFunkiComponent::class)
-            ->assertSee('Funken in der 3D-Lobby sammeln')
+            ->assertSee('Funken im Funkenreich sammeln')
             ->assertSee('250')
             ->assertSee('600')
             ->assertSee('1.200');
@@ -588,6 +675,64 @@ class FunkenwerkHallOfHeroesAndProductFocusTest extends TestCase
         $this->assertStringContainsString('sf_funki_*', $dsHtml);
         $this->assertStringNotContainsString('Mini-Labyrinth', $dsHtml);
         $this->assertStringNotContainsString(' ' . "\u{2013}" . ' ', $dsHtml);
+    }
+
+    public function test_single_active_player_without_opt_in_stands_on_podium_one_anonymized_for_visitors_and_named_for_self(): void
+    {
+        $alinaCustomer = Customer::create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Alina',
+            'last_name' => 'SteinhauerPrivat',
+            'email' => 'alina.podium@example.de',
+            'password' => bcrypt('secret1234'),
+        ]);
+        CustomerGamification::create([
+            'customer_id' => $alinaCustomer->id,
+            'is_active' => true,
+            'ranking_opt_in' => false,
+            'use_real_name' => false,
+            'player_name' => null,
+            'level' => 2,
+            'funken_balance' => 271,
+            'funken_total_earned' => 271,
+        ]);
+        $this->createPaidOrder('ORD-ALINA-PODIUM-1', $alinaCustomer, false, 'completed');
+
+        // 1. Gast / Dritter sieht Ehrenplatz #1 belegt mit Funki Lvl 2 als "Funken-Hüter #1" (0 Klardaten, kein leeres Podest!)
+        $visitorResp = $this->getJson('/funkenwerk-welt/heroes-data');
+        $visitorResp->assertOk()
+            ->assertJsonPath('total_heroes', 1)
+            ->assertJsonPath('my_hero_slot', null)
+            ->assertJsonPath('heroes.0.slot', 1)
+            ->assertJsonPath('heroes.0.occupied', true)
+            ->assertJsonPath('heroes.0.is_placeholder', false)
+            ->assertJsonPath('heroes.0.display_name', 'Funken-Hüter #1')
+            ->assertJsonPath('heroes.0.level', 2)
+            ->assertJsonPath('heroes.0.hero_score', 271)
+            ->assertJsonPath('heroes.1.slot', 2)
+            ->assertJsonPath('heroes.1.occupied', false)
+            ->assertJsonPath('heroes.1.is_placeholder', true)
+            ->assertJsonPath('heroes.1.model_url', null);
+        $this->assertStringNotContainsString('Alina', $visitorResp->getContent());
+        $this->assertStringNotContainsString('SteinhauerPrivat', $visitorResp->getContent());
+
+        // 2. Eingeloggte Spielerin selbst ($isMe === true) sieht sich auf Ehrenplatz #1 mit ihrem eigenen Vornamen "Alina"!
+        $selfResp = $this->actingAs($alinaCustomer, 'customer')->getJson('/funkenwerk-welt/heroes-data');
+        $selfResp->assertOk()
+            ->assertJsonPath('total_heroes', 1)
+            ->assertJsonPath('my_hero_slot', 1)
+            ->assertJsonPath('can_enter_heroes', true)
+            ->assertJsonPath('heroes.0.slot', 1)
+            ->assertJsonPath('heroes.0.occupied', true)
+            ->assertJsonPath('heroes.0.is_me', true)
+            ->assertJsonPath('heroes.0.display_name', 'Alina');
+        $this->assertStringNotContainsString('SteinhauerPrivat', $selfResp->getContent());
+
+        // Auch in der 2D-Halle-der-Helden steht sie fuer sich selbst als "Alina" auf Platz #1
+        $paginatedSelf = app(\App\Services\Gamification\GamificationService::class)->getHallOfFamePaginated(1, 10);
+        $this->assertSame(1, $paginatedSelf['total']);
+        $this->assertSame('Alina', $paginatedSelf['items'][0]['display_name']);
+        $this->assertTrue($paginatedSelf['items'][0]['is_current_user']);
     }
 
     private function createPaidOrder(string $orderNumber, Customer $customer, bool $isExpress, string $status): OrderOrder

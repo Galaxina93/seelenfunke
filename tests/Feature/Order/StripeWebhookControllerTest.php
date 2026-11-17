@@ -2,8 +2,11 @@
 
 namespace Tests\Feature\Order;
 
+use App\Http\Controllers\StripeWebhookController;
 use App\Jobs\ProcessOrderDocumentsAndMails;
+use App\Livewire\Shop\Order\OrderCheckout\OrderCheckout;
 use App\Models\Accounting\AccountingInvoice;
+use App\Models\Cart\Cart;
 use App\Models\Customer\Customer;
 use App\Models\Management\ManagementTask;
 use App\Models\Order\OrderOrder;
@@ -12,11 +15,13 @@ use App\Models\Product\Product;
 use App\Models\System\SystemLog;
 use Database\Seeders\SystemSettingSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
+use Livewire\Livewire;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
@@ -52,6 +57,8 @@ class StripeWebhookControllerTest extends TestCase
 
     protected function tearDown(): void
     {
+        StripeWebhookController::$testingOrderLookupRetryHook = null;
+
         if ($this->tempLocalDiskRoot !== '' && is_dir($this->tempLocalDiskRoot)) {
             app('files')->deleteDirectory($this->tempLocalDiskRoot);
         }
@@ -718,5 +725,261 @@ class StripeWebhookControllerTest extends TestCase
             0,
             AccountingInvoice::where('order_id', $unpaidOrder->id)->where('type', 'credit_note')->count()
         );
+    }
+
+    #[Test]
+    public function it_caches_early_inline_payment_intent_succeeded_without_false_warning_and_reconciles_on_order_creation(): void
+    {
+        $product = $this->createProduct(2500, 10);
+        $customer = Customer::create([
+            'email' => 'alina-race@example.com',
+            'first_name' => 'Alina',
+            'last_name' => 'Steinhauer',
+            'password' => bcrypt('Secret123!'),
+        ]);
+        $customer->profile()->create([
+            'street' => 'Carl-Goerdeler-Ring',
+            'house_number' => '26',
+            'postal' => '38518',
+            'city' => 'Gifhorn',
+            'country' => 'DE',
+            'email_verified_at' => now(),
+        ]);
+
+        $cart = Cart::create(['customer_id' => $customer->id]);
+        $cart->items()->create([
+            'product_id' => $product->id,
+            'quantity' => 1,
+            'unit_price' => 2500,
+            'total_price' => 2500,
+        ]);
+
+        // 1. Checkout mountet und erzeugt Vorab-PaymentIntent (OrderOrder existiert noch nicht in MySQL)
+        $checkout = Livewire::actingAs($customer, 'customer')->test(OrderCheckout::class);
+        $intentId = (string) $checkout->get('currentPaymentIntentId');
+        $expectedTotalCents = (int) $checkout->get('totalAmount');
+
+        $this->assertNotEmpty($intentId);
+        $this->assertGreaterThan(0, $expectedTotalCents);
+        $this->assertNull(OrderOrder::where('stripe_payment_intent_id', $intentId)->first());
+
+        // Metadaten-Aufbau von HandlesStripePayment prüfen
+        $componentInstance = $checkout->instance();
+        $refMethod = new \ReflectionMethod($componentInstance, 'buildStripePaymentIntentMetadata');
+        $refMethod->setAccessible(true);
+        $builtMetadata = $refMethod->invoke($componentInstance, $cart, 'DE');
+
+        $this->assertSame('inline_payment_element', $builtMetadata['checkout_flow'] ?? null);
+        $this->assertSame((string) config('app.env'), $builtMetadata['app_env'] ?? null);
+        $this->assertArrayHasKey('app_url', $builtMetadata);
+        $this->assertArrayNotHasKey('order_id', $builtMetadata);
+
+        // 2. Stripe feuert payment_intent.succeeded VOR dem Livewire-Order-Commit
+        $earlyWebhookPayload = [
+            'id' => 'evt_pi_race_early_011',
+            'object' => 'event',
+            'type' => 'payment_intent.succeeded',
+            'data' => [
+                'object' => [
+                    'id' => $intentId,
+                    'object' => 'payment_intent',
+                    'amount' => $expectedTotalCents,
+                    'amount_received' => $expectedTotalCents,
+                    'currency' => 'eur',
+                    'metadata' => $builtMetadata,
+                ],
+            ],
+        ];
+
+        $this->postSignedWebhook($earlyWebhookPayload)->assertStatus(200);
+
+        // Kein falscher Sentinel-Warnlog für regulären Vorab-Inline-Intent!
+        $this->assertSame(
+            0,
+            SystemLog::where('message', 'like', "%Keine passende Order gefunden für PaymentIntent {$intentId}%")->count()
+        );
+
+        // Kurzlebiger verifizierter Marker liegt im Cache bereit
+        $cacheKey = StripeWebhookController::WEBHOOK_PAID_INTENT_CACHE_PREFIX . $intentId;
+        $cachedMarker = Cache::get($cacheKey);
+        $this->assertIsArray($cachedMarker);
+        $this->assertSame($intentId, $cachedMarker['intent_id']);
+        $this->assertSame($expectedTotalCents, $cachedMarker['amount_received']);
+        $this->assertSame('eur', $cachedMarker['currency']);
+
+        // 3. Paralleler/verzögerter Livewire-Order-Commit legt OrderOrder an und wertet den Cache-Marker sofort aus
+        $checkout
+            ->set('address', 'Carl-Goerdeler-Ring 26')
+            ->set('postal_code', '38518')
+            ->set('city', 'Gifhorn')
+            ->set('country', 'DE')
+            ->set('terms_accepted', true)
+            ->call('validateAndCreateOrder')
+            ->assertHasNoErrors();
+
+        $createdOrder = OrderOrder::where('stripe_payment_intent_id', $intentId)->first();
+        $this->assertNotNull($createdOrder);
+        $this->assertSame('paid', $createdOrder->payment_status);
+        $this->assertNull(Cache::get($cacheKey));
+        $this->assertSame(9, $product->fresh()->quantity);
+        Queue::assertPushed(ProcessOrderDocumentsAndMails::class, 1);
+
+        // 4. Nachfolgender Browser-Aufruf von handlePaymentSuccess bleibt 100 % idempotent
+        $checkout
+            ->call('handlePaymentSuccess', (string) $createdOrder->id)
+            ->assertHasNoErrors();
+
+        $this->assertSame('paid', $createdOrder->fresh()->payment_status);
+        $this->assertSame(9, $product->fresh()->quantity);
+        Queue::assertPushed(ProcessOrderDocumentsAndMails::class, 1);
+    }
+
+    #[Test]
+    public function it_handles_lookup_retry_foreign_env_suppression_and_keeps_warning_for_missing_same_env_order_id(): void
+    {
+        // A) Paralleler Commit trifft während Nachprüfung #1 ein -> Order wird gefunden & bezahlt, 0 Warnungen
+        $product = $this->createProduct(3000, 5);
+        $retryAttempts = 0;
+
+        StripeWebhookController::$testingOrderLookupRetryHook = function (int $attempt, ?string $intentId) use ($product, &$retryAttempts): void {
+            $retryAttempts = $attempt;
+            if ($attempt === 1 && $intentId === 'pi_parallel_commit_012') {
+                $delayedOrder = $this->createOrder([
+                    'stripe_payment_intent_id' => 'pi_parallel_commit_012',
+                    'subtotal_price' => 3000,
+                    'shipping_price' => 490,
+                    'total_price' => 3490,
+                ]);
+                $delayedOrder->items()->create([
+                    'product_id' => $product->id,
+                    'product_name' => $product->name,
+                    'quantity' => 1,
+                    'unit_price' => 3000,
+                    'tax_rate' => 19.0,
+                    'total_price' => 3000,
+                ]);
+            }
+        };
+
+        $this->postSignedWebhook([
+            'id' => 'evt_pi_parallel_012',
+            'object' => 'event',
+            'type' => 'payment_intent.succeeded',
+            'data' => [
+                'object' => [
+                    'id' => 'pi_parallel_commit_012',
+                    'object' => 'payment_intent',
+                    'amount' => 3490,
+                    'amount_received' => 3490,
+                    'currency' => 'eur',
+                    'metadata' => [
+                        'checkout_flow' => 'inline_payment_element',
+                        'app_env' => (string) config('app.env'),
+                    ],
+                ],
+            ],
+        ])->assertStatus(200);
+
+        StripeWebhookController::$testingOrderLookupRetryHook = null;
+
+        $this->assertSame(1, $retryAttempts);
+        $resolvedOrder = OrderOrder::where('stripe_payment_intent_id', 'pi_parallel_commit_012')->first();
+        $this->assertNotNull($resolvedOrder);
+        $this->assertSame('paid', $resolvedOrder->payment_status);
+        $this->assertSame(4, $product->fresh()->quantity);
+        $this->assertSame(
+            0,
+            SystemLog::where('message', 'like', '%pi_parallel_commit_012%')->count()
+        );
+
+        // B) PaymentIntent aus fremder Umgebung (z.B. local-Test im geteilten Stripe-Testkonto auf Stage):
+        //    Kein Retry, kein fremder Order-Match über zufällig gleiche order_id, 0 Warnungen!
+        $unrelatedSameIdCandidate = $this->createOrder([
+            'stripe_payment_intent_id' => 'pi_stage_own_intent_999',
+            'total_price' => 5490,
+        ]);
+        $foreignRetries = 0;
+        StripeWebhookController::$testingOrderLookupRetryHook = function () use (&$foreignRetries): void {
+            $foreignRetries++;
+        };
+
+        $this->postSignedWebhook([
+            'id' => 'evt_pi_foreign_env_012b',
+            'object' => 'event',
+            'type' => 'payment_intent.succeeded',
+            'data' => [
+                'object' => [
+                    'id' => 'pi_local_dev_intent_012b',
+                    'object' => 'payment_intent',
+                    'amount' => 5490,
+                    'amount_received' => 5490,
+                    'currency' => 'eur',
+                    'metadata' => [
+                        'checkout_flow' => 'inline_payment_element',
+                        'app_env' => 'local_developer_box',
+                        'app_url' => 'http://127.0.0.1:8080',
+                        'order_id' => (string) $unrelatedSameIdCandidate->id,
+                    ],
+                ],
+            ],
+        ])->assertStatus(200);
+
+        StripeWebhookController::$testingOrderLookupRetryHook = null;
+
+        $this->assertSame(0, $foreignRetries);
+        $this->assertSame('unpaid', $unrelatedSameIdCandidate->fresh()->payment_status);
+        $this->assertNull(Cache::get(StripeWebhookController::WEBHOOK_PAID_INTENT_CACHE_PREFIX . 'pi_local_dev_intent_012b'));
+        $this->assertSame(
+            0,
+            SystemLog::where('message', 'like', '%pi_local_dev_intent_012b%')->count()
+        );
+
+        // C) Explizite metadata.order_id für dieselbe Umgebung fehlt tatsächlich -> echtes Log::warning bleibt aktiv!
+        $missingSameEnvOrderId = (string) Str::uuid();
+        $this->postSignedWebhook([
+            'id' => 'evt_pi_missing_same_env_012c',
+            'object' => 'event',
+            'type' => 'payment_intent.succeeded',
+            'data' => [
+                'object' => [
+                    'id' => 'pi_missing_same_env_012c',
+                    'object' => 'payment_intent',
+                    'amount' => 5490,
+                    'amount_received' => 5490,
+                    'currency' => 'eur',
+                    'metadata' => [
+                        'app_env' => (string) config('app.env'),
+                        'order_id' => $missingSameEnvOrderId,
+                    ],
+                ],
+            ],
+        ])->assertStatus(200);
+
+        $this->assertGreaterThanOrEqual(
+            1,
+            SystemLog::where('message', 'like', '%Keine passende Order gefunden für PaymentIntent pi_missing_same_env_012c%')->count()
+        );
+
+        // D) Unterzahlungs-Schutz beim Cache-Marker: Manipulierter/zu kleiner gecachter Betrag darf Order niemals bezahlen
+        Cache::put(
+            StripeWebhookController::WEBHOOK_PAID_INTENT_CACHE_PREFIX . 'pi_underpaid_cache_012d',
+            [
+                'intent_id' => 'pi_underpaid_cache_012d',
+                'amount' => 1000,
+                'amount_received' => 1000,
+                'currency' => 'eur',
+            ],
+            now()->addMinutes(10)
+        );
+        $underpaidCandidate = $this->createOrder([
+            'stripe_payment_intent_id' => 'pi_underpaid_cache_012d',
+            'total_price' => 5490,
+        ]);
+        $checkoutDummy = new OrderCheckout();
+        $reconcileRef = new \ReflectionMethod($checkoutDummy, 'reconcileCachedStripeWebhookPayment');
+        $reconcileRef->setAccessible(true);
+        $reconcileRef->invoke($checkoutDummy, $underpaidCandidate);
+
+        $this->assertSame('unpaid', $underpaidCandidate->fresh()->payment_status);
     }
 }

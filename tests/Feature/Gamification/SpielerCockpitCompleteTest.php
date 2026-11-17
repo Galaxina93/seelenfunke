@@ -153,16 +153,21 @@ class SpielerCockpitCompleteTest extends TestCase
             'funken_total_earned' => 600,
         ]);
 
-        // Magie aktivieren im Dashboard
+        // Magie aktivieren im Dashboard + Button "Ins Funkenreich" pruefen
         Livewire::actingAs($customer, 'customer')
             ->test(CustomerDashboardComponent::class)
+            ->assertSee('Ins Funkenreich')
+            ->assertDontSee('3D-Lobby öffnen')
             ->set('acceptTerms', true)
+            ->set('optInPublicNameOnActivate', true)
             ->call('activateGamification')
             ->assertSet('hasActivatedGamification', true)
             ->call('redeemFunkenVoucher', 'voucher_10'); // 600 Funken -> 10% Rabatt
 
         $profile->refresh();
         $this->assertTrue((bool) $profile->is_active);
+        $this->assertTrue((bool) $profile->ranking_opt_in);
+        $this->assertTrue((bool) $profile->use_real_name);
         $this->assertEquals(0, $profile->funken_balance);
         $this->assertEquals(600, $profile->funken_total_earned);
         $this->assertEquals(3, $profile->funki_level);

@@ -69,6 +69,131 @@
             angleDeg: {{ (float) $cockpitData['angle_deg'] }},
             wMm: {{ (float) $cockpitData['width_mm'] }},
             hMm: {{ (float) $cockpitData['height_mm'] }},
+            cockpitZoom: (window.__sfLaserCockpitZoom && window.__sfLaserCockpitZoom['{{ $openScopeKey }}']) ? Number(window.__sfLaserCockpitZoom['{{ $openScopeKey }}'].zoom || 1) : 1,
+            cockpitPanX: (window.__sfLaserCockpitZoom && window.__sfLaserCockpitZoom['{{ $openScopeKey }}']) ? Number(window.__sfLaserCockpitZoom['{{ $openScopeKey }}'].panX || 0) : 0,
+            cockpitPanY: (window.__sfLaserCockpitZoom && window.__sfLaserCockpitZoom['{{ $openScopeKey }}']) ? Number(window.__sfLaserCockpitZoom['{{ $openScopeKey }}'].panY || 0) : 0,
+            _zoomFocusX: (window.__sfLaserCockpitZoom && window.__sfLaserCockpitZoom['{{ $openScopeKey }}']) ? window.__sfLaserCockpitZoom['{{ $openScopeKey }}'].focusX : null,
+            _zoomFocusY: (window.__sfLaserCockpitZoom && window.__sfLaserCockpitZoom['{{ $openScopeKey }}']) ? window.__sfLaserCockpitZoom['{{ $openScopeKey }}'].focusY : null,
+            startPanX: 0,
+            startPanY: 0,
+            isDraggingMinimap: false,
+            _minimapOffsetX: 0,
+            _minimapOffsetY: 0,
+            get frameCenterX() {
+                return Math.max(0, Math.min(100, ((Number(this.xMm) || 100) / 200) * 100));
+            },
+            get frameCenterY() {
+                return Math.max(0, Math.min(100, ((Number(this.yMm) || 100) / 200) * 100));
+            },
+            saveCockpitZoomScope() {
+                window.__sfLaserCockpitZoom = window.__sfLaserCockpitZoom || {};
+                window.__sfLaserCockpitZoom[this.openScopeKey] = {
+                    zoom: this.cockpitZoom,
+                    panX: this.cockpitPanX,
+                    panY: this.cockpitPanY,
+                    focusX: this._zoomFocusX,
+                    focusY: this._zoomFocusY
+                };
+            },
+            setCockpitZoom(val) {
+                const z = Math.max(1.0, Math.min(4.0, Number(val) || 1.0));
+                if (z <= 1.01) {
+                    this.cockpitZoom = 1.0;
+                    this.cockpitPanX = 0.0;
+                    this.cockpitPanY = 0.0;
+                    this._zoomFocusX = null;
+                    this._zoomFocusY = null;
+                    this.saveCockpitZoomScope();
+                    return;
+                }
+                if (this._zoomFocusX === null || this._zoomFocusY === null || !Number.isFinite(Number(this._zoomFocusX)) || !Number.isFinite(Number(this._zoomFocusY))) {
+                    this._zoomFocusX = this.frameCenterX;
+                    this._zoomFocusY = this.frameCenterY;
+                }
+                const maxPan = 50 * (z - 1);
+                this.cockpitZoom = Number(z.toFixed(3));
+                this.cockpitPanX = Number(Math.max(-maxPan, Math.min(maxPan, (50 - this._zoomFocusX) * z)).toFixed(2));
+                this.cockpitPanY = Number(Math.max(-maxPan, Math.min(maxPan, (50 - this._zoomFocusY) * z)).toFixed(2));
+                this.saveCockpitZoomScope();
+            },
+            stepCockpitZoom(delta) {
+                const next = Math.max(1.0, Math.min(4.0, Number((Number(this.cockpitZoom || 1.0) + Number(delta || 0)).toFixed(2))));
+                this.setCockpitZoom(next);
+            },
+            resetCockpitZoom() {
+                this.setCockpitZoom(1.0);
+            },
+            handleCockpitWheel(e) {
+                const hasModifier = Boolean(e.ctrlKey || e.metaKey);
+                if (!hasModifier && this.cockpitZoom <= 1.001 && e.deltaY >= 0) return;
+                if (e.cancelable) e.preventDefault();
+                const step = hasModifier ? 0.15 : 0.20;
+                this.stepCockpitZoom(e.deltaY < 0 ? step : -step);
+            },
+            getCockpitStageTransformStyle() {
+                if (this.cockpitZoom <= 1.001) {
+                    return 'transform-origin: 50% 50%; transform: none; -webkit-transform: none;';
+                }
+                return `transform-origin: 50% 50%; transform: translate3d(${this.cockpitPanX}%, ${this.cockpitPanY}%, 0) scale(${this.cockpitZoom}); -webkit-transform: translate3d(${this.cockpitPanX}%, ${this.cockpitPanY}%, 0) scale(${this.cockpitZoom});`;
+            },
+            getCockpitMinimapViewportStyle() {
+                const z = Math.max(1.0, Number(this.cockpitZoom || 1.0));
+                const vw = 100 / z;
+                const vh = 100 / z;
+                const left = Math.max(0, Math.min(100 - vw, 50 - (50 + Number(this.cockpitPanX || 0)) / z));
+                const top = Math.max(0, Math.min(100 - vh, 50 - (50 + Number(this.cockpitPanY || 0)) / z));
+                return `left: ${left.toFixed(2)}%; top: ${top.toFixed(2)}%; width: ${vw.toFixed(2)}%; height: ${vh.toFixed(2)}%;`;
+            },
+            startMinimapDrag(event) {
+                if (this.cockpitZoom <= 1.01) return;
+                const minimap = this.$refs.cockpitMinimap;
+                if (!minimap) return;
+                const rect = minimap.getBoundingClientRect();
+                const clientX = event.touches ? event.touches[0].clientX : event.clientX;
+                const clientY = event.touches ? event.touches[0].clientY : event.clientY;
+                const mx = ((clientX - rect.left) / Math.max(1, rect.width)) * 100;
+                const my = ((clientY - rect.top) / Math.max(1, rect.height)) * 100;
+
+                const z = Math.max(1.01, Number(this.cockpitZoom || 1.01));
+                const cx = 50 - Number(this.cockpitPanX || 0) / z;
+                const cy = 50 - Number(this.cockpitPanY || 0) / z;
+                const halfW = 50 / z;
+                const halfH = 50 / z;
+
+                this.isDraggingMinimap = true;
+                if (Math.abs(mx - cx) <= halfW && Math.abs(my - cy) <= halfH) {
+                    this._minimapOffsetX = mx - cx;
+                    this._minimapOffsetY = my - cy;
+                } else {
+                    this._minimapOffsetX = 0;
+                    this._minimapOffsetY = 0;
+                    this.updateMinimapFromEvent(event);
+                }
+            },
+            updateMinimapFromEvent(event) {
+                if (!this.isDraggingMinimap || this.cockpitZoom <= 1.01) return;
+                const minimap = this.$refs.cockpitMinimap;
+                if (!minimap) return;
+                const rect = minimap.getBoundingClientRect();
+                const clientX = event.touches ? event.touches[0].clientX : event.clientX;
+                const clientY = event.touches ? event.touches[0].clientY : event.clientY;
+                const mx = ((clientX - rect.left) / Math.max(1, rect.width)) * 100;
+                const my = ((clientY - rect.top) / Math.max(1, rect.height)) * 100;
+
+                const targetCx = mx - (this._minimapOffsetX || 0);
+                const targetCy = my - (this._minimapOffsetY || 0);
+                const z = Math.max(1.01, Number(this.cockpitZoom || 1.01));
+                const maxPan = 50 * (z - 1);
+
+                const newPanX = Math.max(-maxPan, Math.min(maxPan, (50 - targetCx) * z));
+                const newPanY = Math.max(-maxPan, Math.min(maxPan, (50 - targetCy) * z));
+
+                this.cockpitPanX = Number(newPanX.toFixed(2));
+                this.cockpitPanY = Number(newPanY.toFixed(2));
+                this._zoomFocusX = Number((50 - this.cockpitPanX / z).toFixed(2));
+                this._zoomFocusY = Number((50 - this.cockpitPanY / z).toFixed(2));
+                this.saveCockpitZoomScope();
+            },
             showLaserParams: window.__sfLaserParamsOpen === '{{ $openScopeKey }}',
             hasLaserOverrides: @js((bool) ($lp['has_overrides'] ?? false)),
             laserParams: {
@@ -173,6 +298,11 @@
                 if (p.angle !== undefined) this.angleDeg = Number(p.angle);
                 if (p.w !== undefined) this.wMm = Number(p.w);
                 if (p.h !== undefined) this.hMm = Number(p.h);
+                if (this.cockpitZoom > 1.01) {
+                    this._zoomFocusX = this.frameCenterX;
+                    this._zoomFocusY = this.frameCenterY;
+                    this.setCockpitZoom(this.cockpitZoom);
+                }
             },
             persistCoords() {
                 $wire.updateLaserCoordinates(
@@ -198,6 +328,8 @@
                 const clientY = e.touches ? e.touches[0].clientY : e.clientY;
                 this.startClientX = clientX;
                 this.startClientY = clientY;
+                this.startPanX = Number(this.cockpitPanX) || 0;
+                this.startPanY = Number(this.cockpitPanY) || 0;
                 this.startXMm = Number(this.xMm) || 100;
                 this.startYMm = Number(this.yMm) || 100;
                 this.startAngleDeg = Number(this.angleDeg) || 0;
@@ -208,16 +340,39 @@
                     if (rect.width && rect.height) {
                         const centerX = rect.left + (this.startXMm / 200) * rect.width;
                         const centerY = rect.top + (this.startYMm / 200) * rect.height;
-                        this.startResizeDistPx = Math.max(8, Math.hypot(clientX - centerX, clientY - centerY));
+                        this.startResizeDistPx = Math.max(4, Math.hypot(clientX - centerX, clientY - centerY));
                     }
                 }
             },
             moveDrag(e) {
+                if (this.isDraggingMinimap) {
+                    this.updateMinimapFromEvent(e);
+                    return;
+                }
                 if (!this.dragging) return;
-                const rect = this.$refs.bedStage.getBoundingClientRect();
-                if (!rect.width || !rect.height) return;
                 const clientX = e.touches ? e.touches[0].clientX : e.clientX;
                 const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+                if (this.dragMode === 'pan') {
+                    const vpEl = this.$refs.bedViewport || this.$refs.bedStage;
+                    if (!vpEl) return;
+                    const vpRect = vpEl.getBoundingClientRect();
+                    if (!vpRect.width || !vpRect.height) return;
+                    const z = Math.max(1.01, Number(this.cockpitZoom || 1.01));
+                    const maxPan = 50 * (z - 1);
+                    const dPanX = ((clientX - this.startClientX) / vpRect.width) * 100;
+                    const dPanY = ((clientY - this.startClientY) / vpRect.height) * 100;
+                    this.cockpitPanX = Number(Math.max(-maxPan, Math.min(maxPan, this.startPanX + dPanX)).toFixed(2));
+                    this.cockpitPanY = Number(Math.max(-maxPan, Math.min(maxPan, this.startPanY + dPanY)).toFixed(2));
+                    this._zoomFocusX = Number((50 - this.cockpitPanX / z).toFixed(2));
+                    this._zoomFocusY = Number((50 - this.cockpitPanY / z).toFixed(2));
+                    this.saveCockpitZoomScope();
+                    return;
+                }
+
+                if (!this.$refs.bedStage) return;
+                const rect = this.$refs.bedStage.getBoundingClientRect();
+                if (!rect.width || !rect.height) return;
 
                 if (this.dragMode === 'rotate') {
                     const centerX = rect.left + ((Number(this.xMm) || 100) / 200) * rect.width;
@@ -236,7 +391,7 @@
                     const centerX = rect.left + ((Number(this.xMm) || 100) / 200) * rect.width;
                     const centerY = rect.top + ((Number(this.yMm) || 100) / 200) * rect.height;
                     const currDistPx = Math.max(4, Math.hypot(clientX - centerX, clientY - centerY));
-                    const ratio = currDistPx / Math.max(8, this.startResizeDistPx);
+                    const ratio = currDistPx / Math.max(4, this.startResizeDistPx);
                     let nextW = this.startWMm * ratio;
                     let nextH = this.startHMm * ratio;
                     const major = Math.max(nextW, nextH);
@@ -262,9 +417,16 @@
                 this.yMm = Math.round(nextY * 10) / 10;
             },
             stopDrag() {
+                if (this.isDraggingMinimap) {
+                    this.isDraggingMinimap = false;
+                    return;
+                }
                 if (!this.dragging) return;
+                const wasPan = this.dragMode === 'pan';
                 this.dragging = false;
-                this.persistCoords();
+                if (!wasPan) {
+                    this.persistCoords();
+                }
             }
          }"
          @laser-cockpit-sync.window="syncCoordsFromServer($event.detail)"
@@ -446,31 +608,189 @@
             </div>
         </div>
 
-        <div class="p-4 sm:p-6 space-y-4">
-            {{-- 200x200 mm Live-Kamera-Arbeitsfläche (Smooth Drag & Drop + Rotation) --}}
-            <div x-ref="bedStage"
-                 @mousedown="startDrag($event, 'move')"
+        <div class="p-4 sm:p-6 space-y-3 sm:space-y-4">
+            {{-- Schlanke Zoom-Steuerleiste (100 % bis 400 %) analog Produktkonfigurator --}}
+            <div data-cockpit-zoom-bar
+                 @mousedown.stop
+                 @touchstart.stop
+                 class="flex items-center gap-2 sm:gap-2.5 px-3 py-1.5 rounded-xl border w-full max-w-[460px] mx-auto bg-gray-50 dark:bg-gray-950 border-gray-200 dark:border-gray-800 text-gray-800 dark:text-gray-100 select-none">
+                <button type="button"
+                        data-cockpit-zoom-out
+                        @click.stop="stepCockpitZoom(-0.25)"
+                        :disabled="cockpitZoom <= 1.01"
+                        :class="cockpitZoom > 1.01 ? 'hover:bg-[var(--theme-color-15)] active:scale-90 cursor-pointer' : 'opacity-40 cursor-not-allowed'"
+                        class="w-6 h-6 rounded-full flex items-center justify-center transition-all select-none shrink-0"
+                        title="Herauszoomen">
+                    <x-heroicon-m-magnifying-glass-minus class="w-4 h-4 text-[var(--theme-color)]" />
+                </button>
+                <input type="range"
+                       data-cockpit-zoom-slider
+                       min="1"
+                       max="4"
+                       step="0.05"
+                       :value="cockpitZoom"
+                       @mousedown.stop
+                       @touchstart.stop
+                       @input.stop="setCockpitZoom($event.target.value)"
+                       :style="`--val-pct: ${Math.max(0, Math.min(100, (((Number(cockpitZoom) || 1) - 1) / 3) * 100)).toFixed(2)}%;`"
+                       class="sf-laser-range flex-1 min-w-0"
+                       title="Kamerabett zoomen (100 % bis 400 %)">
+                <button type="button"
+                        data-cockpit-zoom-in
+                        @click.stop="stepCockpitZoom(0.25)"
+                        :disabled="cockpitZoom >= 3.99"
+                        :class="cockpitZoom < 3.99 ? 'hover:bg-[var(--theme-color-15)] active:scale-90 cursor-pointer' : 'opacity-40 cursor-not-allowed'"
+                        class="w-6 h-6 rounded-full flex items-center justify-center transition-all select-none shrink-0"
+                        title="Heranzoomen">
+                    <x-heroicon-m-magnifying-glass-plus class="w-4 h-4 text-[var(--theme-color)]" />
+                </button>
+                <button type="button"
+                        data-cockpit-zoom-reset
+                        @click.stop="resetCockpitZoom()"
+                        :class="cockpitZoom > 1.01 ? 'text-[var(--theme-color)] hover:underline cursor-pointer' : 'text-gray-400 dark:text-gray-500 cursor-default'"
+                        class="min-w-[38px] text-right font-mono text-[10px] font-black tracking-tight transition-colors select-none shrink-0"
+                        title="Zoom auf 100 % zurücksetzen">
+                    <span x-text="Math.round(cockpitZoom * 100) + '%'">100%</span>
+                </button>
+            </div>
+
+            {{-- 200x200 mm Live-Kamera-Arbeitsfläche (Zoom 100 %-400 %, Pan, Minimap, Smooth Drag & Drop + Rotation) --}}
+            <div x-ref="bedViewport"
+                 data-cockpit-bed-viewport
+                 @wheel="handleCockpitWheel($event)"
+                 @mousedown="startDrag($event, cockpitZoom > 1.01 ? 'pan' : 'move')"
                  @mousemove.window="moveDrag($event)"
                  @mouseup.window="stopDrag()"
-                 @touchstart.passive="startDrag($event, 'move')"
-                 @touchmove.passive="moveDrag($event)"
+                 @touchstart.passive="startDrag($event, cockpitZoom > 1.01 ? 'pan' : 'move')"
+                 @touchmove.window.passive="moveDrag($event)"
                  @touchend.window="stopDrag()"
-                 :class="dragging ? 'cursor-grabbing ring-2 ring-cyan-400/60' : 'cursor-grab'"
+                 :class="[dragging || isDraggingMinimap ? 'cursor-grabbing ring-2 ring-cyan-400/60' : 'cursor-grab', cockpitZoom > 1.01 ? 'touch-none' : '']"
                  class="relative w-full max-w-[460px] mx-auto aspect-square rounded-2xl overflow-hidden border border-gray-300 dark:border-gray-700 bg-gray-950 select-none shadow-inner transition-shadow">
 
-                <img src="{{ $cockpitData['camera_url'] }}"
-                     wire:key="laser-cam-img-{{ $previewItem->id }}-{{ $cockpitData['refresh_token'] ?? 0 }}"
-                     alt="xTool F2 Ultra UV Kamera 200x200 mm"
-                     class="w-full h-full object-cover pointer-events-none"
-                     draggable="false">
+                {{-- Gezoomter & gepannter 200x200 mm Kamera-Stage-Layer --}}
+                <div x-ref="bedStage"
+                     data-cockpit-bed-stage
+                     class="absolute inset-0 w-full h-full"
+                     :style="getCockpitStageTransformStyle()">
 
-                {{-- Dezentrales 20 mm Lineal-Raster (200x200 mm) --}}
-                <div class="absolute inset-0 pointer-events-none opacity-20"
-                     style="background-image: linear-gradient(to right, rgba(255,255,255,0.22) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.22) 1px, transparent 1px); background-size: 10% 10%;"></div>
+                    <img src="{{ $cockpitData['camera_url'] }}"
+                         wire:key="laser-cam-img-{{ $previewItem->id }}-{{ $cockpitData['refresh_token'] ?? 0 }}"
+                         alt="xTool F2 Ultra UV Kamera 200x200 mm"
+                         class="w-full h-full object-cover pointer-events-none"
+                         draggable="false">
+
+                    {{-- Dezentrales 20 mm Lineal-Raster (200x200 mm) --}}
+                    <div class="absolute inset-0 pointer-events-none opacity-20"
+                         style="background-image: linear-gradient(to right, rgba(255,255,255,0.22) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.22) 1px, transparent 1px); background-size: 10% 10%;"></div>
+
+                    {{-- Bündige 1:1 Gravurflächen-Kontur (#00bcd4) + WYSIWYG-Motiv + Drehgriff + 4 Resize-Handles --}}
+                    <div data-cockpit-blue-frame
+                         @mousedown.stop.prevent="startDrag($event, 'move')"
+                         @touchstart.stop.passive="startDrag($event, 'move')"
+                         :class="dragging && dragMode === 'move' ? 'cursor-grabbing' : 'cursor-move'"
+                         class="absolute z-10 pointer-events-auto touch-none {{ $isCircleContour ? 'rounded-full' : '' }}"
+                         :style="`left: ${(xMm / 200) * 100}%; top: ${(yMm / 200) * 100}%; width: ${(wMm / 200) * 100}%; height: ${(hMm / 200) * 100}%; transform: translate(-50%, -50%) rotate(${angleDeg}deg);`">
+                        <svg viewBox="0 0 {{ $baseViewW }} {{ $baseViewH }}"
+                             preserveAspectRatio="none"
+                             class="w-full h-full overflow-visible pointer-events-none">
+                            <path d="{{ $cockpitData['ghost_d_path'] }}"
+                                  fill="rgba(0, 188, 212, 0.06)"
+                                  stroke="#00bcd4"
+                                  stroke-width="1.8"
+                                  stroke-dasharray="5,3.5"
+                                  vector-effect="non-scaling-stroke" />
+                        </svg>
+                        <img src="{{ $cockpitData['preview_data_url'] }}"
+                             alt="Gravur-Overlay"
+                             class="absolute inset-0 w-full h-full object-fill pointer-events-none {{ $isDarkSurfaceOverlay ? 'drop-shadow-[0_1px_2px_rgba(0,0,0,0.45)]' : 'drop-shadow-[0_0_1.5px_rgba(255,255,255,0.55)]' }}"
+                             draggable="false">
+
+                        {{-- Dreh-Griff (oben mittig an der Kontur, per scale(1 / cockpitZoom) kompakt gehalten) --}}
+                        <button type="button"
+                                data-rotate-handle
+                                @mousedown.stop.prevent="startDrag($event, 'rotate')"
+                                @touchstart.stop.passive="startDrag($event, 'rotate')"
+                                title="Gedrückt halten zum Drehen"
+                                style="left: 50%; top: 0%; transform: translate(-50%, -60%) scale(1);"
+                                :style="`left: 50%; top: 0%; transform: translate(-50%, -60%) scale(${(1 / cockpitZoom).toFixed(4)});`"
+                                class="pointer-events-auto touch-none absolute w-5 h-5 rounded-full bg-cyan-400 hover:bg-cyan-300 text-gray-950 border border-gray-950 shadow-md flex items-center justify-center text-[10px] font-black cursor-grab active:cursor-grabbing">
+                            &#8635;
+                        </button>
+
+                        {{-- 4 Proportionale Resize-Handles (NW, NE, SE, SW) direkt auf der blauen Kontur --}}
+                        <button type="button"
+                                data-resize-handle="nw"
+                                @mousedown.stop.prevent="startDrag($event, 'resize')"
+                                @touchstart.stop.passive="startDrag($event, 'resize')"
+                                title="Größe ändern"
+                                style="left: {{ $hPosMin }}; top: {{ $hPosMin }}; transform: translate(-50%, -50%) scale(1);"
+                                :style="`left: {{ $hPosMin }}; top: {{ $hPosMin }}; transform: translate(-50%, -50%) scale(${(1 / cockpitZoom).toFixed(4)});`"
+                                class="pointer-events-auto touch-none absolute w-3.5 h-3.5 rounded-full bg-cyan-400 hover:bg-cyan-300 border border-gray-950 shadow-md cursor-nwse-resize"></button>
+                        <button type="button"
+                                data-resize-handle="ne"
+                                @mousedown.stop.prevent="startDrag($event, 'resize')"
+                                @touchstart.stop.passive="startDrag($event, 'resize')"
+                                title="Größe ändern"
+                                style="left: {{ $hPosMax }}; top: {{ $hPosMin }}; transform: translate(-50%, -50%) scale(1);"
+                                :style="`left: {{ $hPosMax }}; top: {{ $hPosMin }}; transform: translate(-50%, -50%) scale(${(1 / cockpitZoom).toFixed(4)});`"
+                                class="pointer-events-auto touch-none absolute w-3.5 h-3.5 rounded-full bg-cyan-400 hover:bg-cyan-300 border border-gray-950 shadow-md cursor-nesw-resize"></button>
+                        <button type="button"
+                                data-resize-handle="se"
+                                @mousedown.stop.prevent="startDrag($event, 'resize')"
+                                @touchstart.stop.passive="startDrag($event, 'resize')"
+                                title="Größe ändern"
+                                style="left: {{ $hPosMax }}; top: {{ $hPosMax }}; transform: translate(-50%, -50%) scale(1);"
+                                :style="`left: {{ $hPosMax }}; top: {{ $hPosMax }}; transform: translate(-50%, -50%) scale(${(1 / cockpitZoom).toFixed(4)});`"
+                                class="pointer-events-auto touch-none absolute w-3.5 h-3.5 rounded-full bg-cyan-400 hover:bg-cyan-300 border border-gray-950 shadow-md cursor-nwse-resize"></button>
+                        <button type="button"
+                                data-resize-handle="sw"
+                                @mousedown.stop.prevent="startDrag($event, 'resize')"
+                                @touchstart.stop.passive="startDrag($event, 'resize')"
+                                title="Größe ändern"
+                                style="left: {{ $hPosMin }}; top: {{ $hPosMax }}; transform: translate(-50%, -50%) scale(1);"
+                                :style="`left: {{ $hPosMin }}; top: {{ $hPosMax }}; transform: translate(-50%, -50%) scale(${(1 / cockpitZoom).toFixed(4)});`"
+                                class="pointer-events-auto touch-none absolute w-3.5 h-3.5 rounded-full bg-cyan-400 hover:bg-cyan-300 border border-gray-950 shadow-md cursor-nesw-resize"></button>
+
+                        {{-- Mittelpunkt-Fadenkreuz --}}
+                        <div style="left: 50%; top: 50%; transform: translate(-50%, -50%) scale(1);"
+                             :style="`left: 50%; top: 50%; transform: translate(-50%, -50%) scale(${(1 / cockpitZoom).toFixed(4)});`"
+                             class="pointer-events-none absolute w-2.5 h-2.5 rounded-full bg-cyan-400 border border-gray-950 shadow-sm"></div>
+                    </div>
+                </div>
+
+                {{-- Navigator-Minimap oben rechts zum millimetergenauen Verschieben des Bildausschnitts bei aktivem Zoom --}}
+                <div x-cloak
+                     x-show="cockpitZoom > 1.01"
+                     style="display: none;"
+                     x-transition:enter="transition ease-out duration-150"
+                     x-transition:enter-start="opacity-0 scale-90"
+                     x-transition:enter-end="opacity-100 scale-100"
+                     x-transition:leave="transition ease-in duration-100"
+                     x-transition:leave-start="opacity-100 scale-100"
+                     x-transition:leave-end="opacity-0 scale-90"
+                     x-ref="cockpitMinimap"
+                     data-cockpit-zoom-minimap
+                     @mousedown.stop.prevent="startMinimapDrag($event)"
+                     @touchstart.stop.passive="startMinimapDrag($event)"
+                     title="Bildausschnitt auf dem 200x200 mm Laserbett verschieben"
+                     class="absolute top-2.5 right-2.5 z-40 w-20 h-20 sm:w-24 sm:h-24 rounded-xl overflow-hidden shadow-[0_8px_24px_rgba(0,0,0,0.45)] border-2 border-[var(--theme-color)] bg-gray-950/95 cursor-grab active:cursor-grabbing select-none touch-none pointer-events-auto">
+                    <img src="{{ $cockpitData['camera_url'] }}"
+                         class="absolute inset-0 w-full h-full object-cover pointer-events-none opacity-85"
+                         alt="">
+                    <div class="absolute z-[2] border border-cyan-400 bg-cyan-400/20 pointer-events-none {{ $isCircleContour ? 'rounded-full' : '' }}"
+                         :style="`left: ${(xMm / 200) * 100}%; top: ${(yMm / 200) * 100}%; width: ${Math.max(4, (wMm / 200) * 100)}%; height: ${Math.max(4, (hMm / 200) * 100)}%; transform: translate(-50%, -50%) rotate(${angleDeg}deg);`"></div>
+                    <div class="absolute z-[5] border-2 border-[var(--theme-color)] bg-[var(--theme-color-15)] rounded-[3px] pointer-events-none shadow-[0_0_0_999px_rgba(0,0,0,0.48)]"
+                         :style="getCockpitMinimapViewportStyle()">
+                        <div class="absolute inset-0 flex items-center justify-center opacity-80">
+                            <div class="w-1.5 h-1.5 rounded-full bg-[var(--theme-color)] shadow-sm"></div>
+                        </div>
+                    </div>
+                </div>
 
                 <div x-cloak
                      x-show="showLaserDetails"
                      style="display: none;"
+                     :class="cockpitZoom > 1.01 ? 'pr-24 sm:pr-28' : ''"
                      class="absolute top-2.5 left-2.5 right-2.5 z-20 pointer-events-none flex flex-wrap items-center justify-between gap-1.5">
                     <div class="flex flex-wrap items-center gap-1.5">
                         <span class="px-2.5 py-1 rounded-lg bg-gray-950/85 border border-gray-700 text-white font-mono text-[10px] font-black">
@@ -521,67 +841,6 @@
                             <span>Übertrage an xTool...</span>
                         </span>
                     </div>
-                </div>
-
-                {{-- Bündige 1:1 Gravurflächen-Kontur (#00bcd4) + WYSIWYG-Motiv + Drehgriff + 4 Resize-Handles --}}
-                <div class="absolute z-10 pointer-events-none"
-                     :style="`left: ${(xMm / 200) * 100}%; top: ${(yMm / 200) * 100}%; width: ${(wMm / 200) * 100}%; height: ${(hMm / 200) * 100}%; transform: translate(-50%, -50%) rotate(${angleDeg}deg);`">
-                    <svg viewBox="0 0 {{ $baseViewW }} {{ $baseViewH }}"
-                         preserveAspectRatio="none"
-                         class="w-full h-full overflow-visible">
-                        <path d="{{ $cockpitData['ghost_d_path'] }}"
-                              fill="rgba(0, 188, 212, 0.06)"
-                              stroke="#00bcd4"
-                              stroke-width="1.8"
-                              stroke-dasharray="5,3.5"
-                              vector-effect="non-scaling-stroke" />
-                    </svg>
-                    <img src="{{ $cockpitData['preview_data_url'] }}"
-                         alt="Gravur-Overlay"
-                         class="absolute inset-0 w-full h-full object-fill {{ $isDarkSurfaceOverlay ? 'drop-shadow-[0_1px_2px_rgba(0,0,0,0.45)]' : 'drop-shadow-[0_0_1.5px_rgba(255,255,255,0.55)]' }}"
-                         draggable="false">
-
-                    {{-- Dreh-Griff (oben mittig an der Kontur) --}}
-                    <button type="button"
-                            @mousedown.stop.prevent="startDrag($event, 'rotate')"
-                            @touchstart.stop.passive="startDrag($event, 'rotate')"
-                            title="Gedrückt halten zum Drehen"
-                            class="pointer-events-auto absolute -top-3 left-1/2 -translate-x-1/2 w-5 h-5 rounded-full bg-cyan-400 hover:bg-cyan-300 text-gray-950 border border-gray-950 shadow-md flex items-center justify-center text-[10px] font-black cursor-grab active:cursor-grabbing">
-                        &#8635;
-                    </button>
-
-                    {{-- 4 Proportionale Resize-Handles (NW, NE, SE, SW) direkt auf der blauen Kontur --}}
-                    <button type="button"
-                            data-resize-handle="nw"
-                            @mousedown.stop.prevent="startDrag($event, 'resize')"
-                            @touchstart.stop.passive="startDrag($event, 'resize')"
-                            title="Größe ändern"
-                            style="left: {{ $hPosMin }}; top: {{ $hPosMin }};"
-                            class="pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-cyan-400 hover:bg-cyan-300 border border-gray-950 shadow-md cursor-nwse-resize"></button>
-                    <button type="button"
-                            data-resize-handle="ne"
-                            @mousedown.stop.prevent="startDrag($event, 'resize')"
-                            @touchstart.stop.passive="startDrag($event, 'resize')"
-                            title="Größe ändern"
-                            style="left: {{ $hPosMax }}; top: {{ $hPosMin }};"
-                            class="pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-cyan-400 hover:bg-cyan-300 border border-gray-950 shadow-md cursor-nesw-resize"></button>
-                    <button type="button"
-                            data-resize-handle="se"
-                            @mousedown.stop.prevent="startDrag($event, 'resize')"
-                            @touchstart.stop.passive="startDrag($event, 'resize')"
-                            title="Größe ändern"
-                            style="left: {{ $hPosMax }}; top: {{ $hPosMax }};"
-                            class="pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-cyan-400 hover:bg-cyan-300 border border-gray-950 shadow-md cursor-nwse-resize"></button>
-                    <button type="button"
-                            data-resize-handle="sw"
-                            @mousedown.stop.prevent="startDrag($event, 'resize')"
-                            @touchstart.stop.passive="startDrag($event, 'resize')"
-                            title="Größe ändern"
-                            style="left: {{ $hPosMin }}; top: {{ $hPosMax }};"
-                            class="pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-cyan-400 hover:bg-cyan-300 border border-gray-950 shadow-md cursor-nesw-resize"></button>
-
-                    {{-- Mittelpunkt-Fadenkreuz --}}
-                    <div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-cyan-400 border border-gray-950 shadow-sm"></div>
                 </div>
             </div>
 

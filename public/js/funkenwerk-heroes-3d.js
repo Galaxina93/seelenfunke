@@ -5,32 +5,87 @@
         return;
     }
 
-    var MODULE_URL = '/js/seelenfunke-louvre-showroom-3d.js?v=20261117v4';
+    var MODULE_URL = '/js/seelenfunke-louvre-showroom-3d.js?v=20261117v5';
 
     var KEYBIND_ACTIONS = [
         { key: 'jump', label: 'Sprung' },
-        { key: 'strike', label: 'Aktion / Waffe' },
-        { key: 'sprint', label: '1 · Funken-Sprint' },
-        { key: 'titanJump', label: '2 · Titan-Sprung' },
-        { key: 'shield', label: '3 · Schutzschild' },
-        { key: 'burst', label: '4 · Funkenstoß' },
+        { key: 'strike', label: '1 · Funken-Hieb' },
+        { key: 'sprint', label: '2 · Licht-Sprint' },
+        { key: 'titanJump', label: '3 · Aufwind-Impuls' },
+        { key: 'shield', label: '4 · Aegis-Schild' },
+        { key: 'burst', label: '5 · Seelen-Nova' },
         { key: 'moveForward', label: 'Vorwärts' },
         { key: 'moveLeft', label: 'Links' },
         { key: 'moveBack', label: 'Zurück' },
         { key: 'moveRight', label: 'Rechts' }
     ];
 
+    var ABILITY_BAR_DEFS = [
+        {
+            slot: 1,
+            testIdAttr: 'data-testid="ability-slot-1-btn"',
+            actionKey: 'strike',
+            name: 'Funken-Hieb',
+            manaText: '0 Mana',
+            cdText: 'Kombo 1-4',
+            desc: '4-stufige Nahkampf-Kombo mit goldenem Wirbel und Finisher-Druckwelle.',
+            svg: '<svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.5 4.5L9.5 16.5"/><path d="M17.5 4.5H21.5V8.5"/><path d="M6.5 14.5L13.5 21.5"/><path d="M5 23L9.5 18.5"/><path d="M18.5 12.5C21 15 21.5 18.8 19.2 21.5" stroke-opacity="0.62"/></svg>'
+        },
+        {
+            slot: 2,
+            testIdAttr: 'data-testid="ability-slot-2-btn"',
+            actionKey: 'sprint',
+            name: 'Licht-Sprint',
+            manaText: '18 Mana',
+            cdText: '10 s Abklingzeit',
+            desc: 'Erhöht dein Lauftempo 4,5 Sekunden lang um 55 % mit goldener Funkenspur.',
+            svg: '<svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 10.5H15.5C17.7 10.5 19.2 9 19.2 7.2C19.2 5.5 17.8 4.3 16.2 4.3C14.8 4.3 13.7 5.2 13.5 6.5"/><path d="M3.5 15H20.5C22.6 15 24.2 16.5 24.2 18.5C24.2 20.4 22.7 21.8 20.9 21.8C19.3 21.8 18.1 20.8 17.9 19.4"/><path d="M6.5 19.5H13.5"/><circle cx="22" cy="9.5" r="1.3" fill="currentColor" stroke="none"/></svg>'
+        },
+        {
+            slot: 3,
+            testIdAttr: 'data-testid="ability-slot-3-btn"',
+            actionKey: 'titanJump',
+            name: 'Aufwind-Impuls',
+            manaText: '22 Mana',
+            cdText: '8 s Abklingzeit',
+            desc: 'Katapultiert dich kraftvoll in die Höhe zum Überwinden weiter Schluchten und Ringe.',
+            svg: '<svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4.5L8.2 11.2H11.8V18.5H16.2V11.2H19.8L14 4.5Z"/><path d="M7 21.2C9.2 19.6 11.5 19 14 19C16.5 19 18.8 19.6 21 21.2"/><path d="M9.5 24C11 23.1 12.4 22.7 14 22.7C15.6 22.7 17 23.1 18.5 24" stroke-opacity="0.65"/></svg>'
+        },
+        {
+            slot: 4,
+            testIdAttr: 'data-testid="ability-slot-4-btn"',
+            actionKey: 'shield',
+            name: 'Aegis-Schild',
+            manaText: '25 Mana',
+            cdText: '15 s Abklingzeit',
+            desc: 'Schützt 6,5 s vor Schockwellen und katapultiert dich bei Lava-Kontakt einmalig hoch hinaus, bevor das Schild zerbricht.',
+            svg: '<svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3.8L22 7.2V13.6C22 18.6 18.6 22.5 14 24.4C9.4 22.5 6 18.6 6 13.6V7.2L14 3.8Z"/><path d="M14 8.2L15.6 11.8L19.4 13.4L15.6 15L14 18.6L12.4 15L8.6 13.4L12.4 11.8L14 8.2Z" stroke-width="1.4"/></svg>'
+        },
+        {
+            slot: 5,
+            testIdAttr: 'data-testid="ability-slot-5-btn"',
+            actionKey: 'burst',
+            name: 'Seelen-Nova',
+            manaText: '30 Mana',
+            cdText: '20 s Abklingzeit',
+            desc: 'Entfesselt eine radiale 24K-Gold-Energiewelle und löst nahe Gefahrenringe im Umkreis auf.',
+            svg: '<svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="14" cy="14" r="3.6"/><circle cx="14" cy="14" r="8.2" stroke-dasharray="2.6 2.6"/><path d="M14 2.8V5.8M14 22.2V25.2M2.8 14H5.8M22.2 14H25.2M6.1 6.1L8.2 8.2M19.8 19.8L21.9 21.9M21.9 6.1L19.8 8.2M8.2 19.8L6.1 21.9"/></svg>'
+        }
+    ];
+
     var STANDALONE_SCOPED_CSS = [
         '@keyframes sfLobbySpin { to { transform: rotate(360deg); } }',
-        '.sf-lobby-modal { position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; inset: 0 !important; width: 100vw !important; height: 100vh !important; height: 100dvh !important; z-index: 2147483000 !important; background: #FAF8F5 !important; overflow: hidden !important; margin: 0 !important; padding: 0 !important; box-sizing: border-box !important; user-select: none !important; -webkit-user-select: none !important; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #111827; }',
+        '.sf-lobby-modal, .sf-lobby-modal * { user-select: none !important; -webkit-user-select: none !important; -webkit-touch-callout: none !important; }',
+        '.sf-lobby-modal input, .sf-lobby-modal textarea { user-select: text !important; -webkit-user-select: text !important; }',
+        '.sf-lobby-modal { position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; inset: 0 !important; width: 100vw !important; height: 100vh !important; height: 100dvh !important; z-index: 2147483000 !important; background: #FAF8F5 !important; overflow: hidden !important; margin: 0 !important; padding: 0 !important; box-sizing: border-box !important; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #111827; }',
         '.sf-lobby-modal.is-open { display: flex !important; flex-direction: column !important; }',
         '.sf-lobby-modal.is-closed { display: none !important; }',
-        '.sf-lobby-topbar { position: absolute; top: 0; left: 0; right: 0; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; pointer-events: none; z-index: 30; box-sizing: border-box; }',
-        '.sf-lobby-nav-pill { pointer-events: auto; background: rgba(255,255,255,0.94); border: 1px solid rgba(197,160,89,0.42); border-radius: 999px; padding: 5px; box-shadow: 0 8px 24px rgba(17,24,39,0.08); display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; max-width: 100%; box-sizing: border-box; }',
-        '.sf-lobby-zone-badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 999px; background: #FAF8F5; color: #111827; border: 1px solid rgba(197,160,89,0.38); font-size: 12px; font-weight: 800; line-height: 1.2; letter-spacing: 0.01em; white-space: nowrap; pointer-events: none; cursor: default; }',
+        '.sf-lobby-topbar { position: absolute; top: 0; left: 0; right: 0; padding: 12px 18px; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; pointer-events: none; z-index: 30; box-sizing: border-box; }',
+        '.sf-lobby-nav-pill { pointer-events: auto; background: rgba(255,255,255,0.95); border: 1px solid rgba(197,160,89,0.45); border-radius: 999px; padding: 4px; box-shadow: 0 8px 24px rgba(17,24,39,0.08); display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; max-width: 100%; box-sizing: border-box; }',
+        '.sf-lobby-zone-badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 13px; border-radius: 999px; background: #FAF8F5; color: #111827; border: 1px solid rgba(197,160,89,0.40); font-size: 12px; font-weight: 800; line-height: 1.2; letter-spacing: 0.01em; white-space: nowrap; pointer-events: none; cursor: default; }',
         '.sf-lobby-stages-btn { appearance: none; border: 1px solid rgba(197,160,89,0.55); border-radius: 999px; padding: 6px 12px; font-size: 11px; font-weight: 800; line-height: 1.2; background: #FAF8F5; color: #111827; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }',
-        '.sf-lobby-actions { pointer-events: auto; display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }',
-        '.sf-lobby-pill-btn { appearance: none; background: rgba(255,255,255,0.94); color: #111827; border: 1px solid rgba(197,160,89,0.48); border-radius: 999px; padding: 7px 13px; font-size: 12px; font-weight: 800; line-height: 1.2; box-shadow: 0 8px 24px rgba(17,24,39,0.08); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }',
+        '.sf-lobby-actions { pointer-events: auto; display: inline-flex; align-items: center; gap: 7px; flex-wrap: wrap; }',
+        '.sf-lobby-pill-btn { appearance: none; background: rgba(255,255,255,0.95); color: #111827; border: 1px solid rgba(197,160,89,0.48); border-radius: 999px; padding: 7px 12px; font-size: 12px; font-weight: 800; line-height: 1.2; box-shadow: 0 8px 24px rgba(17,24,39,0.08); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }',
         '.sf-lobby-pill-btn:hover { background: #FFFFFF; border-color: #C5A059; }',
         '.sf-lobby-pill-btn.is-gold { background: #C5A059; color: #FFFFFF; border-color: #C5A059; }',
         '.sf-lobby-close-btn { appearance: none; background: rgba(255,255,255,0.96); color: #111827; border: 1px solid rgba(197,160,89,0.55); border-radius: 999px; padding: 7px 14px; font-size: 12px; font-weight: 800; line-height: 1.2; box-shadow: 0 8px 24px rgba(17,24,39,0.10); cursor: pointer; display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }',
@@ -53,36 +108,65 @@
         '.sf-lobby-loading { position: absolute; inset: 0; z-index: 26; background: #FAF8F5; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 24px; text-align: center; }',
         '.sf-lobby-spinner { width: 40px; height: 40px; border-radius: 999px; border: 3px solid rgba(197,160,89,0.26); border-top-color: #C5A059; animation: sfLobbySpin 0.85s linear infinite; }',
         '.sf-lobby-loading-label { font-size: 12px; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase; color: #9A7738; }',
+        '.sf-lobby-ivory-transition { position: absolute; inset: 0; z-index: 44; pointer-events: none; opacity: 0; background: radial-gradient(circle at 50% 45%, rgba(255,252,244,0.92) 0%, rgba(250,245,232,0.98) 58%, rgba(235,214,170,0.99) 100%); transition: opacity 540ms cubic-bezier(0.22, 1, 0.36, 1); }',
+        '.sf-lobby-ivory-transition.is-fading { opacity: 1; pointer-events: auto; }',
         '.sf-lobby-floating-anchor { position: absolute; top: 0; left: 0; z-index: 20; will-change: transform; transition: opacity 180ms ease; pointer-events: none; }',
-        '.sf-lobby-floating-card { position: relative; width: 276px; max-width: calc(100vw - 24px); background: rgba(255,255,255,0.96); border: 1px solid rgba(197,160,89,0.55); border-radius: 16px; padding: 14px 16px; box-shadow: 0 14px 34px rgba(17,24,39,0.12); color: #111827; pointer-events: auto; box-sizing: border-box; }',
-        '.sf-lobby-floating-arrow { width: 12px; height: 12px; background: rgba(255,255,255,0.96); border-right: 1px solid rgba(197,160,89,0.55); border-bottom: 1px solid rgba(197,160,89,0.55); transform: rotate(45deg); margin: -6px auto 0; pointer-events: none; }',
-        '.sf-lobby-portal-pill { pointer-events: auto; display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; border-radius: 999px; background: rgba(255,255,255,0.96); color: #111827; border: 1px solid #C5A059; box-shadow: 0 14px 32px rgba(17,24,39,0.14); font-size: 12px; font-weight: 800; text-decoration: none; white-space: nowrap; }',
-        '.sf-lobby-lava-chest-card { pointer-events: auto; display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 999px; background: rgba(255,255,255,0.97); color: #111827; border: 1.5px solid #C5A059; box-shadow: 0 14px 32px rgba(17,24,39,0.16); font-size: 12px; font-weight: 800; white-space: nowrap; cursor: pointer; text-decoration: none; }',
+        '.sf-lobby-floating-card { position: relative; width: 296px; max-width: calc(100vw - 24px); background: rgba(255,255,255,0.98); border: 1px solid rgba(197,160,89,0.62); border-radius: 18px; padding: 14px 16px 12px; box-shadow: 0 16px 38px rgba(17,24,39,0.12), 0 0 0 1px rgba(255,255,255,0.7) inset; color: #111827; pointer-events: auto; box-sizing: border-box; }',
+        '.sf-lobby-floating-arrow { width: 12px; height: 12px; background: rgba(255,255,255,0.98); border-right: 1px solid rgba(197,160,89,0.62); border-bottom: 1px solid rgba(197,160,89,0.62); transform: rotate(45deg); margin: -6px auto 0; pointer-events: none; }',
+        '.sf-lobby-prod-row1 { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }',
+        '.sf-lobby-prod-title { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 15px; font-weight: 700; line-height: 1.24; color: #111827; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1 1 auto; min-width: 0; }',
+        '.sf-lobby-prod-price-badge { flex-shrink: 0; display: inline-flex; align-items: center; padding: 2px 9px; border-radius: 999px; background: #FAF6EE; border: 1px solid rgba(197,160,89,0.52); font-size: 11.5px; font-weight: 800; color: #8A692C; white-space: nowrap; }',
+        '.sf-lobby-prod-summary { margin: 6px 0 0; font-size: 11.5px; font-weight: 500; line-height: 1.38; color: #4B5563; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }',
+        '.sf-lobby-prod-cta { appearance: none; margin-top: 11px; display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; padding: 9px 14px; border-radius: 999px; border: 1px solid #B89146; background: #C5A059; color: #FFFFFF !important; font-size: 12px; font-weight: 800; letter-spacing: 0.02em; text-align: center; text-decoration: none !important; box-sizing: border-box; cursor: pointer; box-shadow: 0 6px 16px rgba(197,160,89,0.28); transition: background 150ms ease, transform 130ms ease; }',
+        '.sf-lobby-prod-cta:hover { background: #B38E46; transform: translateY(-1px); }',
+        '.sf-lobby-hero-head { display: flex; align-items: center; gap: 8px; }',
+        '.sf-lobby-hero-rank { width: 28px; height: 28px; border-radius: 999px; background: #C5A059; color: #FFFFFF; font-size: 11px; font-weight: 900; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }',
+        '.sf-lobby-hero-name { font-size: 14px; font-weight: 800; color: #111827; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }',
+        '.sf-lobby-hero-me { margin-left: auto; padding: 2px 7px; border-radius: 999px; background: #FAF8F5; border: 1px solid #C5A059; font-size: 9px; font-weight: 900; color: #9A7738; }',
+        '.sf-lobby-hero-stats { margin-top: 9px; display: flex; flex-wrap: wrap; gap: 5px; }',
+        '.sf-lobby-hero-chip { padding: 3px 8px; border-radius: 8px; background: #FAF8F5; border: 1px solid rgba(197,160,89,0.38); font-size: 11px; font-weight: 700; color: #111827; }',
+        '.sf-lobby-portal-pill { pointer-events: auto; display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; border-radius: 999px; background: rgba(255,255,255,0.97); color: #111827; border: 1px solid #C5A059; box-shadow: 0 14px 32px rgba(17,24,39,0.14); font-size: 12px; font-weight: 800; text-decoration: none; white-space: nowrap; }',
+        '.sf-lobby-lava-chest-card { pointer-events: auto; display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 999px; background: rgba(255,255,255,0.98); color: #111827; border: 1.5px solid #C5A059; box-shadow: 0 14px 32px rgba(17,24,39,0.16); font-size: 12px; font-weight: 800; white-space: nowrap; cursor: pointer; text-decoration: none; }',
         '.sf-lobby-lava-chest-card.is-cta { background: #C5A059; color: #FFFFFF; }',
         '.sf-lobby-lava-chest-card.is-cta:hover { background: #B38E46; }',
-        '.sf-lobby-unit-frame { pointer-events: auto; display: inline-flex; align-items: center; gap: 9px; padding: 5px 12px 5px 6px; border-radius: 999px; background: rgba(255,255,255,0.95); border: 1px solid rgba(197,160,89,0.55); box-shadow: 0 8px 24px rgba(17,24,39,0.08); color: #111827; }',
-        '.sf-lobby-unit-avatar { width: 30px; height: 30px; border-radius: 999px; background: #FAF8F5; border: 1.5px solid #C5A059; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 900; color: #9A7738; flex-shrink: 0; }',
-        '.sf-lobby-unit-meta { display: flex; flex-direction: column; gap: 2px; min-width: 96px; }',
-        '.sf-lobby-unit-mana-track { width: 100%; height: 4px; border-radius: 999px; background: rgba(197,160,89,0.22); overflow: hidden; }',
-        '.sf-lobby-unit-mana-fill { height: 100%; border-radius: 999px; background: #C5A059; transition: width 160ms ease; }',
-        '.sf-lobby-minimap-wrap { position: absolute; top: 62px; right: 20px; width: 84px; height: 84px; z-index: 25; pointer-events: auto; display: flex; align-items: center; justify-content: center; }',
-        '.sf-lobby-minimap-canvas { width: 84px; height: 84px; border-radius: 999px; background: rgba(255,255,255,0.94); border: 2px solid #C5A059; box-shadow: 0 10px 26px rgba(17,24,39,0.14); display: block; }',
-        '.sf-lobby-minimap-time { position: absolute; bottom: -8px; left: 50%; transform: translateX(-50%); padding: 2px 8px; border-radius: 999px; background: #FFFFFF; border: 1px solid #C5A059; color: #111827; font-size: 10px; font-weight: 800; line-height: 1.2; white-space: nowrap; box-shadow: 0 4px 10px rgba(17,24,39,0.10); cursor: help; }',
-        '.sf-lobby-exhibit-step-row { margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(197,160,89,0.22); display: flex; align-items: center; justify-content: space-between; gap: 5px; }',
+        '.sf-lobby-unit-frame { pointer-events: auto; display: inline-flex; align-items: center; gap: 9px; padding: 6px 13px 6px 7px; border-radius: 999px; background: rgba(255,255,255,0.96); border: 1px solid rgba(197,160,89,0.55); box-shadow: 0 8px 24px rgba(17,24,39,0.08); color: #111827; }',
+        '.sf-lobby-unit-avatar { width: 32px; height: 32px; border-radius: 999px; background: #FAF8F5; border: 1.5px solid #C5A059; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 900; color: #9A7738; flex-shrink: 0; }',
+        '.sf-lobby-unit-meta { display: flex; flex-direction: column; gap: 3px; min-width: 134px; }',
+        '.sf-lobby-unit-mana-row { display: flex; align-items: center; gap: 6px; }',
+        '.sf-lobby-unit-mana-label { font-size: 9.5px; font-weight: 900; letter-spacing: 0.06em; text-transform: uppercase; color: #1D4ED8; line-height: 1; flex-shrink: 0; }',
+        '.sf-lobby-unit-mana-track { flex: 1 1 auto; height: 6px; border-radius: 999px; background: rgba(29,78,216,0.16); border: 1px solid rgba(29,78,216,0.26); overflow: hidden; }',
+        '.sf-lobby-unit-mana-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, #1d4ed8 0%, #38bdf8 100%); transition: width 160ms ease; }',
+        '.sf-lobby-unit-mana-val { font-size: 9.5px; font-weight: 800; color: #1E40AF; line-height: 1; flex-shrink: 0; font-variant-numeric: tabular-nums; }',
+        '.sf-lobby-minimap-wrap { position: absolute; top: 62px; right: 18px; width: 180px; height: 180px; z-index: 25; pointer-events: auto; display: flex; align-items: center; justify-content: center; }',
+        '.sf-lobby-minimap-canvas { width: 100%; height: 100%; border-radius: 999px; background: rgba(255,255,255,0.96); border: 2.5px solid #C5A059; box-shadow: 0 12px 30px rgba(17,24,39,0.16), 0 0 0 3px rgba(255,255,255,0.72); display: block; }',
+        '.sf-lobby-minimap-time { position: absolute; bottom: -9px; left: 50%; transform: translateX(-50%); padding: 2px 10px; border-radius: 999px; background: #FFFFFF; border: 1px solid #C5A059; color: #111827; font-size: 10.5px; font-weight: 800; line-height: 1.25; white-space: nowrap; box-shadow: 0 4px 12px rgba(17,24,39,0.12); cursor: help; }',
+        '.sf-lobby-exhibit-step-row { margin-top: 8px; padding-top: 7px; border-top: 1px solid rgba(197,160,89,0.22); display: flex; align-items: center; justify-content: space-between; gap: 4px; }',
         '.sf-lobby-sanctum-list { display: flex; flex-direction: column; gap: 8px; }',
         '.sf-lobby-sanctum-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border-radius: 12px; background: #FAF8F5; border: 1px solid rgba(197,160,89,0.34); font-size: 13px; font-weight: 800; color: #111827; }',
         '.sf-lobby-sanctum-row.is-done { background: #FFFFFF; border-color: #C5A059; }',
         '.sf-lobby-sanctum-check { width: 22px; height: 22px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 900; flex-shrink: 0; background: #FFFFFF; border: 1.5px solid rgba(197,160,89,0.55); color: #6B7280; }',
         '.sf-lobby-sanctum-row.is-done .sf-lobby-sanctum-check { background: #FAF3E3; border-color: #C5A059; color: #C5A059; }',
-        '.sf-lobby-abilities-dock { position: absolute; bottom: 78px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; z-index: 23; pointer-events: auto; }',
-        '.sf-ability-btn { position: relative; width: 48px; height: 48px; border-radius: 13px; background: rgba(255,255,255,0.95); border: 1.5px solid rgba(197,160,89,0.55); color: #111827; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 6px 18px rgba(17,24,39,0.12); transition: transform 0.12s ease, border-color 0.15s ease, background 0.15s ease; user-select: none; }',
-        '.sf-ability-btn:hover { border-color: #C5A059; transform: translateY(-2px); background: #FFFFFF; }',
-        '.sf-ability-btn.is-active { border-color: #C5A059; background: #FAF3E3; box-shadow: 0 6px 20px rgba(197,160,89,0.36); }',
-        '.sf-ability-btn.is-cooldown { opacity: 0.56; border-color: rgba(156,163,175,0.55); }',
-        '.sf-ability-icon { font-size: 16px; line-height: 1; color: #9A7738; font-weight: 900; }',
-        '.sf-ability-key { position: absolute; top: 3px; left: 5px; font-size: 9px; font-weight: 800; color: #6B7280; line-height: 1; }',
-        '.sf-ability-cd { position: absolute; bottom: 3px; right: 4px; font-size: 9px; font-weight: 800; color: #FFFFFF; background: rgba(17,24,39,0.85); padding: 1px 4px; border-radius: 5px; line-height: 1; }',
-        '.sf-ability-combo-badge { position: absolute; top: -6px; right: -6px; background: #C5A059; color: #FFFFFF; font-size: 9px; font-weight: 900; padding: 2px 5px; border-radius: 999px; border: 1.5px solid #FFFFFF; line-height: 1; box-shadow: 0 3px 8px rgba(17,24,39,0.18); }',
+        '.sf-lobby-gold-crest-bar { position: absolute; left: 0; right: 0; bottom: 0; min-height: 62px; padding: 6px 20px calc(8px + env(safe-area-inset-bottom, 0px)); background: linear-gradient(180deg, rgba(250,248,245,0.88) 0%, rgba(255,255,255,0.98) 38%, #FAF6EE 100%); border-top: 2px solid #C5A059; box-shadow: 0 -8px 28px rgba(17,24,39,0.09), 0 1px 0 rgba(255,255,255,0.9) inset; display: flex; align-items: center; justify-content: center; z-index: 26; pointer-events: auto; box-sizing: border-box; }',
+        '.sf-lobby-gold-crest-bar::before { content: ""; position: absolute; top: 3px; left: 18px; right: 18px; height: 1px; background: linear-gradient(90deg, transparent 0%, rgba(197,160,89,0.55) 18%, rgba(197,160,89,0.85) 50%, rgba(197,160,89,0.55) 82%, transparent 100%); pointer-events: none; }',
+        '.sf-lobby-copyright { position: absolute; left: 20px; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); font-size: 11px; font-weight: 700; letter-spacing: 0.03em; color: #7C6334; white-space: nowrap; pointer-events: none; }',
+        '.sf-lobby-abilities-dock { position: relative; display: flex; align-items: center; justify-content: center; gap: 10px; z-index: 27; pointer-events: auto; }',
+        '.sf-ability-btn { position: relative; width: 48px; height: 48px; border-radius: 13px; background: #FFFFFF; border: 1.5px solid rgba(197,160,89,0.68); color: #8A692C; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 14px rgba(17,24,39,0.08), 0 0 0 1px rgba(250,246,238,0.9) inset; transition: transform 0.14s ease, border-color 0.15s ease, background 0.15s ease, color 0.15s ease; padding: 0; }',
+        '.sf-ability-btn:hover { border-color: #C5A059; transform: translateY(-2px); background: #FAF6EE; color: #6E501B; }',
+        '.sf-ability-btn.is-active { border-color: #C5A059; background: #FAF3E3; color: #78561C; box-shadow: 0 6px 18px rgba(197,160,89,0.34); }',
+        '.sf-ability-btn.is-cooldown { opacity: 0.56; border-color: rgba(156,163,175,0.55); color: #6B7280; }',
+        '.sf-ability-svg { width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; pointer-events: none; }',
+        '.sf-ability-svg svg { width: 100%; height: 100%; display: block; }',
+        '.sf-ability-key { position: absolute; top: 3px; left: 5px; font-size: 9px; font-weight: 900; color: #6B7280; line-height: 1; pointer-events: none; }',
+        '.sf-ability-cd { position: absolute; bottom: 3px; right: 4px; font-size: 9px; font-weight: 800; color: #FFFFFF; background: rgba(17,24,39,0.88); padding: 1px 4px; border-radius: 5px; line-height: 1; pointer-events: none; }',
+        '.sf-ability-combo-badge { position: absolute; top: -6px; right: -6px; background: #C5A059; color: #FFFFFF; font-size: 9px; font-weight: 900; padding: 2px 5px; border-radius: 999px; border: 1.5px solid #FFFFFF; line-height: 1; box-shadow: 0 3px 8px rgba(17,24,39,0.18); pointer-events: none; }',
+        '.sf-ability-tooltip { position: absolute; bottom: calc(100% + 12px); left: 50%; transform: translateX(-50%) translateY(4px); width: 224px; padding: 10px 12px; border-radius: 13px; background: rgba(255,255,255,0.98); border: 1px solid #C5A059; box-shadow: 0 14px 32px rgba(17,24,39,0.16); color: #111827; text-align: left; opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 140ms ease, transform 140ms ease; z-index: 60; box-sizing: border-box; white-space: normal; }',
+        '.sf-ability-btn:hover .sf-ability-tooltip, .sf-ability-btn:focus-visible .sf-ability-tooltip { opacity: 1; visibility: visible; transform: translateX(-50%) translateY(0); }',
+        '.sf-ability-tooltip-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 4px; }',
+        '.sf-ability-tooltip-name { font-size: 12px; font-weight: 800; color: #111827; }',
+        '.sf-ability-tooltip-key { padding: 1px 6px; border-radius: 5px; background: #FAF6EE; border: 1px solid rgba(197,160,89,0.5); font-size: 9.5px; font-weight: 800; color: #8A692C; }',
+        '.sf-ability-tooltip-meta { display: flex; align-items: center; gap: 8px; font-size: 10px; font-weight: 800; color: #1D4ED8; margin-bottom: 5px; }',
+        '.sf-ability-tooltip-cd { color: #6B7280; }',
+        '.sf-ability-tooltip-desc { margin: 0; font-size: 10.5px; font-weight: 500; line-height: 1.36; color: #374151; }',
         '.sf-lobby-settings-backdrop { position: absolute; inset: 0; z-index: 48; background: rgba(17,24,39,0.24); display: flex; align-items: center; justify-content: center; padding: 16px; pointer-events: auto; box-sizing: border-box; }',
         '.sf-lobby-settings-card { width: 392px; max-width: calc(100vw - 24px); max-height: calc(100dvh - 40px); overflow-y: auto; background: #FFFFFF; color: #111827; border: 1px solid rgba(197,160,89,0.55); border-radius: 20px; padding: 18px 20px; box-shadow: 0 22px 52px rgba(17,24,39,0.18); display: flex; flex-direction: column; gap: 14px; box-sizing: border-box; }',
         '.sf-lobby-settings-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-bottom: 10px; border-bottom: 1px solid rgba(197,160,89,0.28); }',
@@ -96,20 +180,16 @@
         '.sf-lobby-keybind-item:hover { border-color: #C5A059; }',
         '.sf-lobby-keybind-item.is-listening { border-color: #C5A059; background: #FAF3E3; }',
         '.sf-lobby-keybind-pill { padding: 2px 7px; border-radius: 6px; background: #FAF8F5; border: 1px solid rgba(197,160,89,0.48); font-size: 10px; font-weight: 800; color: #9A7738; white-space: nowrap; }',
-        '.sf-lobby-stick-wrap { display: none; position: absolute; bottom: 72px; left: 12px; z-index: 22; }',
-        '.sf-lobby-stick { width: 84px; height: 84px; border-radius: 999px; background: rgba(255,255,255,0.88); border: 1px solid rgba(197,160,89,0.52); box-shadow: 0 10px 26px rgba(17,24,39,0.12); display: flex; align-items: center; justify-content: center; position: relative; touch-action: none; cursor: pointer; }',
-        '.sf-lobby-stick-knob { width: 34px; height: 34px; border-radius: 999px; background: #C5A059; border: 2px solid #FFFFFF; box-shadow: 0 4px 12px rgba(17,24,39,0.18); pointer-events: none; }',
-        '.sf-lobby-quick-actions { position: absolute; bottom: 22px; right: 20px; z-index: 22; display: flex; align-items: center; gap: 8px; }',
-        '.sf-lobby-icon-btn { position: relative; appearance: none; height: 44px; min-width: 44px; padding: 0 12px; border-radius: 14px; background: rgba(255,255,255,0.94); color: #111827; border: 1px solid rgba(197,160,89,0.55); box-shadow: 0 10px 24px rgba(17,24,39,0.10); font-size: 15px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }',
-        '.sf-lobby-bottom-stack { position: absolute; bottom: 14px; left: 12px; right: 12px; z-index: 21; display: flex; flex-direction: column; align-items: center; gap: 7px; pointer-events: none; }',
-        '.sf-lobby-bottom-pill { pointer-events: auto; display: inline-flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px; padding: 6px 10px; border-radius: 999px; background: rgba(255,255,255,0.94); border: 1px solid rgba(197,160,89,0.48); box-shadow: 0 10px 28px rgba(17,24,39,0.12); max-width: 100%; box-sizing: border-box; }',
+        '.sf-lobby-stick-wrap { display: none; position: absolute; bottom: calc(74px + env(safe-area-inset-bottom, 0px)); left: 14px; z-index: 25; }',
+        '.sf-lobby-stick { width: 78px; height: 78px; border-radius: 999px; background: rgba(255,255,255,0.90); border: 1.5px solid rgba(197,160,89,0.58); box-shadow: 0 10px 26px rgba(17,24,39,0.12); display: flex; align-items: center; justify-content: center; position: relative; touch-action: none; cursor: pointer; }',
+        '.sf-lobby-stick-knob { width: 32px; height: 32px; border-radius: 999px; background: #C5A059; border: 2px solid #FFFFFF; box-shadow: 0 4px 12px rgba(17,24,39,0.18); pointer-events: none; }',
+        '.sf-lobby-bottom-stack { position: absolute; bottom: calc(70px + env(safe-area-inset-bottom, 0px)); left: 12px; right: 12px; z-index: 24; display: flex; flex-direction: column; align-items: center; gap: 7px; pointer-events: none; }',
+        '.sf-lobby-bottom-pill { pointer-events: auto; display: inline-flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px; padding: 6px 10px; border-radius: 999px; background: rgba(255,255,255,0.95); border: 1px solid rgba(197,160,89,0.48); box-shadow: 0 10px 28px rgba(17,24,39,0.12); max-width: 100%; box-sizing: border-box; }',
         '.sf-lobby-step-btn { appearance: none; padding: 6px 12px; border-radius: 999px; border: 1px solid rgba(197,160,89,0.40); background: #FAF8F5; color: #111827; font-size: 11px; font-weight: 800; cursor: pointer; white-space: nowrap; }',
         '.sf-lobby-step-btn.is-active { background: #C5A059; color: #FFFFFF; border-color: #C5A059; }',
-        '.sf-lobby-exhibit-btn { appearance: none; padding: 6px 14px; border-radius: 999px; border: 1px solid rgba(197,160,89,0.35); background: #FFFFFF; color: #111827; font-size: 11px; font-weight: 800; cursor: pointer; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }',
-        '.sf-lobby-hint-pill { pointer-events: none; padding: 5px 14px; border-radius: 999px; background: rgba(255,255,255,0.90); border: 1px solid rgba(197,160,89,0.38); color: #374151; font-size: 11px; font-weight: 700; box-shadow: 0 6px 18px rgba(17,24,39,0.08); white-space: nowrap; }',
-        '@media (max-width: 900px), (pointer: coarse) { .sf-lobby-stick-wrap { display: block; bottom: 72px; left: 12px; } .sf-lobby-stick { width: 72px; height: 72px; } .sf-lobby-quick-actions { bottom: 72px; right: 12px; gap: 6px; } .sf-lobby-abilities-dock { bottom: 88px; left: 94px; right: auto; transform: none; display: flex; align-items: center; gap: 6px; } .sf-ability-btn { width: 40px; height: 40px; border-radius: 10px; } .sf-ability-key { display: none; } }',
-        '@media (max-width: 767px) { .sf-lobby-topbar { padding: 10px 12px; gap: 8px; } .sf-lobby-zone-badge { padding: 5px 10px; font-size: 11px; } .sf-lobby-pill-btn, .sf-lobby-close-btn { padding: 6px 10px; font-size: 11px; } .sf-lobby-kbd, .sf-lobby-hint-pill { display: none !important; } .sf-lobby-exhibit-btn { max-width: 175px; } .sf-lobby-keybind-grid { grid-template-columns: 1fr; } }',
-        '@media (max-width: 559px) { .sf-lobby-abilities-dock { bottom: 71px; left: 92px; right: auto; transform: none; display: grid; grid-template-columns: repeat(2, 36px); gap: 5px; } .sf-ability-btn { width: 36px; height: 36px; border-radius: 10px; } .sf-ability-icon { font-size: 14px; } .sf-lobby-icon-btn { height: 40px; min-width: 40px; padding: 0 10px; font-size: 13px; } }'
+        '@media (max-width: 900px), (pointer: coarse) { .sf-lobby-stick-wrap { display: block; bottom: calc(70px + env(safe-area-inset-bottom, 0px)); left: 12px; } .sf-lobby-stick { width: 70px; height: 70px; } .sf-lobby-minimap-wrap { width: 136px; height: 136px; top: 58px; right: 12px; } .sf-ability-btn { width: 44px; height: 44px; border-radius: 11px; } .sf-ability-svg { width: 21px; height: 21px; } .sf-ability-tooltip { display: none; } }',
+        '@media (max-width: 767px) { .sf-lobby-topbar { padding: 8px 10px; gap: 6px; } .sf-lobby-zone-badge { padding: 5px 9px; font-size: 11px; } .sf-lobby-pill-btn, .sf-lobby-close-btn { padding: 6px 9px; font-size: 11px; } .sf-lobby-kbd { display: none !important; } .sf-lobby-copyright { font-size: 9.5px; left: 10px; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); } .sf-lobby-keybind-grid { grid-template-columns: 1fr; } }',
+        '@media (max-width: 559px) { .sf-lobby-minimap-wrap { width: 116px; height: 116px; top: 96px; right: 10px; } .sf-lobby-unit-meta { min-width: 112px; } .sf-lobby-gold-crest-bar { min-height: 56px; padding: 5px 8px calc(6px + env(safe-area-inset-bottom, 0px)); justify-content: flex-end; } .sf-lobby-copyright { left: 10px; font-size: 9px; max-width: 96px; overflow: hidden; text-overflow: ellipsis; } .sf-lobby-abilities-dock { gap: 6px; } .sf-ability-btn { width: 40px; height: 40px; border-radius: 10px; } .sf-ability-svg { width: 19px; height: 19px; } .sf-ability-key { display: none; } .sf-lobby-floating-card { width: 266px; padding: 12px 13px 10px; } .sf-lobby-prod-title { font-size: 13.5px; } }'
     ].join('\n');
 
     var FALLBACK_LOBBY_PRODUCTS = [
@@ -170,8 +250,8 @@
             styleTag.id = 'sf-3d-lobby-scoped-css';
             styleTag.textContent = STANDALONE_SCOPED_CSS;
             (document.head || document.documentElement).appendChild(styleTag);
-        } else if (existing.textContent && existing.textContent.indexOf('.sf-lobby-zone-badge') === -1) {
-            existing.textContent += '\n' + STANDALONE_SCOPED_CSS;
+        } else if (!existing.textContent || existing.textContent.indexOf('.sf-lobby-gold-crest-bar') === -1) {
+            existing.textContent = STANDALONE_SCOPED_CSS;
         }
     }
 
@@ -292,17 +372,19 @@
             graphicsQuality: 'high'
         };
         this.keybindings = {
-            sprint: 'Digit1',
-            titanJump: 'Digit2',
-            shield: 'Digit3',
-            burst: 'Digit4',
-            strike: 'KeyG',
+            strike: 'Digit1',
+            sprint: 'Digit2',
+            titanJump: 'Digit3',
+            shield: 'Digit4',
+            burst: 'Digit5',
             jump: 'Space',
             moveForward: 'KeyW',
             moveLeft: 'KeyA',
             moveBack: 'KeyS',
             moveRight: 'KeyD'
         };
+        this._productTransitionTimer = null;
+        this._productTransitioning = false;
         this.audioState = {
             bgmVolume: 50,
             bgmMuted: false,
@@ -454,6 +536,30 @@
         root.setAttribute('aria-label', 'Mein Seelenfunke 3D-Lobby und Halle der Helden');
         root.style.cssText = 'position:fixed !important;top:0 !important;left:0 !important;right:0 !important;bottom:0 !important;width:100vw !important;height:100dvh !important;z-index:2147483000 !important;background:#FAF8F5 !important;overflow:hidden !important;margin:0 !important;padding:0 !important;';
 
+        var abilityButtonsHtml = [];
+        for (var ai = 0; ai < ABILITY_BAR_DEFS.length; ai++) {
+            var ad = ABILITY_BAR_DEFS[ai];
+            abilityButtonsHtml.push(
+                '<button type="button" data-ability-slot="' + ad.slot + '" ' + ad.testIdAttr + ' class="sf-ability-btn" aria-label="' + ad.name + '">',
+                '  <span class="sf-ability-svg">' + ad.svg + '</span>',
+                '  <span data-ability-key="' + ad.actionKey + '" class="sf-ability-key">' + ad.slot + '</span>',
+                '  <span data-ability-cd="' + ad.slot + '" class="sf-ability-cd" style="display:none;"></span>',
+                (ad.slot === 1 ? '  <span data-ability-combo-badge class="sf-ability-combo-badge" style="display:none;">x1</span>' : ''),
+                '  <div class="sf-ability-tooltip" role="tooltip">',
+                '    <div class="sf-ability-tooltip-head">',
+                '      <span class="sf-ability-tooltip-name">' + ad.name + '</span>',
+                '      <span data-ability-tooltip-key="' + ad.actionKey + '" class="sf-ability-tooltip-key">Taste ' + ad.slot + '</span>',
+                '    </div>',
+                '    <div class="sf-ability-tooltip-meta">',
+                '      <span>' + ad.manaText + '</span>',
+                '      <span class="sf-ability-tooltip-cd">· ' + ad.cdText + '</span>',
+                '    </div>',
+                '    <p class="sf-ability-tooltip-desc">' + ad.desc + '</p>',
+                '  </div>',
+                '</button>'
+            );
+        }
+
         root.innerHTML = [
             '<div class="sf-lobby-topbar">',
             '  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;pointer-events:none;">',
@@ -464,8 +570,12 @@
             '          <span data-lobby-unit-name style="max-width:112px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Funki</span>',
             '          <span data-lobby-unit-stats style="color:#9A7738;">Stufe 2 · ✨ 0</span>',
             '        </div>',
-            '        <div class="sf-lobby-unit-mana-track">',
-            '          <div data-lobby-unit-mana class="sf-lobby-unit-mana-fill" style="width:100%;"></div>',
+            '        <div class="sf-lobby-unit-mana-row">',
+            '          <span class="sf-lobby-unit-mana-label">Mana</span>',
+            '          <div class="sf-lobby-unit-mana-track">',
+            '            <div data-lobby-unit-mana class="sf-lobby-unit-mana-fill" style="width:100%;"></div>',
+            '          </div>',
+            '          <span data-lobby-unit-mana-val class="sf-lobby-unit-mana-val">100</span>',
             '        </div>',
             '      </div>',
             '    </div>',
@@ -503,15 +613,16 @@
             '</div>',
             '<div class="sf-lobby-stage">',
             '  <canvas data-lobby-canvas class="sf-lobby-canvas"></canvas>',
+            '  <div data-lobby-ivory-transition class="sf-lobby-ivory-transition"></div>',
             '  <div data-lobby-minimap data-testid="lobby-minimap" class="sf-lobby-minimap-wrap">',
-            '    <canvas data-lobby-minimap-canvas width="84" height="84" class="sf-lobby-minimap-canvas"></canvas>',
+            '    <canvas data-lobby-minimap-canvas width="180" height="180" class="sf-lobby-minimap-canvas"></canvas>',
             '    <span data-lobby-minimap-time class="sf-lobby-minimap-time" title="Herbst">12:00</span>',
             '  </div>',
             '  <div data-lobby-loading class="sf-lobby-loading">',
             '    <div class="sf-lobby-spinner"></div>',
             '    <span data-lobby-loading-text class="sf-lobby-loading-label">3D-Lobby wird geöffnet</span>',
             '  </div>',
-            '  <div data-lobby-product-card class="sf-lobby-floating-anchor" style="opacity:0;visibility:hidden;pointer-events:none;transform:translate3d(-9999px,-9999px,0);">',
+            '  <div data-lobby-product-card data-testid="louvre-floating-space-card" class="sf-lobby-floating-anchor" style="opacity:0;visibility:hidden;pointer-events:none;transform:translate3d(-9999px,-9999px,0);">',
             '    <div data-lobby-product-inner class="sf-lobby-floating-card"></div>',
             '    <div class="sf-lobby-floating-arrow"></div>',
             '  </div>',
@@ -614,35 +725,6 @@
             '      <div data-lobby-stick-knob class="sf-lobby-stick-knob"></div>',
             '    </div>',
             '  </div>',
-            '  <div class="sf-lobby-quick-actions">',
-            '    <button type="button" data-lobby-jump class="sf-lobby-icon-btn" title="Springen (Leertaste)" aria-label="Springen">⤒</button>',
-            '    <button type="button" data-lobby-strike class="sf-lobby-icon-btn" style="color:#9A7738;" title="Waffen-Effekt (G)" aria-label="Waffen-Effekt">',
-            '      <span>✦</span>',
-            '      <span data-ability-combo-badge class="sf-ability-combo-badge" style="display:none;">x1</span>',
-            '    </button>',
-            '  </div>',
-            '  <div data-lobby-abilities-dock data-testid="louvre-abilities-dock" class="sf-lobby-abilities-dock">',
-            '    <button type="button" data-ability-slot="1" data-testid="ability-slot-1-btn" class="sf-ability-btn" title="Funken-Sprint">',
-            '      <span class="sf-ability-icon">⚡</span>',
-            '      <span data-ability-key="sprint" class="sf-ability-key">1</span>',
-            '      <span data-ability-cd="1" class="sf-ability-cd" style="display:none;"></span>',
-            '    </button>',
-            '    <button type="button" data-ability-slot="2" data-testid="ability-slot-2-btn" class="sf-ability-btn" title="Titan-Sprung">',
-            '      <span class="sf-ability-icon">▲</span>',
-            '      <span data-ability-key="titanJump" class="sf-ability-key">2</span>',
-            '      <span data-ability-cd="2" class="sf-ability-cd" style="display:none;"></span>',
-            '    </button>',
-            '    <button type="button" data-ability-slot="3" data-testid="ability-slot-3-btn" class="sf-ability-btn" title="Goldener Schutzschild">',
-            '      <span class="sf-ability-icon">🛡</span>',
-            '      <span data-ability-key="shield" class="sf-ability-key">3</span>',
-            '      <span data-ability-cd="3" class="sf-ability-cd" style="display:none;"></span>',
-            '    </button>',
-            '    <button type="button" data-ability-slot="4" data-testid="ability-slot-4-btn" class="sf-ability-btn" title="Funkenstoß">',
-            '      <span class="sf-ability-icon">✦</span>',
-            '      <span data-ability-key="burst" class="sf-ability-key">4</span>',
-            '      <span data-ability-cd="4" class="sf-ability-cd" style="display:none;"></span>',
-            '    </button>',
-            '  </div>',
             '  <div class="sf-lobby-bottom-stack">',
             '    <div data-lobby-bottom-heroes class="sf-lobby-bottom-pill" style="display:none;">',
             '      <button type="button" data-hero-slot="1" class="sf-lobby-step-btn">#1</button>',
@@ -651,6 +733,12 @@
             '      <button type="button" data-hero-slot="4" class="sf-lobby-step-btn">#4</button>',
             '      <button type="button" data-hero-slot="5" class="sf-lobby-step-btn">#5</button>',
             '      <button type="button" data-hero-my-place class="sf-lobby-step-btn is-active">⭐ Mein Platz</button>',
+            '    </div>',
+            '  </div>',
+            '  <div data-testid="lobby-gold-crest-bar" class="sf-lobby-gold-crest-bar">',
+            '    <span class="sf-lobby-copyright">© Mein-Seelenfunke</span>',
+            '    <div data-lobby-abilities-dock data-testid="louvre-abilities-dock" class="sf-lobby-abilities-dock">',
+            abilityButtonsHtml.join(''),
             '    </div>',
             '  </div>',
             '</div>'
@@ -960,50 +1048,59 @@
         var snap = facade.getMinimapState();
         if (!snap) return;
 
-        var w = canvas.width || 84;
-        var h = canvas.height || 84;
+        var w = canvas.width || 180;
+        var h = canvas.height || 180;
+        var sc = w / 180;
         var cx = w * 0.5;
         var cy = h * 0.5;
-        var rad = w * 0.5 - 6;
+        var rad = w * 0.5 - 8 * sc;
 
         ctx.clearRect(0, 0, w, h);
         ctx.save();
         ctx.beginPath();
-        ctx.arc(cx, cy, rad + 4, 0, Math.PI * 2);
+        ctx.arc(cx, cy, rad + 5 * sc, 0, Math.PI * 2);
         ctx.clip();
 
         ctx.fillStyle = snap.zone === 'lava' ? '#FBF5EC' : '#FAF8F5';
         ctx.fillRect(0, 0, w, h);
 
-        ctx.strokeStyle = 'rgba(197,160,89,0.25)';
-        ctx.lineWidth = 1;
+        ctx.strokeStyle = 'rgba(197,160,89,0.28)';
+        ctx.lineWidth = Math.max(1, 1.3 * sc);
         ctx.beginPath();
         ctx.arc(cx, cy, rad * 0.58, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.strokeStyle = 'rgba(197,160,89,0.16)';
+        ctx.beginPath();
+        ctx.moveTo(cx - rad * 0.85, cy);
+        ctx.lineTo(cx + rad * 0.85, cy);
+        ctx.moveTo(cx, cy - rad * 0.85);
+        ctx.lineTo(cx, cy + rad * 0.85);
         ctx.stroke();
 
         var markers = Array.isArray(snap.markers) ? snap.markers : [];
         for (var i = 0; i < markers.length; i++) {
             var m = markers[i];
-            var mx = cx + (m.u - 0.5) * rad * 1.65;
-            var my = cy + (m.v - 0.5) * rad * 1.65;
+            var mx = cx + (m.u - 0.5) * rad * 1.68;
+            var my = cy + (m.v - 0.5) * rad * 1.68;
             ctx.beginPath();
-            ctx.fillStyle = m.active ? '#C5A059' : 'rgba(17,24,39,0.32)';
-            ctx.arc(mx, my, m.active ? 2.9 : 2.0, 0, Math.PI * 2);
+            ctx.fillStyle = m.active ? '#C5A059' : 'rgba(17,24,39,0.36)';
+            ctx.arc(mx, my, (m.active ? 4.8 : 3.4) * sc, 0, Math.PI * 2);
             ctx.fill();
         }
 
         if (snap.player) {
-            var px = cx + (snap.player.u - 0.5) * rad * 1.65;
-            var py = cy + (snap.player.v - 0.5) * rad * 1.65;
+            var px = cx + (snap.player.u - 0.5) * rad * 1.68;
+            var py = cy + (snap.player.v - 0.5) * rad * 1.68;
             ctx.save();
             ctx.translate(px, py);
             ctx.rotate(-(snap.player.yaw || 0) + Math.PI);
             ctx.fillStyle = '#111827';
             ctx.beginPath();
-            ctx.moveTo(0, -5);
-            ctx.lineTo(3.6, 4);
-            ctx.lineTo(0, 2.2);
-            ctx.lineTo(-3.6, 4);
+            ctx.moveTo(0, -8.2 * sc);
+            ctx.lineTo(5.8 * sc, 6.4 * sc);
+            ctx.lineTo(0, 3.6 * sc);
+            ctx.lineTo(-5.8 * sc, 6.4 * sc);
             ctx.closePath();
             ctx.fill();
             ctx.restore();
@@ -1041,10 +1138,11 @@
             }
         };
 
-        setSlotUi(1, Boolean(st.sprint && st.sprint.active), st.sprint ? st.sprint.cooldown : 0);
-        setSlotUi(2, false, st.titanJump ? st.titanJump.cooldown : 0);
-        setSlotUi(3, Boolean(st.shield && st.shield.active), st.shield ? st.shield.cooldown : 0);
-        setSlotUi(4, false, st.burst ? st.burst.cooldown : 0);
+        setSlotUi(1, Boolean(st.combo && st.combo.active), st.combo ? st.combo.cooldown : 0);
+        setSlotUi(2, Boolean(st.sprint && st.sprint.active), st.sprint ? st.sprint.cooldown : 0);
+        setSlotUi(3, false, st.titanJump ? st.titanJump.cooldown : 0);
+        setSlotUi(4, Boolean(st.shield && st.shield.active), st.shield ? st.shield.cooldown : 0);
+        setSlotUi(5, false, st.burst ? st.burst.cooldown : 0);
 
         var comboStage = (st.combo && st.combo.stage) ? st.combo.stage : 0;
         var badge = root.querySelector('[data-ability-combo-badge]');
@@ -1069,11 +1167,15 @@
         var uName = root.querySelector('[data-lobby-unit-name]');
         var uStats = root.querySelector('[data-lobby-unit-stats]');
         var uMana = root.querySelector('[data-lobby-unit-mana]');
+        var uManaVal = root.querySelector('[data-lobby-unit-mana-val]');
         if (uName && this.playerHud) uName.textContent = sanitizeText(this.playerHud.name || 'Funki');
         if (uStats && this.playerHud) uStats.textContent = 'Stufe ' + (this.playerHud.level || 2) + ' · ✨ ' + (this.playerHud.funkenBalance || 0);
-        if (uMana && this.playerHud) {
-            var pct = Math.max(0, Math.min(100, Math.round(((this.playerHud.mana || 100) / Math.max(1, this.playerHud.maxMana || 100)) * 100)));
-            uMana.style.width = pct + '%';
+        if (this.playerHud) {
+            var curMana = (typeof this.playerHud.mana === 'number') ? Math.round(this.playerHud.mana) : 100;
+            var maxMana = Math.max(1, this.playerHud.maxMana || 100);
+            var pct = Math.max(0, Math.min(100, Math.round((curMana / maxMana) * 100)));
+            if (uMana) uMana.style.width = pct + '%';
+            if (uManaVal) uManaVal.textContent = String(curMana);
         }
         var mTime = root.querySelector('[data-lobby-minimap-time]');
         if (mTime && this.environmentInfo) {
@@ -1124,6 +1226,11 @@
         var self = this;
         var root = this.modalEl;
         if (!root) return;
+
+        // Punkt 11: Rechtsklick-Kontextmenue in allen Sprechblasen, Modals & der gesamten 3D-Lobby unterbinden
+        root.addEventListener('contextmenu', function (ev) {
+            ev.preventDefault();
+        });
 
         root.querySelector('[data-lobby-close]').addEventListener('click', function () {
             self.close();
@@ -1332,18 +1439,6 @@
             });
         }
 
-        root.querySelector('[data-lobby-jump]').addEventListener('click', function () {
-            var facade = getFacade(self);
-            if (facade) facade.triggerJump();
-        });
-
-        root.querySelector('[data-lobby-strike]').addEventListener('click', function () {
-            var facade = getFacade(self);
-            if (!facade) return;
-            facade.triggerWeapon();
-            self._syncAbilityHud();
-        });
-
         var slotBtns = root.querySelectorAll('[data-hero-slot]');
         for (var s = 0; s < slotBtns.length; s++) {
             slotBtns[s].addEventListener('click', function (ev) {
@@ -1542,11 +1637,11 @@
             var actName = keyMapEls[km].getAttribute('data-ability-key');
             keyMapEls[km].textContent = this._keyLabel(actName);
         }
-
-        var jumpBtn = root.querySelector('[data-lobby-jump]');
-        if (jumpBtn) jumpBtn.title = 'Springen (' + this._keyLabel('jump') + ')';
-        var strikeBtn = root.querySelector('[data-lobby-strike]');
-        if (strikeBtn) strikeBtn.title = 'Waffen-Effekt (' + this._keyLabel('strike') + ')';
+        var ttKeyEls = root.querySelectorAll('[data-ability-tooltip-key]');
+        for (var tk = 0; tk < ttKeyEls.length; tk++) {
+            var ttAct = ttKeyEls[tk].getAttribute('data-ability-tooltip-key');
+            ttKeyEls[tk].textContent = 'Taste ' + this._keyLabel(ttAct);
+        }
 
         var fsBtn = root.querySelector('[data-lobby-fullscreen]');
         if (fsBtn) {
@@ -1579,6 +1674,33 @@
         }
     };
 
+    SeelenfunkeUnifiedLobbyHost.prototype._startProductTransition = function (prod) {
+        if (!prod || !prod.product_url || this._productTransitioning) return;
+        this._productTransitioning = true;
+        var self = this;
+        var facade = getFacade(this);
+        if (facade && typeof facade.startExhibitTransition === 'function') {
+            facade.startExhibitTransition(this.activeIndex);
+        }
+        if (this.floatingProductWrap) {
+            this.floatingProductWrap.style.opacity = '0';
+            this.floatingProductWrap.style.pointerEvents = 'none';
+        }
+        if (this.modalEl) {
+            var ivoryOverlay = this.modalEl.querySelector('[data-lobby-ivory-transition]');
+            if (ivoryOverlay) {
+                setTimeout(function () {
+                    ivoryOverlay.classList.add('is-fading');
+                }, 140);
+            }
+        }
+        if (this._productTransitionTimer) clearTimeout(this._productTransitionTimer);
+        this._productTransitionTimer = setTimeout(function () {
+            self._productTransitioning = false;
+            window.location.href = prod.product_url;
+        }, 680);
+    };
+
     SeelenfunkeUnifiedLobbyHost.prototype._renderFloatingProductCard = function (prod) {
         if (!this.modalEl) return;
         var inner = this.modalEl.querySelector('[data-lobby-product-inner]');
@@ -1588,46 +1710,47 @@
         if (!prod) return;
 
         var self = this;
-        var cat = document.createElement('span');
-        cat.className = 'sf-lobby-prod-cat';
-        cat.textContent = sanitizeText(prod.category_name || 'Kollektion');
-        inner.appendChild(cat);
 
-        var title = document.createElement('div');
+        // Zeile 1: Edle Serif-Ueberschrift + Preis-Badge ("ab 29,90 €")
+        var row1 = document.createElement('div');
+        row1.className = 'sf-lobby-prod-row1';
+
+        var title = document.createElement('h4');
         title.className = 'sf-lobby-prod-title';
         title.textContent = sanitizeText(prod.name || 'Unikat');
-        inner.appendChild(title);
+        row1.appendChild(title);
 
         var rawPrice = sanitizeText(prod.price_formatted || '');
-        var priceStr = (prod.is_personalizable && rawPrice && !/^ab\s/i.test(rawPrice)) ? ('ab ' + rawPrice) : rawPrice;
-        var price = document.createElement('div');
-        price.className = 'sf-lobby-prod-price';
-        price.textContent = priceStr;
-        inner.appendChild(price);
+        if (rawPrice) {
+            var priceStr = (prod.is_personalizable && !/^ab\s/i.test(rawPrice)) ? ('ab ' + rawPrice) : rawPrice;
+            var priceBadge = document.createElement('span');
+            priceBadge.className = 'sf-lobby-prod-price-badge';
+            priceBadge.textContent = priceStr;
+            row1.appendChild(priceBadge);
+        }
+        inner.appendChild(row1);
 
-        var benefits = Array.isArray(prod.benefits) ? prod.benefits.slice(0, 3) : [];
-        if (benefits.length > 0) {
-            var list = document.createElement('div');
-            list.className = 'sf-lobby-prod-benefits';
-            for (var b = 0; b < benefits.length; b++) {
-                var row = document.createElement('div');
-                row.className = 'sf-lobby-prod-benefit-row';
-                var chk = document.createElement('span');
-                chk.className = 'sf-lobby-prod-check';
-                chk.textContent = '✓';
-                var txt = document.createElement('span');
-                txt.textContent = sanitizeText(benefits[b]);
-                row.appendChild(chk);
-                row.appendChild(txt);
-                list.appendChild(row);
-            }
-            inner.appendChild(list);
+        // Zeile 2: Maximal 1 bis 2 kurze Zeilen Kern-Info (line-clamp: 2, 0 Aufzaehlungs-Overload!)
+        var rawSummary = sanitizeText(prod.short_description || '');
+        if (!rawSummary && Array.isArray(prod.benefits) && prod.benefits.length > 0) {
+            rawSummary = sanitizeText(prod.benefits.slice(0, 2).join(' · '));
+        }
+        if (rawSummary) {
+            var summary = document.createElement('p');
+            summary.className = 'sf-lobby-prod-summary';
+            summary.textContent = rawSummary;
+            inner.appendChild(summary);
         }
 
+        // Edler goldener Hauptbutton + ~680 ms Kamera- & Elfenbein-Gold-Uebergangssequenz
         var link = document.createElement('a');
         link.href = prod.product_url || '/shop';
         link.className = 'sf-lobby-prod-cta';
-        link.textContent = (prod.is_personalizable ? 'Jetzt gestalten' : 'Zum Produkt') + ' →';
+        link.textContent = prod.is_personalizable ? 'Jetzt gestalten' : 'Zum Produkt';
+        link.addEventListener('click', function (ev) {
+            ev.preventDefault();
+            self._startProductTransition(prod);
+        });
         inner.appendChild(link);
 
         if (this.products.length > 1) {
@@ -1646,8 +1769,8 @@
 
             var curLbl = document.createElement('button');
             curLbl.type = 'button';
-            curLbl.style.cssText = 'appearance:none;border:none;background:transparent;font-size:10px;font-weight:800;color:#6B7280;cursor:pointer;';
-            curLbl.textContent = 'Exponat ' + (this.activeIndex + 1) + '/' + this.products.length;
+            curLbl.style.cssText = 'appearance:none;border:none;background:transparent;font-size:10.5px;font-weight:800;color:#6B7280;cursor:pointer;';
+            curLbl.textContent = (this.activeIndex + 1) + '/' + this.products.length;
             curLbl.addEventListener('click', function () {
                 var f = getFacade(self);
                 if (f && self.products.length > 0) f.focusExhibit(self.activeIndex, false);
@@ -1724,6 +1847,9 @@
         var facade = getFacade(this);
 
         if (z === 'heroes') {
+            if (facade && typeof facade.refreshHeroesData === 'function') {
+                facade.refreshHeroesData(false);
+            }
             if (this.lobbyAuth && this.sanctumGateState.canEnter && !this.soloMode && (this._activeSyncZone !== 'heroes' || !this._syncTimer)) {
                 this._activeSyncZone = 'heroes';
                 this._joinLobby();
@@ -2244,9 +2370,7 @@
                         self._renderLavaChestCard();
                     },
                     onSelectProduct: function (prod) {
-                        if (prod && prod.product_url) {
-                            window.location.href = prod.product_url;
-                        }
+                        self._startProductTransition(prod);
                     }
                 });
                 setFacade(self, createdFacade);
@@ -2290,6 +2414,16 @@
         this.masterKeyModalOpen = false;
         this.listeningKeyAction = '';
         this.peers = [];
+
+        if (this._productTransitionTimer) {
+            clearTimeout(this._productTransitionTimer);
+            this._productTransitionTimer = null;
+        }
+        this._productTransitioning = false;
+        if (this.modalEl) {
+            var ivoryEl = this.modalEl.querySelector('[data-lobby-ivory-transition]');
+            if (ivoryEl) ivoryEl.classList.remove('is-fading');
+        }
 
         if (this._audioUnsub) {
             this._audioUnsub();

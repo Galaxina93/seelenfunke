@@ -508,7 +508,7 @@ class Customer3DLobbyInstancesTest extends TestCase
         $this->assertMatchesRegularExpression('/^Funki #[0-9A-F]{4}$/', $anonPeer['display_name']);
         $this->assertMatchesRegularExpression('/^[0-9a-f]{12}$/', $anonPeer['peer_id']);
 
-        // 3. Erweiterter /funkenwerk-welt/heroes-data Vertrag inkl. ship_class, titles_count, sparks_total & Zero-PII
+        // 3. Erweiterter /funkenwerk-welt/heroes-data Vertrag inkl. ship_class, titles_count, sparks_total, hero_score & Zero-PII
         Auth::guard('admin')->logout();
         Auth::forgetGuards();
 
@@ -516,7 +516,7 @@ class Customer3DLobbyInstancesTest extends TestCase
         $heroesResp->assertOk()
             ->assertJsonPath('ok', true)
             ->assertJsonPath('success', true)
-            ->assertJsonPath('total_heroes', 1)
+            ->assertJsonPath('total_heroes', 2)
             ->assertJsonPath('heroes.0.slot', 1)
             ->assertJsonPath('heroes.0.occupied', true)
             ->assertJsonPath('heroes.0.display_name', 'GoldenerPhönix')
@@ -524,8 +524,15 @@ class Customer3DLobbyInstancesTest extends TestCase
             ->assertJsonPath('heroes.0.ship_class', 'KLASSE S')
             ->assertJsonPath('heroes.0.sparks_total', 4250)
             ->assertJsonPath('heroes.0.sparks_formatted', '4.250')
+            ->assertJsonPath('heroes.0.hero_score', 4250)
             ->assertJsonPath('heroes.1.slot', 2)
-            ->assertJsonPath('heroes.1.occupied', false);
+            ->assertJsonPath('heroes.1.occupied', true)
+            ->assertJsonPath('heroes.1.display_name', 'Funken-Hüter #2')
+            ->assertJsonPath('heroes.1.level', 2)
+            ->assertJsonPath('heroes.1.hero_score', 180)
+            ->assertJsonPath('heroes.2.slot', 3)
+            ->assertJsonPath('heroes.2.occupied', false)
+            ->assertJsonPath('heroes.2.model_url', null);
 
         $this->assertGreaterThanOrEqual(9, (int) $heroesResp->json('heroes.0.titles_count'));
         $this->assertCount(10, $heroesResp->json('heroes'));
@@ -536,6 +543,21 @@ class Customer3DLobbyInstancesTest extends TestCase
             'StrengVertraulichRechnung',
             'GeheimerNachnameZwei',
             'Sabine',
+            (string) $optInHero->id,
+            (string) $privateCustomer->id,
+        ]);
+
+        // Schaut $privateCustomer selbst hinein ($isMe === true), sieht sie auf ihrem Podest #2 ihren eigenen Vornamen "Sabine" (ohne Nachnamen/E-Mail)
+        $selfPrivateResp = $this->actingAs($privateCustomer, 'customer')->getJson('/funkenwerk-welt/heroes-data');
+        $selfPrivateResp->assertOk()
+            ->assertJsonPath('my_hero_slot', 2)
+            ->assertJsonPath('heroes.1.is_me', true)
+            ->assertJsonPath('heroes.1.display_name', 'Sabine');
+        $this->assertZeroPiiAndZeroAiDashes($selfPrivateResp->getContent(), [
+            'leon.privat@geheim-domain.de',
+            'sabine.rechnung@privat.de',
+            'StrengVertraulichRechnung',
+            'GeheimerNachnameZwei',
             (string) $optInHero->id,
             (string) $privateCustomer->id,
         ]);

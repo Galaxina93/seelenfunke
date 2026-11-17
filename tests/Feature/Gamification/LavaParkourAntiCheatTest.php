@@ -328,10 +328,28 @@ class LavaParkourAntiCheatTest extends TestCase
             $runningTotal += $expectedAward;
             $rep->assertOk()
                 ->assertJsonPath('is_first_clear', false)
+                ->assertJsonPath('already_claimed_today', false)
+                ->assertJsonPath('claimed_today', true)
+                ->assertJsonPath('chest_locked_today', true)
                 ->assertJsonPath('sparks_awarded', $expectedAward)
                 ->assertJsonPath('daily_sparks_cap', 30);
         }
         $this->assertSame(255, $runningTotal);
+
+        // Punkt 5a Bugfix-Beweis: Obwohl bei Stufe 3 das Tages-Cap (30) bereits voll war (sparks_awarded = 0),
+        // ist Truhe 3 fuer heute fest in daily_claimed_levels gesperrt und kann am selben Tag NICHT nochmals geoeffnet werden!
+        $secondAttemptOnCapFullChest = $this->performRelativeRunAndClaim($customer, 3);
+        $secondAttemptOnCapFullChest->assertOk()
+            ->assertJsonPath('already_claimed_today', true)
+            ->assertJsonPath('claimed_today', true)
+            ->assertJsonPath('chest_locked_today', true)
+            ->assertJsonPath('sparks_awarded', 0)
+            ->assertJsonPath('message', 'Diese Truhe wurde heute bereits geöffnet. Morgen ab 00:00 Uhr ist sie wieder bereit!');
+
+        $showroomAfterCap = $this->actingAs($customer, 'customer')->getJson('/shop/showroom-data')->assertOk();
+        $this->assertSame([3, 4, 5, 6, 7, 8, 9, 10], $showroomAfterCap->json('lava_parkour.daily_claimed_levels'));
+        $this->assertTrue($showroomAfterCap->json('lava_parkour.levels.2.claimed_today'));
+        $this->assertFalse($showroomAfterCap->json('lava_parkour.levels.0.claimed_today'));
 
         // Vollstaendiger Widerruf der einzigen qualifizierenden Bestellung entzieht den Meisterschluessel wieder!
         OrderRevocation::create([
@@ -372,6 +390,8 @@ class LavaParkourAntiCheatTest extends TestCase
             ->assertJsonPath('sparks_awarded', 0)
             ->assertJsonPath('is_first_clear', false)
             ->assertJsonPath('already_claimed_today', true)
+            ->assertJsonPath('chest_locked_today', true)
+            ->assertJsonPath('message', 'Diese Truhe wurde heute bereits geöffnet. Morgen ab 00:00 Uhr ist sie wieder bereit!')
             ->assertJsonPath('funken_balance', 15);
 
         // Naechster Tag nach Berliner Mitternacht (2026-11-18 00:05 Europe/Berlin): Taegliche Wiederholungs-Truhe Level 1 = +2 Funken
@@ -922,6 +942,57 @@ class LavaParkourAntiCheatTest extends TestCase
             ->assertJsonPath('success', true)
             ->assertJsonPath('sparks_awarded', 5)
             ->assertJsonPath('funken_balance', 10);
+    }
+
+    public function test_elevated_pillar_and_updraft_jump_heights_at_checkpoints_succeed_while_chest_coords_stay_exact(): void
+    {
+        $jumper = $this->makeActiveCustomer(15, 0, 50, 1);
+
+        $start = $this->actingAs($jumper, 'customer')
+            ->postJson('/funkenwerk-welt/lava-parkour/start', ['level' => 1])
+            ->assertOk();
+        $runId = (string) $start->json('run_id');
+
+        $this->travel(1500)->milliseconds();
+        $this->actingAs($jumper, 'customer')
+            ->postJson('/funkenwerk-welt/lava-parkour/checkpoint', [
+                'run_id' => $runId,
+                'level' => 1,
+                'stage' => 1,
+                'rel_x' => 19.5,
+                'rel_y' => 12.8,
+                'rel_z' => 0.0,
+            ])
+            ->assertOk()
+            ->assertJsonPath('stage', 1);
+
+        $this->travel(1600)->milliseconds();
+        $cp2 = $this->actingAs($jumper, 'customer')
+            ->postJson('/funkenwerk-welt/lava-parkour/checkpoint', [
+                'run_id' => $runId,
+                'level' => 1,
+                'stage' => 2,
+                'rel_x' => 39.0,
+                'rel_y' => 13.6,
+                'rel_z' => 0.0,
+            ])
+            ->assertOk()
+            ->assertJsonPath('stage', 2);
+
+        $this->travel(1500)->milliseconds();
+        $this->actingAs($jumper, 'customer')
+            ->postJson('/funkenwerk-welt/lava-parkour/claim', [
+                'run_id' => $runId,
+                'level' => 1,
+                'claim_token' => $cp2->json('claim_token'),
+                'rel_x' => LavaParkourService::REL_CHEST_X,
+                'rel_y' => LavaParkourService::REL_CHEST_Y,
+                'rel_z' => LavaParkourService::REL_CHEST_Z,
+            ])
+            ->assertOk()
+            ->assertJsonPath('sparks_awarded', 5)
+            ->assertJsonPath('hero_score', 70)
+            ->assertJsonPath('magma_prestige_points', 15);
     }
 
     private function performValidRunAndClaim(Customer $customer): \Illuminate\Testing\TestResponse

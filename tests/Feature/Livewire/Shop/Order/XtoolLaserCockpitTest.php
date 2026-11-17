@@ -1614,4 +1614,70 @@ class XtoolLaserCockpitTest extends TestCase
         $this->assertSame('Messing gebürstet', $afterSaveToProduct['material']);
         $this->assertSame(14.5, $afterSaveToProduct['focus_mm']);
     }
+
+    #[Test]
+    public function cockpit_renders_100_to_400_percent_zoom_bar_navigator_minimap_and_zoom_invariant_blue_frame_geometry(): void
+    {
+        Storage::fake('local');
+        $admin = $this->createAdmin();
+        $product = $this->createPersonalizableLaserProduct();
+        [$order, $item] = $this->createSampleOrderWithItem($product);
+
+        $component = Livewire::actingAs($admin, 'admin')
+            ->test(OrderOverview::class)
+            ->call('openDetail', $order->id)
+            ->call('updateLaserCoordinates', $item->id, 124.5, 76.0, 4.5, 28.0, 28.0)
+            ->assertSet('laserCenterXMm', 124.5)
+            ->assertSet('laserCenterYMm', 76.0)
+            ->assertSet('laserAngleDeg', 4.5);
+
+        $html = $component->html();
+
+        // 1. Schlanke Zoom-Steuerleiste (100 % bis 400 %) direkt oberhalb des Kamerabetts + Mobile-Safety (flex-1 min-w-0, max-w-[460px])
+        $this->assertStringContainsString('data-cockpit-zoom-bar', $html);
+        $this->assertStringContainsString('data-cockpit-zoom-out', $html);
+        $this->assertStringContainsString('data-cockpit-zoom-slider', $html);
+        $this->assertStringContainsString('data-cockpit-zoom-in', $html);
+        $this->assertStringContainsString('data-cockpit-zoom-reset', $html);
+        $this->assertStringContainsString('stepCockpitZoom(-0.25)', $html);
+        $this->assertStringContainsString('stepCockpitZoom(0.25)', $html);
+        $this->assertStringContainsString('setCockpitZoom($event.target.value)', $html);
+        $this->assertStringContainsString('resetCockpitZoom()', $html);
+        $this->assertMatchesRegularExpression('/data-cockpit-zoom-slider[^>]*min="1"[^>]*max="4"[^>]*step="0\.05"/s', $html);
+        $this->assertMatchesRegularExpression('/data-cockpit-zoom-slider[^>]*class="sf-laser-range flex-1 min-w-0"/s', $html);
+
+        $zoomBarPos = strpos($html, 'data-cockpit-zoom-bar');
+        $viewportPos = strpos($html, 'data-cockpit-bed-viewport');
+        $this->assertNotFalse($zoomBarPos);
+        $this->assertNotFalse($viewportPos);
+        $this->assertLessThan($viewportPos, $zoomBarPos, 'Zoom-Steuerleiste muss direkt oberhalb des Kamerabetts gerendert werden');
+
+        // 2. Automatischer Fokus auf den blauen Rahmen (frameCenterX / frameCenterY), Mausrad-Zoom, Pan & Eck-Minimap
+        $this->assertStringContainsString('get frameCenterX()', $html);
+        $this->assertStringContainsString('get frameCenterY()', $html);
+        $this->assertStringContainsString('this._zoomFocusX = this.frameCenterX;', $html);
+        $this->assertStringContainsString('this._zoomFocusY = this.frameCenterY;', $html);
+        $this->assertStringContainsString('handleCockpitWheel($event)', $html);
+        $this->assertStringContainsString("startDrag(\$event, cockpitZoom > 1.01 ? 'pan' : 'move')", $html);
+        $this->assertStringContainsString('data-cockpit-zoom-minimap', $html);
+        $this->assertStringContainsString('startMinimapDrag($event)', $html);
+        $this->assertStringContainsString('getCockpitMinimapViewportStyle()', $html);
+        $this->assertStringContainsString('getCockpitStageTransformStyle()', $html);
+        $this->assertStringContainsString('window.__sfLaserCockpitZoom', $html);
+
+        // 3. Exakte 1:1 Maus-Geometrie bei aktivem Zoom: ausschließlich getBoundingClientRect() auf bedStage/bedViewport, kein offsetWidth/clientWidth-Mix
+        $this->assertStringContainsString('data-cockpit-bed-stage', $html);
+        $this->assertStringContainsString('data-cockpit-blue-frame', $html);
+        $this->assertStringContainsString('this.$refs.bedStage.getBoundingClientRect()', $html);
+        $this->assertStringNotContainsString('offsetWidth', $html);
+        $this->assertStringNotContainsString('clientWidth', $html);
+        $this->assertStringNotContainsString('offsetHeight', $html);
+        $this->assertStringNotContainsString('clientHeight', $html);
+
+        // 4. Kompakte Dreh- und Eck-Anfasser via scale(1 / cockpitZoom) ohne Tailwind Doppel-Translation & 0 KI-Gedankenstriche
+        $this->assertStringContainsString('data-rotate-handle', $html);
+        $this->assertGreaterThanOrEqual(6, substr_count($html, '(1 / cockpitZoom).toFixed(4)'));
+        $this->assertDoesNotMatchRegularExpression('/data-resize-handle="nw"[^>]*-translate-x-1\/2/s', $html);
+        $this->assertStringNotContainsString(" \u{2013} ", $html);
+    }
 }

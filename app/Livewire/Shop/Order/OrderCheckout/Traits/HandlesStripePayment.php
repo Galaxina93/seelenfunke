@@ -48,20 +48,8 @@ trait HandlesStripePayment
             if ($stripeSecret) {
                 Stripe::setApiKey($stripeSecret);
 
-                // Metadaten vorbereiten
-                $metadata = [
-                    'cart_id' => $cart->id,
-                    'session_id' => Session::getId(),
-                    'customer_email' => $this->email,
-                    'shipping_country' => $targetCountry
-                ];
-
-                if (Session::has('checkout_from_quote_id')) {
-                    $activeQuote = OrderQuoteRequest::find(Session::get('checkout_from_quote_id'));
-                    if ($activeQuote && !empty($activeQuote->quote_number)) {
-                        $metadata['quote_number'] = (string) $activeQuote->quote_number;
-                    }
-                }
+                // Metadaten vorbereiten (inkl. Checkout-Flow und Umgebungs-Kennung gegen Multi-Env- und Race-Kollisionen)
+                $metadata = $this->buildStripePaymentIntentMetadata($cart, (string) $targetCountry);
 
                 $intentData = [
                     'amount' => $amount,
@@ -100,6 +88,38 @@ trait HandlesStripePayment
     }
 
     /**
+     * Baut nicht-sensitive Metadaten für Stripe PaymentIntents inkl. Checkout-Flow und Umgebungs-Zuordnung.
+     */
+    protected function buildStripePaymentIntentMetadata($cart, string $targetCountry): array
+    {
+        $metadata = [
+            'checkout_flow' => 'inline_payment_element',
+            'app_env' => (string) config('app.env', 'production'),
+            'app_url' => rtrim((string) config('app.url', ''), '/'),
+            'cart_id' => (string) $cart->id,
+            'session_id' => (string) Session::getId(),
+            'customer_email' => (string) ($this->email ?? ''),
+            'shipping_country' => $targetCountry,
+        ];
+
+        if (!empty($this->currentPaymentIntentId)) {
+            $existingOrderId = OrderOrder::where('stripe_payment_intent_id', $this->currentPaymentIntentId)->value('id');
+            if (!empty($existingOrderId)) {
+                $metadata['order_id'] = (string) $existingOrderId;
+            }
+        }
+
+        if (Session::has('checkout_from_quote_id')) {
+            $activeQuote = OrderQuoteRequest::find(Session::get('checkout_from_quote_id'));
+            if ($activeQuote && !empty($activeQuote->quote_number)) {
+                $metadata['quote_number'] = (string) $activeQuote->quote_number;
+            }
+        }
+
+        return $metadata;
+    }
+
+    /**
      * Synchronisiert den aktuellen Stripe PaymentIntent mit der aktuellen Gesamtsumme (z.B. nach Länderwechsel im Express Checkout)
      */
     public function syncPaymentIntentAmount(): ?string
@@ -112,7 +132,7 @@ trait HandlesStripePayment
      */
     public function handlePaymentSuccess($orderId = null)
     {
-        // 1. Die richtige Order finden – strikt an den aktuellen PaymentIntent der Session gebunden
+        // 1. Die richtige Order finden (strikt an den aktuellen PaymentIntent der Session gebunden)
         $order = null;
         if (!empty($this->currentPaymentIntentId)) {
             $order = OrderOrder::with('items.product')
