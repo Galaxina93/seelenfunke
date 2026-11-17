@@ -110,7 +110,11 @@ class SystemShopConfig extends Component
         'emergency_master_password',
         'season_auto_mode',
         'manual_active_season',
-        'manual_active_animation'
+        'manual_active_animation',
+        'google_tag_enabled',
+        'google_tag_id',
+        'google_ads_conversion_label',
+        'google_shopping_require_real_photos',
     ];
 
     public $infoTexts = [
@@ -174,7 +178,11 @@ class SystemShopConfig extends Component
         'emergency_contact_tax_advisor' => 'Name und Telefonnummer des Steuerberaters.',
         'emergency_contact_family' => 'Wichtigster familiärer Notfallkontakt.',
         'emergency_hardware_pins' => 'PINs für Smartphones/Laptops (oder Hinweis auf deren Verwahrort).',
-        'emergency_master_password' => 'Master-Passwort für den digitalen Zugang zum Todesfall-Protokoll (/notfall).'
+        'emergency_master_password' => 'Master-Passwort für den digitalen Zugang zum Todesfall-Protokoll (/notfall).',
+        'google_tag_enabled' => 'Aktiviert den Google Tag (gtag.js) im Shop-Frontend bei erteiltem Analytics-/Marketing-Consent.',
+        'google_tag_id' => 'Deine Google Tag / Google Ads ID (z. B. AW-123456789, G-..., GT-... oder GTM-...).',
+        'google_ads_conversion_label' => 'Optionales Google Ads Conversion-Label für abgeschlossene Bestellungen (Kauf-Ereignis).',
+        'google_shopping_require_real_photos' => 'Schließt Produkte ohne echte Produktfotos (nur KI-generierte Bilder) automatisch aus dem Google Shopping-Feed aus.',
     ];
 
     public $saved = false;
@@ -237,7 +245,7 @@ class SystemShopConfig extends Component
             $this->settings[$key] = $value;
         }
 
-        $boolKeys = ['is_small_business', 'prices_entered_gross', 'shop_is_live', 'shop_live_unlocked', 'digital_domain_is_live', 'maintenance_mode', 'showroom_multiplayer_enabled', 'skip_shipping_for_digital', 'send_order_email_to_admin', 'season_auto_mode'];
+        $boolKeys = ['is_small_business', 'prices_entered_gross', 'shop_is_live', 'shop_live_unlocked', 'digital_domain_is_live', 'maintenance_mode', 'showroom_multiplayer_enabled', 'skip_shipping_for_digital', 'send_order_email_to_admin', 'season_auto_mode', 'google_tag_enabled', 'google_shopping_require_real_photos'];
         foreach($boolKeys as $key) {
             $this->settings[$key] = filter_var($this->settings[$key], FILTER_VALIDATE_BOOLEAN);
         }
@@ -349,6 +357,10 @@ class SystemShopConfig extends Component
             'season_auto_mode' => true,
             'manual_active_season' => '',
             'manual_active_animation' => '',
+            'google_tag_enabled' => true,
+            'google_tag_id' => 'AW-18579999677',
+            'google_ads_conversion_label' => 'cZPCCMjkirodEL2X0ZtF',
+            'google_shopping_require_real_photos' => true,
         ];
         return $fallbacks[$key] ?? '';
     }
@@ -639,6 +651,14 @@ class SystemShopConfig extends Component
             $this->settings['company_country'] = strtoupper(trim((string) $this->settings['company_country']));
         }
 
+        if (array_key_exists('google_tag_id', $this->settings)) {
+            $this->settings['google_tag_id'] = strtoupper(trim((string) $this->settings['google_tag_id']));
+        }
+
+        if (array_key_exists('google_ads_conversion_label', $this->settings)) {
+            $this->settings['google_ads_conversion_label'] = trim((string) $this->settings['google_ads_conversion_label']);
+        }
+
         try {
             $this->validate([
                 'settings.default_tax_rate' => 'required|numeric|min:0|max:100',
@@ -667,6 +687,8 @@ class SystemShopConfig extends Component
                 'settings.emergency_contact_family' => 'nullable|string',
                 'settings.emergency_hardware_pins' => 'nullable|string',
                 'settings.emergency_master_password' => 'nullable|string',
+                'settings.google_tag_id' => ['nullable', 'string', 'max:32', 'regex:/^(?:(?:AW|G|GT|GTM)-[A-Z0-9]+)?$/i'],
+                'settings.google_ads_conversion_label' => ['nullable', 'string', 'max:64', 'regex:/^[A-Za-z0-9_-]*$/'],
             ], [], [
                 'settings.default_tax_rate' => 'Standard-Steuersatz',
                 'settings.reduced_tax_rate' => 'Ermäßigter Steuersatz',
@@ -687,6 +709,8 @@ class SystemShopConfig extends Component
                 'settings.herzensprojekt_cents_per_order' => 'Herzensprojekt Spendenbetrag',
                 'settings.stripe_fee_percent' => 'Stripe Gebühr (%)',
                 'settings.stripe_fee_fixed_cents' => 'Stripe Fixgebühr (€)',
+                'settings.google_tag_id' => 'Google Tag / Ads ID',
+                'settings.google_ads_conversion_label' => 'Conversion-Label (Kauf)',
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
             $firstKey = (string) collect($e->validator->errors()->keys())->first();
@@ -696,7 +720,8 @@ class SystemShopConfig extends Component
                 str_starts_with($firstKey, 'settings.shipping_'),
                 str_starts_with($firstKey, 'settings.express_'),
                 str_starts_with($firstKey, 'settings.packaging_') => 'shipping',
-                $firstKey === 'settings.inventory_low_stock_threshold' => 'products',
+                $firstKey === 'settings.inventory_low_stock_threshold',
+                str_starts_with($firstKey, 'settings.google_') => 'products',
                 str_starts_with($firstKey, 'settings.emergency_') => 'emergency',
                 default => 'general',
             };

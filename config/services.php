@@ -48,6 +48,8 @@ return [
 
         'places_key' => env('GOOGLE_PLACES_API_KEY'),
         'place_id' => env('GOOGLE_PLACE_ID'),
+        'tag_id' => env('GOOGLE_TAG_ID'),
+        'ads_conversion_label' => env('GOOGLE_ADS_CONVERSION_LABEL'),
     ],
 
     'mittwald' => [

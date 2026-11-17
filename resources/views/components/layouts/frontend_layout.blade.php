@@ -64,6 +64,10 @@
     $isLockedPublicFrontend = !\App\Http\Middleware\EnforceShopMaintenanceMode::isShopLive(request())
         && !\Illuminate\Support\Facades\Auth::guard('admin')->check();
 
+    $googleTagEnabled = filter_var(shop_setting('google_tag_enabled', 'false'), FILTER_VALIDATE_BOOLEAN);
+    $googleTagId = trim((string) (shop_setting('google_tag_id', '') ?: config('services.google.tag_id', '')));
+    $googleAdsConversionLabel = trim((string) (shop_setting('google_ads_conversion_label', '') ?: config('services.google.ads_conversion_label', '')));
+
     $defaultRobots = in_array($currentRouteName, $noindexRoutes, true)
         ? 'noindex, nofollow'
         : 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1';
@@ -232,6 +236,134 @@
     @endphp
     <link rel="preload" href="{{ asset('css/app.css') }}?v={{ $cssVersion }}" as="style">
     <link rel="stylesheet" href="{{ asset('css/app.css') }}?v={{ $cssVersion }}">
+
+    {{-- Google Consent Mode v2 & Google Tag / Ads Opt-In --}}
+    @if(!$isLockedPublicFrontend && $googleTagEnabled && $googleTagId !== '')
+        <script>
+            window.sfGoogleTagConfig = {
+                enabled: true,
+                tagId: @js($googleTagId),
+                conversionLabel: @js($googleAdsConversionLabel),
+                loaded: false
+            };
+            window.dataLayer = window.dataLayer || [];
+            window.gtag = window.gtag || function() {
+                window.dataLayer.push(arguments);
+            };
+
+            window.gtag('consent', 'default', {
+                ad_storage: 'denied',
+                ad_user_data: 'denied',
+                ad_personalization: 'denied',
+                analytics_storage: 'denied',
+                wait_for_update: 500
+            });
+            window.gtag('set', 'ads_data_redaction', true);
+
+            window.sfSyncGoogleConsent = function(cc) {
+                const cfg = window.sfGoogleTagConfig;
+                if (!cfg || !cfg.enabled || !cfg.tagId || !cc || typeof cc.acceptedCategory !== 'function') {
+                    return;
+                }
+
+                const marketingAccepted = Boolean(cc.acceptedCategory('marketing'));
+                const analyticsAccepted = Boolean(cc.acceptedCategory('analytics'));
+
+                window.gtag('consent', 'update', {
+                    ad_storage: marketingAccepted ? 'granted' : 'denied',
+                    ad_user_data: marketingAccepted ? 'granted' : 'denied',
+                    ad_personalization: marketingAccepted ? 'granted' : 'denied',
+                    analytics_storage: analyticsAccepted ? 'granted' : 'denied'
+                });
+
+                if (marketingAccepted && !cfg.loaded) {
+                    cfg.loaded = true;
+                    if (!document.getElementById('sf-google-tag-script')) {
+                        const script = document.createElement('script');
+                        script.id = 'sf-google-tag-script';
+                        script.async = true;
+                        script.src = 'https://www.googletagmanager.com/gtag/js?id=' + encodeURIComponent(cfg.tagId);
+                        document.head.appendChild(script);
+                    }
+                    window.gtag('js', new Date());
+                    window.gtag('config', cfg.tagId, { anonymize_ip: true });
+                }
+
+                if (marketingAccepted && window.sfPendingGoogleConversion) {
+                    const pendingPayload = window.sfPendingGoogleConversion;
+                    window.sfPendingGoogleConversion = null;
+                    window.sfTrackGooglePurchaseConversion(pendingPayload);
+                }
+            };
+
+            window.sfTrackGooglePurchaseConversion = function(payload) {
+                const cfg = window.sfGoogleTagConfig;
+                if (!cfg || !cfg.enabled || !cfg.tagId || !payload || !payload.transactionId || !(Number(payload.value) > 0)) {
+                    return;
+                }
+
+                const cc = window.CookieConsent;
+                const marketingAccepted = Boolean(cc && typeof cc.acceptedCategory === 'function' && cc.acceptedCategory('marketing'));
+                if (!marketingAccepted) {
+                    window.sfPendingGoogleConversion = payload;
+                    return;
+                }
+
+                if (!cfg.loaded) {
+                    window.sfPendingGoogleConversion = payload;
+                    window.sfSyncGoogleConsent(cc);
+                    return;
+                }
+
+                const txId = String(payload.transactionId);
+                const storageKey = 'sf_gtag_conv_' + txId;
+                try {
+                    if (window.sessionStorage && window.sessionStorage.getItem(storageKey)) {
+                        return;
+                    }
+                    if (window.sessionStorage) {
+                        window.sessionStorage.setItem(storageKey, '1');
+                    }
+                } catch (e) {}
+
+                const value = Number(payload.value);
+                const currency = payload.currency || 'EUR';
+
+                if (cfg.conversionLabel) {
+                    window.gtag('event', 'conversion', {
+                        send_to: cfg.tagId + '/' + cfg.conversionLabel,
+                        value: value,
+                        currency: currency,
+                        transaction_id: txId
+                    });
+                }
+
+                if (/^(G|GT)-/i.test(cfg.tagId)) {
+                    window.gtag('event', 'purchase', {
+                        transaction_id: txId,
+                        value: value,
+                        currency: currency
+                    });
+                }
+            };
+
+            if (window.CookieConsent && typeof window.CookieConsent.acceptedCategory === 'function') {
+                window.sfSyncGoogleConsent(window.CookieConsent);
+            }
+
+            document.addEventListener('livewire:navigated', function() {
+                if (window.CookieConsent && typeof window.CookieConsent.acceptedCategory === 'function') {
+                    window.sfSyncGoogleConsent(window.CookieConsent);
+                }
+            });
+        </script>
+    @else
+        <script>
+            window.sfGoogleTagConfig = window.sfGoogleTagConfig || { enabled: false, tagId: '', conversionLabel: '', loaded: false };
+            window.sfSyncGoogleConsent = window.sfSyncGoogleConsent || function() {};
+            window.sfTrackGooglePurchaseConversion = window.sfTrackGooglePurchaseConversion || function() {};
+        </script>
+    @endif
 
     <!-- cookieconsent -->
     @php

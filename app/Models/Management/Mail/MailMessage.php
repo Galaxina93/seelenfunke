@@ -14,8 +14,24 @@ use App\Support\Blueprint\Enums\LifecycleBehavior;
 use App\Support\Blueprint\Enums\RetentionPolicy;
 use App\Support\Blueprint\Enums\SystemDepartment;
 use App\Support\Blueprint\ModelBlueprint;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
+/**
+ * @property int $id
+ * @property int $mail_account_id
+ * @property string|null $message_id
+ * @property string $folder
+ * @property bool $is_archived
+ * @property bool $is_read
+ * @property bool $has_attachments
+ * @property-read MailAccount|null $account
+ * @property-read MailFolder|null $mailFolder
+ * @property-read EloquentCollection<int, MailAttachment> $attachments
+ */
 class MailMessage extends Model implements HasSystemBlueprint
 {
     
@@ -47,9 +63,20 @@ class MailMessage extends Model implements HasSystemBlueprint
         );
     }
 
-protected $guarded = [];
+    public const STANDARD_FOLDERS = [
+        'INBOX',
+        'Sent',
+        'Drafts',
+        'Junk',
+        'Trash',
+        'Archive',
+        'Processed',
+    ];
+
+    protected $guarded = [];
 
     protected $casts = [
+        'folder' => 'string',
         'is_read' => 'boolean',
         'is_archived' => 'boolean',
         'has_attachments' => 'boolean',
@@ -63,7 +90,20 @@ protected $guarded = [];
 
     public function toArray(): array
     {
+        $hadFolderRelation = $this->relationLoaded('folder');
+        $loadedFolderModel = $hadFolderRelation ? $this->getRelation('folder') : null;
+
         $array = parent::toArray();
+
+        if ($hadFolderRelation) {
+            $array['folder'] = $this->getAttributeValue('folder');
+            if (!array_key_exists('mail_folder', $array)) {
+                $array['mail_folder'] = $loadedFolderModel instanceof MailFolder
+                    ? $loadedFolderModel->toArray()
+                    : null;
+            }
+        }
+
         if (!empty($array['body_html'])) {
             $array['body_html'] = $this->safe_body_html;
         }
@@ -82,14 +122,145 @@ protected $guarded = [];
         });
     }
 
-    public function account()
+    public function account(): BelongsTo
     {
         return $this->belongsTo(MailAccount::class, 'mail_account_id');
     }
 
-    public function attachments()
+    public function attachments(): HasMany
     {
         return $this->hasMany(MailAttachment::class, 'mail_message_id');
+    }
+
+    /**
+     * Optionale Verknüpfung auf benutzerdefinierte IMAP-Ordner (kombiniert über mail_account_id + folder = name).
+     * Standard-Systemordner wie INBOX, Processed oder Archive besitzen keinen eigenen MailFolder-Datensatz und liefern null.
+     */
+    public function mailFolder(): BelongsTo
+    {
+        return $this->newCompositeMailFolderRelation('mailFolder');
+    }
+
+    /**
+     * Eloquent-kompatibler Relations-Alias auf mailFolder() für with('folder'), load('folder') und whereHas('folder').
+     * Der direkte Attributzugriff $message->folder sowie toArray()['folder'] bleiben durch $casts['folder'] = 'string'
+     * und den Serialisierungs-Schutz in toArray() jederzeit strikt der Ordner-String (z. B. 'INBOX', 'Processed').
+     */
+    public function folder(): BelongsTo
+    {
+        return $this->newCompositeMailFolderRelation('folder');
+    }
+
+    protected function newCompositeMailFolderRelation(string $relationName): BelongsTo
+    {
+        $instance = $this->newRelatedInstance(MailFolder::class);
+
+        return new class($instance->newQuery(), $this, 'folder', 'name', $relationName) extends BelongsTo {
+            public function getResults()
+            {
+                if (
+                    is_null($this->child->getAttributeValue($this->foreignKey))
+                    || is_null($this->child->getAttributeValue('mail_account_id'))
+                ) {
+                    return $this->getDefaultFor($this->parent);
+                }
+
+                return $this->query->first() ?: $this->getDefaultFor($this->parent);
+            }
+
+            public function addConstraints(): void
+            {
+                if (static::$constraints) {
+                    $this->query->where(
+                        $this->getQualifiedOwnerKeyName(),
+                        '=',
+                        $this->child->getAttributeValue($this->foreignKey)
+                    );
+                    $this->query->where(
+                        $this->related->qualifyColumn('mail_account_id'),
+                        '=',
+                        $this->child->getAttributeValue('mail_account_id')
+                    );
+                }
+            }
+
+            public function addEagerConstraints(array $models): void
+            {
+                parent::addEagerConstraints($models);
+
+                $accountIds = [];
+                foreach ($models as $model) {
+                    $accId = $model instanceof MailMessage
+                        ? $model->getAttributeValue('mail_account_id')
+                        : $model->getAttribute('mail_account_id');
+                    if ($accId !== null) {
+                        $accountIds[] = (int) $accId;
+                    }
+                }
+
+                if ($accountIds !== []) {
+                    $this->query->whereIn(
+                        $this->related->qualifyColumn('mail_account_id'),
+                        array_values(array_unique($accountIds))
+                    );
+                }
+            }
+
+            public function match(array $models, EloquentCollection $results, $relation): array
+            {
+                $dictionary = [];
+
+                foreach ($results as $result) {
+                    $accId = $result->getAttribute('mail_account_id');
+                    $name = $result->getAttribute($this->ownerKey);
+                    if ($accId !== null && $name !== null && $name !== '') {
+                        $dictionary[(int) $accId . '|' . (string) $name] = $result;
+                    }
+                }
+
+                foreach ($models as $model) {
+                    $accId = $model instanceof MailMessage
+                        ? $model->getAttributeValue('mail_account_id')
+                        : $model->getAttribute('mail_account_id');
+                    $folderName = $model instanceof MailMessage
+                        ? $model->getAttributeValue($this->foreignKey)
+                        : $model->getAttribute($this->foreignKey);
+
+                    $key = ($accId !== null && $folderName !== null && $folderName !== '')
+                        ? ((int) $accId . '|' . (string) $folderName)
+                        : null;
+
+                    $matched = ($key !== null && isset($dictionary[$key]))
+                        ? $dictionary[$key]
+                        : $this->getDefaultFor($model);
+
+                    $model->setRelation($relation, $matched);
+                    if ($relation === 'folder') {
+                        $model->setRelation('mailFolder', $matched);
+                    }
+                }
+
+                return $models;
+            }
+
+            public function getRelationExistenceQuery(Builder $query, Builder $parentQuery, $columns = ['*']): Builder
+            {
+                $query = parent::getRelationExistenceQuery($query, $parentQuery, $columns);
+
+                return $query->whereColumn(
+                    $this->child->qualifyColumn('mail_account_id'),
+                    '=',
+                    $query->qualifyColumn('mail_account_id')
+                );
+            }
+
+            protected function getForeignKeyFrom(Model $model): mixed
+            {
+                return $model instanceof MailMessage
+                    ? $model->getAttributeValue($this->foreignKey)
+                    : parent::getForeignKeyFrom($model);
+            }
+        };
     }
 
     public function getSafeBodyHtmlAttribute()

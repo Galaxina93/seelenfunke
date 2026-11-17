@@ -108,7 +108,7 @@
                     <h3 class="font-bold text-lg mt-4">Cookies & lokaler Web Storage (§ 25 TDDDG)</h3>
                     <p>
                         Unsere Internetseiten verwenden sogenannte „Cookies“ sowie lokalen Browser-Speicher (Web Storage / LocalStorage). Cookies sind kleine Textdateien und richten auf Ihrem Endgerät keinen Schaden an.
-                        Wir setzen technisch notwendige bzw. funktionale Speicherungen ein (§ 25 Abs. 2 Nr. 2 TDDDG i.V.m. Art. 6 Abs. 1 lit. b &amp; f DSGVO) sowie – ausschließlich nach Ihrer ausdrücklichen Einwilligung über unser Consent-Tool – optionale Statistik- und Komfort-Funktionen (§ 25 Abs. 1 TDDDG i.V.m. Art. 6 Abs. 1 lit. a DSGVO).
+                        Wir setzen technisch notwendige bzw. funktionale Speicherungen ein (§ 25 Abs. 2 Nr. 2 TDDDG i.V.m. Art. 6 Abs. 1 lit. b &amp; f DSGVO) sowie, ausschließlich nach Ihrer ausdrücklichen Einwilligung über unser Consent-Tool, optionale Statistik-, Komfort- und Marketing-Funktionen (§ 25 Abs. 1 TDDDG i.V.m. Art. 6 Abs. 1 lit. a DSGVO).
                     </p>
                     <p class="mt-3 font-semibold text-gray-900">
                         Technisch notwendige & funktionale Cookies / Web-Storage-Einträge (§ 25 Abs. 2 Nr. 2 TDDDG):
@@ -140,6 +140,17 @@
                     </p>
                     <p class="mt-2 text-sm text-gray-500">
                         <strong>Rechtsgrundlage:</strong> Die Verarbeitung für optionale Statistik- und Komfort-Funktionen (insbesondere die Aktivierung der Google Maps Places API im Checkout sowie weitergehende Interaktionsstatistiken) erfolgt auf Grundlage Ihrer ausdrücklichen Einwilligung gemäß Art. 6 Abs. 1 lit. a DSGVO i.V.m. § 25 Abs. 1 TDDDG. Die rein serverseitige, anonymisierte Basis-Reichweitenmessung ohne Cookies erfolgt auf Grundlage unseres berechtigten Interesses gemäß Art. 6 Abs. 1 lit. f DSGVO.
+                    </p>
+
+                    <h3 class="font-bold text-lg mt-6">Marketing &amp; Google Ads Conversion-Messung (Kategorie <code>marketing</code>)</h3>
+                    <p>
+                        Sofern Sie im Cookie-Banner ausdrücklich in die optionale Kategorie <strong>„Marketing &amp; Google Ads Erfolgsmessung“</strong> (<code>marketing</code>) einwilligen, aktivieren wir das Google Tag für das Google Ads Conversion-Tracking (Google Ireland Limited). Damit können wir nachvollziehen, ob ein Besuch über eine unserer Anzeigen zu einer Bestellung geführt hat, und unsere Werbeanzeigen zielgerichtet ohne unnötige Streuverluste steuern.
+                    </p>
+                    <p class="mt-2">
+                        Bis zur Erteilung Ihrer aktiven Einwilligung (sowie bei Ablehnung) bleiben sämtliche Werbe- und Speicher-Signale im Rahmen des <strong>Google Consent Mode v2</strong> deaktiviert (<code>denied</code>) und es werden keinerlei externe Google-Marketing-Skripte in Ihrem Browser geladen.
+                    </p>
+                    <p class="mt-2 text-sm text-gray-500">
+                        <strong>Rechtsgrundlage &amp; Widerruf:</strong> Rechtsgrundlage ist Ihre ausdrückliche Einwilligung gemäß § 25 Abs. 1 TDDDG i.V.m. Art. 6 Abs. 1 lit. a DSGVO. Sie können Ihre Einwilligung jederzeit mit Wirkung für die Zukunft über das Cookie-Symbol am Bildschirmrand oder den Link „Cookie-Einstellungen“ im Footer widerrufen (weitere Details unter Ziffer 8).
                     </p>
 
                     <h3 class="font-bold text-lg mt-6">Kontaktformular & E-Mail / Telefon</h3>
@@ -364,6 +375,20 @@
                         <strong>2. Google Places API für Kundenbewertungen (serverseitiger Cache ohne Drittanbieter-Verbindung im Browser):</strong> Zur Darstellung verifizierter Google-Rezensionen unseres Unternehmens rufen wir diese über unseren eigenen Webserver periodisch über die Google Places API ab und speichern sie lokal zwischen (Server-Side Caching). Beim Besuch unserer Website durch Sie werden <strong>keine externen Google-Assets, Skripte oder Profilbilder/Avatare von Google-Servern in Ihrem Browser nachgeladen</strong>, sodass hierbei keinerlei Verbindungsdaten oder IP-Adressen unserer Website-Besucher an Google übermittelt werden.
                         <br>
                         <span class="text-sm text-gray-500">Rechtsgrundlage: Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse an einer datenschutzfreundlichen Darstellung authentischer Kundenreferenzen). Weitere Informationen zum Datenschutz bei Google finden Sie unter: <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline">https://policies.google.com/privacy</a></span>
+                    </p>
+
+                    <h3 class="font-bold text-lg mt-6">Google Tag &amp; Google Ads Conversion-Tracking (nur nach Opt-In-Einwilligung)</h3>
+                    <p>
+                        Anbieter dieses Dienstes ist die <strong>Google Ireland Limited</strong>, Gordon House, Barrow Street, Dublin 4, Irland (Muttergesellschaft: <strong>Google LLC</strong>, 1600 Amphitheatre Parkway, Mountain View, CA 94043, USA; zertifiziert nach dem <strong>EU-US Data Privacy Framework</strong>).
+                    </p>
+                    <p class="mt-2">
+                        Wir nutzen das Google Tag mit integriertem <strong>Google Consent Mode v2</strong> zur anonymisierten Erfolgsmessung unserer Google Ads Kampagnen (Conversion-Tracking). Standardmäßig sind vor Ihrer Entscheidung im Cookie-Banner alle entsprechenden Einwilligungs-Signale (<code>ad_storage</code>, <code>ad_user_data</code>, <code>ad_personalization</code>, <code>analytics_storage</code>) auf <code>denied</code> gesetzt und das Google-Skript (<code>googletagmanager.com</code>) wird nicht geladen. <strong>Ohne Ihre ausdrückliche Einwilligung findet keinerlei Datenübertragung an Google statt.</strong>
+                    </p>
+                    <p class="mt-2">
+                        Erst wenn Sie im Cookie-Banner aktiv der Kategorie <em>„Marketing &amp; Google Ads Erfolgsmessung“</em> (<code>marketing</code>) zustimmen, wird das Google Tag nachgeladen. Sofern Sie über eine Google-Anzeige auf unseren Shop gelangt sind und eine Bestellung abschließen, wird ein Conversion-Signal (inklusive Bestellwert, Währung und Transaktions-ID zur Vermeidung von Doppelzählungen) übermittelt, damit wir die Wirksamkeit unserer Anzeigen statistisch auswerten können.
+                    </p>
+                    <p class="mt-2 text-sm text-gray-500">
+                        <strong>Rechtsgrundlage &amp; Widerrufsrecht:</strong> Die Verarbeitung erfolgt ausschließlich auf Grundlage Ihrer ausdrücklichen Einwilligung gemäß § 25 Abs. 1 TDDDG i.V.m. Art. 6 Abs. 1 lit. a DSGVO. Sie können diese Einwilligung jederzeit mit Wirkung für die Zukunft über unser Cookie-Banner (Symbol am Bildschirmrand oder Link „Cookie-Einstellungen“ im Footer) widerrufen. Weitere Informationen zum Datenschutz bei Google finden Sie unter: <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline">https://policies.google.com/privacy</a>
                     </p>
                 </div>
 

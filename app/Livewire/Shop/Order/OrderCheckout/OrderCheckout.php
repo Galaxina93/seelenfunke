@@ -124,6 +124,8 @@ class OrderCheckout extends Component
     public $finalOrderId = '';
     #[Locked]
     public $finalOrderNumber = '';
+    #[\Livewire\Attributes\Locked]
+    public float $conversionTotalEur = 0.0;
     #[Locked]
     public $referralCode = '';
     #[Locked]

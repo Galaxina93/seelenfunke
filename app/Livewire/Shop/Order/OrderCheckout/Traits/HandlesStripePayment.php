@@ -238,6 +238,7 @@ trait HandlesStripePayment
 
         $this->finalOrderId = (string) $order->id;
         $this->finalOrderNumber = $order->order_number;
+        $this->conversionTotalEur = round(((int) $order->total_price) / 100, 2);
         $this->email = $order->email ?: $this->email;
         $this->instantDownloads = empty($isAsyncProcessing)
             ? ($order->fresh(['items.product'])?->getInstantDownloads() ?? [])
@@ -293,6 +294,11 @@ trait HandlesStripePayment
         }
 
         $this->dispatch('cart-updated');
-        $this->dispatch('payment-processed');
+        $this->dispatch(
+            'payment-processed',
+            transactionId: $order->order_number,
+            value: $this->conversionTotalEur,
+            currency: 'EUR'
+        );
     }
 }

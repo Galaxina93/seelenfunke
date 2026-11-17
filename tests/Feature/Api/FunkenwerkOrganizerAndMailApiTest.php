@@ -5,9 +5,11 @@ namespace Tests\Feature\Api;
 use App\Models\Admin\Admin;
 use App\Models\Management\Mail\MailAccount;
 use App\Models\Management\Mail\MailAttachment;
+use App\Models\Management\Mail\MailFolder;
 use App\Models\Management\Mail\MailMessage;
 use App\Models\Management\ManagementCalendarEvent;
 use App\Models\Management\ManagementTask;
+use App\Services\AI\Functions\AiMailFuncs;
 use App\Services\System\SystemSecurityService;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -427,5 +429,157 @@ class FunkenwerkOrganizerAndMailApiTest extends TestCase
         } finally {
             SystemSecurityService::$dnsResolver = null;
         }
+    }
+
+    public function test_mail_message_folder_relations_preserve_string_attribute_and_multi_account_isolation(): void
+    {
+        $admin = Admin::factory()->create();
+        $token = $admin->createToken('organizer-admin-folder-test', ['*'])->plainTextToken;
+        $headers = ['Authorization' => 'Bearer ' . $token];
+
+        // Unpersisted MailMessage must never treat ->folder as a lazy relation lookup
+        $unsaved = new MailMessage();
+        $this->assertNull($unsaved->folder);
+
+        $accountA = MailAccount::create([
+            'name' => 'Hauptpostfach',
+            'email' => 'kontakt@mein-seelenfunke.de',
+            'imap_host' => 'mail.agenturserver.de',
+            'imap_port' => 993,
+            'imap_encryption' => 'ssl',
+            'smtp_host' => 'mail.agenturserver.de',
+            'smtp_port' => 465,
+            'smtp_encryption' => 'ssl',
+            'password' => 'SecretA!',
+        ]);
+
+        $accountB = MailAccount::create([
+            'name' => 'Zweitpostfach',
+            'email' => 'info@mein-seelenfunke.de',
+            'imap_host' => 'mail.agenturserver.de',
+            'imap_port' => 993,
+            'imap_encryption' => 'ssl',
+            'smtp_host' => 'mail.agenturserver.de',
+            'smtp_port' => 465,
+            'smtp_encryption' => 'ssl',
+            'password' => 'SecretB!',
+        ]);
+
+        $folderA = MailFolder::create([
+            'mail_account_id' => $accountA->id,
+            'name' => 'Rechnungen',
+        ]);
+
+        $folderB = MailFolder::create([
+            'mail_account_id' => $accountB->id,
+            'name' => 'Rechnungen',
+        ]);
+
+        $msgProcessed = MailMessage::create([
+            'mail_account_id' => $accountA->id,
+            'message_id' => 'msg-processed-1',
+            'folder' => 'Processed',
+            'subject' => 'Wichtige Kundenfrage',
+            'from_email' => 'kunde@example.com',
+            'to_email' => $accountA->email,
+            'received_at' => now(),
+        ]);
+
+        $msgCustomA = MailMessage::create([
+            'mail_account_id' => $accountA->id,
+            'message_id' => 'msg-custom-a',
+            'folder' => 'Rechnungen',
+            'subject' => 'Rechnung A',
+            'from_email' => 'lieferant@example.com',
+            'to_email' => $accountA->email,
+            'received_at' => now(),
+        ]);
+
+        $msgCustomB = MailMessage::create([
+            'mail_account_id' => $accountB->id,
+            'message_id' => 'msg-custom-b',
+            'folder' => 'Rechnungen',
+            'subject' => 'Rechnung B',
+            'from_email' => 'lieferant@example.com',
+            'to_email' => $accountB->email,
+            'received_at' => now(),
+        ]);
+
+        // Exact regression check: MailMessage::with('folder')->get() and with(['account', 'folder', 'attachments'])
+        $eagerLoaded = MailMessage::with(['account', 'folder', 'attachments'])
+            ->orderBy('id')
+            ->get()
+            ->keyBy('id');
+
+        $loadedProcessed = $eagerLoaded->get($msgProcessed->id);
+        $this->assertNotNull($loadedProcessed);
+        $this->assertSame('Processed', $loadedProcessed->folder);
+        $this->assertNull($loadedProcessed->mailFolder);
+        $this->assertNull($loadedProcessed->getRelation('folder'));
+        $processedArray = $loadedProcessed->toArray();
+        $this->assertSame('Processed', $processedArray['folder']);
+        $this->assertNull($processedArray['mail_folder']);
+
+        $loadedCustomA = $eagerLoaded->get($msgCustomA->id);
+        $loadedCustomB = $eagerLoaded->get($msgCustomB->id);
+        $this->assertSame('Rechnungen', $loadedCustomA->folder);
+        $this->assertSame('Rechnungen', $loadedCustomB->folder);
+        $this->assertSame($folderA->id, $loadedCustomA->mailFolder?->id);
+        $this->assertSame($folderB->id, $loadedCustomB->mailFolder?->id);
+        $this->assertSame('Rechnungen', $loadedCustomA->toArray()['folder']);
+        $this->assertSame($folderA->id, $loadedCustomA->toArray()['mail_folder']['id'] ?? null);
+        $this->assertSame($folderB->id, $loadedCustomB->toArray()['mail_folder']['id'] ?? null);
+
+        // Lazy relation & whereHas scoping across accounts
+        $this->assertSame($folderB->id, MailMessage::findOrFail($msgCustomB->id)->mailFolder?->id);
+        $this->assertSame(
+            [$msgCustomA->id],
+            MailMessage::whereHas('folder', fn ($q) => $q->whereKey($folderA->id))->pluck('id')->all()
+        );
+        $this->assertSame(
+            [$msgCustomB->id],
+            MailMessage::whereHas('mailFolder', fn ($q) => $q->whereKey($folderB->id))->pluck('id')->all()
+        );
+
+        // Inverse MailFolder::messages() composite scoping
+        $foldersWithMessages = MailFolder::with('messages')->whereIn('id', [$folderA->id, $folderB->id])->get()->keyBy('id');
+        $this->assertSame([$msgCustomA->id], $foldersWithMessages->get($folderA->id)->messages->pluck('id')->all());
+        $this->assertSame([$msgCustomB->id], $foldersWithMessages->get($folderB->id)->messages->pluck('id')->all());
+        $this->assertSame([$msgCustomA->id], $folderA->messages()->pluck('id')->all());
+
+        // Funkenwerk Windows & Android JSON contract: folder MUST be a string
+        $listJson = $this->withHeaders($headers)
+            ->getJson('/api/funki/emails/messages?folder=Processed')
+            ->assertStatus(200);
+        $this->assertSame('Processed', $listJson->json('data.data.0.folder'));
+
+        $detailJson = $this->withHeaders($headers)
+            ->getJson("/api/funki/emails/messages/{$msgCustomA->id}")
+            ->assertStatus(200);
+        $this->assertSame('Rechnungen', $detailJson->json('data.folder'));
+
+        // AiMailFuncs standard vs custom folder handling
+        $this->actingAs($admin, 'admin');
+        $aiCaller = new class {
+            use AiMailFuncs;
+        };
+
+        $aiCaller::executeMailBulkUpdate([
+            'updates' => [
+                ['email_id' => $msgCustomA->id, 'target_folder' => 'Processed'],
+            ],
+        ]);
+        $this->assertDatabaseMissing('mail_folders', ['name' => 'Processed']);
+        $this->assertSame('Processed', $msgCustomA->fresh()->folder);
+
+        $aiCaller::executeMoveEmail([
+            'email_id' => $msgCustomA->id,
+            'target_folder' => 'Steuerbelege',
+        ]);
+        $this->assertDatabaseHas('mail_folders', [
+            'mail_account_id' => $accountA->id,
+            'name' => 'Steuerbelege',
+        ]);
+        $this->assertSame('Steuerbelege', $msgCustomA->fresh()->folder);
     }
 }

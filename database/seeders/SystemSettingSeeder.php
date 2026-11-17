@@ -117,6 +117,12 @@ class SystemSettingSeeder extends Seeder
             'herzensprojekt_mode'                => 'per_item',
             'marketing_autopilot_offers_enabled' => 'true',
 
+            // Google Tag, Google Ads & Shopping-Feed
+            'google_tag_enabled'                 => 'true',
+            'google_tag_id'                      => 'AW-18579999677',
+            'google_ads_conversion_label'        => 'cZPCCMjkirodEL2X0ZtF',
+            'google_shopping_require_real_photos' => 'true',
+
             // Produktions-Kapazitäten
             'shop_daily_working_hours'  => '7',
             'shop_minutes_per_order'    => '10',
@@ -126,9 +132,19 @@ class SystemSettingSeeder extends Seeder
             'active_countries'          => json_encode($countries),
         ];
 
-        // 3. Daten in die Datenbank schreiben (shop_is_live, shop_live_unlocked und maintenance_mode per firstOrCreate schützen, damit aktive Live-Einstellungen niemals überschrieben werden)
+        // 3. Daten in die Datenbank schreiben (shop_is_live, shop_live_unlocked, maintenance_mode sowie Google-Tag-Einstellungen per firstOrCreate schützen, damit aktive Einstellungen niemals überschrieben werden)
+        $protectedFirstOrCreateKeys = [
+            'shop_is_live',
+            'shop_live_unlocked',
+            'maintenance_mode',
+            'google_tag_enabled',
+            'google_tag_id',
+            'google_ads_conversion_label',
+            'google_shopping_require_real_photos',
+        ];
+
         foreach ($settings as $key => $value) {
-            if (in_array($key, ['shop_is_live', 'shop_live_unlocked', 'maintenance_mode'], true)) {
+            if (in_array($key, $protectedFirstOrCreateKeys, true)) {
                 SystemSetting::firstOrCreate(
                     ['key' => $key],
                     ['value' => $value]

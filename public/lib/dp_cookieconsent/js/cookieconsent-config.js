@@ -22,7 +22,23 @@ CookieConsent.run({
         necessary: {
             readOnly: true
         },
-        analytics: {}
+        analytics: {},
+        marketing: {}
+    },
+    onFirstConsent: function () {
+        if (typeof window.sfSyncGoogleConsent === 'function') {
+            window.sfSyncGoogleConsent(CookieConsent);
+        }
+    },
+    onConsent: function () {
+        if (typeof window.sfSyncGoogleConsent === 'function') {
+            window.sfSyncGoogleConsent(CookieConsent);
+        }
+    },
+    onChange: function () {
+        if (typeof window.sfSyncGoogleConsent === 'function') {
+            window.sfSyncGoogleConsent(CookieConsent);
+        }
     },
     language: {
         default: "de",
@@ -32,7 +48,7 @@ CookieConsent.run({
                 consentModal: {
                     title: "Hand aufs Herz: Auch wir müssen kurz über Cookies sprechen 🍪✨",
                     description:
-                        '<span style="display:block;margin-bottom:8px;">Leider können wir dir durch den Bildschirm keine frisch gebackenen Kekse aus unserer Manufaktur reichen (und mit dem Laser lassen sich Schokodrops auch echt schlecht gravieren). Stattdessen nutzen wir digitale Cookies, um unsere Seite und deinen Konfigurator noch schöner zu machen.</span><span style="display:block;margin-bottom:6px;">Einige sind technisch notwendig, damit dein Warenkorb dein Unikat nicht vergisst. Optionale Cookies helfen uns mit anonymen Statistiken und Komfort-Extras (wie der automatischen Adress-Vervollständigung im Checkout). Geht das für dich klar?</span><button type="button" data-cc="show-preferencesModal" class="cc__link">Ich will mehr wissen.</button>',
+                        '<span style="display:block;margin-bottom:8px;">Leider können wir dir durch den Bildschirm keine frisch gebackenen Kekse aus unserer Manufaktur reichen (und mit dem Laser lassen sich Schokodrops auch echt schlecht gravieren). Stattdessen nutzen wir digitale Cookies, um unsere Seite und deinen Konfigurator noch schöner zu machen.</span><span style="display:block;margin-bottom:6px;">Einige sind technisch notwendig, damit dein Warenkorb dein Unikat nicht vergisst. Optionale Cookies helfen uns mit anonymen Statistiken, Komfort-Extras (wie der automatischen Adress-Vervollständigung im Checkout) sowie optionaler Marketing-Messung für eine anonyme Erfolgsmessung unserer Anzeigen. Geht das für dich klar?</span><button type="button" data-cc="show-preferencesModal" class="cc__link">Ich will mehr wissen.</button>',
                     acceptAllBtn: "Geht klar! (Alle akzeptieren)",
                     acceptNecessaryBtn: "Nur Notwendige",
                     showPreferencesBtn: "Einstellungen",
@@ -49,7 +65,7 @@ CookieConsent.run({
                         {
                             title: "Warum wir überhaupt fragen (Klartext statt Juristen-Kauderwelsch)",
                             description:
-                                "Wir gravieren lieber persönliche Herzensstücke, als dich mit trockenen Textwüsten zu langweilen – aber deine Privatsphäre ist uns heilig. Hier entscheidest du selbst, welche Kategorien du erlaubst. Deine Einwilligung (§ 25 Abs. 1 TDDDG / Art. 6 Abs. 1 lit. a DSGVO) ist freiwillig und jederzeit über das Cookie-Symbol am Bildschirmrand oder im Footer widerrufbar."
+                                "Wir gravieren lieber persönliche Herzensstücke, als dich mit trockenen Textwüsten zu langweilen, aber deine Privatsphäre ist uns heilig. Hier entscheidest du selbst, welche Kategorien du erlaubst. Deine Einwilligung (§ 25 Abs. 1 TDDDG / Art. 6 Abs. 1 lit. a DSGVO) ist freiwillig und jederzeit über das Cookie-Symbol am Bildschirmrand oder im Footer widerrufbar."
                         },
                         {
                             title: "Unbedingt erforderliche Cookies <span class='pm__badge'>Immer aktiv</span>",
@@ -62,6 +78,12 @@ CookieConsent.run({
                             description:
                                 "Wenn du uns hier grünes Licht gibst (§ 25 Abs. 1 TDDDG i.V.m. Art. 6 Abs. 1 lit. a DSGVO), machst du dir und uns das Leben leichter: Wir aktivieren im Checkout die Google Maps Places API (Google Ireland Limited), damit sich deine Lieferadresse beim Tippen fast wie von Zauberhand vervollständigt, und erfassen anonymisierte Interaktionsstatistiken, um zu verstehen, welche Unikate und Funktionen euch am meisten begeistern.",
                             linkedCategory: "analytics"
+                        },
+                        {
+                            title: "Marketing & Google Ads Erfolgsmessung",
+                            description:
+                                "Nur wenn du diese Kategorie aktivierst (§ 25 Abs. 1 TDDDG i.V.m. Art. 6 Abs. 1 lit. a DSGVO), laden wir das Google Tag für das Google Ads Conversion-Tracking (Google Ireland Limited) inklusive Google Consent Mode v2, um den Erfolg unserer Anzeigen anonymisiert zu messen. Ohne deine Einwilligung bleiben alle Werbe- und Speicher-Signale auf denied und es werden keinerlei Google-Marketing-Skripte geladen.",
+                            linkedCategory: "marketing"
                         },
                         {
                             title: "Noch Fragen offen?",

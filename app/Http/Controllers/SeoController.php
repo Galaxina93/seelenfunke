@@ -436,6 +436,7 @@ class SeoController extends Controller
         $shippingCostCents = (int) shop_setting('shipping_cost', 490);
         $freeThresholdCents = (int) shop_setting('shipping_free_threshold', 5000);
         $defaultTareGrams = (int) shop_setting('packaging_weight_envelope_grams', 30);
+        $requireRealPhotos = filter_var(shop_setting('google_shopping_require_real_photos', 'true'), FILTER_VALIDATE_BOOLEAN);
 
         $products = Schema::hasTable('products')
             ? Product::where('status', 'active')->with('categories')->orderBy('name')->get()
@@ -445,19 +446,28 @@ class SeoController extends Controller
         $xml[] = '<?xml version="1.0" encoding="UTF-8"?>';
         $xml[] = '<rss version="2.0" xmlns:g="http://base.google.com/ns/1.0">';
         $xml[] = '  <channel>';
-        $xml[] = '    <title>' . e($companyName . ' – Produktfeed (Personalisierte Geschenke & Lasergravur)') . '</title>';
+        $xml[] = '    <title>' . e(str_replace(' – ', ', ', $companyName . ' | Produktfeed (Personalisierte Geschenke & Lasergravur)')) . '</title>';
         $xml[] = '    <link>' . e(url('/')) . '</link>';
         $xml[] = '    <description>' . e('Handveredelte Unikate mit hochpräziser Lasergravur und Live-3D-Konfigurator aus der Manufaktur ' . $companyName . ' in ' . $city . '.') . '</description>';
 
         foreach ($products as $product) {
+            $mainMeta = $product->resolveMainImageMeta(null, false);
+            if ($requireRealPhotos && (empty($mainMeta['url']) || !empty($mainMeta['is_ai_generated']))) {
+                continue;
+            }
+
             $id = $product->sku ?: ('MSF-' . strtoupper(substr((string) $product->id, 0, 8)));
             $link = route('product.show', $product->slug);
-            $mainImg = $product->resolveMainImageUrl(null, false)
-                ?: ($product->resolveMainImageUrl() ?: asset('shop/projekt/logo/mein-seelenfunke-logo.png'));
+            $mainImg = !empty($mainMeta['url'])
+                ? $mainMeta['url']
+                : ($product->resolveMainImageUrl() ?: asset('shop/projekt/logo/mein-seelenfunke-logo.png'));
 
             $additionalImages = [];
             foreach ($product->media_gallery ?? [] as $media) {
                 if (!is_array($media) || ($media['type'] ?? 'image') !== 'image' || empty($media['path'])) {
+                    continue;
+                }
+                if ($requireRealPhotos && filter_var($media['is_ai_generated'] ?? false, FILTER_VALIDATE_BOOLEAN) === true) {
                     continue;
                 }
                 $u = ProductTemplate::resolveImageUrl($media['path']);
@@ -482,10 +492,11 @@ class SeoController extends Controller
             $catString = $product->categories->isNotEmpty()
                 ? $product->categories->pluck('name')->implode(' > ')
                 : 'Personalisierte Geschenke > Lasergravur';
+            $feedTitle = str_replace(' – ', ', ', $product->name . ' | Personalisiert mit Lasergravur');
 
             $xml[] = '    <item>';
             $xml[] = '      <g:id>' . e($id) . '</g:id>';
-            $xml[] = '      <g:title>' . e(Str::limit($product->name . ' – Personalisiert mit Lasergravur', 150)) . '</g:title>';
+            $xml[] = '      <g:title>' . e(Str::limit($feedTitle, 150)) . '</g:title>';
             $xml[] = '      <g:description>' . e(Str::limit($desc, 4500)) . '</g:description>';
             $xml[] = '      <g:link>' . e($link) . '</g:link>';
             $xml[] = '      <g:image_link>' . e($mainImg) . '</g:image_link>';

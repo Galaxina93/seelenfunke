@@ -8,17 +8,38 @@
 @endphp
 
 <div data-already-finished="{{ $alreadyFinished ? '1' : '0' }}"
+     data-order-number="{{ $finalOrderNumber ?? '' }}"
+     data-conversion-value="{{ number_format((float) ($conversionTotalEur ?? 0), 2, '.', '') }}"
      x-data="{
         isActive: false,
         phase: 0,
         showSuccessDetails: false,
         _magicRaf: null,
         _revealTimer: null,
+        _conversionTracked: false,
         magicStartedAt: 0,
+        trackPurchaseConversion(detail = null) {
+            if (this._conversionTracked) return;
+            const transactionId = detail?.transactionId || this.$el?.dataset?.orderNumber || '';
+            const rawValue = detail?.value ?? this.$el?.dataset?.conversionValue ?? 0;
+            const value = Number(rawValue);
+            const currency = detail?.currency || 'EUR';
+            if (transactionId && Number.isFinite(value) && value > 0) {
+                this._conversionTracked = true;
+                if (typeof window.sfTrackGooglePurchaseConversion === 'function') {
+                    window.sfTrackGooglePurchaseConversion({
+                        transactionId: String(transactionId),
+                        value: value,
+                        currency: currency
+                    });
+                }
+            }
+        },
         initStage() {
             if (this.$el.dataset.alreadyFinished === '1') {
                 this.isActive = true;
                 this.phase = 1;
+                this.trackPurchaseConversion();
                 window.scrollTo({ top: 0, behavior: 'instant' });
                 document.body.style.overflow = 'hidden';
                 this.$nextTick(() => {
@@ -60,7 +81,8 @@
                 this._magicRaf = null;
             }
         },
-        revealSuccessDetails() {
+        revealSuccessDetails(detail = null) {
+            this.trackPurchaseConversion(detail);
             this.isActive = true;
             document.body.style.overflow = 'hidden';
             if (!this._magicRaf) {
@@ -143,7 +165,7 @@
      x-init="initStage()"
      @checkout-processing.window="startCheckoutMagic()"
      @checkout-processing-done.window="stopCheckoutMagic()"
-     @payment-processed.window="revealSuccessDetails()"
+     @payment-processed.window="revealSuccessDetails($event.detail)"
      x-show="isActive"
      x-cloak
      class="checkout-success-container fixed inset-0 z-[9999] overflow-y-auto overflow-x-hidden bg-[#fdf8ed]/95 backdrop-blur-md transition-opacity duration-300"

@@ -547,13 +547,15 @@ function makeBakedAoShadowTexture() {
   return tex;
 }
 
-// Monumental Stark-Tower Style "MEIN SEELENFUNKE" 24K-Gold Facade Plaque Texture
+// Monumental Stark-Tower Style "MEIN SEELENFUNKE" 24K-Gold Facade Plaque Texture (POT 2048x512)
 function makeMeinSeelenfunkePlaqueTexture() {
   const W = 2048, H = 384;
   const c = document.createElement('canvas');
-  c.width = W;
-  c.height = H;
+  c.width = 2048;
+  c.height = 512;
   const ctx = c.getContext('2d');
+  ctx.save();
+  ctx.scale(1.0, 512 / 384);
 
   // Matte obsidian architectural backing plate
   const bg = ctx.createLinearGradient(0, 0, 0, H);
@@ -563,18 +565,18 @@ function makeMeinSeelenfunkePlaqueTexture() {
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, W, H);
 
-  // Double 24K Gold Architectural Bezel Frame
+  // Double 24K Gold Architectural Bezel Frame (anti-shimmer stroke widths)
   ctx.strokeStyle = '#C5A059';
-  ctx.lineWidth = 10;
+  ctx.lineWidth = 11;
   ctx.strokeRect(14, 14, W - 28, H - 28);
-  ctx.strokeStyle = 'rgba(253, 230, 138, 0.55)';
-  ctx.lineWidth = 3;
-  ctx.strokeRect(30, 30, W - 60, H - 60);
+  ctx.strokeStyle = 'rgba(243, 213, 135, 0.50)';
+  ctx.lineWidth = 5.5;
+  ctx.strokeRect(31, 31, W - 62, H - 62);
 
   // Subtle vertical brushed-obsidian ribs behind lettering
-  ctx.fillStyle = 'rgba(197, 160, 89, 0.06)';
+  ctx.fillStyle = 'rgba(197, 160, 89, 0.05)';
   for (let x = 48; x < W - 48; x += 32) {
-    ctx.fillRect(x, 36, 2, H - 72);
+    ctx.fillRect(x, 38, 4, H - 76);
   }
 
   // Sculpted 3D-extruded shadow under letters
@@ -598,21 +600,24 @@ function makeMeinSeelenfunkePlaqueTexture() {
   ctx.fillStyle = tg;
   ctx.fillText('MEIN SEELENFUNKE', W * 0.5, H * 0.52);
 
-  ctx.lineWidth = 2.2;
-  ctx.strokeStyle = '#FFFBEB';
+  ctx.lineWidth = 2.6;
+  ctx.strokeStyle = 'rgba(255, 251, 235, 0.72)';
   ctx.strokeText('MEIN SEELENFUNKE', W * 0.5, H * 0.52);
 
-  return configureHdTex(new THREE.CanvasTexture(c), 4);
+  ctx.restore();
+  return configureHdTex(new THREE.CanvasTexture(c), MAX_ANISO);
 }
 
 
-// High-Resolution Engraved 24K-Gold Throne Backrest Plaque Generator
+// High-Resolution Engraved 24K-Gold Throne Backrest Plaque Generator (POT 2048x1024)
 function makeThroneEngravingTexture(mainTitle, subTitle, isPrimary = true) {
   const W = 1536, H = 768;
   const c = document.createElement('canvas');
-  c.width = W;
-  c.height = H;
+  c.width = 2048;
+  c.height = 1024;
   const ctx = c.getContext('2d');
+  ctx.save();
+  ctx.scale(2048 / 1536, 1024 / 768);
 
   // Deep brushed obsidian-onyx inlay tablet
   const bg = ctx.createRadialGradient(W * 0.5, H * 0.45, 40, W * 0.5, H * 0.5, W * 0.62);
@@ -622,13 +627,13 @@ function makeThroneEngravingTexture(mainTitle, subTitle, isPrimary = true) {
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, W, H);
 
-  // Ornate 24K Gold Royal Border
+  // Ornate 24K Gold Royal Border (broadened inner line to eliminate subpixel shimmer)
   ctx.strokeStyle = '#C5A059';
-  ctx.lineWidth = 14;
+  ctx.lineWidth = 15;
   ctx.strokeRect(24, 24, W - 48, H - 48);
-  ctx.strokeStyle = '#FDE68A';
-  ctx.lineWidth = 3.5;
-  ctx.strokeRect(46, 46, W - 92, H - 92);
+  ctx.strokeStyle = 'rgba(243, 213, 135, 0.58)';
+  ctx.lineWidth = 6.5;
+  ctx.strokeRect(48, 48, W - 96, H - 96);
 
   // Corner diamonds
   const drawStar = (cx, cy, r) => {
@@ -657,35 +662,43 @@ function makeThroneEngravingTexture(mainTitle, subTitle, isPrimary = true) {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
-  // Primary Sovereign Name ("ALINA" or "FALCON")
+  // Primary Sovereign Name ("ALINA" or "FALCONE")
   ctx.font = isPrimary
     ? '900 168px "Liberation Serif", "Georgia", "Liberation Sans", serif'
     : '900 124px "Liberation Sans", "Segoe UI", sans-serif';
   ctx.fillStyle = 'rgba(0,0,0,0.9)';
-  ctx.fillText(mainTitle, W * 0.5 + 4, H * 0.43 + 5);
+  ctx.fillText(mainTitle, W * 0.5 + 4, H * 0.42 + 5);
   ctx.fillStyle = goldGrad;
-  ctx.fillText(mainTitle, W * 0.5, H * 0.43);
+  ctx.fillText(mainTitle, W * 0.5, H * 0.42);
 
-  // Fine gold divider rule
-  ctx.fillStyle = '#C5A059';
-  ctx.fillRect(W * 0.20, H * 0.60, W * 0.60, 3.5);
+  // Vertically feathered matte-gold divider ribbon (zero horizontal temporal flicker)
+  const ruleY = H * 0.60;
+  const ruleV = ctx.createLinearGradient(0, ruleY - 9, 0, ruleY + 9);
+  ruleV.addColorStop(0.0, 'rgba(197, 160, 89, 0.0)');
+  ruleV.addColorStop(0.28, 'rgba(197, 160, 89, 0.40)');
+  ruleV.addColorStop(0.50, 'rgba(236, 204, 128, 0.92)');
+  ruleV.addColorStop(0.72, 'rgba(197, 160, 89, 0.40)');
+  ruleV.addColorStop(1.0, 'rgba(197, 160, 89, 0.0)');
+  ctx.fillStyle = ruleV;
+  ctx.fillRect(W * 0.20, ruleY - 9, W * 0.60, 18);
 
-  // Royal Title ("Herrscherin über das Seelenfunken-Universum" / "FALCON · Rechte Hand & Mitgründer")
+  // Royal Title ("Herrscherin über das Seelenfunken-Universum" / "FALCONE · Rechte Hand & Mitgründer")
   ctx.font = isPrimary
     ? '700 54px "Liberation Sans", "Segoe UI", sans-serif'
     : '700 48px "Liberation Sans", "Segoe UI", sans-serif';
   ctx.fillStyle = 'rgba(0,0,0,0.9)';
-  ctx.fillText(subTitle, W * 0.5 + 3, H * 0.74 + 4);
+  ctx.fillText(subTitle, W * 0.5 + 3, H * 0.75 + 4);
   ctx.fillStyle = '#FDE68A';
-  ctx.fillText(subTitle, W * 0.5, H * 0.74);
+  ctx.fillText(subTitle, W * 0.5, H * 0.75);
 
-  return configureHdTex(new THREE.CanvasTexture(c), 4);
+  ctx.restore();
+  return configureHdTex(new THREE.CanvasTexture(c), MAX_ANISO);
 }
 
 
-// Falcone's Armored Suit Chest Emblem ("FALCONE · Mitgründer")
+// Falcone's Armored Suit Chest Emblem ("FALCONE · Mitgründer", POT 1024x512)
 function makeFalconArmorChestTexture() {
-  const W = 512, H = 256;
+  const W = 1024, H = 512;
   const c = document.createElement('canvas');
   c.width = W;
   c.height = H;
@@ -695,23 +708,31 @@ function makeFalconArmorChestTexture() {
   ctx.fillRect(0, 0, W, H);
 
   ctx.strokeStyle = '#D4AF37';
-  ctx.lineWidth = 8;
-  ctx.strokeRect(10, 10, W - 20, H - 20);
+  ctx.lineWidth = 16;
+  ctx.strokeRect(20, 20, W - 40, H - 40);
 
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillStyle = '#FDE68A';
-  ctx.font = '900 64px "Liberation Sans", "Segoe UI", sans-serif';
-  ctx.fillText('FALCONE', W * 0.5, H * 0.40, W - 44);
+  ctx.font = '900 128px "Liberation Sans", "Segoe UI", sans-serif';
+  ctx.fillText('FALCONE', W * 0.5, H * 0.37, W - 88);
 
-  ctx.fillStyle = '#C5A059';
-  ctx.fillRect(W * 0.20, H * 0.60, W * 0.60, 3);
+  // Vertically feathered matte-gold divider band between FALCONE and Mitgründer
+  const ruleY = H * 0.58;
+  const ruleV = ctx.createLinearGradient(0, ruleY - 10, 0, ruleY + 10);
+  ruleV.addColorStop(0.0, 'rgba(197, 160, 89, 0.0)');
+  ruleV.addColorStop(0.28, 'rgba(197, 160, 89, 0.42)');
+  ruleV.addColorStop(0.50, 'rgba(238, 206, 130, 0.94)');
+  ruleV.addColorStop(0.72, 'rgba(197, 160, 89, 0.42)');
+  ruleV.addColorStop(1.0, 'rgba(197, 160, 89, 0.0)');
+  ctx.fillStyle = ruleV;
+  ctx.fillRect(W * 0.18, ruleY - 10, W * 0.64, 20);
 
-  ctx.fillStyle = '#FFF6D6';
-  ctx.font = '700 35px "Liberation Sans", "Segoe UI", sans-serif';
-  ctx.fillText('FALCONE · Mitgründer', W * 0.5, H * 0.77, W - 44);
+  ctx.fillStyle = '#F3D587';
+  ctx.font = '700 72px "Liberation Sans", "Segoe UI", sans-serif';
+  ctx.fillText('Mitgründer', W * 0.5, H * 0.78, W - 88);
 
-  return configureHdTex(new THREE.CanvasTexture(c), 4);
+  return configureHdTex(new THREE.CanvasTexture(c), MAX_ANISO);
 }
 
 
@@ -933,7 +954,7 @@ class FunkenwerkCityEngine {
     this.renderer.toneMappingExposure = 1.10;
     this.renderer.setClearColor(0x02040a, 1);
 
-    MAX_ANISO = Math.min(8, this.renderer.capabilities.getMaxAnisotropy() || 4);
+    MAX_ANISO = Math.min(16, this.renderer.capabilities.getMaxAnisotropy() || 8);
 
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(46, window.innerWidth / Math.max(1, window.innerHeight), 0.25, 26000);
@@ -2382,22 +2403,22 @@ class FunkenwerkCityEngine {
       this.supertowerGroup.add(strut);
     }
 
-    // High-Resolution Monumental "MEIN SEELENFUNKE" Gold Facade Signage (Front +Z & Back -Z with polygonOffset!)
+    // High-Resolution Monumental "MEIN SEELENFUNKE" Gold Facade Signage (Front +Z & Back -Z with physical clearance + polygonOffset!)
     const signTex = makeMeinSeelenfunkePlaqueTexture();
     const signMat = new THREE.MeshBasicMaterial({
       map: signTex,
       polygonOffset: true,
-      polygonOffsetFactor: -2,
-      polygonOffsetUnits: -4
+      polygonOffsetFactor: -3,
+      polygonOffsetUnits: -6
     });
     const signGeo = new THREE.PlaneGeometry(42.5, 8.0);
 
     const frontSign = new THREE.Mesh(signGeo, signMat);
-    frontSign.position.set(0, 238.5, 18.55);
+    frontSign.position.set(0, 238.5, 18.72);
     this.supertowerGroup.add(frontSign);
 
     const backSign = new THREE.Mesh(signGeo, signMat);
-    backSign.position.set(0, 238.5, -14.15);
+    backSign.position.set(0, 238.5, -14.32);
     backSign.rotation.y = Math.PI;
     this.supertowerGroup.add(backSign);
 
@@ -2612,14 +2633,19 @@ class FunkenwerkCityEngine {
       true
     );
     const alinaPlaqueFrame = new THREE.Mesh(new RoundedBoxGeometry(1.50, 0.82, 0.06, 2, 0.02), this.mats.goldBright);
-    alinaPlaqueFrame.position.set(0, 2.28, -0.31);
+    alinaPlaqueFrame.position.set(0, 2.28, -0.295);
     alinaThrone.add(alinaPlaqueFrame);
 
     const alinaPlaqueFace = new THREE.Mesh(
       new THREE.PlaneGeometry(1.44, 0.76),
-      new THREE.MeshBasicMaterial({ map: alinaPlaqueTex })
+      new THREE.MeshBasicMaterial({
+        map: alinaPlaqueTex,
+        polygonOffset: true,
+        polygonOffsetFactor: -3,
+        polygonOffsetUnits: -3
+      })
     );
-    alinaPlaqueFace.position.set(0, 2.28, -0.275);
+    alinaPlaqueFace.position.set(0, 2.28, -0.252);
     alinaThrone.add(alinaPlaqueFace);
 
     // ========================================================================
@@ -2671,14 +2697,19 @@ class FunkenwerkCityEngine {
       false
     );
     const ftPlaqueFrame = new THREE.Mesh(new RoundedBoxGeometry(1.12, 0.60, 0.05, 2, 0.02), this.mats.goldBright);
-    ftPlaqueFrame.position.set(0, 1.84, -0.25);
+    ftPlaqueFrame.position.set(0, 1.84, -0.238);
     falconThrone.add(ftPlaqueFrame);
 
     const ftPlaqueFace = new THREE.Mesh(
       new THREE.PlaneGeometry(1.06, 0.54),
-      new THREE.MeshBasicMaterial({ map: falconPlaqueTex })
+      new THREE.MeshBasicMaterial({
+        map: falconPlaqueTex,
+        polygonOffset: true,
+        polygonOffsetFactor: -3,
+        polygonOffsetUnits: -3
+      })
     );
-    ftPlaqueFace.position.set(0, 1.84, -0.22);
+    ftPlaqueFace.position.set(0, 1.84, -0.200);
     falconThrone.add(ftPlaqueFace);
 
     // ========================================================================
@@ -2753,9 +2784,14 @@ class FunkenwerkCityEngine {
     const armorChestTex = makeFalconArmorChestTexture();
     const chestPlate = new THREE.Mesh(
       new THREE.PlaneGeometry(0.32, 0.16),
-      new THREE.MeshBasicMaterial({ map: armorChestTex })
+      new THREE.MeshBasicMaterial({
+        map: armorChestTex,
+        polygonOffset: true,
+        polygonOffsetFactor: -3,
+        polygonOffsetUnits: -3
+      })
     );
-    chestPlate.position.set(0, 0.28, 0.136);
+    chestPlate.position.set(0, 0.25, 0.152);
     this.falconChestGroup.add(chestPlate);
 
     // Arms: Left Arm Poised Behind Back / At Side, Right Hand Resting on a 24K-Gold Gentleman Cane!
@@ -2932,8 +2968,8 @@ class FunkenwerkCityEngine {
     let newNear;
     let newFar;
     if (camDist < 48.0) {
-      newNear = 0.15;
-      newFar = 4200;
+      newNear = 0.25;
+      newFar = 2800;
     } else if (camDist <= 1400.0) {
       newNear = clamp(camDist * 0.018, 0.8, 22.0);
       newFar = 9600;

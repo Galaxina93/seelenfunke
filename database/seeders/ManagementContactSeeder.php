@@ -355,6 +355,21 @@ class ManagementContactSeeder extends Seeder
                 'city' => 'Gifhorn',
                 'country' => 'Deutschland',
                 'system_instructions' => 'WICHTIGE FAKTEN: Gemeinschaftspraxis Staudt in Gifhorn, Spezialisierung auf Hautheilkunde.',
+            ],
+            [
+                'first_name' => 'Finanzamt',
+                'last_name' => 'Gifhorn',
+                'nickname' => 'Finanzamt Gifhorn (Poststelle)',
+                'relation_type' => 'Behörde / Finanzamt',
+                'avatar_path' => null,
+                'birthday' => null,
+                'email' => 'poststelle@fa-gf.niedersachsen.de',
+                'phone' => '05371 800-0',
+                'street' => 'Braunschweiger Straße 6-8',
+                'postal_code' => '38518',
+                'city' => 'Gifhorn',
+                'country' => 'Deutschland',
+                'system_instructions' => 'WICHTIGE FAKTEN: Zuständiges Finanzamt für Mein-Seelenfunke (Bundesfinanzamtsnummer 2319). Bei E-Mails an die Poststelle zwingend vollständigen Namen, Anschrift, Geburtsdatum (01.09.1993) sowie Steuer-ID (66324780911) bzw. ELSTER-Transferticket angeben, da E-Mails ohne Zuordnungskriterium gelöscht werden.',
             ]
         ];
 

@@ -858,11 +858,11 @@ function makeWallCrestTexture(textTop, textSub) {
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, 512, 128);
     ctx.strokeStyle = '#C5A059';
-    ctx.lineWidth = 4;
+    ctx.lineWidth = 4.5;
     ctx.strokeRect(6, 6, 500, 116);
-    ctx.strokeStyle = 'rgba(247, 222, 156, 0.45)';
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(12, 12, 488, 104);
+    ctx.strokeStyle = 'rgba(243, 213, 135, 0.48)';
+    ctx.lineWidth = 3.0;
+    ctx.strokeRect(13, 13, 486, 102);
     ctx.textAlign = 'center';
     ctx.fillStyle = '#F7DF9C';
     ctx.font = '800 27px Georgia, serif';
@@ -871,17 +871,17 @@ function makeWallCrestTexture(textTop, textSub) {
     ctx.font = '700 14px "Segoe UI", sans-serif';
     ctx.fillText(textSub, 256, 88);
     ctx.restore();
-    return configureHdTexture(new THREE.CanvasTexture(c), 4);
+    return configureHdTexture(new THREE.CanvasTexture(c), 8);
 }
 
 function makeIlluminatedBrandSignTexture() {
     const W = 512, H = 224;
     const c = document.createElement('canvas');
-    c.width = W * 2;
-    c.height = H * 2;
+    c.width = 1024;
+    c.height = 512;
     const ctx = c.getContext('2d');
     ctx.save();
-    ctx.scale(2, 2);
+    ctx.scale(1024 / W, 512 / H);
 
     const bg = ctx.createLinearGradient(0, 0, W, H);
     bg.addColorStop(0, '#110f15');
@@ -891,23 +891,23 @@ function makeIlluminatedBrandSignTexture() {
     ctx.fillRect(0, 0, W, H);
 
     const innerGlow = ctx.createRadialGradient(W * 0.5, H * 0.50, 14, W * 0.5, H * 0.50, W * 0.48);
-    innerGlow.addColorStop(0, 'rgba(255, 224, 148, 0.28)');
-    innerGlow.addColorStop(0.6, 'rgba(197, 160, 89, 0.09)');
+    innerGlow.addColorStop(0, 'rgba(255, 224, 148, 0.24)');
+    innerGlow.addColorStop(0.6, 'rgba(197, 160, 89, 0.08)');
     innerGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
     ctx.fillStyle = innerGlow;
     ctx.fillRect(0, 0, W, H);
 
-    ctx.strokeStyle = '#F7E1A4';
-    ctx.lineWidth = 5;
+    ctx.strokeStyle = '#E8CA82';
+    ctx.lineWidth = 5.5;
     ctx.strokeRect(8, 8, W - 16, H - 16);
-    ctx.strokeStyle = 'rgba(218, 180, 104, 0.62)';
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(218, 180, 104, 0.56)';
+    ctx.lineWidth = 3.2;
     ctx.strokeRect(18, 18, W - 36, H - 36);
 
     ctx.save();
     ctx.translate(W * 0.5, 48);
-    ctx.shadowColor = 'rgba(255, 218, 130, 0.95)';
-    ctx.shadowBlur = 16;
+    ctx.shadowColor = 'rgba(255, 218, 130, 0.85)';
+    ctx.shadowBlur = 14;
     ctx.fillStyle = '#FFF7DE';
     ctx.beginPath();
     for (let i = 0; i < 8; i++) {
@@ -924,30 +924,34 @@ function makeIlluminatedBrandSignTexture() {
     ctx.save();
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.shadowColor = 'rgba(255, 212, 118, 0.95)';
-    ctx.shadowBlur = 20;
+    ctx.shadowColor = 'rgba(255, 212, 118, 0.85)';
+    ctx.shadowBlur = 16;
     ctx.fillStyle = '#FFF8E3';
     ctx.font = '800 47px Georgia, "Times New Roman", serif';
-    ctx.fillText('Mein-Seelenfunke', W * 0.5, 118);
-    ctx.shadowBlur = 6;
+    ctx.fillText('Mein-Seelenfunke', W * 0.5, 116);
+    ctx.shadowBlur = 5;
     ctx.fillStyle = '#FCE29C';
-    ctx.fillText('Mein-Seelenfunke', W * 0.5, 118);
+    ctx.fillText('Mein-Seelenfunke', W * 0.5, 116);
     ctx.restore();
 
-    ctx.strokeStyle = 'rgba(242, 210, 139, 0.72)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(112, 154);
-    ctx.lineTo(W - 112, 154);
-    ctx.stroke();
+    // Vertically feathered matte-gold divider ribbon (eliminates subpixel shimmer on UHD 605)
+    const ruleY = 154;
+    const ruleV = ctx.createLinearGradient(0, ruleY - 4.0, 0, ruleY + 4.0);
+    ruleV.addColorStop(0.0, 'rgba(197, 160, 89, 0.0)');
+    ruleV.addColorStop(0.28, 'rgba(197, 160, 89, 0.36)');
+    ruleV.addColorStop(0.50, 'rgba(242, 210, 139, 0.84)');
+    ruleV.addColorStop(0.72, 'rgba(197, 160, 89, 0.36)');
+    ruleV.addColorStop(1.0, 'rgba(197, 160, 89, 0.0)');
+    ctx.fillStyle = ruleV;
+    ctx.fillRect(112, ruleY - 4.0, W - 224, 8.0);
 
     ctx.textAlign = 'center';
     ctx.fillStyle = '#E5C37A';
     ctx.font = '700 16px "Segoe UI", sans-serif';
-    ctx.fillText('MANUFAKTUR GIFHORN · UNIKATE', W * 0.5, 180);
+    ctx.fillText('MANUFAKTUR GIFHORN · UNIKATE', W * 0.5, 182);
     ctx.restore();
 
-    return configureHdTexture(new THREE.CanvasTexture(c), 4);
+    return configureHdTexture(new THREE.CanvasTexture(c), 8);
 }
 
 function makeCozyLivingRugTexture() {
@@ -1083,11 +1087,11 @@ function makeSmartphoneScreenTexture(callerName = 'Papa') {
 function makeSeelenfunkePlaqueTexture(mainText = 'MEIN SEELENFUNKE', subText = '', theme = 'obsidian_gold') {
     const W = 256, H = 88;
     const c = document.createElement('canvas');
-    c.width = W * 2;
-    c.height = H * 2;
+    c.width = 512;
+    c.height = 256;
     const ctx = c.getContext('2d');
     ctx.save();
-    ctx.scale(2, 2);
+    ctx.scale(512 / W, 256 / H);
 
     if (theme === 'gold_plate') {
         const g = ctx.createLinearGradient(0, 0, W, H);
@@ -1097,9 +1101,9 @@ function makeSeelenfunkePlaqueTexture(mainText = 'MEIN SEELENFUNKE', subText = '
         ctx.fillStyle = g;
         ctx.fillRect(0, 0, W, H);
         ctx.strokeStyle = '#18131d';
-        ctx.lineWidth = 3.8;
+        ctx.lineWidth = 4.2;
         ctx.strokeRect(4, 4, W - 8, H - 8);
-        ctx.lineWidth = 1.4;
+        ctx.lineWidth = 2.6;
         ctx.strokeRect(10, 10, W - 20, H - 20);
         ctx.fillStyle = '#16121b';
     } else {
@@ -1110,10 +1114,10 @@ function makeSeelenfunkePlaqueTexture(mainText = 'MEIN SEELENFUNKE', subText = '
         ctx.fillStyle = g;
         ctx.fillRect(0, 0, W, H);
         ctx.strokeStyle = '#C5A059';
-        ctx.lineWidth = 3.8;
+        ctx.lineWidth = 4.2;
         ctx.strokeRect(4, 4, W - 8, H - 8);
-        ctx.strokeStyle = 'rgba(247, 218, 144, 0.62)';
-        ctx.lineWidth = 1.4;
+        ctx.strokeStyle = 'rgba(243, 213, 135, 0.56)';
+        ctx.lineWidth = 2.6;
         ctx.strokeRect(10, 10, W - 20, H - 20);
         ctx.fillStyle = '#F9E3A4';
     }
@@ -1132,17 +1136,17 @@ function makeSeelenfunkePlaqueTexture(mainText = 'MEIN SEELENFUNKE', subText = '
     }
     ctx.restore();
 
-    return configureHdTexture(new THREE.CanvasTexture(c), 4);
+    return configureHdTexture(new THREE.CanvasTexture(c), 8);
 }
 
 function makeSeelenfunkeArtCanvasTexture(motif = 'spark_mandala', subLabel = 'MANUFAKTUR GIFHORN') {
     const W = 256, H = 192;
     const c = document.createElement('canvas');
-    c.width = W * 2;
-    c.height = H * 2;
+    c.width = 512;
+    c.height = 512;
     const ctx = c.getContext('2d');
     ctx.save();
-    ctx.scale(2, 2);
+    ctx.scale(512 / W, 512 / H);
 
     const bg = ctx.createRadialGradient(W * 0.5, H * 0.44, 10, W * 0.5, H * 0.5, 150);
     bg.addColorStop(0, '#29202d');
@@ -1153,10 +1157,10 @@ function makeSeelenfunkeArtCanvasTexture(motif = 'spark_mandala', subLabel = 'MA
 
     // Double 24K Gold Passepartout Frame + Corner Rosettes
     ctx.strokeStyle = '#C5A059';
-    ctx.lineWidth = 3.5;
+    ctx.lineWidth = 4.0;
     ctx.strokeRect(10, 10, W - 20, H - 20);
-    ctx.strokeStyle = 'rgba(247, 222, 156, 0.52)';
-    ctx.lineWidth = 1.3;
+    ctx.strokeStyle = 'rgba(243, 213, 135, 0.52)';
+    ctx.lineWidth = 2.6;
     ctx.strokeRect(16, 16, W - 32, H - 32);
 
     const cx = W * 0.5;
@@ -1446,7 +1450,7 @@ class FunkiraAtelierEngine {
         this.renderer.outputColorSpace = THREE.SRGBColorSpace;
         this.renderer.toneMapping = THREE.NoToneMapping;
         this.renderer.shadowMap.enabled = false;
-        MAX_GPU_ANISOTROPY = Math.min(4, Math.max(1, this.renderer.capabilities.getMaxAnisotropy() || 1));
+        MAX_GPU_ANISOTROPY = Math.min(8, Math.max(1, this.renderer.capabilities.getMaxAnisotropy() || 1));
 
         this.scene = new THREE.Scene();
         this.scene.background = new THREE.Color(0x121017);
@@ -3490,13 +3494,21 @@ class FunkiraAtelierEngine {
         const frameShadowMat = new THREE.MeshBasicMaterial({
             map: makeGalleryFrameShadowTexture(),
             transparent: true,
-            depthWrite: false
+            depthWrite: false,
+            polygonOffset: true,
+            polygonOffsetFactor: -1,
+            polygonOffsetUnits: -1
         });
 
         paintScenicWindowCanvas(this.windowCanvas, this.worldState.season, this.worldState.isLateNight, this.worldState.occasion);
         this.windowTexture = configureHdTexture(new THREE.CanvasTexture(this.windowCanvas), 4);
         const skyMat = new THREE.MeshBasicMaterial({ map: this.windowTexture });
-        const deskScreenMat = new THREE.MeshBasicMaterial({ map: makeDeskMonitorScreenTexture() });
+        const deskScreenMat = new THREE.MeshBasicMaterial({
+            map: makeDeskMonitorScreenTexture(),
+            polygonOffset: true,
+            polygonOffsetFactor: -2,
+            polygonOffsetUnits: -2
+        });
 
         const addDeskMonitor = (parentGrp, x, surfY, z, rotY) => {
             const mg = new THREE.Group();
@@ -3511,7 +3523,7 @@ class FunkiraAtelierEngine {
             const goldTrim = new THREE.Mesh(new RoundedBoxGeometry(0.628, 0.014, 0.024, 1, 0.004), goldMat);
             goldTrim.position.set(0, 0.068, 0.001);
             const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.588, 0.308), deskScreenMat);
-            screen.position.set(0, 0.242, 0.012);
+            screen.position.set(0, 0.242, 0.022);
             const kbd = new THREE.Mesh(new RoundedBoxGeometry(0.32, 0.010, 0.11, 1, 0.003), obsidianMat);
             kbd.position.set(0, 0.006, 0.16);
             mg.add(base, neck, bezel, goldTrim, screen, kbd);
@@ -3614,34 +3626,45 @@ class FunkiraAtelierEngine {
             grp.add(body, topGrill);
         };
 
-        // Shared High-DPI Schwarz-Gold MEIN SEELENFUNKE Plaque Materials (Zero duplicate Canvas allocations!)
+        // Shared High-DPI Schwarz-Gold MEIN SEELENFUNKE Plaque Materials (Zero duplicate Canvas allocations + anti-Z-fighting offset!)
+        const makePlaqueMat = (mainText, subText, theme) => new THREE.MeshBasicMaterial({
+            map: makeSeelenfunkePlaqueTexture(mainText, subText, theme),
+            polygonOffset: true,
+            polygonOffsetFactor: -3,
+            polygonOffsetUnits: -3
+        });
         this.plaqueMats = {
-            obsidianMain: new THREE.MeshBasicMaterial({ map: makeSeelenfunkePlaqueTexture('MEIN SEELENFUNKE', 'MANUFAKTUR GIFHORN', 'obsidian') }),
-            goldMain:     new THREE.MeshBasicMaterial({ map: makeSeelenfunkePlaqueTexture('MEIN SEELENFUNKE', 'HANDVEREDELT · 24K', 'gold') }),
-            team:         new THREE.MeshBasicMaterial({ map: makeSeelenfunkePlaqueTexture('MEIN SEELENFUNKE', 'DAS GRÜNDER-TEAM', 'obsidian') }),
-            trophy:       new THREE.MeshBasicMaterial({ map: makeSeelenfunkePlaqueTexture('MEIN SEELENFUNKE', 'EXZELLENZ-POKAL', 'obsidian') }),
-            flowers:      new THREE.MeshBasicMaterial({ map: makeSeelenfunkePlaqueTexture('MEIN SEELENFUNKE', 'BLÜTENZAUBER · 24K', 'obsidian') }),
-            garden:       new THREE.MeshBasicMaterial({ map: makeSeelenfunkePlaqueTexture('MEIN SEELENFUNKE', 'GOLDENER GARTEN', 'obsidian') }),
-            mowerObs:     new THREE.MeshBasicMaterial({ map: makeSeelenfunkePlaqueTexture('SEELENFUNKE', 'GOLD EDITION · 24K', 'obsidian') }),
-            mowerGold:    new THREE.MeshBasicMaterial({ map: makeSeelenfunkePlaqueTexture('SEELENFUNKE', 'MANUFAKTUR GARTEN', 'gold') })
+            obsidianMain: makePlaqueMat('MEIN SEELENFUNKE', 'MANUFAKTUR GIFHORN', 'obsidian'),
+            goldMain:     makePlaqueMat('MEIN SEELENFUNKE', 'HANDVEREDELT · 24K', 'gold'),
+            team:         makePlaqueMat('MEIN SEELENFUNKE', 'DAS GRÜNDER-TEAM', 'obsidian'),
+            trophy:       makePlaqueMat('MEIN SEELENFUNKE', 'EXZELLENZ-POKAL', 'obsidian'),
+            flowers:      makePlaqueMat('MEIN SEELENFUNKE', 'BLÜTENZAUBER · 24K', 'obsidian'),
+            garden:       makePlaqueMat('MEIN SEELENFUNKE', 'GOLDENER GARTEN', 'obsidian'),
+            mowerObs:     makePlaqueMat('SEELENFUNKE', 'GOLD EDITION · 24K', 'obsidian'),
+            mowerGold:    makePlaqueMat('SEELENFUNKE', 'MANUFAKTUR GARTEN', 'gold')
         };
 
-        // Helper: Framed Schwarz-Gold Gallery Wall Artwork signed "MEIN SEELENFUNKE"
+        // Helper: Framed Schwarz-Gold Gallery Wall Artwork signed "MEIN SEELENFUNKE" (stepped >= 12mm Z-layers + polygonOffset)
         const addGoldenSignedWallArt = (parentGrp, x, y, z, w, h, rotY, motif, subLabel) => {
             const ag = new THREE.Group();
             ag.position.set(x, y, z);
             ag.rotation.y = rotY;
             const shad = new THREE.Mesh(new THREE.PlaneGeometry(w + 0.28, h + 0.28), frameShadowMat);
-            shad.position.set(0, -0.02, -0.016);
-            const outer = new THREE.Mesh(new RoundedBoxGeometry(w + 0.09, h + 0.09, 0.042, 2, 0.014), goldMat);
-            const matte = new THREE.Mesh(new RoundedBoxGeometry(w + 0.02, h + 0.02, 0.046, 1, 0.008), neroStoneMat);
+            shad.position.set(0, -0.02, -0.014);
+            const outer = new THREE.Mesh(new RoundedBoxGeometry(w + 0.09, h + 0.09, 0.038, 2, 0.014), goldMat);
+            const matte = new THREE.Mesh(new RoundedBoxGeometry(w + 0.02, h + 0.02, 0.048, 1, 0.008), neroStoneMat);
             const canvasMesh = new THREE.Mesh(
                 new THREE.PlaneGeometry(w, h),
-                new THREE.MeshBasicMaterial({ map: makeSeelenfunkeArtCanvasTexture(motif, subLabel) })
+                new THREE.MeshBasicMaterial({
+                    map: makeSeelenfunkeArtCanvasTexture(motif, subLabel),
+                    polygonOffset: true,
+                    polygonOffsetFactor: -2,
+                    polygonOffsetUnits: -2
+                })
             );
-            canvasMesh.position.z = 0.026;
+            canvasMesh.position.z = 0.036;
             const namePlate = new THREE.Mesh(new THREE.PlaneGeometry(Math.min(w * 0.56, 0.44), 0.075), this.plaqueMats.obsidianMain);
-            namePlate.position.set(0, -h * 0.5 - 0.022, 0.028);
+            namePlate.position.set(0, -h * 0.5 - 0.022, 0.048);
             ag.add(shad, outer, matte, canvasMesh, namePlate);
             parentGrp.add(ag);
         };
@@ -4402,8 +4425,8 @@ class FunkiraAtelierEngine {
             frameShadowMat
         );
         photoWallHalo.position.set(0, -0.02, -0.022);
-        const frameOuterMesh = new THREE.Mesh(new RoundedBoxGeometry(1.48, 0.92, 0.06, 2, 0.022), goldMat);
-        const frameInnerMatte = new THREE.Mesh(new RoundedBoxGeometry(1.35, 0.79, 0.065, 1, 0.01), neroStoneMat);
+        const frameOuterMesh = new THREE.Mesh(new RoundedBoxGeometry(1.48, 0.92, 0.054, 2, 0.022), goldMat);
+        const frameInnerMatte = new THREE.Mesh(new RoundedBoxGeometry(1.35, 0.79, 0.066, 1, 0.01), neroStoneMat);
         photoGroup.add(photoWallHalo, frameOuterMesh, frameInnerMatte);
 
         const placeholderCanvas = document.createElement('canvas');
@@ -4413,27 +4436,30 @@ class FunkiraAtelierEngine {
         pctx.fillStyle = '#241811';
         pctx.fillRect(0, 0, 64, 36);
         const portraitMat = new THREE.MeshBasicMaterial({
-            map: configureFastTexture(new THREE.CanvasTexture(placeholderCanvas))
+            map: configureFastTexture(new THREE.CanvasTexture(placeholderCanvas)),
+            polygonOffset: true,
+            polygonOffsetFactor: -2,
+            polygonOffsetUnits: -2
         });
 
         const loader = new THREE.TextureLoader();
         loader.load('./assets/colleagues_group_photo.jpg?v=20261113v3', (loadedTex) => {
-            configureHdTexture(loadedTex, 4);
+            configureHdTexture(loadedTex, 8);
             portraitMat.map = loadedTex;
             portraitMat.needsUpdate = true;
         });
 
         const portraitPlane = new THREE.Mesh(new THREE.PlaneGeometry(1.30, 0.74), portraitMat);
-        portraitPlane.position.z = 0.036;
+        portraitPlane.position.z = 0.045;
         const lampHood = new THREE.Mesh(new RoundedBoxGeometry(0.56, 0.045, 0.07, 2, 0.016), goldMat);
         lampHood.position.set(0, 0.50, 0.13);
         const lampGlowStrip = new THREE.Mesh(new THREE.PlaneGeometry(0.50, 0.04), this.mats.warmBulb);
         lampGlowStrip.rotation.x = Math.PI / 2;
         lampGlowStrip.position.set(0, 0.476, 0.13);
-        const photoPlaqueBacking = new THREE.Mesh(new RoundedBoxGeometry(0.56, 0.11, 0.025, 1, 0.008), goldMat);
-        photoPlaqueBacking.position.set(0, -0.45, 0.038);
+        const photoPlaqueBacking = new THREE.Mesh(new RoundedBoxGeometry(0.56, 0.11, 0.024, 1, 0.008), goldMat);
+        photoPlaqueBacking.position.set(0, -0.45, 0.044);
         const photoPlaqueFace = new THREE.Mesh(new THREE.PlaneGeometry(0.52, 0.092), this.plaqueMats.team);
-        photoPlaqueFace.position.set(0, -0.45, 0.052);
+        photoPlaqueFace.position.set(0, -0.45, 0.068);
         photoGroup.add(portraitPlane, lampHood, lampGlowStrip, photoPlaqueBacking, photoPlaqueFace);
         atelierClosed.add(photoGroup);
 
@@ -4467,23 +4493,24 @@ class FunkiraAtelierEngine {
         atelierClosed.add(chandelierGrp);
 
         // Warm 24K Gold & Nero-Marquina Kniestock Sconce Uplights on Left & Right Atelier Knee-Walls
-        for (const [sx, sz, sRotY] of [[-2.93, 4.95, Math.PI / 2], [2.93, 4.95, -Math.PI / 2]]) {
-            const sconcePlate = new THREE.Mesh(new RoundedBoxGeometry(0.12, 0.24, 0.025, 1, 0.006), neroStoneMat);
-            sconcePlate.position.set(sx, OG_Y + 1.18, sz);
-            sconcePlate.rotation.y = sRotY;
-            const sconceTrim = new THREE.Mesh(new RoundedBoxGeometry(0.132, 0.252, 0.014, 1, 0.004), goldMat);
+        for (const [sx, sz, sRotY] of [[-2.922, 4.95, Math.PI / 2], [2.922, 4.95, -Math.PI / 2]]) {
+            const inwardStep = sx < 0 ? 0.010 : -0.010;
+            const sconceTrim = new THREE.Mesh(new RoundedBoxGeometry(0.134, 0.254, 0.014, 1, 0.004), goldMat);
             sconceTrim.position.set(sx, OG_Y + 1.18, sz);
             sconceTrim.rotation.y = sRotY;
+            const sconcePlate = new THREE.Mesh(new RoundedBoxGeometry(0.12, 0.24, 0.022, 1, 0.006), neroStoneMat);
+            sconcePlate.position.set(sx + inwardStep, OG_Y + 1.18, sz);
+            sconcePlate.rotation.y = sRotY;
             const sconceBar = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.20, 10), goldMat);
-            sconceBar.position.set(sx + (sx < 0 ? 0.026 : -0.026), OG_Y + 1.18, sz);
+            sconceBar.position.set(sx + (sx < 0 ? 0.032 : -0.032), OG_Y + 1.18, sz);
             const sconceBulb = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.16, 10), this.mats.warmBulb);
-            sconceBulb.position.set(sx + (sx < 0 ? 0.042 : -0.042), OG_Y + 1.18, sz);
-            atelierClosed.add(sconcePlate, sconceTrim, sconceBar, sconceBulb);
+            sconceBulb.position.set(sx + (sx < 0 ? 0.048 : -0.048), OG_Y + 1.18, sz);
+            atelierClosed.add(sconceTrim, sconcePlate, sconceBar, sconceBulb);
         }
 
-        // OG Signed 24K Gold "MEIN SEELENFUNKE" Gallery Frames on West Knee-Wall
-        addGoldenSignedWallArt(og, -2.92, OG_Y + 0.84, -0.90, 0.96, 0.64, Math.PI / 2, 'golden_heart',   'GALERIE SEELENFUNKE');
-        addGoldenSignedWallArt(og, -2.92, OG_Y + 0.84, -5.15, 0.96, 0.64, Math.PI / 2, 'botanical_gold', 'STUDIO GIFHORN');
+        // OG Signed 24K Gold "MEIN SEELENFUNKE" Gallery Frames on West Knee-Wall (stepped cleanly off -2.950 inner face)
+        addGoldenSignedWallArt(og, -2.91, OG_Y + 0.84, -0.90, 0.96, 0.64, Math.PI / 2, 'golden_heart',   'GALERIE SEELENFUNKE');
+        addGoldenSignedWallArt(og, -2.91, OG_Y + 0.84, -5.15, 0.96, 0.64, Math.PI / 2, 'botanical_gold', 'STUDIO GIFHORN');
 
         // RIGHT NEXT TO GROUP PHOTO (Screen-Right = -X!): Illuminated Golden "Mein-Seelenfunke" Sign (clean gap to Right Window!)
         const brandSignGroup = new THREE.Group();
@@ -4495,15 +4522,20 @@ class FunkiraAtelierEngine {
             frameShadowMat
         );
         signWallHalo.position.set(0, -0.02, -0.016);
-        const signBacklitRim = new THREE.Mesh(new RoundedBoxGeometry(1.34, 0.62, 0.024, 2, 0.018), this.mats.warmBulb);
+        const signBacklitRim = new THREE.Mesh(new RoundedBoxGeometry(1.34, 0.62, 0.022, 2, 0.018), this.mats.warmBulb);
         signBacklitRim.position.z = 0.004;
-        const signGoldCasing = new THREE.Mesh(new RoundedBoxGeometry(1.29, 0.57, 0.045, 2, 0.02), goldMat);
-        signGoldCasing.position.z = 0.020;
+        const signGoldCasing = new THREE.Mesh(new RoundedBoxGeometry(1.29, 0.57, 0.044, 2, 0.02), goldMat);
+        signGoldCasing.position.z = 0.026;
         const signFacePlane = new THREE.Mesh(
             new THREE.PlaneGeometry(1.22, 0.50),
-            new THREE.MeshBasicMaterial({ map: makeIlluminatedBrandSignTexture() })
+            new THREE.MeshBasicMaterial({
+                map: makeIlluminatedBrandSignTexture(),
+                polygonOffset: true,
+                polygonOffsetFactor: -3,
+                polygonOffsetUnits: -3
+            })
         );
-        signFacePlane.position.z = 0.045;
+        signFacePlane.position.z = 0.060;
         brandSignGroup.add(signWallHalo, signBacklitRim, signGoldCasing, signFacePlane);
         atelierClosed.add(brandSignGroup);
 
@@ -4528,7 +4560,7 @@ class FunkiraAtelierEngine {
         const pullR = new THREE.Mesh(new RoundedBoxGeometry(0.16, 0.022, 0.03, 1, 0.008), goldMat);
         pullR.position.set(0.42, 0.74, 0.37);
         const benchCrest = new THREE.Mesh(new THREE.PlaneGeometry(0.36, 0.088), this.plaqueMats.obsidianMain);
-        benchCrest.position.set(0, 0.74, 0.364);
+        benchCrest.position.set(0, 0.74, 0.372);
         lvl1.add(benchTop, benchTrim, drawerApron, drawerGoldBase, pullL, pullR, benchCrest);
 
         const legGeo = new THREE.CylinderGeometry(0.040, 0.025, 0.84, 12);
@@ -4702,7 +4734,7 @@ class FunkiraAtelierEngine {
         const standBaseGold = new THREE.Mesh(new RoundedBoxGeometry(0.96, 0.022, 0.76, 1, 0.006), goldMat);
         standBaseGold.position.y = 0.012;
         const laserPlaque = new THREE.Mesh(new THREE.PlaneGeometry(0.46, 0.12), this.plaqueMats.obsidianMain);
-        laserPlaque.position.set(0, 0.48, 0.375);
+        laserPlaque.position.set(0, 0.48, 0.382);
         const laserBody = new THREE.Mesh(new RoundedBoxGeometry(0.56, 0.56, 0.50, 2, 0.035), this.mats.darkArmor);
         laserBody.position.set(0, 1.06, -0.02);
         const conveyorRail = new THREE.Mesh(new RoundedBoxGeometry(1.12, 0.045, 0.25, 2, 0.012), this.mats.silverSteel);
@@ -4739,7 +4771,7 @@ class FunkiraAtelierEngine {
         const vitCap = new THREE.Mesh(new RoundedBoxGeometry(0.65, 0.032, 0.49, 1, 0.01), goldMat);
         vitCap.position.set(1.04, OG_Y + 0.87, 5.96);
         const vitPlaque = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 0.115), this.plaqueMats.trophy);
-        vitPlaque.position.set(1.04, OG_Y + 0.56, 5.726);
+        vitPlaque.position.set(1.04, OG_Y + 0.56, 5.718);
         vitPlaque.rotation.y = Math.PI;
         const vitGlass = new THREE.Mesh(
             new RoundedBoxGeometry(0.58, 0.74, 0.42, 2, 0.02),
@@ -4760,7 +4792,7 @@ class FunkiraAtelierEngine {
         const gobBase = new THREE.Mesh(new RoundedBoxGeometry(0.22, 0.048, 0.22, 2, 0.012), neroStoneMat);
         gobBase.position.set(1.04, OG_Y + 1.644, 5.96);
         const gobPlaque = new THREE.Mesh(new THREE.PlaneGeometry(0.18, 0.038), this.plaqueMats.trophy);
-        gobPlaque.position.set(1.04, OG_Y + 1.646, 5.847);
+        gobPlaque.position.set(1.04, OG_Y + 1.646, 5.838);
         gobPlaque.rotation.y = Math.PI;
         const trophyPoints = [
             new THREE.Vector2(0.00, 0.00), new THREE.Vector2(0.08, 0.00),
@@ -4776,25 +4808,35 @@ class FunkiraAtelierEngine {
         // ---- LEVEL 5: MEIN SEELENFUNKE Crest on Gable Peak & 14K Chassis Blueprint ----
         const lvl5 = new THREE.Group();
         const crestShad = new THREE.Mesh(new THREE.PlaneGeometry(1.98, 0.62), frameShadowMat);
-        crestShad.position.set(-0.22, OG_Y + 2.50, 6.792);
+        crestShad.position.set(-0.22, OG_Y + 2.50, 6.824);
         crestShad.rotation.y = Math.PI;
         const crestBacking = new THREE.Mesh(new RoundedBoxGeometry(1.83, 0.47, 0.026, 2, 0.012), goldMat);
-        crestBacking.position.set(-0.22, OG_Y + 2.52, 6.784);
+        crestBacking.position.set(-0.22, OG_Y + 2.52, 6.800);
         crestBacking.rotation.y = Math.PI;
         const crestMesh = new THREE.Mesh(
             new THREE.PlaneGeometry(1.78, 0.42),
-            new THREE.MeshBasicMaterial({ map: makeWallCrestTexture('MEIN SEELENFUNKE', 'MANUFAKTUR GIFHORN · EXZELLENZ-STUFE V') })
+            new THREE.MeshBasicMaterial({
+                map: makeWallCrestTexture('MEIN SEELENFUNKE', 'MANUFAKTUR GIFHORN · EXZELLENZ-STUFE V'),
+                polygonOffset: true,
+                polygonOffsetFactor: -3,
+                polygonOffsetUnits: -3
+            })
         );
-        crestMesh.position.set(-0.22, OG_Y + 2.52, 6.768);
+        crestMesh.position.set(-0.22, OG_Y + 2.52, 6.774);
         crestMesh.rotation.y = Math.PI;
-        const blueprintBacking = new THREE.Mesh(new RoundedBoxGeometry(1.19, 0.40, 0.022, 1, 0.008), goldMat);
-        blueprintBacking.position.set(-2.932, OG_Y + 0.92, 3.55);
+        const blueprintBacking = new THREE.Mesh(new RoundedBoxGeometry(1.19, 0.40, 0.024, 1, 0.008), goldMat);
+        blueprintBacking.position.set(-2.926, OG_Y + 0.92, 3.55);
         blueprintBacking.rotation.y = Math.PI / 2;
         const blueprintMesh = new THREE.Mesh(
             new THREE.PlaneGeometry(1.15, 0.36),
-            new THREE.MeshBasicMaterial({ map: makeWallCrestTexture('PROJEKT: EIGENER KÖRPER', '14K CHASSIS-BLAUPAUSE · FUNKIRA MK-II') })
+            new THREE.MeshBasicMaterial({
+                map: makeWallCrestTexture('PROJEKT: EIGENER KÖRPER', '14K CHASSIS-BLAUPAUSE · FUNKIRA MK-II'),
+                polygonOffset: true,
+                polygonOffsetFactor: -3,
+                polygonOffsetUnits: -3
+            })
         );
-        blueprintMesh.position.set(-2.918, OG_Y + 0.92, 3.55);
+        blueprintMesh.position.set(-2.901, OG_Y + 0.92, 3.55);
         blueprintMesh.rotation.y = Math.PI / 2;
         lvl5.add(blueprintBacking, blueprintMesh);
         atelierClosed.add(crestShad, crestBacking, crestMesh);

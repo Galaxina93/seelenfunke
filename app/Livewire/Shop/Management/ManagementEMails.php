@@ -926,7 +926,7 @@ class ManagementEMails extends Component
     {
         $accounts = MailAccount::all();
         $messages = [];
-        $selectedMessage = $this->selectedMessageId ? MailMessage::find($this->selectedMessageId) : null;
+        $selectedMessage = $this->selectedMessageId ? MailMessage::with('attachments')->find($this->selectedMessageId) : null;
 
         $baseFolders = [
             'INBOX' => 'Posteingang',

@@ -307,9 +307,15 @@ class ManagementTaskSeeder extends Seeder
                         'priority' => 'hoch',
                         'ai_plan' => "WICHTIG (Start-Voraussetzung): Erst starten, sobald alle Produktfotos aus PHASE 1 selbst echt fotografiert (ohne Werbetext-Overlays im Bild für Google Shopping!) und ohne KI-Platzhalter im System hinterlegt sind!\nKonzept-Dokument: Abschlussberichte/Konzepte/Konzept_Google_Ads_Autopilot_und_Merchant_Strategie.md\n\nGeplanter Ablauf:\n1. Google Ads Konto & Google Merchant Center auf Mein-Seelenfunke (Alina Steinhauer, Gifhorn, FYRST) eröffnen + Überprüfung der Werbetreibenden durchführen.\n2. Stufe 1 (Shop-Tracking & Feed): Cookie-Kategorie 'marketing' + Google Consent Mode v2 + Kaufwert-Conversion-Tracking in OrderCheckoutSuccess + Echtfoto-Gatekeeper in /feed/google-shopping.xml.\n3. Stufe 2 (Saison- & Evergreen-Kampagnen-Studio): Ausbau in Funkenwerk Space #8 ('Ads & Budget') für Zugpferde (>= 20 € Netto-DB) -> Schicht A Evergreen auf /l/{slug} + Schicht B Feiertags-/Jahreszeiten-Anzeigengruppen auf /l/{slug}?holiday={anlass} (nur aktiv bei vorhandenem Echtfoto des Anlasses!).\n4. Stufe 3 (Google Ads API mit PAUSED-Schreibschutz & Versand-Cutoff-Stopp): Offizielle Google Ads API ('Explorer Access') anbinden -> Kampagnen werden fertig pausiert ins Konto gelegt (Alina klickt nur noch auf 'Aktiv') und Feiertags-Ads pausieren exakt am Manufaktur-Versand-Cutoff vor dem Fest automatisch.",
                         'subtasks' => [
-                            'Google-Ads-Konto & Google-Merchant-Center-Konto eröffnen (Mein-Seelenfunke, FYRST-Zahlungsmittel) + Überprüfung der Werbetreibenden abschließen',
-                            'Google Ads API im Google-Cloud-Projekt aktivieren (Explorer Access) und OAuth-Zugang im lokalen Funkenwerk-Tresor hinterlegen',
-                            'Stufe 1 umsetzen: Cookie-Kategorie marketing + Google Consent Mode v2 + echtes Kaufwert-Conversion-Tracking + Echtfoto-Gatekeeper für /feed/google-shopping.xml',
+                            'Google-Ads-Konto (792-675-8923, FYRST, Verifizierung abgeschlossen) & Google-Merchant-Center-Konto eröffnen',
+                            [
+                                'title' => 'Google Ads API im Google-Cloud-Projekt aktivieren (Explorer Access) und OAuth-Zugang im lokalen Funkenwerk-Tresor hinterlegen',
+                                'is_completed' => true,
+                            ],
+                            [
+                                'title' => 'Stufe 1 umsetzen: Cookie-Kategorie marketing + Google Consent Mode v2 + echtes Kaufwert-Conversion-Tracking + Echtfoto-Gatekeeper für /feed/google-shopping.xml',
+                                'is_completed' => true,
+                            ],
                             'Stufe 2 umsetzen: KI-Kampagnen-Studio in Funkenwerk Space #8 inkl. Jahreszeiten-/Feiertags-Anzeigengruppen auf /l/{slug}?holiday={anlass}, Echtfoto-Prüfung & CSV-Export bauen',
                             'Stufe 3 umsetzen: Direkter Google-Ads-API-Upload mit hartem PAUSED-Schreibschutz, Tagesbudget-Deckel & automatischem Feiertags-Versand-Cutoff-Stopp auf /admin/dashboard',
                         ],
@@ -334,6 +340,11 @@ class ManagementTaskSeeder extends Seeder
                         'file_paths' => [
                             'leitung/tasks/attachments/2026-11-06_Finanzamt-Gifhorn_ELSTER-Steuerliche-Erfassung-Versandbestaetigung.pdf',
                         ],
+                    ],
+                    [
+                        'title' => 'Finanzamt Gifhorn: Neue betriebliche Steuernummer & USt-IdNr. nachverfolgen (Sachstandsanfrage vom 17.11.2026)',
+                        'priority' => 'hoch',
+                        'ai_plan' => "Am 17.11.2026 wurde per E-Mail an poststelle@fa-gf.niedersachsen.de eine Sachstandsanfrage mit ELSTER-Versandbestätigung (Transferticket: ep3104hvg8fm3b1m4zrwrd3djc6ieugc) gesendet.\n\nFallback (falls das Finanzamt aus Datenschutzgründen per E-Mail nur den Eingang bestätigt und die Steuernummer nicht unverschlüsselt nennt):\n1. Kurzer Anruf bei der Neugründungsstelle des Finanzamts Gifhorn unter Tel. 05371 800-0 (mit Steuer-ID 66324780911 und Transferticket ep3104hvg8fm3b1m4zrwrd3djc6ieugc).\n2. Oder elektronische Rückfrage direkt über Mein ELSTER ('Sonstige Nachricht an das Finanzamt') unter Angabe von Transferticket ep3104hvg8fm3b1m4zrwrd3djc6ieugc und ELSTER-Referenz 2169193168 -B41.",
                     ],
                     [
                         'title' => 'Sobald USt-IdNr. (DE...) vorliegt: Westpack Geschenkpapier Nr. 0751 - Wendbar (1x 30 cm × 100 m, Art.-Nr. 03307510300, 67,90 € netto) per Reverse-Charge bestellen -> https://www.westpack.com/eur_eu_ger/wrapping-paper-n-0751-reversible-03307510300.html',

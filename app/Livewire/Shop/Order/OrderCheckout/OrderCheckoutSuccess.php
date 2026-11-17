@@ -22,6 +22,9 @@ class OrderCheckoutSuccess extends Component
     public $finalOrderNumber = '';
 
     #[\Livewire\Attributes\Locked]
+    public float $conversionTotalEur = 0.0;
+
+    #[\Livewire\Attributes\Locked]
     public $email = '';
 
     #[\Livewire\Attributes\Locked]
@@ -69,6 +72,7 @@ class OrderCheckoutSuccess extends Component
 
                         $this->finalOrderId = (string) $order->id;
                         $this->finalOrderNumber = $order->order_number;
+                        $this->conversionTotalEur = round(((int) $order->total_price) / 100, 2);
                         $this->email = $order->email ?: ($order->billing_address['email'] ?? ($order->customer->email ?? ''));
                         $this->instantDownloads = $order->getInstantDownloads();
                         $this->resolveReferralCode($order);
@@ -106,6 +110,7 @@ class OrderCheckoutSuccess extends Component
                 if ($order) {
                     $this->finalOrderId = (string) $order->id;
                     $this->finalOrderNumber = $order->order_number;
+                    $this->conversionTotalEur = round(((int) $order->total_price) / 100, 2);
                     $this->email = $order->email ?: ($order->billing_address['email'] ?? ($order->customer->email ?? ''));
                     $this->instantDownloads = $order->getInstantDownloads();
                     $this->resolveReferralCode($order);
@@ -143,6 +148,7 @@ class OrderCheckoutSuccess extends Component
             if ($isOwner && $order->payment_status === 'paid' && !in_array($order->status, ['cancelled', 'refunded'], true)) {
                 $this->finalOrderId = (string) $order->id;
                 $this->finalOrderNumber = $order->order_number;
+                $this->conversionTotalEur = round(((int) $order->total_price) / 100, 2);
                 $this->email = $order->email ?: ($order->billing_address['email'] ?? ($order->customer->email ?? ''));
                 $this->instantDownloads = $order->getInstantDownloads();
                 $this->resolveReferralCode($order);
@@ -183,6 +189,7 @@ class OrderCheckoutSuccess extends Component
 
                 $this->finalOrderId = (string) $order->id;
                 $this->finalOrderNumber = $order->order_number;
+                $this->conversionTotalEur = round(((int) $order->total_price) / 100, 2);
                 $this->email = $order->email ?: ($order->billing_address['email'] ?? ($order->customer->email ?? ''));
                 $this->instantDownloads = $order->getInstantDownloads();
                 $this->resolveReferralCode($order);

@@ -10,6 +10,8 @@
         return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
     }
 
+    var maxAnisotropy = 4;
+
     function applySrgb(tex) {
         if (!tex || typeof THREE === 'undefined') return tex;
         if (THREE.SRGBColorSpace) {
@@ -18,6 +20,15 @@
             tex.encoding = THREE.sRGBEncoding;
         }
         return tex;
+    }
+
+    function configureStaticTexture(tex) {
+        if (!tex || typeof THREE === 'undefined') return tex;
+        tex.generateMipmaps = true;
+        tex.minFilter = THREE.LinearMipmapLinearFilter;
+        tex.magFilter = THREE.LinearFilter;
+        tex.anisotropy = maxAnisotropy;
+        return applySrgb(tex);
     }
 
     function makeStudioMatcap(baseHex, specHex, rimHex, specPower, rimStrength) {
@@ -121,10 +132,12 @@
 
     function makeChestEmblemTexture() {
         var c = document.createElement('canvas');
-        c.width = 768;
-        c.height = 320;
+        c.width = 1024;
+        c.height = 512;
         var ctx = c.getContext('2d');
         ctx.clearRect(0, 0, c.width, c.height);
+        ctx.save();
+        ctx.scale(1024 / 768, 512 / 320);
 
         var goldGrad = ctx.createLinearGradient(160, 60, 608, 260);
         goldGrad.addColorStop(0.0, '#E8CA82');
@@ -134,18 +147,21 @@
         goldGrad.addColorStop(1.0, '#A88038');
 
         var goldStroke = ctx.createLinearGradient(120, 40, 648, 280);
-        goldStroke.addColorStop(0.0, 'rgba(243, 213, 135, 0.85)');
-        goldStroke.addColorStop(0.5, 'rgba(255, 251, 232, 0.95)');
-        goldStroke.addColorStop(1.0, 'rgba(197, 160, 89, 0.80)');
+        goldStroke.addColorStop(0.0, 'rgba(243, 213, 135, 0.88)');
+        goldStroke.addColorStop(0.5, 'rgba(250, 234, 186, 0.94)');
+        goldStroke.addColorStop(1.0, 'rgba(197, 160, 89, 0.85)');
 
-        // 1. Feiner goldener Wappenschild-Rahmen
+        // 1. Matte Obsidian-Schildplatte & feiner goldener Wappenschild-Rahmen (verhindert schwarzes Alpha-Ausbluten in Mipmaps)
         ctx.save();
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.90)';
+        var shieldBg = ctx.createRadialGradient(384, 166, 24, 384, 168, 290);
+        shieldBg.addColorStop(0.0, 'rgba(21, 25, 35, 0.94)');
+        shieldBg.addColorStop(0.75, 'rgba(16, 19, 27, 0.92)');
+        shieldBg.addColorStop(1.0, 'rgba(13, 16, 23, 0.88)');
+        ctx.fillStyle = shieldBg;
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
         ctx.shadowBlur = 10;
         ctx.shadowOffsetY = 4;
 
-        ctx.strokeStyle = goldStroke;
-        ctx.lineWidth = 3.5;
         ctx.beginPath();
         ctx.moveTo(110, 58);
         ctx.quadraticCurveTo(384, 38, 658, 58);
@@ -153,16 +169,22 @@
         ctx.quadraticCurveTo(640, 272, 384, 296);
         ctx.quadraticCurveTo(128, 272, 110, 210);
         ctx.closePath();
+        ctx.fill();
+
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetY = 0;
+        ctx.strokeStyle = goldStroke;
+        ctx.lineWidth = 4.6;
         ctx.stroke();
 
-        ctx.strokeStyle = 'rgba(212, 168, 67, 0.45)';
-        ctx.lineWidth = 1.6;
+        ctx.strokeStyle = 'rgba(212, 168, 67, 0.52)';
+        ctx.lineWidth = 2.8;
         ctx.beginPath();
-        ctx.moveTo(122, 68);
-        ctx.quadraticCurveTo(384, 50, 646, 68);
-        ctx.lineTo(646, 204);
-        ctx.quadraticCurveTo(630, 260, 384, 282);
-        ctx.quadraticCurveTo(138, 260, 122, 204);
+        ctx.moveTo(123, 69);
+        ctx.quadraticCurveTo(384, 51, 645, 69);
+        ctx.lineTo(645, 203);
+        ctx.quadraticCurveTo(629, 259, 384, 281);
+        ctx.quadraticCurveTo(139, 259, 123, 203);
         ctx.closePath();
         ctx.stroke();
         ctx.restore();
@@ -172,7 +194,7 @@
             ctx.save();
             ctx.translate(cx, cy);
             var starGrad = ctx.createRadialGradient(0, 0, 1, 0, 0, rOuter);
-            starGrad.addColorStop(0.0, '#FFFFFF');
+            starGrad.addColorStop(0.0, '#FFFDF4');
             starGrad.addColorStop(0.35, '#FFF2C6');
             starGrad.addColorStop(0.70, '#D4A843');
             starGrad.addColorStop(1.0, '#8E6D2F');
@@ -189,67 +211,98 @@
             ctx.closePath();
             ctx.fill();
 
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
-            ctx.lineWidth = 1.5;
+            ctx.strokeStyle = 'rgba(245, 224, 168, 0.65)';
+            ctx.lineWidth = 2.2;
+            ctx.lineCap = 'round';
             ctx.beginPath();
-            ctx.moveTo(-rOuter * 1.35, 0);
-            ctx.lineTo(rOuter * 1.35, 0);
-            ctx.moveTo(0, -rOuter * 1.35);
-            ctx.lineTo(0, rOuter * 1.35);
+            ctx.moveTo(-rOuter * 1.25, 0);
+            ctx.lineTo(rOuter * 1.25, 0);
+            ctx.moveTo(0, -rOuter * 1.25);
+            ctx.lineTo(0, rOuter * 1.25);
             ctx.stroke();
             ctx.restore();
         }
 
         drawFacetStar(384, 52, 14, 5.5);
-        drawFacetStar(175, 142, 11, 4.2);
-        drawFacetStar(593, 142, 11, 4.2);
-        drawFacetStar(232, 222, 8, 3.2);
-        drawFacetStar(536, 222, 8, 3.2);
+        drawFacetStar(175, 140, 11, 4.2);
+        drawFacetStar(593, 140, 11, 4.2);
+        drawFacetStar(228, 226, 8, 3.2);
+        drawFacetStar(540, 226, 8, 3.2);
 
         // 3. Typografie FALCONE
         ctx.save();
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.95)';
-        ctx.shadowBlur = 12;
-        ctx.shadowOffsetY = 4;
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.90)';
+        ctx.shadowBlur = 10;
+        ctx.shadowOffsetY = 3;
 
         ctx.fillStyle = goldGrad;
         ctx.font = '900 68px sans-serif';
-        ctx.fillText('FALCONE', 384, 144);
+        ctx.fillText('FALCONE', 384, 140);
 
-        ctx.strokeStyle = 'rgba(255, 250, 228, 0.65)';
-        ctx.lineWidth = 1.8;
-        ctx.strokeText('FALCONE', 384, 144);
+        ctx.strokeStyle = 'rgba(255, 248, 220, 0.58)';
+        ctx.lineWidth = 2.2;
+        ctx.strokeText('FALCONE', 384, 140);
 
         // 4. Typografie Mitgründer
         ctx.font = '700 42px Georgia, serif';
         ctx.fillStyle = '#F3D587';
-        ctx.fillText('Mitgründer', 384, 222);
+        ctx.fillText('Mitgründer', 384, 226);
 
-        ctx.strokeStyle = 'rgba(255, 246, 210, 0.50)';
-        ctx.lineWidth = 1.2;
-        ctx.strokeText('Mitgründer', 384, 222);
-
-        var lineGrad = ctx.createLinearGradient(200, 182, 568, 182);
-        lineGrad.addColorStop(0.0, 'rgba(212, 168, 67, 0)');
-        lineGrad.addColorStop(0.2, 'rgba(243, 213, 135, 0.85)');
-        lineGrad.addColorStop(0.5, 'rgba(255, 251, 232, 1.0)');
-        lineGrad.addColorStop(0.8, 'rgba(243, 213, 135, 0.85)');
-        lineGrad.addColorStop(1.0, 'rgba(212, 168, 67, 0)');
-        ctx.strokeStyle = lineGrad;
-        ctx.lineWidth = 2.0;
-        ctx.beginPath();
-        ctx.moveTo(210, 182);
-        ctx.lineTo(558, 182);
-        ctx.stroke();
-
+        ctx.strokeStyle = 'rgba(255, 244, 206, 0.48)';
+        ctx.lineWidth = 1.8;
+        ctx.strokeText('Mitgründer', 384, 226);
         ctx.restore();
 
-        var tex = new THREE.CanvasTexture(c);
-        tex.minFilter = THREE.LinearFilter;
-        tex.magFilter = THREE.LinearFilter;
-        return applySrgb(tex);
+        // 5. Flimmerfreie, vertikal weichgezeichnete Matte-Gold-Trennlinie (kein harter 1px-Kontrast bei Atembewegung!)
+        ctx.save();
+        var ruleY = 183;
+        var softBandV = ctx.createLinearGradient(0, ruleY - 6.0, 0, ruleY + 6.0);
+        softBandV.addColorStop(0.0, 'rgba(197, 160, 89, 0.0)');
+        softBandV.addColorStop(0.26, 'rgba(197, 160, 89, 0.34)');
+        softBandV.addColorStop(0.50, 'rgba(232, 198, 118, 0.86)');
+        softBandV.addColorStop(0.74, 'rgba(197, 160, 89, 0.34)');
+        softBandV.addColorStop(1.0, 'rgba(197, 160, 89, 0.0)');
+        ctx.fillStyle = softBandV;
+        ctx.beginPath();
+        ctx.moveTo(198, ruleY);
+        ctx.quadraticCurveTo(280, ruleY - 6.0, 384, ruleY - 6.0);
+        ctx.quadraticCurveTo(488, ruleY - 6.0, 570, ruleY);
+        ctx.quadraticCurveTo(488, ruleY + 6.0, 384, ruleY + 6.0);
+        ctx.quadraticCurveTo(280, ruleY + 6.0, 198, ruleY);
+        ctx.closePath();
+        ctx.fill();
+
+        var coreGradH = ctx.createLinearGradient(206, ruleY, 562, ruleY);
+        coreGradH.addColorStop(0.0, 'rgba(197, 160, 89, 0.0)');
+        coreGradH.addColorStop(0.18, 'rgba(212, 168, 67, 0.82)');
+        coreGradH.addColorStop(0.50, 'rgba(243, 213, 135, 0.96)');
+        coreGradH.addColorStop(0.82, 'rgba(212, 168, 67, 0.82)');
+        coreGradH.addColorStop(1.0, 'rgba(197, 160, 89, 0.0)');
+        ctx.fillStyle = coreGradH;
+        ctx.beginPath();
+        ctx.moveTo(206, ruleY);
+        ctx.quadraticCurveTo(290, ruleY - 2.6, 384, ruleY - 2.6);
+        ctx.quadraticCurveTo(478, ruleY - 2.6, 562, ruleY);
+        ctx.quadraticCurveTo(478, ruleY + 2.6, 384, ruleY + 2.6);
+        ctx.quadraticCurveTo(290, ruleY + 2.6, 206, ruleY);
+        ctx.closePath();
+        ctx.fill();
+
+        // Zentraler matter Gold-Rautenakzent auf der Trennlinie
+        ctx.fillStyle = '#F3D587';
+        ctx.beginPath();
+        ctx.moveTo(384, ruleY - 5.2);
+        ctx.lineTo(391, ruleY);
+        ctx.lineTo(384, ruleY + 5.2);
+        ctx.lineTo(377, ruleY);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+
+        ctx.restore();
+        return configureStaticTexture(new THREE.CanvasTexture(c));
     }
 
     function makeArmShieldTexture() {
@@ -294,10 +347,7 @@
         ctx.lineTo(174, 148);
         ctx.stroke();
 
-        var tex = new THREE.CanvasTexture(c);
-        tex.minFilter = THREE.LinearFilter;
-        tex.magFilter = THREE.LinearFilter;
-        return applySrgb(tex);
+        return configureStaticTexture(new THREE.CanvasTexture(c));
     }
 
     function makeMonocleLensTexture() {
@@ -327,10 +377,7 @@
         ctx.fillRect(0, 0, 256, 256);
         ctx.restore();
 
-        var tex = new THREE.CanvasTexture(c);
-        tex.minFilter = THREE.LinearFilter;
-        tex.magFilter = THREE.LinearFilter;
-        return applySrgb(tex);
+        return configureStaticTexture(new THREE.CanvasTexture(c));
     }
 
     function makeDarkPenthouseFloorTexture() {
@@ -350,30 +397,29 @@
         ctx.arc(256, 256, 248, 0, Math.PI * 2);
         ctx.fill();
 
-        ctx.strokeStyle = 'rgba(212, 175, 55, 0.58)';
-        ctx.lineWidth = 3.2;
+        ctx.strokeStyle = 'rgba(212, 175, 55, 0.54)';
+        ctx.lineWidth = 4.2;
         ctx.beginPath();
         ctx.arc(256, 256, 190, 0, Math.PI * 2);
         ctx.stroke();
 
-        ctx.strokeStyle = 'rgba(197, 160, 89, 0.26)';
-        ctx.lineWidth = 1.6;
+        ctx.strokeStyle = 'rgba(197, 160, 89, 0.28)';
+        ctx.lineWidth = 3.0;
         ctx.beginPath();
         ctx.arc(256, 256, 222, 0, Math.PI * 2);
         ctx.stroke();
 
-        var tex = new THREE.CanvasTexture(c);
-        tex.minFilter = THREE.LinearFilter;
-        tex.magFilter = THREE.LinearFilter;
-        return applySrgb(tex);
+        return configureStaticTexture(new THREE.CanvasTexture(c));
     }
 
     function makeDarkStudioBackdropTexture() {
         var c = document.createElement('canvas');
-        c.width = 768;
-        c.height = 768;
+        c.width = 1024;
+        c.height = 1024;
         var ctx = c.getContext('2d');
-        ctx.clearRect(0, 0, 768, 768);
+        ctx.clearRect(0, 0, 1024, 1024);
+        ctx.save();
+        ctx.scale(1024 / 768, 1024 / 768);
 
         // Warm golden architectural rim-glow & subtle studio bokeh
         var mainHalo = ctx.createRadialGradient(384, 350, 20, 384, 360, 370);
@@ -404,17 +450,15 @@
             ctx.fill();
         }
 
-        // Subtle golden arch lines
+        // Subtle golden arch lines (broadened for flicker-free mipmapping)
         ctx.strokeStyle = 'rgba(197, 160, 89, 0.14)';
-        ctx.lineWidth = 2.0;
+        ctx.lineWidth = 3.8;
         ctx.beginPath();
         ctx.arc(384, 390, 290, Math.PI * 1.12, Math.PI * 1.88);
         ctx.stroke();
 
-        var tex = new THREE.CanvasTexture(c);
-        tex.minFilter = THREE.LinearFilter;
-        tex.magFilter = THREE.LinearFilter;
-        return applySrgb(tex);
+        ctx.restore();
+        return configureStaticTexture(new THREE.CanvasTexture(c));
     }
 
     function makeSparkSpriteTexture() {
@@ -465,12 +509,13 @@
         renderer.outputEncoding = THREE.sRGBEncoding;
     }
     renderer.setClearColor(0x080A10, 1.0);
+    maxAnisotropy = Math.min(16, Math.max(1, (renderer.capabilities && renderer.capabilities.getMaxAnisotropy) ? renderer.capabilities.getMaxAnisotropy() : 4));
 
     var scene = new THREE.Scene();
     // Always deep velvet-obsidian Black-Gold Studio Stage (#080A10), never white!
     scene.background = new THREE.Color(0x080A10);
 
-    var camera = new THREE.PerspectiveCamera(38, 9 / 20, 0.1, 35);
+    var camera = new THREE.PerspectiveCamera(38, 9 / 20, 0.12, 18);
     var userZoom = 1.0;
 
     // Materials with strong warm golden rim reflection so Falcon stands out against #080A10
@@ -487,7 +532,14 @@
 
     var floorDisc = new THREE.Mesh(
         new THREE.PlaneGeometry(2.35, 2.35),
-        new THREE.MeshBasicMaterial({ map: makeDarkPenthouseFloorTexture(), transparent: true, depthWrite: false })
+        new THREE.MeshBasicMaterial({
+            map: makeDarkPenthouseFloorTexture(),
+            transparent: true,
+            depthWrite: false,
+            polygonOffset: true,
+            polygonOffsetFactor: -1,
+            polygonOffsetUnits: -1
+        })
     );
     floorDisc.rotation.x = -Math.PI / 2;
     floorDisc.position.y = 0.01;
@@ -810,14 +862,22 @@
     chestMesh.scale.set(1.10, 1.0, 0.84);
     torso.add(chestMesh);
 
-    // Curved Chest Inscription: FALCON / Mitgründer
-    var emblemGeo = new THREE.CylinderGeometry(0.295, 0.262, 0.24, 34, 1, true, -0.72, 1.44);
+    // Curved Chest Inscription: FALCONE / Mitgründer (48x8 curvature + normal clearance + polygonOffset)
+    var emblemGeo = new THREE.CylinderGeometry(0.300, 0.266, 0.24, 48, 8, true, -0.72, 1.44);
     var emblemMesh = new THREE.Mesh(
         emblemGeo,
-        new THREE.MeshBasicMaterial({ map: makeChestEmblemTexture(), transparent: true, depthWrite: false })
+        new THREE.MeshBasicMaterial({
+            map: makeChestEmblemTexture(),
+            transparent: true,
+            depthWrite: false,
+            polygonOffset: true,
+            polygonOffsetFactor: -2,
+            polygonOffsetUnits: -2
+        })
     );
-    emblemMesh.scale.set(1.12, 1.0, 0.88);
+    emblemMesh.scale.set(1.125, 1.0, 0.888);
     emblemMesh.position.y = 0.205;
+    emblemMesh.renderOrder = 2;
     torso.add(emblemMesh);
 
     // Stilisierte Brustplatten-Rüstungs-Flügel / Kontur-Rippen links und rechts neben dem Emblem
@@ -1006,10 +1066,19 @@
         if (withStarShield) {
             var shieldPlane = new THREE.Mesh(
                 new THREE.PlaneGeometry(0.135, 0.135),
-                new THREE.MeshBasicMaterial({ map: makeArmShieldTexture(), transparent: true, side: THREE.DoubleSide })
+                new THREE.MeshBasicMaterial({
+                    map: makeArmShieldTexture(),
+                    transparent: true,
+                    depthWrite: false,
+                    side: THREE.DoubleSide,
+                    polygonOffset: true,
+                    polygonOffsetFactor: -2,
+                    polygonOffsetUnits: -2
+                })
             );
             shieldPlane.position.set(sideSign * 0.072, -0.115, 0.025);
             shieldPlane.rotation.y = sideSign * 1.28;
+            shieldPlane.renderOrder = 2;
             elbowPivot.add(shieldPlane);
         }
 

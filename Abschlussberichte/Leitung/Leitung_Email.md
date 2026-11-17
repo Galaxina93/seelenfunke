@@ -14,14 +14,14 @@ Das CRM-E-Mail-Modul ermöglicht die Integration von geschäftlichen und private
 ## 2. Technische System-Architektur
 
 ### 2.1 Livewire-Komponente
-- **Klasse:** [`ManagementEMails`](file:///wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Management/ManagementEMails.php)
+- **Klasse:** [`ManagementEMails`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Management/ManagementEMails.php)
 - **Layout:** `components.layouts.backend_layout` (Department-Theme: `Leitung`)
 
 ### 2.2 Datenbank-Modelle (Namespaces unter `App\Models\Management\Mail`)
 - **`MailAccount`:** Verwaltet Zugangsdaten für Postfächer. Enthält Server-Host, Ports, Verschlüsselungen (`ssl`/`tls`), Signaturen und Anzeigeeinstellungen.
-- **`MailMessage`:** Repräsentiert die tatsächlichen empfangenen oder gesendeten E-Mails (inklusive Empfangsdatum, HTML/Plain-Body und gelesen-Status).
-- **`MailAttachment`:** Bildet hochgeladene oder empfangene Anhänge ab (gespeichert im Storage-Ordner `leitung/inbox/attachments`).
-- **`MailFolder`:** Speichert benutzerdefinierte, zusätzliche IMAP-Ordner für das jeweilige Konto.
+- **`MailMessage`:** Repräsentiert die tatsächlichen empfangenen oder gesendeten E-Mails (inklusive Empfangsdatum, HTML/Plain-Body, gelesen-Status und String-Spalte `folder` für Standardordner in `MailMessage::STANDARD_FOLDERS` sowie benutzerdefinierte Ordner). Stellt neben `account()` und `attachments()` die mandantensichere Composite-Relation `mailFolder()` (inkl. Eloquent-Alias `folder()` über `mail_account_id` + `folder = name`) bereit, wobei `$message->folder` und `toArray()['folder']` für Funkenwerk Windows & Android jederzeit strikt als `string` erhalten bleiben.
+- **`MailAttachment`:** Bildet hochgeladene oder empfangene Anhänge ab (gespeichert im Storage-Ordner `leitung/crm/mail-attachments`).
+- **`MailFolder`:** Speichert benutzerdefinierte, zusätzliche IMAP-Ordner pro Postfach (`unique(['mail_account_id', 'name'])`) und verknüpft zugehörige Nachrichten kontosicher über `messages()`.
 - **`MailRule`:** Enthält automatisierte Regeln (z. B. Blacklists oder Ordner-Routing) basierend auf Kriterien wie Absender-Adresse.
 
 ---

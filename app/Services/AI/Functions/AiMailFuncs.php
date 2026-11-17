@@ -371,7 +371,15 @@ trait AiMailFuncs
                 return ['status' => 'error', 'message' => 'Mail nicht gefunden.'];
             }
 
+            if (!in_array($folder, MailMessage::STANDARD_FOLDERS, true)) {
+                \App\Models\Management\Mail\MailFolder::firstOrCreate([
+                    'mail_account_id' => $mail->mail_account_id,
+                    'name' => $folder,
+                ]);
+            }
+
             $mail->folder = $folder;
+            $mail->is_archived = ($folder === 'Archive');
             $mail->save();
 
             return [
@@ -414,15 +422,14 @@ trait AiMailFuncs
                 if (!empty($data['target_folder']) && $data['target_folder'] !== 'INBOX') {
                     $folderName = mb_substr(preg_replace('/[\x00-\x1F\x7F\/\\\\]/', '', str_replace('..', '', trim((string) $data['target_folder']))), 0, 64);
                     if ($folderName !== '') {
-                        $baseFolders = ['Sent', 'Drafts', 'Junk', 'Trash', 'Archive'];
-                        
-                        if (!in_array($folderName, $baseFolders)) {
+                        if (!in_array($folderName, MailMessage::STANDARD_FOLDERS, true)) {
                             \App\Models\Management\Mail\MailFolder::firstOrCreate([
                                 'mail_account_id' => $mail->mail_account_id,
                                 'name' => $folderName
                             ]);
                         }
                         $mail->folder = $folderName;
+                        $mail->is_archived = ($folderName === 'Archive');
                     }
                 }
 
