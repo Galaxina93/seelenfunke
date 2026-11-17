@@ -83,6 +83,14 @@ class SentinelInboxCommand extends Command
                 return self::FAILURE;
             }
 
+            if (!isset($decoded['items']) && !empty($decoded['fingerprint'])) {
+                $decoded = [
+                    'inbox_version' => 1,
+                    'source_environment' => (string) ($decoded['origin_environment'] ?? $decoded['environment'] ?? 'minipc_direct'),
+                    'items' => [$decoded],
+                ];
+            }
+
             $result = $sentinel->importRemoteStageInbox($decoded);
             $this->line((string) json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
             return self::SUCCESS;

@@ -35,7 +35,10 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->reportable(function (\Throwable $e) {
             if (
                 class_exists(\App\Services\System\SystemErrorLogger::class)
-                && \App\Services\System\SystemErrorLogger::isTransientLocalMigrationTableMissing($e)
+                && (
+                    \App\Services\System\SystemErrorLogger::isTransientLocalMigrationTableMissing($e)
+                    || \App\Services\System\SystemErrorLogger::isTransientLocalDatabaseColdBoot($e)
+                )
             ) {
                 return false;
             }
@@ -74,6 +77,20 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->renderable(function (\Throwable $e, $request) {
             if (
                 class_exists(\App\Services\System\SystemErrorLogger::class)
+                && \App\Services\System\SystemErrorLogger::isTransientLocalDatabaseColdBoot($e)
+            ) {
+                if ($request->expectsJson() || $request->is('api/*')) {
+                    return response()->json([
+                        'status' => 'booting',
+                        'message' => 'Lokale Datenbank startet gerade...',
+                    ], 503, ['Retry-After' => '3']);
+                }
+
+                return response('Lokale Datenbank startet gerade...', 503, ['Retry-After' => '3']);
+            }
+
+            if (
+                class_exists(\App\Services\System\SystemErrorLogger::class)
                 && \App\Services\System\SystemErrorLogger::isTransientLocalMigrationTableMissing($e)
             ) {
                 if ($request->expectsJson() || $request->is('api/*')) {
@@ -92,7 +109,8 @@ return Application::configure(basePath: dirname(__DIR__))
                 $isCsrfMismatch = $e instanceof \Illuminate\Session\TokenMismatchException
                     || ($e instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface && $e->getStatusCode() === 419);
                 $isServerHttpError = $e instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface
-                    && $e->getStatusCode() >= 500;
+                    && $e->getStatusCode() >= 500
+                    && $e->getStatusCode() !== 503;
 
                 if (($isCsrfMismatch || $isServerHttpError) && class_exists(\App\Services\System\SystemErrorLogger::class)) {
                     $statusCode = $e instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface ? $e->getStatusCode() : 419;

@@ -546,6 +546,61 @@ class SystemErrorLogger
     }
 
     /**
+     * Erkennt kurzzeitige lokale Docker-MySQL-Kaltstarts ("SQLSTATE[HY000] [2002] Connection refused" auf Host "db"),
+     * wenn mein_php_server beim Aufwachen des PCs einige Sekunden vor dem db-Container antwortet.
+     * Strikt begrenzt auf app()->environment('local') (niemals auf Stage/Production aktiv!).
+     */
+    public static function isTransientLocalDatabaseColdBoot(\Throwable $e): bool
+    {
+        try {
+            if (!app()->environment('local')) {
+                return false;
+            }
+        } catch (\Throwable $ignore) {
+            return false;
+        }
+
+        $chainMessages = [];
+        $hasCode2002 = false;
+        $hasConnectionRefused = false;
+
+        $cursor = $e;
+        $depth = 0;
+        while ($cursor !== null && $depth < 4) {
+            $msgLower = strtolower($cursor->getMessage());
+            $codeStr = strtolower((string) $cursor->getCode());
+            $chainMessages[] = $msgLower;
+
+            if ($codeStr === '2002' || str_contains($msgLower, '[2002]') || str_contains($msgLower, 'code: 2002')) {
+                $hasCode2002 = true;
+            }
+            if (str_contains($msgLower, 'connection refused')) {
+                $hasConnectionRefused = true;
+            }
+
+            $cursor = $cursor->getPrevious();
+            $depth++;
+        }
+
+        if (!$hasCode2002 || !$hasConnectionRefused) {
+            return false;
+        }
+
+        $combinedMsg = implode(' | ', $chainMessages);
+        if (preg_match('/host:\s*([a-z0-9._-]+)/i', $combinedMsg, $hostMatch)) {
+            return strtolower($hostMatch[1]) === 'db';
+        }
+
+        $configuredHost = '';
+        try {
+            $configuredHost = strtolower(trim((string) config('database.connections.mysql.host', '')));
+        } catch (\Throwable $ignore) {
+        }
+
+        return $configuredHost === 'db';
+    }
+
+    /**
      * Protokolliert eine unbehandelte oder abgefangene Exception sicher in system_logs.
      */
     public static function recordException(
@@ -555,7 +610,12 @@ class SystemErrorLogger
         ?string $titlePrefix = 'System-Fehler',
         array $extraPayload = []
     ): ?SystemLog {
-        if (self::$isRecording || !class_exists(SystemLog::class) || self::isTransientLocalMigrationTableMissing($e)) {
+        if (
+            self::$isRecording
+            || !class_exists(SystemLog::class)
+            || self::isTransientLocalMigrationTableMissing($e)
+            || self::isTransientLocalDatabaseColdBoot($e)
+        ) {
             return null;
         }
 

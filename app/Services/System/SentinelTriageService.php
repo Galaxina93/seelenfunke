@@ -768,7 +768,52 @@ class SentinelTriageService
             ];
         }
 
+        // Playbook 14: Kurzzeitiger lokaler Docker-MySQL-Kaltstart ([2002] Connection refused auf Host db), strikt begrenzt auf local!
+        $originEnv = strtolower(trim((string) ($payload['origin_environment'] ?? '')));
+        $isStrictlyLocalOrigin = !app()->environment('production', 'staging')
+            && ($originEnv !== '' ? $originEnv === 'local' : app()->environment('local'));
+
+        if (
+            $isStrictlyLocalOrigin
+            && (str_contains($msgLower, '[2002]') || str_contains($msgLower, 'code: 2002'))
+            && str_contains($msgLower, 'connection refused')
+            && str_contains($msgLower, 'host: db')
+            && $occurrences <= 5
+            && $this->isLocalMysqlReachableNow()
+        ) {
+            return [
+                'healed' => true,
+                'playbook' => 'local_transient_mysql_cold_boot_recovered',
+                'summary' => 'Kurzzeitiger lokaler Docker-MySQL-Kaltstart ([2002] Connection refused auf Host db) beendet; Live-Datenbankverbindung per SELECT 1 verifiziert.',
+            ];
+        }
+
+        // Playbook 14b: Geplanter Wartungsmodus-503 (PreventRequestsDuringMaintenance waehrend migrate/deploy), sobald app wieder online ist
+        if (
+            $actionId === 'system:http_503'
+            && str_contains(strtolower((string) ($payload['file'] ?? '')), 'preventrequestsduringmaintenance')
+            && !app()->isDownForMaintenance()
+            && $occurrences <= 25
+        ) {
+            return [
+                'healed' => true,
+                'playbook' => 'planned_maintenance_503_window_ended',
+                'summary' => 'Geplantes Wartungsfenster (php artisan down -> HTTP 503) ist beendet; Anwendung nimmt Anfragen wieder regulär entgegen.',
+            ];
+        }
+
         return ['healed' => false];
+    }
+
+    protected function isLocalMysqlReachableNow(): bool
+    {
+        try {
+            DB::select('SELECT 1');
+
+            return true;
+        } catch (\Throwable $e) {
+            return false;
+        }
     }
 
     /**
@@ -1163,6 +1208,7 @@ class SentinelTriageService
         $importedNew = 0;
         $updatedExisting = 0;
         $autoReconciled = 0;
+        $staleMiniPcReconciled = 0;
         $activeRemoteFingerprints = [];
 
         foreach ($remoteItems as $item) {
@@ -1203,6 +1249,79 @@ class SentinelTriageService
 
             $existing = $this->findOpenLogByFingerprint($fp);
             $occurrences = max(1, (int) ($item['occurrences_count'] ?? 1));
+
+            // Schutz gegen veraltete Offline-Handoffs vom schlafenden Mini-PC (minipc_direct):
+            // Wurde derselbe Fehler (gleiche Datei+Zeile, gleicher Message-Kern oder Fingerprint) in system_logs
+            // bereits NACH prepared_at als resolved/success abgeschlossen (oder stammt ein gespiegelter /seelenfunke-stage/
+            // Kuppelhallen-Eintrag vor einem bereits bereinigten Stage-Snapshot), wird das Pre-Fix-Dossier direkt als resolved abgeglichen!
+            if ($itemOrigin === 'minipc_direct' && !empty($item['prepared_at'])) {
+                $supersedingResolved = $this->findSupersedingResolvedLogForMiniPcHandoff($item, $relativeFile, $line);
+                $isClearedStageMirror = $supersedingResolved === null
+                    && $this->isStaleMirroredStageHandoffClearedOnStage($item, $remoteSnapshot, $remoteItems, $relativeFile, $line);
+
+                if ($supersedingResolved !== null || $isClearedStageMirror) {
+                    unset($activeRemoteFingerprints[$fp]);
+                    $resolvedIso = now()->toIso8601String();
+                    $reconciledAgainstId = $supersedingResolved?->id;
+
+                    if ($existing) {
+                        $p = is_array($existing->payload) ? $existing->payload : [];
+                        $p['fingerprint'] = $fp;
+                        $p['origin_environment'] = $itemOrigin;
+                        $p['resolved_at'] = $resolvedIso;
+                        $p['resolved_by'] = 'Mini-PC Pre-Fix Wakeup Reconciler';
+                        $p['reconciled_against_log_id'] = $reconciledAgainstId;
+                        $p['triage'] = is_array($p['triage'] ?? null) ? $p['triage'] : [];
+                        $p['triage']['state'] = 'resolved';
+                        $existing->status = 'resolved';
+                        $existing->payload = $p;
+                        $existing->finished_at = now();
+                        $existing->save();
+                    } elseif (
+                        !SystemLog::query()
+                            ->where('payload->fingerprint', $fp)
+                            ->whereIn('status', ['resolved', 'success'])
+                            ->exists()
+                    ) {
+                        $rawTitle = SystemErrorLogger::sanitizeSensitiveText((string) ($item['title'] ?? 'System-Fehler'));
+                        $prefixedTitle = str_starts_with($rawTitle, '[GELÖST]')
+                            ? $rawTitle
+                            : ('[GELÖST] [MINI-PC] ' . preg_replace('/^\[(?:STAGE|MINI-PC)\]\s*/i', '', $rawTitle));
+
+                        SystemLog::create([
+                            'type' => SystemLog::clampColumnValue((string) ($item['type'] ?? 'minipc'), SystemLog::MAX_TYPE_LENGTH, ''),
+                            'action_id' => SystemLog::clampColumnValue((string) ($item['action_id'] ?? ('minipc_direct:reconciled:' . substr($fp, 0, 16))), SystemLog::MAX_ACTION_ID_LENGTH, ''),
+                            'title' => SystemLog::clampColumnValue($prefixedTitle, SystemLog::MAX_TITLE_LENGTH, '...'),
+                            'message' => Str::limit(SystemErrorLogger::sanitizeSensitiveText((string) ($item['message'] ?? '')), 2000),
+                            'status' => 'resolved',
+                            'payload' => SystemErrorLogger::sanitizeArrayRecursive([
+                                'platform' => $item['platform'] ?? 'portal',
+                                'platform_label' => $item['platform_label'] ?? 'Webportal',
+                                'origin_environment' => $itemOrigin,
+                                'fingerprint' => $fp,
+                                'file' => $relativeFile ?? ($item['culprit_file'] ?? null),
+                                'line' => $line,
+                                'occurrences_count' => $occurrences,
+                                'resolved_at' => $resolvedIso,
+                                'resolved_by' => 'Mini-PC Pre-Fix Wakeup Reconciler',
+                                'reconciled_against_log_id' => $reconciledAgainstId,
+                                'triage' => [
+                                    'state' => 'resolved',
+                                    'triaged_at' => $resolvedIso,
+                                    'triaged_by' => 'Mini-PC Pre-Fix Wakeup Reconciler',
+                                ],
+                                'antigravity_dossier' => $item,
+                            ]),
+                            'started_at' => !empty($item['prepared_at']) ? Carbon::parse((string) $item['prepared_at']) : now(),
+                            'finished_at' => now(),
+                        ]);
+                    }
+
+                    $autoReconciled++;
+                    $staleMiniPcReconciled++;
+                    continue;
+                }
+            }
 
             if ($existing) {
                 $p = is_array($existing->payload) ? $existing->payload : [];
@@ -1298,9 +1417,212 @@ class SentinelTriageService
             'imported_new' => $importedNew,
             'updated_existing' => $updatedExisting,
             'auto_reconciled' => $autoReconciled,
+            'stale_minipc_reconciled' => $staleMiniPcReconciled,
             'local_open_pool_count' => (int) ($localSnapshot['open_pool_count'] ?? 0),
             'inbox_path' => 'storage/' . self::INBOX_FILE,
         ];
+    }
+
+    /**
+     * Prüft für ein beim Aufwachen importiertes minipc_direct-Dossier (mit prepared_at),
+     * ob in system_logs bereits ein resolved/success-Eintrag für denselben Fehler existiert,
+     * dessen Abschlusszeitpunkt (resolved_at / healed_at / updated_at) neuer als prepared_at ist.
+     */
+    protected function findSupersedingResolvedLogForMiniPcHandoff(
+        array $item,
+        ?string $normalizedCulpritFile,
+        ?int $line
+    ): ?SystemLog {
+        if (!Schema::hasTable('system_logs') || empty($item['prepared_at'])) {
+            return null;
+        }
+
+        try {
+            $preparedAt = Carbon::parse((string) $item['prepared_at'])->utc();
+        } catch (\Throwable $e) {
+            return null;
+        }
+
+        $fp = trim((string) ($item['fingerprint'] ?? ''));
+        $itemMsgCore = $this->normalizeErrorMessageCore((string) ($item['message'] ?? ''));
+        $queryFloor = $preparedAt->copy()->subMinutes(2);
+
+        $candidates = SystemLog::archivedEntries()
+            ->where(function ($q) use ($queryFloor) {
+                $q->where('updated_at', '>=', $queryFloor)
+                    ->orWhere('finished_at', '>=', $queryFloor);
+            })
+            ->orderByDesc('id')
+            ->limit(250)
+            ->get(['id', 'title', 'message', 'status', 'payload', 'finished_at', 'updated_at']);
+
+        foreach ($candidates as $cand) {
+            $cp = is_array($cand->payload) ? $cand->payload : [];
+            $resolvedAt = null;
+
+            foreach ([
+                $cp['resolved_at'] ?? null,
+                $cp['triage']['healed_at'] ?? null,
+                $cp['auto_healed_at'] ?? null,
+            ] as $rawTs) {
+                if (!empty($rawTs)) {
+                    try {
+                        $resolvedAt = Carbon::parse((string) $rawTs)->utc();
+                        break;
+                    } catch (\Throwable $ignore) {
+                    }
+                }
+            }
+
+            if ($resolvedAt === null) {
+                $fallbackDt = $cand->updated_at ?? $cand->finished_at;
+                if ($fallbackDt !== null) {
+                    $resolvedAt = Carbon::parse($fallbackDt)->utc();
+                }
+            }
+
+            if ($resolvedAt === null || !$resolvedAt->greaterThan($preparedAt)) {
+                continue;
+            }
+
+            // 1. Exakter Fingerprint-Treffer
+            if ($fp !== '' && (($cp['fingerprint'] ?? '') === $fp)) {
+                return $cand;
+            }
+
+            // 2. Gleiche Datei + Zeilennummer
+            if ($normalizedCulpritFile !== null && $normalizedCulpritFile !== '' && $line !== null && $line > 0) {
+                $rawCandFile = (string) ($cp['file'] ?? ($cp['antigravity_dossier']['culprit_file'] ?? ''));
+                if ($rawCandFile === '') {
+                    $rawCandFile = (string) ($this->extractBestFileCandidate($cp) ?? '');
+                }
+                $candFile = $this->normalizeProjectRelativePath($rawCandFile);
+
+                $candLine = null;
+                if (isset($cp['line']) && is_numeric($cp['line'])) {
+                    $candLine = (int) $cp['line'];
+                } elseif (isset($cp['antigravity_dossier']['line']) && is_numeric($cp['antigravity_dossier']['line'])) {
+                    $candLine = (int) $cp['antigravity_dossier']['line'];
+                } else {
+                    $candLine = $this->extractBestLineCandidate($cp);
+                }
+
+                if ($candFile === $normalizedCulpritFile && $candLine === $line) {
+                    return $cand;
+                }
+            }
+
+            // 3. Identischer Message-Kern
+            if ($itemMsgCore !== '' && mb_strlen($itemMsgCore, 'UTF-8') >= 12) {
+                $candMsgCore = $this->normalizeErrorMessageCore((string) $cand->message);
+                $candDossierCore = $this->normalizeErrorMessageCore((string) ($cp['antigravity_dossier']['message'] ?? ''));
+
+                foreach ([$candMsgCore, $candDossierCore] as $cmpCore) {
+                    if ($cmpCore === '') {
+                        continue;
+                    }
+                    if ($cmpCore === $itemMsgCore) {
+                        return $cand;
+                    }
+                    if (
+                        mb_strlen($cmpCore, 'UTF-8') >= 24
+                        && mb_strlen($itemMsgCore, 'UTF-8') >= 24
+                        && (str_contains($cmpCore, $itemMsgCore) || str_contains($itemMsgCore, $cmpCore))
+                    ) {
+                        return $cand;
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Zusätzlicher Schutz, falls lokal zwischenzeitlich migrate:fresh lief:
+     * Zeigt der Stack-Trace eines minipc_direct-Eintrags eindeutig auf /seelenfunke-stage/ (gespiegelter Stage-Fehler
+     * aus Funkiras 3D-Kuppelhalle) und liefert ein frischerer Stage-Pool-Snapshot (> 5 Min neuer als prepared_at)
+     * 0 offene Stage-Dossiers für diese Datei/Meldung, wurde der Fehler auf Stage bereits vor dem Aufwachen gelöst.
+     */
+    protected function isStaleMirroredStageHandoffClearedOnStage(
+        array $item,
+        array $remoteSnapshot,
+        array $remoteItems,
+        ?string $normalizedCulpritFile,
+        ?int $line
+    ): bool {
+        $traceStr = is_array($item['trace_excerpt'] ?? null)
+            ? implode("\n", $item['trace_excerpt'])
+            : (string) ($item['trace_excerpt'] ?? '');
+
+        if (!str_contains($traceStr, '/seelenfunke-stage/')) {
+            return false;
+        }
+
+        $sourceEnv = strtolower(trim((string) ($remoteSnapshot['source_environment'] ?? '')));
+        if (!in_array($sourceEnv, ['production', 'stage', 'staging'], true) || empty($remoteSnapshot['generated_at'])) {
+            return false;
+        }
+
+        try {
+            $preparedAt = Carbon::parse((string) $item['prepared_at'])->utc();
+            $snapshotAt = Carbon::parse((string) $remoteSnapshot['generated_at'])->utc();
+        } catch (\Throwable $e) {
+            return false;
+        }
+
+        if (!$snapshotAt->greaterThan($preparedAt->copy()->addMinutes(5))) {
+            return false;
+        }
+
+        $itemCore = $this->normalizeErrorMessageCore((string) ($item['message'] ?? ''));
+
+        foreach ($remoteItems as $other) {
+            if (!is_array($other)) {
+                continue;
+            }
+            $otherOrigin = strtolower(trim((string) ($other['origin_environment'] ?? $sourceEnv)));
+            if ($otherOrigin === 'minipc_direct') {
+                continue;
+            }
+
+            $otherFile = $this->normalizeProjectRelativePath((string) ($other['culprit_file'] ?? ''));
+            $otherLine = isset($other['line']) && is_numeric($other['line']) ? (int) $other['line'] : null;
+
+            if ($normalizedCulpritFile !== null && $line !== null && $otherFile === $normalizedCulpritFile && $otherLine === $line) {
+                return false;
+            }
+
+            if ($itemCore !== '' && $this->normalizeErrorMessageCore((string) ($other['message'] ?? '')) === $itemCore) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    protected function normalizeErrorMessageCore(string $raw): string
+    {
+        $clean = trim($raw);
+        if ($clean === '') {
+            return '';
+        }
+
+        $clean = (string) preg_replace('/^(?:\[(?:AUTO-GEHEILT|GELÖST|STAGE|MINI-PC|[^\]]+\.log)\]\s*)+/iu', '', $clean);
+        $beforeJson = trim(Str::before($clean, ' {"exception":'));
+        if ($beforeJson !== '') {
+            $clean = $beforeJson;
+        }
+        $firstLine = trim(Str::before($clean, "\n"));
+        if ($firstLine !== '') {
+            $clean = $firstLine;
+        }
+
+        $clean = mb_strtolower($clean, 'UTF-8');
+        $clean = (string) preg_replace('/\b\d+\b/', '#', $clean);
+        $clean = (string) preg_replace('/\s+/', ' ', $clean);
+
+        return trim(mb_substr($clean, 0, 160, 'UTF-8'));
     }
 
     /**

@@ -904,4 +904,230 @@ class SentinelSelfHealingAndInboxTest extends TestCase
             $pulseService->resetStateForTesting();
         }
     }
+
+    public function test_local_mysql_cold_boot_2002_returns_503_retry_after_3_without_logging_and_passes_through_in_production(): void
+    {
+        $pdoColdBoot = new \PDOException('SQLSTATE[HY000] [2002] Connection refused', 2002);
+        $queryColdBootDb = new \Illuminate\Database\QueryException(
+            'mysql',
+            'select * from `personal_access_tokens` where `id` = ? limit 1',
+            [4],
+            new \PDOException('SQLSTATE[HY000] [2002] Connection refused (Connection: mysql, Host: db, Port: 3306, Database: seelenfunke)', 2002)
+        );
+        $queryRemoteHost = new \Illuminate\Database\QueryException(
+            'mysql',
+            'select 1',
+            [],
+            new \PDOException('SQLSTATE[HY000] [2002] Connection refused (Connection: mysql, Host: mysql-prod.project.host, Port: 3306)', 2002)
+        );
+
+        // In testing (Default) & production strikt deaktiviert
+        $this->assertFalse(SystemErrorLogger::isTransientLocalDatabaseColdBoot($queryColdBootDb));
+
+        \Illuminate\Support\Facades\Route::get('/api/_test-cold-boot-2002', function () use ($queryColdBootDb) {
+            throw $queryColdBootDb;
+        });
+
+        $origEnv = $this->app['env'];
+        $beforeLogCount = SystemLog::count();
+
+        try {
+            // 1. Im local-Environment: HTTP 503 + Retry-After: 3 + JSON {"status":"booting",...} + 0 SystemLog-Eintraege
+            $this->app['env'] = 'local';
+            $this->assertTrue(SystemErrorLogger::isTransientLocalDatabaseColdBoot($queryColdBootDb));
+            $this->assertFalse(SystemErrorLogger::isTransientLocalDatabaseColdBoot($queryRemoteHost));
+            $this->assertNull(SystemErrorLogger::recordException($pdoColdBoot));
+
+            $localResp = $this->getJson('/api/_test-cold-boot-2002');
+            $localResp->assertStatus(503)
+                ->assertHeader('Retry-After', '3')
+                ->assertExactJson([
+                    'status' => 'booting',
+                    'message' => 'Lokale Datenbank startet gerade...',
+                ]);
+            $this->assertSame($beforeLogCount, SystemLog::count());
+
+            // 2. Im production-Environment: KEIN Kaltstart-503-Bypass, Fehler wird regulär als HTTP 500 & SystemLog behandelt
+            $this->app['env'] = 'production';
+            $this->assertFalse(SystemErrorLogger::isTransientLocalDatabaseColdBoot($queryColdBootDb));
+
+            $prodResp = $this->getJson('/api/_test-cold-boot-2002');
+            $prodResp->assertStatus(500);
+            $this->assertGreaterThan($beforeLogCount, SystemLog::count());
+        } finally {
+            $this->app['env'] = $origEnv;
+        }
+    }
+
+    public function test_playbook_14_heals_local_mysql_cold_boot_respects_relapse_guard_and_never_heals_production(): void
+    {
+        SystemLog::openIssues()->update(['status' => 'success']);
+        $sentinel = app(SentinelTriageService::class);
+
+        $localColdBoot = SystemLog::create([
+            'type' => 'system',
+            'action_id' => 'system:exception:database_query_or_connection',
+            'title' => 'System-Fehler (QueryException)',
+            'message' => 'SQLSTATE[HY000] [2002] Connection refused (Connection: mysql, Host: db, Port: 3306, Database: seelenfunke, SQL: select * from `personal_access_tokens` where `id` = 4 limit 1)',
+            'status' => 'error',
+            'payload' => [
+                'origin_environment' => 'local',
+                'fingerprint' => hash('sha256', 'local_cold_boot_' . uniqid()),
+                'occurrences_count' => 3,
+            ],
+            'started_at' => now()->subMinutes(2),
+            'finished_at' => now()->subMinutes(2),
+        ]);
+
+        $prodConnectionRefused = SystemLog::create([
+            'type' => 'system',
+            'action_id' => 'system:exception:database_query_or_connection',
+            'title' => '[STAGE] System-Fehler (QueryException)',
+            'message' => 'SQLSTATE[HY000] [2002] Connection refused (Connection: mysql, Host: db, Port: 3306, Database: seelenfunke)',
+            'status' => 'error',
+            'payload' => [
+                'origin_environment' => 'production',
+                'fingerprint' => hash('sha256', 'prod_db_down_' . uniqid()),
+                'occurrences_count' => 1,
+            ],
+            'started_at' => now()->subMinute(),
+            'finished_at' => now()->subMinute(),
+        ]);
+
+        $sentinel->runTriageCycle(probeBridges: false, allowAiEnrichment: false);
+
+        $localColdBoot->refresh();
+        $prodConnectionRefused->refresh();
+
+        $this->assertSame('auto_healed', $localColdBoot->triageState());
+        $this->assertSame('local_transient_mysql_cold_boot_recovered', $localColdBoot->payload['triage']['playbook'] ?? null);
+
+        // Production bleibt strikt ungeheilt im Antigravity-Pool!
+        $this->assertSame('error', $prodConnectionRefused->status);
+        $this->assertSame('queued_for_antigravity', $prodConnectionRefused->triageState());
+
+        // 24h-Rezidiv-Sperre greift auch fuer Playbook 14 ab dem 3. Auftreten desselben Fingerprints
+        $relapseFp = hash('sha256', 'local_cold_boot_relapse_' . uniqid());
+        for ($i = 1; $i <= 2; $i++) {
+            SystemLog::create([
+                'type' => 'system',
+                'action_id' => 'system:exception:database_query_or_connection',
+                'title' => "Kaltstart #{$i}",
+                'message' => 'SQLSTATE[HY000] [2002] Connection refused (Connection: mysql, Host: db, Port: 3306)',
+                'status' => 'error',
+                'payload' => ['origin_environment' => 'local', 'fingerprint' => $relapseFp, 'occurrences_count' => 1],
+                'started_at' => now()->subMinutes(15 - $i),
+                'finished_at' => now()->subMinutes(15 - $i),
+            ]);
+            $sentinel->runTriageCycle(probeBridges: false, allowAiEnrichment: false);
+        }
+
+        $thirdColdBoot = SystemLog::create([
+            'type' => 'system',
+            'action_id' => 'system:exception:database_query_or_connection',
+            'title' => 'Kaltstart #3',
+            'message' => 'SQLSTATE[HY000] [2002] Connection refused (Connection: mysql, Host: db, Port: 3306)',
+            'status' => 'error',
+            'payload' => ['origin_environment' => 'local', 'fingerprint' => $relapseFp, 'occurrences_count' => 1],
+            'started_at' => now(),
+            'finished_at' => now(),
+        ]);
+
+        $sentinel->runTriageCycle(probeBridges: false, allowAiEnrichment: false);
+        $thirdColdBoot->refresh();
+        $this->assertSame('error', $thirdColdBoot->status);
+        $this->assertSame('queued_for_antigravity', $thirdColdBoot->triageState());
+        $this->assertTrue((bool) ($thirdColdBoot->payload['triage']['relapse_detected'] ?? false));
+    }
+
+    public function test_minipc_direct_stale_prefix_handoff_auto_reconciles_via_import_file_while_newer_errors_remain_open(): void
+    {
+        SystemLog::openIssues()->update(['status' => 'success']);
+
+        // Gestern um 22:41Z (23:41 Uhr) wurde der Stripe-Webhook-Fehler auf Stage/Lokal bereits behoben & als resolved markiert
+        $resolvedStageFix = SystemLog::create([
+            'type' => 'system',
+            'action_id' => 'system:log:error:application_runtime_error',
+            'title' => '[GELÖST] [STAGE] System-Log ERROR (application_runtime_error)',
+            'message' => 'Stripe Webhook Signatur Fehler: No signatures found matching the expected signature for payload',
+            'status' => 'resolved',
+            'payload' => [
+                'platform' => 'portal',
+                'origin_environment' => 'production',
+                'fingerprint' => hash('sha256', 'stage_stripe_fp_' . uniqid()),
+                'file' => 'app/Http/Controllers/StripeWebhookController.php',
+                'line' => 35,
+                'resolved_at' => '2026-11-16T22:41:00Z',
+                'triage' => ['state' => 'resolved'],
+            ],
+            'started_at' => \Carbon\Carbon::parse('2026-11-16T22:20:00Z'),
+            'finished_at' => \Carbon\Carbon::parse('2026-11-16T22:41:00Z'),
+        ]);
+
+        $staleMiniPcFp = hash('sha256', 'minipc_stale_ba43533c_' . uniqid());
+        $freshMiniPcFp = hash('sha256', 'minipc_fresh_post_fix_' . uniqid());
+        $tmpImportPath = storage_path('framework/testing/tmp_minipc_wakeup_inbox_' . uniqid() . '.json');
+        File::ensureDirectoryExists(dirname($tmpImportPath));
+
+        file_put_contents($tmpImportPath, json_encode([
+            'inbox_version' => 1,
+            'source_environment' => 'production',
+            'items' => [
+                [
+                    'dossier_version' => 2,
+                    'fingerprint' => $staleMiniPcFp,
+                    'origin_environment' => 'minipc_direct',
+                    'prepared_at' => '2026-11-16T22:26:35.4101336Z',
+                    'type' => 'minipc',
+                    'action_id' => 'core:app/Http/Controllers/StripeWebhookController.php',
+                    'severity' => 'error',
+                    'title' => 'System-Log ERROR (application_runtime_error)',
+                    'message' => 'Stripe Webhook Signatur Fehler: No signatures found matching the expected signature for payload',
+                    'culprit_file' => 'app/Http/Controllers/StripeWebhookController.php',
+                    'line' => 35,
+                    'occurrences_count' => 2,
+                ],
+                [
+                    'dossier_version' => 2,
+                    'fingerprint' => $freshMiniPcFp,
+                    'origin_environment' => 'minipc_direct',
+                    'prepared_at' => '2026-11-17T08:30:00Z',
+                    'type' => 'minipc',
+                    'action_id' => 'minipc_linux:laser:new_bug',
+                    'severity' => 'error',
+                    'title' => 'Neuer echter Fehler nach dem Fix',
+                    'message' => 'Unbekannter Kamera-Kalibrierungsfehler im Fokus-Monitor',
+                    'culprit_file' => 'funkenwerk-os-linux/Program.cs',
+                    'line' => 512,
+                    'occurrences_count' => 1,
+                ],
+            ],
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+
+        try {
+            $relPath = ltrim(str_replace(base_path(), '', $tmpImportPath), '/\\');
+            $exitCode = Artisan::call('system:sentinel-inbox', ['--import-file' => $relPath]);
+            $this->assertSame(0, $exitCode);
+
+            $result = json_decode(trim(Artisan::output()), true);
+            $this->assertIsArray($result);
+            $this->assertSame('success', $result['status'] ?? null);
+            $this->assertSame(1, (int) ($result['stale_minipc_reconciled'] ?? 0));
+            $this->assertSame(1, (int) ($result['imported_new'] ?? 0));
+            $this->assertSame(1, (int) ($result['local_open_pool_count'] ?? -1));
+
+            // Das veraltete Mini-PC-Dossier von vor dem Fix (22:26Z < 22:41Z) ist direkt resolved und NICHT offen!
+            $reconciledRow = SystemLog::where('payload->fingerprint', $staleMiniPcFp)->firstOrFail();
+            $this->assertSame('resolved', $reconciledRow->status);
+            $this->assertSame('resolved', $reconciledRow->payload['triage']['state'] ?? null);
+            $this->assertSame($resolvedStageFix->id, $reconciledRow->payload['reconciled_against_log_id'] ?? null);
+
+            // Der neue Fehler nach dem Fix (08:30Z > 22:41Z) bleibt regulaer offen im Antigravity-Pool!
+            $freshRow = SystemLog::where('payload->fingerprint', $freshMiniPcFp)->firstOrFail();
+            $this->assertSame('error', $freshRow->status);
+            $this->assertSame('queued_for_antigravity', $freshRow->triageState());
+        } finally {
+            @unlink($tmpImportPath);
+        }
+    }
 }
