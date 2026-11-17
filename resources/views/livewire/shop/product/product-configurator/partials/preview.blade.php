@@ -413,6 +413,67 @@
             <div x-show="showGuideX" data-snapshot-ignore="true" class="absolute top-0 bottom-0 border-l border-primary/60 border-dashed pointer-events-none transition-opacity" :style="(showGuideX ? '' : 'display: none; ') + 'left: ' + areaCenterX + '%; z-index: 23;'"></div>
             <div x-show="showGuideY" data-snapshot-ignore="true" class="absolute left-0 right-0 border-t border-primary/60 border-dashed pointer-events-none transition-opacity" :style="(showGuideY ? '' : 'display: none; ') + 'top: ' + areaCenterY + '%; z-index: 23;'"></div>
 
+            {{-- REINES UI-LEERMENÜ (data-snapshot-ignore, niemals gelasert/gesnapshottet; bei custom exakt im optischen Polygon-Schwerpunkt skaliert) --}}
+            <div x-show="currentTexts.length === 0 && currentLogos.length === 0 && context !== 'preview' && !config.isBeginnerMode"
+                 data-snapshot-ignore="true"
+                 class="absolute z-[26] pointer-events-none"
+                 :style="`
+                        top: ${config.area_shape === 'custom' ? 0 : (config.area_top ?? 0)}%;
+                        left: ${config.area_shape === 'custom' ? 0 : (config.area_left ?? 0)}%;
+                        width: ${config.area_shape === 'custom' ? 100 : (config.area_width || 100)}%;
+                        height: ${config.area_shape === 'custom' ? 100 : (config.area_height || 100)}%;
+                     `">
+                <div data-testid="configurator-empty-state-menu"
+                     data-snapshot-ignore="true"
+                     :class="config.area_shape === 'custom'
+                         ? 'absolute flex flex-col items-center justify-center gap-1.5 whitespace-nowrap pointer-events-auto'
+                         : 'absolute inset-0 flex flex-col items-center justify-center gap-2 p-4 pointer-events-auto'"
+                     :style="config.area_shape === 'custom'
+                         ? `left: ${emptyStateBoxStyle.left}; top: ${emptyStateBoxStyle.top}; transform: translate(-50%, -50%) scale(${emptyStateBoxStyle.scale}); transform-origin: center center;`
+                         : ''">
+                    <button type="button"
+                            @mousedown.stop
+                            @touchstart.stop
+                            @click.stop="addFallbackText()"
+                            class="px-5 py-2.5 backdrop-blur-md border rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer {{ $isDark ? 'bg-gray-900/88 text-primary border-[#C5A059]/45 hover:bg-primary hover:text-gray-950' : 'bg-white/90 text-[#9A7B3E] border-[#C5A059]/55 hover:bg-[#C5A059] hover:text-white hover:border-[#C5A059] shadow-[0_8px_24px_rgba(197,160,89,0.22)]' }}">
+                        <span class="font-serif text-xs leading-none">Aa+</span>
+                        <span>+ Text hinzufügen</span>
+                    </button>
+
+                    @if($configSettings['allow_logo'] ?? true)
+                        <button type="button"
+                                @mousedown.stop
+                                @touchstart.stop
+                                @click.stop="activeTab = 'files'"
+                                class="px-4 py-2 backdrop-blur-md border rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer {{ $isDark ? 'bg-gray-900/80 text-gray-200 border-gray-700 hover:border-[#C5A059] hover:text-[#C5A059]' : 'bg-white/85 text-gray-700 border-gray-200/90 hover:border-[#C5A059] hover:text-[#9A7B3E] shadow-sm' }}">
+                            <x-heroicon-o-photo class="w-3.5 h-3.5 text-[#C5A059]" />
+                            <span>+ Bild / Motiv laden</span>
+                        </button>
+                    @endif
+
+                    <div class="flex items-center justify-center gap-1.5">
+                        <button type="button"
+                                @mousedown.stop
+                                @touchstart.stop
+                                @click.stop="activeTab = 'symbols'"
+                                class="px-3 py-1.5 backdrop-blur-md border rounded-full text-[9px] font-bold uppercase tracking-wider transition-all flex items-center gap-1 whitespace-nowrap cursor-pointer {{ $isDark ? 'bg-gray-900/75 text-gray-300 border-gray-700 hover:border-[#C5A059] hover:text-[#C5A059]' : 'bg-white/80 text-gray-600 border-gray-200/80 hover:border-[#C5A059] hover:text-[#9A7B3E] shadow-2xs' }}">
+                            <x-heroicon-o-sparkles class="w-3 h-3 text-[#C5A059]" />
+                            <span>Symbole</span>
+                        </button>
+                        @if(!empty($quotes))
+                            <button type="button"
+                                    @mousedown.stop
+                                    @touchstart.stop
+                                    @click.stop="activeTab = 'quotes'"
+                                    class="px-3 py-1.5 backdrop-blur-md border rounded-full text-[9px] font-bold uppercase tracking-wider transition-all flex items-center gap-1 whitespace-nowrap cursor-pointer {{ $isDark ? 'bg-gray-900/75 text-gray-300 border-gray-700 hover:border-[#C5A059] hover:text-[#C5A059]' : 'bg-white/80 text-gray-600 border-gray-200/80 hover:border-[#C5A059] hover:text-[#9A7B3E] shadow-2xs' }}">
+                                <x-heroicon-o-chat-bubble-bottom-center-text class="w-3 h-3 text-[#C5A059]" />
+                                <span>Sprüche</span>
+                            </button>
+                        @endif
+                    </div>
+                </div>
+            </div>
+
             {{-- CLIP-CONTAINER FÜR ELEMENTE --}}
             <div class="absolute z-[25] overflow-hidden pointer-events-none"
                  :style="`
@@ -427,51 +488,6 @@
                             : 'none'
                         };
                      `">
-
-                <div x-show="currentTexts.length === 0 && currentLogos.length === 0 && context !== 'preview' && !config.isBeginnerMode"
-                     data-snapshot-ignore="true"
-                     class="absolute inset-0 flex flex-col items-center justify-center gap-2 p-4 pointer-events-auto">
-                    <button type="button"
-                            @mousedown.stop
-                            @touchstart.stop
-                            @click.stop="addFallbackText()"
-                            class="px-5 py-2.5 backdrop-blur-md border rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 cursor-pointer {{ $isDark ? 'bg-gray-900/88 text-primary border-[#C5A059]/45 hover:bg-primary hover:text-gray-950' : 'bg-white/90 text-[#9A7B3E] border-[#C5A059]/55 hover:bg-[#C5A059] hover:text-white hover:border-[#C5A059] shadow-[0_8px_24px_rgba(197,160,89,0.22)]' }}">
-                        <span class="font-serif text-xs leading-none">Aa+</span>
-                        <span>+ Text hinzufügen</span>
-                    </button>
-
-                    @if($configSettings['allow_logo'] ?? true)
-                        <button type="button"
-                                @mousedown.stop
-                                @touchstart.stop
-                                @click.stop="activeTab = 'files'"
-                                class="px-4 py-2 backdrop-blur-md border rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer {{ $isDark ? 'bg-gray-900/80 text-gray-200 border-gray-700 hover:border-[#C5A059] hover:text-[#C5A059]' : 'bg-white/85 text-gray-700 border-gray-200/90 hover:border-[#C5A059] hover:text-[#9A7B3E] shadow-sm' }}">
-                            <x-heroicon-o-photo class="w-3.5 h-3.5 text-[#C5A059]" />
-                            <span>+ Bild / Motiv laden</span>
-                        </button>
-                    @endif
-
-                    <div class="flex items-center justify-center gap-1.5">
-                        <button type="button"
-                                @mousedown.stop
-                                @touchstart.stop
-                                @click.stop="activeTab = 'symbols'"
-                                class="px-3 py-1.5 backdrop-blur-md border rounded-full text-[9px] font-bold uppercase tracking-wider transition-all flex items-center gap-1 cursor-pointer {{ $isDark ? 'bg-gray-900/75 text-gray-300 border-gray-700 hover:border-[#C5A059] hover:text-[#C5A059]' : 'bg-white/80 text-gray-600 border-gray-200/80 hover:border-[#C5A059] hover:text-[#9A7B3E] shadow-2xs' }}">
-                            <x-heroicon-o-sparkles class="w-3 h-3 text-[#C5A059]" />
-                            <span>Symbole</span>
-                        </button>
-                        @if(!empty($quotes))
-                            <button type="button"
-                                    @mousedown.stop
-                                    @touchstart.stop
-                                    @click.stop="activeTab = 'quotes'"
-                                    class="px-3 py-1.5 backdrop-blur-md border rounded-full text-[9px] font-bold uppercase tracking-wider transition-all flex items-center gap-1 cursor-pointer {{ $isDark ? 'bg-gray-900/75 text-gray-300 border-gray-700 hover:border-[#C5A059] hover:text-[#C5A059]' : 'bg-white/80 text-gray-600 border-gray-200/80 hover:border-[#C5A059] hover:text-[#9A7B3E] shadow-2xs' }}">
-                                <x-heroicon-o-chat-bubble-bottom-center-text class="w-3 h-3 text-[#C5A059]" />
-                                <span>Sprüche</span>
-                            </button>
-                        @endif
-                    </div>
-                </div>
 
                 <template x-for="(logoItem,index) in currentLogos" :key="'content-logo-' + activeSide + '-' + (logoItem.id || index)">
                     <div x-show="currentLogos[index] !== undefined"

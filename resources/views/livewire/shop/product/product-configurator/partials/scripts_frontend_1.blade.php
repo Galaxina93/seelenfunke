@@ -194,6 +194,204 @@
                 const height = Number(this.config?.area_height ?? 100);
                 return top + (height / 2);
             },
+            getCustomPolygonVisualCenter(rawPts = null) {
+                const source = Array.isArray(rawPts) ? rawPts : ((this.config && Array.isArray(this.config.custom_points)) ? this.config.custom_points : []);
+                const pts = [];
+                for (let i = 0; i < source.length; i++) {
+                    const p = source[i];
+                    if (p && typeof p === 'object' && isFinite(Number(p.x)) && isFinite(Number(p.y))) {
+                        pts.push({ x: Number(p.x), y: Number(p.y) });
+                    }
+                }
+                const n = pts.length;
+                if (n < 3) {
+                    return {
+                        x: Number(this.areaCenterX ?? 50),
+                        y: Number(this.areaCenterY ?? 50),
+                        inscribedWidthPct: Math.max(8, Number(this.config?.area_width || 80)),
+                        inscribedHeightPct: Math.max(6, Number(this.config?.area_height || 80)),
+                    };
+                }
+
+                const midPt = pts[Math.floor(n / 2)];
+                const cacheKey = n + ':' + pts[0].x + ',' + pts[0].y + ':' + midPt.x + ',' + midPt.y + ':' + pts[n - 1].x + ',' + pts[n - 1].y;
+                if (this._customVisualCenterCache && this._customVisualCenterCache.key === cacheKey) {
+                    return this._customVisualCenterCache.val;
+                }
+
+                let minX = pts[0].x, maxX = pts[0].x, minY = pts[0].y, maxY = pts[0].y;
+                let signedArea2 = 0;
+                let sumCx = 0;
+                let sumCy = 0;
+
+                for (let i = 0; i < n; i++) {
+                    const p0 = pts[i];
+                    const p1 = pts[(i + 1) % n];
+                    if (p0.x < minX) minX = p0.x;
+                    if (p0.x > maxX) maxX = p0.x;
+                    if (p0.y < minY) minY = p0.y;
+                    if (p0.y > maxY) maxY = p0.y;
+
+                    const cross = (p0.x * p1.y) - (p1.x * p0.y);
+                    signedArea2 += cross;
+                    sumCx += (p0.x + p1.x) * cross;
+                    sumCy += (p0.y + p1.y) * cross;
+                }
+
+                const cx = Math.abs(signedArea2) > 1e-4 ? (sumCx / (3.0 * signedArea2)) : ((minX + maxX) * 0.5);
+                const cy = Math.abs(signedArea2) > 1e-4 ? (sumCy / (3.0 * signedArea2)) : ((minY + maxY) * 0.5);
+
+                const intervalsAtY = (y) => {
+                    const xHits = [];
+                    for (let i = 0, j = n - 1; i < n; j = i++) {
+                        const xi = pts[i].x, yi = pts[i].y;
+                        const xj = pts[j].x, yj = pts[j].y;
+                        if ((yi > y) !== (yj > y)) {
+                            xHits.push(xi + ((y - yi) * (xj - xi)) / (yj - yi));
+                        }
+                    }
+                    xHits.sort((a, b) => a - b);
+                    const out = [];
+                    for (let k = 0; k + 1 < xHits.length; k += 2) {
+                        out.push([xHits[k], xHits[k + 1]]);
+                    }
+                    return out;
+                };
+
+                const intervalsAtX = (x) => {
+                    const yHits = [];
+                    for (let i = 0, j = n - 1; i < n; j = i++) {
+                        const xi = pts[i].x, yi = pts[i].y;
+                        const xj = pts[j].x, yj = pts[j].y;
+                        if ((xi > x) !== (xj > x)) {
+                            yHits.push(yi + ((x - xi) * (yj - yi)) / (xj - xi));
+                        }
+                    }
+                    yHits.sort((a, b) => a - b);
+                    const out = [];
+                    for (let k = 0; k + 1 < yHits.length; k += 2) {
+                        out.push([yHits[k], yHits[k + 1]]);
+                    }
+                    return out;
+                };
+
+                const bboxW = Math.max(1.0, maxX - minX);
+                const bboxH = Math.max(1.0, maxY - minY);
+                const bandHalfH = Math.min(5.5, bboxH * 0.20);
+
+                let bestScore = -1.0;
+                let bestX = cx;
+                let bestY = cy;
+                let bestW = Math.max(8.0, bboxW);
+                let bestH = Math.max(8.0, bboxH);
+
+                const steps = 32;
+                const yStart = minY + (bboxH * 0.16);
+                const yEnd = maxY - (bboxH * 0.16);
+
+                for (let s = 0; s <= steps; s++) {
+                    const ty = yStart + ((yEnd - yStart) * (s / steps));
+                    const ivMid = intervalsAtY(ty);
+                    const ivTop = intervalsAtY(ty - bandHalfH);
+                    const ivBot = intervalsAtY(ty + bandHalfH);
+                    if (ivMid.length === 0 || ivTop.length === 0 || ivBot.length === 0) continue;
+
+                    for (let im = 0; im < ivMid.length; im++) {
+                        const lMid = ivMid[im][0], rMid = ivMid[im][1];
+                        for (let it = 0; it < ivTop.length; it++) {
+                            const lTop = ivTop[it][0], rTop = ivTop[it][1];
+                            for (let ib = 0; ib < ivBot.length; ib++) {
+                                const lBot = ivBot[ib][0], rBot = ivBot[ib][1];
+                                const left = Math.max(lMid, lTop, lBot);
+                                const right = Math.min(rMid, rTop, rBot);
+                                const effW = right - left;
+                                if (effW <= 4.0) continue;
+
+                                const midIntervalX = (left + right) * 0.5;
+                                const vIvs = intervalsAtX(midIntervalX);
+                                let symVertH = 0;
+                                let inVert = false;
+                                for (let iv = 0; iv < vIvs.length; iv++) {
+                                    const vy0 = vIvs[iv][0], vy1 = vIvs[iv][1];
+                                    if (ty > vy0 && ty < vy1) {
+                                        symVertH = 2.0 * Math.min(ty - vy0, vy1 - ty);
+                                        if (symVertH >= bandHalfH * 1.6) {
+                                            inVert = true;
+                                        }
+                                        break;
+                                    }
+                                }
+                                if (!inVert) continue;
+
+                                const vertFactor = Math.min(1.0, symVertH / Math.max(8.0, Math.min(22.0, bboxH * 0.62)));
+                                const distNorm = Math.abs(ty - cy) / bboxH;
+                                const centroidFactor = 1.0 - Math.min(0.50, distNorm * 1.18);
+
+                                const score = effW * (0.55 + 0.45 * vertFactor) * centroidFactor;
+                                if (score > bestScore) {
+                                    bestScore = score;
+                                    bestX = midIntervalX;
+                                    bestY = ty;
+                                    bestW = effW;
+                                    bestH = symVertH;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (bestScore < 0) {
+                    const fallbackIntervals = intervalsAtY(cy);
+                    let widest = 0;
+                    for (let fi = 0; fi < fallbackIntervals.length; fi++) {
+                        const span = fallbackIntervals[fi][1] - fallbackIntervals[fi][0];
+                        if (span > widest) {
+                            widest = span;
+                            bestX = (fallbackIntervals[fi][0] + fallbackIntervals[fi][1]) * 0.5;
+                            bestY = cy;
+                            bestW = Math.max(8.0, widest);
+                        }
+                    }
+                }
+
+                const result = {
+                    x: Math.round(bestX * 100) / 100,
+                    y: Math.round(bestY * 100) / 100,
+                    inscribedWidthPct: Math.round(Math.max(8.0, bestW) * 100) / 100,
+                    inscribedHeightPct: Math.round(Math.max(6.0, bestH) * 100) / 100,
+                };
+                this._customVisualCenterCache = { key: cacheKey, val: result };
+                return result;
+            },
+            get spawnCenterX() {
+                if (this.config && this.config.area_shape === 'custom' && Array.isArray(this.config.custom_points) && this.config.custom_points.length >= 3) {
+                    return this.getCustomPolygonVisualCenter().x;
+                }
+                return this.areaCenterX;
+            },
+            get spawnCenterY() {
+                if (this.config && this.config.area_shape === 'custom' && Array.isArray(this.config.custom_points) && this.config.custom_points.length >= 3) {
+                    return this.getCustomPolygonVisualCenter().y;
+                }
+                return this.areaCenterY;
+            },
+            get emptyStateBoxStyle() {
+                if (!this.config || this.config.area_shape !== 'custom' || !Array.isArray(this.config.custom_points) || this.config.custom_points.length < 3) {
+                    return { left: '50%', top: '50%', scale: '1' };
+                }
+                const vc = this.getCustomPolygonVisualCenter();
+                const stageScale = Math.min(1.05, Math.max(0.84, Number(this.scaleFactor) || 1));
+                let computedScale = ((vc.inscribedWidthPct || 40) / 48) * stageScale;
+                if ((vc.inscribedHeightPct || 40) < 20) {
+                    computedScale = Math.min(computedScale, 0.72);
+                }
+                const clampedScale = Math.max(0.72, Math.min(1.0, computedScale));
+                return {
+                    left: vc.x.toFixed(2) + '%',
+                    top: vc.y.toFixed(2) + '%',
+                    scale: clampedScale.toFixed(3),
+                };
+            },
             getWorkingAreaWidthPercent() {
                 if (this.config && this.config.beginnerCoords && Number(this.config.beginnerCoords.area_width_pct) > 0) {
                     return Number(this.config.beginnerCoords.area_width_pct);
@@ -1039,8 +1237,8 @@
                         id: newId,
                         text: '',
                         size: this.getDefaultStudioTextSize(),
-                        x: this.areaCenterX,
-                        y: this.areaCenterY,
+                        x: this.spawnCenterX,
+                        y: this.spawnCenterY,
                         rotation: 0,
                         curve: 0,
                         align: 'center',
@@ -1096,11 +1294,11 @@
 
                 // Neues Textfeld anlegen (leicht versetzt, falls im Zentrum schon ein Text liegt)
                 const newId = Math.random().toString(36).substr(2, 9);
-                let targetX = this.areaCenterX;
-                let targetY = this.areaCenterY;
+                let targetX = this.spawnCenterX;
+                let targetY = this.spawnCenterY;
                 if (currentList.length > 0) {
                     const offsetStep = Math.min(3, currentList.length) * 6;
-                    targetY = Math.min(82, this.areaCenterY + offsetStep);
+                    targetY = Math.min(86, this.spawnCenterY + offsetStep);
                 }
 
                 let maxZ = 30;
@@ -3365,8 +3563,8 @@
                     activeItem.text = cleanQuote;
                     activeItem.align = activeItem.align || 'center';
                     activeItem.size = this.computeFitQuoteSize(cleanQuote, activeItem.font || 'Cinzel');
-                    activeItem.x = activeItem.x ?? this.areaCenterX;
-                    activeItem.y = activeItem.y ?? this.areaCenterY;
+                    activeItem.x = activeItem.x ?? this.spawnCenterX;
+                    activeItem.y = activeItem.y ?? this.spawnCenterY;
                     activeItem.zIndex = Math.min(95, maxZ + 1);
                 } else {
                     // 2. Suche nach einem bereits vorhandenen, noch leeren Textfeld auf der aktiven Seite
@@ -3378,8 +3576,8 @@
                         emptyItem.text = cleanQuote;
                         emptyItem.align = 'center';
                         emptyItem.size = this.computeFitQuoteSize(cleanQuote, emptyItem.font || 'Cinzel');
-                        emptyItem.x = this.areaCenterX;
-                        emptyItem.y = this.areaCenterY;
+                        emptyItem.x = this.spawnCenterX;
+                        emptyItem.y = this.spawnCenterY;
                         emptyItem.zIndex = Math.min(95, maxZ + 1);
                     } else {
                         // 3. Neues zentriertes Textfeld auf der aktiven Seite anlegen
@@ -3390,8 +3588,8 @@
                             text: cleanQuote,
                             font: defaultFont,
                             align: 'center',
-                            x: this.areaCenterX,
-                            y: this.areaCenterY,
+                            x: this.spawnCenterX,
+                            y: this.spawnCenterY,
                             size: this.computeFitQuoteSize(cleanQuote, defaultFont),
                             rotation: 0,
                             zIndex: Math.min(95, maxZ + 1)

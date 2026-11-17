@@ -111,7 +111,7 @@ sequenceDiagram
 
 Zur dauerhaften Absicherung wurde eine automatisierte Feature- und Integrationstest-Suite erstellt:
 
-**Datei:** [`tests/Feature/Livewire/Shop/Product/ProductConfiguratorCalculatorIntegrationTest.php`](file:///wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Livewire/Shop/Product/ProductConfiguratorCalculatorIntegrationTest.php)
+**Datei:** [`tests/Feature/Livewire/Shop/Product/ProductConfiguratorCalculatorIntegrationTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Livewire/Shop/Product/ProductConfiguratorCalculatorIntegrationTest.php)
 
 ### Getestete Szenarien:
 1. `configurator_in_calculator_mode_auto_confirms_and_dispatches_calculator_save`:
@@ -177,13 +177,13 @@ Beim Erstellen von Angeboten über den Kalkulator (z. B. Anfrage `#AN-2026-SLEEJ
 
 ### 7.2 Durchgeführte Maßnahmen & Implementierung
 
-1. **Pfad-Normalisierung & Base64-Auflösung in [`mail_item_list.blade.php`](file:///wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/global/mails/partials/mail_item_list.blade.php):**
+1. **Pfad-Normalisierung & Base64-Auflösung in [`mail_item_list.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/global/mails/partials/mail_item_list.blade.php):**
    - Automatische Erkennung und Normalisierung von Snapshots: Pfade mit `snapshots/` werden transparent als `system/snapshots/` aufgelöst.
    - DomPDF-Base64-Inlining: Liegt ein Snapshot auf der Festplatte, wird er im PDF-Modus (`isPdf = true`) direkt als Base64 Data URI (`data:image/jpeg;base64,...`) eingebunden.
    - Mail-URL-Auflösung: In HTML-E-Mails erzeugt `asset('storage/' . $cleanRelPath)` stets die korrekte, öffentlich erreichbare URL.
    - **Strikte Fallback-Hierarchie:** Wenn ein 3D-Snapshot existiert, wird **nur** dieser dargestellt. Das Katalog-Produktbild (`main_image`) dient als reiner Fallback und wird nur angezeigt, wenn gar kein Snapshot vorhanden ist (z. B. bei Standard-Artikeln ohne Personalisierung). Beide Bilder werden niemals gleichzeitig dargestellt.
 
-2. **Snapshot-Erhalt in [`ProductConfigurator.php`](file:///wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Product/ProductConfigurator/ProductConfigurator.php):**
+2. **Snapshot-Erhalt in [`ProductConfigurator.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Product/ProductConfigurator/ProductConfigurator.php):**
    - Eigenschaft `public $snapshot_path = [];` hinzugefügt.
    - In `mount()` wird ein existierender Snapshot aus `$initialData['snapshot_path']` geladen.
    - In `save()` wird `$finalSnapshotPath = !empty($snapshotPath) ? $snapshotPath : $this->snapshot_path;` verwendet, sodass bestehende Snapshots niemals durch ein leeres Array überschrieben werden.
@@ -201,7 +201,7 @@ Beim Erstellen von Angeboten über den Kalkulator (z. B. Anfrage `#AN-2026-SLEEJ
 ### 7.3 Testabdeckung & Verifikation
 
 Ein dedizierter Test wurde implementiert:
-**Datei:** [`tests/Feature/Livewire/Shop/Product/QuoteMailPdfImageRenderingTest.php`](file:///wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Livewire/Shop/Product/QuoteMailPdfImageRenderingTest.php)
+**Datei:** [`tests/Feature/Livewire/Shop/Product/QuoteMailPdfImageRenderingTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Livewire/Shop/Product/QuoteMailPdfImageRenderingTest.php)
 
 **Getestete Fälle:**
 1. `quote_renders_only_3d_snapshot_and_no_catalog_fallback_when_snapshot_exists`:
@@ -238,7 +238,7 @@ Bisher enthielt der Dateiupload-Bereich im Konfigurator ([`formluar.blade.php`](
 In [`formluar.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/product/product-configurator/partials/formluar.blade.php) wurde ein dreistufiges, kundenfreundliches Ampelsystem implementiert:
 1. **Vektorgrafiken (SVG):**
    - Sofortiges Erkennen von `image/svg+xml`.
-   - Darstellung eines violetten Qualitäts-Badges: *„Vektordatei – Höchste Schärfe für Laserarbeiten“*.
+   - Darstellung eines violetten Qualitäts-Badges: *„Vektordatei · Höchste Schärfe für Laserarbeiten“*.
 2. **Optimal geeignete Rasterbilder (Grüne Ampel):**
    - Kriterium: Bildbreite und -höhe mindestens 350 px **oder** Gesamtpixelzahl >= 200.000 px.
    - Grünes Prüfsiegel mit Haken: *„Datei ist einsatzbereit und optimal für die Gravur geeignet.“*
@@ -256,12 +256,12 @@ Nicht jedes Produkt benötigt den vollwertigen interaktiven 2D-/3D-Studio-Konfig
 
 Hierfür unterstützt jedes Produkt in [`Product.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Models/Product/Product.php) über `configurator_settings['personalization_mode']` (sowie `is_personalizable`) drei klar getrennte Betriebsmodi:
 
-1. **Modus A – `studio` („🎨 Interaktives 2D/3D-Design-Studio“):**
+1. **Modus A (`studio` · „🎨 Interaktives 2D/3D-Design-Studio“):**
    - Klassischer Echtzeit-Konfigurator mit 3D-Three.js-Modell (`.glb`), 2D-Canvas-Overlay, freier Text-/Motivplatzierung, Vorlagen-Karussell und 3D-Snapshot-Generierung.
-2. **Modus B – `custom_fields` („⚡ Schlanke Schnell-Personalisierung / Nur Eingabefelder“):**
+2. **Modus B (`custom_fields` · „⚡ Schlanke Schnell-Personalisierung / Nur Eingabefelder“):**
    - Kein 3D-Modell und kein Canvas-Editor nötig; die Produktgalerie bleibt auf der Produktdetailseite im Fokus.
    - Der Kunde füllt direkt schlanke, vom Admin frei definierte Eingabefelder aus (inklusive eigenem **`!`-Ausrufungszeichen-Tooltip** pro Feld, Zeichenzähler, Pflichtfeld-Prüfung, optionalem Feld-Aufpreis und **echter Konfigurator-Schriftarten-Auswahl**).
-3. **Modus C – `standard` (`is_personalizable = false`, „📦 Fertiges Produkt / Bereit zum Kauf“):**
+3. **Modus C (`standard`, `is_personalizable = false` · „📦 Fertiges Produkt / Bereit zum Kauf“):**
    - Für vorab gelaserte Spruch-/Motiv-Artikel mit festem Design: Keine Texteingabe und kein Widerrufs-Ausschluss-Haken erforderlich, sofortiger 1-Klick-Warenkorb.
 
 ---
@@ -274,7 +274,7 @@ In [`Product::normalizeCustomFieldItem()`](file://wsl.localhost/Ubuntu/home/ubun
 - **`type`** (`string`): Unterstützte Feld-Arten:
   - `text`: Einzeiliges Textfeld mit Live-Zeichenzähler (`max_length`).
   - `textarea`: Mehrzeiliges Textfeld mit Live-Zeichenzähler.
-  - `font`: **Schriftart-Auswahl (Konfigurator-Schriften)** – greift direkt auf die 22 lokal gehosteten `.woff2`-Schriftarten aus [`ConfiguratorService::getFonts()`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/ConfiguratorService.php#L133-L159) zu (`Arial`, `Times New Roman`, `Verdana`, `Courier New`, `Georgia`, `ABeeZee`, `Alex Brush`, `Bebas Neue`, `Caveat`, `Cinzel`, `Comfortaa`, `Dancing Script`, `Great Vibes`, `Lobster`, `Lobster Two`, `Marck Script`, `Montserrat`, `Pacifico`, `Playfair Display`, `Righteous`, `Sacramento`, `Satisfy`).
+  - `font`: **Schriftart-Auswahl (Konfigurator-Schriften):** greift direkt auf die 22 lokal gehosteten `.woff2`-Schriftarten aus [`ConfiguratorService::getFonts()`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/ConfiguratorService.php#L133-L159) zu (`Arial`, `Times New Roman`, `Verdana`, `Courier New`, `Georgia`, `ABeeZee`, `Alex Brush`, `Bebas Neue`, `Caveat`, `Cinzel`, `Comfortaa`, `Dancing Script`, `Great Vibes`, `Lobster`, `Lobster Two`, `Marck Script`, `Montserrat`, `Pacifico`, `Playfair Display`, `Righteous`, `Sacramento`, `Satisfy`).
   - `select`: Auswahl-Dropdown mit frei definierbaren, kommagetrennten Auswahlwerten (z. B. `Kein Symbol, ♥ Herz, ∞ Unendlichkeit, ★ Stern`).
   - `date`: Datums-Auswahlfeld.
 - **`info_text`** (`string`): Individueller Hilfetext, der beim Klick oder Hover auf das gelb/goldene **`!`-Ausrufungszeichen** neben dem Feldnamen aufklappt.
@@ -343,10 +343,10 @@ In [`right.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekt
 1. **`Neuling` (`Einfache Variante`):**
    - **Aufbau:** Hauptüberschrift (fett) **`Neuling`**, Sub-Überschrift (nicht fett, `font-normal`) **`Einfache Variante`**, Untertext *„Gib einfach deinen Wunschtext und ein Symbol an.“*
    - **Funktion (`startBeginnerConfig()`):** Öffnet direkt das schlanke Schnell-Personalisierungs-Formular (`personalization_mode => 'custom_fields'`) innerhalb des Konfigurator-Fensters (ohne 2D/3D-Zeichenbrett) und lässt die linke Produktbild-Galerie via `variant-selected`-Event automatisch auf das hinterlegte **„Neulingsbild“** (`resolveBeginnerMediaMeta()`) springen.
-2. **`Anfänger` (`Vorlage nutzen` – Silberrahmen):**
+2. **`Anfänger` (`Vorlage nutzen` · Silberrahmen):**
    - **Aufbau:** Gesamte Kachel im **Silberrahmen** (`border-2 border-slate-300 ring-1 ring-slate-200/80`), Hauptüberschrift (fett) **`Anfänger`**, Sub-Überschrift (nicht fett) **`Vorlage nutzen`**, Untertext *„Wähle eine Vorlage aus, um einen ersten Eindruck zu erhalten.“*
    - **Funktion (`openTemplatesList()`):** Öffnet die Design-Vorlagen-Übersicht des Produkts.
-3. **`Profi` (`Selber Konfigurieren` – Goldrahmen):**
+3. **`Profi` (`Selber Konfigurieren` · Goldrahmen):**
    - **Aufbau:** Gesamte Kachel im **Goldrahmen** (`border-2 border-[#C5A059] ring-1 ring-[#C5A059]/30`), Hauptüberschrift (fett) **`Profi`**, Sub-Überschrift (nicht fett) **`Selber Konfigurieren`**, Untertext *„Nur für Profis, die alle Details aus ihrem Produkt rausholen wollen. Leerstart.“*
    - **Funktion (`startCustomConfig()`):** Startet den interaktiven 2D/3D-Studio-Konfigurator im Leerstart (`personalization_mode => 'studio'`) und setzt die linke Galerie auf das reguläre Hauptbild zurück.
 
@@ -374,7 +374,7 @@ In [`_edit_step_2.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-
   - Das Disketten-Icon (`Design Sichern`) sitzt rechts außen in der `Gestaltung`-Kopfzeile neben `Andere Vorlage wählen`; ein fester `w-7 h-7`-Platzhalter für `Design laden` verhindert jedes Springen beim Speichern.
 - **Angedockte Werkzeugleisten ober- & unterhalb der Vorschau ([`preview.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/product/product-configurator/partials/preview.blade.php)):**
   - Reine Pfeil-Icons für Undo/Redo (`<!-- Zurück und Vor Buttons (Undo / Redo) -->`), kompakte `2D` / `3D`-Umschalter und sauberer Seitenabstand (`px-3 sm:px-5`).
-  - Oberhalb der Vorschau über die volle Breite angedockt: Erstellungsleiste (`+ Text | + Bild | Symbole | Sprüche`) ohne seitliche/obere Doppel-Border sowie darunter der vollbreite Zoom-Regler (`50 % – 250 %`).
+  - Oberhalb der Vorschau über die volle Breite angedockt: Erstellungsleiste (`+ Text | + Bild | Symbole | Sprüche`) ohne seitliche/obere Doppel-Border sowie darunter der vollbreite Zoom-Regler (`50 % bis 250 %`).
   - Unterhalb der Vorschau über die volle Breite angedockt (2 luftige Reihen bei ausgewähltem Element):
     - **Reihe 1:** `Verschieben | Drehen | Größe | Zuschneiden` (bzw. `Schrift | Format` mit rechtsbündigem `right-0`-Popover ohne Abschneiden).
     - **Reihe 2 (ab Kopie):** `Kopie | Horiz. | Vertik. | Mitte | Löschen`.
@@ -420,5 +420,19 @@ In [`_edit_step_2.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-
    - **Lösung ([`scripts_frontend_1.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/product/product-configurator/partials/scripts_frontend_1.blade.php), [`scripts_frontend_2.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/product/product-configurator/partials/scripts_frontend_2.blade.php), [`preview.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/product/product-configurator/partials/preview.blade.php)):** Eigene Foto-Uploads (`isCustomUpload`) werden automatisch erkannt (`item.type === 'custom'`, `/storage/uploads/`, `/livewire-tmp/`, `data:image/(jpeg|png|webp)`) und niemals mit `brightness(0)` geschwärzt, sondern als echte hochauflösende Fotogravur gerendert; Vektor-Symbole bleiben über `zIndex` (`12` vs. `10`) sichtbar darüber.
 2. **Garantierte Neuberechnung des Sicherungs-Screenshots bei Vorlagen-Anpassung:**
    - **Lösung ([`scripts_frontend_1.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/product/product-configurator/partials/scripts_frontend_1.blade.php), [`ProductConfigurator.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Product/ProductConfigurator/ProductConfigurator.php)):** Beim Klick auf „In den Warenkorb“ / „Übernehmen“ erzeugt `submitConfig()` über `renderTemplatePreviewDataUri('front')` deterministisch einen frischen 2D-Komposit-Screenshot inklusive aller hochgeladenen Fotos, Symbole und Texte, sodass niemals das statische Vorlagen-Vorschaubild der Ursprungsvorlage erhalten bleibt.
+
+---
+
+## 15. Optischer 2D-Flächenschwerpunkt & Kompakt-Skalierung des Studio-Leermenüs bei Freiform-Polygonen (`area_shape === 'custom'`, 17. November 2026)
+
+### 15.1 Ursachenanalyse beim „Seelenanhänger“ (`seelen-anhaenger`)
+- Im Studio-Modus besitzt der Element-Clip-Container bei Freiform-Polygonen (`area_shape === 'custom'`) die Bühnenmaße `top: 0%; left: 0%; width: 100%; height: 100%` mit aktivem `clip-path: polygon(...)`.
+- Das 3-zeilige Leer-Zustands-Menü (`+ Text hinzufügen`, `+ Bild / Motiv laden`, `Symbole | Sprüche`) lag zuvor statisch bei `(50 %, 50 %)` des Gesamtbildes. Beim Herz-Polygon des Seelenanhängers (`y = 54,19 % .. 94,52 %`, obere Kerbe bei `y = 59,45 %`) schnitt `clip-path` dadurch die oberen beiden Aktions-Buttons oberhalb des Herzens unsichtbar weg.
+
+### 15.2 Regressionsfreie Lösung (`0,0 mm` Versatz für Bestandsdaten & Laser-Parität)
+- **Bestehende Koordinaten unberührt:** `areaCenterX`, `areaCenterY`, `getBeginnerPositionCoordinates()` sowie sämtliche `rect`- und `circle`-Produkte (`Der Seelen Kristall`, `Weizenglas`) bleiben zu `100 %` unverändert.
+- **Gaußscher 2D-Flächenschwerpunkt + Scanline-Kerbenprüfung (`getCustomPolygonVisualCenter()` in [`scripts_frontend_1.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/product/product-configurator/partials/scripts_frontend_1.blade.php) & `computeCustomPolygonVisualCenter()` in [`HandlesConfiguratorLogic.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Product/ProductConfigurator/Traits/HandlesConfiguratorLogic.php)):** Berechnet über die Shoelace-Formel und horizontale/vertikale Scanline-Schnitte den wahren optischen Innen-Schwerpunkt samt nutzbarer Innenbreite (`inscribedWidthPct`, beim Seelenanhänger exakt im Herz-Bauch bei `x = 50,0 %`, `y ≈ 70,6 %`; bei der Seelen-Pfote automatisch links des Pfoten-Durchbruchs bei `x ≈ 40,9 %`).
+- **Zentriertes Leermenü & identischer Element-Spawn ([`preview.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/product/product-configurator/partials/preview.blade.php)):** Positioniert das `data-snapshot-ignore="true"`-Leermenü bei `custom`-Polygonen exakt auf `emptyStateBoxStyle` (`left`, `top`, kompaktes `scale` in `0.72 .. 1.0`) in einem unbeschnittenen `z-[26]`-UI-Layer und spawnt neue Texte (`addFallbackText`), Symbole (`addStandardVector`) und Sprüche (`applyQuoteToStage`) exakt an `spawnCenterX / spawnCenterY`, abgesichert durch [`ProductConfiguratorCustomCenterTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Shop/ProductConfiguratorCustomCenterTest.php) und [`LaserDesignParityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/LaserDesignParityTest.php).
+
 
 

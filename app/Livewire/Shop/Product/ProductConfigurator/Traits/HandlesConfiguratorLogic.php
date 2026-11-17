@@ -105,8 +105,9 @@ trait HandlesConfiguratorLogic
     {
         if ($this->context === 'preview') return;
         $coords = $this->getBeginnerPositionCoordinates();
-        $centerX = $coords['center_x'] ?? ($this->configSettings['area_left'] + ($this->configSettings['area_width'] / 2));
-        $centerY = $coords['center_y'] ?? ($this->configSettings['area_top'] + ($this->configSettings['area_height'] / 2));
+        $spawn = $this->resolveStudioSpawnCenter();
+        $centerX = $spawn['x'];
+        $centerY = $spawn['y'];
         $defaultSize = $size !== null ? (float) $size : (float) ($coords['studio_text_size'] ?? 0.72);
 
         $newItem = [
@@ -162,7 +163,7 @@ trait HandlesConfiguratorLogic
         }
     }
 
-    public function addStandardVector($filename)
+    public function addStandardVector($filename, $x = null, $y = null)
     {
         if ($this->context === 'preview') return;
         $rawFilename = ltrim(str_replace('\\', '/', trim((string) $filename)), '/');
@@ -176,9 +177,9 @@ trait HandlesConfiguratorLogic
             return;
         }
 
-        $coords = $this->getBeginnerPositionCoordinates();
-        $centerX = $coords['center_x'] ?? ($this->configSettings['area_left'] + ($this->configSettings['area_width'] / 2));
-        $centerY = $coords['center_y'] ?? ($this->configSettings['area_top'] + ($this->configSettings['area_height'] / 2));
+        $spawn = $this->resolveStudioSpawnCenter();
+        $centerX = is_numeric($x) ? round((float) $x, 2) : $spawn['x'];
+        $centerY = is_numeric($y) ? round((float) $y, 2) : $spawn['y'];
 
         $url = $vectorService->resolveVectorUrl($canonicalRel);
 
@@ -237,9 +238,9 @@ trait HandlesConfiguratorLogic
             return;
         }
 
-        $coords = $this->getBeginnerPositionCoordinates();
-        $centerX = $coords['center_x'] ?? ($this->configSettings['area_left'] + ($this->configSettings['area_width'] / 2));
-        $centerY = $coords['center_y'] ?? ($this->configSettings['area_top'] + ($this->configSettings['area_height'] / 2));
+        $spawn = $this->resolveStudioSpawnCenter();
+        $centerX = $spawn['x'];
+        $centerY = $spawn['y'];
 
         $resolvedUrl = str_starts_with($value, 'vectors/')
             ? app(\App\Services\ProductConfiguratorService::class)->resolveVectorUrl($value)
@@ -262,9 +263,9 @@ trait HandlesConfiguratorLogic
 
     protected function addFilesToStage($newPaths = null)
     {
-        $coords = $this->getBeginnerPositionCoordinates();
-        $centerX = $coords['center_x'] ?? ($this->configSettings['area_left'] + ($this->configSettings['area_width'] / 2));
-        $centerY = $coords['center_y'] ?? ($this->configSettings['area_top'] + ($this->configSettings['area_height'] / 2));
+        $spawn = $this->resolveStudioSpawnCenter();
+        $centerX = $spawn['x'];
+        $centerY = $spawn['y'];
 
         $targetProperty = $this->activeSide === 'back' ? 'logos_back' : 'logos';
         $this->$targetProperty = array_values(is_array($this->$targetProperty) ? $this->$targetProperty : []);
@@ -402,6 +403,217 @@ trait HandlesConfiguratorLogic
             $rendered[] = array_merge($logo, ['url' => $url]);
         }
         return $rendered;
+    }
+
+    /**
+     * Ermittelt die ideale Startkoordinate für neu im Studio-Modus eingefügte Elemente (Texte, Symbole, Bilder).
+     * Bei rect/circle exakt identisch zu getBeginnerPositionCoordinates(); bei custom der optische 2D-Flächenschwerpunkt.
+     *
+     * @return array{x: float, y: float, inscribedWidthPct: float, inscribedHeightPct: float}
+     */
+    public function resolveStudioSpawnCenter(?array $settings = null): array
+    {
+        $cfg = is_array($settings) && !empty($settings)
+            ? $settings
+            : (is_array($this->configSettings ?? null) && !empty($this->configSettings)
+                ? $this->configSettings
+                : (is_array($this->product->configurator_settings ?? null) ? $this->product->configurator_settings : []));
+
+        if (($cfg['area_shape'] ?? 'rect') === 'custom' && !empty($cfg['custom_points']) && is_array($cfg['custom_points']) && count($cfg['custom_points']) >= 3) {
+            return $this->computeCustomPolygonVisualCenter($cfg['custom_points']);
+        }
+
+        $coords = $this->getBeginnerPositionCoordinates($cfg);
+        $fallbackX = (float) ($cfg['area_left'] ?? 10) + ((float) ($cfg['area_width'] ?? 80) / 2.0);
+        $fallbackY = (float) ($cfg['area_top'] ?? 10) + ((float) ($cfg['area_height'] ?? 80) / 2.0);
+
+        return [
+            'x'                  => (float) ($coords['center_x'] ?? $fallbackX),
+            'y'                  => (float) ($coords['center_y'] ?? $fallbackY),
+            'inscribedWidthPct'  => (float) ($coords['area_width_pct'] ?? ($cfg['area_width'] ?? 80.0)),
+            'inscribedHeightPct' => (float) ($cfg['area_height'] ?? 80.0),
+        ];
+    }
+
+    /**
+     * Berechnet den optischen 2D-Flächenschwerpunkt eines Freiform-Polygons (Gaußsche Trapezformel / Shoelace)
+     * inklusive Scanline-Prüfung gegen konkave Kerben (z. B. Herz-Einkerbung oben oder Pfoten-Durchbruch seitlich),
+     * ohne bestehende gespeicherte Element-Koordinaten oder getBeginnerPositionCoordinates() zu verändern.
+     *
+     * @param array<int, mixed> $rawPoints
+     * @return array{x: float, y: float, inscribedWidthPct: float, inscribedHeightPct: float}
+     */
+    public function computeCustomPolygonVisualCenter(array $rawPoints): array
+    {
+        $pts = [];
+        foreach ($rawPoints as $p) {
+            if (is_array($p) && isset($p['x'], $p['y']) && is_numeric($p['x']) && is_numeric($p['y'])) {
+                $pts[] = [
+                    'x' => (float) $p['x'],
+                    'y' => (float) $p['y'],
+                ];
+            }
+        }
+
+        $n = count($pts);
+        if ($n < 3) {
+            return [
+                'x'                  => 50.0,
+                'y'                  => 50.0,
+                'inscribedWidthPct'  => 80.0,
+                'inscribedHeightPct' => 80.0,
+            ];
+        }
+
+        $xs = array_column($pts, 'x');
+        $ys = array_column($pts, 'y');
+        $minX = min($xs);
+        $maxX = max($xs);
+        $minY = min($ys);
+        $maxY = max($ys);
+
+        // 1. Gaußsche Trapezformel (Shoelace Area Centroid)
+        $signedArea2 = 0.0;
+        $sumCx = 0.0;
+        $sumCy = 0.0;
+        for ($i = 0; $i < $n; $i++) {
+            $p0 = $pts[$i];
+            $p1 = $pts[($i + 1) % $n];
+            $cross = ($p0['x'] * $p1['y']) - ($p1['x'] * $p0['y']);
+            $signedArea2 += $cross;
+            $sumCx += ($p0['x'] + $p1['x']) * $cross;
+            $sumCy += ($p0['y'] + $p1['y']) * $cross;
+        }
+
+        $cx = abs($signedArea2) > 1e-4 ? ($sumCx / (3.0 * $signedArea2)) : (($minX + $maxX) * 0.5);
+        $cy = abs($signedArea2) > 1e-4 ? ($sumCy / (3.0 * $signedArea2)) : (($minY + $maxY) * 0.5);
+
+        $intervalsAtY = static function (float $y) use ($pts, $n): array {
+            $xHits = [];
+            for ($i = 0, $j = $n - 1; $i < $n; $j = $i++) {
+                $xi = $pts[$i]['x'];
+                $yi = $pts[$i]['y'];
+                $xj = $pts[$j]['x'];
+                $yj = $pts[$j]['y'];
+                if (($yi > $y) !== ($yj > $y)) {
+                    $xHits[] = $xi + ($y - $yi) * ($xj - $xi) / ($yj - $yi);
+                }
+            }
+            sort($xHits);
+            $out = [];
+            for ($k = 0; $k + 1 < count($xHits); $k += 2) {
+                $out[] = [$xHits[$k], $xHits[$k + 1]];
+            }
+            return $out;
+        };
+
+        $intervalsAtX = static function (float $x) use ($pts, $n): array {
+            $yHits = [];
+            for ($i = 0, $j = $n - 1; $i < $n; $j = $i++) {
+                $xi = $pts[$i]['x'];
+                $yi = $pts[$i]['y'];
+                $xj = $pts[$j]['x'];
+                $yj = $pts[$j]['y'];
+                if (($xi > $x) !== ($xj > $x)) {
+                    $yHits[] = $yi + ($x - $xi) * ($yj - $yi) / ($xj - $xi);
+                }
+            }
+            sort($yHits);
+            $out = [];
+            for ($k = 0; $k + 1 < count($yHits); $k += 2) {
+                $out[] = [$yHits[$k], $yHits[$k + 1]];
+            }
+            return $out;
+        };
+
+        // 2. Scanline-Prüfung für Innenbreite & sicheren Abstand zu konkaven Kerben (z. B. Herz-Kerbe oben)
+        $bboxW = max(1.0, $maxX - $minX);
+        $bboxH = max(1.0, $maxY - $minY);
+        $bandHalfH = min(5.5, $bboxH * 0.20);
+
+        $bestScore = -1.0;
+        $bestX = $cx;
+        $bestY = $cy;
+        $bestW = max(8.0, $bboxW);
+        $bestH = max(8.0, $bboxH);
+
+        $steps = 32;
+        $yStart = $minY + ($bboxH * 0.16);
+        $yEnd = $maxY - ($bboxH * 0.16);
+
+        for ($s = 0; $s <= $steps; $s++) {
+            $ty = $yStart + ($yEnd - $yStart) * ($s / $steps);
+            $ivMid = $intervalsAtY($ty);
+            $ivTop = $intervalsAtY($ty - $bandHalfH);
+            $ivBot = $intervalsAtY($ty + $bandHalfH);
+            if (empty($ivMid) || empty($ivTop) || empty($ivBot)) {
+                continue;
+            }
+
+            foreach ($ivMid as [$lMid, $rMid]) {
+                foreach ($ivTop as [$lTop, $rTop]) {
+                    foreach ($ivBot as [$lBot, $rBot]) {
+                        $left = max($lMid, $lTop, $lBot);
+                        $right = min($rMid, $rTop, $rBot);
+                        $effW = $right - $left;
+                        if ($effW <= 4.0) {
+                            continue;
+                        }
+
+                        $midIntervalX = ($left + $right) * 0.5;
+                        $vIvs = $intervalsAtX($midIntervalX);
+                        $symVertH = 0.0;
+                        $inVert = false;
+                        foreach ($vIvs as [$vy0, $vy1]) {
+                            if ($ty > $vy0 && $ty < $vy1) {
+                                $symVertH = 2.0 * min($ty - $vy0, $vy1 - $ty);
+                                if ($symVertH >= $bandHalfH * 1.6) {
+                                    $inVert = true;
+                                }
+                                break;
+                            }
+                        }
+                        if (!$inVert) {
+                            continue;
+                        }
+
+                        $vertFactor = min(1.0, $symVertH / max(8.0, min(22.0, $bboxH * 0.62)));
+                        $distNorm = abs($ty - $cy) / $bboxH;
+                        $centroidFactor = 1.0 - min(0.50, $distNorm * 1.18);
+
+                        $score = $effW * (0.55 + 0.45 * $vertFactor) * $centroidFactor;
+                        if ($score > $bestScore) {
+                            $bestScore = $score;
+                            $bestX = $midIntervalX;
+                            $bestY = $ty;
+                            $bestW = $effW;
+                            $bestH = $symVertH;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Sicherheits-Fallback bei extrem schmalen/konkaven Sonderformen: garantiert immer im breitesten Schnitt bei cy
+        if ($bestScore < 0.0) {
+            $fallbackIntervals = $intervalsAtY($cy);
+            $widest = 0.0;
+            foreach ($fallbackIntervals as [$fl, $fr]) {
+                if (($fr - $fl) > $widest) {
+                    $widest = $fr - $fl;
+                    $bestX = ($fl + $fr) * 0.5;
+                    $bestY = $cy;
+                    $bestW = max(8.0, $widest);
+                }
+            }
+        }
+
+        return [
+            'x'                  => round($bestX, 2),
+            'y'                  => round($bestY, 2),
+            'inscribedWidthPct'  => round(max(8.0, $bestW), 2),
+            'inscribedHeightPct' => round(max(6.0, $bestH), 2),
+        ];
     }
 
     /**
