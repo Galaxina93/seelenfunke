@@ -563,6 +563,7 @@ class LavaParkourAntiCheatTest extends TestCase
             ->assertJsonPath('lava_parkour.is_authenticated', true)
             ->assertJsonPath('lava_parkour.claimed_today', false);
 
+        // Solo-Zone 'lava' liefert ungestörten Parkour-Modus (keine störenden Peers auf Sprungplatten)
         $this->actingAs($hero7, 'customer')
             ->postJson('/funkenwerk-welt/lobby/join', [
                 'x' => 66.5,
@@ -572,22 +573,36 @@ class LavaParkourAntiCheatTest extends TestCase
                 'combo_seq' => 12,
                 'combo_stage' => 3,
             ])
+            ->assertOk()
+            ->assertJsonPath('solo_mode', true)
+            ->assertJsonCount(0, 'peers');
+
+        // Multiplayer-Zone 'heroes' synchronisiert y, combo_seq & combo_stage live zwischen Mitspielern
+        $this->actingAs($hero7, 'customer')
+            ->postJson('/funkenwerk-welt/lobby/join', [
+                'x' => 4.5,
+                'y' => 1.8,
+                'z' => -48.0,
+                'zone' => 'heroes',
+                'combo_seq' => 12,
+                'combo_stage' => 3,
+            ])
             ->assertOk();
 
         $peerSync = $this->actingAs($peer, 'customer')
             ->postJson('/funkenwerk-welt/lobby/join', [
-                'x' => 31.5,
+                'x' => -3.5,
                 'y' => 1.2,
-                'z' => -2.0,
-                'zone' => 'lava',
+                'z' => -46.0,
+                'zone' => 'heroes',
             ]);
 
         $peerSync->assertOk();
         $peers = $peerSync->json('peers');
         $this->assertCount(1, $peers);
-        $this->assertEquals(66.5, $peers[0]['x']);
-        $this->assertEquals(2.8, $peers[0]['y']);
-        $this->assertSame('lava', $peers[0]['zone']);
+        $this->assertEquals(4.5, $peers[0]['x']);
+        $this->assertEquals(1.8, $peers[0]['y']);
+        $this->assertSame('heroes', $peers[0]['zone']);
         $this->assertSame(12, $peers[0]['combo_seq']);
         $this->assertSame(3, $peers[0]['combo_stage']);
     }

@@ -88,15 +88,15 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringContainsString('exitFullscreen', $html);
         $this->assertStringContainsString('fullscreenchange', $html);
         $this->assertStringContainsString("window.addEventListener('keydown', this._captureKeydownBound, true)", $html);
-        $this->assertStringContainsString('WASD / Pfeiltasten · Maus ziehen · ⛶ Vollbild · Esc Schließen', $html);
+        $this->assertStringContainsString('WASD / Pfeiltasten · Maus ziehen · Leertaste Sprung · 1 bis 4 Fähigkeiten · ⛶ Vollbild · Esc Schließen', $html);
         $this->assertStringNotContainsString('z-[2147483500]', $html);
         $this->assertStringNotContainsString('bg-[#FAF8F5]/95', $html);
 
-        // Schwebende Light-Mode Raum-Schilder (Produkte, Top-5-Helden & Gast-Ehrenportal) statt blockierender Popups
+        // Schwebende Light-Mode Raum-Schilder (Produkte, Top-5-Helden & schleierfreies Gast-Ehrenportal) statt blockierender Popups
         $this->assertStringContainsString('data-testid="louvre-floating-space-card"', $html);
         $this->assertStringContainsString('data-testid="lobby-floating-hero-card"', $html);
         $this->assertStringContainsString('data-testid="lobby-guest-portal-card"', $html);
-        $this->assertStringContainsString('Mitglieder-Lobby · Anmelden', $html);
+        $this->assertStringContainsString('Mitglieder-Bereich · Anmelden', $html);
         $this->assertStringContainsString('id="sf-lobby-instance-btn"', $html);
         $this->assertStringContainsString('id="sf-lobby-instance-menu"', $html);
         $this->assertStringContainsString('data-testid="lobby-zone-gallery-btn"', $html);
@@ -109,8 +109,37 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringContainsString('Jetzt gestalten', $html);
         $this->assertStringContainsString('Zum Produkt', $html);
 
-        // Spezialfähigkeiten Schnellwahl-Dock (Tasten 1-4) & Raum-Chat mit Slash-Befehlen und Freundesystem
+        // Permanente Spezialfähigkeiten-Leiste (Tasten 1-4), Magma-Kammer, Clean-Design Einstellungsmenü & Anti-Manipulations-Closure
+        $this->assertStringContainsString('data-testid="lobby-zone-lava-btn"', $html);
+        $this->assertStringContainsString('🌋 Magma-Kammer', $html);
+        $this->assertStringContainsString('data-testid="lobby-zone-labyrinth-btn"', $html);
+        $this->assertStringContainsString('🌀 Labyrinth', $html);
+        $this->assertStringContainsString('data-testid="lobby-labyrinth-buzzer-card"', $html);
+        $this->assertStringContainsString('🌀 Mini-Labyrinth · +3 ✨', $html);
+        $this->assertStringContainsString('🎉 Buzzer drücken', $html);
+        $this->assertStringContainsString('🎉 Konfetti zünden', $html);
+        $this->assertStringContainsString('🌀 Mini-Labyrinth · 3 ✨ Täglich', $html);
+        $this->assertStringContainsString('x-show="currentZone === \'heroes\' && isCustomerAuthenticated() && !soloMode"', $html);
+        $this->assertStringContainsString('handleZoneSyncTransition', $html);
+        $this->assertStringContainsString('data-testid="lobby-audio-mute-btn"', $html);
+        $this->assertStringContainsString('data-testid="louvre-settings-btn"', $html);
+        $this->assertStringContainsString('data-testid="lobby-settings-modal"', $html);
+        $this->assertStringContainsString('data-testid="lobby-settings-volume-slider"', $html);
+        $this->assertStringContainsString('data-testid="lobby-camera-sensitivity-slider"', $html);
+        $this->assertStringContainsString('data-testid="lobby-use-real-name-checkbox"', $html);
+        $this->assertStringContainsString('data-testid="lobby-keybind-expand-btn"', $html);
+        $this->assertStringContainsString('data-testid="lobby-keybind-reset-btn"', $html);
+        $this->assertStringContainsString('data-testid="lobby-lava-chest-card"', $html);
+        $this->assertStringContainsString('Magma-Truhe · +5 ✨ Funken', $html);
+        $this->assertStringContainsString('Truhe öffnen', $html);
+        $this->assertStringContainsString('Heute bereits geöffnet ✓', $html);
+        $this->assertStringContainsString('Lautstärke', $html);
+        $this->assertStringContainsString('Kamera-Tempo', $html);
+        $this->assertStringContainsString('Echten Vornamen nutzen', $html);
+        $this->assertStringContainsString('Steuerung', $html);
+        $this->assertStringContainsString('sf-ability-combo-badge', $html);
         $this->assertStringContainsString('data-testid="louvre-abilities-dock"', $html);
+        $this->assertStringNotContainsString("x-show=\"!isLoading && loadError === '' && focusedProduct === null\"\n                         @pointerdown.stop\n                         data-testid=\"louvre-abilities-dock\"", $html);
         $this->assertStringContainsString('data-testid="ability-slot-1-btn"', $html);
         $this->assertStringContainsString('data-testid="ability-slot-2-btn"', $html);
         $this->assertStringContainsString('data-testid="ability-slot-3-btn"', $html);
@@ -120,7 +149,9 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringContainsString('/dance', $html);
         $this->assertStringContainsString('/wave', $html);
         $this->assertStringContainsString('friendsList', $html);
-        $this->assertStringContainsString("import('/js/seelenfunke-louvre-showroom-3d.js?v=20261116v4')", $html);
+        $this->assertStringContainsString('privateShowroomFacades = typeof WeakMap', $html);
+        $this->assertStringNotContainsString('this._engine', $html);
+        $this->assertStringContainsString("import('/js/seelenfunke-louvre-showroom-3d.js?v=20261117v2')", $html);
         $this->assertStringNotContainsString('openCurrentExhibitDrawer', $html);
         $this->assertStringNotContainsString('lightboxOpen', $html);
 
@@ -204,15 +235,74 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringContainsString('_spawnDoubleJumpBurst', $js);
         $this->assertStringContainsString('_spawnUnarmedPunchBurst', $js);
 
-        // 5b. Spezialfähigkeiten Tasten 1-4, Kugel-Morph Salto, Schutzschild, Emotes & Nero-Marquina Marmor
+        // 5b. 15-Bone SkinnedMesh, 3D-Exoskelett, 0-mm-Fuß-Clipping, schleierfreie Torbögen, Magma-Prüfungskammer & Anti-Manipulation
         $this->assertStringContainsString('buildHallOfHeroesMarbleMaps', $js);
+        $this->assertStringContainsString('pantheonNeroBorder', $js);
+        $this->assertStringContainsString('46.8 / 3.8', $js);
+        $this->assertStringNotContainsString('pantheon_carrara_gold_floor.jpg', $js);
+        $this->assertStringNotContainsString('northLunette', $js);
+        $this->assertStringNotContainsString('lightConeInst', $js);
+        $this->assertStringNotContainsString('sunbeamCone', $js);
+        $this->assertStringContainsString('_computeAvatarMinSoleY', $js);
+        $this->assertStringContainsString('_computeFloorBaseY', $js);
+        $this->assertStringContainsString('0.004 - minSoleLocalY', $js);
+        $this->assertStringContainsString('0.004 - minSolePeerY', $js);
+        $this->assertStringContainsString('polygonOffsetFactor: -1', $js);
+        $this->assertStringContainsString('polygonOffsetUnits: -2', $js);
+        $this->assertStringContainsString('THREE.SkinnedMesh', $js);
+        $this->assertStringContainsString('THREE.Skeleton', $js);
+        $this->assertStringContainsString('skinIndex', $js);
+        $this->assertStringContainsString('skinWeight', $js);
+        $this->assertStringContainsString('_createSkinnedFunkiFromTemplate', $js);
+        $this->assertStringContainsString('exoReactorHex', $js);
+        $this->assertStringContainsString('thrusterFlameL', $js);
+        $this->assertStringContainsString('bothMouseWalk', $js);
+        $this->assertStringContainsString('clickMoveRing', $js);
+        $this->assertStringContainsString('sf_lobby_keybindings_v2', $js);
+        $this->assertStringContainsString("sprint: 'Digit1'", $js);
+        $this->assertStringContainsString("titanJump: 'Digit2'", $js);
+        $this->assertStringContainsString("shield: 'Digit3'", $js);
+        $this->assertStringContainsString("burst: 'Digit4'", $js);
+        $this->assertStringContainsString("strike: 'KeyG'", $js);
+        $this->assertStringContainsString('triggerComboStrike', $js);
+        $this->assertStringContainsString('_spawnComboStage2Burst', $js);
+        $this->assertStringContainsString('_spawnComboStage3WhirlBurst', $js);
+        $this->assertStringContainsString('_spawnComboFinisherExplosion', $js);
+        $this->assertStringContainsString('_buildLavaChamberAndParkour', $js);
+        $this->assertStringContainsString('MAGMA-PRÜFUNG', $js);
+        $this->assertStringContainsString('this.lavaSurfaceY = -1.35', $js);
+        $this->assertStringContainsString('const destX = 16.5;', $js);
+        $this->assertStringContainsString('ShaderMaterial', $js);
+        $this->assertStringContainsString('/funkenwerk-welt/lava-parkour/start', $js);
+        $this->assertStringContainsString('/funkenwerk-welt/lava-parkour/checkpoint', $js);
+        $this->assertStringContainsString('/funkenwerk-welt/lava-parkour/claim', $js);
+        $this->assertStringContainsString('_buildMiniLabyrinthWestWing', $js);
+        $this->assertStringContainsString('buildBoutiqueLabyrinthWallBlockGeometry', $js);
+        $this->assertStringContainsString('MINI-LABYRINTH', $js);
+        $this->assertStringContainsString('Hoppla! Falscher Gang 😄', $js);
+        $this->assertStringContainsString('Boing! Weiter links ✨', $js);
+        $this->assertStringContainsString('claimLabyrinthBuzzer', $js);
+        $this->assertStringContainsString('/funkenwerk-welt/labyrinth/start', $js);
+        $this->assertStringContainsString('/funkenwerk-welt/labyrinth/checkpoint', $js);
+        $this->assertStringContainsString('/funkenwerk-welt/labyrinth/claim', $js);
+        $this->assertStringContainsString("this.getCurrentZone() !== 'heroes'", $js);
         $this->assertStringContainsString('triggerAbility', $js);
         $this->assertStringContainsString('triggerEmote', $js);
         $this->assertStringContainsString('getAbilityState', $js);
+        $this->assertStringContainsString('updateSettings', $js);
         $this->assertStringContainsString('_spawnAbilityBurst', $js);
         $this->assertStringContainsString('shieldMesh', $js);
 
-        // 6. Eigenständiges Scoped CSS, Fullscreen API & Capture-Escape im Engine-Modul + Standalone-Host
+        // Client-Seitiger Manipulations-Schutz (ag_20261117_083626_1275f93f): Private Klasse + Object.freeze-Fassade + 0 Cheat-Methoden
+        $this->assertStringNotContainsString('export class SeelenfunkeLouvreShowroom3D', $js);
+        $this->assertStringContainsString('class SeelenfunkeLouvreShowroom3D', $js);
+        $this->assertStringContainsString('return Object.freeze({', $js);
+        $this->assertStringContainsString('Stufen-Ansicht · Stufe ', $js);
+        foreach (['setLevel(', 'giveSparks(', 'teleport(', 'noclip(', 'godMode('] as $forbiddenHook) {
+            $this->assertStringNotContainsString($forbiddenHook, $js);
+        }
+
+        // 6. Eigenständiges Scoped CSS, Fullscreen API & 100 % Parität + Anti-Manipulation im Standalone-Host (/mein-konto)
         $this->assertStringContainsString('sf-3d-lobby-scoped-css', $js);
         $this->assertStringContainsString('z-index: 2147483000 !important', $js);
         $this->assertStringContainsString('requestLobbyFullscreen', $js);
@@ -228,11 +318,32 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringContainsString('requestFullscreen', $hostJs);
         $this->assertStringContainsString('exitFullscreen', $hostJs);
         $this->assertStringContainsString("window.addEventListener('keydown', this._boundKeydown, true)", $hostJs);
-        $this->assertStringContainsString('/js/seelenfunke-louvre-showroom-3d.js?v=20261116v4', $hostJs);
+        $this->assertStringContainsString('/js/seelenfunke-louvre-showroom-3d.js?v=20261117v2', $hostJs);
+        $this->assertStringContainsString('data-testid="lobby-zone-lava-btn"', $hostJs);
+        $this->assertStringContainsString('🌋 Magma-Kammer', $hostJs);
+        $this->assertStringContainsString('data-testid="lobby-zone-labyrinth-btn"', $hostJs);
+        $this->assertStringContainsString('🌀 Labyrinth', $hostJs);
+        $this->assertStringContainsString('data-testid="lobby-labyrinth-buzzer-card"', $hostJs);
+        $this->assertStringContainsString('_handleZoneSyncTransition', $hostJs);
+        $this->assertStringContainsString("this.currentZone === 'heroes' && this.lobbyAuth && !this.soloMode", $hostJs);
+        $this->assertStringContainsString('data-testid="louvre-settings-btn"', $hostJs);
+        $this->assertStringContainsString('data-testid="lobby-settings-modal"', $hostJs);
+        $this->assertStringContainsString('data-testid="lobby-settings-volume-slider"', $hostJs);
+        $this->assertStringContainsString('data-testid="lobby-camera-sensitivity-slider"', $hostJs);
+        $this->assertStringContainsString('data-testid="lobby-use-real-name-checkbox"', $hostJs);
+        $this->assertStringContainsString('data-testid="lobby-lava-chest-card"', $hostJs);
+        $this->assertStringContainsString('data-testid="louvre-abilities-dock"', $hostJs);
+        $this->assertStringContainsString('data-testid="ability-slot-1-btn"', $hostJs);
+        $this->assertStringContainsString('data-testid="ability-slot-2-btn"', $hostJs);
+        $this->assertStringContainsString('data-testid="ability-slot-3-btn"', $hostJs);
+        $this->assertStringContainsString('data-testid="ability-slot-4-btn"', $hostJs);
+        $this->assertStringContainsString('privateFacadeMap', $hostJs);
+        $this->assertStringContainsString('Object.freeze({', $hostJs);
+        $this->assertStringNotContainsString('this._engine', $hostJs);
         $this->assertStringNotContainsString(' ' . "\u{2013}" . ' ', $hostJs);
         $this->assertStringNotContainsString(' ' . "\u{2014}" . ' ', $hostJs);
 
-        // 7. Fotorealistische Architektur-Texturen (Calacatta, Boiserie, Nero Marquina, Golden-Hour PMREM, Pantheon Boden & Kuppel)
+        // 7. Fotorealistische Architektur-Texturen (Calacatta-Gold in Galerie + Ehrenpromenade + Halle der Helden, Boiserie, Nero Marquina, Golden-Hour PMREM, Pantheon Kuppel)
         $this->assertStringContainsString('PMREMGenerator', $js);
         $this->assertStringContainsString('fromEquirectangular', $js);
         $this->assertStringContainsString('TextureLoader', $js);
@@ -243,7 +354,6 @@ class Louvre3DShowroomTest extends TestCase
             '/shop/showroom/textures/louvre_boiserie_wall.jpg',
             '/shop/showroom/textures/nero_marquina_pedestal.jpg',
             '/shop/showroom/textures/museum_golden_hour_env.jpg',
-            '/shop/showroom/textures/pantheon_carrara_gold_floor.jpg',
             '/shop/showroom/textures/pantheon_coffered_dome.jpg',
         ] as $texUrl) {
             $this->assertStringContainsString($texUrl, $js);
@@ -345,10 +455,16 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertTrue($data['success']);
         $this->assertSame(2, $data['total_products']);
 
-        // Gast erhält Funki Level 2
+        // Gast erhält Funki Level 2 + Mini-Labyrinth Tages-Payload (+3 Funken)
         $this->assertTrue($data['player_funki']['is_guest']);
         $this->assertSame(2, $data['player_funki']['level']);
         $this->assertSame('/shop/customer/gamification/models/funki_lvl_2_basic.glb', $data['player_funki']['glb_url']);
+        $this->assertArrayHasKey('mini_labyrinth', $data);
+        $this->assertSame(3, $data['mini_labyrinth']['daily_reward']);
+        $this->assertCount(5, $data['mini_labyrinth']['grid']);
+        $this->assertEqualsWithDelta(-15.0, (float) $data['mini_labyrinth']['entrance']['x'], 0.01);
+        $this->assertEqualsWithDelta(-22.0, (float) $data['mini_labyrinth']['cp1']['x'], 0.01);
+        $this->assertEqualsWithDelta(-28.5, (float) $data['mini_labyrinth']['goal']['x'], 0.01);
 
         $productsBySlug = collect($data['products'])->keyBy('slug');
         $this->assertTrue($productsBySlug->has('seelen-kristall'));
@@ -460,5 +576,30 @@ class Louvre3DShowroomTest extends TestCase
         $cart = app(CartService::class)->getCart(false);
         $this->assertNotNull($cart);
         $this->assertSame(1, $cart->items()->where('product_id', $standardProduct->id)->count());
+    }
+
+    public function test_lobby_audio_module_couples_with_sf_funki_bgm_and_has_zero_em_dashes(): void
+    {
+        $audioJsPath = public_path('js/seelenfunke-lobby-audio.js');
+        $this->assertFileExists($audioJsPath);
+
+        $audioJs = (string) file_get_contents($audioJsPath);
+        $this->assertNotEmpty($audioJs);
+
+        $this->assertStringContainsString('SeelenfunkeLobbyAudio', $audioJs);
+        $this->assertStringContainsString('SfFunkiBgm', $audioJs);
+        $this->assertStringContainsString('/shop/gamification/audio/bgm_funki_game.mp3', $audioJs);
+        $this->assertStringContainsString('/shop/customer/gamification/sounds/shield_active.mp3', $audioJs);
+        $this->assertStringContainsString('/shop/customer/gamification/sounds/teleport_active.mp3', $audioJs);
+        $this->assertStringContainsString('sf_funki_audio_volume', $audioJs);
+        $this->assertStringContainsString('sf_funki_audio_muted', $audioJs);
+        $this->assertStringContainsString('sf_lobby_sfx_volume', $audioJs);
+        $this->assertStringContainsString('playComboStrike', $audioJs);
+        $this->assertStringContainsString('playComboFinisherImpact', $audioJs);
+        $this->assertStringContainsString('playChestOpenFanfare', $audioJs);
+        $this->assertStringContainsString('updateLavaAmbience', $audioJs);
+        $this->assertStringNotContainsString('https://', $audioJs);
+        $this->assertStringNotContainsString(' ' . "\u{2013}" . ' ', $audioJs);
+        $this->assertStringNotContainsString(' ' . "\u{2014}" . ' ', $audioJs);
     }
 }

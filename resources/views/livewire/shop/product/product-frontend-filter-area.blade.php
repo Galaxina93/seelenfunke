@@ -1356,7 +1356,7 @@
             }
             .sf-lobby-abilities-dock {
                 position: absolute;
-                bottom: 24px;
+                bottom: 78px;
                 left: 50%;
                 transform: translateX(-50%);
                 display: flex;
@@ -1367,60 +1367,226 @@
             }
             .sf-ability-btn {
                 position: relative;
-                width: 44px;
-                height: 44px;
-                border-radius: 12px;
-                background: rgba(11, 14, 20, 0.90);
-                border: 1px solid rgba(197, 160, 89, 0.45);
-                color: #FAF8F5;
+                width: 48px;
+                height: 48px;
+                border-radius: 13px;
+                background: rgba(255, 255, 255, 0.95);
+                border: 1.5px solid rgba(197, 160, 89, 0.55);
+                color: #111827;
                 display: flex;
                 flex-direction: column;
                 align-items: center;
                 justify-content: center;
                 cursor: pointer;
-                box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
+                box-shadow: 0 6px 18px rgba(17, 24, 39, 0.12);
                 transition: transform 0.12s ease, border-color 0.15s ease, background 0.15s ease;
                 user-select: none;
             }
             .sf-ability-btn:hover {
                 border-color: #C5A059;
                 transform: translateY(-2px);
-                background: rgba(18, 22, 32, 0.96);
+                background: #FFFFFF;
             }
             .sf-ability-btn.is-active {
-                border-color: #D4AF37;
-                box-shadow: 0 0 14px rgba(197, 160, 89, 0.65);
-                background: rgba(197, 160, 89, 0.25);
+                border-color: #C5A059;
+                background: #FAF3E3;
+                box-shadow: 0 6px 20px rgba(197, 160, 89, 0.36);
             }
             .sf-ability-btn.is-cooldown {
-                opacity: 0.58;
-                border-color: rgba(148, 163, 184, 0.3);
+                opacity: 0.56;
+                border-color: rgba(156, 163, 175, 0.55);
             }
             .sf-ability-icon {
-                font-size: 15px;
+                font-size: 16px;
                 line-height: 1;
-                color: #C5A059;
+                color: #9A7738;
+                font-weight: 900;
             }
             .sf-ability-key {
                 position: absolute;
-                top: 2px;
-                left: 4px;
+                top: 3px;
+                left: 5px;
                 font-size: 9px;
                 font-weight: 800;
-                color: rgba(255, 255, 255, 0.45);
+                color: #6B7280;
                 line-height: 1;
             }
             .sf-ability-cd {
                 position: absolute;
-                bottom: 2px;
-                right: 3px;
+                bottom: 3px;
+                right: 4px;
                 font-size: 9px;
                 font-weight: 800;
                 color: #FFFFFF;
-                background: rgba(0, 0, 0, 0.75);
-                padding: 1px 3px;
-                border-radius: 4px;
+                background: rgba(17, 24, 39, 0.85);
+                padding: 1px 4px;
+                border-radius: 5px;
                 line-height: 1;
+            }
+            .sf-ability-combo-badge {
+                position: absolute;
+                top: -6px;
+                right: -6px;
+                background: #C5A059;
+                color: #FFFFFF;
+                font-size: 9px;
+                font-weight: 900;
+                padding: 2px 5px;
+                border-radius: 999px;
+                border: 1.5px solid #FFFFFF;
+                line-height: 1;
+                box-shadow: 0 3px 8px rgba(17, 24, 39, 0.18);
+            }
+            .sf-ability-combo-dots {
+                position: absolute;
+                bottom: 3px;
+                left: 50%;
+                transform: translateX(-50%);
+                display: flex;
+                align-items: center;
+                gap: 2.5px;
+            }
+            .sf-ability-combo-dot {
+                width: 4.5px;
+                height: 4.5px;
+                border-radius: 999px;
+                background: rgba(197, 160, 89, 0.28);
+            }
+            .sf-ability-combo-dot.is-lit {
+                background: #C5A059;
+            }
+            .sf-lobby-settings-backdrop {
+                position: absolute;
+                inset: 0;
+                z-index: 48;
+                background: rgba(17, 24, 39, 0.24);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 16px;
+                pointer-events: auto;
+                box-sizing: border-box;
+            }
+            .sf-lobby-settings-card {
+                width: 392px;
+                max-width: calc(100vw - 24px);
+                max-height: calc(100dvh - 40px);
+                overflow-y: auto;
+                background: #FFFFFF;
+                color: #111827;
+                border: 1px solid rgba(197, 160, 89, 0.55);
+                border-radius: 20px;
+                padding: 18px 20px;
+                box-shadow: 0 22px 52px rgba(17, 24, 39, 0.18);
+                display: flex;
+                flex-direction: column;
+                gap: 14px;
+                box-sizing: border-box;
+            }
+            .sf-lobby-settings-head {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 8px;
+                padding-bottom: 10px;
+                border-bottom: 1px solid rgba(197, 160, 89, 0.28);
+            }
+            .sf-lobby-settings-title {
+                margin: 0;
+                font-size: 15px;
+                font-weight: 800;
+                color: #111827;
+                display: flex;
+                align-items: center;
+                gap: 7px;
+            }
+            .sf-lobby-settings-section {
+                background: #FAF8F5;
+                border: 1px solid rgba(197, 160, 89, 0.34);
+                border-radius: 14px;
+                padding: 11px 13px;
+                display: flex;
+                flex-direction: column;
+                gap: 9px;
+            }
+            .sf-lobby-settings-row {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 10px;
+            }
+            .sf-lobby-settings-label {
+                font-size: 12px;
+                font-weight: 800;
+                color: #111827;
+            }
+            .sf-lobby-slider {
+                width: 100%;
+                height: 6px;
+                accent-color: #C5A059;
+                cursor: pointer;
+            }
+            .sf-lobby-keybind-grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 7px;
+                padding-top: 4px;
+            }
+            .sf-lobby-keybind-item {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 6px;
+                padding: 6px 9px;
+                border-radius: 10px;
+                background: #FFFFFF;
+                border: 1px solid rgba(197, 160, 89, 0.35);
+                cursor: pointer;
+                font-size: 11px;
+                font-weight: 700;
+                color: #111827;
+                text-align: left;
+            }
+            .sf-lobby-keybind-item:hover {
+                border-color: #C5A059;
+            }
+            .sf-lobby-keybind-item.is-listening {
+                border-color: #C5A059;
+                background: #FAF3E3;
+            }
+            .sf-lobby-keybind-pill {
+                padding: 2px 7px;
+                border-radius: 6px;
+                background: #FAF8F5;
+                border: 1px solid rgba(197, 160, 89, 0.48);
+                font-size: 10px;
+                font-weight: 800;
+                color: #9A7738;
+                white-space: nowrap;
+            }
+            .sf-lobby-lava-chest-card {
+                pointer-events: auto;
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                padding: 10px 16px;
+                border-radius: 999px;
+                background: rgba(255, 255, 255, 0.97);
+                color: #111827;
+                border: 1.5px solid #C5A059;
+                box-shadow: 0 14px 32px rgba(17, 24, 39, 0.16);
+                font-size: 12px;
+                font-weight: 800;
+                white-space: nowrap;
+                cursor: pointer;
+                text-decoration: none;
+            }
+            .sf-lobby-lava-chest-card.is-cta {
+                background: #C5A059;
+                color: #FFFFFF;
+            }
+            .sf-lobby-lava-chest-card.is-cta:hover {
+                background: #B38E46;
             }
             .sf-lobby-stick-wrap { position: absolute; bottom: 22px; left: 20px; z-index: 22; }
             .sf-lobby-stick {
@@ -1456,6 +1622,7 @@
                 gap: 8px;
             }
             .sf-lobby-icon-btn {
+                position: relative;
                 appearance: none;
                 height: 44px;
                 min-width: 44px;
@@ -1552,9 +1719,10 @@
                 .sf-lobby-quick-actions { bottom: 72px; right: 12px; }
                 .sf-lobby-chat-panel { bottom: 132px; right: 12px; }
                 .sf-lobby-chat-panel.is-expanded { width: calc(100vw - 24px); }
-                .sf-lobby-abilities-dock { bottom: 78px; gap: 6px; }
-                .sf-ability-btn { width: 38px; height: 38px; border-radius: 10px; }
+                .sf-lobby-abilities-dock { bottom: 126px; gap: 6px; }
+                .sf-ability-btn { width: 40px; height: 40px; border-radius: 10px; }
                 .sf-lobby-exhibit-btn { max-width: 175px; }
+                .sf-lobby-keybind-grid { grid-template-columns: 1fr; }
             }
         </style>
 
@@ -1586,6 +1754,18 @@
                             <span>🏛️ Halle der Helden</span>
                         </button>
                         <button type="button"
+                                data-testid="lobby-zone-lava-btn"
+                                @click="switchZone('lava')"
+                                :class="currentZone === 'lava' ? 'sf-lobby-zone-btn is-active' : 'sf-lobby-zone-btn'">
+                            <span>🌋 Magma-Kammer</span>
+                        </button>
+                        <button type="button"
+                                data-testid="lobby-zone-labyrinth-btn"
+                                @click="switchZone('labyrinth')"
+                                :class="currentZone === 'labyrinth' ? 'sf-lobby-zone-btn is-active' : 'sf-lobby-zone-btn'">
+                            <span>🌀 Labyrinth</span>
+                        </button>
+                        <button type="button"
                                 x-show="currentZone === 'heroes' && isCustomerAuthenticated()"
                                 data-testid="lobby-stages-preview-btn"
                                 @click="cycleStagesPreview()"
@@ -1595,14 +1775,14 @@
                     </div>
 
                     <div class="sf-lobby-actions">
-                        <span x-show="isCustomerAuthenticated() && !soloMode && focusedProduct !== null"
+                        <span x-show="currentZone === 'heroes' && isCustomerAuthenticated() && !soloMode && focusedProduct !== null"
                               class="sf-lobby-badge sf-lobby-hide-sm">
                             <span style="color:#C5A059;">&#10003;</span>
                             <span>Fokus-Schutz</span>
                         </span>
 
                         <button type="button"
-                                x-show="isCustomerAuthenticated()"
+                                x-show="currentZone === 'heroes' && isCustomerAuthenticated()"
                                 data-testid="louvre-live-solo-toggle"
                                 @click="toggleSoloMode()"
                                 class="sf-lobby-pill-btn"
@@ -1611,8 +1791,8 @@
                             <span x-text="soloMode ? 'Solo' : 'Live'"></span>
                         </button>
 
-                        {{-- Manueller Multiplayer-Instanzen-Waehler (Light-Mode Clean-Design, 0 Subtexte) --}}
-                        <div x-show="isCustomerAuthenticated() && !soloMode"
+                        {{-- Manueller Multiplayer-Instanzen-Waehler (NUR in der Halle der Helden aktiv!) --}}
+                        <div x-show="currentZone === 'heroes' && isCustomerAuthenticated() && !soloMode"
                              @click.outside="instanceMenuOpen = false"
                              class="sf-lobby-instance-wrap">
                             <button type="button"
@@ -1653,6 +1833,22 @@
                                 </form>
                             </div>
                         </div>
+
+                        <button type="button"
+                                data-testid="lobby-audio-mute-btn"
+                                @click="toggleQuickMute()"
+                                :class="!audioState.allMuted ? 'sf-lobby-pill-btn is-gold' : 'sf-lobby-pill-btn'"
+                                :title="audioState.allMuted ? 'Ton aktivieren' : 'Ton stummschalten'">
+                            <span x-text="audioState.allMuted ? '🔇' : '🔊'"></span>
+                        </button>
+
+                        <button type="button"
+                                data-testid="louvre-settings-btn"
+                                @click="toggleSettingsModal()"
+                                :class="settingsOpen ? 'sf-lobby-pill-btn is-gold' : 'sf-lobby-pill-btn'"
+                                title="Einstellungen">
+                            <span>⚙️</span>
+                        </button>
 
                         <button type="button"
                                 data-testid="lobby-fullscreen-btn"
@@ -1773,13 +1969,203 @@
                          class="sf-lobby-floating-anchor">
                         <a href="/login" @pointerdown.stop class="sf-lobby-portal-pill">
                             <span>🔒</span>
-                            <span>Mitglieder-Lobby · Anmelden</span>
+                            <span>Mitglieder-Bereich · Anmelden</span>
                             <span>&rarr;</span>
                         </a>
                     </div>
 
-                    {{-- Ein-/ausklappbarer Light-Mode Raum-Chat --}}
-                    <div x-show="!isLoading && loadError === '' && chatOpen && focusedProduct === null"
+                    {{-- Schwebendes World-Space Schatztruhen-Schild (Bereich 3: Magma-Kammer, +5 Funken täglich) --}}
+                    <div x-ref="floatingLavaChestCard"
+                         data-testid="lobby-lava-chest-card"
+                         style="opacity: 0; visibility: hidden; pointer-events: none; transform: translate3d(-9999px, -9999px, 0);"
+                         class="sf-lobby-floating-anchor">
+                        <div @pointerdown.stop style="display:flex;flex-direction:column;align-items:center;gap:6px;">
+                            <template x-if="!isCustomerAuthenticated()">
+                                <a href="/login" class="sf-lobby-lava-chest-card">
+                                    <span>🔒</span>
+                                    <span>Anmelden für +5 ✨ &rarr;</span>
+                                </a>
+                            </template>
+                            <template x-if="isCustomerAuthenticated() && lavaChestState.claimedToday">
+                                <div class="sf-lobby-lava-chest-card">
+                                    <span style="color:#C5A059;">&#10003;</span>
+                                    <span x-text="lavaChestState.statusMessage || 'Heute bereits geöffnet ✓'"></span>
+                                </div>
+                            </template>
+                            <template x-if="isCustomerAuthenticated() && !lavaChestState.claimedToday">
+                                <div style="display:flex;flex-direction:column;align-items:center;gap:6px;">
+                                    <div class="sf-lobby-lava-chest-card" style="cursor:default;">
+                                        <span>Magma-Truhe · +5 ✨ Funken</span>
+                                    </div>
+                                    <button type="button"
+                                            @click="claimLavaChest()"
+                                            :disabled="lavaChestState.claiming"
+                                            class="sf-lobby-lava-chest-card is-cta">
+                                        <span x-text="lavaChestState.claiming ? 'Truhe wird geöffnet...' : 'Truhe öffnen'"></span>
+                                    </button>
+                                </div>
+                            </template>
+                            <span x-show="lavaChestState.statusMessage !== '' && !lavaChestState.claimedToday && !lavaChestState.claiming"
+                                  style="pointer-events:none;padding:4px 10px;border-radius:999px;background:rgba(255,255,255,0.95);border:1px solid rgba(197,160,89,0.5);font-size:11px;font-weight:700;color:#111827;"
+                                  x-text="lavaChestState.statusMessage"></span>
+                        </div>
+                        <div class="sf-lobby-floating-arrow"></div>
+                    </div>
+
+                    {{-- Schwebendes World-Space Buzzer-Schild (Bereich 4: Mini-Labyrinth West-Flügel, +3 Funken täglich) --}}
+                    <div x-ref="floatingLabyrinthBuzzerCard"
+                         data-testid="lobby-labyrinth-buzzer-card"
+                         style="opacity: 0; visibility: hidden; pointer-events: none; transform: translate3d(-9999px, -9999px, 0);"
+                         class="sf-lobby-floating-anchor">
+                        <div @pointerdown.stop style="display:flex;flex-direction:column;align-items:center;gap:6px;">
+                            <template x-if="!isCustomerAuthenticated()">
+                                <div style="display:flex;flex-direction:column;align-items:center;gap:6px;">
+                                    <button type="button"
+                                            @click="claimLabyrinthBuzzer()"
+                                            class="sf-lobby-lava-chest-card is-cta">
+                                        <span>🎉 Konfetti zünden</span>
+                                    </button>
+                                    <a href="/login" class="sf-lobby-lava-chest-card">
+                                        <span>🔒</span>
+                                        <span>Anmelden für +3 ✨ &rarr;</span>
+                                    </a>
+                                </div>
+                            </template>
+                            <template x-if="isCustomerAuthenticated() && labyrinthBuzzerState.claimedToday">
+                                <div style="display:flex;flex-direction:column;align-items:center;gap:6px;">
+                                    <div class="sf-lobby-lava-chest-card" style="cursor:default;">
+                                        <span style="color:#C5A059;">&#10003;</span>
+                                        <span x-text="labyrinthBuzzerState.statusMessage || 'Heute bereits geholt ✓'"></span>
+                                    </div>
+                                    <button type="button"
+                                            @click="claimLabyrinthBuzzer()"
+                                            class="sf-lobby-lava-chest-card is-cta">
+                                        <span>🎉 Konfetti zünden</span>
+                                    </button>
+                                </div>
+                            </template>
+                            <template x-if="isCustomerAuthenticated() && !labyrinthBuzzerState.claimedToday">
+                                <div style="display:flex;flex-direction:column;align-items:center;gap:6px;">
+                                    <div class="sf-lobby-lava-chest-card" style="cursor:default;">
+                                        <span>🌀 Mini-Labyrinth · +3 ✨</span>
+                                    </div>
+                                    <button type="button"
+                                            @click="claimLabyrinthBuzzer()"
+                                            :disabled="labyrinthBuzzerState.claiming"
+                                            class="sf-lobby-lava-chest-card is-cta">
+                                        <span x-text="labyrinthBuzzerState.claiming ? 'Konfetti startet...' : '🎉 Buzzer drücken'"></span>
+                                    </button>
+                                </div>
+                            </template>
+                            <span x-show="labyrinthBuzzerState.statusMessage !== '' && !labyrinthBuzzerState.claimedToday && !labyrinthBuzzerState.claiming"
+                                  style="pointer-events:none;padding:4px 10px;border-radius:999px;background:rgba(255,255,255,0.95);border:1px solid rgba(197,160,89,0.5);font-size:11px;font-weight:700;color:#111827;"
+                                  x-text="labyrinthBuzzerState.statusMessage"></span>
+                        </div>
+                        <div class="sf-lobby-floating-arrow"></div>
+                    </div>
+
+                    {{-- Kompaktes Light-Mode Einstellungsmenü (⚙️ Gamification Clean-Design, 0 Subtexte) --}}
+                    <div x-show="settingsOpen"
+                         x-cloak
+                         @pointerdown.stop
+                         @click.self="closeSettingsModal()"
+                         data-testid="lobby-settings-modal"
+                         class="sf-lobby-settings-backdrop">
+                        <div class="sf-lobby-settings-card" role="dialog" aria-label="Einstellungen">
+                            <div class="sf-lobby-settings-head">
+                                <h3 class="sf-lobby-settings-title">
+                                    <span>⚙️</span>
+                                    <span>Einstellungen</span>
+                                </h3>
+                                <button type="button"
+                                        @click="closeSettingsModal()"
+                                        style="appearance:none;width:28px;height:28px;border-radius:9px;border:1px solid rgba(197,160,89,0.35);background:#FAF8F5;color:#111827;font-size:15px;font-weight:800;cursor:pointer;"
+                                        aria-label="Schließen">&times;</button>
+                            </div>
+
+                            <div class="sf-lobby-settings-section">
+                                <div class="sf-lobby-settings-row">
+                                    <span class="sf-lobby-settings-label">Lautstärke</span>
+                                    <span style="font-size:11px;font-weight:800;color:#9A7738;"
+                                          x-text="(userSettings.volume <= 0 || audioState.allMuted) ? 'Stumm' : (userSettings.volume + ' %')"></span>
+                                </div>
+                                <input type="range"
+                                       min="0"
+                                       max="100"
+                                       step="1"
+                                       :value="userSettings.volume"
+                                       @input="setMasterVolume($event.target.value)"
+                                       data-testid="lobby-settings-volume-slider"
+                                       class="sf-lobby-slider"
+                                       aria-label="Lautstärke">
+                            </div>
+
+                            <div class="sf-lobby-settings-section">
+                                <div class="sf-lobby-settings-row">
+                                    <span class="sf-lobby-settings-label">Kamera-Tempo</span>
+                                    <span style="font-size:11px;font-weight:800;color:#9A7738;"
+                                          x-text="userSettings.cameraSensitivity + ' %'"></span>
+                                </div>
+                                <input type="range"
+                                       min="50"
+                                       max="150"
+                                       step="1"
+                                       :value="userSettings.cameraSensitivity"
+                                       @input="setCameraSensitivity($event.target.value)"
+                                       data-testid="lobby-camera-sensitivity-slider"
+                                       class="sf-lobby-slider"
+                                       aria-label="Kamera-Tempo">
+                            </div>
+
+                            <div class="sf-lobby-settings-section">
+                                <label class="sf-lobby-settings-row" style="cursor:pointer;">
+                                    <span class="sf-lobby-settings-label">Echten Vornamen nutzen</span>
+                                    <input type="checkbox"
+                                           data-testid="lobby-use-real-name-checkbox"
+                                           :checked="userSettings.useRealName"
+                                           @change="setUseRealName($event.target.checked)"
+                                           style="width:17px;height:17px;accent-color:#C5A059;cursor:pointer;">
+                                </label>
+                            </div>
+
+                            <div class="sf-lobby-settings-section">
+                                <div class="sf-lobby-settings-row">
+                                    <span class="sf-lobby-settings-label">Steuerung</span>
+                                    <div style="display:flex;align-items:center;gap:6px;">
+                                        <button type="button"
+                                                x-show="keybindingsExpanded"
+                                                data-testid="lobby-keybind-reset-btn"
+                                                @click="resetKeybindings()"
+                                                class="sf-lobby-step-btn">
+                                            Zurücksetzen
+                                        </button>
+                                        <button type="button"
+                                                data-testid="lobby-keybind-expand-btn"
+                                                @click="toggleKeybindingsExpanded()"
+                                                class="sf-lobby-step-btn"
+                                                :class="{ 'is-active': keybindingsExpanded }"
+                                                x-text="keybindingsExpanded ? 'Fertig' : 'Ändern'"></button>
+                                    </div>
+                                </div>
+
+                                <div x-show="keybindingsExpanded" class="sf-lobby-keybind-grid">
+                                    <template x-for="item in keybindActionsList()" :key="item.key">
+                                        <button type="button"
+                                                @click="startListeningKey(item.key)"
+                                                class="sf-lobby-keybind-item"
+                                                :class="{ 'is-listening': listeningKeyAction === item.key }">
+                                            <span x-text="item.label"></span>
+                                            <span class="sf-lobby-keybind-pill"
+                                                  x-text="listeningKeyAction === item.key ? 'Taste...' : keyLabel(item.key)"></span>
+                                        </button>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {{-- Ein-/ausklappbarer Light-Mode Raum-Chat (nur in der Multiplayer-Halle der Helden) --}}
+                    <div x-show="!isLoading && loadError === '' && currentZone === 'heroes' && chatOpen && focusedProduct === null"
                          @pointerdown.stop
                          data-testid="louvre-room-chat-panel"
                          class="sf-lobby-chat-panel"
@@ -1959,7 +2345,7 @@
                                 data-testid="louvre-jump-btn"
                                 @click="triggerJump()"
                                 class="sf-lobby-icon-btn"
-                                title="Springen (Leertaste)"
+                                :title="'Springen (' + keyLabel('jump') + ')'"
                                 aria-label="Springen">
                             &#10514;
                         </button>
@@ -1969,12 +2355,16 @@
                                 @click="triggerWeapon()"
                                 class="sf-lobby-icon-btn"
                                 style="color:#9A7738;"
-                                :title="funkiInfo.weapon ? (funkiInfo.weapon.name + ' aktivieren (Rechtsklick / Taste G)') : 'Aktion ausführen (Rechtsklick / Taste G)'"
+                                :title="'Waffen-Effekt (' + keyLabel('strike') + ')'"
                                 aria-label="Waffen-Effekt">
-                            &#10022;
+                            <span>&#10022;</span>
+                            <span x-show="abilityState.combo && abilityState.combo.stage > 0"
+                                  class="sf-ability-combo-badge"
+                                  x-text="'x' + abilityState.combo.stage"></span>
                         </button>
 
                         <button type="button"
+                                x-show="currentZone === 'heroes'"
                                 data-testid="louvre-chat-toggle-btn"
                                 @click="toggleChatPanel()"
                                 class="sf-lobby-icon-btn"
@@ -1987,8 +2377,8 @@
                         </button>
                     </div>
 
-                    {{-- Spezialfähigkeiten Schnellwahl-Dock (Tasten 1-4) --}}
-                    <div x-show="!isLoading && loadError === '' && focusedProduct === null"
+                    {{-- Permanente Spezialfähigkeiten-Leiste (Tasten 1-4: Sprint, Titan-Sprung, Schutzschild, Funkenstoß) --}}
+                    <div x-show="!isLoading && loadError === ''"
                          @pointerdown.stop
                          data-testid="louvre-abilities-dock"
                          class="sf-lobby-abilities-dock">
@@ -1997,9 +2387,9 @@
                                 data-testid="ability-slot-1-btn"
                                 class="sf-ability-btn"
                                 :class="{ 'is-active': abilityState.sprint.active, 'is-cooldown': abilityState.sprint.cooldown > 0 }"
-                                title="Funken-Sprint (Taste 1): +50% Tempo">
+                                :title="'Funken-Sprint (' + keyLabel('sprint') + ')'">
                             <span class="sf-ability-icon">⚡</span>
-                            <span class="sf-ability-key">1</span>
+                            <span class="sf-ability-key" x-text="keyLabel('sprint')"></span>
                             <span x-show="abilityState.sprint.cooldown > 0" class="sf-ability-cd" x-text="Math.ceil(abilityState.sprint.cooldown) + 's'"></span>
                         </button>
                         <button type="button"
@@ -2007,9 +2397,9 @@
                                 data-testid="ability-slot-2-btn"
                                 class="sf-ability-btn"
                                 :class="{ 'is-cooldown': abilityState.titanJump.cooldown > 0 }"
-                                title="Titan-Sprung (Taste 2): 2.5x Sprunghöhe">
+                                :title="'Titan-Sprung (' + keyLabel('titanJump') + ')'">
                             <span class="sf-ability-icon">▲</span>
-                            <span class="sf-ability-key">2</span>
+                            <span class="sf-ability-key" x-text="keyLabel('titanJump')"></span>
                             <span x-show="abilityState.titanJump.cooldown > 0" class="sf-ability-cd" x-text="Math.ceil(abilityState.titanJump.cooldown) + 's'"></span>
                         </button>
                         <button type="button"
@@ -2017,9 +2407,9 @@
                                 data-testid="ability-slot-3-btn"
                                 class="sf-ability-btn"
                                 :class="{ 'is-active': abilityState.shield.active, 'is-cooldown': abilityState.shield.cooldown > 0 }"
-                                title="Goldener Schutzschild (Taste 3): 6s Schutz">
+                                :title="'Goldener Schutzschild (' + keyLabel('shield') + ')'">
                             <span class="sf-ability-icon">🛡</span>
-                            <span class="sf-ability-key">3</span>
+                            <span class="sf-ability-key" x-text="keyLabel('shield')"></span>
                             <span x-show="abilityState.shield.cooldown > 0" class="sf-ability-cd" x-text="Math.ceil(abilityState.shield.cooldown) + 's'"></span>
                         </button>
                         <button type="button"
@@ -2027,9 +2417,9 @@
                                 data-testid="ability-slot-4-btn"
                                 class="sf-ability-btn"
                                 :class="{ 'is-cooldown': abilityState.burst.cooldown > 0 }"
-                                title="Radialer Funkenstoß (Taste 4): Druckwelle 3.8m">
+                                :title="'Funkenstoß (' + keyLabel('burst') + ')'">
                             <span class="sf-ability-icon">✦</span>
-                            <span class="sf-ability-key">4</span>
+                            <span class="sf-ability-key" x-text="keyLabel('burst')"></span>
                             <span x-show="abilityState.burst.cooldown > 0" class="sf-ability-cd" x-text="Math.ceil(abilityState.burst.cooldown) + 's'"></span>
                         </button>
                     </div>
@@ -2069,8 +2459,35 @@
                             </button>
                         </div>
 
+                        <div x-show="currentZone === 'lava'" class="sf-lobby-bottom-pill">
+                            <span style="padding:4px 10px;font-size:11px;font-weight:800;color:#9A7738;">
+                                🌋 Magma-Kammer · +5 ✨ Täglich
+                            </span>
+                            <button type="button"
+                                    @click="switchZone('gallery')"
+                                    class="sf-lobby-step-btn">
+                                Zur Galerie
+                            </button>
+                        </div>
+
+                        <div x-show="currentZone === 'labyrinth'" class="sf-lobby-bottom-pill">
+                            <span style="padding:4px 10px;font-size:11px;font-weight:800;color:#9A7738;">
+                                🌀 Mini-Labyrinth · 3 ✨ Täglich
+                            </span>
+                            <button type="button"
+                                    @click="switchZone('heroes')"
+                                    class="sf-lobby-step-btn is-active">
+                                🏛️ Heldenhalle
+                            </button>
+                            <button type="button"
+                                    @click="switchZone('gallery')"
+                                    class="sf-lobby-step-btn">
+                                Zur Galerie
+                            </button>
+                        </div>
+
                         <div class="sf-lobby-hint-pill">
-                            WASD / Pfeiltasten · Maus ziehen · ⛶ Vollbild · Esc Schließen
+                            WASD / Pfeiltasten · Maus ziehen · Leertaste Sprung · 1 bis 4 Fähigkeiten · ⛶ Vollbild · Esc Schließen
                         </div>
                     </div>
                 </div>
@@ -2079,886 +2496,1290 @@
     </div>
 
     <script>
-        window.sfLouvreShowroomModal = function () {
-            return {
-                isOpen: false,
-                isFullscreen: false,
-                isLoading: false,
-                loadError: '',
-                currentZone: 'gallery',
-                stagesPreviewMode: 'live',
-                products: [],
-                heroesPayload: {
-                    founding_era: true,
-                    total_heroes: 0,
-                    my_hero_slot: null,
-                    customer_logged_in: false,
-                    customer_opt_in: false,
-                    level_models: {},
-                    heroes: []
-                },
-                funkiInfo: { is_guest: true, level: 2, name: '', weapon: null, player_id: null },
-                multiplayer: {
-                    enabled: false,
-                    is_authenticated: false,
-                    solo_only: true,
-                    room_id: null,
-                    sync_interval_ms: 1800,
-                    player_id: null,
-                    display_name: null,
-                    weapon: null
-                },
-                lobbyAuthenticated: false,
-                lobbyInstanceId: 1,
-                lobbyCapacity: 20,
-                lobbyInstances: [{ id: 1, count: 1, capacity: 20, is_full: false, is_current: true }],
-                instanceMenuOpen: false,
-                customInstanceInput: 1,
-                soloMode: false,
-                peers: [],
-                chatOpen: false,
-                chatDraft: '',
-                chatSending: false,
-                chatFeedback: '',
-                chatMessages: [],
-                unreadChatCount: 0,
-                mutedPlayerIds: [],
-                chatExpanded: false,
-                chatTab: 'chat',
-                friendsList: [],
-                abilityState: {
-                    sprint: { active: false, timer: 0, cooldown: 0 },
-                    titanJump: { cooldown: 0 },
-                    shield: { active: false, timer: 0, cooldown: 0 },
-                    burst: { cooldown: 0 },
-                },
-                _abilityPollTimer: null,
-                activeIndex: 0,
-                focusedProduct: null,
-                focusedHero: null,
-                stickActive: false,
-                stickUiX: 0,
-                stickUiY: 0,
-                prevHtmlOverflow: '',
-                prevOverflow: '',
-                _engine: null,
-                _syncTimer: null,
-                _syncInFlight: false,
-                _feedbackTimer: null,
-                _fsResizeTimer: null,
-                _seenMessageIds: null,
-                _pageHideBound: null,
-                _captureKeydownBound: null,
-                _fullscreenChangeBound: null,
+        (function () {
+            'use strict';
 
-                initLobbyListeners() {
-                    if (!this._captureKeydownBound) {
-                        this._captureKeydownBound = (e) => {
-                            if (!this.isOpen) return;
-                            const key = e.key || '';
-                            const code = e.code || '';
+            // Private Closure-Speicher (0 Zugriff auf Engine, Player, Szene oder Koordinaten aus F12-Konsole / Alpine.$data!)
+            const privateShowroomFacades = typeof WeakMap !== 'undefined' ? new WeakMap() : new Map();
 
-                            if (key === 'Escape' || code === 'Escape' || e.keyCode === 27) {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                this.handleEscape();
-                                return;
-                            }
+            window.sfLouvreShowroomModal = function () {
+                const instanceToken = Object.freeze({});
+                let privateMod = null;
+                let privateAudio = null;
+                let privateAudioUnsub = null;
 
-                            const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
-                            if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
-                        };
-                        window.addEventListener('keydown', this._captureKeydownBound, true);
-                    }
-
-                    if (!this._fullscreenChangeBound) {
-                        this._fullscreenChangeBound = () => {
-                            const fsEl = document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement || null;
-                            this.isFullscreen = Boolean(fsEl);
-                            if (this._engine) {
-                                this._engine.resize();
-                                requestAnimationFrame(() => {
-                                    if (this._engine) this._engine.resize();
-                                });
-                                if (this._fsResizeTimer) clearTimeout(this._fsResizeTimer);
-                                this._fsResizeTimer = setTimeout(() => {
-                                    if (this._engine) this._engine.resize();
-                                }, 120);
-                            }
-                        };
-                        document.addEventListener('fullscreenchange', this._fullscreenChangeBound);
-                        document.addEventListener('webkitfullscreenchange', this._fullscreenChangeBound);
-                    }
-                },
-
-                toggleFullscreen() {
-                    const activeFs = document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement || null;
-                    if (activeFs) {
-                        if (typeof document.exitFullscreen === 'function') {
-                            Promise.resolve(document.exitFullscreen()).catch(() => {});
-                        } else if (typeof document.webkitExitFullscreen === 'function') {
-                            document.webkitExitFullscreen();
-                        }
-                        return;
-                    }
-
-                    const modalRoot = this.$refs.lobbyModalRoot || document.getElementById('sf-louvre-showroom-modal');
-                    if (!modalRoot) return;
-
-                    if (typeof modalRoot.requestFullscreen === 'function') {
-                        Promise.resolve(modalRoot.requestFullscreen({ navigationUI: 'hide' }))
-                            .then(() => { this.isFullscreen = true; })
-                            .catch(() => {});
-                    } else if (typeof modalRoot.webkitRequestFullscreen === 'function') {
-                        modalRoot.webkitRequestFullscreen();
-                        this.isFullscreen = true;
-                    }
-                },
-
-                csrfToken() {
-                    const el = document.querySelector('meta[name="csrf-token"]');
-                    return el ? (el.getAttribute('content') || '') : '';
-                },
-
-                isCustomerAuthenticated() {
-                    return Boolean(
-                        this.lobbyAuthenticated
-                        || this.multiplayer.is_authenticated
-                        || (this.funkiInfo && !this.funkiInfo.is_guest)
-                        || (this.heroesPayload && this.heroesPayload.customer_logged_in)
-                    );
-                },
-
-                availableInstances() {
-                    if (Array.isArray(this.lobbyInstances) && this.lobbyInstances.length > 0) {
-                        return this.lobbyInstances;
-                    }
-                    return [{
-                        id: this.lobbyInstanceId,
-                        count: 1 + (Array.isArray(this.peers) ? this.peers.length : 0),
-                        capacity: this.lobbyCapacity,
-                        is_full: false,
-                        is_current: true
-                    }];
-                },
-
-                currentInstanceCount() {
-                    const list = this.availableInstances();
-                    for (let i = 0; i < list.length; i++) {
-                        if (Number(list[i].id) === Number(this.lobbyInstanceId)) {
-                            return Math.max(1, Number(list[i].count) || (1 + this.peers.length));
-                        }
-                    }
-                    return 1 + (Array.isArray(this.peers) ? this.peers.length : 0);
-                },
-
-                stagesPreviewLabel() {
-                    if (this.stagesPreviewMode === '1-5') return '✨ Stufen 1-5';
-                    if (this.stagesPreviewMode === '6-10') return '✨ Stufen 6-10';
-                    return '✨ Stufen';
-                },
-
-                switchZone(targetZone) {
-                    const z = (targetZone === 'heroes' || targetZone === 'hall') ? 'heroes' : 'gallery';
-                    if (this._engine) {
-                        this._engine.goToZone(z, false);
-                        this.currentZone = this._engine.getCurrentZone();
+                const getFacade = () => privateShowroomFacades.get(instanceToken) || null;
+                const setFacade = (facade) => {
+                    if (facade) {
+                        privateShowroomFacades.set(instanceToken, facade);
                     } else {
-                        this.currentZone = z;
+                        privateShowroomFacades.delete(instanceToken);
                     }
-                },
+                };
 
-                cycleStagesPreview() {
-                    if (!this._engine) return;
-                    this.stagesPreviewMode = this._engine.cycleStagesPreviewMode();
-                },
+                return {
+                    isOpen: false,
+                    isFullscreen: false,
+                    isLoading: false,
+                    loadError: '',
+                    currentZone: 'gallery',
+                    stagesPreviewMode: 'live',
+                    products: [],
+                    heroesPayload: {
+                        founding_era: true,
+                        total_heroes: 0,
+                        my_hero_slot: null,
+                        customer_logged_in: false,
+                        customer_opt_in: false,
+                        level_models: {},
+                        heroes: []
+                    },
+                    funkiInfo: { is_guest: true, level: 2, name: '', weapon: null, player_id: null },
+                    multiplayer: {
+                        enabled: false,
+                        is_authenticated: false,
+                        solo_only: true,
+                        room_id: null,
+                        sync_interval_ms: 1800,
+                        player_id: null,
+                        display_name: null,
+                        weapon: null
+                    },
+                    lobbyAuthenticated: false,
+                    lobbyInstanceId: 1,
+                    lobbyCapacity: 20,
+                    lobbyInstances: [{ id: 1, count: 1, capacity: 20, is_full: false, is_current: true }],
+                    instanceMenuOpen: false,
+                    customInstanceInput: 1,
+                    soloMode: false,
+                    peers: [],
+                    chatOpen: false,
+                    chatDraft: '',
+                    chatSending: false,
+                    chatFeedback: '',
+                    chatMessages: [],
+                    unreadChatCount: 0,
+                    mutedPlayerIds: [],
+                    chatExpanded: false,
+                    chatTab: 'chat',
+                    friendsList: [],
+                    settingsOpen: false,
+                    keybindingsExpanded: false,
+                    listeningKeyAction: '',
+                    userSettings: {
+                        volume: 50,
+                        cameraSensitivity: 100,
+                        useRealName: false,
+                    },
+                    keybindings: {
+                        sprint: 'Digit1',
+                        titanJump: 'Digit2',
+                        shield: 'Digit3',
+                        burst: 'Digit4',
+                        strike: 'KeyG',
+                        jump: 'Space',
+                        moveForward: 'KeyW',
+                        moveLeft: 'KeyA',
+                        moveBack: 'KeyS',
+                        moveRight: 'KeyD',
+                    },
+                    audioState: {
+                        bgmVolume: 30,
+                        bgmMuted: true,
+                        sfxVolume: 50,
+                        sfxMuted: false,
+                        allMuted: false,
+                    },
+                    lavaChestState: {
+                        nearChest: false,
+                        isAuthenticated: false,
+                        claimedToday: false,
+                        claiming: false,
+                        canClaim: false,
+                        statusMessage: '',
+                    },
+                    labyrinthBuzzerState: {
+                        nearBuzzer: false,
+                        isAuthenticated: false,
+                        claimedToday: false,
+                        claiming: false,
+                        canClaim: false,
+                        statusMessage: '',
+                    },
+                    abilityState: {
+                        sprint: { active: false, timer: 0, cooldown: 0, maxCd: 10 },
+                        titanJump: { cooldown: 0, maxCd: 8 },
+                        shield: { active: false, timer: 0, cooldown: 0, maxCd: 15 },
+                        burst: { cooldown: 0, maxCd: 20 },
+                        combo: { stage: 0, windowTimer: 0, active: false, cooldown: 0, maxCd: 1.8 },
+                    },
+                    _abilityPollTimer: null,
+                    activeIndex: 0,
+                    focusedProduct: null,
+                    focusedHero: null,
+                    stickActive: false,
+                    stickUiX: 0,
+                    stickUiY: 0,
+                    prevHtmlOverflow: '',
+                    prevOverflow: '',
+                    _syncTimer: null,
+                    _syncInFlight: false,
+                    _activeSyncZone: null,
+                    _feedbackTimer: null,
+                    _fsResizeTimer: null,
+                    _seenMessageIds: null,
+                    _pageHideBound: null,
+                    _captureKeydownBound: null,
+                    _fullscreenChangeBound: null,
 
-                focusHeroSlot(slotNum) {
-                    if (this._engine) {
-                        this._engine.goToHeroSlot(slotNum);
-                    }
-                },
+                    keybindActionsList() {
+                        return [
+                            { key: 'jump', label: 'Sprung' },
+                            { key: 'strike', label: 'Aktion / Waffe' },
+                            { key: 'sprint', label: '1 · Funken-Sprint' },
+                            { key: 'titanJump', label: '2 · Titan-Sprung' },
+                            { key: 'shield', label: '3 · Schutzschild' },
+                            { key: 'burst', label: '4 · Funkenstoß' },
+                            { key: 'moveForward', label: 'Vorwärts' },
+                            { key: 'moveLeft', label: 'Links' },
+                            { key: 'moveBack', label: 'Zurück' },
+                            { key: 'moveRight', label: 'Rechts' },
+                        ];
+                    },
 
-                focusMyHeroPlace() {
-                    if (this._engine) {
-                        this._engine.goToMyHeroPlace();
-                    }
-                },
-
-                openShowroom(initialZone = 'gallery') {
-                    const requestedZone = (initialZone === 'heroes' || initialZone === 'hall') ? 'heroes' : 'gallery';
-                    if (this.isOpen) {
-                        this.switchZone(requestedZone);
-                        return;
-                    }
-
-                    this.initLobbyListeners();
-                    this.isOpen = true;
-                    this.isFullscreen = Boolean(document.fullscreenElement || document.webkitFullscreenElement);
-                    this.isLoading = true;
-                    this.loadError = '';
-                    this.currentZone = requestedZone;
-                    this.stagesPreviewMode = 'live';
-                    this.focusedProduct = null;
-                    this.focusedHero = null;
-                    this.instanceMenuOpen = false;
-                    this.peers = [];
-                    this.chatMessages = [];
-                    this.unreadChatCount = 0;
-                    this.chatFeedback = '';
-                    this._seenMessageIds = new Set();
-                    this.loadFriendsList();
-                    if (!this._abilityPollTimer) {
-                        this._abilityPollTimer = setInterval(() => this.syncAbilityState(), 120);
-                    }
-                    this.prevHtmlOverflow = document.documentElement.style.overflow || '';
-                    this.prevOverflow = document.body.style.overflow || '';
-                    document.documentElement.style.overflow = 'hidden';
-                    document.body.style.overflow = 'hidden';
-
-                    if (!this._pageHideBound) {
-                        this._pageHideBound = () => {
-                            if (this.isOpen) {
-                                this.sendLobbyLeaveBeacon();
-                            }
-                        };
-                        window.addEventListener('pagehide', this._pageHideBound);
-                    }
-
-                    const dataPromise = fetch('/shop/showroom-data', {
-                        method: 'GET',
-                        credentials: 'same-origin',
-                        headers: { 'Accept': 'application/json' }
-                    }).then((res) => {
-                        if (!res.ok) {
-                            throw new Error('Showroom ist aktuell nicht erreichbar.');
+                    keyLabel(actionKey) {
+                        const code = (this.keybindings && this.keybindings[actionKey]) ? this.keybindings[actionKey] : '';
+                        if (privateMod && typeof privateMod.formatLobbyKeyLabel === 'function') {
+                            return privateMod.formatLobbyKeyLabel(code);
                         }
-                        return res.json();
-                    });
+                        if (code === 'Space') return 'Leertaste';
+                        if (code.indexOf('Digit') === 0) return code.slice(5);
+                        if (code.indexOf('Key') === 0) return code.slice(3).toUpperCase();
+                        return code || '?';
+                    },
 
-                    const heroesPromise = fetch('/funkenwerk-welt/heroes-data', {
-                        method: 'GET',
-                        credentials: 'same-origin',
-                        cache: 'no-store',
-                        headers: { 'Accept': 'application/json' }
-                    })
-                        .then((res) => (res.ok ? res.json() : null))
-                        .catch(() => null);
+                    toggleSettingsModal() {
+                        this.settingsOpen = !this.settingsOpen;
+                        if (!this.settingsOpen) {
+                            this.listeningKeyAction = '';
+                        }
+                        if (privateAudio) {
+                            privateAudio.playUiClick();
+                        }
+                    },
 
-                    const modulePromise = import('/js/seelenfunke-louvre-showroom-3d.js?v=20261116v4');
+                    closeSettingsModal() {
+                        this.settingsOpen = false;
+                        this.listeningKeyAction = '';
+                    },
 
-                    Promise.all([dataPromise, heroesPromise, modulePromise])
-                        .then(([payload, heroesJson, mod]) => {
-                            if (!this.isOpen) return;
-                            this.products = Array.isArray(payload.products) ? payload.products : [];
-                            this.funkiInfo = payload.player_funki || { is_guest: true, level: 2, name: '', weapon: null, player_id: null };
-                            if (heroesJson && heroesJson.success) {
-                                this.heroesPayload = heroesJson;
+                    toggleKeybindingsExpanded() {
+                        this.keybindingsExpanded = !this.keybindingsExpanded;
+                        if (!this.keybindingsExpanded) {
+                            this.listeningKeyAction = '';
+                        }
+                        if (privateAudio) privateAudio.playUiClick();
+                    },
+
+                    startListeningKey(actionKey) {
+                        this.listeningKeyAction = (this.listeningKeyAction === actionKey) ? '' : actionKey;
+                    },
+
+                    assignKeybinding(actionKey, code) {
+                        if (!actionKey || !code) return;
+                        const updated = Object.assign({}, this.keybindings, { [actionKey]: code });
+                        const facade = getFacade();
+                        if (facade && typeof facade.updateSettings === 'function') {
+                            facade.updateSettings({ keybindings: updated });
+                            const snap = facade.getHudSnapshot();
+                            this.keybindings = (snap && snap.keybindings) ? Object.assign({}, snap.keybindings) : updated;
+                        } else if (privateMod && typeof privateMod.saveLobbyKeybindings === 'function') {
+                            this.keybindings = privateMod.saveLobbyKeybindings(updated);
+                        } else {
+                            this.keybindings = updated;
+                        }
+                        this.listeningKeyAction = '';
+                        if (privateAudio) privateAudio.playUiSwitch();
+                    },
+
+                    resetKeybindings() {
+                        const facade = getFacade();
+                        if (facade && typeof facade.updateSettings === 'function') {
+                            facade.updateSettings({ resetKeybindings: true });
+                            const snap = facade.getHudSnapshot();
+                            if (snap && snap.keybindings) {
+                                this.keybindings = Object.assign({}, snap.keybindings);
                             }
-                            this.multiplayer = payload.multiplayer || {
-                                enabled: false,
-                                is_authenticated: false,
-                                solo_only: true,
-                                room_id: null,
-                                sync_interval_ms: 1800,
-                                player_id: null
-                            };
+                        } else if (privateMod && typeof privateMod.resetLobbyKeybindings === 'function') {
+                            this.keybindings = privateMod.resetLobbyKeybindings();
+                        }
+                        this.listeningKeyAction = '';
+                        if (privateAudio) privateAudio.playUiSwitch();
+                    },
 
-                            const isAuth = this.isCustomerAuthenticated();
-                            this.lobbyAuthenticated = isAuth;
-                            this.soloMode = false;
-                            this.activeIndex = 0;
-                            this.isLoading = false;
+                    setMasterVolume(val) {
+                        const vol = Math.max(0, Math.min(100, Math.round(Number(val) || 0)));
+                        this.userSettings.volume = vol;
+                        const facade = getFacade();
+                        if (facade && typeof facade.updateSettings === 'function') {
+                            facade.updateSettings({ volume: vol });
+                        } else if (privateMod && typeof privateMod.saveLobbyUserSettings === 'function') {
+                            privateMod.saveLobbyUserSettings({ volume: vol });
+                        }
+                        if (privateAudio) {
+                            privateAudio.setSfxVolume(vol);
+                            privateAudio.setSfxMuted(vol <= 0);
+                            this.audioState = privateAudio.getState();
+                        }
+                    },
 
-                            if (this.products.length === 0 && !isAuth) {
-                                this.loadError = 'Aktuell sind keine Ausstellungsstücke freigegeben.';
-                                return;
-                            }
+                    setCameraSensitivity(val) {
+                        const sens = Math.max(50, Math.min(150, Math.round(Number(val) || 100)));
+                        this.userSettings.cameraSensitivity = sens;
+                        const facade = getFacade();
+                        if (facade && typeof facade.updateSettings === 'function') {
+                            facade.updateSettings({ cameraSensitivity: sens });
+                        } else if (privateMod && typeof privateMod.saveLobbyUserSettings === 'function') {
+                            privateMod.saveLobbyUserSettings({ cameraSensitivity: sens });
+                        }
+                    },
 
-                            this.$nextTick(() => {
-                                if (!this.isOpen || !this.$refs.louvreCanvas) return;
-                                if (this._engine) {
-                                    this._engine.destroy();
-                                    this._engine = null;
+                    setUseRealName(checked) {
+                        const flag = Boolean(checked);
+                        this.userSettings.useRealName = flag;
+                        const facade = getFacade();
+                        if (facade && typeof facade.updateSettings === 'function') {
+                            facade.updateSettings({ useRealName: flag });
+                        } else if (privateMod && typeof privateMod.saveLobbyUserSettings === 'function') {
+                            privateMod.saveLobbyUserSettings({ useRealName: flag });
+                        }
+                        if (privateAudio) privateAudio.playUiSwitch();
+                    },
+
+                    toggleQuickMute() {
+                        if (privateAudio && typeof privateAudio.toggleQuickMute === 'function') {
+                            this.audioState = privateAudio.toggleQuickMute();
+                        }
+                    },
+
+                    claimLavaChest() {
+                        const facade = getFacade();
+                        if (facade && typeof facade.claimLavaChest === 'function') {
+                            facade.claimLavaChest();
+                        }
+                    },
+
+                    claimLabyrinthBuzzer() {
+                        const facade = getFacade();
+                        if (facade && typeof facade.claimLabyrinthBuzzer === 'function') {
+                            facade.claimLabyrinthBuzzer();
+                        }
+                    },
+
+                    initLobbyListeners() {
+                        if (!this._captureKeydownBound) {
+                            this._captureKeydownBound = (e) => {
+                                if (!this.isOpen) return;
+                                const key = e.key || '';
+                                const code = e.code || '';
+
+                                if (this.listeningKeyAction !== '') {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    if (key === 'Escape' || code === 'Escape' || e.keyCode === 27) {
+                                        this.listeningKeyAction = '';
+                                        return;
+                                    }
+                                    if (code) {
+                                        this.assignKeybinding(this.listeningKeyAction, code);
+                                    }
+                                    return;
                                 }
-                                this._engine = mod.createLouvreShowroom({
-                                    canvas: this.$refs.louvreCanvas,
-                                    floatingCardEl: this.$refs.floatingCard || null,
-                                    floatingHeroCardEl: this.$refs.floatingHeroCard || null,
-                                    floatingPortalCardEl: this.$refs.floatingPortalCard || null,
-                                    products: this.products,
-                                    heroesPayload: this.heroesPayload,
-                                    playerFunki: this.funkiInfo,
-                                    isAuthenticatedCustomer: isAuth,
-                                    initialZone: requestedZone,
-                                    soloMode: this.soloMode,
-                                    onFocusProductChange: (prod, idx) => {
-                                        this.focusedProduct = prod || null;
-                                        if (this._engine) {
-                                            this._engine.setFocusProtected(Boolean(prod));
-                                        }
-                                        if (typeof idx === 'number' && idx >= 0) {
+
+                                if (key === 'Escape' || code === 'Escape' || e.keyCode === 27) {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    this.handleEscape();
+                                    return;
+                                }
+
+                                const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
+                                if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+
+                                if (!this.settingsOpen && (code === 'KeyF' || key === 'f' || key === 'F')) {
+                                    const usedAsBind = Object.values(this.keybindings || {}).indexOf('KeyF') !== -1;
+                                    if (!usedAsBind) {
+                                        e.preventDefault();
+                                        this.toggleFullscreen();
+                                    }
+                                }
+                            };
+                            window.addEventListener('keydown', this._captureKeydownBound, true);
+                        }
+
+                        if (!this._fullscreenChangeBound) {
+                            this._fullscreenChangeBound = () => {
+                                const fsEl = document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement || null;
+                                this.isFullscreen = Boolean(fsEl);
+                                const facade = getFacade();
+                                if (facade) {
+                                    facade.resize();
+                                    requestAnimationFrame(() => {
+                                        const f2 = getFacade();
+                                        if (f2) f2.resize();
+                                    });
+                                    if (this._fsResizeTimer) clearTimeout(this._fsResizeTimer);
+                                    this._fsResizeTimer = setTimeout(() => {
+                                        const f3 = getFacade();
+                                        if (f3) f3.resize();
+                                    }, 120);
+                                }
+                            };
+                            document.addEventListener('fullscreenchange', this._fullscreenChangeBound);
+                            document.addEventListener('webkitfullscreenchange', this._fullscreenChangeBound);
+                        }
+                    },
+
+                    toggleFullscreen() {
+                        const activeFs = document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement || null;
+                        if (activeFs) {
+                            if (typeof document.exitFullscreen === 'function') {
+                                Promise.resolve(document.exitFullscreen()).catch(() => {});
+                            } else if (typeof document.webkitExitFullscreen === 'function') {
+                                document.webkitExitFullscreen();
+                            }
+                            return;
+                        }
+
+                        const modalRoot = this.$refs.lobbyModalRoot || document.getElementById('sf-louvre-showroom-modal');
+                        if (!modalRoot) return;
+
+                        if (typeof modalRoot.requestFullscreen === 'function') {
+                            Promise.resolve(modalRoot.requestFullscreen({ navigationUI: 'hide' }))
+                                .then(() => { this.isFullscreen = true; })
+                                .catch(() => {});
+                        } else if (typeof modalRoot.webkitRequestFullscreen === 'function') {
+                            modalRoot.webkitRequestFullscreen();
+                            this.isFullscreen = true;
+                        }
+                    },
+
+                    csrfToken() {
+                        const el = document.querySelector('meta[name="csrf-token"]');
+                        return el ? (el.getAttribute('content') || '') : '';
+                    },
+
+                    isCustomerAuthenticated() {
+                        return Boolean(
+                            this.lobbyAuthenticated
+                            || this.multiplayer.is_authenticated
+                            || (this.funkiInfo && !this.funkiInfo.is_guest)
+                            || (this.heroesPayload && this.heroesPayload.customer_logged_in)
+                        );
+                    },
+
+                    availableInstances() {
+                        if (Array.isArray(this.lobbyInstances) && this.lobbyInstances.length > 0) {
+                            return this.lobbyInstances;
+                        }
+                        return [{
+                            id: this.lobbyInstanceId,
+                            count: 1 + (Array.isArray(this.peers) ? this.peers.length : 0),
+                            capacity: this.lobbyCapacity,
+                            is_full: false,
+                            is_current: true
+                        }];
+                    },
+
+                    currentInstanceCount() {
+                        const list = this.availableInstances();
+                        for (let i = 0; i < list.length; i++) {
+                            if (Number(list[i].id) === Number(this.lobbyInstanceId)) {
+                                return Math.max(1, Number(list[i].count) || (1 + this.peers.length));
+                            }
+                        }
+                        return 1 + (Array.isArray(this.peers) ? this.peers.length : 0);
+                    },
+
+                    stagesPreviewLabel() {
+                        if (this.stagesPreviewMode === '1-5') return '✨ Stufen 1-5';
+                        if (this.stagesPreviewMode === '6-10') return '✨ Stufen 6-10';
+                        return '✨ Stufen';
+                    },
+
+                    switchZone(targetZone) {
+                        const z = targetZone === 'lava'
+                            ? 'lava'
+                            : (targetZone === 'labyrinth'
+                                ? 'labyrinth'
+                                : ((targetZone === 'heroes' || targetZone === 'hall') ? 'heroes' : 'gallery'));
+                        if (privateAudio) privateAudio.playUiClick();
+                        const facade = getFacade();
+                        if (facade) {
+                            facade.setZone(z, false);
+                            const snap = facade.getHudSnapshot();
+                            this.currentZone = (snap && snap.zone) ? snap.zone : z;
+                        } else {
+                            this.currentZone = z;
+                        }
+                        this.handleZoneSyncTransition(this.currentZone);
+                    },
+
+                    cycleStagesPreview() {
+                        const facade = getFacade();
+                        if (!facade) return;
+                        this.stagesPreviewMode = facade.cyclePreviewHeroLevel();
+                    },
+
+                    focusHeroSlot(slotNum) {
+                        const facade = getFacade();
+                        if (facade) {
+                            facade.focusHeroSlot(slotNum);
+                        }
+                    },
+
+                    focusMyHeroPlace() {
+                        const facade = getFacade();
+                        if (facade) {
+                            facade.focusMyHeroPlace();
+                        }
+                    },
+
+                    openShowroom(initialZone = 'gallery') {
+                        const requestedZone = initialZone === 'lava'
+                            ? 'lava'
+                            : (initialZone === 'labyrinth'
+                                ? 'labyrinth'
+                                : ((initialZone === 'heroes' || initialZone === 'hall') ? 'heroes' : 'gallery'));
+                        if (this.isOpen) {
+                            this.switchZone(requestedZone);
+                            return;
+                        }
+
+                        this.initLobbyListeners();
+                        this.isOpen = true;
+                        this.isFullscreen = Boolean(document.fullscreenElement || document.webkitFullscreenElement);
+                        this.isLoading = true;
+                        this.loadError = '';
+                        this.currentZone = requestedZone;
+                        this.stagesPreviewMode = 'live';
+                        this.focusedProduct = null;
+                        this.focusedHero = null;
+                        this.instanceMenuOpen = false;
+                        this.settingsOpen = false;
+                        this.listeningKeyAction = '';
+                        this.peers = [];
+                        this.chatMessages = [];
+                        this.unreadChatCount = 0;
+                        this.chatFeedback = '';
+                        this._activeSyncZone = null;
+                        this._seenMessageIds = new Set();
+                        this.loadFriendsList();
+                        if (!this._abilityPollTimer) {
+                            this._abilityPollTimer = setInterval(() => this.syncAbilityState(), 90);
+                        }
+                        this.prevHtmlOverflow = document.documentElement.style.overflow || '';
+                        this.prevOverflow = document.body.style.overflow || '';
+                        document.documentElement.style.overflow = 'hidden';
+                        document.body.style.overflow = 'hidden';
+
+                        if (!this._pageHideBound) {
+                            this._pageHideBound = () => {
+                                if (this.isOpen && this._activeSyncZone === 'heroes') {
+                                    this.sendLobbyLeaveBeacon();
+                                }
+                            };
+                            window.addEventListener('pagehide', this._pageHideBound);
+                        }
+
+                        const dataPromise = fetch('/shop/showroom-data', {
+                            method: 'GET',
+                            credentials: 'same-origin',
+                            headers: { 'Accept': 'application/json' }
+                        }).then((res) => {
+                            if (!res.ok) {
+                                throw new Error('Showroom ist aktuell nicht erreichbar.');
+                            }
+                            return res.json();
+                        });
+
+                        const heroesPromise = fetch('/funkenwerk-welt/heroes-data', {
+                            method: 'GET',
+                            credentials: 'same-origin',
+                            cache: 'no-store',
+                            headers: { 'Accept': 'application/json' }
+                        })
+                            .then((res) => (res.ok ? res.json() : null))
+                            .catch(() => null);
+
+                        const modulePromise = import('/js/seelenfunke-louvre-showroom-3d.js?v=20261117v2');
+
+                        Promise.all([dataPromise, heroesPromise, modulePromise])
+                            .then(([payload, heroesJson, mod]) => {
+                                if (!this.isOpen) return;
+                                privateMod = mod;
+                                this.products = Array.isArray(payload.products) ? payload.products : [];
+                                this.funkiInfo = payload.player_funki || { is_guest: true, level: 2, name: '', weapon: null, player_id: null };
+                                if (heroesJson && heroesJson.success) {
+                                    this.heroesPayload = heroesJson;
+                                }
+                                this.multiplayer = payload.multiplayer || {
+                                    enabled: false,
+                                    is_authenticated: false,
+                                    solo_only: true,
+                                    room_id: null,
+                                    sync_interval_ms: 1800,
+                                    player_id: null
+                                };
+
+                                const isAuth = this.isCustomerAuthenticated();
+                                this.lobbyAuthenticated = isAuth;
+                                this.soloMode = false;
+                                this.activeIndex = 0;
+
+                                if (typeof mod.loadLobbyUserSettings === 'function') {
+                                    this.userSettings = mod.loadLobbyUserSettings();
+                                }
+                                if (typeof mod.loadLobbyKeybindings === 'function') {
+                                    this.keybindings = mod.loadLobbyKeybindings();
+                                }
+                                if (typeof mod.getLobbyAudioInstance === 'function') {
+                                    privateAudio = mod.getLobbyAudioInstance({ isAuthenticated: isAuth });
+                                    privateAudio.setSfxVolume(this.userSettings.volume);
+                                    privateAudio.setSfxMuted(this.userSettings.volume <= 0);
+                                    this.audioState = privateAudio.getState();
+                                    if (privateAudioUnsub) privateAudioUnsub();
+                                    privateAudioUnsub = privateAudio.onChange((snap) => {
+                                        this.audioState = snap;
+                                    });
+                                }
+
+                                this.lavaChestState = {
+                                    nearChest: false,
+                                    isAuthenticated: isAuth,
+                                    claimedToday: Boolean(payload.lava_parkour && payload.lava_parkour.claimed_today),
+                                    claiming: false,
+                                    canClaim: Boolean(isAuth && !(payload.lava_parkour && payload.lava_parkour.claimed_today)),
+                                    statusMessage: '',
+                                };
+
+                                this.labyrinthBuzzerState = {
+                                    nearBuzzer: false,
+                                    isAuthenticated: isAuth,
+                                    claimedToday: Boolean(payload.mini_labyrinth && payload.mini_labyrinth.claimed_today),
+                                    claiming: false,
+                                    canClaim: Boolean(isAuth && !(payload.mini_labyrinth && payload.mini_labyrinth.claimed_today)),
+                                    statusMessage: '',
+                                };
+
+                                this.isLoading = false;
+
+                                if (this.products.length === 0 && !isAuth) {
+                                    this.loadError = 'Aktuell sind keine Ausstellungsstücke freigegeben.';
+                                    return;
+                                }
+
+                                this.$nextTick(() => {
+                                    if (!this.isOpen || !this.$refs.louvreCanvas) return;
+                                    const prevFacade = getFacade();
+                                    if (prevFacade) {
+                                        prevFacade.destroy();
+                                        setFacade(null);
+                                    }
+                                    const createdFacade = mod.createLouvreShowroom({
+                                        canvas: this.$refs.louvreCanvas,
+                                        floatingCardEl: this.$refs.floatingCard || null,
+                                        floatingHeroCardEl: this.$refs.floatingHeroCard || null,
+                                        floatingPortalCardEl: this.$refs.floatingPortalCard || null,
+                                        floatingLavaChestEl: this.$refs.floatingLavaChestCard || null,
+                                        floatingLabyrinthBuzzerEl: this.$refs.floatingLabyrinthBuzzerCard || null,
+                                        products: this.products,
+                                        heroesPayload: this.heroesPayload,
+                                        playerFunki: this.funkiInfo,
+                                        lavaParkour: payload.lava_parkour || null,
+                                        miniLabyrinth: payload.mini_labyrinth || null,
+                                        audio: privateAudio || undefined,
+                                        isAuthenticatedCustomer: isAuth,
+                                        initialZone: requestedZone,
+                                        soloMode: this.soloMode,
+                                        onFocusProductChange: (prod, idx) => {
+                                            this.focusedProduct = prod || null;
+                                            const f = getFacade();
+                                            if (f) {
+                                                f.setFocusProtected(Boolean(prod));
+                                            }
+                                            if (typeof idx === 'number' && idx >= 0) {
+                                                this.activeIndex = idx;
+                                            }
+                                        },
+                                        onFocusHeroChange: (heroInfo) => {
+                                            this.focusedHero = heroInfo || null;
+                                        },
+                                        onActiveExhibitChange: (idx) => {
                                             this.activeIndex = idx;
+                                        },
+                                        onZoneChange: (zone) => {
+                                            this.currentZone = zone;
+                                            this.handleZoneSyncTransition(zone);
+                                        },
+                                        onLavaChestStateChange: (state) => {
+                                            this.lavaChestState = state;
+                                        },
+                                        onLabyrinthBuzzerStateChange: (state) => {
+                                            this.labyrinthBuzzerState = state;
+                                        },
+                                        onSelectProduct: (prod) => {
+                                            if (prod && prod.product_url) {
+                                                window.location.href = prod.product_url;
+                                            }
                                         }
-                                    },
-                                    onFocusHeroChange: (heroInfo) => {
-                                        this.focusedHero = heroInfo || null;
-                                    },
-                                    onActiveExhibitChange: (idx) => {
-                                        this.activeIndex = idx;
-                                    },
-                                    onZoneChange: (zone) => {
-                                        this.currentZone = zone;
-                                    },
-                                    onSelectProduct: (prod) => {
-                                        if (prod && prod.product_url) {
-                                            window.location.href = prod.product_url;
-                                        }
+                                    });
+                                    setFacade(createdFacade);
+
+                                    if (this.mutedPlayerIds.length > 0) {
+                                        createdFacade.setMutedPlayers(this.mutedPlayerIds);
+                                    }
+
+                                    // Ruhiges Solo-Shopping in 'gallery'/'lava'/'labyrinth': Multiplayer-Instanz startet erst beim Betreten von 'heroes'!
+                                    if (isAuth && this.currentZone === 'heroes') {
+                                        this.handleZoneSyncTransition('heroes');
                                     }
                                 });
-
-                                if (this.mutedPlayerIds.length > 0 && this._engine) {
-                                    this._engine.setMutedPlayers(this.mutedPlayerIds);
-                                }
-
-                                if (isAuth) {
-                                    this.joinLobbyInstance();
-                                }
+                            })
+                            .catch(() => {
+                                this.isLoading = false;
+                                this.loadError = 'Der 3D-Showroom konnte auf diesem Gerät nicht geladen werden.';
                             });
-                        })
-                        .catch(() => {
-                            this.isLoading = false;
-                            this.loadError = 'Der 3D-Showroom konnte auf diesem Gerät nicht geladen werden.';
-                        });
-                },
+                    },
 
-                joinLobbyInstance() {
-                    if (!this.isOpen || !this._engine || !this.isCustomerAuthenticated() || this.soloMode) {
-                        return;
-                    }
-                    const st = this._engine.getLocalSyncState();
-                    fetch('/funkenwerk-welt/lobby/join', {
-                        method: 'POST',
-                        credentials: 'same-origin',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Accept': 'application/json',
-                            'X-CSRF-TOKEN': this.csrfToken()
-                        },
-                        body: JSON.stringify({
-                            x: st.x,
-                            z: st.z,
-                            rot_y: st.rot_y,
-                            speed: st.speed,
-                            zone: st.zone
-                        })
-                    })
-                        .then((res) => (res.ok ? res.json() : null))
-                        .then((data) => {
-                            if (!data || !data.ok || !this.isOpen) return;
-                            this.lobbyAuthenticated = Boolean(data.authenticated);
-                            if (data.instance_id) {
-                                this.lobbyInstanceId = Number(data.instance_id) || 1;
-                                this.customInstanceInput = this.lobbyInstanceId;
+                    handleZoneSyncTransition(nextZone) {
+                        const z = String(nextZone || 'gallery').toLowerCase();
+                        const facade = getFacade();
+
+                        if (z === 'heroes') {
+                            if (this.isCustomerAuthenticated() && !this.soloMode && (this._activeSyncZone !== 'heroes' || !this._syncTimer)) {
+                                this._activeSyncZone = 'heroes';
+                                this.joinLobbyInstance();
                             }
-                            if (data.hard_cap) {
-                                this.lobbyCapacity = Number(data.hard_cap) || 20;
-                            }
-                            if (Array.isArray(data.instances)) {
-                                this.lobbyInstances = data.instances;
-                            }
-                            this.peers = Array.isArray(data.peers) ? data.peers : [];
-                            if (this._engine) {
-                                this._engine.updatePeers(this.peers);
-                            }
-                            if (this.lobbyAuthenticated) {
-                                this.startMultiplayerLoop();
-                            }
-                        })
-                        .catch(() => {});
-                },
+                            return;
+                        }
 
-                startMultiplayerLoop() {
-                    this.stopMultiplayerLoop();
-                    if (!this.isOpen || !this.lobbyAuthenticated || this.soloMode) {
-                        return;
-                    }
-                    this._syncTimer = setInterval(() => {
-                        this.runMultiplayerSync();
-                    }, 1800);
-                },
-
-                stopMultiplayerLoop() {
-                    if (this._syncTimer) {
-                        clearInterval(this._syncTimer);
-                        this._syncTimer = null;
-                    }
-                    this._syncInFlight = false;
-                },
-
-                runMultiplayerSync() {
-                    if (!this.isOpen || !this._engine || this._syncInFlight) return;
-                    if (!this.lobbyAuthenticated || this.soloMode) return;
-
-                    this._syncInFlight = true;
-                    const st = this._engine.getLocalSyncState();
-
-                    fetch('/funkenwerk-welt/lobby/sync', {
-                        method: 'POST',
-                        credentials: 'same-origin',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Accept': 'application/json',
-                            'X-CSRF-TOKEN': this.csrfToken()
-                        },
-                        body: JSON.stringify({
-                            instance_id: this.lobbyInstanceId,
-                            x: st.x,
-                            z: st.z,
-                            rot_y: st.rot_y,
-                            speed: st.speed,
-                            zone: st.zone
-                        })
-                    })
-                        .then((res) => (res.ok ? res.json() : null))
-                        .then((data) => {
-                            if (!data || !data.ok || !this.isOpen || !this._engine) return;
-                            if (data.instance_id) {
-                                this.lobbyInstanceId = Number(data.instance_id) || this.lobbyInstanceId;
-                            }
-                            if (Array.isArray(data.instances)) {
-                                this.lobbyInstances = data.instances;
-                            }
-                            this.peers = Array.isArray(data.peers) ? data.peers : [];
-                            this._engine.updatePeers(this.peers);
-                        })
-                        .catch(() => {})
-                        .finally(() => {
-                            this._syncInFlight = false;
-                        });
-                },
-
-                switchLobbyInstance(targetId) {
-                    if (!this.isOpen || !this._engine || !this.lobbyAuthenticated) return;
-                    const cleanTarget = Math.max(1, Math.min(50, parseInt(targetId, 10) || 1));
-                    const st = this._engine.getLocalSyncState();
-                    this.instanceMenuOpen = false;
-
-                    fetch('/funkenwerk-welt/lobby/switch', {
-                        method: 'POST',
-                        credentials: 'same-origin',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Accept': 'application/json',
-                            'X-CSRF-TOKEN': this.csrfToken()
-                        },
-                        body: JSON.stringify({
-                            target_instance: cleanTarget,
-                            x: st.x,
-                            z: st.z,
-                            rot_y: st.rot_y,
-                            zone: st.zone
-                        })
-                    })
-                        .then((res) => (res.ok ? res.json() : null))
-                        .then((data) => {
-                            if (!data || !data.ok || !this.isOpen || !this._engine) return;
-                            if (data.instance_id) {
-                                this.lobbyInstanceId = Number(data.instance_id) || cleanTarget;
-                                this.customInstanceInput = this.lobbyInstanceId;
-                            }
-                            if (Array.isArray(data.instances)) {
-                                this.lobbyInstances = data.instances;
-                            }
-                            this.peers = Array.isArray(data.peers) ? data.peers : [];
-                            this._engine.updatePeers(this.peers);
-                        })
-                        .catch(() => {});
-                },
-
-                sendLobbyLeaveBeacon() {
-                    if (!this.lobbyAuthenticated) return;
-                    const token = this.csrfToken();
-                    if (navigator.sendBeacon && typeof FormData !== 'undefined') {
-                        const fd = new FormData();
-                        fd.append('_token', token);
-                        fd.append('instance_id', String(this.lobbyInstanceId));
-                        navigator.sendBeacon('/funkenwerk-welt/lobby/leave', fd);
-                        return;
-                    }
-                    fetch('/funkenwerk-welt/lobby/leave', {
-                        method: 'POST',
-                        credentials: 'same-origin',
-                        keepalive: true,
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Accept': 'application/json',
-                            'X-CSRF-TOKEN': token
-                        },
-                        body: JSON.stringify({ instance_id: this.lobbyInstanceId })
-                    }).catch(() => {});
-                },
-
-                toggleSoloMode() {
-                    if (!this.isCustomerAuthenticated()) return;
-                    this.soloMode = !this.soloMode;
-                    this.instanceMenuOpen = false;
-                    if (this.soloMode) {
+                        // Solo-Zonen ('gallery', 'lava', 'labyrinth'): lokal sofort leeren, Loop stoppen & Heldenhallen-Platz freigeben!
+                        const wasInHeroes = (this._activeSyncZone === 'heroes' || Boolean(this._syncTimer));
+                        this._activeSyncZone = z;
+                        this.instanceMenuOpen = false;
                         this.chatOpen = false;
-                        this.peers = [];
                         this.stopMultiplayerLoop();
-                        this.sendLobbyLeaveBeacon();
-                    } else {
-                        this.joinLobbyInstance();
-                    }
-                    if (this._engine) {
-                        this._engine.setSoloMode(this.soloMode);
-                    }
-                },
+                        this.peers = [];
+                        if (facade) {
+                            facade.updatePeers([]);
+                        }
 
-                toggleChatPanel() {
-                    this.chatOpen = !this.chatOpen;
-                    if (this.chatOpen) {
-                        this.unreadChatCount = 0;
-                    }
-                },
+                        if (wasInHeroes && this.lobbyAuthenticated && !this.soloMode && facade) {
+                            const st = facade.getHudSnapshot();
+                            fetch('/funkenwerk-welt/lobby/sync', {
+                                method: 'POST',
+                                credentials: 'same-origin',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Accept': 'application/json',
+                                    'X-CSRF-TOKEN': this.csrfToken()
+                                },
+                                body: JSON.stringify({
+                                    x: st.x,
+                                    y: st.y,
+                                    z: st.z,
+                                    rot_y: st.rot_y,
+                                    speed: st.speed,
+                                    zone: z,
+                                    combo_seq: st.combo_seq,
+                                    combo_stage: st.combo_stage
+                                })
+                            }).catch(() => {});
+                        }
+                    },
 
-                visibleChatMessages() {
-                    if (!Array.isArray(this.chatMessages)) return [];
-                    return this.chatMessages.filter((m) => m && this.mutedPlayerIds.indexOf(m.player_id) === -1);
-                },
+                    joinLobbyInstance() {
+                        const facade = getFacade();
+                        if (!this.isOpen || !facade || !this.isCustomerAuthenticated() || this.soloMode || this.currentZone !== 'heroes') {
+                            return;
+                        }
+                        const st = facade.getHudSnapshot();
+                        fetch('/funkenwerk-welt/lobby/join', {
+                            method: 'POST',
+                            credentials: 'same-origin',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                                'X-CSRF-TOKEN': this.csrfToken()
+                            },
+                            body: JSON.stringify({
+                                x: st.x,
+                                y: st.y,
+                                z: st.z,
+                                rot_y: st.rot_y,
+                                speed: st.speed,
+                                zone: 'heroes',
+                                combo_seq: st.combo_seq,
+                                combo_stage: st.combo_stage
+                            })
+                        })
+                            .then((res) => (res.ok ? res.json() : null))
+                            .then((data) => {
+                                if (!data || !data.ok || !this.isOpen || this.currentZone !== 'heroes') return;
+                                this.lobbyAuthenticated = Boolean(data.authenticated);
+                                if (data.instance_id) {
+                                    this.lobbyInstanceId = Number(data.instance_id) || 1;
+                                    this.customInstanceInput = this.lobbyInstanceId;
+                                }
+                                if (data.hard_cap) {
+                                    this.lobbyCapacity = Number(data.hard_cap) || 20;
+                                }
+                                if (Array.isArray(data.instances)) {
+                                    this.lobbyInstances = data.instances;
+                                }
+                                this.peers = Array.isArray(data.peers) ? data.peers : [];
+                                const f2 = getFacade();
+                                if (f2) {
+                                    f2.updatePeers(this.peers);
+                                }
+                                if (this.lobbyAuthenticated && this.currentZone === 'heroes') {
+                                    this.startMultiplayerLoop();
+                                }
+                            })
+                            .catch(() => {});
+                    },
 
-                showFeedback(text) {
-                    this.chatFeedback = text;
-                    if (this._feedbackTimer) {
-                        clearTimeout(this._feedbackTimer);
-                    }
-                    this._feedbackTimer = setTimeout(() => {
-                        this.chatFeedback = '';
-                    }, 4000);
-                },
+                    startMultiplayerLoop() {
+                        this.stopMultiplayerLoop();
+                        if (!this.isOpen || !this.lobbyAuthenticated || this.soloMode || this.currentZone !== 'heroes') {
+                            return;
+                        }
+                        this._syncTimer = setInterval(() => {
+                            this.runMultiplayerSync();
+                        }, 1800);
+                    },
 
-                sendChatMessage(overrideText) {
-                    const raw = overrideText !== undefined ? overrideText : this.chatDraft;
-                    const text = String(raw || '').trim();
-                    if (text === '' || this.chatSending) return;
-                    if (!this.isCustomerAuthenticated() || this.soloMode) return;
+                    stopMultiplayerLoop() {
+                        if (this._syncTimer) {
+                            clearInterval(this._syncTimer);
+                            this._syncTimer = null;
+                        }
+                        this._syncInFlight = false;
+                    },
 
-                    if (text.startsWith('/')) {
-                        const parts = text.split(' ');
-                        const cmd = parts[0].toLowerCase();
-                        const validEmotes = {
-                            '/dance': { emote: 'dance', text: '* tanzt ausgelassen durch die Halle *' },
-                            '/wave': { emote: 'wave', text: '* winkt freundlich in die Runde *' },
-                            '/bow': { emote: 'bow', text: '* verbeugt sich respektvoll *' },
-                            '/cheer': { emote: 'cheer', text: '* jubelt begeistert *' },
-                            '/sit': { emote: 'sit', text: '* setzt sich gemütlich hin *' },
-                            '/clap': { emote: 'clap', text: '* klatscht Beifall *' },
-                        };
-
-                        if (validEmotes[cmd]) {
-                            const eInfo = validEmotes[cmd];
-                            if (this._engine && typeof this._engine.triggerEmote === 'function') {
-                                this._engine.triggerEmote(eInfo.emote);
-                            }
-                            this._sendActualChatMessage(eInfo.text);
-                            this.chatDraft = '';
+                    runMultiplayerSync() {
+                        const facade = getFacade();
+                        if (!this.isOpen || !facade || this._syncInFlight) return;
+                        if (!this.lobbyAuthenticated || this.soloMode || this.currentZone !== 'heroes') {
+                            this.stopMultiplayerLoop();
                             return;
                         }
 
-                        if (cmd === '/help') {
-                            this.showFeedback('Befehle: /dance, /wave, /bow, /cheer, /sit, /clap, /jump, /help');
-                            this.chatDraft = '';
+                        this._syncInFlight = true;
+                        const st = facade.getHudSnapshot();
+
+                        fetch('/funkenwerk-welt/lobby/sync', {
+                            method: 'POST',
+                            credentials: 'same-origin',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                                'X-CSRF-TOKEN': this.csrfToken()
+                            },
+                            body: JSON.stringify({
+                                x: st.x,
+                                y: st.y,
+                                z: st.z,
+                                rot_y: st.rot_y,
+                                speed: st.speed,
+                                zone: 'heroes',
+                                combo_seq: st.combo_seq,
+                                combo_stage: st.combo_stage
+                            })
+                        })
+                            .then((res) => (res.ok ? res.json() : null))
+                            .then((data) => {
+                                const f2 = getFacade();
+                                if (!data || !data.ok || !this.isOpen || !f2 || this.currentZone !== 'heroes') return;
+                                if (data.instance_id) {
+                                    this.lobbyInstanceId = Number(data.instance_id) || this.lobbyInstanceId;
+                                }
+                                if (Array.isArray(data.instances)) {
+                                    this.lobbyInstances = data.instances;
+                                }
+                                this.peers = Array.isArray(data.peers) ? data.peers : [];
+                                f2.updatePeers(this.peers);
+                            })
+                            .catch(() => {})
+                            .finally(() => {
+                                this._syncInFlight = false;
+                            });
+                    },
+
+                    switchLobbyInstance(targetId) {
+                        const facade = getFacade();
+                        if (!this.isOpen || !facade || !this.lobbyAuthenticated) return;
+                        const cleanTarget = Math.max(1, Math.min(50, parseInt(targetId, 10) || 1));
+                        if (this.currentZone !== 'heroes') {
+                            facade.setZone('heroes', false);
+                            this.currentZone = 'heroes';
+                            this._activeSyncZone = 'heroes';
+                        }
+                        const st = facade.getHudSnapshot();
+                        this.instanceMenuOpen = false;
+
+                        fetch('/funkenwerk-welt/lobby/switch', {
+                            method: 'POST',
+                            credentials: 'same-origin',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                                'X-CSRF-TOKEN': this.csrfToken()
+                            },
+                            body: JSON.stringify({
+                                target_instance: cleanTarget,
+                                x: st.x,
+                                y: st.y,
+                                z: st.z,
+                                rot_y: st.rot_y,
+                                zone: 'heroes'
+                            })
+                        })
+                            .then((res) => (res.ok ? res.json() : null))
+                            .then((data) => {
+                                const f2 = getFacade();
+                                if (!data || !data.ok || !this.isOpen || !f2) return;
+                                if (data.instance_id) {
+                                    this.lobbyInstanceId = Number(data.instance_id) || cleanTarget;
+                                    this.customInstanceInput = this.lobbyInstanceId;
+                                }
+                                if (Array.isArray(data.instances)) {
+                                    this.lobbyInstances = data.instances;
+                                }
+                                this.peers = Array.isArray(data.peers) ? data.peers : [];
+                                f2.switchInstance(this.peers);
+                                if (this.lobbyAuthenticated && !this.soloMode && this.currentZone === 'heroes') {
+                                    this.startMultiplayerLoop();
+                                }
+                            })
+                            .catch(() => {});
+                    },
+
+                    sendLobbyLeaveBeacon() {
+                        if (!this.lobbyAuthenticated) return;
+                        const token = this.csrfToken();
+                        if (navigator.sendBeacon && typeof FormData !== 'undefined') {
+                            const fd = new FormData();
+                            fd.append('_token', token);
+                            navigator.sendBeacon('/funkenwerk-welt/lobby/leave', fd);
                             return;
                         }
+                        fetch('/funkenwerk-welt/lobby/leave', {
+                            method: 'POST',
+                            credentials: 'same-origin',
+                            keepalive: true,
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                                'X-CSRF-TOKEN': token
+                            },
+                            body: JSON.stringify({})
+                        }).catch(() => {});
+                    },
 
-                        if (cmd === '/jump') {
-                            this.triggerJump();
-                            this.chatDraft = '';
-                            return;
+                    toggleSoloMode() {
+                        if (!this.isCustomerAuthenticated()) return;
+                        this.soloMode = !this.soloMode;
+                        this.instanceMenuOpen = false;
+                        if (this.soloMode) {
+                            this.chatOpen = false;
+                            this.peers = [];
+                            this._activeSyncZone = null;
+                            this.stopMultiplayerLoop();
+                            this.sendLobbyLeaveBeacon();
+                        } else if (this.currentZone === 'heroes') {
+                            this._activeSyncZone = null;
+                            this.handleZoneSyncTransition('heroes');
                         }
-                    }
+                        const facade = getFacade();
+                        if (facade) {
+                            facade.setSoloMode(this.soloMode);
+                        }
+                    },
 
-                    this._sendActualChatMessage(text);
-                    this.chatDraft = '';
-                },
+                    toggleChatPanel() {
+                        this.chatOpen = !this.chatOpen;
+                        if (this.chatOpen) {
+                            this.unreadChatCount = 0;
+                        }
+                    },
 
-                _sendActualChatMessage(text) {
-                    this.chatSending = true;
-                    fetch('/shop/showroom-chat', {
-                        method: 'POST',
-                        credentials: 'same-origin',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Accept': 'application/json',
-                            'X-CSRF-TOKEN': this.csrfToken()
-                        },
-                        body: JSON.stringify({ message: text })
-                    })
-                        .then((res) => res.json().then((body) => ({ ok: res.ok, body })))
-                        .then(({ ok, body }) => {
-                            if (!ok || !body || !body.success) {
-                                this.showFeedback((body && body.message) ? body.message : 'Nachricht konnte nicht gesendet werden.');
+                    visibleChatMessages() {
+                        if (!Array.isArray(this.chatMessages)) return [];
+                        return this.chatMessages.filter((m) => m && this.mutedPlayerIds.indexOf(m.player_id) === -1);
+                    },
+
+                    showFeedback(text) {
+                        this.chatFeedback = text;
+                        if (this._feedbackTimer) {
+                            clearTimeout(this._feedbackTimer);
+                        }
+                        this._feedbackTimer = setTimeout(() => {
+                            this.chatFeedback = '';
+                        }, 4000);
+                    },
+
+                    sendChatMessage(overrideText) {
+                        const raw = overrideText !== undefined ? overrideText : this.chatDraft;
+                        const text = String(raw || '').trim();
+                        if (text === '' || this.chatSending) return;
+                        if (!this.isCustomerAuthenticated() || this.soloMode) return;
+
+                        if (text.startsWith('/')) {
+                            const parts = text.split(' ');
+                            const cmd = parts[0].toLowerCase();
+                            const validEmotes = {
+                                '/dance': { emote: 'dance', text: '* tanzt ausgelassen durch die Halle *' },
+                                '/wave': { emote: 'wave', text: '* winkt freundlich in die Runde *' },
+                                '/bow': { emote: 'bow', text: '* verbeugt sich respektvoll *' },
+                                '/cheer': { emote: 'cheer', text: '* jubelt begeistert *' },
+                                '/sit': { emote: 'sit', text: '* setzt sich gemütlich hin *' },
+                                '/clap': { emote: 'clap', text: '* klatscht Beifall *' },
+                            };
+
+                            if (validEmotes[cmd]) {
+                                const eInfo = validEmotes[cmd];
+                                const facade = getFacade();
+                                if (facade && typeof facade.triggerEmote === 'function') {
+                                    facade.triggerEmote(eInfo.emote);
+                                }
+                                this._sendActualChatMessage(eInfo.text);
+                                this.chatDraft = '';
                                 return;
                             }
-                            this.chatFeedback = '';
-                            if (body.entry) {
-                                if (!this._seenMessageIds) this._seenMessageIds = new Set();
-                                this._seenMessageIds.add(body.entry.id);
-                                this.chatMessages = this.chatMessages.concat([body.entry]).slice(-15);
-                                if (this._engine) {
-                                    this._engine.showChatBubble(body.entry.player_id, body.entry.text);
+
+                            if (cmd === '/help') {
+                                this.showFeedback('Befehle: /dance, /wave, /bow, /cheer, /sit, /clap, /jump, /help');
+                                this.chatDraft = '';
+                                return;
+                            }
+
+                            if (cmd === '/jump') {
+                                this.triggerJump();
+                                this.chatDraft = '';
+                                return;
+                            }
+                        }
+
+                        this._sendActualChatMessage(text);
+                        this.chatDraft = '';
+                    },
+
+                    _sendActualChatMessage(text) {
+                        this.chatSending = true;
+                        fetch('/shop/showroom-chat', {
+                            method: 'POST',
+                            credentials: 'same-origin',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                                'X-CSRF-TOKEN': this.csrfToken()
+                            },
+                            body: JSON.stringify({ message: text })
+                        })
+                            .then((res) => res.json().then((body) => ({ ok: res.ok, body })))
+                            .then(({ ok, body }) => {
+                                if (!ok || !body || !body.success) {
+                                    this.showFeedback((body && body.message) ? body.message : 'Nachricht konnte nicht gesendet werden.');
+                                    return;
                                 }
-                            }
-                        })
-                        .catch(() => {
-                            this.showFeedback('Verbindung zum Raum-Chat fehlgeschlagen.');
-                        })
-                        .finally(() => {
-                            this.chatSending = false;
-                        });
-                },
+                                this.chatFeedback = '';
+                                if (body.entry) {
+                                    if (!this._seenMessageIds) this._seenMessageIds = new Set();
+                                    this._seenMessageIds.add(body.entry.id);
+                                    this.chatMessages = this.chatMessages.concat([body.entry]).slice(-15);
+                                    const facade = getFacade();
+                                    if (facade) {
+                                        facade.showChatBubble(body.entry.player_id, body.entry.text);
+                                    }
+                                }
+                            })
+                            .catch(() => {
+                                this.showFeedback('Verbindung zum Raum-Chat fehlgeschlagen.');
+                            })
+                            .finally(() => {
+                                this.chatSending = false;
+                            });
+                    },
 
-                loadFriendsList() {
-                    try {
-                        const raw = localStorage.getItem('sf_louvre_friends');
-                        this.friendsList = raw ? JSON.parse(raw) : [];
-                        if (!Array.isArray(this.friendsList)) this.friendsList = [];
-                    } catch (e) {
-                        this.friendsList = [];
-                    }
-                },
-
-                saveFriendsList() {
-                    try {
-                        localStorage.setItem('sf_louvre_friends', JSON.stringify(this.friendsList));
-                    } catch (e) {}
-                },
-
-                isFriend(playerId) {
-                    return this.friendsList.some((f) => f && f.player_id === playerId);
-                },
-
-                isPeerOnline(playerId) {
-                    if (!playerId || !Array.isArray(this.peers)) return false;
-                    return this.peers.some((p) => p && p.player_id === playerId);
-                },
-
-                toggleFriend(playerId, displayName) {
-                    if (!playerId) return;
-                    if (this.isFriend(playerId)) {
-                        this.friendsList = this.friendsList.filter((f) => f && f.player_id !== playerId);
-                        this.saveFriendsList();
-                        this.showFeedback((displayName || 'Spieler') + ' aus Freunden entfernt.');
-                    } else {
-                        this.friendsList.push({
-                            player_id: playerId,
-                            display_name: displayName || 'Mitspieler',
-                            added_at: Date.now()
-                        });
-                        this.saveFriendsList();
-                        this.showFeedback((displayName || 'Spieler') + ' zu Freunden hinzugefügt!');
-                    }
-                },
-
-                waveToFriend(playerId, displayName) {
-                    if (this._engine && typeof this._engine.triggerEmote === 'function') {
-                        this._engine.triggerEmote('wave');
-                    }
-                    this.sendChatMessage('/wave');
-                },
-
-                triggerAbility(slot) {
-                    if (!this._engine || typeof this._engine.triggerAbility !== 'function') return;
-                    this._engine.triggerAbility(slot);
-                    this.syncAbilityState();
-                },
-
-                syncAbilityState() {
-                    if (this._engine && typeof this._engine.getAbilityState === 'function') {
-                        this.abilityState = this._engine.getAbilityState();
-                    }
-                },
-
-                mutePeer(playerId) {
-                    if (!playerId || playerId === this.multiplayer.player_id) return;
-                    if (this.mutedPlayerIds.indexOf(playerId) === -1) {
-                        this.mutedPlayerIds = this.mutedPlayerIds.concat([playerId]);
-                        if (this._engine) {
-                            this._engine.setMutedPlayers(this.mutedPlayerIds);
+                    loadFriendsList() {
+                        try {
+                            const raw = localStorage.getItem('sf_louvre_friends');
+                            this.friendsList = raw ? JSON.parse(raw) : [];
+                            if (!Array.isArray(this.friendsList)) this.friendsList = [];
+                        } catch (e) {
+                            this.friendsList = [];
                         }
-                        this.showFeedback('Spieler für diese Sitzung stummgeschaltet.');
-                    }
-                },
+                    },
 
-                reportPeer(playerId) {
-                    if (!playerId || playerId === this.multiplayer.player_id) return;
-                    this.mutePeer(playerId);
+                    saveFriendsList() {
+                        try {
+                            localStorage.setItem('sf_louvre_friends', JSON.stringify(this.friendsList));
+                        } catch (e) {}
+                    },
 
-                    fetch('/shop/showroom-report', {
-                        method: 'POST',
-                        credentials: 'same-origin',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Accept': 'application/json',
-                            'X-CSRF-TOKEN': this.csrfToken()
-                        },
-                        body: JSON.stringify({ target_player_id: playerId })
-                    })
-                        .then((res) => res.json())
-                        .then((body) => {
-                            if (body && body.success) {
-                                this.showFeedback('Meldung übermittelt und Spieler stummgeschaltet.');
-                            }
-                        })
-                        .catch(() => {});
-                },
+                    isFriend(playerId) {
+                        return this.friendsList.some((f) => f && f.player_id === playerId);
+                    },
 
-                triggerJump() {
-                    if (this._engine) {
-                        this._engine.triggerJump();
-                    }
-                },
+                    isPeerOnline(playerId) {
+                        if (!playerId || !Array.isArray(this.peers)) return false;
+                        return this.peers.some((p) => p && p.player_id === playerId);
+                    },
 
-                triggerWeapon() {
-                    if (this._engine) {
-                        this._engine.triggerWeaponAction();
-                    }
-                },
-
-                closeShowroom() {
-                    if (!this.isOpen) return;
-                    this.stopMultiplayerLoop();
-                    if (!this.soloMode) {
-                        this.sendLobbyLeaveBeacon();
-                    }
-                    const activeFs = document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement || null;
-                    if (activeFs) {
-                        if (typeof document.exitFullscreen === 'function') {
-                            Promise.resolve(document.exitFullscreen()).catch(() => {});
-                        } else if (typeof document.webkitExitFullscreen === 'function') {
-                            document.webkitExitFullscreen();
+                    toggleFriend(playerId, displayName) {
+                        if (!playerId) return;
+                        if (this.isFriend(playerId)) {
+                            this.friendsList = this.friendsList.filter((f) => f && f.player_id !== playerId);
+                            this.saveFriendsList();
+                            this.showFeedback((displayName || 'Spieler') + ' aus Freunden entfernt.');
+                        } else {
+                            this.friendsList.push({
+                                player_id: playerId,
+                                display_name: displayName || 'Mitspieler',
+                                added_at: Date.now()
+                            });
+                            this.saveFriendsList();
+                            this.showFeedback((displayName || 'Spieler') + ' zu Freunden hinzugefügt!');
                         }
-                    }
-                    this.isFullscreen = false;
-                    this.isOpen = false;
-                    this.isLoading = false;
-                    this.focusedProduct = null;
-                    this.focusedHero = null;
-                    this.instanceMenuOpen = false;
-                    this.chatOpen = false;
-                    if (this._feedbackTimer) {
-                        clearTimeout(this._feedbackTimer);
-                        this._feedbackTimer = null;
-                    }
-                    if (this._fsResizeTimer) {
-                        clearTimeout(this._fsResizeTimer);
-                        this._fsResizeTimer = null;
-                    }
-                    if (this._abilityPollTimer) {
-                        clearInterval(this._abilityPollTimer);
-                        this._abilityPollTimer = null;
-                    }
-                    this.endStick();
-                    if (this._engine) {
-                        this._engine.destroy();
-                        this._engine = null;
-                    }
-                    document.documentElement.style.overflow = this.prevHtmlOverflow;
-                    document.body.style.overflow = this.prevOverflow;
-                },
+                    },
 
-                handleEscape() {
-                    if (!this.isOpen) return;
-                    const fsEl = document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement || null;
-                    if (fsEl) {
-                        this.toggleFullscreen();
-                        return;
-                    }
-                    if (this.instanceMenuOpen) {
+                    waveToFriend(playerId, displayName) {
+                        const facade = getFacade();
+                        if (facade && typeof facade.triggerEmote === 'function') {
+                            facade.triggerEmote('wave');
+                        }
+                        this.sendChatMessage('/wave');
+                    },
+
+                    triggerAbility(slot) {
+                        const facade = getFacade();
+                        if (!facade || typeof facade.triggerAbility !== 'function') return;
+                        facade.triggerAbility(slot);
+                        this.syncAbilityState();
+                    },
+
+                    syncAbilityState() {
+                        const facade = getFacade();
+                        if (facade && typeof facade.getAbilityState === 'function') {
+                            this.abilityState = facade.getAbilityState();
+                        }
+                    },
+
+                    mutePeer(playerId) {
+                        if (!playerId || playerId === this.multiplayer.player_id) return;
+                        if (this.mutedPlayerIds.indexOf(playerId) === -1) {
+                            this.mutedPlayerIds = this.mutedPlayerIds.concat([playerId]);
+                            const facade = getFacade();
+                            if (facade) {
+                                facade.setMutedPlayers(this.mutedPlayerIds);
+                            }
+                            this.showFeedback('Spieler für diese Sitzung stummgeschaltet.');
+                        }
+                    },
+
+                    reportPeer(playerId) {
+                        if (!playerId || playerId === this.multiplayer.player_id) return;
+                        this.mutePeer(playerId);
+
+                        fetch('/shop/showroom-report', {
+                            method: 'POST',
+                            credentials: 'same-origin',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                                'X-CSRF-TOKEN': this.csrfToken()
+                            },
+                            body: JSON.stringify({ target_player_id: playerId })
+                        })
+                            .then((res) => res.json())
+                            .then((body) => {
+                                if (body && body.success) {
+                                    this.showFeedback('Meldung übermittelt und Spieler stummgeschaltet.');
+                                }
+                            })
+                            .catch(() => {});
+                    },
+
+                    triggerJump() {
+                        const facade = getFacade();
+                        if (facade) {
+                            facade.triggerJump();
+                        }
+                    },
+
+                    triggerWeapon() {
+                        const facade = getFacade();
+                        if (facade) {
+                            facade.triggerWeapon();
+                            this.syncAbilityState();
+                        }
+                    },
+
+                    closeShowroom() {
+                        if (!this.isOpen) return;
+                        this.stopMultiplayerLoop();
+                        if (!this.soloMode && this._activeSyncZone === 'heroes') {
+                            this.sendLobbyLeaveBeacon();
+                        }
+                        this._activeSyncZone = null;
+                        const activeFs = document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement || null;
+                        if (activeFs) {
+                            if (typeof document.exitFullscreen === 'function') {
+                                Promise.resolve(document.exitFullscreen()).catch(() => {});
+                            } else if (typeof document.webkitExitFullscreen === 'function') {
+                                document.webkitExitFullscreen();
+                            }
+                        }
+                        this.isFullscreen = false;
+                        this.isOpen = false;
+                        this.isLoading = false;
+                        this.focusedProduct = null;
+                        this.focusedHero = null;
                         this.instanceMenuOpen = false;
-                        return;
+                        this.settingsOpen = false;
+                        this.listeningKeyAction = '';
+                        this.chatOpen = false;
+                        if (privateAudioUnsub) {
+                            privateAudioUnsub();
+                            privateAudioUnsub = null;
+                        }
+                        if (this._feedbackTimer) {
+                            clearTimeout(this._feedbackTimer);
+                            this._feedbackTimer = null;
+                        }
+                        if (this._fsResizeTimer) {
+                            clearTimeout(this._fsResizeTimer);
+                            this._fsResizeTimer = null;
+                        }
+                        if (this._abilityPollTimer) {
+                            clearInterval(this._abilityPollTimer);
+                            this._abilityPollTimer = null;
+                        }
+                        this.endStick();
+                        const facade = getFacade();
+                        if (facade) {
+                            facade.destroy();
+                            setFacade(null);
+                        }
+                        document.documentElement.style.overflow = this.prevHtmlOverflow;
+                        document.body.style.overflow = this.prevOverflow;
+                    },
+
+                    handleEscape() {
+                        if (!this.isOpen) return;
+                        if (this.listeningKeyAction !== '') {
+                            this.listeningKeyAction = '';
+                            return;
+                        }
+                        if (this.settingsOpen) {
+                            this.closeSettingsModal();
+                            return;
+                        }
+                        const fsEl = document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement || null;
+                        if (fsEl) {
+                            this.toggleFullscreen();
+                            return;
+                        }
+                        if (this.instanceMenuOpen) {
+                            this.instanceMenuOpen = false;
+                            return;
+                        }
+                        this.closeShowroom();
+                    },
+
+                    activeExhibitName() {
+                        const p = this.products[this.activeIndex];
+                        return p ? p.name : '';
+                    },
+
+                    focusedBenefits() {
+                        if (!this.focusedProduct || !Array.isArray(this.focusedProduct.benefits)) {
+                            return [];
+                        }
+                        return this.focusedProduct.benefits.slice(0, 3);
+                    },
+
+                    focusedPriceLabel() {
+                        if (!this.focusedProduct) return '';
+                        const raw = String(this.focusedProduct.price_formatted || '').trim();
+                        if (this.focusedProduct.is_personalizable && raw !== '' && !/^ab\s/i.test(raw)) {
+                            return 'ab ' + raw;
+                        }
+                        return raw;
+                    },
+
+                    prevExhibit() {
+                        const facade = getFacade();
+                        if (!facade || this.products.length === 0) return;
+                        facade.prevExhibit();
+                    },
+
+                    nextExhibit() {
+                        const facade = getFacade();
+                        if (!facade || this.products.length === 0) return;
+                        facade.nextExhibit();
+                    },
+
+                    focusCurrentExhibit() {
+                        const facade = getFacade();
+                        if (!facade || this.products.length === 0) return;
+                        facade.focusExhibit(this.activeIndex, false);
+                    },
+
+                    startStick(e) {
+                        this.stickActive = true;
+                        const zone = this.$refs.stickZone;
+                        if (zone && zone.setPointerCapture) {
+                            zone.setPointerCapture(e.pointerId);
+                        }
+                        this.moveStick(e);
+                    },
+
+                    moveStick(e) {
+                        if (!this.stickActive || !this.$refs.stickZone) return;
+                        const rect = this.$refs.stickZone.getBoundingClientRect();
+                        const cx = rect.left + rect.width * 0.5;
+                        const cy = rect.top + rect.height * 0.5;
+                        const maxR = Math.max(16, rect.width * 0.34);
+                        let dx = e.clientX - cx;
+                        let dy = e.clientY - cy;
+                        const dist = Math.hypot(dx, dy);
+                        if (dist > maxR) {
+                            dx = (dx / dist) * maxR;
+                            dy = (dy / dist) * maxR;
+                        }
+                        this.stickUiX = Math.round(dx);
+                        this.stickUiY = Math.round(dy);
+                        const facade = getFacade();
+                        if (facade) {
+                            facade.setJoystickVector(dx / maxR, dy / maxR);
+                        }
+                    },
+
+                    endStick() {
+                        this.stickActive = false;
+                        this.stickUiX = 0;
+                        this.stickUiY = 0;
+                        const facade = getFacade();
+                        if (facade) {
+                            facade.setJoystickVector(0, 0);
+                        }
                     }
-                    this.closeShowroom();
-                },
-
-                activeExhibitName() {
-                    const p = this.products[this.activeIndex];
-                    return p ? p.name : '';
-                },
-
-                focusedBenefits() {
-                    if (!this.focusedProduct || !Array.isArray(this.focusedProduct.benefits)) {
-                        return [];
-                    }
-                    return this.focusedProduct.benefits.slice(0, 3);
-                },
-
-                focusedPriceLabel() {
-                    if (!this.focusedProduct) return '';
-                    const raw = String(this.focusedProduct.price_formatted || '').trim();
-                    if (this.focusedProduct.is_personalizable && raw !== '' && !/^ab\s/i.test(raw)) {
-                        return 'ab ' + raw;
-                    }
-                    return raw;
-                },
-
-                prevExhibit() {
-                    if (!this._engine || this.products.length === 0) return;
-                    const nextIdx = (this.activeIndex - 1 + this.products.length) % this.products.length;
-                    this._engine.goToExhibit(nextIdx, false);
-                },
-
-                nextExhibit() {
-                    if (!this._engine || this.products.length === 0) return;
-                    const nextIdx = (this.activeIndex + 1) % this.products.length;
-                    this._engine.goToExhibit(nextIdx, false);
-                },
-
-                focusCurrentExhibit() {
-                    if (!this._engine || this.products.length === 0) return;
-                    this._engine.goToExhibit(this.activeIndex, false);
-                },
-
-                startStick(e) {
-                    this.stickActive = true;
-                    const zone = this.$refs.stickZone;
-                    if (zone && zone.setPointerCapture) {
-                        zone.setPointerCapture(e.pointerId);
-                    }
-                    this.moveStick(e);
-                },
-
-                moveStick(e) {
-                    if (!this.stickActive || !this.$refs.stickZone) return;
-                    const rect = this.$refs.stickZone.getBoundingClientRect();
-                    const cx = rect.left + rect.width * 0.5;
-                    const cy = rect.top + rect.height * 0.5;
-                    const maxR = Math.max(16, rect.width * 0.34);
-                    let dx = e.clientX - cx;
-                    let dy = e.clientY - cy;
-                    const dist = Math.hypot(dx, dy);
-                    if (dist > maxR) {
-                        dx = (dx / dist) * maxR;
-                        dy = (dy / dist) * maxR;
-                    }
-                    this.stickUiX = Math.round(dx);
-                    this.stickUiY = Math.round(dy);
-                    if (this._engine) {
-                        this._engine.setJoystickVector(dx / maxR, dy / maxR);
-                    }
-                },
-
-                endStick() {
-                    this.stickActive = false;
-                    this.stickUiX = 0;
-                    this.stickUiY = 0;
-                    if (this._engine) {
-                        this._engine.setJoystickVector(0, 0);
-                    }
-                }
+                };
             };
-        };
+        })();
     </script>
     @endif
 </div>

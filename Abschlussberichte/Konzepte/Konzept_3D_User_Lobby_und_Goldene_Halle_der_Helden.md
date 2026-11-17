@@ -39,21 +39,24 @@
 
 ---
 
-## 3. Skalierbares Instanzen-Modell & Manueller Instanzen-Wechsel (Freunde treffen)
+## 3. Zonen-Isoliertes Instanzen-Modell in der „Halle der Helden“ (`Produkt-Lobby = 100 % Solo`)
 
 ```mermaid
 flowchart TD
-    Join["Eingeloggter User betritt 3D-Lobby (/join)"] --> Router{"Auto-Sharding Router (Soft-Cap: 16)"}
-    Router -->|"< 16 aktive User"| Inst1["Instanz #1 (z. B. 12/20)"]
-    Router -->|">= 16 aktive User"| Inst2["Automatisch neue Instanz #2 (1/20)"]
-    Switch["Manueller Wechsel im HUD (🌐 Instanz #X)"] --> HardCheck{"Freundes-Reserve (Hard-Cap: 20)"}
-    HardCheck -->|"< 20 aktive User"| TargetInst["Sofort-Wechsel in Wunsch-Instanz (< 100 ms)"]
+    Lobby["Produkt-Lobby, Lava & 5x5 Mini-Labyrinth"] -->|"SOLO_ZONES"| Solo["100 % Solo-Erlebnis (0 Remote-Peers, 0 Slot-Belegung)"]
+    Join["Eingeloggter User betritt Halle der Helden (zone = heroes)"] --> Router{"Auto-Sharding Router (Soft-Cap: 16)"}
+    Router -->|"< 16 aktive Helden"| Inst1["Instanz #1 (z. B. 12/20)"]
+    Router -->|">= 16 aktive Helden"| Inst2["Automatisch neue Instanz #2 (1/20)"]
+    Switch["Manueller Wechsel im Heldenhallen-HUD (🌐 Instanz #X)"] --> HardCheck{"Freundes-Reserve (Hard-Cap: 20)"}
+    HardCheck -->|"< 20 aktive Helden"| TargetInst["Sofort-Wechsel in Wunsch-Instanz (< 100 ms)"]
     HardCheck -->|"20/20 belegt"| FullMsg["Hinweis: Instanz voll (freie Ausweich-Instanz wählbar)"]
 ```
 
-1. **Optimales Instanz-Limit (`16` Soft-Cap / `20` Hard-Cap):**
-   * **Automatische Skalierung ab `16` Spielern (`SOFT_CAP = 16`):** Melden sich viele Kunden gleichzeitig an, schaltet `LobbyInstanceService` ab dem 17. Spieler vollautomatisch `Instanz #2` (dann `#3`, `#4`, ...) frei. So bleibt jede Halle übersichtlich, die Sicht auf Produkte und Top-5-Helden frei und die Bildrate konstant bei **60 FPS**.
+1. **Strikte Zonen-Trennung (`Produkt-Lobby alleine, Halle der Helden zusammen`):**
+   * In der Produkt-Eingangshalle (`gallery`), der Magma-Kammer (`lava`) und dem kompakten `5x5` West-Mini-Labyrinth (`labyrinth`) ist jeder Besucher ungestört **100 % alleine** (`solo_mode: true`, `peers: []`). Beim Verlassen der `Halle der Helden` wird der belegte Instanz-Platz augenblicklich freigegeben.
+2. **Optimales Instanz-Limit in der `Halle der Helden` (`16` Soft-Cap / `20` Hard-Cap):**
+   * **Automatische Skalierung ab `16` Spielern (`SOFT_CAP = 16`):** Melden sich viele Kunden gleichzeitig in der `Halle der Helden` an, schaltet `LobbyInstanceService` ab dem 17. Spieler vollautomatisch `Instanz #2` (dann `#3`, `#4`, ...) frei. So bleibt jede Halle übersichtlich, die Sicht auf die Top-5-Helden frei und die Bildrate konstant bei **60 FPS**.
    * **`+4` Freundes-Puffer (`HARD_CAP = 20`):** Durch die Reserve zwischen `16` und `20` können Freunde selbst in eine bereits gut gefüllte Instanz (`16/20` bis `19/20`) noch manuell nachkommen!
-2. **Manueller Instanzen-Wechsel im HUD (`🌐 Instanz #1 · X/20 ▾`):**
-   * Eingeloggte User sehen oben im Lobby-HUD ihre aktuelle Instanz inkl. Spielerzahl, alle aktiven Parallel-Instanzen (immer inkl. mindestens einer freien ruhigen Instanz wie `Instanz #2 · 0/20`) sowie ein Direktwahl-Feld (`Instanz #1..50`), um sich gezielt mit Bekannten zu verabreden.
-   * Alle Mitspieler derselben Instanz werden live mit unserem **voll artikulierten 3D-Gelenk-Rig** (echte Arm-, Hand-, Knie- und Fuß-Animationen) und striktem **DSGVO-Zero-PII-Schutz** dargestellt.
+3. **Manueller Instanzen-Wechsel im Heldenhallen-HUD (`🌐 Instanz #1 · X/20 ▾`):**
+   * Eingeloggte User sehen in der `Halle der Helden` oben im HUD ihre aktuelle Instanz inkl. Spielerzahl, alle aktiven Parallel-Instanzen (immer inkl. mindestens einer freien ruhigen Instanz wie `Instanz #2 · 0/20`) sowie ein Direktwahl-Feld (`Instanz #1..50`), um sich gezielt mit Bekannten zu verabreden.
+   * Alle Mitspieler derselben Heldenhallen-Instanz werden live mit unserem **voll artikulierten 3D-Gelenk-Rig** (echte Arm-, Hand-, Knie- und Fuß-Animationen), Zero-Client-Trust-Anti-Cheat und striktem **DSGVO-Zero-PII-Schutz** dargestellt.

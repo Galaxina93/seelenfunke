@@ -5,7 +5,20 @@
         return;
     }
 
-    var MODULE_URL = '/js/seelenfunke-louvre-showroom-3d.js?v=20261116v4';
+    var MODULE_URL = '/js/seelenfunke-louvre-showroom-3d.js?v=20261117v2';
+
+    var KEYBIND_ACTIONS = [
+        { key: 'jump', label: 'Sprung' },
+        { key: 'strike', label: 'Aktion / Waffe' },
+        { key: 'sprint', label: '1 · Funken-Sprint' },
+        { key: 'titanJump', label: '2 · Titan-Sprung' },
+        { key: 'shield', label: '3 · Schutzschild' },
+        { key: 'burst', label: '4 · Funkenstoß' },
+        { key: 'moveForward', label: 'Vorwärts' },
+        { key: 'moveLeft', label: 'Links' },
+        { key: 'moveBack', label: 'Zurück' },
+        { key: 'moveRight', label: 'Rechts' }
+    ];
 
     var STANDALONE_SCOPED_CSS = [
         '@keyframes sfLobbySpin { to { transform: rotate(360deg); } }',
@@ -25,6 +38,9 @@
         '.sf-lobby-close-btn { appearance: none; background: rgba(255,255,255,0.96); color: #111827; border: 1px solid rgba(197,160,89,0.55); border-radius: 999px; padding: 7px 14px; font-size: 12px; font-weight: 800; line-height: 1.2; box-shadow: 0 8px 24px rgba(17,24,39,0.10); cursor: pointer; display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }',
         '.sf-lobby-close-btn:hover { background: #FFFFFF; border-color: #C5A059; }',
         '.sf-lobby-kbd { display: inline-block; padding: 2px 6px; border-radius: 6px; background: #FAF8F5; border: 1px solid rgba(197,160,89,0.45); color: #6B7280; font-size: 10px; font-weight: 800; line-height: 1.1; }',
+        '.sf-lobby-dot { width: 8px; height: 8px; border-radius: 999px; display: inline-block; flex-shrink: 0; }',
+        '.sf-lobby-dot.is-live { background: #10B981; }',
+        '.sf-lobby-dot.is-solo { background: #9CA3AF; }',
         '.sf-lobby-instance-wrap { position: relative; display: inline-flex; }',
         '.sf-lobby-instance-popover { position: absolute; top: calc(100% + 8px); right: 0; width: 260px; background: #FFFFFF; border: 1px solid rgba(197,160,89,0.45); border-radius: 16px; padding: 12px; box-shadow: 0 18px 40px rgba(17,24,39,0.14); z-index: 60; color: #111827; box-sizing: border-box; }',
         '.sf-lobby-instance-list { max-height: 176px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }',
@@ -43,18 +59,43 @@
         '.sf-lobby-floating-card { position: relative; width: 276px; max-width: calc(100vw - 24px); background: rgba(255,255,255,0.96); border: 1px solid rgba(197,160,89,0.55); border-radius: 16px; padding: 14px 16px; box-shadow: 0 14px 34px rgba(17,24,39,0.12); color: #111827; pointer-events: auto; box-sizing: border-box; }',
         '.sf-lobby-floating-arrow { width: 12px; height: 12px; background: rgba(255,255,255,0.96); border-right: 1px solid rgba(197,160,89,0.55); border-bottom: 1px solid rgba(197,160,89,0.55); transform: rotate(45deg); margin: -6px auto 0; pointer-events: none; }',
         '.sf-lobby-portal-pill { pointer-events: auto; display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; border-radius: 999px; background: rgba(255,255,255,0.96); color: #111827; border: 1px solid #C5A059; box-shadow: 0 14px 32px rgba(17,24,39,0.14); font-size: 12px; font-weight: 800; text-decoration: none; white-space: nowrap; }',
+        '.sf-lobby-lava-chest-card { pointer-events: auto; display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 999px; background: rgba(255,255,255,0.97); color: #111827; border: 1.5px solid #C5A059; box-shadow: 0 14px 32px rgba(17,24,39,0.16); font-size: 12px; font-weight: 800; white-space: nowrap; cursor: pointer; text-decoration: none; }',
+        '.sf-lobby-lava-chest-card.is-cta { background: #C5A059; color: #FFFFFF; }',
+        '.sf-lobby-lava-chest-card.is-cta:hover { background: #B38E46; }',
+        '.sf-lobby-abilities-dock { position: absolute; bottom: 78px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; z-index: 23; pointer-events: auto; }',
+        '.sf-ability-btn { position: relative; width: 48px; height: 48px; border-radius: 13px; background: rgba(255,255,255,0.95); border: 1.5px solid rgba(197,160,89,0.55); color: #111827; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 6px 18px rgba(17,24,39,0.12); transition: transform 0.12s ease, border-color 0.15s ease, background 0.15s ease; user-select: none; }',
+        '.sf-ability-btn:hover { border-color: #C5A059; transform: translateY(-2px); background: #FFFFFF; }',
+        '.sf-ability-btn.is-active { border-color: #C5A059; background: #FAF3E3; box-shadow: 0 6px 20px rgba(197,160,89,0.36); }',
+        '.sf-ability-btn.is-cooldown { opacity: 0.56; border-color: rgba(156,163,175,0.55); }',
+        '.sf-ability-icon { font-size: 16px; line-height: 1; color: #9A7738; font-weight: 900; }',
+        '.sf-ability-key { position: absolute; top: 3px; left: 5px; font-size: 9px; font-weight: 800; color: #6B7280; line-height: 1; }',
+        '.sf-ability-cd { position: absolute; bottom: 3px; right: 4px; font-size: 9px; font-weight: 800; color: #FFFFFF; background: rgba(17,24,39,0.85); padding: 1px 4px; border-radius: 5px; line-height: 1; }',
+        '.sf-ability-combo-badge { position: absolute; top: -6px; right: -6px; background: #C5A059; color: #FFFFFF; font-size: 9px; font-weight: 900; padding: 2px 5px; border-radius: 999px; border: 1.5px solid #FFFFFF; line-height: 1; box-shadow: 0 3px 8px rgba(17,24,39,0.18); }',
+        '.sf-lobby-settings-backdrop { position: absolute; inset: 0; z-index: 48; background: rgba(17,24,39,0.24); display: flex; align-items: center; justify-content: center; padding: 16px; pointer-events: auto; box-sizing: border-box; }',
+        '.sf-lobby-settings-card { width: 392px; max-width: calc(100vw - 24px); max-height: calc(100dvh - 40px); overflow-y: auto; background: #FFFFFF; color: #111827; border: 1px solid rgba(197,160,89,0.55); border-radius: 20px; padding: 18px 20px; box-shadow: 0 22px 52px rgba(17,24,39,0.18); display: flex; flex-direction: column; gap: 14px; box-sizing: border-box; }',
+        '.sf-lobby-settings-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-bottom: 10px; border-bottom: 1px solid rgba(197,160,89,0.28); }',
+        '.sf-lobby-settings-title { margin: 0; font-size: 15px; font-weight: 800; color: #111827; display: flex; align-items: center; gap: 7px; }',
+        '.sf-lobby-settings-section { background: #FAF8F5; border: 1px solid rgba(197,160,89,0.34); border-radius: 14px; padding: 11px 13px; display: flex; flex-direction: column; gap: 9px; }',
+        '.sf-lobby-settings-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }',
+        '.sf-lobby-settings-label { font-size: 12px; font-weight: 800; color: #111827; }',
+        '.sf-lobby-slider { width: 100%; height: 6px; accent-color: #C5A059; cursor: pointer; }',
+        '.sf-lobby-keybind-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; padding-top: 4px; }',
+        '.sf-lobby-keybind-item { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 6px 9px; border-radius: 10px; background: #FFFFFF; border: 1px solid rgba(197,160,89,0.35); cursor: pointer; font-size: 11px; font-weight: 700; color: #111827; text-align: left; }',
+        '.sf-lobby-keybind-item:hover { border-color: #C5A059; }',
+        '.sf-lobby-keybind-item.is-listening { border-color: #C5A059; background: #FAF3E3; }',
+        '.sf-lobby-keybind-pill { padding: 2px 7px; border-radius: 6px; background: #FAF8F5; border: 1px solid rgba(197,160,89,0.48); font-size: 10px; font-weight: 800; color: #9A7738; white-space: nowrap; }',
         '.sf-lobby-stick-wrap { position: absolute; bottom: 22px; left: 20px; z-index: 22; }',
         '.sf-lobby-stick { width: 84px; height: 84px; border-radius: 999px; background: rgba(255,255,255,0.88); border: 1px solid rgba(197,160,89,0.52); box-shadow: 0 10px 26px rgba(17,24,39,0.12); display: flex; align-items: center; justify-content: center; position: relative; touch-action: none; cursor: pointer; }',
         '.sf-lobby-stick-knob { width: 34px; height: 34px; border-radius: 999px; background: #C5A059; border: 2px solid #FFFFFF; box-shadow: 0 4px 12px rgba(17,24,39,0.18); pointer-events: none; }',
         '.sf-lobby-quick-actions { position: absolute; bottom: 22px; right: 20px; z-index: 22; display: flex; align-items: center; gap: 8px; }',
-        '.sf-lobby-icon-btn { appearance: none; height: 44px; min-width: 44px; padding: 0 12px; border-radius: 14px; background: rgba(255,255,255,0.94); color: #111827; border: 1px solid rgba(197,160,89,0.55); box-shadow: 0 10px 24px rgba(17,24,39,0.10); font-size: 15px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }',
+        '.sf-lobby-icon-btn { position: relative; appearance: none; height: 44px; min-width: 44px; padding: 0 12px; border-radius: 14px; background: rgba(255,255,255,0.94); color: #111827; border: 1px solid rgba(197,160,89,0.55); box-shadow: 0 10px 24px rgba(17,24,39,0.10); font-size: 15px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }',
         '.sf-lobby-bottom-stack { position: absolute; bottom: 14px; left: 12px; right: 12px; z-index: 21; display: flex; flex-direction: column; align-items: center; gap: 7px; pointer-events: none; }',
         '.sf-lobby-bottom-pill { pointer-events: auto; display: inline-flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px; padding: 6px 10px; border-radius: 999px; background: rgba(255,255,255,0.94); border: 1px solid rgba(197,160,89,0.48); box-shadow: 0 10px 28px rgba(17,24,39,0.12); max-width: 100%; box-sizing: border-box; }',
         '.sf-lobby-step-btn { appearance: none; padding: 6px 12px; border-radius: 999px; border: 1px solid rgba(197,160,89,0.40); background: #FAF8F5; color: #111827; font-size: 11px; font-weight: 800; cursor: pointer; white-space: nowrap; }',
         '.sf-lobby-step-btn.is-active { background: #C5A059; color: #FFFFFF; border-color: #C5A059; }',
         '.sf-lobby-exhibit-btn { appearance: none; padding: 6px 14px; border-radius: 999px; border: 1px solid rgba(197,160,89,0.35); background: #FFFFFF; color: #111827; font-size: 11px; font-weight: 800; cursor: pointer; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }',
         '.sf-lobby-hint-pill { pointer-events: none; padding: 5px 14px; border-radius: 999px; background: rgba(255,255,255,0.90); border: 1px solid rgba(197,160,89,0.38); color: #374151; font-size: 11px; font-weight: 700; box-shadow: 0 6px 18px rgba(17,24,39,0.08); white-space: nowrap; }',
-        '@media (max-width: 767px) { .sf-lobby-topbar { padding: 10px 12px; gap: 8px; } .sf-lobby-zone-btn { padding: 6px 10px; font-size: 11px; } .sf-lobby-pill-btn, .sf-lobby-close-btn { padding: 6px 10px; font-size: 11px; } .sf-lobby-kbd, .sf-lobby-hint-pill { display: none !important; } .sf-lobby-stick-wrap { bottom: 72px; left: 12px; } .sf-lobby-stick { width: 74px; height: 74px; } .sf-lobby-quick-actions { bottom: 72px; right: 12px; } .sf-lobby-exhibit-btn { max-width: 175px; } }'
+        '@media (max-width: 767px) { .sf-lobby-topbar { padding: 10px 12px; gap: 8px; } .sf-lobby-zone-btn { padding: 6px 10px; font-size: 11px; } .sf-lobby-pill-btn, .sf-lobby-close-btn { padding: 6px 10px; font-size: 11px; } .sf-lobby-kbd, .sf-lobby-hint-pill { display: none !important; } .sf-lobby-stick-wrap { bottom: 72px; left: 12px; } .sf-lobby-stick { width: 74px; height: 74px; } .sf-lobby-quick-actions { bottom: 72px; right: 12px; } .sf-lobby-abilities-dock { bottom: 126px; gap: 6px; } .sf-ability-btn { width: 40px; height: 40px; border-radius: 10px; } .sf-lobby-exhibit-btn { max-width: 175px; } .sf-lobby-keybind-grid { grid-template-columns: 1fr; } }'
     ].join('\n');
 
     var FALLBACK_LOBBY_PRODUCTS = [
@@ -90,6 +131,24 @@
         }
     ];
 
+    // Private Closure-Speicher (0 Zugriff aus Browser-Konsole / window!)
+    var privateFacadeMap = typeof WeakMap !== 'undefined' ? new WeakMap() : null;
+    var fallbackPrivateFacade = null;
+
+    function getFacade(host) {
+        if (privateFacadeMap) return privateFacadeMap.get(host) || null;
+        return fallbackPrivateFacade;
+    }
+
+    function setFacade(host, facade) {
+        if (privateFacadeMap) {
+            if (facade) privateFacadeMap.set(host, facade);
+            else privateFacadeMap.delete(host);
+        } else {
+            fallbackPrivateFacade = facade || null;
+        }
+    }
+
     function ensureScopedStyleSheet() {
         var existing = document.getElementById('sf-3d-lobby-scoped-css');
         if (!existing) {
@@ -97,6 +156,8 @@
             styleTag.id = 'sf-3d-lobby-scoped-css';
             styleTag.textContent = STANDALONE_SCOPED_CSS;
             (document.head || document.documentElement).appendChild(styleTag);
+        } else if (existing.textContent && existing.textContent.indexOf('.sf-lobby-settings-card') === -1) {
+            existing.textContent += '\n' + STANDALONE_SCOPED_CSS;
         }
     }
 
@@ -119,6 +180,16 @@
         return Math.max(min, Math.min(max, n));
     }
 
+    function fallbackKeyLabel(code) {
+        var c = String(code || '').trim();
+        if (!c) return '?';
+        if (c === 'Space') return 'Leertaste';
+        if (c.indexOf('Digit') === 0) return c.slice(5);
+        if (c.indexOf('Numpad') === 0) return 'Num ' + c.slice(6);
+        if (c.indexOf('Key') === 0) return c.slice(3).toUpperCase();
+        return c;
+    }
+
     function SeelenfunkeUnifiedLobbyHost() {
         this.isOpen = false;
         this.isFullscreen = false;
@@ -128,10 +199,16 @@
         this.floatingProductWrap = null;
         this.floatingHeroWrap = null;
         this.floatingPortalWrap = null;
+        this.floatingLavaChestWrap = null;
+        this.floatingLabyrinthBuzzerWrap = null;
 
-        this._engine = null;
+        this._mod = null;
+        this._audio = null;
+        this._audioUnsub = null;
         this._syncTimer = null;
+        this._abilityTimer = null;
         this._syncInFlight = false;
+        this._activeSyncZone = null;
         this._openSeq = 0;
         this._fsResizeTimer = null;
         this.prevHtmlOverflow = '';
@@ -162,6 +239,50 @@
         this.peers = [];
         this.instanceMenuOpen = false;
 
+        this.settingsOpen = false;
+        this.keybindingsExpanded = false;
+        this.listeningKeyAction = '';
+        this.userSettings = {
+            volume: 50,
+            cameraSensitivity: 100,
+            useRealName: false
+        };
+        this.keybindings = {
+            sprint: 'Digit1',
+            titanJump: 'Digit2',
+            shield: 'Digit3',
+            burst: 'Digit4',
+            strike: 'KeyG',
+            jump: 'Space',
+            moveForward: 'KeyW',
+            moveLeft: 'KeyA',
+            moveBack: 'KeyS',
+            moveRight: 'KeyD'
+        };
+        this.audioState = {
+            bgmVolume: 30,
+            bgmMuted: true,
+            sfxVolume: 50,
+            sfxMuted: false,
+            allMuted: false
+        };
+        this.lavaChestState = {
+            nearChest: false,
+            isAuthenticated: false,
+            claimedToday: false,
+            claiming: false,
+            canClaim: false,
+            statusMessage: ''
+        };
+        this.labyrinthBuzzerState = {
+            nearBuzzer: false,
+            isAuthenticated: false,
+            claimedToday: false,
+            claiming: false,
+            canClaim: false,
+            statusMessage: ''
+        };
+
         this.stickActive = false;
         this.stickKnobEl = null;
         this.stickZoneEl = null;
@@ -172,10 +293,28 @@
             var key = e.key || '';
             var code = e.code || '';
 
+            if (self.listeningKeyAction !== '') {
+                e.preventDefault();
+                e.stopPropagation();
+                if (key === 'Escape' || code === 'Escape' || e.keyCode === 27) {
+                    self.listeningKeyAction = '';
+                    self._renderKeybindingsList();
+                    return;
+                }
+                if (code) {
+                    self._assignKeybinding(self.listeningKeyAction, code);
+                }
+                return;
+            }
+
             if (key === 'Escape' || code === 'Escape' || e.keyCode === 27) {
                 e.preventDefault();
                 e.stopPropagation();
-                if (self.instanceMenuOpen) {
+                if (self.settingsOpen) {
+                    self._setSettingsOpen(false);
+                } else if (getActiveFullscreenElement()) {
+                    self.toggleFullscreen();
+                } else if (self.instanceMenuOpen) {
                     self._setInstanceMenuOpen(false);
                 } else {
                     self.close();
@@ -186,23 +325,35 @@
             var tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
             if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
 
-            if ((code === 'KeyF' || key === 'f' || key === 'F') && !e.ctrlKey && !e.metaKey && !e.altKey) {
-                e.preventDefault();
-                self.toggleFullscreen();
+            if (!self.settingsOpen && (code === 'KeyF' || key === 'f' || key === 'F') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+                var fBound = false;
+                for (var k in self.keybindings) {
+                    if (Object.prototype.hasOwnProperty.call(self.keybindings, k) && self.keybindings[k] === 'KeyF') {
+                        fBound = true;
+                        break;
+                    }
+                }
+                if (!fBound) {
+                    e.preventDefault();
+                    self.toggleFullscreen();
+                }
             }
         };
 
         this._boundFullscreenChange = function () {
             self.isFullscreen = Boolean(getActiveFullscreenElement());
             self._syncHudState();
-            if (self._engine) {
-                self._engine.resize();
+            var facade = getFacade(self);
+            if (facade) {
+                facade.resize();
                 requestAnimationFrame(function () {
-                    if (self._engine) self._engine.resize();
+                    var f2 = getFacade(self);
+                    if (f2) f2.resize();
                 });
                 if (self._fsResizeTimer) clearTimeout(self._fsResizeTimer);
                 self._fsResizeTimer = setTimeout(function () {
-                    if (self._engine) self._engine.resize();
+                    var f3 = getFacade(self);
+                    if (f3) f3.resize();
                 }, 120);
             }
         };
@@ -222,6 +373,14 @@
             }
         };
     }
+
+    SeelenfunkeUnifiedLobbyHost.prototype._keyLabel = function (actionKey) {
+        var code = (this.keybindings && this.keybindings[actionKey]) ? this.keybindings[actionKey] : '';
+        if (this._mod && typeof this._mod.formatLobbyKeyLabel === 'function') {
+            return this._mod.formatLobbyKeyLabel(code);
+        }
+        return fallbackKeyLabel(code);
+    };
 
     SeelenfunkeUnifiedLobbyHost.prototype._resolveInstanceBtnIds = function () {
         var existingBtn = document.getElementById('sf-lobby-instance-btn');
@@ -254,11 +413,17 @@
         root.innerHTML = [
             '<div class="sf-lobby-topbar">',
             '  <div class="sf-lobby-nav-pill">',
-            '    <button type="button" data-lobby-zone="gallery" class="sf-lobby-zone-btn is-active">🛍️ Kollektion</button>',
-            '    <button type="button" data-lobby-zone="heroes" class="sf-lobby-zone-btn"><span data-lobby-guest-lock style="display:none;">🔒</span><span>🏛️ Halle der Helden</span></button>',
-            '    <button type="button" data-lobby-stages-btn class="sf-lobby-stages-btn" style="display:none;">✨ Stufen</button>',
+            '    <button type="button" data-lobby-zone="gallery" data-testid="lobby-zone-gallery-btn" class="sf-lobby-zone-btn is-active">🛍️ Kollektion</button>',
+            '    <button type="button" data-lobby-zone="heroes" data-testid="lobby-zone-heroes-btn" class="sf-lobby-zone-btn"><span data-lobby-guest-lock style="display:none;">🔒</span><span>🏛️ Halle der Helden</span></button>',
+            '    <button type="button" data-lobby-zone="lava" data-testid="lobby-zone-lava-btn" class="sf-lobby-zone-btn">🌋 Magma-Kammer</button>',
+            '    <button type="button" data-lobby-zone="labyrinth" data-testid="lobby-zone-labyrinth-btn" class="sf-lobby-zone-btn">🌀 Labyrinth</button>',
+            '    <button type="button" data-lobby-stages-btn data-testid="lobby-stages-preview-btn" class="sf-lobby-stages-btn" style="display:none;">✨ Stufen</button>',
             '  </div>',
             '  <div class="sf-lobby-actions">',
+            '    <button type="button" data-lobby-solo-toggle data-testid="louvre-live-solo-toggle" class="sf-lobby-pill-btn" style="display:none;">',
+            '      <span data-lobby-solo-dot class="sf-lobby-dot is-live"></span>',
+            '      <span data-lobby-solo-label>Live</span>',
+            '    </button>',
             '    <div data-lobby-instance-wrap class="sf-lobby-instance-wrap" style="display:none;">',
             '      <button type="button" id="' + ids.btnId + '" data-lobby-instance-toggle class="sf-lobby-pill-btn">',
             '        <span data-lobby-instance-label>🌐 Instanz #1 · 1/20 ▾</span>',
@@ -272,6 +437,8 @@
             '        </form>',
             '      </div>',
             '    </div>',
+            '    <button type="button" data-lobby-audio-mute data-testid="lobby-audio-mute-btn" class="sf-lobby-pill-btn" title="Ton umschalten">🔊</button>',
+            '    <button type="button" data-lobby-settings-toggle data-testid="louvre-settings-btn" class="sf-lobby-pill-btn" title="Einstellungen">⚙️</button>',
             '    <button type="button" data-lobby-fullscreen data-testid="lobby-fullscreen-btn" class="sf-lobby-pill-btn" title="Vollbild umschalten (Taste F)">⛶ Vollbild</button>',
             '    <button type="button" data-lobby-close data-testid="lobby-close-btn" class="sf-lobby-close-btn" title="3D-Lobby schließen (Esc)">',
             '      <span>✕ Schließen</span>',
@@ -294,7 +461,53 @@
             '    <div class="sf-lobby-floating-arrow"></div>',
             '  </div>',
             '  <div data-lobby-portal-card class="sf-lobby-floating-anchor" style="opacity:0;visibility:hidden;pointer-events:none;transform:translate3d(-9999px,-9999px,0);">',
-            '    <a href="/login" class="sf-lobby-portal-pill">🔒 Mitglieder-Lobby · Anmelden →</a>',
+            '    <a href="/login" class="sf-lobby-portal-pill">🔒 Mitglieder-Bereich · Anmelden →</a>',
+            '  </div>',
+            '  <div data-lobby-lava-chest-card data-testid="lobby-lava-chest-card" class="sf-lobby-floating-anchor" style="opacity:0;visibility:hidden;pointer-events:none;transform:translate3d(-9999px,-9999px,0);">',
+            '    <div data-lobby-lava-chest-inner style="display:flex;flex-direction:column;align-items:center;gap:6px;"></div>',
+            '    <div class="sf-lobby-floating-arrow"></div>',
+            '  </div>',
+            '  <div data-lobby-labyrinth-buzzer-card data-testid="lobby-labyrinth-buzzer-card" class="sf-lobby-floating-anchor" style="opacity:0;visibility:hidden;pointer-events:none;transform:translate3d(-9999px,-9999px,0);">',
+            '    <div data-lobby-labyrinth-buzzer-inner style="display:flex;flex-direction:column;align-items:center;gap:6px;"></div>',
+            '    <div class="sf-lobby-floating-arrow"></div>',
+            '  </div>',
+            '  <div data-lobby-settings-modal data-testid="lobby-settings-modal" class="sf-lobby-settings-backdrop" style="display:none;">',
+            '    <div class="sf-lobby-settings-card" role="dialog" aria-label="Einstellungen">',
+            '      <div class="sf-lobby-settings-head">',
+            '        <h3 class="sf-lobby-settings-title"><span>⚙️</span><span>Einstellungen</span></h3>',
+            '        <button type="button" data-lobby-settings-close style="appearance:none;width:28px;height:28px;border-radius:9px;border:1px solid rgba(197,160,89,0.35);background:#FAF8F5;color:#111827;font-size:15px;font-weight:800;cursor:pointer;" aria-label="Schließen">&times;</button>',
+            '      </div>',
+            '      <div class="sf-lobby-settings-section">',
+            '        <div class="sf-lobby-settings-row">',
+            '          <span class="sf-lobby-settings-label">Lautstärke</span>',
+            '          <span data-lobby-volume-label style="font-size:11px;font-weight:800;color:#9A7738;">50 %</span>',
+            '        </div>',
+            '        <input type="range" min="0" max="100" step="1" value="50" data-lobby-volume-slider data-testid="lobby-settings-volume-slider" class="sf-lobby-slider" aria-label="Lautstärke">',
+            '      </div>',
+            '      <div class="sf-lobby-settings-section">',
+            '        <div class="sf-lobby-settings-row">',
+            '          <span class="sf-lobby-settings-label">Kamera-Tempo</span>',
+            '          <span data-lobby-camera-label style="font-size:11px;font-weight:800;color:#9A7738;">100 %</span>',
+            '        </div>',
+            '        <input type="range" min="50" max="150" step="1" value="100" data-lobby-camera-slider data-testid="lobby-camera-sensitivity-slider" class="sf-lobby-slider" aria-label="Kamera-Tempo">',
+            '      </div>',
+            '      <div class="sf-lobby-settings-section">',
+            '        <label class="sf-lobby-settings-row" style="cursor:pointer;">',
+            '          <span class="sf-lobby-settings-label">Echten Vornamen nutzen</span>',
+            '          <input type="checkbox" data-lobby-realname-checkbox data-testid="lobby-use-real-name-checkbox" style="width:17px;height:17px;accent-color:#C5A059;cursor:pointer;">',
+            '        </label>',
+            '      </div>',
+            '      <div class="sf-lobby-settings-section">',
+            '        <div class="sf-lobby-settings-row">',
+            '          <span class="sf-lobby-settings-label">Steuerung</span>',
+            '          <div style="display:flex;align-items:center;gap:6px;">',
+            '            <button type="button" data-lobby-keybind-reset data-testid="lobby-keybind-reset-btn" class="sf-lobby-step-btn" style="display:none;">Zurücksetzen</button>',
+            '            <button type="button" data-lobby-keybind-expand data-testid="lobby-keybind-expand-btn" class="sf-lobby-step-btn">Ändern</button>',
+            '          </div>',
+            '        </div>',
+            '        <div data-lobby-keybind-grid class="sf-lobby-keybind-grid" style="display:none;"></div>',
+            '      </div>',
+            '    </div>',
             '  </div>',
             '  <div class="sf-lobby-stick-wrap">',
             '    <div data-lobby-stick class="sf-lobby-stick" aria-label="Bewegungssteuerung">',
@@ -303,7 +516,32 @@
             '  </div>',
             '  <div class="sf-lobby-quick-actions">',
             '    <button type="button" data-lobby-jump class="sf-lobby-icon-btn" title="Springen (Leertaste)" aria-label="Springen">⤒</button>',
-            '    <button type="button" data-lobby-strike class="sf-lobby-icon-btn" style="color:#9A7738;" title="Aktion (Rechtsklick / Taste G)" aria-label="Aktion">✦</button>',
+            '    <button type="button" data-lobby-strike class="sf-lobby-icon-btn" style="color:#9A7738;" title="Waffen-Effekt (G)" aria-label="Waffen-Effekt">',
+            '      <span>✦</span>',
+            '      <span data-ability-combo-badge class="sf-ability-combo-badge" style="display:none;">x1</span>',
+            '    </button>',
+            '  </div>',
+            '  <div data-lobby-abilities-dock data-testid="louvre-abilities-dock" class="sf-lobby-abilities-dock">',
+            '    <button type="button" data-ability-slot="1" data-testid="ability-slot-1-btn" class="sf-ability-btn" title="Funken-Sprint">',
+            '      <span class="sf-ability-icon">⚡</span>',
+            '      <span data-ability-key="sprint" class="sf-ability-key">1</span>',
+            '      <span data-ability-cd="1" class="sf-ability-cd" style="display:none;"></span>',
+            '    </button>',
+            '    <button type="button" data-ability-slot="2" data-testid="ability-slot-2-btn" class="sf-ability-btn" title="Titan-Sprung">',
+            '      <span class="sf-ability-icon">▲</span>',
+            '      <span data-ability-key="titanJump" class="sf-ability-key">2</span>',
+            '      <span data-ability-cd="2" class="sf-ability-cd" style="display:none;"></span>',
+            '    </button>',
+            '    <button type="button" data-ability-slot="3" data-testid="ability-slot-3-btn" class="sf-ability-btn" title="Goldener Schutzschild">',
+            '      <span class="sf-ability-icon">🛡</span>',
+            '      <span data-ability-key="shield" class="sf-ability-key">3</span>',
+            '      <span data-ability-cd="3" class="sf-ability-cd" style="display:none;"></span>',
+            '    </button>',
+            '    <button type="button" data-ability-slot="4" data-testid="ability-slot-4-btn" class="sf-ability-btn" title="Funkenstoß">',
+            '      <span class="sf-ability-icon">✦</span>',
+            '      <span data-ability-key="burst" class="sf-ability-key">4</span>',
+            '      <span data-ability-cd="4" class="sf-ability-cd" style="display:none;"></span>',
+            '    </button>',
             '  </div>',
             '  <div class="sf-lobby-bottom-stack">',
             '    <div data-lobby-bottom-gallery class="sf-lobby-bottom-pill">',
@@ -319,7 +557,16 @@
             '      <button type="button" data-hero-slot="5" class="sf-lobby-step-btn">#5</button>',
             '      <button type="button" data-hero-my-place class="sf-lobby-step-btn is-active">⭐ Mein Platz</button>',
             '    </div>',
-            '    <div class="sf-lobby-hint-pill">WASD / Pfeiltasten · Maus ziehen · ⛶ Vollbild · Esc Schließen</div>',
+            '    <div data-lobby-bottom-lava class="sf-lobby-bottom-pill" style="display:none;">',
+            '      <span style="padding:4px 10px;font-size:11px;font-weight:800;color:#9A7738;">🌋 Magma-Kammer · +5 ✨ Täglich</span>',
+            '      <button type="button" data-lava-back-gallery class="sf-lobby-step-btn">Zur Galerie</button>',
+            '    </div>',
+            '    <div data-lobby-bottom-labyrinth class="sf-lobby-bottom-pill" style="display:none;">',
+            '      <span style="padding:4px 10px;font-size:11px;font-weight:800;color:#9A7738;">🌀 Mini-Labyrinth · 3 ✨ Täglich</span>',
+            '      <button type="button" data-labyrinth-to-heroes class="sf-lobby-step-btn is-active">🏛️ Heldenhalle</button>',
+            '      <button type="button" data-labyrinth-back-gallery class="sf-lobby-step-btn">Zur Galerie</button>',
+            '    </div>',
+            '    <div class="sf-lobby-hint-pill">WASD / Pfeiltasten · Maus ziehen · Leertaste Sprung · 1 bis 4 Fähigkeiten · ⛶ Vollbild · Esc Schließen</div>',
             '  </div>',
             '</div>'
         ].join('');
@@ -331,10 +578,299 @@
         this.floatingProductWrap = root.querySelector('[data-lobby-product-card]');
         this.floatingHeroWrap = root.querySelector('[data-lobby-hero-card]');
         this.floatingPortalWrap = root.querySelector('[data-lobby-portal-card]');
+        this.floatingLavaChestWrap = root.querySelector('[data-lobby-lava-chest-card]');
+        this.floatingLabyrinthBuzzerWrap = root.querySelector('[data-lobby-labyrinth-buzzer-card]');
         this.stickZoneEl = root.querySelector('[data-lobby-stick]');
         this.stickKnobEl = root.querySelector('[data-lobby-stick-knob]');
 
         this._bindModalUiEvents();
+        this._renderKeybindingsList();
+        this._renderLavaChestCard();
+        this._renderLabyrinthBuzzerCard();
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._setSettingsOpen = function (flag) {
+        this.settingsOpen = Boolean(flag);
+        if (!this.settingsOpen) {
+            this.listeningKeyAction = '';
+        }
+        if (this.modalEl) {
+            var modal = this.modalEl.querySelector('[data-lobby-settings-modal]');
+            if (modal) {
+                modal.style.display = this.settingsOpen ? 'flex' : 'none';
+            }
+        }
+        this._syncHudState();
+        this._renderKeybindingsList();
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._assignKeybinding = function (actionKey, code) {
+        if (!actionKey || !code) return;
+        var next = {};
+        for (var k in this.keybindings) {
+            if (Object.prototype.hasOwnProperty.call(this.keybindings, k)) {
+                next[k] = this.keybindings[k];
+            }
+        }
+        next[actionKey] = code;
+        var facade = getFacade(this);
+        if (facade && typeof facade.updateSettings === 'function') {
+            facade.updateSettings({ keybindings: next });
+            var snap = facade.getHudSnapshot();
+            if (snap && snap.keybindings) {
+                this.keybindings = snap.keybindings;
+            } else {
+                this.keybindings = next;
+            }
+        } else if (this._mod && typeof this._mod.saveLobbyKeybindings === 'function') {
+            this.keybindings = this._mod.saveLobbyKeybindings(next);
+        } else {
+            this.keybindings = next;
+        }
+        this.listeningKeyAction = '';
+        if (this._audio) this._audio.playUiSwitch();
+        this._renderKeybindingsList();
+        this._syncHudState();
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._resetKeybindings = function () {
+        var facade = getFacade(this);
+        if (facade && typeof facade.updateSettings === 'function') {
+            facade.updateSettings({ resetKeybindings: true });
+            var snap = facade.getHudSnapshot();
+            if (snap && snap.keybindings) {
+                this.keybindings = snap.keybindings;
+            }
+        } else if (this._mod && typeof this._mod.resetLobbyKeybindings === 'function') {
+            this.keybindings = this._mod.resetLobbyKeybindings();
+        }
+        this.listeningKeyAction = '';
+        if (this._audio) this._audio.playUiSwitch();
+        this._renderKeybindingsList();
+        this._syncHudState();
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._renderKeybindingsList = function () {
+        if (!this.modalEl) return;
+        var grid = this.modalEl.querySelector('[data-lobby-keybind-grid]');
+        var resetBtn = this.modalEl.querySelector('[data-lobby-keybind-reset]');
+        var expandBtn = this.modalEl.querySelector('[data-lobby-keybind-expand]');
+        if (!grid) return;
+
+        grid.style.display = this.keybindingsExpanded ? 'grid' : 'none';
+        if (resetBtn) {
+            resetBtn.style.display = this.keybindingsExpanded ? 'inline-flex' : 'none';
+        }
+        if (expandBtn) {
+            expandBtn.textContent = this.keybindingsExpanded ? 'Fertig' : 'Ändern';
+            if (this.keybindingsExpanded) {
+                expandBtn.classList.add('is-active');
+            } else {
+                expandBtn.classList.remove('is-active');
+            }
+        }
+
+        while (grid.firstChild) {
+            grid.removeChild(grid.firstChild);
+        }
+
+        var self = this;
+        for (var i = 0; i < KEYBIND_ACTIONS.length; i++) {
+            (function (item) {
+                var btn = document.createElement('button');
+                btn.type = 'button';
+                var isListening = (self.listeningKeyAction === item.key);
+                btn.className = 'sf-lobby-keybind-item' + (isListening ? ' is-listening' : '');
+
+                var lbl = document.createElement('span');
+                lbl.textContent = item.label;
+                var pill = document.createElement('span');
+                pill.className = 'sf-lobby-keybind-pill';
+                pill.textContent = isListening ? 'Taste...' : self._keyLabel(item.key);
+
+                btn.appendChild(lbl);
+                btn.appendChild(pill);
+                btn.addEventListener('click', function () {
+                    self.listeningKeyAction = (self.listeningKeyAction === item.key) ? '' : item.key;
+                    self._renderKeybindingsList();
+                });
+                grid.appendChild(btn);
+            })(KEYBIND_ACTIONS[i]);
+        }
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._renderLavaChestCard = function () {
+        if (!this.modalEl) return;
+        var inner = this.modalEl.querySelector('[data-lobby-lava-chest-inner]');
+        if (!inner) return;
+        while (inner.firstChild) inner.removeChild(inner.firstChild);
+
+        var self = this;
+        var st = this.lavaChestState || {};
+
+        if (!this.lobbyAuth) {
+            var loginLink = document.createElement('a');
+            loginLink.href = '/login';
+            loginLink.className = 'sf-lobby-lava-chest-card';
+            loginLink.textContent = '🔒 Magma-Truhe · Anmelden →';
+            inner.appendChild(loginLink);
+            return;
+        }
+
+        if (st.claimedToday) {
+            var donePill = document.createElement('div');
+            donePill.className = 'sf-lobby-lava-chest-card';
+            donePill.textContent = sanitizeText(st.statusMessage || 'Heute bereits geöffnet ✓');
+            inner.appendChild(donePill);
+            return;
+        }
+
+        var titleBadge = document.createElement('span');
+        titleBadge.style.cssText = 'pointer-events:none;padding:4px 11px;border-radius:999px;background:rgba(255,255,255,0.96);border:1px solid rgba(197,160,89,0.55);font-size:11px;font-weight:800;color:#111827;';
+        titleBadge.textContent = 'Magma-Truhe · +5 ✨ Funken';
+        inner.appendChild(titleBadge);
+
+        var claimBtn = document.createElement('button');
+        claimBtn.type = 'button';
+        claimBtn.className = 'sf-lobby-lava-chest-card is-cta';
+        claimBtn.disabled = Boolean(st.claiming);
+        claimBtn.textContent = st.claiming ? 'Truhe wird geöffnet...' : 'Truhe öffnen';
+        claimBtn.addEventListener('click', function () {
+            var facade = getFacade(self);
+            if (facade && typeof facade.claimLavaChest === 'function') {
+                facade.claimLavaChest();
+            }
+        });
+        inner.appendChild(claimBtn);
+
+        if (st.statusMessage && !st.claiming) {
+            var note = document.createElement('span');
+            note.style.cssText = 'pointer-events:none;padding:4px 10px;border-radius:999px;background:rgba(255,255,255,0.95);border:1px solid rgba(197,160,89,0.5);font-size:11px;font-weight:700;color:#111827;';
+            note.textContent = sanitizeText(st.statusMessage);
+            inner.appendChild(note);
+        }
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._renderLabyrinthBuzzerCard = function () {
+        if (!this.modalEl) return;
+        var inner = this.modalEl.querySelector('[data-lobby-labyrinth-buzzer-inner]');
+        if (!inner) return;
+        while (inner.firstChild) inner.removeChild(inner.firstChild);
+
+        var self = this;
+        var st = this.labyrinthBuzzerState || {};
+
+        if (!this.lobbyAuth) {
+            var guestConfettiBtn = document.createElement('button');
+            guestConfettiBtn.type = 'button';
+            guestConfettiBtn.className = 'sf-lobby-lava-chest-card is-cta';
+            guestConfettiBtn.textContent = '🎉 Konfetti zünden';
+            guestConfettiBtn.addEventListener('click', function () {
+                var facade = getFacade(self);
+                if (facade && typeof facade.claimLabyrinthBuzzer === 'function') {
+                    facade.claimLabyrinthBuzzer();
+                }
+            });
+            inner.appendChild(guestConfettiBtn);
+
+            var loginLink = document.createElement('a');
+            loginLink.href = '/login';
+            loginLink.className = 'sf-lobby-lava-chest-card';
+            loginLink.textContent = '🔒 Anmelden für +3 ✨ →';
+            inner.appendChild(loginLink);
+            return;
+        }
+
+        if (st.claimedToday) {
+            var donePill = document.createElement('div');
+            donePill.className = 'sf-lobby-lava-chest-card';
+            donePill.textContent = sanitizeText(st.statusMessage || 'Heute bereits geholt ✓');
+            inner.appendChild(donePill);
+
+            var funBtn = document.createElement('button');
+            funBtn.type = 'button';
+            funBtn.className = 'sf-lobby-lava-chest-card is-cta';
+            funBtn.textContent = '🎉 Konfetti zünden';
+            funBtn.addEventListener('click', function () {
+                var facade = getFacade(self);
+                if (facade && typeof facade.claimLabyrinthBuzzer === 'function') {
+                    facade.claimLabyrinthBuzzer();
+                }
+            });
+            inner.appendChild(funBtn);
+            return;
+        }
+
+        var titleBadge = document.createElement('span');
+        titleBadge.style.cssText = 'pointer-events:none;padding:4px 11px;border-radius:999px;background:rgba(255,255,255,0.96);border:1px solid rgba(197,160,89,0.55);font-size:11px;font-weight:800;color:#111827;';
+        titleBadge.textContent = '🌀 Mini-Labyrinth · +3 ✨';
+        inner.appendChild(titleBadge);
+
+        var buzzerBtn = document.createElement('button');
+        buzzerBtn.type = 'button';
+        buzzerBtn.className = 'sf-lobby-lava-chest-card is-cta';
+        buzzerBtn.disabled = Boolean(st.claiming);
+        buzzerBtn.textContent = st.claiming ? 'Konfetti startet...' : '🎉 Buzzer drücken';
+        buzzerBtn.addEventListener('click', function () {
+            var facade = getFacade(self);
+            if (facade && typeof facade.claimLabyrinthBuzzer === 'function') {
+                facade.claimLabyrinthBuzzer();
+            }
+        });
+        inner.appendChild(buzzerBtn);
+
+        if (st.statusMessage && !st.claiming) {
+            var note = document.createElement('span');
+            note.style.cssText = 'pointer-events:none;padding:4px 10px;border-radius:999px;background:rgba(255,255,255,0.95);border:1px solid rgba(197,160,89,0.5);font-size:11px;font-weight:700;color:#111827;';
+            note.textContent = sanitizeText(st.statusMessage);
+            inner.appendChild(note);
+        }
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._syncAbilityHud = function () {
+        var facade = getFacade(this);
+        if (!this.modalEl || !facade || typeof facade.getAbilityState !== 'function') return;
+        var root = this.modalEl;
+        var dock = root.querySelector('[data-lobby-abilities-dock]');
+        if (dock) {
+            dock.style.display = 'flex';
+        }
+
+        var st = facade.getAbilityState();
+        var setSlotUi = function (slotNum, activeFlag, cdSec) {
+            var btn = root.querySelector('[data-ability-slot="' + slotNum + '"]');
+            var cdEl = root.querySelector('[data-ability-cd="' + slotNum + '"]');
+            if (btn) {
+                if (activeFlag) btn.classList.add('is-active');
+                else btn.classList.remove('is-active');
+                if (cdSec > 0) btn.classList.add('is-cooldown');
+                else btn.classList.remove('is-cooldown');
+            }
+            if (cdEl) {
+                if (cdSec > 0) {
+                    cdEl.style.display = 'inline-block';
+                    cdEl.textContent = Math.ceil(cdSec) + 's';
+                } else {
+                    cdEl.style.display = 'none';
+                }
+            }
+        };
+
+        setSlotUi(1, Boolean(st.sprint && st.sprint.active), st.sprint ? st.sprint.cooldown : 0);
+        setSlotUi(2, false, st.titanJump ? st.titanJump.cooldown : 0);
+        setSlotUi(3, Boolean(st.shield && st.shield.active), st.shield ? st.shield.cooldown : 0);
+        setSlotUi(4, false, st.burst ? st.burst.cooldown : 0);
+
+        var comboStage = (st.combo && st.combo.stage) ? st.combo.stage : 0;
+        var badge = root.querySelector('[data-ability-combo-badge]');
+        if (badge) {
+            if (comboStage > 0) {
+                badge.style.display = 'inline-block';
+                badge.textContent = 'x' + comboStage;
+            } else {
+                badge.style.display = 'none';
+            }
+        }
     };
 
     SeelenfunkeUnifiedLobbyHost.prototype.toggleFullscreen = function () {
@@ -349,7 +885,7 @@
                     document.webkitExitFullscreen();
                 }
             } catch (err) {
-                // Ignorieren falls Browser Vollbild bereits verlassen hat
+                // Vollbild bereits verlassen
             }
             return;
         }
@@ -367,8 +903,8 @@
                 this.isFullscreen = true;
                 this._syncHudState();
             }
-        } catch (err) {
-            // Browser ohne Fullscreen-Freigabe bleibt sauber im 100vw x 100dvh Viewport-Overlay
+        } catch (err2) {
+            // Browser blockiert Fullscreen ohne Geste
         }
     };
 
@@ -385,24 +921,156 @@
             self.toggleFullscreen();
         });
 
+        root.querySelector('[data-lobby-solo-toggle]').addEventListener('click', function () {
+            if (!self.lobbyAuth) return;
+            self.soloMode = !self.soloMode;
+            self._setInstanceMenuOpen(false);
+            var facade = getFacade(self);
+            if (facade && typeof facade.setSoloMode === 'function') {
+                facade.setSoloMode(self.soloMode);
+            }
+            if (self.soloMode) {
+                self.peers = [];
+                self._activeSyncZone = null;
+                self._stopSyncLoop();
+                self._sendLeaveBeacon();
+            } else if (self.currentZone === 'heroes') {
+                self._activeSyncZone = null;
+                self._handleZoneSyncTransition('heroes');
+            }
+            self._syncHudState();
+        });
+
+        root.querySelector('[data-lobby-audio-mute]').addEventListener('click', function () {
+            if (self._audio && typeof self._audio.toggleQuickMute === 'function') {
+                self.audioState = self._audio.toggleQuickMute();
+                self._syncHudState();
+            }
+        });
+
+        root.querySelector('[data-lobby-settings-toggle]').addEventListener('click', function () {
+            if (self._audio) self._audio.playUiClick();
+            self._setSettingsOpen(!self.settingsOpen);
+        });
+
+        root.querySelector('[data-lobby-settings-close]').addEventListener('click', function () {
+            self._setSettingsOpen(false);
+        });
+
+        root.querySelector('[data-lobby-settings-modal]').addEventListener('click', function (ev) {
+            if (ev.target === ev.currentTarget) {
+                self._setSettingsOpen(false);
+            }
+        });
+
+        root.querySelector('[data-lobby-volume-slider]').addEventListener('input', function (ev) {
+            var vol = clampInt(ev.target.value, 0, 100);
+            self.userSettings.volume = vol;
+            var facade = getFacade(self);
+            if (facade && typeof facade.updateSettings === 'function') {
+                facade.updateSettings({ volume: vol });
+            } else if (self._mod && typeof this._mod !== 'undefined') {
+                // Fallback
+            }
+            if (self._audio) {
+                self._audio.setSfxVolume(vol);
+                self._audio.setSfxMuted(vol <= 0);
+                self.audioState = self._audio.getState();
+            }
+            self._syncHudState();
+        });
+
+        root.querySelector('[data-lobby-camera-slider]').addEventListener('input', function (ev) {
+            var sens = clampInt(ev.target.value, 50, 150);
+            self.userSettings.cameraSensitivity = sens;
+            var facade = getFacade(self);
+            if (facade && typeof facade.updateSettings === 'function') {
+                facade.updateSettings({ cameraSensitivity: sens });
+            } else if (self._mod && typeof self._mod.saveLobbyUserSettings === 'function') {
+                self._mod.saveLobbyUserSettings({ cameraSensitivity: sens });
+            }
+            self._syncHudState();
+        });
+
+        root.querySelector('[data-lobby-realname-checkbox]').addEventListener('change', function (ev) {
+            var useReal = Boolean(ev.target.checked);
+            self.userSettings.useRealName = useReal;
+            var facade = getFacade(self);
+            if (facade && typeof facade.updateSettings === 'function') {
+                facade.updateSettings({ useRealName: useReal });
+            } else if (self._mod && typeof self._mod.saveLobbyUserSettings === 'function') {
+                self._mod.saveLobbyUserSettings({ useRealName: useReal });
+            }
+            self._syncHudState();
+        });
+
+        root.querySelector('[data-lobby-keybind-expand]').addEventListener('click', function () {
+            self.keybindingsExpanded = !self.keybindingsExpanded;
+            if (!self.keybindingsExpanded) self.listeningKeyAction = '';
+            if (self._audio) self._audio.playUiClick();
+            self._renderKeybindingsList();
+        });
+
+        root.querySelector('[data-lobby-keybind-reset]').addEventListener('click', function () {
+            self._resetKeybindings();
+        });
+
         var zoneBtns = root.querySelectorAll('[data-lobby-zone]');
         for (var z = 0; z < zoneBtns.length; z++) {
             zoneBtns[z].addEventListener('click', function (ev) {
                 var targetZone = ev.currentTarget.getAttribute('data-lobby-zone');
-                if (self._engine) {
-                    self._engine.goToZone(targetZone, false);
-                    self.currentZone = self._engine.getCurrentZone();
+                if (self._audio) self._audio.playUiClick();
+                var facade = getFacade(self);
+                if (facade) {
+                    facade.setZone(targetZone, false);
+                    var snap = facade.getHudSnapshot();
+                    self.currentZone = snap ? snap.zone : targetZone;
                 } else {
                     self.currentZone = targetZone;
                 }
+                self._handleZoneSyncTransition(self.currentZone);
                 self._syncHudState();
             });
         }
 
+        root.querySelector('[data-lava-back-gallery]').addEventListener('click', function () {
+            var facade = getFacade(self);
+            if (facade) {
+                facade.setZone('gallery', false);
+                var snap = facade.getHudSnapshot();
+                self.currentZone = snap ? snap.zone : 'gallery';
+                self._handleZoneSyncTransition(self.currentZone);
+                self._syncHudState();
+            }
+        });
+
+        root.querySelector('[data-labyrinth-back-gallery]').addEventListener('click', function () {
+            var facade = getFacade(self);
+            if (facade) {
+                facade.setZone('gallery', false);
+                var snap = facade.getHudSnapshot();
+                self.currentZone = snap ? snap.zone : 'gallery';
+                self._handleZoneSyncTransition(self.currentZone);
+                self._syncHudState();
+            }
+        });
+
+        root.querySelector('[data-labyrinth-to-heroes]').addEventListener('click', function () {
+            var facade = getFacade(self);
+            if (facade) {
+                facade.setZone('heroes', true);
+                var snap = facade.getHudSnapshot();
+                self.currentZone = snap ? snap.zone : 'heroes';
+                self._handleZoneSyncTransition(self.currentZone);
+                self._syncHudState();
+            }
+        });
+
         var stagesBtn = root.querySelector('[data-lobby-stages-btn]');
         stagesBtn.addEventListener('click', function () {
-            if (!self._engine) return;
-            self.stagesMode = self._engine.cycleStagesPreviewMode();
+            var facade = getFacade(self);
+            if (!facade) return;
+            self.stagesMode = facade.cyclePreviewHeroLevel();
             self._syncHudState();
         });
 
@@ -420,34 +1088,49 @@
             self.switchInstance(targetId);
         });
 
+        var abilityBtns = root.querySelectorAll('[data-ability-slot]');
+        for (var ab = 0; ab < abilityBtns.length; ab++) {
+            abilityBtns[ab].addEventListener('pointerdown', function (ev) {
+                ev.stopPropagation();
+            });
+            abilityBtns[ab].addEventListener('click', function (ev) {
+                var sl = parseInt(ev.currentTarget.getAttribute('data-ability-slot'), 10);
+                var facade = getFacade(self);
+                if (facade && typeof facade.triggerAbility === 'function') {
+                    facade.triggerAbility(sl);
+                    self._syncAbilityHud();
+                }
+            });
+        }
+
         root.querySelector('[data-lobby-jump]').addEventListener('click', function () {
-            if (self._engine) self._engine.triggerJump();
+            var facade = getFacade(self);
+            if (facade) facade.triggerJump();
         });
 
         root.querySelector('[data-lobby-strike]').addEventListener('click', function () {
-            if (!self._engine) return;
-            if (typeof self._engine.triggerStrikeAction === 'function') {
-                self._engine.triggerStrikeAction();
-            } else if (typeof self._engine.triggerWeaponAction === 'function') {
-                self._engine.triggerWeaponAction();
-            }
+            var facade = getFacade(self);
+            if (!facade) return;
+            facade.triggerWeapon();
+            self._syncAbilityHud();
         });
 
         root.querySelector('[data-lobby-prev]').addEventListener('click', function () {
-            if (!self._engine || self.products.length === 0) return;
-            var prev = (self.activeIndex - 1 + self.products.length) % self.products.length;
-            self._engine.goToExhibit(prev, false);
+            var facade = getFacade(self);
+            if (!facade || self.products.length === 0) return;
+            facade.prevExhibit();
         });
 
         root.querySelector('[data-lobby-next]').addEventListener('click', function () {
-            if (!self._engine || self.products.length === 0) return;
-            var nxt = (self.activeIndex + 1) % self.products.length;
-            self._engine.goToExhibit(nxt, false);
+            var facade = getFacade(self);
+            if (!facade || self.products.length === 0) return;
+            facade.nextExhibit();
         });
 
         root.querySelector('[data-lobby-exhibit-pill]').addEventListener('click', function () {
-            if (self._engine && self.products.length > 0) {
-                self._engine.goToExhibit(self.activeIndex, false);
+            var facade = getFacade(self);
+            if (facade && self.products.length > 0) {
+                facade.focusExhibit(self.activeIndex, false);
             }
         });
 
@@ -455,15 +1138,17 @@
         for (var s = 0; s < slotBtns.length; s++) {
             slotBtns[s].addEventListener('click', function (ev) {
                 var sl = parseInt(ev.currentTarget.getAttribute('data-hero-slot'), 10);
-                if (self._engine && sl >= 1) {
-                    self._engine.goToHeroSlot(sl);
+                var facade = getFacade(self);
+                if (facade && sl >= 1) {
+                    facade.focusHeroSlot(sl);
                 }
             });
         }
 
         root.querySelector('[data-hero-my-place]').addEventListener('click', function () {
-            if (self._engine) {
-                self._engine.goToMyHeroPlace();
+            var facade = getFacade(self);
+            if (facade) {
+                facade.focusMyHeroPlace();
             }
         });
 
@@ -483,8 +1168,9 @@
             if (self.stickKnobEl) {
                 self.stickKnobEl.style.transform = 'translate3d(' + Math.round(dx) + 'px,' + Math.round(dy) + 'px,0)';
             }
-            if (self._engine) {
-                self._engine.setJoystickVector(dx / maxR, dy / maxR);
+            var facade = getFacade(self);
+            if (facade) {
+                facade.setJoystickVector(dx / maxR, dy / maxR);
             }
         };
 
@@ -493,8 +1179,9 @@
             if (self.stickKnobEl) {
                 self.stickKnobEl.style.transform = 'translate3d(0,0,0)';
             }
-            if (self._engine) {
-                self._engine.setJoystickVector(0, 0);
+            var facade = getFacade(self);
+            if (facade) {
+                facade.setJoystickVector(0, 0);
             }
         };
 
@@ -513,7 +1200,6 @@
         this.stickZoneEl.addEventListener('pointerup', endStick);
         this.stickZoneEl.addEventListener('pointercancel', endStick);
 
-        // Capture-Phase Escape-Handler: schliesst zuverlaessig unabhaengig vom aktuellen Fokus
         window.addEventListener('keydown', this._boundKeydown, true);
         document.addEventListener('fullscreenchange', this._boundFullscreenChange);
         document.addEventListener('webkitfullscreenchange', this._boundFullscreenChange);
@@ -579,11 +1265,8 @@
         for (var i = 0; i < zoneBtns.length; i++) {
             var zb = zoneBtns[i];
             var isAct = zb.getAttribute('data-lobby-zone') === this.currentZone;
-            if (isAct) {
-                zb.classList.add('is-active');
-            } else {
-                zb.classList.remove('is-active');
-            }
+            if (isAct) zb.classList.add('is-active');
+            else zb.classList.remove('is-active');
         }
 
         var guestLock = root.querySelector('[data-lobby-guest-lock]');
@@ -595,23 +1278,70 @@
         if (stagesBtn) {
             stagesBtn.style.display = (this.currentZone === 'heroes' && this.lobbyAuth) ? 'inline-flex' : 'none';
             stagesBtn.textContent = this.stagesMode === '1-5'
-                ? '✨ Stufen 1-5'
-                : (this.stagesMode === '6-10' ? '✨ Stufen 6-10' : '✨ Stufen');
+                ? '✨ Stufen-Ansicht 1-5'
+                : (this.stagesMode === '6-10' ? '✨ Stufen-Ansicht 6-10' : '✨ Stufen');
         }
+
+        var soloBtn = root.querySelector('[data-lobby-solo-toggle]');
+        var soloDot = root.querySelector('[data-lobby-solo-dot]');
+        var soloLbl = root.querySelector('[data-lobby-solo-label]');
+        if (soloBtn) {
+            soloBtn.style.display = (this.currentZone === 'heroes' && this.lobbyAuth) ? 'inline-flex' : 'none';
+        }
+        if (soloDot) {
+            soloDot.className = 'sf-lobby-dot ' + (this.soloMode ? 'is-solo' : 'is-live');
+        }
+        if (soloLbl) {
+            soloLbl.textContent = this.soloMode ? 'Solo' : 'Live';
+        }
+
+        var muteBtn = root.querySelector('[data-lobby-audio-mute]');
+        if (muteBtn) {
+            muteBtn.textContent = (this.audioState.allMuted || this.userSettings.volume <= 0) ? '🔇' : '🔊';
+            if (!this.audioState.allMuted && this.userSettings.volume > 0) muteBtn.classList.add('is-gold');
+            else muteBtn.classList.remove('is-gold');
+        }
+
+        var setBtn = root.querySelector('[data-lobby-settings-toggle]');
+        if (setBtn) {
+            if (this.settingsOpen) setBtn.classList.add('is-gold');
+            else setBtn.classList.remove('is-gold');
+        }
+
+        var volLbl = root.querySelector('[data-lobby-volume-label]');
+        var volSlider = root.querySelector('[data-lobby-volume-slider]');
+        if (volLbl) volLbl.textContent = this.userSettings.volume + ' %';
+        if (volSlider) volSlider.value = String(this.userSettings.volume);
+
+        var camLbl = root.querySelector('[data-lobby-camera-label]');
+        var camSlider = root.querySelector('[data-lobby-camera-slider]');
+        if (camLbl) camLbl.textContent = this.userSettings.cameraSensitivity + ' %';
+        if (camSlider) camSlider.value = String(this.userSettings.cameraSensitivity);
+
+        var realChk = root.querySelector('[data-lobby-realname-checkbox]');
+        if (realChk) realChk.checked = Boolean(this.userSettings.useRealName);
+
+        var keyMapEls = root.querySelectorAll('[data-ability-key]');
+        for (var km = 0; km < keyMapEls.length; km++) {
+            var actName = keyMapEls[km].getAttribute('data-ability-key');
+            keyMapEls[km].textContent = this._keyLabel(actName);
+        }
+
+        var jumpBtn = root.querySelector('[data-lobby-jump]');
+        if (jumpBtn) jumpBtn.title = 'Springen (' + this._keyLabel('jump') + ')';
+        var strikeBtn = root.querySelector('[data-lobby-strike]');
+        if (strikeBtn) strikeBtn.title = 'Waffen-Effekt (' + this._keyLabel('strike') + ')';
 
         var fsBtn = root.querySelector('[data-lobby-fullscreen]');
         if (fsBtn) {
             fsBtn.textContent = this.isFullscreen ? '🗗 Teilbild' : '⛶ Vollbild';
-            if (this.isFullscreen) {
-                fsBtn.classList.add('is-gold');
-            } else {
-                fsBtn.classList.remove('is-gold');
-            }
+            if (this.isFullscreen) fsBtn.classList.add('is-gold');
+            else fsBtn.classList.remove('is-gold');
         }
 
         var instWrap = root.querySelector('[data-lobby-instance-wrap]');
         if (instWrap) {
-            instWrap.style.display = this.lobbyAuth ? 'inline-flex' : 'none';
+            instWrap.style.display = (this.currentZone === 'heroes' && this.lobbyAuth && !this.soloMode) ? 'inline-flex' : 'none';
         }
 
         var instLabel = root.querySelector('[data-lobby-instance-label]');
@@ -629,9 +1359,17 @@
 
         var btmGallery = root.querySelector('[data-lobby-bottom-gallery]');
         var btmHeroes = root.querySelector('[data-lobby-bottom-heroes]');
+        var btmLava = root.querySelector('[data-lobby-bottom-lava]');
+        var btmLabyrinth = root.querySelector('[data-lobby-bottom-labyrinth]');
         if (btmGallery && btmHeroes) {
             btmGallery.style.display = (this.currentZone === 'gallery' && this.products.length > 0) ? 'inline-flex' : 'none';
             btmHeroes.style.display = (this.currentZone === 'heroes') ? 'inline-flex' : 'none';
+        }
+        if (btmLava) {
+            btmLava.style.display = (this.currentZone === 'lava') ? 'inline-flex' : 'none';
+        }
+        if (btmLabyrinth) {
+            btmLabyrinth.style.display = (this.currentZone === 'labyrinth') ? 'inline-flex' : 'none';
         }
 
         var exPill = root.querySelector('[data-lobby-exhibit-pill]');
@@ -741,10 +1479,58 @@
         }
     };
 
+    SeelenfunkeUnifiedLobbyHost.prototype._handleZoneSyncTransition = function (nextZone) {
+        var z = String(nextZone || 'gallery').toLowerCase();
+        var facade = getFacade(this);
+
+        if (z === 'heroes') {
+            if (this.lobbyAuth && !this.soloMode && (this._activeSyncZone !== 'heroes' || !this._syncTimer)) {
+                this._activeSyncZone = 'heroes';
+                this._joinLobby();
+            }
+            return;
+        }
+
+        // Solo-Zone ('gallery', 'lava', 'labyrinth'): Peers sofort leeren, Timer stoppen & Heldenhallen-Platz freigeben!
+        var wasInHeroes = (this._activeSyncZone === 'heroes' || Boolean(this._syncTimer));
+        this._activeSyncZone = z;
+        this._setInstanceMenuOpen(false);
+        this._stopSyncLoop();
+        this.peers = [];
+        if (facade) {
+            facade.updatePeers([]);
+        }
+
+        if (wasInHeroes && this.lobbyAuth && !this.soloMode && facade) {
+            var st = facade.getHudSnapshot();
+            fetch('/funkenwerk-welt/lobby/sync', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': getCsrfToken()
+                },
+                body: JSON.stringify({
+                    instance_id: this.instanceId,
+                    x: st.x,
+                    y: st.y,
+                    z: st.z,
+                    rot_y: st.rot_y,
+                    speed: st.speed,
+                    zone: z,
+                    combo_seq: st.combo_seq,
+                    combo_stage: st.combo_stage
+                })
+            }).catch(function () {});
+        }
+    };
+
     SeelenfunkeUnifiedLobbyHost.prototype._joinLobby = function () {
         var self = this;
-        if (!this._engine) return;
-        var st = this._engine.getLocalSyncState();
+        var facade = getFacade(this);
+        if (!facade || !this.lobbyAuth || this.soloMode || this.currentZone !== 'heroes') return;
+        var st = facade.getHudSnapshot();
 
         fetch('/funkenwerk-welt/lobby/join', {
             method: 'POST',
@@ -756,25 +1542,29 @@
             },
             body: JSON.stringify({
                 x: st.x,
+                y: st.y,
                 z: st.z,
                 rot_y: st.rot_y,
                 speed: st.speed,
-                zone: st.zone
+                zone: 'heroes',
+                combo_seq: st.combo_seq,
+                combo_stage: st.combo_stage
             })
         })
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (data) {
-                if (!data || !data.ok || !self.isOpen) return;
+                if (!data || !data.ok || !self.isOpen || self.currentZone !== 'heroes') return;
                 self.lobbyAuth = Boolean(data.authenticated);
                 if (data.instance_id) self.instanceId = Number(data.instance_id) || 1;
                 if (data.hard_cap) self.instanceCapacity = Number(data.hard_cap) || 20;
                 if (Array.isArray(data.instances)) self.instances = data.instances;
                 self.peers = Array.isArray(data.peers) ? data.peers : [];
-                if (self._engine) {
-                    self._engine.updatePeers(self.peers);
+                var f2 = getFacade(self);
+                if (f2) {
+                    f2.updatePeers(self.peers);
                 }
                 self._syncHudState();
-                if (self.lobbyAuth) {
+                if (self.lobbyAuth && !self.soloMode && self.currentZone === 'heroes') {
                     self._startSyncLoop();
                 }
             })
@@ -784,7 +1574,7 @@
     SeelenfunkeUnifiedLobbyHost.prototype._startSyncLoop = function () {
         var self = this;
         this._stopSyncLoop();
-        if (!this.isOpen || !this.lobbyAuth || this.soloMode) return;
+        if (!this.isOpen || !this.lobbyAuth || this.soloMode || this.currentZone !== 'heroes') return;
 
         this._syncTimer = setInterval(function () {
             self._runSyncTick();
@@ -801,11 +1591,16 @@
 
     SeelenfunkeUnifiedLobbyHost.prototype._runSyncTick = function () {
         var self = this;
-        if (!this.isOpen || !this.lobbyAuth || this.soloMode || !this._engine || this._syncInFlight) {
+        var facade = getFacade(this);
+        if (!this.isOpen || !this.lobbyAuth || this.soloMode || !facade || this._syncInFlight) {
+            return;
+        }
+        if (this.currentZone !== 'heroes') {
+            this._stopSyncLoop();
             return;
         }
         this._syncInFlight = true;
-        var st = this._engine.getLocalSyncState();
+        var st = facade.getHudSnapshot();
 
         fetch('/funkenwerk-welt/lobby/sync', {
             method: 'POST',
@@ -818,19 +1613,23 @@
             body: JSON.stringify({
                 instance_id: this.instanceId,
                 x: st.x,
+                y: st.y,
                 z: st.z,
                 rot_y: st.rot_y,
                 speed: st.speed,
-                zone: st.zone
+                zone: 'heroes',
+                combo_seq: st.combo_seq,
+                combo_stage: st.combo_stage
             })
         })
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (data) {
-                if (!data || !data.ok || !self.isOpen || !self._engine) return;
+                var f2 = getFacade(self);
+                if (!data || !data.ok || !self.isOpen || !f2 || self.currentZone !== 'heroes') return;
                 if (data.instance_id) self.instanceId = Number(data.instance_id) || self.instanceId;
                 if (Array.isArray(data.instances)) self.instances = data.instances;
                 self.peers = Array.isArray(data.peers) ? data.peers : [];
-                self._engine.updatePeers(self.peers);
+                f2.updatePeers(self.peers);
                 self._syncHudState();
                 if (self.instanceMenuOpen) self._renderInstanceList();
             })
@@ -842,9 +1641,16 @@
 
     SeelenfunkeUnifiedLobbyHost.prototype.switchInstance = function (targetInstance) {
         var self = this;
-        if (!this.isOpen || !this.lobbyAuth || !this._engine) return;
+        var facade = getFacade(this);
+        if (!this.isOpen || !this.lobbyAuth || !facade) return;
         var cleanTarget = clampInt(targetInstance, 1, 50);
-        var st = this._engine.getLocalSyncState();
+        if (this.currentZone !== 'heroes') {
+            facade.setZone('heroes', false);
+            this.currentZone = 'heroes';
+            this._activeSyncZone = 'heroes';
+            this._syncHudState();
+        }
+        var st = facade.getHudSnapshot();
         this._setInstanceMenuOpen(false);
 
         fetch('/funkenwerk-welt/lobby/switch', {
@@ -858,19 +1664,24 @@
             body: JSON.stringify({
                 target_instance: cleanTarget,
                 x: st.x,
+                y: st.y,
                 z: st.z,
                 rot_y: st.rot_y,
-                zone: st.zone
+                zone: 'heroes'
             })
         })
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (data) {
-                if (!data || !data.ok || !self.isOpen || !self._engine) return;
+                var f2 = getFacade(self);
+                if (!data || !data.ok || !self.isOpen || !f2) return;
                 if (data.instance_id) self.instanceId = Number(data.instance_id) || cleanTarget;
                 if (Array.isArray(data.instances)) self.instances = data.instances;
                 self.peers = Array.isArray(data.peers) ? data.peers : [];
-                self._engine.updatePeers(self.peers);
+                f2.switchInstance(self.peers);
                 self._syncHudState();
+                if (self.lobbyAuth && !self.soloMode && self.currentZone === 'heroes') {
+                    self._startSyncLoop();
+                }
             })
             .catch(function () {});
     };
@@ -909,7 +1720,11 @@
     SeelenfunkeUnifiedLobbyHost.prototype.open = function (initialMode) {
         var self = this;
         var mode = String(initialMode || 'lobby').toLowerCase();
-        var startZone = (mode === 'hall' || mode === 'heroes' || mode === 'my_place') ? mode : 'gallery';
+        var startZone = (mode === 'lava')
+            ? 'lava'
+            : (mode === 'labyrinth'
+                ? 'labyrinth'
+                : ((mode === 'hall' || mode === 'heroes' || mode === 'my_place') ? mode : 'gallery'));
 
         this._ensureModalDom();
         if (!this.isOpen) {
@@ -920,24 +1735,39 @@
         }
         this.isOpen = true;
         this.isFullscreen = Boolean(getActiveFullscreenElement());
+        this.settingsOpen = false;
+        this.listeningKeyAction = '';
         this._openSeq += 1;
         var seq = this._openSeq;
 
         this.modalEl.classList.remove('is-closed');
         this.modalEl.classList.add('is-open');
         this.modalEl.style.display = 'flex';
-        this.currentZone = (startZone === 'gallery') ? 'gallery' : 'heroes';
+        this.currentZone = (startZone === 'lava')
+            ? 'lava'
+            : (startZone === 'labyrinth'
+                ? 'labyrinth'
+                : ((startZone === 'gallery') ? 'gallery' : 'heroes'));
         this.stagesMode = 'live';
-        this._syncHudState();
+        this._setSettingsOpen(false);
 
-        if (this._engine) {
+        if (!this._abilityTimer) {
+            this._abilityTimer = setInterval(function () {
+                self._syncAbilityHud();
+            }, 90);
+        }
+
+        var existingFacade = getFacade(this);
+        if (existingFacade) {
             if (startZone === 'my_place') {
-                this._engine.goToZone('heroes', true);
-                this._engine.goToMyHeroPlace();
+                existingFacade.setZone('heroes', true);
+                existingFacade.focusMyHeroPlace();
             } else {
-                this._engine.goToZone(startZone, true);
+                existingFacade.setZone(startZone, true);
             }
-            this._engine.resize();
+            existingFacade.resize();
+            this._handleZoneSyncTransition(this.currentZone);
+            this._syncHudState();
             return;
         }
 
@@ -970,6 +1800,7 @@
                 var shopJson = results[0];
                 var heroesJson = results[1];
                 var mod = results[2];
+                self._mod = mod;
 
                 if (mod && typeof mod.ensureLobbyScopedStyles === 'function') {
                     mod.ensureLobbyScopedStyles();
@@ -993,23 +1824,69 @@
                 self.lobbyAuth = isAuth;
                 self.activeIndex = 0;
 
+                if (mod && typeof mod.loadLobbyUserSettings === 'function') {
+                    self.userSettings = mod.loadLobbyUserSettings();
+                }
+                if (mod && typeof mod.loadLobbyKeybindings === 'function') {
+                    self.keybindings = mod.loadLobbyKeybindings();
+                }
+                if (mod && typeof mod.getLobbyAudioInstance === 'function') {
+                    self._audio = mod.getLobbyAudioInstance({ isAuthenticated: isAuth });
+                    self._audio.setSfxVolume(self.userSettings.volume);
+                    self._audio.setSfxMuted(self.userSettings.volume <= 0);
+                    self.audioState = self._audio.getState();
+                    if (self._audioUnsub) self._audioUnsub();
+                    self._audioUnsub = self._audio.onChange(function (snap) {
+                        self.audioState = snap;
+                        self._syncHudState();
+                    });
+                }
+
+                var lavaInfo = (shopJson && shopJson.lava_parkour) ? shopJson.lava_parkour : null;
+                var labInfo = (shopJson && shopJson.mini_labyrinth) ? shopJson.mini_labyrinth : null;
+                self.lavaChestState = {
+                    nearChest: false,
+                    isAuthenticated: isAuth,
+                    claimedToday: Boolean(lavaInfo && lavaInfo.claimed_today),
+                    claiming: false,
+                    canClaim: Boolean(isAuth && !(lavaInfo && lavaInfo.claimed_today)),
+                    statusMessage: ''
+                };
+                self.labyrinthBuzzerState = {
+                    nearBuzzer: false,
+                    isAuthenticated: isAuth,
+                    claimedToday: Boolean(labInfo && labInfo.claimed_today),
+                    claiming: false,
+                    canClaim: Boolean(isAuth && !(labInfo && labInfo.claimed_today)),
+                    statusMessage: ''
+                };
+                self._renderLavaChestCard();
+                self._renderLabyrinthBuzzerCard();
+                self._renderKeybindingsList();
+
                 if (self.loadingEl) {
                     self.loadingEl.style.display = 'none';
                 }
 
-                self._engine = mod.createLouvreShowroom({
+                var createdFacade = mod.createLouvreShowroom({
                     canvas: self.canvasEl,
                     floatingCardEl: self.floatingProductWrap,
                     floatingHeroCardEl: self.floatingHeroWrap,
                     floatingPortalCardEl: self.floatingPortalWrap,
+                    floatingLavaChestEl: self.floatingLavaChestWrap,
+                    floatingLabyrinthBuzzerEl: self.floatingLabyrinthBuzzerWrap,
                     products: self.products,
                     heroesPayload: self.heroesPayload,
                     playerFunki: self.funkiInfo,
+                    lavaParkour: lavaInfo,
+                    miniLabyrinth: labInfo,
+                    audio: self._audio || undefined,
                     isAuthenticatedCustomer: isAuth,
-                    initialZone: startZone,
+                    initialZone: startZone === 'my_place' ? 'heroes' : startZone,
                     onFocusProductChange: function (prod, idx) {
                         self.focusedProduct = prod || null;
                         self._renderFloatingProductCard(self.focusedProduct);
+                        self._syncAbilityHud();
                         if (typeof idx === 'number' && idx >= 0) {
                             self.activeIndex = idx;
                             self._syncHudState();
@@ -1025,7 +1902,16 @@
                     },
                     onZoneChange: function (zone) {
                         self.currentZone = zone;
+                        self._handleZoneSyncTransition(zone);
                         self._syncHudState();
+                    },
+                    onLavaChestStateChange: function (state) {
+                        self.lavaChestState = state;
+                        self._renderLavaChestCard();
+                    },
+                    onLabyrinthBuzzerStateChange: function (state) {
+                        self.labyrinthBuzzerState = state;
+                        self._renderLabyrinthBuzzerCard();
                     },
                     onSelectProduct: function (prod) {
                         if (prod && prod.product_url) {
@@ -1033,10 +1919,16 @@
                         }
                     }
                 });
+                setFacade(self, createdFacade);
+                if (startZone === 'my_place') {
+                    createdFacade.focusMyHeroPlace();
+                }
 
+                self._activeSyncZone = null;
                 self._syncHudState();
-                if (isAuth) {
-                    self._joinLobby();
+                self._syncAbilityHud();
+                if (isAuth && self.currentZone === 'heroes') {
+                    self._handleZoneSyncTransition('heroes');
                 }
             })
             .catch(function () {
@@ -1050,10 +1942,24 @@
     SeelenfunkeUnifiedLobbyHost.prototype.close = function () {
         if (!this.isOpen) return;
         this._stopSyncLoop();
-        this._sendLeaveBeacon();
+        if (this._activeSyncZone === 'heroes') {
+            this._sendLeaveBeacon();
+        }
+        this._activeSyncZone = null;
         this.isOpen = false;
         this.instanceMenuOpen = false;
+        this.settingsOpen = false;
+        this.listeningKeyAction = '';
         this.peers = [];
+
+        if (this._audioUnsub) {
+            this._audioUnsub();
+            this._audioUnsub = null;
+        }
+        if (this._abilityTimer) {
+            clearInterval(this._abilityTimer);
+            this._abilityTimer = null;
+        }
 
         if (getActiveFullscreenElement()) {
             try {
@@ -1068,9 +1974,10 @@
         }
         this.isFullscreen = false;
 
-        if (this._engine) {
-            this._engine.destroy();
-            this._engine = null;
+        var facade = getFacade(this);
+        if (facade) {
+            facade.destroy();
+            setFacade(this, null);
         }
         if (this.modalEl) {
             this.modalEl.classList.remove('is-open');
@@ -1098,8 +2005,27 @@
         this.modalEl = null;
     };
 
-    window.SeelenfunkeHeroes3D = new SeelenfunkeUnifiedLobbyHost();
+    var privateLobbyHost = new SeelenfunkeUnifiedLobbyHost();
+    var publicHeroesApi = Object.freeze({
+        open: function (mode) {
+            privateLobbyHost.open(mode || 'lobby');
+        },
+        close: function () {
+            privateLobbyHost.close();
+        }
+    });
+
+    try {
+        Object.defineProperty(window, 'SeelenfunkeHeroes3D', {
+            value: publicHeroesApi,
+            writable: false,
+            configurable: false
+        });
+    } catch (e) {
+        window.SeelenfunkeHeroes3D = publicHeroesApi;
+    }
+
     window.openFunkenwerkHeroes3D = function (mode) {
-        window.SeelenfunkeHeroes3D.open(mode || 'lobby');
+        publicHeroesApi.open(mode || 'lobby');
     };
 })();

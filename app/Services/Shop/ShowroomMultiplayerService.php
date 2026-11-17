@@ -6,7 +6,11 @@ use App\Models\Customer\Customer;
 use App\Models\Customer\CustomerGamification;
 use App\Models\System\SystemSetting;
 use App\Services\Gamification\GameConfig;
+use App\Services\Gamification\LobbyInstanceService;
 use App\Services\Gamification\PlayerNameValidator;
+use Closure;
+use Illuminate\Contracts\Cache\LockProvider;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -18,6 +22,38 @@ class ShowroomMultiplayerService
     public const PLAYER_TTL_SECONDS = 20;
     public const CHAT_RING_BUFFER_SIZE = 15;
     public const CHAT_TTL_SECONDS = 600; // 10 Minuten flüchtiger Speicher
+    public const MAX_SPEED = 9.5;
+    public const MIN_SYNC_TELEPORT_STEP = 14.0;
+    public const MAX_SPEED_WITH_MARGIN = 13.5;
+    public const EMOTE_COOLDOWN_MS = 2500;
+    public const CHAT_BURST_WINDOW_SECONDS = 15;
+    public const CHAT_BURST_MAX_ATTEMPTS = 8;
+
+    /**
+     * Strikte Whitelist erlaubter Showroom-Emotes.
+     *
+     * @var array<int, string>
+     */
+    public const ALLOWED_EMOTES = [
+        'wave',
+        'cheer',
+        'spark',
+        'bow',
+        'heart',
+        'gg',
+    ];
+
+    /**
+     * Strikte Whitelist erlaubter 3D-Waffen-Effekte.
+     *
+     * @var array<int, string>
+     */
+    public const ALLOWED_WEAPON_EFFECTS = [
+        'gold_blade',
+        'sapphire_staff',
+        'emerald_bow',
+        'cosmos_blade',
+    ];
 
     public function __construct(
         private readonly ShowroomChatGuardService $chatGuard
@@ -82,10 +118,14 @@ class ShowroomMultiplayerService
             'y' => 0.0,
             'z' => 8.4,
             'rot_y' => 3.1416,
+            'speed' => 0.0,
+            'zone' => 'gallery',
             'jumping' => false,
             'weapon_seq' => 0,
+            'emote' => null,
             'solo_mode' => false,
-        ]);
+            'pos_synced' => false,
+        ], 'customer:' . (string) $customer->id);
 
         return [
             'enabled' => true,
@@ -109,26 +149,54 @@ class ShowroomMultiplayerService
      */
     public function syncPlayerState(Customer $customer, array $stateInput): array
     {
+        $actorKey = 'customer:' . (string) $customer->id;
         $identity = $this->resolveCustomerIdentity($customer);
         $soloMode = filter_var($stateInput['soloMode'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
+        $rawRotInput = array_key_exists('rotY', $stateInput)
+            ? $stateInput['rotY']
+            : ($stateInput['rot_y'] ?? 3.1416);
+
+        $rawZone = isset($stateInput['zone']) && is_string($stateInput['zone'])
+            ? trim($stateInput['zone'])
+            : 'gallery';
+        $zone = in_array($rawZone, ['gallery', 'heroes', 'lava'], true) ? $rawZone : 'gallery';
+
+        $rawWeaponSeq = array_key_exists('weaponActionSeq', $stateInput) && LobbyInstanceService::isValidFiniteNumeric($stateInput['weaponActionSeq'])
+            ? (int) $stateInput['weaponActionSeq']
+            : 0;
+
+        $emote = $this->sanitizeAndThrottleEmote(
+            $identity['player_id'],
+            $stateInput['emote'] ?? null,
+            $actorKey
+        );
+
         $sanitizedState = [
-            'x' => round(max(-12.0, min(12.0, (float) ($stateInput['x'] ?? 0.0))), 3),
-            'y' => round(max(0.0, min(4.5, (float) ($stateInput['y'] ?? 0.0))), 3),
-            'z' => round(max(-240.0, min(20.0, (float) ($stateInput['z'] ?? 8.4))), 3),
-            'rot_y' => round(max(-7.0, min(7.0, (float) ($stateInput['rotY'] ?? 3.1416))), 3),
+            'x' => round(max(-12.0, min(12.0, LobbyInstanceService::parseFiniteFloat($stateInput['x'] ?? null, 0.0))), 3),
+            'y' => round(max(0.0, min(4.5, LobbyInstanceService::parseFiniteFloat($stateInput['y'] ?? null, 0.0))), 3),
+            'z' => round(max(-240.0, min(20.0, LobbyInstanceService::parseFiniteFloat($stateInput['z'] ?? null, 8.4))), 3),
+            'rot_y' => round(max(-7.0, min(7.0, LobbyInstanceService::parseFiniteFloat($rawRotInput, 3.1416))), 3),
+            'speed' => round(max(0.0, min(self::MAX_SPEED, LobbyInstanceService::parseFiniteFloat($stateInput['speed'] ?? null, 0.0))), 3),
+            'zone' => $zone,
             'jumping' => filter_var($stateInput['jumping'] ?? false, FILTER_VALIDATE_BOOLEAN),
-            'weapon_seq' => max(0, min(1000000, (int) ($stateInput['weaponActionSeq'] ?? 0))),
+            'weapon_seq' => max(0, min(1000000, $rawWeaponSeq)),
+            'emote' => $emote,
             'solo_mode' => $soloMode,
+            'pos_synced' => true,
+            'has_explicit_x' => array_key_exists('x', $stateInput) && LobbyInstanceService::isValidFiniteNumeric($stateInput['x']),
+            'has_explicit_z' => array_key_exists('z', $stateInput) && LobbyInstanceService::isValidFiniteNumeric($stateInput['z']),
         ];
 
-        $roomId = $this->assignOrRefreshRoom($identity, $sanitizedState);
+        $roomId = $this->assignOrRefreshRoom($identity, $sanitizedState, $actorKey);
 
         if ($soloMode) {
             return [
                 'success' => true,
                 'room_id' => $roomId,
                 'player_id' => $identity['player_id'],
+                'display_name' => $identity['display_name'],
+                'level' => $identity['level'],
                 'solo_mode' => true,
                 'peers' => [],
                 'messages' => [],
@@ -142,6 +210,8 @@ class ShowroomMultiplayerService
             'success' => true,
             'room_id' => $roomId,
             'player_id' => $identity['player_id'],
+            'display_name' => $identity['display_name'],
+            'level' => $identity['level'],
             'solo_mode' => false,
             'peers' => $peers,
             'messages' => $messages,
@@ -155,7 +225,33 @@ class ShowroomMultiplayerService
      */
     public function postChatMessage(Customer $customer, string $rawMessage): array
     {
-        $check = $this->chatGuard->inspectAndSanitize((string) $customer->id, $rawMessage, true);
+        $customerId = (string) $customer->id;
+        $actorKey = 'customer:' . $customerId;
+
+        if ($this->isChatFloodRateLimited($customerId)) {
+            LobbyInstanceService::logTamperThrottled($actorKey, 'shop/showroom-chat', 'chat_flood_rate_limited');
+
+            return [
+                'success' => false,
+                'status' => 429,
+                'code' => 'rate_limited',
+                'message' => 'Zu viele Chat-Anfragen in kurzer Zeit. Bitte warte einen Moment.',
+            ];
+        }
+
+        if ($this->containsHtmlOrScriptPayload($rawMessage)) {
+            $this->chatGuard->touchCooldown($customerId);
+            LobbyInstanceService::logTamperThrottled($actorKey, 'shop/showroom-chat', 'xss_or_html_chat_payload');
+
+            return [
+                'success' => false,
+                'status' => 422,
+                'code' => 'blocked_html',
+                'message' => 'HTML- und Skript-Inhalte sind im Showroom-Chat nicht erlaubt.',
+            ];
+        }
+
+        $check = $this->chatGuard->inspectAndSanitize($customerId, $rawMessage, true);
         if (!$check['allowed']) {
             return [
                 'success' => false,
@@ -165,48 +261,60 @@ class ShowroomMultiplayerService
             ];
         }
 
+        $cleanSanitizedText = trim(str_replace(['<', '>'], '', $check['sanitized']));
+        if ($cleanSanitizedText === '') {
+            return [
+                'success' => false,
+                'status' => 422,
+                'code' => 'empty',
+                'message' => 'Bitte gib eine Nachricht ein.',
+            ];
+        }
+
         $identity = $this->resolveCustomerIdentity($customer);
-        $roomId = $this->resolveExistingOrAssignRoom($identity);
+        $roomId = $this->resolveExistingOrAssignRoom($identity, $actorKey);
 
-        $nowMs = (int) round(microtime(true) * 1000);
-        $entry = [
-            'id' => 'm_' . Str::lower(Str::random(12)),
-            'player_id' => $identity['player_id'],
-            'display_name' => $identity['display_name'],
-            'level' => $identity['level'],
-            'rank_class' => $identity['weapon']['rank_class'] ?? 'C',
-            'class_label' => $identity['weapon']['class_label'] ?? 'KLASSE C',
-            'text' => $check['sanitized'],
-            'created_at_ms' => $nowMs,
-            'expires_at_ms' => $nowMs + (self::CHAT_TTL_SECONDS * 1000),
-        ];
+        return $this->withShowroomLock($roomId, function () use ($identity, $roomId, $cleanSanitizedText): array {
+            $nowMs = Carbon::now()->getTimestampMs();
+            $entry = [
+                'id' => 'm_' . Str::lower(Str::random(12)),
+                'player_id' => $identity['player_id'],
+                'display_name' => $identity['display_name'],
+                'level' => $identity['level'],
+                'rank_class' => $identity['weapon']['rank_class'] ?? 'C',
+                'class_label' => $identity['weapon']['class_label'] ?? 'KLASSE C',
+                'text' => $cleanSanitizedText,
+                'created_at_ms' => $nowMs,
+                'expires_at_ms' => $nowMs + (self::CHAT_TTL_SECONDS * 1000),
+            ];
 
-        $chatKey = $this->roomChatCacheKey($roomId);
-        $existing = Cache::get($chatKey, []);
-        if (!is_array($existing)) {
-            $existing = [];
-        }
-
-        $validMessages = [];
-        foreach ($existing as $msg) {
-            if (is_array($msg) && (int) ($msg['expires_at_ms'] ?? 0) > $nowMs) {
-                $validMessages[] = $msg;
+            $chatKey = $this->roomChatCacheKey($roomId);
+            $existing = Cache::get($chatKey, []);
+            if (!is_array($existing)) {
+                $existing = [];
             }
-        }
 
-        $validMessages[] = $entry;
-        if (count($validMessages) > self::CHAT_RING_BUFFER_SIZE) {
-            $validMessages = array_slice($validMessages, -self::CHAT_RING_BUFFER_SIZE);
-        }
+            $validMessages = [];
+            foreach ($existing as $msg) {
+                if (is_array($msg) && (int) ($msg['expires_at_ms'] ?? 0) > $nowMs) {
+                    $validMessages[] = $msg;
+                }
+            }
 
-        Cache::put($chatKey, $validMessages, self::CHAT_TTL_SECONDS);
+            $validMessages[] = $entry;
+            if (count($validMessages) > self::CHAT_RING_BUFFER_SIZE) {
+                $validMessages = array_slice($validMessages, -self::CHAT_RING_BUFFER_SIZE);
+            }
 
-        return [
-            'success' => true,
-            'status' => 200,
-            'room_id' => $roomId,
-            'entry' => $entry,
-        ];
+            Cache::put($chatKey, $validMessages, self::CHAT_TTL_SECONDS);
+
+            return [
+                'success' => true,
+                'status' => 200,
+                'room_id' => $roomId,
+                'entry' => $entry,
+            ];
+        });
     }
 
     /**
@@ -368,7 +476,7 @@ class ShowroomMultiplayerService
             }
 
             $rawEffect = strtolower(trim((string) ($customWeapon['effect_type'] ?? '')));
-            if (!in_array($rawEffect, ['gold_blade', 'sapphire_staff', 'emerald_bow', 'cosmos_blade'], true)) {
+            if (!in_array($rawEffect, self::ALLOWED_WEAPON_EFFECTS, true)) {
                 $rawEffect = match ($rawClass) {
                     'S' => 'cosmos_blade',
                     'A' => 'gold_blade',
@@ -383,7 +491,11 @@ class ShowroomMultiplayerService
             }
 
             $cleanName = mb_substr(
-                str_replace([' ' . "\u{2013}" . ' ', ' ' . "\u{2014}" . ' '], ' · ', trim(strip_tags((string) $customWeapon['name']))),
+                str_replace(
+                    ['<', '>', ' ' . "\u{2013}" . ' ', ' ' . "\u{2014}" . ' '],
+                    ['', '', ' · ', ' · '],
+                    trim(strip_tags((string) $customWeapon['name']))
+                ),
                 0,
                 36
             );
@@ -469,77 +581,160 @@ class ShowroomMultiplayerService
      * @param array{player_id: string, display_name: string, level: int, glb_url: string, weapon: array<string, string>} $identity
      * @param array<string, mixed> $state
      */
-    private function assignOrRefreshRoom(array $identity, array $state): string
-    {
-        $publicId = $identity['player_id'];
-        $now = time();
-        $nowMs = (int) round(microtime(true) * 1000);
+    private function assignOrRefreshRoom(
+        array $identity,
+        array $state,
+        string $actorKey = 'showroom_actor'
+    ): string {
+        return $this->withShowroomLock('global_shard', function () use ($identity, $state, $actorKey): string {
+            $publicId = $identity['player_id'];
+            $now = Carbon::now()->getTimestamp();
+            $nowMs = Carbon::now()->getTimestampMs();
 
-        $existingRoomId = Cache::get($this->playerRoomCacheKey($publicId));
-        $selectedRoomId = null;
-        $selectedRoster = [];
+            $existingRoomId = Cache::get($this->playerRoomCacheKey($publicId));
+            $selectedRoomId = null;
+            $selectedRoster = [];
 
-        if (is_string($existingRoomId) && str_starts_with($existingRoomId, 'louvre-room-')) {
-            $roster = $this->loadPrunedRoomRoster($existingRoomId, $now);
-            if (isset($roster[$publicId]) || count($roster) < self::MAX_PLAYERS_PER_ROOM) {
-                $selectedRoomId = $existingRoomId;
-                $selectedRoster = $roster;
-            }
-        }
-
-        if ($selectedRoomId === null) {
-            for ($idx = 1; $idx <= self::MAX_SHARD_ROOMS; $idx++) {
-                $candidateRoomId = 'louvre-room-' . $idx;
-                $roster = $this->loadPrunedRoomRoster($candidateRoomId, $now);
+            if (is_string($existingRoomId) && str_starts_with($existingRoomId, 'louvre-room-')) {
+                $roster = $this->loadPrunedRoomRoster($existingRoomId, $now);
                 if (isset($roster[$publicId]) || count($roster) < self::MAX_PLAYERS_PER_ROOM) {
-                    $selectedRoomId = $candidateRoomId;
+                    $selectedRoomId = $existingRoomId;
                     $selectedRoster = $roster;
-                    break;
                 }
             }
+
+            if ($selectedRoomId === null) {
+                for ($idx = 1; $idx <= self::MAX_SHARD_ROOMS; $idx++) {
+                    $candidateRoomId = 'louvre-room-' . $idx;
+                    $roster = $this->loadPrunedRoomRoster($candidateRoomId, $now);
+                    if (isset($roster[$publicId]) || count($roster) < self::MAX_PLAYERS_PER_ROOM) {
+                        $selectedRoomId = $candidateRoomId;
+                        $selectedRoster = $roster;
+                        break;
+                    }
+                }
+            }
+
+            if ($selectedRoomId === null) {
+                $selectedRoomId = 'louvre-room-1';
+                $selectedRoster = $this->loadPrunedRoomRoster($selectedRoomId, $now);
+            }
+
+            $prevEntry = is_array($selectedRoster[$publicId] ?? null) ? $selectedRoster[$publicId] : [];
+            $wasPosSynced = !empty($prevEntry['pos_synced']);
+            $isSyncTick = !empty($state['pos_synced']);
+
+            $prevX = LobbyInstanceService::parseFiniteFloat($prevEntry['x'] ?? 0.0, 0.0);
+            $prevY = LobbyInstanceService::parseFiniteFloat($prevEntry['y'] ?? 0.0, 0.0);
+            $prevZ = LobbyInstanceService::parseFiniteFloat($prevEntry['z'] ?? 8.4, 8.4);
+            $prevZone = is_string($prevEntry['zone'] ?? null) ? $prevEntry['zone'] : 'gallery';
+
+            $nextX = array_key_exists('x', $state) ? (float) $state['x'] : $prevX;
+            $nextY = array_key_exists('y', $state) ? (float) $state['y'] : $prevY;
+            $nextZ = array_key_exists('z', $state) ? (float) $state['z'] : $prevZ;
+            $nextZone = is_string($state['zone'] ?? null) ? $state['zone'] : $prevZone;
+
+            if ($isSyncTick && empty($state['has_explicit_x']) && !empty($prevEntry)) {
+                $nextX = $prevX;
+            }
+            if ($isSyncTick && empty($state['has_explicit_z']) && !empty($prevEntry)) {
+                $nextZ = $prevZ;
+            }
+
+            if ($wasPosSynced && $isSyncTick && isset($prevEntry['updated_at_ms'])) {
+                $elapsedSec = max(0.0, ($nowMs - (int) $prevEntry['updated_at_ms']) / 1000.0);
+
+                if (!$this->isLegitimateShowroomZoneJump($nextX, $nextZ, $nextZone, $prevZone, $prevZ)) {
+                    $dx = $nextX - $prevX;
+                    $dz = $nextZ - $prevZ;
+                    $dist = hypot($dx, $dz);
+                    $maxStep = max(self::MIN_SYNC_TELEPORT_STEP, $elapsedSec * self::MAX_SPEED_WITH_MARGIN);
+
+                    if ($dist > $maxStep && $dist > 0.0001) {
+                        if ($dist > $maxStep + 10.0) {
+                            LobbyInstanceService::logTamperThrottled($actorKey, 'shop/showroom-sync', 'unplausible_teleport_clamped', [
+                                'requested_distance' => round($dist, 2),
+                                'allowed_max_step' => round($maxStep, 2),
+                                'elapsed_sec' => round($elapsedSec, 3),
+                            ]);
+                        }
+
+                        $scale = $maxStep / $dist;
+                        $nextX = round(max(-12.0, min(12.0, $prevX + ($dx * $scale))), 3);
+                        $nextZ = round(max(-240.0, min(20.0, $prevZ + ($dz * $scale))), 3);
+                    }
+                }
+            }
+
+            $prevWeaponSeq = (int) ($prevEntry['weapon_seq'] ?? 0);
+            $requestedWeaponSeq = (int) ($state['weapon_seq'] ?? $prevWeaponSeq);
+            if ($wasPosSynced && $requestedWeaponSeq > $prevWeaponSeq + 3) {
+                $requestedWeaponSeq = $prevWeaponSeq + 1;
+            }
+            $cleanWeaponSeq = max(0, min(1000000, $requestedWeaponSeq));
+
+            $selectedRoster[$publicId] = [
+                'player_id' => $publicId,
+                'display_name' => $identity['display_name'],
+                'level' => $identity['level'],
+                'glb_url' => $identity['glb_url'],
+                'weapon' => $identity['weapon'],
+                'x' => round(max(-12.0, min(12.0, $nextX)), 3),
+                'y' => round(max(0.0, min(4.5, $nextY)), 3),
+                'z' => round(max(-240.0, min(20.0, $nextZ)), 3),
+                'rot_y' => (float) ($state['rot_y'] ?? ($prevEntry['rot_y'] ?? 3.1416)),
+                'speed' => round(max(0.0, min(self::MAX_SPEED, (float) ($state['speed'] ?? ($prevEntry['speed'] ?? 0.0)))), 3),
+                'zone' => $nextZone,
+                'jumping' => (bool) ($state['jumping'] ?? ($prevEntry['jumping'] ?? false)),
+                'weapon_seq' => $cleanWeaponSeq,
+                'emote' => $state['emote'] ?? null,
+                'solo_mode' => (bool) ($state['solo_mode'] ?? false),
+                'pos_synced' => $wasPosSynced || $isSyncTick,
+                'updated_at_ms' => $nowMs,
+                'expires_at' => $now + self::PLAYER_TTL_SECONDS,
+            ];
+
+            Cache::put($this->roomRosterCacheKey($selectedRoomId), $selectedRoster, self::PLAYER_TTL_SECONDS + 40);
+            Cache::put($this->playerRoomCacheKey($publicId), $selectedRoomId, self::PLAYER_TTL_SECONDS);
+
+            return $selectedRoomId;
+        });
+    }
+
+    private function isLegitimateShowroomZoneJump(
+        float $targetX,
+        float $targetZ,
+        string $targetZone,
+        string $prevZone,
+        float $prevZ
+    ): bool {
+        if ($targetZone === 'gallery') {
+            if ($prevZone !== 'gallery' && abs($targetX) <= 12.0 && $targetZ >= -12.0 && $targetZ <= 14.5) {
+                return true;
+            }
+            if (abs($targetX) <= 6.5 && $targetZ >= 2.0 && $targetZ <= 12.5) {
+                return true;
+            }
         }
 
-        if ($selectedRoomId === null) {
-            $selectedRoomId = 'louvre-room-1';
-            $selectedRoster = $this->loadPrunedRoomRoster($selectedRoomId, $now);
+        if ($targetZone === 'heroes' && ($prevZone !== 'heroes' || $prevZ > -18.0) && abs($targetX) <= 10.0 && $targetZ <= -18.0) {
+            return true;
         }
 
-        $prevEntry = $selectedRoster[$publicId] ?? [];
-
-        $selectedRoster[$publicId] = [
-            'player_id' => $publicId,
-            'display_name' => $identity['display_name'],
-            'level' => $identity['level'],
-            'glb_url' => $identity['glb_url'],
-            'weapon' => $identity['weapon'],
-            'x' => $state['x'] ?? ($prevEntry['x'] ?? 0.0),
-            'y' => $state['y'] ?? ($prevEntry['y'] ?? 0.0),
-            'z' => $state['z'] ?? ($prevEntry['z'] ?? 8.4),
-            'rot_y' => $state['rot_y'] ?? ($prevEntry['rot_y'] ?? 3.1416),
-            'jumping' => (bool) ($state['jumping'] ?? ($prevEntry['jumping'] ?? false)),
-            'weapon_seq' => (int) ($state['weapon_seq'] ?? ($prevEntry['weapon_seq'] ?? 0)),
-            'solo_mode' => (bool) ($state['solo_mode'] ?? false),
-            'updated_at_ms' => $nowMs,
-            'expires_at' => $now + self::PLAYER_TTL_SECONDS,
-        ];
-
-        Cache::put($this->roomRosterCacheKey($selectedRoomId), $selectedRoster, self::PLAYER_TTL_SECONDS + 40);
-        Cache::put($this->playerRoomCacheKey($publicId), $selectedRoomId, self::PLAYER_TTL_SECONDS);
-
-        return $selectedRoomId;
+        return false;
     }
 
     /**
      * @param array{player_id: string, display_name: string, level: int, glb_url: string, weapon: array<string, string>} $identity
      */
-    private function resolveExistingOrAssignRoom(array $identity): string
+    private function resolveExistingOrAssignRoom(array $identity, string $actorKey = 'showroom_actor'): string
     {
         $existing = Cache::get($this->playerRoomCacheKey($identity['player_id']));
         if (is_string($existing) && str_starts_with($existing, 'louvre-room-')) {
             return $existing;
         }
 
-        return $this->assignOrRefreshRoom($identity, []);
+        return $this->assignOrRefreshRoom($identity, [], $actorKey);
     }
 
     /**
@@ -547,7 +742,7 @@ class ShowroomMultiplayerService
      */
     private function getActiveRoomPeers(string $roomId, string $excludePlayerId): array
     {
-        $roster = $this->loadPrunedRoomRoster($roomId, time());
+        $roster = $this->loadPrunedRoomRoster($roomId, Carbon::now()->getTimestamp());
         $peers = [];
 
         foreach ($roster as $pid => $entry) {
@@ -564,8 +759,10 @@ class ShowroomMultiplayerService
                 'y' => (float) $entry['y'],
                 'z' => (float) $entry['z'],
                 'rot_y' => (float) $entry['rot_y'],
+                'speed' => (float) ($entry['speed'] ?? 0.0),
                 'jumping' => (bool) $entry['jumping'],
                 'weapon_seq' => (int) $entry['weapon_seq'],
+                'emote' => in_array(($entry['emote'] ?? null), self::ALLOWED_EMOTES, true) ? $entry['emote'] : null,
                 'updated_at_ms' => (int) $entry['updated_at_ms'],
             ];
         }
@@ -583,10 +780,14 @@ class ShowroomMultiplayerService
             return [];
         }
 
-        $nowMs = (int) round(microtime(true) * 1000);
+        $nowMs = Carbon::now()->getTimestampMs();
         $valid = [];
         foreach ($raw as $msg) {
             if (is_array($msg) && (int) ($msg['expires_at_ms'] ?? 0) > $nowMs) {
+                $cleanText = str_replace(['<', '>'], '', strip_tags((string) ($msg['text'] ?? '')));
+                if ($cleanText === '') {
+                    continue;
+                }
                 $valid[] = [
                     'id' => (string) ($msg['id'] ?? ''),
                     'player_id' => (string) ($msg['player_id'] ?? ''),
@@ -594,13 +795,130 @@ class ShowroomMultiplayerService
                     'level' => (int) ($msg['level'] ?? 1),
                     'rank_class' => (string) ($msg['rank_class'] ?? 'C'),
                     'class_label' => (string) ($msg['class_label'] ?? 'KLASSE C'),
-                    'text' => (string) ($msg['text'] ?? ''),
+                    'text' => $cleanText,
                     'created_at_ms' => (int) ($msg['created_at_ms'] ?? $nowMs),
                 ];
             }
         }
 
         return $valid;
+    }
+
+    /**
+     * Whitelist- & Rate-Limit-Pruefung fuer Showroom-Emotes (0 HTML/Script, kein Konsolen-Flooding).
+     */
+    private function sanitizeAndThrottleEmote(string $publicPlayerId, mixed $rawEmote, string $actorKey): ?string
+    {
+        if ($rawEmote === null || $rawEmote === '') {
+            return null;
+        }
+
+        if (!is_string($rawEmote)) {
+            LobbyInstanceService::logTamperThrottled($actorKey, 'shop/showroom-sync', 'invalid_emote_type');
+
+            return null;
+        }
+
+        if ($this->containsHtmlOrScriptPayload($rawEmote)) {
+            LobbyInstanceService::logTamperThrottled($actorKey, 'shop/showroom-sync', 'xss_emote_attempt');
+
+            return null;
+        }
+
+        $normalized = strtolower(trim($rawEmote));
+        if ($normalized === '') {
+            return null;
+        }
+
+        if (!in_array($normalized, self::ALLOWED_EMOTES, true)) {
+            LobbyInstanceService::logTamperThrottled($actorKey, 'shop/showroom-sync', 'unwhitelisted_emote', [
+                'emote' => substr($normalized, 0, 24),
+            ]);
+
+            return null;
+        }
+
+        $nowMs = Carbon::now()->getTimestampMs();
+        $cdKey = 'sf_showroom_emote_cd_' . $publicPlayerId;
+        $untilMs = (int) Cache::get($cdKey, 0);
+        if ($untilMs > $nowMs) {
+            return null;
+        }
+
+        Cache::put($cdKey, $nowMs + self::EMOTE_COOLDOWN_MS, 5);
+
+        return $normalized;
+    }
+
+    /**
+     * Schuetzt den Chat-Endpunkt gegen Konsolen-Schleifen (for(let i=0;i<100;i++) fetch(...)).
+     */
+    private function isChatFloodRateLimited(string $customerId): bool
+    {
+        if (trim($customerId) === '') {
+            return true;
+        }
+
+        $now = Carbon::now()->getTimestamp();
+        $key = 'sf_showroom_chat_burst_' . md5($customerId);
+        $timestamps = Cache::get($key, []);
+        if (!is_array($timestamps)) {
+            $timestamps = [];
+        }
+
+        $cutoff = $now - self::CHAT_BURST_WINDOW_SECONDS;
+        $recent = [];
+        foreach ($timestamps as $ts) {
+            if (is_int($ts) && $ts >= $cutoff) {
+                $recent[] = $ts;
+            }
+        }
+
+        $recent[] = $now;
+        Cache::put($key, array_slice($recent, -25), self::CHAT_BURST_WINDOW_SECONDS + 5);
+
+        return count($recent) > self::CHAT_BURST_MAX_ATTEMPTS;
+    }
+
+    /**
+     * Erkennt jegliche HTML-Tags, Script-Blöcke, Event-Handler oder gefährliche URI-Schemata vor strip_tags().
+     */
+    private function containsHtmlOrScriptPayload(string $raw): bool
+    {
+        if ($raw === '') {
+            return false;
+        }
+
+        $decoded = html_entity_decode($raw, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+        foreach ([$raw, $decoded] as $candidate) {
+            if (preg_match('/<\s*\/?\s*[a-z!?\[]/iu', $candidate)) {
+                return true;
+            }
+            if (preg_match('/(?:javascript|vbscript|data)\s*:/iu', $candidate)) {
+                return true;
+            }
+            if (preg_match('/\bon(?:error|load|click|mouseover|mouseenter|focus|blur|animationstart|toggle)\s*=/iu', $candidate)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @template TReturn
+     * @param Closure(): TReturn $callback
+     * @return TReturn
+     */
+    private function withShowroomLock(string $scope, Closure $callback): mixed
+    {
+        $store = Cache::getStore();
+        if ($store instanceof LockProvider) {
+            return Cache::lock('sf_showroom_mutex_' . $scope, 4)->block(2, $callback);
+        }
+
+        return $callback();
     }
 
     /**

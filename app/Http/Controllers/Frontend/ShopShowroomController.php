@@ -11,6 +11,8 @@ use App\Models\Product\Product;
 use App\Models\Product\ProductTemplate;
 use App\Services\Gamification\GameConfig;
 use App\Services\Gamification\LavaParkourService;
+use App\Services\Gamification\LobbyInstanceService;
+use App\Services\Gamification\MiniLabyrinthService;
 use App\Services\Shop\ShowroomMultiplayerService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -29,7 +31,8 @@ class ShopShowroomController extends Controller
     public function index(
         Request $request,
         ShowroomMultiplayerService $multiplayer,
-        LavaParkourService $lavaParkour
+        LavaParkourService $lavaParkour,
+        MiniLabyrinthService $miniLabyrinth
     ): JsonResponse {
         if ($maintenanceResp = $this->checkMaintenanceOrLock($request)) {
             return $maintenanceResp;
@@ -38,10 +41,21 @@ class ShopShowroomController extends Controller
         /** @var Customer|null $customer */
         $customer = Auth::guard('customer')->user();
 
+        $tamper = LobbyInstanceService::inspectRequestTampering(
+            $request->all(),
+            $request->path(),
+            $customer !== null ? ('customer:' . $customer->id) : null
+        );
+
+        if ($tamper['has_explicit_cheat']) {
+            return $this->tamperRejectedResponse();
+        }
+
         $products = $this->resolveCachedShowroomProducts();
         $multiplayerPayload = $multiplayer->buildBootstrapPayload($customer);
         $playerFunki = $this->resolvePlayerFunki($multiplayerPayload);
         $lavaParkourPayload = $lavaParkour->buildShowroomPayload($customer);
+        $miniLabyrinthPayload = $miniLabyrinth->buildShowroomPayload($customer);
 
         return response()->json([
             'success' => true,
@@ -50,6 +64,7 @@ class ShopShowroomController extends Controller
             'player_funki' => $playerFunki,
             'multiplayer' => $multiplayerPayload,
             'lava_parkour' => $lavaParkourPayload,
+            'mini_labyrinth' => $miniLabyrinthPayload,
             'products' => $products,
         ], 200, $this->noStoreHeaders());
     }
@@ -65,11 +80,21 @@ class ShopShowroomController extends Controller
 
         /** @var Customer|null $customer */
         $customer = Auth::guard('customer')->user();
+        $tamper = LobbyInstanceService::inspectRequestTampering(
+            $request->all(),
+            $request->path(),
+            $customer !== null ? ('customer:' . $customer->id) : null
+        );
+
         if ($customer === null) {
             return response()->json([
                 'success' => false,
                 'message' => 'Gäste erkunden den Showroom im Einzelmodus.',
             ], 403, $this->noStoreHeaders());
+        }
+
+        if ($tamper['has_explicit_cheat']) {
+            return $this->tamperRejectedResponse();
         }
 
         if (!$multiplayer->isMultiplayerEnabled()) {
@@ -79,7 +104,22 @@ class ShopShowroomController extends Controller
             ], 403, $this->noStoreHeaders());
         }
 
-        $payload = $multiplayer->syncPlayerState($customer, $request->all());
+        $payload = $multiplayer->syncPlayerState(
+            $customer,
+            $request->only([
+                'x',
+                'y',
+                'z',
+                'rotY',
+                'rot_y',
+                'speed',
+                'zone',
+                'jumping',
+                'weaponActionSeq',
+                'soloMode',
+                'emote',
+            ])
+        );
 
         return response()->json($payload, 200, $this->noStoreHeaders());
     }
@@ -95,11 +135,21 @@ class ShopShowroomController extends Controller
 
         /** @var Customer|null $customer */
         $customer = Auth::guard('customer')->user();
+        $tamper = LobbyInstanceService::inspectRequestTampering(
+            $request->all(),
+            $request->path(),
+            $customer !== null ? ('customer:' . $customer->id) : null
+        );
+
         if ($customer === null) {
             return response()->json([
                 'success' => false,
                 'message' => 'Nur eingeloggte Kunden können den Showroom-Chat nutzen.',
             ], 403, $this->noStoreHeaders());
+        }
+
+        if ($tamper['has_explicit_cheat']) {
+            return $this->tamperRejectedResponse();
         }
 
         if (!$multiplayer->isMultiplayerEnabled()) {
@@ -109,7 +159,18 @@ class ShopShowroomController extends Controller
             ], 403, $this->noStoreHeaders());
         }
 
-        $result = $multiplayer->postChatMessage($customer, (string) $request->input('message', ''));
+        $rawMessage = $request->input('message', '');
+        if (!is_string($rawMessage)) {
+            LobbyInstanceService::logTamperThrottled('customer:' . $customer->id, $request->path(), 'non_string_chat_message');
+
+            return response()->json([
+                'success' => false,
+                'code' => 'invalid_payload',
+                'message' => 'Ungültiges Nachrichtenformat.',
+            ], 422, $this->noStoreHeaders());
+        }
+
+        $result = $multiplayer->postChatMessage($customer, $rawMessage);
 
         if (!$result['success']) {
             return response()->json([
@@ -137,11 +198,21 @@ class ShopShowroomController extends Controller
 
         /** @var Customer|null $customer */
         $customer = Auth::guard('customer')->user();
+        $tamper = LobbyInstanceService::inspectRequestTampering(
+            $request->all(),
+            $request->path(),
+            $customer !== null ? ('customer:' . $customer->id) : null
+        );
+
         if ($customer === null) {
             return response()->json([
                 'success' => false,
                 'message' => 'Nur eingeloggte Kunden können Meldungen absenden.',
             ], 403, $this->noStoreHeaders());
+        }
+
+        if ($tamper['has_explicit_cheat']) {
+            return $this->tamperRejectedResponse();
         }
 
         if (!$multiplayer->isMultiplayerEnabled()) {
@@ -151,7 +222,15 @@ class ShopShowroomController extends Controller
             ], 403, $this->noStoreHeaders());
         }
 
-        $result = $multiplayer->reportPlayerByPublicId($customer, (string) $request->input('target_player_id', ''));
+        $rawTarget = $request->input('target_player_id', '');
+        if (!is_string($rawTarget)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Ungültige Spieler-Kennung.',
+            ], 422, $this->noStoreHeaders());
+        }
+
+        $result = $multiplayer->reportPlayerByPublicId($customer, $rawTarget);
 
         return response()->json([
             'success' => $result['success'],
@@ -159,6 +238,15 @@ class ShopShowroomController extends Controller
             'shadow_muted' => $result['shadow_muted'] ?? false,
             'message' => $result['message'] ?? 'Meldung verarbeitet.',
         ], (int) ($result['status'] ?? 200), $this->noStoreHeaders());
+    }
+
+    private function tamperRejectedResponse(): JsonResponse
+    {
+        return response()->json([
+            'success' => false,
+            'code' => 'tamper_rejected',
+            'message' => 'Unzulässige Anfrageparameter erkannt.',
+        ], 422, $this->noStoreHeaders());
     }
 
     private function checkMaintenanceOrLock(Request $request): ?JsonResponse

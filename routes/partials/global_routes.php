@@ -227,6 +227,17 @@ Route::post('/funkenwerk-welt/lava-parkour/claim', [\App\Http\Controllers\Api\La
     ->middleware('throttle:15,1')
     ->name('gamification.lava-parkour.claim');
 
+// Mini-Labyrinth Gag im West-Fluegel (Server-Authoritative Anti-Cheat, +3 Funken 1x pro Kalendertag)
+Route::post('/funkenwerk-welt/labyrinth/start', [\App\Http\Controllers\Api\MiniLabyrinthController::class, 'start'])
+    ->middleware('throttle:60,1,labyrinth_start')
+    ->name('gamification.mini-labyrinth.start');
+Route::post('/funkenwerk-welt/labyrinth/checkpoint', [\App\Http\Controllers\Api\MiniLabyrinthController::class, 'checkpoint'])
+    ->middleware('throttle:90,1,labyrinth_checkpoint')
+    ->name('gamification.mini-labyrinth.checkpoint');
+Route::post('/funkenwerk-welt/labyrinth/claim', [\App\Http\Controllers\Api\MiniLabyrinthController::class, 'claim'])
+    ->middleware('throttle:15,1,labyrinth_claim')
+    ->name('gamification.mini-labyrinth.claim');
+
 // --- 4. Rechtliches & Weiteres ---
 Route::get('/impressum', function () {
     return view('frontend.pages.impressum');

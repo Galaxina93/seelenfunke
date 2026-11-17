@@ -1,58 +1,52 @@
-# Abschlussbericht: 3D-Showroom Spezialfähigkeiten, Nero-Marquina Marmorboden & Multiplayer-Chat-Verbesserungen
+# Abschlussbericht: 3D-Lobby-Komplettausbau (Exoskelett & Level-GLB-Rigging, 4er-Kombo, Lava-Prüfungskammer +5 Funken Anti-Cheat, Audio & Einstellungsmenü)
 
-> **Status:** Erfolgreich implementiert & verifiziert (162 Assertions 100 % grün)  
-> **Bereich:** 3D-Showroom, Halle der Helden & Multiplayer-Lobby  
-> **Dateien:** [`public/js/seelenfunke-louvre-showroom-3d.js`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/public/js/seelenfunke-louvre-showroom-3d.js), [`resources/views/livewire/shop/product/product-frontend-filter-area.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/product/product-frontend-filter-area.blade.php), [`tests/Feature/Shop/Louvre3DShowroomTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Shop/Louvre3DShowroomTest.php)  
-> **Verfasser:** Falcone (Chef-Architekt & Mitgründer)
-
----
-
-## 1. Übersicht & Zielerreichung
-
-In dieser Ausbaustufe wurden vier unmittelbar verknüpfte Anforderungen von Inhaberin Alina Steinhauer für die interaktive 3D-Erlebniswelt von Mein-Seelenfunke umgesetzt:
-
-1. **Spezialfähigkeiten auf Tasten 1 bis 4 (Ticket `ag_20261116_231743_4dd8b1ea`):**
-   - Slot 1: **Funken-Sprint** (+50 % Laufgeschwindigkeit für 4,5 s, Cooldown 10 s, goldene Fersen-Funken).
-   - Slot 2: **Titan-Sprung** (2,5-fache Sprunghöhe mit Vertikalkraft 12,0, Cooldown 8 s, goldener Abstoß-Ring).
-   - Slot 3: **Goldener Schutzschild** (transluzente Gold-Sphäre um den Avatar für 6 s, Cooldown 15 s).
-   - Slot 4: **Radialer Funkenstoß** (3,8 m Druckwelle mit 24 radial expandierenden Diamant-Funken, Cooldown 20 s).
-   - Clean-Design 4-Slot-Action-Dock am unteren Rand mittig mit Live-Cooldown-Anzeige und Klick-Option.
-
-2. **Visuelles Upgrade Halle der Helden & Vollbild-Fix (Ticket `ag_20261116_231743_a9e416fd`):**
-   - **Boden:** Umgestellt von matt-weißem Alabaster auf tiefschwarzen, polierten Nero-Marquina-Marmor (`#0B0E14` bis `#121620`) mit `MeshStandardMaterial`, feinen Carrara-Nuancen, edlen 24K-Goldadern (`#C5A059` / `#D4AF37`), goldener Saphir-Einfassung (`#133B5C`) und spiegelnder Roughness-Map.
-   - **Vollbild-Context-Loss behoben:** Entfernung von `forceContextLoss()` in `destroy()`. Dadurch bleibt der WebGL-Canvas beim Verlassen des Vollbildmodus oder beim Schließen und Wiederöffnen intakt (kein weißer Bildschirm mehr).
-   - **Escape-Handler:** Wenn Vollbild aktiv ist, beendet die Escape-Taste nur das Vollbild und schließt nicht mehr den Showroom.
-   - **Kugelform beim Doppelsprung:** Während des Saltos (`isSomersault`) formt sich der Roboter voll artikuliert zu einer kompakten Kugel (Knie angewinkelt, Hüfte gebeugt, Torso vorgebeugt, Kopf eingezogen, Arme um die Schienbeine geschlossen, Schwerpunkt abgesenkt), bevor er sich zur Landung entrollt.
-
-3. **Raum-Chat für alle Besucher (Ticket `ag_20261116_231825_b0efac70`):**
-   - Der Chat-Button im Action-Dock ist nun dauerhaft für alle sichtbar (auch für nicht eingeloggte Gäste).
-   - Für Gäste zeigt das Panel eine saubere Anmelde-Einladungskarte mit Link zu `/login`.
-   - Für angemeldete Kunden öffnet sich der Live-Raum-Chat mit 3D-Kopf-Sprechblasen.
-
-4. **Chat-Verbesserungen: Größe, Slash-Befehle & Freunde (Ticket `ag_20261116_232119_642f361f`):**
-   - **Vergrößerbares Fenster:** Umschalt-Button (`⛶` / `🗗`) im Chat-Kopf vergrößert das Fenster auf 440 px Breite und 280 px Nachrichten-Scrollbereich.
-   - **Slash-Befehle für Animationen:** `/dance` (Tanz wie Guild Wars/WoW), `/wave` (Winken), `/bow` (Verbeugen), `/cheer` (Jubeln), `/sit` (Hinsetzen), `/clap` (Klatschen) und `/help`.
-   - **Freundesystem:** Spieler können sich mit 1 Klick auf `+ Freund` gegenseitig adden. Der Tab `Freunde` listet alle Kontakte mit Online-Status ("Im Raum" vs. "Offline") und erlaubt 1-Klick-Zuwinken.
+> **Status:** Erfolgreich implementiert & End-to-End verifiziert (`100 % Grün`)  
+> **Bereich:** 3D-Showroom, Halle der Helden, Lava-Prüfungskammer & Gamification-Security  
+> **Kern-Dateien:** [`public/js/seelenfunke-louvre-showroom-3d.js`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/public/js/seelenfunke-louvre-showroom-3d.js), [`public/js/seelenfunke-lobby-audio.js`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/public/js/seelenfunke-lobby-audio.js), [`public/js/funkenwerk-heroes-3d.js`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/public/js/funkenwerk-heroes-3d.js), [`resources/views/livewire/shop/product/product-frontend-filter-area.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/product/product-frontend-filter-area.blade.php), [`app/Services/Gamification/LavaParkourService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/Gamification/LavaParkourService.php), [`app/Http/Controllers/Api/LavaParkourController.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Http/Controllers/Api/LavaParkourController.php)  
+> **Tests:** [`tests/Feature/Shop/Louvre3DShowroomTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Shop/Louvre3DShowroomTest.php), [`tests/Feature/Gamification/LavaParkourAntiCheatTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Gamification/LavaParkourAntiCheatTest.php)  
+> **Verfasser:** Falcone (Chef-Architekt & Mitgründer) mit Produkti, Agenti, Systemi & Globi
 
 ---
 
-## 2. Technische Architektur
+## 1. Übersicht aller umgesetzten Module
 
-### Three.js 60-FPS Kinematik & Partikel-Pool
-* Keine Garbage-Collection im Render-Loop: Partikel und Ringe werden aus dem gemeinsamen Geometrie-Pool (`_ensureAvatarSharedPool`) bezogen.
-* Cooldowns und Timer werden im bestehenden `_updatePhysics(dt)` Frame-Schritt dekrementiert.
-* Roboter-Kinematik berechnet den Kugel-Morph über eine Sinus-Kurve (`Math.sin(somersaultProgress * PI)`), die alle Gelenke (Hüfte, Knie, Knöchel, Torso, Kopf, Schultern, Ellbogen, Finger) synchronisiert ansteuert.
+### 1.1 MMO-Maussteuerung (Guild Wars / WoW Standard)
+* **Linke + Rechte Maustaste gedrückt halten (`(e.buttons & 3) === 3`):** Der Charakter läuft sofort kontinuierlich vorwärts in Blickrichtung der Kamera; horizontale Mausbewegungen lenken Kamera und Charakter butterweich mit.
+* **Nur Linke Maustaste klicken (`Click-to-Walk`):** Kurzer Linksklick auf den Boden (Showroom, Promenade, Halle der Helden, Lava-Balkon, Sprungplatten, Schatz-Insel) lässt Funki exakt zum angeklickten Punkt laufen und zeigt dort einen dezenten matten 24K-Gold-Zielring (`clickMoveRing`). Interaktive Objekte (Produkt-Stelen, Ehrenpodeste, Lava-Portal, Schatztruhe) behalten Vorrang beim direkten Anklicken.
+* **Linke oder Rechte Maustaste ziehen:** Freies Drehen der Orbit-Kamera bzw. Blickrichtungs-Steuerung ohne versehentliche Angriffs-Auslösung.
 
-### Livewire & Alpine HUD-Kopplung
-* Das 4-Slot-Dock liest über `getAbilityState()` die Cooldown-Werte im 120 ms Intervall aus und stellt sie verzögerungsfrei dar.
-* Freundschaftsdaten werden lokal über `localStorage` (`sf_louvre_friends`) persistent gehalten und mit der aktiven Mitspieler-Liste (`peers`) abgeglichen.
+### 1.2 Frei belegbare Fähigkeiten (`Tasten 1 bis 4`) & 4-fach stapelbarer Kombo-Angriff
+Alle Tasten sind im neuen Light-Mode-Einstellungsmenü (`⚙️`) individuell belegbar (`localStorage: sf_lobby_keybindings_v1`) und zeigen ihr aktives Tasten-Kürzel live in der unteren 4-Slot-Leiste:
+* **Slot 1 (Standard `Taste 1`): Zu Schlagen · 4-fach stapelbarer Kombo-Angriff (`2,5 s` Kombo-Fenster, HUD-Anzeige `x1..x4` + 4 Gold-Punkte):**
+  1. **Schlag 1 (`0,34 s`):** Schneller präziser Rechts-Hieb (bzw. Waffenhieb) mit `+0,25 m` Vorwärtsschritt und goldenem Sichelbogen.
+  2. **Schlag 2 (`0,38 s`):** Kraftvoller Links-Aufwärtshaken mit Oberkörper-Rotation, `+0,35 m` Vorstoß und doppeltem Gold-Bogen.
+  3. **Schlag 3 (`0,46 s`):** Rasante `360°`-Wirbel-Attacke um die eigene Achse mit ausgebreiteten Exoskelett-Armen und `1,85 m` Wirbel-Ring.
+  4. **Schlag 4 (`0,78 s`, Finisher):** Hoher Katapult-Sprung (`2,35 m`) in die Luft mit aufgeladener Überkopf-Pose, gefolgt von einem steilen Meteor-Bodenschlag und einer radialen **`4,6 m` Funkenexplosion** (doppelte goldene Druckwelle, 36 fliegende Gold-Diamantfunken, `0,14 s` Kamera-Impakt & tiefer matter Sub-Bass-Einschlag; danach `1,8 s` Abklingzeit).
+* **Slot 2 (Standard `Taste 2`): Schnell laufen (`Funken-Sprint`):** `+55 %` Laufgeschwindigkeit (`8,06 m/s`) für `4,5 s` (`10 s` Cooldown) mit leuchtenden Stiefel-/Rücken-Düsen und Fersen-Funken.
+* **Slot 3 (Standard `Taste 3`): Schild aktivieren:** Transluzente facettierte 24K-Gold-Schutzsphäre (`#C5A059`) für `6,0 s` (`15 s` Cooldown).
+* **Slot 4 (Standard `Taste 4`): Hoch springen (`Titan-Sprung`):** Eigenständiger Hochsprung (`vy = 11,8`, rund `2,8x` höher als der normale Sprung auf `Leertaste`, `8 s` Cooldown) mit doppeltem Schubring unter den Mag-Boots. Normales Springen inkl. Kugelform-Doppelsprung-Salto liegt weiterhin separat auf `Leertaste`.
+
+### 1.3 Detaillierte Charakter-Überarbeitung: Echtes Kunden-Level-`.glb` + 3D-Exoskelett
+* **Echtes Kunden-Level-`.glb` (`Level 1 bis 10`):** `ShopShowroomController` liefert für jeden eingeloggten Kunden sein exakt erreichtes Funki-Modell (`funki_lvl_1_rags.glb` bis `funki_lvl_10_god_of_soul.glb`; Gäste starten auf Stufe 2 `funki_lvl_2_basic.glb`).
+* **15-Bone `THREE.SkinnedMesh` Auto-Rigging (`_createSkinnedFunkiFromTemplate`):** Bindet die statischen Tripo3D-Meshes zur Laufzeit über weiche, normierte 4-Knochen-Gewichte (`skinIndex` / `skinWeight`) an ein anatomisches 15-Knochen-`THREE.Skeleton` (`root`, `pelvis`, `spine`, `chest`, `head`, `shoulderL/R`, `foreArmL/R`, `hipL/R`, `kneeL/R`, `footL/R`) inklusive Saum-Schutz unten (kein Einreißen von Roben) und Flügel-Schutz oben (harmonisches Mitschwingen bei Stufe 9/10).
+* **Mehrteiliges mechanisches 3D-Exoskelett:** Umschließt Funki in mattem Obsidian (`#121620`), dunklem Titan (`#242B38`) und gebürstetem 24K-Gold (`#C5A059`) mit Wirbelsäulen-Schiene, hexagonalem Rücken-Reaktorkern, hydraulischen Schulter-Pauldrons, Doppelkolben-Oberarmen, artikulierten Exo-Handschuhen (inkl. Waffen-Halterung), Gyro-Hüftgürtel, Knie-Servos, Schienbein-Dämpfern und 24K-Gold-Mag-Boots mit aktiven Schubdüsen.
+
+### 1.4 Lava-Prüfungskammer, Schwerer Sprungplatten-Parkour & Unhackbare +5-Funken-Truhe
+* **Raum & Grafik (`60 FPS`):** Durch das Obsidian-Gold-Portal an der Ostwand (`🔥 Prüfungs-Kammer`) oder den Topbar-Button `🔥 Prüfung` gelangt der Spieler auf den West-Eingangsbalkon über einem brodelnden GLSL-`ShaderMaterial`-Lavasee (`y = -1,65`) mit `InstancedMesh`-Basaltsäulen und aufsteigender Glut.
+* **Anspruchsvoller 10+-Platten-Parkour:** Kombiniert kleine Basalt-Trittsteine, seitlich und gegenläufig pendelnde Schwebeplatten (inkl. physikalischer Positions-Mitnahme), vibrierende **Sink-Platten (Crumble-Pads)**, Weitsprung-Lücken (Sprint + Doppelsprung / Titan-Sprung), `110 ms` Coyote-Time und mitwandernden Kontaktschatten bis hinauf zur Schatz-Insel (`x = 66,5, y = 2,80, z = -2,0`) mit animierter **3D-Schatztruhe** und Rückkehr-Portal. Bei Sturz in die Lava erfolgt ein sofortiger Respawn am Kammer-Eingang.
+* **100 % Unhackbare Server-Authoritative Anti-Cheat-Architektur (`LavaParkourService` & `LavaParkourController`):**
+  1. **Kryptografische Run-Session (`/funkenwerk-welt/lava-parkour/start`):** Erzeugt serverseitig `run_id`, `secret` und Start-Zeitstempel im Cache.
+  2. **Sequenzielle Pflicht-Checkpoints (`/funkenwerk-welt/lava-parkour/checkpoint`):** Prüft an Stage 1 (`x = 31,5`) und Stage 2 (`x = 51,0`) die exakte 3D-Distanz (`<= 4,5 m`), strikte Reihenfolge (`0 -> 1 -> 2`) sowie physikalische Mindestlaufzeiten (`>= 2,8 s` pro Abschnitt). Erst nach gültigem Stage 2 wird das Single-Use-HMAC-SHA256 `claim_token` ausgestellt (blockiert DevTools-Teleport `player.x = 66.5` und direkte API-Aufrufe komplett).
+  3. **Atomarer Claim (`/funkenwerk-welt/lava-parkour/claim`):** Schützt per `Cache::lock`, prüft Truhen-Distanz, Mindestgesamtlaufzeit (`>= 8,5 s`), verwirft den Run sofort vor der `DB::transaction()` (`lockForUpdate()`), ignoriert manipulierte Client-Beträge, prüft das Berliner Tageslimit (`1x` pro Kalendertag `Europe/Berlin`), bucht exakt **`+5` Funken** gut und protokolliert revisionssicher in `CustomerGamificationLog` (`lava_parkour_chest`).
+
+### 1.5 Leise Dashboard-Hintergrundmusik, Matte Game-Sounds & Einstellungsmenü (`⚙️`)
+* **Hintergrundmusik (`seelenfunke-lobby-audio.js`):** 1:1 gekoppelt an `window.SfFunkiBgm` aus dem Kunden-Dashboard (`bgm_funki_game.mp3`, identische leise Skalierung, Cross-Tab-Sync, Server-Persistenz `/customer/gamification/audio-settings`, striktes User-Opt-in ohne ungefragtes Autoplay).
+* **Matte Action- & Umgebungs-SFX:** Verbindet die vorhandenen Studio-Sounds (`shield_active.mp3`, `teleport_active.mp3`) mit warmen, tiefpassgefilterten WebAudio-Sounds (Matte-Gold-Klicks, 4 Kombo-Stufen inkl. Sub-Bass-Explosion, Sprint, Hochsprung, Schritte, Crumble-Warnung, Lava-Dampf, Vulkan-Raumklang & G-Dur-Celesta-Truhenfanfare).
+* **Clean-Design Light-Mode Einstellungsmenü (`⚙️`):** In `/shop` und im Kundenportal integriert (Regler für `Hintergrundmusik` & `Soundeffekte`, ausklappbare freie `Tastenbelegung` hinter `Ändern` inkl. `Standard`-Reset, `0` Subtexte, `0` KI-Gedankenstriche).
 
 ---
 
-## 3. Test- & Verifikationsergebnis
+## 2. Automatisierte Verifikation
 
-Die automatisierte Test-Suite [`Louvre3DShowroomTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Shop/Louvre3DShowroomTest.php) wurde um die neuen Bausteine erweitert:
-* `shop page renders floating space card cache buster and zero inline 3d bloat`: Prüfung auf Fähigkeiten-Dock, Chat-Toggle, Slash-Befehle und Freunde-Logik.
-* `louvre 3d engine js contains 60fps optimizations articulated rig and spatial projection`: Prüfung auf `buildHallOfHeroesMarbleMaps`, `triggerAbility`, `triggerEmote`, `getAbilityState`, `_spawnAbilityBurst` und `shieldMesh`.
-
-**Testergebnis:** 6 von 6 Tests mit insgesamt 162 Assertions erfolgreich bestanden (`100 % grün`).
+* **`LavaParkourAntiCheatTest.php`:** Alle 10 Security- & Integrations-Tests (ehrlicher Lauf `+5` Funken, Tageslimit `409` + Folgetag-Freigabe, Direkt-Claim-Block, Checkpoint-Skip-Block, Speedhack-Block, Koordinaten-Prüfung, Replay-Block, Betrags-Manipulation, Gast-Schutz & Solo-/Multiplayer-Zonen) zu **100 % grün**.
+* **`Louvre3DShowroomTest.php` & `FunkenwerkHallOfHeroesAndProductFocusTest.php`:** Vollständig **100 % grün** (inkl. 60-FPS-Guards, Exoskelett-/SkinnedMesh-Prüfung, 4er-Kombo, Audio-Kopplung, Einstellungsmenü & 0 KI-Gedankenstriche).
