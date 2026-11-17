@@ -147,6 +147,19 @@
          wire:key="laser-cockpit-{{ $previewItem->id }}-{{ $cockpitData['side'] }}"
          class="bg-white dark:bg-gray-900/90 rounded-[1.5rem] sm:rounded-[2rem] border border-gray-200 dark:border-gray-800 shrink-0 relative">
 
+        <style>
+            @keyframes sfLaserBtnSpin {
+                to { transform: rotate(360deg); }
+            }
+            .sf-laser-btn-spin {
+                animation: sfLaserBtnSpin 0.75s linear infinite;
+            }
+            .sf-laser-action-btn:disabled {
+                opacity: 0.75;
+                cursor: wait;
+            }
+        </style>
+
         <div x-cloak
              x-show="showLaserDetails || {{ $cockpitData['has_back'] ? 'true' : 'false' }}"
              @if(!$cockpitData['has_back']) style="display: none;" @endif
@@ -188,9 +201,19 @@
                     <button type="button"
                             wire:click="triggerLaserFraming('{{ $previewItem->id }}', '{{ $cockpitData['side'] }}')"
                             wire:loading.attr="disabled"
+                            wire:target="triggerLaserFraming"
                             title="Blauen Laser-Rahmen zur Kontrolle auf dem Rohling projizieren"
-                            class="px-2.5 py-1 rounded-lg bg-white dark:bg-gray-900 hover:border-[var(--theme-color)] text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer">
-                        Rahmen-Vorschau
+                            class="sf-laser-action-btn inline-flex items-center justify-center gap-1.5 px-2.5 py-1 rounded-lg bg-white dark:bg-gray-900 hover:border-[var(--theme-color)] text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer disabled:opacity-70 disabled:cursor-wait">
+                        <span wire:loading.remove wire:target="triggerLaserFraming">Rahmen-Vorschau</span>
+                        <span wire:loading wire:target="triggerLaserFraming">
+                            <span class="inline-flex items-center gap-1.5">
+                                <svg class="w-3 h-3 shrink-0 sf-laser-btn-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                    <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2.75" opacity="0.25"></circle>
+                                    <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="2.75" stroke-linecap="round"></path>
+                                </svg>
+                                <span>Rahmen-Vorschau</span>
+                            </span>
+                        </span>
                     </button>
                     <button type="button"
                             wire:click.prevent="downloadLaserXcsFile('{{ $previewItem->id }}', '{{ $cockpitData['side'] }}')"
@@ -252,6 +275,35 @@
                         </span>
                     </div>
                 @endif
+
+                {{-- Aktives Status-Badge während Kamera/KI-Ausrichtung oder Übertragung an xTool --}}
+                <div wire:loading
+                     wire:target="refreshLaserCameraAndAlign"
+                     class="absolute bottom-2.5 left-0 w-full px-2.5 z-30 pointer-events-none">
+                    <div class="flex justify-center">
+                        <span class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gray-950/90 border border-[var(--theme-color)] text-white shadow-lg text-[10px] font-black uppercase tracking-wider">
+                            <svg class="w-3.5 h-3.5 shrink-0 text-[var(--theme-color)] sf-laser-btn-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2.75" opacity="0.25"></circle>
+                                <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="2.75" stroke-linecap="round"></path>
+                            </svg>
+                            <span>Kamera &amp; KI-Ausrichtung...</span>
+                        </span>
+                    </div>
+                </div>
+
+                <div wire:loading
+                     wire:target="sendJobDirectlyToLaser"
+                     class="absolute bottom-2.5 left-0 w-full px-2.5 z-30 pointer-events-none">
+                    <div class="flex justify-center">
+                        <span class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gray-950/90 border border-[var(--theme-color)] text-white shadow-lg text-[10px] font-black uppercase tracking-wider">
+                            <svg class="w-3.5 h-3.5 shrink-0 text-[var(--theme-color)] sf-laser-btn-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2.75" opacity="0.25"></circle>
+                                <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="2.75" stroke-linecap="round"></path>
+                            </svg>
+                            <span>Übertrage an xTool...</span>
+                        </span>
+                    </div>
+                </div>
 
                 {{-- Bündige 1:1 Gravurflächen-Kontur (#00bcd4) + WYSIWYG-Motiv + Drehgriff + 4 Resize-Handles --}}
                 <div class="absolute z-10 pointer-events-none"
@@ -366,28 +418,52 @@
                 <button type="button"
                         wire:click="refreshLaserCameraAndAlign"
                         wire:loading.attr="disabled"
-                        class="flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl border text-[10px] sm:text-[11px] font-black uppercase tracking-widest transition-all cursor-pointer {{ $wfStep === 1
+                        wire:target="refreshLaserCameraAndAlign,sendJobDirectlyToLaser"
+                        class="sf-laser-action-btn flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl border text-[10px] sm:text-[11px] font-black uppercase tracking-widest transition-all cursor-pointer disabled:opacity-70 disabled:cursor-wait {{ $wfStep === 1
                             ? 'bg-[var(--theme-color)] text-gray-950 border-[var(--theme-color)] shadow-sm'
                             : 'bg-white dark:bg-gray-900 hover:border-[var(--theme-color)] text-gray-800 dark:text-gray-200 border-gray-200 dark:border-gray-800' }}">
-                    <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 {{ $wfStep > 1 ? 'bg-[var(--theme-color)] text-gray-950' : ($wfStep === 1 ? 'bg-gray-950 text-[var(--theme-color)]' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300') }}">
-                        {{ $wfStep > 1 ? '✓' : '1' }}
+                    <span wire:loading.remove wire:target="refreshLaserCameraAndAlign" class="inline-flex items-center justify-center gap-2">
+                        <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 {{ $wfStep > 1 ? 'bg-[var(--theme-color)] text-gray-950' : ($wfStep === 1 ? 'bg-gray-950 text-[var(--theme-color)]' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300') }}">
+                            {{ $wfStep > 1 ? '✓' : '1' }}
+                        </span>
+                        <span>Kamera &amp; KI-Ausrichten</span>
                     </span>
-                    <span>Kamera &amp; KI-Ausrichten</span>
+                    <span wire:loading wire:target="refreshLaserCameraAndAlign">
+                        <span class="inline-flex items-center gap-2">
+                            <svg class="w-5 h-5 shrink-0 sf-laser-btn-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2.75" opacity="0.25"></circle>
+                                <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="2.75" stroke-linecap="round"></path>
+                            </svg>
+                            <span>Richte aus...</span>
+                        </span>
+                    </span>
                 </button>
 
                 {{-- SCHRITT 2 --}}
                 <button type="button"
                         wire:click="sendJobDirectlyToLaser('{{ $previewItem->id }}', '{{ $cockpitData['side'] }}')"
                         wire:loading.attr="disabled"
-                        class="flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl border text-[10px] sm:text-[11px] font-black uppercase tracking-widest transition-all cursor-pointer {{ $wfStep === 2
+                        wire:target="refreshLaserCameraAndAlign,sendJobDirectlyToLaser"
+                        class="sf-laser-action-btn flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl border text-[10px] sm:text-[11px] font-black uppercase tracking-widest transition-all cursor-pointer disabled:opacity-70 disabled:cursor-wait {{ $wfStep === 2
                             ? 'bg-[var(--theme-color)] text-gray-950 border-[var(--theme-color)] shadow-sm'
                             : ($wfStep >= 3
                                 ? 'bg-[var(--theme-color-15)] text-[var(--theme-color)] border-[var(--theme-color-40)]'
                                 : 'bg-white dark:bg-gray-900 hover:border-[var(--theme-color)] text-gray-800 dark:text-gray-200 border-gray-200 dark:border-gray-800') }}">
-                    <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 {{ $wfStep >= 3 ? 'bg-[var(--theme-color)] text-gray-950' : ($wfStep === 2 ? 'bg-gray-950 text-[var(--theme-color)]' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300') }}">
-                        {{ $wfStep >= 3 ? '✓' : '2' }}
+                    <span wire:loading.remove wire:target="sendJobDirectlyToLaser" class="inline-flex items-center justify-center gap-2">
+                        <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 {{ $wfStep >= 3 ? 'bg-[var(--theme-color)] text-gray-950' : ($wfStep === 2 ? 'bg-gray-950 text-[var(--theme-color)]' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300') }}">
+                            {{ $wfStep >= 3 ? '✓' : '2' }}
+                        </span>
+                        <span>An Laser senden</span>
                     </span>
-                    <span>An Laser senden</span>
+                    <span wire:loading wire:target="sendJobDirectlyToLaser">
+                        <span class="inline-flex items-center gap-2">
+                            <svg class="w-5 h-5 shrink-0 sf-laser-btn-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2.75" opacity="0.25"></circle>
+                                <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="2.75" stroke-linecap="round"></path>
+                            </svg>
+                            <span>Sende an Laser...</span>
+                        </span>
+                    </span>
                 </button>
             </div>
         </div>

@@ -376,7 +376,6 @@ class ManagementTaskSeeder extends Seeder
                     'color' => '#805AD5',
                 ],
                 'taks' => [
-                    ['title' => 'testdata Ordner in Storage ziehen', 'priority' => 'hoch'],
                     ['title' => 'blog Ordner in Storage ziehen', 'priority' => 'hoch'],
                     ['title' => 'env Datei anpassen', 'priority' => 'hoch'],
                     ['title' => 'Web Socket Einrichten (Env Files beachten Pusher Variablen, REVERB und BROADCAST_CONNECTION)', 'priority' => 'hoch'],

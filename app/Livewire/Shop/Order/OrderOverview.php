@@ -1427,7 +1427,7 @@ class OrderOverview extends Component
             $this->notifyOrderFeedback(
                 'warning',
                 'Kein Druck möglich (Digitalprodukt)',
-                "Bestellung #{$order->order_number} enthält ausschließlich digitale Produkte – es ist kein physisches Versandlabel erforderlich."
+                "Bestellung #{$order->order_number} enthält ausschließlich digitale Produkte, es ist kein physisches Versandlabel erforderlich."
             );
             return;
         }
