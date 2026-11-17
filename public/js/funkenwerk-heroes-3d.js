@@ -5,7 +5,7 @@
         return;
     }
 
-    var MODULE_URL = '/js/seelenfunke-louvre-showroom-3d.js?v=20261117v2';
+    var MODULE_URL = '/js/seelenfunke-louvre-showroom-3d.js?v=20261117v4';
 
     var KEYBIND_ACTIONS = [
         { key: 'jump', label: 'Sprung' },
@@ -27,9 +27,7 @@
         '.sf-lobby-modal.is-closed { display: none !important; }',
         '.sf-lobby-topbar { position: absolute; top: 0; left: 0; right: 0; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; pointer-events: none; z-index: 30; box-sizing: border-box; }',
         '.sf-lobby-nav-pill { pointer-events: auto; background: rgba(255,255,255,0.94); border: 1px solid rgba(197,160,89,0.42); border-radius: 999px; padding: 5px; box-shadow: 0 8px 24px rgba(17,24,39,0.08); display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; max-width: 100%; box-sizing: border-box; }',
-        '.sf-lobby-zone-btn { appearance: none; border: none; border-radius: 999px; padding: 7px 14px; font-size: 12px; font-weight: 800; line-height: 1.2; background: transparent; color: #111827; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; transition: background-color 150ms ease, color 150ms ease; }',
-        '.sf-lobby-zone-btn:hover { background: rgba(197,160,89,0.14); }',
-        '.sf-lobby-zone-btn.is-active { background: #C5A059 !important; color: #FFFFFF !important; }',
+        '.sf-lobby-zone-badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 999px; background: #FAF8F5; color: #111827; border: 1px solid rgba(197,160,89,0.38); font-size: 12px; font-weight: 800; line-height: 1.2; letter-spacing: 0.01em; white-space: nowrap; pointer-events: none; cursor: default; }',
         '.sf-lobby-stages-btn { appearance: none; border: 1px solid rgba(197,160,89,0.55); border-radius: 999px; padding: 6px 12px; font-size: 11px; font-weight: 800; line-height: 1.2; background: #FAF8F5; color: #111827; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }',
         '.sf-lobby-actions { pointer-events: auto; display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }',
         '.sf-lobby-pill-btn { appearance: none; background: rgba(255,255,255,0.94); color: #111827; border: 1px solid rgba(197,160,89,0.48); border-radius: 999px; padding: 7px 13px; font-size: 12px; font-weight: 800; line-height: 1.2; box-shadow: 0 8px 24px rgba(17,24,39,0.08); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }',
@@ -84,7 +82,7 @@
         '.sf-lobby-keybind-item:hover { border-color: #C5A059; }',
         '.sf-lobby-keybind-item.is-listening { border-color: #C5A059; background: #FAF3E3; }',
         '.sf-lobby-keybind-pill { padding: 2px 7px; border-radius: 6px; background: #FAF8F5; border: 1px solid rgba(197,160,89,0.48); font-size: 10px; font-weight: 800; color: #9A7738; white-space: nowrap; }',
-        '.sf-lobby-stick-wrap { position: absolute; bottom: 22px; left: 20px; z-index: 22; }',
+        '.sf-lobby-stick-wrap { display: none; position: absolute; bottom: 72px; left: 12px; z-index: 22; }',
         '.sf-lobby-stick { width: 84px; height: 84px; border-radius: 999px; background: rgba(255,255,255,0.88); border: 1px solid rgba(197,160,89,0.52); box-shadow: 0 10px 26px rgba(17,24,39,0.12); display: flex; align-items: center; justify-content: center; position: relative; touch-action: none; cursor: pointer; }',
         '.sf-lobby-stick-knob { width: 34px; height: 34px; border-radius: 999px; background: #C5A059; border: 2px solid #FFFFFF; box-shadow: 0 4px 12px rgba(17,24,39,0.18); pointer-events: none; }',
         '.sf-lobby-quick-actions { position: absolute; bottom: 22px; right: 20px; z-index: 22; display: flex; align-items: center; gap: 8px; }',
@@ -95,7 +93,9 @@
         '.sf-lobby-step-btn.is-active { background: #C5A059; color: #FFFFFF; border-color: #C5A059; }',
         '.sf-lobby-exhibit-btn { appearance: none; padding: 6px 14px; border-radius: 999px; border: 1px solid rgba(197,160,89,0.35); background: #FFFFFF; color: #111827; font-size: 11px; font-weight: 800; cursor: pointer; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }',
         '.sf-lobby-hint-pill { pointer-events: none; padding: 5px 14px; border-radius: 999px; background: rgba(255,255,255,0.90); border: 1px solid rgba(197,160,89,0.38); color: #374151; font-size: 11px; font-weight: 700; box-shadow: 0 6px 18px rgba(17,24,39,0.08); white-space: nowrap; }',
-        '@media (max-width: 767px) { .sf-lobby-topbar { padding: 10px 12px; gap: 8px; } .sf-lobby-zone-btn { padding: 6px 10px; font-size: 11px; } .sf-lobby-pill-btn, .sf-lobby-close-btn { padding: 6px 10px; font-size: 11px; } .sf-lobby-kbd, .sf-lobby-hint-pill { display: none !important; } .sf-lobby-stick-wrap { bottom: 72px; left: 12px; } .sf-lobby-stick { width: 74px; height: 74px; } .sf-lobby-quick-actions { bottom: 72px; right: 12px; } .sf-lobby-abilities-dock { bottom: 126px; gap: 6px; } .sf-ability-btn { width: 40px; height: 40px; border-radius: 10px; } .sf-lobby-exhibit-btn { max-width: 175px; } .sf-lobby-keybind-grid { grid-template-columns: 1fr; } }'
+        '@media (max-width: 900px), (pointer: coarse) { .sf-lobby-stick-wrap { display: block; bottom: 72px; left: 12px; } .sf-lobby-stick { width: 72px; height: 72px; } .sf-lobby-quick-actions { bottom: 72px; right: 12px; gap: 6px; } .sf-lobby-abilities-dock { bottom: 88px; left: 94px; right: auto; transform: none; display: flex; align-items: center; gap: 6px; } .sf-ability-btn { width: 40px; height: 40px; border-radius: 10px; } .sf-ability-key { display: none; } }',
+        '@media (max-width: 767px) { .sf-lobby-topbar { padding: 10px 12px; gap: 8px; } .sf-lobby-zone-badge { padding: 5px 10px; font-size: 11px; } .sf-lobby-pill-btn, .sf-lobby-close-btn { padding: 6px 10px; font-size: 11px; } .sf-lobby-kbd, .sf-lobby-hint-pill { display: none !important; } .sf-lobby-exhibit-btn { max-width: 175px; } .sf-lobby-keybind-grid { grid-template-columns: 1fr; } }',
+        '@media (max-width: 559px) { .sf-lobby-abilities-dock { bottom: 71px; left: 92px; right: auto; transform: none; display: grid; grid-template-columns: repeat(2, 36px); gap: 5px; } .sf-ability-btn { width: 36px; height: 36px; border-radius: 10px; } .sf-ability-icon { font-size: 14px; } .sf-lobby-icon-btn { height: 40px; min-width: 40px; padding: 0 10px; font-size: 13px; } }'
     ].join('\n');
 
     var FALLBACK_LOBBY_PRODUCTS = [
@@ -156,7 +156,7 @@
             styleTag.id = 'sf-3d-lobby-scoped-css';
             styleTag.textContent = STANDALONE_SCOPED_CSS;
             (document.head || document.documentElement).appendChild(styleTag);
-        } else if (existing.textContent && existing.textContent.indexOf('.sf-lobby-settings-card') === -1) {
+        } else if (existing.textContent && existing.textContent.indexOf('.sf-lobby-zone-badge') === -1) {
             existing.textContent += '\n' + STANDALONE_SCOPED_CSS;
         }
     }
@@ -260,8 +260,8 @@
             moveRight: 'KeyD'
         };
         this.audioState = {
-            bgmVolume: 30,
-            bgmMuted: true,
+            bgmVolume: 50,
+            bgmMuted: false,
             sfxVolume: 50,
             sfxMuted: false,
             allMuted: false
@@ -413,10 +413,7 @@
         root.innerHTML = [
             '<div class="sf-lobby-topbar">',
             '  <div class="sf-lobby-nav-pill">',
-            '    <button type="button" data-lobby-zone="gallery" data-testid="lobby-zone-gallery-btn" class="sf-lobby-zone-btn is-active">🛍️ Kollektion</button>',
-            '    <button type="button" data-lobby-zone="heroes" data-testid="lobby-zone-heroes-btn" class="sf-lobby-zone-btn"><span data-lobby-guest-lock style="display:none;">🔒</span><span>🏛️ Halle der Helden</span></button>',
-            '    <button type="button" data-lobby-zone="lava" data-testid="lobby-zone-lava-btn" class="sf-lobby-zone-btn">🌋 Magma-Kammer</button>',
-            '    <button type="button" data-lobby-zone="labyrinth" data-testid="lobby-zone-labyrinth-btn" class="sf-lobby-zone-btn">🌀 Labyrinth</button>',
+            '    <span data-lobby-current-zone-badge data-testid="lobby-current-zone-badge" class="sf-lobby-zone-badge">🛍️ Kollektion</span>',
             '    <button type="button" data-lobby-stages-btn data-testid="lobby-stages-preview-btn" class="sf-lobby-stages-btn" style="display:none;">✨ Stufen</button>',
             '  </div>',
             '  <div class="sf-lobby-actions">',
@@ -559,12 +556,9 @@
             '    </div>',
             '    <div data-lobby-bottom-lava class="sf-lobby-bottom-pill" style="display:none;">',
             '      <span style="padding:4px 10px;font-size:11px;font-weight:800;color:#9A7738;">🌋 Magma-Kammer · +5 ✨ Täglich</span>',
-            '      <button type="button" data-lava-back-gallery class="sf-lobby-step-btn">Zur Galerie</button>',
             '    </div>',
             '    <div data-lobby-bottom-labyrinth class="sf-lobby-bottom-pill" style="display:none;">',
             '      <span style="padding:4px 10px;font-size:11px;font-weight:800;color:#9A7738;">🌀 Mini-Labyrinth · 3 ✨ Täglich</span>',
-            '      <button type="button" data-labyrinth-to-heroes class="sf-lobby-step-btn is-active">🏛️ Heldenhalle</button>',
-            '      <button type="button" data-labyrinth-back-gallery class="sf-lobby-step-btn">Zur Galerie</button>',
             '    </div>',
             '    <div class="sf-lobby-hint-pill">WASD / Pfeiltasten · Maus ziehen · Leertaste Sprung · 1 bis 4 Fähigkeiten · ⛶ Vollbild · Esc Schließen</div>',
             '  </div>',
@@ -969,12 +963,12 @@
             var facade = getFacade(self);
             if (facade && typeof facade.updateSettings === 'function') {
                 facade.updateSettings({ volume: vol });
-            } else if (self._mod && typeof this._mod !== 'undefined') {
-                // Fallback
             }
             if (self._audio) {
+                self._audio.setBgmVolume(vol, true);
+                self._audio.setBgmMuted(vol === 0, true);
                 self._audio.setSfxVolume(vol);
-                self._audio.setSfxMuted(vol <= 0);
+                self._audio.setSfxMuted(vol === 0);
                 self.audioState = self._audio.getState();
             }
             self._syncHudState();
@@ -1015,64 +1009,15 @@
             self._resetKeybindings();
         });
 
-        var zoneBtns = root.querySelectorAll('[data-lobby-zone]');
-        for (var z = 0; z < zoneBtns.length; z++) {
-            zoneBtns[z].addEventListener('click', function (ev) {
-                var targetZone = ev.currentTarget.getAttribute('data-lobby-zone');
-                if (self._audio) self._audio.playUiClick();
+        var stagesBtn = root.querySelector('[data-lobby-stages-btn]');
+        if (stagesBtn) {
+            stagesBtn.addEventListener('click', function () {
                 var facade = getFacade(self);
-                if (facade) {
-                    facade.setZone(targetZone, false);
-                    var snap = facade.getHudSnapshot();
-                    self.currentZone = snap ? snap.zone : targetZone;
-                } else {
-                    self.currentZone = targetZone;
-                }
-                self._handleZoneSyncTransition(self.currentZone);
+                if (!facade) return;
+                self.stagesMode = facade.cyclePreviewHeroLevel();
                 self._syncHudState();
             });
         }
-
-        root.querySelector('[data-lava-back-gallery]').addEventListener('click', function () {
-            var facade = getFacade(self);
-            if (facade) {
-                facade.setZone('gallery', false);
-                var snap = facade.getHudSnapshot();
-                self.currentZone = snap ? snap.zone : 'gallery';
-                self._handleZoneSyncTransition(self.currentZone);
-                self._syncHudState();
-            }
-        });
-
-        root.querySelector('[data-labyrinth-back-gallery]').addEventListener('click', function () {
-            var facade = getFacade(self);
-            if (facade) {
-                facade.setZone('gallery', false);
-                var snap = facade.getHudSnapshot();
-                self.currentZone = snap ? snap.zone : 'gallery';
-                self._handleZoneSyncTransition(self.currentZone);
-                self._syncHudState();
-            }
-        });
-
-        root.querySelector('[data-labyrinth-to-heroes]').addEventListener('click', function () {
-            var facade = getFacade(self);
-            if (facade) {
-                facade.setZone('heroes', true);
-                var snap = facade.getHudSnapshot();
-                self.currentZone = snap ? snap.zone : 'heroes';
-                self._handleZoneSyncTransition(self.currentZone);
-                self._syncHudState();
-            }
-        });
-
-        var stagesBtn = root.querySelector('[data-lobby-stages-btn]');
-        stagesBtn.addEventListener('click', function () {
-            var facade = getFacade(self);
-            if (!facade) return;
-            self.stagesMode = facade.cyclePreviewHeroLevel();
-            self._syncHudState();
-        });
 
         var instToggle = root.querySelector('[data-lobby-instance-toggle]');
         instToggle.addEventListener('click', function (ev) {
@@ -1261,17 +1206,13 @@
         if (!this.modalEl) return;
         var root = this.modalEl;
 
-        var zoneBtns = root.querySelectorAll('[data-lobby-zone]');
-        for (var i = 0; i < zoneBtns.length; i++) {
-            var zb = zoneBtns[i];
-            var isAct = zb.getAttribute('data-lobby-zone') === this.currentZone;
-            if (isAct) zb.classList.add('is-active');
-            else zb.classList.remove('is-active');
-        }
-
-        var guestLock = root.querySelector('[data-lobby-guest-lock]');
-        if (guestLock) {
-            guestLock.style.display = this.lobbyAuth ? 'none' : 'inline';
+        var zoneBadge = root.querySelector('[data-lobby-current-zone-badge]');
+        if (zoneBadge) {
+            zoneBadge.textContent = this.currentZone === 'heroes'
+                ? '🏛️ Halle der Helden'
+                : (this.currentZone === 'lava'
+                    ? '🌋 Magma-Kammer'
+                    : (this.currentZone === 'labyrinth' ? '🌀 Mini-Labyrinth' : '🛍️ Kollektion'));
         }
 
         var stagesBtn = root.querySelector('[data-lobby-stages-btn]');
@@ -1717,6 +1658,45 @@
         }
     };
 
+    SeelenfunkeUnifiedLobbyHost.prototype._startLobbyMusicFromGestureSync = function () {
+        if (this._audio && typeof this._audio.startLobbyMusicFromGesture === 'function') {
+            this.audioState = this._audio.startLobbyMusicFromGesture();
+            return;
+        }
+        if (typeof window !== 'undefined' && typeof window.getSeelenfunkeLobbyAudio === 'function') {
+            this._audio = window.getSeelenfunkeLobbyAudio({ isAuthenticated: this.lobbyAuth });
+            if (this._audio && typeof this._audio.startLobbyMusicFromGesture === 'function') {
+                this.audioState = this._audio.startLobbyMusicFromGesture();
+                return;
+            }
+        }
+        try {
+            var rawExplicit = localStorage.getItem('sf_lobby_bgm_explicit_muted');
+            var rawVol = localStorage.getItem('sf_funki_audio_volume');
+            var explicitMuted = (rawExplicit === '1' || rawExplicit === 'true') || rawVol === '0';
+            sessionStorage.setItem('sf_funki_bgm_session_enabled', '1');
+            if (!explicitMuted) {
+                localStorage.setItem('sf_funki_audio_muted', '0');
+                localStorage.setItem('sf_funki_bgm_muted', '0');
+                if (window.SfFunkiBgm) {
+                    if ((window.SfFunkiBgm.volume || 0) <= 0) {
+                        window.SfFunkiBgm.setVolume(50, false);
+                    }
+                    window.SfFunkiBgm.setMuted(false, false);
+                    window.SfFunkiBgm.onModalOpen();
+                } else if (typeof Audio !== 'undefined') {
+                    var preEl = window.__sfPrewarmLobbyBgmEl || new Audio('/shop/gamification/audio/bgm_funki_game.mp3');
+                    preEl.loop = true;
+                    preEl.preload = 'auto';
+                    preEl.volume = 0.25;
+                    window.__sfPrewarmLobbyBgmEl = preEl;
+                    var p = preEl.play();
+                    if (p && typeof p.catch === 'function') p.catch(function () {});
+                }
+            }
+        } catch (e) {}
+    };
+
     SeelenfunkeUnifiedLobbyHost.prototype.open = function (initialMode) {
         var self = this;
         var mode = String(initialMode || 'lobby').toLowerCase();
@@ -1725,6 +1705,9 @@
             : (mode === 'labyrinth'
                 ? 'labyrinth'
                 : ((mode === 'hall' || mode === 'heroes' || mode === 'my_place') ? mode : 'gallery'));
+
+        // User-Gesture-Token zu 100 % synchron im Klick-Event sichern (VOR fetch / import)!
+        this._startLobbyMusicFromGestureSync();
 
         this._ensureModalDom();
         if (!this.isOpen) {
@@ -1834,7 +1817,7 @@
                     self._audio = mod.getLobbyAudioInstance({ isAuthenticated: isAuth });
                     self._audio.setSfxVolume(self.userSettings.volume);
                     self._audio.setSfxMuted(self.userSettings.volume <= 0);
-                    self.audioState = self._audio.getState();
+                    self.audioState = self._audio.startLobbyMusicFromGesture();
                     if (self._audioUnsub) self._audioUnsub();
                     self._audioUnsub = self._audio.onChange(function (snap) {
                         self.audioState = snap;
@@ -1974,6 +1957,15 @@
         }
         this.isFullscreen = false;
 
+        if (this._audio && typeof this._audio.setLobbyActive === 'function') {
+            this._audio.setLobbyActive(false);
+        }
+        if (typeof window !== 'undefined' && window.__sfPrewarmLobbyBgmEl) {
+            try {
+                window.__sfPrewarmLobbyBgmEl.pause();
+                window.__sfPrewarmLobbyBgmEl.volume = 0;
+            } catch (e) {}
+        }
         var facade = getFacade(this);
         if (facade) {
             facade.destroy();

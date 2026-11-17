@@ -48,6 +48,17 @@ flowchart LR
 
 ---
 
-## 4. Automatisierte Verifikation
+## 4. Kamera-Immersion (First-Person-Egoperspektive), Lauf-Gameplay & Schleierfreier Übergang
 
-* [`MiniLabyrinthGagAndSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Gamification/MiniLabyrinthGagAndSecurityTest.php), [`Customer3DLobbyInstancesTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Gamification/Customer3DLobbyInstancesTest.php), [`LobbyAntiManipulationSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Security/LobbyAntiManipulationSecurityTest.php), [`LavaParkourAntiCheatTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Gamification/LavaParkourAntiCheatTest.php), [`FunkenwerkHallOfHeroesAndProductFocusTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Gamification/FunkenwerkHallOfHeroesAndProductFocusTest.php) & [`Louvre3DShowroomTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Shop/Louvre3DShowroomTest.php): **37 Tests, 1.675 Assertions, 0 Fehler (100 % Grün)**.
+1. **Stufenlose Egoperspektive (`desiredDistance = 0`, `isFirstPerson`):**
+   * Per Mausrad (`_onWheel`) und Touch-Pinch (`_onTouchMove`) zoomt die Kamera stufenlos bis auf Augenhöhe des Charakters (`eyeY = 1.56 m + walkBob`, `this.player.root.visible = false` gegen jegliches Eigen-Clipping, freier Vertikal-Pitch `-0.82 .. +0.82` rad und synchronisierter Blick-/Laufvektor). Beim ersten Rausscrollen gleitet die Kamera weich auf `1.65 m` zurück in die Third-Person-Ansicht.
+2. **Echtes Lauf-Gameplay ohne HUD-Teleport-Buttons:**
+   * In [`product-frontend-filter-area.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/product/product-frontend-filter-area.blade.php) und [`funkenwerk-heroes-3d.js`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/public/js/funkenwerk-heroes-3d.js) wurden alle Zonen-Teleport-Buttons oben links sowie in den unteren Raum-Pills entfernt und durch das rein passive Orts-Badge (`lobby-current-zone-badge`) ersetzt, sodass Besucher die Räume zu Fuß durch die 3D-Portale erkunden.
+3. **100 % schleierfreier Übergang in die `Halle der Helden`:**
+   * Das zuvor durch `Rx(+π/2) * Rz(π)` kopfüber auf `y = +0,40 m` hängende `promVaultGlass`-Gewölbe im Übergangskorridor (`z = -18 .. -28`) sowie der globale `FogExp2`-Dunst wurden restlos entfernt; `barrelGlass` und `labGlassVault` wölben sich mit klarer `0.10`-Opazität ausschließlich oberhalb der Wandkrone nach `+Y`.
+
+---
+
+## 5. Automatisierte Verifikation
+
+* [`MiniLabyrinthGagAndSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Gamification/MiniLabyrinthGagAndSecurityTest.php), [`Customer3DLobbyInstancesTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Gamification/Customer3DLobbyInstancesTest.php), [`LobbyAntiManipulationSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Security/LobbyAntiManipulationSecurityTest.php), [`LavaParkourAntiCheatTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Gamification/LavaParkourAntiCheatTest.php), [`FunkenwerkHallOfHeroesAndProductFocusTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Gamification/FunkenwerkHallOfHeroesAndProductFocusTest.php) & [`Louvre3DShowroomTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Shop/Louvre3DShowroomTest.php): **Alle Tests 100 % Grün**.

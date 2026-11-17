@@ -227,7 +227,7 @@ class LavaParkourAntiCheatTest extends TestCase
 
         $this->travel(4)->seconds();
 
-        // Versuch, direkt Stage 2 zu melden ohne Stage 1
+        // 1. Versuch, direkt Stage 2 zu melden ohne Stage 1 -> 422 (retryable auf Stage 0, kein claim_token)
         $this->actingAs($customer, 'customer')
             ->postJson('/funkenwerk-welt/lava-parkour/checkpoint', [
                 'run_id' => $runId,
@@ -237,7 +237,21 @@ class LavaParkourAntiCheatTest extends TestCase
                 'z' => -2.0,
             ])
             ->assertStatus(422)
-            ->assertJsonPath('success', false);
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('current_stage', 0);
+
+        // 2. Kryptografischer Manipulationsversuch (gefaelschtes nicht-leeres claim_token vor Stage 2) vernichtet den Lauf sofort
+        $this->actingAs($customer, 'customer')
+            ->postJson('/funkenwerk-welt/lava-parkour/claim', [
+                'run_id' => $runId,
+                'claim_token' => hash('sha256', 'forged-skip-token'),
+                'x' => 66.5,
+                'y' => 3.2,
+                'z' => -2.0,
+            ])
+            ->assertStatus(422)
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('retryable', false);
 
         // Der kompromittierte Lauf wurde im Cache geloescht -> auch Stage 1 geht mit dieser run_id nicht mehr
         $this->travel(4)->seconds();
@@ -256,11 +270,24 @@ class LavaParkourAntiCheatTest extends TestCase
     {
         $customer = $this->makeActiveCustomer(5, 0, 0, 1);
 
-        // Fall A: Teleport zu CP1 nach 1.2s (< 2.8s)
+        // Fall A: 0 ms Sofort-Teleport sowie 800 ms (< 1400 ms) zu CP1 werden mit 422 blockiert
         $startFastCp1 = $this->actingAs($customer, 'customer')
             ->postJson('/funkenwerk-welt/lava-parkour/start')
             ->assertOk();
-        $this->travel(1200)->milliseconds();
+
+        $this->actingAs($customer, 'customer')
+            ->postJson('/funkenwerk-welt/lava-parkour/checkpoint', [
+                'run_id' => $startFastCp1->json('run_id'),
+                'stage' => 1,
+                'x' => 31.5,
+                'y' => 1.0,
+                'z' => -2.0,
+            ])
+            ->assertStatus(422)
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('retryable', true);
+
+        $this->travel(800)->milliseconds();
 
         $this->actingAs($customer, 'customer')
             ->postJson('/funkenwerk-welt/lava-parkour/checkpoint', [
@@ -273,13 +300,13 @@ class LavaParkourAntiCheatTest extends TestCase
             ->assertStatus(422)
             ->assertJsonPath('success', false);
 
-        // Fall B: Segmente knapp >= Mindestsplit (2.8s + 2.8s + 2.4s = 8.0s), aber Gesamtlaufzeit < 8.5s!
+        // Fall B: Segmente exakt am Mindestsplit (1.4s + 1.6s + 1.4s = 4.4s), aber Gesamtlaufzeit < 4.8s!
         $startTotalSpeedhack = $this->actingAs($customer, 'customer')
             ->postJson('/funkenwerk-welt/lava-parkour/start')
             ->assertOk();
         $runId = (string) $startTotalSpeedhack->json('run_id');
 
-        $this->travel(2800)->milliseconds();
+        $this->travel(1400)->milliseconds();
         $this->actingAs($customer, 'customer')
             ->postJson('/funkenwerk-welt/lava-parkour/checkpoint', [
                 'run_id' => $runId,
@@ -290,7 +317,7 @@ class LavaParkourAntiCheatTest extends TestCase
             ])
             ->assertOk();
 
-        $this->travel(2800)->milliseconds();
+        $this->travel(1600)->milliseconds();
         $cp2 = $this->actingAs($customer, 'customer')
             ->postJson('/funkenwerk-welt/lava-parkour/checkpoint', [
                 'run_id' => $runId,
@@ -301,17 +328,19 @@ class LavaParkourAntiCheatTest extends TestCase
             ])
             ->assertOk();
 
-        $this->travel(2400)->milliseconds(); // Summe = 8000ms (< 8500ms!)
+        $this->travel(1400)->milliseconds(); // Summe = 4400ms (< 4800ms!)
         $this->actingAs($customer, 'customer')
             ->postJson('/funkenwerk-welt/lava-parkour/claim', [
                 'run_id' => $runId,
                 'claim_token' => $cp2->json('claim_token'),
                 'x' => 66.5,
-                'y' => 2.8,
+                'y' => 3.2,
                 'z' => -2.0,
             ])
             ->assertStatus(422)
-            ->assertJsonPath('success', false);
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('retryable', true)
+            ->assertJsonPath('wait_ms', 400);
 
         $this->assertSame(0, (int) CustomerGamification::where('customer_id', $customer->id)->value('funken_balance'));
     }
@@ -543,7 +572,8 @@ class LavaParkourAntiCheatTest extends TestCase
             ->assertJsonPath('lava_parkour.daily_reward', 5)
             ->assertJsonPath('lava_parkour.is_authenticated', false)
             ->assertJsonPath('lava_parkour.claimed_today', false)
-            ->assertJsonPath('lava_parkour.chest_pos.x', 66.5);
+            ->assertJsonPath('lava_parkour.chest_pos.x', 66.5)
+            ->assertJsonPath('lava_parkour.chest_pos.y', 3.2);
 
         $levelModels = $guestShowroom->json('player_funki.level_models');
         $this->assertIsArray($levelModels);
@@ -607,6 +637,163 @@ class LavaParkourAntiCheatTest extends TestCase
         $this->assertSame(3, $peers[0]['combo_stage']);
     }
 
+    public function test_forty_rapid_lobby_sync_requests_do_not_throttle_lava_parkour_claim_with_429(): void
+    {
+        $runner = $this->makeActiveCustomer(12, 10, 100, 1);
+
+        $start = $this->actingAs($runner, 'customer')
+            ->postJson('/funkenwerk-welt/lava-parkour/start')
+            ->assertOk();
+        $runId = (string) $start->json('run_id');
+
+        // 40 schnelle /lobby/sync Requests (isolierter Throttle-Bucket 'lobby_sync')
+        for ($i = 0; $i < 40; $i++) {
+            $syncResp = $this->actingAs($runner, 'customer')
+                ->postJson('/funkenwerk-welt/lobby/sync', [
+                    'x' => 20.0 + ($i * 0.5),
+                    'y' => 1.5,
+                    'z' => -2.0,
+                    'zone' => 'lava',
+                ]);
+            $syncResp->assertOk();
+        }
+
+        $this->travel(1600)->milliseconds();
+        $this->actingAs($runner, 'customer')
+            ->postJson('/funkenwerk-welt/lava-parkour/checkpoint', [
+                'run_id' => $runId,
+                'stage' => 1,
+                'x' => 31.5,
+                'y' => 1.8,
+                'z' => -2.0,
+            ])
+            ->assertOk();
+
+        $this->travel(1800)->milliseconds();
+        $cp2 = $this->actingAs($runner, 'customer')
+            ->postJson('/funkenwerk-welt/lava-parkour/checkpoint', [
+                'run_id' => $runId,
+                'stage' => 2,
+                'x' => 51.0,
+                'y' => 2.5,
+                'z' => -2.0,
+            ])
+            ->assertOk();
+
+        $this->travel(1600)->milliseconds();
+        $claimResp = $this->actingAs($runner, 'customer')
+            ->postJson('/funkenwerk-welt/lava-parkour/claim', [
+                'run_id' => $runId,
+                'claim_token' => $cp2->json('claim_token'),
+                'x' => 66.5,
+                'y' => 3.2,
+                'z' => -2.0,
+            ]);
+
+        $this->assertNotSame(429, $claimResp->getStatusCode(), 'Lava-Parkour Claim darf durch Lobby-Sync niemals mit HTTP 429 blockiert werden.');
+        $claimResp->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('rewarded_sparks', 5)
+            ->assertJsonPath('new_balance', 15);
+    }
+
+    public function test_premature_chest_click_or_in_flight_token_does_not_destroy_run_and_succeeds_after_wait(): void
+    {
+        $runner = $this->makeActiveCustomer(13, 5, 50, 1);
+
+        $start = $this->actingAs($runner, 'customer')
+            ->postJson('/funkenwerk-welt/lava-parkour/start')
+            ->assertOk();
+        $runId = (string) $start->json('run_id');
+
+        $this->travel(1600)->milliseconds();
+        $this->actingAs($runner, 'customer')
+            ->postJson('/funkenwerk-welt/lava-parkour/checkpoint', [
+                'run_id' => $runId,
+                'stage' => 1,
+                'x' => 31.5,
+                'y' => 2.0,
+                'z' => -2.0,
+            ])
+            ->assertOk();
+
+        $this->travel(1800)->milliseconds(); // Summe = 3400ms
+        $cp2 = $this->actingAs($runner, 'customer')
+            ->postJson('/funkenwerk-welt/lava-parkour/checkpoint', [
+                'run_id' => $runId,
+                'stage' => 2,
+                'x' => 51.0,
+                'y' => 2.6,
+                'z' => -2.0,
+            ])
+            ->assertOk();
+        $claimToken = (string) $cp2->json('claim_token');
+
+        // 1. Verfruehter Klick mit noch leerem/null claim_token (CP2-Response im Browser noch unterwegs) -> 422 retryable, Lauf bleibt erhalten!
+        $inFlightResp = $this->actingAs($runner, 'customer')
+            ->postJson('/funkenwerk-welt/lava-parkour/claim', [
+                'run_id' => $runId,
+                'claim_token' => null,
+                'x' => 66.5,
+                'y' => 3.2,
+                'z' => -2.0,
+            ]);
+        $inFlightResp->assertStatus(422)
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('retryable', true)
+            ->assertJsonPath('current_stage', 2);
+
+        // 2. Verfruehter Klick vor Ablauf von MIN_CLAIM_AFTER_CP2_MS (900ms < 1400ms, Gesamt 4300ms < 4800ms) -> 422 retryable, wait_ms = 500
+        $this->travel(900)->milliseconds();
+        $earlyResp = $this->actingAs($runner, 'customer')
+            ->postJson('/funkenwerk-welt/lava-parkour/claim', [
+                'run_id' => $runId,
+                'claim_token' => $claimToken,
+                'x' => 66.5,
+                'y' => 3.2,
+                'z' => -2.0,
+            ]);
+        $earlyResp->assertStatus(422)
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('retryable', true)
+            ->assertJsonPath('wait_ms', 500)
+            ->assertJsonPath('current_stage', 2);
+
+        // 3. Leichte Positionsabweichung vor der Truhe (dist = 5.8 > 5.2) loescht den Lauf ebenfalls nicht
+        $this->travel(550)->milliseconds(); // Jetzt 1450ms seit CP2 (>= 1400ms), Gesamt 4850ms (>= 4800ms)
+        $slightlyTooFarResp = $this->actingAs($runner, 'customer')
+            ->postJson('/funkenwerk-welt/lava-parkour/claim', [
+                'run_id' => $runId,
+                'claim_token' => $claimToken,
+                'x' => 60.7,
+                'y' => 3.2,
+                'z' => -2.0,
+            ]);
+        $slightlyTooFarResp->assertStatus(422)
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('retryable', true)
+            ->assertJsonPath('current_stage', 2);
+
+        $this->assertSame(5, (int) CustomerGamification::where('customer_id', $runner->id)->value('funken_balance'));
+
+        // 4. Direkter Folge-Klick nach der Wartezeit auf der Schatzinsel (y = 3.2) schreibt erfolgreich +5 Funken gut!
+        $validClaimResp = $this->actingAs($runner, 'customer')
+            ->postJson('/funkenwerk-welt/lava-parkour/claim', [
+                'run_id' => $runId,
+                'claim_token' => $claimToken,
+                'x' => 66.5,
+                'y' => 3.2,
+                'z' => -2.0,
+            ]);
+        $validClaimResp->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('rewarded_sparks', 5)
+            ->assertJsonPath('new_balance', 10)
+            ->assertJsonPath('claimed_today', true);
+
+        $this->assertSame(10, (int) CustomerGamification::where('customer_id', $runner->id)->value('funken_balance'));
+    }
+
     private function performValidRunAndClaim(Customer $customer): \Illuminate\Testing\TestResponse
     {
         $start = $this->actingAs($customer, 'customer')
@@ -643,7 +830,7 @@ class LavaParkourAntiCheatTest extends TestCase
                 'run_id' => $runId,
                 'claim_token' => $cp2->json('claim_token'),
                 'x' => 66.5,
-                'y' => 2.8,
+                'y' => 3.2,
                 'z' => -2.0,
             ]);
     }

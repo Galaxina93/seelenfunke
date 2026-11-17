@@ -1,8 +1,8 @@
 # Architektur & Umsetzung: Begehbare Multi-Instanz 3D-User-Lobby mit Produkt-Eingang & Goldener „Halle der Helden“
 
-**Datum:** 16.11.2026  
-**Status:** ✅ 100 % Grün umgesetzt & live auf Stage (`stage.mein-seelenfunke.de`) + Mini-PC (`192.168.188.151`) ausgerollt (`25/25` Portal-Tests + `49/49` Mini-PC-Selbsttests Grün)  
-**Systeme:** Kundenportal (`/mein-konto` & `/shop`), `seelenfunke-louvre-showroom-3d.js`, `LobbyInstanceService`, `FunkenwerkHeroesController` & `FunkenwerkOS.Linux` (`192.168.188.151`)  
+**Datum:** 17.11.2026  
+**Status:** ✅ 100 % Grün umgesetzt & live auf Stage (`stage.mein-seelenfunke.de`), Digital (`digital.mein-seelenfunke.de`) + Mini-PC (`192.168.188.151`) ausgerollt (`39/39` Portal-Tests mit `1.787` Assertions Grün)  
+**Systeme:** Kundenportal (`/mein-konto` & `/shop`), `seelenfunke-louvre-showroom-3d.js`, `seelenfunke-lobby-audio.js`, `funkenwerk-heroes-3d.js`, `LobbyInstanceService`, `LavaParkourService` & `FunkenwerkOS.Linux` (`192.168.188.151`)  
 **Verfasser:** Falcone (Technischer Mitgründer & Chef-Architekt)
 
 ---
@@ -60,3 +60,21 @@ flowchart TD
 3. **Manueller Instanzen-Wechsel im Heldenhallen-HUD (`🌐 Instanz #1 · X/20 ▾`):**
    * Eingeloggte User sehen in der `Halle der Helden` oben im HUD ihre aktuelle Instanz inkl. Spielerzahl, alle aktiven Parallel-Instanzen (immer inkl. mindestens einer freien ruhigen Instanz wie `Instanz #2 · 0/20`) sowie ein Direktwahl-Feld (`Instanz #1..50`), um sich gezielt mit Bekannten zu verabreden.
    * Alle Mitspieler derselben Heldenhallen-Instanz werden live mit unserem **voll artikulierten 3D-Gelenk-Rig** (echte Arm-, Hand-, Knie- und Fuß-Animationen), Zero-Client-Trust-Anti-Cheat und striktem **DSGVO-Zero-PII-Schutz** dargestellt.
+
+---
+
+## 4. Qualitäts- & Gameplay-Upgrade vom 17.11.2026 (6-Punkte-Feinschliff)
+
+1. **Sofortiger Lobby-Musikstart per Klick-Geste (`seelenfunke-lobby-audio.js`):**
+   * Die alte `SS_BGM_SESSION`-Stummsperre wurde abgelöst: Der Klick auf *„3D-Lobby öffnen“* bzw. *„3D Shoppen“* startet `bgm_funki_game.mp3` (Default-Lautstärke `50 %`) direkt synchron innerhalb des Klick-Events, sofern der Nutzer die Musik nicht aktiv in den Einstellungen stummgeschaltet hat (`sf_lobby_bgm_explicit_muted`). Beim Schließen pausiert der Stream sofort.
+2. **Aufrechtes 15-Bone-Exoskelett für alle Stufen 1 bis 10 (`0` sitzende Figuren):**
+   * Stufe 1 (`Ursprung`) steht ab sofort in der gesamten 3D-Lobby sowie auf den Top-5-Ehrenpodesten aufrecht im ehrlichen Naturleinen-/Antikbronze-Exoskelett (`exoBronzeUrsprung`) statt in sitzender Pose. Die Gelenk-Pivots des 15-Bone-`SkinnedMesh` (`targetH = 1.62`) sind 1:1 mit dem 3D-Exoskelett (`legSync = 0.84, armSync = 0.84`) gekoppelt, inklusive artikulierter Exoskelett-Heldenpodeste mit Fersen-Schubdüsen ab Stufe 7.
+3. **Massiver Marmorboden in der Halle der Helden (`0 mm` Einsinken):**
+   * Der Hallenboden wurde als massive `BoxGeometry(46.8, 0.28, 48.8)` ohne negatives `polygonOffset` ausgeführt, die äußere Stylobat-Zierleiste unter das Bodenniveau gesetzt (`trimY = -0.08`) und `_computeFloorBaseY(x, z)` samt `_computeAvatarMinSoleY(j)` für Spieler und Mitspieler über die volle `46,8 m`-Rotunde auf `0.026 m` synchronisiert.
+4. **3,20 m hohe Kalkstein-Trennwände im West-Mini-Labyrinth:**
+   * Die Trennwände wurden von `1,62 m` auf `3,20 m` (Pariser Kalkstein-Kassettenwand mit 24K-Gold-Sockel und Gesims in 1 `InstancedMesh`-Draw-Call) erhöht und in der 2-Pass-Kollision sprunghöhenunabhängig gegen Überspringen abgedichtet; das Glas-Tonnengewölbe überspannt den Saal symmetrisch.
+5. **100 % geschlossene Magma-Kammer ohne Wandflackern, Himmelslücken oder schwebende Säulen:**
+   * Tonnengewölbe (`thetaStart = 0, thetaLength = Math.PI`), Dachkappe und Giebelwände (`Y = -3.2..22.5`) schließen die Kammer komplett himmelsdicht ab. Alle Wand-, Pilaster- und Goldlisenen-Ebenen sind ohne Z-Fighting getrennt und samt Basaltsäulen tief im Magma-See verankert.
+6. **Anspruchsvoller 3-Akt-Magma-Parkour + Anti-429 & Retry-sichere Schatztruhe:**
+   * Kleinere Präzisionsplatten (`r = 0.88..1.06 m`), 3 absinkende `crumble`-Magmaplatten, gegenläufige Pendel/Aufzüge und 2 rhythmische Magma-Geysire (abwehrbar mit `3 · Schutzschild`) heben den Anspruch spürbar an (`CHEST_Y = 3.2`).
+   * Isolierte Rate-Limit-Buckets in `global_routes.php` (`lobby_sync`, `lava_claim`, etc.) verhindern `HTTP 429 Too Many Attempts`; `LavaParkourService` bewahrt aktive Läufe bei verfrühten Klicks (`retryable: true`) im Cache und bestätigt Checkpoints idempotent.

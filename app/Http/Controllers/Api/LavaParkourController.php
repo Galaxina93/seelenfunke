@@ -52,14 +52,18 @@ class LavaParkourController extends Controller
             return $this->guestUnauthorizedResponse();
         }
 
-        if ($tamper['has_explicit_cheat'] || $tamper['has_invalid_coords']) {
+        if ($tamper['has_explicit_cheat']) {
             $lavaParkour->invalidateActiveRunForCustomer((string) $customer->id);
 
             return $this->invalidRunJsonResponse();
         }
 
+        if ($tamper['has_invalid_coords']) {
+            return $this->invalidRunJsonResponse();
+        }
+
         $validator = Validator::make($request->all(), [
-            'run_id' => ['required', 'string', 'max:128'],
+            'run_id' => ['nullable', 'string', 'max:128'],
             'stage' => ['required', 'integer', 'in:1,2'],
             'x' => ['required', 'numeric'],
             'y' => ['required', 'numeric'],
@@ -72,18 +76,18 @@ class LavaParkourController extends Controller
             || !LobbyInstanceService::isValidFiniteNumeric($request->input('y'))
             || !LobbyInstanceService::isValidFiniteNumeric($request->input('z'))
         ) {
-            $lavaParkour->invalidateActiveRunForCustomer((string) $customer->id);
-
             return $this->invalidRunJsonResponse();
         }
 
+        $validated = $validator->validated();
+
         $result = $lavaParkour->recordCheckpoint(
             $customer,
-            (string) $request->input('run_id'),
-            (int) $request->input('stage'),
-            (float) $request->input('x'),
-            (float) $request->input('y'),
-            (float) $request->input('z')
+            (string) ($validated['run_id'] ?? ''),
+            (int) $validated['stage'],
+            (float) $validated['x'],
+            (float) $validated['y'],
+            (float) $validated['z']
         );
 
         return response()->json($result['body'], $result['status'], $this->securityHeaders());
@@ -103,16 +107,20 @@ class LavaParkourController extends Controller
             return $this->guestUnauthorizedResponse();
         }
 
-        if ($tamper['has_explicit_cheat'] || $tamper['has_invalid_coords']) {
+        if ($tamper['has_explicit_cheat']) {
             $lavaParkour->invalidateActiveRunForCustomer((string) $customer->id);
 
             return $this->invalidRunJsonResponse();
         }
 
+        if ($tamper['has_invalid_coords']) {
+            return $this->invalidRunJsonResponse();
+        }
+
         // Manipulierte Felder wie amount, sparks oder level im Request-Body werden protokolliert und strikt ignoriert.
         $validator = Validator::make($request->all(), [
-            'run_id' => ['required', 'string', 'max:128'],
-            'claim_token' => ['required', 'string', 'max:256'],
+            'run_id' => ['nullable', 'string', 'max:128'],
+            'claim_token' => ['nullable', 'string', 'max:160'],
             'x' => ['required', 'numeric'],
             'y' => ['required', 'numeric'],
             'z' => ['required', 'numeric'],
@@ -124,18 +132,18 @@ class LavaParkourController extends Controller
             || !LobbyInstanceService::isValidFiniteNumeric($request->input('y'))
             || !LobbyInstanceService::isValidFiniteNumeric($request->input('z'))
         ) {
-            $lavaParkour->invalidateActiveRunForCustomer((string) $customer->id);
-
             return $this->invalidRunJsonResponse();
         }
 
+        $validated = $validator->validated();
+
         $result = $lavaParkour->claimChest(
             $customer,
-            (string) $request->input('run_id'),
-            (string) $request->input('claim_token'),
-            (float) $request->input('x'),
-            (float) $request->input('y'),
-            (float) $request->input('z')
+            (string) ($validated['run_id'] ?? ''),
+            (string) ($validated['claim_token'] ?? ''),
+            (float) $validated['x'],
+            (float) $validated['y'],
+            (float) $validated['z']
         );
 
         return response()->json($result['body'], $result['status'], $this->securityHeaders());

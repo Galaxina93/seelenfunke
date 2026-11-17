@@ -286,7 +286,7 @@ class LobbyAntiManipulationSecurityTest extends TestCase
             ->assertStatus(422)
             ->assertJsonPath('success', false);
 
-        // 2. Instant-Teleport in 10ms zu CP1 -> 422 & Lauf sofort vernichtet
+        // 2. Instant-Teleport in 10ms zu CP1 sowie gefaelschter Sofort-Claim -> 422 & Lauf durch Token-Manipulation vernichtet
         $runFast = $this->actingAs($cheater, 'customer')
             ->postJson('/funkenwerk-welt/lava-parkour/start')
             ->assertOk()
@@ -299,6 +299,16 @@ class LobbyAntiManipulationSecurityTest extends TestCase
                 'stage' => 1,
                 'x' => 31.5,
                 'y' => 1.2,
+                'z' => -2.0,
+            ])
+            ->assertStatus(422);
+
+        $this->actingAs($cheater, 'customer')
+            ->postJson('/funkenwerk-welt/lava-parkour/claim', [
+                'run_id' => $runFast,
+                'claim_token' => hash('sha256', 'instant-teleport-forged'),
+                'x' => 66.5,
+                'y' => 3.2,
                 'z' => -2.0,
             ])
             ->assertStatus(422);

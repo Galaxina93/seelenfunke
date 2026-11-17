@@ -862,25 +862,23 @@
                 max-width: 100%;
                 box-sizing: border-box;
             }
-            .sf-lobby-zone-btn {
-                appearance: none;
-                border: none;
-                border-radius: 999px;
-                padding: 7px 14px;
-                font-size: 12px;
-                font-weight: 800;
-                line-height: 1.2;
-                background: transparent;
-                color: #111827;
-                cursor: pointer;
+            .sf-lobby-zone-badge {
                 display: inline-flex;
                 align-items: center;
                 gap: 6px;
+                padding: 6px 14px;
+                border-radius: 999px;
+                background: #FAF8F5;
+                color: #111827;
+                border: 1px solid rgba(197, 160, 89, 0.38);
+                font-size: 12px;
+                font-weight: 800;
+                line-height: 1.2;
+                letter-spacing: 0.01em;
                 white-space: nowrap;
-                transition: background-color 150ms ease, color 150ms ease;
+                pointer-events: none;
+                cursor: default;
             }
-            .sf-lobby-zone-btn:hover { background: rgba(197, 160, 89, 0.14); }
-            .sf-lobby-zone-btn.is-active { background: #C5A059 !important; color: #FFFFFF !important; }
             .sf-lobby-stages-btn {
                 appearance: none;
                 border: 1px solid rgba(197, 160, 89, 0.55);
@@ -1577,7 +1575,7 @@
             .sf-lobby-lava-chest-card.is-cta:hover {
                 background: #B38E46;
             }
-            .sf-lobby-stick-wrap { position: absolute; bottom: 22px; left: 20px; z-index: 22; }
+            .sf-lobby-stick-wrap { display: none; position: absolute; bottom: 72px; left: 12px; z-index: 22; }
             .sf-lobby-stick {
                 width: 84px;
                 height: 84px;
@@ -1698,20 +1696,29 @@
                 box-shadow: 0 6px 18px rgba(17, 24, 39, 0.08);
                 white-space: nowrap;
             }
+            @media (max-width: 900px), (pointer: coarse) {
+                .sf-lobby-stick-wrap { display: block; bottom: 72px; left: 12px; }
+                .sf-lobby-stick { width: 72px; height: 72px; }
+                .sf-lobby-quick-actions { bottom: 72px; right: 12px; gap: 6px; }
+                .sf-lobby-abilities-dock { bottom: 88px; left: 94px; right: auto; transform: none; display: flex; align-items: center; gap: 6px; }
+                .sf-ability-btn { width: 40px; height: 40px; border-radius: 10px; }
+                .sf-ability-key { display: none; }
+            }
             @media (max-width: 767px) {
                 .sf-lobby-topbar { padding: 10px 12px; gap: 8px; }
-                .sf-lobby-zone-btn { padding: 6px 10px; font-size: 11px; }
+                .sf-lobby-zone-badge { padding: 5px 10px; font-size: 11px; }
                 .sf-lobby-pill-btn, .sf-lobby-close-btn { padding: 6px 10px; font-size: 11px; }
                 .sf-lobby-kbd, .sf-lobby-hint-pill, .sf-lobby-hide-sm { display: none !important; }
-                .sf-lobby-stick-wrap { bottom: 72px; left: 12px; }
-                .sf-lobby-stick { width: 74px; height: 74px; }
-                .sf-lobby-quick-actions { bottom: 72px; right: 12px; }
                 .sf-lobby-chat-panel { bottom: 132px; right: 12px; }
                 .sf-lobby-chat-panel.is-expanded { width: calc(100vw - 24px); }
-                .sf-lobby-abilities-dock { bottom: 126px; gap: 6px; }
-                .sf-ability-btn { width: 40px; height: 40px; border-radius: 10px; }
                 .sf-lobby-exhibit-btn { max-width: 175px; }
                 .sf-lobby-keybind-grid { grid-template-columns: 1fr; }
+            }
+            @media (max-width: 559px) {
+                .sf-lobby-abilities-dock { bottom: 71px; left: 92px; right: auto; transform: none; display: grid; grid-template-columns: repeat(2, 36px); gap: 5px; }
+                .sf-ability-btn { width: 36px; height: 36px; border-radius: 10px; }
+                .sf-ability-icon { font-size: 14px; }
+                .sf-lobby-icon-btn { height: 40px; min-width: 40px; padding: 0 10px; font-size: 12px; }
             }
         </style>
 
@@ -1729,31 +1736,9 @@
                 {{-- Edle schwebende Light-Mode HUD-Leiste --}}
                 <div class="sf-lobby-topbar">
                     <div class="sf-lobby-nav-pill">
-                        <button type="button"
-                                data-testid="lobby-zone-gallery-btn"
-                                @click="switchZone('gallery')"
-                                :class="currentZone === 'gallery' ? 'sf-lobby-zone-btn is-active' : 'sf-lobby-zone-btn'">
-                            <span>🛍️ Kollektion</span>
-                        </button>
-                        <button type="button"
-                                data-testid="lobby-zone-heroes-btn"
-                                @click="switchZone('heroes')"
-                                :class="currentZone === 'heroes' ? 'sf-lobby-zone-btn is-active' : 'sf-lobby-zone-btn'">
-                            <span x-show="!isCustomerAuthenticated()">🔒</span>
-                            <span>🏛️ Halle der Helden</span>
-                        </button>
-                        <button type="button"
-                                data-testid="lobby-zone-lava-btn"
-                                @click="switchZone('lava')"
-                                :class="currentZone === 'lava' ? 'sf-lobby-zone-btn is-active' : 'sf-lobby-zone-btn'">
-                            <span>🌋 Magma-Kammer</span>
-                        </button>
-                        <button type="button"
-                                data-testid="lobby-zone-labyrinth-btn"
-                                @click="switchZone('labyrinth')"
-                                :class="currentZone === 'labyrinth' ? 'sf-lobby-zone-btn is-active' : 'sf-lobby-zone-btn'">
-                            <span>🌀 Labyrinth</span>
-                        </button>
+                        <span class="sf-lobby-zone-badge"
+                              data-testid="lobby-current-zone-badge"
+                              x-text="currentZoneLabel()">🛍️ Kollektion</span>
                         <button type="button"
                                 x-show="currentZone === 'heroes' && isCustomerAuthenticated()"
                                 data-testid="lobby-stages-preview-btn"
@@ -2452,27 +2437,12 @@
                             <span style="padding:4px 10px;font-size:11px;font-weight:800;color:#9A7738;">
                                 🌋 Magma-Kammer · +5 ✨ Täglich
                             </span>
-                            <button type="button"
-                                    @click="switchZone('gallery')"
-                                    class="sf-lobby-step-btn">
-                                Zur Galerie
-                            </button>
                         </div>
 
                         <div x-show="currentZone === 'labyrinth'" class="sf-lobby-bottom-pill">
                             <span style="padding:4px 10px;font-size:11px;font-weight:800;color:#9A7738;">
                                 🌀 Mini-Labyrinth · 3 ✨ Täglich
                             </span>
-                            <button type="button"
-                                    @click="switchZone('heroes')"
-                                    class="sf-lobby-step-btn is-active">
-                                🏛️ Heldenhalle
-                            </button>
-                            <button type="button"
-                                    @click="switchZone('gallery')"
-                                    class="sf-lobby-step-btn">
-                                Zur Galerie
-                            </button>
                         </div>
 
                         <div class="sf-lobby-hint-pill">
@@ -2573,8 +2543,8 @@
                         moveRight: 'KeyD',
                     },
                     audioState: {
-                        bgmVolume: 30,
-                        bgmMuted: true,
+                        bgmVolume: 50,
+                        bgmMuted: false,
                         sfxVolume: 50,
                         sfxMuted: false,
                         allMuted: false,
@@ -2716,8 +2686,10 @@
                             privateMod.saveLobbyUserSettings({ volume: vol });
                         }
                         if (privateAudio) {
+                            privateAudio.setBgmVolume(vol, true);
+                            privateAudio.setBgmMuted(vol === 0, true);
                             privateAudio.setSfxVolume(vol);
-                            privateAudio.setSfxMuted(vol <= 0);
+                            privateAudio.setSfxMuted(vol === 0);
                             this.audioState = privateAudio.getState();
                         }
                     },
@@ -2890,6 +2862,13 @@
                         return 1 + (Array.isArray(this.peers) ? this.peers.length : 0);
                     },
 
+                    currentZoneLabel() {
+                        if (this.currentZone === 'heroes') return '🏛️ Halle der Helden';
+                        if (this.currentZone === 'lava') return '🌋 Magma-Kammer';
+                        if (this.currentZone === 'labyrinth') return '🌀 Mini-Labyrinth';
+                        return '🛍️ Kollektion';
+                    },
+
                     stagesPreviewLabel() {
                         if (this.stagesPreviewMode === '1-5') return '✨ Stufen 1-5';
                         if (this.stagesPreviewMode === '6-10') return '✨ Stufen 6-10';
@@ -2934,7 +2913,49 @@
                         }
                     },
 
+                    startLobbyMusicFromGesture() {
+                        if (privateAudio && typeof privateAudio.startLobbyMusicFromGesture === 'function') {
+                            this.audioState = privateAudio.startLobbyMusicFromGesture();
+                            return;
+                        }
+                        if (typeof window !== 'undefined' && typeof window.getSeelenfunkeLobbyAudio === 'function') {
+                            privateAudio = window.getSeelenfunkeLobbyAudio({ isAuthenticated: this.isCustomerAuthenticated() });
+                            if (privateAudio && typeof privateAudio.startLobbyMusicFromGesture === 'function') {
+                                this.audioState = privateAudio.startLobbyMusicFromGesture();
+                                return;
+                            }
+                        }
+                        try {
+                            const rawExplicit = localStorage.getItem('sf_lobby_bgm_explicit_muted');
+                            const rawVol = localStorage.getItem('sf_funki_audio_volume');
+                            const explicitMuted = (rawExplicit === '1' || rawExplicit === 'true') || rawVol === '0';
+                            sessionStorage.setItem('sf_funki_bgm_session_enabled', '1');
+                            if (!explicitMuted) {
+                                localStorage.setItem('sf_funki_audio_muted', '0');
+                                localStorage.setItem('sf_funki_bgm_muted', '0');
+                                if (window.SfFunkiBgm) {
+                                    if ((window.SfFunkiBgm.volume || 0) <= 0) {
+                                        window.SfFunkiBgm.setVolume(50, false);
+                                    }
+                                    window.SfFunkiBgm.setMuted(false, false);
+                                    window.SfFunkiBgm.onModalOpen();
+                                } else if (typeof Audio !== 'undefined') {
+                                    const preEl = window.__sfPrewarmLobbyBgmEl || new Audio('/shop/gamification/audio/bgm_funki_game.mp3');
+                                    preEl.loop = true;
+                                    preEl.preload = 'auto';
+                                    preEl.volume = 0.25;
+                                    window.__sfPrewarmLobbyBgmEl = preEl;
+                                    const p = preEl.play();
+                                    if (p && typeof p.catch === 'function') p.catch(() => {});
+                                }
+                            }
+                        } catch (e) {}
+                    },
+
                     openShowroom(initialZone = 'gallery') {
+                        // User-Gesture-Token zu 100 % synchron im Klick-Event sichern (VOR fetch / import)!
+                        this.startLobbyMusicFromGesture();
+
                         const requestedZone = initialZone === 'lava'
                             ? 'lava'
                             : (initialZone === 'labyrinth'
@@ -3001,7 +3022,7 @@
                             .then((res) => (res.ok ? res.json() : null))
                             .catch(() => null);
 
-                        const modulePromise = import('/js/seelenfunke-louvre-showroom-3d.js?v=20261117v2');
+                        const modulePromise = import('/js/seelenfunke-louvre-showroom-3d.js?v=20261117v4');
 
                         Promise.all([dataPromise, heroesPromise, modulePromise])
                             .then(([payload, heroesJson, mod]) => {
@@ -3036,7 +3057,7 @@
                                     privateAudio = mod.getLobbyAudioInstance({ isAuthenticated: isAuth });
                                     privateAudio.setSfxVolume(this.userSettings.volume);
                                     privateAudio.setSfxMuted(this.userSettings.volume <= 0);
-                                    this.audioState = privateAudio.getState();
+                                    this.audioState = privateAudio.startLobbyMusicFromGesture();
                                     if (privateAudioUnsub) privateAudioUnsub();
                                     privateAudioUnsub = privateAudio.onChange((snap) => {
                                         this.audioState = snap;
@@ -3640,6 +3661,15 @@
                         this.settingsOpen = false;
                         this.listeningKeyAction = '';
                         this.chatOpen = false;
+                        if (privateAudio && typeof privateAudio.setLobbyActive === 'function') {
+                            privateAudio.setLobbyActive(false);
+                        }
+                        if (typeof window !== 'undefined' && window.__sfPrewarmLobbyBgmEl) {
+                            try {
+                                window.__sfPrewarmLobbyBgmEl.pause();
+                                window.__sfPrewarmLobbyBgmEl.volume = 0;
+                            } catch (e) {}
+                        }
                         if (privateAudioUnsub) {
                             privateAudioUnsub();
                             privateAudioUnsub = null;

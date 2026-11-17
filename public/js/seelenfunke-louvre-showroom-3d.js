@@ -287,30 +287,22 @@ export const SF_LOBBY_SCOPED_CSS = `
     max-width: 100%;
     box-sizing: border-box;
 }
-.sf-lobby-zone-btn {
-    appearance: none;
-    border: none;
+.sf-lobby-zone-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
     border-radius: 999px;
-    padding: 7px 14px;
+    background: #FAF8F5;
+    color: #111827;
+    border: 1px solid rgba(197, 160, 89, 0.38);
     font-size: 12px;
     font-weight: 800;
     line-height: 1.2;
     letter-spacing: 0.01em;
-    background: transparent;
-    color: #111827;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
     white-space: nowrap;
-    transition: background-color 150ms ease, color 150ms ease;
-}
-.sf-lobby-zone-btn:hover {
-    background: rgba(197, 160, 89, 0.14);
-}
-.sf-lobby-zone-btn.is-active {
-    background: #C5A059 !important;
-    color: #FFFFFF !important;
+    pointer-events: none;
+    cursor: default;
 }
 .sf-lobby-stages-btn {
     appearance: none;
@@ -791,9 +783,10 @@ export const SF_LOBBY_SCOPED_CSS = `
     color: #111827;
 }
 .sf-lobby-stick-wrap {
+    display: none;
     position: absolute;
-    bottom: 22px;
-    left: 20px;
+    bottom: 72px;
+    left: 12px;
     z-index: 22;
 }
 .sf-lobby-stick {
@@ -1159,19 +1152,28 @@ export const SF_LOBBY_SCOPED_CSS = `
 .sf-lobby-lava-chest-card.is-cta:hover {
     background: #B38E46;
 }
+@media (max-width: 900px), (pointer: coarse) {
+    .sf-lobby-stick-wrap { display: block; bottom: 72px; left: 12px; }
+    .sf-lobby-stick { width: 72px; height: 72px; }
+    .sf-lobby-quick-actions { bottom: 72px; right: 12px; gap: 6px; }
+    .sf-lobby-abilities-dock { bottom: 88px; left: 94px; right: auto; transform: none; display: flex; align-items: center; gap: 6px; }
+    .sf-ability-btn { width: 40px; height: 40px; border-radius: 10px; }
+    .sf-ability-key { display: none; }
+}
 @media (max-width: 767px) {
     .sf-lobby-topbar { padding: 10px 12px; gap: 8px; }
-    .sf-lobby-zone-btn { padding: 6px 10px; font-size: 11px; }
+    .sf-lobby-zone-badge { padding: 5px 10px; font-size: 11px; }
     .sf-lobby-pill-btn, .sf-lobby-close-btn { padding: 6px 10px; font-size: 11px; }
     .sf-lobby-kbd, .sf-lobby-hint-pill, .sf-lobby-hide-sm { display: none !important; }
-    .sf-lobby-stick-wrap { bottom: 72px; left: 12px; }
-    .sf-lobby-stick { width: 74px; height: 74px; }
-    .sf-lobby-quick-actions { bottom: 72px; right: 12px; }
-    .sf-lobby-abilities-dock { bottom: 126px; gap: 6px; }
-    .sf-ability-btn { width: 40px; height: 40px; border-radius: 10px; }
     .sf-lobby-chat-panel { bottom: 132px; right: 12px; }
     .sf-lobby-exhibit-btn { max-width: 175px; }
     .sf-lobby-keybind-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 559px) {
+    .sf-lobby-abilities-dock { bottom: 71px; left: 92px; right: auto; transform: none; display: grid; grid-template-columns: repeat(2, 36px); gap: 5px; }
+    .sf-ability-btn { width: 36px; height: 36px; border-radius: 10px; }
+    .sf-ability-icon { font-size: 14px; }
+    .sf-lobby-icon-btn { height: 40px; min-width: 40px; padding: 0 10px; font-size: 12px; }
 }
 `;
 
@@ -1183,7 +1185,7 @@ export function ensureLobbyScopedStyles() {
         styleEl.id = 'sf-3d-lobby-scoped-css';
         styleEl.textContent = SF_LOBBY_SCOPED_CSS;
         (document.head || document.documentElement).appendChild(styleEl);
-    } else if (styleEl.textContent && styleEl.textContent.indexOf('.sf-lobby-settings-card') === -1) {
+    } else if (styleEl.textContent && styleEl.textContent.indexOf('.sf-lobby-zone-badge') === -1) {
         styleEl.textContent += '\n' + SF_LOBBY_SCOPED_CSS;
     }
 }
@@ -2298,15 +2300,19 @@ function buildStelePlaqueTexture(THREE, maxAniso, product, disposables) {
 }
 
 /**
- * Erzeugt eine zusammengefuehrte Einheits-Geometrie (1x1x1.62m) mit Vertex-Farben
- * (Nero-Sockel + heller Louvre-Kalkstein + matte 24K-Gold-Deckleiste #C5A059),
- * damit alle Segmente des 5x5-Mini-Labyrinths in exakt 1 THREE.InstancedMesh Draw-Call rendern!
+ * Erzeugt eine zusammengefuehrte Einheits-Geometrie (1x1x3.20m) mit Vertex-Farben
+ * (Nero-Sockel + matte 24K-Gold-Sockelleiste + helle Pariser Kalkstein-Kassettenwand + 24K-Gold-Gesimsleiste #C5A059 auf 3.20m),
+ * damit alle Segmente des 5x5-Mini-Labyrinths weiterhin in exakt 1 THREE.InstancedMesh Draw-Call rendern!
  */
 function buildBoutiqueLabyrinthWallBlockGeometry(THREE) {
     const parts = [
-        { w: 1.03, h: 0.12, d: 1.03, y: 0.06, r: 0.14, g: 0.12, b: 0.10 },
-        { w: 1.00, h: 1.38, d: 1.00, y: 0.81, r: 0.955, g: 0.928, b: 0.875 },
-        { w: 1.06, h: 0.12, d: 1.06, y: 1.56, r: 0.773, g: 0.627, b: 0.349 },
+        { w: 1.04, h: 0.14, d: 1.04, y: 0.070, r: 0.130, g: 0.112, b: 0.100 },
+        { w: 1.05, h: 0.05, d: 1.05, y: 0.165, r: 0.773, g: 0.627, b: 0.349 },
+        { w: 1.00, h: 1.16, d: 1.00, y: 0.770, r: 0.948, g: 0.920, b: 0.868 },
+        { w: 1.03, h: 0.06, d: 1.03, y: 1.380, r: 0.773, g: 0.627, b: 0.349 },
+        { w: 0.99, h: 1.63, d: 0.99, y: 2.225, r: 0.962, g: 0.938, b: 0.892 },
+        { w: 1.04, h: 0.06, d: 1.04, y: 3.070, r: 0.910, g: 0.875, b: 0.805 },
+        { w: 1.07, h: 0.10, d: 1.07, y: 3.150, r: 0.773, g: 0.627, b: 0.349 },
     ];
 
     const posList = [];
@@ -2874,11 +2880,12 @@ class SeelenfunkeLouvreShowroom3D {
         this.lavaChamberMaxX = 73.0;
         this.lavaChamberMinZ = -12.5;
         this.lavaChamberMaxZ = 8.5;
-        this.lavaBalconyMaxX = 19.2;
+        this.lavaBalconyMaxX = 19.0;
         this.lavaSurfaceY = -1.35;
         this.lavaGroup = null;
         this.lavaLakeShaderMat = null;
         this.lavaPlatforms = [];
+        this.lavaGeysers = [];
         this.lavaCheckpointRings = {};
         this.lavaPortalHitMeshes = [];
         this.lavaChestHitMeshes = [];
@@ -2893,6 +2900,9 @@ class SeelenfunkeLouvreShowroom3D {
             runId: null,
             starting: false,
             startedClientMs: 0,
+            _startPromise: null,
+            _cp1Promise: null,
+            _cp2Promise: null,
             cp1Reached: false,
             cp1Sent: false,
             cp1PendingTimer: 0,
@@ -3090,6 +3100,7 @@ class SeelenfunkeLouvreShowroom3D {
             desiredYaw: 0,
             desiredPitch: 0.24,
             desiredDistance: 4.35,
+            isFirstPerson: false,
             lookAtCurrent: null,
             isDragging: false,
             dragMoved: 0,
@@ -3194,7 +3205,7 @@ class SeelenfunkeLouvreShowroom3D {
 
         this.scene = new THREE.Scene();
         this.scene.background = new THREE.Color(0xf5efe4);
-        this.scene.fog = new THREE.FogExp2(0xf5efe4, 0.00022);
+        this.scene.fog = null;
 
         this.envTexture = buildLouvreStudioEnvironment(THREE, this.renderer, this.disposables);
         if (this.envTexture) {
@@ -3551,9 +3562,7 @@ class SeelenfunkeLouvreShowroom3D {
                 roughness: 0.22,
                 metalness: 0.08,
                 envMapIntensity: 0.96,
-                polygonOffset: true,
-                polygonOffsetFactor: -1,
-                polygonOffsetUnits: -2,
+                polygonOffset: false,
             })),
             lavaCavernNero: this._trackDisposable(new THREE.MeshStandardMaterial({
                 color: 0x1b1715,
@@ -3605,7 +3614,7 @@ class SeelenfunkeLouvreShowroom3D {
                 metalness: 0.10,
                 envMapIntensity: 1.15,
                 transparent: true,
-                opacity: 0.22,
+                opacity: 0.10,
                 depthWrite: false,
                 side: THREE.DoubleSide,
             })),
@@ -3916,13 +3925,13 @@ class SeelenfunkeLouvreShowroom3D {
         portalHeader.position.set(0, 5.65 + portalHeaderH * 0.5, this.hallNorthZ - 0.12);
         this.scene.add(portalHeader);
 
-        // Luftiges Pariser Beaux-Arts Glas- & 24K-Gold-Tonnengewoelbe ueber der gesamten Eingangshalle
+        // Luftiges Pariser Beaux-Arts Glas- & 24K-Gold-Tonnengewoelbe ueber der gesamten Eingangshalle (Scheitel woelbt streng nach +Y oberhalb wallH!)
+        const barrelSpanLength = Math.max(8.0, this.hallSouthZ - this.hallNorthZ);
         const barrelGlassGeo = this._trackDisposable(
-            new THREE.CylinderGeometry(vaultRibRadius + 0.04, vaultRibRadius + 0.04, totalLength, 32, 1, true, -vaultArcSpan * 0.5, vaultArcSpan)
+            new THREE.CylinderGeometry(vaultRibRadius + 0.04, vaultRibRadius + 0.04, barrelSpanLength, 32, 1, true, -vaultArcSpan * 0.5, vaultArcSpan)
         );
         const barrelGlass = new THREE.Mesh(barrelGlassGeo, this.mats.pyramidGlass);
-        barrelGlass.rotation.x = Math.PI * 0.5;
-        barrelGlass.rotation.z = Math.PI;
+        barrelGlass.rotation.set(-Math.PI * 0.5, 0, 0);
         barrelGlass.position.set(0, vaultCenterY, centerZ);
         this.scene.add(barrelGlass);
 
@@ -4093,15 +4102,7 @@ class SeelenfunkeLouvreShowroom3D {
             this.scene.add(outerWall);
         });
 
-        const promVaultGlass = new THREE.Mesh(
-            this._trackDisposable(new THREE.CylinderGeometry(this.portalHalfW + 1.45, this.portalHalfW + 1.45, this.promenadeLength + 1.0, 24, 1, true, -Math.PI * 0.5, Math.PI)),
-            this.mats.pyramidGlass
-        );
-        promVaultGlass.rotation.x = Math.PI * 0.5;
-        promVaultGlass.rotation.z = Math.PI;
-        promVaultGlass.position.set(0, 6.1, promCenterZ);
-        this.scene.add(promVaultGlass);
-
+        // Freie 24K-Gold-Kolonnadenboegen direkt unter klarem Himmel (0,0 % Glas-Schleier im Durchgang in die Halle der Helden!)
         const promColGeo = this._trackDisposable(new THREE.CylinderGeometry(0.32, 0.38, 5.5, 16));
         const promArchGeo = this._trackDisposable(new THREE.TorusGeometry(this.portalHalfW + 0.35, 0.14, 8, 28, Math.PI));
         for (let s = 0; s < 3; s++) {
@@ -4149,8 +4150,8 @@ class SeelenfunkeLouvreShowroom3D {
         // 1. Abgestuftes Pantheon-Stylobat (Nero Marquina, Saphir #133B5C, Alabaster #ECEAE4 & 24K-Gold-Rahmen)
         const steps = [
             { w: 53.0, d: 55.0, h: 0.90, y: -0.62, trimY: -0.22, mat: this.mats.neroPedestal, trimMat: this.mats.goldMatcapBright },
-            { w: 50.0, d: 52.0, h: 0.42, y: -0.24, trimY: -0.06, mat: this.mats.sapphireTrim, trimMat: this.mats.goldMatcapBright },
-            { w: 47.6, d: 49.6, h: 0.24, y: -0.11, trimY: 0.00, mat: this.mats.alabasterStep, trimMat: this.mats.sapphireTrim },
+            { w: 50.0, d: 52.0, h: 0.42, y: -0.24, trimY: -0.09, mat: this.mats.sapphireTrim, trimMat: this.mats.goldMatcapBright },
+            { w: 47.6, d: 49.6, h: 0.24, y: -0.12, trimY: -0.08, mat: this.mats.alabasterStep, trimMat: this.mats.sapphireTrim },
         ];
         for (let si = 0; si < steps.length; si++) {
             const s = steps[si];
@@ -4163,8 +4164,7 @@ class SeelenfunkeLouvreShowroom3D {
             this.pantheonGroup.add(trim);
         }
 
-        // 2. Edler grossformatiger Calacatta-Gold-Marmorboden (~3.8m Platten, roughness 0.16, envMapIntensity 0.85)
-        //    mit dunkler Nero-Marquina-Kolonnaden-Randfassung und konzentrischen 24K-Gold-Intarsienringen!
+        // 2. Massiver Calacatta-Gold-Marmorboden (~3.8m Platten, BoxGeometry 46.8 x 0.28 x 48.8, Oberkante exakt 0.020 ohne polygonOffset!)
         const fallbackMarbleMaps = buildHallOfHeroesMarbleMaps(THREE, this.maxAniso, this.disposables);
         this.mats.pantheonFloor = this._trackDisposable(new THREE.MeshStandardMaterial({
             color: 0xffffff,
@@ -4174,22 +4174,20 @@ class SeelenfunkeLouvreShowroom3D {
             roughness: 0.16,
             metalness: 0.04,
             envMapIntensity: 0.85,
-            polygonOffset: true,
-            polygonOffsetFactor: -1,
-            polygonOffsetUnits: -2,
+            polygonOffset: false,
         }));
         const marbleFloor = new THREE.Mesh(
-            this._trackDisposable(new THREE.PlaneGeometry(46.8, 48.8)),
+            this._trackDisposable(new THREE.BoxGeometry(46.8, 0.28, 48.8)),
             this.mats.pantheonFloor
         );
-        marbleFloor.rotation.x = -Math.PI * 0.5;
-        marbleFloor.position.set(0, floorTopY, 0);
-        marbleFloor.userData = { isFloor: true };
+        marbleFloor.position.set(0, floorTopY - 0.14, 0);
+        marbleFloor.userData = { isFloor: true, isHeroesFloor: true, surfaceY: floorTopY };
         this.pantheonGroup.add(marbleFloor);
         this.walkableFloorMeshes.push(marbleFloor);
 
-        // Dunkle Nero-Marquina-Randfassung entlang des gesamten Kolonnadenkranzes (umfasst alle 28 Saeulen)
-        const borderY = floorTopY + 0.003;
+        // Dunkle Nero-Marquina-Randfassung entlang des gesamten Kolonnadenkranzes (Y = 0.022, ohne negatives PolygonOffset gegen Schuhsohlen)
+        const borderY = 0.022;
+        const inlayGoldY = 0.024;
         const westEastBorderGeo = this._trackDisposable(new THREE.PlaneGeometry(4.4, 46.8));
         [-21.1, 21.1].forEach((bx) => {
             const bMesh = new THREE.Mesh(westEastBorderGeo, this.mats.pantheonNeroBorder);
@@ -4215,30 +4213,30 @@ class SeelenfunkeLouvreShowroom3D {
             this.pantheonGroup.add(sb);
         });
 
-        // Gebuerstete 24K-Gold-Einfassungsbaender entlang der Nero-Marquina-Randfassung
+        // Gebuerstete 24K-Gold-Einfassungsbaender entlang der Nero-Marquina-Randfassung (Y = 0.024)
         const innerFrameSideGeo = this._trackDisposable(new THREE.PlaneGeometry(0.11, 37.9));
         [-18.9, 18.9].forEach((gx) => {
-            const gl = new THREE.Mesh(innerFrameSideGeo, this.mats.goldMatcapBrushed);
+            const gl = new THREE.Mesh(innerFrameSideGeo, this.mats.goldBrushed);
             gl.rotation.x = -Math.PI * 0.5;
-            gl.position.set(gx, floorTopY + 0.005, 0);
+            gl.position.set(gx, inlayGoldY, 0);
             this.pantheonGroup.add(gl);
         });
         const innerFrameNorth = new THREE.Mesh(
             this._trackDisposable(new THREE.PlaneGeometry(37.9, 0.11)),
-            this.mats.goldMatcapBrushed
+            this.mats.goldBrushed
         );
         innerFrameNorth.rotation.x = -Math.PI * 0.5;
-        innerFrameNorth.position.set(0, floorTopY + 0.005, -18.9);
+        innerFrameNorth.position.set(0, inlayGoldY, -18.9);
         this.pantheonGroup.add(innerFrameNorth);
 
-        // Konzentrische gebuerstete 24K-Messing-/Gold-Intarsienringe harmonisch im Rotunden-Zentrum
+        // Konzentrische gebuerstete 24K-Messing-/Gold-Intarsienringe harmonisch im Rotunden-Zentrum (Y = 0.024)
         [4.2, 8.6, 13.4, 18.2].forEach((rad, rIdx) => {
             const gRing = new THREE.Mesh(
                 this._trackDisposable(new THREE.RingGeometry(rad, rad + (rIdx === 2 ? 0.15 : 0.10), 72)),
-                rIdx % 2 === 0 ? this.mats.goldMatcapBrushed : this.mats.goldMatcapBright
+                rIdx % 2 === 0 ? this.mats.goldBrushed : this.mats.goldChampagne
             );
             gRing.rotation.x = -Math.PI * 0.5;
-            gRing.position.set(0, floorTopY + 0.006, 0);
+            gRing.position.set(0, inlayGoldY, 0);
             this.pantheonGroup.add(gRing);
         });
         // 2b. Geschlossene klassische Kalkstein-Boiserie-Rotundenwaende hinter der 24K-Gold-Kolonnade
@@ -4568,33 +4566,40 @@ class SeelenfunkeLouvreShowroom3D {
         }));
         this._lavaCpActiveMat = cpActiveMat;
 
-        // 1. Offenes Ost-Portal in der rechten Galeriewand (X ≈ 11.5..12.5, Z = -2.0) mit Inschrift "MAGMA-PRÜFUNG"
+        // 1. Offenes Ost-Portal in der rechten Galeriewand (X = 11.90..12.92, Z = -2.0) mit 0 koplanaren Flaechen & Inschrift "MAGMA-PRÜFUNG"
         const portalX = 11.92;
         const pSpan = this.lavaPortalHalfSpan;
-        const pPillarGeo = this._trackDisposable(new THREE.BoxGeometry(0.78, 5.30, 0.78));
-        const pCapGeo = this._trackDisposable(new THREE.BoxGeometry(1.02, 0.30, 1.02));
-        const pBaseGeo = this._trackDisposable(new THREE.BoxGeometry(0.98, 0.32, 0.98));
+        const pPillarGeo = this._trackDisposable(new THREE.BoxGeometry(0.46, 5.30, 0.78));
+        const pCapGeo = this._trackDisposable(new THREE.BoxGeometry(0.68, 0.30, 1.02));
+        const pBaseGeo = this._trackDisposable(new THREE.BoxGeometry(0.64, 0.32, 0.98));
+        const pJambRevealGeo = this._trackDisposable(new THREE.BoxGeometry(0.98, 5.32, 0.22));
 
-        [-pSpan + 0.22, pSpan - 0.22].forEach((dz) => {
+        [-pSpan + 0.22, pSpan - 0.22].forEach((dz, jIdx) => {
             const pz = this.lavaPortalZ + dz;
             const pillar = new THREE.Mesh(pPillarGeo, this.mats.neroPedestal);
-            pillar.position.set(portalX, 2.65, pz);
+            pillar.position.set(11.78, 2.65, pz);
             this.lavaGroup.add(pillar);
 
-            const base = new THREE.Mesh(pBaseGeo, this.mats.goldMatcapBright);
-            base.position.set(portalX, 0.16, pz);
+            const base = new THREE.Mesh(pBaseGeo, this.mats.goldBrushed);
+            base.position.set(11.78, 0.16, pz);
             this.lavaGroup.add(base);
 
-            const cap = new THREE.Mesh(pCapGeo, this.mats.goldMatcapBright);
-            cap.position.set(portalX, 5.18, pz);
+            const cap = new THREE.Mesh(pCapGeo, this.mats.goldBrushed);
+            cap.position.set(11.78, 5.18, pz);
             this.lavaGroup.add(cap);
+
+            // Saubere goldene Durchgangs-Zarge von X = 11.90 bis 12.88 (keine koplanare Flaeche mit X = 12.00!)
+            const revealZ = jIdx === 0 ? (this.lavaPortalZ - pSpan + 0.12) : (this.lavaPortalZ + pSpan - 0.12);
+            const jamb = new THREE.Mesh(pJambRevealGeo, this.mats.goldBrushed);
+            jamb.position.set(12.39, 2.66, revealZ);
+            this.lavaGroup.add(jamb);
         });
 
         const portalArchitrave = new THREE.Mesh(
-            this._trackDisposable(new THREE.BoxGeometry(0.94, 0.44, pSpan * 2 + 0.88)),
-            this.mats.goldMatcapBright
+            this._trackDisposable(new THREE.BoxGeometry(1.22, 0.44, pSpan * 2 + 0.88)),
+            this.mats.goldBrushed
         );
-        portalArchitrave.position.set(portalX, 5.42, this.lavaPortalZ);
+        portalArchitrave.position.set(12.32, 5.42, this.lavaPortalZ);
         this.lavaGroup.add(portalArchitrave);
 
         const lavaFriezeTex = buildLouvreFriezeTexture(
@@ -4607,7 +4612,7 @@ class SeelenfunkeLouvreShowroom3D {
         const lavaFriezeMat = this._trackDisposable(new THREE.MeshBasicMaterial({ map: lavaFriezeTex }));
         const lavaFriezeBack = new THREE.Mesh(
             this._trackDisposable(new THREE.BoxGeometry(0.22, 1.48, 6.2)),
-            this.mats.goldMatcapBright
+            this.mats.goldBrushed
         );
         lavaFriezeBack.position.set(11.62, 6.26, this.lavaPortalZ);
         this.lavaGroup.add(lavaFriezeBack);
@@ -4617,7 +4622,7 @@ class SeelenfunkeLouvreShowroom3D {
             lavaFriezeMat
         );
         lavaFriezePlane.rotation.y = -Math.PI * 0.5;
-        lavaFriezePlane.position.set(11.50, 6.26, this.lavaPortalZ);
+        lavaFriezePlane.position.set(11.49, 6.26, this.lavaPortalZ);
         this.lavaGroup.add(lavaFriezePlane);
 
         const portalProxy = new THREE.Mesh(
@@ -4629,12 +4634,20 @@ class SeelenfunkeLouvreShowroom3D {
         this.lavaGroup.add(portalProxy);
         this.lavaPortalHitMeshes.push(portalProxy);
 
-        // 2. Gewoelbte Nero-Marquina-/Basalt-Felskammer (X = 12..73, Z = -12.5..8.5) & glühender Shader-Magma-See (Y = -1.35)
+        // 2. 100 % himmelsdichte gewoelbte Basalt-Felskammer (X = 12.20..73.90, Z = -12.5..8.5, Y = -3.2..22.5) & Shader-Magma-See (Y = -1.35)
         const chamCenterX = (this.lavaChamberMinX + this.lavaChamberMaxX) * 0.5;
         const chamCenterZ = (this.lavaChamberMinZ + this.lavaChamberMaxZ) * 0.5;
         const chamW = this.lavaChamberMaxX - this.lavaChamberMinX;
         const chamD = this.lavaChamberMaxZ - this.lavaChamberMinZ;
-        const chamWallH = 11.6;
+        const wallTopY = 9.6;
+        const fullWallBottomY = -3.2;
+        const fullWallTopY = 22.5;
+        const fullWallH = fullWallTopY - fullWallBottomY;
+        const fullWallCenterY = (fullWallBottomY + fullWallTopY) * 0.5;
+        const vaultStartX = 12.25;
+        const vaultEndX = 73.85;
+        const vaultLenX = vaultEndX - vaultStartX;
+        const vaultCenterX = (vaultStartX + vaultEndX) * 0.5;
 
         this.lavaLakeShaderMat = this._trackDisposable(new THREE.ShaderMaterial({
             uniforms: {
@@ -4701,44 +4714,55 @@ class SeelenfunkeLouvreShowroom3D {
         lavaLakeMesh.position.set(chamCenterX, this.lavaSurfaceY, chamCenterZ);
         this.lavaGroup.add(lavaLakeMesh);
 
-        // Nero-Marquina-/Basalt-Kammerwaende + bernsteinfarbener Magma-Widerschein unten (0 PointLights!)
-        const northSouthWallGeo = this._trackDisposable(new THREE.BoxGeometry(chamW + 1.2, chamWallH + 3.6, 0.9));
-        const underglowStripGeo = this._trackDisposable(new THREE.BoxGeometry(chamW + 0.4, 0.22, 0.14));
+        // Himmelsdichte Nord-/Sued-Basaltwaende (Y = -3.2..22.5) + sauber abgerueckter Magma-Widerschein (0 Z-Fighting!)
+        const northSouthWallGeo = this._trackDisposable(new THREE.BoxGeometry(vaultLenX + 0.6, fullWallH, 0.90));
+        const underglowStripGeo = this._trackDisposable(new THREE.BoxGeometry(vaultLenX - 0.8, 0.20, 0.12));
         [this.lavaChamberMinZ - 0.45, this.lavaChamberMaxZ + 0.45].forEach((wz, sIdx) => {
             const wMesh = new THREE.Mesh(northSouthWallGeo, basaltDarkMat);
-            wMesh.position.set(chamCenterX, (chamWallH - 2.6) * 0.5, wz);
+            wMesh.position.set(vaultCenterX, fullWallCenterY, wz);
             this.lavaGroup.add(wMesh);
 
             const glowBar = new THREE.Mesh(underglowStripGeo, magmaUnderglowMat);
-            glowBar.position.set(chamCenterX, this.lavaSurfaceY + 0.16, sIdx === 0 ? (this.lavaChamberMinZ + 0.08) : (this.lavaChamberMaxZ - 0.08));
+            glowBar.position.set(vaultCenterX, this.lavaSurfaceY + 0.15, sIdx === 0 ? (this.lavaChamberMinZ + 0.14) : (this.lavaChamberMaxZ - 0.14));
             this.lavaGroup.add(glowBar);
         });
 
+        // Himmelsdichte Ost-Stirnwand (X = 73.55 -> Innenflaeche 73.10, Y = -3.2..22.5)
         const eastEndWall = new THREE.Mesh(
-            this._trackDisposable(new THREE.BoxGeometry(0.9, chamWallH + 4.0, chamD + 1.6)),
+            this._trackDisposable(new THREE.BoxGeometry(0.90, fullWallH, chamD + 2.2)),
             basaltDarkMat
         );
-        eastEndWall.position.set(this.lavaChamberMaxX + 0.45, (chamWallH - 2.2) * 0.5, chamCenterZ);
+        eastEndWall.position.set(this.lavaChamberMaxX + 0.55, fullWallCenterY, chamCenterZ);
         this.lavaGroup.add(eastEndWall);
 
+        // West-Kammerwaende mit 20 cm Sicherheitsabstand zur Galerie-Ostwand (X = 12.55 -> 12.20..12.90, 0 Z-Fighting!)
         [
-            { minZ: this.lavaChamberMinZ, maxZ: this.lavaPortalZ - pSpan },
-            { minZ: this.lavaPortalZ + pSpan, maxZ: this.lavaChamberMaxZ },
+            { minZ: this.lavaChamberMinZ - 0.2, maxZ: this.lavaPortalZ - pSpan },
+            { minZ: this.lavaPortalZ + pSpan, maxZ: this.lavaChamberMaxZ + 0.2 },
         ].forEach((seg) => {
             const len = Math.max(0.5, seg.maxZ - seg.minZ);
             const segWall = new THREE.Mesh(
-                this._trackDisposable(new THREE.BoxGeometry(0.7, chamWallH + 3.6, len)),
+                this._trackDisposable(new THREE.BoxGeometry(0.70, fullWallH, len)),
                 basaltDarkMat
             );
-            segWall.position.set(this.lavaChamberMinX + 0.35, (chamWallH - 2.6) * 0.5, (seg.minZ + seg.maxZ) * 0.5);
+            segWall.position.set(12.55, fullWallCenterY, (seg.minZ + seg.maxZ) * 0.5);
             this.lavaGroup.add(segWall);
         });
 
-        // Gewoelbtes dunkles Tonnengewoelbe ueber der gesamten Magma-Kammer
+        // Westlicher Obergiebel ueber dem Portal (Y = 5.35..22.5) -> 0 Pixel heller Himmel beim Blick zurueck!
+        const westPortalGableH = fullWallTopY - 5.35;
+        const westPortalGable = new THREE.Mesh(
+            this._trackDisposable(new THREE.BoxGeometry(0.70, westPortalGableH, pSpan * 2 + 0.40)),
+            basaltDarkMat
+        );
+        westPortalGable.position.set(12.55, 5.35 + westPortalGableH * 0.5, this.lavaPortalZ);
+        this.lavaGroup.add(westPortalGable);
+
+        // Symmetrisches dunkles Tonnengewoelbe (thetaStart = 0, thetaLength = Math.PI bei rotation.z = +PI/2 -> woelbt sauber nach OBEN!)
         const vaultRadius = chamD * 0.52;
         const cavernVault = new THREE.Mesh(
-            this._trackDisposable(new THREE.CylinderGeometry(vaultRadius, vaultRadius, chamW + 1.4, 24, 1, true, -Math.PI * 0.5, Math.PI)),
-             this._trackDisposable(new THREE.MeshStandardMaterial({
+            this._trackDisposable(new THREE.CylinderGeometry(vaultRadius, vaultRadius, vaultLenX, 28, 1, true, 0, Math.PI)),
+            this._trackDisposable(new THREE.MeshStandardMaterial({
                 color: 0x151210,
                 roughness: 0.68,
                 metalness: 0.10,
@@ -4746,64 +4770,112 @@ class SeelenfunkeLouvreShowroom3D {
             }))
         );
         cavernVault.rotation.z = Math.PI * 0.5;
-        cavernVault.position.set(chamCenterX, chamWallH - 2.4, chamCenterZ);
+        cavernVault.position.set(vaultCenterX, wallTopY, chamCenterZ);
         this.lavaGroup.add(cavernVault);
 
-        // 24K-Gold-Wandpilaster & Gewoelberippen via InstancedMesh
+        // Zusaetzliche opake Basalt-Dachkappe ueber dem Gewoelbescheitel fuer 100 % Himmelsdichtigkeit
+        const cavernRoofCap = new THREE.Mesh(
+            this._trackDisposable(new THREE.BoxGeometry(vaultLenX + 0.6, 1.2, chamD + 2.6)),
+            basaltDarkMat
+        );
+        cavernRoofCap.position.set(vaultCenterX, wallTopY + vaultRadius + 0.45, chamCenterZ);
+        this.lavaGroup.add(cavernRoofCap);
+
+        // Tief im Magma verankerte Basalt-Wandpilaster (Y = -2.20..9.60), stolz vorgesetzte 24K-Gold-Lisenen & exakt sitzende Gewoelberippen
         const bayCount = 8;
-        const pilasterGeo = this._trackDisposable(new THREE.BoxGeometry(0.52, chamWallH - 1.1, 0.48));
-        const pilasterGoldGeo = this._trackDisposable(new THREE.BoxGeometry(0.22, chamWallH - 1.3, 0.56));
-        const vaultArchGeo = this._trackDisposable(new THREE.TorusGeometry(vaultRadius - 0.08, 0.16, 8, 28, Math.PI));
+        const pilasterBottomY = -2.20;
+        const pilasterH = wallTopY - pilasterBottomY;
+        const pilasterCenterY = (pilasterBottomY + wallTopY) * 0.5;
+        const goldStripBottomY = -1.25;
+        const goldStripTopY = wallTopY - 0.24;
+        const goldStripH = goldStripTopY - goldStripBottomY;
+        const goldStripCenterY = (goldStripBottomY + goldStripTopY) * 0.5;
+        const pilasterOffsetFromWall = 0.26;
+        const ribSpanHalfZ = (chamD * 0.5) - pilasterOffsetFromWall;
+
+        const pilasterGeo = this._trackDisposable(new THREE.BoxGeometry(0.58, pilasterH, 0.44));
+        const pilasterGoldGeo = this._trackDisposable(new THREE.BoxGeometry(0.18, goldStripH, 0.08));
+        const pilasterCapGeo = this._trackDisposable(new THREE.BoxGeometry(0.72, 0.28, 0.56));
+        const vaultArchGeo = this._trackDisposable(new THREE.TorusGeometry(ribSpanHalfZ, 0.15, 10, 32, Math.PI));
+
         const pilasterInst = new THREE.InstancedMesh(pilasterGeo, basaltPolishedMat, bayCount * 2);
-        const pilasterGoldInst = new THREE.InstancedMesh(pilasterGoldGeo, this.mats.goldMatcapBrushed, bayCount * 2);
-        const vaultArchInst = new THREE.InstancedMesh(vaultArchGeo, this.mats.goldMatcapBrushed, bayCount);
+        const pilasterGoldInst = new THREE.InstancedMesh(pilasterGoldGeo, this.mats.goldBrushed, bayCount * 2);
+        const pilasterCapInst = new THREE.InstancedMesh(pilasterCapGeo, this.mats.goldBrushed, bayCount * 2);
+        const vaultArchInst = new THREE.InstancedMesh(vaultArchGeo, this.mats.goldBrushed, bayCount);
         const dummy = new THREE.Object3D();
 
         for (let bi = 0; bi < bayCount; bi++) {
-            const bx = lerp(this.lavaChamberMinX + 4.2, this.lavaChamberMaxX - 3.6, bi / (bayCount - 1));
-            [this.lavaChamberMinZ + 0.24, this.lavaChamberMaxZ - 0.24].forEach((bz, sideIdx) => {
+            const bx = lerp(this.lavaChamberMinX + 4.4, this.lavaChamberMaxX - 3.6, bi / (bayCount - 1));
+            [-1, 1].forEach((sideSign, sideIdx) => {
                 const idx = bi * 2 + sideIdx;
-                dummy.position.set(bx, (chamWallH - 3.2) * 0.5, bz);
+                const bz = sideSign < 0
+                    ? (this.lavaChamberMinZ + pilasterOffsetFromWall)
+                    : (this.lavaChamberMaxZ - pilasterOffsetFromWall);
+                const bzGold = sideSign < 0 ? (bz + 0.27) : (bz - 0.27);
+
+                dummy.position.set(bx, pilasterCenterY, bz);
                 dummy.rotation.set(0, 0, 0);
                 dummy.scale.set(1, 1, 1);
                 dummy.updateMatrix();
                 pilasterInst.setMatrixAt(idx, dummy.matrix);
+
+                dummy.position.set(bx, goldStripCenterY, bzGold);
+                dummy.updateMatrix();
                 pilasterGoldInst.setMatrixAt(idx, dummy.matrix);
+
+                dummy.position.set(bx, wallTopY - 0.14, bz);
+                dummy.updateMatrix();
+                pilasterCapInst.setMatrixAt(idx, dummy.matrix);
             });
 
-            dummy.position.set(bx, chamWallH - 2.4, chamCenterZ);
+            dummy.position.set(bx, wallTopY, chamCenterZ);
             dummy.rotation.set(0, Math.PI * 0.5, 0);
-            dummy.scale.set(1, 1, 1);
+            dummy.scale.set(1.0, (vaultRadius - 0.16) / ribSpanHalfZ, 1.0);
             dummy.updateMatrix();
             vaultArchInst.setMatrixAt(bi, dummy.matrix);
         }
         pilasterInst.instanceMatrix.needsUpdate = true;
         pilasterGoldInst.instanceMatrix.needsUpdate = true;
+        pilasterCapInst.instanceMatrix.needsUpdate = true;
         vaultArchInst.instanceMatrix.needsUpdate = true;
-        this.lavaGroup.add(pilasterInst, pilasterGoldInst, vaultArchInst);
+        this.lavaGroup.add(pilasterInst, pilasterGoldInst, pilasterCapInst, vaultArchInst);
 
-        // Hexagonale Basalt-Felsformationen am Rand des Magma-Sees (InstancedMesh)
-        const hexColGeo = this._trackDisposable(new THREE.CylinderGeometry(0.82, 0.96, 1.0, 6));
+        // Tief verankerte hexagonale Basaltsaeulen im sicheren Randbereich (X = 20.5..61.5, Z <= -7.2 oder Z >= +3.2) + Glutring am Fuss
+        const hexColGeo = this._trackDisposable(new THREE.CylinderGeometry(0.84, 0.86, 1.0, 6));
+        const hexFootRingGeo = this._trackDisposable(new THREE.RingGeometry(0.84, 1.16, 6));
+        hexFootRingGeo.rotateX(-Math.PI * 0.5);
         const colPlacements = [];
         const rng = mulberry32(20261118);
-        for (let ci = 0; ci < 14; ci++) {
-            const cx = lerp(20.5, 70.0, ci / 13);
-            colPlacements.push([cx, this.lavaChamberMinZ + 1.3 + rng() * 1.5, 2.4 + rng() * 4.4]);
-            colPlacements.push([cx, this.lavaChamberMaxZ - 1.3 - rng() * 1.5, 2.4 + rng() * 4.4]);
+        for (let ci = 0; ci < 12; ci++) {
+            const cx = lerp(20.5, 61.5, ci / 11);
+            const northZ = clamp(-10.8 + rng() * 3.4, -11.0, -7.25);
+            const southZ = clamp(3.25 + rng() * 3.5, 3.25, 7.0);
+            colPlacements.push([cx, northZ, 2.8 + rng() * 3.2]);
+            colPlacements.push([cx, southZ, 2.8 + rng() * 3.2]);
         }
         const hexColInst = new THREE.InstancedMesh(hexColGeo, basaltPolishedMat, colPlacements.length);
+        const hexGlowInst = new THREE.InstancedMesh(hexFootRingGeo, magmaUnderglowMat, colPlacements.length);
         for (let ci = 0; ci < colPlacements.length; ci++) {
             const [cx, cz, ch] = colPlacements[ci];
-            dummy.position.set(cx, this.lavaSurfaceY + ch * 0.5 - 0.25, cz);
+            const colBaseY = -2.40;
+            const totalH = (this.lavaSurfaceY - colBaseY) + ch;
+            dummy.position.set(cx, colBaseY + totalH * 0.5, cz);
             dummy.rotation.set(0, ci * 0.52, 0);
-            dummy.scale.set(1, ch, 1);
+            dummy.scale.set(1, totalH, 1);
             dummy.updateMatrix();
             hexColInst.setMatrixAt(ci, dummy.matrix);
+
+            dummy.position.set(cx, this.lavaSurfaceY + 0.03, cz);
+            dummy.rotation.set(0, ci * 0.52, 0);
+            dummy.scale.set(1, 1, 1);
+            dummy.updateMatrix();
+            hexGlowInst.setMatrixAt(ci, dummy.matrix);
         }
         hexColInst.instanceMatrix.needsUpdate = true;
-        this.lavaGroup.add(hexColInst);
+        hexGlowInst.instanceMatrix.needsUpdate = true;
+        this.lavaGroup.add(hexColInst, hexGlowInst);
 
-        // 3. Start-Terrasse / Start-Balkon (X = 11.8..19.2, Z = -6.0..+2.0, Y = 0.004)
+        // 3. Start-Terrasse / Start-Balkon (X = 11.8..19.0, Z = -6.0..+2.0, Y = 0.004)
         const balcW = this.lavaBalconyMaxX - 11.8;
         const balcD = 8.0;
         const balcCenterX = 11.8 + balcW * 0.5;
@@ -4828,7 +4900,7 @@ class SeelenfunkeLouvreShowroom3D {
 
         const balconyEdgeGold = new THREE.Mesh(
             this._trackDisposable(new THREE.BoxGeometry(0.16, 0.10, balcD + 0.1)),
-            this.mats.goldMatcapBright
+            this.mats.goldBrushed
         );
         balconyEdgeGold.position.set(this.lavaBalconyMaxX - 0.05, -0.02, balcCenterZ);
         this.lavaGroup.add(balconyEdgeGold);
@@ -4849,8 +4921,10 @@ class SeelenfunkeLouvreShowroom3D {
             this.lavaGroup.add(railCap);
         });
 
-        // 4. Abgestimmte Obsidian-/24K-Gold-Springplatten (Start X=18 -> CP1 X=31.5 Y=0.85 -> CP2 X=51.0 Y=1.75 -> Truhe X=66.5 Y=2.80)
+        // 4. Spannender 3-Akt-Praezisionsparkour:
+        //    Start (X=19.0, Y=0.004) -> CP1 (X=31.5, Y=1.10, Z=-2.0) -> CP2 (X=51.0, Y=2.20, Z=-2.0) -> Schatzinsel (X=66.5, Y=3.20, Z=-2.0)
         this.lavaPlatforms = [];
+        this.lavaGeysers = [];
         this.lavaCheckpointRings = {};
 
         const addDiscPad = (cfg) => {
@@ -4858,25 +4932,31 @@ class SeelenfunkeLouvreShowroom3D {
             grp.position.set(cfg.x, cfg.y, cfg.z);
             this.lavaGroup.add(grp);
 
-            const h = cfg.h || 0.40;
+            const isCrumble = cfg.type === 'crumble';
+            const h = cfg.h || 0.38;
             const cyl = new THREE.Mesh(
-                this._trackDisposable(new THREE.CylinderGeometry(cfg.r, cfg.r * 0.88, h, 24)),
+                this._trackDisposable(new THREE.CylinderGeometry(cfg.r, cfg.r * 0.86, h, 24)),
                 this.mats.neroPedestal
             );
             cyl.position.y = -h * 0.5;
             grp.add(cyl);
 
+            let warnRingMat = null;
+            if (isCrumble) {
+                warnRingMat = this._trackDisposable(new THREE.MeshBasicMaterial({ color: 0xd97706 }));
+            }
+
             const rim = new THREE.Mesh(
                 this._trackDisposable(new THREE.TorusGeometry(cfg.r - 0.02, cfg.checkpoint ? 0.065 : 0.042, 10, 32)),
-                cfg.checkpoint ? this.mats.goldMatcapBright : this.mats.goldBrushed
+                cfg.checkpoint ? this.mats.goldMatcapBright : (warnRingMat || this.mats.goldBrushed)
             );
             rim.rotation.x = Math.PI * 0.5;
             rim.position.y = -0.02;
             grp.add(rim);
 
             const centerInlay = new THREE.Mesh(
-                this._trackDisposable(new THREE.RingGeometry(cfg.r * 0.58, cfg.r * 0.65, 32)),
-                this.mats.goldMatcapBrushed
+                this._trackDisposable(new THREE.RingGeometry(cfg.r * 0.54, cfg.r * 0.64, isCrumble ? 6 : 32)),
+                warnRingMat || this.mats.goldBrushed
             );
             centerInlay.rotation.x = -Math.PI * 0.5;
             centerInlay.position.y = 0.004;
@@ -4924,6 +5004,7 @@ class SeelenfunkeLouvreShowroom3D {
                 type: cfg.type || 'static',
                 checkpoint: cfg.checkpoint || 0,
                 group: grp,
+                warnRingMat,
                 baseX: cfg.x,
                 baseY: cfg.y,
                 baseZ: cfg.z,
@@ -4939,6 +5020,9 @@ class SeelenfunkeLouvreShowroom3D {
                 ampZ: cfg.ampZ || 0,
                 freq: cfg.freq || 1.2,
                 phase: cfg.phase || 0,
+                steppedOn: false,
+                crumbleSoundPlayed: false,
+                crumbleTimer: 0,
                 sunk: false,
             };
             this.lavaPlatforms.push(rec);
@@ -4952,7 +5036,7 @@ class SeelenfunkeLouvreShowroom3D {
 
             const w = cfg.halfW * 2;
             const d = cfg.halfD * 2;
-            const h = cfg.h || 0.44;
+            const h = cfg.h || 0.42;
             const box = new THREE.Mesh(
                 this._trackDisposable(new THREE.BoxGeometry(w, h, d)),
                 this.mats.neroPedestal
@@ -4961,8 +5045,8 @@ class SeelenfunkeLouvreShowroom3D {
             grp.add(box);
 
             const trim = new THREE.Mesh(
-                this._trackDisposable(new THREE.BoxGeometry(w + 0.10, 0.08, d + 0.10)),
-                this.mats.goldMatcapBright
+                this._trackDisposable(new THREE.BoxGeometry(w + 0.08, 0.08, d + 0.08)),
+                this.mats.goldBrushed
             );
             trim.position.y = -0.04;
             grp.add(trim);
@@ -4983,6 +5067,7 @@ class SeelenfunkeLouvreShowroom3D {
                 checkpoint: 0,
                 isTreasureIsland: Boolean(cfg.isTreasureIsland),
                 group: grp,
+                warnRingMat: null,
                 baseX: cfg.x,
                 baseY: cfg.y,
                 baseZ: cfg.z,
@@ -4999,42 +5084,122 @@ class SeelenfunkeLouvreShowroom3D {
                 ampZ: cfg.ampZ || 0,
                 freq: cfg.freq || 1.15,
                 phase: cfg.phase || 0,
+                steppedOn: false,
+                crumbleSoundPlayed: false,
+                crumbleTimer: 0,
                 sunk: false,
             };
             this.lavaPlatforms.push(rec);
             return rec;
         };
 
-        // Abschnitt A: Start-Balkon (X=19.2) -> Checkpoint 1 (X=31.5, Y=0.85, Z=-2.0)
-        addDiscPad({ x: 21.85, y: 0.28, z: -2.25, r: 1.38, type: 'static' });
-        addDiscPad({ x: 25.00, y: 0.54, z: -1.70, r: 1.36, type: 'static' });
-        addDiscPad({ x: 28.25, y: 0.72, z: -2.00, r: 1.42, type: 'pendulum', ampZ: 1.35, freq: 1.18, phase: 0.2 });
-        addDiscPad({ x: 31.50, y: 0.85, z: -2.00, r: 1.90, type: 'static', checkpoint: 1, h: 0.54 });
+        // Akt 1: Start-Balkon (X=19.0, Y=0.004) -> Checkpoint 1 (X=31.5, Y=1.10, Z=-2.0, r=1.65)
+        addDiscPad({ x: 21.85, y: 0.32, z: -2.85, r: 1.06, type: 'static' });
+        addDiscPad({ x: 25.00, y: 0.62, z: -1.05, r: 1.00, type: 'crumble' });
+        addDiscPad({ x: 28.25, y: 0.88, z: -2.00, r: 0.98, type: 'pendulum', ampZ: 1.52, freq: 1.44, phase: 0.3 });
+        addDiscPad({ x: 31.50, y: 1.10, z: -2.00, r: 1.65, type: 'static', checkpoint: 1, h: 0.56 });
 
-        // Abschnitt B: Checkpoint 1 (X=31.5) -> Checkpoint 2 (X=51.0, Y=1.75, Z=-2.0)
-        addDiscPad({ x: 35.40, y: 1.06, z: -2.35, r: 1.38, type: 'static' });
-        addDiscPad({ x: 39.25, y: 1.26, z: -2.00, r: 1.44, type: 'pendulum', ampZ: 1.42, ampY: 0.16, freq: 1.12, phase: 1.1 });
-        addBoxPad({ x: 43.30, y: 1.46, z: -1.75, halfW: 1.58, halfD: 1.18, type: 'static' });
-        addDiscPad({ x: 47.25, y: 1.62, z: -2.00, r: 1.42, type: 'pendulum', ampX: 0.82, freq: 1.10, phase: 0.5 });
-        addDiscPad({ x: 51.00, y: 1.75, z: -2.00, r: 1.92, type: 'static', checkpoint: 2, h: 0.58 });
+        // Akt 2: Checkpoint 1 (X=31.5, Y=1.10) -> Schwebebalken + Geysir -> Checkpoint 2 (X=51.0, Y=2.20, Z=-2.0, r=1.65)
+        addDiscPad({ x: 35.10, y: 1.34, z: -3.10, r: 0.96, type: 'pendulum', ampZ: 1.32, freq: 1.50, phase: 0.0 });
+        addDiscPad({ x: 38.75, y: 1.56, z: -0.90, r: 0.94, type: 'pendulum', ampZ: 1.32, ampY: 0.24, freq: 1.50, phase: Math.PI });
+        addBoxPad({ x: 43.05, y: 1.78, z: -2.00, halfW: 1.45, halfD: 0.48, type: 'static' });
+        addDiscPad({ x: 47.20, y: 2.00, z: -2.65, r: 0.94, type: 'crumble' });
+        addDiscPad({ x: 51.00, y: 2.20, z: -2.00, r: 1.65, type: 'static', checkpoint: 2, h: 0.60 });
 
-        // Abschnitt C: Checkpoint 2 (X=51.0) -> Schatztruhen-Plattform (X=66.5, Y=2.80, Z=-2.0)
-        addDiscPad({ x: 55.05, y: 2.06, z: -2.30, r: 1.38, type: 'static' });
-        addDiscPad({ x: 58.85, y: 2.36, z: -2.00, r: 1.44, type: 'pendulum', ampZ: 1.28, ampY: 0.14, freq: 1.16, phase: 2.2 });
-        addDiscPad({ x: 62.45, y: 2.62, z: -1.75, r: 1.38, type: 'static' });
+        // Akt 3: Checkpoint 2 (X=51.0, Y=2.20) -> Aufzug-Pendel, Crumble-Platte & Geysir -> Schatzinsel (X=66.5, Y=3.20, Z=-2.0)
+        addDiscPad({ x: 54.65, y: 2.48, z: -0.75, r: 0.94, type: 'pendulum', ampX: 0.78, ampY: 0.26, freq: 1.48, phase: 0.8 });
+        addDiscPad({ x: 58.30, y: 2.78, z: -3.05, r: 0.92, type: 'crumble' });
+        addDiscPad({ x: 61.60, y: 3.02, z: -1.35, r: 0.88, type: 'pendulum', ampZ: 1.46, freq: 1.60, phase: 2.1 });
 
         const islandRec = addBoxPad({
             x: 66.75,
-            y: 2.80,
+            y: 3.20,
             z: -2.0,
             halfW: 2.85,
-            halfD: 3.50,
-            h: 4.30,
+            halfD: 3.40,
+            h: 4.70,
             type: 'static',
             isTreasureIsland: true,
         });
 
-        // Ausmodellierte 24K-Gold- & Obsidian-Schatztruhe auf (X = 66.5, Y = 2.80, Z = -2.0)
+        // 2 rhythmische Magma-Geysire / Glut-Fontaenen in Akt 2 (X = 43.2) und Akt 3 (X = 59.95)
+        // Zyklus: 2.20s Ruhe + 0.60s Vorwarn-Gluehen am See + 1.10s Ausbruch (Schutzschild Taste 3 wehrt Glut ab!)
+        const buildGeyser = (gx, gz, maxTopY, phaseOffset) => {
+            const gRoot = new THREE.Group();
+            gRoot.position.set(gx, this.lavaSurfaceY, gz);
+            this.lavaGroup.add(gRoot);
+
+            const boilMat = this._trackDisposable(new THREE.MeshBasicMaterial({
+                color: 0xd9531e,
+                transparent: true,
+                opacity: 0.42,
+                side: THREE.DoubleSide,
+                depthWrite: false,
+            }));
+            const boilRing = new THREE.Mesh(
+                this._trackDisposable(new THREE.RingGeometry(0.32, 1.16, 28)),
+                boilMat
+            );
+            boilRing.rotation.x = -Math.PI * 0.5;
+            boilRing.position.y = 0.04;
+            gRoot.add(boilRing);
+
+            const plumeGroup = new THREE.Group();
+            plumeGroup.visible = false;
+            gRoot.add(plumeGroup);
+
+            const outerPlumeMat = this._trackDisposable(new THREE.MeshBasicMaterial({
+                color: 0xf97316,
+                transparent: true,
+                opacity: 0.78,
+                side: THREE.DoubleSide,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+            }));
+            const innerPlumeMat = this._trackDisposable(new THREE.MeshBasicMaterial({
+                color: 0xfde68a,
+                transparent: true,
+                opacity: 0.90,
+                side: THREE.DoubleSide,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+            }));
+
+            const outerCyl = new THREE.Mesh(
+                this._trackDisposable(new THREE.CylinderGeometry(0.42, 0.92, 1.0, 14, 1, true)),
+                outerPlumeMat
+            );
+            outerCyl.position.y = 0.5;
+            const innerCyl = new THREE.Mesh(
+                this._trackDisposable(new THREE.CylinderGeometry(0.20, 0.46, 1.0, 10, 1, true)),
+                innerPlumeMat
+            );
+            innerCyl.position.y = 0.5;
+            const crestGem = new THREE.Mesh(
+                this._trackDisposable(new THREE.OctahedronGeometry(0.38, 0)),
+                innerPlumeMat
+            );
+            crestGem.position.y = 1.0;
+            plumeGroup.add(outerCyl, innerCyl, crestGem);
+
+            this.lavaGeysers.push({
+                x: gx,
+                z: gz,
+                maxTopY,
+                phaseOffset,
+                boilRing,
+                boilMat,
+                plumeGroup,
+                eruptFactor: 0,
+                currentTopY: this.lavaSurfaceY,
+                shieldDeflectCd: 0,
+            });
+        };
+
+        buildGeyser(43.20, -2.00, 4.35, 0.0);
+        buildGeyser(59.95, -1.95, 5.25, 1.95);
+
+        // Ausmodellierte 24K-Gold- & Obsidian-Schatztruhe auf (X = 66.5, Y = 3.20, Z = -2.0)
         const chestRoot = new THREE.Group();
         chestRoot.position.set(66.5 - islandRec.x, 0.0, -2.0 - islandRec.z);
         chestRoot.rotation.y = -Math.PI * 0.5;
@@ -5135,7 +5300,7 @@ class SeelenfunkeLouvreShowroom3D {
         chestRoot.add(chestHitProxy);
         this.lavaChestHitMeshes.push(chestHitProxy);
 
-        // Schleierfreier 24K-Gold-Rueckkehrbogen auf der Schatz-Insel (X = 68.4, Y = 2.80, Z = +0.65)
+        // Schleierfreier 24K-Gold-Rueckkehrbogen auf der Schatz-Insel (X = 68.4, Y = 3.20, Z = +0.65)
         const returnArchGroup = new THREE.Group();
         returnArchGroup.position.set(68.4 - islandRec.x, 0.0, 0.65 - islandRec.z);
         returnArchGroup.rotation.y = -Math.PI * 0.72;
@@ -5226,10 +5391,113 @@ class SeelenfunkeLouvreShowroom3D {
                 p.dy = p.y - prevY;
                 p.dz = p.z - prevZ;
                 p.group.position.set(p.x, p.y, p.z);
+            } else if (p.type === 'crumble') {
+                p.dx = 0;
+                p.dz = 0;
+                if (p.steppedOn) {
+                    if (!p.crumbleSoundPlayed) {
+                        p.crumbleSoundPlayed = true;
+                        if (this.audio && typeof this.audio.playCrumbleTick === 'function') {
+                            this.audio.playCrumbleTick();
+                        }
+                    }
+                    p.crumbleTimer += dt;
+                    if (p.crumbleTimer < 0.65) {
+                        // 0.65s Vorwarn-Vibration mit hellem Gold-Orange-Warnring
+                        p.y = p.baseY;
+                        p.dy = 0;
+                        p.sunk = false;
+                        const vib = Math.sin(t * 54.0) * 0.042;
+                        const vibZ = Math.cos(t * 47.0) * 0.036;
+                        p.group.position.set(p.baseX + vib, p.baseY, p.baseZ + vibZ);
+                        if (p.warnRingMat) {
+                            p.warnRingMat.color.setHex((Math.floor(t * 14) % 2 === 0) ? 0xfde68a : 0xf97316);
+                        }
+                    } else if (p.crumbleTimer < 1.05) {
+                        // Rasches Absinken um 1.8m in den Magma-See
+                        const uSink = clamp((p.crumbleTimer - 0.65) / 0.40, 0, 1);
+                        p.y = lerp(p.baseY, p.baseY - 1.80, uSink * uSink);
+                        p.dy = p.y - prevY;
+                        p.sunk = (p.y < p.baseY - 0.50);
+                        p.group.position.set(p.baseX, p.y, p.baseZ);
+                        if (p.warnRingMat) p.warnRingMat.color.setHex(0xea580c);
+                    } else if (p.crumbleTimer < 3.25) {
+                        // 2.2s tief im Magma versunken (sunk = true)
+                        p.y = p.baseY - 1.80;
+                        p.dy = 0;
+                        p.sunk = true;
+                        p.group.position.set(p.baseX, p.y, p.baseZ);
+                    } else if (p.crumbleTimer < 4.00) {
+                        // Sanftes Wiederaufsteigen auf baseY
+                        const uRise = clamp((p.crumbleTimer - 3.25) / 0.75, 0, 1);
+                        const smoothRise = uRise * uRise * (3.0 - 2.0 * uRise);
+                        p.y = lerp(p.baseY - 1.80, p.baseY, smoothRise);
+                        p.dy = p.y - prevY;
+                        p.sunk = (uRise < 0.72);
+                        p.group.position.set(p.baseX, p.y, p.baseZ);
+                        if (p.warnRingMat) p.warnRingMat.color.setHex(0xd97706);
+                    } else {
+                        p.y = p.baseY;
+                        p.dy = 0;
+                        p.steppedOn = false;
+                        p.crumbleSoundPlayed = false;
+                        p.crumbleTimer = 0;
+                        p.sunk = false;
+                        p.group.position.set(p.baseX, p.baseY, p.baseZ);
+                        if (p.warnRingMat) p.warnRingMat.color.setHex(0xd97706);
+                    }
+                } else {
+                    p.y = p.baseY;
+                    p.dy = 0;
+                    p.sunk = false;
+                    p.group.position.set(p.baseX, p.baseY, p.baseZ);
+                }
             } else {
                 p.dx = 0;
                 p.dy = 0;
                 p.dz = 0;
+            }
+        }
+
+        // Rhythmische Magma-Geysire aktualisieren (2.20s Ruhe + 0.60s Vorwarn-Gluehen + 1.10s Ausbruch = 3.90s Zyklus)
+        for (let gi = 0; gi < this.lavaGeysers.length; gi++) {
+            const g = this.lavaGeysers[gi];
+            if (g.shieldDeflectCd > 0) {
+                g.shieldDeflectCd = Math.max(0, g.shieldDeflectCd - dt);
+            }
+            const cyc = ((t + g.phaseOffset) % 3.90 + 3.90) % 3.90;
+            if (cyc < 2.20) {
+                g.eruptFactor = 0;
+                g.currentTopY = this.lavaSurfaceY;
+                g.plumeGroup.visible = false;
+                g.boilMat.color.setHex(0xb45309);
+                g.boilMat.opacity = 0.34;
+                const calmPulse = 0.92 + Math.sin(t * 2.5 + gi) * 0.06;
+                g.boilRing.scale.set(calmPulse, calmPulse, 1);
+            } else if (cyc < 2.80) {
+                // 0.60s deutlich lesbares Vorwarn-Brodeln am Magma-See
+                const warnU = (cyc - 2.20) / 0.60;
+                g.eruptFactor = 0;
+                g.currentTopY = this.lavaSurfaceY;
+                g.plumeGroup.visible = false;
+                g.boilMat.color.setHex((Math.floor(t * 16) % 2 === 0) ? 0xfde68a : 0xf97316);
+                g.boilMat.opacity = 0.55 + warnU * 0.42;
+                const warnScale = 1.0 + warnU * 0.42;
+                g.boilRing.scale.set(warnScale, warnScale, 1);
+            } else {
+                // 1.10s aktiver Glut-Fontaenen-Ausbruch
+                const erU = (cyc - 2.80) / 1.10;
+                const envelope = Math.sin(clamp(erU, 0, 1) * Math.PI);
+                g.eruptFactor = envelope;
+                const totalSpanH = Math.max(0.5, g.maxTopY - this.lavaSurfaceY);
+                const curH = Math.max(0.15, totalSpanH * Math.pow(envelope, 0.65));
+                g.currentTopY = this.lavaSurfaceY + curH;
+                g.plumeGroup.visible = true;
+                g.plumeGroup.scale.set(0.86 + envelope * 0.24, curH, 0.86 + envelope * 0.24);
+                g.plumeGroup.rotation.y = t * 4.2 + gi;
+                g.boilMat.color.setHex(0xfde68a);
+                g.boilMat.opacity = 0.95;
+                g.boilRing.scale.set(1.38, 1.38, 1);
             }
         }
 
@@ -5270,9 +5538,12 @@ class SeelenfunkeLouvreShowroom3D {
         }
 
         if (this.audio && typeof this.audio.updateLavaAmbience === 'function') {
-            const distToPortal = this.player.x >= 12.0
-                ? 0.0
-                : Math.hypot(this.player.x - 12.0, this.player.z - this.lavaPortalZ);
+            const inSouthernWing = this.player.z > (this.hallNorthZ - 1.5);
+            const distToPortal = !inSouthernWing
+                ? 999.0
+                : (this.player.x >= 12.0
+                    ? 0.0
+                    : Math.hypot(this.player.x - 12.0, this.player.z - this.lavaPortalZ));
             this.audio.updateLavaAmbience(distToPortal, this.running && !this.destroyed);
         }
     }
@@ -5358,14 +5629,37 @@ class SeelenfunkeLouvreShowroom3D {
         };
     }
 
+    _delayMs(ms) {
+        const wait = Math.max(0, Math.ceil(Number(ms) || 0));
+        if (wait <= 0) return Promise.resolve();
+        return new Promise((resolve) => {
+            setTimeout(resolve, wait);
+        });
+    }
+
+    _nowClientMs() {
+        return (typeof performance !== 'undefined') ? performance.now() : Date.now();
+    }
+
     _startLavaParkourRun(forceRestart = false) {
-        if (!this.isAuthenticatedCustomer || typeof fetch !== 'function') return;
-        if (this.lavaRun.starting) return;
-        if (!forceRestart && this.lavaRun.runId) return;
+        if (!this.isAuthenticatedCustomer || typeof fetch !== 'function') {
+            return Promise.resolve(null);
+        }
+        if (this.lavaRun.starting && this.lavaRun._startPromise) {
+            return this.lavaRun._startPromise;
+        }
+        const runAgeMs = this.lavaRun.startedClientMs > 0
+            ? (this._nowClientMs() - this.lavaRun.startedClientMs)
+            : 0;
+        if (!forceRestart && this.lavaRun.runId && runAgeMs < 720000) {
+            return Promise.resolve(this.lavaRun.runId);
+        }
 
         this._clearPendingLavaTimers();
         this.lavaRun.starting = true;
         this.lavaRun.runId = null;
+        this.lavaRun._cp1Promise = null;
+        this.lavaRun._cp2Promise = null;
         this.lavaRun.cp1Reached = false;
         this.lavaRun.cp1Sent = false;
         this.lavaRun.cp1ConfirmedMs = 0;
@@ -5374,7 +5668,7 @@ class SeelenfunkeLouvreShowroom3D {
         this.lavaRun.cp2ConfirmedMs = 0;
         this.lavaRun.claimToken = null;
 
-        fetch('/funkenwerk-welt/lava-parkour/start', {
+        const startProm = fetch('/funkenwerk-welt/lava-parkour/start', {
             method: 'POST',
             credentials: 'same-origin',
             headers: {
@@ -5387,113 +5681,164 @@ class SeelenfunkeLouvreShowroom3D {
             .then((r) => r.json().catch(() => null))
             .then((body) => {
                 this.lavaRun.starting = false;
-                if (this.destroyed || !body) return;
+                if (this.destroyed || !body) return null;
                 if (body.claimed_today !== undefined) {
                     this.lavaRun.claimedToday = Boolean(body.claimed_today);
                 }
                 if ((body.success || body.ok) && body.run_id) {
                     this.lavaRun.runId = String(body.run_id);
-                    this.lavaRun.startedClientMs = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+                    this.lavaRun.startedClientMs = this._nowClientMs();
                     this.lavaRun.cp1ClientMs = 0;
                     this.lavaRun.cp2ClientMs = 0;
                 }
                 this._notifyLavaChestUi();
+                return this.lavaRun.runId;
             })
             .catch(() => {
                 this.lavaRun.starting = false;
+                return null;
             });
+
+        this.lavaRun._startPromise = startProm;
+        return startProm;
     }
 
     _triggerLavaCheckpoint(stage, touchX, touchY, touchZ) {
         if (stage === 1 && !this.lavaRun.cp1Reached) {
             this.lavaRun.cp1Reached = true;
-            this._spawnAbilityBurst(31.5, 0.92, -2.0, 'sprint');
+            this._spawnAbilityBurst(31.5, 1.18, -2.0, 'sprint');
         } else if (stage === 2 && !this.lavaRun.cp2Reached) {
             this.lavaRun.cp2Reached = true;
-            this._spawnAbilityBurst(51.0, 1.82, -2.0, 'shield');
+            this._spawnAbilityBurst(51.0, 2.28, -2.0, 'shield');
         }
 
-        if (!this.isAuthenticatedCustomer || typeof fetch !== 'function') return;
-        if (stage === 1 && (this.lavaRun.cp1Sent || this.lavaRun.cp1PendingTimer)) return;
-        if (stage === 2 && (this.lavaRun.cp2Sent || this.lavaRun.cp2PendingTimer)) return;
+        if (!this.isAuthenticatedCustomer || typeof fetch !== 'function') {
+            return Promise.resolve(false);
+        }
 
-        const fireStage = () => {
-            if (this.destroyed) return;
-            if (!this.lavaRun.runId) {
-                if (!this.lavaRun.starting) this._startLavaParkourRun(false);
-                if (stage === 1) {
-                    this.lavaRun.cp1PendingTimer = setTimeout(fireStage, 250);
-                } else {
-                    this.lavaRun.cp2PendingTimer = setTimeout(fireStage, 250);
-                }
-                return;
+        if (stage === 1) {
+            if (this.lavaRun._cp1Promise) return this.lavaRun._cp1Promise;
+            this.lavaRun.cp1Sent = true;
+
+            const runCp1 = (allowFreshRestart = true) => {
+                const ensureStart = this.lavaRun.runId
+                    ? Promise.resolve(this.lavaRun.runId)
+                    : (this.lavaRun._startPromise || this._startLavaParkourRun(false));
+
+                return ensureStart.then((activeRunId) => {
+                    if (this.destroyed || !activeRunId) return false;
+                    const elapsed = this._nowClientMs() - (this.lavaRun.startedClientMs || this._nowClientMs());
+                    const waitBeforeCp1 = Math.max(0, 2880 - elapsed);
+                    return this._delayMs(waitBeforeCp1).then(() => {
+                        if (this.destroyed || !this.lavaRun.runId) return false;
+                        const safeX = clamp(touchX, 29.0, 34.0);
+                        const safeY = clamp(touchY, 0.2, 4.8);
+                        const safeZ = clamp(touchZ, -4.2, 0.2);
+
+                        return fetch('/funkenwerk-welt/lava-parkour/checkpoint', {
+                            method: 'POST',
+                            credentials: 'same-origin',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                                'X-CSRF-TOKEN': this._readCsrfToken(),
+                            },
+                            body: JSON.stringify({
+                                run_id: this.lavaRun.runId,
+                                stage: 1,
+                                x: Number(safeX.toFixed(3)),
+                                y: Number(safeY.toFixed(3)),
+                                z: Number(safeZ.toFixed(3)),
+                            }),
+                        })
+                            .then((r) => r.json().then((b) => ({ status: r.status, body: b })).catch(() => ({ status: r.status, body: null })))
+                            .then(({ status, body }) => {
+                                if (this.destroyed || !body) return false;
+                                if (body.success || body.ok) {
+                                    const doneMs = this._nowClientMs();
+                                    this.lavaRun.cp1ClientMs = doneMs;
+                                    this.lavaRun.cp1ConfirmedMs = doneMs;
+                                    return true;
+                                }
+                                if (status === 422 && body.retryable === true) {
+                                    const retryWait = (Number(body.wait_ms) || 550) + 60;
+                                    return this._delayMs(retryWait).then(() => runCp1(false));
+                                }
+                                if (allowFreshRestart && status === 422) {
+                                    const keepCp1 = this.lavaRun.cp1Reached;
+                                    const keepCp2 = this.lavaRun.cp2Reached;
+                                    return this._startLavaParkourRun(true).then(() => {
+                                        this.lavaRun.cp1Reached = keepCp1;
+                                        this.lavaRun.cp2Reached = keepCp2;
+                                        return runCp1(false);
+                                    });
+                                }
+                                return false;
+                            });
+                    });
+                }).catch(() => false);
+            };
+
+            this.lavaRun._cp1Promise = runCp1(true);
+            return this.lavaRun._cp1Promise;
+        }
+
+        // Stage 2
+        if (this.lavaRun._cp2Promise) return this.lavaRun._cp2Promise;
+        this.lavaRun.cp2Sent = true;
+
+        const runCp2 = (allowRetry = true) => {
+            if (!this.lavaRun._cp1Promise) {
+                this._triggerLavaCheckpoint(1, 31.5, 1.10, -2.0);
             }
+            return Promise.resolve(this.lavaRun._cp1Promise).then((cp1Ok) => {
+                if (this.destroyed || !cp1Ok || !this.lavaRun.runId) return false;
+                const elapsedAfterCp1 = this._nowClientMs() - (this.lavaRun.cp1ConfirmedMs || this._nowClientMs());
+                const waitBeforeCp2 = Math.max(0, 2880 - elapsedAfterCp1);
+                return this._delayMs(waitBeforeCp2).then(() => {
+                    if (this.destroyed || !this.lavaRun.runId) return false;
+                    const safeX = clamp(touchX, 48.5, 53.5);
+                    const safeY = clamp(touchY, 0.8, 5.8);
+                    const safeZ = clamp(touchZ, -4.2, 0.2);
 
-            const nowMs = (typeof performance !== 'undefined') ? performance.now() : Date.now();
-            if (stage === 1) {
-                const elapsed = nowMs - (this.lavaRun.startedClientMs || nowMs);
-                if (elapsed < 2920) {
-                    this.lavaRun.cp1PendingTimer = setTimeout(fireStage, Math.max(80, Math.ceil(2940 - elapsed)));
-                    return;
-                }
-                this.lavaRun.cp1PendingTimer = 0;
-                this.lavaRun.cp1Sent = true;
-            } else {
-                if (!this.lavaRun.cp1ConfirmedMs) {
-                    if (!this.lavaRun.cp1Sent && !this.lavaRun.cp1PendingTimer) {
-                        this._triggerLavaCheckpoint(1, 31.5, 0.85, -2.0);
-                    }
-                    this.lavaRun.cp2PendingTimer = setTimeout(fireStage, 220);
-                    return;
-                }
-                const elapsedAfterCp1 = nowMs - this.lavaRun.cp1ConfirmedMs;
-                if (elapsedAfterCp1 < 2920) {
-                    this.lavaRun.cp2PendingTimer = setTimeout(fireStage, Math.max(80, Math.ceil(2940 - elapsedAfterCp1)));
-                    return;
-                }
-                this.lavaRun.cp2PendingTimer = 0;
-                this.lavaRun.cp2Sent = true;
-            }
-
-            const safeX = stage === 1 ? clamp(touchX, 29.0, 34.0) : clamp(touchX, 48.5, 53.5);
-            const safeY = stage === 1 ? clamp(touchY, 0.2, 4.5) : clamp(touchY, 0.8, 5.5);
-            const safeZ = clamp(touchZ, -4.2, 0.2);
-
-            fetch('/funkenwerk-welt/lava-parkour/checkpoint', {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    'X-CSRF-TOKEN': this._readCsrfToken(),
-                },
-                body: JSON.stringify({
-                    run_id: this.lavaRun.runId,
-                    stage,
-                    x: Number(safeX.toFixed(3)),
-                    y: Number(safeY.toFixed(3)),
-                    z: Number(safeZ.toFixed(3)),
-                }),
-            })
-                .then((r) => r.json().catch(() => null))
-                .then((body) => {
-                    if (this.destroyed || !body) return;
-                    const doneMs = (typeof performance !== 'undefined') ? performance.now() : Date.now();
-                    if (body.success || body.ok) {
-                        if (stage === 1) {
-                            this.lavaRun.cp1ClientMs = doneMs;
-                            this.lavaRun.cp1ConfirmedMs = doneMs;
-                        } else if (stage === 2 && body.claim_token) {
-                            this.lavaRun.cp2ClientMs = doneMs;
-                            this.lavaRun.cp2ConfirmedMs = doneMs;
-                            this.lavaRun.claimToken = String(body.claim_token);
-                        }
-                    }
-                })
-                .catch(() => {});
+                    return fetch('/funkenwerk-welt/lava-parkour/checkpoint', {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': this._readCsrfToken(),
+                        },
+                        body: JSON.stringify({
+                            run_id: this.lavaRun.runId,
+                            stage: 2,
+                            x: Number(safeX.toFixed(3)),
+                            y: Number(safeY.toFixed(3)),
+                            z: Number(safeZ.toFixed(3)),
+                        }),
+                    })
+                        .then((r) => r.json().then((b) => ({ status: r.status, body: b })).catch(() => ({ status: r.status, body: null })))
+                        .then(({ status, body }) => {
+                            if (this.destroyed || !body) return false;
+                            if ((body.success || body.ok) && body.claim_token) {
+                                const doneMs = this._nowClientMs();
+                                this.lavaRun.cp2ClientMs = doneMs;
+                                this.lavaRun.cp2ConfirmedMs = doneMs;
+                                this.lavaRun.claimToken = String(body.claim_token);
+                                return true;
+                            }
+                            if (allowRetry && status === 422 && body.retryable === true) {
+                                const retryWait = (Number(body.wait_ms) || 550) + 60;
+                                return this._delayMs(retryWait).then(() => runCp2(false));
+                            }
+                            return false;
+                        });
+                });
+            }).catch(() => false);
         };
 
-        fireStage();
+        this.lavaRun._cp2Promise = runCp2(true);
+        return this.lavaRun._cp2Promise;
     }
 
     claimLavaChest() {
@@ -5513,74 +5858,112 @@ class SeelenfunkeLouvreShowroom3D {
         }
 
         this.lavaRun.claiming = true;
-        this.lavaRun.statusMessage = 'Truhe wird geöffnet...';
+        this.lavaRun.statusMessage = 'Truhe entriegelt...';
         this._notifyLavaChestUi();
 
-        const attemptClaim = (retriesLeft) => {
-            if (this.destroyed) return Promise.resolve(false);
-            const nowMs = (typeof performance !== 'undefined') ? performance.now() : Date.now();
-            const waitAfterCp2 = this.lavaRun.cp2ConfirmedMs > 0 ? Math.max(0, 2520 - (nowMs - this.lavaRun.cp2ConfirmedMs)) : 320;
-            const waitTotal = this.lavaRun.startedClientMs > 0 ? Math.max(0, 8650 - (nowMs - this.lavaRun.startedClientMs)) : 0;
-            const neededWait = Math.max(waitAfterCp2, waitTotal);
+        const syncChain = Promise.resolve(this.lavaRun._startPromise)
+            .then(() => {
+                if (this.lavaRun.cp1Reached && !this.lavaRun._cp1Promise) {
+                    return this._triggerLavaCheckpoint(1, 31.5, 1.10, -2.0);
+                }
+                return this.lavaRun._cp1Promise;
+            })
+            .then(() => {
+                if (this.lavaRun.cp2Reached && !this.lavaRun._cp2Promise) {
+                    return this._triggerLavaCheckpoint(2, 51.0, 2.20, -2.0);
+                }
+                return this.lavaRun._cp2Promise;
+            });
 
-            if ((!this.lavaRun.claimToken || neededWait > 20) && retriesLeft > 0) {
-                const stepDelay = Math.min(450, Math.max(180, neededWait));
-                return new Promise((resolve) => {
-                    setTimeout(() => {
-                        attemptClaim(retriesLeft - 1).then(resolve);
-                    }, stepDelay);
-                });
+        const sendClaimPost = (allowRetryOn422) => {
+            if (this.destroyed) return Promise.resolve(false);
+            if (!this.lavaRun.runId || !this.lavaRun.claimToken) {
+                this.lavaRun.claiming = false;
+                this.lavaRun.statusMessage = 'Bitte absolviere beide Checkpoints.';
+                this._notifyLavaChestUi();
+                return Promise.resolve(false);
             }
 
-            return fetch('/funkenwerk-welt/lava-parkour/claim', {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    'X-CSRF-TOKEN': this._readCsrfToken(),
-                },
-                body: JSON.stringify({
-                    run_id: this.lavaRun.runId || '',
-                    claim_token: this.lavaRun.claimToken || '',
-                    x: Number(clamp(this.player.x, 63.0, 69.5).toFixed(3)),
-                    y: Number(clamp(this.player.y || 2.8, 1.8, 6.0).toFixed(3)),
-                    z: Number(clamp(this.player.z, -5.5, 1.5).toFixed(3)),
-                }),
-            })
-                .then((r) => r.json().catch(() => null))
-                .then((body) => {
-                    this.lavaRun.claiming = false;
-                    if (this.destroyed || !body) {
+            const nowMs = this._nowClientMs();
+            const waitAfterCp2 = this.lavaRun.cp2ConfirmedMs > 0
+                ? Math.max(0, 1500 - (nowMs - this.lavaRun.cp2ConfirmedMs))
+                : 0;
+            const waitTotal = this.lavaRun.startedClientMs > 0
+                ? Math.max(0, 8550 - (nowMs - this.lavaRun.startedClientMs))
+                : 0;
+            const initialWait = Math.max(waitAfterCp2, waitTotal);
+            if (initialWait > 20) {
+                this.lavaRun.statusMessage = 'Truhe entriegelt...';
+                this._notifyLavaChestUi();
+            }
+
+            return this._delayMs(initialWait).then(() => {
+                if (this.destroyed) return false;
+                return fetch('/funkenwerk-welt/lava-parkour/claim', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': this._readCsrfToken(),
+                    },
+                    body: JSON.stringify({
+                        run_id: this.lavaRun.runId || '',
+                        claim_token: this.lavaRun.claimToken || '',
+                        x: Number(clamp(this.player.x, 63.0, 69.5).toFixed(3)),
+                        y: Number(clamp(this.player.y || 3.20, 1.8, 6.2).toFixed(3)),
+                        z: Number(clamp(this.player.z, -5.5, 1.5).toFixed(3)),
+                    }),
+                })
+                    .then((r) => r.json().then((b) => ({ status: r.status, body: b })).catch(() => ({ status: r.status, body: null })))
+                    .then(({ status, body }) => {
+                        if (this.destroyed || !body) {
+                            this.lavaRun.claiming = false;
+                            this._notifyLavaChestUi();
+                            return false;
+                        }
+                        if (allowRetryOn422 && status === 422 && body.retryable === true) {
+                            this.lavaRun.statusMessage = 'Truhe entriegelt...';
+                            this._notifyLavaChestUi();
+                            const retryMs = (Number(body.wait_ms) || 650) + 60;
+                            return this._delayMs(retryMs).then(() => sendClaimPost(false));
+                        }
+
+                        this.lavaRun.claiming = false;
+                        if (body.already_claimed || body.claimed_today) {
+                            this.lavaRun.claimedToday = true;
+                            this.lavaChestOpenTarget = 1.0;
+                        }
+                        if (body.success || body.ok) {
+                            this.lavaRun.claimedToday = true;
+                            this.lavaChestOpenTarget = 1.0;
+                            this.lavaRun.statusMessage = body.message || '+5 Funken erhalten!';
+                            if (this.audio) this.audio.playChestOpenFanfare();
+                            this._spawnChestFountainBurst(66.5, 3.85, -2.0);
+                            this._notifyLavaChestUi();
+                            return true;
+                        }
+                        if (status === 422 && !body.retryable) {
+                            this.lavaRun.runId = null;
+                            this.lavaRun._startPromise = null;
+                            this.lavaRun._cp1Promise = null;
+                            this.lavaRun._cp2Promise = null;
+                            this.lavaRun.claimToken = null;
+                        }
+                        this.lavaRun.statusMessage = sanitizeDisplayText(body.message || 'Bitte absolviere beide Checkpoints.');
                         this._notifyLavaChestUi();
                         return false;
-                    }
-                    if (body.already_claimed || body.claimed_today) {
-                        this.lavaRun.claimedToday = true;
-                        this.lavaChestOpenTarget = 1.0;
-                    }
-                    if (body.success || body.ok) {
-                        this.lavaRun.claimedToday = true;
-                        this.lavaChestOpenTarget = 1.0;
-                        this.lavaRun.statusMessage = body.message || '+5 Funken erhalten!';
-                        if (this.audio) this.audio.playChestOpenFanfare();
-                        this._spawnChestFountainBurst(66.5, 3.45, -2.0);
+                    })
+                    .catch(() => {
+                        this.lavaRun.claiming = false;
+                        this.lavaRun.statusMessage = 'Verbindung fehlgeschlagen.';
                         this._notifyLavaChestUi();
-                        return true;
-                    }
-                    this.lavaRun.statusMessage = sanitizeDisplayText(body.message || 'Bitte absolviere beide Checkpoints.');
-                    this._notifyLavaChestUi();
-                    return false;
-                })
-                .catch(() => {
-                    this.lavaRun.claiming = false;
-                    this.lavaRun.statusMessage = 'Verbindung fehlgeschlagen.';
-                    this._notifyLavaChestUi();
-                    return false;
-                });
+                        return false;
+                    });
+            });
         };
 
-        return attemptClaim(16);
+        return syncChain.then(() => sendClaimPost(true));
     }
 
     _spawnLavaSplashBurst(x, y, z) {
@@ -5692,16 +6075,31 @@ class SeelenfunkeLouvreShowroom3D {
         this._spawnLavaSplashBurst(this.player.x, this.lavaSurfaceY + 0.12, this.player.z);
         if (this.audio) this.audio.playLavaSplash();
 
-        // Fairer Respawn auf dem letzten erreichten Checkpoint (CP2, CP1 oder Start-Balkon X = 17.5, Y = 0, Z = -2.0)
+        // Alle Crumble-Platten fair auf Ausgangsposition zuruecksetzen
+        for (let pi = 0; pi < this.lavaPlatforms.length; pi++) {
+            const p = this.lavaPlatforms[pi];
+            if (p.type === 'crumble') {
+                p.steppedOn = false;
+                p.crumbleSoundPlayed = false;
+                p.crumbleTimer = 0;
+                p.sunk = false;
+                p.y = p.baseY;
+                p.dy = 0;
+                p.group.position.set(p.baseX, p.baseY, p.baseZ);
+                if (p.warnRingMat) p.warnRingMat.color.setHex(0xd97706);
+            }
+        }
+
+        // Fairer Respawn auf dem letzten erreichten Checkpoint (CP2 Y=2.20, CP1 Y=1.10 oder Start-Balkon X=17.5, Y=0.004, Z=-2.0)
         let rx = 17.5;
         let ry = 0.004;
-        let rz = -2.0;
+        const rz = -2.0;
         if (this.lavaRun.cp2Reached) {
             rx = 51.0;
-            ry = 1.75;
+            ry = 2.20;
         } else if (this.lavaRun.cp1Reached) {
             rx = 31.5;
-            ry = 0.85;
+            ry = 1.10;
         }
 
         this.player.x = rx;
@@ -5723,8 +6121,9 @@ class SeelenfunkeLouvreShowroom3D {
 
         this._spawnLavaSplashBurst(rx, ry + 0.10, rz);
 
-        if (!this.lavaRun.cp1Reached && !this.lavaRun.cp2Reached) {
-            this._startLavaParkourRun(false);
+        // Wenn noch kein CP erreicht ist und keine gueltige runId vorliegt, frischen Lauf starten; sonst CP1/CP2/claimToken intakt halten!
+        if (!this.lavaRun.cp1Reached && !this.lavaRun.cp2Reached && !this.lavaRun.runId) {
+            this._startLavaParkourRun(true);
         }
     }
 
@@ -5858,7 +6257,7 @@ class SeelenfunkeLouvreShowroom3D {
         westFace.rotation.y = Math.PI * 0.5;
         this.labyrinthGroup.add(westFace);
 
-        // Ost-Anschlusswaende links & rechts des Durchgangs
+        // Ost-Anschlusswaende links & rechts des Durchgangs + Giebelsturz ueber dem Portal
         [
             { minZ: this.labyrinthMinZ, maxZ: this.labyrinthPortalZ - pSpan },
             { minZ: this.labyrinthPortalZ + pSpan, maxZ: this.labyrinthMaxZ },
@@ -5868,28 +6267,37 @@ class SeelenfunkeLouvreShowroom3D {
                 this._trackDisposable(new THREE.BoxGeometry(0.45, roomWallH + 0.35, len)),
                 this.mats.limestoneArch
             );
-            segWall.position.set(this.labyrinthMaxX - 0.24, (roomWallH + 0.35) * 0.5, (seg.minZ + seg.maxZ) * 0.5);
+            segWall.position.set(this.labyrinthMaxX - 0.34, (roomWallH + 0.35) * 0.5, (seg.minZ + seg.maxZ) * 0.5);
             this.labyrinthGroup.add(segWall);
         });
 
-        // Sonnendurchflutetes Beaux-Arts Glas-Tonnengewoelbe ueber dem gesamten West-Fluegel
+        const eastPortalHeaderH = Math.max(0.4, (roomWallH + 0.35) - 5.14);
+        const eastPortalHeader = new THREE.Mesh(
+            this._trackDisposable(new THREE.BoxGeometry(0.45, eastPortalHeaderH, pSpan * 2 + 0.2)),
+            this.mats.limestoneArch
+        );
+        eastPortalHeader.position.set(this.labyrinthMaxX - 0.34, 5.14 + eastPortalHeaderH * 0.5, this.labyrinthPortalZ);
+        this.labyrinthGroup.add(eastPortalHeader);
+
+        // Symmetrisches Beaux-Arts Glas-Tonnengewoelbe streng oberhalb der Wandkrone (y >= roomWallH, Scheitel nach +Y!)
         const roofRadius = roomD * 0.53;
         const labGlassVault = new THREE.Mesh(
-            this._trackDisposable(new THREE.CylinderGeometry(roofRadius, roofRadius, roomW + 0.6, 24, 1, true, -Math.PI * 0.5, Math.PI)),
+            this._trackDisposable(new THREE.CylinderGeometry(roofRadius, roofRadius, roomW, 24, 1, true, -Math.PI * 0.5, Math.PI)),
             this.mats.pyramidGlass
         );
-        labGlassVault.rotation.z = Math.PI * 0.5;
-        labGlassVault.position.set(roomCenterX, roomWallH - 0.25, roomCenterZ);
+        labGlassVault.rotation.order = 'YXZ';
+        labGlassVault.rotation.set(-Math.PI * 0.5, Math.PI * 0.5, 0);
+        labGlassVault.position.set(roomCenterX, roomWallH, roomCenterZ);
         this.labyrinthGroup.add(labGlassVault);
 
         [-0.36, 0.0, 0.36].forEach((ang) => {
             const purlin = new THREE.Mesh(
-                this._trackDisposable(new THREE.BoxGeometry(roomW + 0.4, 0.08, 0.08)),
+                this._trackDisposable(new THREE.BoxGeometry(roomW, 0.08, 0.08)),
                 this.mats.goldBrushed
             );
             purlin.position.set(
                 roomCenterX,
-                (roomWallH - 0.25) + Math.cos(ang) * (roofRadius - 0.06),
+                roomWallH + Math.cos(ang) * (roofRadius - 0.06),
                 roomCenterZ + Math.sin(ang) * (roofRadius - 0.06)
             );
             this.labyrinthGroup.add(purlin);
@@ -6542,14 +6950,27 @@ class SeelenfunkeLouvreShowroom3D {
         return this._funkiFallbackMats;
     }
 
+    _sanitizeStandingFunkiUrl(lvl, candidateUrl) {
+        const raw = String(candidateUrl || '').trim();
+        // Stufe 1 laedt NIEMALS das sitzende funki_lvl_1_rags.glb, sondern steht zu 100 % aufrecht auf Basis von funki_lvl_2_basic.glb!
+        if (lvl === 1 || raw === '' || raw.indexOf('funki_lvl_1_rags.glb') !== -1) {
+            return DEFAULT_FUNKI_GLB_URLS[2];
+        }
+        return raw;
+    }
+
     _resolveFunkiModelUrl(lvl, hero) {
+        const safeLvl = clamp(parseInt(lvl, 10) || 1, 1, 10);
+        if (safeLvl === 1) {
+            return DEFAULT_FUNKI_GLB_URLS[2];
+        }
         if (hero && !hero.is_placeholder && !hero.is_preview && hero.model_url) {
-            return String(hero.model_url);
+            return this._sanitizeStandingFunkiUrl(safeLvl, hero.model_url);
         }
-        if (this.heroesPayload && this.heroesPayload.level_models && this.heroesPayload.level_models[lvl]) {
-            return String(this.heroesPayload.level_models[lvl]);
+        if (this.heroesPayload && this.heroesPayload.level_models && this.heroesPayload.level_models[safeLvl]) {
+            return this._sanitizeStandingFunkiUrl(safeLvl, this.heroesPayload.level_models[safeLvl]);
         }
-        return DEFAULT_FUNKI_GLB_URLS[lvl] || DEFAULT_FUNKI_GLB_URLS[1];
+        return this._sanitizeStandingFunkiUrl(safeLvl, DEFAULT_FUNKI_GLB_URLS[safeLvl] || DEFAULT_FUNKI_GLB_URLS[2]);
     }
 
     _loadFunkiGlbTemplate(rawLevel, modelUrl) {
@@ -6563,7 +6984,7 @@ class SeelenfunkeLouvreShowroom3D {
             return this.glbLoadingPromises.get(lvl);
         }
 
-        const url = modelUrl || this._resolveFunkiModelUrl(lvl, null);
+        const url = this._sanitizeStandingFunkiUrl(lvl, modelUrl || this._resolveFunkiModelUrl(lvl, null));
         const fetchOpts = { method: 'GET', credentials: 'same-origin' };
         if (this.abortController) {
             fetchOpts.signal = this.abortController.signal;
@@ -6586,7 +7007,7 @@ class SeelenfunkeLouvreShowroom3D {
                 const centerZ = (bbox.min.z + bbox.max.z) * 0.5;
                 const minY = bbox.min.y;
 
-                const targetH = (lvl === 1) ? 1.56 : 1.98;
+                const targetH = 1.62;
                 const normScale = targetH / rawH;
                 sceneRoot.scale.setScalar(normScale);
                 sceneRoot.position.set(-centerX * normScale, -minY * normScale, -centerZ * normScale);
@@ -6613,7 +7034,7 @@ class SeelenfunkeLouvreShowroom3D {
     }
 
     /**
-     * Sofortiger prozeduraler 3D-Funki-Fallback (sichtbar ab Frame 1 bis das komprimierte .glb geladen ist).
+     * Sofortiger aufrecht stehender prozeduraler 3D-Funki-Fallback (alle Stufen 1..10 stehen 100 % aufrecht!).
      */
     _buildProceduralFallbackFunki(rawLevel) {
         const THREE = this.THREE;
@@ -6649,37 +7070,20 @@ class SeelenfunkeLouvreShowroom3D {
             trimMat = fbMats.sapphireCrystal;
         }
 
-        const isSitting = (lvl === 1);
-        if (isSitting) {
-            [-0.18, 0.18].forEach((slx) => {
-                const sitLeg = new THREE.Mesh(new THREE.CylinderGeometry(0.10, 0.09, 0.42, 12), armorMat);
-                sitLeg.rotation.x = Math.PI * 0.46;
-                sitLeg.position.set(slx, 0.16, 0.24);
-                this.heroDynamicDisposables.push(sitLeg.geometry);
-                root.add(sitLeg);
+        [-0.20, 0.20].forEach((lx) => {
+            const boot = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.20, 0.30), trimMat);
+            boot.position.set(lx, 0.10, 0.04);
+            this.heroDynamicDisposables.push(boot.geometry);
+            root.add(boot);
 
-                const sitBoot = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.16, 0.24), trimMat);
-                sitBoot.position.set(slx, 0.15, 0.46);
-                this.heroDynamicDisposables.push(sitBoot.geometry);
-                root.add(sitBoot);
-            });
-        } else {
-            [-0.20, 0.20].forEach((lx) => {
-                const boot = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.20, 0.30), trimMat);
-                boot.position.set(lx, 0.10, 0.04);
-                this.heroDynamicDisposables.push(boot.geometry);
-                root.add(boot);
-
-                const shin = new THREE.Mesh(new THREE.CylinderGeometry(0.115, 0.10, 0.46, 12), armorMat);
-                shin.position.set(lx, 0.38, 0);
-                this.heroDynamicDisposables.push(shin.geometry);
-                root.add(shin);
-            });
-        }
+            const shin = new THREE.Mesh(new THREE.CylinderGeometry(0.115, 0.10, 0.46, 12), armorMat);
+            shin.position.set(lx, 0.38, 0);
+            this.heroDynamicDisposables.push(shin.geometry);
+            root.add(shin);
+        });
 
         const upperGroup = new THREE.Group();
-        upperGroup.position.set(0, isSitting ? 0.54 : 0.88, 0);
-        if (isSitting) upperGroup.rotation.x = 0.08;
+        upperGroup.position.set(0, 0.88, 0);
         root.add(upperGroup);
 
         const torsoGeo = new THREE.BoxGeometry(0.64, 0.60, 0.40);
@@ -6760,13 +7164,12 @@ class SeelenfunkeLouvreShowroom3D {
     }
 
     /**
-     * Erzeugt einen Top-5-Funki auf seinem Ehrenpodest mit sofortigem Fallback, komprimiertem .glb-Upgrade
-     * und den individuellen Level-1..10-Ringen/Koronen fuer Baustein B (echtes 24K-Gold, 0 lila KI-Glow!).
+     * Erzeugt einen Top-5-Funki auf seinem Ehrenpodest mit aufrecht stehendem, voll artikuliertem 3D-Exoskelett + 15-Bone SkinnedMesh
+     * sowie den individuellen Level-7..10-Ringen/Koronen (echtes 24K-Gold, 0 sitzender Level 1, 0 starres Klotz-Wackeln!).
      */
     _createFunkiCharacterByLevel(rawLevel, slotNum, scaleFactor, hero) {
         const THREE = this.THREE;
         const lvl = clamp(parseInt(rawLevel, 10) || 1, 1, 10);
-        const mountGen = this._monumentGeneration;
 
         const root = new THREE.Group();
         root.scale.setScalar(scaleFactor || 1.0);
@@ -6845,12 +7248,23 @@ class SeelenfunkeLouvreShowroom3D {
         const motionRig = new THREE.Group();
         root.add(motionRig);
 
-        // Sofortiger prozeduraler 3D-Funki-Fallback bis das komprimierte .glb geladen ist!
-        const fallbackGroup = this._buildProceduralFallbackFunki(lvl);
-        motionRig.add(fallbackGroup);
+        const heroWeapon = (hero && hero.weapon && typeof hero.weapon === 'object') ? hero.weapon : null;
+        const heroModelUrlForRig = this._resolveFunkiModelUrl(lvl, hero || null);
+        const avatarBuilt = this._createArticulatedAvatarInstance(
+            lvl,
+            heroWeapon,
+            false,
+            heroModelUrlForRig,
+            this.heroDynamicDisposables
+        );
+        if (avatarBuilt && avatarBuilt.joints && avatarBuilt.joints.baseRing) {
+            avatarBuilt.joints.baseRing.visible = false;
+        }
+        motionRig.add(avatarBuilt.root);
 
         const animRecord = {
             motionRig,
+            avatarBuilt,
             auraOuter,
             auraInner,
             levitationRing,
@@ -6862,20 +7276,6 @@ class SeelenfunkeLouvreShowroom3D {
             phase: slotNum * 1.19,
         };
         this.animatedFunkiFigures.push(animRecord);
-
-        const modelUrl = this._resolveFunkiModelUrl(lvl, hero || null);
-        this._loadFunkiGlbTemplate(lvl, modelUrl)
-            .then((templateGroup) => {
-                if (this.destroyed || mountGen !== this._monumentGeneration || !this.THREE) return;
-                if (fallbackGroup.parent === motionRig) {
-                    motionRig.remove(fallbackGroup);
-                }
-                const inst = templateGroup.clone(true);
-                motionRig.add(inst);
-            })
-            .catch(() => {
-                // Prozeduraler 3D-Funki-Fallback bleibt sauber aktiv
-            });
 
         return root;
     }
@@ -7736,6 +8136,25 @@ class SeelenfunkeLouvreShowroom3D {
                 metalness: 0.94,
                 envMapIntensity: 1.48,
             })),
+            // Ehrliche Stufe-1-"Ursprung"-Materialabstimmung (geschmiedetes Eisen + Antikbronze-Exoskelett)
+            exoIronUrsprung: this._trackDisposable(new THREE.MeshStandardMaterial({
+                color: 0x2b2622,
+                roughness: 0.54,
+                metalness: 0.42,
+                envMapIntensity: 0.88,
+            })),
+            exoBronzeUrsprung: this._trackDisposable(new THREE.MeshStandardMaterial({
+                color: 0x9a7447,
+                roughness: 0.44,
+                metalness: 0.68,
+                envMapIntensity: 0.96,
+            })),
+            ursprungLinenCore: this._trackDisposable(new THREE.MeshStandardMaterial({
+                color: 0xa8947b,
+                roughness: 0.78,
+                metalness: 0.12,
+                envMapIntensity: 0.72,
+            })),
         };
 
         const torsoProfile = [
@@ -7857,13 +8276,14 @@ class SeelenfunkeLouvreShowroom3D {
 
     /**
      * Anatomisches 15-Bone THREE.SkinnedMesh Auto-Rigging fuer die echten Kunden-Level .glb-Modelle (Lv. 1..10):
-     * Backt rotateY(-Math.PI * 0.5), zentriert X/Z, setzt minY = 0, skaliert auf H = 1.56 m
-     * und berechnet weiche, normierte 4-Gewichte (skinIndex & skinWeight, Summe = 1.0) mit Saum- & Fluegelschutz!
+     * Stufe 1 nutzt aufrecht stehendes funki_lvl_2_basic.glb mit ehrlicher Leinen-/Antikbronze-Abstimmung (0 sitzende Funkis!).
+     * Backt rotateY(-Math.PI * 0.5), zentriert X/Z, setzt minY = 0, skaliert auf H = 1.62 m
+     * und bringt alle 15 Knochenhoehen exakt mit den Exoskelett-Gelenken in Deckung!
      */
     _loadRiggedFunkiTemplate(rawLevel, customModelUrl) {
         const THREE = this.THREE;
         const lvl = clamp(parseInt(rawLevel, 10) || 2, 1, 10);
-        const url = customModelUrl || this._resolveFunkiModelUrl(lvl, null);
+        const url = this._sanitizeStandingFunkiUrl(lvl, customModelUrl || this._resolveFunkiModelUrl(lvl, null));
         const cacheKey = `${lvl}:${url}`;
 
         if (this.skinnedFunkiCache.has(cacheKey)) {
@@ -7913,7 +8333,7 @@ class SeelenfunkeLouvreShowroom3D {
                 const cx = (bb.min.x + bb.max.x) * 0.5;
                 const cz = (bb.min.z + bb.max.z) * 0.5;
                 const minY = bb.min.y;
-                const targetH = 1.56;
+                const targetH = 1.62;
                 const scale = targetH / rawH;
 
                 const normMat = new THREE.Matrix4()
@@ -7931,10 +8351,10 @@ class SeelenfunkeLouvreShowroom3D {
                 const skinWeights = new Float32Array(vCount * 4);
                 const wBuf = new Float32Array(15);
 
-                // 15-Bone Index-Belegung:
-                // 0: root, 1: pelvis, 2: spine, 3: chest, 4: head,
-                // 5: shoulderL, 6: foreArmL, 7: shoulderR, 8: foreArmR,
-                // 9: hipL, 10: kneeL, 11: footL, 12: hipR, 13: kneeR, 14: footR
+                // 15-Bone Index-Belegung (1:1 auf Exoskelett-Gelenke kalibriert):
+                // 0: root, 1: pelvis (0.752), 2: spine (0.917), 3: chest (1.092), 4: head (1.317),
+                // 5: shoulderL (1.179), 6: foreArmL (0.949), 7: shoulderR (1.179), 8: foreArmR (0.949),
+                // 9: hipL (0.724), 10: kneeL (0.394), 11: footL (0.074), 12: hipR (0.724), 13: kneeR (0.394), 14: footR (0.074)
                 for (let vi = 0; vi < vCount; vi++) {
                     const vx = posAttr.getX(vi);
                     const vy = posAttr.getY(vi);
@@ -7944,18 +8364,16 @@ class SeelenfunkeLouvreShowroom3D {
 
                     wBuf.fill(0);
 
-                    // 1. Bein-Zone (u < 0.42) mit Saum-/Mitten-Schutz (|x| < 0.06*H weich zu pelvis, x < 0 strikt getrennt von x > 0!)
+                    // 1. Bein-Zone (u < 0.465, Hueftgelenk bei u ~ 0.447) mit sauberem Mitten-Saumschutz
                     let wLegTotal = 0;
-                    if (u < 0.42) {
-                        const legY = 1.0 - smoothstep(0.32, 0.42, u);
-                        const seamMax = lvl === 1 ? 0.105 : 0.078;
-                        const seamMin = lvl === 1 ? 0.028 : 0.016;
-                        const seamPelvis = 1.0 - smoothstep(seamMin, seamMax, ax);
+                    if (u < 0.465) {
+                        const legY = 1.0 - smoothstep(0.37, 0.465, u);
+                        const seamPelvis = 1.0 - smoothstep(0.016, 0.072, ax);
                         wLegTotal = legY * (1.0 - seamPelvis);
 
                         if (wLegTotal > 0.0001) {
-                            const fFrac = 1.0 - smoothstep(0.05, 0.13, u);
-                            const kFrac = (1.0 - fFrac) * (1.0 - smoothstep(0.16, 0.27, u));
+                            const fFrac = 1.0 - smoothstep(0.045, 0.115, u);
+                            const kFrac = (1.0 - fFrac) * (1.0 - smoothstep(0.20, 0.30, u));
                             const hFrac = Math.max(0, 1.0 - fFrac - kFrac);
 
                             if (vx < 0) {
@@ -7970,19 +8388,21 @@ class SeelenfunkeLouvreShowroom3D {
                         }
                     }
 
-                    // 2. Arm-Zone (0.45 <= u <= 0.83, |x| > 0.17*H) + Fluegel-Schutz oben (u > 0.84 bei |x| > 0.18*H -> chest!)
+                    // 2. Arm-Zone (0.46 <= u <= 0.84, Schulter bei u ~ 0.728, Ellbogen bei u ~ 0.586) + Rueckenfluegel-Schutz
                     let wArmTotal = 0;
-                    if (u >= 0.42 && u <= 0.85 && ax > 0.15) {
-                        const armEnterY = smoothstep(0.42, 0.49, u);
-                        const armExitY = 1.0 - smoothstep(0.77, 0.84, u);
-                        const armLat = smoothstep(0.155, 0.22, ax);
+                    if (u >= 0.46 && u <= 0.84 && ax > 0.145) {
+                        const armEnterY = smoothstep(0.46, 0.52, u);
+                        const armExitY = 1.0 - smoothstep(0.76, 0.83, u);
+                        const armLat = smoothstep(0.148, 0.215, ax);
                         const backWingGuard = (vz < -0.055 * H && u > 0.65)
                             ? (1.0 - smoothstep(0.055 * H, 0.135 * H, -vz))
                             : 1.0;
                         wArmTotal = armEnterY * armExitY * armLat * backWingGuard;
 
                         if (wArmTotal > 0.0001) {
-                            const foreFrac = smoothstep(0.235, 0.325, ax) * (1.0 - smoothstep(0.68, 0.78, u));
+                            const foreByRadius = smoothstep(0.225, 0.315, ax);
+                            const foreByHeight = 1.0 - smoothstep(0.56, 0.68, u);
+                            const foreFrac = clamp(Math.max(foreByRadius * (1.0 - smoothstep(0.70, 0.78, u)), foreByHeight * 0.85), 0, 1);
                             const shFrac = Math.max(0, 1.0 - foreFrac);
                             if (vx < 0) {
                                 wBuf[5] += wArmTotal * shFrac;
@@ -7994,10 +8414,10 @@ class SeelenfunkeLouvreShowroom3D {
                         }
                     }
 
-                    // 3. Kopf-Zone (u > 0.76, |x| <= 0.22*H; Fluegel bei |x| > 0.18*H bleiben bei chest!)
+                    // 3. Kopf-Zone (u > 0.74, Fluegel bei |x| > 0.18*H bleiben bei chest!)
                     let wHead = 0;
-                    if (u > 0.73 && ax < 0.26) {
-                        const headY = smoothstep(0.74, 0.81, u);
+                    if (u > 0.74 && ax < 0.26) {
+                        const headY = smoothstep(0.75, 0.815, u);
                         const wingProtectX = (u > 0.84)
                             ? (1.0 - smoothstep(0.165, 0.215, ax))
                             : (1.0 - smoothstep(0.19, 0.245, ax));
@@ -8005,11 +8425,11 @@ class SeelenfunkeLouvreShowroom3D {
                         wBuf[4] += wHead;
                     }
 
-                    // 4. Rumpf-Kern (pelvis -> spine -> chest) erhaelt das verbleibende Gewicht
+                    // 4. Rumpf-Kern (pelvis -> spine -> chest)
                     const coreRem = Math.max(0, 1.0 - wLegTotal - wArmTotal - wHead);
                     if (coreRem > 0.0001) {
-                        const toSpine = smoothstep(0.35, 0.47, u);
-                        const toChest = smoothstep(0.50, 0.62, u);
+                        const toSpine = smoothstep(0.41, 0.53, u);
+                        const toChest = smoothstep(0.56, 0.68, u);
                         const wPelvis = coreRem * (1.0 - toSpine);
                         const wSpine = coreRem * toSpine * (1.0 - toChest);
                         const wChest = coreRem * toSpine * toChest;
@@ -8092,33 +8512,34 @@ class SeelenfunkeLouvreShowroom3D {
         return promise;
     }
 
-    _createSkinnedFunkiFromTemplate(tpl) {
+    _createSkinnedFunkiFromTemplate(tpl, customDisposableBucket = null) {
         const THREE = this.THREE;
-        const H = tpl.height || 1.56;
+        const H = tpl.height || 1.62;
+        const restPelvisY = 0.752;
 
-        // 15-Bone Hierarchie:
-        // 0: root, 1: pelvis, 2: spine, 3: chest, 4: head,
-        // 5: shoulderL, 6: foreArmL, 7: shoulderR, 8: foreArmR,
-        // 9: hipL, 10: kneeL, 11: footL, 12: hipR, 13: kneeR, 14: footR
+        // 15-Bone Hierarchie in millimetergenauer Deckung mit den Exoskelett-Gelenken (skinnedHostGroup.y = +0.012):
+        // bPelvis = 0.752 (world 0.764), bHip = 0.724 (world 0.736 = hipPivot!), bKnee = 0.394 (world 0.406 = kneePivot!),
+        // bFoot = 0.074 (world 0.086 = anklePivot!), bShoulder = 1.179 (world 1.191 = shoulderPivot!),
+        // bForeArm = 0.949 (world 0.961 = elbowPivot!), bHead = 1.317 (world 1.329 = headPivot!)
         const bRoot = new THREE.Bone(); bRoot.name = 'root'; bRoot.position.set(0, 0, 0);
-        const bPelvis = new THREE.Bone(); bPelvis.name = 'pelvis'; bPelvis.position.set(0, 0.36 * H, 0);
-        const bSpine = new THREE.Bone(); bSpine.name = 'spine'; bSpine.position.set(0, 0.12 * H, 0);
-        const bChest = new THREE.Bone(); bChest.name = 'chest'; bChest.position.set(0, 0.12 * H, 0);
-        const bHead = new THREE.Bone(); bHead.name = 'head'; bHead.position.set(0, 0.17 * H, 0);
+        const bPelvis = new THREE.Bone(); bPelvis.name = 'pelvis'; bPelvis.position.set(0, restPelvisY, 0);
+        const bSpine = new THREE.Bone(); bSpine.name = 'spine'; bSpine.position.set(0, 0.165, 0);
+        const bChest = new THREE.Bone(); bChest.name = 'chest'; bChest.position.set(0, 0.175, 0);
+        const bHead = new THREE.Bone(); bHead.name = 'head'; bHead.position.set(0, 0.225, 0);
 
-        const bShoulderL = new THREE.Bone(); bShoulderL.name = 'shoulderL'; bShoulderL.position.set(-0.16 * H, 0.08 * H, 0);
-        const bForeArmL = new THREE.Bone(); bForeArmL.name = 'foreArmL'; bForeArmL.position.set(-0.10 * H, -0.10 * H, 0);
+        const bShoulderL = new THREE.Bone(); bShoulderL.name = 'shoulderL'; bShoulderL.position.set(-0.225, 0.087, -0.01);
+        const bForeArmL = new THREE.Bone(); bForeArmL.name = 'foreArmL'; bForeArmL.position.set(-0.035, -0.230, 0);
 
-        const bShoulderR = new THREE.Bone(); bShoulderR.name = 'shoulderR'; bShoulderR.position.set(0.16 * H, 0.08 * H, 0);
-        const bForeArmR = new THREE.Bone(); bForeArmR.name = 'foreArmR'; bForeArmR.position.set(0.10 * H, -0.10 * H, 0);
+        const bShoulderR = new THREE.Bone(); bShoulderR.name = 'shoulderR'; bShoulderR.position.set(0.225, 0.087, -0.01);
+        const bForeArmR = new THREE.Bone(); bForeArmR.name = 'foreArmR'; bForeArmR.position.set(0.035, -0.230, 0);
 
-        const bHipL = new THREE.Bone(); bHipL.name = 'hipL'; bHipL.position.set(-0.105 * H, -0.02 * H, 0);
-        const bKneeL = new THREE.Bone(); bKneeL.name = 'kneeL'; bKneeL.position.set(0, -0.16 * H, 0);
-        const bFootL = new THREE.Bone(); bFootL.name = 'footL'; bFootL.position.set(0, -0.13 * H, 0.02 * H);
+        const bHipL = new THREE.Bone(); bHipL.name = 'hipL'; bHipL.position.set(-0.145, -0.028, 0);
+        const bKneeL = new THREE.Bone(); bKneeL.name = 'kneeL'; bKneeL.position.set(0, -0.330, 0);
+        const bFootL = new THREE.Bone(); bFootL.name = 'footL'; bFootL.position.set(0, -0.320, 0.025);
 
-        const bHipR = new THREE.Bone(); bHipR.name = 'hipR'; bHipR.position.set(0.105 * H, -0.02 * H, 0);
-        const bKneeR = new THREE.Bone(); bKneeR.name = 'kneeR'; bKneeR.position.set(0, -0.16 * H, 0);
-        const bFootR = new THREE.Bone(); bFootR.name = 'footR'; bFootR.position.set(0, -0.13 * H, 0.02 * H);
+        const bHipR = new THREE.Bone(); bHipR.name = 'hipR'; bHipR.position.set(0.145, -0.028, 0);
+        const bKneeR = new THREE.Bone(); bKneeR.name = 'kneeR'; bKneeR.position.set(0, -0.330, 0);
+        const bFootR = new THREE.Bone(); bFootR.name = 'footR'; bFootR.position.set(0, -0.320, 0.025);
 
         bRoot.add(bPelvis);
         bPelvis.add(bSpine, bHipL, bHipR);
@@ -8139,8 +8560,23 @@ class SeelenfunkeLouvreShowroom3D {
 
         let matInstance = tpl.material;
         if (matInstance && typeof matInstance.clone === 'function') {
-            matInstance = this._trackDisposable(matInstance.clone());
+            matInstance = matInstance.clone();
+            if (Array.isArray(customDisposableBucket)) {
+                customDisposableBucket.push(matInstance);
+            } else {
+                this._trackDisposable(matInstance);
+            }
             matInstance.skinning = true;
+            // Eigene ehrliche Stufe-1-"Ursprung"-Materialabstimmung: matter warmer Leinen-/Sackleinen- & Antikbronze-Look (#A8947B)
+            if (tpl.level === 1) {
+                if (matInstance.color) {
+                    matInstance.color.set('#A8947B');
+                }
+                if ('roughness' in matInstance) matInstance.roughness = 0.78;
+                if ('metalness' in matInstance) matInstance.metalness = 0.12;
+                if ('envMapIntensity' in matInstance) matInstance.envMapIntensity = 0.72;
+                matInstance.needsUpdate = true;
+            }
         }
 
         const skinnedMesh = new THREE.SkinnedMesh(tpl.geometry, matInstance);
@@ -8155,7 +8591,8 @@ class SeelenfunkeLouvreShowroom3D {
             skinnedMesh,
             skeleton,
             bones,
-            restPelvisY: 0.36 * H,
+            restPelvisY,
+            height: H,
             level: tpl.level,
         };
     }
@@ -8163,78 +8600,80 @@ class SeelenfunkeLouvreShowroom3D {
     _syncSkinnedFunkiBones(skinnedRig, j, somersaultTuck = 0) {
         if (!skinnedRig || !skinnedRig.bones || !j) return;
         const b = skinnedRig.bones;
-        const lvl = skinnedRig.level || 2;
-        const legSoft = lvl === 1 ? 0.38 : 0.58;
-        const armSoft = 0.54;
+        const legSync = 0.84;
+        const armSync = 0.84;
+        const tuck = clamp(somersaultTuck || 0, 0, 1);
 
-        // 1: pelvis (folgt der Boden-Korrektur 1:1 nach oben, sinkt niemals unter die Standflaeche)
-        const pelvisDy = Math.max(-0.004, (j.pelvisPivot.position.y - 0.776));
+        // 1: pelvis (folgt dem Exoskelett-Hueftgelenk 1:1 synchron nach oben/seitlich)
+        const pelvisDy = Math.max(-0.02, (j.pelvisPivot.position.y - 0.776));
         b[1].position.y = skinnedRig.restPelvisY + pelvisDy;
-        b[1].position.x = j.pelvisPivot.position.x * 0.7;
+        b[1].position.x = (j.pelvisPivot.position.x || 0) * 0.88;
+        b[1].position.z = (j.pelvisPivot.position.z || 0) * 0.88;
         b[1].rotation.set(
-            clamp(j.pelvisPivot.rotation.x * 0.6, -0.45, 0.45),
-            clamp(j.pelvisPivot.rotation.y * 0.65, -0.45, 0.45),
-            clamp(j.pelvisPivot.rotation.z * 0.6, -0.35, 0.35)
+            j.pelvisPivot.rotation.x,
+            clamp(j.pelvisPivot.rotation.y * 0.85, -0.65, 0.65),
+            clamp(j.pelvisPivot.rotation.z * 0.82, -0.45, 0.45)
         );
 
-        // 2: spine & 3: chest
+        // 2: spine & 3: chest (aufgeteilt auf Lenden- & Brustwirbelsaeule fuer harmonische Deckung mit torsoPivot)
+        const torsoRx = j.torsoPivot.rotation.x + 0.18 * tuck;
         b[2].rotation.set(
-            clamp(j.torsoPivot.rotation.x * 0.42, -0.48, 0.55),
-            clamp(j.torsoPivot.rotation.y * 0.42, -0.45, 0.45),
-            clamp(j.torsoPivot.rotation.z * 0.42, -0.30, 0.30)
+            clamp(torsoRx * 0.46, -0.58, 0.72),
+            clamp(j.torsoPivot.rotation.y * 0.46, -0.52, 0.52),
+            clamp(j.torsoPivot.rotation.z * 0.46, -0.36, 0.36)
         );
         b[3].rotation.set(
-            clamp(j.torsoPivot.rotation.x * 0.45, -0.48, 0.55),
-            clamp(j.torsoPivot.rotation.y * 0.48, -0.50, 0.50),
-            clamp(j.torsoPivot.rotation.z * 0.45, -0.32, 0.32)
+            clamp(torsoRx * 0.50, -0.58, 0.72),
+            clamp(j.torsoPivot.rotation.y * 0.50, -0.58, 0.58),
+            clamp(j.torsoPivot.rotation.z * 0.50, -0.38, 0.38)
         );
 
         // 4: head
         b[4].rotation.set(
-            clamp(j.headPivot.rotation.x * 0.55, -0.42, 0.48),
-            clamp(j.headPivot.rotation.y * 0.62, -0.55, 0.55),
-            clamp(j.headPivot.rotation.z * 0.50, -0.25, 0.25)
+            clamp(j.headPivot.rotation.x * 0.72 + 0.22 * tuck, -0.52, 0.68),
+            clamp(j.headPivot.rotation.y * 0.78, -0.65, 0.65),
+            clamp(j.headPivot.rotation.z * 0.65, -0.32, 0.32)
         );
 
-        // 5,6: Left Arm (x < 0) & 7,8: Right Arm (x > 0)
+        // 5,6: Left Arm (x < 0) & 7,8: Right Arm (x > 0) synchron zu den Exoskelett-Hydraulikarmen
         b[5].rotation.set(
-            clamp(j.shoulderPivotL.rotation.x * armSoft, -1.05, 0.72),
-            clamp(j.shoulderPivotL.rotation.y * armSoft, -0.55, 0.55),
-            clamp(j.shoulderPivotL.rotation.z * 0.45, -0.52, 0.52)
+            clamp(j.shoulderPivotL.rotation.x * armSync, -1.65, 0.85),
+            clamp(j.shoulderPivotL.rotation.y * armSync, -0.72, 0.72),
+            clamp(j.shoulderPivotL.rotation.z * 0.76, -0.85, 0.85)
         );
         b[6].rotation.set(
-            clamp(j.elbowPivotL.rotation.x * 0.50, -0.95, 0.35),
+            clamp(j.elbowPivotL.rotation.x * 0.78, -1.35, 0.42),
             0,
             0
         );
 
         b[7].rotation.set(
-            clamp(j.shoulderPivotR.rotation.x * armSoft, -1.05, 0.72),
-            clamp(j.shoulderPivotR.rotation.y * armSoft, -0.55, 0.55),
-            clamp(j.shoulderPivotR.rotation.z * 0.45, -0.52, 0.52)
+            clamp(j.shoulderPivotR.rotation.x * armSync, -1.65, 0.85),
+            clamp(j.shoulderPivotR.rotation.y * armSync, -0.72, 0.72),
+            clamp(j.shoulderPivotR.rotation.z * 0.76, -0.85, 0.85)
         );
         b[8].rotation.set(
-            clamp(j.elbowPivotR.rotation.x * 0.50, -0.95, 0.35),
+            clamp(j.elbowPivotR.rotation.x * 0.78, -1.35, 0.42),
             0,
             0
         );
 
-        // 9..11: Left Leg (x < 0) & 12..14: Right Leg (x > 0)
+        // 9..11: Left Leg (x < 0) & 12..14: Right Leg (x > 0) synchron zu Exoskelett-Oberschenkel, Knie & Mag-Stiefel!
         b[9].rotation.set(
-            clamp(j.hipPivotL.rotation.x * legSoft, -0.78, 0.65),
+            clamp(j.hipPivotL.rotation.x * legSync - 0.22 * tuck, -1.55, 0.85),
             0,
-            clamp(j.hipPivotL.rotation.z * 0.45, -0.22, 0.22)
+            clamp(j.hipPivotL.rotation.z * 0.72, -0.28, 0.28)
         );
-        b[10].rotation.set(clamp(j.kneePivotL.rotation.x * legSoft, 0, 0.92), 0, 0);
-        b[11].rotation.set(clamp(j.anklePivotL.rotation.x * 0.48, -0.38, 0.38), 0, 0);
+        b[10].rotation.set(clamp(j.kneePivotL.rotation.x * legSync + 0.25 * tuck, 0, 1.85), 0, 0);
+        b[11].rotation.set(clamp(j.anklePivotL.rotation.x * 0.76, -0.58, 0.52), 0, 0);
 
         b[12].rotation.set(
-            clamp(j.hipPivotR.rotation.x * legSoft, -0.78, 0.65),
+            clamp(j.hipPivotR.rotation.x * legSync - 0.22 * tuck, -1.55, 0.85),
             0,
-            clamp(j.hipPivotR.rotation.z * 0.45, -0.22, 0.22)
+            clamp(j.hipPivotR.rotation.z * 0.72, -0.28, 0.28)
         );
-        b[13].rotation.set(clamp(j.kneePivotR.rotation.x * legSoft, 0, 0.92), 0, 0);
-        b[14].rotation.set(clamp(j.anklePivotR.rotation.x * 0.48, -0.38, 0.38), 0, 0);
+        b[13].rotation.set(clamp(j.kneePivotR.rotation.x * legSync + 0.25 * tuck, 0, 1.85), 0, 0);
+        b[14].rotation.set(clamp(j.anklePivotR.rotation.x * 0.76, -0.58, 0.52), 0, 0);
     }
 
     _buildWeaponAttachment(weaponInfo) {
@@ -8288,26 +8727,31 @@ class SeelenfunkeLouvreShowroom3D {
     }
 
     /**
-     * Erzeugt den Charakter mit detailliertem mechanischem 3D-Exoskelett (Obsidian #121620, Titan #242B38, 24K-Gold #C5A059)
-     * plus nahtlos geskinntem Kunden-Level-.glb (funki_lvl_1_rags.glb bis funki_lvl_10_god_of_soul.glb)!
+     * Erzeugt den Charakter mit detailliertem mechanischem 3D-Exoskelett (Obsidian #121620, Titan #242B38, 24K-Gold #C5A059;
+     * fuer Stufe 1 ehrliches Eisen/Antikbronze-Exoskelett + matter Leinen-Look auf aufrechtem Basis-Mesh!)
      * Seiten-Konvention: L = -X (sideSign = -1), R = +X (sideSign = +1), exakt synchron mit dem 15-Bone Skeleton!
      */
-    _createArticulatedAvatarInstance(level, weaponInfo, useOwnBlinkingVisor = false, customModelUrl = null) {
+    _createArticulatedAvatarInstance(level, weaponInfo, useOwnBlinkingVisor = false, customModelUrl = null, customDisposableBucket = null) {
         const THREE = this.THREE;
         const shared = this._ensureAvatarSharedPool();
         const { mats, geos } = shared;
         const lvl = clamp(parseInt(level, 10) || 2, 1, 10);
+        const isUrsprung = (lvl === 1);
+        const exoPrimaryMat = isUrsprung ? mats.exoIronUrsprung : mats.exoObsidian;
+        const exoSecondaryMat = isUrsprung ? mats.exoIronUrsprung : mats.exoTitanium;
+        const exoTrimMat = isUrsprung ? mats.exoBronzeUrsprung : mats.gold24k;
+        const coreBodyMat = isUrsprung ? mats.ursprungLinenCore : mats.suitObsidian;
 
         const root = new THREE.Group();
 
         const footShadow = new THREE.Mesh(geos.footShadow, this.mats.contactShadow);
         footShadow.rotation.x = -Math.PI * 0.5;
-        footShadow.position.y = 0.006;
+        footShadow.position.y = 0.002;
         root.add(footShadow);
 
         const baseRing = new THREE.Mesh(geos.baseRing, this.mats.avatarBaseRing || this.mats.goldMatcapBrushed);
         baseRing.rotation.x = -Math.PI * 0.5;
-        baseRing.position.y = 0.006;
+        baseRing.position.y = 0.002;
         root.add(baseRing);
 
         // Container fuer das echte geskinnte Level-.glb (leicht angehoben fuer 0 mm Clipping)
@@ -8319,7 +8763,7 @@ class SeelenfunkeLouvreShowroom3D {
         pelvisPivot.position.set(0, 0.776, 0);
         root.add(pelvisPivot);
 
-        // Sofortiger matter Obsidian-Gold-Kernkoerper (wird ausgeblendet, sobald das geskinnte .glb geladen ist!)
+        // Sofortiger matter Kernkoerper (wird ausgeblendet, sobald das geskinnte .glb geladen ist!)
         const coreParts = [];
         const addCoreMesh = (parent, mesh) => {
             coreParts.push(mesh);
@@ -8327,49 +8771,49 @@ class SeelenfunkeLouvreShowroom3D {
             return mesh;
         };
 
-        const pelvisCore = addCoreMesh(pelvisPivot, new THREE.Mesh(geos.pelvis, mats.suitObsidian));
+        const pelvisCore = addCoreMesh(pelvisPivot, new THREE.Mesh(geos.pelvis, coreBodyMat));
         pelvisCore.scale.set(1.04, 1.0, 0.80);
 
         // 1. Exoskelett Gyro-Hueftguertel & Seitengelenk-Pods (bleibt als Teil des Exoskeletts sichtbar!)
-        const gyroBelt = new THREE.Mesh(geos.beltRing, mats.exoTitanium);
+        const gyroBelt = new THREE.Mesh(geos.beltRing, exoSecondaryMat);
         gyroBelt.rotation.x = Math.PI * 0.5;
-        gyroBelt.scale.set(1.08, 0.92, 1.0);
+        gyroBelt.scale.set(1.06, 0.92, 1.0);
         gyroBelt.position.set(0, -0.02, -0.01);
         pelvisPivot.add(gyroBelt);
 
-        const gyroGoldTrim = new THREE.Mesh(geos.beltRing, mats.gold24k);
+        const gyroGoldTrim = new THREE.Mesh(geos.beltRing, exoTrimMat);
         gyroGoldTrim.rotation.x = Math.PI * 0.5;
-        gyroGoldTrim.scale.set(1.11, 0.94, 0.65);
+        gyroGoldTrim.scale.set(1.09, 0.94, 0.65);
         gyroGoldTrim.position.set(0, -0.02, -0.01);
         pelvisPivot.add(gyroGoldTrim);
 
-        const buckleGem = new THREE.Mesh(geos.buckleGem, mats.goldBright);
+        const buckleGem = new THREE.Mesh(geos.buckleGem, isUrsprung ? mats.exoBronzeUrsprung : mats.goldBright);
         buckleGem.scale.set(1.05, 1.2, 0.5);
-        buckleGem.position.set(0, -0.02, 0.205);
+        buckleGem.position.set(0, -0.02, 0.202);
         pelvisPivot.add(buckleGem);
 
         const buildExoLeg = (sideSign) => {
             const hipPivot = new THREE.Group();
-            hipPivot.position.set(sideSign * 0.165, -0.04, 0);
+            hipPivot.position.set(sideSign * 0.145, -0.04, 0);
             pelvisPivot.add(hipPivot);
 
-            // Exoskelett Aeussere Hueft-Servo-Kapsel & Oberschenkel-Strebe
-            const hipPod = new THREE.Mesh(geos.exoHipPod, mats.exoTitanium);
+            // Exoskelett Aeussere Hueft-Servo-Kapsel & eng anliegende Oberschenkel-Strebe
+            const hipPod = new THREE.Mesh(geos.exoHipPod, exoSecondaryMat);
             hipPod.rotation.z = Math.PI * 0.5;
-            hipPod.position.set(sideSign * 0.068, 0, 0);
-            const hipGoldCap = new THREE.Mesh(geos.earCap, mats.gold24k);
+            hipPod.position.set(sideSign * 0.062, 0, 0);
+            const hipGoldCap = new THREE.Mesh(geos.earCap, exoTrimMat);
             hipGoldCap.rotation.z = Math.PI * 0.5;
-            hipGoldCap.position.set(sideSign * 0.098, 0, 0);
+            hipGoldCap.position.set(sideSign * 0.090, 0, 0);
 
-            const exoThighStrut = new THREE.Mesh(geos.exoThighStrut, mats.exoObsidian);
-            exoThighStrut.position.set(sideSign * 0.072, -0.165, 0);
-            const exoThighPiston = new THREE.Mesh(geos.exoPistonRod, mats.gold24k);
-            exoThighPiston.position.set(sideSign * 0.088, -0.165, -0.022);
+            const exoThighStrut = new THREE.Mesh(geos.exoThighStrut, exoPrimaryMat);
+            exoThighStrut.position.set(sideSign * 0.064, -0.165, 0);
+            const exoThighPiston = new THREE.Mesh(geos.exoPistonRod, exoTrimMat);
+            exoThighPiston.position.set(sideSign * 0.078, -0.165, -0.020);
             hipPivot.add(hipPod, hipGoldCap, exoThighStrut, exoThighPiston);
 
             // Kern-Fallback Oberschenkel
             addCoreMesh(hipPivot, new THREE.Mesh(geos.hipBall, mats.jointDark));
-            const coreThigh = addCoreMesh(hipPivot, new THREE.Mesh(geos.thigh, mats.suitObsidian));
+            const coreThigh = addCoreMesh(hipPivot, new THREE.Mesh(geos.thigh, coreBodyMat));
             coreThigh.position.y = -0.165;
 
             const kneePivot = new THREE.Group();
@@ -8377,38 +8821,38 @@ class SeelenfunkeLouvreShowroom3D {
             hipPivot.add(kneePivot);
 
             // Exoskelett Gepanzerte Knie-Servos & Schienbein-Daempfer
-            const kneeServo = new THREE.Mesh(geos.exoKneeServo, mats.gold24k);
+            const kneeServo = new THREE.Mesh(geos.exoKneeServo, exoTrimMat);
             kneeServo.rotation.z = Math.PI * 0.5;
-            kneeServo.position.set(sideSign * 0.072, 0, 0);
-            const kneeArmor = new THREE.Mesh(geos.exoKneePlate, mats.exoTitanium);
-            kneeArmor.position.set(sideSign * 0.032, 0.01, 0.068);
+            kneeServo.position.set(sideSign * 0.064, 0, 0);
+            const kneeArmor = new THREE.Mesh(geos.exoKneePlate, exoSecondaryMat);
+            kneeArmor.position.set(sideSign * 0.026, 0.01, 0.064);
 
-            const shinDamper = new THREE.Mesh(geos.exoShinDamper, mats.exoTitanium);
-            shinDamper.position.set(sideSign * 0.068, -0.155, -0.012);
-            const shinGoldStrut = new THREE.Mesh(geos.thighStripe, mats.gold24k);
-            shinGoldStrut.position.set(sideSign * 0.082, -0.155, 0.012);
+            const shinDamper = new THREE.Mesh(geos.exoShinDamper, exoSecondaryMat);
+            shinDamper.position.set(sideSign * 0.060, -0.155, -0.010);
+            const shinGoldStrut = new THREE.Mesh(geos.thighStripe, exoTrimMat);
+            shinGoldStrut.position.set(sideSign * 0.074, -0.155, 0.012);
             kneePivot.add(kneeServo, kneeArmor, shinDamper, shinGoldStrut);
 
             addCoreMesh(kneePivot, new THREE.Mesh(geos.kneeBall, mats.suitDark));
-            const coreShin = addCoreMesh(kneePivot, new THREE.Mesh(geos.shin, mats.suitObsidian));
+            const coreShin = addCoreMesh(kneePivot, new THREE.Mesh(geos.shin, coreBodyMat));
             coreShin.position.y = -0.16;
 
             const anklePivot = new THREE.Group();
             anklePivot.position.set(0, -0.32, 0);
             kneePivot.add(anklePivot);
 
-            // Exoskelett Schwere 24K-Gold-Mag-Stiefel mit Fersen-Schubduesen!
-            const bootCuff = new THREE.Mesh(geos.bootCuff, mats.gold24k);
+            // Exoskelett Schwere Mag-Stiefel mit Fersen-Schubduesen!
+            const bootCuff = new THREE.Mesh(geos.bootCuff, exoTrimMat);
             bootCuff.rotation.x = Math.PI * 0.5;
             bootCuff.position.y = -0.008;
 
-            const magBootFrame = new THREE.Mesh(geos.exoMagBootFrame, mats.exoObsidian);
+            const magBootFrame = new THREE.Mesh(geos.exoMagBootFrame, exoPrimaryMat);
             magBootFrame.position.set(0, -0.038, 0.028);
 
-            const bootSole = new THREE.Mesh(geos.bootSole, mats.gold24k);
+            const bootSole = new THREE.Mesh(geos.bootSole, exoTrimMat);
             bootSole.position.set(0, -0.072, 0.030);
 
-            const heelNozzle = new THREE.Mesh(geos.exoHeelNozzle, mats.exoTitanium);
+            const heelNozzle = new THREE.Mesh(geos.exoHeelNozzle, exoSecondaryMat);
             heelNozzle.rotation.x = -0.28;
             heelNozzle.position.set(0, -0.026, -0.092);
 
@@ -8434,21 +8878,21 @@ class SeelenfunkeLouvreShowroom3D {
         exoBackFrame.position.set(0, 0.20, -0.195);
         torsoPivot.add(exoBackFrame);
 
-        const spineRail = new THREE.Mesh(geos.exoSpineRail, mats.exoObsidian);
+        const spineRail = new THREE.Mesh(geos.exoSpineRail, exoPrimaryMat);
         exoBackFrame.add(spineRail);
 
         for (let vi = 0; vi < 5; vi++) {
-            const vert = new THREE.Mesh(geos.exoVertebra, vi % 2 === 0 ? mats.exoTitanium : mats.gold24k);
+            const vert = new THREE.Mesh(geos.exoVertebra, vi % 2 === 0 ? exoSecondaryMat : exoTrimMat);
             vert.position.set(0, -0.16 + vi * 0.08, -0.015);
             exoBackFrame.add(vert);
         }
 
-        const reactorHousing = new THREE.Mesh(geos.exoReactorHex, mats.exoObsidian);
+        const reactorHousing = new THREE.Mesh(geos.exoReactorHex, exoPrimaryMat);
         reactorHousing.rotation.x = Math.PI * 0.5;
         reactorHousing.position.set(0, 0.08, -0.042);
         exoBackFrame.add(reactorHousing);
 
-        const reactorRing = new THREE.Mesh(geos.exoReactorRing, mats.goldBright);
+        const reactorRing = new THREE.Mesh(geos.exoReactorRing, isUrsprung ? mats.exoBronzeUrsprung : mats.goldBright);
         reactorRing.position.set(0, 0.08, -0.078);
         exoBackFrame.add(reactorRing);
 
@@ -8458,26 +8902,26 @@ class SeelenfunkeLouvreShowroom3D {
         exoBackFrame.add(reactorCore);
 
         [-1, 1].forEach((sSign) => {
-            const yoke = new THREE.Mesh(geos.exoShoulderYoke, mats.exoTitanium);
+            const yoke = new THREE.Mesh(geos.exoShoulderYoke, exoSecondaryMat);
             yoke.position.set(sSign * 0.16, 0.20, 0.085);
             yoke.rotation.x = 0.18;
             yoke.rotation.y = sSign * 0.16;
             exoBackFrame.add(yoke);
 
-            const yokeTrim = new THREE.Mesh(geos.lapel, mats.gold24k);
+            const yokeTrim = new THREE.Mesh(geos.lapel, exoTrimMat);
             yokeTrim.rotation.x = Math.PI * 0.5;
             yokeTrim.position.set(sSign * 0.16, 0.226, 0.095);
             exoBackFrame.add(yokeTrim);
         });
 
-        const ribBrace = new THREE.Mesh(geos.exoRibBrace, mats.gold24k);
+        const ribBrace = new THREE.Mesh(geos.exoRibBrace, exoTrimMat);
         ribBrace.rotation.x = Math.PI * 0.5;
         ribBrace.rotation.z = -Math.PI * 0.92;
         ribBrace.position.set(0, 0.14, 0.0);
         torsoPivot.add(ribBrace);
 
         // Kern-Fallback Oberkoerper & Kopf
-        const chestMesh = addCoreMesh(torsoPivot, new THREE.Mesh(geos.chest, mats.suitObsidian));
+        const chestMesh = addCoreMesh(torsoPivot, new THREE.Mesh(geos.chest, coreBodyMat));
         chestMesh.scale.set(1.04, 1.0, 0.78);
         const badgePlane = addCoreMesh(torsoPivot, new THREE.Mesh(geos.badgePlane, shared.getBadgeMat(lvl)));
         badgePlane.position.set(0, 0.21, 0.155);
@@ -8491,80 +8935,83 @@ class SeelenfunkeLouvreShowroom3D {
         headPivot.position.set(0, 0.068, 0);
         neckPivot.add(headPivot);
 
-        addCoreMesh(headPivot, new THREE.Mesh(geos.headShell, mats.suitObsidian)).position.y = 0.125;
-        const headFrame = addCoreMesh(headPivot, new THREE.Mesh(geos.headFrame, mats.gold24k));
+        addCoreMesh(headPivot, new THREE.Mesh(geos.headShell, coreBodyMat)).position.y = 0.125;
+        const headFrame = addCoreMesh(headPivot, new THREE.Mesh(geos.headFrame, exoTrimMat));
         headFrame.position.set(0, 0.125, 0.114);
 
-        const visorMat = useOwnBlinkingVisor
-            ? this._trackDisposable(new THREE.MeshBasicMaterial({ map: shared.visorTexOpen }))
-            : shared.peerVisorMat;
+        let visorMat = shared.peerVisorMat;
+        if (useOwnBlinkingVisor) {
+            visorMat = new THREE.MeshBasicMaterial({ map: shared.visorTexOpen });
+            if (Array.isArray(customDisposableBucket)) customDisposableBucket.push(visorMat);
+            else this._trackDisposable(visorMat);
+        }
         const visorScreen = addCoreMesh(headPivot, new THREE.Mesh(geos.visorScreen, visorMat));
         visorScreen.position.set(0, 0.125, 0.128);
 
         const sparkCrest = new THREE.Mesh(
             lvl >= 8 ? geos.crestMaster : geos.crestSmall,
-            mats.goldBright
+            isUrsprung ? mats.exoBronzeUrsprung : mats.goldBright
         );
         sparkCrest.position.set(0, 0.46, 0.0);
         headPivot.add(sparkCrest);
 
-        // 3. Exoskelett Hydraulische Schulter-Pauldrons, Doppel-Kolben-Oberarme, Gold-Ellbogengelenke & Exo-Handschuhe
+        // 3. Exoskelett Hydraulische Schulter-Pauldrons, Doppel-Kolben-Oberarme, Ellbogengelenke & Exo-Handschuhe
         const buildExoArm = (sideSign) => {
             const shoulderPivot = new THREE.Group();
-            shoulderPivot.position.set(sideSign * 0.268, 0.365, -0.01);
+            shoulderPivot.position.set(sideSign * 0.252, 0.365, -0.01);
             torsoPivot.add(shoulderPivot);
 
-            const pauldron = new THREE.Mesh(geos.exoPauldron, mats.exoObsidian);
+            const pauldron = new THREE.Mesh(geos.exoPauldron, exoPrimaryMat);
             pauldron.rotation.z = sideSign * -0.45;
             pauldron.rotation.y = sideSign > 0 ? 0 : Math.PI;
-            pauldron.position.set(sideSign * 0.028, 0.015, 0);
+            pauldron.position.set(sideSign * 0.024, 0.015, 0);
 
-            const shoulderTrim = new THREE.Mesh(geos.shoulderTrim, mats.gold24k);
+            const shoulderTrim = new THREE.Mesh(geos.shoulderTrim, exoTrimMat);
             shoulderTrim.rotation.y = Math.PI * 0.5;
             shoulderTrim.rotation.x = 0.35;
-            shoulderTrim.position.set(sideSign * 0.02, 0.01, 0);
+            shoulderTrim.position.set(sideSign * 0.018, 0.01, 0);
 
-            const armStrut = new THREE.Mesh(geos.exoArmStrut, mats.exoTitanium);
-            armStrut.position.set(sideSign * 0.046, -0.115, 0);
+            const armStrut = new THREE.Mesh(geos.exoArmStrut, exoSecondaryMat);
+            armStrut.position.set(sideSign * 0.042, -0.115, 0);
 
-            const pistonA = new THREE.Mesh(geos.exoPistonSleeve, mats.exoObsidian);
-            pistonA.position.set(sideSign * 0.062, -0.09, 0.018);
-            const pistonRodA = new THREE.Mesh(geos.exoPistonRod, mats.gold24k);
-            pistonRodA.position.set(sideSign * 0.062, -0.12, 0.018);
+            const pistonA = new THREE.Mesh(geos.exoPistonSleeve, exoPrimaryMat);
+            pistonA.position.set(sideSign * 0.056, -0.09, 0.016);
+            const pistonRodA = new THREE.Mesh(geos.exoPistonRod, exoTrimMat);
+            pistonRodA.position.set(sideSign * 0.056, -0.12, 0.016);
 
-            const pistonB = new THREE.Mesh(geos.exoPistonRod, mats.gold24k);
-            pistonB.position.set(sideSign * 0.062, -0.12, -0.018);
+            const pistonB = new THREE.Mesh(geos.exoPistonRod, exoTrimMat);
+            pistonB.position.set(sideSign * 0.056, -0.12, -0.016);
 
             shoulderPivot.add(pauldron, shoulderTrim, armStrut, pistonA, pistonRodA, pistonB);
-            addCoreMesh(shoulderPivot, new THREE.Mesh(geos.upperArm, mats.suitObsidian)).position.y = -0.11;
+            addCoreMesh(shoulderPivot, new THREE.Mesh(geos.upperArm, coreBodyMat)).position.y = -0.11;
 
             const elbowPivot = new THREE.Group();
             elbowPivot.position.set(0, -0.23, 0);
             shoulderPivot.add(elbowPivot);
 
-            const elbowServo = new THREE.Mesh(geos.exoElbowServo, mats.gold24k);
+            const elbowServo = new THREE.Mesh(geos.exoElbowServo, exoTrimMat);
             elbowServo.rotation.z = Math.PI * 0.5;
-            elbowServo.position.set(sideSign * 0.044, 0, 0);
+            elbowServo.position.set(sideSign * 0.040, 0, 0);
 
-            const forearmGuard = new THREE.Mesh(geos.exoForearmGuard, mats.exoObsidian);
-            forearmGuard.position.set(sideSign * 0.038, -0.105, 0);
+            const forearmGuard = new THREE.Mesh(geos.exoForearmGuard, exoPrimaryMat);
+            forearmGuard.position.set(sideSign * 0.034, -0.105, 0);
 
-            const cuffRing = new THREE.Mesh(geos.cuffRing, mats.gold24k);
+            const cuffRing = new THREE.Mesh(geos.cuffRing, exoTrimMat);
             cuffRing.rotation.x = Math.PI * 0.5;
-            cuffRing.position.set(sideSign * 0.016, -0.20, 0);
+            cuffRing.position.set(sideSign * 0.014, -0.20, 0);
             elbowPivot.add(elbowServo, forearmGuard, cuffRing);
-            addCoreMesh(elbowPivot, new THREE.Mesh(geos.forearm, mats.suitObsidian)).position.y = -0.105;
+            addCoreMesh(elbowPivot, new THREE.Mesh(geos.forearm, coreBodyMat)).position.y = -0.105;
 
             const wristPivot = new THREE.Group();
-            wristPivot.position.set(sideSign * 0.016, -0.21, 0);
+            wristPivot.position.set(sideSign * 0.014, -0.21, 0);
             elbowPivot.add(wristPivot);
 
-            const palm = new THREE.Mesh(geos.palm, mats.exoTitanium);
+            const palm = new THREE.Mesh(geos.palm, exoSecondaryMat);
             palm.position.set(0, -0.034, 0.004);
-            const dorsalPlate = new THREE.Mesh(geos.dorsalPlate, mats.gold24k);
+            const dorsalPlate = new THREE.Mesh(geos.dorsalPlate, exoTrimMat);
             dorsalPlate.position.set(sideSign * 0.008, -0.032, 0.004);
 
-            const thumb = new THREE.Mesh(geos.thumb, mats.goldBright);
+            const thumb = new THREE.Mesh(geos.thumb, isUrsprung ? mats.exoBronzeUrsprung : mats.goldBright);
             thumb.position.set(-sideSign * 0.014, -0.036, 0.036);
             thumb.rotation.x = -0.55;
             thumb.rotation.z = -sideSign * 0.25;
@@ -8574,7 +9021,7 @@ class SeelenfunkeLouvreShowroom3D {
             const zOffsets = [0.020, 0.007, -0.006, -0.019];
             const lengths = [0.96, 1.04, 0.98, 0.84];
             for (let fi = 0; fi < 4; fi++) {
-                const fMesh = new THREE.Mesh(geos.finger, mats.gold24k);
+                const fMesh = new THREE.Mesh(geos.finger, exoTrimMat);
                 fMesh.scale.y = lengths[fi];
                 fMesh.position.set(sideSign * 0.004, -0.022 * lengths[fi], zOffsets[fi]);
                 fMesh.rotation.z = sideSign * 0.16;
@@ -8630,12 +9077,14 @@ class SeelenfunkeLouvreShowroom3D {
             },
         };
 
-        // Echtes Kunden-Level-.glb laden & als 15-Bone SkinnedMesh im Exoskelett montieren!
-        const resolvedUrl = customModelUrl || this._resolveFunkiModelUrl(lvl, null);
+        // Echtes aufrechtes Kunden-Level-.glb laden & als 15-Bone SkinnedMesh im Exoskelett montieren!
+        const resolvedUrl = this._sanitizeStandingFunkiUrl(lvl, customModelUrl || this._resolveFunkiModelUrl(lvl, null));
+        const genAtCreate = this._monumentGeneration;
         this._loadRiggedFunkiTemplate(lvl, resolvedUrl)
             .then((tpl) => {
                 if (this.destroyed || !this.THREE) return;
-                const rig = this._createSkinnedFunkiFromTemplate(tpl);
+                if (Array.isArray(customDisposableBucket) && genAtCreate !== this._monumentGeneration) return;
+                const rig = this._createSkinnedFunkiFromTemplate(tpl, customDisposableBucket);
                 skinnedHostGroup.add(rig.skinnedMesh);
                 builtRecord.skinnedRig = rig;
                 for (let ci = 0; ci < coreParts.length; ci++) {
@@ -8643,7 +9092,7 @@ class SeelenfunkeLouvreShowroom3D {
                 }
             })
             .catch(() => {
-                // Matter Obsidian-Gold-Kernkoerper bleibt im Exoskelett sichtbar
+                // Matter Kernkoerper bleibt im Exoskelett sichtbar
             });
 
         return builtRecord;
@@ -8654,9 +9103,10 @@ class SeelenfunkeLouvreShowroom3D {
             ? clamp(parseInt(this.playerFunki.level, 10) || 2, 1, 10)
             : 2;
         const weaponInfo = (!this.playerFunki.is_guest && this.playerFunki.weapon) ? this.playerFunki.weapon : null;
-        const playerModelUrl = (this.playerFunki && (this.playerFunki.glb_url || this.playerFunki.model_url))
+        const rawPlayerUrl = (this.playerFunki && (this.playerFunki.glb_url || this.playerFunki.model_url))
             ? String(this.playerFunki.glb_url || this.playerFunki.model_url)
             : this._resolveFunkiModelUrl(lvl, null);
+        const playerModelUrl = this._sanitizeStandingFunkiUrl(lvl, rawPlayerUrl);
 
         const built = this._createArticulatedAvatarInstance(lvl, weaponInfo, true, playerModelUrl);
         built.root.position.set(this.player.x, this.player.y, this.player.z);
@@ -8691,19 +9141,18 @@ class SeelenfunkeLouvreShowroom3D {
     }
 
     _computeFloorBaseY(x, z) {
-        if (x > this.hallHalfW + 1.1 || x < -(this.hallHalfW + 1.1)) {
-            return 0.0;
+        // 1. Halle der Helden (Nord-Rotunde, 46.8 m Breite -> bis |x| <= 25.0 m): feste Marmorboden-Standhoehe 0.026 m!
+        const heroesRotundaHalfX = Math.max(this.pantheonHalfW || 23.4, 23.4) + 1.6;
+        if (z <= this.heroesEntryZ + 0.6 && Math.abs(x) <= heroesRotundaHalfX) {
+            return 0.026;
         }
-        if (z <= this.heroesEntryZ + 0.6) {
-            return 0.020;
+        // 2. Sanfte Rampe auf der Ehrenpromenade zwischen Produktgalerie (hallNorthZ + 0.8 -> 0.0) und Heldenhalle (heroesEntryZ + 0.6 -> 0.026)
+        if (z < this.hallNorthZ + 0.8 && Math.abs(x) <= this.portalHalfW + 1.8) {
+            const rampSpan = Math.max(0.4, (this.hallNorthZ + 0.8) - (this.heroesEntryZ + 0.6));
+            const u = clamp(((this.hallNorthZ + 0.8) - z) / rampSpan, 0, 1);
+            return u * 0.026;
         }
-        if (z < this.hallNorthZ + 0.8) {
-            if (z > this.hallNorthZ - 0.6) {
-                const u = clamp((this.hallNorthZ + 0.8 - z) / 1.4, 0, 1);
-                return u * 0.018;
-            }
-            return 0.018;
-        }
+        // 3. Produktgalerie, Magma-Kammer (x > 12.1 bei z > hallNorthZ - 1.0) & Mini-Labyrinth (x < -12.1 bei z > hallNorthZ - 1.0)
         return 0.0;
     }
 
@@ -8745,10 +9194,10 @@ class SeelenfunkeLouvreShowroom3D {
                 const hz = (ky * skx + kz * ckx);
                 for (let xi = 0; xi < 2; xi++) {
                     const hx = soleXs[xi];
-                    // 3. hipPivot Euler XYZ (hrx, 0, hrz): erst Z, dann X + translate(sideSign * 0.165, -0.04, 0)
+                    // 3. hipPivot Euler XYZ (hrx, 0, hrz): erst Z, dann X + translate(sideSign * 0.145, -0.04, 0)
                     const zRotX = hx * chz - hy * shz;
                     const zRotY = hx * shz + hy * chz;
-                    const lx = zRotX + sideSign * 0.165;
+                    const lx = zRotX + sideSign * 0.145;
                     const ly = (zRotY * chx - hz * shx) - 0.04;
                     const lz = (zRotY * shx + hz * chx);
                     // 4. pelvisPivot Euler XYZ (prx, pry, prz): erst Z, dann Y, dann X + translate(px, py, pz)
@@ -8771,7 +9220,7 @@ class SeelenfunkeLouvreShowroom3D {
         const j = this.player.joints;
         if (!this.player.root || !j) return;
 
-        const inLava = this.player.x > this.hallHalfW + 1.1;
+        const inLava = (this.player.z > this.hallNorthZ - 1.5) && (this.player.x > this.hallHalfW + 1.1);
         const floorOffset = this._computeFloorBaseY(this.player.x, this.player.z);
         const basePlayerY = this.player.y || 0;
         const comboLeap = this.player.comboLeapY || 0;
@@ -8779,6 +9228,7 @@ class SeelenfunkeLouvreShowroom3D {
         const heightAboveSupport = Math.max(0, visualY - shadowSurfaceY);
         const airBlend = clamp(heightAboveSupport / 0.26, 0, 1);
         const squash = this.player.landSquash || 0;
+        const sprintBoost = this.player.sprintTimer > 0 ? 1.0 : 0.0;
 
         this.player.root.position.set(this.player.x, floorOffset + visualY, this.player.z);
         this.player.root.rotation.y = this.player.yaw + (this.player.comboSpinYaw || 0);
@@ -8803,31 +9253,38 @@ class SeelenfunkeLouvreShowroom3D {
 
         const mb = this.player.moveBlend * (1.0 - airBlend * 0.65);
         const idleWeight = (1.0 - mb) * (1.0 - airBlend);
+        const idleSway = Math.sin(this.elapsedTime * 1.18) * idleWeight;
         const phaseL = this.player.walkPhase;
         const phaseR = phaseL + Math.PI;
+        const strideAmpScale = 1.0 + 0.18 * sprintBoost;
 
         const applyLegGait = (hipPivot, kneePivot, anklePivot, p, sideSign) => {
             const sinP = Math.sin(p);
             const swingForward = Math.max(0, Math.cos(p - 0.16));
             const stanceWeight = Math.max(0, -Math.cos(p));
+            const idleKneeRelax = Math.max(0, sideSign * idleSway) * 0.045;
 
-            const hipPitch = -0.54 * sinP * mb - (sideSign < 0 ? 0.34 : 0.18) * airBlend - squash * 0.42;
+            const hipPitch = -0.56 * strideAmpScale * sinP * mb
+                - (sideSign < 0 ? 0.38 : 0.20) * airBlend
+                - squash * 0.46
+                - idleKneeRelax * 0.5;
             const kneeBend = Math.max(
                 0,
-                (Math.pow(swingForward, 1.32) * 0.72 + stanceWeight * 0.06) * mb
-                    + (sideSign < 0 ? 0.62 : 0.44) * airBlend
-                    + squash * 0.85
+                (Math.pow(swingForward, 1.28) * 0.76 * strideAmpScale + stanceWeight * 0.07) * mb
+                    + (sideSign < 0 ? 0.66 : 0.46) * airBlend
+                    + squash * 0.90
+                    + idleKneeRelax
             );
 
             const heelStrike = Math.max(0, sinP - 0.45) * 0.22;
-            const toePushOff = Math.max(0, -sinP - 0.35) * 0.28;
+            const toePushOff = Math.max(0, -sinP - 0.35) * 0.30;
             const swingToeLift = -swingForward * 0.26;
             const anklePitch = (swingToeLift + heelStrike + toePushOff - stanceWeight * 0.04) * mb
-                + 0.22 * airBlend
-                - squash * 0.35;
+                + 0.24 * airBlend
+                - squash * 0.38;
 
             hipPivot.rotation.x = hipPitch;
-            hipPivot.rotation.z = sideSign * (0.015 * idleWeight + 0.022 * mb + 0.03 * airBlend);
+            hipPivot.rotation.z = sideSign * (0.018 * idleWeight + 0.024 * mb + 0.032 * airBlend) - idleSway * 0.018;
             kneePivot.rotation.x = kneeBend;
             anklePivot.rotation.x = anklePitch;
         };
@@ -8850,40 +9307,45 @@ class SeelenfunkeLouvreShowroom3D {
             const sinArm = Math.sin(oppositeLegPhase);
             const cosArm = Math.cos(oppositeLegPhase);
             const forwardAmt = Math.max(0, sinArm);
-            const idleBreathArm = Math.sin(this.elapsedTime * 1.9 + sideSign * 0.4) * 0.018 * idleWeight;
+            const idleBreathArm = Math.sin(this.elapsedTime * 1.95 + sideSign * 0.45) * 0.024 * idleWeight;
+            const sprintPump = 1.0 + 0.24 * sprintBoost;
 
-            shoulderPivot.rotation.x = -0.40 * sinArm * mb + idleBreathArm - 0.38 * airBlend;
-            shoulderPivot.rotation.z = sideSign * (0.075 + 0.032 * mb + Math.max(0, -sinArm) * 0.025 * mb + 0.16 * airBlend);
-            shoulderPivot.rotation.y = -sideSign * 0.06 * sinArm * mb;
+            shoulderPivot.rotation.x = -0.44 * sprintPump * sinArm * mb + idleBreathArm - 0.42 * airBlend - squash * 0.14;
+            shoulderPivot.rotation.z = sideSign * (0.072 + 0.036 * mb + Math.max(0, -sinArm) * 0.028 * mb + 0.18 * airBlend + Math.sin(this.elapsedTime * 2.05) * 0.012 * idleWeight);
+            shoulderPivot.rotation.y = -sideSign * 0.075 * sinArm * mb;
 
-            elbowPivot.rotation.x = -0.16 - (0.11 + 0.34 * forwardAmt) * mb - 0.28 * airBlend;
+            elbowPivot.rotation.x = -0.18 - (0.14 + 0.38 * sprintPump * forwardAmt) * mb - 0.32 * airBlend - squash * 0.18;
 
-            wristPivot.rotation.x = (-0.08 * cosArm - 0.05 * forwardAmt) * mb;
+            wristPivot.rotation.x = (-0.09 * cosArm - 0.06 * forwardAmt) * mb;
             wristPivot.rotation.z = sideSign * (0.04 + 0.05 * sinArm * mb);
-            fingerCurl.rotation.z = sideSign * (0.12 + 0.10 * forwardAmt * mb);
+            fingerCurl.rotation.z = sideSign * (0.14 + (0.14 * forwardAmt + 0.12 * sprintBoost) * mb);
         };
 
         applyArmGait(j.shoulderPivotL, j.elbowPivotL, j.wristPivotL, j.fingerCurlL, phaseR, -1);
         applyArmGait(j.shoulderPivotR, j.elbowPivotR, j.wristPivotR, j.fingerCurlR, phaseL, 1);
 
-        const doubleStepBounce = Math.cos(2.0 * phaseL) * 0.024 * mb;
-        const stanceSink = -0.014 * mb - squash * 0.16;
-        const idleBreath = Math.sin(this.elapsedTime * 2.05) * 0.009 * idleWeight;
+        const doubleStepBounce = Math.cos(2.0 * phaseL) * (0.026 + 0.008 * sprintBoost) * mb;
+        const stanceSink = -(0.016 + 0.014 * sprintBoost) * mb - squash * 0.18;
+        const idleBreath = Math.sin(this.elapsedTime * 2.05) * 0.011 * idleWeight;
 
         j.pelvisPivot.position.y = 0.776 + doubleStepBounce + stanceSink + idleBreath;
-        j.pelvisPivot.position.x = -Math.sin(phaseL) * 0.018 * mb;
+        j.pelvisPivot.position.x = -Math.sin(phaseL) * 0.020 * mb + idleSway * 0.016;
+        j.pelvisPivot.position.z = 0.022 * sprintBoost * mb;
         j.pelvisPivot.rotation.x = (this.player.isSomersault && heightAboveSupport > 0.24)
             ? (-this.player.somersaultProgress * TWO_PI)
             : 0;
-        j.pelvisPivot.rotation.y = Math.sin(phaseL) * 0.065 * mb;
-        j.pelvisPivot.rotation.z = -Math.sin(phaseL) * 0.032 * mb;
+        j.pelvisPivot.rotation.y = Math.sin(phaseL) * 0.075 * mb + idleSway * 0.025;
+        j.pelvisPivot.rotation.z = -Math.sin(phaseL) * 0.036 * mb - idleSway * 0.020;
 
-        const targetBank = clamp(-turnRate * 0.045, -0.085, 0.085) * mb;
+        const targetBank = clamp(-turnRate * 0.050, -0.10, 0.10) * mb;
         this.player.turnBank = lerp(this.player.turnBank, targetBank, blendFactor);
 
-        j.torsoPivot.rotation.x = 0.068 * mb + Math.sin(this.elapsedTime * 2.05) * 0.012 * idleWeight + squash * 0.12 + 1.35 * somersaultTuck;
-        j.torsoPivot.rotation.y = -Math.sin(phaseL) * 0.085 * mb;
-        j.torsoPivot.rotation.z = this.player.turnBank + Math.sin(phaseL) * 0.022 * mb;
+        j.torsoPivot.rotation.x = (0.085 + 0.135 * sprintBoost) * mb
+            + Math.sin(this.elapsedTime * 2.05 - 0.35) * 0.018 * idleWeight
+            + squash * 0.16
+            + 1.35 * somersaultTuck;
+        j.torsoPivot.rotation.y = -Math.sin(phaseL) * (0.095 + 0.035 * sprintBoost) * mb - idleSway * 0.032;
+        j.torsoPivot.rotation.z = this.player.turnBank + Math.sin(phaseL) * 0.024 * mb + idleSway * 0.016;
 
         // 4-Stufen Kombo-Angriff Kinematik (Schlag 1..4)
         if (this.player.comboAnimTimer > 0 && this.player.comboAnimDuration > 0) {
@@ -9056,8 +9518,8 @@ class SeelenfunkeLouvreShowroom3D {
             }
         }
 
-        // Mitwandernder Fuss-Schatten & Basisring exakt auf groundY + 0.006 mit polygonOffset (-1, -2)!
-        const localShadowY = (shadowSurfaceY - visualY) + 0.006;
+        // Mitwandernder Fuss-Schatten & Basisring knapp unter der Schuhsohle (0.004) fuer 0 Clipping!
+        const localShadowY = (shadowSurfaceY - visualY) + 0.002;
         j.footShadow.position.y = localShadowY;
         j.baseRing.position.y = localShadowY;
         const shadowScale = (1.0 - doubleStepBounce * 1.8) / (1.0 + heightAboveSupport * 0.55);
@@ -9112,7 +9574,7 @@ class SeelenfunkeLouvreShowroom3D {
     }
 
     /**
-     * Baustein B: Individuelle Level-1..10-Animationen fuer die Top-5-Funkis auf den Ehrenpodesten (60 FPS).
+     * Baustein B: Echte artikulierte Exoskelett- & 15-Bone-Gelenkposen fuer die Top-5-Funkis auf den Ehrenpodesten (60 FPS, 0 starres Klotz-Wackeln, 0 sitzender Level 1!).
      */
     _updateHeroPedestalAnimations(t) {
         if (this.oculusStarGroup) {
@@ -9126,55 +9588,139 @@ class SeelenfunkeLouvreShowroom3D {
 
             const lvl = fg.level;
             const ph = fg.phase;
+            const built = fg.avatarBuilt;
+            const j = built ? built.joints : null;
 
-            if (lvl <= 2) {
-                // Level 1-2 (Ursprung / Lehrling): Sanftes, neugieriges Wippen & vorsichtiges Umschauen nach links/rechts
-                const bob = Math.sin(t * 1.65 + ph);
-                rig.position.y = Math.max(0, bob) * 0.014;
-                rig.scale.set(1.0 - bob * 0.004, 1.0 + bob * 0.011, 1.0 - bob * 0.004);
-                rig.rotation.y = Math.sin(t * 0.85 + ph) * 0.24 + Math.sin(t * 1.7 + ph) * 0.05;
-                rig.rotation.z = Math.sin(t * 1.15 + ph) * 0.028;
-                rig.rotation.x = 0.02 + Math.sin(t * 0.9 + ph) * 0.014;
-            } else if (lvl <= 4) {
-                // Level 3-4 (Helfer / Kristall-Novize): Froehlicher rhythmischer Bounce mit sanfter Drehung
-                const bounceWave = Math.abs(Math.sin(t * 2.55 + ph));
-                rig.position.y = bounceWave * 0.058;
-                rig.scale.set(1.0 + (0.5 - bounceWave) * 0.018, 1.0 + (bounceWave - 0.5) * 0.024, 1.0 + (0.5 - bounceWave) * 0.018);
-                rig.rotation.y = Math.sin(t * 1.22 + ph) * 0.18;
-                rig.rotation.z = Math.cos(t * 2.55 + ph) * 0.024;
-                rig.rotation.x = 0;
-            } else if (lvl <= 6) {
-                // Level 5-6 (Funken-Geselle / Gravur-Handwerker): Stolze Meister-Praesenz mit kraeftigem Brust-Puls & Ehren-Schwenk
-                const chestPulse = Math.sin(t * 2.05 + ph);
-                rig.position.y = Math.max(0, chestPulse) * 0.022;
-                rig.scale.set(1.0 + chestPulse * 0.014, 1.0 + chestPulse * 0.022, 1.0 + chestPulse * 0.016);
-                rig.rotation.y = Math.sin(t * 0.62 + ph) * 0.14;
-                rig.rotation.z = Math.sin(t * 0.48 + ph) * 0.014;
-                rig.rotation.x = -0.018;
-            } else if (lvl <= 8) {
-                // Level 7-8 (Kunsthandwerker / Meister): Erhabenes leichtes Schweben ueber drehendem Goldring + souveraene Pose
-                const hover = Math.sin(t * 1.85 + ph);
-                rig.position.y = 0.085 + 0.044 * hover;
-                rig.scale.set(1.0 - hover * 0.005, 1.0 + hover * 0.013, 1.0 - hover * 0.005);
-                rig.rotation.y = Math.sin(t * 0.58 + ph) * 0.12;
-                rig.rotation.z = Math.sin(t * 0.75 + ph) * 0.015;
-                rig.rotation.x = -0.012;
-            } else if (lvl === 9) {
-                // Level 9 (Lichtbringer): Majestaetische Levitation mit rotierendem goldenem Lichtkranz
-                const lev = Math.sin(t * 2.05 + ph);
-                rig.position.y = 0.145 + 0.062 * lev;
-                rig.scale.set(1.0, 1.0 + lev * 0.015, 1.0);
-                rig.rotation.y = Math.sin(t * 0.54 + ph) * 0.15;
-                rig.rotation.z = Math.cos(t * 0.8 + ph) * 0.018;
-                rig.rotation.x = -0.015;
-            } else {
-                // Level 10 (Gott des Seelenfunkens): Epische goettliche Schwebepose ueber gegenlaeufig rotierenden 24K-Gold-Sternringen!
-                const godFloat = Math.sin(t * 2.25 + ph);
-                rig.position.y = 0.21 + 0.075 * godFloat;
-                rig.scale.set(1.0 + godFloat * 0.008, 1.0 + godFloat * 0.018, 1.0 + godFloat * 0.008);
-                rig.rotation.y = Math.sin(t * 0.50 + ph) * 0.16;
-                rig.rotation.z = Math.sin(t * 0.90 + ph) * 0.016;
-                rig.rotation.x = -0.022;
+            rig.scale.set(1, 1, 1);
+            rig.rotation.set(0, 0, 0);
+
+            if (j) {
+                const breath = Math.sin(t * 2.0 + ph);
+                const sway = Math.sin(t * 0.95 + ph * 0.7);
+                const lookWave = Math.sin(t * 0.68 + ph);
+                const isFloatingTier = (lvl >= 7);
+
+                if (!isFloatingTier) {
+                    // Stufen 1..6: Aufrechter, stolzer Stand mit lebendiger Ruheatmung, sanfter Gewichtsverlagerung & Blickwendung
+                    rig.position.y = 0;
+                    const stanceConfidence = clamp((lvl - 1) / 5, 0, 1);
+
+                    j.pelvisPivot.position.set(sway * 0.016, 0.776 + breath * 0.010, 0);
+                    j.pelvisPivot.rotation.set(0, sway * 0.045, -sway * 0.022);
+
+                    j.torsoPivot.rotation.set(
+                        -0.025 * stanceConfidence + breath * 0.022,
+                        lookWave * 0.085 - sway * 0.035,
+                        sway * 0.018
+                    );
+
+                    const relaxL = Math.max(0, sway) * 0.055;
+                    const relaxR = Math.max(0, -sway) * 0.055;
+                    j.hipPivotL.rotation.set(-relaxL * 0.5, 0, -0.028 - stanceConfidence * 0.015);
+                    j.kneePivotL.rotation.set(relaxL, 0, 0);
+                    j.anklePivotL.rotation.set(-relaxL * 0.45, 0, 0);
+
+                    j.hipPivotR.rotation.set(-relaxR * 0.5, 0, 0.028 + stanceConfidence * 0.015);
+                    j.kneePivotR.rotation.set(relaxR, 0, 0);
+                    j.anklePivotR.rotation.set(-relaxR * 0.45, 0, 0);
+
+                    // Edle Schulter- & Armdynamik (Stufe 1-2 aufmerksam neugierig, Stufe 5-6 selbstbewusste Meister-Haltung)
+                    const armSpread = 0.08 + stanceConfidence * 0.06 + Math.max(0, breath) * 0.018;
+                    j.shoulderPivotL.rotation.set(-0.08 + Math.sin(t * 1.45 + ph) * 0.04, 0.06, -armSpread);
+                    j.elbowPivotL.rotation.set(-0.26 - stanceConfidence * 0.14 + breath * 0.03, 0, 0);
+                    j.wristPivotL.rotation.set(-0.05, 0, -0.06);
+                    j.fingerCurlL.rotation.z = -0.18;
+
+                    j.shoulderPivotR.rotation.set(-0.10 - Math.sin(t * 1.45 + ph) * 0.04, -0.06, armSpread);
+                    j.elbowPivotR.rotation.set(-0.28 - stanceConfidence * 0.16 - breath * 0.03, 0, 0);
+                    j.wristPivotR.rotation.set(-0.05, 0, 0.06);
+                    j.fingerCurlR.rotation.z = 0.22;
+
+                    j.headPivot.rotation.set(
+                        -0.03 * stanceConfidence + Math.sin(t * 1.1 + ph) * 0.035,
+                        lookWave * (lvl <= 2 ? 0.26 : 0.18),
+                        -lookWave * 0.03
+                    );
+
+                    const minSolePedY = this._computeAvatarMinSoleY(j);
+                    j.pelvisPivot.position.y += (0.004 - minSolePedY);
+                    if (j.footShadow) {
+                        j.footShadow.position.y = 0.003;
+                        j.footShadow.scale.set(0.95, 0.95, 1);
+                    }
+                    if (j.thrusterFlameL && j.thrusterFlameR) {
+                        j.thrusterFlameL.visible = false;
+                        j.thrusterFlameR.visible = false;
+                    }
+                    if (j.reactorRing) {
+                        j.reactorRing.rotation.z = t * (0.9 + lvl * 0.15);
+                    }
+                } else {
+                    // Stufen 7..10: Erhabenes Schweben mit angewinkelter Hover-Beinpose, aktiven Fersen-Schubduesen & Reaktorring!
+                    const hoverBase = lvl === 10 ? 0.22 : (lvl === 9 ? 0.16 : 0.10);
+                    const hoverAmp = lvl === 10 ? 0.068 : (lvl === 9 ? 0.054 : 0.042);
+                    const hoverWave = Math.sin(t * (1.85 + (lvl - 7) * 0.14) + ph);
+                    rig.position.y = hoverBase + hoverWave * hoverAmp;
+
+                    j.pelvisPivot.position.set(0, 0.776, 0);
+                    j.pelvisPivot.rotation.set(0.04, Math.sin(t * 0.55 + ph) * 0.08, sway * 0.02);
+
+                    j.torsoPivot.rotation.set(
+                        -0.06 + breath * 0.024,
+                        Math.sin(t * 0.55 + ph) * 0.10,
+                        sway * 0.018
+                    );
+
+                    // Heroische Levitations-Beinpose (rechtes Knie leicht staerker angezogen, Stiefel entspannt geneigt)
+                    j.hipPivotL.rotation.set(-0.16 + hoverWave * 0.03, 0, -0.055);
+                    j.kneePivotL.rotation.set(0.28 - hoverWave * 0.04, 0, 0);
+                    j.anklePivotL.rotation.set(0.22, 0, 0);
+
+                    j.hipPivotR.rotation.set(-0.32 - hoverWave * 0.03, 0, 0.065);
+                    j.kneePivotR.rotation.set(0.54 + hoverWave * 0.05, 0, 0);
+                    j.anklePivotR.rotation.set(0.28, 0, 0);
+
+                    // Majestaetisch geoeffnete Exoskelett-Arme
+                    const openWing = lvl === 10 ? 0.34 : (lvl === 9 ? 0.26 : 0.18);
+                    j.shoulderPivotL.rotation.set(-0.24 + hoverWave * 0.06, 0.12, -openWing);
+                    j.elbowPivotL.rotation.set(-0.38 + breath * 0.04, 0, 0);
+                    j.wristPivotL.rotation.set(0.08, 0, -0.10);
+                    j.fingerCurlL.rotation.z = -0.12;
+
+                    j.shoulderPivotR.rotation.set(-0.24 + hoverWave * 0.06, -0.12, openWing);
+                    j.elbowPivotR.rotation.set(-0.38 + breath * 0.04, 0, 0);
+                    j.wristPivotR.rotation.set(0.08, 0, 0.10);
+                    j.fingerCurlR.rotation.z = 0.12;
+
+                    j.headPivot.rotation.set(
+                        -0.05 + hoverWave * 0.025,
+                        lookWave * 0.15,
+                        -lookWave * 0.02
+                    );
+
+                    if (j.footShadow) {
+                        j.footShadow.position.y = -rig.position.y + 0.004;
+                        const shScale = clamp(0.85 - rig.position.y * 0.85, 0.48, 0.88);
+                        j.footShadow.scale.set(shScale, shScale, 1);
+                    }
+                    if (j.thrusterFlameL && j.thrusterFlameR) {
+                        j.thrusterFlameL.visible = true;
+                        j.thrusterFlameR.visible = true;
+                        const flamePulse = 0.82 + Math.sin(t * 32.0 + ph) * 0.22;
+                        j.thrusterFlameL.scale.set(0.92, flamePulse, 0.92);
+                        j.thrusterFlameR.scale.set(0.92, flamePulse, 0.92);
+                    }
+                    if (j.reactorRing) {
+                        j.reactorRing.rotation.z = t * (3.2 + (lvl - 7) * 0.55);
+                    }
+                }
+
+                if (j.sparkCrest) {
+                    j.sparkCrest.rotation.y = t * 1.45 + ph;
+                }
+                if (built.skinnedRig) {
+                    this._syncSkinnedFunkiBones(built.skinnedRig, j, 0);
+                }
             }
 
             if (fg.auraOuter) {
@@ -9236,14 +9782,10 @@ class SeelenfunkeLouvreShowroom3D {
             const vol = clamp(Math.round(Number(partial.volume)), 0, 100);
             settingsPatch.volume = vol;
             if (this.audio) {
+                if (typeof this.audio.setBgmVolume === 'function') this.audio.setBgmVolume(vol, true);
+                if (typeof this.audio.setBgmMuted === 'function') this.audio.setBgmMuted(vol === 0, true);
                 if (typeof this.audio.setSfxVolume === 'function') this.audio.setSfxVolume(vol);
-                if (typeof this.audio.setSfxMuted === 'function') this.audio.setSfxMuted(vol <= 0);
-                if (typeof this.audio.getState === 'function') {
-                    const aState = this.audio.getState();
-                    if (aState && !aState.bgmMuted && typeof this.audio.setBgmVolume === 'function') {
-                        this.audio.setBgmVolume(vol);
-                    }
-                }
+                if (typeof this.audio.setSfxMuted === 'function') this.audio.setSfxMuted(vol === 0);
             }
         }
         if (partial.cameraSensitivity !== undefined) {
@@ -10010,22 +10552,27 @@ class SeelenfunkeLouvreShowroom3D {
     }
 
     getCurrentZone() {
+        if (this.player.z < (this.hallNorthZ - 4.0)) {
+            return 'heroes';
+        }
         if (this.player.x > this.hallHalfW + 1.1) {
             return 'lava';
         }
         if (this.player.x < -(this.hallHalfW + 1.1)) {
             return 'labyrinth';
         }
-        return this.player.z < (this.hallNorthZ - 4.0) ? 'heroes' : 'gallery';
+        return 'gallery';
     }
 
     getLocalSyncState() {
+        const rawYaw = this.player.yaw || 0;
+        const normYaw = Math.atan2(Math.sin(rawYaw), Math.cos(rawYaw));
         return {
             x: Number((this.player.x || 0).toFixed(3)),
             y: Number(((this.player.y || 0) + (this.player.comboLeapY || 0)).toFixed(3)),
             z: Number((this.player.z || 0).toFixed(3)),
-            rot_y: Number((this.player.yaw || 0).toFixed(3)),
-            rotY: Number((this.player.yaw || 0).toFixed(3)),
+            rot_y: Number(normYaw.toFixed(3)),
+            rotY: Number(normYaw.toFixed(3)),
             speed: Number((this.player.currentSpeed || 0).toFixed(3)),
             zone: this.getCurrentZone(),
             jumping: Boolean(this.player.isJumping || (this.player.y || 0) > 0.02),
@@ -10287,11 +10834,12 @@ class SeelenfunkeLouvreShowroom3D {
             const activeReportedSpeed = peer.reportedMoveTimer > 0 ? peer.reportedSpeed : 0;
             const effectiveSpeed = Math.max(measuredSpeed, activeReportedSpeed * 0.65);
 
-            const inLava = peer.x > this.hallHalfW + 1.1;
+            const inLava = (peer.z > this.hallNorthZ - 1.5) && (peer.x > this.hallHalfW + 1.1);
             const floorOffset = this._computeFloorBaseY(peer.x, peer.z);
             const support = inLava ? this._evaluateLavaSupportAt(peer.x, peer.z, peer.y) : { shadowY: 0 };
             const aboveGround = Math.max(0, peer.y - support.shadowY);
             const airBlend = clamp(aboveGround / 0.26, 0, 1);
+            const peerSprint = effectiveSpeed > 6.4 ? 1.0 : 0.0;
 
             peer.root.position.set(peer.x, floorOffset + peer.y, peer.z);
             peer.root.rotation.y = peer.yaw;
@@ -10305,20 +10853,24 @@ class SeelenfunkeLouvreShowroom3D {
             peer.moveBlend = lerp(peer.moveBlend, targetBlend, smooth);
 
             const mb = peer.moveBlend * (1.0 - airBlend * 0.65);
+            const idlePeer = (1.0 - mb) * (1.0 - airBlend);
+            const idleBreathPeer = Math.sin(this.elapsedTime * 2.0 + (peer.level || 1)) * 0.010 * idlePeer;
             const j = peer.joints;
             const pL = peer.walkPhase;
             const pR = pL + Math.PI;
 
-            j.hipPivotL.rotation.x = -0.52 * Math.sin(pL) * mb - 0.30 * airBlend;
-            j.hipPivotR.rotation.x = -0.52 * Math.sin(pR) * mb - 0.18 * airBlend;
-            j.kneePivotL.rotation.x = Math.max(0, Math.cos(pL - 0.16) * 0.68 * mb + 0.56 * airBlend);
-            j.kneePivotR.rotation.x = Math.max(0, Math.cos(pR - 0.16) * 0.68 * mb + 0.42 * airBlend);
-            j.anklePivotL.rotation.x = -Math.max(0, Math.cos(pL - 0.16)) * 0.22 * mb;
-            j.anklePivotR.rotation.x = -Math.max(0, Math.cos(pR - 0.16)) * 0.22 * mb;
+            j.hipPivotL.rotation.x = -0.54 * Math.sin(pL) * mb - 0.32 * airBlend;
+            j.hipPivotR.rotation.x = -0.54 * Math.sin(pR) * mb - 0.20 * airBlend;
+            j.hipPivotL.rotation.z = -(0.018 * idlePeer + 0.024 * mb);
+            j.hipPivotR.rotation.z = (0.018 * idlePeer + 0.024 * mb);
+            j.kneePivotL.rotation.x = Math.max(0, Math.cos(pL - 0.16) * 0.72 * mb + 0.58 * airBlend);
+            j.kneePivotR.rotation.x = Math.max(0, Math.cos(pR - 0.16) * 0.72 * mb + 0.44 * airBlend);
+            j.anklePivotL.rotation.x = -Math.max(0, Math.cos(pL - 0.16)) * 0.24 * mb + 0.20 * airBlend;
+            j.anklePivotR.rotation.x = -Math.max(0, Math.cos(pR - 0.16)) * 0.24 * mb + 0.20 * airBlend;
 
-            j.shoulderPivotL.rotation.x = -0.38 * Math.sin(pR) * mb - 0.34 * airBlend;
+            j.shoulderPivotL.rotation.x = -0.42 * Math.sin(pR) * mb - 0.36 * airBlend;
             j.shoulderPivotL.rotation.z = -0.08;
-            j.elbowPivotL.rotation.x = -0.16 - 0.28 * Math.max(0, Math.sin(pR)) * mb;
+            j.elbowPivotL.rotation.x = -0.18 - 0.32 * Math.max(0, Math.sin(pR)) * mb;
             j.wristPivotL.rotation.x = -0.08 * Math.cos(pR) * mb;
 
             if (peer.weaponSwingTimer > 0) {
@@ -10329,15 +10881,30 @@ class SeelenfunkeLouvreShowroom3D {
                 j.shoulderPivotR.rotation.z = 0.32 * arc;
                 j.elbowPivotR.rotation.x = -0.40 * arc;
             } else {
-                j.shoulderPivotR.rotation.x = -0.38 * Math.sin(pL) * mb - 0.34 * airBlend;
+                j.shoulderPivotR.rotation.x = -0.42 * Math.sin(pL) * mb - 0.36 * airBlend;
                 j.shoulderPivotR.rotation.z = 0.08;
-                j.elbowPivotR.rotation.x = -0.16 - 0.28 * Math.max(0, Math.sin(pL)) * mb;
+                j.elbowPivotR.rotation.x = -0.18 - 0.32 * Math.max(0, Math.sin(pL)) * mb;
                 j.wristPivotR.rotation.x = -0.08 * Math.cos(pL) * mb;
             }
 
-            const bounce = Math.cos(2.0 * pL) * 0.022 * mb;
-            j.pelvisPivot.position.y = 0.776 + bounce;
-            j.torsoPivot.rotation.y = -Math.sin(pL) * 0.075 * mb;
+            const bounce = Math.cos(2.0 * pL) * 0.024 * mb;
+            j.pelvisPivot.position.y = 0.776 + bounce - 0.014 * mb + idleBreathPeer;
+            j.pelvisPivot.position.x = -Math.sin(pL) * 0.018 * mb;
+            j.pelvisPivot.rotation.y = Math.sin(pL) * 0.065 * mb;
+            j.pelvisPivot.rotation.z = -Math.sin(pL) * 0.030 * mb;
+            j.torsoPivot.rotation.x = (0.08 + 0.10 * peerSprint) * mb + idleBreathPeer;
+            j.torsoPivot.rotation.y = -Math.sin(pL) * 0.085 * mb;
+
+            if (j.thrusterFlameL && j.thrusterFlameR) {
+                const peerThrusters = peerSprint > 0;
+                j.thrusterFlameL.visible = peerThrusters;
+                j.thrusterFlameR.visible = peerThrusters;
+            }
+            if (j.reactorRing) {
+                j.reactorRing.rotation.z = this.elapsedTime * (peerSprint > 0 ? 4.0 : 1.1);
+            }
+
+            // Exakte Sohlen-Bodenkorrektur auf 0.004 - minSolePeerY + sauberer footShadow/baseRing-Sitz!
             const minSolePeerY = this._computeAvatarMinSoleY(j);
             if (aboveGround <= 0.001) {
                 j.pelvisPivot.position.y += (0.004 - minSolePeerY);
@@ -10347,7 +10914,7 @@ class SeelenfunkeLouvreShowroom3D {
                     j.pelvisPivot.position.y += (minAllowedPeerY - minSolePeerY);
                 }
             }
-            const localShY = (support.shadowY - peer.y) + 0.006;
+            const localShY = (support.shadowY - peer.y) + 0.002;
             j.footShadow.position.y = localShY;
             j.baseRing.position.y = localShY;
             const sScale = 1.0 / (1.0 + aboveGround * 0.55);
@@ -10700,10 +11267,16 @@ class SeelenfunkeLouvreShowroom3D {
 
             const sens = this.cameraSensitivityFactor || 1.0;
             this.camControl.desiredYaw -= dx * 0.0055 * sens;
-            this.camControl.desiredPitch = clamp(this.camControl.desiredPitch + dy * 0.0042 * sens, 0.04, 0.82);
+            const minPitch = this.camControl.desiredDistance < 0.55 ? -0.82 : 0.04;
+            this.camControl.desiredPitch = clamp(this.camControl.desiredPitch + dy * 0.0042 * sens, minPitch, 0.82);
 
-            // Bei Rechtsklick-Ziehen oder Links+Rechts-MMO-Laufen dreht sich die Blickrichtung direkt mit!
-            if (this.camControl.bothMouseWalk) {
+            // In Egoperspektive, bei Rechtsklick-Ziehen oder Links+Rechts-MMO-Laufen dreht sich die Blickrichtung direkt mit!
+            if (this.camControl.desiredDistance < 0.55) {
+                this.player.yaw = Math.atan2(
+                    Math.sin(this.camControl.desiredYaw + Math.PI),
+                    Math.cos(this.camControl.desiredYaw + Math.PI)
+                );
+            } else if (this.camControl.bothMouseWalk) {
                 this.camControl.yaw = this.camControl.desiredYaw;
                 this.player.yaw = this.camControl.desiredYaw + Math.PI;
             } else if (this.camControl.mouseRightDown && !this.camControl.mouseLeftDown && this.camControl.dragMoved > 2) {
@@ -10777,11 +11350,23 @@ class SeelenfunkeLouvreShowroom3D {
     _onWheel(e) {
         if (!this.running) return;
         e.preventDefault();
-        const factor = e.deltaY > 0 ? 1.09 : 0.91;
         const maxDist = this.currentZone === 'heroes'
             ? 10.5
             : (this.currentZone === 'lava' ? 9.8 : (this.currentZone === 'labyrinth' ? 9.2 : 7.8));
-        this.camControl.desiredDistance = clamp(this.camControl.desiredDistance * factor, 2.5, maxDist);
+        if (e.deltaY < 0) {
+            let next = this.camControl.desiredDistance * 0.88 - 0.14;
+            if (next < 0.95) next = 0;
+            this.camControl.desiredDistance = Math.max(0, next);
+        } else if (e.deltaY > 0) {
+            if (this.camControl.desiredDistance < 0.95) {
+                this.camControl.desiredDistance = 1.65;
+            } else {
+                this.camControl.desiredDistance = clamp(this.camControl.desiredDistance * 1.09 + 0.08, 0, maxDist);
+            }
+            if (this.camControl.desiredDistance >= 0.95) {
+                this.camControl.desiredPitch = clamp(this.camControl.desiredPitch, 0.04, 0.82);
+            }
+        }
     }
 
     _onTouchStart(e) {
@@ -10802,7 +11387,22 @@ class SeelenfunkeLouvreShowroom3D {
             const maxDist = this.currentZone === 'heroes'
                 ? 10.5
                 : (this.currentZone === 'lava' ? 9.8 : (this.currentZone === 'labyrinth' ? 9.2 : 7.8));
-            this.camControl.desiredDistance = clamp(this.camControl.desiredDistance * scale, 2.5, maxDist);
+            if (scale < 0.996) {
+                let next = scale < 0.90
+                    ? (this.camControl.desiredDistance * 0.88 - 0.14)
+                    : (this.camControl.desiredDistance * scale - (1 - scale) * 1.2);
+                if (next < 0.95) next = 0;
+                this.camControl.desiredDistance = Math.max(0, next);
+            } else if (scale > 1.004) {
+                if (this.camControl.desiredDistance < 0.95) {
+                    this.camControl.desiredDistance = 1.65;
+                } else {
+                    this.camControl.desiredDistance = clamp(this.camControl.desiredDistance * scale + (scale - 1) * 0.5, 0, maxDist);
+                }
+                if (this.camControl.desiredDistance >= 0.95) {
+                    this.camControl.desiredPitch = clamp(this.camControl.desiredPitch, 0.04, 0.82);
+                }
+            }
         }
     }
 
@@ -10912,7 +11512,8 @@ class SeelenfunkeLouvreShowroom3D {
             if (floorHits.length > 0) {
                 const hit = floorHits[0];
                 const pt = hit.point;
-                const isLavaTarget = Boolean(hit.object.userData && hit.object.userData.isLavaWalkable) || pt.x > this.hallHalfW + 0.5;
+                const isLavaTarget = Boolean(hit.object.userData && hit.object.userData.isLavaWalkable)
+                    || (pt.z > this.hallNorthZ - 1.5 && pt.x > this.hallHalfW + 0.5);
                 const targetPos = isLavaTarget
                     ? { x: clamp(pt.x, 12.0, 69.3), z: clamp(pt.z, -14.8, 10.8) }
                     : this._resolveCollisions(pt.x, pt.z);
@@ -10939,6 +11540,7 @@ class SeelenfunkeLouvreShowroom3D {
      * Wechselt sanft oder sofort zwischen 'gallery', 'heroes', 'lava' und 'labyrinth'.
      */
     goToZone(targetZone, instant = false) {
+        const keepFp = Boolean(this.running && this.camControl.desiredDistance < 0.55);
         const raw = String(targetZone || 'gallery').toLowerCase();
         const cleanZone = raw === 'lava'
             ? 'lava'
@@ -10971,10 +11573,10 @@ class SeelenfunkeLouvreShowroom3D {
                 this.player.autoLookAt = null;
                 this.camControl.yaw = Math.PI * 0.5;
                 this.camControl.desiredYaw = Math.PI * 0.5;
-                this.camControl.pitch = 0.28;
-                this.camControl.desiredPitch = 0.28;
-                this.camControl.distance = 4.9;
-                this.camControl.desiredDistance = 4.9;
+                this.camControl.pitch = keepFp ? 0.08 : 0.34;
+                this.camControl.desiredPitch = keepFp ? 0.08 : 0.34;
+                this.camControl.distance = keepFp ? 0 : 4.2;
+                this.camControl.desiredDistance = keepFp ? 0 : 4.2;
                 if (this.camControl.lookAtCurrent) {
                     this.camControl.lookAtCurrent.set(destX, 1.44, destZ);
                 }
@@ -10982,8 +11584,8 @@ class SeelenfunkeLouvreShowroom3D {
                 this.player.autoTarget = { x: destX, z: destZ };
                 this.player.autoLookAt = { x: -22.0, z: 0.0 };
                 this.camControl.desiredYaw = Math.PI * 0.5;
-                this.camControl.desiredPitch = 0.28;
-                this.camControl.desiredDistance = 4.9;
+                this.camControl.desiredPitch = keepFp ? 0.08 : 0.34;
+                this.camControl.desiredDistance = keepFp ? 0 : 4.2;
             }
 
             this._startLabyrinthRun(false);
@@ -11020,10 +11622,10 @@ class SeelenfunkeLouvreShowroom3D {
                 this.player.autoLookAt = null;
                 this.camControl.yaw = -Math.PI * 0.5;
                 this.camControl.desiredYaw = -Math.PI * 0.5;
-                this.camControl.pitch = 0.24;
-                this.camControl.desiredPitch = 0.24;
-                this.camControl.distance = 5.0;
-                this.camControl.desiredDistance = 5.0;
+                this.camControl.pitch = keepFp ? 0.06 : 0.24;
+                this.camControl.desiredPitch = keepFp ? 0.06 : 0.24;
+                this.camControl.distance = keepFp ? 0 : 5.0;
+                this.camControl.desiredDistance = keepFp ? 0 : 5.0;
                 if (this.camControl.lookAtCurrent) {
                     this.camControl.lookAtCurrent.set(destX, 1.44, destZ);
                 }
@@ -11031,8 +11633,8 @@ class SeelenfunkeLouvreShowroom3D {
                 this.player.autoTarget = { x: destX, z: destZ };
                 this.player.autoLookAt = { x: 31.5, z: -2.0 };
                 this.camControl.desiredYaw = -Math.PI * 0.5;
-                this.camControl.desiredPitch = 0.24;
-                this.camControl.desiredDistance = 5.0;
+                this.camControl.desiredPitch = keepFp ? 0.06 : 0.24;
+                this.camControl.desiredDistance = keepFp ? 0 : 5.0;
             }
 
             this._startLavaParkourRun(false);
@@ -11057,8 +11659,8 @@ class SeelenfunkeLouvreShowroom3D {
                 this.player.autoTarget = { x: 0, z: this.hallNorthZ + 2.4 };
                 this.player.autoLookAt = { x: 0, z: this.hallNorthZ - 2.0 };
                 this.camControl.desiredYaw = 0;
-                this.camControl.desiredPitch = 0.20;
-                this.camControl.desiredDistance = 4.2;
+                this.camControl.desiredPitch = keepFp ? 0.05 : 0.20;
+                this.camControl.desiredDistance = keepFp ? 0 : 4.2;
                 this._setPortalGateFocused(true);
                 if (this.currentZone !== 'gallery') {
                     this.currentZone = 'gallery';
@@ -11087,10 +11689,10 @@ class SeelenfunkeLouvreShowroom3D {
                 this.player.autoLookAt = null;
                 this.camControl.yaw = 0;
                 this.camControl.desiredYaw = 0;
-                this.camControl.pitch = 0.16;
-                this.camControl.desiredPitch = 0.16;
-                this.camControl.distance = 5.4;
-                this.camControl.desiredDistance = 5.4;
+                this.camControl.pitch = keepFp ? 0.04 : 0.16;
+                this.camControl.desiredPitch = keepFp ? 0.04 : 0.16;
+                this.camControl.distance = keepFp ? 0 : 5.4;
+                this.camControl.desiredDistance = keepFp ? 0 : 5.4;
                 if (this.camControl.lookAtCurrent) {
                     this.camControl.lookAtCurrent.set(destX, 1.48, destZ);
                 }
@@ -11098,8 +11700,8 @@ class SeelenfunkeLouvreShowroom3D {
                 this.player.autoTarget = { x: destX, z: destZ };
                 this.player.autoLookAt = { x: 0, z: this.pantheonCenterZ - 7.8 };
                 this.camControl.desiredYaw = 0;
-                this.camControl.desiredPitch = 0.16;
-                this.camControl.desiredDistance = 5.4;
+                this.camControl.desiredPitch = keepFp ? 0.04 : 0.16;
+                this.camControl.desiredDistance = keepFp ? 0 : 5.4;
             }
 
             if (this.currentZone !== 'heroes') {
@@ -11131,8 +11733,9 @@ class SeelenfunkeLouvreShowroom3D {
             this.player.autoLookAt = null;
             this.camControl.yaw = 0;
             this.camControl.desiredYaw = 0;
-            this.camControl.desiredPitch = 0.24;
-            this.camControl.desiredDistance = 4.35;
+            this.camControl.desiredPitch = keepFp ? 0.06 : 0.24;
+            this.camControl.distance = keepFp ? 0 : this.camControl.distance;
+            this.camControl.desiredDistance = keepFp ? 0 : 4.35;
             if (this.camControl.lookAtCurrent) {
                 this.camControl.lookAtCurrent.set(galleryDestX, 1.38, galleryDestZ);
             }
@@ -11140,8 +11743,8 @@ class SeelenfunkeLouvreShowroom3D {
             this.player.autoTarget = { x: galleryDestX, z: galleryDestZ };
             this.player.autoLookAt = { x: 0, z: this.hallNorthZ };
             this.camControl.desiredYaw = 0;
-            this.camControl.desiredPitch = 0.24;
-            this.camControl.desiredDistance = 4.35;
+            this.camControl.desiredPitch = keepFp ? 0.06 : 0.24;
+            this.camControl.desiredDistance = keepFp ? 0 : 4.35;
         }
 
         if (this.currentZone !== 'gallery') {
@@ -11159,6 +11762,7 @@ class SeelenfunkeLouvreShowroom3D {
             return;
         }
 
+        const keepFp = Boolean(this.running && this.camControl.desiredDistance < 0.55);
         const slot = clamp(parseInt(slotNumber, 10) || 1, 1, 999);
         const anchor = this.heroSlotAnchors[slot] || this.heroSlotAnchors[1];
         if (!anchor) return;
@@ -11181,8 +11785,8 @@ class SeelenfunkeLouvreShowroom3D {
 
         const lookYaw = Math.atan2(anchor.standX - anchor.worldX, anchor.standZ - anchor.worldZ);
         this.camControl.desiredYaw = lookYaw;
-        this.camControl.desiredPitch = 0.18;
-        this.camControl.desiredDistance = 4.85;
+        this.camControl.desiredPitch = keepFp ? 0.04 : 0.18;
+        this.camControl.desiredDistance = keepFp ? 0 : 4.85;
 
         if (this.walkTargetRing) {
             this.walkTargetRing.position.set(anchor.standX, 0.035, anchor.standZ);
@@ -11218,6 +11822,7 @@ class SeelenfunkeLouvreShowroom3D {
     goToExhibit(index, triggerSelectCallback = false) {
         if (this.steles.length === 0) return;
 
+        const keepFp = Boolean(this.running && this.camControl.desiredDistance < 0.55);
         if (this.player.z < this.hallNorthZ - 2.0 || this.player.x > this.hallHalfW + 1.1 || this.player.x < -(this.hallHalfW + 1.1)) {
             this.goToZone('gallery', true);
         }
@@ -11233,8 +11838,8 @@ class SeelenfunkeLouvreShowroom3D {
 
         const lookYaw = Math.atan2(stele.standX - stele.x, stele.standZ - stele.z);
         this.camControl.desiredYaw = lookYaw;
-        this.camControl.desiredPitch = 0.24;
-        this.camControl.desiredDistance = 3.85;
+        this.camControl.desiredPitch = keepFp ? 0.08 : 0.24;
+        this.camControl.desiredDistance = keepFp ? 0 : 3.85;
 
         if (this.walkTargetRing) {
             this.walkTargetRing.position.set(stele.standX, 0.015, stele.standZ);
@@ -11293,8 +11898,10 @@ class SeelenfunkeLouvreShowroom3D {
         const labDoorClearHalfZ = this.labyrinthPortalHalfSpan - 0.50;
         const inLabPassageZ = Math.abs(z - this.labyrinthPortalZ) <= labDoorClearHalfZ;
 
-        // Zone 4: Mini-Labyrinth & Portal-Durchgang an der Galerie-Westwand (x <= -(hallHalfW - 0.95))
-        if (x < -(this.hallHalfW - 0.95) && (this.player.x < -(this.hallHalfW - 1.2) || inLabPassageZ)) {
+        // Zone 4: Mini-Labyrinth & Portal-Durchgang an der Galerie-Westwand (nur im Suedbereich z > hallNorthZ - 1.5!)
+        // Alle 3.20 m hohen Kalkstein-Trennwaende sind bis einschliesslich Sprunghoehe 3.4+ m absolut undurchdringlich (kein Ueberspringen!)
+        const inSouthernWingZ = (z > this.hallNorthZ - 1.5) && (this.player.z > this.hallNorthZ - 1.5);
+        if (inSouthernWingZ && x < -(this.hallHalfW - 0.95) && (this.player.x < -(this.hallHalfW - 1.2) || inLabPassageZ)) {
             if (x > -12.45) {
                 z = clamp(z, this.labyrinthPortalZ - labDoorClearHalfZ, this.labyrinthPortalZ + labDoorClearHalfZ);
             } else {
@@ -11302,34 +11909,40 @@ class SeelenfunkeLouvreShowroom3D {
             }
             x = Math.max(x, this.labyrinthMinX + 0.80);
 
-            // Glatte Kreis-gegen-AABB-Wandkollision gegen alle 5x5-Hecken- & Rahmen-Segmente
-            const playerR = 0.40;
+            // 2-Pass Kreis-gegen-AABB-Wandkollision (unabhaengig von player.y bis > 3.4 m absolut undurchdringlich!)
+            const playerR = 0.42;
             const playerRSq = playerR * playerR;
-            for (let wi = 0; wi < this.labyrinthWallBoxes.length; wi++) {
-                const wb = this.labyrinthWallBoxes[wi];
-                const closestX = clamp(x, wb.minX, wb.maxX);
-                const closestZ = clamp(z, wb.minZ, wb.maxZ);
-                const dx = x - closestX;
-                const dz = z - closestZ;
-                const distSq = dx * dx + dz * dz;
-                if (distSq < playerRSq) {
-                    if (distSq > 0.000001) {
-                        const dist = Math.sqrt(distSq);
-                        const push = playerR - dist;
-                        x += (dx / dist) * push;
-                        z += (dz / dist) * push;
-                    } else {
-                        const penLeft = Math.abs(x - wb.minX);
-                        const penRight = Math.abs(wb.maxX - x);
-                        const penNorth = Math.abs(z - wb.minZ);
-                        const penSouth = Math.abs(wb.maxZ - z);
-                        const minPen = Math.min(penLeft, penRight, penNorth, penSouth);
-                        if (minPen === penLeft) x = wb.minX - playerR;
-                        else if (minPen === penRight) x = wb.maxX + playerR;
-                        else if (minPen === penNorth) z = wb.minZ - playerR;
-                        else z = wb.maxZ + playerR;
+            const applyLabWallSweep = () => {
+                for (let wi = 0; wi < this.labyrinthWallBoxes.length; wi++) {
+                    const wb = this.labyrinthWallBoxes[wi];
+                    const closestX = clamp(x, wb.minX, wb.maxX);
+                    const closestZ = clamp(z, wb.minZ, wb.maxZ);
+                    const dx = x - closestX;
+                    const dz = z - closestZ;
+                    const distSq = dx * dx + dz * dz;
+                    if (distSq < playerRSq) {
+                        if (distSq > 0.000001) {
+                            const dist = Math.sqrt(distSq);
+                            const push = playerR - dist;
+                            x += (dx / dist) * push;
+                            z += (dz / dist) * push;
+                        } else {
+                            const penLeft = Math.abs(x - wb.minX);
+                            const penRight = Math.abs(wb.maxX - x);
+                            const penNorth = Math.abs(z - wb.minZ);
+                            const penSouth = Math.abs(wb.maxZ - z);
+                            const minPen = Math.min(penLeft, penRight, penNorth, penSouth);
+                            if (minPen === penLeft) x = wb.minX - playerR;
+                            else if (minPen === penRight) x = wb.maxX + playerR;
+                            else if (minPen === penNorth) z = wb.minZ - playerR;
+                            else z = wb.maxZ + playerR;
+                        }
                     }
                 }
+            };
+            if ((this.player.y || 0) <= 3.6 || this.player.isJumping || true) {
+                applyLabWallSweep();
+                applyLabWallSweep();
             }
 
             // Kreiskollision um den goldenen Spass-Buzzer-Sockel (-29.05, 0.0)
@@ -11346,8 +11959,8 @@ class SeelenfunkeLouvreShowroom3D {
             return this._collisionOut;
         }
 
-        // Zone 3: Lava-Pruefungskammer & Portal-Durchgang an der Galerie-Ostwand (x >= hallHalfW - 0.95)
-        if (x > this.hallHalfW - 0.95 && (this.player.x > this.hallHalfW - 1.2 || inLavaPassageZ)) {
+        // Zone 3: Lava-Pruefungskammer & Portal-Durchgang an der Galerie-Ostwand (nur im Suedbereich z > hallNorthZ - 1.5!)
+        if (inSouthernWingZ && x > this.hallHalfW - 0.95 && (this.player.x > this.hallHalfW - 1.2 || inLavaPassageZ)) {
             if (x < 12.45) {
                 z = clamp(z, this.lavaPortalZ - lavaDoorClearHalfZ, this.lavaPortalZ + lavaDoorClearHalfZ);
             } else if (x <= this.lavaBalconyMaxX - 0.15 && (this.player.y || 0) <= 0.6) {
@@ -11660,7 +12273,7 @@ class SeelenfunkeLouvreShowroom3D {
 
         // Vertikale Physik, Plattform-Oberkanten-Landung & 110 ms Coyote-Time!
         let shadowSurfaceY = 0.0;
-        const inLavaChamber = this.player.x > 12.1;
+        const inLavaChamber = (this.player.z > this.hallNorthZ - 1.5) && (this.player.x > 12.1);
 
         if (inLavaChamber) {
             const prevY = this.player.y || 0;
@@ -11732,14 +12345,37 @@ class SeelenfunkeLouvreShowroom3D {
                 }
             }
 
+            // Rhythmische Magma-Geysire: Ohne 3 · Schutzschild -> Reset zum letzten Checkpoint; MIT 3 · Schutzschild prallt Glut ab!
+            for (let gi = 0; gi < this.lavaGeysers.length; gi++) {
+                const gy = this.lavaGeysers[gi];
+                if (gy.eruptFactor > 0.34 && this.player.y <= gy.currentTopY) {
+                    const dGeyser = Math.hypot(this.player.x - gy.x, this.player.z - gy.z);
+                    if (dGeyser < 0.96) {
+                        if (this.player.shieldTimer > 0) {
+                            if (gy.shieldDeflectCd <= 0) {
+                                gy.shieldDeflectCd = 0.55;
+                                this._spawnAbilityBurst(this.player.x, (this.player.y || 0) + 0.9, this.player.z, 'shield');
+                                if (this.audio && typeof this.audio.playShield === 'function') {
+                                    this.audio.playShield();
+                                }
+                            }
+                        } else {
+                            this._respawnAtLavaBalcony();
+                            shadowSurfaceY = this.player.groundY || 0.004;
+                            break;
+                        }
+                    }
+                }
+            }
+
             // Automatische Server-Run-Kopplung in der Magma-Kammer (Start -> CP1 -> CP2 -> Schatztruhe)
             if (this.player.x >= 14.0 && this.player.x <= 22.5 && !this.lavaRun.runId && !this.lavaRun.starting) {
                 this._startLavaParkourRun(false);
             }
-            if (Math.hypot(this.player.x - 31.5, this.player.z - (-2.0)) <= 2.35 && this.player.y >= 0.45 && this.player.y <= 3.2) {
+            if (Math.hypot(this.player.x - 31.5, this.player.z - (-2.0)) <= 2.35 && this.player.y >= 0.45 && this.player.y <= 3.8) {
                 this._triggerLavaCheckpoint(1, this.player.x, this.player.y, this.player.z);
             }
-            if (Math.hypot(this.player.x - 51.0, this.player.z - (-2.0)) <= 2.35 && this.player.y >= 1.35 && this.player.y <= 4.2) {
+            if (Math.hypot(this.player.x - 51.0, this.player.z - (-2.0)) <= 2.35 && this.player.y >= 1.35 && this.player.y <= 4.8) {
                 this._triggerLavaCheckpoint(2, this.player.x, this.player.y, this.player.z);
             }
             // Rueckkehr-Portal Durchschreiten auf der Schatz-Insel
@@ -11747,7 +12383,7 @@ class SeelenfunkeLouvreShowroom3D {
                 this.goToZone('gallery', true);
             }
 
-            const nearChestNow = (this.player.y >= 2.2 && Math.hypot(this.player.x - 66.5, this.player.z - (-2.0)) < 3.6);
+            const nearChestNow = (this.player.y >= 2.4 && Math.hypot(this.player.x - 66.5, this.player.z - (-2.0)) < 3.6);
             if (nearChestNow !== this.lavaRun.nearChest) {
                 this.lavaRun.nearChest = nearChestNow;
                 if (!nearChestNow) {
@@ -11768,9 +12404,14 @@ class SeelenfunkeLouvreShowroom3D {
                 this.lavaRun.nearChest = false;
                 this._notifyLavaChestUi();
             }
+            const inLabyrinth = (this.player.z > this.hallNorthZ - 1.5) && (this.player.x < -12.1);
             if (this.player.isJumping || this.player.y > 0) {
                 this.player.vy -= 15.2 * dt;
                 this.player.y += this.player.vy * dt;
+                if (inLabyrinth && this.player.y > 3.15) {
+                    this.player.y = 3.15;
+                    if (this.player.vy > 0) this.player.vy = 0;
+                }
 
                 if (this.player.isSomersault) {
                     this.player.somersaultProgress += dt / Math.max(0.01, this.player.somersaultDuration);
@@ -11792,7 +12433,6 @@ class SeelenfunkeLouvreShowroom3D {
                 }
             }
 
-            const inLabyrinth = this.player.x < -12.1;
             if (inLabyrinth) {
                 // Automatischer Start, Checkpoint CP1 (-22.0, 0.0), Boing-Spass-Pads & Heldenhallen-Abkuerzung!
                 if (this.player.x <= -13.0 && this.player.x >= -21.0 && !this.labyrinthRun.runId && !this.labyrinthRun.starting) {
@@ -11943,11 +12583,26 @@ class SeelenfunkeLouvreShowroom3D {
             this.walkTargetRing.material.opacity = clamp(this.walkTargetTimer * 0.65, 0, 0.78);
         }
 
-        // Gedaempfte Verfolgerkamera mit zonenabhaengigen Raumgrenzen + dezentem 0.14 s Kombo-4 Impakt-Impuls
+        // Gedaempfte Verfolgerkamera & butterweiche Egoperspektive (First-Person ab distance < 0.55)
         const camDamp = 1.0 - Math.exp(-9.5 * dt);
         this.camControl.yaw = lerpAngle(this.camControl.yaw, this.camControl.desiredYaw, camDamp);
         this.camControl.pitch = lerp(this.camControl.pitch, this.camControl.desiredPitch, camDamp);
         this.camControl.distance = lerp(this.camControl.distance, this.camControl.desiredDistance, camDamp);
+
+        const isFirstPerson = this.camControl.distance < 0.55;
+        this.camControl.isFirstPerson = isFirstPerson;
+        if (this.player.root) {
+            this.player.root.visible = !isFirstPerson;
+        }
+        if (isFirstPerson) {
+            if (this.player.bubbleSprite) {
+                this.player.bubbleSprite.visible = false;
+            }
+            this.player.yaw = Math.atan2(
+                Math.sin(this.camControl.yaw + Math.PI),
+                Math.cos(this.camControl.yaw + Math.PI)
+            );
+        }
 
         const baseSupportY = inLavaChamber ? (this.player.groundY || 0) : 0;
         const jumpOffsetY = Math.max(0, (this.player.y || 0) - baseSupportY);
@@ -11960,37 +12615,56 @@ class SeelenfunkeLouvreShowroom3D {
             ? Math.sin(this.elapsedTime * 68.0) * (this.camControl.shakeTimer / 0.14) * 0.12
             : 0;
 
-        const horizDist = Math.cos(this.camControl.pitch) * this.camControl.distance;
-        const rawCamX = this.camControl.lookAtCurrent.x + Math.sin(this.camControl.yaw) * horizDist;
-        const rawCamY = this.camControl.lookAtCurrent.y + Math.sin(this.camControl.pitch) * this.camControl.distance + shakeOffset;
-        const rawCamZ = this.camControl.lookAtCurrent.z + Math.cos(this.camControl.yaw) * horizDist;
+        if (isFirstPerson) {
+            const cosPitch = Math.cos(this.camControl.pitch);
+            const fwdX = -Math.sin(this.camControl.yaw) * cosPitch;
+            const fwdY = -Math.sin(this.camControl.pitch);
+            const fwdZ = -Math.cos(this.camControl.yaw) * cosPitch;
+            const fpFloorY = inLavaChamber ? 0 : this._computeFloorBaseY(this.player.x, this.player.z);
+            const fpBob = (this.player.currentSpeed > 0.25 && !this.player.isJumping)
+                ? Math.sin((this.player.walkPhase || 0) * 2.0) * 0.016
+                : 0;
+            const eyeY = fpFloorY + (this.player.y || 0) + (this.player.comboLeapY || 0) + 1.56 + fpBob + shakeOffset;
 
-        if (activeZoneNow === 'lava' || this.player.x > this.hallHalfW - 0.5) {
-            this.camera.position.set(
-                clamp(rawCamX, 8.0, this.lavaChamberMaxX - 0.6),
-                clamp(rawCamY, 0.65, 11.2),
-                clamp(rawCamZ, this.lavaChamberMinZ + 0.6, this.lavaChamberMaxZ - 0.6)
-            );
-        } else if (activeZoneNow === 'labyrinth' || this.player.x < -(this.hallHalfW - 0.5)) {
-            this.camera.position.set(
-                clamp(rawCamX, this.labyrinthMinX + 0.55, -8.0),
-                clamp(rawCamY, 0.85, 10.8),
-                clamp(rawCamZ, this.labyrinthMinZ + 0.55, this.labyrinthMaxZ - 0.55)
+            this.camera.position.set(this.player.x, eyeY, this.player.z);
+            this.camera.lookAt(
+                this.player.x + fwdX * 12.0,
+                eyeY + fwdY * 12.0,
+                this.player.z + fwdZ * 12.0
             );
         } else {
-            const maxBoundX = activeZoneNow === 'heroes'
-                ? (this.pantheonHalfW - 0.4)
-                : (this.player.z < this.hallNorthZ + 0.5 ? (this.portalHalfW - 0.25) : (this.hallHalfW - 0.65));
-            const maxBoundY = activeZoneNow === 'heroes' ? 19.5 : 11.5;
-            const minBoundZ = this.isAuthenticatedCustomer ? (this.pantheonMinZ + 0.6) : (this.hallNorthZ + 0.75);
+            const horizDist = Math.cos(this.camControl.pitch) * this.camControl.distance;
+            const rawCamX = this.camControl.lookAtCurrent.x + Math.sin(this.camControl.yaw) * horizDist;
+            const rawCamY = this.camControl.lookAtCurrent.y + Math.sin(this.camControl.pitch) * this.camControl.distance + shakeOffset;
+            const rawCamZ = this.camControl.lookAtCurrent.z + Math.cos(this.camControl.yaw) * horizDist;
 
-            this.camera.position.set(
-                clamp(rawCamX, -maxBoundX, maxBoundX),
-                clamp(rawCamY, 0.85, maxBoundY),
-                clamp(rawCamZ, minBoundZ, this.hallSouthZ - 0.55)
-            );
+            if (activeZoneNow === 'lava' || (this.player.z > this.hallNorthZ - 1.5 && this.player.x > this.hallHalfW - 0.5)) {
+                this.camera.position.set(
+                    clamp(rawCamX, 8.0, this.lavaChamberMaxX - 0.6),
+                    clamp(rawCamY, 0.65, 11.2),
+                    clamp(rawCamZ, this.lavaChamberMinZ + 0.6, this.lavaChamberMaxZ - 0.6)
+                );
+            } else if (activeZoneNow === 'labyrinth' || (this.player.z > this.hallNorthZ - 1.5 && this.player.x < -(this.hallHalfW - 0.5))) {
+                this.camera.position.set(
+                    clamp(rawCamX, this.labyrinthMinX + 0.55, -8.0),
+                    clamp(rawCamY, 0.85, 10.8),
+                    clamp(rawCamZ, this.labyrinthMinZ + 0.55, this.labyrinthMaxZ - 0.55)
+                );
+            } else {
+                const maxBoundX = activeZoneNow === 'heroes'
+                    ? (this.pantheonHalfW - 0.4)
+                    : (this.player.z < this.hallNorthZ + 0.5 ? (this.portalHalfW - 0.25) : (this.hallHalfW - 0.65));
+                const maxBoundY = activeZoneNow === 'heroes' ? 19.5 : 11.5;
+                const minBoundZ = this.isAuthenticatedCustomer ? (this.pantheonMinZ + 0.6) : (this.hallNorthZ + 0.75);
+
+                this.camera.position.set(
+                    clamp(rawCamX, -maxBoundX, maxBoundX),
+                    clamp(rawCamY, 0.85, maxBoundY),
+                    clamp(rawCamZ, minBoundZ, this.hallSouthZ - 0.55)
+                );
+            }
+            this.camera.lookAt(this.camControl.lookAtCurrent);
         }
-        this.camera.lookAt(this.camControl.lookAtCurrent);
 
         this._updateFloatingCardProjection();
 
@@ -12208,6 +12882,7 @@ export function createLouvreShowroom(options) {
             const buzzer = engine.getLabyrinthBuzzerState();
             return Object.freeze({
                 zone: engine.getCurrentZone(),
+                isFirstPerson: Boolean(engine.camControl && engine.camControl.distance < 0.55),
                 activeIndex: engine.activeIndex || 0,
                 stagesPreviewMode: engine.stagesPreviewMode || 'live',
                 x: sync.x,

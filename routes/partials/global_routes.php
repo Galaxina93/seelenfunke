@@ -161,16 +161,16 @@ Route::get('/manufaktur', function () {
 
 Route::get('/shop', ProductFrontendFilterArea::class)->name('shop');
 Route::get('/shop/showroom-data', [\App\Http\Controllers\Frontend\ShopShowroomController::class, 'index'])
-    ->middleware('throttle:60,1')
+    ->middleware('throttle:60,1,showroom_data')
     ->name('shop.showroom.data');
 Route::post('/shop/showroom-sync', [\App\Http\Controllers\Frontend\ShopShowroomController::class, 'sync'])
-    ->middleware('throttle:360,1')
+    ->middleware('throttle:90,1,showroom_sync')
     ->name('shop.showroom.sync');
 Route::post('/shop/showroom-chat', [\App\Http\Controllers\Frontend\ShopShowroomController::class, 'chat'])
-    ->middleware('throttle:30,1')
+    ->middleware('throttle:30,1,showroom_chat')
     ->name('shop.showroom.chat');
 Route::post('/shop/showroom-report', [\App\Http\Controllers\Frontend\ShopShowroomController::class, 'report'])
-    ->middleware('throttle:20,1')
+    ->middleware('throttle:20,1,showroom_report')
     ->name('shop.showroom.report');
 Route::redirect('/gutscheine', '/produkt/geschenkgutschein', 301)->name('vouchers');
 
@@ -196,35 +196,35 @@ Route::get('/calculator', function () {
 
 // 3D-Wasserstadt „Funkenwerk“ & „Halle der Helden“ (DSGVO Zero-PII JSON für Shop & Mini-PC)
 Route::get('/funkenwerk-welt/heroes-data', [\App\Http\Controllers\Api\FunkenwerkHeroesController::class, 'index'])
-    ->middleware('throttle:60,1')
+    ->middleware('throttle:60,1,heroes_data')
     ->name('gamification.funkenwerk-heroes.data');
 Route::get('/api/gamification/funkenwerk-heroes', [\App\Http\Controllers\Api\FunkenwerkHeroesController::class, 'index'])
-    ->middleware('throttle:60,1')
+    ->middleware('throttle:60,1,heroes_api')
     ->name('gamification.funkenwerk-heroes.api');
 
 // Multi-Instanz 3D-User-Lobby (Auto-Sharding Soft-Cap 16 / Hard-Cap 20, Zero-PII)
 Route::post('/funkenwerk-welt/lobby/join', [\App\Http\Controllers\Api\CustomerLobbyController::class, 'join'])
-    ->middleware('throttle:120,1')
+    ->middleware('throttle:60,1,lobby_join')
     ->name('gamification.funkenwerk-lobby.join');
 Route::post('/funkenwerk-welt/lobby/sync', [\App\Http\Controllers\Api\CustomerLobbyController::class, 'sync'])
-    ->middleware('throttle:120,1')
+    ->middleware('throttle:180,1,lobby_sync')
     ->name('gamification.funkenwerk-lobby.sync');
 Route::post('/funkenwerk-welt/lobby/switch', [\App\Http\Controllers\Api\CustomerLobbyController::class, 'switchInstance'])
-    ->middleware('throttle:120,1')
+    ->middleware('throttle:60,1,lobby_switch')
     ->name('gamification.funkenwerk-lobby.switch');
 Route::post('/funkenwerk-welt/lobby/leave', [\App\Http\Controllers\Api\CustomerLobbyController::class, 'leave'])
-    ->middleware('throttle:120,1')
+    ->middleware('throttle:60,1,lobby_leave')
     ->name('gamification.funkenwerk-lobby.leave');
 
 // Lava-Parkour Schatztruhe (Server-Authoritative Anti-Cheat, +5 Funken 1x pro Kalendertag)
 Route::post('/funkenwerk-welt/lava-parkour/start', [\App\Http\Controllers\Api\LavaParkourController::class, 'start'])
-    ->middleware('throttle:60,1')
+    ->middleware('throttle:60,1,lava_start')
     ->name('gamification.lava-parkour.start');
 Route::post('/funkenwerk-welt/lava-parkour/checkpoint', [\App\Http\Controllers\Api\LavaParkourController::class, 'checkpoint'])
-    ->middleware('throttle:90,1')
+    ->middleware('throttle:90,1,lava_cp')
     ->name('gamification.lava-parkour.checkpoint');
 Route::post('/funkenwerk-welt/lava-parkour/claim', [\App\Http\Controllers\Api\LavaParkourController::class, 'claim'])
-    ->middleware('throttle:15,1')
+    ->middleware('throttle:30,1,lava_claim')
     ->name('gamification.lava-parkour.claim');
 
 // Mini-Labyrinth Gag im West-Fluegel (Server-Authoritative Anti-Cheat, +3 Funken 1x pro Kalendertag)
@@ -232,10 +232,10 @@ Route::post('/funkenwerk-welt/labyrinth/start', [\App\Http\Controllers\Api\MiniL
     ->middleware('throttle:60,1,labyrinth_start')
     ->name('gamification.mini-labyrinth.start');
 Route::post('/funkenwerk-welt/labyrinth/checkpoint', [\App\Http\Controllers\Api\MiniLabyrinthController::class, 'checkpoint'])
-    ->middleware('throttle:90,1,labyrinth_checkpoint')
+    ->middleware('throttle:90,1,labyrinth_cp')
     ->name('gamification.mini-labyrinth.checkpoint');
 Route::post('/funkenwerk-welt/labyrinth/claim', [\App\Http\Controllers\Api\MiniLabyrinthController::class, 'claim'])
-    ->middleware('throttle:15,1,labyrinth_claim')
+    ->middleware('throttle:30,1,labyrinth_claim')
     ->name('gamification.mini-labyrinth.claim');
 
 // --- 4. Rechtliches & Weiteres ---
